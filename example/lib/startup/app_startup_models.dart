@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:ianvs_pty/ianvs_pty.dart';
 
 import '../data/configuration/data_api_configuration.dart';
+import '../data/configuration/data_api_configuration_providers.dart';
 import '../data/configuration/data_api_configuration_repository.dart';
 import '../data/services/data_api_remote_session_store.dart';
 import '../data/services/data_api_runtime.dart';
@@ -104,8 +105,24 @@ abstract interface class AppStartupDataSettingsCapability {
 
   Future<void> saveDisabled();
 
+  Future<void> saveLocal();
+
   Future<void> reconnect(DataApiRemoteLoginRequest request);
 }
+
+/// Optional startup gate implemented by hosts that require an initial Data API
+/// mode decision before the runtime may be composed.
+///
+/// Keeping this separate from [AppStartupDataSettingsCapability] preserves the
+/// recovery-settings contract for embedders that do not have first-launch
+/// onboarding.
+abstract interface class AppStartupInitialDataSetupCapability {
+  Future<AppStartupDataSetupRequirement?> initialSetupRequirement(
+    DataApiConfiguration configuration,
+  );
+}
+
+enum AppStartupDataSetupRequirement { optional, required }
 
 final class AppStartupFailure {
   AppStartupFailure({
@@ -133,6 +150,20 @@ final class AppStartupLoading extends AppStartupState {
   const AppStartupLoading({required this.attempt});
 
   final int attempt;
+}
+
+final class AppStartupDataSetupRequired extends AppStartupState {
+  const AppStartupDataSetupRequired({
+    required this.attempt,
+    required this.requirement,
+    required this.settings,
+  });
+
+  final int attempt;
+  final AppStartupDataSetupRequirement requirement;
+  final AppStartupDataSettingsCapability settings;
+
+  bool get canSkip => requirement == AppStartupDataSetupRequirement.optional;
 }
 
 final class AppStartupReady extends AppStartupState {
@@ -181,6 +212,7 @@ final class AppRuntimeGraph {
     required this.persistenceRepositories,
     required this.recordingRepository,
     required this.shutdownCoordinator,
+    this.localMigrationRuntimeStarter,
   }) {
     if (dataApiRuntime case final runtime?) {
       shutdownCoordinator.registerTask(
@@ -201,6 +233,7 @@ final class AppRuntimeGraph {
   final PersistenceRepositoryComposition persistenceRepositories;
   final LocalSessionRecordingRepository recordingRepository;
   final AppShutdownCoordinator shutdownCoordinator;
+  final DataApiLocalMigrationRuntimeStarter? localMigrationRuntimeStarter;
 
   Future<void>? _boundedCloseFuture;
   Future<void>? _settledCloseFuture;

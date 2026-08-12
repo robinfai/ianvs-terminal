@@ -58,6 +58,9 @@ Widget buildIanvsTerminalRoot({
         dataApiPersistenceRequired: dataApiPersistenceRequired,
         dataApiPersistenceUnavailable: dataApiPersistenceUnavailable,
       );
+  final activeDataApiDeployment =
+      effectiveDataApiRuntime?.deployment ??
+      runtimeGraph?.dataApiConfiguration.deployment;
   return ProviderScope(
     key: providerScopeKey,
     overrides: [
@@ -89,6 +92,10 @@ Widget buildIanvsTerminalRoot({
       if (effectiveDataApiConfigurationRepository != null)
         dataApiConfigurationRepositoryProvider.overrideWithValue(
           effectiveDataApiConfigurationRepository,
+        ),
+      if (runtimeGraph?.localMigrationRuntimeStarter != null)
+        dataApiLocalMigrationRuntimeStarterProvider.overrideWithValue(
+          runtimeGraph!.localMigrationRuntimeStarter,
         ),
       dataApiConfigurationRecoveryRequiredProvider.overrideWithValue(
         dataApiConfigurationRecoveryRequired,
@@ -138,9 +145,11 @@ Widget buildIanvsTerminalRoot({
         ? DataApiLifecycleBoundary(
             runtime: effectiveDataApiRuntime,
             shutdownCoordinator: shutdownCoordinator,
-            child: const IanvsTerminalApp(),
+            child: IanvsTerminalApp(
+              activeDataApiDeployment: activeDataApiDeployment,
+            ),
           )
-        : const IanvsTerminalApp(),
+        : IanvsTerminalApp(activeDataApiDeployment: activeDataApiDeployment),
   );
 }
 

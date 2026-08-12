@@ -70,6 +70,14 @@ final class _AppStartupHostState extends State<AppStartupHost> {
             AppStartupLoading(:final attempt) => _StartupMaterialApp(
               home: _AppStartupLoadingView(attempt: attempt),
             ),
+            AppStartupDataSetupRequired(:final requirement, :final settings) =>
+              _StartupMaterialApp(
+                home: _AppStartupDataSetupView(
+                  requirement: requirement,
+                  settings: settings,
+                  coordinator: widget.coordinator,
+                ),
+              ),
             AppStartupRecoverableFailure(:final failure) => _StartupMaterialApp(
               home: _AppStartupFailureView(
                 failure: failure,
@@ -110,6 +118,360 @@ final class _StartupMaterialApp extends StatelessWidget {
         platform: defaultTargetPlatform,
       ),
       home: home,
+    );
+  }
+}
+
+final class _AppStartupDataSetupView extends StatefulWidget {
+  const _AppStartupDataSetupView({
+    required this.requirement,
+    required this.settings,
+    required this.coordinator,
+  });
+
+  final AppStartupDataSetupRequirement requirement;
+  final AppStartupDataSettingsCapability settings;
+  final AppStartupCoordinator coordinator;
+
+  @override
+  State<_AppStartupDataSetupView> createState() =>
+      _AppStartupDataSetupViewState();
+}
+
+final class _AppStartupDataSetupViewState
+    extends State<_AppStartupDataSetupView> {
+  final _urlController = TextEditingController();
+  final _usernameController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _encryptionKeyController = TextEditingController();
+  bool _runningAction = false;
+  String? _actionError;
+
+  bool get _canConnect =>
+      _urlController.text.trim().isNotEmpty &&
+      _usernameController.text.trim().isNotEmpty &&
+      _passwordController.text.isNotEmpty &&
+      _encryptionKeyController.text.isNotEmpty;
+
+  @override
+  void initState() {
+    super.initState();
+    for (final controller in _controllers) {
+      controller.addListener(_handleInputChanged);
+    }
+  }
+
+  List<TextEditingController> get _controllers => <TextEditingController>[
+    _urlController,
+    _usernameController,
+    _passwordController,
+    _encryptionKeyController,
+  ];
+
+  void _handleInputChanged() {
+    if (mounted) {
+      setState(() {
+        _actionError = null;
+      });
+    }
+  }
+
+  Future<void> _connect() async {
+    if (!_canConnect || _runningAction) {
+      return;
+    }
+    await _run(() async {
+      final configuration = DataApiConfiguration.remote(_urlController.text);
+      await widget.settings.reconnect(
+        DataApiRemoteLoginRequest(
+          baseUri: configuration.remoteBaseUri!,
+          username: _usernameController.text,
+          password: _passwordController.text,
+          encryptionKey: _encryptionKeyController.text,
+        ),
+      );
+      await widget.coordinator.retry();
+    });
+  }
+
+  Future<void> _skip() async {
+    if (widget.requirement != AppStartupDataSetupRequirement.optional ||
+        _runningAction) {
+      return;
+    }
+    await _run(() async {
+      await widget.settings.saveDisabled();
+      await widget.coordinator.retry();
+    });
+  }
+
+  Future<void> _useLocalApi() async {
+    if (widget.requirement != AppStartupDataSetupRequirement.optional ||
+        !widget.settings.localDataApiAvailable ||
+        _runningAction) {
+      return;
+    }
+    await _run(() async {
+      await widget.settings.saveLocal();
+      await widget.coordinator.retry();
+    });
+  }
+
+  Future<void> _run(Future<void> Function() action) async {
+    setState(() {
+      _runningAction = true;
+      _actionError = null;
+    });
+    try {
+      await action();
+    } on Object catch (error) {
+      if (mounted) {
+        setState(() {
+          _actionError = error.toString();
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _runningAction = false;
+        });
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final controller in _controllers) {
+      controller
+        ..removeListener(_handleInputChanged)
+        ..dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final canSkip =
+        widget.requirement == AppStartupDataSetupRequirement.optional;
+    final theme = Theme.of(context);
+    return Scaffold(
+      key: const Key('app-startup-data-api-setup'),
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final minimumHeight = constraints.maxHeight > 64
+                ? constraints.maxHeight - 64
+                : 0.0;
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(32),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: minimumHeight),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 560),
+                    child: Card(
+                      margin: EdgeInsets.zero,
+                      child: Padding(
+                        padding: const EdgeInsets.all(28),
+                        child: AutofillGroup(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Icon(
+                                Icons.cloud_outlined,
+                                size: 44,
+                                color: theme.colorScheme.primary,
+                              ),
+                              const SizedBox(height: 20),
+                              Text(
+                                'Choose your data mode',
+                                textAlign: TextAlign.center,
+                                style: theme.textTheme.headlineSmall,
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                canSkip
+                                    ? 'Use only local terminals, start the '
+                                          'bundled offline API, or connect a '
+                                          'remote API for cross-device sync.'
+                                    : 'A remote HTTP API connection is '
+                                          'required before Ianvs Terminal can '
+                                          'be used on iOS.',
+                                textAlign: TextAlign.center,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                              const SizedBox(height: 28),
+                              TextField(
+                                key: const Key(
+                                  'app-startup-initial-data-api-url',
+                                ),
+                                controller: _urlController,
+                                autofocus: true,
+                                keyboardType: TextInputType.url,
+                                textInputAction: TextInputAction.next,
+                                autocorrect: false,
+                                enableSuggestions: false,
+                                decoration: const InputDecoration(
+                                  labelText: 'HTTP API URL',
+                                  hintText: 'https://api.example.com/',
+                                ),
+                                enabled: !_runningAction,
+                              ),
+                              const SizedBox(height: 14),
+                              TextField(
+                                key: const Key(
+                                  'app-startup-initial-data-api-username',
+                                ),
+                                controller: _usernameController,
+                                textInputAction: TextInputAction.next,
+                                autocorrect: false,
+                                enableSuggestions: false,
+                                autofillHints: const <String>[
+                                  AutofillHints.username,
+                                ],
+                                decoration: const InputDecoration(
+                                  labelText: 'Username',
+                                ),
+                                enabled: !_runningAction,
+                              ),
+                              const SizedBox(height: 14),
+                              TextField(
+                                key: const Key(
+                                  'app-startup-initial-data-api-password',
+                                ),
+                                controller: _passwordController,
+                                textInputAction: TextInputAction.next,
+                                obscureText: true,
+                                autocorrect: false,
+                                enableSuggestions: false,
+                                autofillHints: const <String>[
+                                  AutofillHints.password,
+                                ],
+                                decoration: const InputDecoration(
+                                  labelText: 'Password',
+                                ),
+                                enabled: !_runningAction,
+                              ),
+                              const SizedBox(height: 14),
+                              TextField(
+                                key: const Key(
+                                  'app-startup-initial-data-api-encryption-key',
+                                ),
+                                controller: _encryptionKeyController,
+                                textInputAction: TextInputAction.done,
+                                obscureText: true,
+                                autocorrect: false,
+                                enableSuggestions: false,
+                                decoration: const InputDecoration(
+                                  labelText: 'Encryption key',
+                                  helperText:
+                                      'Stored in the platform credential vault.',
+                                ),
+                                enabled: !_runningAction,
+                                onSubmitted: (_) => _connect(),
+                              ),
+                              if (_actionError case final error?) ...[
+                                const SizedBox(height: 14),
+                                Text(
+                                  error,
+                                  key: const Key(
+                                    'app-startup-initial-data-api-error',
+                                  ),
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.error,
+                                  ),
+                                ),
+                              ],
+                              if (_runningAction) ...[
+                                const SizedBox(height: 18),
+                                const LinearProgressIndicator(),
+                              ],
+                              const SizedBox(height: 24),
+                              if (canSkip)
+                                Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    OutlinedButton.icon(
+                                      key: const Key(
+                                        'app-startup-use-local-api',
+                                      ),
+                                      onPressed:
+                                          !_runningAction &&
+                                              widget
+                                                  .settings
+                                                  .localDataApiAvailable
+                                          ? _useLocalApi
+                                          : null,
+                                      icon: const Icon(Icons.storage_rounded),
+                                      label: const Text(
+                                        'Use bundled local API',
+                                      ),
+                                    ),
+                                    const SizedBox(height: 10),
+                                    OverflowBar(
+                                      alignment: MainAxisAlignment.spaceBetween,
+                                      overflowAlignment:
+                                          OverflowBarAlignment.end,
+                                      spacing: 12,
+                                      children: [
+                                        TextButton(
+                                          key: const Key(
+                                            'app-startup-skip-data-api',
+                                          ),
+                                          onPressed: _runningAction
+                                              ? null
+                                              : _skip,
+                                          child: const Text(
+                                            'Use local terminal only',
+                                          ),
+                                        ),
+                                        FilledButton.icon(
+                                          key: const Key(
+                                            'app-startup-connect-data-api',
+                                          ),
+                                          onPressed:
+                                              !_runningAction && _canConnect
+                                              ? _connect
+                                              : null,
+                                          icon: const Icon(Icons.login_rounded),
+                                          label: const Text(
+                                            'Connect remote API',
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                )
+                              else
+                                SizedBox(
+                                  height: 48,
+                                  child: FilledButton.icon(
+                                    key: const Key(
+                                      'app-startup-connect-data-api',
+                                    ),
+                                    onPressed: !_runningAction && _canConnect
+                                        ? _connect
+                                        : null,
+                                    icon: const Icon(Icons.login_rounded),
+                                    label: const Text('Connect and continue'),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
     );
   }
 }
@@ -318,8 +680,9 @@ final class _AppStartupDataSettingsDialogState
       builder: (dialogContext) => AlertDialog(
         title: const Text('Disable the data service?'),
         content: const Text(
-          'This explicitly switches persistence to local files on the next '
-          'startup attempt. Existing remote data is not deleted.',
+          'This explicitly switches to local-terminal-only mode on the next '
+          'startup attempt. No API process will start; existing remote data '
+          'is not deleted.',
         ),
         actions: [
           TextButton(
@@ -329,7 +692,7 @@ final class _AppStartupDataSettingsDialogState
           FilledButton(
             key: const Key('app-startup-confirm-disabled'),
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Use Disabled'),
+            child: const Text('Use local terminal'),
           ),
         ],
       ),
@@ -456,10 +819,11 @@ final class _AppStartupDataSettingsDialogState
                       Text(
                         _configuration?.deployment == DataApiDeployment.local
                             ? 'The local data service could not start. Select '
-                                  'Disabled to use local JSON persistence.'
-                            : 'The data service is already Disabled. Retry '
-                                  'startup or save Disabled again to clear its '
-                                  'recovery lock.',
+                                  'local terminal mode to continue without an '
+                                  'API. Local API data is retained.'
+                            : 'The app is already in local terminal mode. '
+                                  'Retry startup or save that mode again to '
+                                  'clear its recovery lock.',
                       ),
                     ],
                     if (_saveError case final error?) ...[
@@ -488,7 +852,7 @@ final class _AppStartupDataSettingsDialogState
         OutlinedButton(
           key: const Key('app-startup-save-disabled'),
           onPressed: _saving ? null : _disable,
-          child: const Text('Use Disabled'),
+          child: const Text('Use local terminal'),
         ),
         if (remoteUri != null)
           FilledButton(

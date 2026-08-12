@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:app/features/profiles/dynamic_profiles_sheet.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/profiles/profiles_sheet.dart';
+import 'package:app/features/terminal/terminal.dart' as terminal;
 import 'package:app/ui/app_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -133,6 +134,34 @@ void main() {
       (result! as CreateProfileResult).connectionType,
       NewProfileConnectionType.sshSession,
     );
+  });
+
+  testWidgets('local-only profiles allow local creation but not custom SSH', (
+    tester,
+  ) async {
+    final local = defaultTerminalProfile();
+    final ssh = local.copyWith(
+      id: 'hidden-ssh',
+      name: 'Hidden SSH',
+      connection: const terminal.TerminalConnectionConfig.ssh(
+        host: 'ssh.example.test',
+        user: 'developer',
+      ),
+    );
+
+    await _pumpProfilesSheetHarness(
+      tester,
+      profiles: <TerminalProfile>[local, ssh],
+      effectiveDefaultProfileId: local.id,
+      customSshProfilesEnabled: false,
+      onClosed: (_) {},
+    );
+
+    expect(find.byKey(const Key('profile-entry-hidden-ssh')), findsNothing);
+    await tester.tap(find.byKey(const Key('profiles-create')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('profiles-create-local')), findsOneWidget);
+    expect(find.byKey(const Key('profiles-create-ssh')), findsNothing);
   });
 
   testWidgets(
@@ -338,6 +367,7 @@ Future<void> _pumpProfilesSheetHarness(
   required String? effectiveDefaultProfileId,
   required ValueChanged<ProfilesSheetResult?> onClosed,
   TargetPlatform platform = TargetPlatform.macOS,
+  bool customSshProfilesEnabled = true,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
@@ -358,6 +388,7 @@ Future<void> _pumpProfilesSheetHarness(
                       builder: (_) => ProfilesSheet(
                         profiles: profiles,
                         effectiveDefaultProfileId: effectiveDefaultProfileId,
+                        customSshProfilesEnabled: customSshProfilesEnabled,
                       ),
                     ),
                   );

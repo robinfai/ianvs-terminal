@@ -25,6 +25,8 @@ class DefaultsAndAppearanceSelection {
     required this.keybindings,
     this.dataApiConfiguration = const DataApiConfiguration.disabled(),
     this.dataApiRemoteLogin,
+    this.migrateLocalDataToRemote = false,
+    this.migrateRemoteDataToLocal = false,
     this.updatedProfile,
     this.openProfiles = false,
   });
@@ -40,6 +42,8 @@ class DefaultsAndAppearanceSelection {
   final LocalTerminalKeybindingsConfig keybindings;
   final DataApiConfiguration dataApiConfiguration;
   final DataApiRemoteLoginRequest? dataApiRemoteLogin;
+  final bool migrateLocalDataToRemote;
+  final bool migrateRemoteDataToLocal;
   final TerminalProfile? updatedProfile;
   final bool openProfiles;
 }
@@ -59,6 +63,7 @@ class DefaultsAndAppearanceDialog extends StatefulWidget {
     required this.reportVariableDecisions,
     this.keybindings = const LocalTerminalKeybindingsConfig(),
     this.dataApiConfiguration = const DataApiConfiguration.disabled(),
+    this.activeDataApiDeployment,
     this.dataApiConfigurationRecoveryRequired = false,
     this.localDataApiAvailable = false,
   });
@@ -75,6 +80,7 @@ class DefaultsAndAppearanceDialog extends StatefulWidget {
   final Map<String, LocalTerminalReportVariablePolicy> reportVariableDecisions;
   final LocalTerminalKeybindingsConfig keybindings;
   final DataApiConfiguration dataApiConfiguration;
+  final DataApiDeployment? activeDataApiDeployment;
   final bool dataApiConfigurationRecoveryRequired;
   final bool localDataApiAvailable;
 
@@ -202,6 +208,19 @@ class _DefaultsAndAppearanceDialogState
     return selected?.deployment == DataApiDeployment.remote &&
         (selected != widget.dataApiConfiguration || _remoteReconnectRequested);
   }
+
+  bool get _migratesLocalDataToRemote {
+    return _sourceDataApiDeployment == DataApiDeployment.local &&
+        _selectedDataApiDeployment == DataApiDeployment.remote;
+  }
+
+  bool get _migratesRemoteDataToLocal {
+    return _sourceDataApiDeployment == DataApiDeployment.remote &&
+        _selectedDataApiDeployment == DataApiDeployment.local;
+  }
+
+  DataApiDeployment get _sourceDataApiDeployment =>
+      widget.activeDataApiDeployment ?? widget.dataApiConfiguration.deployment;
 
   DataApiRemoteLoginRequest? get _remoteLoginRequest {
     final configuration = _selectedDataApiConfiguration;
@@ -968,6 +987,22 @@ class _DefaultsAndAppearanceDialogState
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      Semantics(
+                        key: const Key('data-api-active-deployment'),
+                        label:
+                            'Active data service: '
+                            '${_sourceDataApiDeployment.name}',
+                        child: Text(
+                          'Active now: ${switch (_sourceDataApiDeployment) {
+                            DataApiDeployment.disabled => 'Local terminal',
+                            DataApiDeployment.local => 'Bundled local service',
+                            DataApiDeployment.remote => 'Remote service',
+                          }}',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: theme.textSubtle),
+                        ),
+                      ),
+                      SizedBox(height: theme.spacing.xs),
                       RadioGroup<DataApiDeployment>(
                         groupValue: _selectedDataApiDeployment,
                         onChanged: (deployment) {
@@ -983,9 +1018,10 @@ class _DefaultsAndAppearanceDialogState
                             const AppCompactRadioTile<DataApiDeployment>(
                               tileKey: Key('data-api-disabled'),
                               value: DataApiDeployment.disabled,
-                              title: Text('Disabled'),
+                              title: Text('Local terminal'),
                               subtitle: Text(
-                                'Keep terminal data in the existing local repositories.',
+                                'No API process. Use local shells and hosts '
+                                'from ~/.ssh/config only.',
                               ),
                             ),
                             if (widget.localDataApiAvailable)
@@ -994,7 +1030,33 @@ class _DefaultsAndAppearanceDialogState
                                 value: DataApiDeployment.local,
                                 title: Text('Bundled local service'),
                                 subtitle: Text(
-                                  'Start the bundled service and local SQLite database.',
+                                  'Offline API persistence and custom SSH '
+                                  'profiles on this Mac.',
+                                ),
+                              ),
+                            if (_migratesRemoteDataToLocal)
+                              Padding(
+                                padding: EdgeInsets.only(
+                                  top: theme.spacing.sm,
+                                  bottom: theme.spacing.sm,
+                                ),
+                                child: const AppPanel(
+                                  key: Key(
+                                    'data-api-remote-to-local-migration',
+                                  ),
+                                  tone: AppPanelTone.chrome,
+                                  child: ListTile(
+                                    leading: Icon(
+                                      Icons.cloud_download_outlined,
+                                    ),
+                                    title: Text('Migrate remote API data'),
+                                    subtitle: Text(
+                                      'The app starts a temporary bundled API '
+                                      'and merges remote resources before '
+                                      'switching. Remote data is retained if '
+                                      'startup, export, or merge fails.',
+                                    ),
+                                  ),
                                 ),
                               ),
                             const AppCompactRadioTile<DataApiDeployment>(
@@ -1002,7 +1064,8 @@ class _DefaultsAndAppearanceDialogState
                               value: DataApiDeployment.remote,
                               title: Text('Remote service'),
                               subtitle: Text(
-                                'Connect over HTTPS. Loopback HTTP is available only for development.',
+                                'Custom SSH profiles, persistent settings, '
+                                'and cross-device sync over HTTPS.',
                               ),
                             ),
                           ],
@@ -1011,6 +1074,22 @@ class _DefaultsAndAppearanceDialogState
                       if (_selectedDataApiDeployment ==
                           DataApiDeployment.remote) ...[
                         SizedBox(height: theme.spacing.sm),
+                        if (_migratesLocalDataToRemote) ...[
+                          const AppPanel(
+                            key: Key('data-api-local-to-remote-migration'),
+                            tone: AppPanelTone.chrome,
+                            child: ListTile(
+                              leading: Icon(Icons.cloud_upload_outlined),
+                              title: Text('Migrate local API data'),
+                              subtitle: Text(
+                                'The app exports and merges local resources '
+                                'before switching. Local data is retained if '
+                                'authentication, export, or merge fails.',
+                              ),
+                            ),
+                          ),
+                          SizedBox(height: theme.spacing.sm),
+                        ],
                         if (_selectedDataApiConfiguration ==
                             widget.dataApiConfiguration)
                           AppActionButton(
@@ -1285,7 +1364,11 @@ class _DefaultsAndAppearanceDialogState
                 ),
                 AppActionButton(
                   buttonKey: const Key('defaults-save'),
-                  label: 'Save changes',
+                  label: _migratesLocalDataToRemote
+                      ? 'Migrate to remote API'
+                      : _migratesRemoteDataToLocal
+                      ? 'Migrate to local API'
+                      : 'Save changes',
                   onPressed:
                       LocalTerminalKeyBindingResolver.conflicts(
                             LocalTerminalKeyBindingResolver.resolve(
@@ -1315,6 +1398,10 @@ class _DefaultsAndAppearanceDialogState
                               dataApiConfiguration:
                                   selectedDataApiConfiguration,
                               dataApiRemoteLogin: remoteLoginRequest,
+                              migrateLocalDataToRemote:
+                                  _migratesLocalDataToRemote,
+                              migrateRemoteDataToLocal:
+                                  _migratesRemoteDataToLocal,
                               updatedProfile: _updatedProfileForPreset(
                                 effectiveProfile,
                               ),
@@ -1325,7 +1412,7 @@ class _DefaultsAndAppearanceDialogState
                 ),
               ],
             );
-            if (constraints.maxWidth < 440) {
+            if (constraints.maxWidth < 800) {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [

@@ -4,6 +4,8 @@ import 'package:app/app.dart';
 import 'package:app/data/configuration/data_api_configuration.dart';
 import 'package:app/data/configuration/data_api_configuration_repository.dart';
 import 'package:app/data/services/data_api_remote_session_store.dart';
+import 'package:app/features/layout/local_terminal_layout_models.dart';
+import 'package:app/features/layout/local_terminal_layout_repository.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/pty/pty.dart';
 import 'package:app/features/sessions/session_controller.dart';
@@ -103,6 +105,9 @@ void main() {
             localTerminalConfigRepositoryProvider.overrideWithValue(
               MemoryLocalTerminalConfigRepository(null),
             ),
+            localTerminalLayoutRepositoryProvider.overrideWithValue(
+              _NoLayoutRepository(),
+            ),
             localSessionRecordingRepositoryProvider.overrideWithValue(
               noIoLocalSessionRecordingRepository(),
             ),
@@ -112,6 +117,18 @@ void main() {
           child: const IanvsTerminalApp(),
         ),
       );
+      await tester.pumpAndSettle();
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(IanvsTerminalApp)),
+      );
+      for (
+        var pump = 0;
+        pump < 100 && !container.read(sessionControllerProvider).isReady;
+        pump += 1
+      ) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('shell-chrome-bar')), findsOneWidget);
@@ -234,6 +251,14 @@ final class _DisabledConfigurationRepository
   Future<void> save(DataApiConfiguration configuration) async {}
 }
 
+final class _NoLayoutRepository extends LocalTerminalLayoutRepository {
+  @override
+  Future<void> save(TerminalLayout layout) async {}
+
+  @override
+  Future<TerminalLayout?> load() async => null;
+}
+
 final class _EmptyRemoteSessionStore implements DataApiRemoteSessionSlotStore {
   @override
   Future<void> deleteSlot(String slotRef) async {}
@@ -263,4 +288,7 @@ final class _DisabledStartupSettings
 
   @override
   Future<void> saveDisabled() async {}
+
+  @override
+  Future<void> saveLocal() async {}
 }

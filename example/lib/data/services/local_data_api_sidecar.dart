@@ -8,7 +8,20 @@ import 'package:ffi/ffi.dart';
 import 'data_api_local_access_token.dart';
 import 'data_api_runtime.dart';
 
-class LocalDataApiSidecar {
+abstract interface class LocalDataApiSidecarHandle {
+  Uri get baseUri;
+
+  Future<void> close();
+}
+
+typedef LocalDataApiSidecarLauncher =
+    Future<LocalDataApiSidecarHandle> Function({
+      required File binary,
+      required File database,
+      required String localAccessToken,
+    });
+
+class LocalDataApiSidecar implements LocalDataApiSidecarHandle {
   LocalDataApiSidecar._({
     required this.baseUri,
     required LocalDataApiSidecarResourceCleanup resourceCleanup,
@@ -23,6 +36,7 @@ class LocalDataApiSidecar {
     'PATH': '/usr/bin:/bin',
   };
 
+  @override
   final Uri baseUri;
   final LocalDataApiSidecarResourceCleanup _resourceCleanup;
   Future<void>? _closeFuture;
@@ -150,6 +164,7 @@ class LocalDataApiSidecar {
     }
   }
 
+  @override
   Future<void> close() => _closeFuture ??= _resourceCleanup.close();
 }
 

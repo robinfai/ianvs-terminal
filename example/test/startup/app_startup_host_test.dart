@@ -79,6 +79,127 @@ void main() {
     );
   });
 
+  testWidgets('macOS initial data setup can be skipped and is persisted', (
+    tester,
+  ) async {
+    final harness = _HostHarness.create(
+      initialSetupRequirement: AppStartupDataSetupRequirement.optional,
+    );
+    addTearDown(() => _disposeHarness(tester, harness));
+
+    await tester.pumpWidget(harness.host());
+    await harness.coordinator.start();
+    await tester.pump();
+
+    expect(harness.coordinator.state, isA<AppStartupDataSetupRequired>());
+    expect(harness.composeCount, 0);
+    expect(find.text('Choose your data mode'), findsOneWidget);
+    expect(find.byKey(const Key('app-startup-skip-data-api')), findsOneWidget);
+
+    await tester.ensureVisible(
+      find.byKey(const Key('app-startup-skip-data-api')),
+    );
+    await tester.tap(find.byKey(const Key('app-startup-skip-data-api')));
+    await tester.pumpAndSettle();
+
+    expect(harness.settings.disableCount, 1);
+    expect(harness.coordinator.state, isA<AppStartupReady>());
+    expect(harness.composeCount, 1);
+  });
+
+  testWidgets('macOS initial setup can select the bundled local API', (
+    tester,
+  ) async {
+    final harness = _HostHarness.create(
+      initialSetupRequirement: AppStartupDataSetupRequirement.optional,
+    );
+    addTearDown(() => _disposeHarness(tester, harness));
+
+    await tester.pumpWidget(harness.host());
+    await harness.coordinator.start();
+    await tester.pump();
+
+    expect(find.byKey(const Key('app-startup-use-local-api')), findsOneWidget);
+    await tester.ensureVisible(
+      find.byKey(const Key('app-startup-use-local-api')),
+    );
+    await tester.tap(find.byKey(const Key('app-startup-use-local-api')));
+    await tester.pumpAndSettle();
+
+    expect(harness.settings.localCount, 1);
+    expect(harness.settings.disableCount, 0);
+    expect(harness.coordinator.state, isA<AppStartupReady>());
+  });
+
+  testWidgets('iOS initial data setup blocks use until remote login succeeds', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(375, 667);
+    addTearDown(() {
+      tester.view.resetDevicePixelRatio();
+      tester.view.resetPhysicalSize();
+    });
+    final harness = _HostHarness.create(
+      initialSetupRequirement: AppStartupDataSetupRequirement.required,
+    );
+    addTearDown(() => _disposeHarness(tester, harness));
+
+    await tester.pumpWidget(harness.host());
+    await harness.coordinator.start();
+    await tester.pump();
+
+    expect(find.byKey(const Key('app-startup-skip-data-api')), findsNothing);
+    expect(find.byKey(const Key('app-startup-use-local-api')), findsNothing);
+    expect(harness.composeCount, 0);
+
+    await tester.enterText(
+      find.byKey(const Key('app-startup-initial-data-api-url')),
+      'http://sync.example.com/',
+    );
+    await tester.enterText(
+      find.byKey(const Key('app-startup-initial-data-api-username')),
+      'operator',
+    );
+    await tester.enterText(
+      find.byKey(const Key('app-startup-initial-data-api-password')),
+      'correct horse battery',
+    );
+    await tester.enterText(
+      find.byKey(const Key('app-startup-initial-data-api-encryption-key')),
+      'sixteen-byte-key!',
+    );
+    await tester.pump();
+    final connect = find.byKey(const Key('app-startup-connect-data-api'));
+    await tester.ensureVisible(connect);
+    expect(tester.widget<FilledButton>(connect).onPressed, isNotNull);
+    await tester.tap(connect);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('app-startup-initial-data-api-error')),
+      findsOneWidget,
+    );
+    expect(harness.settings.reconnectCount, 0);
+    expect(harness.coordinator.state, isA<AppStartupDataSetupRequired>());
+
+    await tester.enterText(
+      find.byKey(const Key('app-startup-initial-data-api-url')),
+      'https://sync.example.com/',
+    );
+    await tester.ensureVisible(connect);
+    await tester.tap(connect);
+    await tester.pumpAndSettle();
+
+    expect(harness.settings.reconnectCount, 1);
+    expect(
+      harness.settings.lastReconnect?.baseUri,
+      Uri.parse('https://sync.example.com/'),
+    );
+    expect(harness.coordinator.state, isA<AppStartupReady>());
+    expect(harness.composeCount, 1);
+  });
+
   testWidgets('retry replaces the complete keyed ProviderScope graph', (
     tester,
   ) async {
@@ -427,6 +548,7 @@ final class _HostHarness {
     AppStartupStage? failingStage,
     DataApiConfiguration recoveryConfiguration =
         const DataApiConfiguration.disabled(),
+    AppStartupDataSetupRequirement? initialSetupRequirement,
     Object? settingsLoadError,
     Future<void>? pathGate,
     Duration rollbackTimeout = const Duration(seconds: 8),
@@ -441,6 +563,7 @@ final class _HostHarness {
     late final _HostHarness harness;
     final settings = _HostSettings(
       configuration: recoveryConfiguration,
+      initialSetupRequirement: initialSetupRequirement,
       loadError: settingsLoadError,
       onSaved: () => harness.failingStage = null,
     );
@@ -618,22 +741,35 @@ AppStartupConfigurationSnapshot _snapshot(DataApiConfiguration configuration) {
   );
 }
 
-final class _HostSettings implements AppStartupDataSettingsCapability {
+final class _HostSettings
+    implements
+        AppStartupDataSettingsCapability,
+        AppStartupInitialDataSetupCapability {
   _HostSettings({
     required this.configuration,
+    required AppStartupDataSetupRequirement? initialSetupRequirement,
     required this.loadError,
     required this.onSaved,
-  });
+  }) : _initialSetupRequirement = initialSetupRequirement;
 
   final DataApiConfiguration configuration;
+  AppStartupDataSetupRequirement? _initialSetupRequirement;
   final Object? loadError;
   final void Function() onSaved;
   int disableCount = 0;
+  int localCount = 0;
   int reconnectCount = 0;
   DataApiRemoteLoginRequest? lastReconnect;
 
   @override
   bool get localDataApiAvailable => true;
+
+  @override
+  Future<AppStartupDataSetupRequirement?> initialSetupRequirement(
+    DataApiConfiguration configuration,
+  ) async {
+    return _initialSetupRequirement;
+  }
 
   @override
   Future<DataApiConfiguration> loadForRecovery() async {
@@ -653,12 +789,21 @@ final class _HostSettings implements AppStartupDataSettingsCapability {
   Future<void> reconnect(DataApiRemoteLoginRequest request) async {
     reconnectCount += 1;
     lastReconnect = request;
+    _initialSetupRequirement = null;
     onSaved();
   }
 
   @override
   Future<void> saveDisabled() async {
     disableCount += 1;
+    _initialSetupRequirement = null;
+    onSaved();
+  }
+
+  @override
+  Future<void> saveLocal() async {
+    localCount += 1;
+    _initialSetupRequirement = null;
     onSaved();
   }
 }

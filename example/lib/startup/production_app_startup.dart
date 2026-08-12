@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import '../data/configuration/data_api_configuration.dart';
 import '../data/configuration/data_api_configuration_repository.dart';
 import '../data/services/data_api_bootstrap.dart';
+import '../data/services/data_api_migration_service.dart';
 import '../data/services/data_api_remote_session_store.dart';
 import '../data/services/data_api_runtime.dart';
 import '../features/pty/pty.dart';
@@ -60,6 +61,8 @@ AppStartupCoordinator createProductionAppStartupCoordinator({
               remoteSessionStore: remoteSessionStore,
               settings: _ProductionDataSettingsCapability(
                 repository: repository,
+                fileRepository: fileRepository,
+                platform: targetPlatform,
                 localDataApiAvailable: targetPlatform == TargetPlatform.macOS,
               ),
             );
@@ -135,6 +138,23 @@ AppStartupCoordinator createProductionAppStartupCoordinator({
                 directoryResolver: () async => paths.appSupportDirectory,
               ),
               shutdownCoordinator: AppShutdownCoordinator(),
+              localMigrationRuntimeStarter:
+                  targetPlatform == TargetPlatform.macOS
+                  ? () async {
+                      final runtime = await _bootstrapRuntime(
+                        paths: paths,
+                        access: configurationAccess,
+                        configuration: const DataApiConfiguration.local(),
+                        isMacOS: true,
+                      );
+                      if (runtime == null || !runtime.isLocal) {
+                        throw StateError(
+                          'The temporary bundled local API did not start.',
+                        );
+                      }
+                      return runtime;
+                    }
+                  : null,
             );
           },
     ),
@@ -211,16 +231,36 @@ Future<DataApiRuntime?> _bootstrapRuntime({
 }
 
 final class _ProductionDataSettingsCapability
-    implements AppStartupDataSettingsCapability {
+    implements
+        AppStartupDataSettingsCapability,
+        AppStartupInitialDataSetupCapability {
   const _ProductionDataSettingsCapability({
     required AuthenticatedDataApiConfigurationRepository repository,
+    required FileDataApiConfigurationRepository fileRepository,
+    required TargetPlatform platform,
     required this.localDataApiAvailable,
-  }) : _repository = repository;
+  }) : _repository = repository,
+       _fileRepository = fileRepository,
+       _platform = platform;
 
   final AuthenticatedDataApiConfigurationRepository _repository;
+  final FileDataApiConfigurationRepository _fileRepository;
+  final TargetPlatform _platform;
 
   @override
   final bool localDataApiAvailable;
+
+  @override
+  Future<AppStartupDataSetupRequirement?> initialSetupRequirement(
+    DataApiConfiguration configuration,
+  ) async {
+    return resolveInitialDataApiSetupRequirement(
+      platform: _platform,
+      hasPersistedConfiguration: await _fileRepository.configurationFile
+          .exists(),
+      configuration: configuration,
+    );
+  }
 
   @override
   Future<DataApiConfiguration> loadForRecovery() {
@@ -229,15 +269,31 @@ final class _ProductionDataSettingsCapability
 
   @override
   Future<void> reconnect(DataApiRemoteLoginRequest request) {
-    return _acceptSavedConfigurationWarning(
-      () => _repository.connectAndSaveRemote(request),
-    );
+    return _acceptSavedConfigurationWarning(() async {
+      final current = await _fileRepository.load();
+      if (current.deployment == DataApiDeployment.local) {
+        throw const DataApiExplicitMigrationRequiredException();
+      }
+      await _repository.connectAndSaveRemote(request);
+    });
   }
 
   @override
   Future<void> saveDisabled() {
     return _acceptSavedConfigurationWarning(
       () => _repository.save(const DataApiConfiguration.disabled()),
+    );
+  }
+
+  @override
+  Future<void> saveLocal() {
+    if (!localDataApiAvailable) {
+      throw UnsupportedError(
+        'The bundled local data API is available only on macOS.',
+      );
+    }
+    return _acceptSavedConfigurationWarning(
+      () => _repository.save(const DataApiConfiguration.local()),
     );
   }
 
@@ -259,4 +315,19 @@ final class _ProductionDataSettingsCapability
       }
     }
   }
+}
+
+AppStartupDataSetupRequirement? resolveInitialDataApiSetupRequirement({
+  required TargetPlatform platform,
+  required bool hasPersistedConfiguration,
+  required DataApiConfiguration configuration,
+}) {
+  return switch (platform) {
+    TargetPlatform.macOS when !hasPersistedConfiguration =>
+      AppStartupDataSetupRequirement.optional,
+    TargetPlatform.iOS
+        when configuration.deployment != DataApiDeployment.remote =>
+      AppStartupDataSetupRequirement.required,
+    _ => null,
+  };
 }

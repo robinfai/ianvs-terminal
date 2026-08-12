@@ -12,7 +12,9 @@ import '../../platform/local_json_file.dart';
 import '../data_api_json.dart';
 import '../services/data_api_auth_contract.dart';
 import '../services/data_api_client.dart';
+import '../services/data_api_migration_service.dart';
 import '../services/data_api_remote_session_store.dart';
+import '../services/data_api_runtime.dart';
 import 'data_api_configuration.dart';
 
 abstract interface class DataApiConfigurationRepository {
@@ -235,6 +237,57 @@ abstract interface class DataApiRemoteConfigurationConnector {
   Future<void> connectAndSaveRemote(DataApiRemoteLoginRequest request);
 }
 
+abstract interface class DataApiLocalToRemoteConfigurationConnector {
+  Future<DataApiMigrationSummary> migrateLocalAndSaveRemote(
+    DataApiRemoteLoginRequest request, {
+    required DataApiRuntime sourceRuntime,
+  });
+}
+
+abstract interface class DataApiRemoteToLocalConfigurationConnector {
+  Future<DataApiMigrationSummary> migrateRemoteAndSaveLocal({
+    required DataApiRuntime sourceRuntime,
+    required DataApiRuntime destinationRuntime,
+  });
+}
+
+typedef DataApiLocalToRemoteMigrationFactory =
+    DataApiMigrationService Function(
+      DataApiRuntime sourceRuntime,
+      DataApiRemoteSession destinationSession,
+    );
+
+typedef DataApiRuntimeMigrationFactory =
+    DataApiMigrationService Function(
+      DataApiRuntime sourceRuntime,
+      DataApiRuntime destinationRuntime,
+    );
+
+DataApiMigrationService _defaultRuntimeMigration(
+  DataApiRuntime sourceRuntime,
+  DataApiRuntime destinationRuntime,
+) {
+  return DataApiMigrationService(
+    source: DataApiClient.fromRuntime(sourceRuntime),
+    destination: DataApiClient.fromRuntime(destinationRuntime),
+    conflictPolicy: DataApiMigrationConflictPolicy.sourceWins,
+  );
+}
+
+DataApiMigrationService _defaultLocalToRemoteMigration(
+  DataApiRuntime sourceRuntime,
+  DataApiRemoteSession destinationSession,
+) {
+  return DataApiMigrationService(
+    source: DataApiClient.fromRuntime(sourceRuntime),
+    destination: DataApiClient(
+      baseUri: destinationSession.baseUri,
+      accessToken: destinationSession.accessToken,
+      encryptionKey: destinationSession.encryptionKey,
+    ),
+  );
+}
+
 final class DataApiClientRemoteConnectionValidator
     implements DataApiRemoteConnectionValidator {
   const DataApiClientRemoteConnectionValidator();
@@ -294,6 +347,8 @@ final class AuthenticatedDataApiConfigurationRepository
     implements
         DataApiConfigurationRepository,
         DataApiRemoteConfigurationConnector,
+        DataApiLocalToRemoteConfigurationConnector,
+        DataApiRemoteToLocalConfigurationConnector,
         DataApiConfigurationRecoveryStatus,
         DataApiConfigurationRecoveryLoader {
   AuthenticatedDataApiConfigurationRepository({
@@ -310,6 +365,8 @@ final class AuthenticatedDataApiConfigurationRepository
         const DataApiClientAuthOperationCanceler(),
     DataApiSagaJournalWriter? sagaJournalWriter,
     DataApiDisableResetDelete? disableResetDelete,
+    DataApiLocalToRemoteMigrationFactory? localToRemoteMigrationFactory,
+    DataApiRuntimeMigrationFactory? runtimeMigrationFactory,
   }) : _delegate = delegate,
        _slotStore = remoteSessionStore,
        _sagaDirectory =
@@ -324,6 +381,10 @@ final class AuthenticatedDataApiConfigurationRepository
        _remoteSessionRevoker = remoteSessionRevoker,
        _authOperationCanceler = authOperationCanceler,
        _sagaJournalWriter = sagaJournalWriter,
+       _localToRemoteMigrationFactory =
+           localToRemoteMigrationFactory ?? _defaultLocalToRemoteMigration,
+       _runtimeMigrationFactory =
+           runtimeMigrationFactory ?? _defaultRuntimeMigration,
        _disableResetDelete = disableResetDelete ?? _deleteFileIfPresent;
 
   static const int _sagaVersion = 1;
@@ -339,6 +400,8 @@ final class AuthenticatedDataApiConfigurationRepository
   final DataApiRemoteSessionRevoker _remoteSessionRevoker;
   final DataApiAuthOperationCanceler _authOperationCanceler;
   final DataApiSagaJournalWriter? _sagaJournalWriter;
+  final DataApiLocalToRemoteMigrationFactory _localToRemoteMigrationFactory;
+  final DataApiRuntimeMigrationFactory _runtimeMigrationFactory;
   final DataApiDisableResetDelete _disableResetDelete;
   _DataApiConfigurationSagaJournal _volatileJournal =
       const _DataApiConfigurationSagaJournal();
@@ -402,7 +465,6 @@ final class AuthenticatedDataApiConfigurationRepository
   @override
   Future<void> save(DataApiConfiguration configuration) {
     return _withSagaLock(() async {
-      await _preflightCurrentOnlySlotSchemasLocked();
       if (configuration.remoteBaseUri == null) {
         try {
           await _recoverDisableResetLocked();
@@ -411,6 +473,7 @@ final class AuthenticatedDataApiConfigurationRepository
             await _recoverLocked(allowUnavailableRemote: true);
           }
           final current = await _delegate.load();
+          await _preflightReferencedSlotSchemaLocked(current);
           await _commitNonRemoteLocked(current, configuration);
           return;
         } on Object catch (error, stackTrace) {
@@ -422,6 +485,7 @@ final class AuthenticatedDataApiConfigurationRepository
           return;
         }
       }
+      await _preflightCurrentOnlySlotSchemasLocked();
       await _recoverLocked(allowUnavailableRemote: true);
       final current = await _delegate.load();
       if (configuration.remoteBaseUri case final remoteBaseUri?) {
@@ -441,9 +505,80 @@ final class AuthenticatedDataApiConfigurationRepository
 
   @override
   Future<void> connectAndSaveRemote(DataApiRemoteLoginRequest request) {
+    return _connectAndSaveRemote(request, migrationSource: null).then((_) {});
+  }
+
+  @override
+  Future<DataApiMigrationSummary> migrateLocalAndSaveRemote(
+    DataApiRemoteLoginRequest request, {
+    required DataApiRuntime sourceRuntime,
+  }) async {
+    if (!sourceRuntime.isLocal || !sourceRuntime.canAccessResources) {
+      throw StateError(
+        'Local-to-remote migration requires the active bundled local API.',
+      );
+    }
+    final summary = await _connectAndSaveRemote(
+      request,
+      migrationSource: sourceRuntime,
+    );
+    if (summary == null) {
+      throw StateError('Local-to-remote migration did not produce a summary.');
+    }
+    return summary;
+  }
+
+  @override
+  Future<DataApiMigrationSummary> migrateRemoteAndSaveLocal({
+    required DataApiRuntime sourceRuntime,
+    required DataApiRuntime destinationRuntime,
+  }) {
+    if (sourceRuntime.deployment != DataApiDeployment.remote ||
+        !sourceRuntime.canAccessResources) {
+      throw StateError(
+        'Remote-to-local migration requires the active remote API.',
+      );
+    }
+    if (!destinationRuntime.isLocal || !destinationRuntime.canAccessResources) {
+      throw StateError(
+        'Remote-to-local migration requires a temporary bundled local API.',
+      );
+    }
     return _withSagaLock(() async {
       await _recoverLocked(allowUnavailableRemote: true);
       final current = await _delegate.load();
+      if (current.deployment != DataApiDeployment.remote ||
+          current.remoteBaseUri != sourceRuntime.baseUri) {
+        throw StateError(
+          'The active remote API does not match the persisted configuration.',
+        );
+      }
+      final summary = await _runtimeMigrationFactory(
+        sourceRuntime,
+        destinationRuntime,
+      ).migrate();
+      await _commitNonRemoteLocked(current, const DataApiConfiguration.local());
+      return summary;
+    });
+  }
+
+  Future<DataApiMigrationSummary?> _connectAndSaveRemote(
+    DataApiRemoteLoginRequest request, {
+    required DataApiRuntime? migrationSource,
+  }) {
+    return _withSagaLock(() async {
+      await _recoverLocked(allowUnavailableRemote: true);
+      final current = await _delegate.load();
+      if (current.deployment == DataApiDeployment.local &&
+          migrationSource == null) {
+        throw const DataApiExplicitMigrationRequiredException();
+      }
+      if (migrationSource != null &&
+          current.deployment != DataApiDeployment.local) {
+        throw StateError(
+          'Only bundled local API configuration can be migrated explicitly.',
+        );
+      }
       final newSlot = _newSlotRef();
       final transactionId = _newSlotRef();
       var journal = await _readJournal();
@@ -466,6 +601,7 @@ final class AuthenticatedDataApiConfigurationRepository
       await _writeJournal(journal);
 
       DataApiRemoteSession? issuedSession;
+      DataApiMigrationSummary? migrationSummary;
       var slotWritten = false;
       var configurationCommitted = false;
       try {
@@ -497,6 +633,12 @@ final class AuthenticatedDataApiConfigurationRepository
         );
         journal = journal.withTransition(transition);
         await _writeJournal(journal);
+        if (migrationSource != null) {
+          migrationSummary = await _localToRemoteMigrationFactory(
+            migrationSource,
+            issuedSession,
+          ).migrate();
+        }
         await _commitConfigurationLocked(
           expectedGeneration: current.generation,
           expectedDigest: transition.beforeDigest,
@@ -589,6 +731,7 @@ final class AuthenticatedDataApiConfigurationRepository
           _cleanupError(cleanupErrors)!,
         );
       }
+      return migrationSummary;
     });
   }
 
@@ -714,7 +857,7 @@ final class AuthenticatedDataApiConfigurationRepository
           }
         }
       }
-      if (!allowUnavailableRemote) {
+      if (!allowUnavailableRemote && configuration.remoteBaseUri != null) {
         await _reconcileOrphanSlotsLocked(configuration, await _readJournal());
       }
       _sagaRecoveryRequired = false;
@@ -856,6 +999,26 @@ final class AuthenticatedDataApiConfigurationRepository
         // Existing current-format recovery semantics handle malformed slots
         // and transient credential-vault failures later in the operation.
       }
+    }
+  }
+
+  Future<void> _preflightReferencedSlotSchemaLocked(
+    DataApiConfiguration configuration,
+  ) async {
+    final slot = configuration.remoteCredentialRef;
+    if (slot == null) {
+      return;
+    }
+    try {
+      await _slotStore.readSlot(slot);
+    } on DataApiRemoteSessionUnsupportedVersionException {
+      rethrow;
+    } on DataApiJsonDuplicateKeyException {
+      rethrow;
+    } on Object {
+      // An explicit non-remote selection must remain available when the
+      // platform credential vault itself is unavailable. The known slot stays
+      // in durable cleanup state and can be retried without blocking startup.
     }
   }
 

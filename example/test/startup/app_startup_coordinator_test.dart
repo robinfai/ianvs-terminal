@@ -381,6 +381,52 @@ void main() {
         expect(repository.loadCount, 2);
       },
     );
+
+    test('production initial Data API policy is platform specific', () {
+      const disabled = DataApiConfiguration.disabled();
+      final remote = DataApiConfiguration.remote('https://sync.example.com/');
+
+      expect(
+        resolveInitialDataApiSetupRequirement(
+          platform: TargetPlatform.macOS,
+          hasPersistedConfiguration: false,
+          configuration: disabled,
+        ),
+        AppStartupDataSetupRequirement.optional,
+      );
+      expect(
+        resolveInitialDataApiSetupRequirement(
+          platform: TargetPlatform.macOS,
+          hasPersistedConfiguration: true,
+          configuration: disabled,
+        ),
+        isNull,
+      );
+      expect(
+        resolveInitialDataApiSetupRequirement(
+          platform: TargetPlatform.iOS,
+          hasPersistedConfiguration: true,
+          configuration: disabled,
+        ),
+        AppStartupDataSetupRequirement.required,
+      );
+      expect(
+        resolveInitialDataApiSetupRequirement(
+          platform: TargetPlatform.iOS,
+          hasPersistedConfiguration: true,
+          configuration: remote,
+        ),
+        isNull,
+      );
+      expect(
+        resolveInitialDataApiSetupRequirement(
+          platform: TargetPlatform.android,
+          hasPersistedConfiguration: false,
+          configuration: disabled,
+        ),
+        isNull,
+      );
+    });
   });
 }
 
@@ -617,6 +663,9 @@ final class _MemorySettingsCapability
 
   @override
   Future<void> saveDisabled() async {}
+
+  @override
+  Future<void> saveLocal() async {}
 }
 
 final class _FakePtyBackend

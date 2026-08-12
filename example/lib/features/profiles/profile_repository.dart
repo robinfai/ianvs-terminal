@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import '../../platform/corrupt_file_quarantine.dart';
 import '../../platform/local_json_file.dart';
 import '../persistence/versioned_document.dart';
+import '../ssh/ssh_feature_access.dart';
 import 'profile_models.dart';
 import 'profile_secret_cipher.dart';
 
@@ -33,6 +34,110 @@ abstract class ProfileRepositoryPort {
     TerminalProfilesDocument document, {
     String basename = 'ianvs-profiles',
   });
+}
+
+/// Exposes only local terminal profiles while preserving hidden SSH profiles
+/// in the backing document.
+///
+/// Disabled and bundled-local Data API modes use this decorator. OpenSSH
+/// config entries do not pass through this repository and remain available as
+/// ephemeral session choices.
+final class LocalTerminalOnlyProfileRepository extends ProfileRepositoryPort {
+  const LocalTerminalOnlyProfileRepository({required this.delegate});
+
+  final ProfileRepositoryPort delegate;
+
+  @override
+  Future<TerminalProfilesDocument> load() async {
+    return _visibleDocument(await delegate.load());
+  }
+
+  @override
+  Future<VersionedDocument<TerminalProfilesDocument>> loadVersioned() async {
+    final loaded = await delegate.loadVersioned();
+    return loaded.withValue(_visibleDocument(loaded.value));
+  }
+
+  @override
+  Future<void> save(TerminalProfilesDocument document) async {
+    _requireLocalOnly(document);
+    final current = await delegate.load();
+    await delegate.save(_mergeWithHiddenSsh(document, current));
+  }
+
+  @override
+  Future<VersionedDocument<TerminalProfilesDocument>> saveVersioned(
+    VersionedDocument<TerminalProfilesDocument> document,
+  ) async {
+    _requireLocalOnly(document.value);
+    final current = await delegate.loadVersioned();
+    final saved = await delegate.saveVersioned(
+      VersionedDocument<TerminalProfilesDocument>(
+        value: _mergeWithHiddenSsh(document.value, current.value),
+        revision: document.revision,
+      ),
+    );
+    return saved.withValue(_visibleDocument(saved.value));
+  }
+
+  @override
+  Future<File> exportDocument(
+    TerminalProfilesDocument document, {
+    String basename = 'ianvs-profiles',
+  }) {
+    _requireLocalOnly(document);
+    return delegate.exportDocument(document, basename: basename);
+  }
+
+  TerminalProfilesDocument _visibleDocument(TerminalProfilesDocument document) {
+    final profiles = document.profiles
+        .where((profile) => !profile.isSsh)
+        .toList(growable: false);
+    final visibleProfiles = profiles.isEmpty
+        ? <TerminalProfile>[defaultTerminalProfile()]
+        : profiles;
+    final visibleIds = {for (final profile in visibleProfiles) profile.id};
+    return TerminalProfilesDocument(
+      schemaVersion: document.schemaVersion,
+      profiles: visibleProfiles,
+      loadWarnings: [
+        for (final warning in document.loadWarnings)
+          if (warning.profileId == 'document' ||
+              visibleIds.contains(warning.profileId))
+            warning,
+      ],
+      secretClearIntents: {
+        for (final entry in document.secretClearIntents.entries)
+          if (visibleIds.contains(entry.key)) entry.key: entry.value,
+      },
+    );
+  }
+
+  TerminalProfilesDocument _mergeWithHiddenSsh(
+    TerminalProfilesDocument visible,
+    TerminalProfilesDocument current,
+  ) {
+    final visibleIds = {for (final profile in visible.profiles) profile.id};
+    final hiddenSsh = current.profiles
+        .where((profile) => profile.isSsh)
+        .toList(growable: false);
+    if (hiddenSsh.any((profile) => visibleIds.contains(profile.id))) {
+      throw const CustomSshProfileConfigurationUnavailableException();
+    }
+    return TerminalProfilesDocument(
+      schemaVersion: visible.schemaVersion,
+      profiles: <TerminalProfile>[...visible.profiles, ...hiddenSsh],
+      loadWarnings: visible.loadWarnings,
+      secretClearIntents: visible.secretClearIntents,
+    );
+  }
+
+  void _requireLocalOnly(TerminalProfilesDocument document) {
+    if (document.profiles.any((profile) => profile.isSsh) ||
+        document.secretClearIntents.isNotEmpty) {
+      throw const CustomSshProfileConfigurationUnavailableException();
+    }
+  }
 }
 
 class ProfileRepository extends ProfileRepositoryPort {

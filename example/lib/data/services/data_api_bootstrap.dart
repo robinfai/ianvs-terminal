@@ -5,9 +5,9 @@ import 'dart:io';
 import '../configuration/data_api_configuration.dart';
 import '../configuration/data_api_configuration_repository.dart';
 import 'data_api_client.dart';
+import 'data_api_local_credentials.dart';
 import 'data_api_remote_session_store.dart';
 import 'data_api_runtime.dart';
-import 'data_api_secret_store.dart';
 import 'local_data_api_sidecar.dart';
 
 typedef LocalDataApiRuntimeStarter =
@@ -71,7 +71,16 @@ final class DataApiLocalInitializationTimeoutException
 /// The whole timeout is deliberately independent of the health-loop deadline:
 /// a peer that accepts a connection but never sends headers or finishes its
 /// response must not keep application startup from reaching the recovery UI.
-final class DataApiLocalApiInitializer {
+abstract interface class DataApiLocalApiInitialization {
+  Future<void> initialize({
+    required Uri baseUri,
+    required String localAccessToken,
+    required String encryptionKey,
+  });
+}
+
+final class DataApiLocalApiInitializer
+    implements DataApiLocalApiInitialization {
   DataApiLocalApiInitializer({
     HttpClient Function()? httpClientFactory,
     this.requestTimeout = const Duration(seconds: 2),
@@ -84,6 +93,7 @@ final class DataApiLocalApiInitializer {
   final Duration healthTimeout;
   final Duration initializationTimeout;
 
+  @override
   Future<void> initialize({
     required Uri baseUri,
     required String localAccessToken,
@@ -196,26 +206,32 @@ final class DataApiLocalApiInitializer {
 class DataApiBootstrap {
   DataApiBootstrap({
     DataApiConfigurationRepository? configurationRepository,
-    DataApiSecretStore? secretStore,
+    DataApiLocalCredentialsProvider? localCredentialsProvider,
     DataApiRemoteSessionSlotStore? remoteSessionStore,
     LocalDataApiRuntimeStarter? localRuntimeStarter,
-    DataApiLocalApiInitializer? localApiInitializer,
+    LocalDataApiSidecarLauncher? localSidecarLauncher,
+    DataApiLocalApiInitialization? localApiInitializer,
     Duration sidecarCloseTimeout = const Duration(seconds: 12),
     bool? isMacOS,
   }) : _configurationRepository = configurationRepository,
-       _secretStore = secretStore,
+       _localCredentialsProvider =
+           localCredentialsProvider ??
+           KeychainDataApiLocalCredentialsProvider(),
        _remoteSessionStore = remoteSessionStore,
        _localRuntimeStarter = localRuntimeStarter,
+       _localSidecarLauncher =
+           localSidecarLauncher ?? LocalDataApiSidecar.start,
        _localApiInitializer =
            localApiInitializer ?? DataApiLocalApiInitializer(),
        _sidecarCloseTimeout = sidecarCloseTimeout,
        _isMacOS = isMacOS ?? Platform.isMacOS;
 
   final DataApiConfigurationRepository? _configurationRepository;
-  final DataApiSecretStore? _secretStore;
+  final DataApiLocalCredentialsProvider _localCredentialsProvider;
   final DataApiRemoteSessionSlotStore? _remoteSessionStore;
   final LocalDataApiRuntimeStarter? _localRuntimeStarter;
-  final DataApiLocalApiInitializer _localApiInitializer;
+  final LocalDataApiSidecarLauncher _localSidecarLauncher;
+  final DataApiLocalApiInitialization _localApiInitializer;
   final Duration _sidecarCloseTimeout;
   final bool _isMacOS;
 
@@ -275,10 +291,12 @@ class DataApiBootstrap {
   Future<DataApiRuntime> _startLocalRuntime(
     Directory appSupportDirectory,
   ) async {
-    final secretStore = _secretStore ?? FlutterSecureDataApiSecretStore();
-    final localAccessToken = await secretStore.localAccessToken();
-    final encryptionKey = await secretStore.encryptionKey();
-    final sidecar = await LocalDataApiSidecar.start(
+    final credentials = await _localCredentialsProvider.createForStart(
+      appSupportDirectory,
+    );
+    final localAccessToken = credentials.bearerToken;
+    final encryptionKey = credentials.dataEncryptionKey;
+    final sidecar = await _localSidecarLauncher(
       binary: _resolveLocalApiBinary(),
       database: File(
         '${appSupportDirectory.path}${Platform.pathSeparator}'

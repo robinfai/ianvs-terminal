@@ -48,8 +48,10 @@ final class PersistenceRepositoryComposition {
         );
       }
       return PersistenceRepositoryComposition._(
-        profiles: ProfileRepository(
-          directoryResolver: profileExportDirectoryResolver,
+        profiles: LocalTerminalOnlyProfileRepository(
+          delegate: ProfileRepository(
+            directoryResolver: profileExportDirectoryResolver,
+          ),
         ),
         preferences: AppPreferencesRepository(
           directoryResolver: profileExportDirectoryResolver,
@@ -68,11 +70,12 @@ final class PersistenceRepositoryComposition {
       );
     }
     final client = DataApiClient.fromRuntime(runtime);
+    final profiles = DataApiProfileRepository(
+      client: client,
+      exportDirectoryResolver: profileExportDirectoryResolver,
+    );
     return PersistenceRepositoryComposition._(
-      profiles: DataApiProfileRepository(
-        client: client,
-        exportDirectoryResolver: profileExportDirectoryResolver,
-      ),
+      profiles: profiles,
       preferences: DataApiAppPreferencesRepository(client: client),
       terminalConfig: DataApiTerminalConfigRepository(client: client),
       terminalLayout: DataApiTerminalLayoutRepository(client: client),
@@ -137,6 +140,8 @@ final class _UnavailableDataApiResourceClient implements DataApiResourceClient {
   Future<DataApiMigrationMergeReport> mergeResources({
     required String sourceId,
     required List<DataApiMigrationResource> resources,
+    DataApiMigrationConflictPolicy conflictPolicy =
+        DataApiMigrationConflictPolicy.preserveDestination,
   }) async => _unavailable();
 
   @override

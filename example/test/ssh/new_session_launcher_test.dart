@@ -149,6 +149,55 @@ void main() {
     );
   });
 
+  testWidgets(
+    'local-only mode keeps OpenSSH hosts and hides custom SSH profiles',
+    (tester) async {
+      final saved = _sshProfile('saved', 'Saved host', 'saved.example.test');
+      final imported = terminalProfileFromImportedSshConfig(
+        const pty.ImportedSshProfile(
+          id: 'openssh-host',
+          name: 'OpenSSH host',
+          group: 'OpenSSH',
+          source: 'openssh_config',
+          alias: 'openssh-host',
+          host: 'openssh.example.test',
+          user: 'developer',
+          port: 22,
+          auth: 'auto',
+          privateKeys: <String>[],
+          hostKeyPolicy: 'strict',
+          connectTimeoutSeconds: 10,
+          keepaliveSeconds: 0,
+          keepaliveCountMax: 3,
+        ),
+      );
+
+      await _pumpLauncher(
+        tester,
+        profiles: <TerminalProfile>[defaultTerminalProfile(), saved],
+        imported: SshProfileImportSnapshot(
+          profiles: <TerminalProfile>[imported],
+          sourcePath: '~/.ssh/config',
+        ),
+        customSshProfilesEnabled: false,
+        onClosed: (_) {},
+      );
+
+      await tester.tap(find.text('SSH session'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('new-custom-ssh-session')), findsNothing);
+      expect(
+        find.byKey(const Key('custom-ssh-requires-remote-api')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('new-ssh-session-saved')), findsNothing);
+      expect(
+        find.byKey(const Key('new-ssh-session-openssh-host')),
+        findsOneWidget,
+      );
+    },
+  );
+
   testWidgets('creates a custom SSH session with secure-save enabled', (
     tester,
   ) async {
@@ -932,6 +981,7 @@ Future<void> _pumpLauncher(
   required SshProfileImportSnapshot imported,
   required ValueChanged<NewSessionSelection?> onClosed,
   double textScale = 1,
+  bool customSshProfilesEnabled = true,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
@@ -958,6 +1008,7 @@ Future<void> _pumpLauncher(
                     isScrollControlled: true,
                     builder: (_) => NewSessionLauncher(
                       profiles: profiles,
+                      customSshProfilesEnabled: customSshProfilesEnabled,
                       importOpenSshProfiles: () async => imported,
                     ),
                   ),

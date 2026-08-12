@@ -20,6 +20,9 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
           : AnimationStyle.noAnimation,
       builder: (context) => NewSessionLauncher(
         profiles: ref.read(sessionControllerProvider).profiles,
+        customSshProfilesEnabled: ref.read(
+          customSshProfileConfigurationEnabledProvider,
+        ),
         importOpenSshProfiles: () =>
             ref.read(sshProfileImportServiceProvider).load(),
       ),
@@ -39,6 +42,9 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
     }
     if (result.saveProfile) {
       try {
+        if (!ref.read(customSshProfileConfigurationEnabledProvider)) {
+          throw const CustomSshProfileConfigurationUnavailableException();
+        }
         await sessionController.saveProfile(result.profile);
       } on Object catch (error) {
         if (mounted) {
@@ -140,6 +146,10 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
         reportVariableDecisions: _hostActionsConfig.osc1337ReportVariables,
         keybindings: _keybindingsConfig,
         dataApiConfiguration: dataApiConfiguration,
+        activeDataApiDeployment:
+            widget.activeDataApiDeployment ??
+            ref.read(dataApiRuntimeProvider)?.deployment ??
+            dataApiConfiguration.deployment,
         dataApiConfigurationRecoveryRequired:
             dataApiConfigurationRecoveryRequired,
         localDataApiAvailable: defaultTargetPlatform == TargetPlatform.macOS,
@@ -306,7 +316,86 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
                   'Remote authentication is unavailable in this build.',
                 );
               }
-              await connector.connectAndSaveRemote(remoteLogin);
+              DataApiMigrationSummary? migrationSummary;
+              if (selection.migrateLocalDataToRemote) {
+                final migrationConnector =
+                    switch (dataApiConfigurationRepository) {
+                      final DataApiLocalToRemoteConfigurationConnector value =>
+                        value,
+                      _ => null,
+                    };
+                final sourceRuntime = ref.read(dataApiRuntimeProvider);
+                if (migrationConnector == null ||
+                    sourceRuntime == null ||
+                    !sourceRuntime.isLocal) {
+                  throw StateError(
+                    'The active bundled local API is unavailable for migration.',
+                  );
+                }
+                migrationSummary = await migrationConnector
+                    .migrateLocalAndSaveRemote(
+                      remoteLogin,
+                      sourceRuntime: sourceRuntime,
+                    );
+              } else {
+                await connector.connectAndSaveRemote(remoteLogin);
+              }
+              if (mounted && migrationSummary != null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    key: const Key('data-api-migration-complete'),
+                    content: Text(
+                      'Migrated ${migrationSummary.resourceCount} local '
+                      'resource(s): ${migrationSummary.created} created, '
+                      '${migrationSummary.updated} updated, '
+                      '${migrationSummary.skipped} already current. Restart '
+                      'the app to use the remote API.',
+                    ),
+                  ),
+                );
+              }
+            } else if (selection.migrateRemoteDataToLocal) {
+              final migrationConnector =
+                  switch (dataApiConfigurationRepository) {
+                    final DataApiRemoteToLocalConfigurationConnector value =>
+                      value,
+                    _ => null,
+                  };
+              final sourceRuntime = ref.read(dataApiRuntimeProvider);
+              final startLocalRuntime = ref.read(
+                dataApiLocalMigrationRuntimeStarterProvider,
+              );
+              if (migrationConnector == null ||
+                  sourceRuntime == null ||
+                  sourceRuntime.deployment != DataApiDeployment.remote ||
+                  startLocalRuntime == null) {
+                throw StateError(
+                  'Remote-to-local migration is unavailable in this build.',
+                );
+              }
+              final migrationSummary =
+                  await withTemporaryDataApiRuntime<DataApiMigrationSummary>(
+                    startRuntime: startLocalRuntime,
+                    operation: (destinationRuntime) =>
+                        migrationConnector.migrateRemoteAndSaveLocal(
+                          sourceRuntime: sourceRuntime,
+                          destinationRuntime: destinationRuntime,
+                        ),
+                  );
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    key: const Key('data-api-migration-complete'),
+                    content: Text(
+                      'Migrated ${migrationSummary.resourceCount} remote '
+                      'resource(s): ${migrationSummary.created} created, '
+                      '${migrationSummary.updated} updated, '
+                      '${migrationSummary.skipped} already current. Restart '
+                      'the app to use the bundled local API.',
+                    ),
+                  ),
+                );
+              }
             } else {
               await dataApiConfigurationRepository.save(
                 selection.dataApiConfiguration,
@@ -392,6 +481,9 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
         return ProfilesSheet(
           profiles: sessionState.profiles,
           effectiveDefaultProfileId: sessionState.defaultProfileId,
+          customSshProfilesEnabled: ref.read(
+            customSshProfileConfigurationEnabledProvider,
+          ),
         );
       },
     );

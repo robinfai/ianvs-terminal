@@ -6,7 +6,10 @@ import 'package:app/data/configuration/data_api_configuration.dart';
 import 'package:app/data/configuration/data_api_configuration_repository.dart';
 import 'package:app/data/data_api_json.dart';
 import 'package:app/data/services/data_api_client.dart';
+import 'package:app/data/services/data_api_migration_service.dart';
 import 'package:app/data/services/data_api_remote_session_store.dart';
+import 'package:app/data/services/data_api_runtime.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/test/test_flutter_secure_storage_platform.dart';
 import 'package:flutter_secure_storage_platform_interface/flutter_secure_storage_platform_interface.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -326,6 +329,261 @@ void main() {
   );
 
   test(
+    'explicit local migration merges before committing remote configuration',
+    () async {
+      await repository.save(const DataApiConfiguration.local());
+      final session = _remoteSession(
+        baseUri: Uri.parse('https://sync.example.com/'),
+      );
+      final source = _RecordingMigrationClient(
+        exportPages: <DataApiMigrationExportPage>[
+          DataApiMigrationExportPage(
+            sourceId: 'local-api-instance',
+            resources: <DataApiMigrationResource>[
+              DataApiMigrationResource(
+                id: 'default',
+                kind: 'profiles',
+                data: const <String, Object?>{'schemaVersion': 1},
+                sourceRevision: 1,
+                sourceUpdatedAt: DateTime.utc(2026),
+              ),
+            ],
+            nextCursor: null,
+          ),
+        ],
+      );
+      DataApiDeployment? deploymentObservedDuringMerge;
+      final destination = _RecordingMigrationClient(
+        mergeReports: const <DataApiMigrationMergeReport>[
+          DataApiMigrationMergeReport(
+            results: <DataApiMigrationMergeItem>[
+              DataApiMigrationMergeItem(
+                kind: 'profiles',
+                id: 'default',
+                status: 'created',
+              ),
+            ],
+          ),
+        ],
+        beforeMerge: () async {
+          deploymentObservedDuringMerge = (await repository.load()).deployment;
+        },
+      );
+      final guarded = AuthenticatedDataApiConfigurationRepository(
+        delegate: repository,
+        remoteSessionStore: _MemoryRemoteSessionStore(),
+        remoteAuthenticator: _RecordingRemoteAuthenticator(session: session),
+        remoteConnectionValidator: _RecordingRemoteValidator(),
+        remoteSessionRevoker: _RecordingRemoteRevoker(),
+        localToRemoteMigrationFactory: (_, _) =>
+            DataApiMigrationService(source: source, destination: destination),
+      );
+      final localRuntime = DataApiRuntime.local(
+        baseUri: Uri.parse('http://127.0.0.1:42100/'),
+        localAccessToken: 'local-access-token',
+        encryptionKey: 'local-encryption-key',
+        closeLocalSidecar: () async {},
+      );
+
+      final summary = await guarded.migrateLocalAndSaveRemote(
+        DataApiRemoteLoginRequest(
+          baseUri: session.baseUri,
+          username: 'alice',
+          password: 'password-1234',
+          encryptionKey: session.encryptionKey,
+        ),
+        sourceRuntime: localRuntime,
+      );
+
+      expect(deploymentObservedDuringMerge, DataApiDeployment.local);
+      expect(summary.resourceCount, 1);
+      expect((await repository.load()).deployment, DataApiDeployment.remote);
+      expect(source.exportCalls, 1);
+      expect(destination.mergeCalls, 1);
+    },
+  );
+
+  test('local API cannot switch remotely without explicit migration', () async {
+    await repository.save(const DataApiConfiguration.local());
+    final session = _remoteSession(
+      baseUri: Uri.parse('https://sync.example.com/'),
+    );
+    final guarded = AuthenticatedDataApiConfigurationRepository(
+      delegate: repository,
+      remoteSessionStore: _MemoryRemoteSessionStore(),
+      remoteAuthenticator: _RecordingRemoteAuthenticator(session: session),
+      remoteConnectionValidator: _RecordingRemoteValidator(),
+    );
+
+    await expectLater(
+      guarded.connectAndSaveRemote(
+        DataApiRemoteLoginRequest(
+          baseUri: session.baseUri,
+          username: 'alice',
+          password: 'password-1234',
+          encryptionKey: session.encryptionKey,
+        ),
+      ),
+      throwsA(isA<DataApiExplicitMigrationRequiredException>()),
+    );
+
+    expect((await repository.load()).deployment, DataApiDeployment.local);
+  });
+
+  test(
+    'failed local migration retains local configuration and source ownership',
+    () async {
+      await repository.save(const DataApiConfiguration.local());
+      final session = _remoteSession(
+        baseUri: Uri.parse('https://sync.example.com/'),
+      );
+      final store = _MemoryRemoteSessionStore();
+      final revoker = _RecordingRemoteRevoker();
+      final destination = _RecordingMigrationClient(
+        mergeReports: const <DataApiMigrationMergeReport>[
+          DataApiMigrationMergeReport(
+            results: <DataApiMigrationMergeItem>[
+              DataApiMigrationMergeItem(
+                kind: 'profiles',
+                id: 'default',
+                status: 'conflict',
+              ),
+            ],
+          ),
+        ],
+      );
+      final guarded = AuthenticatedDataApiConfigurationRepository(
+        delegate: repository,
+        remoteSessionStore: store,
+        remoteAuthenticator: _RecordingRemoteAuthenticator(session: session),
+        remoteConnectionValidator: _RecordingRemoteValidator(),
+        remoteSessionRevoker: revoker,
+        authOperationCanceler: _RecordingAuthOperationCanceler(),
+        localToRemoteMigrationFactory: (_, _) => DataApiMigrationService(
+          source: _RecordingMigrationClient(
+            exportPages: <DataApiMigrationExportPage>[
+              DataApiMigrationExportPage(
+                sourceId: 'local-api-instance',
+                resources: <DataApiMigrationResource>[
+                  DataApiMigrationResource(
+                    id: 'default',
+                    kind: 'profiles',
+                    data: const <String, Object?>{'schemaVersion': 1},
+                    sourceRevision: 1,
+                    sourceUpdatedAt: DateTime.utc(2026),
+                  ),
+                ],
+                nextCursor: null,
+              ),
+            ],
+          ),
+          destination: destination,
+        ),
+      );
+      var localRuntimeClosed = false;
+      final localRuntime = DataApiRuntime.local(
+        baseUri: Uri.parse('http://127.0.0.1:42100/'),
+        localAccessToken: 'local-access-token',
+        encryptionKey: 'local-encryption-key',
+        closeLocalSidecar: () async => localRuntimeClosed = true,
+      );
+
+      await expectLater(
+        guarded.migrateLocalAndSaveRemote(
+          DataApiRemoteLoginRequest(
+            baseUri: session.baseUri,
+            username: 'alice',
+            password: 'password-1234',
+            encryptionKey: session.encryptionKey,
+          ),
+          sourceRuntime: localRuntime,
+        ),
+        throwsA(isA<DataApiMigrationIncompleteException>()),
+      );
+
+      expect((await repository.load()).deployment, DataApiDeployment.local);
+      expect(localRuntimeClosed, isFalse);
+      expect(store.slots, isEmpty);
+      expect(revoker.revoked, <DataApiRemoteSession>[session]);
+    },
+  );
+
+  test(
+    'explicit remote migration merges before committing local configuration',
+    () async {
+      const activeSlot = 'remoteMigrationSlot01';
+      final session = _remoteSession(
+        baseUri: Uri.parse('https://sync.example.com/'),
+      );
+      await repository.save(_persistedRemote(session.baseUri, activeSlot));
+      final store = _MemoryRemoteSessionStore()..slots[activeSlot] = session;
+      final source = _RecordingMigrationClient(
+        exportPages: <DataApiMigrationExportPage>[
+          DataApiMigrationExportPage(
+            sourceId: 'remote-api-instance',
+            resources: <DataApiMigrationResource>[
+              DataApiMigrationResource(
+                id: 'default',
+                kind: 'profiles',
+                data: const <String, Object?>{'schemaVersion': 1},
+                sourceRevision: 2,
+                sourceUpdatedAt: DateTime.utc(2026),
+              ),
+            ],
+            nextCursor: null,
+          ),
+        ],
+      );
+      DataApiDeployment? deploymentObservedDuringMerge;
+      final destination = _RecordingMigrationClient(
+        mergeReports: const <DataApiMigrationMergeReport>[
+          DataApiMigrationMergeReport(
+            results: <DataApiMigrationMergeItem>[
+              DataApiMigrationMergeItem(
+                kind: 'profiles',
+                id: 'default',
+                status: 'created',
+              ),
+            ],
+          ),
+        ],
+        beforeMerge: () async {
+          deploymentObservedDuringMerge = (await repository.load()).deployment;
+        },
+      );
+      final guarded = AuthenticatedDataApiConfigurationRepository(
+        delegate: repository,
+        remoteSessionStore: store,
+        remoteSessionRevoker: _RecordingRemoteRevoker(),
+        runtimeMigrationFactory: (_, _) =>
+            DataApiMigrationService(source: source, destination: destination),
+      );
+      final sourceRuntime = DataApiRuntime.remote(
+        baseUri: session.baseUri,
+        remoteAccessToken: session.accessToken,
+        encryptionKey: session.encryptionKey,
+      );
+      final destinationRuntime = DataApiRuntime.local(
+        baseUri: Uri.parse('http://127.0.0.1:42100/'),
+        localAccessToken: 'local-access-token',
+        encryptionKey: 'local-encryption-key',
+        closeLocalSidecar: () async {},
+      );
+
+      final summary = await guarded.migrateRemoteAndSaveLocal(
+        sourceRuntime: sourceRuntime,
+        destinationRuntime: destinationRuntime,
+      );
+
+      expect(deploymentObservedDuringMerge, DataApiDeployment.remote);
+      expect(summary.resourceCount, 1);
+      expect((await repository.load()).deployment, DataApiDeployment.local);
+      expect(source.exportCalls, 1);
+      expect(destination.mergeCalls, 1);
+    },
+  );
+
+  test(
     'begin capability is durably journaled before complete can issue a token',
     () async {
       final session = _remoteSession(
@@ -503,7 +761,7 @@ void main() {
   );
 
   test('failed key validation preserves mode and previous session', () async {
-    await repository.save(const DataApiConfiguration.local());
+    await repository.save(const DataApiConfiguration.disabled());
     final store = _MemoryRemoteSessionStore();
     final canceler = _RecordingAuthOperationCanceler();
     final guarded = AuthenticatedDataApiConfigurationRepository(
@@ -537,7 +795,7 @@ void main() {
       ),
     );
 
-    expect(await repository.load(), const DataApiConfiguration.local());
+    expect(await repository.load(), const DataApiConfiguration.disabled());
     expect(store.slots, isEmpty);
     expect(canceler.canceled, hasLength(1));
   });
@@ -1448,11 +1706,18 @@ void main() {
   );
 
   test('startup queues orphan secure slots for bounded revocation', () async {
+    const activeSlot = 'activeCredential0001';
     const orphanSlot = 'orphanCredential0001';
+    final active = _remoteSession(
+      baseUri: Uri.parse('https://active.example.com/'),
+    );
     final orphan = _remoteSession(
       baseUri: Uri.parse('https://orphan.example.com/'),
     );
-    final store = _MemoryRemoteSessionStore()..slots[orphanSlot] = orphan;
+    await repository.save(_persistedRemote(active.baseUri, activeSlot));
+    final store = _MemoryRemoteSessionStore()
+      ..slots[activeSlot] = active
+      ..slots[orphanSlot] = orphan;
     final revoker = _RecordingRemoteRevoker();
     final guarded = AuthenticatedDataApiConfigurationRepository(
       delegate: repository,
@@ -1465,8 +1730,66 @@ void main() {
     await guarded.retryPendingRevocations();
 
     expect(revoker.revoked, <DataApiRemoteSession>[orphan]);
-    expect(store.slots, isEmpty);
+    expect(store.slots, <String, DataApiRemoteSession>{activeSlot: active});
   });
+
+  test('disabled startup never opens the remote credential vault', () async {
+    final store = _MemoryRemoteSessionStore()
+      ..listError = PlatformException(
+        code: 'Unexpected security result code',
+        message: 'Code: -50, invalid Keychain parameters',
+        details: -50,
+      );
+    final guarded = AuthenticatedDataApiConfigurationRepository(
+      delegate: repository,
+      remoteSessionStore: store,
+    );
+
+    await guarded.recoverForStartup();
+
+    expect(store.listCount, 0);
+    expect(await repository.load(), const DataApiConfiguration.disabled());
+  });
+
+  test('local API startup never opens the remote credential vault', () async {
+    await repository.save(const DataApiConfiguration.local());
+    final store = _MemoryRemoteSessionStore()
+      ..listError = PlatformException(
+        code: 'Unexpected security result code',
+        message: 'Code: -50, invalid Keychain parameters',
+        details: -50,
+      );
+    final guarded = AuthenticatedDataApiConfigurationRepository(
+      delegate: repository,
+      remoteSessionStore: store,
+    );
+
+    await guarded.recoverForStartup();
+
+    expect(store.listCount, 0);
+    expect(await repository.load(), const DataApiConfiguration.local());
+  });
+
+  test(
+    'saving disabled clears recovery without opening the credential vault',
+    () async {
+      final store = _MemoryRemoteSessionStore()
+        ..listError = PlatformException(
+          code: 'Unexpected security result code',
+          message: 'Code: -50, invalid Keychain parameters',
+          details: -50,
+        );
+      final guarded = AuthenticatedDataApiConfigurationRepository(
+        delegate: repository,
+        remoteSessionStore: store,
+      );
+
+      await guarded.save(const DataApiConfiguration.disabled());
+
+      expect(store.listCount, 0);
+      expect(await repository.load(), const DataApiConfiguration.disabled());
+    },
+  );
 
   test(
     'two repositories serialize configuration generations across instances',
@@ -1530,7 +1853,7 @@ void main() {
   );
 
   test('digest CAS rejects a same-generation external rewrite', () async {
-    await repository.save(const DataApiConfiguration.local());
+    await repository.save(const DataApiConfiguration.disabled());
     final store = _MemoryRemoteSessionStore();
     final issued = _remoteSession(
       baseUri: Uri.parse('https://sync.example.com/'),
@@ -1648,7 +1971,7 @@ void main() {
   test(
     'failed auth cleanup survives restart without persisting secrets',
     () async {
-      await repository.save(const DataApiConfiguration.local());
+      await repository.save(const DataApiConfiguration.disabled());
       final issued = DataApiRemoteSession(
         baseUri: Uri.parse('https://sync.example.com/'),
         accessToken: 'issued-secret-access-token',
@@ -1877,6 +2200,7 @@ void main() {
         baseUri: Uri.parse('https://sync.example.com/'),
       );
       await store.writeSlot(slot, original);
+      expect(await store.listSlotRefs(), <String>{slot});
       await expectLater(
         store.writeSlot(
           slot,
@@ -1885,8 +2209,34 @@ void main() {
         throwsA(isA<DataApiRemoteSessionSlotExistsException>()),
       );
       expect((await store.readSlot(slot))?.baseUri, original.baseUri);
+
+      await store.deleteSlot(slot);
+      expect(await store.listSlotRefs(), isEmpty);
+      expect(values.containsKey(key), isFalse);
     },
   );
+
+  test('secure slot listing uses its exact registry key', () async {
+    final previousPlatform = FlutterSecureStoragePlatform.instance;
+    final values = <String, String>{};
+    FlutterSecureStoragePlatform.instance = TestFlutterSecureStoragePlatform(
+      values,
+    );
+    addTearDown(() => FlutterSecureStoragePlatform.instance = previousPlatform);
+    const slot = 'credentialSlot000002';
+    final store = FlutterSecureDataApiRemoteSessionStore();
+
+    await store.writeSlot(
+      slot,
+      _remoteSession(baseUri: Uri.parse('https://sync.example.com/')),
+    );
+
+    expect(
+      values['ianvs.data-api.remote-session.slot-registry.v1'],
+      '{"version":1,"slots":["$slot"]}',
+    );
+    expect(await store.listSlotRefs(), <String>{slot});
+  });
 
   for (final failure in <Exception>[
     const DataApiRemoteSessionUnsupportedVersionException(version: 0),
@@ -2216,6 +2566,7 @@ Future<DataApiRemoteSession?> _activeSession(
 }
 
 final class _MemoryRemoteSessionStore implements DataApiRemoteSessionSlotStore {
+  Exception? listError;
   Error? readError;
   Error? clearError;
   Error? writeError;
@@ -2227,9 +2578,16 @@ final class _MemoryRemoteSessionStore implements DataApiRemoteSessionSlotStore {
   final Map<String, Exception> slotReadErrors = <String, Exception>{};
   final Map<String, Set<int>> failingSlotReadCalls = <String, Set<int>>{};
   final Map<String, int> slotReadCounts = <String, int>{};
+  int listCount = 0;
 
   @override
-  Future<Set<String>> listSlotRefs() async => slots.keys.toSet();
+  Future<Set<String>> listSlotRefs() async {
+    listCount += 1;
+    if (listError case final error?) {
+      throw error;
+    }
+    return slots.keys.toSet();
+  }
 
   @override
   Future<DataApiRemoteSession?> readSlot(String slotRef) async {
@@ -2418,6 +2776,38 @@ final class _RecordingRemoteRevoker implements DataApiRemoteSessionRevoker {
     if (failure != null) {
       throw failure;
     }
+  }
+}
+
+final class _RecordingMigrationClient implements DataApiMigrationClient {
+  _RecordingMigrationClient({
+    this.exportPages = const <DataApiMigrationExportPage>[],
+    this.mergeReports = const <DataApiMigrationMergeReport>[],
+    this.beforeMerge,
+  });
+
+  final List<DataApiMigrationExportPage> exportPages;
+  final List<DataApiMigrationMergeReport> mergeReports;
+  final Future<void> Function()? beforeMerge;
+  int exportCalls = 0;
+  int mergeCalls = 0;
+
+  @override
+  Future<DataApiMigrationExportPage> exportMigrationPage({
+    String? cursor,
+  }) async {
+    return exportPages[exportCalls++];
+  }
+
+  @override
+  Future<DataApiMigrationMergeReport> mergeResources({
+    required String sourceId,
+    required List<DataApiMigrationResource> resources,
+    DataApiMigrationConflictPolicy conflictPolicy =
+        DataApiMigrationConflictPolicy.preserveDestination,
+  }) async {
+    await beforeMerge?.call();
+    return mergeReports[mergeCalls++];
   }
 }
 

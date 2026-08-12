@@ -39,6 +39,28 @@ abstract interface class DataApiResourceClient {
   Future<DataApiMigrationMergeReport> mergeResources({
     required String sourceId,
     required List<DataApiMigrationResource> resources,
+    DataApiMigrationConflictPolicy conflictPolicy =
+        DataApiMigrationConflictPolicy.preserveDestination,
+  });
+}
+
+enum DataApiMigrationConflictPolicy {
+  preserveDestination('preserve_destination'),
+  sourceWins('source_wins');
+
+  const DataApiMigrationConflictPolicy(this.wireValue);
+
+  final String wireValue;
+}
+
+abstract interface class DataApiMigrationClient {
+  Future<DataApiMigrationExportPage> exportMigrationPage({String? cursor});
+
+  Future<DataApiMigrationMergeReport> mergeResources({
+    required String sourceId,
+    required List<DataApiMigrationResource> resources,
+    DataApiMigrationConflictPolicy conflictPolicy =
+        DataApiMigrationConflictPolicy.preserveDestination,
   });
 }
 
@@ -49,6 +71,18 @@ final class DataApiResourcePage {
   });
 
   final List<DataApiResource> resources;
+  final String? nextCursor;
+}
+
+final class DataApiMigrationExportPage {
+  const DataApiMigrationExportPage({
+    required this.sourceId,
+    required this.resources,
+    required this.nextCursor,
+  });
+
+  final String sourceId;
+  final List<DataApiMigrationResource> resources;
   final String? nextCursor;
 }
 
@@ -306,7 +340,8 @@ final class DataApiRevisionConflictException extends DataApiRequestException {
 
 typedef DataApiHttpClientFactory = HttpClient Function();
 
-final class DataApiClient implements DataApiResourceClient {
+final class DataApiClient
+    implements DataApiResourceClient, DataApiMigrationClient {
   DataApiClient({
     required Uri baseUri,
     required String? accessToken,
@@ -628,9 +663,73 @@ final class DataApiClient implements DataApiResourceClient {
   }
 
   @override
+  Future<DataApiMigrationExportPage> exportMigrationPage({
+    String? cursor,
+  }) async {
+    if (cursor != null && cursor.length > maximumCursorBytes) {
+      throw RangeError.range(
+        cursor.length,
+        0,
+        maximumCursorBytes,
+        'cursor.length',
+      );
+    }
+    final response = await _request(
+      'GET',
+      _resourceUri('v1/migrations/export').replace(
+        queryParameters: <String, String>{
+          'include_deleted': 'false',
+          'include_sensitive': 'true',
+          'limit': maximumPageSize.toString(),
+          'cursor': ?cursor,
+        },
+      ),
+      includeEncryptionKey: true,
+    );
+    final root = _jsonObject(response.body, documentName: 'migration export');
+    if (root['schema_version'] != 1) {
+      throw const FormatException(
+        'Unsupported Data API migration export schema.',
+      );
+    }
+    final sourceId = _nonEmpty(_stringValue(root['source_id']));
+    final rawResources = root['resources'];
+    final nextCursor = _nonEmpty(_stringValue(root['next_cursor']));
+    if (sourceId == null || rawResources is! List) {
+      throw const FormatException('Invalid Data API migration export.');
+    }
+    return DataApiMigrationExportPage(
+      sourceId: sourceId,
+      resources: rawResources
+          .map((value) {
+            final resource = DataApiResource.fromJson(
+              _jsonObject(value, documentName: 'migration resource'),
+            );
+            if (resource.deleted) {
+              throw const FormatException(
+                'Migration export unexpectedly included a deleted resource.',
+              );
+            }
+            return DataApiMigrationResource(
+              id: resource.id,
+              kind: resource.kind,
+              data: resource.data,
+              sensitive: resource.sensitive,
+              sourceRevision: resource.sourceRevision,
+              sourceUpdatedAt: resource.sourceUpdatedAt,
+            );
+          })
+          .toList(growable: false),
+      nextCursor: nextCursor,
+    );
+  }
+
+  @override
   Future<DataApiMigrationMergeReport> mergeResources({
     required String sourceId,
     required List<DataApiMigrationResource> resources,
+    DataApiMigrationConflictPolicy conflictPolicy =
+        DataApiMigrationConflictPolicy.preserveDestination,
   }) async {
     final response = await _request(
       'POST',
@@ -642,7 +741,7 @@ final class DataApiClient implements DataApiResourceClient {
         'schema_version': 1,
         'source_id': sourceId,
         'exported_at': DateTime.now().toUtc().toIso8601String(),
-        'conflict_policy': 'preserve_destination',
+        'conflict_policy': conflictPolicy.wireValue,
         'propagate_deletes': false,
         'resources': resources
             .map((resource) => resource.toJson())

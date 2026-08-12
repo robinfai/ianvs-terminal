@@ -228,7 +228,10 @@ void main() {
         dataApiPersistenceRequired: false,
       );
       expect(restartComposition.usesDataApi, isFalse);
-      expect(restartComposition.profiles, isA<ProfileRepository>());
+      expect(
+        restartComposition.profiles,
+        isA<LocalTerminalOnlyProfileRepository>(),
+      );
     },
   );
 

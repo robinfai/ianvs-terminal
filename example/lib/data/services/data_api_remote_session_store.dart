@@ -178,7 +178,11 @@ final class FlutterSecureDataApiRemoteSessionStore
           );
 
   static const _slotKeyPrefix = 'ianvs.data-api.remote-session.slot.v1.';
+  static const _slotRegistryKey =
+      'ianvs.data-api.remote-session.slot-registry.v1';
+  static const _slotRegistryVersion = 1;
   static const int _maximumEncodedSessionBytes = 64 * 1024;
+  static const int _maximumEncodedRegistryBytes = 64 * 1024;
 
   final FlutterSecureStorage _storage;
 
@@ -216,37 +220,86 @@ final class FlutterSecureDataApiRemoteSessionStore
   @override
   Future<void> writeSlot(String slotRef, DataApiRemoteSession session) async {
     final key = _slotKey(slotRef);
-    if (await _storage.read(key: key) != null) {
+    final registered = await _readSlotRegistry();
+    if (registered.contains(slotRef) || await _storage.read(key: key) != null) {
       throw DataApiRemoteSessionSlotExistsException(slotRef);
     }
+    await _writeSlotRegistry(<String>{...registered, slotRef});
     await _storage.write(key: key, value: _encodeSession(session));
   }
 
   @override
-  Future<void> deleteSlot(String slotRef) {
-    return _storage.delete(key: _slotKey(slotRef));
+  Future<void> deleteSlot(String slotRef) async {
+    final registered = await _readSlotRegistry();
+    await _storage.delete(key: _slotKey(slotRef));
+    if (registered.contains(slotRef)) {
+      await _writeSlotRegistry(<String>{...registered}..remove(slotRef));
+    }
   }
 
   @override
-  Future<Set<String>> listSlotRefs() async {
-    final stored = await _storage.readAll();
-    final result = <String>{};
-    for (final key in stored.keys) {
-      if (!key.startsWith(_slotKeyPrefix)) {
-        continue;
-      }
-      final slotRef = key.substring(_slotKeyPrefix.length);
-      if (!RegExp(r'^[A-Za-z0-9_-]{16,128}$').hasMatch(slotRef)) {
-        throw DataApiRemoteSessionFormatException(
-          slotRef: slotRef.isEmpty ? '<empty>' : slotRef,
-          cause: const FormatException(
-            'Secure Data API credential slot identifier is invalid.',
-          ),
+  Future<Set<String>> listSlotRefs() => _readSlotRegistry();
+
+  Future<Set<String>> _readSlotRegistry() async {
+    final encoded = await _storage.read(key: _slotRegistryKey);
+    if (encoded == null || encoded.isEmpty) {
+      return const <String>{};
+    }
+    try {
+      if (utf8.encode(encoded).length > _maximumEncodedRegistryBytes) {
+        throw const FormatException(
+          'Secure Data API credential slot registry is too large.',
         );
       }
-      result.add(slotRef);
+      final json = decodeDataApiJsonObject(
+        encoded,
+        documentName: 'Remote Data API credential slot registry',
+      );
+      if (json.keys.any((key) => key != 'version' && key != 'slots') ||
+          json['version'] != _slotRegistryVersion ||
+          json['slots'] is! List<Object?>) {
+        throw const FormatException(
+          'Secure Data API credential slot registry is invalid.',
+        );
+      }
+      final result = <String>{};
+      for (final slotRef in json['slots']! as List<Object?>) {
+        if (slotRef is! String ||
+            !RegExp(r'^[A-Za-z0-9_-]{16,128}$').hasMatch(slotRef) ||
+            !result.add(slotRef)) {
+          throw const FormatException(
+            'Secure Data API credential slot registry contains an invalid '
+            'entry.',
+          );
+        }
+      }
+      return Set<String>.unmodifiable(result);
+    } on Object catch (error, stackTrace) {
+      if (error is DataApiRemoteSessionFormatException) {
+        rethrow;
+      }
+      Error.throwWithStackTrace(
+        DataApiRemoteSessionFormatException(
+          slotRef: '<registry>',
+          cause: error,
+        ),
+        stackTrace,
+      );
     }
-    return Set<String>.unmodifiable(result);
+  }
+
+  Future<void> _writeSlotRegistry(Set<String> refs) {
+    final slots = refs.toList(growable: false)..sort();
+    final encoded = jsonEncode(<String, Object?>{
+      'version': _slotRegistryVersion,
+      'slots': slots,
+    });
+    if (utf8.encode(encoded).length > _maximumEncodedRegistryBytes) {
+      throw const FormatException(
+        'Secure Data API credential slot registry is too large.',
+      );
+    }
+    return _storage.write(key: _slotRegistryKey, value: encoded);
   }
 
   String _slotKey(String slotRef) {

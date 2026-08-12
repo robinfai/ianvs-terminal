@@ -243,6 +243,26 @@ final class AppStartupCoordinator extends ChangeNotifier {
         return;
       }
 
+      final settings = configurationAccess.settings;
+      if (settings case final AppStartupInitialDataSetupCapability setup) {
+        final requirement = await setup.initialSetupRequirement(
+          configurationSnapshot.configuration,
+        );
+        if (await _stopAttemptIfShutdownRequested()) {
+          return;
+        }
+        if (requirement != null) {
+          _setState(
+            AppStartupDataSetupRequired(
+              attempt: _attempt,
+              requirement: requirement,
+              settings: settings,
+            ),
+          );
+          return;
+        }
+      }
+
       stage = AppStartupStage.dataBootstrap;
       dataApiRuntime = await _pipeline.bootstrapData(
         paths,

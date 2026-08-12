@@ -16,6 +16,7 @@ import 'package:path_provider/path_provider.dart';
 import '../../data/configuration/data_api_configuration.dart';
 import '../../data/configuration/data_api_configuration_providers.dart';
 import '../../data/configuration/data_api_configuration_repository.dart';
+import '../../data/services/data_api_migration_service.dart';
 import '../../data/services/data_api_runtime.dart';
 import '../../platform/clipboard_bridge.dart';
 import '../../ui/app_ui.dart';
@@ -38,6 +39,7 @@ import '../sessions/session_state.dart';
 import '../sessions/terminal_event_coordinator.dart';
 import '../ssh/new_session_launcher.dart';
 import '../ssh/ssh_auth_prompt.dart';
+import '../ssh/ssh_feature_access.dart';
 import '../ssh/ssh_profile_import_service.dart';
 import '../terminal/selection_controller.dart';
 import '../terminal/terminal.dart' as terminal;
@@ -170,7 +172,9 @@ final shellRecordingExportPickerProvider = Provider<ShellRecordingExportPicker>(
 );
 
 class ShellScreen extends ConsumerStatefulWidget {
-  const ShellScreen({super.key});
+  const ShellScreen({this.activeDataApiDeployment, super.key});
+
+  final DataApiDeployment? activeDataApiDeployment;
 
   @override
   ConsumerState<ShellScreen> createState() => _ShellScreenState();

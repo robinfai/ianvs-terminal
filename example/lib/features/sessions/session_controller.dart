@@ -22,6 +22,7 @@ import '../profiles/profile_models.dart';
 import '../profiles/profile_repository.dart';
 import '../pty/pty.dart';
 import '../recording/local_session_recording_repository.dart';
+import '../ssh/ssh_feature_access.dart';
 import '../terminal/terminal.dart' hide TerminalEmulation;
 import 'session_bootstrap.dart';
 import 'session_ports.dart';
@@ -767,7 +768,7 @@ class SessionController extends Notifier<SessionState> {
     String? layoutRestoreError;
     final canHaveSavedLayout =
         _configBootstrapSource != LocalTerminalConfigBootstrapSource.defaults;
-    if (_localConfigDocument.layout.restoreLayout && canHaveSavedLayout) {
+    if (_localConfigDocument.layout.restoreLayout) {
       try {
         final layoutDocument = await ref
             .read(localTerminalLayoutRepositoryProvider)
@@ -777,7 +778,7 @@ class SessionController extends Notifier<SessionState> {
         }
         _layoutDocument = layoutDocument;
         final layout = _layoutDocument.value;
-        if (layout != null && !layout.isEmpty) {
+        if (canHaveSavedLayout && layout != null && !layout.isEmpty) {
           final restored = _restoreTerminalLayout(
             layout,
             profiles: runtimeProfiles,
@@ -5021,6 +5022,10 @@ class SessionController extends Notifier<SessionState> {
     TerminalProfile profile, {
     Set<ProfileSecretField> clearSecrets = const {},
   }) async {
+    if (profile.isSsh &&
+        !ref.read(customSshProfileConfigurationEnabledProvider)) {
+      throw const CustomSshProfileConfigurationUnavailableException();
+    }
     final nextProfiles = <TerminalProfile>[
       for (final existing in state.profiles)
         if (existing.id == profile.id) profile else existing,

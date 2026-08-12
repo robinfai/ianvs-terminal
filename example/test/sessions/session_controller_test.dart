@@ -6,6 +6,7 @@ import 'package:app/features/config/local_terminal_config_models.dart';
 import 'package:app/features/config/local_terminal_config_repository.dart';
 import 'package:app/features/layout/local_terminal_layout_models.dart';
 import 'package:app/features/layout/local_terminal_layout_repository.dart';
+import 'package:app/features/persistence/versioned_document.dart';
 import 'package:app/features/preferences/app_preferences_models.dart';
 import 'package:app/features/preferences/app_preferences_repository.dart';
 import 'package:app/features/profiles/profile_models.dart';
@@ -16,6 +17,7 @@ import 'package:app/features/sessions/session_ports.dart';
 import 'package:app/features/sessions/session_shutdown.dart';
 import 'package:app/features/sessions/session_state.dart';
 import 'package:app/features/shell/shell_action_registry.dart';
+import 'package:app/features/ssh/ssh_feature_access.dart';
 import 'package:app/platform/app_shutdown_coordinator.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -198,6 +200,38 @@ class _TestLocalTerminalLayoutRepository extends LocalTerminalLayoutRepository {
   Future<void> save(TerminalLayout workspace) async {
     savedDocuments.add(workspace);
     document = workspace;
+  }
+}
+
+class _RevisionedTestTerminalLayoutRepository extends TerminalLayoutRepository {
+  VersionedDocument<TerminalLayout?> document = const VersionedDocument(
+    value: null,
+    revision: 0,
+  );
+  final List<VersionedDocument<TerminalLayout>> savedDocuments = [];
+
+  @override
+  Future<TerminalLayout?> load() async => document.value;
+
+  @override
+  Future<VersionedDocument<TerminalLayout?>> loadVersioned() async => document;
+
+  @override
+  Future<void> save(TerminalLayout layout) async {
+    throw StateError('Versioned writes are required by this test repository.');
+  }
+
+  @override
+  Future<VersionedDocument<TerminalLayout>> saveVersioned(
+    VersionedDocument<TerminalLayout> layout,
+  ) async {
+    if (layout.revision == null) {
+      throw StateError('Missing Data API revision token.');
+    }
+    savedDocuments.add(layout);
+    final saved = layout.withRevision((layout.revision ?? 0) + 1);
+    document = saved;
+    return saved;
   }
 }
 
@@ -5378,6 +5412,47 @@ void main() {
     );
   });
 
+  test(
+    'default config observes the missing Data API layout revision before save',
+    () async {
+      final layoutRepository = _RevisionedTestTerminalLayoutRepository();
+      final container = ProviderContainer(
+        overrides: [
+          ptySessionBackendProvider.overrideWithValue(FakePtyBackend()),
+          profileRepositoryProvider.overrideWithValue(
+            _TestProfileRepository(
+              TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
+            ),
+          ),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            _TestAppPreferencesRepository(null),
+          ),
+          localTerminalConfigRepositoryProvider.overrideWithValue(
+            _TestLocalTerminalConfigRepository(null),
+          ),
+          localTerminalLayoutRepositoryProvider.overrideWithValue(
+            layoutRepository,
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final controller = container.read(sessionControllerProvider.notifier);
+      await _waitForCondition(
+        condition: () => container.read(sessionControllerProvider).isReady,
+        description: 'default configuration layout bootstrap',
+      );
+      controller.splitActiveSession(sshProfile, TerminalSplitAxis.horizontal);
+      await _waitForCondition(
+        condition: () => layoutRepository.savedDocuments.isNotEmpty,
+        description: 'versioned Data API layout save',
+      );
+
+      expect(layoutRepository.savedDocuments.single.revision, 0);
+      expect(layoutRepository.document.revision, 1);
+    },
+  );
+
   test('openTerminalAtFolder adds a terminal without project state', () async {
     final backend = FakePtyBackend();
     final layoutRepository = _TestLocalTerminalLayoutRepository(null);
@@ -6171,6 +6246,7 @@ void main() {
           ),
           ptySessionBackendProvider.overrideWithValue(coreClient),
           profileRepositoryProvider.overrideWithValue(profileRepository),
+          customSshProfileConfigurationEnabledProvider.overrideWithValue(true),
           appPreferencesRepositoryProvider.overrideWithValue(
             _TestAppPreferencesRepository(null),
           ),
@@ -6212,6 +6288,7 @@ void main() {
       overrides: [
         ptySessionBackendProvider.overrideWithValue(coreClient),
         profileRepositoryProvider.overrideWithValue(profileRepository),
+        customSshProfileConfigurationEnabledProvider.overrideWithValue(true),
         appPreferencesRepositoryProvider.overrideWithValue(
           _TestAppPreferencesRepository(null),
         ),
@@ -6239,6 +6316,41 @@ void main() {
         },
       },
     );
+  });
+
+  test('custom SSH save fails closed without a Data API runtime', () async {
+    final profileRepository = _TestProfileRepository(
+      TerminalProfilesDocument(profiles: [defaultProfile]),
+    );
+    final container = ProviderContainer(
+      overrides: [
+        ptySessionBackendProvider.overrideWithValue(FakePtyBackend()),
+        profileRepositoryProvider.overrideWithValue(profileRepository),
+        localTerminalConfigRepositoryProvider.overrideWithValue(
+          _TestLocalTerminalConfigRepository(null),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final controller = container.read(sessionControllerProvider.notifier);
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+    final customSshProfile = defaultProfile.copyWith(
+      id: 'custom-ssh',
+      connection: const terminal.TerminalConnectionConfig.ssh(
+        host: 'ssh.example.test',
+        user: 'developer',
+      ),
+    );
+
+    await expectLater(
+      controller.saveProfile(customSshProfile),
+      throwsA(isA<CustomSshProfileConfigurationUnavailableException>()),
+    );
+    expect(profileRepository.savedDocuments, isEmpty);
   });
 
   test(

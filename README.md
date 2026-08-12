@@ -41,7 +41,7 @@ flutter test
 flutter run -d macos
 ```
 
-数据 API 通过应用内的 **Defaults & appearance → Data service** 配置，不读取进程环境变量或 `dart-define`。默认关闭；macOS 可以选择应用包内的本地 Go API，使用应用支持目录下的 SQLite；所有平台都可以配置无用户名、密码、query 和 fragment 的 `http(s)` 远程基础 URL。配置保存在应用支持目录的 `data-api/configuration.json`，重启应用后生效。iOS 不提供本地 sidecar 选项，未配置远程服务时终端仍可正常使用。
+数据 API 不读取进程环境变量或 `dart-define`。macOS 首次启动可选择三种能力边界：跳过后进入“本地终端”模式，不启动任何 API 进程，只提供本地 shell 与 `~/.ssh/config` 主机；“本地 API”会启动应用包内的 sidecar，离线保存配置并开放自定义 SSH；“远程 API”在此基础上提供跨设备同步。iOS 必须完成远程 HTTP API 登录，成功前不会进入终端。远程基础 URL 不允许携带用户名、密码、query 或 fragment，公网服务必须使用 HTTPS（仅回环开发地址可使用 HTTP）。后续可通过 **Defaults & appearance → Data service** 修改模式；从本地 API 切换到远程 API 是显式导出/合并操作，成功提交远程配置前不会删除本地数据或静默切换。非敏感配置保存在应用支持目录的 `data-api/configuration.json`，凭据仅保存在平台凭据保险库中。
 
 ```bash
 cd native/core

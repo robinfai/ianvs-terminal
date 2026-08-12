@@ -86,6 +86,110 @@ void main() {
     expect(await client.getResource(kind: 'config', id: 'missing'), isNull);
   });
 
+  test('migration export requests bounded sensitive pages', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    late Uri requestUri;
+    late String? authorization;
+    late String? encryptionKey;
+    server.listen((request) async {
+      requestUri = request.uri;
+      authorization = request.headers.value(HttpHeaders.authorizationHeader);
+      encryptionKey = request.headers.value('X-Ianvs-Encryption-Key');
+      request.response
+        ..statusCode = HttpStatus.ok
+        ..headers.contentType = ContentType.json
+        ..write(
+          jsonEncode(<String, Object?>{
+            'schema_version': 1,
+            'source_id': 'local-api-instance',
+            'exported_at': '2026-01-01T00:00:00Z',
+            'resources': <Object?>[
+              _validResourceJson(
+                id: 'default',
+                kind: 'profile',
+                data: const <String, Object?>{'schemaVersion': 1},
+                sensitive: const <String, Object?>{'secret': 'encrypted'},
+              ),
+            ],
+            'next_cursor': 'next-page',
+          }),
+        );
+      await request.response.close();
+    });
+    final client = DataApiClient(
+      baseUri: Uri.parse('http://127.0.0.1:${server.port}/'),
+      accessToken: 'access-token',
+      encryptionKey: 'encryption-key-material',
+    );
+
+    final page = await client.exportMigrationPage(cursor: 'current-page');
+
+    expect(requestUri.path, '/v1/migrations/export');
+    expect(requestUri.queryParameters, <String, String>{
+      'include_deleted': 'false',
+      'include_sensitive': 'true',
+      'limit': '100',
+      'cursor': 'current-page',
+    });
+    expect(authorization, 'Bearer access-token');
+    expect(encryptionKey, 'encryption-key-material');
+    expect(page.sourceId, 'local-api-instance');
+    expect(page.resources.single.sensitive, isNotNull);
+    expect(page.nextCursor, 'next-page');
+  });
+
+  test(
+    'migration merge sends the selected non-delete conflict policy',
+    () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      late Map<String, Object?> requestBody;
+      server.listen((request) async {
+        requestBody =
+            (jsonDecode(await utf8.decoder.bind(request).join()) as Map)
+                .cast<String, Object?>();
+        request.response
+          ..statusCode = HttpStatus.ok
+          ..headers.contentType = ContentType.json
+          ..write(
+            jsonEncode(<String, Object?>{
+              'results': <Object?>[
+                <String, Object?>{
+                  'kind': 'profile',
+                  'id': 'cloud',
+                  'status': 'updated',
+                },
+              ],
+            }),
+          );
+        await request.response.close();
+      });
+      final client = DataApiClient(
+        baseUri: Uri.parse('http://127.0.0.1:${server.port}/'),
+        accessToken: 'access-token',
+        encryptionKey: null,
+      );
+
+      await client.mergeResources(
+        sourceId: 'remote-api-instance',
+        resources: <DataApiMigrationResource>[
+          DataApiMigrationResource(
+            id: 'cloud',
+            kind: 'profile',
+            data: const <String, Object?>{'name': 'Cloud'},
+            sourceRevision: 2,
+            sourceUpdatedAt: DateTime.utc(2026),
+          ),
+        ],
+        conflictPolicy: DataApiMigrationConflictPolicy.sourceWins,
+      );
+
+      expect(requestBody['conflict_policy'], 'source_wins');
+      expect(requestBody['propagate_deletes'], isFalse);
+    },
+  );
+
   test(
     'real HTTP resource responses require a boolean has_sensitive field',
     () async {

@@ -7,6 +7,74 @@ If a configured local or remote API cannot start, composition enters an
 explicit persistence-unavailable mode. It does not silently read or write the
 local JSON repositories.
 
+## Initial startup gate
+
+On macOS, an absent `data-api/configuration.json` pauses the first startup at
+the remote HTTP API connection form. The user may authenticate immediately or
+explicitly skip. Skipping persists the current Disabled configuration so the
+prompt is not repeated, starts no API sidecar, exposes local terminal profiles,
+and keeps `~/.ssh/config` discovery available. Custom SSH profile documents are
+not available in this local-terminal-only mode.
+
+On iOS, any non-remote configuration pauses startup at the same form without a
+skip action. The terminal runtime is not composed until the remote URL and
+credentials have been validated and committed. An existing authenticated
+remote configuration proceeds normally; expired or missing secure credentials
+continue through the typed recovery flow for that same origin.
+
+## Three deployment modes
+
+| Mode | API process/runtime | Custom SSH profiles | Persistence | Cross-device sync |
+| --- | --- | --- | --- | --- |
+| Local terminal (`disabled`) | None | No; `~/.ssh/config` remains available | Current local terminal repositories | No |
+| Bundled local API (`local`, macOS) | Bundled sidecar and local SQLite | Yes | Data API resources, offline | No |
+| Remote API (`remote`) | Authenticated HTTP API | Yes | Data API resources | Yes |
+
+The custom-SSH capability depends on persistent API storage, not on cloud
+connectivity. The synchronization capability is separate and becomes true only
+when the active runtime has a configured remote HTTP API URL.
+
+Each bundled sidecar start receives a fresh 32-byte random Bearer token that
+remains process-local; the token is never written to Keychain or a persistent
+file, and its private runtime configuration is deleted immediately after the
+backend reports READY. The independent installation-scoped data-encryption key
+remains in the macOS login Keychain so existing sensitive SQLite resources stay
+decryptable across restarts. Remote session tokens and remote data keys continue
+to use immutable platform credential slots.
+
+## Explicit local-to-remote migration
+
+Changing a running bundled local API to Remote in **Defaults & appearance →
+Data service** is labelled **Migrate to remote API**. After remote
+authentication and key verification, the app exports bounded pages from
+`GET /v1/migrations/export` (including sensitive resources through the local
+and destination encryption-key boundaries) and submits each page to
+`POST /v1/migrations/merge` with `preserve_destination` and no delete
+propagation. Only a complete, conflict-free merge permits the non-secret
+deployment configuration to commit as Remote.
+
+Authentication, export, merge, report-identity, cursor, or conflict failures
+leave the current Local configuration and sidecar ownership intact. Source
+data is never deleted. A partial remote merge can be retried safely because
+the server source identity and source revisions make the operation idempotent.
+Startup recovery does not offer an implicit Local-to-Remote switch; migration
+must be initiated while the local API is running.
+
+## Explicit remote-to-local migration
+
+Changing an authenticated Remote API to **Bundled local API** is labelled
+**Migrate to local API**. The app starts an isolated temporary local sidecar,
+exports the remote current resources, and merges them with `source_wins` while
+keeping `propagate_deletes` disabled. This makes the explicitly selected remote
+source authoritative for matching local resources without deleting unrelated
+local data. The remote API and its data are never deleted.
+
+Only after every page and merge result succeeds does the app commit the Local
+deployment configuration and close the temporary sidecar. Authentication,
+export, merge, temporary-runtime cleanup, or configuration-commit failures keep
+the Remote deployment active and can be retried safely. The next startup opens
+the same local SQLite store through the ordinary bundled-sidecar path.
+
 ## Production-wired resources
 
 | Feature-owned port | Data API resource | Sensitive payload |

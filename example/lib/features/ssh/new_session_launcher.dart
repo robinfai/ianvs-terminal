@@ -31,10 +31,12 @@ class NewSessionLauncher extends StatefulWidget {
     super.key,
     required this.profiles,
     required this.importOpenSshProfiles,
+    this.customSshProfilesEnabled = true,
   });
 
   final List<TerminalProfile> profiles;
   final Future<SshProfileImportSnapshot> Function() importOpenSshProfiles;
+  final bool customSshProfilesEnabled;
 
   @override
   State<NewSessionLauncher> createState() => _NewSessionLauncherState();
@@ -132,7 +134,11 @@ class _NewSessionLauncherState extends State<NewSessionLauncher> {
                           : _SshProfileList(
                               key: const ValueKey('ssh-sessions'),
                               savedProfiles: widget.profiles
-                                  .where((profile) => profile.isSsh)
+                                  .where(
+                                    (profile) =>
+                                        widget.customSshProfilesEnabled &&
+                                        profile.isSsh,
+                                  )
                                   .toList(growable: false),
                               importedProfiles: _importedProfiles ??= widget
                                   .importOpenSshProfiles(),
@@ -143,6 +149,8 @@ class _NewSessionLauncherState extends State<NewSessionLauncher> {
                                 });
                               },
                               onCreateCustom: _createCustomSshProfile,
+                              customSshProfilesEnabled:
+                                  widget.customSshProfilesEnabled,
                             ),
                     ),
                   ),
@@ -222,12 +230,14 @@ class _SshProfileList extends StatefulWidget {
     required this.importedProfiles,
     required this.onRetryImport,
     required this.onCreateCustom,
+    required this.customSshProfilesEnabled,
   });
 
   final List<TerminalProfile> savedProfiles;
   final Future<SshProfileImportSnapshot> importedProfiles;
   final VoidCallback onRetryImport;
   final VoidCallback onCreateCustom;
+  final bool customSshProfilesEnabled;
 
   @override
   State<_SshProfileList> createState() => _SshProfileListState();
@@ -259,13 +269,27 @@ class _SshProfileListState extends State<_SshProfileList> {
     return ListView(
       shrinkWrap: true,
       children: [
-        FilledButton.icon(
-          key: const Key('new-custom-ssh-session'),
-          onPressed: widget.onCreateCustom,
-          icon: const Icon(Icons.add_rounded),
-          label: const Text('New SSH connection'),
-        ),
-        const SizedBox(height: 10),
+        if (widget.customSshProfilesEnabled) ...[
+          FilledButton.icon(
+            key: const Key('new-custom-ssh-session'),
+            onPressed: widget.onCreateCustom,
+            icon: const Icon(Icons.add_rounded),
+            label: const Text('New SSH connection'),
+          ),
+          const SizedBox(height: 10),
+        ] else ...[
+          const ListTile(
+            key: Key('custom-ssh-requires-remote-api'),
+            leading: Icon(Icons.cloud_off_outlined),
+            title: Text('Custom SSH profiles are unavailable'),
+            subtitle: Text(
+              'Enable the bundled local API or configure a remote HTTP API '
+              'to create custom SSH profiles. Hosts from ~/.ssh/config '
+              'remain available below.',
+            ),
+          ),
+          const SizedBox(height: 10),
+        ],
         Semantics(
           label: 'Search SSH profiles',
           textField: true,

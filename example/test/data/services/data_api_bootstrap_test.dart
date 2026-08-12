@@ -5,8 +5,10 @@ import 'package:app/data/configuration/data_api_configuration.dart';
 import 'package:app/data/configuration/data_api_configuration_repository.dart';
 import 'package:app/data/services/data_api_bootstrap.dart';
 import 'package:app/data/services/data_api_client.dart';
+import 'package:app/data/services/data_api_local_credentials.dart';
 import 'package:app/data/services/data_api_remote_session_store.dart';
 import 'package:app/data/services/data_api_runtime.dart';
+import 'package:app/data/services/local_data_api_sidecar.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -35,6 +37,25 @@ void main() {
       expect(localStartCount, 0);
     },
   );
+
+  test('macOS local terminal mode never starts the bundled sidecar', () async {
+    var localStartCount = 0;
+    final bootstrap = DataApiBootstrap(
+      configurationRepository: _MemoryConfigurationRepository(
+        const DataApiConfiguration.disabled(),
+      ),
+      isMacOS: true,
+      localRuntimeStarter: (_) async {
+        localStartCount += 1;
+        return _localRuntime();
+      },
+    );
+
+    final runtime = await bootstrap.start(appSupportDirectory: unusedDirectory);
+
+    expect(runtime, isNull);
+    expect(localStartCount, 0);
+  });
 
   test(
     'an explicit startup snapshot is not re-read from the repository',
@@ -119,6 +140,65 @@ void main() {
     expect(runtime, same(expectedRuntime));
     expect(receivedDirectory, same(unusedDirectory));
   });
+
+  test(
+    'production local startup forwards one ephemeral bearer and stable data key',
+    () async {
+      final appSupportDirectory = await Directory.systemTemp.createTemp(
+        'ianvs-bootstrap-local-credentials-',
+      );
+      final credentialsProvider = _LocalCredentialsProvider();
+      final sidecar = _LocalSidecarHandle();
+      final initializer = _CapturingLocalInitializer();
+      String? launchedBearerToken;
+      final bootstrap = DataApiBootstrap(
+        configurationRepository: _MemoryConfigurationRepository(
+          const DataApiConfiguration.local(),
+        ),
+        localCredentialsProvider: credentialsProvider,
+        localSidecarLauncher:
+            ({
+              required binary,
+              required database,
+              required localAccessToken,
+            }) async {
+              launchedBearerToken = localAccessToken;
+              expect(database.path, endsWith('data-api/ianvs.db'));
+              return sidecar;
+            },
+        localApiInitializer: initializer,
+        isMacOS: true,
+      );
+
+      try {
+        final runtime = await bootstrap.start(
+          appSupportDirectory: appSupportDirectory,
+        );
+
+        expect(credentialsProvider.calls, 1);
+        expect(
+          credentialsProvider.receivedDirectory,
+          same(appSupportDirectory),
+        );
+        expect(launchedBearerToken, _LocalCredentialsProvider.bearerToken);
+        expect(initializer.localAccessToken, launchedBearerToken);
+        expect(
+          initializer.encryptionKey,
+          _LocalCredentialsProvider.dataEncryptionKey,
+        );
+        expect(runtime?.localAccessToken, launchedBearerToken);
+        expect(
+          runtime?.encryptionKey,
+          _LocalCredentialsProvider.dataEncryptionKey,
+        );
+
+        await runtime?.close();
+        expect(sidecar.closeCalls, 1);
+      } finally {
+        await appSupportDirectory.delete(recursive: true);
+      }
+    },
+  );
 
   test('local configuration is rejected outside macOS', () async {
     var localStartCount = 0;
@@ -374,6 +454,57 @@ final class _ThrowingRemoteSessionStore
 
   @override
   Future<void> deleteSlot(String slotRef) => Future.error(error);
+}
+
+final class _LocalCredentialsProvider
+    implements DataApiLocalCredentialsProvider {
+  static const bearerToken = 'MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY';
+  static const dataEncryptionKey =
+      'YWJjZGVmMDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmM';
+
+  int calls = 0;
+  Directory? receivedDirectory;
+
+  @override
+  Future<DataApiLocalCredentials> createForStart(
+    Directory appSupportDirectory,
+  ) async {
+    calls += 1;
+    receivedDirectory = appSupportDirectory;
+    return const DataApiLocalCredentials(
+      bearerToken: bearerToken,
+      dataEncryptionKey: dataEncryptionKey,
+    );
+  }
+}
+
+final class _LocalSidecarHandle implements LocalDataApiSidecarHandle {
+  @override
+  final baseUri = Uri.parse('http://127.0.0.1:54321/');
+
+  int closeCalls = 0;
+
+  @override
+  Future<void> close() async {
+    closeCalls += 1;
+  }
+}
+
+final class _CapturingLocalInitializer
+    implements DataApiLocalApiInitialization {
+  String? localAccessToken;
+  String? encryptionKey;
+
+  @override
+  Future<void> initialize({
+    required Uri baseUri,
+    required String localAccessToken,
+    required String encryptionKey,
+  }) async {
+    expect(baseUri, Uri.parse('http://127.0.0.1:54321/'));
+    this.localAccessToken = localAccessToken;
+    this.encryptionKey = encryptionKey;
+  }
 }
 
 final class _TerminationUnknownFailure

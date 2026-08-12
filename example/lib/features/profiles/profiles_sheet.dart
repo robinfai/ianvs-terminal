@@ -38,10 +38,12 @@ class ProfilesSheet extends StatefulWidget {
     super.key,
     required this.profiles,
     required this.effectiveDefaultProfileId,
+    this.customSshProfilesEnabled = true,
   });
 
   final List<TerminalProfile> profiles;
   final String? effectiveDefaultProfileId;
+  final bool customSshProfilesEnabled;
 
   @override
   State<ProfilesSheet> createState() => _ProfilesSheetState();
@@ -60,11 +62,15 @@ class _ProfilesSheetState extends State<ProfilesSheet> {
   List<TerminalProfile> get _filteredProfiles {
     final normalizedQuery = _query.trim().toLowerCase();
     if (normalizedQuery.isEmpty) {
-      return widget.profiles;
+      return widget.profiles
+          .where((profile) => widget.customSshProfilesEnabled || !profile.isSsh)
+          .toList(growable: false);
     }
     return [
       for (final profile in widget.profiles)
-        if (_profileMatchesQuery(profile, normalizedQuery)) profile,
+        if ((widget.customSshProfilesEnabled || !profile.isSsh) &&
+            _profileMatchesQuery(profile, normalizedQuery))
+          profile,
     ];
   }
 
@@ -256,17 +262,18 @@ class _ProfilesSheetState extends State<ProfilesSheet> {
               subtitle: Text('Run a shell on this device.'),
             ),
           ),
-          SimpleDialogOption(
-            key: const Key('profiles-create-ssh'),
-            onPressed: () => Navigator.of(
-              dialogContext,
-            ).pop(NewProfileConnectionType.sshSession),
-            child: const ListTile(
-              leading: Icon(Icons.dns_outlined),
-              title: Text('SSH session'),
-              subtitle: Text('Connect to a remote host.'),
+          if (widget.customSshProfilesEnabled)
+            SimpleDialogOption(
+              key: const Key('profiles-create-ssh'),
+              onPressed: () => Navigator.of(
+                dialogContext,
+              ).pop(NewProfileConnectionType.sshSession),
+              child: const ListTile(
+                leading: Icon(Icons.dns_outlined),
+                title: Text('SSH session'),
+                subtitle: Text('Connect to a remote host.'),
+              ),
             ),
-          ),
         ],
       ),
     );

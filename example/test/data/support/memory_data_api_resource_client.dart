@@ -195,6 +195,8 @@ final class MemoryDataApiResourceClient implements DataApiResourceClient {
   Future<DataApiMigrationMergeReport> mergeResources({
     required String sourceId,
     required List<DataApiMigrationResource> resources,
+    DataApiMigrationConflictPolicy conflictPolicy =
+        DataApiMigrationConflictPolicy.preserveDestination,
   }) async {
     _ensureAuthenticated();
     mergeCount += 1;
