@@ -9,6 +9,19 @@ import 'shell_productivity_models.dart';
 
 typedef ShellRecentItemsDirectoryResolver = Future<Directory> Function();
 
+const int shellRecentItemsCurrentSchemaVersion = 1;
+
+final class UnsupportedShellRecentItemsSchemaVersion implements Exception {
+  const UnsupportedShellRecentItemsSchemaVersion(this.version);
+
+  final Object? version;
+
+  @override
+  String toString() =>
+      'Unsupported recent-items schema version: $version; expected '
+      '$shellRecentItemsCurrentSchemaVersion.';
+}
+
 class ShellRecentItemsRepository {
   ShellRecentItemsRepository({
     ShellRecentItemsDirectoryResolver? directoryResolver,
@@ -24,9 +37,22 @@ class ShellRecentItemsRepository {
 
     try {
       final raw = await file.readAsString();
-      return ShellRecentItemsState.fromJson(
-        decodeJsonObject(raw, documentName: 'Recent items'),
-      );
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map<String, Object?>) {
+        throw const UnsupportedShellRecentItemsSchemaVersion(null);
+      }
+      final document = decoded;
+      final version = document['schema_version'];
+      if (version != shellRecentItemsCurrentSchemaVersion) {
+        throw UnsupportedShellRecentItemsSchemaVersion(version);
+      }
+      final recentItems = document['recent_items'];
+      if (recentItems is! Map<Object?, Object?>) {
+        throw const FormatException(
+          'Recent items document must contain a recent_items object.',
+        );
+      }
+      return ShellRecentItemsState.fromJson(recentItems);
     } on FormatException {
       await quarantineCorruptFile(file);
       const repaired = ShellRecentItemsState();
@@ -37,7 +63,13 @@ class ShellRecentItemsRepository {
 
   Future<void> save(ShellRecentItemsState state) async {
     final file = await _recentItemsFile();
-    await writeStringAtomically(file, jsonEncode(state.toJson()));
+    await writeStringAtomically(
+      file,
+      jsonEncode(<String, Object?>{
+        'schema_version': shellRecentItemsCurrentSchemaVersion,
+        'recent_items': state.toJson(),
+      }),
+    );
   }
 
   Future<File> _recentItemsFile() async {

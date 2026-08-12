@@ -6,28 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('Local terminal config models', () {
-    test('migrates the legacy clearScrollback keybinding action name', () {
-      final config = LocalTerminalConfigDocument.fromJson(<String, Object?>{
-        'keybindings': <String, Object?>{
-          'disabledDefaultActions': <String>['clearScrollback'],
-          'overrides': <String, Object?>{
-            'clearScrollback': <String, Object?>{'enabled': false},
-          },
-        },
-      });
-
-      expect(
-        config.keybindings.disabledDefaultActions,
-        contains(TerminalActionId.clearBuffer),
-      );
-      expect(
-        config.keybindings.overrides[TerminalActionId.clearBuffer]?.enabled,
-        isFalse,
-      );
-    });
-
     test('decode fills local config defaults', () {
-      final config = LocalTerminalConfigDocument.fromJson(const {});
+      final config = _currentConfig(const {});
 
       expect(
         config.schemaVersion,
@@ -85,12 +65,8 @@ void main() {
     });
 
     test('default profile id trims whitespace and rejects blanks', () {
-      final trimmed = LocalTerminalConfigDocument.fromJson(const {
-        'defaultProfileId': ' ssh ',
-      });
-      final blank = LocalTerminalConfigDocument.fromJson(const {
-        'defaultProfileId': '   ',
-      });
+      final trimmed = _currentConfig(const {'defaultProfileId': ' ssh '});
+      final blank = _currentConfig(const {'defaultProfileId': '   '});
 
       expect(trimmed.defaultProfileId, 'ssh');
       expect(blank.defaultProfileId, isNull);
@@ -143,7 +119,7 @@ void main() {
     });
 
     test('keybinding json trims keys and rejects blank keys', () {
-      final config = LocalTerminalConfigDocument.fromJson(const {
+      final config = _currentConfig(const {
         'keybindings': {
           'overrides': {
             'newTab': {
@@ -167,7 +143,7 @@ void main() {
     });
 
     test('keybinding json rejects overly long keys', () {
-      final config = LocalTerminalConfigDocument.fromJson({
+      final config = _currentConfig({
         'keybindings': {
           'overrides': {
             'newTab': {
@@ -201,7 +177,7 @@ void main() {
     });
 
     test('keybinding action ids trim whitespace and ignore case', () {
-      final config = LocalTerminalConfigDocument.fromJson(const {
+      final config = _currentConfig(const {
         'keybindings': {
           'disabledDefaultActions': [' PASTEHISTORY ', '   '],
           'overrides': {
@@ -224,7 +200,7 @@ void main() {
 
     test('keybinding json restores valid actions after malformed prefixes', () {
       final malformedPrefixLength = TerminalActionId.values.length * 2;
-      final config = LocalTerminalConfigDocument.fromJson({
+      final config = _currentConfig({
         'keybindings': {
           'disabledDefaultActions': [
             for (var index = 0; index < malformedPrefixLength; index += 1)
@@ -254,7 +230,7 @@ void main() {
     });
 
     test('config enum values trim whitespace and ignore case', () {
-      final config = LocalTerminalConfigDocument.fromJson(const {
+      final config = _currentConfig(const {
         'keybindings': {
           'overrides': {
             'newTab': {
@@ -298,7 +274,7 @@ void main() {
           ),
         );
         final decoded = LocalTerminalConfigDocument.decode(config.encode());
-        final malformed = LocalTerminalConfigDocument.fromJson(const {
+        final malformed = _currentConfig(const {
           'hostActions': {'osc1337OpenUrl': 'always-open'},
         });
 
@@ -320,10 +296,10 @@ void main() {
         ),
       );
       final decoded = LocalTerminalConfigDocument.decode(config.encode());
-      final malformed = LocalTerminalConfigDocument.fromJson(const {
+      final malformed = _currentConfig(const {
         'hostActions': {'osc1337RequestAttention': 'always-bounce'},
       });
-      final denyAlias = LocalTerminalConfigDocument.fromJson(const {
+      final denyAlias = _currentConfig(const {
         'hostActions': {'osc1337RequestAttention': 'deny'},
       });
 
@@ -353,7 +329,7 @@ void main() {
           for (var index = 0; index < 80; index += 1)
             'user.key$index': index.isEven ? 'allow' : 'disabled',
         };
-        final config = LocalTerminalConfigDocument.fromJson({
+        final config = _currentConfig({
           'hostActions': {'osc1337ReportVariables': rawDecisions},
         });
 
@@ -435,10 +411,10 @@ void main() {
     );
 
     test('OSC 52 policy parses ask and deny aliases', () {
-      final askConfig = LocalTerminalConfigDocument.fromJson(const {
+      final askConfig = _currentConfig(const {
         'clipboard': {'osc52': ' Ask '},
       });
-      final denyConfig = LocalTerminalConfigDocument.fromJson(const {
+      final denyConfig = _currentConfig(const {
         'clipboard': {'osc52': 'deny'},
       });
 
@@ -465,28 +441,23 @@ void main() {
       );
     });
 
-    test('schema version rejects non-positive values', () {
-      final zero = LocalTerminalConfigDocument.fromJson(const {
-        'schemaVersion': 0,
-      });
-      final negative = LocalTerminalConfigDocument.fromJson(const {
-        'schemaVersion': -1,
-      });
-      final fractional = LocalTerminalConfigDocument.fromJson(const {
-        'schemaVersion': 2.5,
-      });
-
+    test('schema version rejects noncurrent and malformed values', () {
       expect(
-        zero.schemaVersion,
-        LocalTerminalConfigDocument.currentSchemaVersion,
+        () => LocalTerminalConfigDocument.fromJson(const {}),
+        throwsA(isA<UnsupportedLocalTerminalConfigSchemaVersion>()),
       );
       expect(
-        negative.schemaVersion,
-        LocalTerminalConfigDocument.currentSchemaVersion,
+        () => LocalTerminalConfigDocument.fromJson(const {'schemaVersion': 0}),
+        throwsA(isA<UnsupportedLocalTerminalConfigSchemaVersion>()),
       );
       expect(
-        fractional.schemaVersion,
-        LocalTerminalConfigDocument.currentSchemaVersion,
+        () => LocalTerminalConfigDocument.fromJson(const {'schemaVersion': -1}),
+        throwsA(isA<UnsupportedLocalTerminalConfigSchemaVersion>()),
+      );
+      expect(
+        () =>
+            LocalTerminalConfigDocument.fromJson(const {'schemaVersion': 2.5}),
+        throwsFormatException,
       );
     });
 
@@ -519,16 +490,16 @@ void main() {
     });
 
     test('paste history size accepts zero and caps invalid values', () {
-      final disabled = LocalTerminalConfigDocument.fromJson(const {
+      final disabled = _currentConfig(const {
         'paste': {'historySize': 0},
       });
-      final negative = LocalTerminalConfigDocument.fromJson(const {
+      final negative = _currentConfig(const {
         'paste': {'historySize': -1},
       });
-      final fractional = LocalTerminalConfigDocument.fromJson(const {
+      final fractional = _currentConfig(const {
         'paste': {'historySize': 2.5},
       });
-      final excessive = LocalTerminalConfigDocument.fromJson({
+      final excessive = _currentConfig({
         'paste': {'historySize': defaultLocalTerminalPasteHistoryEntries + 1},
       });
 
@@ -546,5 +517,12 @@ void main() {
         defaultLocalTerminalPasteHistoryEntries,
       );
     });
+  });
+}
+
+LocalTerminalConfigDocument _currentConfig(Map<String, Object?> json) {
+  return LocalTerminalConfigDocument.fromJson(<String, Object?>{
+    'schemaVersion': LocalTerminalConfigDocument.currentSchemaVersion,
+    ...json,
   });
 }

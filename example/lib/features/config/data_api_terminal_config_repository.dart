@@ -103,8 +103,23 @@ final class DataApiTerminalConfigRepository extends TerminalConfigRepository {
   }
 
   LocalTerminalConfigDocument _decode(DataApiResource resource) {
-    return LocalTerminalConfigDocument.fromJson(
-      dataApiObject(resource.data, documentName: 'Terminal config'),
+    final validated = requireDataApiResourceIdentity(
+      resource,
+      kind: resourceKind,
+      id: resourceId,
     );
+    if (validated.hasSensitive || validated.sensitive != null) {
+      throw const FormatException(
+        'Terminal config must not contain a sensitive payload.',
+      );
+    }
+    final data = dataApiObject(validated.data, documentName: 'Terminal config');
+    final decoded = LocalTerminalConfigDocument.fromJson(data);
+    if (!dataApiJsonEquivalent(decoded.toJson(), data)) {
+      throw const FormatException(
+        'Terminal config is not a canonical current-schema document.',
+      );
+    }
+    return decoded;
   }
 }

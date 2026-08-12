@@ -1,8 +1,11 @@
 # T-102 Local Terminal Config Bootstrap Resolution
 
+> Historical task record. Compatibility resolution was superseded by the
+> current-schema-only bootstrap; predecessor preference files are not read.
+
 ## Goal
 
-补齐 P1 的 legacy app preferences compatibility bootstrap 规则，明确新 `LocalTerminalConfig`、旧 `ianvs_preferences.json` 和内建 defaults 的优先级。
+补齐 P1 的 current `LocalTerminalConfig` 与内建 defaults 的 bootstrap 规则。
 
 ## Scope
 
@@ -24,15 +27,13 @@
 - 已新增 `LocalTerminalConfigBootstrapResult`。
 - 已新增 `LocalTerminalConfigBootstrapSource`。
 - 已新增 `LocalTerminalConfigBootstrap.resolve()`。
-- bootstrap 优先级：local config > legacy app preferences > defaults。
-- legacy app preferences 会通过既有 migration adapter 转成 local config。
-- 已补充 local-first、legacy fallback、defaults fallback 测试。
+- bootstrap 优先级：current local config > defaults。
+- 已补充 local-first、defaults fallback 与 noncurrent fail-closed 测试。
 
 ## Functional Acceptance
 
 - 新 config 存在时优先使用新 config。
-- 新 config 缺失时可从旧 app preferences 继承 defaultProfileId 和 appearance。
-- 两者都缺失时使用 safe defaults。
+- current config 缺失时使用 safe defaults。
 - bootstrap 不改变旧 profile repository 的读取职责。
 - bootstrap 不引入 SSH/remote config source。
 
@@ -52,10 +53,10 @@ flutter analyze
 
 ## Done When
 
-- P1 legacy app preferences compatibility 的配置优先级有可复用 resolver。
+- P1 current config 的配置优先级有可复用 resolver。
 - 后续 session bootstrap 接入可以直接使用该 resolver。
 
 ## Risks / Follow-ups
 
 - 后续仍需实际接入 session controller。
-- profile list 仍由旧 `ProfileRepository` 负责，不应被本任务隐式合并。
+- profile list 仍由独立 current `ProfileRepository` 负责。

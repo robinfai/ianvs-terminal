@@ -159,10 +159,7 @@ class TerminalAppPreferencesDocument {
     TerminalAppNotifications? notifications,
   }) {
     return TerminalAppPreferencesDocument(
-      schemaVersion: _schemaVersionFromJson(
-        schemaVersion ?? this.schemaVersion,
-        currentSchemaVersion,
-      ),
+      schemaVersion: currentSchemaVersion,
       defaults: defaults ?? this.defaults,
       appearance: appearance ?? this.appearance,
       notifications: notifications ?? this.notifications,
@@ -171,10 +168,7 @@ class TerminalAppPreferencesDocument {
 
   Map<String, Object?> toJson() {
     return {
-      'schemaVersion': _schemaVersionFromJson(
-        schemaVersion,
-        currentSchemaVersion,
-      ),
+      'schemaVersion': currentSchemaVersion,
       'defaults': defaults.toJson(),
       'appearance': appearance.toJson(),
       'notifications': notifications.toJson(),
@@ -184,11 +178,12 @@ class TerminalAppPreferencesDocument {
   String encode() => jsonEncode(toJson());
 
   static TerminalAppPreferencesDocument fromJson(Map<String, Object?> json) {
+    final schemaVersion = json['schemaVersion'];
+    if (schemaVersion != currentSchemaVersion) {
+      throw UnsupportedTerminalAppPreferencesSchemaVersion(schemaVersion);
+    }
     return TerminalAppPreferencesDocument(
-      schemaVersion: _schemaVersionFromJson(
-        json['schemaVersion'],
-        currentSchemaVersion,
-      ),
+      schemaVersion: currentSchemaVersion,
       defaults: TerminalAppDefaults.fromJson(_objectMap(json['defaults'])),
       appearance: TerminalAppAppearance.fromJson(
         _objectMap(json['appearance']),
@@ -200,15 +195,16 @@ class TerminalAppPreferencesDocument {
   }
 }
 
-int _schemaVersionFromJson(Object? value, int fallback) {
-  if (value is int) {
-    return value > 0 ? value : fallback;
-  }
-  if (value is num && value.isFinite) {
-    final parsed = value.toInt();
-    return parsed > 0 && value == parsed ? parsed : fallback;
-  }
-  return fallback;
+final class UnsupportedTerminalAppPreferencesSchemaVersion
+    implements Exception {
+  const UnsupportedTerminalAppPreferencesSchemaVersion(this.version);
+
+  final Object? version;
+
+  @override
+  String toString() =>
+      'Unsupported app preferences schema version: $version '
+      '(current: ${TerminalAppPreferencesDocument.currentSchemaVersion})';
 }
 
 Map<Object?, Object?>? _objectMap(Object? value) {

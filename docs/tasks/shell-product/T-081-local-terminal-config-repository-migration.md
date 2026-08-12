@@ -1,8 +1,12 @@
-# T-081 Local Terminal Config Repository And Migration
+# T-081 Local Terminal Config Repository (Superseded Compatibility Scope)
+
+> Historical task record. The current product is current-schema-only: it does
+> not discover, import, migrate, or delete predecessor preference files.
 
 ## Goal
 
-补齐 `LocalTerminalConfigDocument` 的独立 repository 与 legacy app preferences 迁移入口，使 P1 config foundation 从纯模型推进到可落盘、可修复、可迁移的基础设施。
+补齐 `LocalTerminalConfigDocument` 的独立 current repository，使 P1 config
+foundation 从纯模型推进到可落盘、可修复的基础设施。
 
 ## Scope
 
@@ -22,17 +26,18 @@
 
 - 已新增 `LocalTerminalConfigRepository`。
 - 新配置文件路径为 `ianvs_config.json`。
-- 缺失新配置时返回 `null`，不破坏旧 profile/preferences fallback。
+- 缺失 current 配置时返回 `null`。
 - corrupt config 会 quarantine 并写入 repaired defaults。
-- 已新增 `LocalTerminalConfigMigration.fromLegacyAppPreferences()`，把旧 app preferences 的 default profile 和 appearance 映射到新 config。
-- 已补充 repository roundtrip、corrupt repair 和 legacy migration 测试。
+- 非 current schema typed reject 且原文件不变。
+- 已补充 repository roundtrip、current corrupt repair 和 noncurrent
+  no-mutation 测试。
 
 ## Functional Acceptance
 
 - `ianvs_config.json` 不存在时不会破坏现有启动路径。
 - `ianvs_config.json` 可保存和读取 `LocalTerminalConfigDocument`。
 - corrupt config 有 quarantine 和 repaired defaults。
-- legacy app preferences 可迁移 defaultProfileId 和 appearance。
+- predecessor app preferences 不被发现或迁移。
 - 该任务不改变当前运行时实际配置来源。
 
 ## Verification Commands
@@ -52,10 +57,9 @@ flutter analyze
 ## Done When
 
 - local config repository 可被后续 session bootstrap 任务接入
-- legacy app preferences migration adapter 可用
+- noncurrent schema fail-closed 且不修改证据
 - 相关 repository 测试通过
 
 ## Risks / Follow-ups
 
-- 后续需要独立任务决定何时从旧 preferences 自动迁移到新 `ianvs_config.json`。
-- 后续需要把 profile list migration 纳入新 config，当前只迁移 app-level defaults/appearance。
+- predecessor formats are outside the product contract.

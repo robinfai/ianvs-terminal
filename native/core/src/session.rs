@@ -7139,17 +7139,16 @@ fn invalid_recording_request(message: &'static str) -> Result<Option<String>, Se
     })
 }
 
-pub fn request_session_json(
+pub fn request_session(
     session_id: u64,
-    request_json: &str,
+    operation: &str,
+    request: &serde_json::Value,
 ) -> Result<Option<String>, SessionError> {
-    let request: serde_json::Value = serde_json::from_str(request_json)
-        .map_err(|error| SessionError::Serialize(error.to_string()))?;
-    let Some(kind) = request.get("kind").and_then(serde_json::Value::as_str) else {
+    if !request.is_object() {
         return Ok(None);
-    };
+    }
 
-    match kind {
+    match operation {
         "ssh.auth_response" => {
             let challenge_id = request
                 .get("challengeId")
@@ -7420,7 +7419,7 @@ pub fn request_session_json(
                 .map_err(|error| SessionError::Serialize(error.to_string()))
         }
         "terminal.export_scrollback" => {
-            let max_lines = scrollback_export_max_lines_from_request(&request);
+            let max_lines = scrollback_export_max_lines_from_request(request);
             export_scrollback_session(session_id, max_lines).map(Some)
         }
         "terminal.export_diagnostics" => {
@@ -7453,7 +7452,7 @@ pub fn request_session_json(
             .map(Some)
         }
         "terminal.zmodem.accept_receive" => {
-            let Some(transfer_id) = zmodem_transfer_id_from_request(&request) else {
+            let Some(transfer_id) = zmodem_transfer_id_from_request(request) else {
                 return Ok(None);
             };
             let Some(destination) = request
@@ -7469,7 +7468,7 @@ pub fn request_session_json(
             request_json_response(serde_json::json!({ "accepted": true }))
         }
         "terminal.zmodem.accept_send" => {
-            let Some(transfer_id) = zmodem_transfer_id_from_request(&request) else {
+            let Some(transfer_id) = zmodem_transfer_id_from_request(request) else {
                 return Ok(None);
             };
             let Some(files) = request
@@ -7549,7 +7548,7 @@ pub fn request_session_json(
             }))
         }
         "terminal.zmodem.cancel" => {
-            let Some(transfer_id) = zmodem_transfer_id_from_request(&request) else {
+            let Some(transfer_id) = zmodem_transfer_id_from_request(request) else {
                 return Ok(None);
             };
             STORE.get(session_id)?.cancel_zmodem(transfer_id)?;
@@ -8401,7 +8400,7 @@ mod tests {
     }
 
     #[test]
-    fn legacy_event_drain_keeps_clipboard_request_shape_and_registers_no_v1_request() {
+    fn raw_event_drain_is_isolated_from_current_host_request_registration() {
         let mut queue = PendingEventQueue::default();
         let _ = queue.push(pending_test_event(
             "clipboard_paste_request",

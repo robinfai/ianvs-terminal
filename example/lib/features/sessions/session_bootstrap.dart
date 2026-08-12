@@ -1,15 +1,11 @@
 import '../config/local_terminal_config_bootstrap.dart';
 import '../config/local_terminal_config_loader.dart';
 import '../config/local_terminal_config_models.dart';
-import '../config/local_terminal_config_preferences_adapter.dart';
 import '../config/local_terminal_config_repository.dart';
 import '../persistence/versioned_document.dart';
 import '../preferences/app_preferences_models.dart';
-import '../preferences/app_preferences_repository.dart';
 import '../profiles/profile_models.dart';
 import '../profiles/profile_repository.dart';
-
-typedef LocalConfigFallbackPolicy = bool Function(Object error);
 
 class SessionBootstrapPreparation {
   SessionBootstrapPreparation({
@@ -42,17 +38,13 @@ class SessionBootstrapPreparation {
 class SessionBootstrapService {
   const SessionBootstrapService({
     required this.profileRepository,
-    required this.appPreferencesRepository,
     required this.localConfigRepository,
     required this.localConfigLoader,
-    this.shouldFallbackToLegacyPreferences = _neverFallback,
   });
 
   final ProfileRepositoryPort profileRepository;
-  final AppPreferencesRepositoryPort appPreferencesRepository;
   final TerminalConfigRepository localConfigRepository;
   final LocalTerminalConfigLoader localConfigLoader;
-  final LocalConfigFallbackPolicy shouldFallbackToLegacyPreferences;
 
   Future<SessionBootstrapPreparation> prepare({
     String? explicitDefaultProfileId,
@@ -63,8 +55,7 @@ class SessionBootstrapService {
         : loadedProfiles.value.profiles;
     final configBootstrap = await _loadConfig();
     var localConfig = configBootstrap.config;
-    final seededPreferences =
-        LocalTerminalConfigPreferencesAdapter.toAppPreferences(localConfig);
+    final seededPreferences = _preferencesFromCurrentConfig(localConfig);
     final resolution = _resolvePreferences(
       profiles: profiles,
       preferences: seededPreferences,
@@ -77,25 +68,18 @@ class SessionBootstrapService {
       value: localConfig,
       revision: configBootstrap.localConfigRevision,
     );
-    var appPreferencesDocument =
+    final appPreferencesDocument =
         VersionedDocument<TerminalAppPreferencesDocument>(
           value: resolution.preferences,
-          revision: configBootstrap.legacyPreferencesRevision,
+          revision: null,
         );
     if (resolution.shouldRepairWritePreferences) {
-      if (configBootstrap.source ==
-          LocalTerminalConfigBootstrapSource.localConfig) {
-        localConfig = localConfig.copyWith(
-          defaultProfileId: resolution.preferences.defaults.defaultProfileId,
-        );
-        localConfigDocument = await localConfigRepository.saveVersioned(
-          localConfigDocument.withValue(localConfig),
-        );
-      } else {
-        appPreferencesDocument = await appPreferencesRepository.saveVersioned(
-          appPreferencesDocument,
-        );
-      }
+      localConfig = localConfig.copyWith(
+        defaultProfileId: resolution.preferences.defaults.defaultProfileId,
+      );
+      localConfigDocument = await localConfigRepository.saveVersioned(
+        localConfigDocument.withValue(localConfig),
+      );
       preferencesLoadedFromDisk = true;
     }
 
@@ -120,21 +104,22 @@ class SessionBootstrapService {
     );
   }
 
-  Future<LocalTerminalConfigBootstrapResult> _loadConfig() async {
-    try {
-      return await localConfigLoader.load();
-    } on Object catch (error) {
-      if (!shouldFallbackToLegacyPreferences(error)) {
-        rethrow;
-      }
-      final legacyPreferences = await appPreferencesRepository.loadVersioned();
-      return LocalTerminalConfigBootstrap.resolve(
-        localConfig: null,
-        legacyAppPreferences: legacyPreferences.value,
-        legacyPreferencesRevision: legacyPreferences.revision,
-      );
-    }
-  }
+  Future<LocalTerminalConfigBootstrapResult> _loadConfig() =>
+      localConfigLoader.load();
+}
+
+TerminalAppPreferencesDocument _preferencesFromCurrentConfig(
+  LocalTerminalConfigDocument config,
+) {
+  return TerminalAppPreferencesDocument(
+    defaults: TerminalAppDefaults(defaultProfileId: config.defaultProfileId),
+    appearance: config.appearance,
+    notifications: TerminalAppNotifications(
+      commandFinished: config.notifications.commandFinished,
+      bell: config.notifications.bell,
+      activity: config.notifications.activity,
+    ),
+  );
 }
 
 sealed class SessionBootstrapOutcome {
@@ -258,5 +243,3 @@ class _SessionBootstrapPreferencesResolution {
   final TerminalAppPreferencesDocument preferences;
   final bool shouldRepairWritePreferences;
 }
-
-bool _neverFallback(Object error) => false;

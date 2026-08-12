@@ -21,7 +21,6 @@ import '../../platform/clipboard_bridge.dart';
 import '../../ui/app_ui.dart';
 import '../config/local_terminal_config_bootstrap.dart';
 import '../config/local_terminal_config_models.dart';
-import '../config/local_terminal_config_preferences_adapter.dart';
 import '../config/shortcut_editor.dart';
 import '../persistence/versioned_document.dart';
 import '../policies/local_terminal_paste_decision.dart';

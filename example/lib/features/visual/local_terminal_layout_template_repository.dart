@@ -8,11 +8,27 @@ import '../../platform/local_json_file.dart';
 import 'local_terminal_visual_models.dart';
 
 const int maxLocalTerminalLayoutTemplates = 100;
+const int localTerminalLayoutTemplateLibraryCurrentSchemaVersion = 1;
 const int _maxPersistedLayoutTemplateEntriesToScan =
     maxLocalTerminalLayoutTemplates * 4;
 
 typedef LocalTerminalLayoutTemplateDirectoryResolver =
     Future<Directory> Function();
+
+final class UnsupportedLocalTerminalLayoutTemplateLibrarySchemaVersion
+    implements Exception {
+  const UnsupportedLocalTerminalLayoutTemplateLibrarySchemaVersion(
+    this.version,
+  );
+
+  final Object? version;
+
+  @override
+  String toString() =>
+      'Unsupported terminal layout-template library schema version: '
+      '$version; expected '
+      '$localTerminalLayoutTemplateLibraryCurrentSchemaVersion.';
+}
 
 class LocalTerminalLayoutTemplateRepository {
   LocalTerminalLayoutTemplateRepository({
@@ -29,10 +45,25 @@ class LocalTerminalLayoutTemplateRepository {
 
     try {
       final raw = await file.readAsString();
-      final decoded = decodeJsonArray(
-        raw,
-        documentName: 'Layout template list',
-      );
+      final decodedDocument = jsonDecode(raw);
+      if (decodedDocument is! Map<String, Object?>) {
+        throw const UnsupportedLocalTerminalLayoutTemplateLibrarySchemaVersion(
+          null,
+        );
+      }
+      final document = decodedDocument;
+      final version = document['schema_version'];
+      if (version != localTerminalLayoutTemplateLibraryCurrentSchemaVersion) {
+        throw UnsupportedLocalTerminalLayoutTemplateLibrarySchemaVersion(
+          version,
+        );
+      }
+      final decoded = document['templates'];
+      if (decoded is! List<Object?>) {
+        throw const FormatException(
+          'Layout template library must contain a templates list.',
+        );
+      }
       return _uniqueUsableTemplates(
         decoded
             .take(_maxPersistedLayoutTemplateEntriesToScan)
@@ -51,11 +82,13 @@ class LocalTerminalLayoutTemplateRepository {
     final file = await _templatesFile();
     await writeStringAtomically(
       file,
-      jsonEncode(
-        _uniqueUsableTemplates(
+      jsonEncode(<String, Object?>{
+        'schema_version':
+            localTerminalLayoutTemplateLibraryCurrentSchemaVersion,
+        'templates': _uniqueUsableTemplates(
           templates,
         ).map((template) => template.toJson()).toList(growable: false),
-      ),
+      }),
     );
   }
 

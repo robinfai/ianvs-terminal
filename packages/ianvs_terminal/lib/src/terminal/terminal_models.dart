@@ -5,7 +5,6 @@ import 'dart:ui';
 import '../config/terminal_config.dart';
 import '../contracts/terminal_frame_normalization_policy.dart';
 import '../contracts/terminal_frame_validation_limits.dart';
-import '../contracts/terminal_wire_compatibility.dart';
 
 enum TerminalFrameKind { snapshot, delta }
 
@@ -1111,8 +1110,7 @@ class TerminalSearchMatch {
 }
 
 class TerminalFrameDiff {
-  static const String currentFrameSchemaVersion =
-      TerminalWireCompatibility.currentFrameSchemaVersion;
+  static const String currentFrameSchemaVersion = 'terminal-frame-diff-v1';
 
   const TerminalFrameDiff({
     this.frameSchemaVersion = currentFrameSchemaVersion,
@@ -1161,9 +1159,9 @@ class TerminalFrameDiff {
   final int scrollbackOffset;
   final int scrollbackMaxOffset;
 
-  /// Absolute row of the bottom of the terminal history, when supplied by the
-  /// native producer. `null` identifies legacy frames that predate this field;
-  /// zero is a valid value for a one-row terminal with no history.
+  /// Absolute row of the bottom of the terminal history when known. `null`
+  /// means that the current producer cannot determine it; zero is valid for a
+  /// one-row terminal with no history.
   final int? globalBottomRow;
   final int viewportStartRow;
   final int viewportRowShift;
@@ -1270,264 +1268,6 @@ class TerminalFrameDiff {
     viewportRowShift: 0,
     modes: TerminalFrameModes.empty,
   );
-
-  factory TerminalFrameDiff.fromJson(Map<String, Object?> json) {
-    final cursorJson = _jsonMapFromJson(json['cursor']);
-    final selectionJson = _jsonMapFromJson(json['selection']);
-    final modesJson = _jsonMapFromJson(json['modes']);
-    final viewportRows = _nativeDimensionFromJson(json['viewport_rows']);
-    final viewportCols = _nativeDimensionFromJson(json['viewport_cols']);
-    final scrollbackMaxOffset = _nonNegativeIntFromJson(
-      json['scrollback_max_offset'],
-    );
-    final scrollbackOffset = _nonNegativeIntFromJson(
-      json['scrollback_offset'],
-    ).clamp(0, scrollbackMaxOffset);
-    return TerminalFrameDiff(
-      frameSchemaVersion: TerminalWireCompatibility.frameSchemaVersion(
-        json['frame_schema_version'],
-      ),
-      frameKind: _terminalFrameKindFromWire(json['frame_kind']),
-      rows: _rowsFromJson(json['rows'], viewportRows, viewportCols),
-      cursor: cursorJson == null
-          ? const TerminalCursor(row: 0, col: 0, visible: false)
-          : TerminalCursor.tryFromJson(cursorJson) ??
-                const TerminalCursor(row: 0, col: 0, visible: false),
-      selection: selectionJson == null
-          ? null
-          : TerminalSelection.tryFromJson(selectionJson),
-      viewportRows: viewportRows,
-      viewportCols: viewportCols,
-      dirtyRanges: _dirtyRangesFromJson(json['dirty_ranges'], viewportRows),
-      scrollbackOffset: scrollbackOffset,
-      scrollbackMaxOffset: scrollbackMaxOffset,
-      globalBottomRow: _optionalNonNegativeIntFromJson(
-        json['global_bottom_row'],
-      ),
-      viewportStartRow: _nonNegativeIntFromJson(json['viewport_start_row']),
-      viewportRowShift: _intFromJson(json['viewport_row_shift'], fallback: 0),
-      defaultForeground: _colorFromHex(
-        _stringFromJson(json['default_foreground']),
-      ),
-      defaultBackground: _colorFromHex(
-        _stringFromJson(json['default_background']),
-      ),
-      cursorColor: _colorFromHex(_stringFromJson(json['cursor_color'])),
-      cursorGuideColor: _colorFromHex(
-        _stringFromJson(json['cursor_guide_color']),
-      ),
-      selectionBackground: _colorFromHex(
-        _stringFromJson(json['selection_background']),
-      ),
-      selectionForeground: _colorFromHex(
-        _stringFromJson(json['selection_foreground']),
-      ),
-      linkColor: _colorFromHex(_stringFromJson(json['link_color'])),
-      cursorTextColor: _colorFromHex(
-        _stringFromJson(json['cursor_text_color']),
-      ),
-      tabColor: _colorFromHex(_stringFromJson(json['tab_color'])),
-      pointerShape: TerminalPointerShape.fromWire(json['pointer_shape']),
-      modes: modesJson == null
-          ? TerminalFrameModes.empty
-          : TerminalFrameModes.fromJson(modesJson),
-      windowTitle: _stringFromJson(json['window_title']),
-      windowIconName: _stringFromJson(json['window_icon_name']),
-      fontFamily: TerminalFrameNormalizationPolicy.fontFamily(
-        json['font_family'],
-      ),
-      hyperlinks: _hyperlinksFromJson(json['hyperlinks'], viewportRows),
-      sizedText: _sizedTextFromJson(
-        json['sized_text'],
-        viewportRows,
-        viewportCols,
-      ),
-      inlineImages: _inlineImagesFromJson(
-        json['inline_images'],
-        viewportRows,
-        viewportCols,
-      ),
-      graphics: _normalizeGraphics(
-        graphics: _graphicsFromJson(json['graphics']),
-        viewportRows: viewportRows,
-        viewportCols: viewportCols,
-      ),
-      blocks: _blocksFromJson(json['blocks'], viewportRows),
-      inlineButtons: _inlineButtonsFromJson(
-        json['inline_buttons'],
-        viewportRows,
-        viewportCols,
-      ),
-    );
-  }
-}
-
-List<TerminalRow> _rowsFromJson(
-  Object? value,
-  int viewportRows,
-  int viewportCols,
-) {
-  if (value is! List) {
-    return const <TerminalRow>[];
-  }
-  return TerminalFrameNormalizationPolicy.normalizedRows(
-    values: value,
-    viewportRows: viewportRows,
-    viewportCols: viewportCols,
-    rawIndexOf: (entry) {
-      return entry is Map ? _intOrNullFromJson(entry['index']) : null;
-    },
-    decode: (entry) {
-      final json = _jsonMapFromJson(entry);
-      return json == null ? null : TerminalRow.tryFromJson(json);
-    },
-    indexOf: (row) => row.index,
-    boundToColumns: (row, viewportCols) =>
-        row.boundedToViewportColumns(viewportCols),
-  );
-}
-
-List<TerminalDirtyRange> _dirtyRangesFromJson(Object? value, int viewportRows) {
-  if (value is! List) {
-    return const <TerminalDirtyRange>[];
-  }
-  final maxEntries = TerminalFrameValidationLimits.maxViewportBoundedEntries(
-    viewportRows,
-  );
-  final scanLimit = TerminalFrameValidationLimits.maxEntriesToScan(maxEntries);
-  final decoded = <TerminalDirtyRange>[];
-  for (final entry in value.take(scanLimit)) {
-    final json = _jsonMapFromJson(entry);
-    final range = json == null ? null : TerminalDirtyRange.tryFromJson(json);
-    if (range != null) {
-      decoded.add(range);
-    }
-  }
-  return _normalizeDirtyRanges(decoded, viewportRows);
-}
-
-List<TerminalHyperlinkRange> _hyperlinksFromJson(
-  Object? value,
-  int viewportRows,
-) {
-  if (viewportRows <= 0) {
-    return const <TerminalHyperlinkRange>[];
-  }
-  return _jsonListFromJson(value, (json) {
-    final range = TerminalHyperlinkRange.tryFromJson(json);
-    if (range == null || range.row >= viewportRows) {
-      return null;
-    }
-    return range;
-  }, maxEntries: TerminalFrameValidationLimits.maxHyperlinksPerFrame);
-}
-
-List<TerminalSizedTextPlacement> _sizedTextFromJson(
-  Object? value,
-  int viewportRows,
-  int viewportCols,
-) {
-  return _jsonListFromJson(
-    value,
-    (json) {
-      final placement = TerminalSizedTextPlacement.tryFromJson(json);
-      if (placement == null ||
-          placement.row >= viewportRows ||
-          placement.col >= viewportCols ||
-          placement.col + placement.widthCells > viewportCols ||
-          placement.row + placement.visibleHeightCells > viewportRows) {
-        return null;
-      }
-      return placement;
-    },
-    maxEntries: TerminalFrameValidationLimits.maxSizedTextPlacementsPerFrame,
-  );
-}
-
-List<TerminalInlineImage> _inlineImagesFromJson(
-  Object? value,
-  int viewportRows,
-  int viewportCols,
-) {
-  return _jsonListFromJson(value, (json) {
-    final row = _optionalIntFromJson(json['row'], fallback: 0);
-    final col = _optionalIntFromJson(
-      json['col'] ?? json['column'],
-      fallback: 0,
-    );
-    final widthCells = _optionalIntFromJson(
-      json['width_cells'] ?? json['widthCells'],
-      fallback: 1,
-    );
-    final heightCells = _optionalIntFromJson(
-      json['height_cells'] ?? json['heightCells'],
-      fallback: 1,
-    );
-    if (row == null ||
-        col == null ||
-        widthCells == null ||
-        heightCells == null) {
-      return null;
-    }
-    return TerminalFrameValidationLimits.decodeViewportBounded(
-      row: row,
-      col: col,
-      widthCells: widthCells,
-      heightCells: heightCells,
-      viewportRows: viewportRows,
-      viewportCols: viewportCols,
-      decode: ({required widthCells, required heightCells}) {
-        final image = TerminalInlineImage.tryFromJson(json);
-        if (image == null) {
-          return null;
-        }
-        return TerminalInlineImage(
-          row: image.row,
-          col: image.col,
-          widthCells: widthCells,
-          heightCells: heightCells,
-          bytes: image.bytes,
-          altText: image.altText,
-        );
-      },
-    );
-  }, maxEntries: TerminalFrameValidationLimits.maxInlineImagesPerFrame);
-}
-
-List<TerminalGraphicPlacement> _graphicsFromJson(Object? value) {
-  return _jsonListFromJson(value, TerminalGraphicPlacement.tryFromJson);
-}
-
-List<TerminalBlock> _blocksFromJson(Object? value, int viewportRows) {
-  if (viewportRows <= 0) {
-    return const <TerminalBlock>[];
-  }
-  return _jsonListFromJson(value, (json) {
-    final block = TerminalBlock.tryFromJson(json);
-    if (block == null ||
-        block.startRow >= viewportRows ||
-        block.endRow >= viewportRows) {
-      return null;
-    }
-    return block;
-  }, maxEntries: TerminalFrameValidationLimits.maxBlocksPerFrame);
-}
-
-List<TerminalInlineButton> _inlineButtonsFromJson(
-  Object? value,
-  int viewportRows,
-  int viewportCols,
-) {
-  return _jsonListFromJson(value, (json) {
-    final button = TerminalInlineButton.tryFromJson(json);
-    if (button == null ||
-        button.row >= viewportRows ||
-        button.col >= viewportCols ||
-        button.col + button.widthCells > viewportCols) {
-      return null;
-    }
-    return button;
-  }, maxEntries: TerminalFrameValidationLimits.maxInlineButtonsPerFrame);
 }
 
 List<TerminalDirtyRange> _normalizeDirtyRanges(
@@ -1945,12 +1685,6 @@ int? _optionalNonNegativeIntFromJson(Object? value) {
   return parsed == null || parsed < 0 ? null : parsed;
 }
 
-int _nativeDimensionFromJson(Object? value) {
-  return TerminalFrameNormalizationPolicy.clampNativeDimension(
-    _nonNegativeIntFromJson(value),
-  );
-}
-
 int _clampedNativeDimension(int value) {
   return TerminalFrameNormalizationPolicy.clampNativeDimension(value);
 }
@@ -2018,13 +1752,6 @@ DateTime? _dateTimeFromJson(Object? value) {
     }
   }
   return null;
-}
-
-TerminalFrameKind _terminalFrameKindFromWire(Object? value) {
-  return switch (TerminalWireCompatibility.frameKindFromJson(value)) {
-    TerminalWireFrameKind.delta => TerminalFrameKind.delta,
-    TerminalWireFrameKind.snapshot => TerminalFrameKind.snapshot,
-  };
 }
 
 TerminalFrameDiff _normalizeSnapshotFrame(

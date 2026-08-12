@@ -48,8 +48,8 @@ void main() {
       );
     });
 
-    test('prefers Session Request v1 when the backend advertises it', () {
-      final backend = _RecordingRequestBackend(supportsV1: true);
+    test('uses Session Request v1', () {
+      final backend = _RecordingRequestBackend();
       final recorder = TerminalLiveRecorder(
         backend: backend,
         utcNow: () => DateTime.utc(2026, 7, 21),
@@ -58,7 +58,7 @@ void main() {
       recorder.start('42', inputPolicy: TerminalRecordingInputPolicy.redact);
       recorder.stop('42');
 
-      expect(backend.requests, isEmpty);
+      expect(backend.requests, hasLength(2));
       expect(
         backend.v1Requests.map((request) => request['operation']),
         <String>['terminal.recording_start', 'terminal.recording_stop'],
@@ -77,13 +77,10 @@ void main() {
       test(
         'start $responseFault response retains unknown native ownership',
         () {
-          final backend =
-              _RecordingRequestBackend(
-                  supportsV1: responseFault == 'correlation',
-                )
-                ..missingStartResponse = responseFault == 'missing'
-                ..malformedStartResponse = responseFault == 'malformed'
-                ..mismatchedStartCorrelation = responseFault == 'correlation';
+          final backend = _RecordingRequestBackend()
+            ..missingStartResponse = responseFault == 'missing'
+            ..malformedStartResponse = responseFault == 'malformed'
+            ..mismatchedStartCorrelation = responseFault == 'correlation';
           final recorder = TerminalLiveRecorder(backend: backend);
 
           final outcome = recorder.startWithOutcome(
@@ -171,10 +168,9 @@ void main() {
       test(
         'prepare ${entry.fault} response settles from ${entry.status} status',
         () {
-          final backend =
-              _RecordingRequestBackend(supportsV1: entry.fault == 'correlation')
-                ..prepareResponseFault = entry.fault
-                ..finalizeState = entry.status;
+          final backend = _RecordingRequestBackend()
+            ..prepareResponseFault = entry.fault
+            ..finalizeState = entry.status;
           final recorder = TerminalLiveRecorder(backend: backend);
           recorder.start(
             '42',
@@ -529,13 +525,11 @@ void main() {
   });
 }
 
-final class _RecordingRequestBackend
-    implements PtySessionJsonRequestBackend, PtySessionRequestV1Backend {
-  _RecordingRequestBackend({this.supportsV1 = false});
+final class _RecordingRequestBackend implements PtySessionRequestV1Backend {
+  _RecordingRequestBackend();
 
   final List<Map<String, Object?>> requests = <Map<String, Object?>>[];
   final List<Map<String, Object?>> v1Requests = <Map<String, Object?>>[];
-  final bool supportsV1;
   bool overflowOnStop = false;
   bool rejectPrepare = false;
   String? prepareErrorCode;
@@ -552,9 +546,6 @@ final class _RecordingRequestBackend
   int nativeStartDispatchCount = 0;
   int nativePrepareDispatchCount = 0;
   int statusProbeCount = 0;
-
-  @override
-  bool get supportsSessionRequestV1 => supportsV1;
 
   @override
   String? requestSessionV1Json(String sessionId, String requestV1Json) {
@@ -583,12 +574,13 @@ final class _RecordingRequestBackend
       return '{malformed';
     }
     final payload = (request['payload']! as Map).cast<String, Object?>();
-    final legacyRequest = <String, Object?>{
+    final currentPayload = <String, Object?>{
       'kind': request['operation'],
       ...payload,
     };
-    final legacyResponse = _responseFor(sessionId, legacyRequest);
-    if (legacyResponse == null) {
+    requests.add(currentPayload);
+    final configuredPayload = _responseFor(sessionId, currentPayload);
+    if (configuredPayload == null) {
       return null;
     }
     return jsonEncode(<String, Object?>{
@@ -605,34 +597,8 @@ final class _RecordingRequestBackend
       'operation': request['operation'],
       'ok': true,
       'timestamp_micros': 1234,
-      'payload': jsonDecode(legacyResponse),
+      'payload': jsonDecode(configuredPayload),
     });
-  }
-
-  @override
-  String? requestSessionJson(String sessionId, String requestJson) {
-    final request = (jsonDecode(requestJson) as Map).cast<String, Object?>();
-    requests.add(request);
-    if (request['kind'] == 'terminal.recording_start') {
-      nativeStartDispatchCount += 1;
-      if (missingStartResponse) {
-        return null;
-      }
-      if (malformedStartResponse) {
-        return '{malformed';
-      }
-    } else if (request['kind'] == 'terminal.recording_stop_prepare') {
-      nativePrepareDispatchCount += 1;
-      if (prepareResponseFault == 'missing') {
-        return null;
-      }
-      if (prepareResponseFault == 'malformed') {
-        return '{malformed';
-      }
-    } else if (request['kind'] == 'terminal.recording_finalize_status') {
-      statusProbeCount += 1;
-    }
-    return _responseFor(sessionId, request);
   }
 
   String? _responseFor(String sessionId, Map<String, Object?> request) {

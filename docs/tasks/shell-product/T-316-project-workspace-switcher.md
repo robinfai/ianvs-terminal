@@ -1,5 +1,9 @@
 # T-316 Project Workspace Switcher
 
+> Archival task record superseded by T-331. Workspace predecessor formats are
+> not product inputs: current production code does not discover, migrate,
+> rewrite or delete them.
+
 ## Goal
 
 Make the T-315 project Workspace collection product-visible through a native project picker,

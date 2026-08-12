@@ -242,19 +242,11 @@ void main() {
       final coordinator = TerminalEventCoordinator(
         signals: runtime.runtimeSignals,
       );
-      final initialEvent = Completer<void>();
-      final legacySubscription = runtime.events.listen((_) {
-        if (!initialEvent.isCompleted) {
-          initialEvent.complete();
-        }
-      });
       final sessionId = runtime.createSession(
         const TerminalSessionConfig(
           launch: TerminalLaunchConfig(program: '/bin/sh'),
         ),
       );
-      await initialEvent.future;
-
       expect(coordinator.lastReducedSequenceForTesting, 0);
       final signal = TerminalSessionPreCloseSignal(
         sessionId: sessionId,
@@ -278,7 +270,6 @@ void main() {
       expect(preCloseCalls, 1);
 
       await coordinator.beginShutdown();
-      await legacySubscription.cancel();
       expect(runtime.tryDispose(), isTrue);
     },
   );

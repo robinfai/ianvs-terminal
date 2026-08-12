@@ -58,8 +58,8 @@
 | Area | Current state | Gap |
 | --- | --- | --- |
 | Profile persistence | `ianvs_profiles.json`，由 `ProfileRepository` 读写 | profile 能覆盖终端启动和视觉，但还不是统一配置系统 |
-| App preferences | `ianvs_preferences.json`，主要有默认 profile 和 theme mode | app 级偏好太薄，不能承载 keybindings、layouts、clipboard policy |
-| Terminal config | `TerminalSessionConfig` 已覆盖 program、args、env、cwd、emulation、scrollback、字体、颜色、cursor、copy-on-select、option-drag-mode | 配置项较多，但来源、热重载和优先级没有统一协议 |
+| App config | current `ianvs_config.json`，承载默认 profile、appearance、keybindings、layout 与 policy | exact-current schema；noncurrent evidence fail-closed 且不修改 |
+| Session config | `TerminalSessionConfig` 已覆盖 program、args、env、cwd、emulation、scrollback、字体、颜色、cursor、copy-on-select、option-drag-mode | 由 current profile/session contracts 构造 |
 | Shell integration | 已有 preexec、command finished、precmd、cwd、recent commands、recent directories、prompt marks | 只有总开关，缺 feature 级策略和产品化动作 |
 | Tabs and panes | `ShellScreen` 已有 tab、split right/down、pane focus 等入口 | pane tree、layout persistence、move/resize/swap/zoom 需要收口 |
 | Actions and shortcuts | `ShellScreen` 中已有 command surface 和硬编码快捷键 | 缺统一 action registry、冲突检测、配置覆盖和焦点消费规则 |
@@ -212,11 +212,11 @@ LocalTerminalConfig
 | Workspace layout restore | 下次打开 workspace 生效 |
 | Clipboard/paste policy | 可热重载，但进行中的 paste 不被中断 |
 
-迁移规则：
+Current-only 规则：
 
-- 旧 `ianvs_profiles.json` 必须可读。
-- 旧 `ianvs_preferences.json` 必须可读。
-- 首次写入新 config 时保留旧文件读取 fallback。
+- 只读取各文档的 exact-current schema。
+- predecessor 文件不发现、不迁移、不删除。
+- noncurrent schema typed reject 且原证据零 mutation。
 - schema 不能新增 SSH、remote、serial、SFTP 顶层字段。
 
 ### 5. Shell Integration Features

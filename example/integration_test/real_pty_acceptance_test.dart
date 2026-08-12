@@ -924,7 +924,8 @@ sleep 1
 
       final contexts = <terminal.TerminalSessionContextEvent>[];
       final runtime = harness.container.read(terminalRuntimeControllerProvider);
-      final subscription = runtime.events
+      final subscription = runtime.runtimeSignals
+          .map((signal) => signal.payload)
           .where((event) => event is terminal.TerminalSessionContextEvent)
           .cast<terminal.TerminalSessionContextEvent>()
           .listen(contexts.add);
@@ -3733,10 +3734,11 @@ bool _frameHasWrappedOrReassembledLogicalRow(terminal.TerminalFrameDiff frame) {
 class _MaskedRefreshHintPtyBackend
     implements
         PtySessionBackend,
-        PtySessionJsonRequestBackend,
-        PtySessionDiagnosticsBackend,
+        PtySessionConfigV1Backend,
+        PtySessionRequestV1Backend,
+        PtySessionDiagnosticEventV1Backend,
         PtySessionGraphicAssetBackend,
-        PtySessionProtobufFrameBackend {
+        PtySessionFramePacketV1Backend {
   const _MaskedRefreshHintPtyBackend(this._delegate);
 
   final NativePtyBackend _delegate;
@@ -3745,8 +3747,8 @@ class _MaskedRefreshHintPtyBackend
   int ping() => _delegate.ping();
 
   @override
-  String createSession(String sessionConfigJson) {
-    return _delegate.createSession(sessionConfigJson);
+  String createSessionV1(String sessionConfigV1Json) {
+    return _delegate.createSessionV1(sessionConfigV1Json);
   }
 
   @override
@@ -3789,8 +3791,14 @@ class _MaskedRefreshHintPtyBackend
   }
 
   @override
-  String? takeFrameDiffJson(String sessionId) {
-    return _delegate.takeFrameDiffJson(sessionId);
+  Uint8List? takeFramePacketV1Protobuf(
+    String sessionId, {
+    required int? afterSequence,
+  }) {
+    return _delegate.takeFramePacketV1Protobuf(
+      sessionId,
+      afterSequence: afterSequence,
+    );
   }
 
   @override
@@ -3799,13 +3807,13 @@ class _MaskedRefreshHintPtyBackend
   }
 
   @override
-  String? requestSessionJson(String sessionId, String requestJson) {
-    return _delegate.requestSessionJson(sessionId, requestJson);
+  String? requestSessionV1Json(String sessionId, String requestV1Json) {
+    return _delegate.requestSessionV1Json(sessionId, requestV1Json);
   }
 
   @override
-  String? takeDiagnosticsJson(String sessionId, String kind) {
-    return _delegate.takeDiagnosticsJson(sessionId, kind);
+  PtyDiagnosticEventV1? takeDiagnosticEventV1(String sessionId, String name) {
+    return _delegate.takeDiagnosticEventV1(sessionId, name);
   }
 
   @override
@@ -3819,14 +3827,6 @@ class _MaskedRefreshHintPtyBackend
       assetId: assetId,
       assetVersion: assetVersion,
     );
-  }
-
-  @override
-  bool get supportsProtobufFrameDiffs => _delegate.supportsProtobufFrameDiffs;
-
-  @override
-  Uint8List? takeFrameDiffProtobuf(String sessionId) {
-    return _delegate.takeFrameDiffProtobuf(sessionId);
   }
 }
 

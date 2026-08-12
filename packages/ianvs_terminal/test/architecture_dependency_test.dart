@@ -40,40 +40,46 @@ void main() {
     for (final mutation in <_RuntimeControllerMutationFixture>[
       const _RuntimeControllerMutationFixture(
         'direct add outside the gateway',
-        ownerMember: 'void bypass(Object value) { _events.add(value); }',
+        ownerMember:
+            'void bypass(Object value) { _runtimeSignals.add(value); }',
       ),
       const _RuntimeControllerMutationFixture(
         'sink add',
-        ownerMember: 'void bypass(Object value) { _events.sink.add(value); }',
+        ownerMember:
+            'void bypass(Object value) { _runtimeSignals.sink.add(value); }',
       ),
       const _RuntimeControllerMutationFixture(
         'addError',
-        ownerMember: 'void bypass(Object error) { _events.addError(error); }',
+        ownerMember:
+            'void bypass(Object error) { _runtimeSignals.addError(error); }',
       ),
       const _RuntimeControllerMutationFixture(
         'addStream',
         ownerMember:
-            'void bypass(Stream<Object> values) { _events.addStream(values); }',
+            'void bypass(Stream<Object> values) { '
+            '_runtimeSignals.addStream(values); }',
       ),
       const _RuntimeControllerMutationFixture(
         'cascade add',
-        ownerMember: 'void bypass(Object value) { _events..add(value); }',
+        ownerMember:
+            'void bypass(Object value) { _runtimeSignals..add(value); }',
       ),
       const _RuntimeControllerMutationFixture(
         'controller alias',
         ownerMember:
-            'void bypass(Object value) { final alias = _events; alias.add(value); }',
+            'void bypass(Object value) { final alias = _runtimeSignals; '
+            'alias.add(value); }',
       ),
       const _RuntimeControllerMutationFixture(
         'helper parameter escape',
         ownerMember:
-            'void bypass() { publishElsewhere(_events); }\n'
+            'void bypass() { publishElsewhere(_runtimeSignals); }\n'
             'void publishElsewhere(StreamController<Object> controller) {}',
       ),
       const _RuntimeControllerMutationFixture(
         'nested closure inside the named gateway',
         gatewayStatement:
-            'void delayed() { _events.add(event); }\n'
+            'void delayed() { _runtimeSignals.add(signal); }\n'
             'delayed();',
       ),
       const _RuntimeControllerMutationFixture(
@@ -81,7 +87,7 @@ void main() {
         partSource:
             "part of 'owner.dart';\n"
             'extension Bypass on FixtureRuntime {\n'
-            '  void bypass(Object value) { _events.add(value); }\n'
+            '  void bypass(Object value) { _runtimeSignals.add(value); }\n'
             '}\n',
       ),
       const _RuntimeControllerMutationFixture(
@@ -89,7 +95,8 @@ void main() {
         partSource:
             "part of 'owner.dart';\n"
             'extension GatewayImpostor on FixtureRuntime {\n'
-            '  void _emitRuntimeSignal(Object event) { _events.add(event); }\n'
+            '  void _emitRuntimeSignal(Object signal) { '
+            '_runtimeSignals.add(signal); }\n'
             '}\n',
       ),
     ]) {
@@ -461,18 +468,6 @@ _runtimeControllerReferenceContracts =
         getterName: 'runtimeSignals',
         gatewayPayloadName: 'signal',
       ),
-      '_events': _RuntimeControllerReferenceContract(
-        getterName: 'events',
-        gatewayPayloadName: 'event',
-      ),
-      '_zmodemEvents': _RuntimeControllerReferenceContract(
-        getterName: 'zmodemEvents',
-        gatewayPayloadName: 'event',
-      ),
-      '_zmodemDeferredWriteFailures': _RuntimeControllerReferenceContract(
-        getterName: 'zmodemDeferredWriteFailures',
-        gatewayPayloadName: 'diagnostic',
-      ),
     };
 
 final class _RuntimeControllerReferenceContract {
@@ -663,36 +658,16 @@ $partDirective
 class FixtureRuntime {
   final StreamController<Object> _runtimeSignals =
       StreamController<Object>.broadcast();
-  final StreamController<Object> _events =
-      StreamController<Object>.broadcast();
-  final StreamController<Object> _zmodemEvents =
-      StreamController<Object>.broadcast();
-  final StreamController<Object> _zmodemDeferredWriteFailures =
-      StreamController<Object>.broadcast();
 
   Stream<Object> get runtimeSignals => _runtimeSignals.stream;
-  Stream<Object> get events => _events.stream;
-  Stream<Object> get zmodemEvents => _zmodemEvents.stream;
-  Stream<Object> get zmodemDeferredWriteFailures =>
-      _zmodemDeferredWriteFailures.stream;
 
-  void _emitRuntimeSignal(
-    Object signal,
-    Object event,
-    Object diagnostic,
-  ) {
+  void _emitRuntimeSignal(Object signal) {
     _runtimeSignals.add(signal);
-    _events.add(event);
-    _zmodemEvents.add(event);
-    _zmodemDeferredWriteFailures.add(diagnostic);
     ${mutation.gatewayStatement}
   }
 
   void _tryCompleteRequestedDispose() {
     unawaited(_runtimeSignals.close());
-    unawaited(_events.close());
-    unawaited(_zmodemEvents.close());
-    unawaited(_zmodemDeferredWriteFailures.close());
   }
 
   ${mutation.ownerMember}

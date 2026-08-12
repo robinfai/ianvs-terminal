@@ -5,10 +5,14 @@ import 'dart:typed_data';
 import 'package:ianvs_pty/ianvs_pty.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart';
 
+import 'current_terminal_frame_fixture.dart';
+
 class FakePtyBackend
     implements
         PtySessionBackend,
-        PtySessionJsonRequestBackend,
+        PtySessionConfigV1Backend,
+        PtySessionFramePacketV1Backend,
+        PtySessionRequestV1Backend,
         PtySessionFileDownloadBackend,
         PtyRuntimeCapabilityBackend {
   int _nextSessionId = 0;
@@ -20,6 +24,7 @@ class FakePtyBackend
   final Map<String, Map<String, List<Map<String, Object?>>>> _searchMatches =
       <String, Map<String, List<Map<String, Object?>>>>{};
   final Map<String, int> _frameDiffReads = <String, int>{};
+  final Map<String, int> _framePacketSequences = <String, int>{};
   final List<Uint8List> writes = <Uint8List>[];
   final List<MapEntry<String, Uint8List>> writesBySession =
       <MapEntry<String, Uint8List>>[];
@@ -92,7 +97,6 @@ class FakePtyBackend
     return 42;
   }
 
-  @override
   String createSession(String sessionConfigJson) {
     _throwIfFailing('createSession');
     lastCreatedSessionPayload =
@@ -133,6 +137,12 @@ class FakePtyBackend
       PtyEvent(kind: 'started', sessionId: sessionId),
     ];
     return sessionId;
+  }
+
+  @override
+  String createSessionV1(String sessionConfigV1Json) {
+    final wire = TerminalSessionConfigV1.fromJsonString(sessionConfigV1Json);
+    return createSession(jsonEncode(wire.config.toJson()));
   }
 
   @override
@@ -200,7 +210,6 @@ class FakePtyBackend
     frame['scrollback_offset'] = offset.clamp(0, maxOffset);
   }
 
-  @override
   String? requestSessionJson(String sessionId, String requestJson) {
     final request = jsonDecode(requestJson) as Map<String, Object?>;
     jsonRequests.add(request);
@@ -248,6 +257,29 @@ class FakePtyBackend
       }),
       _ => null,
     };
+  }
+
+  @override
+  String? requestSessionV1Json(String sessionId, String requestV1Json) {
+    final request = (jsonDecode(requestV1Json) as Map).cast<String, Object?>();
+    final payload = (request['payload']! as Map).cast<String, Object?>();
+    final raw = requestSessionJson(
+      sessionId,
+      jsonEncode(<String, Object?>{'kind': request['operation'], ...payload}),
+    );
+    if (raw == null || raw.isEmpty) return raw;
+    final decoded = jsonDecode(raw);
+    if (decoded is! Map) return raw;
+    return jsonEncode(<String, Object?>{
+      'schema_version': 1,
+      'contract': 'ianvs-session-response-v1',
+      'request_id': request['request_id'],
+      'session_id': sessionId,
+      'operation': request['operation'],
+      'ok': true,
+      'timestamp_micros': 1,
+      'payload': decoded.cast<String, Object?>(),
+    });
   }
 
   String _clearBufferJson(String sessionId) {
@@ -309,7 +341,7 @@ class FakePtyBackend
     }
     return jsonEncode(<String, Object?>{
       'text': _selectionTextForFrame(
-        TerminalFrameDiff.fromJson(frame),
+        terminalFrameFixtureFromJson(frame),
         TerminalSelection.fromJson(nativeRequest),
         block: nativeRequest['block'] as bool? ?? false,
       ),
@@ -317,7 +349,10 @@ class FakePtyBackend
   }
 
   @override
-  String? takeFrameDiffJson(String sessionId) {
+  Uint8List? takeFramePacketV1Protobuf(
+    String sessionId, {
+    required int? afterSequence,
+  }) {
     final queuedFrames = _queuedFrames[sessionId];
     if (queuedFrames != null && queuedFrames.isNotEmpty) {
       _frameDiffReads.update(
@@ -325,14 +360,32 @@ class FakePtyBackend
         (value) => value + 1,
         ifAbsent: () => 1,
       );
-      return jsonEncode(queuedFrames.removeAt(0));
+      final sequence = _framePacketSequences.update(
+        sessionId,
+        (value) => value + 1,
+        ifAbsent: () => 0,
+      );
+      return terminalFramePacketFixture(
+        sessionId: sessionId,
+        sequence: sequence,
+        frame: queuedFrames.removeAt(0),
+      );
     }
     final frame = _frames[sessionId];
     if (frame == null) {
       return null;
     }
     _frameDiffReads.update(sessionId, (value) => value + 1, ifAbsent: () => 1);
-    return jsonEncode(frame);
+    final sequence = _framePacketSequences.update(
+      sessionId,
+      (value) => value + 1,
+      ifAbsent: () => 0,
+    );
+    return terminalFramePacketFixture(
+      sessionId: sessionId,
+      sequence: sequence,
+      frame: frame,
+    );
   }
 
   @override

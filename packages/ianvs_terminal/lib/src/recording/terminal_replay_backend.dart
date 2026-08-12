@@ -67,12 +67,9 @@ typedef TerminalReplayTimerFactory =
 final class TerminalReplayBackend
     implements
         PtySessionBackend,
-        PtySessionJsonRequestBackend,
         PtySessionRequestV1Backend,
-        PtySessionDiagnosticsBackend,
         PtySessionDiagnosticEventV1Backend,
         PtySessionGraphicAssetBackend,
-        PtySessionProtobufFrameBackend,
         PtySessionFramePacketV1Backend,
         PtySessionRefreshHintBackend,
         PtySessionConfigV1Backend {
@@ -304,29 +301,12 @@ final class TerminalReplayBackend
   int ping() => _delegate.ping();
 
   @override
-  String createSession(String sessionConfigJson) {
-    return _createSession(
-      () => _replayDelegate.createReplaySession(sessionConfigJson),
-    );
-  }
-
-  @override
-  bool get supportsSessionConfigV1 {
-    final delegate = _replayDelegate;
-    final configDelegate = delegate is PtyReplaySessionConfigV1Backend
-        ? delegate as PtyReplaySessionConfigV1Backend
-        : null;
-    return configDelegate?.supportsReplaySessionConfigV1 ?? false;
-  }
-
-  @override
   String createSessionV1(String sessionConfigV1Json) {
     final delegate = _replayDelegate;
     final configDelegate = delegate is PtyReplaySessionConfigV1Backend
         ? delegate as PtyReplaySessionConfigV1Backend
         : null;
-    if (configDelegate == null ||
-        !configDelegate.supportsReplaySessionConfigV1) {
+    if (configDelegate == null) {
       throw UnsupportedError('Replay SessionConfig v1 is not supported');
     }
     return _createSession(
@@ -403,12 +383,6 @@ final class TerminalReplayBackend
   }
 
   @override
-  String? takeFrameDiffJson(String sessionId) {
-    _requireSession(sessionId);
-    return _delegate.takeFrameDiffJson(sessionId);
-  }
-
-  @override
   List<PtyEvent> pollEvents(String sessionId) {
     final state = _sessions[sessionId];
     if (state == null) {
@@ -427,58 +401,16 @@ final class TerminalReplayBackend
   }
 
   @override
-  String? requestSessionJson(String sessionId, String requestJson) {
-    _requireSession(sessionId);
-    final delegate = _delegate;
-    return delegate is PtySessionJsonRequestBackend
-        ? (delegate as PtySessionJsonRequestBackend).requestSessionJson(
-            sessionId,
-            requestJson,
-          )
-        : null;
-  }
-
-  @override
-  bool get supportsSessionRequestV1 {
-    final delegate = _delegate;
-    final requestDelegate = delegate is PtySessionRequestV1Backend
-        ? delegate as PtySessionRequestV1Backend
-        : null;
-    return requestDelegate?.supportsSessionRequestV1 ?? false;
-  }
-
-  @override
   String? requestSessionV1Json(String sessionId, String requestV1Json) {
     _requireSession(sessionId);
     final delegate = _delegate;
     final requestDelegate = delegate is PtySessionRequestV1Backend
         ? delegate as PtySessionRequestV1Backend
         : null;
-    if (requestDelegate == null || !requestDelegate.supportsSessionRequestV1) {
+    if (requestDelegate == null) {
       throw UnsupportedError('Replay Session Request v1 is not supported');
     }
     return requestDelegate.requestSessionV1Json(sessionId, requestV1Json);
-  }
-
-  @override
-  String? takeDiagnosticsJson(String sessionId, String kind) {
-    _requireSession(sessionId);
-    final delegate = _delegate;
-    return delegate is PtySessionDiagnosticsBackend
-        ? (delegate as PtySessionDiagnosticsBackend).takeDiagnosticsJson(
-            sessionId,
-            kind,
-          )
-        : null;
-  }
-
-  @override
-  bool get supportsDiagnosticEventV1 {
-    final delegate = _delegate;
-    final diagnosticDelegate = delegate is PtySessionDiagnosticEventV1Backend
-        ? delegate as PtySessionDiagnosticEventV1Backend
-        : null;
-    return diagnosticDelegate?.supportsDiagnosticEventV1 ?? false;
   }
 
   @override
@@ -488,8 +420,7 @@ final class TerminalReplayBackend
     final diagnosticDelegate = delegate is PtySessionDiagnosticEventV1Backend
         ? delegate as PtySessionDiagnosticEventV1Backend
         : null;
-    if (diagnosticDelegate == null ||
-        !diagnosticDelegate.supportsDiagnosticEventV1) {
+    if (diagnosticDelegate == null) {
       throw UnsupportedError('Diagnostic Event v1 is not supported');
     }
     return diagnosticDelegate.takeDiagnosticEventV1(sessionId, name);
@@ -520,31 +451,6 @@ final class TerminalReplayBackend
             assetVersion: assetVersion,
           )
         : null;
-  }
-
-  @override
-  bool get supportsProtobufFrameDiffs {
-    final delegate = _delegate;
-    return delegate is PtySessionProtobufFrameBackend &&
-        (delegate as PtySessionProtobufFrameBackend).supportsProtobufFrameDiffs;
-  }
-
-  @override
-  Uint8List? takeFrameDiffProtobuf(String sessionId) {
-    _requireSession(sessionId);
-    final delegate = _delegate;
-    return delegate is PtySessionProtobufFrameBackend
-        ? (delegate as PtySessionProtobufFrameBackend).takeFrameDiffProtobuf(
-            sessionId,
-          )
-        : null;
-  }
-
-  @override
-  bool get supportsFramePacketV1 {
-    final delegate = _delegate;
-    return delegate is PtySessionFramePacketV1Backend &&
-        (delegate as PtySessionFramePacketV1Backend).supportsFramePacketV1;
   }
 
   @override

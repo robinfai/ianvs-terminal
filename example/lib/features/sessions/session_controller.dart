@@ -250,7 +250,6 @@ final localTerminalConfigLoaderProvider = Provider<LocalTerminalConfigLoader>((
 ) {
   return LocalTerminalConfigLoader(
     localConfigRepository: ref.read(localTerminalConfigRepositoryProvider),
-    legacyPreferencesRepository: ref.read(appPreferencesRepositoryProvider),
   );
 });
 
@@ -266,10 +265,10 @@ final localSessionRecordingRepositoryProvider =
 
 final terminalLiveRecorderProvider = Provider<TerminalLiveRecorder?>((ref) {
   final backend = ref.read(ptySessionBackendProvider);
-  if (backend is! PtySessionJsonRequestBackend) {
+  if (backend is! PtySessionRequestV1Backend) {
     return null;
   }
-  return TerminalLiveRecorder(backend: backend as PtySessionJsonRequestBackend);
+  return TerminalLiveRecorder(backend: backend as PtySessionRequestV1Backend);
 });
 
 final sessionBootstrapServiceProvider = Provider<SessionBootstrapService>((
@@ -278,15 +277,8 @@ final sessionBootstrapServiceProvider = Provider<SessionBootstrapService>((
   final localConfigRepository = ref.read(localTerminalConfigRepositoryProvider);
   return SessionBootstrapService(
     profileRepository: ref.read(profileRepositoryProvider),
-    appPreferencesRepository: ref.read(appPreferencesRepositoryProvider),
     localConfigRepository: localConfigRepository,
     localConfigLoader: ref.read(localTerminalConfigLoaderProvider),
-    // The Flutter test host has no path_provider plugin. Data/API, protocol,
-    // I/O and schema errors never match this compatibility-only exception and
-    // therefore cannot switch persistence resources.
-    shouldFallbackToLegacyPreferences: (error) =>
-        localConfigRepository is LocalTerminalConfigRepository &&
-        error is MissingPluginException,
   );
 });
 
@@ -453,8 +445,6 @@ class SessionController extends Notifier<SessionState> {
       <String, List<TerminalPane>>{};
   final Map<String, LocalSessionRecordingDestination> _recordingDestinations =
       <String, LocalSessionRecordingDestination>{};
-  final Map<String, TerminalRecording> _pendingRecordings =
-      <String, TerminalRecording>{};
   final Map<String, Future<String>> _recordingFinalizationFutures =
       <String, Future<String>>{};
   final Map<String, Future<void>> _recordingReservationCleanupFutures =
@@ -1743,7 +1733,6 @@ class SessionController extends Notifier<SessionState> {
         destination: destination,
         displayName: _paneForSession(sessionId)?.title,
       );
-      _pendingRecordings.remove(sessionId);
       _pendingRecordingFinalizeJobs.remove(sessionId);
       _recordingReservationCleanupFutures.remove(sessionId)?.ignore();
       _recordingExitClaims.remove(sessionId);
@@ -1769,9 +1758,9 @@ class SessionController extends Notifier<SessionState> {
       if (!ref.mounted || _isShuttingDown) {
         return null;
       }
-      final hasRecoverableFinalize =
-          _pendingRecordings.containsKey(sessionId) ||
-          _pendingRecordingFinalizeJobs.containsKey(sessionId);
+      final hasRecoverableFinalize = _pendingRecordingFinalizeJobs.containsKey(
+        sessionId,
+      );
       final isStillRecording = recorder.isRecording(sessionId);
       if (!hasRecoverableFinalize && !isStillRecording) {
         repository.release(destination);
@@ -1976,29 +1965,6 @@ class SessionController extends Notifier<SessionState> {
         ..preparationStackTrace = stackTrace;
       Error.throwWithStackTrace(error, stackTrace);
     }
-    if (error case TerminalRecordingBackendException(
-      code: TerminalRecordingBackendErrorCode.unsupportedBackend,
-    )) {
-      _pendingRecordingFinalizeJobs.remove(sessionId);
-      final cleanup = repository.abandonNativeRecordingJobReservation(
-        pending.job,
-      );
-      _recordingReservationCleanupFutures[sessionId] = cleanup;
-      try {
-        final recording = recorder.stop(sessionId);
-        _commitRecordingSemantics(sessionId);
-        _pendingRecordings[sessionId] = _recordingWithSemanticEvents(
-          recording,
-          pending.semanticEvents,
-        );
-      } on Object catch (fallbackError, fallbackStackTrace) {
-        pending
-          ..preparationError = fallbackError
-          ..preparationStackTrace = fallbackStackTrace;
-        Error.throwWithStackTrace(fallbackError, fallbackStackTrace);
-      }
-      return;
-    }
     pending
       ..prepareAttempted = !recorder.isRecording(sessionId)
       ..prepareUncertain = false
@@ -2014,13 +1980,11 @@ class SessionController extends Notifier<SessionState> {
     required LocalSessionRecordingDestination destination,
     required String? displayName,
   }) async {
-    var legacyRecording = _pendingRecordings[sessionId];
     var finalizeJob = _pendingRecordingFinalizeJobs[sessionId];
-    if (legacyRecording == null && finalizeJob == null) {
+    if (finalizeJob == null) {
       throw StateError('Native recording reservation is unavailable.');
     }
-    if (legacyRecording == null &&
-        (!finalizeJob!.prepareAttempted || finalizeJob.prepareUncertain)) {
+    if (!finalizeJob.prepareAttempted || finalizeJob.prepareUncertain) {
       if (recorder == null || !recorder.isRecording(sessionId)) {
         throw StateError('Native recording state is unavailable.');
       }
@@ -2030,7 +1994,6 @@ class SessionController extends Notifier<SessionState> {
         repository: repository,
         pending: finalizeJob,
       );
-      legacyRecording = _pendingRecordings[sessionId];
       finalizeJob = _pendingRecordingFinalizeJobs[sessionId];
     }
     if (finalizeJob != null) {
@@ -2060,13 +2023,7 @@ class SessionController extends Notifier<SessionState> {
         nativeJobStatusProbe: recorder?.probeFinalizeJobStatus,
       );
     }
-    await (_recordingReservationCleanupFutures[sessionId] ??
-        Future<void>.value());
-    return repository.save(
-      destination,
-      legacyRecording!,
-      displayName: displayName,
-    );
+    throw StateError('Native recording finalize job was lost.');
   }
 
   bool _recordingNeedsFinalization(String sessionId) {
@@ -2500,16 +2457,6 @@ class SessionController extends Notifier<SessionState> {
         (event.hostname?.length ?? 0) * 2;
   }
 
-  TerminalRecording _recordingWithSemanticEvents(
-    TerminalRecording recording,
-    List<TerminalRecordingSemanticEvent> semanticEvents,
-  ) {
-    return const TerminalRecordingSemanticMerger().merge(
-      recording,
-      semanticEvents,
-    );
-  }
-
   List<TerminalRecordingSemanticEvent> _snapshotRecordingSemantics(
     String sessionId,
   ) {
@@ -2794,7 +2741,6 @@ class SessionController extends Notifier<SessionState> {
     if (destination != null) {
       repository?.release(destination);
     }
-    _pendingRecordings.remove(sessionId);
     _pendingRecordingFinalizeJobs.remove(sessionId);
     _recordingReservationCleanupFutures.remove(sessionId)?.ignore();
     _recordingExitClaims.remove(sessionId);
@@ -4359,12 +4305,7 @@ class SessionController extends Notifier<SessionState> {
       scrollbackOffset: promptOffset,
     );
     if (globalLine == null) {
-      return _promptMarksForLegacyOffset(
-        current,
-        scrollbackOffset: promptOffset,
-        command: command,
-        cwd: cwd,
-      );
+      return current;
     }
     return _promptMarksForValues(
       current,
@@ -4411,49 +4352,11 @@ class SessionController extends Notifier<SessionState> {
     return boundedMarks;
   }
 
-  List<TerminalShellPromptMark> _promptMarksForLegacyOffset(
-    List<TerminalShellPromptMark> current, {
-    required int scrollbackOffset,
-    required String? command,
-    required String? cwd,
-  }) {
-    if (scrollbackOffset < 0) {
-      return current;
-    }
-    final nextMarks = <TerminalShellPromptMark>[
-      for (final mark in current)
-        if (mark.legacyScrollbackOffset != scrollbackOffset) mark,
-      TerminalShellPromptMark(
-        legacyScrollbackOffset: scrollbackOffset,
-        command: command,
-        cwd: cwd,
-      ),
-    ];
-    final boundedMarks = nextMarks.length > 100
-        ? nextMarks.sublist(nextMarks.length - 100)
-        : nextMarks;
-    boundedMarks.sort(_comparePromptMarks);
-    return boundedMarks;
-  }
-
   int _comparePromptMarks(
     TerminalShellPromptMark left,
     TerminalShellPromptMark right,
   ) {
-    final leftGlobal = left.globalLine;
-    final rightGlobal = right.globalLine;
-    if (leftGlobal != null && rightGlobal != null) {
-      return leftGlobal.compareTo(rightGlobal);
-    }
-    if (leftGlobal != null) {
-      return -1;
-    }
-    if (rightGlobal != null) {
-      return 1;
-    }
-    return (left.legacyScrollbackOffset ?? 0).compareTo(
-      right.legacyScrollbackOffset ?? 0,
-    );
+    return left.globalLine.compareTo(right.globalLine);
   }
 
   List<TerminalShellPromptMark> _bindPromptZone(
@@ -4796,7 +4699,7 @@ class SessionController extends Notifier<SessionState> {
               if (sessionId == updatedSessionId) {
                 return updatedFrame;
               }
-              return _runtime.viewportFor(sessionId).frame;
+              return _runtime.existingViewportFor(sessionId)?.frame;
             },
           );
     _publishTerminalContent(
@@ -5424,24 +5327,16 @@ class SessionController extends Notifier<SessionState> {
     return _normalizeProfileId(_appPreferences.defaults.defaultProfileId);
   }
 
-  bool get _usesLocalConfigPersistence =>
-      _configBootstrapSource == LocalTerminalConfigBootstrapSource.localConfig;
-
   Future<void> _savePreferences({
     required LocalTerminalConfigDocument Function(LocalTerminalConfigDocument)
     localConfigUpdater,
   }) async {
-    if (_usesLocalConfigPersistence) {
-      final repository = ref.read(localTerminalConfigRepositoryProvider);
-      _localConfigDocument = await repository.update(
-        localConfigUpdater,
-        fallback: _localConfigDocument,
-      );
-    } else {
-      _appPreferencesDocument = await ref
-          .read(appPreferencesRepositoryProvider)
-          .saveVersioned(_appPreferencesDocument);
-    }
+    final repository = ref.read(localTerminalConfigRepositoryProvider);
+    _localConfigDocument = await repository.update(
+      localConfigUpdater,
+      fallback: _localConfigDocument,
+    );
+    _configBootstrapSource = LocalTerminalConfigBootstrapSource.localConfig;
     _preferencesLoadedFromDisk = true;
   }
 

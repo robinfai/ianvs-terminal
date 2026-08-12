@@ -9,6 +9,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../support/current_terminal_frame_fixture.dart';
 import '../support/fake_pty_backend.dart';
 import '../support/test_runtime.dart';
 
@@ -147,7 +148,7 @@ void main() {
 
       if (rawFrame != null && rawFrame.isNotEmpty) {
         final decodeWatch = Stopwatch()..start();
-        final incomingFrame = TerminalFrameDiff.fromJson(
+        final incomingFrame = terminalFrameFixtureFromJson(
           (jsonDecode(rawFrame) as Map).cast<String, Object?>(),
         );
         viewportController!.updateFrame(incomingFrame);

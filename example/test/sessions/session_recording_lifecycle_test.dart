@@ -218,11 +218,6 @@ class _RecordingPtyBackend extends FakePtyBackend
   }
 
   @override
-  bool get supportsSessionRequestV1 =>
-      startResponseFault == _RecordingStartResponseFault.correlation ||
-      prepareResponseFault == _RecordingPrepareResponseFault.correlation;
-
-  @override
   String? requestSessionV1Json(String sessionId, String requestV1Json) {
     final request = (jsonDecode(requestV1Json) as Map).cast<String, Object?>();
     final payload = (request['payload']! as Map).cast<String, Object?>();

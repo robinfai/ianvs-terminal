@@ -70,17 +70,20 @@ void main() {
       final file = File('${directory.path}/ianvs_recent_items.json');
       await file.writeAsString(
         jsonEncode({
-          'limit': 'many',
-          'commands': [
-            'not a command',
-            {'command': 'flutter test', 'cwd': '/repo', 'exitCode': 0.0},
-            {'command': 7, 'cwd': false, 'exitCode': 'ok'},
-          ],
-          'directories': [
-            7,
-            {'path': '/repo', 'label': 'Repo'},
-            {'path': false, 'label': 9},
-          ],
+          'schema_version': shellRecentItemsCurrentSchemaVersion,
+          'recent_items': {
+            'limit': 'many',
+            'commands': [
+              'not a command',
+              {'command': 'flutter test', 'cwd': '/repo', 'exitCode': 0.0},
+              {'command': 7, 'cwd': false, 'exitCode': 'ok'},
+            ],
+            'directories': [
+              7,
+              {'path': '/repo', 'label': 'Repo'},
+              {'path': false, 'label': 9},
+            ],
+          },
         }),
       );
       final repository = ShellRecentItemsRepository(
@@ -114,18 +117,21 @@ void main() {
         final file = File('${directory.path}/ianvs_recent_items.json');
         await file.writeAsString(
           jsonEncode({
-            'commands': [
-              for (var index = 0; index < maxShellRecentItems * 2; index += 1)
-                'not a command $index',
-              for (var index = 0; index < maxShellRecentItems + 5; index += 1)
-                {'command': 'cmd-$index', 'cwd': '/repo', 'exitCode': 0},
-            ],
-            'directories': [
-              for (var index = 0; index < maxShellRecentItems * 2; index += 1)
-                'not a directory $index',
-              for (var index = 0; index < maxShellRecentItems + 5; index += 1)
-                {'path': '/repo/$index'},
-            ],
+            'schema_version': shellRecentItemsCurrentSchemaVersion,
+            'recent_items': {
+              'commands': [
+                for (var index = 0; index < maxShellRecentItems * 2; index += 1)
+                  'not a command $index',
+                for (var index = 0; index < maxShellRecentItems + 5; index += 1)
+                  {'command': 'cmd-$index', 'cwd': '/repo', 'exitCode': 0},
+              ],
+              'directories': [
+                for (var index = 0; index < maxShellRecentItems * 2; index += 1)
+                  'not a directory $index',
+                for (var index = 0; index < maxShellRecentItems + 5; index += 1)
+                  {'path': '/repo/$index'},
+              ],
+            },
           }),
         );
         final repository = ShellRecentItemsRepository(
@@ -191,16 +197,44 @@ void main() {
         '${directory.path}/ianvs_recent_items.json',
       ).readAsString();
       final decoded = jsonDecode(raw) as Map<String, Object?>;
-      final commands = decoded['commands']! as List<Object?>;
-      final directories = decoded['directories']! as List<Object?>;
+      final recentItems = decoded['recent_items']! as Map<String, Object?>;
+      final commands = recentItems['commands']! as List<Object?>;
+      final directories = recentItems['directories']! as List<Object?>;
 
-      expect(decoded['limit'], maxShellRecentItems);
+      expect(decoded['schema_version'], shellRecentItemsCurrentSchemaVersion);
+      expect(recentItems['limit'], maxShellRecentItems);
       expect(commands, hasLength(maxShellRecentItems));
       expect(commands.first, containsPair('command', 'cmd-0'));
       expect(commands.last, containsPair('command', 'cmd-49'));
       expect(directories, hasLength(maxShellRecentItems));
       expect(directories.first, containsPair('path', '/repo/0'));
       expect(directories.last, containsPair('path', '/repo/49'));
+    });
+
+    test('noncurrent recent items are rejected without mutation', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'ianvs terminal-recent-items-noncurrent',
+      );
+      final file = File('${directory.path}/ianvs_recent_items.json');
+      final raw = jsonEncode(<String, Object?>{
+        'schema_version': 0,
+        'recent_items': const <String, Object?>{},
+      });
+      await file.writeAsString(raw);
+      final repository = ShellRecentItemsRepository(
+        directoryResolver: () async => directory,
+      );
+
+      await expectLater(
+        repository.load(),
+        throwsA(isA<UnsupportedShellRecentItemsSchemaVersion>()),
+      );
+
+      expect(await file.readAsString(), raw);
+      expect(
+        directory.listSync().where((entry) => entry.path.contains('.corrupt')),
+        isEmpty,
+      );
     });
   });
 }

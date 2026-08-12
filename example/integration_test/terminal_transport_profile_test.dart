@@ -22,10 +22,6 @@ const String _workloadList = String.fromEnvironment(
   defaultValue:
       'burst_stdout_profile,scrollback_heavy_profile,resize_churn_profile',
 );
-const String _wireFormatList = String.fromEnvironment(
-  'IANVS_BENCH_TRANSPORT_PROFILE_WIRE_FORMATS',
-  defaultValue: 'protobuf,json',
-);
 const String _targetLabel = String.fromEnvironment(
   'IANVS_BENCH_TRANSPORT_PROFILE_TARGET_LABEL',
   defaultValue: '',
@@ -62,48 +58,34 @@ void main() {
       final targetPlatform = Platform.operatingSystem;
       final targetDevice = _profileTargetDevice();
       final summaries = <Map<String, Object?>>[];
-      final pairedHashes = <String, Map<String, String>>{};
       final workloads = _profileWorkloads();
-      final wireFormats = _profileWireFormats();
 
       expect(workloads, isNotEmpty);
-      expect(wireFormats, isNotEmpty);
       expect(_repeatCount, greaterThan(0));
 
-      for (final wireFormat in wireFormats) {
-        for (final workload in workloads) {
-          for (
-            var repeatIndex = 1;
-            repeatIndex <= _repeatCount;
-            repeatIndex += 1
-          ) {
-            final workloadLabel = '${wireFormat.name}_${workload.name}';
-            final runDir = Directory(
-              '${outputRoot.path}/${_pathSegment(workloadLabel)}/repeat_$repeatIndex',
-            );
-            final summary = await _runTransportProfileCase(
-              binding: binding,
-              tester: tester,
-              wireFormat: wireFormat,
-              workload: workload,
-              workloadLabel: workloadLabel,
-              repeatIndex: repeatIndex,
-              outputDir: runDir,
-              targetPlatform: targetPlatform,
-              targetDevice: targetDevice,
-            );
-            summaries.add(summary);
-            pairedHashes.putIfAbsent(
-              '${workload.name}\u0000$repeatIndex',
-              () => <String, String>{},
-            )[wireFormat.name] = summary['actual_viewport_hash']! as String;
-          }
+      for (final workload in workloads) {
+        for (
+          var repeatIndex = 1;
+          repeatIndex <= _repeatCount;
+          repeatIndex += 1
+        ) {
+          final runDir = Directory(
+            '${outputRoot.path}/${_pathSegment(workload.name)}/repeat_$repeatIndex',
+          );
+          final summary = await _runTransportProfileCase(
+            binding: binding,
+            tester: tester,
+            workload: workload,
+            repeatIndex: repeatIndex,
+            outputDir: runDir,
+            targetPlatform: targetPlatform,
+            targetDevice: targetDevice,
+          );
+          summaries.add(summary);
         }
       }
 
-      _assertPairedHashesMatch(pairedHashes);
       writeTerminalRenderProfileAggregateSummary(outputRoot, summaries);
-      _writePairedHashes(outputRoot, pairedHashes);
     },
     skip: _configuredOutputDir.isEmpty || !Platform.isMacOS,
   );
@@ -112,9 +94,7 @@ void main() {
 Future<Map<String, Object?>> _runTransportProfileCase({
   required IntegrationTestWidgetsFlutterBinding binding,
   required WidgetTester tester,
-  required _WireFormat wireFormat,
   required _ProfileWorkload workload,
-  required String workloadLabel,
   required int repeatIndex,
   required Directory outputDir,
   required String targetPlatform,
@@ -136,7 +116,6 @@ Future<Map<String, Object?>> _runTransportProfileCase({
     copyToClipboard: (_) async {},
     readClipboard: () async => '',
     enableSessionPolling: true,
-    frameWireFormatPreference: wireFormat.preference,
     benchmarkEventSink: dartRuntimeEvents.add,
   );
   final sessionId = runtime.createSession(
@@ -209,35 +188,31 @@ Future<Map<String, Object?>> _runTransportProfileCase({
     frameTimings.clear();
 
     final startedAt = DateTime.now().toUtc();
-    await binding.traceAction(
-      () async {
-        for (var index = 0; index < _frameCount; index += 1) {
-          final nextSize = workload.viewportSizeForFrame(index);
-          if (nextSize != viewportSize) {
-            setHarnessState(() {
-              viewportSize = nextSize;
-            });
-            runtime.resizeSessionCells(
-              sessionId,
-              cols: workload.colsForFrame(index),
-              rows: workload.rowsForFrame(index),
-              devicePixelRatio: 2,
-              cellSize: const Size(10, 18),
-            );
-            await tester.pump();
-          }
-
-          runtime.sendInput(
+    await binding.traceAction(() async {
+      for (var index = 0; index < _frameCount; index += 1) {
+        final nextSize = workload.viewportSizeForFrame(index);
+        if (nextSize != viewportSize) {
+          setHarnessState(() {
+            viewportSize = nextSize;
+          });
+          runtime.resizeSessionCells(
             sessionId,
-            Uint8List.fromList(utf8.encode(_inputForFrame(workload, index))),
+            cols: workload.colsForFrame(index),
+            rows: workload.rowsForFrame(index),
+            devicePixelRatio: 2,
+            cellSize: const Size(10, 18),
           );
-          await tester.pump(const Duration(milliseconds: 34));
+          await tester.pump();
         }
-        await tester.pump(const Duration(milliseconds: 300));
-      },
-      reportKey:
-          'ianvs_transport_${wireFormat.name}_${workload.name}_$repeatIndex',
-    );
+
+        runtime.sendInput(
+          sessionId,
+          Uint8List.fromList(utf8.encode(_inputForFrame(workload, index))),
+        );
+        await tester.pump(const Duration(milliseconds: 34));
+      }
+      await tester.pump(const Duration(milliseconds: 300));
+    }, reportKey: 'ianvs_transport_current_${workload.name}_$repeatIndex');
     await tester.runAsync(() async {
       await Future<void>.delayed(const Duration(milliseconds: 300));
     });
@@ -256,7 +231,7 @@ Future<Map<String, Object?>> _runTransportProfileCase({
     expect(runtimeFrameEvents, isNotEmpty);
     expect(
       runtimeFrameEvents.map((event) => event['wire_format']).toSet(),
-      <String>{wireFormat.runtimeWireName},
+      <String>{'protobuf'},
     );
     expect(
       timingEvents,
@@ -266,7 +241,7 @@ Future<Map<String, Object?>> _runTransportProfileCase({
 
     final summary = writeTerminalRenderProfileReport(
       outputDir: outputDir,
-      workload: workloadLabel,
+      workload: workload.name,
       policy: 'native_runtime_profile',
       repeatIndex: repeatIndex,
       targetPlatform: targetPlatform,
@@ -327,69 +302,9 @@ List<_ProfileWorkload> _profileWorkloads() {
       .toList(growable: false);
 }
 
-List<_WireFormat> _profileWireFormats() {
-  return _wireFormatList
-      .split(',')
-      .map((entry) => entry.trim())
-      .where((entry) => entry.isNotEmpty)
-      .map(_WireFormat.fromName)
-      .toList(growable: false);
-}
-
-void _assertPairedHashesMatch(Map<String, Map<String, String>> pairedHashes) {
-  for (final entry in pairedHashes.entries) {
-    final hashes = entry.value.values.toSet();
-    expect(hashes, hasLength(1), reason: 'Mismatched hashes for ${entry.key}');
-  }
-}
-
-void _writePairedHashes(
-  Directory outputRoot,
-  Map<String, Map<String, String>> pairedHashes,
-) {
-  final file = File('${outputRoot.path}/paired_hashes.json');
-  file.writeAsStringSync(
-    '${const JsonEncoder.withIndent('  ').convert(<String, Object?>{
-      'schema_version': 'ianvs-bench-transport-profile-paired-hashes-v1',
-      'pairs': pairedHashes.map((key, value) {
-        final parts = key.split('\u0000');
-        return MapEntry<String, Object?>(key, <String, Object?>{'workload': parts.first, 'repeat': int.parse(parts.last), 'hashes': value, 'match': value.values.toSet().length == 1});
-      }),
-    })}\n',
-  );
-}
-
 String _pathSegment(String value) {
   final sanitized = value.replaceAll(RegExp('[^A-Za-z0-9._-]+'), '_');
   return sanitized.isEmpty ? 'unknown' : sanitized;
-}
-
-enum _WireFormat {
-  protobuf,
-  json;
-
-  factory _WireFormat.fromName(String name) {
-    return switch (name) {
-      'protobuf' => _WireFormat.protobuf,
-      'json' => _WireFormat.json,
-      _ => throw ArgumentError.value(name, 'name', 'Unknown wire format'),
-    };
-  }
-
-  terminal.TerminalFrameWireFormatPreference get preference {
-    return switch (this) {
-      _WireFormat.protobuf =>
-        terminal.TerminalFrameWireFormatPreference.automatic,
-      _WireFormat.json => terminal.TerminalFrameWireFormatPreference.json,
-    };
-  }
-
-  String get runtimeWireName {
-    return switch (this) {
-      _WireFormat.protobuf => 'protobuf',
-      _WireFormat.json => 'json',
-    };
-  }
 }
 
 enum _ProfileWorkloadKind { burst, scrollback, resize }

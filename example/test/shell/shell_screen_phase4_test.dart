@@ -330,15 +330,16 @@ void main() {
   testWidgets('shell applies configured terminal viewport padding', (
     tester,
   ) async {
-    const preferences = TerminalAppPreferencesDocument(
-      appearance: TerminalAppAppearance(terminalViewportPadding: 20),
-    );
     final fakeBindings = FakePtyBackend();
 
     await _pumpShellScreen(
       tester,
       fakeBindings: fakeBindings,
-      preferences: preferences,
+      localConfigRepository: _MemoryLocalTerminalConfigRepository(
+        const LocalTerminalConfigDocument(
+          appearance: TerminalAppAppearance(terminalViewportPadding: 20),
+        ),
+      ),
     );
 
     final viewport = tester.widget<TerminalViewport>(

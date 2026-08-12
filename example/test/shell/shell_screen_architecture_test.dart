@@ -448,7 +448,6 @@ Iterable<File> _allowedShellExternalDependencies(Directory libDirectory) {
     'ui/app_ui.dart',
     'features/config/local_terminal_config_bootstrap.dart',
     'features/config/local_terminal_config_models.dart',
-    'features/config/local_terminal_config_preferences_adapter.dart',
     'features/config/local_terminal_key_event_resolver.dart',
     'features/config/local_terminal_keybinding_resolver.dart',
     'features/config/shortcut_editor.dart',

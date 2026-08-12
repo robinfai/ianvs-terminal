@@ -1906,10 +1906,6 @@ extension _ShellScreenStateEvents on _ShellScreenState {
   Future<void> _loadNotificationPreferences() async {
     try {
       final configBootstrap = await _loadNotificationConfig();
-      final preferences =
-          LocalTerminalConfigPreferencesAdapter.toAppPreferences(
-            configBootstrap.config,
-          );
       if (!mounted) {
         return;
       }
@@ -1928,16 +1924,14 @@ extension _ShellScreenStateEvents on _ShellScreenState {
             .take(_effectivePasteHistoryLimit)
             .toList();
         _commandFinishedNotificationsEnabled =
-            preferences.notifications.commandFinished;
-        _bellNotificationsEnabled = preferences.notifications.bell;
-        _activityNotificationsEnabled = preferences.notifications.activity;
+            configBootstrap.config.notifications.commandFinished;
+        _bellNotificationsEnabled = configBootstrap.config.notifications.bell;
+        _activityNotificationsEnabled =
+            configBootstrap.config.notifications.activity;
       });
     } on Object catch (error) {
       if (mounted) {
-        _showShellSnackBar(
-          'Terminal settings could not be loaded. No legacy preferences were '
-          'used: $error',
-        );
+        _showShellSnackBar('Terminal settings could not be loaded: $error');
       }
     }
   }
@@ -1953,48 +1947,34 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       activity: _activityNotificationsEnabled,
     );
     final localConfig = await _loadLocalNotificationConfigForSave();
-    if (localConfig != null) {
-      final nextConfig = await ref
-          .read(localTerminalConfigRepositoryProvider)
-          .update(
-            (current) => current.copyWith(
-              notifications: LocalTerminalNotificationsConfig(
-                enabled:
-                    notifications.commandFinished ||
-                    notifications.bell ||
-                    notifications.activity,
-                commandFinished: notifications.commandFinished,
-                bell: notifications.bell,
-                activity: notifications.activity,
-              ),
+    final nextConfig = await ref
+        .read(localTerminalConfigRepositoryProvider)
+        .update(
+          (current) => current.copyWith(
+            notifications: LocalTerminalNotificationsConfig(
+              enabled:
+                  notifications.commandFinished ||
+                  notifications.bell ||
+                  notifications.activity,
+              commandFinished: notifications.commandFinished,
+              bell: notifications.bell,
+              activity: notifications.activity,
             ),
-            fallback: localConfig,
-          );
-      _notificationConfigSource =
-          LocalTerminalConfigBootstrapSource.localConfig;
-      _notificationLocalConfig = nextConfig;
-      return;
-    }
-
-    final repository = ref.read(appPreferencesRepositoryProvider);
-    final preferences = await repository.loadVersioned();
-    await repository.saveVersioned(
-      preferences.withValue(
-        (preferences.value ?? const TerminalAppPreferencesDocument()).copyWith(
-          notifications: notifications,
-        ),
-      ),
-    );
+          ),
+          fallback: localConfig,
+        );
+    _notificationConfigSource = LocalTerminalConfigBootstrapSource.localConfig;
+    _notificationLocalConfig = nextConfig;
   }
 
-  Future<LocalTerminalConfigDocument?>
+  Future<LocalTerminalConfigDocument>
   _loadLocalNotificationConfigForSave() async {
     final repository = ref.read(localTerminalConfigRepositoryProvider);
     if (_notificationConfigSource ==
         LocalTerminalConfigBootstrapSource.localConfig) {
       return await repository.load() ?? _notificationLocalConfig;
     }
-    return repository.load();
+    return await repository.load() ?? _notificationLocalConfig;
   }
 
   LocalTerminalPastePolicy _pastePolicyFromConfig(

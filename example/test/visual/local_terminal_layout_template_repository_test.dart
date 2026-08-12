@@ -65,9 +65,13 @@ void main() {
                   '${directory.path}/ianvs_layout_templates.json',
                 ).readAsString(),
               )
-              as List<dynamic>;
+              as Map<String, dynamic>;
 
-      expect(raw, hasLength(1));
+      expect(
+        raw['schema_version'],
+        localTerminalLayoutTemplateLibraryCurrentSchemaVersion,
+      );
+      expect(raw['templates'], hasLength(1));
       expect(loaded, hasLength(1));
       expect(loaded.single.id, 'two-pane');
       expect(loaded.single.canApply, isTrue);
@@ -101,9 +105,9 @@ void main() {
                   '${directory.path}/ianvs_layout_templates.json',
                 ).readAsString(),
               )
-              as List<dynamic>;
+              as Map<String, dynamic>;
 
-      expect(raw, hasLength(maxLocalTerminalLayoutTemplates));
+      expect(raw['templates'], hasLength(maxLocalTerminalLayoutTemplates));
       expect(loaded, hasLength(maxLocalTerminalLayoutTemplates));
       expect(loaded.first.id, 'template-0');
       expect(loaded.last.id, 'template-${maxLocalTerminalLayoutTemplates - 1}');
@@ -136,28 +140,30 @@ void main() {
       );
       final file = File('${directory.path}/ianvs_layout_templates.json');
       await file.writeAsString(
-        jsonEncode([
-          'not a template',
-          {'id': '   ', 'name': 'Blank', 'paneCount': 2, 'localOnly': true},
-          {
-            'id': 'missing-name',
-            'name': '   ',
-            'paneCount': 2,
-            'localOnly': true,
-          },
-          {
-            'id': 'bad-local-flag',
-            'name': 'Bad local flag',
-            'paneCount': 2,
-            'localOnly': 'true',
-          },
-          {
-            'id': ' two-pane ',
-            'name': ' Two Pane ',
-            'paneCount': 2.0,
-            'localOnly': true,
-          },
-        ]),
+        jsonEncode(
+          _currentTemplateLibrary([
+            'not a template',
+            {'id': '   ', 'name': 'Blank', 'paneCount': 2, 'localOnly': true},
+            {
+              'id': 'missing-name',
+              'name': '   ',
+              'paneCount': 2,
+              'localOnly': true,
+            },
+            {
+              'id': 'bad-local-flag',
+              'name': 'Bad local flag',
+              'paneCount': 2,
+              'localOnly': 'true',
+            },
+            {
+              'id': ' two-pane ',
+              'name': ' Two Pane ',
+              'paneCount': 2.0,
+              'localOnly': true,
+            },
+          ]),
+        ),
       );
       final repository = LocalTerminalLayoutTemplateRepository(
         directoryResolver: () async => directory,
@@ -184,20 +190,22 @@ void main() {
       );
       final file = File('${directory.path}/ianvs_layout_templates.json');
       await file.writeAsString(
-        jsonEncode([
-          for (
-            var index = 0;
-            index < maxLocalTerminalLayoutTemplates * 4 + 1;
-            index += 1
-          )
-            'not-a-template-$index',
-          const LocalTerminalLayoutTemplate(
-            id: 'too-late',
-            name: 'Too Late',
-            paneCount: 2,
-            localOnly: true,
-          ).toJson(),
-        ]),
+        jsonEncode(
+          _currentTemplateLibrary([
+            for (
+              var index = 0;
+              index < maxLocalTerminalLayoutTemplates * 4 + 1;
+              index += 1
+            )
+              'not-a-template-$index',
+            const LocalTerminalLayoutTemplate(
+              id: 'too-late',
+              name: 'Too Late',
+              paneCount: 2,
+              localOnly: true,
+            ).toJson(),
+          ]),
+        ),
       );
       final repository = LocalTerminalLayoutTemplateRepository(
         directoryResolver: () async => directory,
@@ -220,26 +228,28 @@ void main() {
       );
       final file = File('${directory.path}/ianvs_layout_templates.json');
       await file.writeAsString(
-        jsonEncode([
-          {
-            'id': ' two-pane ',
-            'name': 'Two Pane',
-            'paneCount': 2,
-            'localOnly': true,
-          },
-          {
-            'id': 'two-pane',
-            'name': 'Duplicate Two Pane',
-            'paneCount': 1,
-            'localOnly': true,
-          },
-          {
-            'id': 'single-pane',
-            'name': 'Single Pane',
-            'paneCount': 1,
-            'localOnly': true,
-          },
-        ]),
+        jsonEncode(
+          _currentTemplateLibrary([
+            {
+              'id': ' two-pane ',
+              'name': 'Two Pane',
+              'paneCount': 2,
+              'localOnly': true,
+            },
+            {
+              'id': 'two-pane',
+              'name': 'Duplicate Two Pane',
+              'paneCount': 1,
+              'localOnly': true,
+            },
+            {
+              'id': 'single-pane',
+              'name': 'Single Pane',
+              'paneCount': 1,
+              'localOnly': true,
+            },
+          ]),
+        ),
       );
       final repository = LocalTerminalLayoutTemplateRepository(
         directoryResolver: () async => directory,
@@ -258,5 +268,39 @@ void main() {
         isFalse,
       );
     });
+
+    test('noncurrent template library is rejected without mutation', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'ianvs terminal-layout-templates-noncurrent',
+      );
+      final file = File('${directory.path}/ianvs_layout_templates.json');
+      final raw = jsonEncode(<String, Object?>{
+        'schema_version': 0,
+        'templates': const <Object?>[],
+      });
+      await file.writeAsString(raw);
+      final repository = LocalTerminalLayoutTemplateRepository(
+        directoryResolver: () async => directory,
+      );
+
+      await expectLater(
+        repository.load(),
+        throwsA(
+          isA<UnsupportedLocalTerminalLayoutTemplateLibrarySchemaVersion>(),
+        ),
+      );
+
+      expect(await file.readAsString(), raw);
+      expect(
+        directory.listSync().where((entry) => entry.path.contains('.corrupt')),
+        isEmpty,
+      );
+    });
   });
 }
+
+Map<String, Object?> _currentTemplateLibrary(List<Object?> templates) =>
+    <String, Object?>{
+      'schema_version': localTerminalLayoutTemplateLibraryCurrentSchemaVersion,
+      'templates': templates,
+    };

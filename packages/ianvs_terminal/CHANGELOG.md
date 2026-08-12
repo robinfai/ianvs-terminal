@@ -4,23 +4,22 @@
 
 ### Breaking
 
-- `TerminalFrameDiff.fromProtobufBytes` moved out of the terminal domain so
-  generated protobuf transport code no longer flows into domain models.
-  Replace calls with `const TerminalProtobufFrameCodec().decode(bytes)`.
-- `LegacyTerminalFrameDiffProtobuf.fromProtobufBytes(bytes)` is available as a
-  deprecated transition facade and will be removed in the next major version.
+- Removed the predecessor xterm facade and public frame-codec facade. Session
+  creation and rendering now enter through the current runtime controller and
+  versioned frame-packet contract only.
+- Removed the predecessor JSON/raw-Protobuf frame paths, compatibility
+  preference, contextless clipboard/pre-close callbacks and split runtime,
+  ZMODEM and deferred-failure streams.
 
 ### Architecture
 
-- Added the additive `TerminalRuntimeController.runtimeSignals` stream. It
-  wraps the existing session, ZMODEM, and deferred-write-failure payloads with
-  a controller-wide sequence and session epoch while preserving the 2.x event
-  streams unchanged.
-- Frame validation, wire compatibility, and frame normalization now live in
-  neutral contracts shared by JSON/domain and protobuf adapters.
-- Runtime frame and packet decoders depend only on decode ports; the frame
-  transport coordinator is the explicit composition boundary for concrete
-  JSON and protobuf adapters.
+- `TerminalRuntimeController.runtimeSignals` is the single ordered public
+  stream for session, ZMODEM and deferred-write-failure signals.
+- SessionConfig v1, requests, diagnostics and frame packets are exact current
+  contracts: missing, unknown, case-aliased and unsupported shapes fail closed
+  in Dart, Rust and the C FFI.
+- Frame normalization remains transport-neutral; the runtime coordinator has
+  one current Protobuf frame-packet route and no downgrade chain.
 - Architecture tests parse Dart directives with the analyzer and enforce
   validated owner/part relationships plus direct and transitive domain,
   contract, runtime-decoder, and global internal composition boundaries with

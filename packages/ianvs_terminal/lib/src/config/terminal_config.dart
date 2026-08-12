@@ -57,7 +57,7 @@ final class TerminalSshPortForwardConfig {
   factory TerminalSshPortForwardConfig.fromJson(Object? json) {
     final map = _asObjectMap(json);
     return TerminalSshPortForwardConfig(
-      type: switch (_normalizedConfigToken(map?['type'])) {
+      type: switch (map?['type']) {
         'remote' => TerminalSshPortForwardType.remote,
         'dynamic' => TerminalSshPortForwardType.dynamic,
         _ => TerminalSshPortForwardType.local,
@@ -200,11 +200,10 @@ String _sshAuthMethodToJson(TerminalSshAuthMethod auth) => switch (auth) {
 };
 
 TerminalSshAuthMethod _sshAuthMethodFromJson(Object? value) {
-  return switch (_normalizedConfigToken(value)) {
+  return switch (value) {
     'password' => TerminalSshAuthMethod.password,
-    'public_key' || 'publickey' => TerminalSshAuthMethod.publicKey,
-    'keyboard_interactive' ||
-    'keyboard-interactive' => TerminalSshAuthMethod.keyboardInteractive,
+    'public_key' => TerminalSshAuthMethod.publicKey,
+    'keyboard_interactive' => TerminalSshAuthMethod.keyboardInteractive,
     _ => TerminalSshAuthMethod.auto,
   };
 }
@@ -218,8 +217,8 @@ String _sshHostKeyPolicyToJson(TerminalSshHostKeyPolicy policy) {
 }
 
 TerminalSshHostKeyPolicy _sshHostKeyPolicyFromJson(Object? value) {
-  return switch (_normalizedConfigToken(value)) {
-    'accept_new' || 'accept-new' => TerminalSshHostKeyPolicy.acceptNew,
+  return switch (value) {
+    'accept_new' => TerminalSshHostKeyPolicy.acceptNew,
     'insecure' => TerminalSshHostKeyPolicy.insecure,
     _ => TerminalSshHostKeyPolicy.strict,
   };
@@ -235,7 +234,7 @@ enum TerminalOptionDragMode {
   };
 
   static TerminalOptionDragMode fromJsonValue(Object? value) {
-    return switch (_normalizedConfigToken(value)) {
+    return switch (value) {
       'normal_selection' => TerminalOptionDragMode.normalSelection,
       _ => TerminalOptionDragMode.blockSelection,
     };
@@ -510,7 +509,7 @@ class TerminalConnectionConfig {
 
   factory TerminalConnectionConfig.fromJson(Object? json) {
     final map = _asObjectMap(json);
-    if (_normalizedConfigToken(map?['type']) != 'ssh') {
+    if (map?['type'] != 'ssh') {
       return const TerminalConnectionConfig.local();
     }
     return TerminalConnectionConfig.ssh(
@@ -1142,6 +1141,7 @@ class TerminalSessionConfig {
   }
 
   factory TerminalSessionConfig.fromJson(Map<String, Object?> json) {
+    _validateCurrentSessionConfigShape(json);
     final terminal = _asObjectMap(json['terminal']);
     return TerminalSessionConfig(
       launch: TerminalLaunchConfig.fromJson(json['launch']),
@@ -1161,320 +1161,181 @@ class TerminalSessionConfig {
       ),
     );
   }
+}
 
-  factory TerminalSessionConfig.fromProfileJson(
-    Map<String, Object?> json, {
-    required String defaultProgram,
-    TerminalConfigWarningCallback? onWarning,
-  }) {
-    final terminal = _asObjectMap(json['terminal']);
-    return TerminalSessionConfig(
-      launch: _launchConfigFromProfileJson(
-        json['launch'],
-        legacy: json,
-        defaultProgram: defaultProgram,
-        onWarning: onWarning,
-      ),
-      connection: TerminalConnectionConfig.fromJson(json['connection']),
-      emulation: _emulationFromProfileJson(
-        terminal?['emulation'] ?? json['terminalEmulation'],
-        path: terminal == null ? 'terminalEmulation' : 'terminal.emulation',
-        onWarning: onWarning,
-      ),
-      scrollbackLines: _positiveIntField(
-        terminal?['scrollbackLines'],
-        fallback: defaultTerminalScrollbackLines,
-        maximum: maxTerminalScrollbackLines,
-        path: 'terminal.scrollbackLines',
-        onWarning: onWarning,
-      ),
-      graphics: _graphicsConfigFromProfileJson(
-        terminal?['graphics'],
-        onWarning: onWarning,
-      ),
-      dragDropEnabled: _boolOr(terminal?['dragDropEnabled'], false),
-      display: _displayConfigFromProfileJson(
-        json['appearance'],
-        onWarning: onWarning,
-      ),
-      interaction: _interactionConfigFromProfileJson(
-        json['interaction'],
-        onWarning: onWarning,
-      ),
-      shellIntegration: _shellIntegrationConfigFromProfileJson(
-        json['shellIntegration'],
-        onWarning: onWarning,
-      ),
-    );
+void _validateCurrentSessionConfigShape(Map<String, Object?> json) {
+  _expectExactKeys(json, const <String>{
+    'launch',
+    'connection',
+    'terminal',
+    'shellIntegration',
+    'appearance',
+    'interaction',
+  }, r'$');
+  _expectExactObject(json['launch'], const <String>{
+    'program',
+    'args',
+    'env',
+    'cwd',
+  }, r'$.launch');
+
+  final connection = _expectExactObject(json['connection'], const <String>{
+    'type',
+    'host',
+    'user',
+    'port',
+    'auth',
+    'password',
+    'privateKeys',
+    'privateKeyPassphrase',
+    'hostKeyPolicy',
+    'knownHostsFile',
+    'connectTimeoutSeconds',
+    'keepaliveSeconds',
+    'keepaliveCountMax',
+    'proxyCommand',
+    'proxyJump',
+    'proxyJumpProfiles',
+    'portForwards',
+    'agentForwarding',
+    'agentSocket',
+    'x11Forwarding',
+    'x11TargetHost',
+    'x11TargetPort',
+    'x11AuthProtocol',
+    'x11AuthCookie',
+    'x11ScreenNumber',
+  }, r'$.connection');
+  if (connection != null && connection['type'] != 'ssh') {
+    _expectExactKeys(connection, const <String>{'type'}, r'$.connection');
   }
-}
+  _expectExactObjectList(connection?['proxyJumpProfiles'], const <String>{
+    'host',
+    'user',
+    'port',
+    'auth',
+    'password',
+    'privateKeys',
+    'privateKeyPassphrase',
+    'hostKeyPolicy',
+    'knownHostsFile',
+    'connectTimeoutSeconds',
+    'keepaliveSeconds',
+    'keepaliveCountMax',
+  }, r'$.connection.proxyJumpProfiles');
+  _expectExactObjectList(connection?['portForwards'], const <String>{
+    'type',
+    'bindHost',
+    'bindPort',
+    'targetHost',
+    'targetPort',
+  }, r'$.connection.portForwards');
 
-class TerminalConfigWarning {
-  const TerminalConfigWarning({
-    required this.path,
-    required this.rawValue,
-    required this.fallbackSummary,
-  });
+  final terminal = _expectExactObject(json['terminal'], const <String>{
+    'emulation',
+    'scrollbackLines',
+    'graphics',
+    'dragDropEnabled',
+  }, r'$.terminal');
+  _expectExactObject(terminal?['graphics'], const <String>{
+    'enabled',
+    'advertise',
+    'maxImageBytes',
+    'maxTotalBytes',
+  }, r'$.terminal.graphics');
+  _expectExactObject(json['shellIntegration'], const <String>{
+    'enabled',
+  }, r'$.shellIntegration');
 
-  final String path;
-  final Object? rawValue;
-  final String fallbackSummary;
-}
-
-typedef TerminalConfigWarningCallback =
-    void Function(TerminalConfigWarning warning);
-
-TerminalLaunchConfig _launchConfigFromProfileJson(
-  Object? json, {
-  required Map<String, Object?> legacy,
-  required String defaultProgram,
-  required TerminalConfigWarningCallback? onWarning,
-}) {
-  final launch = _asObjectMap(json);
-  if (launch != null) {
-    final rawProgram = launch['program'];
-    final program = _stringOrNull(rawProgram)?.trim();
-    return TerminalLaunchConfig(
-      program: program == null || program.isEmpty
-          ? _warnAndDefaultProgram(rawProgram, defaultProgram, onWarning)
-          : program,
-      args: _stringListField(
-        launch['args'],
-        path: 'launch.args',
-        maxEntries: maxTerminalLaunchArgs,
-        onWarning: onWarning,
-      ),
-      env: _stringMapField(
-        launch['env'],
-        path: 'launch.env',
-        maxEntries: maxTerminalEnvironmentEntries,
-        onWarning: onWarning,
-      ),
-      cwd: _nullableStringField(
-        launch['cwd'],
-        path: 'launch.cwd',
-        onWarning: onWarning,
-      ),
-    );
-  }
-
-  final rawProgram = legacy['shell'];
-  final program = _stringOrNull(rawProgram)?.trim();
-  return TerminalLaunchConfig(
-    program: program == null || program.isEmpty
-        ? _warnAndDefaultProgram(
-            rawProgram,
-            defaultProgram,
-            onWarning,
-            path: 'shell',
-          )
-        : program,
-    args: _stringListField(
-      legacy['args'],
-      path: 'args',
-      maxEntries: maxTerminalLaunchArgs,
-      onWarning: onWarning,
-    ),
-    env: _stringMapField(
-      legacy['env'],
-      path: 'env',
-      maxEntries: maxTerminalEnvironmentEntries,
-      onWarning: onWarning,
-    ),
-    cwd: _nullableStringField(legacy['cwd'], path: 'cwd', onWarning: onWarning),
-  );
-}
-
-TerminalDisplayConfig _displayConfigFromProfileJson(
-  Object? json, {
-  required TerminalConfigWarningCallback? onWarning,
-}) {
-  final appearance = _asObjectMap(json);
-  final font = _asObjectMap(appearance?['font']);
-  final rawFamily = font?['family'];
-  final family = _stringOrNull(rawFamily)?.trim();
-  final colors = _asObjectMap(appearance?['colors']);
-  final specialColors = _asObjectMap(colors?['special']);
-  final normalColors = _asObjectMap(colors?['normal']);
-  final brightColors = _asObjectMap(colors?['bright']);
-  final cursor = _asObjectMap(appearance?['cursor']);
-  _warnLegacyFlatColorFields(colors, onWarning: onWarning);
-  return TerminalDisplayConfig(
-    font: TerminalFontConfig(
-      family: family == null || family.isEmpty
-          ? _warnAndDefaultString(
-              rawFamily,
-              path: 'appearance.font.family',
-              fallback: terminalPrimaryFontFamily,
-              onWarning: onWarning,
-            )
-          : family,
-      fallback: _fontFallbackList(
-        font?['fallback'],
-        maxEntries: maxTerminalFontFallbackFamilies,
-        onWarning: onWarning,
-      ),
-      size: _positiveDoubleField(
-        font?['size'],
-        fallback: terminalFontSize,
-        path: 'appearance.font.size',
-        onWarning: onWarning,
-      ),
-      lineHeight: _positiveDoubleField(
-        font?['lineHeight'],
-        fallback: terminalLineHeight,
-        path: 'appearance.font.lineHeight',
-        onWarning: onWarning,
-      ),
-    ),
-    colors: TerminalColorPalette(
-      special: TerminalSpecialColors(
-        foreground: _nullableHexColor(
-          specialColors?['foreground'],
-          path: 'appearance.colors.special.foreground',
-          onWarning: onWarning,
-        ),
-        background: _nullableHexColor(
-          specialColors?['background'],
-          path: 'appearance.colors.special.background',
-          onWarning: onWarning,
-        ),
-        cursor: _nullableHexColor(
-          specialColors?['cursor'],
-          path: 'appearance.colors.special.cursor',
-          onWarning: onWarning,
-        ),
-        selection: _nullableHexColor(
-          specialColors?['selection'],
-          path: 'appearance.colors.special.selection',
-          onWarning: onWarning,
-        ),
-        tab: _nullableHexColor(
-          specialColors?['tab'],
-          path: 'appearance.colors.special.tab',
-          onWarning: onWarning,
-        ),
-      ),
-      normal: _ansiColorsFromProfileJson(
-        normalColors,
-        path: 'appearance.colors.normal',
-        onWarning: onWarning,
-      ),
-      bright: _ansiColorsFromProfileJson(
-        brightColors,
-        path: 'appearance.colors.bright',
-        onWarning: onWarning,
-      ),
-    ),
-    cursor: TerminalCursorConfig(
-      shape: _cursorShapeFromProfileJson(
-        cursor?['shape'],
-        path: 'appearance.cursor.shape',
-        onWarning: onWarning,
-      ),
-      blink: _boolField(
-        cursor?['blink'],
-        fallback: true,
-        path: 'appearance.cursor.blink',
-        onWarning: onWarning,
-      ),
-    ),
-  );
-}
-
-TerminalInteractionConfig _interactionConfigFromProfileJson(
-  Object? json, {
-  required TerminalConfigWarningCallback? onWarning,
-}) {
-  final interaction = _asObjectMap(json);
-  return TerminalInteractionConfig(
-    copyOnSelect: _boolField(
-      interaction?['copyOnSelect'],
-      fallback: false,
-      path: 'interaction.copyOnSelect',
-      onWarning: onWarning,
-    ),
-    optionDragMode: _optionDragModeFromProfileJson(
-      interaction?['optionDragMode'],
-      path: 'interaction.optionDragMode',
-      onWarning: onWarning,
-    ),
-  );
-}
-
-TerminalShellIntegrationConfig _shellIntegrationConfigFromProfileJson(
-  Object? json, {
-  required TerminalConfigWarningCallback? onWarning,
-}) {
-  final shellIntegration = _asObjectMap(json);
-  return TerminalShellIntegrationConfig(
-    enabled: _boolField(
-      shellIntegration?['enabled'],
-      fallback: true,
-      path: 'shellIntegration.enabled',
-      onWarning: onWarning,
-    ),
-  );
-}
-
-TerminalGraphicsConfig _graphicsConfigFromProfileJson(
-  Object? json, {
-  required TerminalConfigWarningCallback? onWarning,
-}) {
-  final graphics = _asObjectMap(json);
-  return TerminalGraphicsConfig(
-    enabled: _boolField(
-      graphics?['enabled'],
-      fallback: true,
-      path: 'terminal.graphics.enabled',
-      onWarning: onWarning,
-    ),
-    advertise: _graphicsAdvertiseField(
-      graphics?['advertise'],
-      fallback: 'kitty',
-      path: 'terminal.graphics.advertise',
-      onWarning: onWarning,
-    ),
-    maxImageBytes: _positiveIntField(
-      graphics?['maxImageBytes'],
-      fallback: defaultTerminalGraphicMaxImageBytes,
-      path: 'terminal.graphics.maxImageBytes',
-      onWarning: onWarning,
-    ),
-    maxTotalBytes: _positiveIntField(
-      graphics?['maxTotalBytes'],
-      fallback: defaultTerminalGraphicMaxTotalBytes,
-      path: 'terminal.graphics.maxTotalBytes',
-      onWarning: onWarning,
-    ),
-  );
-}
-
-void _warnLegacyFlatColorFields(
-  Map<String, Object?>? colors, {
-  required TerminalConfigWarningCallback? onWarning,
-}) {
-  if (colors == null) {
-    return;
-  }
-  for (final field in const <String>[
+  final appearance = _expectExactObject(json['appearance'], const <String>{
+    'font',
+    'colors',
+    'cursor',
+  }, r'$.appearance');
+  _expectExactObject(appearance?['font'], const <String>{
+    'family',
+    'fallback',
+    'size',
+    'lineHeight',
+  }, r'$.appearance.font');
+  final colors = _expectExactObject(appearance?['colors'], const <String>{
+    'special',
+    'normal',
+    'bright',
+  }, r'$.appearance.colors');
+  _expectExactObject(colors?['special'], const <String>{
     'foreground',
     'background',
     'cursor',
     'selection',
     'tab',
-  ]) {
-    if (!colors.containsKey(field)) {
-      continue;
+  }, r'$.appearance.colors.special');
+  const ansiKeys = <String>{
+    'black',
+    'red',
+    'green',
+    'yellow',
+    'blue',
+    'magenta',
+    'cyan',
+    'white',
+  };
+  _expectExactObject(
+    colors?['normal'],
+    ansiKeys,
+    r'$.appearance.colors.normal',
+  );
+  _expectExactObject(
+    colors?['bright'],
+    ansiKeys,
+    r'$.appearance.colors.bright',
+  );
+  _expectExactObject(appearance?['cursor'], const <String>{
+    'shape',
+    'blink',
+  }, r'$.appearance.cursor');
+  _expectExactObject(json['interaction'], const <String>{
+    'copyOnSelect',
+    'optionDragMode',
+  }, r'$.interaction');
+}
+
+Map<Object?, Object?>? _expectExactObject(
+  Object? value,
+  Set<String> allowed,
+  String path,
+) {
+  if (value == null) {
+    return null;
+  }
+  if (value is! Map) {
+    throw FormatException('$path must be an object');
+  }
+  _expectExactKeys(value, allowed, path);
+  return value;
+}
+
+void _expectExactObjectList(Object? value, Set<String> allowed, String path) {
+  if (value == null) {
+    return;
+  }
+  if (value is! List) {
+    throw FormatException('$path must be an array');
+  }
+  for (var index = 0; index < value.length; index += 1) {
+    _expectExactObject(value[index], allowed, '$path[$index]');
+  }
+}
+
+void _expectExactKeys(
+  Map<Object?, Object?> value,
+  Set<String> allowed,
+  String path,
+) {
+  for (final key in value.keys) {
+    if (key is! String || !allowed.contains(key)) {
+      throw FormatException('$path contains unknown field $key');
     }
-    onWarning?.call(
-      TerminalConfigWarning(
-        path: 'appearance.colors.$field',
-        rawValue: colors[field],
-        fallbackSummary:
-            'ignored legacy flat color field; use appearance.colors.special.$field',
-      ),
-    );
   }
 }
 
@@ -1497,10 +1358,6 @@ String? _stringOrNull(Object? value) {
 String? _trimmedStringOrNull(Object? value) {
   final text = _stringOrNull(value)?.trim();
   return text == null || text.isEmpty ? null : text;
-}
-
-String? _normalizedConfigToken(Object? value) {
-  return _trimmedStringOrNull(value)?.toLowerCase();
 }
 
 String? _hexColorOrNull(Object? rawValue) {
@@ -1634,30 +1491,8 @@ String _graphicsAdvertiseOr(Object? value, String fallback) {
   return parsed == null || parsed.isEmpty ? fallback : parsed;
 }
 
-String _graphicsAdvertiseField(
-  Object? rawValue, {
-  required String fallback,
-  required String path,
-  required TerminalConfigWarningCallback? onWarning,
-}) {
-  final value = _trimmedStringOrNull(rawValue);
-  if (value != null && value.isNotEmpty) {
-    return value;
-  }
-  if (rawValue != null) {
-    onWarning?.call(
-      TerminalConfigWarning(
-        path: path,
-        rawValue: rawValue,
-        fallbackSummary: 'used default value $fallback',
-      ),
-    );
-  }
-  return fallback;
-}
-
 TerminalCursorShape _cursorShapeFromJson(Object? value) {
-  return switch (_normalizedConfigToken(value)) {
+  return switch (value) {
     'underline' => TerminalCursorShape.underline,
     'beam' => TerminalCursorShape.beam,
     _ => TerminalCursorShape.block,
@@ -1665,282 +1500,10 @@ TerminalCursorShape _cursorShapeFromJson(Object? value) {
 }
 
 TerminalEmulation _emulationFromJson(Object? value) {
-  return switch (_normalizedConfigToken(value)) {
+  return switch (value) {
     'vt220' => TerminalEmulation.vt220,
     _ => TerminalEmulation.xterm256,
   };
-}
-
-String _warnAndDefaultProgram(
-  Object? rawValue,
-  String fallback,
-  TerminalConfigWarningCallback? onWarning, {
-  String path = 'launch.program',
-}) {
-  onWarning?.call(
-    TerminalConfigWarning(
-      path: path,
-      rawValue: rawValue,
-      fallbackSummary: 'used default shell "$fallback"',
-    ),
-  );
-  return fallback;
-}
-
-String _warnAndDefaultString(
-  Object? rawValue, {
-  required String path,
-  required String fallback,
-  required TerminalConfigWarningCallback? onWarning,
-}) {
-  if (rawValue != null) {
-    onWarning?.call(
-      TerminalConfigWarning(
-        path: path,
-        rawValue: rawValue,
-        fallbackSummary: 'used default value "$fallback"',
-      ),
-    );
-  }
-  return fallback;
-}
-
-String? _nullableStringField(
-  Object? rawValue, {
-  required String path,
-  required TerminalConfigWarningCallback? onWarning,
-}) {
-  if (rawValue == null) {
-    return null;
-  }
-  final value = _stringOrNull(rawValue)?.trim();
-  if (value != null && value.isNotEmpty) {
-    return value;
-  }
-  onWarning?.call(
-    TerminalConfigWarning(
-      path: path,
-      rawValue: rawValue,
-      fallbackSummary: 'used default null value',
-    ),
-  );
-  return null;
-}
-
-List<String> _stringListField(
-  Object? rawValue, {
-  required String path,
-  int? maxEntries,
-  required TerminalConfigWarningCallback? onWarning,
-}) {
-  if (rawValue == null) {
-    return const <String>[];
-  }
-  if (rawValue is! List<dynamic>) {
-    onWarning?.call(
-      TerminalConfigWarning(
-        path: path,
-        rawValue: rawValue,
-        fallbackSummary: 'used empty list',
-      ),
-    );
-    return const <String>[];
-  }
-  final values = <String>[];
-  if (maxEntries != null && rawValue.length > maxEntries) {
-    onWarning?.call(
-      TerminalConfigWarning(
-        path: path,
-        rawValue: rawValue.length,
-        fallbackSummary: 'loaded first $maxEntries valid entries',
-      ),
-    );
-  }
-  final entries = maxEntries == null
-      ? rawValue
-      : rawValue.take(maxEntries * _directConfigEntryScanMultiplier);
-  var index = 0;
-  for (final entry in entries) {
-    if (maxEntries != null && values.length >= maxEntries) {
-      break;
-    }
-    if (entry is String) {
-      if (entry.isEmpty) {
-        onWarning?.call(
-          TerminalConfigWarning(
-            path: '$path[$index]',
-            rawValue: entry,
-            fallbackSummary: 'ignored empty value',
-          ),
-        );
-        index += 1;
-        continue;
-      }
-      values.add(entry);
-      index += 1;
-      continue;
-    }
-    onWarning?.call(
-      TerminalConfigWarning(
-        path: '$path[$index]',
-        rawValue: entry,
-        fallbackSummary: 'ignored invalid non-string value',
-      ),
-    );
-    index += 1;
-  }
-  return values;
-}
-
-List<String> _fontFallbackList(
-  Object? rawValue, {
-  int? maxEntries,
-  required TerminalConfigWarningCallback? onWarning,
-}) {
-  if (rawValue == null) {
-    return <String>[...terminalFontFamilyFallback];
-  }
-  if (rawValue is! List<dynamic>) {
-    onWarning?.call(
-      TerminalConfigWarning(
-        path: 'appearance.font.fallback',
-        rawValue: rawValue,
-        fallbackSummary: 'used default fallback font list',
-      ),
-    );
-    return <String>[...terminalFontFamilyFallback];
-  }
-  final values = <String>[];
-  if (maxEntries != null && rawValue.length > maxEntries) {
-    onWarning?.call(
-      TerminalConfigWarning(
-        path: 'appearance.font.fallback',
-        rawValue: rawValue.length,
-        fallbackSummary: 'loaded first $maxEntries valid fallback font entries',
-      ),
-    );
-  }
-  final entries = maxEntries == null
-      ? rawValue
-      : rawValue.take(maxEntries * _directConfigEntryScanMultiplier);
-  var index = 0;
-  for (final entry in entries) {
-    if (maxEntries != null && values.length >= maxEntries) {
-      break;
-    }
-    if (entry is String) {
-      final normalized = entry.trim();
-      if (normalized.isEmpty) {
-        onWarning?.call(
-          TerminalConfigWarning(
-            path: 'appearance.font.fallback[$index]',
-            rawValue: entry,
-            fallbackSummary: 'ignored empty value',
-          ),
-        );
-        index += 1;
-        continue;
-      }
-      values.add(normalized);
-      index += 1;
-      continue;
-    }
-    onWarning?.call(
-      TerminalConfigWarning(
-        path: 'appearance.font.fallback[$index]',
-        rawValue: entry,
-        fallbackSummary: 'ignored invalid non-string value',
-      ),
-    );
-    index += 1;
-  }
-  return values.isEmpty ? <String>[...terminalFontFamilyFallback] : values;
-}
-
-Map<String, String> _stringMapField(
-  Object? rawValue, {
-  required String path,
-  int? maxEntries,
-  required TerminalConfigWarningCallback? onWarning,
-}) {
-  if (rawValue == null) {
-    return const <String, String>{};
-  }
-  if (rawValue is! Map) {
-    onWarning?.call(
-      TerminalConfigWarning(
-        path: path,
-        rawValue: rawValue,
-        fallbackSummary: 'used empty map',
-      ),
-    );
-    return const <String, String>{};
-  }
-  final values = <String, String>{};
-  if (maxEntries != null && rawValue.length > maxEntries) {
-    onWarning?.call(
-      TerminalConfigWarning(
-        path: path,
-        rawValue: rawValue.length,
-        fallbackSummary: 'loaded first $maxEntries valid entries',
-      ),
-    );
-  }
-  final entries = maxEntries == null
-      ? rawValue.entries
-      : rawValue.entries.take(maxEntries * _directConfigEntryScanMultiplier);
-  for (final entry in entries) {
-    if (maxEntries != null && values.length >= maxEntries) {
-      break;
-    }
-    final key = entry.key;
-    final value = entry.value;
-    if (key is! String || key.trim().isEmpty || value is! String) {
-      onWarning?.call(
-        TerminalConfigWarning(
-          path: '$path.${key ?? 'unknown'}',
-          rawValue: <Object?>[key, value],
-          fallbackSummary: 'ignored invalid environment entry',
-        ),
-      );
-      continue;
-    }
-    values[key.trim()] = value;
-  }
-  return values;
-}
-
-int _positiveIntField(
-  Object? rawValue, {
-  required int fallback,
-  int? maximum,
-  required String path,
-  required TerminalConfigWarningCallback? onWarning,
-}) {
-  final value = _positiveWholeIntOrNull(rawValue);
-  if (value != null) {
-    if (maximum != null && value > maximum) {
-      onWarning?.call(
-        TerminalConfigWarning(
-          path: path,
-          rawValue: rawValue,
-          fallbackSummary: 'clamped to maximum value $maximum',
-        ),
-      );
-      return maximum;
-    }
-    return value;
-  }
-  if (rawValue != null) {
-    onWarning?.call(
-      TerminalConfigWarning(
-        path: path,
-        rawValue: rawValue,
-        fallbackSummary: 'used default value $fallback',
-      ),
-    );
-  }
-  return fallback;
 }
 
 int? _positiveWholeIntOrNull(Object? rawValue) {
@@ -1954,203 +1517,6 @@ int? _positiveWholeIntOrNull(Object? rawValue) {
     }
   }
   return null;
-}
-
-double _positiveDoubleField(
-  Object? rawValue, {
-  required double fallback,
-  required String path,
-  required TerminalConfigWarningCallback? onWarning,
-}) {
-  if (rawValue is num) {
-    final value = rawValue.toDouble();
-    if (value.isFinite && value > 0) {
-      return value;
-    }
-  }
-  if (rawValue != null) {
-    onWarning?.call(
-      TerminalConfigWarning(
-        path: path,
-        rawValue: rawValue,
-        fallbackSummary: 'used default value $fallback',
-      ),
-    );
-  }
-  return fallback;
-}
-
-bool _boolField(
-  Object? rawValue, {
-  required bool fallback,
-  required String path,
-  required TerminalConfigWarningCallback? onWarning,
-}) {
-  if (rawValue is bool) {
-    return rawValue;
-  }
-  if (rawValue != null) {
-    onWarning?.call(
-      TerminalConfigWarning(
-        path: path,
-        rawValue: rawValue,
-        fallbackSummary: 'used default value $fallback',
-      ),
-    );
-  }
-  return fallback;
-}
-
-String? _nullableHexColor(
-  Object? rawValue, {
-  required String path,
-  required TerminalConfigWarningCallback? onWarning,
-}) {
-  if (rawValue == null) {
-    return null;
-  }
-  final value = _hexColorOrNull(rawValue);
-  if (value != null) {
-    return value;
-  }
-  onWarning?.call(
-    TerminalConfigWarning(
-      path: path,
-      rawValue: rawValue,
-      fallbackSummary: 'used inherited default color',
-    ),
-  );
-  return null;
-}
-
-TerminalAnsiColors _ansiColorsFromProfileJson(
-  Object? rawValue, {
-  required String path,
-  required TerminalConfigWarningCallback? onWarning,
-}) {
-  if (rawValue == null) {
-    return const TerminalAnsiColors();
-  }
-  final colors = _asObjectMap(rawValue);
-  if (colors == null) {
-    onWarning?.call(
-      TerminalConfigWarning(
-        path: path,
-        rawValue: rawValue,
-        fallbackSummary: 'used inherited default ansi colors',
-      ),
-    );
-    return const TerminalAnsiColors();
-  }
-  return TerminalAnsiColors(
-    black: _nullableHexColor(
-      colors['black'],
-      path: '$path.black',
-      onWarning: onWarning,
-    ),
-    red: _nullableHexColor(
-      colors['red'],
-      path: '$path.red',
-      onWarning: onWarning,
-    ),
-    green: _nullableHexColor(
-      colors['green'],
-      path: '$path.green',
-      onWarning: onWarning,
-    ),
-    yellow: _nullableHexColor(
-      colors['yellow'],
-      path: '$path.yellow',
-      onWarning: onWarning,
-    ),
-    blue: _nullableHexColor(
-      colors['blue'],
-      path: '$path.blue',
-      onWarning: onWarning,
-    ),
-    magenta: _nullableHexColor(
-      colors['magenta'],
-      path: '$path.magenta',
-      onWarning: onWarning,
-    ),
-    cyan: _nullableHexColor(
-      colors['cyan'],
-      path: '$path.cyan',
-      onWarning: onWarning,
-    ),
-    white: _nullableHexColor(
-      colors['white'],
-      path: '$path.white',
-      onWarning: onWarning,
-    ),
-  );
-}
-
-TerminalEmulation _emulationFromProfileJson(
-  Object? raw, {
-  required String path,
-  required TerminalConfigWarningCallback? onWarning,
-}) {
-  return switch (_normalizedConfigToken(raw)) {
-    'vt220' => TerminalEmulation.vt220,
-    'xterm256' || 'xterm-256color' || null => TerminalEmulation.xterm256,
-    _ => () {
-      onWarning?.call(
-        TerminalConfigWarning(
-          path: path,
-          rawValue: raw,
-          fallbackSummary:
-              'used default emulation "${TerminalEmulation.xterm256.name}"',
-        ),
-      );
-      return TerminalEmulation.xterm256;
-    }(),
-  };
-}
-
-TerminalCursorShape _cursorShapeFromProfileJson(
-  Object? raw, {
-  required String path,
-  required TerminalConfigWarningCallback? onWarning,
-}) {
-  return switch (_normalizedConfigToken(raw)) {
-    'underline' => TerminalCursorShape.underline,
-    'beam' => TerminalCursorShape.beam,
-    'block' || null => TerminalCursorShape.block,
-    _ => () {
-      onWarning?.call(
-        TerminalConfigWarning(
-          path: path,
-          rawValue: raw,
-          fallbackSummary:
-              'used default cursor shape "${TerminalCursorShape.block.name}"',
-        ),
-      );
-      return TerminalCursorShape.block;
-    }(),
-  };
-}
-
-TerminalOptionDragMode _optionDragModeFromProfileJson(
-  Object? raw, {
-  required String path,
-  required TerminalConfigWarningCallback? onWarning,
-}) {
-  return switch (_normalizedConfigToken(raw)) {
-    'normal_selection' => TerminalOptionDragMode.normalSelection,
-    'block_selection' || null => TerminalOptionDragMode.blockSelection,
-    _ => () {
-      onWarning?.call(
-        TerminalConfigWarning(
-          path: path,
-          rawValue: raw,
-          fallbackSummary:
-              'used default option-drag mode "${TerminalOptionDragMode.blockSelection.jsonValue}"',
-        ),
-      );
-      return TerminalOptionDragMode.blockSelection;
-    }(),
-  };
 }
 
 const Object _terminalConfigNoChange = Object();

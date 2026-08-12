@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'terminal_config.dart';
+import 'terminal_defaults.dart';
 
 const int terminalSessionConfigSchemaVersion = 1;
 const String terminalSessionConfigContract = 'ianvs-session-config-v1';
@@ -23,7 +24,7 @@ final class TerminalSessionConfigContractException implements Exception {
 }
 
 /// Versioned, product-neutral session creation payload shared with the native
-/// runtime. Unknown fields are ignored so additive minor evolution is safe.
+/// runtime. Schema evolution requires a new version; unknown fields fail closed.
 final class TerminalSessionConfigV1 {
   const TerminalSessionConfigV1({
     required this.sessionId,
@@ -36,6 +37,8 @@ final class TerminalSessionConfigV1 {
   static const int _maxSessionIdLength = 128;
   static const int _maxDisplayNameLength = 256;
   static const int _maxProgramLength = 4096;
+  static const int _maxStringBytes = 64 * 1024;
+  static const int _maxGraphicsBytes = 1024 * 1024 * 1024;
 
   int get schemaVersion => terminalSessionConfigSchemaVersion;
   String get contract => terminalSessionConfigContract;
@@ -55,7 +58,7 @@ final class TerminalSessionConfigV1 {
       'session_id': sessionId,
       'display_name': displayName,
       'client_capabilities': <String, Object?>{'zmodem': zmodemEnabled},
-      'config': config.toJson(),
+      'config': _sessionConfigWireJson(config),
     };
   }
 
@@ -102,8 +105,17 @@ final class TerminalSessionConfigV1 {
   }
 
   factory TerminalSessionConfigV1.fromJson(Map<String, Object?> json) {
+    _expectOnlyKeys(json, const <String>{
+      'schema_version',
+      'contract',
+      'session_id',
+      'display_name',
+      'client_capabilities',
+      'config',
+    }, r'$');
     final schemaVersion = json['schema_version'];
-    if (schemaVersion != terminalSessionConfigSchemaVersion) {
+    if (schemaVersion is! int ||
+        schemaVersion != terminalSessionConfigSchemaVersion) {
       throw const TerminalSessionConfigContractException(
         code: 'unsupported_schema',
         path: r'$.schema_version',
@@ -117,6 +129,14 @@ final class TerminalSessionConfigV1 {
         message: 'expected ianvs-session-config-v1',
       );
     }
+    _expectRequiredKeys(json, const <String>{
+      'schema_version',
+      'contract',
+      'session_id',
+      'display_name',
+      'client_capabilities',
+      'config',
+    }, r'$');
     final sessionId = _boundedRequiredString(
       json['session_id'],
       path: r'$.session_id',
@@ -134,22 +154,24 @@ final class TerminalSessionConfigV1 {
       path: r'$.display_name',
       maximum: _maxDisplayNameLength,
     );
-    var zmodemEnabled = false;
     final rawClientCapabilities = json['client_capabilities'];
-    if (rawClientCapabilities != null) {
-      final clientCapabilities = _objectMap(
-        rawClientCapabilities,
-        r'$.client_capabilities',
+    final clientCapabilities = _objectMap(
+      rawClientCapabilities,
+      r'$.client_capabilities',
+    );
+    _expectOnlyKeys(clientCapabilities, const <String>{
+      'zmodem',
+    }, r'$.client_capabilities');
+    _expectRequiredKeys(clientCapabilities, const <String>{
+      'zmodem',
+    }, r'$.client_capabilities');
+    final rawZmodem = clientCapabilities['zmodem'];
+    if (rawZmodem is! bool) {
+      throw const TerminalSessionConfigContractException(
+        code: 'invalid_type',
+        path: r'$.client_capabilities.zmodem',
+        message: 'zmodem must be a boolean',
       );
-      final rawZmodem = clientCapabilities['zmodem'];
-      if (rawZmodem != null && rawZmodem is! bool) {
-        throw const TerminalSessionConfigContractException(
-          code: 'invalid_type',
-          path: r'$.client_capabilities.zmodem',
-          message: 'zmodem must be a boolean',
-        );
-      }
-      zmodemEnabled = rawZmodem == true;
     }
     final rawConfig = json['config'];
     if (rawConfig == null) {
@@ -160,6 +182,15 @@ final class TerminalSessionConfigV1 {
       );
     }
     final configJson = _objectMap(rawConfig, r'$.config');
+    _validateExactSessionConfigWireShape(configJson);
+    _validateExactSessionConfigWireValues(configJson);
+    if (utf8.encode(jsonEncode(json)).length > maxEncodedBytes) {
+      throw const TerminalSessionConfigContractException(
+        code: 'encoded_config_too_large',
+        path: r'$',
+        message: 'encoded SessionConfig exceeds 1 MiB',
+      );
+    }
     final rawLaunch = configJson['launch'];
     if (rawLaunch == null) {
       throw const TerminalSessionConfigContractException(
@@ -170,7 +201,6 @@ final class TerminalSessionConfigV1 {
     }
     final launch = _objectMap(rawLaunch, r'$.config.launch');
     final program = launch['program'];
-    _validateRawConnection(configJson['connection']);
     final connection = TerminalConnectionConfig.fromJson(
       configJson['connection'],
     );
@@ -238,21 +268,425 @@ final class TerminalSessionConfigV1 {
         message: 'cwd must be null or a bounded string',
       );
     }
-    return TerminalSessionConfigV1(
-      sessionId: sessionId,
-      displayName: displayName,
-      config: TerminalSessionConfig.fromJson(configJson),
-      zmodemEnabled: zmodemEnabled,
+    try {
+      return TerminalSessionConfigV1(
+        sessionId: sessionId,
+        displayName: displayName,
+        config: TerminalSessionConfig.fromJson(configJson),
+        zmodemEnabled: rawZmodem,
+      );
+    } on FormatException catch (error) {
+      throw TerminalSessionConfigContractException(
+        code: 'unknown_field',
+        path: r'$.config',
+        message: error.message,
+      );
+    }
+  }
+}
+
+void _validateExactSessionConfigWireValues(Map<String, Object?> config) {
+  final launch = _objectMap(config['launch'], r'$.config.launch');
+  _boundedString(
+    launch['program'],
+    path: r'$.config.launch.program',
+    maximum: TerminalSessionConfigV1._maxProgramLength,
+  );
+  _validateRequiredStringList(
+    launch['args'],
+    path: r'$.config.launch.args',
+    maximumEntries: maxTerminalLaunchArgs,
+    maximumStringBytes: TerminalSessionConfigV1._maxStringBytes,
+    allowEmpty: true,
+  );
+  _validateRequiredStringMap(
+    launch['env'],
+    path: r'$.config.launch.env',
+    maximumEntries: maxTerminalEnvironmentEntries,
+  );
+  _validateNullableString(
+    launch['cwd'],
+    path: r'$.config.launch.cwd',
+    maximum: TerminalSessionConfigV1._maxProgramLength,
+    allowEmpty: false,
+  );
+
+  _validateRawConnection(config['connection']);
+
+  final terminal = _objectMap(config['terminal'], r'$.config.terminal');
+  _requiredEnum(
+    terminal['emulation'],
+    path: r'$.config.terminal.emulation',
+    values: const <String>{'xterm256', 'vt220'},
+  );
+  _requiredBoundedInt(
+    terminal['scrollbackLines'],
+    path: r'$.config.terminal.scrollbackLines',
+    minimum: 1,
+    maximum: maxTerminalScrollbackLines,
+  );
+  _requiredBool(
+    terminal['dragDropEnabled'],
+    path: r'$.config.terminal.dragDropEnabled',
+  );
+  final graphics = _objectMap(
+    terminal['graphics'],
+    r'$.config.terminal.graphics',
+  );
+  _requiredBool(
+    graphics['enabled'],
+    path: r'$.config.terminal.graphics.enabled',
+  );
+  _requiredEnum(
+    graphics['advertise'],
+    path: r'$.config.terminal.graphics.advertise',
+    values: const <String>{'auto', 'kitty', 'none'},
+  );
+  final maxImageBytes = _requiredBoundedInt(
+    graphics['maxImageBytes'],
+    path: r'$.config.terminal.graphics.maxImageBytes',
+    minimum: 1,
+    maximum: TerminalSessionConfigV1._maxGraphicsBytes,
+  );
+  final maxTotalBytes = _requiredBoundedInt(
+    graphics['maxTotalBytes'],
+    path: r'$.config.terminal.graphics.maxTotalBytes',
+    minimum: 1,
+    maximum: TerminalSessionConfigV1._maxGraphicsBytes,
+  );
+  if (maxImageBytes > maxTotalBytes) {
+    throw const TerminalSessionConfigContractException(
+      code: 'invalid_integer',
+      path: r'$.config.terminal.graphics.maxImageBytes',
+      message: 'maxImageBytes must not exceed maxTotalBytes',
     );
+  }
+
+  final shellIntegration = _objectMap(
+    config['shellIntegration'],
+    r'$.config.shellIntegration',
+  );
+  _requiredBool(
+    shellIntegration['enabled'],
+    path: r'$.config.shellIntegration.enabled',
+  );
+
+  final appearance = _objectMap(config['appearance'], r'$.config.appearance');
+  final font = _objectMap(appearance['font'], r'$.config.appearance.font');
+  _boundedRequiredString(
+    font['family'],
+    path: r'$.config.appearance.font.family',
+    maximum: TerminalSessionConfigV1._maxStringBytes,
+  );
+  _validateRequiredStringList(
+    font['fallback'],
+    path: r'$.config.appearance.font.fallback',
+    maximumEntries: maxTerminalFontFallbackFamilies,
+    maximumStringBytes: TerminalSessionConfigV1._maxStringBytes,
+    allowEmpty: false,
+  );
+  _requiredPositiveFiniteNumber(
+    font['size'],
+    path: r'$.config.appearance.font.size',
+    maximum: 512,
+  );
+  _requiredPositiveFiniteNumber(
+    font['lineHeight'],
+    path: r'$.config.appearance.font.lineHeight',
+    maximum: 10,
+  );
+
+  final colors = _objectMap(
+    appearance['colors'],
+    r'$.config.appearance.colors',
+  );
+  final colorGroups = <String, List<String>>{
+    'special': const <String>[
+      'foreground',
+      'background',
+      'cursor',
+      'selection',
+      'tab',
+    ],
+    'normal': const <String>[
+      'black',
+      'red',
+      'green',
+      'yellow',
+      'blue',
+      'magenta',
+      'cyan',
+      'white',
+    ],
+    'bright': const <String>[
+      'black',
+      'red',
+      'green',
+      'yellow',
+      'blue',
+      'magenta',
+      'cyan',
+      'white',
+    ],
+  };
+  for (final group in colorGroups.entries) {
+    final values = _objectMap(
+      colors[group.key],
+      '\$.config.appearance.colors.${group.key}',
+    );
+    for (final field in group.value) {
+      _validateNullableHexColor(
+        values[field],
+        path: '\$.config.appearance.colors.${group.key}.$field',
+      );
+    }
+  }
+
+  final cursor = _objectMap(
+    appearance['cursor'],
+    r'$.config.appearance.cursor',
+  );
+  _requiredEnum(
+    cursor['shape'],
+    path: r'$.config.appearance.cursor.shape',
+    values: const <String>{'block', 'underline', 'beam'},
+  );
+  _requiredBool(cursor['blink'], path: r'$.config.appearance.cursor.blink');
+
+  final interaction = _objectMap(
+    config['interaction'],
+    r'$.config.interaction',
+  );
+  _requiredBool(
+    interaction['copyOnSelect'],
+    path: r'$.config.interaction.copyOnSelect',
+  );
+  _requiredEnum(
+    interaction['optionDragMode'],
+    path: r'$.config.interaction.optionDragMode',
+    values: const <String>{'normal_selection', 'block_selection'},
+  );
+}
+
+Map<String, Object?> _sessionConfigWireJson(TerminalSessionConfig config) {
+  final json = config.toJson();
+  final connection = json['connection']! as Map<String, Object?>;
+  if (connection['type'] == 'ssh') {
+    for (final field in _nullableSshConnectionFields) {
+      connection.putIfAbsent(field, () => null);
+    }
+    final jumps = connection['proxyJumpProfiles']! as List<Object?>;
+    for (final value in jumps) {
+      final jump = value! as Map<String, Object?>;
+      for (final field in _nullableSshJumpFields) {
+        jump.putIfAbsent(field, () => null);
+      }
+    }
+  }
+  return json;
+}
+
+const Set<String> _nullableSshConnectionFields = <String>{
+  'password',
+  'privateKeyPassphrase',
+  'knownHostsFile',
+  'proxyCommand',
+  'proxyJump',
+  'agentSocket',
+  'x11TargetHost',
+  'x11AuthCookie',
+};
+
+const Set<String> _nullableSshJumpFields = <String>{
+  'password',
+  'privateKeyPassphrase',
+  'knownHostsFile',
+};
+
+const Set<String> _sshConnectionWireKeys = <String>{
+  'type',
+  'host',
+  'user',
+  'port',
+  'auth',
+  'password',
+  'privateKeys',
+  'privateKeyPassphrase',
+  'hostKeyPolicy',
+  'knownHostsFile',
+  'connectTimeoutSeconds',
+  'keepaliveSeconds',
+  'keepaliveCountMax',
+  'proxyCommand',
+  'proxyJump',
+  'proxyJumpProfiles',
+  'portForwards',
+  'agentForwarding',
+  'agentSocket',
+  'x11Forwarding',
+  'x11TargetHost',
+  'x11TargetPort',
+  'x11AuthProtocol',
+  'x11AuthCookie',
+  'x11ScreenNumber',
+};
+
+void _validateExactSessionConfigWireShape(Map<String, Object?> config) {
+  _expectExactObject(config, const <String>{
+    'launch',
+    'connection',
+    'terminal',
+    'shellIntegration',
+    'appearance',
+    'interaction',
+  }, r'$.config');
+  _expectExactObject(config['launch'], const <String>{
+    'program',
+    'args',
+    'env',
+    'cwd',
+  }, r'$.config.launch');
+
+  final connection = _objectMap(config['connection'], r'$.config.connection');
+  switch (connection['type']) {
+    case 'local':
+      _expectExactObject(connection, const <String>{
+        'type',
+      }, r'$.config.connection');
+    case 'ssh':
+      _expectExactObject(
+        connection,
+        _sshConnectionWireKeys,
+        r'$.config.connection',
+      );
+      _expectExactObjectList(connection['proxyJumpProfiles'], const <String>{
+        'host',
+        'user',
+        'port',
+        'auth',
+        'password',
+        'privateKeys',
+        'privateKeyPassphrase',
+        'hostKeyPolicy',
+        'knownHostsFile',
+        'connectTimeoutSeconds',
+        'keepaliveSeconds',
+        'keepaliveCountMax',
+      }, r'$.config.connection.proxyJumpProfiles');
+      _expectExactObjectList(connection['portForwards'], const <String>{
+        'type',
+        'bindHost',
+        'bindPort',
+        'targetHost',
+        'targetPort',
+      }, r'$.config.connection.portForwards');
+    default:
+      throw const TerminalSessionConfigContractException(
+        code: 'invalid_enum',
+        path: r'$.config.connection.type',
+        message: 'type must be local or ssh',
+      );
+  }
+
+  final terminal = _expectExactObject(config['terminal'], const <String>{
+    'emulation',
+    'scrollbackLines',
+    'graphics',
+    'dragDropEnabled',
+  }, r'$.config.terminal');
+  _expectExactObject(terminal['graphics'], const <String>{
+    'enabled',
+    'advertise',
+    'maxImageBytes',
+    'maxTotalBytes',
+  }, r'$.config.terminal.graphics');
+  _expectExactObject(config['shellIntegration'], const <String>{
+    'enabled',
+  }, r'$.config.shellIntegration');
+  final appearance = _expectExactObject(config['appearance'], const <String>{
+    'font',
+    'colors',
+    'cursor',
+  }, r'$.config.appearance');
+  _expectExactObject(appearance['font'], const <String>{
+    'family',
+    'fallback',
+    'size',
+    'lineHeight',
+  }, r'$.config.appearance.font');
+  final colors = _expectExactObject(appearance['colors'], const <String>{
+    'special',
+    'normal',
+    'bright',
+  }, r'$.config.appearance.colors');
+  _expectExactObject(colors['special'], const <String>{
+    'foreground',
+    'background',
+    'cursor',
+    'selection',
+    'tab',
+  }, r'$.config.appearance.colors.special');
+  const ansiKeys = <String>{
+    'black',
+    'red',
+    'green',
+    'yellow',
+    'blue',
+    'magenta',
+    'cyan',
+    'white',
+  };
+  _expectExactObject(
+    colors['normal'],
+    ansiKeys,
+    r'$.config.appearance.colors.normal',
+  );
+  _expectExactObject(
+    colors['bright'],
+    ansiKeys,
+    r'$.config.appearance.colors.bright',
+  );
+  _expectExactObject(appearance['cursor'], const <String>{
+    'shape',
+    'blink',
+  }, r'$.config.appearance.cursor');
+  _expectExactObject(config['interaction'], const <String>{
+    'copyOnSelect',
+    'optionDragMode',
+  }, r'$.config.interaction');
+}
+
+Map<String, Object?> _expectExactObject(
+  Object? value,
+  Set<String> keys,
+  String path,
+) {
+  final object = _objectMap(value, path);
+  _expectOnlyKeys(object, keys, path);
+  _expectRequiredKeys(object, keys, path);
+  return object;
+}
+
+void _expectExactObjectList(Object? value, Set<String> keys, String path) {
+  if (value is! List) {
+    throw TerminalSessionConfigContractException(
+      code: value == null ? 'missing_field' : 'invalid_collection',
+      path: path,
+      message: 'expected an array',
+    );
+  }
+  for (var index = 0; index < value.length; index += 1) {
+    _expectExactObject(value[index], keys, '$path[$index]');
   }
 }
 
 void _validateRawConnection(Object? value) {
   if (value == null) {
-    // SessionConfig v1 originally omitted connection for local sessions.
-    // Compatibility is fail-closed: the model resolves this to local, and the
-    // local launch validator above still requires a non-empty program.
-    return;
+    throw const TerminalSessionConfigContractException(
+      code: 'missing_field',
+      path: r'$.config.connection',
+      message: 'connection is required',
+    );
   }
   final connection = _objectMap(value, r'$.config.connection');
   final type = connection['type'];
@@ -275,7 +709,7 @@ void _validateRawConnection(Object? value) {
   _boundedRequiredString(
     connection['user'],
     path: r'$.config.connection.user',
-    maximum: 4096,
+    maximum: TerminalSessionConfigV1._maxDisplayNameLength,
   );
   _requiredBoundedInt(
     connection['port'],
@@ -298,42 +732,33 @@ void _validateRawConnection(Object? value) {
     path: r'$.config.connection.hostKeyPolicy',
     values: const <String>{'strict', 'accept_new', 'insecure'},
   );
-  _validateBoundedOptionalString(
-    connection,
-    'password',
-    maximum: TerminalSessionConfigV1.maxEncodedBytes,
-  );
-  _validateBoundedOptionalString(
-    connection,
-    'privateKeyPassphrase',
-    maximum: TerminalSessionConfigV1.maxEncodedBytes,
-  );
-  _validateBoundedOptionalString(
-    connection,
-    'x11AuthCookie',
-    maximum: TerminalSessionConfigV1.maxEncodedBytes,
-  );
   for (final field in const <String>[
+    'password',
+    'privateKeyPassphrase',
     'knownHostsFile',
     'proxyCommand',
     'proxyJump',
     'agentSocket',
     'x11TargetHost',
   ]) {
-    _validateBoundedOptionalString(connection, field, maximum: 4096);
-  }
-  _validateStringList(
-    connection['privateKeys'],
-    path: r'$.config.connection.privateKeys',
-    maximum: 128,
-  );
-  if (connection['privateKeys'] == null) {
-    throw const TerminalSessionConfigContractException(
-      code: 'missing_field',
-      path: r'$.config.connection.privateKeys',
-      message: 'privateKeys is required',
+    _validateNullableString(
+      connection[field],
+      path: r'$.config.connection.' + field,
+      maximum: switch (field) {
+        'password' ||
+        'privateKeyPassphrase' => TerminalSessionConfigV1._maxStringBytes,
+        _ => TerminalSessionConfigV1._maxProgramLength,
+      },
+      allowEmpty: false,
     );
   }
+  _validateRequiredStringList(
+    connection['privateKeys'],
+    path: r'$.config.connection.privateKeys',
+    maximumEntries: 128,
+    maximumStringBytes: TerminalSessionConfigV1._maxProgramLength,
+    allowEmpty: false,
+  );
   _validateRawJumpProfiles(connection['proxyJumpProfiles']);
   _requiredBoundedInt(
     connection['connectTimeoutSeconds'],
@@ -365,13 +790,17 @@ void _validateRawConnection(Object? value) {
   _boundedRequiredString(
     connection['x11AuthProtocol'],
     path: r'$.config.connection.x11AuthProtocol',
-    maximum: 256,
+    maximum: 128,
   );
   _requiredBoundedInt(
     connection['x11ScreenNumber'],
     path: r'$.config.connection.x11ScreenNumber',
     minimum: 0,
     maximum: 65535,
+  );
+  _validateNullableHexCookie(
+    connection['x11AuthCookie'],
+    path: r'$.config.connection.x11AuthCookie',
   );
   if (connection['x11Forwarding'] == true) {
     if (connection['x11AuthProtocol'] != 'MIT-MAGIC-COOKIE-1') {
@@ -396,6 +825,38 @@ void _validateRawConnection(Object? value) {
   _validateRawPortForwards(connection['portForwards']);
 }
 
+void _expectOnlyKeys(
+  Map<String, Object?> value,
+  Set<String> allowed,
+  String path,
+) {
+  for (final key in value.keys) {
+    if (!allowed.contains(key)) {
+      throw TerminalSessionConfigContractException(
+        code: 'unknown_field',
+        path: '$path.$key',
+        message: 'unknown field $key',
+      );
+    }
+  }
+}
+
+void _expectRequiredKeys(
+  Map<String, Object?> value,
+  Set<String> required,
+  String path,
+) {
+  for (final key in required) {
+    if (!value.containsKey(key)) {
+      throw TerminalSessionConfigContractException(
+        code: 'missing_field',
+        path: '$path.$key',
+        message: 'missing field $key',
+      );
+    }
+  }
+}
+
 void _validateRawJumpProfiles(Object? value) {
   const path = r'$.config.connection.proxyJumpProfiles';
   if (value == null) {
@@ -411,12 +872,20 @@ void _validateRawJumpProfiles(Object? value) {
   for (var index = 0; index < value.length; index += 1) {
     final jumpPath = '$path[$index]';
     final jump = _objectMap(value[index], jumpPath);
-    _boundedString(jump['host'], path: '$jumpPath.host', maximum: 4096);
-    _boundedString(jump['user'], path: '$jumpPath.user', maximum: 4096);
+    _boundedRequiredString(
+      jump['host'],
+      path: '$jumpPath.host',
+      maximum: TerminalSessionConfigV1._maxProgramLength,
+    );
+    _boundedRequiredString(
+      jump['user'],
+      path: '$jumpPath.user',
+      maximum: TerminalSessionConfigV1._maxDisplayNameLength,
+    );
     _requiredBoundedInt(
       jump['port'],
       path: '$jumpPath.port',
-      minimum: 0,
+      minimum: 1,
       maximum: 65535,
     );
     _requiredEnum(
@@ -429,33 +898,13 @@ void _validateRawJumpProfiles(Object? value) {
         'keyboard_interactive',
       },
     );
-    _validateStringList(
+    _validateRequiredStringList(
       jump['privateKeys'],
       path: '$jumpPath.privateKeys',
-      maximum: 128,
+      maximumEntries: 128,
+      maximumStringBytes: TerminalSessionConfigV1._maxProgramLength,
+      allowEmpty: false,
     );
-    if (jump['privateKeys'] == null) {
-      throw TerminalSessionConfigContractException(
-        code: 'missing_field',
-        path: '$jumpPath.privateKeys',
-        message: 'privateKeys is required',
-      );
-    }
-    final privateKeys = jump['privateKeys'];
-    if (privateKeys is List &&
-        privateKeys.any(
-          (item) =>
-              item is String &&
-              (item.isEmpty ||
-                  item.length > 4096 ||
-                  item.runes.any((rune) => rune < 0x20 || rune == 0x7f)),
-        )) {
-      throw TerminalSessionConfigContractException(
-        code: 'invalid_collection',
-        path: '$jumpPath.privateKeys',
-        message: 'private key paths must be non-empty bounded strings',
-      );
-    }
     _requiredEnum(
       jump['hostKeyPolicy'],
       path: '$jumpPath.hostKeyPolicy',
@@ -466,13 +915,13 @@ void _validateRawJumpProfiles(Object? value) {
       'privateKeyPassphrase',
       'knownHostsFile',
     ]) {
-      _validateBoundedOptionalStringAtPath(
-        jump,
-        field,
+      _validateNullableString(
+        jump[field],
         path: '$jumpPath.$field',
         maximum: field == 'knownHostsFile'
-            ? 4096
-            : TerminalSessionConfigV1.maxEncodedBytes,
+            ? TerminalSessionConfigV1._maxProgramLength
+            : TerminalSessionConfigV1._maxStringBytes,
+        allowEmpty: false,
       );
     }
     _requiredBoundedInt(
@@ -589,41 +1038,124 @@ void _requiredBool(Object? value, {required String path}) {
   }
 }
 
-void _validateBoundedOptionalString(
-  Map<String, Object?> object,
-  String field, {
+void _validateNullableString(
+  Object? value, {
+  required String path,
   required int maximum,
+  required bool allowEmpty,
 }) {
-  if (!object.containsKey(field)) {
+  if (value == null) {
     return;
   }
-  final value = object[field];
-  if (value is! String || value.length > maximum || value.contains('\u0000')) {
+  if (value is! String ||
+      utf8.encode(value).length > maximum ||
+      value.runes.any(_isControlRune) ||
+      (!allowEmpty && (value.isEmpty || value.trim() != value))) {
     throw TerminalSessionConfigContractException(
-      code: 'invalid_type',
-      path: r'$.config.connection.' + field,
-      message: '$field must be a bounded string',
+      code: 'invalid_string',
+      path: path,
+      message: 'expected null or an exact bounded string',
     );
   }
 }
 
-void _validateBoundedOptionalStringAtPath(
-  Map<String, Object?> object,
-  String field, {
-  required String path,
-  required int maximum,
-}) {
-  if (!object.containsKey(field)) {
-    return;
-  }
-  final value = object[field];
-  if (value is! String || value.length > maximum || value.contains('\u0000')) {
+void _validateNullableHexCookie(Object? value, {required String path}) {
+  if (value != null &&
+      (value is! String || !RegExp(r'^[0-9A-Fa-f]{32}$').hasMatch(value))) {
     throw TerminalSessionConfigContractException(
-      code: 'invalid_type',
+      code: 'invalid_string',
       path: path,
-      message: '$field must be a bounded string',
+      message: 'expected null or a 32-character hexadecimal cookie',
     );
   }
+}
+
+void _validateNullableHexColor(Object? value, {required String path}) {
+  if (value != null &&
+      (value is! String || !RegExp(r'^#[0-9A-Fa-f]{6}$').hasMatch(value))) {
+    throw TerminalSessionConfigContractException(
+      code: 'invalid_string',
+      path: path,
+      message: 'expected null or an exact #RRGGBB color',
+    );
+  }
+}
+
+void _validateRequiredStringList(
+  Object? value, {
+  required String path,
+  required int maximumEntries,
+  required int maximumStringBytes,
+  required bool allowEmpty,
+}) {
+  if (value is! List || value.length > maximumEntries) {
+    throw TerminalSessionConfigContractException(
+      code: 'invalid_collection',
+      path: path,
+      message: 'expected at most $maximumEntries string entries',
+    );
+  }
+  for (final item in value) {
+    if (item is! String ||
+        utf8.encode(item).length > maximumStringBytes ||
+        item.runes.any(allowEmpty ? (rune) => rune == 0 : _isControlRune) ||
+        (!allowEmpty && (item.isEmpty || item.trim() != item))) {
+      throw TerminalSessionConfigContractException(
+        code: 'invalid_collection',
+        path: path,
+        message: 'contains an invalid string entry',
+      );
+    }
+  }
+}
+
+void _validateRequiredStringMap(
+  Object? value, {
+  required String path,
+  required int maximumEntries,
+}) {
+  if (value is! Map || value.length > maximumEntries) {
+    throw TerminalSessionConfigContractException(
+      code: 'invalid_collection',
+      path: path,
+      message: 'expected at most $maximumEntries string entries',
+    );
+  }
+  for (final entry in value.entries) {
+    final key = entry.key;
+    final entryValue = entry.value;
+    if (key is! String ||
+        entryValue is! String ||
+        key.isEmpty ||
+        key.trim() != key ||
+        key.contains('=') ||
+        key.contains('\u0000') ||
+        entryValue.contains('\u0000') ||
+        utf8.encode(key).length > TerminalSessionConfigV1._maxStringBytes ||
+        utf8.encode(entryValue).length >
+            TerminalSessionConfigV1._maxStringBytes) {
+      throw TerminalSessionConfigContractException(
+        code: 'invalid_collection',
+        path: path,
+        message: 'contains an invalid environment entry',
+      );
+    }
+  }
+}
+
+double _requiredPositiveFiniteNumber(
+  Object? value, {
+  required String path,
+  required double maximum,
+}) {
+  if (value is! num || !value.isFinite || value <= 0 || value > maximum) {
+    throw TerminalSessionConfigContractException(
+      code: 'invalid_number',
+      path: path,
+      message: 'expected a finite number greater than 0 and at most $maximum',
+    );
+  }
+  return value.toDouble();
 }
 
 Map<String, Object?> _objectMap(Object? value, String path) {
@@ -653,14 +1185,17 @@ String _boundedRequiredString(
   required String path,
   required int maximum,
 }) {
-  if (value is! String || value.trim().isEmpty || value.length > maximum) {
+  if (value is! String ||
+      value.isEmpty ||
+      value.trim() != value ||
+      utf8.encode(value).length > maximum) {
     throw TerminalSessionConfigContractException(
       code: value == null ? 'missing_field' : 'invalid_string',
       path: path,
       message: 'expected a non-empty string of at most $maximum characters',
     );
   }
-  if (value.runes.any((rune) => rune < 0x20 || rune == 0x7f)) {
+  if (value.runes.any(_isControlRune)) {
     throw TerminalSessionConfigContractException(
       code: 'invalid_string',
       path: path,
@@ -675,14 +1210,14 @@ String _boundedString(
   required String path,
   required int maximum,
 }) {
-  if (value is! String || value.length > maximum) {
+  if (value is! String || utf8.encode(value).length > maximum) {
     throw TerminalSessionConfigContractException(
       code: value == null ? 'missing_field' : 'invalid_string',
       path: path,
       message: 'expected a string of at most $maximum characters',
     );
   }
-  if (value.runes.any((rune) => rune < 0x20 || rune == 0x7f)) {
+  if (value.runes.any(_isControlRune)) {
     throw TerminalSessionConfigContractException(
       code: 'invalid_string',
       path: path,
@@ -691,6 +1226,8 @@ String _boundedString(
   }
   return value;
 }
+
+bool _isControlRune(int rune) => rune < 0x20 || (rune >= 0x7f && rune <= 0x9f);
 
 void _validateStringList(
   Object? value, {

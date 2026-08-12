@@ -31,8 +31,6 @@ import 'terminal_zmodem_recovery.dart';
 
 export 'terminal_clipboard_policy.dart';
 export 'terminal_diagnostics.dart';
-export 'terminal_frame_transport_coordinator.dart'
-    show TerminalFrameWireFormatPreference;
 
 const int _maxOsc52ClipboardDecodedBytes = 4 * 1024 * 1024;
 const int _maxOsc52ClipboardEncodedLength =
@@ -747,10 +745,8 @@ enum TerminalZmodemDirection { receive, send }
 ///
 /// File bytes and local paths never cross this event boundary. Product code
 /// may authorize a pending transfer through the matching controller command.
-/// This intentionally does not extend [TerminalSessionEvent]. That class is a
-/// public sealed hierarchy, so adding a subtype would break exhaustive switches
-/// in existing clients. ZMODEM events are exposed through the additive
-/// [TerminalRuntimeController.zmodemEvents] stream instead.
+/// ZMODEM events are exposed as [TerminalRuntimeZmodemEventSignal] values on
+/// [TerminalRuntimeController.runtimeSignals].
 final class TerminalSessionZmodemEvent {
   TerminalSessionZmodemEvent(this.sessionId, {Map<String, Object?>? rawPayload})
     : _rawRecoveryToken = rawPayload?['recoveryToken'],
@@ -1009,11 +1005,9 @@ final class TerminalSessionZmodemDeferredWriteFailedDiagnostic {
 
 /// One item in the controller-wide ordered runtime event stream.
 ///
-/// [TerminalRuntimeController.runtimeSignals] is additive to the existing
-/// event streams. Each signal wraps the exact payload instance published to
-/// its corresponding legacy stream and assigns a sequence that is strictly
-/// increasing across all runtime, ZMODEM, and deferred-write-failure events
-/// emitted by one controller.
+/// Each signal carries a sequence that is strictly increasing across all
+/// runtime, ZMODEM, and deferred-write-failure events emitted by one
+/// controller.
 sealed class TerminalRuntimeSignal {
   const TerminalRuntimeSignal._({
     required this.sequence,
@@ -1034,7 +1028,7 @@ sealed class TerminalRuntimeSignal {
   Object get payload;
 }
 
-/// Ordered wrapper for the existing [TerminalRuntimeController.events] API.
+/// Ordered session-event signal.
 final class TerminalRuntimeSessionEventSignal extends TerminalRuntimeSignal {
   const TerminalRuntimeSessionEventSignal._({
     required super.sequence,
@@ -1049,8 +1043,7 @@ final class TerminalRuntimeSessionEventSignal extends TerminalRuntimeSignal {
   String get sessionId => payload.sessionId;
 }
 
-/// Ordered wrapper for the existing
-/// [TerminalRuntimeController.zmodemEvents] API.
+/// Ordered ZMODEM-event signal.
 final class TerminalRuntimeZmodemEventSignal extends TerminalRuntimeSignal {
   const TerminalRuntimeZmodemEventSignal._({
     required super.sequence,
@@ -1065,8 +1058,7 @@ final class TerminalRuntimeZmodemEventSignal extends TerminalRuntimeSignal {
   String get sessionId => payload.sessionId;
 }
 
-/// Ordered wrapper for the existing
-/// [TerminalRuntimeController.zmodemDeferredWriteFailures] API.
+/// Ordered ZMODEM deferred-write-failure signal.
 final class TerminalRuntimeZmodemDeferredFailureSignal
     extends TerminalRuntimeSignal {
   const TerminalRuntimeZmodemDeferredFailureSignal._({
@@ -1085,9 +1077,8 @@ final class TerminalRuntimeZmodemDeferredFailureSignal
 /// Synchronous notification emitted immediately before an exited native
 /// session is released by the runtime.
 ///
-/// Unlike the legacy callback, this signal carries the concrete session
-/// incarnation. Consumers can therefore claim pre-close work without
-/// confusing a later session that reuses the same backend identifier.
+/// The signal carries the concrete session incarnation so consumers cannot
+/// confuse a later session that reuses the same backend identifier.
 final class TerminalSessionPreCloseSignal {
   const TerminalSessionPreCloseSignal({
     required this.sessionId,
@@ -1267,8 +1258,6 @@ class TerminalRuntimeController implements TerminalInputSink {
     required Future<void> Function(String text) copyToClipboard,
     required Future<String> Function() readClipboard,
     TerminalClipboardTextWriter? writeTextClipboard,
-    Future<bool> Function()? allowClipboardCopy,
-    Future<bool> Function()? allowClipboardPasteRequest,
     Future<bool> Function(TerminalClipboardAccessRequest request)?
     allowClipboardCopyWithContext,
     Future<bool> Function(TerminalClipboardAccessRequest request)?
@@ -1280,10 +1269,7 @@ class TerminalRuntimeController implements TerminalInputSink {
     TerminalWindowResizeCallback? resizeWindowBy,
     bool enableSessionPolling = true,
     bool enableWarmUpRefresh = false,
-    TerminalFrameWireFormatPreference frameWireFormatPreference =
-        TerminalFrameWireFormatPreference.automatic,
     TerminalBenchmarkEventSink? benchmarkEventSink,
-    void Function(String sessionId, int? exitCode)? beforeSessionCloseOnExit,
     TerminalSessionPreCloseOutcome Function(
       TerminalSessionPreCloseSignal signal,
     )?
@@ -1295,8 +1281,6 @@ class TerminalRuntimeController implements TerminalInputSink {
          readClipboard: readClipboard,
          writeTextClipboard: writeTextClipboard,
          clipboardPolicy: TerminalClipboardPolicyAdapter(
-           allowClipboardCopy: allowClipboardCopy,
-           allowClipboardPasteRequest: allowClipboardPasteRequest,
            allowClipboardCopyWithContext: allowClipboardCopyWithContext,
            allowClipboardPasteRequestWithContext:
                allowClipboardPasteRequestWithContext,
@@ -1309,9 +1293,7 @@ class TerminalRuntimeController implements TerminalInputSink {
          resizeWindowBy: resizeWindowBy,
          enableSessionPolling: enableSessionPolling,
          enableWarmUpRefresh: enableWarmUpRefresh,
-         frameWireFormatPreference: frameWireFormatPreference,
          benchmarkEventSink: benchmarkEventSink,
-         beforeSessionCloseOnExit: beforeSessionCloseOnExit,
          beforeSessionCloseOnExitSignal: beforeSessionCloseOnExitSignal,
          monotonicNow: monotonicNow,
        );
@@ -1329,10 +1311,7 @@ class TerminalRuntimeController implements TerminalInputSink {
     this.resizeWindowBy,
     this.enableSessionPolling = true,
     this.enableWarmUpRefresh = false,
-    this.frameWireFormatPreference =
-        TerminalFrameWireFormatPreference.automatic,
     this.benchmarkEventSink,
-    this.beforeSessionCloseOnExit,
     this.beforeSessionCloseOnExitSignal,
     Duration Function()? monotonicNow,
   }) : _backend = backend,
@@ -1388,7 +1367,6 @@ class TerminalRuntimeController implements TerminalInputSink {
     );
     _frameTransportCoordinator = TerminalFrameTransportCoordinator(
       backend: backend,
-      preference: frameWireFormatPreference,
       collectMetrics: benchmarkEventSink != null,
       onRequestError: _emitBackendRequestError,
     );
@@ -1418,14 +1396,8 @@ class TerminalRuntimeController implements TerminalInputSink {
   final TerminalWindowResizeCallback? resizeWindowBy;
   final bool enableSessionPolling;
   final bool enableWarmUpRefresh;
-  final TerminalFrameWireFormatPreference frameWireFormatPreference;
   final TerminalBenchmarkEventSink? benchmarkEventSink;
 
-  /// Synchronous last-use hook for consumers that must issue a native request
-  /// (for example recording stop/export) after observing child exit but before
-  /// the session mapping is released.
-  final void Function(String sessionId, int? exitCode)?
-  beforeSessionCloseOnExit;
   final TerminalSessionPreCloseOutcome Function(
     TerminalSessionPreCloseSignal signal,
   )?
@@ -1476,15 +1448,6 @@ class TerminalRuntimeController implements TerminalInputSink {
   final Map<String, Map<String, _Osc5522PasteToken>> _osc5522PasteTokens =
       <String, Map<String, _Osc5522PasteToken>>{};
   final Random _osc5522SecureRandom = Random.secure();
-  final StreamController<TerminalSessionEvent> _events =
-      StreamController<TerminalSessionEvent>.broadcast();
-  final StreamController<TerminalSessionZmodemEvent> _zmodemEvents =
-      StreamController<TerminalSessionZmodemEvent>.broadcast();
-  final StreamController<TerminalSessionZmodemDeferredWriteFailedDiagnostic>
-  _zmodemDeferredWriteFailures =
-      StreamController<
-        TerminalSessionZmodemDeferredWriteFailedDiagnostic
-      >.broadcast();
   final StreamController<TerminalRuntimeSignal> _runtimeSignals =
       StreamController<TerminalRuntimeSignal>.broadcast(sync: true);
   final StreamController<TerminalSessionRuntimeEventGapDiagnostic>
@@ -1514,10 +1477,6 @@ class TerminalRuntimeController implements TerminalInputSink {
   int _runtimeSignalSequence = 0;
   int _reportVariableRequestSeed = 0;
 
-  Stream<TerminalSessionEvent> get events => _events.stream;
-  Stream<TerminalSessionZmodemEvent> get zmodemEvents => _zmodemEvents.stream;
-  Stream<TerminalSessionZmodemDeferredWriteFailedDiagnostic>
-  get zmodemDeferredWriteFailures => _zmodemDeferredWriteFailures.stream;
   Stream<TerminalRuntimeSignal> get runtimeSignals => _runtimeSignals.stream;
   Stream<TerminalSessionRuntimeEventGapDiagnostic> get runtimeEventGaps =>
       _runtimeEventGaps.stream;
@@ -1618,7 +1577,9 @@ class TerminalRuntimeController implements TerminalInputSink {
     final backend = _backend;
     final configBackend = backend is PtySessionConfigV1Backend
         ? backend as PtySessionConfigV1Backend
-        : null;
+        : throw UnsupportedError(
+            'The native terminal runtime must provide SessionConfig v1',
+          );
     if (resolvedConfig.connection.isSsh) {
       final capabilityBackend = backend is PtyRuntimeCapabilityBackend
           ? backend as PtyRuntimeCapabilityBackend
@@ -1629,28 +1590,15 @@ class TerminalRuntimeController implements TerminalInputSink {
           'The native terminal runtime does not advertise SSH support',
         );
       }
-      if (configBackend?.supportsSessionConfigV1 != true) {
-        throw UnsupportedError(
-          'SSH sessions require the SessionConfig v1 native contract',
-        );
-      }
     }
-    final sessionId = (configBackend?.supportsSessionConfigV1 ?? false)
-        ? configBackend!.createSessionV1(
-            TerminalSessionConfigV1(
-              sessionId: wireId,
-              displayName: wireName,
-              config: resolvedConfig,
-              zmodemEnabled: true,
-            ).toJsonString(),
-          )
-        : backend.createSession(
-            _encodeLegacyNativeProfile(
-              resolvedConfig,
-              wireId: wireId,
-              wireName: wireName,
-            ),
-          );
+    final sessionId = configBackend.createSessionV1(
+      TerminalSessionConfigV1(
+        sessionId: wireId,
+        displayName: wireName,
+        config: resolvedConfig,
+        zmodemEnabled: true,
+      ).toJsonString(),
+    );
     _sessions.register(sessionId);
     _sessionEpochSeed += 1;
     _sessionEpochs[sessionId] = _sessionEpochSeed;
@@ -3342,9 +3290,9 @@ class TerminalRuntimeController implements TerminalInputSink {
     final diagnosticEventBackend = backend is PtySessionDiagnosticEventV1Backend
         ? backend as PtySessionDiagnosticEventV1Backend
         : null;
-    if (diagnosticEventBackend?.supportsDiagnosticEventV1 ?? false) {
+    if (diagnosticEventBackend != null) {
       try {
-        return diagnosticEventBackend!
+        return diagnosticEventBackend
                 .takeDiagnosticEventV1(sessionId, 'frame_stats')
                 ?.payload ??
             const <String, Object?>{};
@@ -3352,21 +3300,7 @@ class TerminalRuntimeController implements TerminalInputSink {
         return const <String, Object?>{};
       }
     }
-    final diagnosticsBackend = backend is PtySessionDiagnosticsBackend
-        ? backend as PtySessionDiagnosticsBackend
-        : null;
-    if (diagnosticsBackend == null) {
-      return const <String, Object?>{};
-    }
-    final raw = diagnosticsBackend.takeDiagnosticsJson(sessionId, 'frame');
-    if (raw == null || raw.isEmpty) {
-      return const <String, Object?>{};
-    }
-    final decoded = _tryDecodeJsonObject(raw);
-    if (decoded == null) {
-      return const <String, Object?>{};
-    }
-    return decoded;
+    return const <String, Object?>{};
   }
 
   void _queuePendingFrame(
@@ -3746,12 +3680,6 @@ class TerminalRuntimeController implements TerminalInputSink {
     if (!preCloseOutcome.permitsClose) {
       return;
     }
-    _runPreCloseCallback(
-      sessionId,
-      sessionEpoch,
-      'beforeSessionCloseOnExit',
-      () => beforeSessionCloseOnExit?.call(sessionId, exitCode),
-    );
     final finalFrame = _sessions.existingViewportFor(sessionId)?.frame;
     _emitRuntimeSignal(
       sessionId,
@@ -3823,28 +3751,6 @@ class TerminalRuntimeController implements TerminalInputSink {
         stackTrace: stackTrace,
       ),
     );
-  }
-
-  void _runPreCloseCallback(
-    String sessionId,
-    int sessionEpoch,
-    String operation,
-    void Function() callback,
-  ) {
-    try {
-      callback();
-    } on Object catch (error, stackTrace) {
-      _emitRuntimeSignal(
-        sessionId,
-        sessionEpoch,
-        TerminalSessionBackendErrorEvent(
-          sessionId,
-          operation: operation,
-          error: error,
-          stackTrace: stackTrace,
-        ),
-      );
-    }
   }
 
   void _closeExitedSessionIfCurrent(String sessionId, int sessionEpoch) {
@@ -4479,16 +4385,6 @@ class TerminalRuntimeController implements TerminalInputSink {
       _ => throw StateError('validated runtime signal payload changed type'),
     };
     _runtimeSignals.add(signal);
-    switch (payload) {
-      case final TerminalSessionEvent event:
-        _events.add(event);
-      case final TerminalSessionZmodemEvent event:
-        _zmodemEvents.add(event);
-      case final TerminalSessionZmodemDeferredWriteFailedDiagnostic diagnostic:
-        _zmodemDeferredWriteFailures.add(diagnostic);
-      default:
-        throw StateError('validated runtime signal payload changed type');
-    }
   }
 
   void _emitEventIfCurrent(
@@ -5767,19 +5663,6 @@ class TerminalRuntimeController implements TerminalInputSink {
     }
   }
 
-  String _encodeLegacyNativeProfile(
-    TerminalSessionConfig config, {
-    required String wireId,
-    required String wireName,
-  }) {
-    final json = config.toJson();
-    return jsonEncode(<String, Object?>{
-      'id': wireId,
-      'name': wireName,
-      ...json,
-    });
-  }
-
   TerminalSessionConfig _resolveColorsForRuntime(TerminalSessionConfig config) {
     return config.copyWith(
       display: config.display.copyWith(
@@ -5893,9 +5776,6 @@ class TerminalRuntimeController implements TerminalInputSink {
     }
     _refreshScheduler.dispose();
     _sessions.dispose();
-    unawaited(_events.close());
-    unawaited(_zmodemEvents.close());
-    unawaited(_zmodemDeferredWriteFailures.close());
     unawaited(_runtimeSignals.close());
     unawaited(_runtimeEventGaps.close());
     unawaited(_inputEvents.close());
@@ -6069,19 +5949,4 @@ String? _stringFromJsonValue(Object? value) {
 String? _nonEmptyTrimmedStringFromJsonValue(Object? value) {
   final text = _stringFromJsonValue(value)?.trim();
   return text == null || text.isEmpty ? null : text;
-}
-
-Map<String, Object?>? _tryDecodeJsonObject(String raw) {
-  try {
-    final decoded = jsonDecode(raw);
-    if (decoded is! Map) {
-      return null;
-    }
-    return <String, Object?>{
-      for (final entry in decoded.entries)
-        if (entry.key is String) entry.key as String: entry.value,
-    };
-  } on Object {
-    return null;
-  }
 }

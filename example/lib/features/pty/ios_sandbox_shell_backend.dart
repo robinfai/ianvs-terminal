@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:ianvs_pty/ianvs_pty.dart';
 
@@ -10,7 +11,10 @@ import 'package:ianvs_pty/ianvs_pty.dart';
 /// bounded to a useful file-manipulation subset so the terminal can remain
 /// interactive without escaping the iOS application sandbox.
 final class IosSandboxShellBackend
-    implements PtySessionBackend, PtySessionConfigV1Backend {
+    implements
+        PtySessionBackend,
+        PtySessionConfigV1Backend,
+        PtySessionFramePacketV1Backend {
   IosSandboxShellBackend({
     required Directory rootDirectory,
     required PtySessionBackend terminalBackend,
@@ -31,23 +35,7 @@ final class IosSandboxShellBackend
   final Map<String, _SandboxSession> _sessions = <String, _SandboxSession>{};
 
   @override
-  bool get supportsSessionConfigV1 {
-    final output = _terminalBackend;
-    final configOutput = output is PtyReplaySessionConfigV1Backend
-        ? output as PtyReplaySessionConfigV1Backend
-        : null;
-    return configOutput?.supportsReplaySessionConfigV1 ?? false;
-  }
-
-  @override
   int ping() => _terminalBackend.ping();
-
-  @override
-  String createSession(String sessionConfigJson) {
-    return _createSession(
-      _terminalOutput.createReplaySession(sessionConfigJson),
-    );
-  }
 
   @override
   String createSessionV1(String sessionConfigV1Json) {
@@ -55,7 +43,7 @@ final class IosSandboxShellBackend
     final configOutput = output is PtyReplaySessionConfigV1Backend
         ? output as PtyReplaySessionConfigV1Backend
         : null;
-    if (configOutput == null || !configOutput.supportsReplaySessionConfigV1) {
+    if (configOutput == null) {
       throw UnsupportedError('Replay SessionConfig v1 is not supported');
     }
     return _createSession(
@@ -1002,10 +990,19 @@ Paths are always confined to this app's IanvsShell folder.
   }
 
   @override
-  String? takeFrameDiffJson(String sessionId) {
-    return _sessions.containsKey(sessionId)
-        ? _terminalBackend.takeFrameDiffJson(sessionId)
-        : null;
+  Uint8List? takeFramePacketV1Protobuf(
+    String sessionId, {
+    required int? afterSequence,
+  }) {
+    final backend = _terminalBackend;
+    if (!_sessions.containsKey(sessionId)) {
+      return null;
+    }
+    if (backend is! PtySessionFramePacketV1Backend) {
+      return null;
+    }
+    return (backend as PtySessionFramePacketV1Backend)
+        .takeFramePacketV1Protobuf(sessionId, afterSequence: afterSequence);
   }
 
   void _redraw(_SandboxSession session) {

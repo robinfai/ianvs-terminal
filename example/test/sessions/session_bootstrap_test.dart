@@ -65,7 +65,7 @@ void main() {
       expect(preferences.savedDocuments, isEmpty);
     });
 
-    test('propagates config I/O failures without legacy fallback', () async {
+    test('propagates current config I/O failures', () async {
       final profiles = _MemoryProfileRepository(
         TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
       );
@@ -87,7 +87,7 @@ void main() {
       expect(preferences.savedDocuments, isEmpty);
     });
 
-    test('corrupt config never reads or writes legacy preferences', () async {
+    test('corrupt config does not read or write another store', () async {
       final profiles = _MemoryProfileRepository(
         TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
       );
@@ -271,13 +271,8 @@ SessionBootstrapService _service({
 }) {
   return SessionBootstrapService(
     profileRepository: profiles,
-    appPreferencesRepository: preferences,
     localConfigRepository: config,
-    localConfigLoader: LocalTerminalConfigLoader(
-      localConfigRepository: config,
-      legacyPreferencesRepository: preferences,
-    ),
-    shouldFallbackToLegacyPreferences: (_) => false,
+    localConfigLoader: LocalTerminalConfigLoader(localConfigRepository: config),
   );
 }
 

@@ -1,5 +1,9 @@
 # T-313 Local Workspace Session Restore
 
+> Archival task record superseded by T-331. Workspace predecessor formats are
+> not product inputs: current production code does not discover, migrate,
+> rewrite or delete them.
+
 ## Goal
 
 Wire the versioned local Workspace document into the real `SessionController` lifecycle so an

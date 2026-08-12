@@ -619,12 +619,16 @@ final class _MemorySettingsCapability
   Future<void> saveDisabled() async {}
 }
 
-final class _FakePtyBackend implements PtySessionBackend {
+final class _FakePtyBackend
+    implements
+        PtySessionBackend,
+        PtySessionConfigV1Backend,
+        PtySessionFramePacketV1Backend {
   @override
   void closeSession(String sessionId) {}
 
   @override
-  String createSession(String sessionConfigJson) => 'session';
+  String createSessionV1(String sessionConfigV1Json) => 'session';
 
   @override
   int ping() => 1;
@@ -650,7 +654,10 @@ final class _FakePtyBackend implements PtySessionBackend {
   void scrollViewportTo(String sessionId, int offset) {}
 
   @override
-  String? takeFrameDiffJson(String sessionId) => null;
+  Uint8List? takeFramePacketV1Protobuf(
+    String sessionId, {
+    required int? afterSequence,
+  }) => null;
 
   @override
   void writeInput(String sessionId, List<int> bytes) {}

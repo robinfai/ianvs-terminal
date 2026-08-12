@@ -62,12 +62,26 @@ class ProfileRepository extends ProfileRepositoryPort {
     final raw = await file.readAsString();
     final Map<String, Object?> json;
     try {
-      json = decodeJsonObject(raw, documentName: 'Profiles document');
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map<String, Object?>) {
+        throw const UnsupportedTerminalProfilesSchemaVersion(null);
+      }
+      json = decoded;
+    } on FormatException catch (error) {
+      return _repairInvalidLoad(file, rawValueSummary: error.message);
+    }
+    try {
+      TerminalProfilesDocument.validateSchema(json);
     } on FormatException catch (error) {
       return _repairInvalidLoad(file, rawValueSummary: error.message);
     }
     final decoded = await _decryptSecretsForLoad(json);
-    final parsed = TerminalProfilesDocument.fromJson(decoded.json);
+    final TerminalProfilesDocument parsed;
+    try {
+      parsed = TerminalProfilesDocument.fromJson(decoded.json);
+    } on FormatException catch (error) {
+      return _repairInvalidLoad(file, rawValueSummary: error.message);
+    }
     final document = TerminalProfilesDocument(
       schemaVersion: parsed.schemaVersion,
       profiles: parsed.profiles,
@@ -76,16 +90,15 @@ class ProfileRepository extends ProfileRepositoryPort {
         ...decoded.warnings,
       ],
     );
-    if (decoded.canMigrateLegacyPlaintextSecrets) {
-      // A migration failure must surface to the caller. Treating it as a JSON
-      // parse failure would quarantine an otherwise valid plaintext document.
-      await save(document);
-    }
     return document;
   }
 
   @override
   Future<void> save(TerminalProfilesDocument document) async {
+    if (document.schemaVersion !=
+        TerminalProfilesDocument.currentSchemaVersion) {
+      throw UnsupportedTerminalProfilesSchemaVersion(document.schemaVersion);
+    }
     final file = await _profilesFile();
     await _initializeOpaqueSecretsFromExistingFile(file);
     final encoded = await _encodeForStorage(document);
@@ -199,25 +212,14 @@ class ProfileRepository extends ProfileRepositoryPort {
   }
 
   Future<
-    ({
-      Map<String, Object?> json,
-      List<TerminalProfileLoadWarning> warnings,
-      bool canMigrateLegacyPlaintextSecrets,
-    })
+    ({Map<String, Object?> json, List<TerminalProfileLoadWarning> warnings})
   >
   _decryptSecretsForLoad(Map<String, Object?> root) async {
     final warnings = <TerminalProfileLoadWarning>[];
-    var hadLegacyPlaintextSecrets = false;
-    var encryptedSecretFailed = false;
-    var hasUnknownEncryptedSecretsFormat = false;
     final rawProfiles = root['profiles'];
     if (rawProfiles is! List) {
       _opaqueSecretsInitialized = true;
-      return (
-        json: root,
-        warnings: warnings,
-        canMigrateLegacyPlaintextSecrets: false,
-      );
+      return (json: root, warnings: warnings);
     }
 
     _captureOpaqueSecrets(root);
@@ -238,14 +240,13 @@ class ProfileRepository extends ProfileRepositoryPort {
       if (connection.containsKey('password') ||
           connection.containsKey('privateKeyPassphrase') ||
           connection.containsKey('x11AuthCookie')) {
-        hadLegacyPlaintextSecrets = true;
+        throw const UnsupportedTerminalProfilePlaintextSecrets();
       }
       final encrypted = _mutableStringMap(connection['encryptedSecrets']);
       if (encrypted == null) {
         continue;
       }
       if (encrypted['format'] != 'ianvs-profile-secrets-v1') {
-        hasUnknownEncryptedSecretsFormat = true;
         continue;
       }
       for (final field in const <String>[
@@ -268,7 +269,6 @@ class ProfileRepository extends ProfileRepositoryPort {
             _opaqueEncryptedSecretsByProfileId.remove(profileId);
           }
         } on Object {
-          encryptedSecretFailed = true;
           warnings.add(
             TerminalProfileLoadWarning(
               profileId: profileId,
@@ -282,22 +282,15 @@ class ProfileRepository extends ProfileRepositoryPort {
         }
       }
     }
-    return (
-      json: root,
-      warnings: warnings,
-      canMigrateLegacyPlaintextSecrets:
-          hadLegacyPlaintextSecrets &&
-          !encryptedSecretFailed &&
-          !hasUnknownEncryptedSecretsFormat,
-    );
+    return (json: root, warnings: warnings);
   }
 
   Future<void> _initializeOpaqueSecretsFromExistingFile(File file) async {
     if (_opaqueSecretsInitialized) {
       return;
     }
-    _opaqueSecretsInitialized = true;
     if (!await file.exists()) {
+      _opaqueSecretsInitialized = true;
       return;
     }
     try {
@@ -305,10 +298,49 @@ class ProfileRepository extends ProfileRepositoryPort {
         await file.readAsString(),
         documentName: 'Profiles document',
       );
+      _validateCanonicalCurrentProfilesDocument(root);
       _captureOpaqueSecrets(root);
+    } on UnsupportedTerminalProfilesSchemaVersion {
+      rethrow;
     } on FormatException {
       // A direct save remains an explicit replacement of a malformed file.
       // load() is the path that quarantines and repairs invalid JSON.
+      _opaqueSecretsInitialized = true;
+      _opaqueEncryptedSecretsByProfileId.clear();
+    }
+  }
+
+  void _validateCanonicalCurrentProfilesDocument(Map<String, Object?> root) {
+    TerminalProfilesDocument.validateSchema(root);
+    final plain = _deepCopyJsonMap(root);
+    final rawProfiles = plain['profiles'];
+    if (rawProfiles is List) {
+      for (var index = 0; index < rawProfiles.length; index += 1) {
+        final profile = _mutableStringMap(rawProfiles[index]);
+        if (profile == null) {
+          continue;
+        }
+        rawProfiles[index] = profile;
+        final connection = _mutableStringMap(profile['connection']);
+        if (connection == null) {
+          continue;
+        }
+        profile['connection'] = connection;
+        final encrypted = connection['encryptedSecrets'];
+        if (encrypted != null && encrypted is! Map) {
+          throw const FormatException(
+            'Profile encryptedSecrets must be a JSON object.',
+          );
+        }
+        connection.remove('encryptedSecrets');
+      }
+    }
+    final decoded = TerminalProfilesDocument.fromJson(plain);
+    if (decoded.loadWarnings.isNotEmpty ||
+        !_jsonValuesEquivalent(decoded.toJson(), plain)) {
+      throw const FormatException(
+        'Profiles document is not canonical current-schema data.',
+      );
     }
   }
 
@@ -369,6 +401,14 @@ class ProfileRepository extends ProfileRepositoryPort {
   }
 }
 
+final class UnsupportedTerminalProfilePlaintextSecrets implements Exception {
+  const UnsupportedTerminalProfilePlaintextSecrets();
+
+  @override
+  String toString() =>
+      'Plaintext secrets in persisted terminal profiles are unsupported.';
+}
+
 String _secretFieldName(ProfileSecretField field) => switch (field) {
   ProfileSecretField.password => 'password',
   ProfileSecretField.privateKeyPassphrase => 'privateKeyPassphrase',
@@ -393,6 +433,30 @@ String? _nonEmptyString(Object? value) {
 
 Map<String, Object?> _deepCopyJsonMap(Map<String, Object?> source) {
   return source.map((key, value) => MapEntry(key, _deepCopyJsonValue(value)));
+}
+
+bool _jsonValuesEquivalent(Object? left, Object? right) {
+  if (left is Map && right is Map) {
+    if (left.length != right.length ||
+        left.keys.any((key) => !right.containsKey(key))) {
+      return false;
+    }
+    return left.keys.every(
+      (key) => _jsonValuesEquivalent(left[key], right[key]),
+    );
+  }
+  if (left is List && right is List) {
+    if (left.length != right.length) {
+      return false;
+    }
+    for (var index = 0; index < left.length; index += 1) {
+      if (!_jsonValuesEquivalent(left[index], right[index])) {
+        return false;
+      }
+    }
+    return true;
+  }
+  return left == right;
 }
 
 Object? _deepCopyJsonValue(Object? value) {

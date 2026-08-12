@@ -10,13 +10,16 @@
 - `T-078-action-registry-foundation` 已完成，`TerminalActionId` 与 `ShellActionRegistry` 骨架已建立。
 - `T-079-action-keybinding-metadata-foundation` 已推进，registry descriptor 已能承载 default keybinding metadata、input policy 和默认冲突诊断入口。
 - `T-080-local-terminal-config-schema-foundation` 已推进，LocalTerminalConfig schema 已覆盖 keybindings/workspace/clipboard/paste/shellIntegration/notifications/hotkeyWindow 的最小本地配置边界，并拒绝 remote-only 顶层字段。
-- `T-081-local-terminal-config-repository-migration` 已推进，独立 `ianvs_config.json` repository 与 legacy app preferences migration adapter 已建立。
+- `T-081-local-terminal-config-repository-migration` 为历史任务名；current
+  implementation 只有独立 `ianvs_config.json` repository，不含 predecessor
+  discovery/migration。
 - `T-082-local-terminal-keybinding-resolver` 已推进，registry defaults 与 LocalTerminalConfig disabled/override 能合成为 resolved keybinding，并可诊断最终冲突。
 - `T-083-shell-shortcut-registry-dispatch` 已推进，`ShellScreen` 的 shortcut dispatch 开始消费 registry/resolver 默认 keybinding metadata。
 - `T-095-planned-action-id-expansion` 已推进，P2-P5 的关键规划能力已有稳定 `TerminalActionId` 与 descriptor metadata。
 - `T-098-shell-action-availability-diagnostics` 已推进，action disabled reason 已有统一诊断模型。
 - `T-100-shell-action-disabled-reason-copy` 已推进，disabled reason 已有稳定 title/description 文案入口。
-- `T-102-local-terminal-config-bootstrap-resolution` 已推进，local config、legacy app preferences、defaults 的 bootstrap 优先级已有 resolver。
+- `T-102-local-terminal-config-bootstrap-resolution` 已推进，local config 与
+  current defaults 的 bootstrap 优先级已有 resolver。
 - `T-108-shell-action-view-models` 已推进，command palette/action menu 已有可复用 view-model adapter。
 - `T-114-shell-action-dispatcher` 已推进，workspace/productivity/policy reducers 已有统一 action dispatch 入口。
 - `T-116-shell-action-side-effect-plan` 已推进，dispatcher result 已能映射成 UI/runtime side-effect plan。
@@ -27,8 +30,9 @@
 - `T-121-shell-command-menu-model` 已推进，现有 command menu action order 已抽成可复用模型。
 - `T-122-local-terminal-key-event-resolver` 已推进，key event snapshot 可通过 resolved keybinding 映射到 action id。
 - `T-123-shell-shortcut-bridge` 已推进，平台 shortcut modifier 与 LocalTerminalKeybindingsConfig 可解析为 action id。
-- `T-124-local-terminal-config-loader` 已推进，local config 与 legacy app preferences 已有组合 loader。
-- `T-125-local-config-preferences-adapter` 已推进，local config defaults/appearance 可映射到现有 app preferences 兼容形态。
+- `T-124-local-terminal-config-loader` 已推进，loader 只读取 current local
+  config。
+- `T-125-local-config-preferences-adapter` 为历史兼容任务，生产路径已移除。
 - `T-136-shell-action-test-harness` 已推进，ShellScreen action pipeline 接入前已有 side-effect executor 测试 harness。
 - `T-137-runtime-controller-external-executor-hook` 已推进，runtime controller 已可把 side-effect plan 转交给外部 executor。
 - `T-138-runtime-controller-external-error-state` 已推进，external executor 失败可记录到 controller state。
@@ -64,10 +68,10 @@
    - 明确优先级：built-in defaults、user config、profile override、session temporary state。
    - 明确热重载范围：theme/font/keybindings/notification policy 可热重载；program/args/env/cwd/emulation 只影响新 session。
 
-5. Legacy config compatibility
-   - 保持 `ianvs_profiles.json` 可读。
-   - 保持 `ianvs_preferences.json` 可读。
-   - 首次写入新 config 时保留旧文件 fallback。
+5. Current-only config boundary
+   - 只读取 exact-current `ianvs_config.json`。
+   - predecessor files 不发现、不迁移、不删除。
+   - noncurrent schema typed reject 且零 mutation。
    - schema 校验禁止 SSH/remote/serial/SFTP 顶层字段。
 
 ## Task Breakdown
@@ -81,7 +85,7 @@
 7. `T-095`: planned P2-P5 action id expansion
 8. `T-098`: action availability and disabled diagnostics
 9. `T-100`: disabled reason user-visible copy
-10. `T-102`: legacy app preferences compatibility bootstrap resolver
+10. `T-102`: current local config bootstrap resolver
 11. `T-108`: action menu / command palette view-model adapter
 12. `T-114`: unified shell action dispatcher
 13. `T-116`: shell action side-effect planning

@@ -262,7 +262,7 @@ final class _UncertainRecordingPrepare {
 /// event stream that could look complete.
 final class TerminalLiveRecorder {
   TerminalLiveRecorder({
-    required PtySessionJsonRequestBackend backend,
+    required PtySessionRequestV1Backend backend,
     DateTime Function()? utcNow,
   }) : _requestTransport = TerminalSessionRequestTransport(backend),
        _utcNow = utcNow ?? DateTime.now;
@@ -776,7 +776,12 @@ final class TerminalLiveRecorder {
   ) {
     final Map<String, Object?>? decoded;
     try {
-      decoded = _requestTransport.requestObject(sessionId, request);
+      final operation = request['kind'];
+      if (operation is! String || operation.isEmpty) {
+        throw StateError('Recording request is missing its operation');
+      }
+      final payload = Map<String, Object?>.of(request)..remove('kind');
+      decoded = _requestTransport.requestObject(sessionId, operation, payload);
     } on PtySessionRequestContractException catch (error) {
       throw TerminalRecordingBackendException(
         code: TerminalRecordingBackendErrorCode.invalidResponse,

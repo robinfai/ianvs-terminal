@@ -1,4 +1,4 @@
-import 'dart:convert' show jsonEncode;
+import 'dart:convert' show jsonDecode, jsonEncode;
 import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
@@ -42,6 +42,18 @@ abstract class PasteHistoryRepositoryPort {
 
 const int maxPasteHistoryEntries = defaultLocalTerminalPasteHistoryEntries;
 const int _maxPersistedPasteHistoryEntriesToScan = maxPasteHistoryEntries * 4;
+const int pasteHistoryCurrentSchemaVersion = 1;
+
+final class UnsupportedPasteHistorySchemaVersion implements Exception {
+  const UnsupportedPasteHistorySchemaVersion(this.version);
+
+  final Object? version;
+
+  @override
+  String toString() =>
+      'Unsupported paste history schema version: $version; expected '
+      '$pasteHistoryCurrentSchemaVersion.';
+}
 
 enum PasteHistoryKind {
   copy,
@@ -93,6 +105,7 @@ class PasteHistoryDocument {
 
   Map<String, Object?> toJson() {
     return {
+      'schema_version': pasteHistoryCurrentSchemaVersion,
       'entries': _normalizedEntries(
         entries,
       ).map((entry) => entry.toJson()).toList(),
@@ -102,6 +115,10 @@ class PasteHistoryDocument {
   String encode() => jsonEncode(toJson());
 
   static PasteHistoryDocument fromJson(Map<String, Object?> json) {
+    final version = json['schema_version'];
+    if (version != pasteHistoryCurrentSchemaVersion) {
+      throw UnsupportedPasteHistorySchemaVersion(version);
+    }
     return PasteHistoryDocument(
       entries: _normalizedEntries(
         _objectList(
@@ -177,9 +194,11 @@ class PasteHistoryRepository extends PasteHistoryRepositoryPort {
 
     try {
       final raw = await file.readAsString();
-      return PasteHistoryDocument.fromJson(
-        decodeJsonObject(raw, documentName: 'Paste history'),
-      );
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map<String, Object?>) {
+        throw const UnsupportedPasteHistorySchemaVersion(null);
+      }
+      return PasteHistoryDocument.fromJson(decoded);
     } on FormatException {
       await quarantineCorruptFile(file);
       const repaired = PasteHistoryDocument();

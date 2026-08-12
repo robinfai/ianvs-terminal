@@ -19,5 +19,3 @@ export 'src/terminal/terminal_input_sink.dart';
 export 'src/terminal/terminal_models.dart';
 export 'src/terminal/terminal_viewport.dart';
 export 'src/terminal/terminal_viewport_colors.dart';
-export 'src/transport/terminal_protobuf_frame_codec.dart';
-export 'src/xterm/terminal_api.dart';

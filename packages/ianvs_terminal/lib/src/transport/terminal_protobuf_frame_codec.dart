@@ -5,7 +5,6 @@ import 'dart:ui';
 import '../config/terminal_config.dart';
 import '../contracts/terminal_frame_normalization_policy.dart';
 import '../contracts/terminal_frame_validation_limits.dart';
-import '../contracts/terminal_wire_compatibility.dart';
 import '../proto/frame_diff.pb.dart' as frame_pb;
 import '../terminal/terminal_frame_decode_ports.dart';
 import '../terminal/terminal_models.dart';
@@ -32,24 +31,18 @@ final class TerminalProtobufFrameCodec implements TerminalBinaryFrameCodecPort {
   }
 }
 
-/// Transitional source-level migration facade for the former
-/// `TerminalFrameDiff.fromProtobufBytes` factory.
-// This deprecation is intentionally introduced with 2.0 so internal workspace
-// consumers have one full major release to migrate to the transport codec.
-// ignore: remove_deprecations_in_breaking_versions
-@Deprecated(
-  'Use const TerminalProtobufFrameCodec().decode(bytes). '
-  'This facade will be removed in the next major version.',
-)
-abstract final class LegacyTerminalFrameDiffProtobuf {
-  static TerminalFrameDiff fromProtobufBytes(List<int> bytes) {
-    return const TerminalProtobufFrameCodec().decode(bytes);
-  }
-}
-
 TerminalFrameDiff _terminalFrameDiffFromProtobuf(
   frame_pb.TerminalFrameDiff proto,
 ) {
+  if (!proto.hasFrameSchemaVersion() ||
+      proto.frameSchemaVersion != TerminalFrameDiff.currentFrameSchemaVersion) {
+    throw const FormatException(
+      'Terminal frame diff must declare terminal-frame-diff-v1',
+    );
+  }
+  if (!proto.hasFrameKind()) {
+    throw const FormatException('Terminal frame diff must declare frame_kind');
+  }
   final viewportRows = TerminalFrameNormalizationPolicy.clampNativeDimension(
     proto.viewportRows,
   );
@@ -59,9 +52,7 @@ TerminalFrameDiff _terminalFrameDiffFromProtobuf(
   final scrollbackMaxOffset = proto.scrollbackMaxOffset;
   final scrollbackOffset = proto.scrollbackOffset.clamp(0, scrollbackMaxOffset);
   return TerminalFrameDiff(
-    frameSchemaVersion: TerminalWireCompatibility.frameSchemaVersion(
-      proto.hasFrameSchemaVersion() ? proto.frameSchemaVersion : null,
-    ),
+    frameSchemaVersion: proto.frameSchemaVersion,
     frameKind: _terminalFrameKindFromProtobuf(proto.frameKind),
     rows: _rowsFromProtobuf(proto.rows, viewportRows, viewportCols),
     cursor: proto.hasCursor()
@@ -162,9 +153,14 @@ TerminalFrameDiff _terminalFrameDiffFromProtobuf(
 TerminalFrameKind _terminalFrameKindFromProtobuf(
   frame_pb.TerminalFrameKind value,
 ) {
-  return switch (TerminalWireCompatibility.frameKindFromProtobuf(value.value)) {
-    TerminalWireFrameKind.delta => TerminalFrameKind.delta,
-    TerminalWireFrameKind.snapshot => TerminalFrameKind.snapshot,
+  return switch (value) {
+    frame_pb.TerminalFrameKind.TERMINAL_FRAME_KIND_SNAPSHOT =>
+      TerminalFrameKind.snapshot,
+    frame_pb.TerminalFrameKind.TERMINAL_FRAME_KIND_DELTA =>
+      TerminalFrameKind.delta,
+    _ => throw const FormatException(
+      'Terminal frame diff has an unsupported frame_kind',
+    ),
   };
 }
 

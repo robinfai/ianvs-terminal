@@ -51,8 +51,6 @@ fn frame_packet_v1_crosses_ffi_with_identity_sequence_and_timestamp() {
     assert_eq!(frame.frame_kind, pb::TerminalFrameKind::Snapshot as i32);
 
     assert!(take_packet(session_id, Some(0)).is_none());
-    let legacy_symbol = ianvs_core::ffi::ianvs_session_take_frame_diff_protobuf;
-    let _ = legacy_symbol;
     session::close_session(session_id).unwrap();
 }
 

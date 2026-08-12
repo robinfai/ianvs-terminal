@@ -14,7 +14,7 @@ const int _maxDecodedCollectionScanMultiplier = 4;
 
 final class TerminalDiagnosticsClient {
   TerminalDiagnosticsClient(
-    PtySessionJsonRequestBackend? requestBackend, {
+    PtySessionRequestV1Backend? requestBackend, {
     TerminalBackendRequestErrorHandler? onRequestError,
   }) : _requestTransport = TerminalSessionRequestTransport(requestBackend),
        _onRequestError = onRequestError;
@@ -24,8 +24,8 @@ final class TerminalDiagnosticsClient {
     TerminalBackendRequestErrorHandler? onRequestError,
   }) {
     return TerminalDiagnosticsClient(
-      backend is PtySessionJsonRequestBackend
-          ? backend as PtySessionJsonRequestBackend
+      backend is PtySessionRequestV1Backend
+          ? backend as PtySessionRequestV1Backend
           : null,
       onRequestError: onRequestError,
     );
@@ -45,7 +45,8 @@ final class TerminalDiagnosticsClient {
     try {
       final decoded = _requestTransport.requestObject(
         sessionId,
-        policy.toRequestJson(),
+        'terminal.export_diagnostics',
+        policy.toRequestJson()..remove('kind'),
       );
       return decoded == null
           ? null

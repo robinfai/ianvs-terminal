@@ -2,14 +2,6 @@ import 'dart:typed_data';
 
 import 'terminal_models.dart';
 
-abstract interface class TerminalJsonFrameDecodePort {
-  TerminalFrameDiff? decode(String rawFrame);
-}
-
-abstract interface class TerminalBinaryFrameDecodePort {
-  TerminalFrameDiff? decode(Uint8List rawFrame);
-}
-
 abstract interface class TerminalBinaryFrameCodecPort {
   TerminalFrameDiff decode(List<int> bytes);
 }

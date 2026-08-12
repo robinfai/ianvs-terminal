@@ -688,7 +688,11 @@ final class _MemoryRemoteSessionStore implements DataApiRemoteSessionSlotStore {
   Future<void> writeSlot(String slotRef, DataApiRemoteSession session) async {}
 }
 
-final class _HostPtyBackend implements PtySessionBackend {
+final class _HostPtyBackend
+    implements
+        PtySessionBackend,
+        PtySessionConfigV1Backend,
+        PtySessionFramePacketV1Backend {
   _HostPtyBackend(this.generation);
 
   final int generation;
@@ -698,7 +702,7 @@ final class _HostPtyBackend implements PtySessionBackend {
   void closeSession(String sessionId) {}
 
   @override
-  String createSession(String sessionConfigJson) {
+  String createSessionV1(String sessionConfigV1Json) {
     _nextSession += 1;
     return 'host-$generation-$_nextSession';
   }
@@ -727,7 +731,10 @@ final class _HostPtyBackend implements PtySessionBackend {
   void scrollViewportTo(String sessionId, int offset) {}
 
   @override
-  String? takeFrameDiffJson(String sessionId) => null;
+  Uint8List? takeFramePacketV1Protobuf(
+    String sessionId, {
+    required int? afterSequence,
+  }) => null;
 
   @override
   void writeInput(String sessionId, List<int> bytes) {}

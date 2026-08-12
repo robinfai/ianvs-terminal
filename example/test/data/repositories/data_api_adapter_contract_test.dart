@@ -332,10 +332,64 @@ void main() {
 
       await expectLater(
         DataApiAppPreferencesRepository(client: client).loadVersioned(),
-        throwsFormatException,
+        throwsA(isA<UnsupportedTerminalAppPreferencesSchemaVersion>()),
       );
       expect(client.putCount, 0);
     });
+
+    test(
+      'terminal config rejects missing and noncurrent schemas without PUT',
+      () async {
+        for (final data in <Map<String, Object?>>[
+          const <String, Object?>{},
+          const <String, Object?>{'schemaVersion': 0},
+        ]) {
+          final client = MemoryDataApiResourceClient();
+          client.resources['config/local-terminal'] = dataApiTestResource(
+            id: DataApiTerminalConfigRepository.resourceId,
+            kind: DataApiTerminalConfigRepository.resourceKind,
+            data: data,
+            sensitive: null,
+            hasSensitive: false,
+            revision: 3,
+          );
+          final repository = DataApiTerminalConfigRepository(client: client);
+
+          await expectLater(
+            repository.loadVersioned(),
+            throwsA(isA<UnsupportedLocalTerminalConfigSchemaVersion>()),
+          );
+          await expectLater(
+            repository.update((current) => current),
+            throwsA(isA<UnsupportedLocalTerminalConfigSchemaVersion>()),
+          );
+          expect(client.putCount, 0);
+        }
+      },
+    );
+
+    test(
+      'terminal config rejects noncanonical current data without PUT',
+      () async {
+        final client = MemoryDataApiResourceClient();
+        client.resources['config/local-terminal'] = dataApiTestResource(
+          id: DataApiTerminalConfigRepository.resourceId,
+          kind: DataApiTerminalConfigRepository.resourceKind,
+          data: const <String, Object?>{'schemaVersion': 1},
+          sensitive: null,
+          hasSensitive: false,
+          revision: 3,
+        );
+        final repository = DataApiTerminalConfigRepository(client: client);
+
+        await expectLater(repository.loadVersioned(), throwsFormatException);
+        await expectLater(
+          repository.update((current) => current),
+          throwsFormatException,
+        );
+        expect(client.putCount, 0);
+      },
+    );
 
     test('paste history rejects duplicate entries without PUT', () async {
       final client = MemoryDataApiResourceClient();
@@ -349,6 +403,7 @@ void main() {
         kind: 'paste_history',
         data: const <String, Object?>{'format': 'ianvs-paste-history-v1'},
         sensitive: <String, Object?>{
+          'schema_version': pasteHistoryCurrentSchemaVersion,
           'entries': <Object?>[duplicate, duplicate],
         },
         hasSensitive: true,

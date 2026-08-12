@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:app/features/pty/pty.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ianvs_terminal/ianvs_terminal.dart';
+import 'package:ianvs_terminal/src/runtime/terminal_frame_transport_coordinator.dart';
 import 'package:integration_test/integration_test.dart';
 
 void main() {
@@ -23,8 +25,14 @@ void main() {
         rootDirectory: rootDirectory,
         terminalBackend: nativeBackend,
       );
-      sessionID = sandboxBackend.createSession(
-        '{"id":"ios-acceptance","name":"iOS Acceptance","shell":"/bin/false"}',
+      sessionID = sandboxBackend.createSessionV1(
+        const TerminalSessionConfigV1(
+          sessionId: 'ios-acceptance',
+          displayName: 'iOS Acceptance',
+          config: TerminalSessionConfig(
+            launch: TerminalLaunchConfig(program: '/bin/false'),
+          ),
+        ).toJsonString(),
       );
     });
 
@@ -61,12 +69,9 @@ void main() {
 }
 
 String _takeText(IosSandboxShellBackend backend, String sessionID) {
-  final raw = backend.takeFrameDiffJson(sessionID);
-  expect(raw, isNotNull);
-  final frame = jsonDecode(raw!) as Map<String, Object?>;
-  final rows = frame['rows']! as List<Object?>;
-  return rows
-      .cast<Map<String, Object?>>()
-      .map((row) => row['text']! as String)
-      .join('\n');
+  final decoded = TerminalFrameTransportCoordinator(
+    backend: backend,
+  ).take(sessionID);
+  expect(decoded, isNotNull);
+  return decoded!.frame.rows.map((row) => row.text).join('\n');
 }

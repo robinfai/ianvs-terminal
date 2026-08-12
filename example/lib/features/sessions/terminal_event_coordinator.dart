@@ -177,8 +177,7 @@ final class TerminalPreCloseSignalRelay {
 /// and transient Shell presentation.
 ///
 /// Exactly one subscription is made to the controller-wide ordered signal
-/// stream. Legacy streams remain public compatibility APIs, but application
-/// features do not subscribe to them independently.
+/// stream. Application features consume only this current typed boundary.
 final class TerminalEventCoordinatorOverflowException implements Exception {
   const TerminalEventCoordinatorOverflowException({
     required this.pendingSignalLimit,

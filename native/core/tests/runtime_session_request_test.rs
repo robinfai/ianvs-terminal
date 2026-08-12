@@ -7,6 +7,9 @@ use ianvs_core::session_request::{
 };
 use std::ffi::{CStr, CString};
 
+const SESSION_CONFIG_SHAPE_CORPUS: &str =
+    include_str!("fixtures/session_config/session_config_v1_shape_corpus.json");
+
 fn call_v1(session_id: u64, request: serde_json::Value) -> SessionResponseV1 {
     let raw = CString::new(request.to_string()).unwrap();
     let pointer =
@@ -21,13 +24,14 @@ fn call_v1(session_id: u64, request: serde_json::Value) -> SessionResponseV1 {
 }
 
 #[test]
-fn session_request_response_v1_crosses_ffi_with_structured_errors_and_legacy_compatibility() {
-    let legacy_profile = serde_json::json!({
-        "id": "request-v1-replay",
-        "name": "Request V1 Replay",
-        "launch": {"program": "/definitely/not/a/child"}
-    });
-    let session_id = session::create_replay_session(&legacy_profile.to_string()).unwrap();
+fn session_request_response_v1_crosses_ffi_with_structured_errors() {
+    let corpus: serde_json::Value =
+        serde_json::from_str(SESSION_CONFIG_SHAPE_CORPUS).expect("SessionConfig shape corpus");
+    let mut config = corpus["valid_local"].clone();
+    config["session_id"] = serde_json::Value::from("request-v1-replay");
+    config["display_name"] = serde_json::Value::from("Request V1 Replay");
+    config["config"]["launch"]["program"] = serde_json::Value::from("/definitely/not/a/child");
+    let session_id = session::create_replay_session_v1(&config.to_string()).unwrap();
     session::replay_session_output(session_id, b"alpha error omega\r\n").unwrap();
 
     let request = serde_json::json!({
@@ -190,22 +194,6 @@ fn session_request_response_v1_crosses_ffi_with_structured_errors_and_legacy_com
     assert_eq!(
         runtime_failure.error.as_ref().unwrap().code,
         "runtime_error"
-    );
-
-    let legacy = session::request_session_json(
-        session_id,
-        &serde_json::json!({
-            "kind": "terminal.search_text",
-            "query": "alpha",
-            "mode": "case_sensitive_substring"
-        })
-        .to_string(),
-    )
-    .unwrap()
-    .unwrap();
-    assert_eq!(
-        serde_json::from_str::<serde_json::Value>(&legacy).unwrap()["matches"][0]["text"],
-        "alpha"
     );
 
     session::close_session(session_id).unwrap();

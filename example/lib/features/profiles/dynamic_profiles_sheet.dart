@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import '../../ui/app_ui.dart';
+import 'iterm_dynamic_profile_importer.dart';
 import 'profile_models.dart';
 
 class DynamicProfilesImportResult {
@@ -94,7 +95,7 @@ class _DynamicProfilesSheetState extends State<DynamicProfilesSheet> {
         });
         return;
       }
-      final document = TerminalProfilesDocument.fromJson(
+      final document = const ITermDynamicProfileImporter().decode(
         decoded.cast<String, Object?>(),
       );
       if (document.profiles.isEmpty) {

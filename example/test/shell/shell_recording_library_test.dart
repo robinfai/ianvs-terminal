@@ -23,7 +23,10 @@ import '../support/memory_profile_repository.dart';
 import '../support/no_io_local_session_recording_repository.dart';
 
 class _ReplayShellBackend extends FakePtyBackend
-    implements PtyReplaySessionBackend, PtyReplayCheckpointBackend {
+    implements
+        PtyReplaySessionBackend,
+        PtyReplaySessionConfigV1Backend,
+        PtyReplayCheckpointBackend {
   _ReplayShellBackend({this.supportsCheckpoints = true});
 
   final bool supportsCheckpoints;
@@ -39,8 +42,8 @@ class _ReplayShellBackend extends FakePtyBackend
   bool restoreReplayCheckpoint(String sessionId, int checkpointId) => true;
 
   @override
-  String createReplaySession(String sessionConfigJson) {
-    return createSession(sessionConfigJson);
+  String createReplaySessionV1(String sessionConfigV1Json) {
+    return createSessionV1(sessionConfigV1Json);
   }
 
   @override

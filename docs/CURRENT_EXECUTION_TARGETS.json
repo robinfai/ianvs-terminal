@@ -78,8 +78,7 @@
           "path": "example/lib/features/layout/local_terminal_layout_repository.dart",
           "contains": [
             "class LocalTerminalLayoutRepository",
-            "ianvs_terminal_layout.json",
-            "_loadLegacyWorkspace"
+            "ianvs_terminal_layout.json"
           ],
           "not_contains": [
             "loadOrCreateProject",
@@ -91,8 +90,7 @@
           "contains": [
             "class TerminalLayout",
             "class TerminalLayoutTab",
-            "ianvs-terminal-layout-v1",
-            "fromLegacyWorkspaceJson"
+            "ianvs-terminal-layout-v1"
           ],
           "not_contains": [
             "projectPath",
@@ -184,7 +182,10 @@
           "contains": [
             "this.layout = const LocalTerminalLayoutConfig()",
             "'layout': layout.toJson()",
-            "_objectMap(json['layout']) ?? _objectMap(json['workspace'])"
+            "LocalTerminalLayoutConfig.fromJson(_objectMap(json['layout']))"
+          ],
+          "not_contains": [
+            "_objectMap(json['workspace'])"
           ]
         },
         {
@@ -319,17 +320,17 @@
         "make verify"
       ],
       "exit_criteria": [
-        "Terminal Layout and Relaunch Spec have focused schema, migration and controller coverage.",
+        "Terminal Layout and Relaunch Spec have focused current-schema, unsupported-schema and controller coverage.",
         "Project identity, Recent Workspace and project switching are absent from the current app source.",
         "Recording persistence uses one flat current-format library and fails closed on unsupported repository metadata.",
         "The complete macOS verification entrypoint passes on the current implementation."
       ],
-      "reason": "T-331 supersedes the Project Workspace product claims from T-312 through T-317 while retaining their files as migration/history. The current product persists one Terminal Layout, minimal Relaunch Specs and a separate Recording Library; folder opening launches a terminal rather than switching a project container."
+      "reason": "T-331 supersedes the Project Workspace product claims from T-312 through T-317; those files are archival task history rather than format authority or migration inputs. The current product persists one current-format Terminal Layout, minimal Relaunch Specs and a separate Recording Library; folder opening launches a terminal rather than switching a project container."
     },
     {
       "id": "runtime-contract-stability",
       "status": "active",
-      "goal": "Make the native/Dart runtime boundary versioned and capability-driven through backward-compatible, independently verified wire slices with explicit fallback before any old-wire removal.",
+      "goal": "Keep one exact current native/Dart runtime boundary: versioned SessionConfig, Session Request/Response, Runtime Event, Diagnostic Event, Frame Packet and Graphic Asset Packet contracts with no predecessor wire fallback.",
       "evidence": [
         {
           "path": "native/core/src/runtime_contract.rs",
@@ -374,51 +375,13 @@
           "contains": [
             "PtyRuntimeCapabilityBindings",
             "PtyRuntimeCapabilityBackend",
-            "PtyRuntimeEventBindings",
-        "PtyRuntimeEventBatch",
-        "PtySessionConfigV1Backend",
-        "PtyReplaySessionConfigV1Backend",
-        "PtySessionRequestV1Backend",
-        "PtySessionDiagnosticEventV1Backend",
-        "PtySessionFramePacketV1Backend",
-        "PtyFramePacketV1Bindings",
-        "PtyGraphicAssetPacketV1Bindings",
-        "_lookupOptionalRuntimeCapabilities"
-          ]
-        },
-        {
-          "path": "docs/protocols/RUNTIME_CAPABILITIES_V1.md",
-          "contains": [
-            "Runtime Capabilities V1",
-            "ianvs_runtime_capabilities_json",
-            "existing symbol-probing paths"
-          ]
-        },
-        {
-          "path": "docs/tasks/runtime-pty/T-318-versioned-runtime-capability-query.md",
-          "contains": [
-            "Versioned Runtime Capability Query",
-            "older binding",
-            "Do not remove, rename or migrate existing FFI symbols",
-            "T-318 is closed"
-          ]
-        },
-        {
-          "path": "docs/protocols/RUNTIME_EVENT_ENVELOPE_V1.md",
-          "contains": [
-            "Runtime Event Envelope V1",
-            "next_sequence",
-            "dropped_count",
-            "legacy event-array symbol"
-          ]
-        },
-        {
-          "path": "docs/tasks/runtime-pty/T-319-runtime-event-envelope-v1-and-dual-stack.md",
-          "contains": [
-            "Runtime Event Envelope V1 And Dual Stack",
-            "older native libraries",
-            "T-319 is closed",
-            "T-320 should migrate SessionConfig/Profile wire"
+            "PtyRuntimeEventBatch",
+            "PtySessionConfigV1Backend",
+            "PtyReplaySessionConfigV1Backend",
+            "PtySessionRequestV1Backend",
+            "PtySessionDiagnosticEventV1Backend",
+            "PtySessionFramePacketV1Backend",
+            "sessionPollEventEnvelopesJson"
           ]
         },
         {
@@ -427,7 +390,8 @@
             "SESSION_CONFIG_SCHEMA_VERSION",
             "ianvs-session-config-v1",
             "MAX_SESSION_CONFIG_BYTES",
-            "SessionConfigV1"
+            "SessionConfigV1",
+            "validate_exact_session_config_shape"
           ]
         },
         {
@@ -436,27 +400,19 @@
             "class TerminalSessionConfigV1",
             "TerminalSessionConfigContractException",
             "maxEncodedBytes",
-            "ianvs-session-config-v1"
+            "ianvs-session-config-v1",
+            "_validateExactSessionConfigWireShape"
           ]
         },
         {
-          "path": "docs/protocols/SESSION_CONFIG_V1.md",
+          "path": "native/core/tests/fixtures/session_config/session_config_v1_shape_corpus.json",
           "contains": [
-            "SessionConfig V1",
-            "ianvs_session_create_v1",
-            "session-config.json.v1",
-            "Profile-shaped wire"
+            "ianvs-session-config-shape-corpus-v1",
+            "closed_object_paths",
+            "valid_local",
+            "valid_ssh"
           ]
         },
-      {
-        "path": "docs/tasks/runtime-pty/T-320-session-config-v1-and-profile-wire-migration.md",
-          "contains": [
-            "SessionConfig V1 And Profile Wire Migration",
-            "new Dart usable with old native libraries",
-            "T-320 is closed",
-          "build/bench-results-ci/20260721T073713Z"
-        ]
-      },
       {
         "path": "native/core/src/session_request.rs",
         "contains": [
@@ -480,28 +436,8 @@
         "path": "packages/ianvs_terminal/lib/src/runtime/terminal_session_request_transport.dart",
         "contains": [
           "class TerminalSessionRequestTransport",
-          "supportsSessionRequestV1",
           "requestSessionV1Json",
-          "jsonEncode(legacyRequest)"
-        ]
-      },
-      {
-        "path": "docs/protocols/SESSION_REQUEST_RESPONSE_V1.md",
-        "contains": [
-          "Session Request/Response V1",
-          "ianvs_session_request_v1_json",
-          "session-request-envelope.json.v1",
-          "legacy discriminated `{kind, ...payload}` channel"
-        ]
-      },
-      {
-        "path": "docs/tasks/runtime-pty/T-321-session-request-response-v1-and-dual-stack.md",
-        "contains": [
-          "Session Request/Response V1 And Dual Stack",
-          "New Dart with an old native library",
-          "Live and replay real-native integration",
-          "T-321 is closed",
-          "build/bench-results-ci/20260721T082801Z"
+          "PtySessionResponseV1.fromJsonString"
         ]
       },
       {
@@ -522,25 +458,6 @@
           "correlation_mismatch"
         ]
       },
-      {
-        "path": "docs/protocols/HOST_REQUEST_RESPONSE_V1.md",
-        "contains": [
-          "Host Request/Response V1",
-          "ianvs_session_host_response_v1_json",
-          "host-request-response.json.v1",
-          "old Dart/new native"
-        ]
-      },
-    {
-      "path": "docs/tasks/runtime-pty/T-322-host-request-response-v1-clipboard-read.md",
-        "contains": [
-          "Host Request/Response V1 Clipboard Read",
-          "New Dart/new native",
-          "exactly once",
-          "T-322 is closed",
-        "build/bench-results-ci/20260721T085840Z"
-      ]
-    },
     {
       "path": "packages/ianvs_pty/lib/src/pty_diagnostic_event_v1.dart",
       "contains": [
@@ -548,26 +465,6 @@
         "PtyRuntimeMessageClass.diagnostic",
         "diagnostic_session_mismatch",
         "maxEncodedBytes"
-      ]
-    },
-    {
-      "path": "docs/protocols/DIAGNOSTIC_EVENT_V1.md",
-      "contains": [
-        "Diagnostic Event V1",
-        "ianvs_session_take_diagnostic_event_v1_json",
-        "diagnostic-event.json.v1",
-        "new Dart/old native"
-      ]
-    },
-    {
-      "path": "docs/tasks/runtime-pty/T-323-diagnostic-event-v1-and-dual-stack.md",
-      "contains": [
-        "Diagnostic Event V1 And Dual Stack",
-        "frame_stats",
-        "session_stats",
-        "old Dart/new native",
-        "T-323 is closed",
-        "build/bench-results-ci/20260721T094417Z"
       ]
     },
     {
@@ -580,25 +477,6 @@
       ]
     },
     {
-      "path": "docs/protocols/TERMINAL_FRAME_PACKET_V1.md",
-      "contains": [
-        "Terminal Frame Packet V1",
-        "ianvs_session_take_frame_packet_v1_protobuf",
-        "frame-packet.protobuf.v1",
-        "old Dart/new native"
-      ]
-    },
-    {
-      "path": "docs/tasks/runtime-pty/T-324-terminal-frame-packet-v1-and-dual-stack.md",
-      "contains": [
-        "Terminal Frame Packet V1 And Dual Stack",
-        "stale acknowledgement",
-        "old native",
-        "T-324 is closed",
-        "build/bench-results-ci/20260721T101427Z"
-      ]
-    },
-    {
       "path": "packages/ianvs_pty/lib/src/pty_graphic_asset_packet_v1.dart",
       "contains": [
         "class PtyGraphicAssetPacketV1",
@@ -608,22 +486,10 @@
       ]
     },
     {
-      "path": "docs/protocols/GRAPHIC_ASSET_PACKET_V1.md",
+      "path": "packages/ianvs_terminal/test/current_only_architecture_test.dart",
       "contains": [
-        "Graphic Asset Packet V1",
-        "ianvs_session_graphic_asset_packet_v1_protobuf",
-        "graphic-asset-packet.protobuf.v1",
-        "old Dart/new native"
-      ]
-    },
-    {
-      "path": "docs/tasks/runtime-pty/T-330-graphic-asset-packet-v1-and-dual-stack.md",
-      "contains": [
-        "Graphic Asset Packet V1 And Dual Stack",
-        "New Dart/old native",
-        "does not downgrade",
-        "T-330 is closed",
-        "build/bench-results-ci/20260721T125256Z"
+        "terminal product exposes only the current runtime contracts",
+        "PTY and C ABI bind current symbols without predecessor routes"
       ]
     }
       ],
@@ -642,12 +508,13 @@
         "make verify"
       ],
       "exit_criteria": [
-        "The loaded native core exposes a versioned, bounded capability manifest without making the symbol mandatory for older libraries.",
-        "Dart retains additive v1 features, rejects unsupported schemas explicitly, and preserves existing fallback behavior.",
-        "Each later command, event, frame, or asset contract migration is separately scoped and compatibility-tested before old wire removal.",
+        "The loaded native core and Dart bindings expose the exact current versioned symbols and reject unsupported schemas.",
+        "SessionConfig v1 requires every current group and field, rejects unknown and case-aliased keys at every closed object, and runs one shared negative corpus through Dart, Rust and both C FFI creation entrypoints.",
+        "Session creation, requests, diagnostics, runtime events, frames and graphic assets have one current route with no predecessor downgrade.",
+        "The public terminal facade exposes one ordered runtime signal stream and contextual callbacks only.",
         "The complete repository verification entrypoint passes after every cross-boundary slice."
       ],
-  "reason": "T-318 through T-324 closed the capability, Event, SessionConfig, Session Request/Response, Host Request/Response, Diagnostic Event and Terminal Frame Packet slices with explicit fallbacks. T-330 closes the independently scoped Graphic Asset Packet v1 migration while retaining the legacy metadata/copy symbols; focused compatibility, real-FFI tests and the complete repository gate pass. Other Host operations, file-download migration and any old-wire removal remain separately scoped; the Runtime Contract lane stays active."
+  "reason": "The unreleased predecessor routes from the T-318 through T-324 and T-330 migration sequence have been squashed. Those task files are historical records, not current runtime authority. The active lane now requires the single versioned current ABI and Dart contracts plus exact architecture gates."
     },
     {
       "id": "frame-pipeline-modularity",

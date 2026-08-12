@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
@@ -46,9 +47,11 @@ class AppPreferencesRepository extends AppPreferencesRepositoryPort {
 
     try {
       final raw = await file.readAsString();
-      return TerminalAppPreferencesDocument.fromJson(
-        decodeJsonObject(raw, documentName: 'App preferences'),
-      );
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map<String, Object?>) {
+        throw const UnsupportedTerminalAppPreferencesSchemaVersion(null);
+      }
+      return TerminalAppPreferencesDocument.fromJson(decoded);
     } on FormatException {
       await quarantineCorruptFile(file);
       const repaired = TerminalAppPreferencesDocument();

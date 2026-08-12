@@ -104,12 +104,6 @@ impl SessionRequestV1 {
         }
         Ok(request)
     }
-
-    fn legacy_request_json(&self) -> Result<String, serde_json::Error> {
-        let mut payload = self.payload.as_object().cloned().unwrap_or_default();
-        payload.insert("kind".to_string(), Value::String(self.operation.clone()));
-        serde_json::to_string(&Value::Object(payload))
-    }
 }
 
 impl SessionResponseV1 {
@@ -178,19 +172,7 @@ fn dispatch_request(session_id: u64, request: &SessionRequestV1) -> SessionRespo
             "the requested operation is not supported",
         );
     }
-    let legacy_json = match request.legacy_request_json() {
-        Ok(json) => json,
-        Err(_) => {
-            return SessionResponseV1::failure(
-                request.request_id.clone(),
-                request.session_id.clone(),
-                request.operation.clone(),
-                "invalid_payload",
-                "the request payload could not be encoded",
-            );
-        }
-    };
-    match session::request_session_json(session_id, &legacy_json) {
+    match session::request_session(session_id, &request.operation, &request.payload) {
         Ok(Some(raw_payload)) => match serde_json::from_str::<Value>(&raw_payload) {
             Ok(payload) if payload.is_object() => SessionResponseV1::success(request, payload),
             _ => SessionResponseV1::failure(

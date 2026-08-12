@@ -93,7 +93,7 @@ void main() {
       expect(loaded.layout.restoreLayout, isFalse);
     });
 
-    test('rewrites the legacy workspace setting as layout config', () async {
+    test('repairs malformed current config with unknown fields', () async {
       final directory = await Directory.systemTemp.createTemp(
         'ianvs terminal-config-workspace-migration',
       );
@@ -109,26 +109,21 @@ void main() {
       );
 
       final loaded = await repository.load();
-
-      expect(loaded!.layout.restoreLayout, isTrue);
-      final migrated =
-          jsonDecode(await file.readAsString()) as Map<String, Object?>;
+      expect(loaded?.layout.restoreLayout, isFalse);
       expect(
-        migrated['schemaVersion'],
-        LocalTerminalConfigDocument.currentSchemaVersion,
+        directory.listSync().any((entry) => entry.path.contains('.corrupt')),
+        isTrue,
       );
-      expect(migrated['layout'], <String, Object?>{'restoreLayout': true});
-      expect(migrated, isNot(contains('workspace')));
     });
 
-    test('keeps config values when only schema version is invalid', () async {
+    test('rejects noncurrent config schema without mutation', () async {
       final directory = await Directory.systemTemp.createTemp(
         'ianvs terminal-config-invalid-schema',
       );
       final file = File('${directory.path}/ianvs_config.json');
       await file.writeAsString(
         jsonEncode({
-          'schemaVersion': 'latest',
+          'schemaVersion': 2,
           'defaultProfileId': 'local-dev',
           'appearance': {'themeMode': 'dark'},
         }),
@@ -137,15 +132,12 @@ void main() {
         directoryResolver: () async => directory,
       );
 
-      final loaded = await repository.load();
-
-      expect(loaded, isNotNull);
-      expect(
-        loaded!.schemaVersion,
-        LocalTerminalConfigDocument.currentSchemaVersion,
+      final original = await file.readAsString();
+      await expectLater(
+        repository.load(),
+        throwsA(isA<UnsupportedLocalTerminalConfigSchemaVersion>()),
       );
-      expect(loaded.defaultProfileId, 'local-dev');
-      expect(loaded.appearance.themeMode, TerminalThemeMode.dark);
+      expect(await file.readAsString(), original);
       expect(
         directory.listSync().any(
           (entry) => entry.path.contains('ianvs_config.json.corrupt'),
@@ -180,7 +172,7 @@ void main() {
                 },
               },
             },
-            'workspace': {'restoreLayout': 'yes'},
+            'layout': {'restoreLayout': 'yes'},
             'clipboard': {'copyOnSelect': 'no', 'osc52': 'allow'},
             'paste': {
               'bracketedPaste': 'force',
@@ -235,7 +227,7 @@ void main() {
     );
 
     test(
-      'defaults non-finite integer config fields without quarantine',
+      'rejects non-finite schema without mutation',
       () async {
         final directory = await Directory.systemTemp.createTemp(
           'ianvs terminal-config-non-finite-integers',
@@ -252,18 +244,12 @@ void main() {
           directoryResolver: () async => directory,
         );
 
-        final loaded = await repository.load();
-
-        expect(loaded, isNotNull);
-        expect(
-          loaded!.schemaVersion,
-          LocalTerminalConfigDocument.currentSchemaVersion,
+        final original = await file.readAsString();
+        await expectLater(
+          repository.load(),
+          throwsA(isA<UnsupportedLocalTerminalConfigSchemaVersion>()),
         );
-        expect(loaded.defaultProfileId, 'local-dev');
-        expect(
-          loaded.paste.historySize,
-          defaultLocalTerminalPasteHistoryEntries,
-        );
+        expect(await file.readAsString(), original);
         expect(
           directory.listSync().any(
             (entry) => entry.path.contains('ianvs_config.json.corrupt'),
@@ -293,30 +279,6 @@ void main() {
         ),
         isTrue,
       );
-    });
-
-    test('migrates legacy app preferences into local config defaults', () {
-      const preferences = TerminalAppPreferencesDocument(
-        defaults: TerminalAppDefaults(defaultProfileId: 'local-dev'),
-        appearance: TerminalAppAppearance(themeMode: TerminalThemeMode.dark),
-        notifications: TerminalAppNotifications(
-          commandFinished: false,
-          bell: true,
-          activity: false,
-        ),
-      );
-
-      final migrated = LocalTerminalConfigMigration.fromLegacyAppPreferences(
-        preferences,
-      );
-
-      expect(migrated.defaultProfileId, 'local-dev');
-      expect(migrated.appearance.themeMode, TerminalThemeMode.dark);
-      expect(migrated.notifications.enabled, isTrue);
-      expect(migrated.notifications.commandFinished, isFalse);
-      expect(migrated.notifications.bell, isTrue);
-      expect(migrated.notifications.activity, isFalse);
-      expect(migrated.keybindings.disabledDefaultActions, isEmpty);
     });
   });
 }

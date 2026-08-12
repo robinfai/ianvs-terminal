@@ -1,5 +1,9 @@
 # T-317 Session Recording Lifecycle and Workspace Association
 
+> Archival task record superseded by T-331. Workspace predecessor formats are
+> not product inputs: current production code does not discover, migrate,
+> rewrite or delete them.
+
 ## Goal
 
 Connect the verified current recording schema/native capture seam to a safe product lifecycle so a local

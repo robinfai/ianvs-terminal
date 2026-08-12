@@ -81,19 +81,8 @@ class TerminalRelaunchSpec {
     if (json['contract'] != terminalRelaunchSpecContract) {
       throw const FormatException('Unsupported terminal relaunch contract.');
     }
-    return _fromShape(json);
-  }
-
-  /// Reads Workspace v1-v3 session intent/descriptor shapes during the
-  /// one-way migration to Terminal Layout v1.
-  static TerminalRelaunchSpec fromLegacyJson(Map<Object?, Object?> json) {
-    return _fromShape(json);
-  }
-
-  static TerminalRelaunchSpec _fromShape(Map<Object?, Object?> json) {
     return TerminalRelaunchSpec(
       profileId: _nonEmptyString(json['profileId']) ?? '',
-      command: TerminalRelaunchCommand.fromJson(json['command']),
       cwd: _nonEmptyString(json['cwd']),
     );
   }

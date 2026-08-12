@@ -17,8 +17,9 @@
 
 ## Shell Hook Events
 
-`TerminalRuntimeController.events` emits `TerminalSessionShellHookEvent` for
-native `shell_hook` events. The event preserves the raw payload and exposes
+`TerminalRuntimeController.runtimeSignals` emits
+`TerminalRuntimeSessionEventSignal` for native `shell_hook` events. Its
+`payload` is a `TerminalSessionShellHookEvent` that preserves the raw payload and exposes
 lightweight fields for `hook`, `command`, `cwd`, `shell`, and `exitCode`.
 
 The logical hook names stay shell-agnostic. zsh, bash, and fish integrations
@@ -44,10 +45,7 @@ first simple command for complex pipelines or compound commands.
 `TerminalRuntimeController.runtimeSignals` provides one broadcast stream for
 session events, ZMODEM events, and ZMODEM deferred-write-failure diagnostics.
 Every signal carries a controller-wide monotonic `sequence`, a `sessionEpoch`
-that distinguishes reused native session IDs, and the exact payload instance
-also delivered by the corresponding 2.x compatibility stream. Existing
-consumers of `events`, `zmodemEvents`, and `zmodemDeferredWriteFailures` do not
-need to migrate.
+that distinguishes reused native session IDs, and the current typed payload.
 
 ## 不负责
 

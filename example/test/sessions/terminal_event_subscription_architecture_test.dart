@@ -144,16 +144,11 @@ void main() {
           visitor.runtimeStreamGetterReferences
               .map((node) => node.name)
               .toSet(),
-          <String>{
-            'events',
-            'zmodemEvents',
-            'zmodemDeferredWriteFailures',
-            'runtimeSignals',
-          },
+          <String>{'runtimeSignals'},
         );
         expect(
-          visitor.dynamicRuntimeStreamAccesses.map((node) => node.name),
-          contains('events'),
+          visitor.dynamicRuntimeStreamAccesses.map((node) => node.name).toSet(),
+          <String>{'events', 'zmodemEvents', 'zmodemDeferredWriteFailures'},
         );
         expect(visitor.listenInvocations, hasLength(5));
         expect(visitor.coordinatorSignalReferences, hasLength(2));

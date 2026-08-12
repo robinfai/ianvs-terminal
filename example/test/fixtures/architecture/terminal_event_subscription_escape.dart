@@ -6,19 +6,18 @@ import 'dart:async';
 import 'package:ianvs_terminal/ianvs_terminal.dart';
 
 void directoryEscape(TerminalRuntimeController runtime) {
-  final legacyAlias = runtime.events;
-  final legacyTearOff = runtime.zmodemEvents.listen;
-  subscribe(runtime.zmodemDeferredWriteFailures);
   final unifiedAlias = runtime.runtimeSignals;
 
-  legacyAlias.listen((_) {});
-  legacyTearOff((_) {});
   unifiedAlias.listen((_) {});
 }
 
 void dynamicEscape(TerminalRuntimeController runtime) {
   final dynamic erasedRuntime = runtime;
   erasedRuntime.events.listen((Object? _) {});
+  erasedRuntime.zmodemEvents.listen((Object? _) {});
+  subscribe<Object?>(
+    erasedRuntime.zmodemDeferredWriteFailures as Stream<Object?>,
+  );
 }
 
 void duplicateCoordinatorSubscription(Stream<Object?> signals) {

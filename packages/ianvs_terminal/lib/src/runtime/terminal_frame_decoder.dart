@@ -1,7 +1,3 @@
-import 'dart:convert';
-import 'dart:typed_data';
-
-import '../terminal/terminal_frame_decode_ports.dart';
 import '../terminal/terminal_models.dart';
 
 final class TerminalDecodedFrame {
@@ -15,7 +11,7 @@ final class TerminalFrameDecodeMetrics {
   const TerminalFrameDecodeMetrics({
     required this.rawFrameBytes,
     required this.jsonDecodeMicros,
-    this.wireFormat = 'json',
+    this.wireFormat = 'frame-packet.protobuf.v1',
     this.protobufDecodeMicros = 0,
     this.nativeFrameStats = const <String, Object?>{},
   });
@@ -25,56 +21,4 @@ final class TerminalFrameDecodeMetrics {
   final int jsonDecodeMicros;
   final int protobufDecodeMicros;
   final Map<String, Object?> nativeFrameStats;
-}
-
-final class TerminalFrameDecoder {
-  const TerminalFrameDecoder({
-    required this.jsonDecoder,
-    required this.protobufDecoder,
-    this.collectMetrics = false,
-  });
-
-  final bool collectMetrics;
-  final TerminalJsonFrameDecodePort jsonDecoder;
-  final TerminalBinaryFrameDecodePort protobufDecoder;
-
-  TerminalDecodedFrame? decode(String rawFrame) => decodeJson(rawFrame);
-
-  TerminalDecodedFrame? decodeJson(String rawFrame) {
-    final decodeWatch = collectMetrics ? (Stopwatch()..start()) : null;
-    final frame = jsonDecoder.decode(rawFrame);
-    if (frame == null) {
-      return null;
-    }
-    decodeWatch?.stop();
-    return TerminalDecodedFrame(
-      frame: frame,
-      metrics: collectMetrics
-          ? TerminalFrameDecodeMetrics(
-              rawFrameBytes: utf8.encode(rawFrame).length,
-              jsonDecodeMicros: decodeWatch?.elapsedMicroseconds ?? 0,
-            )
-          : null,
-    );
-  }
-
-  TerminalDecodedFrame? decodeProtobuf(Uint8List rawFrame) {
-    final decodeWatch = collectMetrics ? (Stopwatch()..start()) : null;
-    final frame = protobufDecoder.decode(rawFrame);
-    if (frame == null) {
-      return null;
-    }
-    decodeWatch?.stop();
-    return TerminalDecodedFrame(
-      frame: frame,
-      metrics: collectMetrics
-          ? TerminalFrameDecodeMetrics(
-              rawFrameBytes: rawFrame.length,
-              wireFormat: 'protobuf',
-              jsonDecodeMicros: 0,
-              protobufDecodeMicros: decodeWatch?.elapsedMicroseconds ?? 0,
-            )
-          : null,
-    );
-  }
 }

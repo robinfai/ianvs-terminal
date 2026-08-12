@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import ctypes
 import json
 import re
 from pathlib import Path
@@ -14,12 +13,6 @@ REPOSITORY = Path(__file__).resolve().parent.parent
 HEADER = REPOSITORY / "native/core/ianvs_core.h"
 MANIFEST = REPOSITORY / "native/core/ianvs_core_abi_v1.json"
 DART_LIBRARY = REPOSITORY / "packages/ianvs_pty/lib"
-UNBOUND_LEGACY_EXPORTS = [
-    "ianvs_session_search_json",
-    "ianvs_session_selection_text",
-]
-
-
 def normalized_declarations(header: str) -> dict[str, str]:
     without_comments = re.sub(r"/\*.*?\*/", "", header, flags=re.DOTALL)
     declarations: dict[str, str] = {}
@@ -32,21 +25,6 @@ def normalized_declarations(header: str) -> dict[str, str]:
         declaration = fragment[fragment.rfind("\n\n") + 2 :].strip() + ";"
         declarations[match.group(1)] = " ".join(declaration.split())
     return dict(sorted(declarations.items()))
-
-
-def graphic_asset_fields(header: str) -> list[str]:
-    match = re.search(
-        r"typedef struct IanvsGraphicAssetMeta \{(?P<body>.*?)\} IanvsGraphicAssetMeta;",
-        header,
-        flags=re.DOTALL,
-    )
-    if match is None:
-        raise ValueError("IanvsGraphicAssetMeta is missing from the C header")
-    return [
-        " ".join(field.strip().split()) + ";"
-        for field in match.group("body").split(";")
-        if field.strip()
-    ]
 
 
 def schema_constants(header: str) -> dict[str, int]:
@@ -201,7 +179,6 @@ def _c_type_to_dart(value: str, *, native: bool) -> str:
             "char": "Utf8",
             "uint8_t": "Uint8",
             "uintptr_t": "Size",
-            "IanvsGraphicAssetMeta": "_NativeGraphicAssetMeta",
         }.get(pointee)
         if pointee_type is None:
             raise ValueError(f"unsupported C ABI pointer type: {value}")
@@ -239,69 +216,13 @@ def _c_function_signature(declaration: str, symbol: str, *, native: bool) -> str
     )
 
 
-def verify_dart_struct(header: str) -> None:
-    expected = []
-    for field in graphic_asset_fields(header):
-        match = re.fullmatch(r"(.+?)\s+([A-Za-z_]\w*);", field)
-        if match is None:
-            raise ValueError(f"unsupported C struct field: {field}")
-        c_type, c_name = match.groups()
-        dart_name = re.sub(r"_([a-z])", lambda found: found.group(1).upper(), c_name)
-        expected.append((_c_type_to_dart(c_type, native=True), dart_name))
-
-    declarations = []
-    for dart_file in DART_LIBRARY.rglob("*.dart"):
-        source = dart_file.read_text()
-        match = re.search(
-            r"final\s+class\s+_NativeGraphicAssetMeta\s+extends\s+ffi\.Struct\s*"
-            r"\{(?P<body>.*?)\n\}",
-            source,
-            flags=re.DOTALL,
-        )
-        if match is not None:
-            declarations.extend(
-                re.findall(
-                    r"@ffi\.([A-Za-z0-9_]+)\(\)\s+external\s+int\s+"
-                    r"([A-Za-z_]\w*)\s*;",
-                    match.group("body"),
-                    flags=re.DOTALL,
-                )
-            )
-    if declarations != expected:
-        raise SystemExit(
-            "Dart/C IanvsGraphicAssetMeta mismatch: "
-            f"expected annotations/fields={expected}, actual={declarations}"
-        )
-
-
 def generated_manifest() -> dict[str, object]:
     header = HEADER.read_text()
-    class GraphicAssetMeta(ctypes.Structure):
-        _fields_ = [
-            ("width", ctypes.c_uint32),
-            ("height", ctypes.c_uint32),
-            ("rgba_len", ctypes.c_size_t),
-            ("version", ctypes.c_uint64),
-        ]
-
     return {
         "schema_version": 1,
         "contract": "ianvs-core-c-abi-v1",
         "schema_constants": schema_constants(header),
-        "structs": {"IanvsGraphicAssetMeta": graphic_asset_fields(header)},
-        "host_layout": {
-            "pointer_width": ctypes.sizeof(ctypes.c_void_p) * 8,
-            "IanvsGraphicAssetMeta": {
-                "size": ctypes.sizeof(GraphicAssetMeta),
-                "alignment": ctypes.alignment(GraphicAssetMeta),
-                "offsets": {
-                    name: getattr(GraphicAssetMeta, name).offset
-                    for name, _ in GraphicAssetMeta._fields_
-                },
-            },
-        },
         "functions": normalized_declarations(header),
-        "dart_unbound_legacy_exports": UNBOUND_LEGACY_EXPORTS,
     }
 
 
@@ -318,7 +239,7 @@ def verify(manifest: dict[str, object]) -> None:
         raise ValueError("ABI manifest functions must be an object")
     header_symbols = set(functions)
     bound_symbols = dart_symbols()
-    missing_bindings = sorted(header_symbols - bound_symbols - set(UNBOUND_LEGACY_EXPORTS))
+    missing_bindings = sorted(header_symbols - bound_symbols)
     unknown_bindings = sorted(bound_symbols - header_symbols)
     if missing_bindings or unknown_bindings:
         raise SystemExit(
@@ -327,7 +248,7 @@ def verify(manifest: dict[str, object]) -> None:
         )
     dart_bindings = dart_function_bindings()
     missing_typed_bindings = sorted(
-        header_symbols - set(dart_bindings) - set(UNBOUND_LEGACY_EXPORTS)
+        header_symbols - set(dart_bindings)
     )
     signature_mismatches: list[str] = []
     for symbol, (native_signature, dart_signature) in sorted(dart_bindings.items()):
@@ -347,7 +268,6 @@ def verify(manifest: dict[str, object]) -> None:
             f"missing typed bindings={missing_typed_bindings}; "
             f"mismatches={signature_mismatches}"
         )
-    verify_dart_struct(header)
 
 
 def main() -> None:
