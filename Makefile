@@ -9,6 +9,7 @@ BACKEND_DIR := $(ROOT_DIR)/backend
 
 FLUTTER ?= flutter
 DART ?= dart
+GO ?= go
 
 APP_NAME ?= Ianvs Terminal
 RELEASE_DIR := $(EXAMPLE_DIR)/build/macos/Build/Products/Release
@@ -36,7 +37,7 @@ help: ## Show the available commands.
 		'  verify              Run the repository verification script' \
 		'  backend-format       Format Go data API sources' \
 		'  backend-test         Run Go data API tests' \
-		'  backend-run          Run the local Go data API' \
+		'  backend-run          Run the local Go data API (requires BACKEND_CONFIG)' \
 		'  backend-generate-key Generate a client-owned data key' \
 		'' \
 		'macOS:' \
@@ -81,13 +82,15 @@ backend-format: ## Format Go data API sources.
 	cd "$(BACKEND_DIR)" && gofmt -w .
 
 backend-test: ## Run Go data API tests.
-	cd "$(BACKEND_DIR)" && go test ./...
+	cd "$(BACKEND_DIR)" && $(GO) test ./...
 
 backend-run: ## Run the local Go data API.
-	cd "$(BACKEND_DIR)" && go run ./cmd/ianvs-api serve
+	@test -n "$(strip $(BACKEND_CONFIG))" || { printf '%s\n' \
+		'BACKEND_CONFIG is required (for example: make backend-run BACKEND_CONFIG=/absolute/path/to/config.json)' >&2; exit 2; }
+	cd "$(BACKEND_DIR)" && $(GO) run ./cmd/ianvs-api serve --config "$(BACKEND_CONFIG)"
 
 backend-generate-key: ## Generate a client-owned data encryption key.
-	cd "$(BACKEND_DIR)" && go run ./cmd/ianvs-api generate-key
+	cd "$(BACKEND_DIR)" && $(GO) run ./cmd/ianvs-api generate-key
 
 run: run-macos
 
