@@ -226,16 +226,26 @@ void main() {
     expect(script, contains('dart test test/docs_contract_test.dart'));
   });
 
-  test('terminal verification script always runs the Shell widget suite', () {
-    final script = File('tools/verify_flutter_terminal.sh').readAsStringSync();
+  test(
+    'terminal verification script automatically discovers example tests',
+    () {
+      final script = File(
+        'tools/verify_flutter_terminal.sh',
+      ).readAsStringSync();
 
-    expect(script, contains('test/widget_test.dart'));
-    expect(
-      script,
-      isNot(contains('VERIFY_FLUTTER_TERMINAL_RUN_EXAMPLE_WIDGET_TESTS')),
-    );
-    expect(script, isNot(contains('Skipping example/test/widget_test.dart')));
-  });
+      expect(script, contains("find test -type f -name '*_test.dart'"));
+      expect(script, contains(r'flutter test "${EXAMPLE_CI_TEST_TARGETS[@]}"'));
+      expect(
+        script,
+        contains("! -path 'test/benchmarks/cat_log_benchmark_test.dart'"),
+      );
+      expect(
+        script,
+        isNot(contains('VERIFY_FLUTTER_TERMINAL_RUN_EXAMPLE_WIDGET_TESTS')),
+      );
+      expect(script, contains('Every self-contained test'));
+    },
+  );
 
   test('vttest GUI gate serializes the PTY-heavy VT220 suite', () {
     final script = File('tools/vttest_gui_nightly.sh').readAsStringSync();

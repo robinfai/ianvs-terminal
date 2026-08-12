@@ -10,7 +10,7 @@ const String terminalLayoutContract = 'ianvs-terminal-layout-v1';
 final class UnsupportedTerminalLayoutSchemaVersion implements Exception {
   const UnsupportedTerminalLayoutSchemaVersion(this.version);
 
-  final int version;
+  final Object? version;
 
   @override
   String toString() {
@@ -54,34 +54,20 @@ class TerminalLayout {
 
   static TerminalLayout fromJson(Map<Object?, Object?> json) {
     _validateTerminalLayoutSchemaVersion(json);
-    return _fromShape(json, legacy: false);
+    return _fromShape(json);
   }
 
-  /// Reads the former unversioned/Workspace v1-v3 shapes during migration.
-  static TerminalLayout fromLegacyWorkspaceJson(Map<Object?, Object?> json) {
-    _validateLegacyWorkspaceSchemaVersion(json['schemaVersion']);
-    return _fromShape(json, legacy: true);
-  }
-
-  static TerminalLayout _fromShape(
-    Map<Object?, Object?> json, {
-    required bool legacy,
-  }) {
+  static TerminalLayout _fromShape(Map<Object?, Object?> json) {
     _rejectRemoteWorkspaceKeys(json);
 
     final tabs = _uniqueRestorableTabs(
-      _terminalLayoutTabsFromJson(
-        json['tabs'],
-        fallbackPrefix: 'tab',
-        legacy: legacy,
-      ),
+      _terminalLayoutTabsFromJson(json['tabs'], fallbackPrefix: 'tab'),
     );
     final closedTabs = _boundedClosedTabs(
       _terminalLayoutTabsFromJson(
         json['closedTabs'],
         fallbackPrefix: 'closed-tab',
         maxEntries: _maxTerminalLayoutClosedTabsToScan,
-        legacy: legacy,
       ),
       excludedIds: {for (final tab in tabs) tab.id},
     );
@@ -197,30 +183,11 @@ class TerminalLayout {
 
 void _validateTerminalLayoutSchemaVersion(Map<Object?, Object?> json) {
   final value = json['schemaVersion'];
-  if (value is! int) {
-    throw const FormatException(
-      'Terminal layout schemaVersion must be an integer.',
-    );
-  }
   if (value != currentTerminalLayoutSchemaVersion) {
     throw UnsupportedTerminalLayoutSchemaVersion(value);
   }
   if (json['contract'] != terminalLayoutContract) {
     throw const FormatException('Unsupported terminal layout contract.');
-  }
-}
-
-void _validateLegacyWorkspaceSchemaVersion(Object? value) {
-  if (value == null) {
-    return;
-  }
-  if (value is! int) {
-    throw const FormatException(
-      'Workspace layout schemaVersion must be an integer.',
-    );
-  }
-  if (value != 1 && value != 2 && value != 3) {
-    throw UnsupportedTerminalLayoutSchemaVersion(value);
   }
 }
 
@@ -275,11 +242,9 @@ class TerminalLayoutTab {
   static TerminalLayoutTab fromJson(
     Map<Object?, Object?> json, {
     String? fallbackId,
-    bool legacy = false,
   }) {
     final root = TerminalPaneNode.fromJson(
       _objectMap(json['root']) ?? const {},
-      legacy: legacy,
     );
     final rawActivePaneId = _nonEmptyStringOrNull(json['activePaneId']);
     final activePaneId =
@@ -304,7 +269,7 @@ class TerminalLayoutTab {
                 json['closedPanes'],
                 maxEntries: _maxTerminalLayoutClosedPanesToScan,
               )
-              .map((value) => TerminalPaneNode.fromJson(value, legacy: legacy))
+              .map(TerminalPaneNode.fromJson)
               .where((pane) => pane.hasRestorablePane)
               .take(maxTerminalLayoutClosedPanes)
               .toList(growable: false),
@@ -556,17 +521,14 @@ class TerminalPaneNode {
     };
   }
 
-  static TerminalPaneNode fromJson(
-    Map<Object?, Object?> json, {
-    bool legacy = false,
-  }) {
+  static TerminalPaneNode fromJson(Map<Object?, Object?> json) {
     if (json['type'] == 'split') {
       final children =
           _objectList(
                 json['children'],
                 maxEntries: _maxTerminalLayoutSplitChildrenToScan,
               )
-              .map((value) => TerminalPaneNode.fromJson(value, legacy: legacy))
+              .map(TerminalPaneNode.fromJson)
               .where((child) => child.hasRestorablePane)
               .toList(growable: false);
       if (children.isEmpty) {
@@ -585,11 +547,7 @@ class TerminalPaneNode {
     }
 
     final id = _nonEmptyStringOrNull(json['id']) ?? '';
-    final relaunchJson = legacy
-        ? _objectMap(json['sessionDescriptor']) ??
-              _objectMap(json['sessionIntent']) ??
-              const <Object?, Object?>{}
-        : _objectMap(json['relaunchSpec']);
+    final relaunchJson = _objectMap(json['relaunchSpec']);
     if (relaunchJson == null) {
       throw const FormatException(
         'Terminal layout leaf requires relaunchSpec.',
@@ -597,9 +555,7 @@ class TerminalPaneNode {
     }
     return TerminalPaneNode.leaf(
       id: id,
-      relaunchSpec: legacy
-          ? TerminalRelaunchSpec.fromLegacyJson(relaunchJson)
-          : TerminalRelaunchSpec.fromJson(relaunchJson),
+      relaunchSpec: TerminalRelaunchSpec.fromJson(relaunchJson),
     );
   }
 
@@ -820,7 +776,6 @@ List<TerminalLayoutTab> _terminalLayoutTabsFromJson(
   Object? value, {
   required String fallbackPrefix,
   int? maxEntries,
-  required bool legacy,
 }) {
   final tabJson = _objectList(value, maxEntries: maxEntries);
   return [
@@ -828,7 +783,6 @@ List<TerminalLayoutTab> _terminalLayoutTabsFromJson(
       TerminalLayoutTab.fromJson(
         tabJson[index],
         fallbackId: '$fallbackPrefix-${index + 1}',
-        legacy: legacy,
       ),
   ];
 }

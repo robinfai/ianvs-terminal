@@ -82,14 +82,10 @@ typedef TerminalClipboardTextWriter =
 
 final class TerminalClipboardPolicyAdapter {
   const TerminalClipboardPolicyAdapter({
-    this.allowClipboardCopy,
-    this.allowClipboardPasteRequest,
     this.allowClipboardCopyWithContext,
     this.allowClipboardPasteRequestWithContext,
   });
 
-  final Future<bool> Function()? allowClipboardCopy;
-  final Future<bool> Function()? allowClipboardPasteRequest;
   final Future<bool> Function(TerminalClipboardAccessRequest request)?
   allowClipboardCopyWithContext;
   final Future<bool> Function(TerminalClipboardAccessRequest request)?
@@ -100,10 +96,6 @@ final class TerminalClipboardPolicyAdapter {
     if (contextual != null) {
       return contextual(request);
     }
-    final legacy = allowClipboardCopy;
-    if (legacy != null) {
-      return legacy();
-    }
     return _blockByDefault();
   }
 
@@ -111,10 +103,6 @@ final class TerminalClipboardPolicyAdapter {
     final contextual = allowClipboardPasteRequestWithContext;
     if (contextual != null) {
       return contextual(request);
-    }
-    final legacy = allowClipboardPasteRequest;
-    if (legacy != null) {
-      return legacy();
     }
     return _blockByDefault();
   }

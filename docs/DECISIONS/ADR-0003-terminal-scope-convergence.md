@@ -18,10 +18,11 @@ Recording Library. Opening a folder launches a new terminal at that `cwd`; it
 does not switch an application container.
 
 Project identity, Recent Workspace and project switching are removed from the
-product and from new persistence writes. Workspace v1-v3 files remain
-read-only migration input. Relaunch Spec stores only launchable intent.
-Recordings use their own flat library/index. Internal completion diagnostics
-are debug-only, while diagnostics export remains supported.
+product and from current persistence. Unsupported Workspace documents are
+outside the runtime contract: the app does not discover, migrate or delete
+them. Relaunch Spec stores only launchable intent. Recordings use their own
+flat library/index. Internal completion diagnostics are debug-only, while
+diagnostics export remains supported.
 
 SSH is deferred, not rejected. A future SSH design must extend Profile and
 Session without restoring the project Workspace abstraction.
@@ -32,7 +33,8 @@ Session without restoring the project Workspace abstraction.
 - Restoring a layout always creates fresh PTYs.
 - Runtime titles, exit state and recording paths cannot silently become
   restart policy.
-- Existing project collections are not deleted and can be migrated once.
+- Unsupported project collections remain outside runtime discovery and are
+  not modified by the app.
 - Historical T-312 through T-317 records remain valid history but no longer
   describe the current product surface.
 

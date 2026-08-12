@@ -1,8 +1,10 @@
 # T-124 Local Terminal Config Loader
 
+> Historical task record. The production loader is now current-schema-only.
+
 ## Goal
 
-补齐 session bootstrap runtime 接入前的组合 loader：统一加载新 `LocalTerminalConfigRepository` 和旧 `AppPreferencesRepository`，并返回 bootstrap resolution。
+补齐 session bootstrap runtime 接入前的 current config loader。
 
 ## Scope
 
@@ -23,15 +25,14 @@
 
 - 已新增 `LocalTerminalConfigLoader`。
 - loader 读取 `LocalTerminalConfigRepository`。
-- loader 读取 legacy `AppPreferencesRepository`。
 - loader 复用 `LocalTerminalConfigBootstrap.resolve()`。
-- 已补充 local-first 和 legacy fallback 测试。
+- 已补充 local-first、defaults 和 noncurrent failure 测试。
 
 ## Functional Acceptance
 
 - local config 存在时优先返回 local config。
-- local config 缺失时可返回 legacy app preferences migration。
-- loader 隐藏两个 repository 的协调逻辑。
+- local config 缺失时返回 current defaults。
+- loader 只协调 current repository 与 typed bootstrap result。
 - loader 不接 profile repository 或 remote config source。
 
 ## Verification Commands
@@ -51,9 +52,8 @@ flutter analyze
 ## Done When
 
 - `SessionController` 后续可通过单一 loader 读取 local terminal config。
-- 新旧配置优先级在 loader 层可测试。
+- current config/defaults 优先级在 loader 层可测试。
 
 ## Risks / Follow-ups
 
-- 后续 session bootstrap 接入时，要避免重复写入 legacy repaired preferences。
-- profile list migration 仍需单独任务。
+- profile list 由独立 current repository 管理。

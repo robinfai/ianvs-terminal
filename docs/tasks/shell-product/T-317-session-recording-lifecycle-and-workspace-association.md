@@ -1,8 +1,12 @@
 # T-317 Session Recording Lifecycle and Workspace Association
 
+> Archival task record superseded by T-331. Workspace predecessor formats are
+> not product inputs: current production code does not discover, migrate,
+> rewrite or delete them.
+
 ## Goal
 
-Connect the verified Recording v1/native capture seam to a safe product lifecycle so a local
+Connect the verified current recording schema/native capture seam to a safe product lifecycle so a local
 Session can start a redacted recording, atomically save it, and persist the resulting path in its
 Workspace Session Descriptor.
 
@@ -67,7 +71,7 @@ make verify
 ## Result
 
 - A local Application Support repository now allocates Workspace-partitioned, collision-safe
-  `.ndjson` destinations, atomically writes canonical Recording v1 data, validates reads and
+  `.ndjson` destinations, atomically writes canonical current recording schema data, validates reads and
   retains failed destinations for a later retry.
 - `SessionController` now owns redacted capture start/stop state, keeps a complete stopped
   recording in memory after a write failure, updates `recordingPath` only after durable save, and

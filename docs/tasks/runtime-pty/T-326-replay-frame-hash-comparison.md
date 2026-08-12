@@ -16,7 +16,7 @@ actionable first-divergence result for deterministic replay tests and bug reprod
 
 ## Non-goals
 
-- Do not change Recording v1 or persist hashes inside recording files.
+- Do not change current recording schema or persist hashes inside recording files.
 - Do not call this a cryptographic integrity or authenticity check.
 - Do not include graphic asset bytes, full style semantics or Host effects in the default hash.
 - Do not add checkpoint/seek, Replay UI or runtime collection lifecycle.
@@ -79,7 +79,7 @@ T-326 is closed.
 - `TerminalReplayFrameHashComparator` is public, immutable and bounded to 4,096 Frames per
   trace. It compares hashes only after applying each Frame through `TerminalViewportState`.
 - The default projection reuses the existing deterministic benchmark viewport hash; callers can
-  inject a stricter applied-Frame hasher without changing Recording v1.
+  inject a stricter applied-Frame hasher without changing current recording schema.
 - `flutter analyze --fatal-infos`, the focused Replay regressions, docs contract and final
   `make verify` all pass.
 - Final gate evidence: 1,733 vendored Rust tests pass with one ignored, 131 native-core tests,

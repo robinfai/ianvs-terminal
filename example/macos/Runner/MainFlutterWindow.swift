@@ -3,6 +3,37 @@ import Carbon.HIToolbox
 import FlutterMacOS
 import UserNotifications
 
+enum DartShutdownSafety: Equatable {
+  enum UnsafeReason: Equatable {
+    case channelUnavailable
+    case invalidResponse
+    case dartTimedOut
+    case dartRejectedTermination
+  }
+
+  case safeToTerminate
+  case unsafeToTerminate(UnsafeReason)
+
+  static func fromPlatformResult(_ result: Any?) -> DartShutdownSafety {
+    guard
+      let message = result as? [AnyHashable: Any],
+      let completed = message["completed"] as? Bool,
+      let timedOut = message["timedOut"] as? Bool,
+      let safeToTerminate = message["safeToTerminate"] as? Bool,
+      let unsafeToTerminate = message["unsafeToTerminate"] as? Bool
+    else {
+      return .unsafeToTerminate(.invalidResponse)
+    }
+    if timedOut {
+      return .unsafeToTerminate(.dartTimedOut)
+    }
+    guard completed, safeToTerminate, !unsafeToTerminate else {
+      return .unsafeToTerminate(.dartRejectedTermination)
+    }
+    return .safeToTerminate
+  }
+}
+
 private final class HotkeyWindowController {
   static let shortcutLabel = "⌥⌘Space"
 
@@ -165,6 +196,7 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
   static let mainWindowFrameAutosaveName = "IanvsTerminalMainWindow"
 
   private var windowBridgeChannel: FlutterMethodChannel?
+  private var shutdownChannel: FlutterMethodChannel?
   private var hotkeyWindowController: HotkeyWindowController?
   private var trafficLightCenteringWorkItem: DispatchWorkItem?
   private var notificationExpiryWorkItems: [String: DispatchWorkItem] = [:]
@@ -294,15 +326,33 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
   }
 
   func windowShouldClose(_ sender: NSWindow) -> Bool {
-    let shouldClose = shouldCloseWindowAfterConfirmation()
-    if shouldClose {
+    if shouldCloseWindowAfterConfirmation() {
       AppDelegate.suppressNextTerminateConfirmation = true
+      requestApplicationTermination()
     }
-    return shouldClose
+    // Keep the Flutter engine alive while AppDelegate waits for Dart cleanup.
+    // The application termination reply will close the window afterwards.
+    return false
   }
 
   func shouldCloseWindowAfterConfirmation() -> Bool {
     AppDelegate.confirmApplicationTermination()
+  }
+
+  func requestApplicationTermination() {
+    NSApp.terminate(nil)
+  }
+
+  func requestDartShutdown(completion: @escaping (DartShutdownSafety) -> Void) {
+    guard let shutdownChannel else {
+      completion(.unsafeToTerminate(.channelUnavailable))
+      return
+    }
+    shutdownChannel.invokeMethod(
+      "requestShutdown",
+      arguments: nil,
+      result: { result in completion(DartShutdownSafety.fromPlatformResult(result)) }
+    )
   }
 
   @discardableResult
@@ -332,6 +382,10 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
     RegisterGeneratedPlugins(registry: flutterViewController)
     windowBridgeChannel = FlutterMethodChannel(
       name: "app/window_bridge",
+      binaryMessenger: flutterViewController.engine.binaryMessenger
+    )
+    shutdownChannel = FlutterMethodChannel(
+      name: "app/shutdown",
       binaryMessenger: flutterViewController.engine.binaryMessenger
     )
     bindNativePasteMenuItems()

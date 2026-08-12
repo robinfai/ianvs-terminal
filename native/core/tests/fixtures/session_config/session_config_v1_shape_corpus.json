@@ -1,0 +1,552 @@
+{
+  "schema_version": "ianvs-session-config-shape-corpus-v1",
+  "valid_local": {
+    "schema_version": 1,
+    "contract": "ianvs-session-config-v1",
+    "session_id": "shape-local",
+    "display_name": "Shape local",
+    "client_capabilities": {
+      "zmodem": false
+    },
+    "config": {
+      "launch": {
+        "program": "/bin/sh",
+        "args": ["-l"],
+        "env": {"LANG": "C.UTF-8"},
+        "cwd": null
+      },
+      "connection": {
+        "type": "local"
+      },
+      "terminal": {
+        "emulation": "xterm256",
+        "scrollbackLines": 8000,
+        "graphics": {
+          "enabled": true,
+          "advertise": "kitty",
+          "maxImageBytes": 104857600,
+          "maxTotalBytes": 268435456
+        },
+        "dragDropEnabled": false
+      },
+      "shellIntegration": {
+        "enabled": true
+      },
+      "appearance": {
+        "font": {
+          "family": "monospace",
+          "fallback": [],
+          "size": 14.0,
+          "lineHeight": 1.2
+        },
+        "colors": {
+          "special": {
+            "foreground": null,
+            "background": null,
+            "cursor": null,
+            "selection": null,
+            "tab": null
+          },
+          "normal": {
+            "black": null,
+            "red": null,
+            "green": null,
+            "yellow": null,
+            "blue": null,
+            "magenta": null,
+            "cyan": null,
+            "white": null
+          },
+          "bright": {
+            "black": null,
+            "red": null,
+            "green": null,
+            "yellow": null,
+            "blue": null,
+            "magenta": null,
+            "cyan": null,
+            "white": null
+          }
+        },
+        "cursor": {
+          "shape": "block",
+          "blink": true
+        }
+      },
+      "interaction": {
+        "copyOnSelect": false,
+        "optionDragMode": "block_selection"
+      }
+    }
+  },
+  "valid_ssh": {
+    "schema_version": 1,
+    "contract": "ianvs-session-config-v1",
+    "session_id": "shape-ssh",
+    "display_name": "Shape SSH",
+    "client_capabilities": {
+      "zmodem": true
+    },
+    "config": {
+      "launch": {
+        "program": "",
+        "args": [],
+        "env": {},
+        "cwd": null
+      },
+      "connection": {
+        "type": "ssh",
+        "host": "target.example.test",
+        "user": "operator",
+        "port": 22,
+        "auth": "public_key",
+        "password": null,
+        "privateKeys": ["/keys/target"],
+        "privateKeyPassphrase": null,
+        "hostKeyPolicy": "strict",
+        "knownHostsFile": null,
+        "connectTimeoutSeconds": 10,
+        "keepaliveSeconds": 0,
+        "keepaliveCountMax": 3,
+        "proxyCommand": null,
+        "proxyJump": "jump-user@jump.example.test",
+        "proxyJumpProfiles": [
+          {
+            "host": "jump.example.test",
+            "user": "jump-user",
+            "port": 22,
+            "auth": "public_key",
+            "password": null,
+            "privateKeys": ["/keys/jump"],
+            "privateKeyPassphrase": null,
+            "hostKeyPolicy": "strict",
+            "knownHostsFile": null,
+            "connectTimeoutSeconds": 10,
+            "keepaliveSeconds": 0,
+            "keepaliveCountMax": 3
+          }
+        ],
+        "portForwards": [
+          {
+            "type": "local",
+            "bindHost": "127.0.0.1",
+            "bindPort": 8080,
+            "targetHost": "service.internal",
+            "targetPort": 80
+          }
+        ],
+        "agentForwarding": false,
+        "agentSocket": null,
+        "x11Forwarding": false,
+        "x11TargetHost": null,
+        "x11TargetPort": 0,
+        "x11AuthProtocol": "MIT-MAGIC-COOKIE-1",
+        "x11AuthCookie": null,
+        "x11ScreenNumber": 0
+      },
+      "terminal": {
+        "emulation": "vt220",
+        "scrollbackLines": 1234,
+        "graphics": {
+          "enabled": false,
+          "advertise": "none",
+          "maxImageBytes": 1024,
+          "maxTotalBytes": 2048
+        },
+        "dragDropEnabled": false
+      },
+      "shellIntegration": {
+        "enabled": false
+      },
+      "appearance": {
+        "font": {
+          "family": "Menlo",
+          "fallback": ["Monaco"],
+          "size": 13.0,
+          "lineHeight": 1.4
+        },
+        "colors": {
+          "special": {
+            "foreground": "#C0C0C0",
+            "background": "#000000",
+            "cursor": "#C0C0C0",
+            "selection": "#B5D5FF",
+            "tab": null
+          },
+          "normal": {
+            "black": "#14191E",
+            "red": "#B43C2A",
+            "green": "#00815B",
+            "yellow": "#CFA518",
+            "blue": "#3065B8",
+            "magenta": "#8818A3",
+            "cyan": "#009399",
+            "white": "#E5E5E5"
+          },
+          "bright": {
+            "black": "#687378",
+            "red": "#FF6148",
+            "green": "#00C984",
+            "yellow": "#FFC531",
+            "blue": "#4F9CFE",
+            "magenta": "#C54FFF",
+            "cyan": "#00CCCC",
+            "white": "#FFFFFF"
+          }
+        },
+        "cursor": {
+          "shape": "beam",
+          "blink": false
+        }
+      },
+      "interaction": {
+        "copyOnSelect": true,
+        "optionDragMode": "normal_selection"
+      }
+    }
+  },
+  "closed_object_paths": [
+    "",
+    "/client_capabilities",
+    "/config",
+    "/config/launch",
+    "/config/connection",
+    "/config/connection/proxyJumpProfiles/0",
+    "/config/connection/portForwards/0",
+    "/config/terminal",
+    "/config/terminal/graphics",
+    "/config/shellIntegration",
+    "/config/appearance",
+    "/config/appearance/font",
+    "/config/appearance/colors",
+    "/config/appearance/colors/special",
+    "/config/appearance/colors/normal",
+    "/config/appearance/colors/bright",
+    "/config/appearance/cursor",
+    "/config/interaction"
+  ],
+  "value_mutation_groups": [
+    {
+      "id": "schema_version",
+      "base": "valid_ssh",
+      "paths": ["/schema_version"],
+      "invalid_values": [null, "1", 0, 2, 1.0, 1.5]
+    },
+    {
+      "id": "contract",
+      "base": "valid_ssh",
+      "paths": ["/contract"],
+      "invalid_values": [null, 1, "ianvs-session-config-v2", "IANVS-SESSION-CONFIG-V1"]
+    },
+    {
+      "id": "booleans",
+      "base": "valid_ssh",
+      "paths": [
+        "/client_capabilities/zmodem",
+        "/config/connection/agentForwarding",
+        "/config/connection/x11Forwarding",
+        "/config/terminal/graphics/enabled",
+        "/config/terminal/dragDropEnabled",
+        "/config/shellIntegration/enabled",
+        "/config/appearance/cursor/blink",
+        "/config/interaction/copyOnSelect"
+      ],
+      "invalid_values": [null, 0, "false"]
+    },
+    {
+      "id": "session_id",
+      "base": "valid_ssh",
+      "paths": ["/session_id"],
+      "invalid_values": [null, 7, "", " leading", "bad space", "bad/segment", "bad\u0000id", {"op": "repeat_string", "value": "a", "count": 129}]
+    },
+    {
+      "id": "display_name",
+      "base": "valid_ssh",
+      "paths": ["/display_name"],
+      "invalid_values": [null, 7, "", " leading", "trailing ", "bad\u0000name", {"op": "repeat_string", "value": "a", "count": 257}]
+    },
+    {
+      "id": "closed_object_types",
+      "base": "valid_ssh",
+      "paths": [
+        "/client_capabilities",
+        "/config",
+        "/config/launch",
+        "/config/connection",
+        "/config/connection/proxyJumpProfiles/0",
+        "/config/connection/portForwards/0",
+        "/config/terminal",
+        "/config/terminal/graphics",
+        "/config/shellIntegration",
+        "/config/appearance",
+        "/config/appearance/font",
+        "/config/appearance/colors",
+        "/config/appearance/colors/special",
+        "/config/appearance/colors/normal",
+        "/config/appearance/colors/bright",
+        "/config/appearance/cursor",
+        "/config/interaction"
+      ],
+      "invalid_values": [null, "object", []]
+    },
+    {
+      "id": "connection_type",
+      "base": "valid_ssh",
+      "paths": ["/config/connection/type"],
+      "invalid_values": [null, 1, "", "LOCAL", "future"]
+    },
+    {
+      "id": "ssh_auth_enums",
+      "base": "valid_ssh",
+      "paths": [
+        "/config/connection/auth",
+        "/config/connection/proxyJumpProfiles/0/auth"
+      ],
+      "invalid_values": [null, 1, "", "publicKey", "future"]
+    },
+    {
+      "id": "ssh_host_key_enums",
+      "base": "valid_ssh",
+      "paths": [
+        "/config/connection/hostKeyPolicy",
+        "/config/connection/proxyJumpProfiles/0/hostKeyPolicy"
+      ],
+      "invalid_values": [null, 1, "", "accept-new", "future"]
+    },
+    {
+      "id": "other_enums",
+      "base": "valid_ssh",
+      "paths": [
+        "/config/connection/portForwards/0/type",
+        "/config/terminal/emulation",
+        "/config/terminal/graphics/advertise",
+        "/config/appearance/cursor/shape",
+        "/config/interaction/optionDragMode"
+      ],
+      "invalid_values": [null, 1, "", "FUTURE", "future"]
+    },
+    {
+      "id": "path_identity_strings",
+      "base": "valid_ssh",
+      "paths": [
+        "/config/connection/host",
+        "/config/connection/proxyJumpProfiles/0/host",
+        "/config/connection/portForwards/0/bindHost",
+        "/config/connection/portForwards/0/targetHost"
+      ],
+      "invalid_values": [null, 1, "", " leading", "trailing ", "bad\u0000value", {"op": "repeat_string", "value": "a", "count": 4097}]
+    },
+    {
+      "id": "user_identity_strings",
+      "base": "valid_ssh",
+      "paths": [
+        "/config/connection/user",
+        "/config/connection/proxyJumpProfiles/0/user"
+      ],
+      "invalid_values": [null, 1, "", " leading", "trailing ", "bad\u0000value", {"op": "repeat_string", "value": "a", "count": 257}]
+    },
+    {
+      "id": "launch_program",
+      "base": "valid_ssh",
+      "paths": ["/config/launch/program"],
+      "invalid_values": [null, 1, "bad\u0000program", {"op": "repeat_string", "value": "a", "count": 4097}]
+    },
+    {
+      "id": "x11_auth_protocol",
+      "base": "valid_ssh",
+      "paths": ["/config/connection/x11AuthProtocol"],
+      "invalid_values": [null, 1, "", " leading", "bad\u0000protocol", {"op": "repeat_string", "value": "a", "count": 129}]
+    },
+    {
+      "id": "nullable_path_strings",
+      "base": "valid_ssh",
+      "paths": [
+        "/config/launch/cwd",
+        "/config/connection/knownHostsFile",
+        "/config/connection/proxyCommand",
+        "/config/connection/proxyJump",
+        "/config/connection/agentSocket",
+        "/config/connection/x11TargetHost",
+        "/config/connection/proxyJumpProfiles/0/knownHostsFile"
+      ],
+      "invalid_values": [1, false, "", " leading", "trailing ", "bad\u0000path", {"op": "repeat_string", "value": "a", "count": 4097}]
+    },
+    {
+      "id": "nullable_secret_strings",
+      "base": "valid_ssh",
+      "paths": [
+        "/config/connection/password",
+        "/config/connection/privateKeyPassphrase",
+        "/config/connection/proxyJumpProfiles/0/password",
+        "/config/connection/proxyJumpProfiles/0/privateKeyPassphrase"
+      ],
+      "invalid_values": [1, false, "", " leading", "trailing ", "bad\u0000secret", {"op": "repeat_string", "value": "a", "count": 65537}]
+    },
+    {
+      "id": "ports",
+      "base": "valid_ssh",
+      "paths": [
+        "/config/connection/port",
+        "/config/connection/proxyJumpProfiles/0/port",
+        "/config/connection/portForwards/0/bindPort",
+        "/config/connection/portForwards/0/targetPort"
+      ],
+      "invalid_values": [null, "22", 1.5, -1, 0, 65536]
+    },
+    {
+      "id": "connect_timeouts",
+      "base": "valid_ssh",
+      "paths": [
+        "/config/connection/connectTimeoutSeconds",
+        "/config/connection/proxyJumpProfiles/0/connectTimeoutSeconds"
+      ],
+      "invalid_values": [null, "10", 1.5, -1, 0, 121]
+    },
+    {
+      "id": "keepalive_seconds",
+      "base": "valid_ssh",
+      "paths": [
+        "/config/connection/keepaliveSeconds",
+        "/config/connection/proxyJumpProfiles/0/keepaliveSeconds"
+      ],
+      "invalid_values": [null, "0", 1.5, -1, 86401]
+    },
+    {
+      "id": "keepalive_counts",
+      "base": "valid_ssh",
+      "paths": [
+        "/config/connection/keepaliveCountMax",
+        "/config/connection/proxyJumpProfiles/0/keepaliveCountMax"
+      ],
+      "invalid_values": [null, "3", 1.5, -1, 0, 101]
+    },
+    {
+      "id": "x11_nonnegative_ranges",
+      "base": "valid_ssh",
+      "paths": [
+        "/config/connection/x11TargetPort",
+        "/config/connection/x11ScreenNumber"
+      ],
+      "invalid_values": [null, "0", 1.5, -1, 65536]
+    },
+    {
+      "id": "scrollback_range",
+      "base": "valid_ssh",
+      "paths": ["/config/terminal/scrollbackLines"],
+      "invalid_values": [null, "1234", 1.5, -1, 0, 100001]
+    },
+    {
+      "id": "graphics_ranges",
+      "base": "valid_ssh",
+      "paths": [
+        "/config/terminal/graphics/maxImageBytes",
+        "/config/terminal/graphics/maxTotalBytes"
+      ],
+      "invalid_values": [null, "1024", 1.5, -1, 0, 1073741825]
+    },
+    {
+      "id": "font_numbers",
+      "base": "valid_ssh",
+      "paths": ["/config/appearance/font/size"],
+      "invalid_values": [null, "13", -1, 0, 512.1]
+    },
+    {
+      "id": "line_height_numbers",
+      "base": "valid_ssh",
+      "paths": ["/config/appearance/font/lineHeight"],
+      "invalid_values": [null, "1.4", -1, 0, 10.1]
+    },
+    {
+      "id": "launch_args",
+      "base": "valid_ssh",
+      "paths": ["/config/launch/args"],
+      "invalid_values": [null, {}, [1], ["bad\u0000arg"], {"op": "repeat_array", "value": "arg", "count": 129}, [{"op": "repeat_string", "value": "a", "count": 65537}]]
+    },
+    {
+      "id": "aggregate_encoded_size",
+      "base": "valid_ssh",
+      "paths": ["/config/launch/args"],
+      "invalid_values": [{"op": "repeat_array", "value": {"op": "repeat_string", "value": "a", "count": 65536}, "count": 17}]
+    },
+    {
+      "id": "environment_map",
+      "base": "valid_ssh",
+      "paths": ["/config/launch/env"],
+      "invalid_values": [null, [], {"": "x"}, {" KEY": "x"}, {"BAD=KEY": "x"}, {"KEY": 1}, {"KEY": "bad\u0000value"}, {"op": "oversized_string_map", "count": 257}]
+    },
+    {
+      "id": "private_key_lists",
+      "base": "valid_ssh",
+      "paths": [
+        "/config/connection/privateKeys",
+        "/config/connection/proxyJumpProfiles/0/privateKeys"
+      ],
+      "invalid_values": [null, {}, [1], [""], [" leading"], ["bad\u0000key"], {"op": "repeat_array", "value": "/key", "count": 129}, [{"op": "repeat_string", "value": "a", "count": 4097}]]
+    },
+    {
+      "id": "object_array_collections",
+      "base": "valid_ssh",
+      "paths": [
+        "/config/connection/proxyJumpProfiles",
+        "/config/connection/portForwards"
+      ],
+      "invalid_values": [null, {}, [1], {"op": "repeat_current_array_item", "count": 129}]
+    },
+    {
+      "id": "font_family",
+      "base": "valid_ssh",
+      "paths": ["/config/appearance/font/family"],
+      "invalid_values": [null, 1, "", " leading", "bad\u0000font", {"op": "repeat_string", "value": "a", "count": 65537}]
+    },
+    {
+      "id": "font_fallback",
+      "base": "valid_ssh",
+      "paths": ["/config/appearance/font/fallback"],
+      "invalid_values": [null, {}, [1], [""], [" leading"], ["bad\u0000font"], {"op": "repeat_array", "value": "font", "count": 33}, [{"op": "repeat_string", "value": "a", "count": 65537}]]
+    },
+    {
+      "id": "nullable_colors",
+      "base": "valid_ssh",
+      "paths": [
+        "/config/appearance/colors/special/foreground",
+        "/config/appearance/colors/special/background",
+        "/config/appearance/colors/special/cursor",
+        "/config/appearance/colors/special/selection",
+        "/config/appearance/colors/special/tab",
+        "/config/appearance/colors/normal/black",
+        "/config/appearance/colors/normal/red",
+        "/config/appearance/colors/normal/green",
+        "/config/appearance/colors/normal/yellow",
+        "/config/appearance/colors/normal/blue",
+        "/config/appearance/colors/normal/magenta",
+        "/config/appearance/colors/normal/cyan",
+        "/config/appearance/colors/normal/white",
+        "/config/appearance/colors/bright/black",
+        "/config/appearance/colors/bright/red",
+        "/config/appearance/colors/bright/green",
+        "/config/appearance/colors/bright/yellow",
+        "/config/appearance/colors/bright/blue",
+        "/config/appearance/colors/bright/magenta",
+        "/config/appearance/colors/bright/cyan",
+        "/config/appearance/colors/bright/white"
+      ],
+      "invalid_values": [1, false, "", "#FFF", "#GG0000", "FFFFFF", "#FFFFFF00"]
+    },
+    {
+      "id": "x11_cookie",
+      "base": "valid_ssh",
+      "paths": ["/config/connection/x11AuthCookie"],
+      "invalid_values": [1, false, "", "00112233445566778899aabbccddeef", "00112233445566778899aabbccddeeff0", "00112233445566778899aabbccddeefg"]
+    },
+    {
+      "id": "cross_field_invariants",
+      "base": "valid_ssh",
+      "paths": [
+        "/config/terminal/graphics/maxImageBytes",
+        "/config/connection/x11Forwarding",
+        "/config/connection/portForwards/0/type"
+      ],
+      "invalid_values": [4096, true, "dynamic"]
+    }
+  ]
+}

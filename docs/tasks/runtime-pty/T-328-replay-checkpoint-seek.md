@@ -9,7 +9,7 @@ preserving compatibility, Runtime Event ordering and realtime scheduling.
 ## Scope
 
 - Add public ReplayBackend seek capability, duration and per-session offset.
-- Require both Recording v2 checkpoint markers and native checkpoint support.
+- Require both current recording schema checkpoint markers and native checkpoint support.
 - Select the latest materialized checkpoint at or before the target.
 - Restore native terminal state, then synchronously replay events through the
   target offset with inclusive same-timestamp semantics.
@@ -23,7 +23,7 @@ preserving compatibility, Runtime Event ordering and realtime scheduling.
 ## Non-goals
 
 - Do not add pause, scrubber UI, recording-library UI or product wiring.
-- Do not seek a v1 recording or a legacy delegate without checkpoint support.
+- Do not seek recordings or delegates without checkpoint support.
 - Do not serialize native snapshots or guarantee restore after native eviction.
 - Do not replay historical user input or enable Host side effects.
 - Do not add graphic asset bundles or cross-process instant seek.
@@ -35,7 +35,7 @@ preserving compatibility, Runtime Event ordering and realtime scheduling.
 - `packages/ianvs_terminal/test/terminal_replay_backend_test.dart`
 - `example/integration_test/ianvs_terminal_smoke_test.dart`
 - `example/integration_test/real_pty_acceptance_test.dart`
-- `docs/recording/FORMAT_V2.md`
+- `docs/recording/FORMAT_CURRENT.md`
 - `docs/tasks/runtime-pty/T-328-replay-checkpoint-seek.md`
 - `docs/tasks/README.md`
 - `docs/ROADMAP.md`

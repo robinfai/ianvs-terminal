@@ -8,16 +8,15 @@ explains the active lane and the product boundary that all new work must keep.
 
 The single active lane is **`runtime-contract-stability`**.
 
-Its purpose is to keep the native/Dart boundary versioned, capability-driven
-and backward compatible. Each wire slice must have explicit size/version
-bounds, new-Dart/old-native fallback evidence and old-Dart/new-native evidence
-before any legacy symbol is considered for removal.
+Its purpose is to keep one exact current native/Dart boundary. Each wire slice
+has explicit size/version bounds, rejects missing, unknown, case-aliased and
+unsupported shapes, and has no predecessor symbol or downgrade route.
 
-T-318 through T-330 closed the capability query, Event Envelope,
+The current boundary consists of Runtime Capabilities, Runtime Event Batch,
 SessionConfig, Session Request/Response, Host Request/Response, Diagnostic
-Event, Terminal Frame Packet and Graphic Asset Packet slices. Other Host
-operations, file-download migration, recording wire changes and any old-symbol
-removal remain separately scoped.
+Event, Terminal Frame Packet and Graphic Asset Packet v1. Historical migration
+tasks are implementation history only and cannot authorize a predecessor wire
+or exported symbol.
 
 ## Product scope convergence
 
@@ -32,8 +31,8 @@ T-331 supersedes the current-product claims made by T-312 through T-317:
 - recordings belong to an independent flat **Recording Library**;
 - Project Workspace identity, Recent Workspace and project switching are not
   current capabilities;
-- legacy Workspace/config/recording structures remain read-only migration
-  sources and are not deleted;
+- unsupported Workspace/config/recording structures are outside the current
+  product contract; runtime code neither imports nor deletes them;
 - completion/wiring diagnostics are debug-only; diagnostics export remains a
   user capability.
 
@@ -42,9 +41,10 @@ The authoritative boundary is
 decision is
 [`ADR-0003`](DECISIONS/ADR-0003-terminal-scope-convergence.md).
 
-Historical task documents T-312 through T-317 remain unchanged so their old
-implementation and verification evidence is not rewritten. They do not
-override T-331 or the current scope document.
+Historical task documents T-312 through T-317 remain unchanged as archival
+implementation evidence only. Their compatibility and migration descriptions
+are not product authority and do not override T-331 or the current scope
+document.
 
 ## Current invariants
 
@@ -53,17 +53,18 @@ override T-331 or the current scope document.
 3. Layout restoration launches fresh PTYs and never restores a dead runtime
    state as if it were launch intent.
 4. Environment values and recording paths never enter Relaunch Spec.
-5. SSH is deferred. A future implementation extends Profile/Session and does
-   not restore Project Workspace.
+5. SSH session creation uses the same exact SessionConfig v1 route and also
+   requires the current native SSH capability.
 6. Plugin runtime/marketplace, cloud sync, collaboration, project explorer and
    Git/IDE context remain outside the active lane.
 7. Linux/Windows product claims remain blocked on real desktop-host evidence.
 
 ## Execution order
 
-1. Preserve the complete compatibility and real-PTY gates.
-2. Implement one bounded runtime-contract slice per task.
-3. Add old/new compatibility tests before changing a preferred wire path.
+1. Preserve the exact-current architecture and real-PTY gates.
+2. Implement one bounded runtime-contract slice per task without a downgrade
+   route.
+3. Share negative shape corpora across Dart, Rust and FFI boundaries.
 4. Keep the Terminal Layout/Relaunch/Recording separation protected by source,
    repository, controller and Widget tests.
 5. Run focused regressions, then the complete `make verify` entrypoint.

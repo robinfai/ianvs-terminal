@@ -8,6 +8,7 @@ VENDORED_ZMODEM_DIR="$ROOT_DIR/native/vendor/zmodem2"
 PTY_DIR="$ROOT_DIR/packages/ianvs_pty"
 TERMINAL_DIR="$ROOT_DIR/packages/ianvs_terminal"
 EXAMPLE_DIR="$ROOT_DIR/example"
+BACKEND_DIR="$ROOT_DIR/backend"
 VERIFY_FLUTTER_TERMINAL_SKIP_MACOS_INTEGRATION="${VERIFY_FLUTTER_TERMINAL_SKIP_MACOS_INTEGRATION:-0}"
 VERIFY_FLUTTER_TERMINAL_RUN_NIGHTLY_BENCH="${VERIFY_FLUTTER_TERMINAL_RUN_NIGHTLY_BENCH:-0}"
 
@@ -19,9 +20,17 @@ if ! command -v rustup >/dev/null 2>&1 || \
 fi
 
 "$ROOT_DIR/tools/build_core.sh"
+"$ROOT_DIR/tools/verify_generated_contracts.sh"
 
 python3 "$ROOT_DIR/tools/validate_osc_protocol_corpus.py"
 python3 "$ROOT_DIR/tools/osc_semantic_probe.py" --self-test
+
+(
+  cd "$BACKEND_DIR"
+  test -z "$(gofmt -l .)"
+  go vet ./...
+  go test -race ./...
+)
 
 (
   cd "$VENDORED_TERMINAL_CORE_DIR"
@@ -69,6 +78,9 @@ python3 "$ROOT_DIR/tools/osc_semantic_probe.py" --self-test
 (
   cd "$ROOT_DIR"
   dart test test/docs_contract_test.dart
+  dart test \
+    test/apple_build_environment_contract_test.dart \
+    test/openapi_document_test.dart
 )
 
 (
@@ -96,25 +108,22 @@ fi
 
 (
   cd "$EXAMPLE_DIR"
-  EXAMPLE_CI_TEST_TARGETS=(
-    test/app
-    test/config
-    test/layout
-    test/platform
-    test/policies
-    test/preferences
-    test/productivity
-    test/profiles
-    test/recording
-    test/sessions
-    test/shell
-    test/ssh
-    test/terminal
-    test/terminal_input_controller_test.dart
-    test/ui
-    test/visual
-    test/widget_test.dart
+  EXAMPLE_CI_TEST_TARGETS=()
+  while IFS= read -r test_target; do
+    EXAMPLE_CI_TEST_TARGETS+=("$test_target")
+  done < <(
+    find test -type f -name '*_test.dart' \
+      ! -path 'test/benchmarks/cat_log_benchmark_test.dart' \
+      -print | LC_ALL=C sort
   )
+  if [ "${#EXAMPLE_CI_TEST_TARGETS[@]}" -eq 0 ]; then
+    echo "No example tests were discovered." >&2
+    exit 1
+  fi
+  echo "Discovered ${#EXAMPLE_CI_TEST_TARGETS[@]} example test files."
+  # The cat-log benchmark requires a captured trace and is exercised by
+  # tools/cat_log_benchmark.sh. Every self-contained test, including newly
+  # added test/data and test/pty suites, is discovered automatically here.
   flutter test "${EXAMPLE_CI_TEST_TARGETS[@]}"
 )
 

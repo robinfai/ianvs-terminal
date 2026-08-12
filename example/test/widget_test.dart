@@ -23,6 +23,7 @@ import 'support/memory_app_preferences_repository.dart';
 import 'support/memory_local_terminal_config_repository.dart';
 import 'support/memory_paste_history_repository.dart';
 import 'support/memory_profile_repository.dart';
+import 'support/no_io_local_session_recording_repository.dart';
 
 class _EventfulPtyBackend extends FakePtyBackend {
   final Map<String, List<PtyEvent>> _queuedEvents = <String, List<PtyEvent>>{};
@@ -63,9 +64,6 @@ class _SshEventfulPtyBackend extends _EventfulPtyBackend
       });
 
   @override
-  bool get supportsSessionConfigV1 => true;
-
-  @override
   String createSessionV1(String sessionConfigV1Json) {
     return createSession(sessionConfigV1Json);
   }
@@ -92,11 +90,14 @@ class _DelayedNewTabPtyBackend extends FakePtyBackend {
   final Set<String> _placeholderFramesEmitted = <String>{};
 
   @override
-  String? takeFrameDiffJson(String sessionId) {
+  Uint8List? takeFramePacketV1Protobuf(
+    String sessionId, {
+    required int? afterSequence,
+  }) {
     if (sessionId == '2' &&
         emitPlaceholderFrame &&
         _placeholderFramesEmitted.add(sessionId)) {
-      return jsonEncode(<String, Object?>{
+      enqueueFrame(sessionId, <String, Object?>{
         'rows': <Object?>[],
         'cursor': <String, Object?>{'row': 0, 'col': 0, 'visible': true},
         'selection': null,
@@ -110,11 +111,18 @@ class _DelayedNewTabPtyBackend extends FakePtyBackend {
         'window_title': null,
         'window_icon_name': null,
       });
+      return super.takeFramePacketV1Protobuf(
+        sessionId,
+        afterSequence: afterSequence,
+      );
     }
     if (sessionId == '2' && !releaseNewTabFrame) {
       return null;
     }
-    return super.takeFrameDiffJson(sessionId);
+    return super.takeFramePacketV1Protobuf(
+      sessionId,
+      afterSequence: afterSequence,
+    );
   }
 }
 
@@ -170,6 +178,9 @@ Future<void> _pumpShellScreen(
         ),
         localTerminalConfigRepositoryProvider.overrideWithValue(
           MemoryLocalTerminalConfigRepository(null),
+        ),
+        localSessionRecordingRepositoryProvider.overrideWithValue(
+          noIoLocalSessionRecordingRepository(),
         ),
         if (notificationSender != null)
           shellNotificationSenderProvider.overrideWithValue(notificationSender),

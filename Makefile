@@ -5,6 +5,7 @@ ROOT_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 EXAMPLE_DIR := $(ROOT_DIR)/example
 PTY_PACKAGE_DIR := $(ROOT_DIR)/packages/ianvs_pty
 TERMINAL_PACKAGE_DIR := $(ROOT_DIR)/packages/ianvs_terminal
+BACKEND_DIR := $(ROOT_DIR)/backend
 
 FLUTTER ?= flutter
 DART ?= dart
@@ -18,7 +19,8 @@ INSTALLED_APP := $(INSTALL_DIR)/$(APP_NAME).app
 .PHONY: \
 	help bootstrap format format-check analyze test test-profiles verify \
 	run run-macos build build-macos sign-macos install install-macos \
-	build-install-macos clean
+	build-install-macos clean \
+	backend-format backend-test backend-run backend-generate-key
 
 help: ## Show the available commands.
 	@printf '%s\n' \
@@ -32,6 +34,10 @@ help: ## Show the available commands.
 		'  test                Run workspace unit and widget tests' \
 		'  test-profiles       Run only the Profile Editor test suite' \
 		'  verify              Run the repository verification script' \
+		'  backend-format       Format Go data API sources' \
+		'  backend-test         Run Go data API tests' \
+		'  backend-run          Run the local Go data API' \
+		'  backend-generate-key Generate a client-owned data key' \
 		'' \
 		'macOS:' \
 		'  run                  Run the example app on macOS' \
@@ -70,6 +76,18 @@ test-profiles: ## Run only the Profile Editor tests.
 
 verify: ## Run the repository's complete verification entrypoint.
 	"$(ROOT_DIR)/tools/verify_flutter_terminal.sh"
+
+backend-format: ## Format Go data API sources.
+	cd "$(BACKEND_DIR)" && gofmt -w .
+
+backend-test: ## Run Go data API tests.
+	cd "$(BACKEND_DIR)" && go test ./...
+
+backend-run: ## Run the local Go data API.
+	cd "$(BACKEND_DIR)" && go run ./cmd/ianvs-api serve
+
+backend-generate-key: ## Generate a client-owned data encryption key.
+	cd "$(BACKEND_DIR)" && go run ./cmd/ianvs-api generate-key
 
 run: run-macos
 

@@ -40,14 +40,12 @@ TerminalRecording _recording() {
   const sessionId = 'search-index';
   return TerminalRecording(
     metadata: TerminalRecordingMetadata(
-      schemaVersion: terminalRecordingSemanticSchemaVersion,
       sessionId: sessionId,
       createdAtUtc: DateTime.utc(2026, 7, 24),
       inputPolicy: TerminalRecordingInputPolicy.redact,
     ),
     events: <TerminalRecordingEvent>[
       TerminalRecordingEvent.sessionStarted(
-        schemaVersion: terminalRecordingSemanticSchemaVersion,
         sessionId: sessionId,
         sequence: 0,
         monotonicOffset: Duration.zero,
@@ -56,14 +54,12 @@ TerminalRecording _recording() {
         rows: 24,
       ),
       TerminalRecordingEvent.ptyOutput(
-        schemaVersion: terminalRecordingSemanticSchemaVersion,
         sessionId: sessionId,
         sequence: 1,
         monotonicOffset: const Duration(milliseconds: 1),
         bytes: utf8.encode('hel'),
       ),
       TerminalRecordingEvent.ptyOutput(
-        schemaVersion: terminalRecordingSemanticSchemaVersion,
         sessionId: sessionId,
         sequence: 2,
         monotonicOffset: const Duration(milliseconds: 2),

@@ -21,7 +21,7 @@ themselves.
 | Runtime bindings are registered | `ShellScreen` and `SessionController` callbacks | `shell_action_runtime_bindings.dart` | Missing binding check returns empty for the supported user-facing action set. |
 | Shortcut bridge owns app shortcuts | `ShellScreen` focus/input path | `local_terminal_key_event_resolver.dart`, `shell_shortcut_bridge.dart` | App shortcuts trigger actions only when allowed and do not write unintended characters to the terminal. |
 | Command menu shows disabled reasons | Command menu UI | `shell_command_menu_model.dart`, `shell_command_menu_adapter.dart`, `shell_command_menu_diagnostics.dart` | Disabled actions display user-readable reasons, including shell-integration-disabled and no-pane/no-tab cases. |
-| Config loading feeds runtime state | App startup/session creation | `local_terminal_config_loader.dart`, `local_terminal_config_preferences_adapter.dart` | Old profiles/preferences remain readable and local config changes affect the intended hot-reload/new-session boundaries. |
+| Config loading feeds runtime state | App startup/session creation | `local_terminal_config_loader.dart` | Exact-current config changes affect the intended hot-reload/new-session boundaries; noncurrent files fail closed without mutation. |
 
 ## P2 workspace wiring
 

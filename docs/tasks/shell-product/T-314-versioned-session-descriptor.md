@@ -1,5 +1,9 @@
 # T-314 Versioned Local Session Descriptor
 
+> Archival task record superseded by T-331. Workspace predecessor formats are
+> not product inputs: current production code does not discover, migrate,
+> rewrite or delete them.
+
 ## Goal
 
 Replace the Workspace v1 `profileId`/`cwd` relaunch intent with an independent, versioned

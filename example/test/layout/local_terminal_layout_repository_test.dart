@@ -7,7 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('LocalTerminalLayoutRepository', () {
-    test('returns null when no current or legacy layout exists', () async {
+    test('returns null when no current layout exists', () async {
       final directory = await Directory.systemTemp.createTemp(
         'ianvs-terminal-layout-missing',
       );
@@ -52,59 +52,29 @@ void main() {
       );
     });
 
-    test('migrates the legacy alias once and leaves it unchanged', () async {
+    test('does not discover or mutate predecessor workspace files', () async {
       final directory = await Directory.systemTemp.createTemp(
-        'ianvs-terminal-layout-legacy-alias',
+        'ianvs-terminal-layout-predecessor',
       );
       addTearDown(() => directory.delete(recursive: true));
-      final legacyFile = File('${directory.path}/ianvs_workspace_layout.json');
-      final legacyPayload = jsonEncode(_legacyLayout('/legacy-repo'));
-      await legacyFile.writeAsString(legacyPayload);
+      final predecessorFiles = <File>[
+        File('${directory.path}/ianvs_workspace_layout.json'),
+        File('${directory.path}/ianvs_workspace_index.json'),
+        File('${directory.path}/ianvs_workspaces/workspace-ZGVmYXVsdA.json'),
+      ];
+      const payload = '{"schemaVersion":3,"tabs":[]}';
+      for (final file in predecessorFiles) {
+        await file.parent.create(recursive: true);
+        await file.writeAsString(payload);
+      }
 
-      final loaded = await _repository(directory).load();
-
-      expect(loaded!.activeTab!.activeRelaunchSpec!.cwd, '/legacy-repo');
-      expect(await legacyFile.readAsString(), legacyPayload);
-      final currentFile = File('${directory.path}/ianvs_terminal_layout.json');
-      final current =
-          jsonDecode(await currentFile.readAsString()) as Map<String, Object?>;
-      expect(current['contract'], terminalLayoutContract);
-      expect(current.toString(), isNot(contains('projectPath')));
-      expect(current.toString(), isNot(contains('recordingPath')));
-      expect(current.toString(), isNot(contains('secret-value')));
-    });
-
-    test('migrates the current entry from the legacy collection', () async {
-      final directory = await Directory.systemTemp.createTemp(
-        'ianvs-terminal-layout-legacy-collection',
-      );
-      addTearDown(() => directory.delete(recursive: true));
-      const workspaceId = 'project-legacy';
-      final encodedId = base64Url
-          .encode(utf8.encode(workspaceId))
-          .replaceAll('=', '');
-      await File('${directory.path}/ianvs_workspace_index.json').writeAsString(
-        jsonEncode(<String, Object?>{
-          'schemaVersion': 1,
-          'currentWorkspaceId': workspaceId,
-          'recent': <Object?>[
-            <String, Object?>{'id': workspaceId},
-          ],
-        }),
-      );
-      final collectionFile = File(
-        '${directory.path}/ianvs_workspaces/workspace-$encodedId.json',
-      );
-      await collectionFile.parent.create(recursive: true);
-      await collectionFile.writeAsString(jsonEncode(_legacyLayout('/project')));
-
-      final loaded = await _repository(directory).load();
-
-      expect(loaded!.activeTab!.activeRelaunchSpec!.cwd, '/project');
-      expect(collectionFile.existsSync(), isTrue);
+      expect(await _repository(directory).load(), isNull);
+      for (final file in predecessorFiles) {
+        expect(await file.readAsString(), payload);
+      }
       expect(
         File('${directory.path}/ianvs_terminal_layout.json').existsSync(),
-        isTrue,
+        isFalse,
       );
     });
 
@@ -174,36 +144,4 @@ TerminalLayoutTab _tab(String id, String cwd) {
       relaunchSpec: TerminalRelaunchSpec(profileId: 'default', cwd: cwd),
     ),
   );
-}
-
-Map<String, Object?> _legacyLayout(String cwd) {
-  return <String, Object?>{
-    'schemaVersion': 3,
-    'id': 'project-legacy',
-    'name': 'Legacy Project',
-    'projectPath': '/legacy/project',
-    'activeTabId': 'tab-1',
-    'tabs': <Object?>[
-      <String, Object?>{
-        'id': 'tab-1',
-        'activePaneId': 'pane-1',
-        'root': <String, Object?>{
-          'id': 'pane-1',
-          'type': 'leaf',
-          'sessionDescriptor': <String, Object?>{
-            'schemaVersion': 1,
-            'id': 'descriptor-1',
-            'profileId': 'default',
-            'cwd': cwd,
-            'title': 'Legacy title',
-            'environment': <String, Object?>{
-              'keys': <String>['TOKEN'],
-              'values': <String, String>{'TOKEN': 'secret-value'},
-            },
-            'recordingPath': '/recordings/legacy.ndjson',
-          },
-        },
-      },
-    ],
-  };
 }

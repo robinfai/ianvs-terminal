@@ -755,25 +755,17 @@ String _terminalPaneSplitNodeId(String firstSessionId, String secondSessionId) {
 
 class TerminalShellPromptMark {
   const TerminalShellPromptMark({
-    this.globalLine,
-    this.legacyScrollbackOffset,
+    required this.globalLine,
     this.zoneId,
     this.command,
     this.cwd,
     this.promptKind,
     this.aid,
     this.parentAid,
-  }) : assert(
-         globalLine != null || legacyScrollbackOffset != null,
-         'A prompt mark needs a global line or a legacy scrollback offset.',
-       );
+  });
 
   /// Stable absolute history coordinate emitted by current native frames.
-  final int? globalLine;
-
-  /// Snapshot-relative coordinate retained only for frames produced before
-  /// `global_bottom_row` was added to the wire format.
-  final int? legacyScrollbackOffset;
+  final int globalLine;
   final int? zoneId;
   final String? command;
   final String? cwd;
@@ -790,18 +782,10 @@ int? terminalPromptMarkScrollbackOffset(
   if (scrollbackMaxOffset < 0) {
     return null;
   }
-  final globalLine = mark.globalLine;
-  if (globalBottomRow != null &&
-      globalBottomRow >= 0 &&
-      globalLine != null &&
-      globalLine >= 0) {
-    return (globalBottomRow - globalLine).clamp(0, scrollbackMaxOffset);
+  if (globalBottomRow != null && globalBottomRow >= 0 && mark.globalLine >= 0) {
+    return (globalBottomRow - mark.globalLine).clamp(0, scrollbackMaxOffset);
   }
-  final legacyOffset = mark.legacyScrollbackOffset;
-  if (legacyOffset == null || legacyOffset < 0) {
-    return null;
-  }
-  return legacyOffset.clamp(0, scrollbackMaxOffset);
+  return null;
 }
 
 int? terminalPromptGlobalLineFromScrollbackOffset({

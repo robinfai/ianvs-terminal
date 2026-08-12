@@ -14,6 +14,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart' as core;
 
+import '../support/current_terminal_frame_fixture.dart';
 import '../support/fake_pty_backend.dart';
 import '../support/test_runtime.dart';
 
@@ -1034,7 +1035,7 @@ void main() {
     (tester) async {
       final controller = TerminalViewportController()
         ..updateFrame(
-          TerminalFrameDiff.fromJson(<String, Object?>{
+          terminalFrameFixtureFromJson(<String, Object?>{
             'frame_kind': 'snapshot',
             'rows': <Object?>[
               <String, Object?>{
@@ -1095,7 +1096,7 @@ void main() {
       expect(_resolvedRowText(renderObject, 2), 'gamma');
 
       controller.updateFrame(
-        TerminalFrameDiff.fromJson(<String, Object?>{
+        terminalFrameFixtureFromJson(<String, Object?>{
           'frame_kind': 'delta',
           'rows': <Object?>[
             <String, Object?>{

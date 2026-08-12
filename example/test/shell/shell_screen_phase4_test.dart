@@ -24,6 +24,7 @@ import '../support/fake_pty_backend.dart';
 import '../support/memory_app_preferences_repository.dart';
 import '../support/memory_paste_history_repository.dart';
 import '../support/memory_profile_repository.dart';
+import '../support/no_io_local_session_recording_repository.dart';
 
 Future<void> _pumpShellScreen(
   WidgetTester tester, {
@@ -44,6 +45,7 @@ Future<void> _pumpShellScreen(
   ShellUserAttentionBridge? userAttentionBridge,
   bool? shellAnimationsEnabled,
   ShellClock? clock,
+  ValueListenable<bool>? shellMounted,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -62,6 +64,9 @@ Future<void> _pumpShellScreen(
         ),
         localTerminalConfigRepositoryProvider.overrideWithValue(
           localConfigRepository ?? _MemoryLocalTerminalConfigRepository(null),
+        ),
+        localSessionRecordingRepositoryProvider.overrideWithValue(
+          noIoLocalSessionRecordingRepository(),
         ),
         if (clipboardPaste != null)
           sessionClipboardPasteProvider.overrideWithValue(clipboardPaste),
@@ -105,7 +110,13 @@ Future<void> _pumpShellScreen(
           splashFactory: NoSplash.splashFactory,
         ),
         themeMode: themeMode,
-        home: const ShellScreen(),
+        home: shellMounted == null
+            ? const ShellScreen()
+            : ValueListenableBuilder<bool>(
+                valueListenable: shellMounted,
+                builder: (context, mounted, _) =>
+                    mounted ? const ShellScreen() : const SizedBox.shrink(),
+              ),
       ),
     ),
   );
@@ -319,15 +330,16 @@ void main() {
   testWidgets('shell applies configured terminal viewport padding', (
     tester,
   ) async {
-    const preferences = TerminalAppPreferencesDocument(
-      appearance: TerminalAppAppearance(terminalViewportPadding: 20),
-    );
     final fakeBindings = FakePtyBackend();
 
     await _pumpShellScreen(
       tester,
       fakeBindings: fakeBindings,
-      preferences: preferences,
+      localConfigRepository: _MemoryLocalTerminalConfigRepository(
+        const LocalTerminalConfigDocument(
+          appearance: TerminalAppAppearance(terminalViewportPadding: 20),
+        ),
+      ),
     );
 
     final viewport = tester.widget<TerminalViewport>(
@@ -538,10 +550,12 @@ void main() {
         'default-osc1337-report-variable-forget-user.gitBranch',
       ),
     );
+    await tester.ensureVisible(forgetUser);
     await tester.tap(forgetUser);
     await tester.pump();
     expect(find.text('1 remembered · 1 allowed · 0 denied'), findsOneWidget);
     expect(find.text('user.gitBranch'), findsNothing);
+    await tester.ensureVisible(forget);
     await tester.tap(forget);
     await tester.pumpAndSettle();
     expect(find.text('No remembered decisions'), findsOneWidget);
@@ -3015,6 +3029,8 @@ void main() {
       addTearDown(tester.view.resetPhysicalSize);
       final fakeBindings = FakePtyBackend();
       fakeBindings.zmodemRecoveryPath = '/chosen/.late-recovery.part';
+      final shellMounted = ValueNotifier<bool>(true);
+      addTearDown(shellMounted.dispose);
       const channel = MethodChannel('app/window_bridge');
       final revealCompleter = Completer<bool>();
       tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
@@ -3032,7 +3048,11 @@ void main() {
         ),
       );
 
-      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+      await _pumpShellScreen(
+        tester,
+        fakeBindings: fakeBindings,
+        shellMounted: shellMounted,
+      );
       final container = ProviderScope.containerOf(
         tester.element(find.byType(ShellScreen)),
       );
@@ -3071,7 +3091,10 @@ void main() {
 
       await tester.tap(find.text('Reveal'));
       await tester.pump();
-      await tester.pumpWidget(const SizedBox.shrink());
+      shellMounted.value = false;
+      await tester.pump();
+      expect(find.byType(ShellScreen), findsNothing);
+      expect(runtime.shutdownHasStarted, isFalse);
       revealCompleter.complete(true);
       await tester.pump();
       await tester.pump();

@@ -1,16 +1,59 @@
-import 'dart:convert' show jsonEncode;
+import 'dart:convert' show jsonDecode, jsonEncode;
 import 'dart:io';
 
 import 'package:path_provider/path_provider.dart';
 
 import '../../platform/corrupt_file_quarantine.dart';
 import '../../platform/local_json_file.dart';
+import '../persistence/versioned_document.dart';
 import '../policies/local_terminal_policy_models.dart';
 
 typedef PasteHistoryDirectoryResolver = Future<Directory> Function();
 
+abstract class PasteHistoryRepositoryPort {
+  const PasteHistoryRepositoryPort();
+
+  Future<PasteHistoryDocument?> load();
+
+  Future<void> save(PasteHistoryDocument document);
+
+  Future<VersionedDocument<PasteHistoryDocument?>> loadVersioned() async {
+    return VersionedDocument<PasteHistoryDocument?>.local(await load());
+  }
+
+  Future<VersionedDocument<PasteHistoryDocument>> saveVersioned(
+    VersionedDocument<PasteHistoryDocument> document,
+  ) async {
+    await save(document.value);
+    return document.withRevision(null);
+  }
+
+  Future<VersionedDocument<PasteHistoryDocument>> clearDiskHistoryVersioned(
+    VersionedDocument<PasteHistoryDocument?> document,
+  ) async {
+    await clearDiskHistory();
+    return const VersionedDocument<PasteHistoryDocument>.local(
+      PasteHistoryDocument(),
+    );
+  }
+
+  Future<void> clearDiskHistory();
+}
+
 const int maxPasteHistoryEntries = defaultLocalTerminalPasteHistoryEntries;
 const int _maxPersistedPasteHistoryEntriesToScan = maxPasteHistoryEntries * 4;
+const int pasteHistoryCurrentSchemaVersion = 1;
+
+final class UnsupportedPasteHistorySchemaVersion implements Exception {
+  const UnsupportedPasteHistorySchemaVersion(this.version);
+
+  final Object? version;
+
+  @override
+  String toString() =>
+      'Unsupported paste history schema version: $version; expected '
+      '$pasteHistoryCurrentSchemaVersion.';
+}
 
 enum PasteHistoryKind {
   copy,
@@ -62,6 +105,7 @@ class PasteHistoryDocument {
 
   Map<String, Object?> toJson() {
     return {
+      'schema_version': pasteHistoryCurrentSchemaVersion,
       'entries': _normalizedEntries(
         entries,
       ).map((entry) => entry.toJson()).toList(),
@@ -71,6 +115,10 @@ class PasteHistoryDocument {
   String encode() => jsonEncode(toJson());
 
   static PasteHistoryDocument fromJson(Map<String, Object?> json) {
+    final version = json['schema_version'];
+    if (version != pasteHistoryCurrentSchemaVersion) {
+      throw UnsupportedPasteHistorySchemaVersion(version);
+    }
     return PasteHistoryDocument(
       entries: _normalizedEntries(
         _objectList(
@@ -131,12 +179,13 @@ String? _stringOrNull(Object? value) {
   return value is String ? value : null;
 }
 
-class PasteHistoryRepository {
+class PasteHistoryRepository extends PasteHistoryRepositoryPort {
   PasteHistoryRepository({PasteHistoryDirectoryResolver? directoryResolver})
     : _directoryResolver = directoryResolver ?? getApplicationSupportDirectory;
 
   final PasteHistoryDirectoryResolver _directoryResolver;
 
+  @override
   Future<PasteHistoryDocument?> load() async {
     final file = await _historyFile();
     if (!await file.exists()) {
@@ -145,9 +194,11 @@ class PasteHistoryRepository {
 
     try {
       final raw = await file.readAsString();
-      return PasteHistoryDocument.fromJson(
-        decodeJsonObject(raw, documentName: 'Paste history'),
-      );
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map<String, Object?>) {
+        throw const UnsupportedPasteHistorySchemaVersion(null);
+      }
+      return PasteHistoryDocument.fromJson(decoded);
     } on FormatException {
       await quarantineCorruptFile(file);
       const repaired = PasteHistoryDocument();
@@ -156,11 +207,13 @@ class PasteHistoryRepository {
     }
   }
 
+  @override
   Future<void> save(PasteHistoryDocument document) async {
     final file = await _historyFile();
     await writeStringAtomically(file, document.encode());
   }
 
+  @override
   Future<void> clearDiskHistory() async {
     final file = await _historyFile();
     if (await file.exists()) {

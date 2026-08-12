@@ -59,6 +59,57 @@ Widget _buildCompactActionButton({
   );
 }
 
+class _DataApiStartupWarningBanner extends StatelessWidget {
+  const _DataApiStartupWarningBanner({
+    required this.palette,
+    required this.message,
+    required this.onDismiss,
+  });
+
+  final AppThemeTokens palette;
+  final String message;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      container: true,
+      liveRegion: true,
+      label: 'Data service warning.',
+      child: DecoratedBox(
+        key: const Key('data-api-startup-warning'),
+        decoration: BoxDecoration(
+          color: palette.warningContainer,
+          border: Border(bottom: BorderSide(color: palette.warning)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
+          child: Row(
+            children: [
+              Icon(Icons.sync_problem_rounded, color: palette.warning),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  message,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(color: palette.textPrimary),
+                ),
+              ),
+              _buildCompactActionButton(
+                key: const Key('data-api-startup-warning-dismiss'),
+                tooltip: 'Dismiss data service warning',
+                onPressed: onDismiss,
+                icon: Icon(Icons.close_rounded, color: palette.textSubtle),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 Widget _buildEntryActionButton({
   required Key key,
   required String tooltip,

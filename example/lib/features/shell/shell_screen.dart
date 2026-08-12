@@ -13,12 +13,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ianvs_pty/ianvs_pty.dart' as pty;
 import 'package:path_provider/path_provider.dart';
 
+import '../../data/configuration/data_api_configuration.dart';
+import '../../data/configuration/data_api_configuration_providers.dart';
+import '../../data/configuration/data_api_configuration_repository.dart';
+import '../../data/services/data_api_runtime.dart';
 import '../../platform/clipboard_bridge.dart';
 import '../../ui/app_ui.dart';
 import '../config/local_terminal_config_bootstrap.dart';
 import '../config/local_terminal_config_models.dart';
-import '../config/local_terminal_config_preferences_adapter.dart';
 import '../config/shortcut_editor.dart';
+import '../persistence/versioned_document.dart';
 import '../policies/local_terminal_paste_decision.dart';
 import '../policies/local_terminal_policy_models.dart';
 import '../preferences/app_preferences_models.dart';
@@ -31,6 +35,7 @@ import '../recording/recording_replay_search_index.dart';
 import '../recording/replay_viewport_layout.dart';
 import '../sessions/session_controller.dart';
 import '../sessions/session_state.dart';
+import '../sessions/terminal_event_coordinator.dart';
 import '../ssh/new_session_launcher.dart';
 import '../ssh/ssh_auth_prompt.dart';
 import '../ssh/ssh_profile_import_service.dart';
@@ -237,13 +242,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   final Set<String> _sessionsSeenForActivityNotifications = {};
   final Set<String> _sessionsSeenForNewOutputBadges = {};
   final Set<String> _sessionsWithNewOutput = {};
-  StreamSubscription<terminal.TerminalSessionEvent>? _terminalEventSubscription;
-  StreamSubscription<terminal.TerminalSessionZmodemEvent>?
-  _zmodemEventSubscription;
-  StreamSubscription<
-    terminal.TerminalSessionZmodemDeferredWriteFailedDiagnostic
-  >?
-  _zmodemDeferredWriteFailureSubscription;
+  TerminalEventSinkAttachment? _terminalUiEffectAttachment;
   Future<void> Function()? _searchPasteHandler;
   late final LocalTerminalShellUiWiringSnapshot _completionDiagnosticsSnapshot;
   late final Osc72DragDropController _osc72DragDropController;
@@ -255,6 +254,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   bool _isCommandMenuOpen = false;
   bool _isDefaultsOpen = false;
   bool _isProfilesOpen = false;
+  bool _dataApiStartupWarningDismissed = false;
   bool _isSearchOpen = false;
   bool _isAutocompleteOpen = false;
   bool _isAutoComposerOpen = false;
@@ -331,6 +331,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   List<String> _autoComposerSuggestions = const [];
   int _activeAutoComposerIndex = 0;
   List<PasteHistoryEntry> _pasteHistoryEntries = const [];
+  VersionedDocument<PasteHistoryDocument?>? _pasteHistoryDocument;
+  Future<VersionedDocument<PasteHistoryDocument?>>? _pasteHistoryLoadFuture;
+  Future<void> _pasteHistoryWriteChain = Future<void>.value();
   _InstantReplayLayoutSession? _instantReplayLayoutSession;
   List<_TerminalAnnotation> _annotations = const [];
   bool _recordingLibraryLoading = false;
@@ -409,15 +412,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     _osc52PromptController = ref.read(sessionOsc52PromptControllerProvider);
     _osc52PromptController?.setAuthorizationHandler(_confirmOsc52Access);
     if (runtime != null) {
-      _terminalEventSubscription = runtime.events.listen(
-        _handleTerminalSessionEvent,
-      );
-      _zmodemEventSubscription = runtime.zmodemEvents.listen(
-        _handleZmodemEvent,
-      );
-      _zmodemDeferredWriteFailureSubscription = runtime
-          .zmodemDeferredWriteFailures
-          .listen(_handleZmodemDeferredWriteFailure);
+      _terminalUiEffectAttachment = ref
+          .read(terminalEventCoordinatorProvider)
+          .attachUiSink(_handleTerminalUiEffect);
     }
     ref.listenManual<SessionState>(
       sessionControllerProvider,
@@ -434,9 +431,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     _appLifecycleListener.dispose();
     unawaited(_osc72DragDropController.dispose());
     _osc52PromptController?.clearAuthorizationHandler();
-    unawaited(_terminalEventSubscription?.cancel());
-    unawaited(_zmodemEventSubscription?.cancel());
-    unawaited(_zmodemDeferredWriteFailureSubscription?.cancel());
+    _terminalUiEffectAttachment?.detach();
     _layoutCueTimer?.cancel();
     for (final timer in _viewportResizeTimers.values) {
       timer.cancel();
@@ -649,6 +644,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     );
     final referenceDemoMode = ref.watch(referenceDemoModeProvider);
     final animationsEnabled = ref.watch(shellAnimationsEnabledProvider);
+    final dataApiStartupWarning = ref.watch(dataApiStartupWarningProvider);
     TerminalTab? activeTab;
     if (activeSessionId != null) {
       for (final tab in sessionState.tabs) {
@@ -1242,6 +1238,17 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                   ),
                   onDismiss: sessionController.dismissConfigurationWarnings,
                 ),
+              if (dataApiStartupWarning != null &&
+                  !_dataApiStartupWarningDismissed)
+                _DataApiStartupWarningBanner(
+                  message: dataApiStartupWarning.message,
+                  palette: palette,
+                  onDismiss: () {
+                    setState(() {
+                      _dataApiStartupWarningDismissed = true;
+                    });
+                  },
+                ),
               if (sessionState.isReady && sessionState.lastError != null)
                 _ShellRuntimeErrorBanner(
                   palette: palette,
@@ -1329,6 +1336,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                     sessionState.lastError != null
                                 ? sessionController.retryBootstrap
                                 : null,
+                            onOpenSettings: () => _openDefaultsAndAppearance(
+                              sessionController,
+                              sessionState,
+                            ),
                           )
                         : activeSessionId == null || activeTab == null
                         ? _ShellEmptyState(

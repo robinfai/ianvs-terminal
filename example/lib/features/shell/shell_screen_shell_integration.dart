@@ -967,9 +967,7 @@ class _ShellPromptMarkTile extends StatelessWidget {
         size: 20,
       ),
       title: scrollbackOffset == null
-          ? mark.globalLine == null
-                ? 'Prompt mark'
-                : 'Global line ${mark.globalLine}'
+          ? 'Global line ${mark.globalLine}'
           : 'Offset $scrollbackOffset',
       subtitle: subtitle.isEmpty ? 'Shell prompt mark' : subtitle,
       subtitleMaxLines: 1,

@@ -1095,18 +1095,5 @@ int _comparePromptMarksForDisplay(
   TerminalShellPromptMark left,
   TerminalShellPromptMark right,
 ) {
-  final leftGlobal = left.globalLine;
-  final rightGlobal = right.globalLine;
-  if (leftGlobal != null && rightGlobal != null) {
-    return leftGlobal.compareTo(rightGlobal);
-  }
-  if (leftGlobal != null) {
-    return -1;
-  }
-  if (rightGlobal != null) {
-    return 1;
-  }
-  return (left.legacyScrollbackOffset ?? 0).compareTo(
-    right.legacyScrollbackOffset ?? 0,
-  );
+  return left.globalLine.compareTo(right.globalLine);
 }

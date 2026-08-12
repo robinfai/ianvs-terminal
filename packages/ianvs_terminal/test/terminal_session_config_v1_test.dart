@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_pty/ianvs_pty.dart';
@@ -6,17 +8,15 @@ import 'package:ianvs_terminal/ianvs_terminal.dart';
 
 void main() {
   group('TerminalSessionConfigV1', () {
-    test('round-trips the declared config and ignores additive fields', () {
+    test('round-trips the declared exact current config', () {
       final wire = TerminalSessionConfigV1(
         sessionId: 'runtime-7',
         displayName: 'zsh',
         config: _config(),
       );
-      final json = wire.toJson()..['future_top_level'] = true;
-      (json['config']! as Map<String, Object?>)['future_config_field'] =
-          <String, Object?>{'value': 1};
-
-      final decoded = TerminalSessionConfigV1.fromJsonString(jsonEncode(json));
+      final decoded = TerminalSessionConfigV1.fromJsonString(
+        jsonEncode(wire.toJson()),
+      );
 
       expect(decoded.schemaVersion, 1);
       expect(decoded.contract, 'ianvs-session-config-v1');
@@ -31,6 +31,131 @@ void main() {
       expect(decoded.config.interaction.copyOnSelect, isTrue);
       expect(decoded.zmodemEnabled, isFalse);
     });
+
+    test('rejects unknown and case-alias fields at every boundary', () {
+      for (final mutation in <void Function(Map<String, Object?>)>{
+        (json) => json['future_top_level'] = true,
+        (json) => json['Contract'] = json.remove('contract'),
+        (json) =>
+            (json['client_capabilities']! as Map<String, Object?>)['Zmodem'] =
+                true,
+        (json) =>
+            (json['config']! as Map<String, Object?>)['shell'] = '/bin/zsh',
+        (json) =>
+            ((json['config']! as Map<String, Object?>)['launch']!
+                    as Map<String, Object?>)['Program'] =
+                '/bin/zsh',
+      }) {
+        final json = TerminalSessionConfigV1(
+          sessionId: 'runtime-7',
+          displayName: 'zsh',
+          config: _config(),
+        ).toJson();
+        mutation(json);
+        expect(
+          () => TerminalSessionConfigV1.fromJson(json),
+          throwsA(
+            isA<TerminalSessionConfigContractException>().having(
+              (error) => error.code,
+              'code',
+              'unknown_field',
+            ),
+          ),
+        );
+      }
+    });
+
+    test('enforces the shared complete exact-shape corpus', () {
+      final corpus = _sessionConfigShapeCorpus();
+      final validLocal = _object(corpus['valid_local']);
+      final validSsh = _object(corpus['valid_ssh']);
+      expect(
+        TerminalSessionConfigV1.fromJson(_deepCopy(validLocal)).sessionId,
+        'shape-local',
+      );
+      expect(
+        TerminalSessionConfigV1.fromJson(_deepCopy(validSsh)).sessionId,
+        'shape-ssh',
+      );
+
+      final paths = (corpus['closed_object_paths']! as List<Object?>)
+          .cast<String>();
+      for (final path in paths) {
+        final sourceObject = _objectAt(validSsh, path);
+        for (final key in sourceObject.keys.toList(growable: false)) {
+          final missing = _deepCopy(validSsh);
+          _objectAt(missing, path).remove(key);
+          expect(
+            () => TerminalSessionConfigV1.fromJson(missing),
+            throwsA(isA<TerminalSessionConfigContractException>()),
+            reason: 'missing $path/$key',
+          );
+
+          final caseAlias = _deepCopy(validSsh);
+          final caseObject = _objectAt(caseAlias, path);
+          final value = caseObject.remove(key);
+          caseObject[_caseAlias(key)] = value;
+          expect(
+            () => TerminalSessionConfigV1.fromJson(caseAlias),
+            throwsA(isA<TerminalSessionConfigContractException>()),
+            reason: 'case alias $path/$key',
+          );
+        }
+
+        final unknown = _deepCopy(validSsh);
+        _objectAt(unknown, path)['future_field'] = true;
+        expect(
+          () => TerminalSessionConfigV1.fromJson(unknown),
+          throwsA(isA<TerminalSessionConfigContractException>()),
+          reason: 'unknown field at $path',
+        );
+      }
+
+      for (final mutation in <void Function(Map<String, Object?>)>[
+        (connection) => connection.remove('type'),
+        (connection) => connection['Type'] = connection.remove('type'),
+        (connection) => connection['future_field'] = true,
+      ]) {
+        final invalidLocal = _deepCopy(validLocal);
+        mutation(_objectAt(invalidLocal, '/config/connection'));
+        expect(
+          () => TerminalSessionConfigV1.fromJson(invalidLocal),
+          throwsA(isA<TerminalSessionConfigContractException>()),
+        );
+      }
+    });
+
+    test(
+      'rejects every shared invalid-value mutation without normalization',
+      () {
+        final corpus = _sessionConfigShapeCorpus();
+        final groups = (corpus['value_mutation_groups']! as List<Object?>)
+            .cast<Map<Object?, Object?>>();
+        for (final rawGroup in groups) {
+          final group = rawGroup.cast<String, Object?>();
+          final id = group['id']! as String;
+          final base = group['base']! as String;
+          final paths = (group['paths']! as List<Object?>).cast<String>();
+          final invalidValues = group['invalid_values']! as List<Object?>;
+          for (final path in paths) {
+            for (var index = 0; index < invalidValues.length; index += 1) {
+              final invalid = _deepCopy(_object(corpus[base]));
+              final current = _valueAt(invalid, path);
+              _setAt(
+                invalid,
+                path,
+                _materializeMutation(invalidValues[index], current: current),
+              );
+              expect(
+                () => TerminalSessionConfigV1.fromJson(invalid),
+                throwsA(isA<TerminalSessionConfigContractException>()),
+                reason: '$id $path mutation $index',
+              );
+            }
+          }
+        }
+      },
+    );
 
     test('returns structured errors for unsupported and oversized input', () {
       expect(
@@ -92,33 +217,20 @@ void main() {
       );
     });
 
-    test('missing connection is legacy local only and cannot encode SSH', () {
-      final legacyLocal = TerminalSessionConfigV1(
-        sessionId: 'legacy-local',
-        displayName: 'Legacy local',
+    test('missing connection is rejected by the current schema', () {
+      final local = TerminalSessionConfigV1(
+        sessionId: 'current-local',
+        displayName: 'Current local',
         config: _config(),
       ).toJson();
-      final localConfig = legacyLocal['config']! as Map<String, Object?>;
+      final localConfig = local['config']! as Map<String, Object?>;
       localConfig.remove('connection');
-
-      final decoded = TerminalSessionConfigV1.fromJson(legacyLocal);
-      expect(decoded.config.connection.type, TerminalConnectionType.local);
-      expect(decoded.config.connection.isSsh, isFalse);
-      expect(decoded.config.launch.program, '/bin/zsh');
-
-      final sshShaped = _validSshWireJson();
-      final sshConfig = sshShaped['config']! as Map<String, Object?>;
-      sshConfig.remove('connection');
       expect(
-        () => TerminalSessionConfigV1.fromJson(sshShaped),
+        () => TerminalSessionConfigV1.fromJson(local),
         throwsA(
           isA<TerminalSessionConfigContractException>()
-              .having((error) => error.code, 'code', 'invalid_launch_program')
-              .having(
-                (error) => error.path,
-                'path',
-                r'$.config.launch.program',
-              ),
+              .having((error) => error.code, 'code', 'missing_field')
+              .having((error) => error.path, 'path', r'$.config.connection'),
         ),
       );
     });
@@ -344,6 +456,11 @@ void main() {
           user: 'jump-user',
           port: 22,
         ).toJson();
+        jump.addAll(<String, Object?>{
+          'password': null,
+          'privateKeyPassphrase': null,
+          'knownHostsFile': null,
+        });
         jump[invalid.field] = invalid.value;
         connection['proxyJump'] = 'jump-user@jump.internal';
         connection['proxyJumpProfiles'] = <Object?>[jump];
@@ -431,15 +548,14 @@ void main() {
   });
 
   group('TerminalRuntimeController SessionConfig v1 routing', () {
-    test('prefers v1 and never calls the Profile-shaped fallback', () {
-      final backend = _SessionConfigBackend(supportsV1: true);
+    test('uses the exact current SessionConfig v1 boundary', () {
+      final backend = _SessionConfigBackend();
       final runtime = _runtime(backend);
       addTearDown(runtime.dispose);
 
       runtime.createSession(_config());
 
       expect(backend.v1CreateCalls, 1);
-      expect(backend.legacyCreateCalls, 0);
       final payload = jsonDecode(backend.lastV1Json!) as Map<String, dynamic>;
       expect(payload['schema_version'], 1);
       expect(payload['contract'], 'ianvs-session-config-v1');
@@ -448,23 +564,6 @@ void main() {
       expect(payload['client_capabilities'], <String, Object?>{'zmodem': true});
       expect(payload, isNot(contains('id')));
       expect(payload, isNot(contains('name')));
-    });
-
-    test('uses the exact legacy Profile wire when v1 is unavailable', () {
-      final backend = _SessionConfigBackend(supportsV1: false);
-      final runtime = _runtime(backend);
-      addTearDown(runtime.dispose);
-
-      runtime.createSession(_config());
-
-      expect(backend.v1CreateCalls, 0);
-      expect(backend.legacyCreateCalls, 1);
-      final payload =
-          jsonDecode(backend.lastLegacyJson!) as Map<String, dynamic>;
-      expect(payload['id'], 'runtime-1');
-      expect(payload['name'], 'zsh');
-      expect(payload['launch'], isA<Map<String, dynamic>>());
-      expect(payload, isNot(contains('schema_version')));
     });
 
     test('round-trips an explicit ZMODEM client capability', () {
@@ -486,7 +585,7 @@ void main() {
     });
 
     test('requires an advertised native SSH capability', () {
-      final backend = _SessionConfigBackend(supportsV1: true);
+      final backend = _SessionConfigBackend();
       final runtime = _runtime(backend);
       addTearDown(runtime.dispose);
 
@@ -498,19 +597,123 @@ void main() {
     });
 
     test('routes SSH only through a capable SessionConfig v1 backend', () {
-      final backend = _SessionConfigBackend(
-        supportsV1: true,
-        supportsSsh: true,
-      );
+      final backend = _SessionConfigBackend(supportsSsh: true);
       final runtime = _runtime(backend);
       addTearDown(runtime.dispose);
 
       runtime.createSession(_sshConfig());
 
       expect(backend.v1CreateCalls, 1);
-      expect(backend.legacyCreateCalls, 0);
     });
   });
+}
+
+Map<String, Object?> _sessionConfigShapeCorpus() {
+  var directory = Directory.current.absolute;
+  while (true) {
+    final file = File(
+      '${directory.path}/native/core/tests/fixtures/session_config/'
+      'session_config_v1_shape_corpus.json',
+    );
+    if (file.existsSync()) {
+      return _object(jsonDecode(file.readAsStringSync()));
+    }
+    final parent = directory.parent;
+    if (parent.path == directory.path) {
+      throw StateError('repository root not found from ${Directory.current}');
+    }
+    directory = parent;
+  }
+}
+
+Map<String, Object?> _object(Object? value) {
+  return (value! as Map<Object?, Object?>).cast<String, Object?>();
+}
+
+Map<String, Object?> _deepCopy(Map<String, Object?> value) {
+  return _object(jsonDecode(jsonEncode(value)));
+}
+
+Map<String, Object?> _objectAt(Map<String, Object?> root, String pointer) {
+  return _object(_valueAt(root, pointer));
+}
+
+Object? _valueAt(Object? root, String pointer) {
+  Object? value = root;
+  if (pointer.isNotEmpty) {
+    for (final segment in pointer.substring(1).split('/')) {
+      value = switch (value) {
+        final Map<Object?, Object?> map => map[segment],
+        final List<Object?> list => list[int.parse(segment)],
+        _ => throw StateError('invalid corpus pointer $pointer'),
+      };
+    }
+  }
+  return value;
+}
+
+void _setAt(Map<String, Object?> root, String pointer, Object? replacement) {
+  final segments = pointer.substring(1).split('/');
+  Object? parent = root;
+  for (final segment in segments.take(segments.length - 1)) {
+    parent = switch (parent) {
+      final Map<Object?, Object?> map => map[segment],
+      final List<Object?> list => list[int.parse(segment)],
+      _ => throw StateError('invalid corpus pointer $pointer'),
+    };
+  }
+  final last = segments.last;
+  switch (parent) {
+    case final Map<Object?, Object?> map:
+      map[last] = replacement;
+    case final List<Object?> list:
+      list[int.parse(last)] = replacement;
+    default:
+      throw StateError('invalid corpus pointer $pointer');
+  }
+}
+
+Object? _materializeMutation(Object? specification, {Object? current}) {
+  if (specification is List<Object?>) {
+    return specification.map(_materializeMutation).toList(growable: false);
+  }
+  if (specification is! Map<Object?, Object?>) {
+    return specification;
+  }
+  final object = specification.cast<String, Object?>();
+  final operation = object['op'];
+  if (operation == null) {
+    return <String, Object?>{
+      for (final entry in object.entries)
+        entry.key: _materializeMutation(entry.value),
+    };
+  }
+  final count = object['count']! as int;
+  return switch (operation) {
+    'repeat_string' => (object['value']! as String) * count,
+    'repeat_array' => List<Object?>.generate(
+      count,
+      (_) => _materializeMutation(object['value']),
+      growable: false,
+    ),
+    'repeat_current_array_item' => List<Object?>.generate(
+      count,
+      (_) => _deepCopyValue((current! as List<Object?>).first),
+      growable: false,
+    ),
+    'oversized_string_map' => <String, Object?>{
+      for (var index = 0; index < count; index += 1) 'KEY_$index': 'value',
+    },
+    _ => throw StateError('unknown corpus mutation operation $operation'),
+  };
+}
+
+Object? _deepCopyValue(Object? value) => jsonDecode(jsonEncode(value));
+
+String _caseAlias(String key) {
+  final first = key[0];
+  final alias = first.toUpperCase() + key.substring(1);
+  return alias == key ? first.toLowerCase() + key.substring(1) : alias;
 }
 
 TerminalSessionConfig _config() {
@@ -559,8 +762,9 @@ final class _SessionConfigBackend
     implements
         PtySessionBackend,
         PtySessionConfigV1Backend,
+        PtySessionFramePacketV1Backend,
         PtyRuntimeCapabilityBackend {
-  _SessionConfigBackend({required this.supportsV1, bool supportsSsh = false})
+  _SessionConfigBackend({bool supportsSsh = false})
     : runtimeCapabilities = supportsSsh
           ? PtyRuntimeCapabilities.fromJson(<String, Object?>{
               'schema_version': 1,
@@ -571,29 +775,16 @@ final class _SessionConfigBackend
             })
           : null;
 
-  final bool supportsV1;
   int v1CreateCalls = 0;
-  int legacyCreateCalls = 0;
   String? lastV1Json;
-  String? lastLegacyJson;
 
   @override
   final PtyRuntimeCapabilities? runtimeCapabilities;
 
   @override
-  bool get supportsSessionConfigV1 => supportsV1;
-
-  @override
   String createSessionV1(String sessionConfigV1Json) {
     v1CreateCalls += 1;
     lastV1Json = sessionConfigV1Json;
-    return '1';
-  }
-
-  @override
-  String createSession(String sessionConfigJson) {
-    legacyCreateCalls += 1;
-    lastLegacyJson = sessionConfigJson;
     return '1';
   }
 
@@ -624,7 +815,10 @@ final class _SessionConfigBackend
   void scrollViewportTo(String sessionId, int offset) {}
 
   @override
-  String? takeFrameDiffJson(String sessionId) => null;
+  Uint8List? takeFramePacketV1Protobuf(
+    String sessionId, {
+    required int? afterSequence,
+  }) => null;
 
   @override
   void writeInput(String sessionId, List<int> bytes) {}

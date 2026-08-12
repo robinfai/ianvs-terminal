@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:app/features/pty/pty.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ianvs_terminal/ianvs_terminal.dart';
+import 'package:ianvs_terminal/src/runtime/terminal_frame_transport_coordinator.dart';
 
 void main() {
   late Directory root;
@@ -16,9 +18,7 @@ void main() {
       terminalBackend: NativePtyBackend.load(),
       clock: () => DateTime.utc(2026, 8, 7, 12, 30),
     );
-    sessionId = backend.createSession(
-      '{"id":"ios-test","name":"iOS Sandbox","shell":"/bin/false"}',
-    );
+    sessionId = backend.createSessionV1(_sessionConfig('ios-test'));
   });
 
   tearDown(() {
@@ -137,9 +137,37 @@ Map<String, Object?> _takeFrame(
   IosSandboxShellBackend backend,
   String sessionId,
 ) {
-  final raw = backend.takeFrameDiffJson(sessionId);
-  expect(raw, isNotNull);
-  return jsonDecode(raw!) as Map<String, Object?>;
+  final decoded = TerminalFrameTransportCoordinator(
+    backend: backend,
+  ).take(sessionId);
+  expect(decoded, isNotNull);
+  final frame = decoded!.frame;
+  return <String, Object?>{
+    'rows': frame.rows
+        .map(
+          (row) => <String, Object?>{
+            'index': row.index,
+            'text': row.text,
+            'wrapped': row.wrapped,
+          },
+        )
+        .toList(growable: false),
+    'cursor': <String, Object?>{
+      'row': frame.cursor.row,
+      'col': frame.cursor.col,
+      'visible': frame.cursor.visible,
+    },
+  };
+}
+
+String _sessionConfig(String sessionId) {
+  return TerminalSessionConfigV1(
+    sessionId: sessionId,
+    displayName: 'iOS Sandbox',
+    config: const TerminalSessionConfig(
+      launch: TerminalLaunchConfig(program: '/bin/false'),
+    ),
+  ).toJsonString();
 }
 
 String _frameText(Map<String, Object?> frame) {

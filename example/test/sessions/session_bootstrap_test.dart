@@ -65,7 +65,7 @@ void main() {
       expect(preferences.savedDocuments, isEmpty);
     });
 
-    test('propagates config I/O failures without legacy fallback', () async {
+    test('propagates current config I/O failures', () async {
       final profiles = _MemoryProfileRepository(
         TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
       );
@@ -87,32 +87,26 @@ void main() {
       expect(preferences.savedDocuments, isEmpty);
     });
 
-    test('uses legacy fallback only when the policy allows it', () async {
-      final defaultProfile = defaultTerminalProfile();
+    test('corrupt config does not read or write another store', () async {
       final profiles = _MemoryProfileRepository(
-        TerminalProfilesDocument(profiles: [defaultProfile]),
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
       );
       final preferences = _MemoryPreferencesRepository(
-        const TerminalAppPreferencesDocument(
-          defaults: TerminalAppDefaults(defaultProfileId: 'default'),
-        ),
+        const TerminalAppPreferencesDocument(),
       );
-      final config = _FailingLocalConfigRepository();
+      final config = _CorruptLocalConfigRepository();
 
-      final preparation = await _service(
-        profiles: profiles,
-        preferences: preferences,
-        config: config,
-        shouldFallbackToLegacyPreferences: (error) =>
-            error is FileSystemException,
-      ).prepare();
-
-      expect(preferences.loadAttempts, 1);
-      expect(preparation.effectiveDefaultProfileId, defaultProfile.id);
-      expect(
-        preparation.configSource,
-        LocalTerminalConfigBootstrapSource.legacyAppPreferences,
+      await expectLater(
+        _service(
+          profiles: profiles,
+          preferences: preferences,
+          config: config,
+        ).prepare(),
+        throwsA(isA<FormatException>()),
       );
+
+      expect(preferences.loadAttempts, 0);
+      expect(preferences.savedDocuments, isEmpty);
     });
   });
 
@@ -123,7 +117,7 @@ void main() {
       var starts = 0;
       var operations = 0;
 
-      Future<void> run() {
+      Future<SessionBootstrapOutcome> run() {
         return runner.run(
           isMounted: () => true,
           onStarted: () => starts += 1,
@@ -139,14 +133,29 @@ void main() {
 
       final first = run();
       await Future<void>.delayed(Duration.zero);
-      await run();
+      final coalesced = await run();
 
       expect(starts, 1);
       expect(operations, 1);
+      expect(
+        coalesced,
+        isA<SessionBootstrapSuccess>().having(
+          (outcome) => outcome.started,
+          'started',
+          isFalse,
+        ),
+      );
 
       blocker.complete();
-      await first;
-      await run();
+      expect(
+        await first,
+        isA<SessionBootstrapSuccess>().having(
+          (outcome) => outcome.started,
+          'started',
+          isTrue,
+        ),
+      );
+      expect(await run(), isA<SessionBootstrapSuccess>());
 
       expect(starts, 2);
       expect(operations, 2);
@@ -160,7 +169,7 @@ void main() {
         var mounted = true;
         var starts = 0;
 
-        await runner.run(
+        final failed = await runner.run(
           isMounted: () => mounted,
           onStarted: () => starts += 1,
           operation: () async => throw StateError('unavailable'),
@@ -169,15 +178,25 @@ void main() {
 
         expect(starts, 1);
         expect(failures.single, isA<StateError>());
+        expect(
+          failed,
+          isA<SessionBootstrapFailure>()
+              .having((outcome) => outcome.error, 'error', isA<StateError>())
+              .having(
+                (outcome) => outcome.reportedToMountedConsumer,
+                'reportedToMountedConsumer',
+                isTrue,
+              ),
+        );
 
-        await runner.run(
+        final recovered = await runner.run(
           isMounted: () => mounted,
           onStarted: () => starts += 1,
           operation: () async {},
           onFailed: (error, _) => failures.add(error),
         );
         mounted = false;
-        await runner.run(
+        final skipped = await runner.run(
           isMounted: () => mounted,
           onStarted: () => starts += 1,
           operation: () async {},
@@ -186,6 +205,60 @@ void main() {
 
         expect(starts, 2);
         expect(failures, hasLength(1));
+        expect(
+          recovered,
+          isA<SessionBootstrapSuccess>().having(
+            (outcome) => outcome.started,
+            'started',
+            isTrue,
+          ),
+        );
+        expect(
+          skipped,
+          isA<SessionBootstrapSuccess>().having(
+            (outcome) => outcome.started,
+            'started',
+            isFalse,
+          ),
+        );
+      },
+    );
+
+    test(
+      'returns an unreported failure when unmounted during operation',
+      () async {
+        final runner = SessionBootstrapRunner();
+        final operationStarted = Completer<void>();
+        final allowFailure = Completer<void>();
+        var mounted = true;
+        var reports = 0;
+
+        final run = runner.run(
+          isMounted: () => mounted,
+          onStarted: () {},
+          operation: () async {
+            operationStarted.complete();
+            await allowFailure.future;
+            throw StateError('bootstrap failed after unmount');
+          },
+          onFailed: (_, _) => reports += 1,
+        );
+        await operationStarted.future;
+        mounted = false;
+        allowFailure.complete();
+
+        final outcome = await run;
+        expect(
+          outcome,
+          isA<SessionBootstrapFailure>()
+              .having((failure) => failure.error, 'error', isA<StateError>())
+              .having(
+                (failure) => failure.reportedToMountedConsumer,
+                'reportedToMountedConsumer',
+                isFalse,
+              ),
+        );
+        expect(reports, 0);
       },
     );
   });
@@ -195,18 +268,11 @@ SessionBootstrapService _service({
   required _MemoryProfileRepository profiles,
   required _MemoryPreferencesRepository preferences,
   required LocalTerminalConfigRepository config,
-  LocalConfigFallbackPolicy? shouldFallbackToLegacyPreferences,
 }) {
   return SessionBootstrapService(
     profileRepository: profiles,
-    appPreferencesRepository: preferences,
     localConfigRepository: config,
-    localConfigLoader: LocalTerminalConfigLoader(
-      localConfigRepository: config,
-      legacyPreferencesRepository: preferences,
-    ),
-    shouldFallbackToLegacyPreferences:
-        shouldFallbackToLegacyPreferences ?? (_) => false,
+    localConfigLoader: LocalTerminalConfigLoader(localConfigRepository: config),
   );
 }
 
@@ -264,5 +330,12 @@ class _FailingLocalConfigRepository extends LocalTerminalConfigRepository {
   @override
   Future<LocalTerminalConfigDocument?> load() async {
     throw const FileSystemException('local config unavailable');
+  }
+}
+
+class _CorruptLocalConfigRepository extends LocalTerminalConfigRepository {
+  @override
+  Future<LocalTerminalConfigDocument?> load() async {
+    throw const FormatException('corrupt local terminal config');
   }
 }

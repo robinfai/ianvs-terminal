@@ -88,6 +88,7 @@ fn start(profile: TerminalProfile) -> SessionGuard {
         "client_capabilities": {"zmodem": true},
         "config": {
             "launch": profile.launch,
+            "connection": {"type": "local"},
             "terminal": profile.terminal,
             "shellIntegration": profile.shell_integration,
             "appearance": profile.appearance,
@@ -253,7 +254,7 @@ fn zmodem_round_trips_files_over_real_openssh_pty() {
         1_700_000_123_u64
     );
     let transfer_id = offer["payload"]["transferId"].as_str().unwrap();
-    let response = session::request_session_json(
+    let response = request_session_test(
         receive_session.0,
         &serde_json::json!({
             "kind": "terminal.zmodem.accept_receive",
@@ -340,7 +341,7 @@ fn zmodem_round_trips_files_over_real_openssh_pty() {
     eprintln!("zmodem-e2e: send detected");
     assert_eq!(detected["payload"]["direction"], "send");
     let transfer_id = detected["payload"]["transferId"].as_str().unwrap();
-    let response = session::request_session_json(
+    let response = request_session_test(
         send_session.0,
         &serde_json::json!({
             "kind": "terminal.zmodem.accept_send",
@@ -390,4 +391,20 @@ fn zmodem_round_trips_files_over_real_openssh_pty() {
     eprintln!(
         "zmodem-e2e: send verified first_md5={expected_md5} first_size={expected_size} first_mtime={expected_mtime} second_md5={companion_md5} second_size={companion_size} second_mtime=1700000789"
     );
+}
+fn request_session_test(
+    session_id: u64,
+    raw: &str,
+) -> Result<Option<String>, session::SessionError> {
+    let mut payload: serde_json::Value = serde_json::from_str(raw)
+        .map_err(|error| session::SessionError::Serialize(error.to_string()))?;
+    let operation = payload
+        .get("kind")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default()
+        .to_owned();
+    if let Some(object) = payload.as_object_mut() {
+        object.remove("kind");
+    }
+    session::request_session(session_id, &operation, &payload)
 }

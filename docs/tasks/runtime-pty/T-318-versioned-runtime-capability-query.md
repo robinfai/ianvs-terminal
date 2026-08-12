@@ -18,7 +18,7 @@ without removing or changing any existing wire.
 ## Non-goals
 
 - Do not remove, rename or migrate existing FFI symbols.
-- Do not change Frame JSON/Protobuf, Recording v1, diagnostics or session request payloads.
+- Do not change Frame JSON/Protobuf, current recording schema, diagnostics or session request payloads.
 - Do not introduce a general Command/Event/Asset envelope in this slice.
 - Do not make product UI, Workspace, replay UI, remote or plugin behavior depend on the manifest.
 - Do not claim Linux or Windows desktop support.

@@ -3938,11 +3938,13 @@ class _ShellStartupSurface extends StatelessWidget {
     required this.palette,
     required this.errorMessage,
     required this.onRetry,
+    required this.onOpenSettings,
   });
 
   final AppThemeTokens palette;
   final String? errorMessage;
   final VoidCallback? onRetry;
+  final VoidCallback onOpenSettings;
 
   @override
   Widget build(BuildContext context) {
@@ -3965,11 +3967,25 @@ class _ShellStartupSurface extends StatelessWidget {
                     message:
                         'Review the startup error, then try loading the layout again.',
                     supportingText: errorMessage,
-                    action: AppActionButton(
-                      buttonKey: const Key('shell-startup-retry'),
-                      icon: Icons.refresh,
-                      label: 'Retry',
-                      onPressed: onRetry,
+                    action: Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        AppActionButton(
+                          buttonKey: const Key('shell-startup-settings'),
+                          tone: AppActionTone.secondary,
+                          icon: Icons.settings_rounded,
+                          label: 'Data service settings',
+                          onPressed: onOpenSettings,
+                        ),
+                        AppActionButton(
+                          buttonKey: const Key('shell-startup-retry'),
+                          icon: Icons.refresh,
+                          label: 'Retry',
+                          onPressed: onRetry,
+                        ),
+                      ],
                     ),
                   ),
                 ),

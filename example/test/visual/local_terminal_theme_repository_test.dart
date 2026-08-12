@@ -34,9 +34,13 @@ void main() {
                   '${directory.path}/ianvs_themes.json',
                 ).readAsString(),
               )
-              as List<dynamic>;
+              as Map<String, dynamic>;
 
-      expect(raw, hasLength(1));
+      expect(
+        raw['schema_version'],
+        localTerminalThemeLibraryCurrentSchemaVersion,
+      );
+      expect(raw['presets'], hasLength(1));
       expect(loaded, hasLength(1));
       expect(loaded.single.id, 'baseline');
       expect(loaded.single.dark.background, 0x000000);
@@ -65,9 +69,9 @@ void main() {
                   '${directory.path}/ianvs_themes.json',
                 ).readAsString(),
               )
-              as List<dynamic>;
+              as Map<String, dynamic>;
 
-      expect(raw, hasLength(maxLocalTerminalThemePresets));
+      expect(raw['presets'], hasLength(maxLocalTerminalThemePresets));
       expect(loaded, hasLength(maxLocalTerminalThemePresets));
       expect(loaded.first.id, 'preset-0');
       expect(loaded.last.id, 'preset-${maxLocalTerminalThemePresets - 1}');
@@ -181,17 +185,19 @@ void main() {
       );
       final file = File('${directory.path}/ianvs_themes.json');
       await file.writeAsString(
-        jsonEncode([
-          'not a preset',
-          {'id': '   ', 'name': 'Blank'},
-          {'id': 'missing-name', 'name': '   '},
-          {
-            'id': ' custom ',
-            'name': ' Custom ',
-            'dark': {'background': 'black', 'foreground': 0xeeeeee},
-            'light': {'background': 0xffffff, 'foreground': false},
-          },
-        ]),
+        jsonEncode(
+          _currentThemeLibrary([
+            'not a preset',
+            {'id': '   ', 'name': 'Blank'},
+            {'id': 'missing-name', 'name': '   '},
+            {
+              'id': ' custom ',
+              'name': ' Custom ',
+              'dark': {'background': 'black', 'foreground': 0xeeeeee},
+              'light': {'background': 0xffffff, 'foreground': false},
+            },
+          ]),
+        ),
       );
       final repository = LocalTerminalThemeRepository(
         directoryResolver: () async => directory,
@@ -220,15 +226,17 @@ void main() {
       );
       final file = File('${directory.path}/ianvs_themes.json');
       await file.writeAsString(
-        jsonEncode([
-          for (
-            var index = 0;
-            index < maxLocalTerminalThemePresets * 4 + 1;
-            index += 1
-          )
-            'not-a-preset-$index',
-          _preset(id: 'too-late').toJson(),
-        ]),
+        jsonEncode(
+          _currentThemeLibrary([
+            for (
+              var index = 0;
+              index < maxLocalTerminalThemePresets * 4 + 1;
+              index += 1
+            )
+              'not-a-preset-$index',
+            _preset(id: 'too-late').toJson(),
+          ]),
+        ),
       );
       final repository = LocalTerminalThemeRepository(
         directoryResolver: () async => directory,
@@ -251,26 +259,28 @@ void main() {
       );
       final file = File('${directory.path}/ianvs_themes.json');
       await file.writeAsString(
-        jsonEncode([
-          {
-            'id': ' shared ',
-            'name': 'First',
-            'dark': {'background': 0x000000},
-            'light': {'background': 0xffffff},
-          },
-          {
-            'id': 'shared',
-            'name': 'Second',
-            'dark': {'background': 0x111111},
-            'light': {'background': 0xeeeeee},
-          },
-          {
-            'id': 'unique',
-            'name': 'Unique',
-            'dark': {'background': 0x222222},
-            'light': {'background': 0xdddddd},
-          },
-        ]),
+        jsonEncode(
+          _currentThemeLibrary([
+            {
+              'id': ' shared ',
+              'name': 'First',
+              'dark': {'background': 0x000000},
+              'light': {'background': 0xffffff},
+            },
+            {
+              'id': 'shared',
+              'name': 'Second',
+              'dark': {'background': 0x111111},
+              'light': {'background': 0xeeeeee},
+            },
+            {
+              'id': 'unique',
+              'name': 'Unique',
+              'dark': {'background': 0x222222},
+              'light': {'background': 0xdddddd},
+            },
+          ]),
+        ),
       );
       final repository = LocalTerminalThemeRepository(
         directoryResolver: () async => directory,
@@ -289,8 +299,40 @@ void main() {
         isFalse,
       );
     });
+
+    test('noncurrent theme library is rejected without mutation', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'ianvs terminal-themes-noncurrent',
+      );
+      final file = File('${directory.path}/ianvs_themes.json');
+      final raw = jsonEncode(<String, Object?>{
+        'schema_version': 0,
+        'presets': const <Object?>[],
+      });
+      await file.writeAsString(raw);
+      final repository = LocalTerminalThemeRepository(
+        directoryResolver: () async => directory,
+      );
+
+      await expectLater(
+        repository.load(),
+        throwsA(isA<UnsupportedLocalTerminalThemeLibrarySchemaVersion>()),
+      );
+
+      expect(await file.readAsString(), raw);
+      expect(
+        directory.listSync().where((entry) => entry.path.contains('.corrupt')),
+        isEmpty,
+      );
+    });
   });
 }
+
+Map<String, Object?> _currentThemeLibrary(List<Object?> presets) =>
+    <String, Object?>{
+      'schema_version': localTerminalThemeLibraryCurrentSchemaVersion,
+      'presets': presets,
+    };
 
 LocalTerminalThemePreset _preset({String id = 'baseline'}) {
   return LocalTerminalThemePreset(

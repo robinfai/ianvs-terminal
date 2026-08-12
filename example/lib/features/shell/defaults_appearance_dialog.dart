@@ -1,6 +1,9 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../../data/configuration/data_api_configuration.dart';
+import '../../data/configuration/data_api_configuration_repository.dart';
+import '../../data/services/data_api_auth_contract.dart';
 import '../../ui/app_ui.dart';
 import '../config/local_terminal_config_models.dart';
 import '../config/local_terminal_keybinding_resolver.dart';
@@ -20,6 +23,8 @@ class DefaultsAndAppearanceSelection {
     required this.requestAttentionPolicy,
     required this.reportVariableDecisions,
     required this.keybindings,
+    this.dataApiConfiguration = const DataApiConfiguration.disabled(),
+    this.dataApiRemoteLogin,
     this.updatedProfile,
     this.openProfiles = false,
   });
@@ -33,6 +38,8 @@ class DefaultsAndAppearanceSelection {
   final LocalTerminalRequestAttentionPolicy requestAttentionPolicy;
   final Map<String, LocalTerminalReportVariablePolicy> reportVariableDecisions;
   final LocalTerminalKeybindingsConfig keybindings;
+  final DataApiConfiguration dataApiConfiguration;
+  final DataApiRemoteLoginRequest? dataApiRemoteLogin;
   final TerminalProfile? updatedProfile;
   final bool openProfiles;
 }
@@ -51,6 +58,9 @@ class DefaultsAndAppearanceDialog extends StatefulWidget {
     required this.requestAttentionPolicy,
     required this.reportVariableDecisions,
     this.keybindings = const LocalTerminalKeybindingsConfig(),
+    this.dataApiConfiguration = const DataApiConfiguration.disabled(),
+    this.dataApiConfigurationRecoveryRequired = false,
+    this.localDataApiAvailable = false,
   });
 
   final List<TerminalProfile> profiles;
@@ -64,6 +74,9 @@ class DefaultsAndAppearanceDialog extends StatefulWidget {
   final LocalTerminalRequestAttentionPolicy requestAttentionPolicy;
   final Map<String, LocalTerminalReportVariablePolicy> reportVariableDecisions;
   final LocalTerminalKeybindingsConfig keybindings;
+  final DataApiConfiguration dataApiConfiguration;
+  final bool dataApiConfigurationRecoveryRequired;
+  final bool localDataApiAvailable;
 
   @override
   State<DefaultsAndAppearanceDialog> createState() =>
@@ -73,6 +86,10 @@ class DefaultsAndAppearanceDialog extends StatefulWidget {
 class _DefaultsAndAppearanceDialogState
     extends State<DefaultsAndAppearanceDialog> {
   final ScrollController _scrollController = ScrollController();
+  late final TextEditingController _remoteDataApiUrlController;
+  late final TextEditingController _remoteDataApiUsernameController;
+  late final TextEditingController _remoteDataApiPasswordController;
+  late final TextEditingController _remoteDataApiEncryptionKeyController;
   late String? _selectedProfileId;
   late String? _selectedTerminalPresetId;
   late TerminalThemeMode _selectedThemeMode;
@@ -84,6 +101,8 @@ class _DefaultsAndAppearanceDialogState
   late Map<String, LocalTerminalReportVariablePolicy>
   _selectedReportVariableDecisions;
   late LocalTerminalKeybindingsConfig _selectedKeybindings;
+  late DataApiDeployment _selectedDataApiDeployment;
+  bool _remoteReconnectRequested = false;
   String _terminalPresetFilter = '';
 
   @override
@@ -100,6 +119,21 @@ class _DefaultsAndAppearanceDialogState
       widget.reportVariableDecisions,
     );
     _selectedKeybindings = widget.keybindings;
+    _selectedDataApiDeployment = widget.dataApiConfiguration.deployment;
+    _remoteDataApiUrlController = TextEditingController(
+      text: widget.dataApiConfiguration.remoteBaseUri?.toString() ?? '',
+    );
+    _remoteDataApiUsernameController = TextEditingController();
+    _remoteDataApiPasswordController = TextEditingController();
+    _remoteDataApiEncryptionKeyController = TextEditingController();
+    for (final controller in <TextEditingController>[
+      _remoteDataApiUrlController,
+      _remoteDataApiUsernameController,
+      _remoteDataApiPasswordController,
+      _remoteDataApiEncryptionKeyController,
+    ]) {
+      controller.addListener(_handleRemoteDataApiFieldChanged);
+    }
     _selectedTerminalPresetId = _matchingPresetIdFor(
       _effectiveProfileFor(
         configuredProfileId: _selectedProfileId,
@@ -110,8 +144,117 @@ class _DefaultsAndAppearanceDialogState
 
   @override
   void dispose() {
+    for (final controller in <TextEditingController>[
+      _remoteDataApiUrlController,
+      _remoteDataApiUsernameController,
+      _remoteDataApiPasswordController,
+      _remoteDataApiEncryptionKeyController,
+    ]) {
+      controller
+        ..removeListener(_handleRemoteDataApiFieldChanged)
+        ..dispose();
+    }
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _handleRemoteDataApiFieldChanged() {
+    setState(() {});
+  }
+
+  DataApiConfiguration? get _selectedDataApiConfiguration {
+    return switch (_selectedDataApiDeployment) {
+      DataApiDeployment.disabled => const DataApiConfiguration.disabled(),
+      DataApiDeployment.local =>
+        widget.localDataApiAvailable
+            ? const DataApiConfiguration.local()
+            : null,
+      DataApiDeployment.remote =>
+        _remoteDataApiUrlController.text.trim().isEmpty
+            ? null
+            : _tryRemoteDataApiConfiguration(_remoteDataApiUrlController.text),
+    };
+  }
+
+  DataApiConfiguration? _tryRemoteDataApiConfiguration(String value) {
+    try {
+      return DataApiConfiguration.remote(value);
+    } on FormatException {
+      return null;
+    }
+  }
+
+  String? get _remoteDataApiUrlError {
+    final value = _remoteDataApiUrlController.text.trim();
+    if (value.isEmpty) {
+      return 'Enter the remote API base URL.';
+    }
+    try {
+      DataApiConfiguration.remote(value);
+      return null;
+    } on FormatException catch (error) {
+      return error.message;
+    }
+  }
+
+  bool get _requiresRemoteLogin {
+    final selected = _selectedDataApiConfiguration;
+    return selected?.deployment == DataApiDeployment.remote &&
+        (selected != widget.dataApiConfiguration || _remoteReconnectRequested);
+  }
+
+  DataApiRemoteLoginRequest? get _remoteLoginRequest {
+    final configuration = _selectedDataApiConfiguration;
+    final baseUri = configuration?.remoteBaseUri;
+    if (!_requiresRemoteLogin || baseUri == null) {
+      return null;
+    }
+    try {
+      return DataApiRemoteLoginRequest(
+        baseUri: baseUri,
+        username: _remoteDataApiUsernameController.text,
+        password: _remoteDataApiPasswordController.text,
+        encryptionKey: _remoteDataApiEncryptionKeyController.text,
+      );
+    } on FormatException {
+      return null;
+    }
+  }
+
+  String? get _remoteUsernameError {
+    if (!_requiresRemoteLogin) {
+      return null;
+    }
+    try {
+      normalizeDataApiUsername(_remoteDataApiUsernameController.text);
+      return null;
+    } on FormatException catch (error) {
+      return error.message;
+    }
+  }
+
+  String? get _remotePasswordError {
+    if (!_requiresRemoteLogin) {
+      return null;
+    }
+    try {
+      validateDataApiPassword(_remoteDataApiPasswordController.text);
+      return null;
+    } on FormatException catch (error) {
+      return error.message;
+    }
+  }
+
+  String? get _remoteEncryptionKeyError {
+    if (!_requiresRemoteLogin) {
+      return null;
+    }
+    try {
+      validateDataApiEncryptionKey(_remoteDataApiEncryptionKeyController.text);
+      return null;
+    } on FormatException catch (error) {
+      return error.message;
+    }
   }
 
   TerminalProfile? _effectiveProfileFor({
@@ -180,7 +323,9 @@ class _DefaultsAndAppearanceDialogState
   }
 
   bool _hasChanges(TerminalProfile? effectiveProfile) {
-    return _selectedProfileId != widget.configuredDefaultProfileId ||
+    final selectedDataApiConfiguration = _selectedDataApiConfiguration;
+    return widget.dataApiConfigurationRecoveryRequired ||
+        _selectedProfileId != widget.configuredDefaultProfileId ||
         _selectedThemeMode != widget.themeMode ||
         _selectedTerminalViewportPadding != widget.terminalViewportPadding ||
         _selectedRestoreLayout != widget.restoreLayout ||
@@ -192,6 +337,9 @@ class _DefaultsAndAppearanceDialogState
           widget.reportVariableDecisions,
         ) ||
         _selectedKeybindings != widget.keybindings ||
+        (selectedDataApiConfiguration != null &&
+            selectedDataApiConfiguration != widget.dataApiConfiguration) ||
+        _remoteReconnectRequested ||
         _updatedProfileForPreset(effectiveProfile) != null;
   }
 
@@ -214,6 +362,8 @@ class _DefaultsAndAppearanceDialogState
       effectiveProfileId: widget.effectiveDefaultProfileId,
     );
     final hasChanges = _hasChanges(effectiveProfile);
+    final selectedDataApiConfiguration = _selectedDataApiConfiguration;
+    final remoteLoginRequest = _remoteLoginRequest;
     final isUsingFallback = _selectedProfileId == null;
     final selectedPreset = _selectedPreset;
     final terminalPresetFilter = _terminalPresetFilter.trim().toLowerCase();
@@ -307,6 +457,10 @@ class _DefaultsAndAppearanceDialogState
                               reportVariableDecisions:
                                   _selectedReportVariableDecisions,
                               keybindings: _selectedKeybindings,
+                              dataApiConfiguration:
+                                  selectedDataApiConfiguration ??
+                                  widget.dataApiConfiguration,
+                              dataApiRemoteLogin: null,
                               updatedProfile: null,
                               openProfiles: true,
                             ),
@@ -802,6 +956,150 @@ class _DefaultsAndAppearanceDialogState
                 ),
                 SizedBox(height: theme.spacing.xxl),
                 const AppSectionHeader(
+                  title: 'Data service',
+                  description:
+                      'Choose whether the app starts a local data service or connects to a remote one.',
+                ),
+                SizedBox(height: theme.spacing.sm),
+                AppPanel(
+                  key: const Key('defaults-data-api-panel'),
+                  tone: AppPanelTone.panel,
+                  padding: EdgeInsets.all(theme.spacing.lg),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      RadioGroup<DataApiDeployment>(
+                        groupValue: _selectedDataApiDeployment,
+                        onChanged: (deployment) {
+                          if (deployment == null) {
+                            return;
+                          }
+                          setState(() {
+                            _selectedDataApiDeployment = deployment;
+                          });
+                        },
+                        child: Column(
+                          children: [
+                            const AppCompactRadioTile<DataApiDeployment>(
+                              tileKey: Key('data-api-disabled'),
+                              value: DataApiDeployment.disabled,
+                              title: Text('Disabled'),
+                              subtitle: Text(
+                                'Keep terminal data in the existing local repositories.',
+                              ),
+                            ),
+                            if (widget.localDataApiAvailable)
+                              const AppCompactRadioTile<DataApiDeployment>(
+                                tileKey: Key('data-api-local'),
+                                value: DataApiDeployment.local,
+                                title: Text('Bundled local service'),
+                                subtitle: Text(
+                                  'Start the bundled service and local SQLite database.',
+                                ),
+                              ),
+                            const AppCompactRadioTile<DataApiDeployment>(
+                              tileKey: Key('data-api-remote'),
+                              value: DataApiDeployment.remote,
+                              title: Text('Remote service'),
+                              subtitle: Text(
+                                'Connect over HTTPS. Loopback HTTP is available only for development.',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (_selectedDataApiDeployment ==
+                          DataApiDeployment.remote) ...[
+                        SizedBox(height: theme.spacing.sm),
+                        if (_selectedDataApiConfiguration ==
+                            widget.dataApiConfiguration)
+                          AppActionButton(
+                            buttonKey: const Key('data-api-remote-reconnect'),
+                            tone: AppActionTone.secondary,
+                            size: AppActionSize.compact,
+                            icon: Icons.login_rounded,
+                            label: _remoteReconnectRequested
+                                ? 'Reconnect requested'
+                                : 'Reconnect / sign in',
+                            onPressed: _remoteReconnectRequested
+                                ? null
+                                : () {
+                                    setState(() {
+                                      _remoteReconnectRequested = true;
+                                    });
+                                  },
+                          ),
+                        if (_selectedDataApiConfiguration ==
+                            widget.dataApiConfiguration)
+                          SizedBox(height: theme.spacing.sm),
+                        TextField(
+                          key: const Key('data-api-remote-url'),
+                          controller: _remoteDataApiUrlController,
+                          keyboardType: TextInputType.url,
+                          autocorrect: false,
+                          enableSuggestions: false,
+                          decoration: InputDecoration(
+                            labelText: 'Remote API base URL',
+                            hintText: 'https://api.example.com/',
+                            errorText: _remoteDataApiUrlError,
+                          ),
+                        ),
+                        SizedBox(height: theme.spacing.sm),
+                        TextField(
+                          key: const Key('data-api-remote-username'),
+                          controller: _remoteDataApiUsernameController,
+                          autocorrect: false,
+                          enableSuggestions: false,
+                          autofillHints: const <String>[AutofillHints.username],
+                          decoration: InputDecoration(
+                            labelText: 'Username',
+                            errorText: _remoteUsernameError,
+                          ),
+                        ),
+                        SizedBox(height: theme.spacing.sm),
+                        TextField(
+                          key: const Key('data-api-remote-password'),
+                          controller: _remoteDataApiPasswordController,
+                          obscureText: true,
+                          autocorrect: false,
+                          enableSuggestions: false,
+                          autofillHints: const <String>[AutofillHints.password],
+                          decoration: InputDecoration(
+                            labelText: 'Password',
+                            helperText: 'Used only for this login request.',
+                            errorText: _remotePasswordError,
+                          ),
+                        ),
+                        SizedBox(height: theme.spacing.sm),
+                        TextField(
+                          key: const Key('data-api-remote-encryption-key'),
+                          controller: _remoteDataApiEncryptionKeyController,
+                          obscureText: true,
+                          autocorrect: false,
+                          enableSuggestions: false,
+                          decoration: InputDecoration(
+                            labelText: 'Encryption key',
+                            helperText:
+                                "Enter this account's existing key. It cannot "
+                                'currently be changed, and a lost key cannot '
+                                'be recovered. Stored in the platform '
+                                'credential vault after validation.',
+                            errorText: _remoteEncryptionKeyError,
+                          ),
+                        ),
+                      ],
+                      SizedBox(height: theme.spacing.sm),
+                      Text(
+                        'The selection is stored in the app configuration and takes effect after restart.',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: theme.textSubtle,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(height: theme.spacing.xxl),
+                const AppSectionHeader(
                   title: 'Terminal canvas inset',
                   description:
                       'Adjust the empty space between the shell frame and terminal text.',
@@ -994,6 +1292,9 @@ class _DefaultsAndAppearanceDialogState
                               config: _selectedKeybindings,
                             ),
                           ).isNotEmpty ||
+                          selectedDataApiConfiguration == null ||
+                          (_requiresRemoteLogin &&
+                              remoteLoginRequest == null) ||
                           !hasChanges
                       ? null
                       : () {
@@ -1011,6 +1312,9 @@ class _DefaultsAndAppearanceDialogState
                               reportVariableDecisions:
                                   _selectedReportVariableDecisions,
                               keybindings: _selectedKeybindings,
+                              dataApiConfiguration:
+                                  selectedDataApiConfiguration,
+                              dataApiRemoteLogin: remoteLoginRequest,
                               updatedProfile: _updatedProfileForPreset(
                                 effectiveProfile,
                               ),

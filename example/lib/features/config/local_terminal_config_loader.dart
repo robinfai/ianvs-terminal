@@ -1,28 +1,16 @@
-import '../preferences/app_preferences_repository.dart';
 import 'local_terminal_config_bootstrap.dart';
 import 'local_terminal_config_repository.dart';
 
 class LocalTerminalConfigLoader {
-  const LocalTerminalConfigLoader({
-    required this.localConfigRepository,
-    required this.legacyPreferencesRepository,
-  });
+  const LocalTerminalConfigLoader({required this.localConfigRepository});
 
-  final LocalTerminalConfigRepository localConfigRepository;
-  final AppPreferencesRepository legacyPreferencesRepository;
+  final TerminalConfigRepository localConfigRepository;
 
   Future<LocalTerminalConfigBootstrapResult> load() async {
-    final localConfig = await localConfigRepository.load();
-    if (localConfig != null) {
-      return LocalTerminalConfigBootstrap.resolve(
-        localConfig: localConfig,
-        legacyAppPreferences: null,
-      );
-    }
-    final legacyPreferences = await legacyPreferencesRepository.load();
+    final localConfig = await localConfigRepository.loadVersioned();
     return LocalTerminalConfigBootstrap.resolve(
-      localConfig: null,
-      legacyAppPreferences: legacyPreferences,
+      localConfig: localConfig.value,
+      localConfigRevision: localConfig.revision,
     );
   }
 }

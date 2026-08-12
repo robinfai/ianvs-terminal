@@ -3,6 +3,24 @@ part of 'shell_screen.dart';
 const String _activityNotificationBody = 'New terminal output is available.';
 
 extension _ShellScreenStateEvents on _ShellScreenState {
+  void _handleTerminalUiEffect(TerminalUiEffect effect) {
+    final coordinator = ref.read(terminalEventCoordinatorProvider);
+    if (!mounted || !coordinator.isCurrentUiEffect(effect)) {
+      return;
+    }
+    switch (effect) {
+      case TerminalSessionUiEffect():
+        _handleTerminalSessionEvent(
+          effect.event,
+          exitContext: effect.exitContext,
+        );
+      case TerminalZmodemUiEffect():
+        _handleZmodemEvent(effect.event);
+      case TerminalZmodemDeferredFailureUiEffect():
+        _handleZmodemDeferredWriteFailure(effect.diagnostic);
+    }
+  }
+
   Future<void> _handleNativePasteMenu() async {
     if (_isSearchOpen) {
       await _searchPasteHandler?.call();
@@ -43,7 +61,10 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     }
   }
 
-  void _handleTerminalSessionEvent(terminal.TerminalSessionEvent event) {
+  void _handleTerminalSessionEvent(
+    terminal.TerminalSessionEvent event, {
+    TerminalSessionExitUiContext? exitContext,
+  }) {
     switch (event) {
       case terminal.TerminalSessionSshAuthPromptEvent():
         unawaited(
@@ -77,7 +98,11 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       case terminal.TerminalSessionExitEvent():
         unawaited(_osc72DragDropController.resetSession(event.sessionId));
         _clearPresentationStateForSession(event.sessionId);
-        _notifySessionExit(event.sessionId, event.exitCode);
+        _notifySessionExit(
+          event.sessionId,
+          event.exitCode,
+          exitContext: exitContext,
+        );
       case terminal.TerminalSessionBellEvent():
         _notifyBell(event.sessionId);
       case terminal.TerminalSessionShellHookEvent():
@@ -1796,14 +1821,48 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     });
   }
 
-  void _notifySessionExit(String sessionId, int? exitCode) {
+  void _notifySessionExit(
+    String sessionId,
+    int? exitCode, {
+    TerminalSessionExitUiContext? exitContext,
+  }) {
+    final sessionTitle = switch (exitContext) {
+      TerminalSessionExitUiContext(
+        :final title,
+        :final paneIndex,
+        :final paneCount,
+      ) =>
+        _exitSessionTitle(
+          sessionId: sessionId,
+          title: title,
+          paneIndex: paneIndex,
+          paneCount: paneCount,
+        ),
+      null => _sessionTitleForNotification(sessionId),
+    };
     _sendShellNotification(
       title: 'Session ended',
       body:
-          '${_sessionTitleForNotification(sessionId)} exited${exitCode == null ? '' : ' with code $exitCode'}.',
+          '$sessionTitle exited${exitCode == null ? '' : ' with code $exitCode'}.',
       identifier:
           'ianvs-terminal.exit.$sessionId.${DateTime.now().microsecondsSinceEpoch}',
     );
+  }
+
+  String _exitSessionTitle({
+    required String sessionId,
+    required String title,
+    required int paneIndex,
+    required int paneCount,
+  }) {
+    final trimmedTitle = title.trim();
+    if (paneCount < 2) {
+      return trimmedTitle.isEmpty ? 'Session $sessionId' : trimmedTitle;
+    }
+    final paneLabel = 'pane ${paneIndex + 1}';
+    return trimmedTitle.isEmpty
+        ? '$paneLabel ($sessionId)'
+        : '$trimmedTitle $paneLabel ($sessionId)';
   }
 
   void _notifyBell(String sessionId) {
@@ -1845,46 +1904,40 @@ extension _ShellScreenStateEvents on _ShellScreenState {
   }
 
   Future<void> _loadNotificationPreferences() async {
-    final configBootstrap = await _loadNotificationConfig();
-    final preferences = LocalTerminalConfigPreferencesAdapter.toAppPreferences(
-      configBootstrap.config,
-    );
-    if (!mounted) {
-      return;
+    try {
+      final configBootstrap = await _loadNotificationConfig();
+      if (!mounted) {
+        return;
+      }
+      _mutateState(() {
+        _notificationConfigSource = configBootstrap.source;
+        _notificationLocalConfig = configBootstrap.config;
+        _keybindingsConfig = configBootstrap.config.keybindings;
+        _clipboardConfig = configBootstrap.config.clipboard;
+        _hostActionsConfig = configBootstrap.config.hostActions;
+        _bracketedPastePolicy = configBootstrap.config.paste.bracketedPaste;
+        _pastePolicy = _pastePolicyFromConfig(configBootstrap.config.paste);
+        _pasteHistoryPolicy = _pasteHistoryPolicyFromConfig(
+          configBootstrap.config.paste,
+        );
+        _pasteHistoryEntries = _pasteHistoryEntries
+            .take(_effectivePasteHistoryLimit)
+            .toList();
+        _commandFinishedNotificationsEnabled =
+            configBootstrap.config.notifications.commandFinished;
+        _bellNotificationsEnabled = configBootstrap.config.notifications.bell;
+        _activityNotificationsEnabled =
+            configBootstrap.config.notifications.activity;
+      });
+    } on Object catch (error) {
+      if (mounted) {
+        _showShellSnackBar('Terminal settings could not be loaded: $error');
+      }
     }
-    _mutateState(() {
-      _notificationConfigSource = configBootstrap.source;
-      _notificationLocalConfig = configBootstrap.config;
-      _keybindingsConfig = configBootstrap.config.keybindings;
-      _clipboardConfig = configBootstrap.config.clipboard;
-      _hostActionsConfig = configBootstrap.config.hostActions;
-      _bracketedPastePolicy = configBootstrap.config.paste.bracketedPaste;
-      _pastePolicy = _pastePolicyFromConfig(configBootstrap.config.paste);
-      _pasteHistoryPolicy = _pasteHistoryPolicyFromConfig(
-        configBootstrap.config.paste,
-      );
-      _pasteHistoryEntries = _pasteHistoryEntries
-          .take(_effectivePasteHistoryLimit)
-          .toList();
-      _commandFinishedNotificationsEnabled =
-          preferences.notifications.commandFinished;
-      _bellNotificationsEnabled = preferences.notifications.bell;
-      _activityNotificationsEnabled = preferences.notifications.activity;
-    });
   }
 
   Future<LocalTerminalConfigBootstrapResult> _loadNotificationConfig() async {
-    try {
-      return await ref.read(localTerminalConfigLoaderProvider).load();
-    } on Object {
-      final legacyPreferences = await ref
-          .read(appPreferencesRepositoryProvider)
-          .load();
-      return LocalTerminalConfigBootstrap.resolve(
-        localConfig: null,
-        legacyAppPreferences: legacyPreferences,
-      );
-    }
+    return ref.read(localTerminalConfigLoaderProvider).load();
   }
 
   Future<void> _saveNotificationPreferences() async {
@@ -1894,39 +1947,34 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       activity: _activityNotificationsEnabled,
     );
     final localConfig = await _loadLocalNotificationConfigForSave();
-    if (localConfig != null) {
-      final nextConfig = localConfig.copyWith(
-        notifications: LocalTerminalNotificationsConfig(
-          enabled:
-              notifications.commandFinished ||
-              notifications.bell ||
-              notifications.activity,
-          commandFinished: notifications.commandFinished,
-          bell: notifications.bell,
-          activity: notifications.activity,
-        ),
-      );
-      _notificationConfigSource =
-          LocalTerminalConfigBootstrapSource.localConfig;
-      _notificationLocalConfig = nextConfig;
-      await ref.read(localTerminalConfigRepositoryProvider).save(nextConfig);
-      return;
-    }
-
-    final repository = ref.read(appPreferencesRepositoryProvider);
-    final preferences =
-        await repository.load() ?? const TerminalAppPreferencesDocument();
-    await repository.save(preferences.copyWith(notifications: notifications));
+    final nextConfig = await ref
+        .read(localTerminalConfigRepositoryProvider)
+        .update(
+          (current) => current.copyWith(
+            notifications: LocalTerminalNotificationsConfig(
+              enabled:
+                  notifications.commandFinished ||
+                  notifications.bell ||
+                  notifications.activity,
+              commandFinished: notifications.commandFinished,
+              bell: notifications.bell,
+              activity: notifications.activity,
+            ),
+          ),
+          fallback: localConfig,
+        );
+    _notificationConfigSource = LocalTerminalConfigBootstrapSource.localConfig;
+    _notificationLocalConfig = nextConfig;
   }
 
-  Future<LocalTerminalConfigDocument?>
+  Future<LocalTerminalConfigDocument>
   _loadLocalNotificationConfigForSave() async {
     final repository = ref.read(localTerminalConfigRepositoryProvider);
     if (_notificationConfigSource ==
         LocalTerminalConfigBootstrapSource.localConfig) {
       return await repository.load() ?? _notificationLocalConfig;
     }
-    return repository.load();
+    return await repository.load() ?? _notificationLocalConfig;
   }
 
   LocalTerminalPastePolicy _pastePolicyFromConfig(

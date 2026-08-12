@@ -85,6 +85,41 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
     });
     _publishAcceptanceSnapshot(sessionState);
 
+    final dataApiConfigurationRepository = ref.read(
+      dataApiConfigurationRepositoryProvider,
+    );
+    var dataApiConfiguration = const DataApiConfiguration.disabled();
+    if (dataApiConfigurationRepository != null) {
+      try {
+        dataApiConfiguration = switch (dataApiConfigurationRepository) {
+          final DataApiConfigurationRecoveryLoader recoveryLoader =>
+            await recoveryLoader.loadForRecovery(),
+          _ => await dataApiConfigurationRepository.load(),
+        };
+      } on Object catch (error) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Unable to read the data service configuration: $error',
+              ),
+            ),
+          );
+        }
+      }
+    }
+    final dataApiConfigurationRecoveryRequired =
+        ref.read(dataApiConfigurationRecoveryRequiredProvider) ||
+        switch (dataApiConfigurationRepository) {
+          final DataApiConfigurationRecoveryStatus status =>
+            status.recoveryRequired,
+          _ => false,
+        };
+
+    if (!mounted) {
+      return;
+    }
+
     final activeSessionIdBeforeOpen = sessionState.activeSessionId;
     final defaultsRoute = DialogRoute<DefaultsAndAppearanceSelection>(
       context: context,
@@ -104,6 +139,10 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
         requestAttentionPolicy: _hostActionsConfig.osc1337RequestAttention,
         reportVariableDecisions: _hostActionsConfig.osc1337ReportVariables,
         keybindings: _keybindingsConfig,
+        dataApiConfiguration: dataApiConfiguration,
+        dataApiConfigurationRecoveryRequired:
+            dataApiConfigurationRecoveryRequired,
+        localDataApiAvailable: defaultTargetPlatform == TargetPlatform.macOS,
       ),
     );
     final selection = await Navigator.of(
@@ -238,6 +277,80 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
             keybindings: selection.keybindings,
           );
         });
+      }
+      if (selection.dataApiConfiguration != dataApiConfiguration ||
+          selection.dataApiRemoteLogin != null ||
+          dataApiConfigurationRecoveryRequired) {
+        if (dataApiConfigurationRepository == null) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Data service configuration is unavailable in this build.',
+                ),
+              ),
+            );
+          }
+        } else {
+          try {
+            final remoteLogin = selection.dataApiRemoteLogin;
+            if (selection.dataApiConfiguration.deployment ==
+                DataApiDeployment.remote) {
+              final DataApiRemoteConfigurationConnector? connector =
+                  switch (dataApiConfigurationRepository) {
+                    final DataApiRemoteConfigurationConnector value => value,
+                    _ => null,
+                  };
+              if (remoteLogin == null || connector == null) {
+                throw StateError(
+                  'Remote authentication is unavailable in this build.',
+                );
+              }
+              await connector.connectAndSaveRemote(remoteLogin);
+            } else {
+              await dataApiConfigurationRepository.save(
+                selection.dataApiConfiguration,
+              );
+            }
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'Data service configuration saved. Restart the app to apply it.',
+                  ),
+                ),
+              );
+            }
+          } on DataApiRemoteRevocationPendingWarning catch (warning) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  key: const Key('data-api-revocation-pending-warning'),
+                  content: Text(warning.toString()),
+                ),
+              );
+            }
+          } on DataApiSecureSessionMutationException catch (warning) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  key: const Key('data-api-secure-session-warning'),
+                  content: Text(warning.toString()),
+                ),
+              );
+            }
+          } on Object catch (error) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'Unable to save the data service configuration: $error',
+                  ),
+                ),
+              );
+            }
+          }
+        }
       }
       final updatedProfile = selection.updatedProfile;
       if (updatedProfile != null) {

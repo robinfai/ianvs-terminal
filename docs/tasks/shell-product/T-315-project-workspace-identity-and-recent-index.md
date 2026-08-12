@@ -1,5 +1,9 @@
 # T-315 Project Workspace Identity and Recent Index
 
+> Archival task record superseded by T-331. Workspace predecessor formats are
+> not product inputs: current production code does not discover, migrate,
+> rewrite or delete them.
+
 ## Goal
 
 Advance the single local Workspace document into a migration-safe collection foundation with

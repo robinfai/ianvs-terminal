@@ -64,8 +64,5 @@ fn graphic_asset_packet_v1_crosses_ffi_atomically_with_exact_identity() {
     assert_eq!(packet.rgba, [255, 0, 0, 255]);
     assert!(take_packet(session_id, placement.asset_id, 0).is_none());
 
-    let legacy_meta = ianvs_core::ffi::ianvs_session_graphic_asset_meta;
-    let legacy_copy = ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy;
-    let _ = (legacy_meta, legacy_copy);
     session::close_session(session_id).unwrap();
 }

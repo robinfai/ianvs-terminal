@@ -34,10 +34,15 @@ case "${PLATFORM_NAME:-}" in
 esac
 
 PROFILE_DIR=debug
-CARGO_ARGS=(build --manifest-path "$CORE_MANIFEST" --target "$RUST_TARGET")
+CARGO_ARGS=(build --locked --manifest-path "$CORE_MANIFEST" --target "$RUST_TARGET")
 if [[ "${CONFIGURATION:-Debug}" != "Debug" ]]; then
   PROFILE_DIR=release
   CARGO_ARGS+=(--release)
+fi
+
+if ! rustup target list --installed | grep -Fqx -- "$RUST_TARGET"; then
+  echo "Missing Rust target $RUST_TARGET. Install it with: rustup target add $RUST_TARGET" >&2
+  exit 1
 fi
 
 cargo "${CARGO_ARGS[@]}"

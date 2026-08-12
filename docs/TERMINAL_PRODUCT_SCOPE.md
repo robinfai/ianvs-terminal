@@ -23,12 +23,18 @@ switch or remember a project container.
 
 ## Persistence contracts
 
-- `ianvs_terminal_layout.json` stores Terminal Layout v1.
-- `ianvs_config.json` stores the `layout.restoreLayout` preference.
-- `ianvs_recordings/` stores new recordings in one flat library. Existing
-  nested legacy recording files remain readable.
-- Legacy Workspace v1-v3, project identity/index and `workspace` config are
-  read-only migration inputs. New writes never recreate them.
+- The Go/GORM data API is the target durable store for Profile, Terminal
+  Layout/Relaunch Spec, and configuration resources. Local mode uses SQLite;
+  remote mode supports SQLite or MySQL with the same ORM model.
+- Disabled mode uses the current local persistence adapters explicitly. There
+  is no product-time importer for older app-support JSON documents, and the app
+  neither discovers nor deletes unsupported historical data.
+- `ianvs_recordings/` stores recordings in one flat, current-format library.
+  Unsupported recording and repository metadata schemas fail closed; the app
+  does not migrate, discover, or rewrite older recording layouts.
+- Unsupported Workspace schemas, project identity/index and `workspace`
+  configuration are outside the current contract. Runtime code does not
+  discover, migrate, delete or recreate them.
 
 Runtime titles, creation/exit timestamps, exit codes, environment metadata,
 recording paths and restart policy are excluded from Relaunch Spec.

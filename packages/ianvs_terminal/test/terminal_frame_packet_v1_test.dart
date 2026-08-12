@@ -4,10 +4,11 @@ import 'package:fixnum/fixnum.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_pty/ianvs_pty.dart';
 import 'package:ianvs_terminal/src/proto/frame_diff.pb.dart' as frame_pb;
-import 'package:ianvs_terminal/src/runtime/terminal_frame_decoder.dart';
 import 'package:ianvs_terminal/src/runtime/terminal_frame_packet_v1.dart';
 import 'package:ianvs_terminal/src/runtime/terminal_frame_transport_coordinator.dart';
+import 'package:ianvs_terminal/src/transport/terminal_protobuf_frame_codec.dart';
 
+import 'support/terminal_frame_test_decoders.dart';
 import 'support/terminal_frame_wire_fixture.dart';
 
 void main() {
@@ -18,7 +19,7 @@ void main() {
         final frame = _snapshotFrame();
         final bytes = _packetBytes(sessionId: '7', sequence: 0, frame: frame);
 
-        final packet = const TerminalFramePacketV1Decoder().decode(
+        final packet = terminalFramePacketTestDecoder().decode(
           bytes,
           expectedSessionId: '7',
           afterSequence: null,
@@ -31,16 +32,14 @@ void main() {
         expect(
           terminalFrameProjection(packet.frame),
           terminalFrameProjection(
-            const TerminalFrameDecoder()
-                .decodeProtobuf(Uint8List.fromList(frame.writeToBuffer()))!
-                .frame,
+            const TerminalProtobufFrameCodec().decode(frame.writeToBuffer()),
           ),
         );
       },
     );
 
     test('accepts proto3 omission of the initial zero sequence', () {
-      final packet = const TerminalFramePacketV1Decoder().decode(
+      final packet = terminalFramePacketTestDecoder().decode(
         _packetBytes(
           sessionId: '7',
           sequence: 0,
@@ -58,7 +57,7 @@ void main() {
     test('rejects cross-session data and a gapped Delta', () {
       final delta = completeTerminalFrameWireFixture().protobuf.deepCopy()
         ..frameKind = frame_pb.TerminalFrameKind.TERMINAL_FRAME_KIND_DELTA;
-      const decoder = TerminalFramePacketV1Decoder();
+      final decoder = terminalFramePacketTestDecoder();
 
       expect(
         () => decoder.decode(
@@ -91,7 +90,7 @@ void main() {
     });
 
     test('accepts a forward Snapshot as an explicit resynchronization', () {
-      final packet = const TerminalFramePacketV1Decoder().decode(
+      final packet = terminalFramePacketTestDecoder().decode(
         _packetBytes(sessionId: '7', sequence: 4, frame: _snapshotFrame()),
         expectedSessionId: '7',
         afterSequence: 1,
@@ -103,53 +102,32 @@ void main() {
   });
 
   group(TerminalFrameTransportCoordinator, () {
-    test(
-      'automatic prefers packets and acknowledges only accepted sequence',
-      () {
-        final backend = _PacketBackend()
-          ..packets.add(
-            _packetBytes(sessionId: '7', sequence: 0, frame: _snapshotFrame()),
-          )
-          ..packets.add(Uint8List.fromList(const <int>[0xff]))
-          ..packets.add(
-            _packetBytes(sessionId: '7', sequence: 1, frame: _snapshotFrame()),
-          );
-        final errors = <Object>[];
-        final coordinator = TerminalFrameTransportCoordinator(
-          backend: backend,
-          decoder: const TerminalFrameDecoder(),
-          preference: TerminalFrameWireFormatPreference.automatic,
-          onRequestError: (_, _, error, _) => errors.add(error),
-        );
-
-        expect(coordinator.take('7'), isNotNull);
-        expect(coordinator.take('7'), isNull);
-        expect(coordinator.take('7'), isNotNull);
-        coordinator.removeSession('7');
-        backend.packets.add(
+    test('uses packets and acknowledges only accepted sequence', () {
+      final backend = _PacketBackend()
+        ..packets.add(
           _packetBytes(sessionId: '7', sequence: 0, frame: _snapshotFrame()),
+        )
+        ..packets.add(Uint8List.fromList(const <int>[0xff]))
+        ..packets.add(
+          _packetBytes(sessionId: '7', sequence: 1, frame: _snapshotFrame()),
         );
-        expect(coordinator.take('7'), isNotNull);
-
-        expect(backend.afterSequences, <int?>[null, 0, 0, null]);
-        expect(backend.legacyProtobufCalls, 0);
-        expect(backend.jsonCalls, 0);
-        expect(errors, hasLength(1));
-      },
-    );
-
-    test('explicit JSON never probes the packet capability', () {
-      final backend = _PacketBackend();
+      final errors = <Object>[];
       final coordinator = TerminalFrameTransportCoordinator(
         backend: backend,
-        decoder: const TerminalFrameDecoder(),
-        preference: TerminalFrameWireFormatPreference.json,
+        onRequestError: (_, _, error, _) => errors.add(error),
       );
 
-      coordinator.take('7');
+      expect(coordinator.take('7'), isNotNull);
+      expect(coordinator.take('7'), isNull);
+      expect(coordinator.take('7'), isNotNull);
+      coordinator.removeSession('7');
+      backend.packets.add(
+        _packetBytes(sessionId: '7', sequence: 0, frame: _snapshotFrame()),
+      );
+      expect(coordinator.take('7'), isNotNull);
 
-      expect(backend.afterSequences, isEmpty);
-      expect(backend.jsonCalls, 1);
+      expect(backend.afterSequences, <int?>[null, 0, 0, null]);
+      expect(errors, hasLength(1));
     });
   });
 }
@@ -183,18 +161,9 @@ frame_pb.TerminalFrameDiff _snapshotFrame() {
 }
 
 final class _PacketBackend
-    implements
-        PtySessionBackend,
-        PtySessionFramePacketV1Backend,
-        PtySessionProtobufFrameBackend {
+    implements PtySessionBackend, PtySessionFramePacketV1Backend {
   final List<Uint8List?> packets = <Uint8List?>[];
   final List<int?> afterSequences = <int?>[];
-  int legacyProtobufCalls = 0;
-  int jsonCalls = 0;
-
-  @override
-  bool get supportsFramePacketV1 => true;
-
   @override
   Uint8List? takeFramePacketV1Protobuf(
     String sessionId, {
@@ -205,25 +174,7 @@ final class _PacketBackend
   }
 
   @override
-  bool get supportsProtobufFrameDiffs => true;
-
-  @override
-  Uint8List? takeFrameDiffProtobuf(String sessionId) {
-    legacyProtobufCalls += 1;
-    return null;
-  }
-
-  @override
-  String? takeFrameDiffJson(String sessionId) {
-    jsonCalls += 1;
-    return null;
-  }
-
-  @override
   int ping() => 42;
-
-  @override
-  String createSession(String sessionConfigJson) => '7';
 
   @override
   void closeSession(String sessionId) {}

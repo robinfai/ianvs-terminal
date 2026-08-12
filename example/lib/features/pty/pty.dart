@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:ianvs_pty/ianvs_pty.dart';
 
 export 'package:ianvs_pty/ianvs_pty.dart'
@@ -7,7 +9,8 @@ export 'package:ianvs_pty/ianvs_pty.dart'
         PtyEvent,
         PtySessionBackend,
         PtySessionConfigV1Backend,
-        PtySessionJsonRequestBackend;
+        PtySessionFramePacketV1Backend,
+        PtySessionRequestV1Backend;
 
 export 'ios_sandbox_shell_backend.dart' show IosSandboxShellBackend;
 
@@ -20,14 +23,10 @@ PtySessionBackend loadDefaultPtySessionBackend() {
 /// iOS applications cannot spawn an unrestricted local shell. Keeping this
 /// backend in Dart lets the terminal viewport retain selection, scrolling, and
 /// keyboard plumbing without loading the macOS native PTY library.
-class ReferenceDemoPtySessionBackend implements PtySessionBackend {
+class ReferenceDemoPtySessionBackend
+    implements PtySessionBackend, PtySessionFramePacketV1Backend {
   @override
   int ping() => 1;
-
-  @override
-  String createSession(String sessionConfigJson) {
-    throw UnsupportedError('Local shell sessions are unavailable on iOS');
-  }
 
   @override
   void closeSession(String sessionId) {}
@@ -53,7 +52,10 @@ class ReferenceDemoPtySessionBackend implements PtySessionBackend {
   void scrollViewportTo(String sessionId, int offset) {}
 
   @override
-  String? takeFrameDiffJson(String sessionId) => null;
+  Uint8List? takeFramePacketV1Protobuf(
+    String sessionId, {
+    required int? afterSequence,
+  }) => null;
 
   @override
   List<PtyEvent> pollEvents(String sessionId) => const <PtyEvent>[];

@@ -57,6 +57,10 @@ final class TerminalSessionRegistry {
     );
   }
 
+  TerminalGraphicsCache? existingGraphicsCacheFor(String sessionId) {
+    return _graphicsCaches[sessionId];
+  }
+
   bool remove(String sessionId) {
     final wasActive = _activeSessionIds.remove(sessionId);
     _graphicsCaches.remove(sessionId)?.dispose();

@@ -13,7 +13,7 @@ enum TerminalZmodemCancelActiveOutcome { cancelled, draining, idle }
 
 final class TerminalJsonRequestClient {
   TerminalJsonRequestClient(
-    PtySessionJsonRequestBackend? backend, {
+    PtySessionRequestV1Backend? backend, {
     TerminalBackendRequestErrorHandler? onRequestError,
   }) : _transport = TerminalSessionRequestTransport(backend),
        _onRequestError = onRequestError;
@@ -23,8 +23,8 @@ final class TerminalJsonRequestClient {
     TerminalBackendRequestErrorHandler? onRequestError,
   }) {
     return TerminalJsonRequestClient(
-      backend is PtySessionJsonRequestBackend
-          ? backend as PtySessionJsonRequestBackend
+      backend is PtySessionRequestV1Backend
+          ? backend as PtySessionRequestV1Backend
           : null,
       onRequestError: onRequestError,
     );
@@ -298,7 +298,8 @@ final class TerminalJsonRequestClient {
       return null;
     }
     try {
-      return _transport.requestObject(sessionId, request);
+      final payload = Map<String, Object?>.of(request)..remove('kind');
+      return _transport.requestObject(sessionId, operation, payload);
     } on Object catch (error, stackTrace) {
       _onRequestError?.call(sessionId, operation, error, stackTrace);
       return null;

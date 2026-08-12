@@ -211,6 +211,7 @@ extension _ShellScreenStateInstantReplay on _ShellScreenState {
     terminal.TerminalFrameDiff frame, {
     WindowMetrics? windowMetrics,
     bool enrichSessionMetadata = false,
+    bool forceCheckpoint = false,
   }) {
     final viewportLogicalSize =
         _scheduledViewportSizes[sessionId] ??
@@ -225,17 +226,17 @@ extension _ShellScreenStateInstantReplay on _ShellScreenState {
             viewportLogicalSize.width * devicePixelRatio,
             viewportLogicalSize.height * devicePixelRatio,
           );
-    ref
-        .read(instantReplayStoreProvider)
-        .record(
-          sessionId,
-          frame,
-          viewportLogicalSize: viewportLogicalSize,
-          viewportPixelSize: viewportPixelSize,
-          devicePixelRatio: devicePixelRatio,
-          windowContentSize: windowMetrics?.contentSize,
-          windowFrameSize: windowMetrics?.frameSize,
-        );
+    final store = ref.read(instantReplayStoreProvider);
+    final recordFrame = forceCheckpoint ? store.checkpoint : store.record;
+    recordFrame(
+      sessionId,
+      frame,
+      viewportLogicalSize: viewportLogicalSize,
+      viewportPixelSize: viewportPixelSize,
+      devicePixelRatio: devicePixelRatio,
+      windowContentSize: windowMetrics?.contentSize,
+      windowFrameSize: windowMetrics?.frameSize,
+    );
     if (enrichSessionMetadata) {
       ref
           .read(instantReplayStoreProvider)
@@ -262,6 +263,7 @@ extension _ShellScreenStateInstantReplay on _ShellScreenState {
       frame,
       windowMetrics: windowMetrics,
       enrichSessionMetadata: true,
+      forceCheckpoint: true,
     );
   }
 

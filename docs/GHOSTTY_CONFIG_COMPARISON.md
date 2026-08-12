@@ -36,13 +36,14 @@
 ### 配置载体
 
 - Profile 持久化在应用支持目录下的 `ianvs_profiles.json`，由 `ProfileRepository` 负责读写。
-- App 级偏好单独持久化在 `ianvs_preferences.json`，由 `AppPreferencesRepository` 负责读写。
-- 当前没有统一配置入口，没有 include/override 层次，也没有显式运行时 reload 协议。
+- App 级配置持久化在 exact-current `ianvs_config.json`，由
+  `LocalTerminalConfigRepository` 负责读写。
+- predecessor 配置不发现、不迁移、不删除。
 
 对应代码：
 
 - `example/lib/features/profiles/profile_repository.dart`
-- `example/lib/features/preferences/app_preferences_repository.dart`
+- `example/lib/features/config/local_terminal_config_repository.dart`
 
 ### 已建模的终端 profile 配置
 

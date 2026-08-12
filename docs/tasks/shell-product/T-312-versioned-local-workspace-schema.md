@@ -1,5 +1,9 @@
 # T-312 Versioned Local Workspace Schema
 
+> Archival task record superseded by T-331. Workspace predecessor formats are
+> not product inputs: current production code does not discover, migrate,
+> rewrite or delete them.
+
 ## Goal
 
 Add an explicit schema version and a bounded migration boundary to the existing local Workspace

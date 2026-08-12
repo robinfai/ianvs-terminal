@@ -9,11 +9,24 @@ import '../../platform/local_json_file.dart';
 import 'local_terminal_visual_models.dart';
 
 const int maxLocalTerminalThemePresets = 100;
+const int localTerminalThemeLibraryCurrentSchemaVersion = 1;
 const _maxSafeBasenameLength = 120;
 const int _maxPersistedThemePresetEntriesToScan =
     maxLocalTerminalThemePresets * 4;
 
 typedef LocalTerminalThemeDirectoryResolver = Future<Directory> Function();
+
+final class UnsupportedLocalTerminalThemeLibrarySchemaVersion
+    implements Exception {
+  const UnsupportedLocalTerminalThemeLibrarySchemaVersion(this.version);
+
+  final Object? version;
+
+  @override
+  String toString() =>
+      'Unsupported terminal theme library schema version: $version; expected '
+      '$localTerminalThemeLibraryCurrentSchemaVersion.';
+}
 
 class LocalTerminalThemeRepository {
   LocalTerminalThemeRepository({
@@ -30,7 +43,21 @@ class LocalTerminalThemeRepository {
 
     try {
       final raw = await file.readAsString();
-      final decoded = decodeJsonArray(raw, documentName: 'Theme preset list');
+      final decodedDocument = jsonDecode(raw);
+      if (decodedDocument is! Map<String, Object?>) {
+        throw const UnsupportedLocalTerminalThemeLibrarySchemaVersion(null);
+      }
+      final document = decodedDocument;
+      final version = document['schema_version'];
+      if (version != localTerminalThemeLibraryCurrentSchemaVersion) {
+        throw UnsupportedLocalTerminalThemeLibrarySchemaVersion(version);
+      }
+      final decoded = document['presets'];
+      if (decoded is! List<Object?>) {
+        throw const FormatException(
+          'Theme preset library must contain a presets list.',
+        );
+      }
       return _uniqueUsablePresets(
         decoded
             .take(_maxPersistedThemePresetEntriesToScan)
@@ -49,11 +76,12 @@ class LocalTerminalThemeRepository {
     final file = await _themesFile();
     await writeStringAtomically(
       file,
-      jsonEncode(
-        _uniqueUsablePresets(
+      jsonEncode(<String, Object?>{
+        'schema_version': localTerminalThemeLibraryCurrentSchemaVersion,
+        'presets': _uniqueUsablePresets(
           presets,
         ).map((preset) => preset.toJson()).toList(growable: false),
-      ),
+      }),
     );
   }
 

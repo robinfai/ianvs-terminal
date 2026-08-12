@@ -1,0 +1,1002 @@
+package httpapi_test
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
+
+	"gorm.io/gorm"
+
+	"ianvs-terminal/backend/internal/auth"
+	"ianvs-terminal/backend/internal/config"
+	"ianvs-terminal/backend/internal/contracttest"
+	"ianvs-terminal/backend/internal/database"
+	"ianvs-terminal/backend/internal/httpapi"
+	"ianvs-terminal/backend/internal/identity"
+	"ianvs-terminal/backend/internal/model"
+	"ianvs-terminal/backend/internal/secure"
+	"ianvs-terminal/backend/internal/store"
+)
+
+func TestLocalAPISetupAndEncryptedResourceRoundTrip(t *testing.T) {
+	cfg, db, handler := testAPI(t, config.ModeLocal)
+	_ = cfg
+	key := "locally-created-encryption-key-material"
+
+	response := request(t, handler, http.MethodPost, "/v1/auth/setup", map[string]any{
+		"encryption_key": key,
+	}, nil)
+	if response.Code != http.StatusCreated {
+		t.Fatalf("setup status = %d, body = %s", response.Code, response.Body.String())
+	}
+
+	response = request(t, handler, http.MethodPut, "/v1/resources/profile/work", map[string]any{
+		"data":      map[string]any{"name": "Work", "host": "example.com"},
+		"sensitive": map[string]any{"password": "api-secret"},
+	}, map[string]string{"X-Ianvs-Encryption-Key": key})
+	if response.Code != http.StatusOK {
+		t.Fatalf("put status = %d, body = %s", response.Code, response.Body.String())
+	}
+
+	var persisted model.Resource
+	if err := db.Where("kind = ? AND external_id = ?", "profile", "work").First(&persisted).Error; err != nil {
+		t.Fatalf("load resource: %v", err)
+	}
+	if strings.Contains(persisted.SensitiveCiphertext, "api-secret") || strings.Contains(persisted.PlainJSON, "api-secret") {
+		t.Fatal("API persisted sensitive data in plaintext")
+	}
+
+	response = request(t, handler, http.MethodGet, "/v1/resources/profile/work", nil, nil)
+	if response.Code != http.StatusOK || strings.Contains(response.Body.String(), "api-secret") {
+		t.Fatalf("plain get status = %d, body = %s", response.Code, response.Body.String())
+	}
+	response = request(t, handler, http.MethodGet, "/v1/resources/profile/work?include_sensitive=true", nil, nil)
+	if response.Code != http.StatusPreconditionRequired {
+		t.Fatalf("keyless sensitive get status = %d, body = %s", response.Code, response.Body.String())
+	}
+	response = request(t, handler, http.MethodGet, "/v1/resources/profile/work?include_sensitive=true", nil, map[string]string{
+		"X-Ianvs-Encryption-Key": key,
+	})
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "api-secret") {
+		t.Fatalf("sensitive get status = %d, body = %s", response.Code, response.Body.String())
+	}
+}
+
+func TestLocalSetupRejectsRotationAfterTheKeyIsCreated(t *testing.T) {
+	_, _, handler := testAPI(t, config.ModeLocal)
+	first := request(t, handler, http.MethodPost, "/v1/auth/setup", map[string]any{
+		"encryption_key": "immutable-local-key-material",
+	}, nil)
+	if first.Code != http.StatusCreated {
+		t.Fatalf("initial setup status = %d", first.Code)
+	}
+
+	rotation := request(t, handler, http.MethodPost, "/v1/auth/setup", map[string]any{
+		"encryption_key": "replacement-local-key-material",
+	}, nil)
+	if rotation.Code != http.StatusUnauthorized ||
+		!strings.Contains(rotation.Body.String(), `"code":"invalid_encryption_key"`) {
+		t.Fatalf("rotation attempt status = %d, body = %s", rotation.Code, rotation.Body.String())
+	}
+}
+
+func TestEncryptionKeyEndpointsRejectOversizedSecrets(t *testing.T) {
+	oversized := strings.Repeat("x", secure.MaximumUserKeyBytes+1)
+
+	_, _, localHandler := testAPI(t, config.ModeLocal)
+	setup := request(t, localHandler, http.MethodPost, "/v1/auth/setup", map[string]any{
+		"encryption_key": oversized,
+	}, nil)
+	assertTypedError(t, setup, http.StatusBadRequest, "encryption_key_too_long")
+
+	_, _, remoteHandler := testAPI(t, config.ModeRemote)
+	registration := request(t, remoteHandler, http.MethodPost, "/v1/auth/register/begin", map[string]any{
+		"username":       "bounded-key-user",
+		"password":       "bounded-password-value",
+		"encryption_key": oversized,
+	}, nil)
+	assertTypedError(t, registration, http.StatusBadRequest, "encryption_key_too_long")
+
+	session := register(
+		t,
+		remoteHandler,
+		"verify-key-limit-user",
+		"verify-key-password",
+		"bounded-verification-key",
+	)
+	verification := request(t, remoteHandler, http.MethodPost, "/v1/auth/verify-key", nil, map[string]string{
+		"Authorization":          "Bearer " + session.Token,
+		"X-Ianvs-Encryption-Key": oversized,
+	})
+	assertTypedError(t, verification, http.StatusBadRequest, "encryption_key_too_long")
+}
+
+func TestPutExpectedRevisionZeroHasCreateIfAbsentContract(t *testing.T) {
+	_, _, handler := testAPI(t, config.ModeLocal)
+	create := func(name string, expectedRevision int64) *httptest.ResponseRecorder {
+		return request(t, handler, http.MethodPut, "/v1/resources/profile/default", map[string]any{
+			"data":              map[string]any{"name": name},
+			"expected_revision": expectedRevision,
+		}, nil)
+	}
+
+	response := create("First", 0)
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"revision":1`) {
+		t.Fatalf("first create status = %d, body = %s", response.Code, response.Body.String())
+	}
+	response = create("Lost update", 0)
+	if response.Code != http.StatusConflict || !strings.Contains(response.Body.String(), `"code":"revision_conflict"`) {
+		t.Fatalf("duplicate create status = %d, body = %s", response.Code, response.Body.String())
+	}
+	response = create("Invalid", -1)
+	if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), `"code":"invalid_request"`) {
+		t.Fatalf("negative revision status = %d, body = %s", response.Code, response.Body.String())
+	}
+}
+
+func TestLocalSetupRejectsBrowserSimpleContentType(t *testing.T) {
+	_, _, handler := testAPI(t, config.ModeLocal)
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/v1/auth/setup",
+		strings.NewReader(`{"encryption_key":"attacker-controlled-key"}`),
+	)
+	req.RemoteAddr = "127.0.0.1:54321"
+	req.Header.Set("Content-Type", "text/plain")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, req)
+	if response.Code != http.StatusUnsupportedMediaType {
+		t.Fatalf("setup status = %d, body = %s", response.Code, response.Body.String())
+	}
+}
+
+func TestLocalAccessTokenProtectsHealthAndAPI(t *testing.T) {
+	cfg, _, _ := testAPI(t, config.ModeLocal)
+	cfg.LocalAccessToken = "parent-owned-token"
+	handler := testAPIHandler(t, cfg)
+
+	unauthorized := request(t, handler, http.MethodGet, "/healthz", nil, nil)
+	if unauthorized.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthorized health status = %d, body = %s", unauthorized.Code, unauthorized.Body.String())
+	}
+	authorized := request(t, handler, http.MethodGet, "/healthz", nil, map[string]string{
+		"Authorization": "Bearer parent-owned-token",
+	})
+	if authorized.Code != http.StatusOK {
+		t.Fatalf("authorized health status = %d, body = %s", authorized.Code, authorized.Body.String())
+	}
+}
+
+func TestRemoteAPIIsolatesUsersWithBearerAuthentication(t *testing.T) {
+	_, _, handler := testAPI(t, config.ModeRemote)
+	alice := register(t, handler, "alice", "alice-password-long", "alice-encryption-key-material")
+	bob := register(t, handler, "bob", "bob-password-is-long", "bob-encryption-key-material")
+
+	putForUser(t, handler, alice.Token, "alice-encryption-key-material", "Alice profile", "alice-secret")
+	putForUser(t, handler, bob.Token, "bob-encryption-key-material", "Bob profile", "bob-secret")
+
+	aliceResponse := request(t, handler, http.MethodGet, "/v1/resources/profile/shared?include_sensitive=true", nil, map[string]string{
+		"Authorization":          "Bearer " + alice.Token,
+		"X-Ianvs-Encryption-Key": "alice-encryption-key-material",
+	})
+	if aliceResponse.Code != http.StatusOK || !strings.Contains(aliceResponse.Body.String(), "Alice profile") || !strings.Contains(aliceResponse.Body.String(), "alice-secret") || strings.Contains(aliceResponse.Body.String(), "bob-secret") {
+		t.Fatalf("alice get status = %d, body = %s", aliceResponse.Code, aliceResponse.Body.String())
+	}
+	bobResponse := request(t, handler, http.MethodGet, "/v1/resources/profile/shared?include_sensitive=true", nil, map[string]string{
+		"Authorization":          "Bearer " + bob.Token,
+		"X-Ianvs-Encryption-Key": "bob-encryption-key-material",
+	})
+	if bobResponse.Code != http.StatusOK || !strings.Contains(bobResponse.Body.String(), "Bob profile") || !strings.Contains(bobResponse.Body.String(), "bob-secret") || strings.Contains(bobResponse.Body.String(), "alice-secret") {
+		t.Fatalf("bob get status = %d, body = %s", bobResponse.Code, bobResponse.Body.String())
+	}
+
+	unauthorized := request(t, handler, http.MethodGet, "/v1/resources", nil, nil)
+	if unauthorized.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthorized list status = %d, body = %s", unauthorized.Code, unauthorized.Body.String())
+	}
+}
+
+func TestRemoteLoginAndLogoutLifecycle(t *testing.T) {
+	_, _, handler := testAPI(t, config.ModeRemote)
+	register(t, handler, "login-user", "login-password-long", "login-encryption-key-material")
+
+	wrongPassword := request(t, handler, http.MethodPost, "/v1/auth/login/begin", map[string]any{
+		"username": "login-user",
+		"password": "wrong-password-long",
+	}, nil)
+	if wrongPassword.Code != http.StatusUnauthorized {
+		t.Fatalf("wrong password status = %d, body = %s", wrongPassword.Code, wrongPassword.Body.String())
+	}
+	login := login(t, handler, "login-user", "login-password-long")
+	logoutResponse := request(t, handler, http.MethodPost, "/v1/auth/logout", nil, map[string]string{
+		"Authorization": "Bearer " + login.Token,
+	})
+	if logoutResponse.Code != http.StatusNoContent {
+		t.Fatalf("logout status = %d, body = %s", logoutResponse.Code, logoutResponse.Body.String())
+	}
+	revokedLogoutResponse := request(t, handler, http.MethodPost, "/v1/auth/logout", nil, map[string]string{
+		"Authorization": "Bearer " + login.Token,
+	})
+	if revokedLogoutResponse.Code != http.StatusUnauthorized ||
+		!strings.Contains(revokedLogoutResponse.Body.String(), `"code":"unauthorized"`) {
+		t.Fatalf(
+			"revoked logout status = %d, body = %s",
+			revokedLogoutResponse.Code,
+			revokedLogoutResponse.Body.String(),
+		)
+	}
+	meResponse := request(t, handler, http.MethodGet, "/v1/me", nil, map[string]string{
+		"Authorization": "Bearer " + login.Token,
+	})
+	if meResponse.Code != http.StatusUnauthorized {
+		t.Fatalf("revoked token status = %d, body = %s", meResponse.Code, meResponse.Body.String())
+	}
+}
+
+func TestAuthenticationOperationCancellationHTTPContract(t *testing.T) {
+	_, db, handler := testAPI(t, config.ModeRemote)
+	register(t, handler, "cancel-user", "cancel-password-long", "cancel-encryption-key-material")
+	beginResponse := request(t, handler, http.MethodPost, "/v1/auth/login/begin", map[string]any{
+		"username": "cancel-user",
+		"password": "cancel-password-long",
+	}, nil)
+	if beginResponse.Code != http.StatusOK {
+		t.Fatalf("begin login status = %d, body = %s", beginResponse.Code, beginResponse.Body.String())
+	}
+	var prepared preparedOperationResponse
+	if err := json.Unmarshal(beginResponse.Body.Bytes(), &prepared); err != nil {
+		t.Fatalf("decode prepared login: %v", err)
+	}
+	completeBody := map[string]any{"operation_id": prepared.OperationID}
+	loginResponse := request(t, handler, http.MethodPost, "/v1/auth/login/complete", completeBody, nil)
+	if loginResponse.Code != http.StatusOK {
+		t.Fatalf("login status = %d, body = %s", loginResponse.Code, loginResponse.Body.String())
+	}
+	var login registrationSession
+	if err := json.Unmarshal(loginResponse.Body.Bytes(), &login); err != nil {
+		t.Fatalf("decode login: %v", err)
+	}
+	reusedBeforeCancellation := request(t, handler, http.MethodPost, "/v1/auth/login/complete", completeBody, nil)
+	assertTypedError(t, reusedBeforeCancellation, http.StatusConflict, "auth_operation_reused")
+
+	for attempt := 0; attempt < 2; attempt++ {
+		canceled := request(t, handler, http.MethodPost, "/v1/auth/cancel-operation", map[string]any{
+			"operation_id": prepared.OperationID,
+		}, nil)
+		if canceled.Code != http.StatusNoContent {
+			t.Fatalf("cancel attempt %d status = %d, body = %s", attempt+1, canceled.Code, canceled.Body.String())
+		}
+	}
+	revoked := request(t, handler, http.MethodGet, "/v1/me", nil, map[string]string{
+		"Authorization": "Bearer " + login.Token,
+	})
+	if revoked.Code != http.StatusUnauthorized {
+		t.Fatalf("canceled operation token status = %d, body = %s", revoked.Code, revoked.Body.String())
+	}
+
+	reused := request(t, handler, http.MethodPost, "/v1/auth/login/complete", completeBody, nil)
+	assertTypedError(t, reused, http.StatusConflict, "auth_operation_canceled")
+	invalid := request(t, handler, http.MethodPost, "/v1/auth/cancel-operation", map[string]any{
+		"operation_id": "not-a-cancellation-capability",
+	}, nil)
+	assertTypedError(t, invalid, http.StatusBadRequest, "invalid_operation_id")
+
+	unknownOperation := newOperationID(t)
+	var beforeUnknown int64
+	if err := db.Model(&model.AuthOperation{}).Count(&beforeUnknown).Error; err != nil {
+		t.Fatalf("count operations before unknown cancellation: %v", err)
+	}
+	unknown := request(t, handler, http.MethodPost, "/v1/auth/cancel-operation", map[string]any{
+		"operation_id": unknownOperation,
+	}, nil)
+	if unknown.Code != http.StatusNoContent {
+		t.Fatalf("unknown cancel status = %d, body = %s", unknown.Code, unknown.Body.String())
+	}
+	var afterUnknown int64
+	if err := db.Model(&model.AuthOperation{}).Count(&afterUnknown).Error; err != nil {
+		t.Fatalf("count operations after unknown cancellation: %v", err)
+	}
+	if afterUnknown != beforeUnknown {
+		t.Fatalf("unknown cancellation changed operation rows from %d to %d", beforeUnknown, afterUnknown)
+	}
+}
+
+func TestAuthenticationOperationCancellationIsBodyBoundedAndPeerRateLimited(t *testing.T) {
+	_, _, handler := testAPI(t, config.ModeRemote)
+	oversized := requestFromPeer(
+		t,
+		handler,
+		http.MethodPost,
+		"/v1/auth/cancel-operation",
+		map[string]any{
+			"operation_id": newOperationID(t),
+			"padding":      strings.Repeat("x", 4<<10),
+		},
+		"192.0.2.60:41000",
+		nil,
+	)
+	assertTypedError(t, oversized, http.StatusRequestEntityTooLarge, "request_too_large")
+
+	for attempt := 1; attempt < 10; attempt++ {
+		response := requestFromPeer(
+			t,
+			handler,
+			http.MethodPost,
+			"/v1/auth/cancel-operation",
+			map[string]any{"operation_id": newOperationID(t)},
+			"192.0.2.60:42000",
+			nil,
+		)
+		if response.Code != http.StatusNoContent {
+			t.Fatalf("cancel attempt %d status = %d, body = %s", attempt+1, response.Code, response.Body.String())
+		}
+	}
+	limited := requestFromPeer(
+		t,
+		handler,
+		http.MethodPost,
+		"/v1/auth/cancel-operation",
+		map[string]any{"operation_id": newOperationID(t)},
+		"192.0.2.60:43000",
+		nil,
+	)
+	assertRateLimited(t, limited)
+
+	otherPeer := requestFromPeer(
+		t,
+		handler,
+		http.MethodPost,
+		"/v1/auth/cancel-operation",
+		map[string]any{"operation_id": newOperationID(t)},
+		"192.0.2.61:41000",
+		nil,
+	)
+	if otherPeer.Code != http.StatusNoContent {
+		t.Fatalf("different peer cancel status = %d, body = %s", otherPeer.Code, otherPeer.Body.String())
+	}
+}
+
+func TestTwoStepAuthenticationMiddlewareAndDecodeErrorMatrix(t *testing.T) {
+	paths := []string{
+		"/v1/auth/login/begin",
+		"/v1/auth/login/complete",
+		"/v1/auth/register/begin",
+		"/v1/auth/register/complete",
+		"/v1/auth/cancel-operation",
+	}
+
+	localConfig, _, _ := testAPI(t, config.ModeLocal)
+	localConfig.LocalAccessToken = "local-boundary-contract-token"
+	localHandler := testAPIHandler(t, localConfig)
+	for index, path := range paths {
+		denied := requestFromPeer(
+			t,
+			localHandler,
+			http.MethodPost,
+			path,
+			map[string]any{},
+			"127.0.0.1:"+strconv.Itoa(45000+index),
+			nil,
+		)
+		assertTypedError(t, denied, http.StatusUnauthorized, "local_access_denied")
+
+		nonLoopback := requestFromPeer(
+			t,
+			localHandler,
+			http.MethodPost,
+			path,
+			map[string]any{},
+			"192.0.2.80:"+strconv.Itoa(45000+index),
+			map[string]string{"Authorization": "Bearer local-boundary-contract-token"},
+		)
+		assertTypedError(t, nonLoopback, http.StatusForbidden, "local_only")
+	}
+
+	_, _, remoteHandler := testAPI(t, config.ModeRemote)
+	sendRaw := func(path, body, contentType, remoteAddress string) *httptest.ResponseRecorder {
+		t.Helper()
+		req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+		req.RemoteAddr = remoteAddress
+		if contentType != "" {
+			req.Header.Set("Content-Type", contentType)
+		}
+		response := httptest.NewRecorder()
+		remoteHandler.ServeHTTP(response, req)
+		return response
+	}
+	for index, path := range paths {
+		peerPrefix := "192.0.2." + strconv.Itoa(100+index)
+		invalidJSON := sendRaw(path, "{", "application/json", peerPrefix+":46001")
+		assertTypedError(t, invalidJSON, http.StatusBadRequest, "invalid_json")
+
+		tooLarge := sendRaw(
+			path,
+			strings.Repeat(" ", (4<<10)+1)+"{}",
+			"application/json",
+			peerPrefix+":46002",
+		)
+		assertTypedError(t, tooLarge, http.StatusRequestEntityTooLarge, "request_too_large")
+
+		unsupported := sendRaw(path, "{}", "text/plain", peerPrefix+":46003")
+		assertTypedError(t, unsupported, http.StatusUnsupportedMediaType, "unsupported_media_type")
+	}
+}
+
+func TestAuthenticationOperationDatabaseFailuresUseUnifiedInternalErrorContract(t *testing.T) {
+	testCases := []struct {
+		name string
+		path string
+		body map[string]any
+	}{
+		{
+			name: "begin login",
+			path: "/v1/auth/login/begin",
+			body: map[string]any{"username": "database-failure", "password": "database-failure-password"},
+		},
+		{
+			name: "complete login",
+			path: "/v1/auth/login/complete",
+			body: map[string]any{"operation_id": newOperationID(t)},
+		},
+		{
+			name: "begin registration",
+			path: "/v1/auth/register/begin",
+			body: map[string]any{
+				"username":       "database-failure-register",
+				"password":       "database-failure-password",
+				"encryption_key": "database-failure-encryption-key",
+			},
+		},
+		{
+			name: "complete registration",
+			path: "/v1/auth/register/complete",
+			body: map[string]any{"operation_id": newOperationID(t)},
+		},
+		{
+			name: "cancel",
+			path: "/v1/auth/cancel-operation",
+			body: map[string]any{"operation_id": newOperationID(t)},
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			_, db, handler := testAPI(t, config.ModeRemote)
+			sqlDB, err := db.DB()
+			if err != nil {
+				t.Fatalf("database pool: %v", err)
+			}
+			if err := sqlDB.Close(); err != nil {
+				t.Fatalf("close database for fault injection: %v", err)
+			}
+			response := request(t, handler, http.MethodPost, testCase.path, testCase.body, nil)
+			assertTypedError(t, response, http.StatusInternalServerError, "internal_error")
+		})
+	}
+}
+
+func TestRemoteLoginRateLimitUsesSocketPeerAndIgnoresForwardedFor(t *testing.T) {
+	_, _, handler := testAPI(t, config.ModeRemote)
+	for attempt := 0; attempt < 10; attempt++ {
+		response := requestFromPeer(
+			t,
+			handler,
+			http.MethodPost,
+			"/v1/auth/login/begin",
+			map[string]any{"username": "missing-user", "password": "redacted-password"},
+			"192.0.2.40:41000",
+			map[string]string{"X-Forwarded-For": "198.51.100." + strconv.Itoa(attempt+1)},
+		)
+		if response.Code != http.StatusUnauthorized {
+			t.Fatalf("login attempt %d status = %d", attempt+1, response.Code)
+		}
+	}
+	limited := requestFromPeer(
+		t,
+		handler,
+		http.MethodPost,
+		"/v1/auth/login/begin",
+		map[string]any{"username": "missing-user", "password": "redacted-password"},
+		"192.0.2.40:42000",
+		map[string]string{"X-Forwarded-For": "203.0.113.200"},
+	)
+	assertRateLimited(t, limited)
+
+	otherPeer := requestFromPeer(
+		t,
+		handler,
+		http.MethodPost,
+		"/v1/auth/login/begin",
+		map[string]any{"username": "missing-user", "password": "redacted-password"},
+		"192.0.2.41:41000",
+		nil,
+	)
+	if otherPeer.Code != http.StatusUnauthorized {
+		t.Fatalf("different peer login status = %d", otherPeer.Code)
+	}
+}
+
+func TestRemoteRegistrationRateLimitRunsBeforeRequestDecoding(t *testing.T) {
+	_, _, handler := testAPI(t, config.ModeRemote)
+	for attempt := 0; attempt < 10; attempt++ {
+		response := requestFromPeer(
+			t,
+			handler,
+			http.MethodPost,
+			"/v1/auth/register/begin",
+			nil,
+			"192.0.2.50:41000",
+			nil,
+		)
+		if response.Code != http.StatusUnsupportedMediaType {
+			t.Fatalf("registration attempt %d status = %d", attempt+1, response.Code)
+		}
+	}
+	limited := requestFromPeer(
+		t,
+		handler,
+		http.MethodPost,
+		"/v1/auth/register/begin",
+		nil,
+		"192.0.2.50:42000",
+		nil,
+	)
+	assertRateLimited(t, limited)
+}
+
+func TestVerifyKeyIsBoundedAndIndependentOfResourceCount(t *testing.T) {
+	_, db, handler := testAPI(t, config.ModeRemote)
+	key := "verify-key-without-resources"
+	session := register(t, handler, "key-verifier", "verify-password-long", key)
+
+	var resourceCount int64
+	if err := db.Model(&model.Resource{}).Count(&resourceCount).Error; err != nil {
+		t.Fatalf("count resources: %v", err)
+	}
+	if resourceCount != 0 {
+		t.Fatalf("resource count before verification = %d, want 0", resourceCount)
+	}
+
+	verify := func(providedKey string) *httptest.ResponseRecorder {
+		headers := map[string]string{"Authorization": "Bearer " + session.Token}
+		if providedKey != "" {
+			headers["X-Ianvs-Encryption-Key"] = providedKey
+		}
+		return request(t, handler, http.MethodPost, "/v1/auth/verify-key", nil, headers)
+	}
+	response := verify(key)
+	if response.Code != http.StatusOK ||
+		!strings.Contains(response.Body.String(), `"verified":true`) ||
+		!strings.Contains(response.Body.String(), `"basis":"account_key_verifier"`) ||
+		!strings.Contains(response.Body.String(), `"key_contract_version":1`) ||
+		!strings.Contains(response.Body.String(), `"key_rotation_supported":false`) {
+		t.Fatalf("verify key status = %d, body = %s", response.Code, response.Body.String())
+	}
+	response = verify("different-verification-key")
+	if response.Code != http.StatusUnauthorized || !strings.Contains(response.Body.String(), `"code":"invalid_encryption_key"`) {
+		t.Fatalf("wrong key status = %d, body = %s", response.Code, response.Body.String())
+	}
+	response = verify("")
+	if response.Code != http.StatusPreconditionRequired || !strings.Contains(response.Body.String(), `"code":"encryption_key_required"`) {
+		t.Fatalf("missing key status = %d, body = %s", response.Code, response.Body.String())
+	}
+}
+
+func TestResourceListUsesBoundedStableCursorPages(t *testing.T) {
+	_, _, handler := testAPI(t, config.ModeLocal)
+	for _, id := range []string{"first", "second", "third"} {
+		response := request(t, handler, http.MethodPut, "/v1/resources/profile/"+id, map[string]any{
+			"data": map[string]any{"id": id},
+		}, nil)
+		if response.Code != http.StatusOK {
+			t.Fatalf("put %s status = %d, body = %s", id, response.Code, response.Body.String())
+		}
+	}
+
+	first := request(t, handler, http.MethodGet, "/v1/resources?limit=2", nil, nil)
+	if first.Code != http.StatusOK || first.Body.Len() > store.MaximumJSONResponseBytes {
+		t.Fatalf("first page status/bytes = %d/%d, body = %s", first.Code, first.Body.Len(), first.Body.String())
+	}
+	var firstPage store.ResourcePage
+	if err := json.Unmarshal(first.Body.Bytes(), &firstPage); err != nil {
+		t.Fatalf("decode first page: %v", err)
+	}
+	if len(firstPage.Resources) != 2 || firstPage.NextCursor == "" {
+		t.Fatalf("first page = %#v", firstPage)
+	}
+
+	mismatched := request(
+		t,
+		handler,
+		http.MethodGet,
+		"/v1/resources?kind=profile&limit=2&cursor="+firstPage.NextCursor,
+		nil,
+		nil,
+	)
+	assertTypedError(t, mismatched, http.StatusBadRequest, "invalid_cursor")
+
+	second := request(
+		t,
+		handler,
+		http.MethodGet,
+		"/v1/resources?limit=2&cursor="+firstPage.NextCursor,
+		nil,
+		nil,
+	)
+	if second.Code != http.StatusOK {
+		t.Fatalf("second page status = %d, body = %s", second.Code, second.Body.String())
+	}
+	var secondPage store.ResourcePage
+	if err := json.Unmarshal(second.Body.Bytes(), &secondPage); err != nil {
+		t.Fatalf("decode second page: %v", err)
+	}
+	if len(secondPage.Resources) != 1 || secondPage.NextCursor != "" {
+		t.Fatalf("second page = %#v", secondPage)
+	}
+	if secondPage.Resources[0].ID == firstPage.Resources[0].ID ||
+		secondPage.Resources[0].ID == firstPage.Resources[1].ID {
+		t.Fatalf("resource repeated across pages: %#v / %#v", firstPage, secondPage)
+	}
+}
+
+func TestExportResponseCanBePostedDirectlyToRemoteMerge(t *testing.T) {
+	_, _, localHandler := testAPI(t, config.ModeLocal)
+	localKey := "local-export-encryption-key"
+	response := request(t, localHandler, http.MethodPost, "/v1/auth/setup", map[string]any{
+		"encryption_key": localKey,
+	}, nil)
+	if response.Code != http.StatusCreated {
+		t.Fatalf("local setup status = %d, body = %s", response.Code, response.Body.String())
+	}
+	response = request(t, localHandler, http.MethodPut, "/v1/resources/profile/migrated", map[string]any{
+		"data":      map[string]any{"name": "Migrated"},
+		"sensitive": map[string]any{"password": "migration-secret"},
+	}, map[string]string{"X-Ianvs-Encryption-Key": localKey})
+	if response.Code != http.StatusOK {
+		t.Fatalf("local put status = %d, body = %s", response.Code, response.Body.String())
+	}
+	response = request(t, localHandler, http.MethodGet, "/v1/migrations/export?include_sensitive=true", nil, map[string]string{
+		"X-Ianvs-Encryption-Key": localKey,
+	})
+	if response.Code != http.StatusOK {
+		t.Fatalf("export status = %d, body = %s", response.Code, response.Body.String())
+	}
+	var bundle any
+	if err := json.Unmarshal(response.Body.Bytes(), &bundle); err != nil {
+		t.Fatalf("decode export bundle: %v", err)
+	}
+
+	_, _, remoteHandler := testAPI(t, config.ModeRemote)
+	remoteKey := "different-remote-encryption-key"
+	remote := register(t, remoteHandler, "migrator", "migration-password-long", remoteKey)
+	response = request(t, remoteHandler, http.MethodPost, "/v1/migrations/merge", bundle, map[string]string{
+		"Authorization":          "Bearer " + remote.Token,
+		"X-Ianvs-Encryption-Key": remoteKey,
+	})
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"created":1`) {
+		t.Fatalf("merge status = %d, body = %s", response.Code, response.Body.String())
+	}
+	response = request(t, remoteHandler, http.MethodGet, "/v1/resources/profile/migrated?include_sensitive=true", nil, map[string]string{
+		"Authorization":          "Bearer " + remote.Token,
+		"X-Ianvs-Encryption-Key": remoteKey,
+	})
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "migration-secret") {
+		t.Fatalf("merged get status = %d, body = %s", response.Code, response.Body.String())
+	}
+}
+
+func TestMergeRejectsUnknownFields(t *testing.T) {
+	_, _, handler := testAPI(t, config.ModeLocal)
+	response := request(t, handler, http.MethodPost, "/v1/migrations/merge", map[string]any{
+		"schema_version": 1,
+		"source_id":      "foreign-source",
+		"exported_at":    time.Now().UTC(),
+		"resources":      []any{},
+		"unknown":        true,
+	}, nil)
+	assertTypedError(t, response, http.StatusBadRequest, "invalid_json")
+	if !strings.Contains(response.Body.String(), `unknown field \"unknown\"`) {
+		t.Fatalf("merge unknown-field body = %s", response.Body.String())
+	}
+}
+
+func TestRequestJSONFieldsAreExactAndUniqueAcrossEndpoints(t *testing.T) {
+	tests := []struct {
+		name      string
+		mode      config.Mode
+		method    string
+		target    string
+		duplicate string
+		caseAlias string
+	}{
+		{
+			name:      "registration",
+			mode:      config.ModeRemote,
+			method:    http.MethodPost,
+			target:    "/v1/auth/register/begin",
+			duplicate: `{"username":"one","username":"two","password":"password-long-enough","encryption_key":"encryption-key-long-enough"}`,
+			caseAlias: `{"Username":"one","password":"password-long-enough","encryption_key":"encryption-key-long-enough"}`,
+		},
+		{
+			name:      "login",
+			mode:      config.ModeRemote,
+			method:    http.MethodPost,
+			target:    "/v1/auth/login/begin",
+			duplicate: `{"username":"one","password":"first-password","password":"second-password"}`,
+			caseAlias: `{"username":"one","Password":"password-long-enough"}`,
+		},
+		{
+			name:      "authentication operation",
+			mode:      config.ModeRemote,
+			method:    http.MethodPost,
+			target:    "/v1/auth/cancel-operation",
+			duplicate: `{"operation_id":"first","operation_id":"second"}`,
+			caseAlias: `{"Operation_ID":"first"}`,
+		},
+		{
+			name:      "resource nested data",
+			mode:      config.ModeLocal,
+			method:    http.MethodPut,
+			target:    "/v1/resources/profile/exact-json",
+			duplicate: `{"data":{"name":"first","name":"second"}}`,
+			caseAlias: `{"Data":{"name":"first"}}`,
+		},
+		{
+			name:      "migration merge",
+			mode:      config.ModeLocal,
+			method:    http.MethodPost,
+			target:    "/v1/migrations/merge",
+			duplicate: `{"schema_version":1,"source_id":"one","source_id":"two","resources":[]}`,
+			caseAlias: `{"Schema_Version":1,"source_id":"one","resources":[]}`,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, _, handler := testAPI(t, test.mode)
+			duplicate := requestRawJSON(t, handler, test.method, test.target, test.duplicate)
+			assertTypedError(t, duplicate, http.StatusBadRequest, "invalid_json")
+			if !strings.Contains(duplicate.Body.String(), "duplicate field") {
+				t.Fatalf("duplicate-field body = %s", duplicate.Body.String())
+			}
+
+			caseAlias := requestRawJSON(t, handler, test.method, test.target, test.caseAlias)
+			assertTypedError(t, caseAlias, http.StatusBadRequest, "invalid_json")
+			if !strings.Contains(caseAlias.Body.String(), "unknown field") {
+				t.Fatalf("case-alias body = %s", caseAlias.Body.String())
+			}
+		})
+	}
+}
+
+type registrationSession struct {
+	Token string `json:"token"`
+}
+
+type preparedOperationResponse struct {
+	OperationID string    `json:"operation_id"`
+	ExpiresAt   time.Time `json:"expires_at"`
+	Kind        string    `json:"kind"`
+}
+
+func register(t *testing.T, handler http.Handler, username, password, encryptionKey string) registrationSession {
+	t.Helper()
+	response := request(t, handler, http.MethodPost, "/v1/auth/register/begin", map[string]any{
+		"username":       username,
+		"password":       password,
+		"encryption_key": encryptionKey,
+	}, nil)
+	if response.Code != http.StatusCreated {
+		t.Fatalf("begin register %s status = %d, body = %s", username, response.Code, response.Body.String())
+	}
+	var prepared preparedOperationResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &prepared); err != nil {
+		t.Fatalf("decode prepared registration: %v", err)
+	}
+	if prepared.OperationID == "" || prepared.Kind != "register" {
+		t.Fatalf("prepared registration response = %+v", prepared)
+	}
+	response = request(t, handler, http.MethodPost, "/v1/auth/register/complete", map[string]any{
+		"operation_id": prepared.OperationID,
+	}, nil)
+	if response.Code != http.StatusOK {
+		t.Fatalf("complete register %s status = %d, body = %s", username, response.Code, response.Body.String())
+	}
+	var session registrationSession
+	if err := json.Unmarshal(response.Body.Bytes(), &session); err != nil {
+		t.Fatalf("decode registration: %v", err)
+	}
+	if session.Token == "" {
+		t.Fatal("registration did not return a token")
+	}
+	return session
+}
+
+func login(t *testing.T, handler http.Handler, username, password string) registrationSession {
+	t.Helper()
+	response := request(t, handler, http.MethodPost, "/v1/auth/login/begin", map[string]any{
+		"username": username,
+		"password": password,
+	}, nil)
+	if response.Code != http.StatusOK {
+		t.Fatalf("begin login %s status = %d, body = %s", username, response.Code, response.Body.String())
+	}
+	var prepared preparedOperationResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &prepared); err != nil {
+		t.Fatalf("decode prepared login: %v", err)
+	}
+	if prepared.OperationID == "" || prepared.Kind != "login" {
+		t.Fatalf("prepared login response = %+v", prepared)
+	}
+	response = request(t, handler, http.MethodPost, "/v1/auth/login/complete", map[string]any{
+		"operation_id": prepared.OperationID,
+	}, nil)
+	if response.Code != http.StatusOK {
+		t.Fatalf("complete login %s status = %d, body = %s", username, response.Code, response.Body.String())
+	}
+	var session registrationSession
+	if err := json.Unmarshal(response.Body.Bytes(), &session); err != nil {
+		t.Fatalf("decode login: %v", err)
+	}
+	if session.Token == "" {
+		t.Fatal("login did not return a token")
+	}
+	return session
+}
+
+func newOperationID(t *testing.T) string {
+	t.Helper()
+	operationID, err := identity.Secret(32)
+	if err != nil {
+		t.Fatalf("generate authentication operation ID: %v", err)
+	}
+	return operationID
+}
+
+func putForUser(t *testing.T, handler http.Handler, token, key, name, secret string) {
+	t.Helper()
+	response := request(t, handler, http.MethodPut, "/v1/resources/profile/shared", map[string]any{
+		"data":      map[string]any{"name": name},
+		"sensitive": map[string]any{"password": secret},
+	}, map[string]string{
+		"Authorization":          "Bearer " + token,
+		"X-Ianvs-Encryption-Key": key,
+	})
+	if response.Code != http.StatusOK {
+		t.Fatalf("put %s status = %d, body = %s", name, response.Code, response.Body.String())
+	}
+}
+
+func testAPI(t *testing.T, mode config.Mode) (config.Config, *gorm.DB, http.Handler) {
+	t.Helper()
+	cfg, cleanup, err := contracttest.NewDatabaseConfiguration(
+		context.Background(),
+		mode,
+		filepath.Join(t.TempDir(), "api.db"),
+	)
+	if err != nil {
+		t.Fatalf("create contract database configuration: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := cleanup(); err != nil {
+			t.Errorf("clean up contract database: %v", err)
+		}
+	})
+	cfg.AllowRegistration = true
+	cfg.AllowInsecureSensitiveTransport = mode == config.ModeRemote
+	db, handler := testAPIHandlerAndDB(t, cfg)
+	return cfg, db, handler
+}
+
+func testAPIHandler(t *testing.T, cfg config.Config) http.Handler {
+	t.Helper()
+	_, handler := testAPIHandlerAndDB(t, cfg)
+	return handler
+}
+
+func testAPIHandlerAndDB(t *testing.T, cfg config.Config) (*gorm.DB, http.Handler) {
+	t.Helper()
+	db, err := database.Open(cfg)
+	if err != nil {
+		t.Fatalf("database.Open() error = %v", err)
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatalf("database pool error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := sqlDB.Close(); err != nil {
+			t.Errorf("close contract database: %v", err)
+		}
+	})
+	resourceStore, err := store.New(context.Background(), db)
+	if err != nil {
+		t.Fatalf("store.New() error = %v", err)
+	}
+	authService := auth.New(db, cfg.TokenTTL)
+	if cfg.Mode == config.ModeLocal {
+		if _, err := authService.EnsureLocalUser(context.Background()); err != nil {
+			t.Fatalf("EnsureLocalUser() error = %v", err)
+		}
+	}
+	return db, httpapi.New(cfg, authService, resourceStore).Handler()
+}
+
+func request(
+	t *testing.T,
+	handler http.Handler,
+	method, target string,
+	body any,
+	headers map[string]string,
+) *httptest.ResponseRecorder {
+	return requestFromPeer(t, handler, method, target, body, "127.0.0.1:54321", headers)
+}
+
+func requestFromPeer(
+	t *testing.T,
+	handler http.Handler,
+	method, target string,
+	body any,
+	remoteAddress string,
+	headers map[string]string,
+) *httptest.ResponseRecorder {
+	t.Helper()
+	var encoded []byte
+	if body != nil {
+		var err error
+		encoded, err = json.Marshal(body)
+		if err != nil {
+			t.Fatalf("encode request: %v", err)
+		}
+	}
+	req := httptest.NewRequest(method, target, bytes.NewReader(encoded))
+	req.RemoteAddr = remoteAddress
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	for key, value := range headers {
+		req.Header.Set(key, value)
+	}
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, req)
+	return response
+}
+
+func requestRawJSON(
+	t *testing.T,
+	handler http.Handler,
+	method, target, body string,
+) *httptest.ResponseRecorder {
+	t.Helper()
+	request := httptest.NewRequest(method, target, strings.NewReader(body))
+	request.RemoteAddr = "127.0.0.1:54321"
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	return response
+}
+
+func assertRateLimited(t *testing.T, response *httptest.ResponseRecorder) {
+	t.Helper()
+	assertTypedError(t, response, http.StatusTooManyRequests, "authentication_rate_limited")
+	if response.Header().Get("Retry-After") == "" {
+		t.Fatal("rate-limited response omitted Retry-After")
+	}
+}
+
+func assertTypedError(
+	t *testing.T,
+	response *httptest.ResponseRecorder,
+	status int,
+	code string,
+) {
+	t.Helper()
+	if response.Code != status || !strings.Contains(response.Body.String(), `"code":"`+code+`"`) {
+		t.Fatalf("typed error status = %d, want %d/%s", response.Code, status, code)
+	}
+}

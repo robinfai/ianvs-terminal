@@ -95,6 +95,7 @@ void main() {
     final file = File('${directory.path}/ianvs_paste_history.json');
     await file.writeAsString(
       jsonEncode({
+        'schema_version': pasteHistoryCurrentSchemaVersion,
         'entries': [
           'not an entry',
           {
@@ -133,6 +134,7 @@ void main() {
       final file = File('${directory.path}/ianvs_paste_history.json');
       await file.writeAsString(
         jsonEncode({
+          'schema_version': pasteHistoryCurrentSchemaVersion,
           'entries': [
             {
               'text': 'first  ',
@@ -179,6 +181,7 @@ void main() {
     final file = File('${directory.path}/ianvs_paste_history.json');
     await file.writeAsString(
       jsonEncode({
+        'schema_version': pasteHistoryCurrentSchemaVersion,
         'entries': [
           for (var index = 0; index < maxPasteHistoryEntries * 2; index += 1)
             'not an entry $index',
@@ -228,9 +231,30 @@ void main() {
     final entries = decoded['entries']! as List<Object?>;
 
     expect(entries, hasLength(maxPasteHistoryEntries));
+    expect(decoded['schema_version'], pasteHistoryCurrentSchemaVersion);
     expect(
       entries.last,
       containsPair('text', 'item-${maxPasteHistoryEntries - 1}'),
+    );
+  });
+
+  test('noncurrent history is rejected without mutation', () async {
+    final file = File('${directory.path}/ianvs_paste_history.json');
+    final raw = jsonEncode(<String, Object?>{
+      'schema_version': 0,
+      'entries': const <Object?>[],
+    });
+    await file.writeAsString(raw);
+
+    await expectLater(
+      repository.load(),
+      throwsA(isA<UnsupportedPasteHistorySchemaVersion>()),
+    );
+
+    expect(await file.readAsString(), raw);
+    expect(
+      directory.listSync().where((entry) => entry.path.contains('.corrupt.')),
+      isEmpty,
     );
   });
 }

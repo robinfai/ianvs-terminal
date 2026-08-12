@@ -8,12 +8,13 @@ Relaunch Spec, Open Terminal at Folder and an independent Recording Library.
 ## Scope
 
 - Persist one versioned local Terminal Layout.
-- Migrate legacy Workspace v1-v3 and legacy config without deleting sources.
+- Accept only the current Terminal Layout schema; unsupported predecessor
+  artifacts are outside the product contract and are not discovered, migrated,
+  rewritten or deleted.
 - Persist only profile/command/cwd as Relaunch Spec.
 - Remove project identity, Recent Workspace and project switching UI/runtime.
 - Open a new terminal at a selected folder.
-- Store new recordings outside Workspace partitions while discovering legacy
-  nested recordings.
+- Store recordings in the independent current-format Recording Library.
 - Keep internal completion diagnostics debug-only.
 - Update current scope/architecture/roadmap contracts.
 
@@ -22,18 +23,18 @@ Relaunch Spec, Open Terminal at Folder and an independent Recording Library.
 - Project explorer, Git context, IDE tasks or project metadata.
 - SSH implementation, remote domains or remote Workspace.
 - Plugins, cloud sync or collaboration.
-- Deleting legacy user files.
+- Discovering, migrating or deleting predecessor user files.
 
 ## Acceptance
 
 - Canonical layout JSON contains `ianvs-terminal-layout-v1` and no project
   identity.
 - Canonical relaunch JSON contains only version, contract, profile, command and
-  cwd; legacy runtime/recording fields are discarded.
+  cwd; non-current shapes are rejected without mutation.
 - Folder selection adds a terminal and preserves existing PTYs/recordings.
 - Current and native UI expose Open Terminal at Folder and no project/recent
   switcher.
-- New recordings are flat; old nested recordings remain discoverable.
+- Recordings use the single current flat-library format.
 - Debug diagnostics are gated by `kDebugMode`.
 - Machine-readable docs evidence and the complete repository gate pass.
 

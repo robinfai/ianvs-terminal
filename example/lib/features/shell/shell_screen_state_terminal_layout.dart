@@ -368,6 +368,11 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
     required KeyEventResult Function(KeyEvent event) onHostKeyEvent,
   }) {
     final sessionId = pane.sessionId;
+    final viewportController = sessionController.existingViewportFor(sessionId);
+    if (viewportController == null) {
+      return const SizedBox.shrink();
+    }
+    final graphicsCache = sessionController.graphicsCacheFor(sessionId);
     final focusNode = _focusNodeFor(sessionId);
     final selectionController = _selectionControllers.putIfAbsent(
       sessionId,
@@ -385,7 +390,7 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
     final inputController = TerminalInputController(
       sessionId: sessionId,
       runtime: ref.read(terminalRuntimeControllerProvider),
-      readFrame: () => sessionController.viewportFor(sessionId).frame,
+      readFrame: () => viewportController.frame,
       emulation:
           terminalConfig?.emulation ?? terminal.TerminalEmulation.xterm256,
       readSelection: () => _selectionTextForSession(
@@ -435,7 +440,12 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
     return LayoutBuilder(
       key: _paneDropTargetKey(activeTab.sessionId, sessionId),
       builder: (context, constraints) {
-        final viewportController = sessionController.viewportFor(sessionId);
+        if (!identical(
+          sessionController.existingViewportFor(sessionId),
+          viewportController,
+        )) {
+          return const SizedBox.shrink();
+        }
         final dropTarget = _dropTargetForPane(sessionId);
         final paneHeader = showsPaneHeader
             ? ListenableBuilder(
@@ -519,7 +529,7 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
             if (!isActive && event.buttons != 0) {
               _activateSession(sessionController, sessionId);
             }
-            final frame = sessionController.viewportFor(sessionId).frame;
+            final frame = viewportController.frame;
             final shouldMiddlePaste =
                 frame.modes.mouseMode == 'off' &&
                 (event.buttons & kMiddleMouseButton) != 0;
@@ -659,9 +669,7 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                                     ),
                                     radius: 3,
                                   ),
-                              graphicsCache: sessionController.graphicsCacheFor(
-                                sessionId,
-                              ),
+                              graphicsCache: graphicsCache,
                               benchmarkEventSink: ref.watch(
                                 terminalGraphicsTraceSinkProvider,
                               ),

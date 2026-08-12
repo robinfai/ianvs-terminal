@@ -19,7 +19,6 @@ use par_term_emu_core_rust::terminal::{
 };
 use par_term_emu_core_rust::{WidthConfig, str_width};
 use std::collections::BTreeMap;
-use std::ffi::CStr;
 use std::fs;
 use std::path::Path;
 use std::ptr;
@@ -34,6 +33,72 @@ const TRANSPARENT_RED_2X1_PNG_BASE64: &str = "iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCA
 const RED_GREEN_1X1_GIF_BASE64: &str = "R0lGODlhAQABAIEAAP8AAAAAAAAAAAAAACH/C05FVFNDQVBFMi4wAwEAAAAh+QQIAgAAACwAAAAAAQABAAAIBAABBAQAIfkECAMAAAAsAAAAAAEAAQCBAP8AAAAAAAAAAAAACAQAAQQEADs=";
 const RED_RGBA_BASE64: &str = "/wAA/w==";
 const GREEN_RGBA_BASE64: &str = "AP8A/w==";
+
+fn request_session_test(
+    session_id: u64,
+    raw: &str,
+) -> Result<Option<String>, session::SessionError> {
+    let mut payload: serde_json::Value = serde_json::from_str(raw)
+        .map_err(|error| session::SessionError::Serialize(error.to_string()))?;
+    let operation = payload
+        .get("kind")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default()
+        .to_owned();
+    if let Some(object) = payload.as_object_mut() {
+        object.remove("kind");
+    }
+    session::request_session(session_id, &operation, &payload)
+}
+
+#[derive(Default)]
+struct TestGraphicAssetMeta {
+    width: u32,
+    height: u32,
+    rgba_len: usize,
+    version: u64,
+}
+
+unsafe fn test_graphic_asset_meta(
+    session_id: u64,
+    asset_id: u64,
+    asset_version: u64,
+    out_meta: *mut TestGraphicAssetMeta,
+) -> i32 {
+    if out_meta.is_null() {
+        return -1;
+    }
+    match session::graphic_asset_meta(session_id, asset_id, asset_version) {
+        Ok(meta) => {
+            unsafe {
+                *out_meta = TestGraphicAssetMeta {
+                    width: meta.width,
+                    height: meta.height,
+                    rgba_len: meta.rgba_len,
+                    version: meta.version,
+                };
+            }
+            0
+        }
+        Err(_) => -1,
+    }
+}
+
+unsafe fn test_graphic_asset_rgba_copy(
+    session_id: u64,
+    asset_id: u64,
+    asset_version: u64,
+    dst: *mut u8,
+    len: usize,
+) -> isize {
+    if dst.is_null() {
+        return -1;
+    }
+    let dst = unsafe { std::slice::from_raw_parts_mut(dst, len) };
+    session::copy_graphic_asset_rgba(session_id, asset_id, asset_version, dst)
+        .map(|copied| copied as isize)
+        .unwrap_or(-1)
+}
 
 fn red_pixel_png_bytes() -> &'static [u8] {
     &[
@@ -2891,9 +2956,9 @@ fn session_frame_diff_protobuf_preserves_graphic_asset_version_for_loading() {
         asset_key.asset_version > u64::from(u32::MAX),
         "test fixture must exercise the former uint32 truncation"
     );
-    let mut meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
+    let mut meta = TestGraphicAssetMeta::default();
     let status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
+        test_graphic_asset_meta(
             session_id,
             asset_key.asset_id,
             asset_key.asset_version,
@@ -2922,27 +2987,6 @@ fn session_frame_debug_stats_include_protobuf_encode_micros() {
     let parsed: serde_json::Value = serde_json::from_str(&debug_stats).unwrap();
 
     assert!(parsed["protobuf_encode_micros"].as_u64().is_some());
-    session::close_session(session_id).unwrap();
-}
-
-#[test]
-fn ffi_take_frame_diff_protobuf_returns_bytes_and_len() {
-    let session_id =
-        session::create_session(&serde_json::to_string(&test_profile()).unwrap()).unwrap();
-    thread::sleep(Duration::from_millis(250));
-
-    let mut len = 0usize;
-    let ptr =
-        unsafe { ianvs_core::ffi::ianvs_session_take_frame_diff_protobuf(session_id, &mut len) };
-    assert!(!ptr.is_null());
-    assert!(len > 0);
-
-    // SAFETY: the FFI call returned a non-null allocation with exactly `len`
-    // initialized bytes, and it remains owned until the matching free below.
-    let bytes = unsafe { std::slice::from_raw_parts(ptr, len) };
-    assert!(!bytes.is_empty());
-    // SAFETY: `ptr` and `len` are the untouched allocation pair returned above.
-    unsafe { ianvs_core::ffi::ianvs_bytes_free(ptr, len) };
     session::close_session(session_id).unwrap();
 }
 
@@ -3007,15 +3051,9 @@ fn session_frame_diff_exports_graphic_placements_and_asset_bytes() {
         "graphic asset version must round-trip through JSON safely"
     );
 
-    let mut meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
-    let meta_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
-            session_id,
-            asset_id,
-            asset_version,
-            &mut meta,
-        )
-    };
+    let mut meta = TestGraphicAssetMeta::default();
+    let meta_status =
+        unsafe { test_graphic_asset_meta(session_id, asset_id, asset_version, &mut meta) };
     assert_eq!(meta_status, 0);
     assert_eq!(meta.width, 1);
     assert_eq!(meta.height, 1);
@@ -3024,7 +3062,7 @@ fn session_frame_diff_exports_graphic_placements_and_asset_bytes() {
 
     let mut rgba = vec![0_u8; meta.rgba_len];
     let copy_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+        test_graphic_asset_rgba_copy(
             session_id,
             asset_id,
             asset_version,
@@ -3036,20 +3074,13 @@ fn session_frame_diff_exports_graphic_placements_and_asset_bytes() {
     assert_eq!(rgba.len(), 4);
 
     assert_eq!(
-        unsafe {
-            ianvs_core::ffi::ianvs_session_graphic_asset_meta(
-                session_id,
-                asset_id,
-                asset_version + 1,
-                &mut meta,
-            )
-        },
+        unsafe { test_graphic_asset_meta(session_id, asset_id, asset_version + 1, &mut meta,) },
         -1,
         "stale asset version should be rejected"
     );
     assert_eq!(
         unsafe {
-            ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+            test_graphic_asset_rgba_copy(
                 session_id,
                 asset_id,
                 asset_version,
@@ -3103,15 +3134,9 @@ fn session_frame_diff_exports_iterm_inline_image_alpha_pixels() {
         .as_u64()
         .expect("expected iTerm2 asset version");
 
-    let mut meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
-    let meta_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
-            session_id,
-            asset_id,
-            asset_version,
-            &mut meta,
-        )
-    };
+    let mut meta = TestGraphicAssetMeta::default();
+    let meta_status =
+        unsafe { test_graphic_asset_meta(session_id, asset_id, asset_version, &mut meta) };
     assert_eq!(meta_status, 0);
     assert_eq!(meta.width, 2);
     assert_eq!(meta.height, 1);
@@ -3120,7 +3145,7 @@ fn session_frame_diff_exports_iterm_inline_image_alpha_pixels() {
 
     let mut rgba = vec![0_u8; meta.rgba_len];
     let copy_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+        test_graphic_asset_rgba_copy(
             session_id,
             asset_id,
             asset_version,
@@ -3190,15 +3215,9 @@ fn session_frame_diff_exports_imgcat_style_iterm_wrapped_unpadded_payload() {
         .as_u64()
         .expect("expected iTerm2 asset version");
 
-    let mut meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
-    let meta_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
-            session_id,
-            asset_id,
-            asset_version,
-            &mut meta,
-        )
-    };
+    let mut meta = TestGraphicAssetMeta::default();
+    let meta_status =
+        unsafe { test_graphic_asset_meta(session_id, asset_id, asset_version, &mut meta) };
     assert_eq!(meta_status, 0);
     assert_eq!(meta.width, 1);
     assert_eq!(meta.height, 1);
@@ -3207,7 +3226,7 @@ fn session_frame_diff_exports_imgcat_style_iterm_wrapped_unpadded_payload() {
 
     let mut rgba = vec![0_u8; meta.rgba_len];
     let copy_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+        test_graphic_asset_rgba_copy(
             session_id,
             asset_id,
             asset_version,
@@ -3269,15 +3288,9 @@ fn session_frame_diff_exports_screen_wrapped_iterm_inline_image() {
         .as_u64()
         .expect("expected screen-wrapped iTerm2 asset version");
 
-    let mut meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
-    let meta_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
-            session_id,
-            asset_id,
-            asset_version,
-            &mut meta,
-        )
-    };
+    let mut meta = TestGraphicAssetMeta::default();
+    let meta_status =
+        unsafe { test_graphic_asset_meta(session_id, asset_id, asset_version, &mut meta) };
     assert_eq!(meta_status, 0);
     assert_eq!(meta.width, 1);
     assert_eq!(meta.height, 1);
@@ -3286,7 +3299,7 @@ fn session_frame_diff_exports_screen_wrapped_iterm_inline_image() {
 
     let mut rgba = vec![0_u8; meta.rgba_len];
     let copy_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+        test_graphic_asset_rgba_copy(
             session_id,
             asset_id,
             asset_version,
@@ -3356,15 +3369,9 @@ PY"#,
         .as_u64()
         .expect("expected tmux-wrapped iTerm2 asset version");
 
-    let mut meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
-    let meta_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
-            session_id,
-            asset_id,
-            asset_version,
-            &mut meta,
-        )
-    };
+    let mut meta = TestGraphicAssetMeta::default();
+    let meta_status =
+        unsafe { test_graphic_asset_meta(session_id, asset_id, asset_version, &mut meta) };
     assert_eq!(meta_status, 0);
     assert_eq!(meta.width, 1);
     assert_eq!(meta.height, 1);
@@ -3373,7 +3380,7 @@ PY"#,
 
     let mut rgba = vec![0_u8; meta.rgba_len];
     let copy_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+        test_graphic_asset_rgba_copy(
             session_id,
             asset_id,
             asset_version,
@@ -3471,15 +3478,9 @@ PY"#,
         .as_u64()
         .expect("expected multipart iTerm2 asset version");
 
-    let mut meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
-    let meta_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
-            session_id,
-            asset_id,
-            asset_version,
-            &mut meta,
-        )
-    };
+    let mut meta = TestGraphicAssetMeta::default();
+    let meta_status =
+        unsafe { test_graphic_asset_meta(session_id, asset_id, asset_version, &mut meta) };
     assert_eq!(meta_status, 0);
     assert_eq!(meta.width, 1);
     assert_eq!(meta.height, 1);
@@ -3488,7 +3489,7 @@ PY"#,
 
     let mut rgba = vec![0_u8; meta.rgba_len];
     let copy_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+        test_graphic_asset_rgba_copy(
             session_id,
             asset_id,
             asset_version,
@@ -4390,15 +4391,9 @@ fn session_frame_diff_exports_sixel_placements_and_asset_bytes() {
         .as_u64()
         .expect("expected Sixel asset version");
 
-    let mut meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
-    let meta_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
-            session_id,
-            asset_id,
-            asset_version,
-            &mut meta,
-        )
-    };
+    let mut meta = TestGraphicAssetMeta::default();
+    let meta_status =
+        unsafe { test_graphic_asset_meta(session_id, asset_id, asset_version, &mut meta) };
     assert_eq!(meta_status, 0);
     assert_eq!(meta.width, 1);
     assert_eq!(meta.height, 6);
@@ -4407,7 +4402,7 @@ fn session_frame_diff_exports_sixel_placements_and_asset_bytes() {
 
     let mut rgba = vec![0_u8; meta.rgba_len];
     let copy_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+        test_graphic_asset_rgba_copy(
             session_id,
             asset_id,
             asset_version,
@@ -4462,15 +4457,9 @@ fn session_frame_diff_exports_transparent_sixel_asset_alpha() {
         .as_u64()
         .expect("expected Sixel asset version");
 
-    let mut meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
-    let meta_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
-            session_id,
-            asset_id,
-            asset_version,
-            &mut meta,
-        )
-    };
+    let mut meta = TestGraphicAssetMeta::default();
+    let meta_status =
+        unsafe { test_graphic_asset_meta(session_id, asset_id, asset_version, &mut meta) };
     assert_eq!(meta_status, 0);
     assert_eq!(meta.width, 3);
     assert_eq!(meta.height, 2);
@@ -4479,7 +4468,7 @@ fn session_frame_diff_exports_transparent_sixel_asset_alpha() {
 
     let mut rgba = vec![0_u8; meta.rgba_len];
     let copy_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+        test_graphic_asset_rgba_copy(
             session_id,
             asset_id,
             asset_version,
@@ -4530,15 +4519,9 @@ fn assert_wrapped_sixel_red_asset(
         .as_u64()
         .unwrap_or_else(|| panic!("expected {label} Sixel asset version"));
 
-    let mut meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
-    let meta_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
-            session_id,
-            asset_id,
-            asset_version,
-            &mut meta,
-        )
-    };
+    let mut meta = TestGraphicAssetMeta::default();
+    let meta_status =
+        unsafe { test_graphic_asset_meta(session_id, asset_id, asset_version, &mut meta) };
     assert_eq!(meta_status, 0);
     assert_eq!(meta.width, 1);
     assert_eq!(meta.height, 6);
@@ -4547,7 +4530,7 @@ fn assert_wrapped_sixel_red_asset(
 
     let mut rgba = vec![0_u8; meta.rgba_len];
     let copy_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+        test_graphic_asset_rgba_copy(
             session_id,
             asset_id,
             asset_version,
@@ -4662,15 +4645,9 @@ fn assert_wrapped_kitty_red_asset(
         .as_u64()
         .unwrap_or_else(|| panic!("expected {label} Kitty asset version"));
 
-    let mut meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
-    let meta_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
-            session_id,
-            expected_asset_id,
-            asset_version,
-            &mut meta,
-        )
-    };
+    let mut meta = TestGraphicAssetMeta::default();
+    let meta_status =
+        unsafe { test_graphic_asset_meta(session_id, expected_asset_id, asset_version, &mut meta) };
     assert_eq!(meta_status, 0);
     assert_eq!(meta.width, 1);
     assert_eq!(meta.height, 1);
@@ -4679,7 +4656,7 @@ fn assert_wrapped_kitty_red_asset(
 
     let mut rgba = vec![0_u8; meta.rgba_len];
     let copy_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+        test_graphic_asset_rgba_copy(
             session_id,
             expected_asset_id,
             asset_version,
@@ -4814,15 +4791,9 @@ fn session_frame_diff_exports_sixel_repeat_palette_pixels() {
         .as_u64()
         .expect("expected Sixel asset version");
 
-    let mut meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
-    let meta_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
-            session_id,
-            asset_id,
-            asset_version,
-            &mut meta,
-        )
-    };
+    let mut meta = TestGraphicAssetMeta::default();
+    let meta_status =
+        unsafe { test_graphic_asset_meta(session_id, asset_id, asset_version, &mut meta) };
     assert_eq!(meta_status, 0);
     assert_eq!(meta.width, 3);
     assert_eq!(meta.height, 12);
@@ -4831,7 +4802,7 @@ fn session_frame_diff_exports_sixel_repeat_palette_pixels() {
 
     let mut rgba = vec![0_u8; meta.rgba_len];
     let copy_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+        test_graphic_asset_rgba_copy(
             session_id,
             asset_id,
             asset_version,
@@ -4976,15 +4947,9 @@ out('\x1b\\', 0.20)
         .as_u64()
         .expect("expected Sixel asset version");
 
-    let mut meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
-    let meta_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
-            session_id,
-            asset_id,
-            asset_version,
-            &mut meta,
-        )
-    };
+    let mut meta = TestGraphicAssetMeta::default();
+    let meta_status =
+        unsafe { test_graphic_asset_meta(session_id, asset_id, asset_version, &mut meta) };
     assert_eq!(meta_status, 0);
     assert_eq!(meta.width, 3);
     assert_eq!(meta.height, 6);
@@ -4993,7 +4958,7 @@ out('\x1b\\', 0.20)
 
     let mut rgba = vec![0_u8; meta.rgba_len];
     let copy_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+        test_graphic_asset_rgba_copy(
             session_id,
             asset_id,
             asset_version,
@@ -5097,15 +5062,9 @@ fn session_frame_diff_applies_sixel_raster_pixel_aspect_ratio() {
     let asset_version = placement["asset_version"]
         .as_u64()
         .expect("expected Sixel asset version");
-    let mut meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
-    let meta_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
-            session_id,
-            asset_id,
-            asset_version,
-            &mut meta,
-        )
-    };
+    let mut meta = TestGraphicAssetMeta::default();
+    let meta_status =
+        unsafe { test_graphic_asset_meta(session_id, asset_id, asset_version, &mut meta) };
     assert_eq!(meta_status, 0);
     assert_eq!(meta.width, 2);
     assert_eq!(meta.height, 6);
@@ -5539,20 +5498,14 @@ fn session_frame_diff_updates_kitty_animation_scrollback_asset_after_current_fra
         .as_u64()
         .expect("expected first Kitty animation asset version");
 
-    let mut first_meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
-    let first_meta_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
-            session_id,
-            61004,
-            first_version,
-            &mut first_meta,
-        )
-    };
+    let mut first_meta = TestGraphicAssetMeta::default();
+    let first_meta_status =
+        unsafe { test_graphic_asset_meta(session_id, 61004, first_version, &mut first_meta) };
     assert_eq!(first_meta_status, 0);
     assert_eq!(first_meta.rgba_len, 4);
     let mut first_rgba = vec![0_u8; first_meta.rgba_len];
     let first_copy_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+        test_graphic_asset_rgba_copy(
             session_id,
             61004,
             first_version,
@@ -5615,20 +5568,14 @@ fn session_frame_diff_updates_kitty_animation_scrollback_asset_after_current_fra
         .as_u64()
         .expect("expected current-frame control to update the scrollback asset version");
 
-    let mut updated_meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
-    let updated_meta_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
-            session_id,
-            61004,
-            updated_version,
-            &mut updated_meta,
-        )
-    };
+    let mut updated_meta = TestGraphicAssetMeta::default();
+    let updated_meta_status =
+        unsafe { test_graphic_asset_meta(session_id, 61004, updated_version, &mut updated_meta) };
     assert_eq!(updated_meta_status, 0);
     assert_eq!(updated_meta.rgba_len, 4);
     let mut updated_rgba = vec![0_u8; updated_meta.rgba_len];
     let updated_copy_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+        test_graphic_asset_rgba_copy(
             session_id,
             61004,
             updated_version,
@@ -6015,10 +5962,8 @@ fn session_frame_diff_exports_kitty_shared_memory_placement_and_asset_bytes() {
     let asset_version = placement["asset_version"]
         .as_u64()
         .expect("expected graphic asset version");
-    let mut meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
-    let meta_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_meta(session_id, 815, asset_version, &mut meta)
-    };
+    let mut meta = TestGraphicAssetMeta::default();
+    let meta_status = unsafe { test_graphic_asset_meta(session_id, 815, asset_version, &mut meta) };
     assert_eq!(meta_status, 0);
     assert_eq!(meta.width, 1);
     assert_eq!(meta.height, 1);
@@ -6026,7 +5971,7 @@ fn session_frame_diff_exports_kitty_shared_memory_placement_and_asset_bytes() {
 
     let mut rgba = vec![0u8; meta.rgba_len];
     let copy_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+        test_graphic_asset_rgba_copy(
             session_id,
             815,
             asset_version,
@@ -6088,10 +6033,8 @@ fn session_frame_diff_exports_kitty_virtual_placeholder_placements() {
     let asset_version = placement["asset_version"]
         .as_u64()
         .expect("expected graphic asset version");
-    let mut meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
-    let meta_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_meta(session_id, 812, asset_version, &mut meta)
-    };
+    let mut meta = TestGraphicAssetMeta::default();
+    let meta_status = unsafe { test_graphic_asset_meta(session_id, 812, asset_version, &mut meta) };
     assert_eq!(meta_status, 0);
     assert_eq!(meta.width, 1);
     assert_eq!(meta.height, 1);
@@ -6099,7 +6042,7 @@ fn session_frame_diff_exports_kitty_virtual_placeholder_placements() {
 
     let mut rgba = vec![0u8; meta.rgba_len];
     let copy_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+        test_graphic_asset_rgba_copy(
             session_id,
             812,
             asset_version,
@@ -6169,10 +6112,8 @@ fn session_frame_diff_exports_kitty_source_rect_offsets_and_z_index() {
     let asset_version = placement["asset_version"]
         .as_u64()
         .expect("expected graphic asset version");
-    let mut meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
-    let meta_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_meta(session_id, 813, asset_version, &mut meta)
-    };
+    let mut meta = TestGraphicAssetMeta::default();
+    let meta_status = unsafe { test_graphic_asset_meta(session_id, 813, asset_version, &mut meta) };
     assert_eq!(meta_status, 0);
     assert_eq!(meta.width, 4);
     assert_eq!(meta.height, 4);
@@ -6240,21 +6181,15 @@ fn session_frame_diff_ticks_kitty_animation_without_new_output() {
         .as_u64()
         .expect("expected updated asset version");
 
-    let mut meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
-    let meta_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
-            session_id,
-            61000,
-            updated_version,
-            &mut meta,
-        )
-    };
+    let mut meta = TestGraphicAssetMeta::default();
+    let meta_status =
+        unsafe { test_graphic_asset_meta(session_id, 61000, updated_version, &mut meta) };
     assert_eq!(meta_status, 0);
     assert_eq!(meta.rgba_len, 4);
 
     let mut rgba = vec![0_u8; meta.rgba_len];
     let copy_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+        test_graphic_asset_rgba_copy(
             session_id,
             61000,
             updated_version,
@@ -6311,20 +6246,14 @@ fn session_frame_diff_ticks_iterm_gif_animation_without_new_output() {
     let first_version = first_graphic["asset_version"]
         .as_u64()
         .expect("expected first animated iTerm GIF asset version");
-    let mut first_meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
-    let first_meta_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
-            session_id,
-            asset_id,
-            first_version,
-            &mut first_meta,
-        )
-    };
+    let mut first_meta = TestGraphicAssetMeta::default();
+    let first_meta_status =
+        unsafe { test_graphic_asset_meta(session_id, asset_id, first_version, &mut first_meta) };
     assert_eq!(first_meta_status, 0);
     assert_eq!(first_meta.rgba_len, 4);
     let mut first_rgba = vec![0_u8; first_meta.rgba_len];
     let first_copy_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+        test_graphic_asset_rgba_copy(
             session_id,
             asset_id,
             first_version,
@@ -6361,21 +6290,15 @@ fn session_frame_diff_ticks_iterm_gif_animation_without_new_output() {
         .as_u64()
         .expect("expected updated animated iTerm GIF asset version");
 
-    let mut meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
-    let meta_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
-            session_id,
-            asset_id,
-            updated_version,
-            &mut meta,
-        )
-    };
+    let mut meta = TestGraphicAssetMeta::default();
+    let meta_status =
+        unsafe { test_graphic_asset_meta(session_id, asset_id, updated_version, &mut meta) };
     assert_eq!(meta_status, 0);
     assert_eq!(meta.rgba_len, 4);
 
     let mut rgba = vec![0_u8; meta.rgba_len];
     let copy_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+        test_graphic_asset_rgba_copy(
             session_id,
             asset_id,
             updated_version,
@@ -6435,20 +6358,14 @@ fn session_frame_diff_updates_iterm_gif_scrollback_asset_after_animation_tick() 
     let first_version = first_graphic["asset_version"]
         .as_u64()
         .expect("expected first animated iTerm GIF asset version");
-    let mut first_meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
-    let first_meta_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
-            session_id,
-            asset_id,
-            first_version,
-            &mut first_meta,
-        )
-    };
+    let mut first_meta = TestGraphicAssetMeta::default();
+    let first_meta_status =
+        unsafe { test_graphic_asset_meta(session_id, asset_id, first_version, &mut first_meta) };
     assert_eq!(first_meta_status, 0);
     assert_eq!(first_meta.rgba_len, 4);
     let mut first_rgba = vec![0_u8; first_meta.rgba_len];
     let first_copy_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+        test_graphic_asset_rgba_copy(
             session_id,
             asset_id,
             first_version,
@@ -6511,21 +6428,16 @@ fn session_frame_diff_updates_iterm_gif_scrollback_asset_after_animation_tick() 
         .as_u64()
         .expect("expected updated animated iTerm GIF asset version");
 
-    let mut updated_meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
+    let mut updated_meta = TestGraphicAssetMeta::default();
     let updated_meta_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
-            session_id,
-            asset_id,
-            updated_version,
-            &mut updated_meta,
-        )
+        test_graphic_asset_meta(session_id, asset_id, updated_version, &mut updated_meta)
     };
     assert_eq!(updated_meta_status, 0);
     assert_eq!(updated_meta.rgba_len, 4);
 
     let mut updated_rgba = vec![0_u8; updated_meta.rgba_len];
     let updated_copy_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+        test_graphic_asset_rgba_copy(
             session_id,
             asset_id,
             updated_version,
@@ -6611,15 +6523,9 @@ fn session_frame_diff_applies_kitty_animation_current_frame_control() {
         .as_u64()
         .expect("expected current-frame control to publish a new asset version");
 
-    let mut meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
-    let meta_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
-            session_id,
-            61001,
-            updated_version,
-            &mut meta,
-        )
-    };
+    let mut meta = TestGraphicAssetMeta::default();
+    let meta_status =
+        unsafe { test_graphic_asset_meta(session_id, 61001, updated_version, &mut meta) };
     assert_eq!(meta_status, 0);
     assert_eq!(meta.width, 2);
     assert_eq!(meta.height, 1);
@@ -6627,7 +6533,7 @@ fn session_frame_diff_applies_kitty_animation_current_frame_control() {
 
     let mut rgba = vec![0_u8; meta.rgba_len];
     let copy_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+        test_graphic_asset_rgba_copy(
             session_id,
             61001,
             updated_version,
@@ -6750,15 +6656,9 @@ fn session_frame_diff_applies_kitty_animation_compose_control() {
         .as_u64()
         .expect("expected compose command to publish a new asset version");
 
-    let mut meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
-    let meta_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
-            session_id,
-            IMAGE_ID,
-            composed_version,
-            &mut meta,
-        )
-    };
+    let mut meta = TestGraphicAssetMeta::default();
+    let meta_status =
+        unsafe { test_graphic_asset_meta(session_id, IMAGE_ID, composed_version, &mut meta) };
     assert_eq!(meta_status, 0);
     assert_eq!(meta.width, 2);
     assert_eq!(meta.height, 2);
@@ -6766,7 +6666,7 @@ fn session_frame_diff_applies_kitty_animation_compose_control() {
 
     let mut rgba = vec![0_u8; meta.rgba_len];
     let copy_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+        test_graphic_asset_rgba_copy(
             session_id,
             IMAGE_ID,
             composed_version,
@@ -6880,15 +6780,9 @@ fn session_frame_diff_applies_kitty_animation_stop_control() {
     assert_eq!(stopped_graphic["width_px"].as_u64(), Some(1));
     assert_eq!(stopped_graphic["height_px"].as_u64(), Some(1));
 
-    let mut meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
-    let meta_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
-            session_id,
-            61006,
-            first_version,
-            &mut meta,
-        )
-    };
+    let mut meta = TestGraphicAssetMeta::default();
+    let meta_status =
+        unsafe { test_graphic_asset_meta(session_id, 61006, first_version, &mut meta) };
     assert_eq!(meta_status, 0);
     assert_eq!(meta.width, 1);
     assert_eq!(meta.height, 1);
@@ -6896,7 +6790,7 @@ fn session_frame_diff_applies_kitty_animation_stop_control() {
 
     let mut rgba = vec![0_u8; meta.rgba_len];
     let copy_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+        test_graphic_asset_rgba_copy(
             session_id,
             61006,
             first_version,
@@ -7009,15 +6903,9 @@ fn session_frame_diff_applies_kitty_animation_frame_delete() {
         .expect("expected frame delete to publish a fallback asset version");
     assert_eq!(deleted_version, first_version);
 
-    let mut meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
-    let meta_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
-            session_id,
-            61002,
-            deleted_version,
-            &mut meta,
-        )
-    };
+    let mut meta = TestGraphicAssetMeta::default();
+    let meta_status =
+        unsafe { test_graphic_asset_meta(session_id, 61002, deleted_version, &mut meta) };
     assert_eq!(meta_status, 0);
     assert_eq!(meta.width, 1);
     assert_eq!(meta.height, 1);
@@ -7025,7 +6913,7 @@ fn session_frame_diff_applies_kitty_animation_frame_delete() {
 
     let mut rgba = vec![0_u8; meta.rgba_len];
     let copy_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+        test_graphic_asset_rgba_copy(
             session_id,
             61002,
             deleted_version,
@@ -7996,15 +7884,9 @@ PY"#,
         .as_u64()
         .expect("expected chunked raw-pixel asset version");
 
-    let mut meta = ianvs_core::ffi::IanvsGraphicAssetMeta::default();
-    let meta_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_meta(
-            session_id,
-            49376,
-            asset_version,
-            &mut meta,
-        )
-    };
+    let mut meta = TestGraphicAssetMeta::default();
+    let meta_status =
+        unsafe { test_graphic_asset_meta(session_id, 49376, asset_version, &mut meta) };
     assert_eq!(meta_status, 0);
     assert_eq!(meta.width, 8);
     assert_eq!(meta.height, 8);
@@ -8012,7 +7894,7 @@ PY"#,
 
     let mut rgba = vec![0_u8; meta.rgba_len];
     let copy_status = unsafe {
-        ianvs_core::ffi::ianvs_session_graphic_asset_rgba_copy(
+        test_graphic_asset_rgba_copy(
             session_id,
             49376,
             asset_version,
@@ -17034,7 +16916,7 @@ PROMPT='ianvs-history-original-zdotdir% '
         "kind": "terminal.export_diagnostics",
         "maxSamples": 1,
     });
-    let diagnostics = session::request_session_json(session_id, &diagnostics_request.to_string())
+    let diagnostics = request_session_test(session_id, &diagnostics_request.to_string())
         .unwrap()
         .expect("expected diagnostics export response");
     let diagnostics: serde_json::Value = serde_json::from_str(&diagnostics).unwrap();
@@ -17496,7 +17378,7 @@ fn live_recording_captures_raw_pty_output_redacted_input_and_resize() {
         "created_at_utc": "2026-07-21T00:00:00.000Z",
         "input_policy": "redact",
     });
-    let start_response = session::request_session_json(session_id, &start_request.to_string())
+    let start_response = request_session_test(session_id, &start_request.to_string())
         .unwrap()
         .expect("expected recording start response");
     let start_response: serde_json::Value = serde_json::from_str(&start_response).unwrap();
@@ -17512,7 +17394,7 @@ fn live_recording_captures_raw_pty_output_redacted_input_and_resize() {
     thread::sleep(Duration::from_millis(250));
 
     let stop_request = serde_json::json!({ "kind": "terminal.recording_stop" });
-    let stop_response = session::request_session_json(session_id, &stop_request.to_string())
+    let stop_response = request_session_test(session_id, &stop_request.to_string())
         .unwrap()
         .expect("expected recording stop response");
     let stop_response: serde_json::Value = serde_json::from_str(&stop_response).unwrap();
@@ -17586,35 +17468,6 @@ fn live_recording_captures_raw_pty_output_redacted_input_and_resize() {
         assert!(offset >= previous_offset);
         previous_offset = offset;
     }
-
-    session::close_session(session_id).unwrap();
-}
-
-#[test]
-fn ffi_poll_events_returns_null_when_queue_is_empty() {
-    let session_id =
-        session::create_session(&serde_json::to_string(&interactive_profile()).unwrap()).unwrap();
-
-    let first_ptr = ianvs_core::ffi::ianvs_session_poll_events_json(session_id);
-    assert!(
-        !first_ptr.is_null(),
-        "expected initial started event payload"
-    );
-    let first_payload = unsafe { CStr::from_ptr(first_ptr) }
-        .to_str()
-        .expect("expected utf8 event payload")
-        .to_string();
-    assert!(
-        first_payload.contains("\"kind\":\"started\""),
-        "expected started event payload: {first_payload}"
-    );
-    unsafe { ianvs_core::ffi::ianvs_string_free(first_ptr) };
-
-    let second_ptr = ianvs_core::ffi::ianvs_session_poll_events_json(session_id);
-    assert!(
-        second_ptr.is_null(),
-        "expected empty event queue to short-circuit without JSON allocation"
-    );
 
     session::close_session(session_id).unwrap();
 }
@@ -18855,13 +18708,13 @@ fn session_osc99_product_dismiss_request_synchronizes_native_lifecycle() {
         "kind": "terminal.dismiss_osc99_notification",
         "id": "dismiss-me",
     });
-    let response = session::request_session_json(session_id, &request.to_string())
+    let response = request_session_test(session_id, &request.to_string())
         .unwrap()
         .expect("expected product-dismiss response");
     let response: serde_json::Value = serde_json::from_str(&response).unwrap();
     assert_eq!(response["dismissed"].as_bool(), Some(true));
 
-    let repeated = session::request_session_json(session_id, &request.to_string())
+    let repeated = request_session_test(session_id, &request.to_string())
         .unwrap()
         .expect("expected repeated product-dismiss response");
     let repeated: serde_json::Value = serde_json::from_str(&repeated).unwrap();
@@ -18871,7 +18724,7 @@ fn session_osc99_product_dismiss_request_synchronizes_native_lifecycle() {
         "kind": "terminal.dismiss_osc99_notification",
         "id": "bad:id",
     });
-    let malformed = session::request_session_json(session_id, &malformed.to_string())
+    let malformed = request_session_test(session_id, &malformed.to_string())
         .unwrap()
         .expect("expected malformed product-dismiss response");
     let malformed: serde_json::Value = serde_json::from_str(&malformed).unwrap();
@@ -20220,7 +20073,7 @@ fn session_osc1337_block_folding_crosses_real_pty_search_selection_and_runtime_r
         "id": "build-1",
         "folded": false,
     });
-    let response = session::request_session_json(session_id, &unfold_request.to_string())
+    let response = request_session_test(session_id, &unfold_request.to_string())
         .unwrap()
         .expect("expected unfold response");
     assert_eq!(
@@ -20283,7 +20136,7 @@ fn session_osc1337_block_folding_crosses_real_pty_search_selection_and_runtime_r
         "id": "build-1",
         "rendered": false,
     });
-    let response = session::request_session_json(session_id, &restore_request.to_string())
+    let response = request_session_test(session_id, &restore_request.to_string())
         .unwrap()
         .expect("expected document restore response");
     assert_eq!(
@@ -20323,7 +20176,7 @@ fn session_osc1337_block_folding_crosses_real_pty_search_selection_and_runtime_r
         "id": "missing",
         "folded": true,
     });
-    let response = session::request_session_json(session_id, &missing_request.to_string())
+    let response = request_session_test(session_id, &missing_request.to_string())
         .unwrap()
         .expect("expected missing-block response");
     assert_eq!(
@@ -20416,7 +20269,7 @@ fn session_osc1337_inline_buttons_cross_real_pty_frame_copy_and_exact_custom_rep
         "kind": "terminal.activate_iterm_button",
         "id": copy["id"].as_u64().unwrap(),
     });
-    let copy_response = session::request_session_json(session_id, &copy_request.to_string())
+    let copy_response = request_session_test(session_id, &copy_request.to_string())
         .unwrap()
         .expect("expected copy activation response");
     let copy_response: serde_json::Value = serde_json::from_str(&copy_response).unwrap();
@@ -20428,7 +20281,7 @@ fn session_osc1337_inline_buttons_cross_real_pty_frame_copy_and_exact_custom_rep
         "kind": "terminal.activate_iterm_button",
         "id": custom["id"].as_u64().unwrap(),
     });
-    let custom_response = session::request_session_json(session_id, &custom_request.to_string())
+    let custom_response = request_session_test(session_id, &custom_request.to_string())
         .unwrap()
         .expect("expected custom activation response");
     let custom_response: serde_json::Value = serde_json::from_str(&custom_response).unwrap();
@@ -20449,7 +20302,7 @@ fn session_osc1337_inline_buttons_cross_real_pty_frame_copy_and_exact_custom_rep
     });
     assert!(invalidated.contains("BUTTON-REPLY:1b5b3f313333373b34327e"));
 
-    let rejected = session::request_session_json(session_id, &custom_request.to_string())
+    let rejected = request_session_test(session_id, &custom_request.to_string())
         .unwrap()
         .expect("expected invalid custom response");
     assert_eq!(
@@ -20460,7 +20313,7 @@ fn session_osc1337_inline_buttons_cross_real_pty_frame_copy_and_exact_custom_rep
         "kind": "terminal.activate_iterm_button",
         "id": u64::MAX,
     });
-    let missing = session::request_session_json(session_id, &missing.to_string())
+    let missing = request_session_test(session_id, &missing.to_string())
         .unwrap()
         .expect("expected stale button response");
     assert_eq!(
@@ -20541,7 +20394,7 @@ fn vt220_sessions_do_not_expose_or_activate_osc1337_inline_buttons() {
         "kind": "terminal.activate_iterm_button",
         "id": 1,
     });
-    let response = session::request_session_json(session_id, &request.to_string())
+    let response = request_session_test(session_id, &request.to_string())
         .unwrap()
         .expect("expected VT220 rejection response");
     assert_eq!(
@@ -21276,7 +21129,7 @@ fn search_request(session_id: u64, query: &str, mode: &str) -> serde_json::Value
         "query": query,
         "mode": mode,
     });
-    let response = session::request_session_json(session_id, &request.to_string())
+    let response = request_session_test(session_id, &request.to_string())
         .unwrap()
         .expect("expected search response");
     serde_json::from_str(&response).unwrap()
@@ -21613,7 +21466,7 @@ fn diagnostics_export_returns_privacy_preserving_evidence_package() {
         "includeContent": true,
         "redactionMode": "basic",
     });
-    let response = session::request_session_json(session_id, &request.to_string())
+    let response = request_session_test(session_id, &request.to_string())
         .unwrap()
         .expect("expected diagnostics export response");
     let parsed: serde_json::Value = serde_json::from_str(&response).unwrap();
@@ -21676,7 +21529,7 @@ fn diagnostics_export_reports_shell_integration_gate_status() {
         "kind": "terminal.export_diagnostics",
         "maxSamples": 1,
     });
-    let response = session::request_session_json(session_id, &request.to_string())
+    let response = request_session_test(session_id, &request.to_string())
         .unwrap()
         .expect("expected diagnostics export response");
     let parsed: serde_json::Value = serde_json::from_str(&response).unwrap();
@@ -21709,7 +21562,7 @@ fn diagnostics_export_after_session_close_fails_stably() {
         "kind": "terminal.export_diagnostics",
     });
 
-    assert!(session::request_session_json(session_id, &request.to_string()).is_err());
+    assert!(request_session_test(session_id, &request.to_string()).is_err());
 }
 
 #[test]
@@ -21756,7 +21609,7 @@ PY"#
         "kind": "terminal.export_diagnostics",
         "maxSamples": 1,
     });
-    let diagnostics = session::request_session_json(session_id, &diagnostics_request.to_string())
+    let diagnostics = request_session_test(session_id, &diagnostics_request.to_string())
         .unwrap()
         .expect("expected diagnostics response");
     let diagnostics: serde_json::Value = serde_json::from_str(&diagnostics).unwrap();

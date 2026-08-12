@@ -3,6 +3,9 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:ianvs_pty/ianvs_pty.dart';
+import 'package:ianvs_terminal/ianvs_terminal.dart';
+import 'package:ianvs_terminal/src/runtime/terminal_frame_transport_coordinator.dart';
+import 'package:ianvs_terminal/src/runtime/terminal_json_request_client.dart';
 
 const double _devicePixelRatio = 2.0;
 const double _logicalWidth = 1280;
@@ -29,9 +32,10 @@ Future<void> main(List<String> args) async {
   }
 
   final backend = NativePtyBackend.load();
-  final sessionId = backend.createSession(
+  final sessionId = backend.createSessionV1(
     _sessionConfigJson(fixtureFile, options.scenario),
   );
+  final frameTransport = TerminalFrameTransportCoordinator(backend: backend);
   final traceFrames = <Map<String, Object?>>[];
   final resizeEvents = <Map<String, Object?>>[];
   final inputEchoText =
@@ -85,7 +89,10 @@ Future<void> main(List<String> args) async {
         break;
       }
 
-      final rawFrame = backend.takeFrameDiffJson(sessionId);
+      final decodedFrame = frameTransport.take(sessionId);
+      final rawFrame = decodedFrame == null
+          ? null
+          : jsonEncode(_frameJson(decodedFrame.frame));
       if (rawFrame != null && rawFrame.isNotEmpty) {
         emptyPollsAfterExit = 0;
         final frameJson = (jsonDecode(rawFrame) as Map).cast<String, Object?>();
@@ -93,7 +100,6 @@ Future<void> main(List<String> args) async {
           backend,
           sessionId,
           v1Name: 'frame_stats',
-          legacyKind: 'frame',
         );
         final rows = (frameJson['rows'] as List<dynamic>? ?? const []).length;
         final dirtyRanges =
@@ -183,7 +189,6 @@ Future<void> main(List<String> args) async {
       backend,
       sessionId,
       v1Name: 'session_stats',
-      legacyKind: 'session',
     );
     backend.closeSession(sessionId);
   }
@@ -214,24 +219,11 @@ Map<String, Object?> _takeDiagnosticPayload(
   PtySessionBackend backend,
   String sessionId, {
   required String v1Name,
-  required String legacyKind,
 }) {
-  if (backend case final PtySessionDiagnosticEventV1Backend v1Backend
-      when v1Backend.supportsDiagnosticEventV1) {
+  if (backend case final PtySessionDiagnosticEventV1Backend v1Backend) {
     try {
       return v1Backend.takeDiagnosticEventV1(sessionId, v1Name)?.payload ??
           const <String, Object?>{};
-    } on Object {
-      return const <String, Object?>{};
-    }
-  }
-  if (backend case final PtySessionDiagnosticsBackend legacyBackend) {
-    final raw = legacyBackend.takeDiagnosticsJson(sessionId, legacyKind);
-    if (raw == null || raw.isEmpty) {
-      return const <String, Object?>{};
-    }
-    try {
-      return (jsonDecode(raw) as Map).cast<String, Object?>();
     } on Object {
       return const <String, Object?>{};
     }
@@ -338,39 +330,76 @@ void _writeTrace({
   );
 }
 
+Map<String, Object?> _frameJson(TerminalFrameDiff frame) {
+  return <String, Object?>{
+    'frame_kind': frame.frameKind.name,
+    'rows': frame.rows
+        .map(
+          (row) => <String, Object?>{
+            'index': row.index,
+            'text': row.text,
+            'wrapped': row.wrapped,
+          },
+        )
+        .toList(growable: false),
+    'cursor': <String, Object?>{
+      'row': frame.cursor.row,
+      'col': frame.cursor.col,
+      'visible': frame.cursor.visible,
+    },
+    'viewport_rows': frame.viewportRows,
+    'viewport_cols': frame.viewportCols,
+    'dirty_ranges': frame.dirtyRanges
+        .map(
+          (range) => <String, Object?>{'start': range.start, 'end': range.end},
+        )
+        .toList(growable: false),
+    'scrollback_offset': frame.scrollbackOffset,
+    'scrollback_max_offset': frame.scrollbackMaxOffset,
+    'viewport_row_shift': frame.viewportRowShift,
+  };
+}
+
 String _sessionConfigJson(File fixtureFile, _BenchmarkScenario scenario) {
-  return jsonEncode(<String, Object?>{
-    'id': 'cat-log-benchmark-${scenario.id}',
-    'name': 'cat-log-benchmark-${scenario.id}',
-    'launch': <String, Object?>{
-      'program': '/bin/sh',
-      'args': <String>['-lc', _scenarioCommand(scenario, fixtureFile)],
-      'env': const <String, String>{},
-      'cwd': Directory.current.path,
-    },
-    'terminal': <String, Object?>{
-      'emulation': 'xterm256',
-      'scrollbackLines': 120000,
-    },
-    'appearance': <String, Object?>{
-      'font': <String, Object?>{
-        'family': 'JetBrainsMono Nerd Font',
-        'fallback': const <String>[
-          'Symbols Nerd Font Mono',
-          '.AppleSymbolsFallback',
-          'SF Pro Text',
-        ],
-        'size': 14,
-        'lineHeight': 1.28,
+  final sessionId = 'cat-log-benchmark-${scenario.id}';
+  return TerminalSessionConfigV1(
+    sessionId: sessionId,
+    displayName: sessionId,
+    config: TerminalSessionConfig.fromJson(<String, Object?>{
+      'launch': <String, Object?>{
+        'program': '/bin/sh',
+        'args': <String>['-lc', _scenarioCommand(scenario, fixtureFile)],
+        'env': const <String, String>{},
+        'cwd': Directory.current.path,
       },
-      'colors': const <String, Object?>{},
-      'cursor': <String, Object?>{'shape': 'block', 'blink': true},
-    },
-    'interaction': const <String, Object?>{
-      'copyOnSelect': false,
-      'optionDragMode': 'block_selection',
-    },
-  });
+      'connection': const <String, Object?>{'type': 'local'},
+      'terminal': <String, Object?>{
+        'emulation': 'xterm256',
+        'scrollbackLines': 120000,
+        'graphics': const <String, Object?>{},
+        'dragDropEnabled': false,
+      },
+      'shellIntegration': const <String, Object?>{'enabled': true},
+      'appearance': <String, Object?>{
+        'font': <String, Object?>{
+          'family': 'JetBrainsMono Nerd Font',
+          'fallback': const <String>[
+            'Symbols Nerd Font Mono',
+            '.AppleSymbolsFallback',
+            'SF Pro Text',
+          ],
+          'size': 14,
+          'lineHeight': 1.28,
+        },
+        'colors': const <String, Object?>{},
+        'cursor': const <String, Object?>{'shape': 'block', 'blink': true},
+      },
+      'interaction': const <String, Object?>{
+        'copyOnSelect': false,
+        'optionDragMode': 'block_selection',
+      },
+    }),
+  ).toJsonString();
 }
 
 String _scenarioCommand(_BenchmarkScenario scenario, File fixtureFile) {
@@ -416,31 +445,36 @@ Map<String, Object?> _runSearchProbe(
   var matchCount = 0;
   var resultBytes = 0;
   String? errorText;
+  final client = TerminalJsonRequestClient.fromBackend(backend);
   for (var attempt = 0; attempt < 3; attempt += 1) {
     final watch = Stopwatch()..start();
-    final raw = backend.requestSessionJson(
+    final result = client.searchTextResult(
       sessionId,
-      jsonEncode(<String, Object?>{
-        'kind': 'terminal.search_text',
-        'query': _searchQuery,
-        'mode': 'case_sensitive_substring',
-      }),
+      _searchQuery,
+      mode: TerminalSearchMode.caseSensitiveSubstring,
     );
     watch.stop();
     samples.add(watch.elapsedMicroseconds);
-    if (raw == null || raw.isEmpty) {
-      continue;
-    }
-    resultBytes = utf8.encode(raw).length;
-    final decoded = (jsonDecode(raw) as Map).cast<String, Object?>();
-    final matches = decoded['matches'];
-    if (matches is List) {
-      matchCount = matches.length;
-    }
-    final rawErrorText = decoded['error_text'] ?? decoded['errorText'];
-    if (rawErrorText is String && rawErrorText.isNotEmpty) {
-      errorText = rawErrorText;
-    }
+    matchCount = result.matches.length;
+    errorText = result.errorText;
+    resultBytes = utf8
+        .encode(
+          jsonEncode(<String, Object?>{
+            'matches': result.matches
+                .map(
+                  (match) => <String, Object?>{
+                    'row': match.row,
+                    'start_col': match.startCol,
+                    'end_col': match.endCol,
+                    'text': match.text,
+                    'scrollback_offset': match.scrollbackOffset,
+                  },
+                )
+                .toList(growable: false),
+            'error_text': result.errorText,
+          }),
+        )
+        .length;
   }
   return <String, Object?>{
     'query': _searchQuery,

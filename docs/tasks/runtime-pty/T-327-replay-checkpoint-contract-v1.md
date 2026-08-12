@@ -2,14 +2,14 @@
 
 ## Goal
 
-Add a deterministic, backward-compatible Recording v2 checkpoint marker and a
+Add a deterministic, backward-compatible current recording schema checkpoint marker and a
 bounded native replay snapshot capability that future seek can use without
 pretending timestamp-only markers are restorable state.
 
 ## Scope
 
-- Keep live Recording capture and canonical Recording v1 byte-stable.
-- Add Recording v2 metadata/events with one `checkpoint` event kind.
+- Keep live Recording capture and canonical current recording schema byte-stable.
+- Add current recording schema metadata/events with one `checkpoint` event kind.
 - Add a deterministic planner with an initial, periodic and final safe marker.
 - Materialize markers through an optional `ianvs_pty` replay checkpoint capability.
 - Capture and restore native terminal-visible replay state with session-local ids.
@@ -22,7 +22,7 @@ pretending timestamp-only markers are restorable state.
 - Do not add seek, pause, Replay UI or playback controls.
 - Do not serialize `TerminalSnapshot` or native heap state into the recording.
 - Do not add graphic asset bundles or promise cross-process instant restore.
-- Do not change live native capture from Recording v1.
+- Do not change live native capture from current recording schema.
 - Do not remove legacy replay delegates or make checkpoint FFI symbols mandatory.
 - Do not roll back Runtime Event queues or sequence numbers.
 
@@ -39,11 +39,12 @@ pretending timestamp-only markers are restorable state.
 - `native/core/src/ffi.rs`
 - `native/core/src/runtime_contract.rs`
 - `native/core/tests/session_test.rs`
-- `docs/recording/FORMAT_V2.md`
+- `docs/recording/FORMAT_CURRENT.md`
 
 ## Contract
 
-- Metadata and every event in one recording use schema v1 or v2 consistently.
+- Metadata, checkpoint markers and every event use the single current recording
+  schema consistently.
 - Checkpoint ids are non-empty, bounded and deterministic; source sequence points
   to a prior non-checkpoint event.
 - Replanning an already planned recording produces canonical byte-identical NDJSON.
@@ -57,7 +58,7 @@ pretending timestamp-only markers are restorable state.
 
 ## Functional Acceptance
 
-- V1 fixtures remain canonical and v2 checkpoint fixtures round-trip.
+- Current fixtures remain canonical and checkpoint fixtures round-trip.
 - Invalid versions, cross-version events, malformed markers and unsafe boundaries
   fail explicitly.
 - Initial, periodic and final markers are deterministic and bounded.
@@ -96,8 +97,9 @@ make verify
 
 T-327 is closed.
 
-- Recording v1 remains byte-stable; the explicit planner produces canonical v2
-  markers and repeated planning is byte-identical.
+- The current recording schema remains byte-stable; the explicit planner
+  produces canonical current-schema markers and repeated planning is
+  byte-identical.
 - Dart and native boundary trackers prevent capture in an incomplete VT control
   string. Split-OSC regression coverage verifies the marker is delayed until BEL.
 - Native replay retains at most 64 session-local checkpoints under a 32 MiB

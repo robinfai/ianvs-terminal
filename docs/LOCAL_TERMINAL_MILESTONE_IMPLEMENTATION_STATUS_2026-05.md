@@ -25,7 +25,7 @@
 | Keybinding metadata | FOUNDATION/WIRED | `T-079`, `T-230` | shortcut production dispatch 已接入；用户配置覆盖和冲突诊断仍需验证 |
 | Keybinding resolver | FOUNDATION/WIRED | `T-082`, `T-083`, `T-122`, `T-123`, `T-230` | 需要验证 shortcut bridge、焦点消费和配置冲突行为 |
 | Local config schema | FOUNDATION | `T-080` | 需要接入 session bootstrap |
-| Local config repository/migration | FOUNDATION | `T-081`, `T-102`, `T-124`, `T-125` | 需要接入 session bootstrap runtime |
+| Current local config repository | WIRED | `T-081`, `T-102`, `T-124` | current schema only; predecessor formats are outside the product contract |
 | Action availability diagnostics | WIRED | `T-098`, `T-100`, `T-108`, `T-202`, `T-230` | 需要 widget/manual 验证 command menu diagnostics 和 disabled reasons |
 | Unified action pipeline | WIRED | `T-114`, `T-115`, `T-116`, `T-117`, `T-118`, `T-119`, `T-136`, `T-137`, `T-138`, `T-230` | 需要 focused shell action tests 和 fallback-path 验证 |
 | Command menu adapter/model | WIRED | `T-120`, `T-121`, `T-230` | 需要验证现有 command menu widget 的显示、执行和错误反馈 |

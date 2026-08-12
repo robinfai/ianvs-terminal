@@ -24,7 +24,7 @@ class LocalTerminalConfigDocument {
     this.hotkeyWindow = const LocalTerminalHotkeyWindowConfig(),
   });
 
-  static const int currentSchemaVersion = 2;
+  static const int currentSchemaVersion = 1;
 
   static const Set<String> forbiddenTopLevelKeys = {
     'ssh',
@@ -36,6 +36,19 @@ class LocalTerminalConfigDocument {
     'sftp',
     'serial',
     'telnet',
+  };
+  static const Set<String> _currentTopLevelKeys = {
+    'schemaVersion',
+    'defaultProfileId',
+    'appearance',
+    'keybindings',
+    'layout',
+    'clipboard',
+    'hostActions',
+    'paste',
+    'shellIntegration',
+    'notifications',
+    'hotkeyWindow',
   };
 
   final int schemaVersion;
@@ -64,10 +77,7 @@ class LocalTerminalConfigDocument {
     LocalTerminalHotkeyWindowConfig? hotkeyWindow,
   }) {
     return LocalTerminalConfigDocument(
-      schemaVersion: _schemaVersionFromJson(
-        schemaVersion ?? this.schemaVersion,
-        currentSchemaVersion,
-      ),
+      schemaVersion: currentSchemaVersion,
       defaultProfileId:
           identical(defaultProfileId, _localTerminalConfigNoChange)
           ? this.defaultProfileId
@@ -112,7 +122,16 @@ class LocalTerminalConfigDocument {
   }
 
   static LocalTerminalConfigDocument fromJson(Map<String, Object?> json) {
+    _validateCurrentSchema(json['schemaVersion']);
     _rejectForbiddenTopLevelKeys(json);
+    final unknown = json.keys.where(
+      (key) => !_currentTopLevelKeys.contains(key),
+    );
+    if (unknown.isNotEmpty) {
+      throw FormatException(
+        'LocalTerminalConfig contains unknown fields: ${unknown.join(', ')}',
+      );
+    }
 
     return LocalTerminalConfigDocument(
       schemaVersion: currentSchemaVersion,
@@ -123,9 +142,7 @@ class LocalTerminalConfigDocument {
       keybindings: LocalTerminalKeybindingsConfig.fromJson(
         _objectMap(json['keybindings']),
       ),
-      layout: LocalTerminalLayoutConfig.fromJson(
-        _objectMap(json['layout']) ?? _objectMap(json['workspace']),
-      ),
+      layout: LocalTerminalLayoutConfig.fromJson(_objectMap(json['layout'])),
       clipboard: LocalTerminalClipboardConfig.fromJson(
         _objectMap(json['clipboard']),
       ),
@@ -145,8 +162,18 @@ class LocalTerminalConfigDocument {
     );
   }
 
-  static int _schemaVersionFromJson(Object? value, int fallback) {
-    return _positiveWholeIntFromJson(value, fallback);
+  static void _validateCurrentSchema(Object? value) {
+    if (value == null) {
+      throw const UnsupportedLocalTerminalConfigSchemaVersion(null);
+    }
+    if (value is! int) {
+      throw const FormatException(
+        'LocalTerminalConfig schemaVersion must be an integer.',
+      );
+    }
+    if (value != currentSchemaVersion) {
+      throw UnsupportedLocalTerminalConfigSchemaVersion(value);
+    }
   }
 
   static void _rejectForbiddenTopLevelKeys(Map<String, Object?> json) {
@@ -160,6 +187,17 @@ class LocalTerminalConfigDocument {
       '${forbidden.join(', ')}',
     );
   }
+}
+
+final class UnsupportedLocalTerminalConfigSchemaVersion implements Exception {
+  const UnsupportedLocalTerminalConfigSchemaVersion(this.version);
+
+  final Object? version;
+
+  @override
+  String toString() =>
+      'Unsupported local terminal config schema version: $version '
+      '(current: ${LocalTerminalConfigDocument.currentSchemaVersion})';
 }
 
 class LocalTerminalKeybindingsConfig {
@@ -641,11 +679,6 @@ int _pasteHistorySizeFromJson(Object? value) {
       : parsed;
 }
 
-int _positiveWholeIntFromJson(Object? value, int fallback) {
-  final parsed = _wholeIntOrNull(value);
-  return parsed == null || parsed <= 0 ? fallback : parsed;
-}
-
 Set<TerminalActionId> _actionIdSet(Object? value) {
   if (value is! List) {
     return const <TerminalActionId>{};
@@ -690,12 +723,6 @@ TerminalActionId? _actionId(Object? value) {
   if (normalized.isEmpty) {
     return null;
   }
-  // Preserve configs written before this product action was corrected from
-  // scrollback-only semantics to iTerm2-style Clear Buffer semantics.
-  if (normalized == 'clearscrollback') {
-    return TerminalActionId.clearBuffer;
-  }
-
   for (final actionId in TerminalActionId.values) {
     if (actionId.name.toLowerCase() == normalized) {
       return actionId;

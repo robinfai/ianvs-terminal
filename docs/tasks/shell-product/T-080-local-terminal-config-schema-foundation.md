@@ -1,5 +1,8 @@
 # T-080 Local Terminal Config Schema Foundation
 
+> Historical task record. Current production has replaced the preferences
+> compatibility boundary with an exact-current local config repository.
+
 ## Goal
 
 建立 `LocalTerminalConfig` 的最小 schema 模型，为 P1 后续配置迁移、keybinding override、禁用默认快捷键、clipboard/paste/notification/hotkey window 配置提供统一文档对象。
@@ -12,8 +15,7 @@
 
 ## Non-goals
 
-- 不接管现有 `ProfileRepository` 或 `AppPreferencesRepository`
-- 不改变 `ianvs_profiles.json` 或 `ianvs_preferences.json` 的读写行为
+- 不接管独立 current `ProfileRepository`
 - 不实现完整配置 UI
 - 不实现 live reload
 - 不新增 SSH、remote、serial、SFTP 顶层字段

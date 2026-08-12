@@ -42,9 +42,9 @@ Open Terminal at Folder 为准。权威说明和机器可读
 - [T-324](tasks/runtime-pty/T-324-terminal-frame-packet-v1-and-dual-stack.md)：已关闭；Terminal Frame Packet v1、序号确认/快照重同步与旧 Protobuf/JSON 双栈
 - [T-325](tasks/runtime-pty/T-325-replay-speed-control.md)：已关闭；Realtime Replay 0.25x–4x 有界速度与绝对时间轴调度
 - [T-326](tasks/runtime-pty/T-326-replay-frame-hash-comparison.md)：已关闭；有界 applied-viewport Frame hash 比较与首个差异定位
-- [T-327](tasks/runtime-pty/T-327-replay-checkpoint-contract-v1.md)：已关闭；Recording v2 checkpoint marker、安全 parser 边界与有界 native snapshot materialization
+- [T-327](tasks/runtime-pty/T-327-replay-checkpoint-contract-v1.md)：已关闭；current recording schema checkpoint marker、安全 parser 边界与有界 native snapshot materialization
 - [T-328](tasks/runtime-pty/T-328-replay-checkpoint-seek.md)：已关闭；基于已物化 checkpoint 的确定性 seek、Event cursor 协调与 realtime 重新调度
-- [T-329](tasks/runtime-pty/T-329-replay-graphic-asset-bundle.md)：已关闭；Recording v2 内容寻址 RGBA asset bundle、有界校验与 ReplayBackend native fallback
+- [T-329](tasks/runtime-pty/T-329-replay-graphic-asset-bundle.md)：已关闭；current recording schema 内容寻址 RGBA asset bundle、有界校验与 ReplayBackend native fallback
 - [T-330](tasks/runtime-pty/T-330-graphic-asset-packet-v1-and-dual-stack.md)：已关闭；原子 Graphic Asset Packet v1、精确 identity/RGBA 校验与旧 meta/copy 双栈
 - [T-331](tasks/shell-product/T-331-terminal-scope-convergence.md)：已关闭；Project Workspace 收敛为 Terminal Layout、最小 Relaunch Spec、独立 Recording Library 与 Open Terminal at Folder
 
@@ -60,7 +60,7 @@ Session Descriptor 录制关联等当前产品声明由 T-331 取代。
 3. ReplayBackend 已由 T-311 通过最终 `make verify` 关闭，支持无延迟确定性测试和
    1x 实时调度；Iteration 03 完成。T-325 已以独立后续切片增加 0.25x–4x 速度控制，
    T-326 再增加有界 applied-viewport Frame hash 比较与首个差异定位。T-327 已增加
-   Recording v2 checkpoint marker 与安全、有界的 native snapshot materialization。T-328 已在
+   current recording schema checkpoint marker 与安全、有界的 native snapshot materialization。T-328 已在
    其上关闭确定性 backend seek；T-329 再增加有界、内容寻址的 decoded RGBA asset bundle，
    ReplayBackend 对精确录制 identity 优先并保留 native fallback。这些切片不同时引入 pause、
    scrubber、Replay UI 或 live asset capture 产品接线。现有 viewport
@@ -257,6 +257,11 @@ Hyper-like `Phase 0` 到 `Phase 4` 连同 defaults 清理已经进入历史阶�
 ## 长期方向
 
 以下阶段保留为长期方向，但不再代表当前执行顺序。
+
+Data API 密钥轮换是独立的长期安全里程碑，当前 v1 明确不支持。进入实现前必须满足
+[ADR-0004](DECISIONS/ADR-0004-data-api-key-lifecycle-v1.md) 的 old+new key 验证、
+全量敏感资源事务性或可恢复重加密、并发写入隔离、失败回滚和版本化 KDF 兼容要求；
+不得通过只替换 verifier 的方式伪装成轮换。
 
 ### Phase 1: macOS Local Shell Stabilization
 

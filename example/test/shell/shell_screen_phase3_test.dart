@@ -21,6 +21,7 @@ import '../support/memory_app_preferences_repository.dart';
 import '../support/memory_local_terminal_config_repository.dart';
 import '../support/memory_paste_history_repository.dart';
 import '../support/memory_profile_repository.dart';
+import '../support/no_io_local_session_recording_repository.dart';
 
 Future<void> _pumpShellScreen(
   WidgetTester tester, {
@@ -28,6 +29,7 @@ Future<void> _pumpShellScreen(
   required MemoryProfileRepository profileRepository,
   required MemoryAppPreferencesRepository preferencesRepository,
   LocalTerminalConfigDocument? localConfig,
+  MemoryLocalTerminalConfigRepository? localConfigRepository,
   LocalTerminalLayoutRepository? workspaceRepository,
 }) async {
   await tester.pumpWidget(
@@ -43,7 +45,11 @@ Future<void> _pumpShellScreen(
           preferencesRepository,
         ),
         localTerminalConfigRepositoryProvider.overrideWithValue(
-          MemoryLocalTerminalConfigRepository(localConfig),
+          localConfigRepository ??
+              MemoryLocalTerminalConfigRepository(localConfig),
+        ),
+        localSessionRecordingRepositoryProvider.overrideWithValue(
+          noIoLocalSessionRecordingRepository(),
         ),
         if (workspaceRepository != null)
           localTerminalLayoutRepositoryProvider.overrideWithValue(
@@ -330,6 +336,7 @@ void main() {
     'defaults and appearance modal is the only place that mutates default profile and theme',
     (tester) async {
       final preferencesRepository = MemoryAppPreferencesRepository(null);
+      final localConfigRepository = MemoryLocalTerminalConfigRepository(null);
       final profileRepository = MemoryProfileRepository(
         TerminalProfilesDocument(
           profiles: [
@@ -344,6 +351,7 @@ void main() {
         fakeBindings: FakePtyBackend(),
         profileRepository: profileRepository,
         preferencesRepository: preferencesRepository,
+        localConfigRepository: localConfigRepository,
       );
 
       await tester.tap(find.byKey(const Key('shell-chrome-menu')));
@@ -410,11 +418,11 @@ void main() {
       await tester.tap(find.text('Save changes'));
       await tester.pumpAndSettle();
 
-      final savedPreferences = await preferencesRepository.load();
-      expect(savedPreferences, isNotNull);
-      expect(savedPreferences!.defaults.defaultProfileId, 'ssh');
-      expect(savedPreferences.appearance.themeMode, TerminalThemeMode.dark);
-      expect(savedPreferences.appearance.terminalViewportPadding, 18);
+      final savedConfig = await localConfigRepository.load();
+      expect(savedConfig, isNotNull);
+      expect(savedConfig!.defaultProfileId, 'ssh');
+      expect(savedConfig.appearance.themeMode, TerminalThemeMode.dark);
+      expect(savedConfig.appearance.terminalViewportPadding, 18);
 
       expect(find.byKey(const Key('shell-chrome-menu')), findsOneWidget);
       expect(shellAcceptanceProbe.current.visibleOverlay, 'none');
@@ -744,6 +752,7 @@ void main() {
     tester,
   ) async {
     final preferencesRepository = MemoryAppPreferencesRepository(null);
+    final localConfigRepository = MemoryLocalTerminalConfigRepository(null);
     final profileRepository = MemoryProfileRepository(
       TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
     );
@@ -753,6 +762,7 @@ void main() {
       fakeBindings: FakePtyBackend(),
       profileRepository: profileRepository,
       preferencesRepository: preferencesRepository,
+      localConfigRepository: localConfigRepository,
     );
 
     await tester.tap(find.byKey(const Key('shell-chrome-menu')));
@@ -769,10 +779,10 @@ void main() {
     await tester.tap(find.byKey(const Key('defaults-save')));
     await tester.pumpAndSettle();
 
-    final savedPreferences = await preferencesRepository.load();
-    expect(savedPreferences, isNotNull);
-    expect(savedPreferences!.defaults.defaultProfileId, isNull);
-    expect(savedPreferences.appearance.themeMode, TerminalThemeMode.dark);
+    final savedConfig = await localConfigRepository.load();
+    expect(savedConfig, isNotNull);
+    expect(savedConfig!.defaultProfileId, isNull);
+    expect(savedConfig.appearance.themeMode, TerminalThemeMode.dark);
 
     final savedProfiles = await profileRepository.load();
     expect(savedProfiles.profiles.single.appearance.colors.foreground, isNull);

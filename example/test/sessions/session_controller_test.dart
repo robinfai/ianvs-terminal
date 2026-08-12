@@ -1,8 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show FileSystemException;
-import 'dart:typed_data';
-import 'dart:ui';
 
 import 'package:app/features/config/local_terminal_config_models.dart';
 import 'package:app/features/config/local_terminal_config_repository.dart';
@@ -12,10 +10,14 @@ import 'package:app/features/preferences/app_preferences_models.dart';
 import 'package:app/features/preferences/app_preferences_repository.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/profiles/profile_repository.dart';
+import 'package:app/features/recording/local_session_recording_repository.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/sessions/session_ports.dart';
+import 'package:app/features/sessions/session_shutdown.dart';
 import 'package:app/features/sessions/session_state.dart';
 import 'package:app/features/shell/shell_action_registry.dart';
+import 'package:app/platform/app_shutdown_coordinator.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_pty/ianvs_pty.dart';
@@ -69,6 +71,25 @@ class _FailingOnceProfileRepository extends ProfileRepository {
   Future<void> save(TerminalProfilesDocument document) async {}
 }
 
+class _BlockingFailingProfileRepository extends ProfileRepository {
+  final Completer<void> loadStarted = Completer<void>();
+  final Completer<void> allowFailure = Completer<void>();
+  int loadAttempts = 0;
+
+  @override
+  Future<TerminalProfilesDocument> load() async {
+    loadAttempts += 1;
+    if (!loadStarted.isCompleted) {
+      loadStarted.complete();
+    }
+    await allowFailure.future;
+    throw const FileSystemException('bootstrap profile load failed');
+  }
+
+  @override
+  Future<void> save(TerminalProfilesDocument document) async {}
+}
+
 class _TestSessionController extends SessionController {
   @override
   SessionState build() {
@@ -89,10 +110,14 @@ class _TestAppPreferencesRepository extends AppPreferencesRepository {
   _TestAppPreferencesRepository(this._document);
 
   TerminalAppPreferencesDocument? _document;
+  int loadAttempts = 0;
   final List<TerminalAppPreferencesDocument> savedDocuments = [];
 
   @override
-  Future<TerminalAppPreferencesDocument?> load() async => _document;
+  Future<TerminalAppPreferencesDocument?> load() async {
+    loadAttempts += 1;
+    return _document;
+  }
 
   @override
   Future<void> save(TerminalAppPreferencesDocument document) async {
@@ -128,6 +153,34 @@ class _ThrowingLocalTerminalConfigRepository
   Future<void> save(LocalTerminalConfigDocument document) async {}
 }
 
+class _MissingPluginLocalTerminalConfigRepository
+    extends LocalTerminalConfigRepository {
+  @override
+  Future<LocalTerminalConfigDocument?> load() async {
+    throw MissingPluginException('test local path provider');
+  }
+}
+
+class _MissingPluginApiTerminalConfigRepository
+    extends TerminalConfigRepository {
+  @override
+  Future<LocalTerminalConfigDocument?> load() async {
+    throw MissingPluginException('test API adapter');
+  }
+
+  @override
+  Future<void> save(LocalTerminalConfigDocument document) async {}
+
+  @override
+  Future<LocalTerminalConfigDocument> update(
+    LocalTerminalConfigDocument Function(LocalTerminalConfigDocument current)
+    transform, {
+    LocalTerminalConfigDocument fallback = const LocalTerminalConfigDocument(),
+  }) async {
+    throw MissingPluginException('test API adapter');
+  }
+}
+
 class _TestLocalTerminalLayoutRepository extends LocalTerminalLayoutRepository {
   _TestLocalTerminalLayoutRepository(this.document);
 
@@ -148,8 +201,86 @@ class _TestLocalTerminalLayoutRepository extends LocalTerminalLayoutRepository {
   }
 }
 
+class _CorruptLocalTerminalLayoutRepository
+    extends LocalTerminalLayoutRepository {
+  int saveAttempts = 0;
+
+  @override
+  Future<TerminalLayout?> load() async {
+    throw const FormatException('corrupt terminal layout');
+  }
+
+  @override
+  Future<void> save(TerminalLayout workspace) async {
+    saveAttempts += 1;
+  }
+}
+
+class _EmptyLocalSessionRecordingRepository
+    extends LocalSessionRecordingRepository {
+  @override
+  Future<LocalSessionRecordingRecoveryResult> recoverNativeRecordings() async {
+    return const LocalSessionRecordingRecoveryResult(
+      recoveredPaths: <String>[],
+      pendingJobIds: <String>[],
+      orphanPaths: <String>[],
+      failures: <LocalSessionRecordingRecoveryFailure>[],
+    );
+  }
+}
+
+class _BlockingRecoveryRecordingRepository
+    extends LocalSessionRecordingRepository {
+  final Completer<void> recoveryStarted = Completer<void>();
+  final Completer<void> allowRecovery = Completer<void>();
+  int recoveryAttempts = 0;
+
+  @override
+  Future<LocalSessionRecordingRecoveryResult> recoverNativeRecordings() async {
+    recoveryAttempts += 1;
+    if (!recoveryStarted.isCompleted) {
+      recoveryStarted.complete();
+    }
+    await allowRecovery.future;
+    return const LocalSessionRecordingRecoveryResult(
+      recoveredPaths: <String>[],
+      pendingJobIds: <String>[],
+      orphanPaths: <String>[],
+      failures: <LocalSessionRecordingRecoveryFailure>[],
+    );
+  }
+}
+
+class _BlockingRepairLocalTerminalConfigRepository
+    extends LocalTerminalConfigRepository {
+  final Completer<void> repairStarted = Completer<void>();
+  final Completer<void> allowRepair = Completer<void>();
+  int repairWrites = 0;
+
+  @override
+  Future<LocalTerminalConfigDocument?> load() async {
+    return const LocalTerminalConfigDocument(
+      defaultProfileId: 'missing-profile',
+      layout: LocalTerminalLayoutConfig(restoreLayout: false),
+    );
+  }
+
+  @override
+  Future<void> save(LocalTerminalConfigDocument document) async {
+    repairWrites += 1;
+    if (!repairStarted.isCompleted) {
+      repairStarted.complete();
+    }
+    await allowRepair.future;
+  }
+}
+
 class _EventfulPtyBackend
-    implements PtySessionBackend, PtySessionJsonRequestBackend {
+    implements
+        PtySessionBackend,
+        PtySessionConfigV1Backend,
+        PtySessionFramePacketV1Backend,
+        PtySessionRequestV1Backend {
   _EventfulPtyBackend(this._delegate);
 
   final FakePtyBackend _delegate;
@@ -180,9 +311,12 @@ class _EventfulPtyBackend
   @override
   int ping() => _delegate.ping();
 
-  @override
   String createSession(String sessionConfigJson) =>
       _delegate.createSession(sessionConfigJson);
+
+  @override
+  String createSessionV1(String sessionConfigV1Json) =>
+      _delegate.createSessionV1(sessionConfigV1Json);
 
   @override
   void closeSession(String sessionId) => _delegate.closeSession(sessionId);
@@ -223,12 +357,17 @@ class _EventfulPtyBackend
       _delegate.writeInput(sessionId, bytes);
 
   @override
-  String? requestSessionJson(String sessionId, String requestJson) =>
-      _delegate.requestSessionJson(sessionId, requestJson);
+  String? requestSessionV1Json(String sessionId, String requestV1Json) =>
+      _delegate.requestSessionV1Json(sessionId, requestV1Json);
 
   @override
-  String? takeFrameDiffJson(String sessionId) =>
-      _delegate.takeFrameDiffJson(sessionId);
+  Uint8List? takeFramePacketV1Protobuf(
+    String sessionId, {
+    required int? afterSequence,
+  }) => _delegate.takeFramePacketV1Protobuf(
+    sessionId,
+    afterSequence: afterSequence,
+  );
 }
 
 class _SshEventfulPtyBackend extends _EventfulPtyBackend
@@ -246,9 +385,6 @@ class _SshEventfulPtyBackend extends _EventfulPtyBackend
       });
 
   @override
-  bool get supportsSessionConfigV1 => true;
-
-  @override
   String createSessionV1(String sessionConfigV1Json) {
     return _delegate.createSession(sessionConfigV1Json);
   }
@@ -259,9 +395,15 @@ class _CountingPtyBackend extends FakePtyBackend {
   int pollEventsCalls = 0;
 
   @override
-  String? takeFrameDiffJson(String sessionId) {
+  Uint8List? takeFramePacketV1Protobuf(
+    String sessionId, {
+    required int? afterSequence,
+  }) {
     takeFrameDiffCalls += 1;
-    return super.takeFrameDiffJson(sessionId);
+    return super.takeFramePacketV1Protobuf(
+      sessionId,
+      afterSequence: afterSequence,
+    );
   }
 
   @override
@@ -297,8 +439,14 @@ class _DelayedFramePtyBackend extends _CountingPtyBackend {
   }
 
   @override
-  String? takeFrameDiffJson(String sessionId) {
-    final frameJson = super.takeFrameDiffJson(sessionId);
+  Uint8List? takeFramePacketV1Protobuf(
+    String sessionId, {
+    required int? afterSequence,
+  }) {
+    final framePacket = super.takeFramePacketV1Protobuf(
+      sessionId,
+      afterSequence: afterSequence,
+    );
     final reads = takeFrameDiffCalls;
     if (reads < revealOnRead) {
       setFrame(sessionId, {
@@ -331,7 +479,7 @@ class _DelayedFramePtyBackend extends _CountingPtyBackend {
         'scrollback_max_offset': 0,
       });
     }
-    return frameJson;
+    return framePacket;
   }
 }
 
@@ -371,6 +519,335 @@ void main() {
     },
   );
 
+  test('runtime provider disposal starts ordered shared shutdown', () async {
+    final backend = FakePtyBackend();
+    final applicationGate = Completer<void>();
+    final applicationStarted = Completer<void>();
+    final shutdownCoordinator = AppShutdownCoordinator();
+    shutdownCoordinator.registerTask('recording-layout-gate', () async {
+      applicationStarted.complete();
+      await applicationGate.future;
+    });
+    final container = ProviderContainer(
+      overrides: [
+        appShutdownCoordinatorProvider.overrideWithValue(shutdownCoordinator),
+        ptySessionBackendProvider.overrideWithValue(backend),
+        sessionPollingEnabledProvider.overrideWithValue(false),
+        driverWarmUpRefreshEnabledProvider.overrideWithValue(false),
+      ],
+    );
+    final runtime = container.read(terminalRuntimeControllerProvider);
+    final sessionId = runtime.createSession(
+      const terminal.TerminalSessionConfig(
+        launch: terminal.TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+
+    container.dispose();
+    await applicationStarted.future;
+
+    expect(shutdownCoordinator.hasStarted, isTrue);
+    expect(runtime.hasSession(sessionId), isTrue);
+    expect(backend.closedSessionIds, isEmpty);
+
+    applicationGate.complete();
+    final result = await shutdownCoordinator.settle();
+    expect(result.failures, isEmpty);
+    expect(runtime.hasSession(sessionId), isFalse);
+    expect(backend.closedSessionIds, <String>[sessionId]);
+  });
+
+  test(
+    'session provider disposal starts application before infrastructure',
+    () async {
+      final backend = FakePtyBackend();
+      final applicationGate = Completer<void>();
+      final applicationStarted = Completer<void>();
+      var infrastructureStarted = false;
+      final shutdownCoordinator = AppShutdownCoordinator();
+      shutdownCoordinator
+        ..registerTask('session-first-application-probe', () async {
+          applicationStarted.complete();
+          await applicationGate.future;
+        })
+        ..registerTask(
+          'session-first-infrastructure-probe',
+          () async {
+            infrastructureStarted = true;
+          },
+          phase: AppShutdownPhase.infrastructure,
+        );
+      final container = ProviderContainer(
+        overrides: [
+          appShutdownCoordinatorProvider.overrideWithValue(shutdownCoordinator),
+          ptySessionBackendProvider.overrideWithValue(backend),
+          profileRepositoryProvider.overrideWithValue(
+            _TestProfileRepository(
+              TerminalProfilesDocument(
+                profiles: <TerminalProfile>[defaultTerminalProfile()],
+              ),
+            ),
+          ),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            _TestAppPreferencesRepository(null),
+          ),
+          localTerminalConfigRepositoryProvider.overrideWithValue(
+            _TestLocalTerminalConfigRepository(
+              const LocalTerminalConfigDocument(
+                layout: LocalTerminalLayoutConfig(restoreLayout: false),
+              ),
+            ),
+          ),
+          localTerminalLayoutRepositoryProvider.overrideWithValue(
+            _TestLocalTerminalLayoutRepository(null),
+          ),
+          localSessionRecordingRepositoryProvider.overrideWithValue(
+            _EmptyLocalSessionRecordingRepository(),
+          ),
+          sessionPollingEnabledProvider.overrideWithValue(false),
+        ],
+      );
+      final ready = Completer<void>();
+      final subscription = container.listen<SessionState>(
+        sessionControllerProvider,
+        (previous, next) {
+          if (next.isReady && !ready.isCompleted) {
+            ready.complete();
+          }
+        },
+        fireImmediately: true,
+      );
+      container.read(sessionControllerProvider.notifier);
+      await ready.future;
+      subscription.close();
+
+      // Invalidate only the Session provider so it is deterministically the
+      // first Ready-graph owner disposed; TerminalRuntime remains mounted.
+      container.invalidate(sessionControllerProvider);
+      await applicationStarted.future;
+
+      expect(shutdownCoordinator.hasStarted, isTrue);
+      expect(infrastructureStarted, isFalse);
+
+      applicationGate.complete();
+      final result = await shutdownCoordinator.settle();
+      expect(result.failures, isEmpty);
+      expect(infrastructureStarted, isTrue);
+      container.dispose();
+    },
+  );
+
+  test(
+    'shutdown settles shared recording recovery bootstrap before infra',
+    () async {
+      final backend = FakePtyBackend();
+      final recordingRepository = _BlockingRecoveryRecordingRepository();
+      final shutdownCoordinator = AppShutdownCoordinator();
+      var infrastructureStarted = false;
+      shutdownCoordinator.registerTask(
+        'bootstrap-recovery-infrastructure-probe',
+        () async => infrastructureStarted = true,
+        phase: AppShutdownPhase.infrastructure,
+      );
+      final container = ProviderContainer(
+        overrides: [
+          appShutdownCoordinatorProvider.overrideWithValue(shutdownCoordinator),
+          ptySessionBackendProvider.overrideWithValue(backend),
+          profileRepositoryProvider.overrideWithValue(
+            _TestProfileRepository(
+              TerminalProfilesDocument(
+                profiles: <TerminalProfile>[defaultTerminalProfile()],
+              ),
+            ),
+          ),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            _TestAppPreferencesRepository(null),
+          ),
+          localTerminalConfigRepositoryProvider.overrideWithValue(
+            _TestLocalTerminalConfigRepository(
+              const LocalTerminalConfigDocument(
+                layout: LocalTerminalLayoutConfig(restoreLayout: false),
+              ),
+            ),
+          ),
+          localTerminalLayoutRepositoryProvider.overrideWithValue(
+            _TestLocalTerminalLayoutRepository(null),
+          ),
+          localSessionRecordingRepositoryProvider.overrideWithValue(
+            recordingRepository,
+          ),
+          sessionPollingEnabledProvider.overrideWithValue(false),
+          driverWarmUpRefreshEnabledProvider.overrideWithValue(false),
+        ],
+      );
+      addTearDown(container.dispose);
+      final controller = container.read(sessionControllerProvider.notifier);
+      await recordingRepository.recoveryStarted.future;
+
+      var retryCompleted = false;
+      final retry = controller.retryBootstrap().whenComplete(() {
+        retryCompleted = true;
+      });
+      final shutdown = shutdownCoordinator.shutdown(bounded: false);
+
+      expect(controller.isShuttingDown, isTrue);
+      expect(retryCompleted, isFalse);
+      expect(infrastructureStarted, isFalse);
+      expect(controller.hasRuntimeEventSubscriptionForTesting, isFalse);
+      expect(backend.lastCreatedSessionPayload, isNull);
+
+      recordingRepository.allowRecovery.complete();
+      await retry;
+      final result = await shutdown;
+
+      expect(result.failures, isEmpty);
+      expect(infrastructureStarted, isTrue);
+      expect(recordingRepository.recoveryAttempts, 1);
+      expect(controller.hasRuntimeEventSubscriptionForTesting, isFalse);
+      expect(backend.lastCreatedSessionPayload, isNull);
+      final state = container.read(sessionControllerProvider);
+      expect(state.isReady, isFalse);
+      expect(state.tabs, isEmpty);
+      expect(state.lastError, isNull);
+    },
+  );
+
+  test(
+    'shutdown settles an in-flight config repair before infra without publishing',
+    () async {
+      final backend = FakePtyBackend();
+      final configRepository = _BlockingRepairLocalTerminalConfigRepository();
+      final shutdownCoordinator = AppShutdownCoordinator();
+      var infrastructureStarted = false;
+      shutdownCoordinator.registerTask(
+        'bootstrap-config-infrastructure-probe',
+        () async => infrastructureStarted = true,
+        phase: AppShutdownPhase.infrastructure,
+      );
+      final container = ProviderContainer(
+        overrides: [
+          appShutdownCoordinatorProvider.overrideWithValue(shutdownCoordinator),
+          ptySessionBackendProvider.overrideWithValue(backend),
+          profileRepositoryProvider.overrideWithValue(
+            _TestProfileRepository(
+              TerminalProfilesDocument(
+                profiles: <TerminalProfile>[defaultTerminalProfile()],
+              ),
+            ),
+          ),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            _TestAppPreferencesRepository(null),
+          ),
+          localTerminalConfigRepositoryProvider.overrideWithValue(
+            configRepository,
+          ),
+          localTerminalLayoutRepositoryProvider.overrideWithValue(
+            _TestLocalTerminalLayoutRepository(null),
+          ),
+          localSessionRecordingRepositoryProvider.overrideWithValue(
+            _EmptyLocalSessionRecordingRepository(),
+          ),
+          sessionPollingEnabledProvider.overrideWithValue(false),
+          driverWarmUpRefreshEnabledProvider.overrideWithValue(false),
+        ],
+      );
+      addTearDown(container.dispose);
+      final controller = container.read(sessionControllerProvider.notifier);
+      await configRepository.repairStarted.future;
+
+      final shutdown = shutdownCoordinator.shutdown(bounded: false);
+
+      expect(controller.isShuttingDown, isTrue);
+      expect(infrastructureStarted, isFalse);
+      expect(controller.hasRuntimeEventSubscriptionForTesting, isFalse);
+      expect(backend.lastCreatedSessionPayload, isNull);
+
+      configRepository.allowRepair.complete();
+      final result = await shutdown;
+
+      expect(result.failures, isEmpty);
+      expect(infrastructureStarted, isTrue);
+      expect(configRepository.repairWrites, 1);
+      expect(controller.hasRuntimeEventSubscriptionForTesting, isFalse);
+      expect(backend.lastCreatedSessionPayload, isNull);
+      final state = container.read(sessionControllerProvider);
+      expect(state.isReady, isFalse);
+      expect(state.tabs, isEmpty);
+      expect(state.lastError, isNull);
+    },
+  );
+
+  test(
+    'bootstrap failure crossing shutdown is aggregated before infra without UI',
+    () async {
+      final backend = FakePtyBackend();
+      final profileRepository = _BlockingFailingProfileRepository();
+      final shutdownCoordinator = AppShutdownCoordinator();
+      var infrastructureStarted = false;
+      shutdownCoordinator.registerTask(
+        'bootstrap-failure-infrastructure-probe',
+        () async => infrastructureStarted = true,
+        phase: AppShutdownPhase.infrastructure,
+      );
+      final container = ProviderContainer(
+        overrides: [
+          appShutdownCoordinatorProvider.overrideWithValue(shutdownCoordinator),
+          ptySessionBackendProvider.overrideWithValue(backend),
+          profileRepositoryProvider.overrideWithValue(profileRepository),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            _TestAppPreferencesRepository(null),
+          ),
+          localTerminalConfigRepositoryProvider.overrideWithValue(
+            _TestLocalTerminalConfigRepository(
+              const LocalTerminalConfigDocument(
+                layout: LocalTerminalLayoutConfig(restoreLayout: false),
+              ),
+            ),
+          ),
+          localTerminalLayoutRepositoryProvider.overrideWithValue(
+            _TestLocalTerminalLayoutRepository(null),
+          ),
+          localSessionRecordingRepositoryProvider.overrideWithValue(
+            _EmptyLocalSessionRecordingRepository(),
+          ),
+          sessionPollingEnabledProvider.overrideWithValue(false),
+          driverWarmUpRefreshEnabledProvider.overrideWithValue(false),
+        ],
+      );
+      addTearDown(container.dispose);
+      final controller = container.read(sessionControllerProvider.notifier);
+      await profileRepository.loadStarted.future;
+
+      final shutdown = shutdownCoordinator.shutdown(bounded: false);
+
+      expect(controller.isShuttingDown, isTrue);
+      expect(infrastructureStarted, isFalse);
+      expect(container.read(sessionControllerProvider).lastError, isNull);
+
+      profileRepository.allowFailure.complete();
+      final result = await shutdown;
+
+      expect(infrastructureStarted, isTrue);
+      expect(profileRepository.loadAttempts, 1);
+      expect(result.failures, hasLength(1));
+      final shutdownError = result.failures.single.error;
+      expect(shutdownError, isA<SessionShutdownAggregateException>());
+      final aggregate = shutdownError as SessionShutdownAggregateException;
+      expect(aggregate.failures, hasLength(1));
+      expect(
+        aggregate.failures.single.resource,
+        SessionShutdownResource.bootstrap,
+      );
+      expect(aggregate.failures.single.error, isA<FileSystemException>());
+      expect(controller.hasRuntimeEventSubscriptionForTesting, isFalse);
+      expect(backend.lastCreatedSessionPayload, isNull);
+      final state = container.read(sessionControllerProvider);
+      expect(state.isReady, isFalse);
+      expect(state.tabs, isEmpty);
+      expect(state.lastError, isNull);
+    },
+  );
+
   test('session controller publishes and dismisses runtime errors', () {
     final container = ProviderContainer(
       overrides: [
@@ -407,6 +884,12 @@ void main() {
     final coreClient = FakePtyBackend();
     final container = ProviderContainer(
       overrides: [
+        localSessionRecordingRepositoryProvider.overrideWithValue(
+          _EmptyLocalSessionRecordingRepository(),
+        ),
+        localTerminalConfigRepositoryProvider.overrideWithValue(
+          _TestLocalTerminalConfigRepository(null),
+        ),
         ptySessionBackendProvider.overrideWithValue(coreClient),
         sessionControllerProvider.overrideWith(_TestSessionController.new),
         profileRepositoryProvider.overrideWithValue(
@@ -2255,7 +2738,9 @@ void main() {
     },
   );
 
-  testWidgets('legacy frames retain shell-hook prompt offsets', (tester) async {
+  testWidgets('frames without current global coordinates drop prompt marks', (
+    tester,
+  ) async {
     final bindings = _EventfulPtyBackend(FakePtyBackend());
     final container = ProviderContainer(
       overrides: [
@@ -2297,24 +2782,14 @@ void main() {
     container.read(terminalRuntimeControllerProvider).refreshSession(sessionId);
     await tester.pump(const Duration(milliseconds: 40));
 
-    final mark = container
+    final marks = container
         .read(sessionControllerProvider)
         .tabs
         .single
         .activePane
         .shellIntegration
-        .promptMarks
-        .single;
-    expect(mark.globalLine, isNull);
-    expect(mark.legacyScrollbackOffset, 12);
-    expect(
-      terminalPromptMarkScrollbackOffset(
-        mark,
-        globalBottomRow: null,
-        scrollbackMaxOffset: 40,
-      ),
-      12,
-    );
+        .promptMarks;
+    expect(marks, isEmpty);
   });
 
   testWidgets('shell hook metadata switches to a matching profile', (
@@ -2355,6 +2830,9 @@ void main() {
         ),
         localTerminalLayoutRepositoryProvider.overrideWithValue(
           _TestLocalTerminalLayoutRepository(null),
+        ),
+        localSessionRecordingRepositoryProvider.overrideWithValue(
+          _EmptyLocalSessionRecordingRepository(),
         ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
@@ -2428,6 +2906,9 @@ void main() {
         ),
         localTerminalLayoutRepositoryProvider.overrideWithValue(
           _TestLocalTerminalLayoutRepository(null),
+        ),
+        localSessionRecordingRepositoryProvider.overrideWithValue(
+          _EmptyLocalSessionRecordingRepository(),
         ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
@@ -2523,6 +3004,9 @@ void main() {
         ),
         localTerminalLayoutRepositoryProvider.overrideWithValue(
           _TestLocalTerminalLayoutRepository(null),
+        ),
+        localSessionRecordingRepositoryProvider.overrideWithValue(
+          _EmptyLocalSessionRecordingRepository(),
         ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
@@ -2662,6 +3146,9 @@ void main() {
           localTerminalLayoutRepositoryProvider.overrideWithValue(
             _TestLocalTerminalLayoutRepository(null),
           ),
+          localSessionRecordingRepositoryProvider.overrideWithValue(
+            _EmptyLocalSessionRecordingRepository(),
+          ),
           sessionPollingEnabledProvider.overrideWithValue(false),
         ],
       );
@@ -2739,6 +3226,9 @@ void main() {
           localTerminalLayoutRepositoryProvider.overrideWithValue(
             _TestLocalTerminalLayoutRepository(null),
           ),
+          localSessionRecordingRepositoryProvider.overrideWithValue(
+            _EmptyLocalSessionRecordingRepository(),
+          ),
           sessionPollingEnabledProvider.overrideWithValue(false),
         ],
       );
@@ -2814,6 +3304,9 @@ void main() {
         ),
         localTerminalLayoutRepositoryProvider.overrideWithValue(
           _TestLocalTerminalLayoutRepository(null),
+        ),
+        localSessionRecordingRepositoryProvider.overrideWithValue(
+          _EmptyLocalSessionRecordingRepository(),
         ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
@@ -2921,6 +3414,9 @@ void main() {
         localTerminalLayoutRepositoryProvider.overrideWithValue(
           _TestLocalTerminalLayoutRepository(null),
         ),
+        localSessionRecordingRepositoryProvider.overrideWithValue(
+          _EmptyLocalSessionRecordingRepository(),
+        ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
     );
@@ -2982,6 +3478,9 @@ void main() {
           localTerminalLayoutRepositoryProvider.overrideWithValue(
             _TestLocalTerminalLayoutRepository(null),
           ),
+          localSessionRecordingRepositoryProvider.overrideWithValue(
+            _EmptyLocalSessionRecordingRepository(),
+          ),
           sessionPollingEnabledProvider.overrideWithValue(false),
         ],
       );
@@ -3042,6 +3541,9 @@ void main() {
         ),
         localTerminalLayoutRepositoryProvider.overrideWithValue(
           _TestLocalTerminalLayoutRepository(null),
+        ),
+        localSessionRecordingRepositoryProvider.overrideWithValue(
+          _EmptyLocalSessionRecordingRepository(),
         ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
@@ -3148,6 +3650,9 @@ void main() {
           ),
           localTerminalLayoutRepositoryProvider.overrideWithValue(
             _TestLocalTerminalLayoutRepository(null),
+          ),
+          localSessionRecordingRepositoryProvider.overrideWithValue(
+            _EmptyLocalSessionRecordingRepository(),
           ),
           sessionPollingEnabledProvider.overrideWithValue(false),
         ],
@@ -3340,6 +3845,9 @@ void main() {
         localTerminalLayoutRepositoryProvider.overrideWithValue(
           _TestLocalTerminalLayoutRepository(null),
         ),
+        localSessionRecordingRepositoryProvider.overrideWithValue(
+          _EmptyLocalSessionRecordingRepository(),
+        ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
     );
@@ -3432,6 +3940,9 @@ void main() {
         ),
         localTerminalLayoutRepositoryProvider.overrideWithValue(
           _TestLocalTerminalLayoutRepository(null),
+        ),
+        localSessionRecordingRepositoryProvider.overrideWithValue(
+          _EmptyLocalSessionRecordingRepository(),
         ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
@@ -3627,6 +4138,9 @@ void main() {
         localTerminalLayoutRepositoryProvider.overrideWithValue(
           _TestLocalTerminalLayoutRepository(null),
         ),
+        localSessionRecordingRepositoryProvider.overrideWithValue(
+          _EmptyLocalSessionRecordingRepository(),
+        ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
     );
@@ -3782,6 +4296,9 @@ void main() {
           ),
           localTerminalLayoutRepositoryProvider.overrideWithValue(
             _TestLocalTerminalLayoutRepository(null),
+          ),
+          localSessionRecordingRepositoryProvider.overrideWithValue(
+            _EmptyLocalSessionRecordingRepository(),
           ),
           sessionPollingEnabledProvider.overrideWithValue(false),
         ],
@@ -4079,7 +4596,8 @@ void main() {
       final clipboardEvents = <terminal.TerminalSessionClipboardEvent>[];
       final subscription = container
           .read(terminalRuntimeControllerProvider)
-          .events
+          .runtimeSignals
+          .map((signal) => signal.payload)
           .where((event) => event is terminal.TerminalSessionClipboardEvent)
           .cast<terminal.TerminalSessionClipboardEvent>()
           .listen(clipboardEvents.add);
@@ -4468,23 +4986,21 @@ void main() {
   );
 
   test(
-    'bootstrap prefers explicit override over persisted and legacy defaults',
+    'bootstrap prefers explicit override over current config defaults',
     () async {
       final coreClient = FakePtyBackend();
       final profileRepository = _TestProfileRepository(
         TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
       );
-      final preferencesRepository = _TestAppPreferencesRepository(
-        const TerminalAppPreferencesDocument(
-          defaults: TerminalAppDefaults(defaultProfileId: 'default'),
-        ),
+      final localConfigRepository = _TestLocalTerminalConfigRepository(
+        const LocalTerminalConfigDocument(defaultProfileId: 'default'),
       );
       final container = ProviderContainer(
         overrides: [
           ptySessionBackendProvider.overrideWithValue(coreClient),
           profileRepositoryProvider.overrideWithValue(profileRepository),
-          appPreferencesRepositoryProvider.overrideWithValue(
-            preferencesRepository,
+          localTerminalConfigRepositoryProvider.overrideWithValue(
+            localConfigRepository,
           ),
           sessionControllerProvider.overrideWith(
             () => _BootstrapOverrideSessionController('ssh'),
@@ -4499,7 +5015,45 @@ void main() {
       final state = container.read(sessionControllerProvider);
       expect(state.defaultProfileId, 'ssh');
       expect(state.tabs.single.profileId, 'ssh');
-      expect(preferencesRepository.savedDocuments, isEmpty);
+      expect(localConfigRepository.savedDocuments, isEmpty);
+    },
+  );
+
+  test(
+    'bootstrap MissingPlugin fallback is restricted to the concrete local adapter',
+    () async {
+      final profiles = _TestProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultProfile]),
+      );
+      final apiContainer = ProviderContainer(
+        overrides: [
+          profileRepositoryProvider.overrideWithValue(profiles),
+          localTerminalConfigRepositoryProvider.overrideWithValue(
+            _MissingPluginApiTerminalConfigRepository(),
+          ),
+        ],
+      );
+      addTearDown(apiContainer.dispose);
+
+      await expectLater(
+        apiContainer.read(sessionBootstrapServiceProvider).prepare(),
+        throwsA(isA<MissingPluginException>()),
+      );
+
+      final localContainer = ProviderContainer(
+        overrides: [
+          profileRepositoryProvider.overrideWithValue(profiles),
+          localTerminalConfigRepositoryProvider.overrideWithValue(
+            _MissingPluginLocalTerminalConfigRepository(),
+          ),
+        ],
+      );
+      addTearDown(localContainer.dispose);
+
+      await expectLater(
+        localContainer.read(sessionBootstrapServiceProvider).prepare(),
+        throwsA(isA<MissingPluginException>()),
+      );
     },
   );
 
@@ -4510,6 +5064,12 @@ void main() {
     );
     final container = ProviderContainer(
       overrides: [
+        localSessionRecordingRepositoryProvider.overrideWithValue(
+          _EmptyLocalSessionRecordingRepository(),
+        ),
+        localTerminalConfigRepositoryProvider.overrideWithValue(
+          _TestLocalTerminalConfigRepository(null),
+        ),
         ptySessionBackendProvider.overrideWithValue(coreClient),
         profileRepositoryProvider.overrideWithValue(profileRepository),
         appPreferencesRepositoryProvider.overrideWithValue(
@@ -4718,6 +5278,54 @@ void main() {
     },
   );
 
+  test(
+    'corrupt terminal layout cannot be overwritten by fallback runtime state',
+    () async {
+      final layoutRepository = _CorruptLocalTerminalLayoutRepository();
+      final container = ProviderContainer(
+        overrides: [
+          ptySessionBackendProvider.overrideWithValue(FakePtyBackend()),
+          profileRepositoryProvider.overrideWithValue(
+            _TestProfileRepository(
+              TerminalProfilesDocument(profiles: [defaultProfile]),
+            ),
+          ),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            _TestAppPreferencesRepository(null),
+          ),
+          localTerminalConfigRepositoryProvider.overrideWithValue(
+            _TestLocalTerminalConfigRepository(
+              const LocalTerminalConfigDocument(
+                layout: LocalTerminalLayoutConfig(restoreLayout: true),
+              ),
+            ),
+          ),
+          localTerminalLayoutRepositoryProvider.overrideWithValue(
+            layoutRepository,
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final controller = container.read(sessionControllerProvider.notifier);
+      await _waitForCondition(
+        condition: () => container.read(sessionControllerProvider).isReady,
+        description: 'fallback after corrupt terminal layout',
+      );
+      final state = container.read(sessionControllerProvider);
+
+      expect(state.tabs, hasLength(1));
+      expect(state.lastError, contains('corrupt terminal layout'));
+      controller.splitActiveSession(
+        defaultProfile,
+        TerminalSplitAxis.horizontal,
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      await controller.flushLayoutPersistence();
+      expect(layoutRepository.saveAttempts, 0);
+    },
+  );
+
   test('layout-enabled session mutations persist relaunch intent', () async {
     final workspaceRepository = _TestLocalTerminalLayoutRepository(
       const TerminalLayout(),
@@ -4775,6 +5383,12 @@ void main() {
     final layoutRepository = _TestLocalTerminalLayoutRepository(null);
     final container = ProviderContainer(
       overrides: [
+        localSessionRecordingRepositoryProvider.overrideWithValue(
+          _EmptyLocalSessionRecordingRepository(),
+        ),
+        localTerminalConfigRepositoryProvider.overrideWithValue(
+          _TestLocalTerminalConfigRepository(null),
+        ),
         ptySessionBackendProvider.overrideWithValue(backend),
         profileRepositoryProvider.overrideWithValue(
           _TestProfileRepository(
@@ -4828,6 +5442,12 @@ void main() {
     );
     final container = ProviderContainer(
       overrides: [
+        localSessionRecordingRepositoryProvider.overrideWithValue(
+          _EmptyLocalSessionRecordingRepository(),
+        ),
+        localTerminalConfigRepositoryProvider.overrideWithValue(
+          _TestLocalTerminalConfigRepository(null),
+        ),
         ptySessionBackendProvider.overrideWithValue(FakePtyBackend()),
         profileRepositoryProvider.overrideWithValue(profileRepository),
         appPreferencesRepositoryProvider.overrideWithValue(
@@ -4899,33 +5519,38 @@ void main() {
     () async {
       final coreBindings = FakePtyBackend();
       final coreClient = coreBindings;
-      final invalidDocument = TerminalProfilesDocument.fromJson({
-        'schemaVersion': 2,
-        'profiles': [
-          {
-            'id': 'default',
-            'name': 'Local Shell',
-            'launch': {
-              'program': '',
-              'args': const ['-l', 2],
-              'env': const {'TERM_PROGRAM': 'ianvs terminal', 'BAD': false},
-              'cwd': null,
+      final recoveredDocument = TerminalProfilesDocument(
+        profiles: [
+          defaultProfile.copyWith(
+            args: const ['-l'],
+            env: const {
+              'TERM': 'xterm-256color',
+              'COLORTERM': 'truecolor',
+              'TERM_PROGRAM': 'ianvs terminal',
             },
-            'terminal': {'emulation': 'ansi', 'scrollbackLines': -1},
-            'appearance': {
-              'font': {
-                'family': 'Menlo',
-                'fallback': const ['Monaco'],
-              },
-            },
-          },
+          ),
         ],
-      });
+        loadWarnings: const [
+          TerminalProfileLoadWarning(
+            profileId: 'default',
+            profileName: 'Local Shell',
+            path: 'terminal.scrollbackLines',
+            rawValueSummary: '-1',
+            fallbackSummary: 'used default value 8000',
+          ),
+        ],
+      );
       final container = ProviderContainer(
         overrides: [
+          localSessionRecordingRepositoryProvider.overrideWithValue(
+            _EmptyLocalSessionRecordingRepository(),
+          ),
+          localTerminalConfigRepositoryProvider.overrideWithValue(
+            _TestLocalTerminalConfigRepository(null),
+          ),
           ptySessionBackendProvider.overrideWithValue(coreClient),
           profileRepositoryProvider.overrideWithValue(
-            _TestProfileRepository(invalidDocument),
+            _TestProfileRepository(recoveredDocument),
           ),
           appPreferencesRepositoryProvider.overrideWithValue(
             _TestAppPreferencesRepository(null),
@@ -4941,13 +5566,7 @@ void main() {
       expect(state.configurationWarnings, isNotEmpty);
       expect(
         state.configurationWarnings.map((warning) => warning.path),
-        containsAll(<String>[
-          'launch.program',
-          'launch.args[1]',
-          'launch.env.BAD',
-          'terminal.emulation',
-          'terminal.scrollbackLines',
-        ]),
+        contains('terminal.scrollbackLines'),
       );
       expect(coreBindings.lastCreatedSessionPayload, isNotNull);
       expect(coreBindings.lastCreatedSessionPayload!['launch'], {
@@ -4979,6 +5598,12 @@ void main() {
     final coreClient = coreBindings;
     final container = ProviderContainer(
       overrides: [
+        localSessionRecordingRepositoryProvider.overrideWithValue(
+          _EmptyLocalSessionRecordingRepository(),
+        ),
+        localTerminalConfigRepositoryProvider.overrideWithValue(
+          _TestLocalTerminalConfigRepository(null),
+        ),
         ptySessionBackendProvider.overrideWithValue(coreClient),
         profileRepositoryProvider.overrideWithValue(
           _TestProfileRepository(
@@ -5018,6 +5643,12 @@ void main() {
       final coreClient = coreBindings;
       final container = ProviderContainer(
         overrides: [
+          localSessionRecordingRepositoryProvider.overrideWithValue(
+            _EmptyLocalSessionRecordingRepository(),
+          ),
+          localTerminalConfigRepositoryProvider.overrideWithValue(
+            _TestLocalTerminalConfigRepository(null),
+          ),
           ptySessionBackendProvider.overrideWithValue(coreClient),
           profileRepositoryProvider.overrideWithValue(
             _TestProfileRepository(
@@ -5061,6 +5692,12 @@ void main() {
       final coreClient = coreBindings;
       final container = ProviderContainer(
         overrides: [
+          localSessionRecordingRepositoryProvider.overrideWithValue(
+            _EmptyLocalSessionRecordingRepository(),
+          ),
+          localTerminalConfigRepositoryProvider.overrideWithValue(
+            _TestLocalTerminalConfigRepository(null),
+          ),
           ptySessionBackendProvider.overrideWithValue(coreClient),
           profileRepositoryProvider.overrideWithValue(
             _TestProfileRepository(
@@ -5091,6 +5728,12 @@ void main() {
       final coreClient = coreBindings;
       final container = ProviderContainer(
         overrides: [
+          localSessionRecordingRepositoryProvider.overrideWithValue(
+            _EmptyLocalSessionRecordingRepository(),
+          ),
+          localTerminalConfigRepositoryProvider.overrideWithValue(
+            _TestLocalTerminalConfigRepository(null),
+          ),
           ptySessionBackendProvider.overrideWithValue(coreClient),
           profileRepositoryProvider.overrideWithValue(
             _TestProfileRepository(
@@ -5129,44 +5772,10 @@ void main() {
     },
   );
 
-  test('bootstrap prefers app defaults over legacy profile defaults', () async {
+  test('bootstrap uses local config as the startup authority', () async {
     final coreClient = FakePtyBackend();
     final profileRepository = _TestProfileRepository(
       TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
-    );
-    final container = ProviderContainer(
-      overrides: [
-        ptySessionBackendProvider.overrideWithValue(coreClient),
-        profileRepositoryProvider.overrideWithValue(profileRepository),
-        appPreferencesRepositoryProvider.overrideWithValue(
-          _TestAppPreferencesRepository(
-            const TerminalAppPreferencesDocument(
-              defaults: TerminalAppDefaults(defaultProfileId: 'ssh'),
-            ),
-          ),
-        ),
-      ],
-    );
-    addTearDown(container.dispose);
-
-    container.read(sessionControllerProvider.notifier);
-    await Future<void>.delayed(const Duration(milliseconds: 50));
-
-    final state = container.read(sessionControllerProvider);
-    expect(state.defaultProfileId, 'ssh');
-    expect(state.tabs.single.profileId, 'ssh');
-  });
-
-  test('bootstrap prefers local config over legacy preferences', () async {
-    final coreClient = FakePtyBackend();
-    final profileRepository = _TestProfileRepository(
-      TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
-    );
-    final legacyPreferencesRepository = _TestAppPreferencesRepository(
-      const TerminalAppPreferencesDocument(
-        defaults: TerminalAppDefaults(defaultProfileId: 'default'),
-        appearance: TerminalAppAppearance(themeMode: TerminalThemeMode.light),
-      ),
     );
     final localConfigRepository = _TestLocalTerminalConfigRepository(
       const LocalTerminalConfigDocument(
@@ -5181,9 +5790,6 @@ void main() {
       overrides: [
         ptySessionBackendProvider.overrideWithValue(coreClient),
         profileRepositoryProvider.overrideWithValue(profileRepository),
-        appPreferencesRepositoryProvider.overrideWithValue(
-          legacyPreferencesRepository,
-        ),
         localTerminalConfigRepositoryProvider.overrideWithValue(
           localConfigRepository,
         ),
@@ -5200,7 +5806,6 @@ void main() {
     expect(state.tabs.single.profileId, 'ssh');
     expect(state.themeMode, TerminalThemeMode.dark);
     expect(state.terminalViewportPadding, 18);
-    expect(legacyPreferencesRepository.savedDocuments, isEmpty);
   });
 
   test('local config can globally disable shell integration', () async {
@@ -5247,7 +5852,6 @@ void main() {
       final profileRepository = _TestProfileRepository(
         TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
       );
-      final legacyPreferencesRepository = _TestAppPreferencesRepository(null);
       final localConfigRepository = _TestLocalTerminalConfigRepository(
         const LocalTerminalConfigDocument(
           defaultProfileId: 'default',
@@ -5258,9 +5862,6 @@ void main() {
         overrides: [
           ptySessionBackendProvider.overrideWithValue(FakePtyBackend()),
           profileRepositoryProvider.overrideWithValue(profileRepository),
-          appPreferencesRepositoryProvider.overrideWithValue(
-            legacyPreferencesRepository,
-          ),
           localTerminalConfigRepositoryProvider.overrideWithValue(
             localConfigRepository,
           ),
@@ -5277,7 +5878,6 @@ void main() {
           .read(sessionControllerProvider.notifier)
           .setDefaultProfile('ssh');
 
-      expect(legacyPreferencesRepository.savedDocuments, isEmpty);
       expect(localConfigRepository.savedDocuments, hasLength(1));
       expect(
         localConfigRepository.savedDocuments.single.defaultProfileId,
@@ -5452,7 +6052,6 @@ void main() {
   test(
     'appearance settings persist to local config when it supplied bootstrap',
     () async {
-      final legacyPreferencesRepository = _TestAppPreferencesRepository(null);
       final localConfigRepository = _TestLocalTerminalConfigRepository(
         const LocalTerminalConfigDocument(
           appearance: TerminalAppAppearance(
@@ -5470,9 +6069,6 @@ void main() {
               TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
             ),
           ),
-          appPreferencesRepositoryProvider.overrideWithValue(
-            legacyPreferencesRepository,
-          ),
           localTerminalConfigRepositoryProvider.overrideWithValue(
             localConfigRepository,
           ),
@@ -5489,7 +6085,6 @@ void main() {
           .read(sessionControllerProvider.notifier)
           .setTerminalViewportPadding(22);
 
-      expect(legacyPreferencesRepository.savedDocuments, isEmpty);
       expect(localConfigRepository.savedDocuments, hasLength(2));
       expect(
         localConfigRepository.savedDocuments.last.appearance.themeMode,
@@ -5516,7 +6111,6 @@ void main() {
   test(
     'bootstrap repairs invalid local config default id in local config',
     () async {
-      final legacyPreferencesRepository = _TestAppPreferencesRepository(null);
       final localConfigRepository = _TestLocalTerminalConfigRepository(
         const LocalTerminalConfigDocument(defaultProfileId: 'missing'),
       );
@@ -5528,9 +6122,6 @@ void main() {
               TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
             ),
           ),
-          appPreferencesRepositoryProvider.overrideWithValue(
-            legacyPreferencesRepository,
-          ),
           localTerminalConfigRepositoryProvider.overrideWithValue(
             localConfigRepository,
           ),
@@ -5541,7 +6132,6 @@ void main() {
       container.read(sessionControllerProvider.notifier);
       await Future<void>.delayed(const Duration(milliseconds: 50));
 
-      expect(legacyPreferencesRepository.savedDocuments, isEmpty);
       expect(localConfigRepository.savedDocuments, hasLength(1));
       expect(
         localConfigRepository.savedDocuments.single.defaultProfileId,
@@ -5573,6 +6163,12 @@ void main() {
       );
       final container = ProviderContainer(
         overrides: [
+          localSessionRecordingRepositoryProvider.overrideWithValue(
+            _EmptyLocalSessionRecordingRepository(),
+          ),
+          localTerminalConfigRepositoryProvider.overrideWithValue(
+            _TestLocalTerminalConfigRepository(null),
+          ),
           ptySessionBackendProvider.overrideWithValue(coreClient),
           profileRepositoryProvider.overrideWithValue(profileRepository),
           appPreferencesRepositoryProvider.overrideWithValue(
@@ -5644,150 +6240,6 @@ void main() {
       },
     );
   });
-
-  test(
-    'bootstrap ignores legacy profile defaults when preferences are absent',
-    () async {
-      final coreClient = FakePtyBackend();
-      final profileRepository = _TestProfileRepository(
-        TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
-      );
-      final preferencesRepository = _TestAppPreferencesRepository(null);
-      final container = ProviderContainer(
-        overrides: [
-          ptySessionBackendProvider.overrideWithValue(coreClient),
-          profileRepositoryProvider.overrideWithValue(profileRepository),
-          appPreferencesRepositoryProvider.overrideWithValue(
-            preferencesRepository,
-          ),
-        ],
-      );
-      addTearDown(container.dispose);
-
-      container.read(sessionControllerProvider.notifier);
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-
-      final state = container.read(sessionControllerProvider);
-      expect(state.defaultProfileId, 'default');
-      expect(state.tabs.single.profileId, 'default');
-      expect(preferencesRepository.savedDocuments, isEmpty);
-    },
-  );
-
-  test(
-    'bootstrap clears invalid persisted defaults and falls back to first profile',
-    () async {
-      final coreClient = FakePtyBackend();
-      final preferencesRepository = _TestAppPreferencesRepository(
-        const TerminalAppPreferencesDocument(
-          defaults: TerminalAppDefaults(defaultProfileId: 'missing'),
-        ),
-      );
-      final container = ProviderContainer(
-        overrides: [
-          ptySessionBackendProvider.overrideWithValue(coreClient),
-          profileRepositoryProvider.overrideWithValue(
-            _TestProfileRepository(
-              TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
-            ),
-          ),
-          appPreferencesRepositoryProvider.overrideWithValue(
-            preferencesRepository,
-          ),
-        ],
-      );
-      addTearDown(container.dispose);
-
-      container.read(sessionControllerProvider.notifier);
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-
-      final state = container.read(sessionControllerProvider);
-      expect(state.defaultProfileId, 'default');
-      expect(state.tabs.single.profileId, 'default');
-      expect(preferencesRepository.savedDocuments, hasLength(1));
-      expect(
-        preferencesRepository.savedDocuments.single.defaults.defaultProfileId,
-        isNull,
-      );
-    },
-  );
-
-  test(
-    'setDefaultProfile writes only app preferences during the compatibility window',
-    () async {
-      final coreClient = FakePtyBackend();
-      final profileRepository = _TestProfileRepository(
-        TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
-      );
-      final preferencesRepository = _TestAppPreferencesRepository(null);
-      final container = ProviderContainer(
-        overrides: [
-          ptySessionBackendProvider.overrideWithValue(coreClient),
-          profileRepositoryProvider.overrideWithValue(profileRepository),
-          appPreferencesRepositoryProvider.overrideWithValue(
-            preferencesRepository,
-          ),
-        ],
-      );
-      addTearDown(container.dispose);
-
-      container.read(sessionControllerProvider.notifier);
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-      await container
-          .read(sessionControllerProvider.notifier)
-          .setDefaultProfile('ssh');
-
-      expect(preferencesRepository.savedDocuments, hasLength(1));
-      expect(
-        preferencesRepository.savedDocuments.single.defaults.defaultProfileId,
-        'ssh',
-      );
-      expect(profileRepository.savedDocuments, isEmpty);
-    },
-  );
-
-  test(
-    'deleteProfile only clears configured defaults tracked in preferences',
-    () async {
-      final coreClient = FakePtyBackend();
-      final profileRepository = _TestProfileRepository(
-        TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
-      );
-      final preferencesRepository = _TestAppPreferencesRepository(null);
-      final container = ProviderContainer(
-        overrides: [
-          ptySessionBackendProvider.overrideWithValue(coreClient),
-          profileRepositoryProvider.overrideWithValue(profileRepository),
-          appPreferencesRepositoryProvider.overrideWithValue(
-            preferencesRepository,
-          ),
-        ],
-      );
-      addTearDown(container.dispose);
-
-      container.read(sessionControllerProvider.notifier);
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-      await container
-          .read(sessionControllerProvider.notifier)
-          .deleteProfile('ssh');
-
-      final state = container.read(sessionControllerProvider);
-      expect(state.defaultProfileId, 'default');
-      expect(preferencesRepository.savedDocuments, isEmpty);
-      expect(
-        profileRepository.savedDocuments.single.profiles.map(
-          (profile) => profile.id,
-        ),
-        ['default'],
-      );
-      expect(
-        profileRepository.savedDocuments.single.toJson().containsKey(
-          'defaultProfileId',
-        ),
-        isFalse,
-      );
-    },
-  );
 
   test(
     'shell exit closes an inactive tab without changing the active tab',

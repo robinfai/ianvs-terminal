@@ -16,14 +16,10 @@ pub const GRAPHIC_ASSET_PACKET_MAX_RGBA_BYTES: usize = 100 * 1024 * 1024;
 const RECORDING_SCHEMA_VERSION: u32 = 1;
 const FEATURES: &[&str] = &[
     "diagnostic-event.json.v1",
-    "diagnostics.json.v1",
     "event-envelope.json.v1",
     "file-download.v1",
     "frame-packet.protobuf.v1",
-    "frame.json.v1",
-    "frame.protobuf.v1",
     "graphic-asset-packet.protobuf.v1",
-    "graphic-asset.rgba.v1",
     "host-request-response.json.v1",
     "refresh-hint.v1",
     "replay-checkpoint.v1",
@@ -31,7 +27,6 @@ const FEATURES: &[&str] = &[
     "session-config.json.v1",
     "session-recording.v1",
     "session-request-envelope.json.v1",
-    "session-request.json.v1",
     "ssh-session.v1",
     "zmodem.receive.v1",
     "zmodem.send.v1",

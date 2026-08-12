@@ -1,4 +1,5 @@
 import 'package:app/app.dart';
+import 'package:app/features/config/local_terminal_config_models.dart';
 import 'package:app/features/preferences/app_preferences_models.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/sessions/session_controller.dart';
@@ -7,13 +8,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../support/fake_pty_backend.dart';
-import '../support/memory_app_preferences_repository.dart';
 import '../support/memory_local_terminal_config_repository.dart';
 import '../support/memory_profile_repository.dart';
+import '../support/no_io_local_session_recording_repository.dart';
 
 Future<void> _pumpApp(
   WidgetTester tester, {
-  TerminalAppPreferencesDocument? preferences,
+  LocalTerminalConfigDocument? config,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -24,11 +25,11 @@ Future<void> _pumpApp(
             TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
           ),
         ),
-        appPreferencesRepositoryProvider.overrideWithValue(
-          MemoryAppPreferencesRepository(preferences),
-        ),
         localTerminalConfigRepositoryProvider.overrideWithValue(
-          MemoryLocalTerminalConfigRepository(null),
+          MemoryLocalTerminalConfigRepository(config),
+        ),
+        localSessionRecordingRepositoryProvider.overrideWithValue(
+          noIoLocalSessionRecordingRepository(),
         ),
       ],
       child: const IanvsTerminalApp(),
@@ -44,7 +45,7 @@ void main() {
   ) async {
     await _pumpApp(
       tester,
-      preferences: const TerminalAppPreferencesDocument(
+      config: const LocalTerminalConfigDocument(
         appearance: TerminalAppAppearance(themeMode: TerminalThemeMode.dark),
       ),
     );

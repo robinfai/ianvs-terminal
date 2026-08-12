@@ -23,11 +23,31 @@ const int maxTerminalProfiles = 200;
 const int maxTerminalProfileTags = 32;
 const int maxTerminalProfileTriggers = 64;
 const int maxTerminalProfileSwitchRules = 64;
-const int _maxDynamicProfileTagsToScan = maxTerminalProfileTags * 4;
 const int _maxProfileTagEntriesToScan = maxTerminalProfileTags * 4;
 const int _maxProfileTriggerEntriesToScan = maxTerminalProfileTriggers * 4;
 const int _maxProfileSwitchRuleEntriesToScan =
     maxTerminalProfileSwitchRules * 4;
+const Set<String> _currentTerminalProfileKeys = <String>{
+  'id',
+  'name',
+  'tags',
+  'triggers',
+  'automaticProfileSwitching',
+  'launch',
+  'connection',
+  'terminal',
+  'shellIntegration',
+  'appearance',
+  'interaction',
+};
+const Set<String> _currentTerminalSessionConfigKeys = <String>{
+  'launch',
+  'connection',
+  'terminal',
+  'shellIntegration',
+  'appearance',
+  'interaction',
+};
 
 enum TerminalProfileTriggerAction { notify, sendText }
 
@@ -263,6 +283,14 @@ class TerminalProfile {
     required String fallbackId,
     List<TerminalProfileLoadWarning>? loadWarnings,
   }) {
+    final unknown = json.keys.where(
+      (key) => !_currentTerminalProfileKeys.contains(key),
+    );
+    if (unknown.isNotEmpty) {
+      throw FormatException(
+        'Terminal profile contains unknown fields: ${unknown.join(', ')}',
+      );
+    }
     final rawId = json['id'];
     final parsedId = _stringOrNull(rawId)?.trim();
     final profileId = parsedId == null || parsedId.isEmpty
@@ -300,16 +328,19 @@ class TerminalProfile {
       );
     }
 
-    final sessionConfig = terminal_pkg.TerminalSessionConfig.fromProfileJson(
-      json,
-      defaultProgram: defaultTerminalProfile().shell,
-      onWarning: (warning) {
-        warningSink.add(
-          path: warning.path,
-          rawValue: warning.rawValue,
-          fallbackSummary: warning.fallbackSummary,
-        );
-      },
+    final configJson = <String, Object?>{
+      for (final key in _currentTerminalSessionConfigKeys)
+        if (json.containsKey(key)) key: json[key],
+    };
+    final rawConnection = _asStringMap(configJson['connection']);
+    if (rawConnection != null) {
+      configJson['connection'] = <String, Object?>{
+        for (final entry in rawConnection.entries)
+          if (entry.key != 'encryptedSecrets') entry.key: entry.value,
+      };
+    }
+    final sessionConfig = terminal_pkg.TerminalSessionConfig.fromJson(
+      configJson,
     );
 
     return TerminalProfile.configured(
@@ -335,7 +366,7 @@ class TerminalProfilesDocument {
     this.secretClearIntents = const {},
   });
 
-  static const int currentSchemaVersion = 4;
+  static const int currentSchemaVersion = 1;
 
   final int schemaVersion;
   final List<TerminalProfile> profiles;
@@ -344,7 +375,7 @@ class TerminalProfilesDocument {
 
   Map<String, Object?> toJson() {
     return {
-      'schemaVersion': schemaVersion,
+      'schemaVersion': currentSchemaVersion,
       'profiles': profiles.map((profile) => profile.toJson()).toList(),
     };
   }
@@ -352,15 +383,12 @@ class TerminalProfilesDocument {
   String encode() => jsonEncode(toJson());
 
   static TerminalProfilesDocument fromJson(Map<String, Object?> json) {
+    validateSchema(json);
     final warnings = <TerminalProfileLoadWarning>[];
     final profiles = <TerminalProfile>[];
     final seenProfileIds = <String>{};
-    final dynamicProfilesFormat =
-        json['profiles'] == null && json['Profiles'] != null;
-    final rawProfiles = dynamicProfilesFormat
-        ? json['Profiles']
-        : json['profiles'];
-    final profilesPath = dynamicProfilesFormat ? 'Profiles' : 'profiles';
+    final rawProfiles = json['profiles'];
+    const profilesPath = 'profiles';
     if (rawProfiles is List<dynamic>) {
       final profileCount = rawProfiles.length > maxTerminalProfiles
           ? maxTerminalProfiles
@@ -392,14 +420,10 @@ class TerminalProfilesDocument {
           );
           continue;
         }
-        final profile = _normalizeBuiltInShellProfile(
-          TerminalProfile.fromJson(
-            dynamicProfilesFormat
-                ? _dynamicProfileToProfileJson(profileMap)
-                : profileMap,
-            fallbackId: _fallbackProfileIdFor(index),
-            loadWarnings: warnings,
-          ),
+        final profile = TerminalProfile.fromJson(
+          profileMap,
+          fallbackId: _fallbackProfileIdFor(index),
+          loadWarnings: warnings,
         );
         if (!seenProfileIds.add(profile.id)) {
           warnings.add(
@@ -428,139 +452,37 @@ class TerminalProfilesDocument {
     }
 
     return TerminalProfilesDocument(
-      schemaVersion: _schemaVersionFromJson(json['schemaVersion'], warnings),
+      schemaVersion: currentSchemaVersion,
       profiles: profiles,
       loadWarnings: warnings,
     );
   }
-}
 
-int _schemaVersionFromJson(
-  Object? rawValue,
-  List<TerminalProfileLoadWarning> warnings,
-) {
-  if (rawValue == null) {
-    return TerminalProfilesDocument.currentSchemaVersion;
-  }
-  if (rawValue is num && rawValue.isFinite && rawValue > 0) {
-    final parsed = rawValue.toInt();
-    if (rawValue == parsed) {
-      return parsed;
+  static void validateSchema(Map<String, Object?> json) {
+    final version = json['schemaVersion'];
+    if (version != currentSchemaVersion) {
+      throw UnsupportedTerminalProfilesSchemaVersion(version);
+    }
+    final unknown = json.keys.where(
+      (key) => key != 'schemaVersion' && key != 'profiles',
+    );
+    if (unknown.isNotEmpty) {
+      throw FormatException(
+        'Profiles document contains unknown fields: ${unknown.join(', ')}',
+      );
     }
   }
-  warnings.add(
-    TerminalProfileLoadWarning(
-      profileId: 'document',
-      profileName: 'Profiles document',
-      path: 'schemaVersion',
-      rawValueSummary: _rawValueSummary(rawValue),
-      fallbackSummary:
-          'used schema version ${TerminalProfilesDocument.currentSchemaVersion}',
-    ),
-  );
-  return TerminalProfilesDocument.currentSchemaVersion;
 }
 
-Map<String, Object?> _dynamicProfileToProfileJson(
-  Map<String, Object?> dynamicProfile,
-) {
-  final guid = _stringOrNull(dynamicProfile['Guid'])?.trim();
-  final name = _stringOrNull(dynamicProfile['Name'])?.trim();
-  final command = _stringOrNull(dynamicProfile['Command'])?.trim();
-  final customCommand = _stringOrNull(
-    dynamicProfile['Custom Command'],
-  )?.trim().toLowerCase();
-  final cwd = _stringOrNull(dynamicProfile['Working Directory'])?.trim();
-  final rawTags = dynamicProfile['Tags'] ?? dynamicProfile['tags'];
-  final tags = <String>[];
-  if (rawTags is List) {
-    for (final rawTag in rawTags.take(_maxDynamicProfileTagsToScan)) {
-      if (tags.length >= maxTerminalProfileTags - 1) {
-        break;
-      }
-      final tag = _stringOrNull(rawTag)?.trim();
-      if (tag != null && tag.isNotEmpty) {
-        tags.add(tag);
-      }
-    }
-  }
-  tags.add('Dynamic');
-  final launch = <String, Object?>{};
-  if (customCommand == 'yes' ||
-      customCommand == 'true' ||
-      customCommand == '1') {
-    if (command != null && command.isNotEmpty) {
-      launch['program'] = '/bin/sh';
-      launch['args'] = <String>['-lc', command];
-    }
-  }
-  if (cwd != null && cwd.isNotEmpty) {
-    launch['cwd'] = cwd;
-  }
-  final tabColor = _dynamicProfileUsesTabColor(dynamicProfile['Use Tab Color'])
-      ? _dynamicProfileColorToHex(dynamicProfile['Tab Color'])
-      : null;
-  final appearance = <String, Object?>{};
-  if (tabColor != null) {
-    appearance['colors'] = <String, Object?>{
-      'special': <String, Object?>{'tab': tabColor},
-    };
-  }
-  return <String, Object?>{
-    if (guid != null && guid.isNotEmpty) 'id': guid,
-    if (name != null && name.isNotEmpty) 'name': name,
-    'tags': tags.toSet().toList(growable: false),
-    if (launch.isNotEmpty) 'launch': launch,
-    if (appearance.isNotEmpty) 'appearance': appearance,
-  };
-}
+final class UnsupportedTerminalProfilesSchemaVersion implements Exception {
+  const UnsupportedTerminalProfilesSchemaVersion(this.version);
 
-bool _dynamicProfileUsesTabColor(Object? rawValue) {
-  if (rawValue == null) {
-    return true;
-  }
-  if (rawValue is bool) {
-    return rawValue;
-  }
-  if (rawValue is num && rawValue.isFinite) {
-    return rawValue != 0;
-  }
-  final normalized = _stringOrNull(rawValue)?.trim().toLowerCase();
-  return switch (normalized) {
-    'yes' || 'true' || '1' => true,
-    'no' || 'false' || '0' => false,
-    _ => false,
-  };
-}
+  final Object? version;
 
-String? _dynamicProfileColorToHex(Object? rawValue) {
-  if (rawValue is String) {
-    final normalized = rawValue.trim().toUpperCase();
-    return RegExp(r'^#[0-9A-F]{6}$').hasMatch(normalized) ? normalized : null;
-  }
-  final map = _asStringMap(rawValue);
-  if (map == null) {
-    return null;
-  }
-  final red = _dynamicProfileColorComponent(map['Red Component']);
-  final green = _dynamicProfileColorComponent(map['Green Component']);
-  final blue = _dynamicProfileColorComponent(map['Blue Component']);
-  if (red == null || green == null || blue == null) {
-    return null;
-  }
-  String hexByte(int value) => value.toRadixString(16).padLeft(2, '0');
-  return '#${hexByte(red)}${hexByte(green)}${hexByte(blue)}'.toUpperCase();
-}
-
-int? _dynamicProfileColorComponent(Object? rawValue) {
-  if (rawValue is! num || !rawValue.isFinite) {
-    return null;
-  }
-  final value = rawValue.toDouble();
-  if (value < 0 || value > 1) {
-    return null;
-  }
-  return (value * 255).round();
+  @override
+  String toString() =>
+      'Unsupported profiles schema version: $version '
+      '(current: ${TerminalProfilesDocument.currentSchemaVersion})';
 }
 
 TerminalProfile defaultTerminalProfile() {
@@ -990,48 +912,6 @@ bool _validRegex(String pattern) {
   } on FormatException {
     return false;
   }
-}
-
-TerminalProfile _normalizeBuiltInShellProfile(TerminalProfile profile) {
-  final defaultProfile = defaultTerminalProfile();
-  if (profile.id == defaultProfile.id &&
-      profile.shell == defaultProfile.shell) {
-    final normalized = profile.args.isEmpty
-        ? profile.copyWith(args: defaultProfile.args)
-        : profile;
-    return _migrateLegacyDefaultProfileBackground(normalized);
-  }
-
-  final vt220Profile = vt220TerminalProfile();
-  if (profile.id == vt220Profile.id &&
-      profile.shell == vt220Profile.shell &&
-      profile.terminalEmulation == vt220Profile.terminalEmulation) {
-    return profile.args.isEmpty
-        ? profile.copyWith(args: vt220Profile.args)
-        : profile;
-  }
-
-  return profile;
-}
-
-TerminalProfile _migrateLegacyDefaultProfileBackground(
-  TerminalProfile profile,
-) {
-  const legacyDefaultBackgrounds = {'#000000', '#14191E', '#203A4F'};
-  final background = profile.appearance.colors.special.background
-      ?.toUpperCase();
-  if (!legacyDefaultBackgrounds.contains(background)) {
-    return profile;
-  }
-  return profile.copyWith(
-    appearance: profile.appearance.copyWith(
-      colors: profile.appearance.colors.copyWith(
-        special: profile.appearance.colors.special.copyWith(
-          background: terminal_pkg.defaultTerminalSpecialColors.background,
-        ),
-      ),
-    ),
-  );
 }
 
 String _rawValueSummary(Object? value) {

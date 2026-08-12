@@ -22,6 +22,12 @@
 - `native/core`
   - 负责 Rust PTY、VT 解析、frame diff、事件输出
   - 当前仍保留原位置，不为目录整齐额外搬 Rust 源码
+- `backend`
+  - 使用 Go、GORM 和同一套资源模型提供本地/远程 REST API
+  - 本地模式是一名保留用户 + SQLite；远程模式是登录后的多用户 + SQLite/MySQL
+  - profile、session relaunch 和配置数据使用普通文本列保存 JSON，不依赖数据库 JSON 类型
+  - 用户自建的数据密钥不入库；服务端只保存 Argon2id 校验元数据和 AES-256-GCM 密文
+  - 本地到远程使用单向 export/merge，默认保留远程冲突项并返回逐项报告
 
 ## 公开接口
 

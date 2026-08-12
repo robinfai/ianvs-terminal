@@ -1,4 +1,5 @@
 name: ianvs_terminal
+version: 2.0.0
 publish_to: none
 
 environment:
@@ -16,5 +17,6 @@ dependencies:
   protobuf: ^6.0.0
 
 dev_dependencies:
+  analyzer: ^10.0.1
   flutter_test:
     sdk: flutter

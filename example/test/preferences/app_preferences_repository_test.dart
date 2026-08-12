@@ -78,9 +78,11 @@ void main() {
 
   test('app preferences defaults trim profile ids and reject blanks', () {
     final trimmed = TerminalAppPreferencesDocument.fromJson(const {
+      'schemaVersion': TerminalAppPreferencesDocument.currentSchemaVersion,
       'defaults': {'defaultProfileId': ' ssh '},
     });
     final blank = TerminalAppPreferencesDocument.fromJson(const {
+      'schemaVersion': TerminalAppPreferencesDocument.currentSchemaVersion,
       'defaults': {'defaultProfileId': '   '},
     });
 
@@ -90,12 +92,15 @@ void main() {
 
   test('app preferences theme mode trims whitespace and ignores case', () {
     final dark = TerminalAppPreferencesDocument.fromJson(const {
+      'schemaVersion': TerminalAppPreferencesDocument.currentSchemaVersion,
       'appearance': {'themeMode': ' Dark '},
     });
     final light = TerminalAppPreferencesDocument.fromJson(const {
+      'schemaVersion': TerminalAppPreferencesDocument.currentSchemaVersion,
       'appearance': {'themeMode': ' LIGHT '},
     });
     final blank = TerminalAppPreferencesDocument.fromJson(const {
+      'schemaVersion': TerminalAppPreferencesDocument.currentSchemaVersion,
       'appearance': {'themeMode': '   '},
     });
 
@@ -105,18 +110,15 @@ void main() {
   });
 
   test('app preferences schema version rejects fractional values', () {
-    final document = TerminalAppPreferencesDocument.fromJson(const {
-      'schemaVersion': 2.5,
-    });
-
     expect(
-      document.schemaVersion,
-      TerminalAppPreferencesDocument.currentSchemaVersion,
+      () =>
+          TerminalAppPreferencesDocument.fromJson(const {'schemaVersion': 2.5}),
+      throwsA(isA<UnsupportedTerminalAppPreferencesSchemaVersion>()),
     );
   });
 
   test(
-    'app preferences repository keeps values when only schema version is invalid',
+    'app preferences repository rejects malformed schema without mutation',
     () async {
       final directory = await Directory.systemTemp.createTemp(
         'ianvs terminal-preferences-invalid-schema',
@@ -134,16 +136,12 @@ void main() {
         }),
       );
 
-      final loaded = await repository.load();
-
-      expect(loaded, isNotNull);
-      expect(
-        loaded!.schemaVersion,
-        TerminalAppPreferencesDocument.currentSchemaVersion,
+      final original = await file.readAsString();
+      await expectLater(
+        repository.load(),
+        throwsA(isA<UnsupportedTerminalAppPreferencesSchemaVersion>()),
       );
-      expect(loaded.defaults.defaultProfileId, 'ssh');
-      expect(loaded.appearance.themeMode, TerminalThemeMode.dark);
-      expect(loaded.appearance.terminalViewportPadding, 16);
+      expect(await file.readAsString(), original);
       expect(
         directory
             .listSync()
@@ -158,7 +156,7 @@ void main() {
   );
 
   test(
-    'app preferences repository keeps values when schema version is non-finite',
+    'app preferences repository rejects non-finite schema without mutation',
     () async {
       final directory = await Directory.systemTemp.createTemp(
         'ianvs terminal-preferences-non-finite-schema',
@@ -176,16 +174,12 @@ void main() {
 }
 ''');
 
-      final loaded = await repository.load();
-
-      expect(loaded, isNotNull);
-      expect(
-        loaded!.schemaVersion,
-        TerminalAppPreferencesDocument.currentSchemaVersion,
+      final original = await file.readAsString();
+      await expectLater(
+        repository.load(),
+        throwsA(isA<UnsupportedTerminalAppPreferencesSchemaVersion>()),
       );
-      expect(loaded.defaults.defaultProfileId, 'ssh');
-      expect(loaded.appearance.themeMode, TerminalThemeMode.dark);
-      expect(loaded.appearance.terminalViewportPadding, 16);
+      expect(await file.readAsString(), original);
       expect(
         directory
             .listSync()
@@ -200,7 +194,7 @@ void main() {
   );
 
   test(
-    'app preferences repository keeps values when schema version is non-positive',
+    'app preferences repository rejects noncurrent schema without mutation',
     () async {
       final directory = await Directory.systemTemp.createTemp(
         'ianvs terminal-preferences-non-positive-schema',
@@ -218,16 +212,12 @@ void main() {
         }),
       );
 
-      final loaded = await repository.load();
-
-      expect(loaded, isNotNull);
-      expect(
-        loaded!.schemaVersion,
-        TerminalAppPreferencesDocument.currentSchemaVersion,
+      final original = await file.readAsString();
+      await expectLater(
+        repository.load(),
+        throwsA(isA<UnsupportedTerminalAppPreferencesSchemaVersion>()),
       );
-      expect(loaded.defaults.defaultProfileId, 'ssh');
-      expect(loaded.appearance.themeMode, TerminalThemeMode.dark);
-      expect(loaded.appearance.terminalViewportPadding, 16);
+      expect(await file.readAsString(), original);
       expect(
         directory
             .listSync()

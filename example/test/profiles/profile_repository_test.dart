@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/profiles/profile_repository.dart';
 import 'package:app/features/profiles/profile_secret_cipher.dart';
-import 'package:app/features/terminal/terminal_defaults.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
 
@@ -346,23 +345,23 @@ void main() {
   });
 
   test(
-    'does not quarantine valid legacy JSON when secret migration cannot save',
+    'rejects persisted plaintext secrets without mutating secure evidence',
     () async {
       final directory = await Directory.systemTemp.createTemp(
-        'ianvs terminal-failed-secret-migration',
+        'ianvs terminal-plaintext-secret-rejection',
       );
       final file = File('${directory.path}/ianvs_profiles.json');
       final source = jsonEncode(<String, Object?>{
         'schemaVersion': TerminalProfilesDocument.currentSchemaVersion,
         'profiles': <Object?>[
           <String, Object?>{
-            ...defaultTerminalProfile().copyWith(id: 'legacy-ssh').toJson(),
+            ...defaultTerminalProfile().copyWith(id: 'plaintext-ssh').toJson(),
             'connection': <String, Object?>{
               'type': 'ssh',
-              'host': 'legacy.example.test',
+              'host': 'plaintext.example.test',
               'user': 'operator',
               'port': 22,
-              'password': 'legacy-plaintext',
+              'password': 'unsupported-plaintext',
             },
           },
         ],
@@ -375,7 +374,10 @@ void main() {
         secretCipher: ProfileSecretCipher(keyStore: invalidKeyStore),
       );
 
-      await expectLater(repository.load(), throwsA(isA<FormatException>()));
+      await expectLater(
+        repository.load(),
+        throwsA(isA<UnsupportedTerminalProfilePlaintextSecrets>()),
+      );
 
       expect(await file.readAsString(), source);
       final quarantined = await directory
@@ -386,109 +388,103 @@ void main() {
     },
   );
 
-  test(
-    'profile repository persists profiles to disk without legacy default field',
-    () async {
-      final directory = await Directory.systemTemp.createTemp(
-        'ianvs terminal-profiles',
-      );
-      final repository = ProfileRepository(
-        directoryResolver: () async => directory,
-      );
-      final file = File('${directory.path}/ianvs_profiles.json');
+  test('profile repository persists only current profile fields', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'ianvs terminal-profiles',
+    );
+    final repository = ProfileRepository(
+      directoryResolver: () async => directory,
+    );
+    final file = File('${directory.path}/ianvs_profiles.json');
 
-      final document = TerminalProfilesDocument(
-        profiles: [
-          defaultTerminalProfile().copyWith(
-            name: 'Custom Shell',
-            tags: const ['work', 'prod'],
-            triggers: const [
-              TerminalProfileTrigger(pattern: 'ERROR'),
-              TerminalProfileTrigger(
-                pattern: 'Password:',
-                action: TerminalProfileTriggerAction.sendText,
-                value: 'secret\n',
-              ),
-            ],
-            switchRules: const [
-              TerminalProfileSwitchRule(
-                kind: TerminalProfileSwitchRuleKind.hostname,
-                pattern: '*.prod.example.com',
-              ),
-              TerminalProfileSwitchRule(
-                kind: TerminalProfileSwitchRuleKind.directory,
-                pattern: '/srv/app',
-              ),
-            ],
-          ),
-        ],
-      );
+    final document = TerminalProfilesDocument(
+      profiles: [
+        defaultTerminalProfile().copyWith(
+          name: 'Custom Shell',
+          tags: const ['work', 'prod'],
+          triggers: const [
+            TerminalProfileTrigger(pattern: 'ERROR'),
+            TerminalProfileTrigger(
+              pattern: 'Password:',
+              action: TerminalProfileTriggerAction.sendText,
+              value: 'secret\n',
+            ),
+          ],
+          switchRules: const [
+            TerminalProfileSwitchRule(
+              kind: TerminalProfileSwitchRuleKind.hostname,
+              pattern: '*.prod.example.com',
+            ),
+            TerminalProfileSwitchRule(
+              kind: TerminalProfileSwitchRuleKind.directory,
+              pattern: '/srv/app',
+            ),
+          ],
+        ),
+      ],
+    );
 
-      await repository.save(document);
-      final loaded = await repository.load();
-      final raw = jsonDecode(await file.readAsString()) as Map<String, Object?>;
+    await repository.save(document);
+    final loaded = await repository.load();
+    final raw = jsonDecode(await file.readAsString()) as Map<String, Object?>;
 
-      expect(loaded.profiles.single.name, 'Custom Shell');
-      expect(loaded.profiles.single.tags, const ['work', 'prod']);
-      expect(loaded.profiles.single.triggers, const [
-        TerminalProfileTrigger(pattern: 'ERROR'),
-        TerminalProfileTrigger(
-          pattern: 'Password:',
-          action: TerminalProfileTriggerAction.sendText,
-          value: 'secret\n',
-        ),
-      ]);
-      expect(loaded.profiles.single.switchRules, const [
-        TerminalProfileSwitchRule(
-          kind: TerminalProfileSwitchRuleKind.hostname,
-          pattern: '*.prod.example.com',
-        ),
-        TerminalProfileSwitchRule(
-          kind: TerminalProfileSwitchRuleKind.directory,
-          pattern: '/srv/app',
-        ),
-      ]);
-      expect(
-        raw['schemaVersion'],
-        TerminalProfilesDocument.currentSchemaVersion,
-      );
-      expect(raw.containsKey('defaultProfileId'), isFalse);
-      expect(
-        (raw['profiles']! as List<dynamic>).single,
-        containsPair(
-          'launch',
-          containsPair('program', defaultTerminalProfile().shell),
-        ),
-      );
-      expect(
-        (raw['profiles']! as List<dynamic>).single,
-        containsPair('tags', const ['work', 'prod']),
-      );
-      expect(
-        (raw['profiles']! as List<dynamic>).single,
-        containsPair(
-          'triggers',
-          containsAll([
-            containsPair('pattern', 'ERROR'),
-            containsPair('action', 'send_text'),
-          ]),
-        ),
-      );
-      expect(
-        (raw['profiles']! as List<dynamic>).single,
-        containsPair(
-          'automaticProfileSwitching',
-          containsAll([
-            containsPair('kind', 'hostname'),
-            containsPair('kind', 'directory'),
-          ]),
-        ),
-      );
-    },
-  );
+    expect(loaded.profiles.single.name, 'Custom Shell');
+    expect(loaded.profiles.single.tags, const ['work', 'prod']);
+    expect(loaded.profiles.single.triggers, const [
+      TerminalProfileTrigger(pattern: 'ERROR'),
+      TerminalProfileTrigger(
+        pattern: 'Password:',
+        action: TerminalProfileTriggerAction.sendText,
+        value: 'secret\n',
+      ),
+    ]);
+    expect(loaded.profiles.single.switchRules, const [
+      TerminalProfileSwitchRule(
+        kind: TerminalProfileSwitchRuleKind.hostname,
+        pattern: '*.prod.example.com',
+      ),
+      TerminalProfileSwitchRule(
+        kind: TerminalProfileSwitchRuleKind.directory,
+        pattern: '/srv/app',
+      ),
+    ]);
+    expect(raw['schemaVersion'], TerminalProfilesDocument.currentSchemaVersion);
+    expect(raw.containsKey('defaultProfileId'), isFalse);
+    expect(
+      (raw['profiles']! as List<dynamic>).single,
+      containsPair(
+        'launch',
+        containsPair('program', defaultTerminalProfile().shell),
+      ),
+    );
+    expect(
+      (raw['profiles']! as List<dynamic>).single,
+      containsPair('tags', const ['work', 'prod']),
+    );
+    expect(
+      (raw['profiles']! as List<dynamic>).single,
+      containsPair(
+        'triggers',
+        containsAll([
+          containsPair('pattern', 'ERROR'),
+          containsPair('action', 'send_text'),
+        ]),
+      ),
+    );
+    expect(
+      (raw['profiles']! as List<dynamic>).single,
+      containsPair(
+        'automaticProfileSwitching',
+        containsAll([
+          containsPair('kind', 'hostname'),
+          containsPair('kind', 'directory'),
+        ]),
+      ),
+    );
+  });
 
   test(
-    'profile repository seeds a strict VT220 preset on first launch without legacy default field',
+    'profile repository seeds a strict current VT220 preset on first launch',
     () async {
       final directory = await Directory.systemTemp.createTemp(
         'ianvs terminal-profiles-seeded',
@@ -595,53 +591,45 @@ void main() {
     },
   );
 
-  test(
-    'profile repository ignores legacy defaultProfileId from older documents',
-    () async {
-      final directory = await Directory.systemTemp.createTemp(
-        'ianvs terminal-profiles-migration',
-      );
-      final file = File('${directory.path}/ianvs_profiles.json');
-      await file.parent.create(recursive: true);
-      await file.writeAsString(
-        jsonEncode({
-          'defaultProfileId': 'legacy',
-          'profiles': [
-            {
-              'id': 'legacy',
-              'name': 'Legacy Shell',
-              'shell': '/bin/zsh',
-              'args': const <String>[],
-              'env': const <String, String>{},
-              'cwd': null,
-            },
-          ],
-        }),
-      );
-      final repository = ProfileRepository(
-        directoryResolver: () async => directory,
-      );
+  test('profile repository rejects documents without a schema', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'ianvs terminal-profiles-migration',
+    );
+    final file = File('${directory.path}/ianvs_profiles.json');
+    await file.parent.create(recursive: true);
+    await file.writeAsString(
+      jsonEncode({
+        'defaultProfileId': 'legacy',
+        'profiles': [
+          {
+            'id': 'legacy',
+            'name': 'Legacy Shell',
+            'shell': '/bin/zsh',
+            'args': const <String>[],
+            'env': const <String, String>{},
+            'cwd': null,
+          },
+        ],
+      }),
+    );
+    final repository = ProfileRepository(
+      directoryResolver: () async => directory,
+    );
 
-      final loaded = await repository.load();
-
-      expect(
-        loaded.profiles.single.terminalEmulation,
-        TerminalEmulation.xterm256,
-      );
-      expect(
-        loaded.schemaVersion,
-        TerminalProfilesDocument.currentSchemaVersion,
-      );
-      expect(
-        loaded.toJson()['schemaVersion'],
-        TerminalProfilesDocument.currentSchemaVersion,
-      );
-      expect(loaded.toJson().containsKey('defaultProfileId'), isFalse);
-    },
-  );
+    final original = await file.readAsString();
+    await expectLater(
+      repository.load(),
+      throwsA(isA<UnsupportedTerminalProfilesSchemaVersion>()),
+    );
+    expect(await file.readAsString(), original);
+    expect(
+      directory.listSync().where((e) => e.path.contains('.corrupt')),
+      isEmpty,
+    );
+  });
 
   test(
-    'profile repository tolerates documents that omit defaultProfileId',
+    'profile repository accepts current documents without defaultProfileId',
     () async {
       final directory = await Directory.systemTemp.createTemp(
         'ianvs terminal-profiles-missing-default',
@@ -650,14 +638,17 @@ void main() {
       await file.parent.create(recursive: true);
       await file.writeAsString(
         jsonEncode({
+          'schemaVersion': TerminalProfilesDocument.currentSchemaVersion,
           'profiles': [
             {
               'id': 'default',
               'name': 'Local Shell',
-              'shell': '/bin/zsh',
-              'args': const <String>[],
-              'env': const <String, String>{},
-              'cwd': null,
+              'launch': {
+                'program': '/bin/zsh',
+                'args': const <String>[],
+                'env': const <String, String>{},
+                'cwd': null,
+              },
             },
           ],
         }),
@@ -680,7 +671,7 @@ void main() {
     },
   );
 
-  test('profile repository reads nested schema v3 documents', () async {
+  test('profile repository reads the current nested document', () async {
     final directory = await Directory.systemTemp.createTemp(
       'ianvs terminal-profiles-v3',
     );
@@ -688,7 +679,7 @@ void main() {
     await file.parent.create(recursive: true);
     await file.writeAsString(
       jsonEncode({
-        'schemaVersion': 3,
+        'schemaVersion': TerminalProfilesDocument.currentSchemaVersion,
         'profiles': [
           {
             'id': 'default',
@@ -743,7 +734,7 @@ void main() {
 
     final loaded = await repository.load();
 
-    expect(loaded.schemaVersion, 3);
+    expect(loaded.schemaVersion, TerminalProfilesDocument.currentSchemaVersion);
     expect(loaded.profiles.single.shell, '/bin/zsh');
     expect(loaded.profiles.single.tags, const ['prod', 'ops']);
     expect(loaded.profiles.single.triggers, const [
@@ -783,71 +774,19 @@ void main() {
     expect(loaded.profiles.single.appearance.colors.bright.white, '#FAFAFA');
   });
 
-  test('profile document imports iTerm dynamic profiles JSON', () {
-    final document = TerminalProfilesDocument.fromJson({
-      'Profiles': [
-        {
-          'Name': 'prod.example.com',
-          'Guid': 'prod-host',
-          'Custom Command': 'Yes',
-          'Command': 'ssh prod.example.com',
-          'Tags': ['ssh', 'prod'],
-          'Use Tab Color': true,
-          'Tab Color': {
-            'Red Component': 0.2,
-            'Green Component': 0.4,
-            'Blue Component': 0.6,
-          },
-        },
-        {
-          'Name': 'dev.example.com',
-          'Guid': 'dev-host',
-          'Use Tab Color': false,
-          'Tab Color': '#112233',
-        },
-      ],
-    });
-
-    final profile = document.profiles.first;
-    expect(profile.id, 'prod-host');
-    expect(profile.name, 'prod.example.com');
-    expect(profile.tags, const ['ssh', 'prod', 'Dynamic']);
-    expect(profile.shell, '/bin/sh');
-    expect(profile.args, const ['-lc', 'ssh prod.example.com']);
-    expect(profile.appearance.colors.tab, '#336699');
-
-    final disabledProfile = document.profiles.last;
-    expect(disabledProfile.id, 'dev-host');
-    expect(disabledProfile.appearance.colors.tab, isNull);
-  });
-
-  test('profile document bounds dynamic profile tags and keeps marker', () {
-    final document = TerminalProfilesDocument.fromJson({
-      'Profiles': [
-        {
-          'Name': 'prod.example.com',
-          'Guid': 'prod-host',
-          'Tags': [
-            for (var index = 0; index < maxTerminalProfileTags + 10; index += 1)
-              'tag-$index',
-          ],
-        },
-      ],
-    });
-
-    final profile = document.profiles.single;
-    expect(profile.tags, hasLength(maxTerminalProfileTags));
-    expect(profile.tags.first, 'tag-0');
+  test('profile document rejects external importer shapes', () {
     expect(
-      profile.tags[maxTerminalProfileTags - 2],
-      'tag-${maxTerminalProfileTags - 2}',
+      () => TerminalProfilesDocument.fromJson(const {
+        'schemaVersion': TerminalProfilesDocument.currentSchemaVersion,
+        'Profiles': <Object?>[],
+      }),
+      throwsA(isA<FormatException>()),
     );
-    expect(profile.tags.last, 'Dynamic');
   });
 
   test('profile document skips duplicate profile ids', () {
     final document = TerminalProfilesDocument.fromJson({
-      'schemaVersion': 4,
+      'schemaVersion': TerminalProfilesDocument.currentSchemaVersion,
       'profiles': [
         {
           'id': 'shared',
@@ -897,7 +836,7 @@ void main() {
   test('profile document caps restored profile entries', () {
     const inputCount = maxTerminalProfiles + 2;
     final document = TerminalProfilesDocument.fromJson({
-      'schemaVersion': 4,
+      'schemaVersion': TerminalProfilesDocument.currentSchemaVersion,
       'profiles': [
         for (var index = 0; index < inputCount; index += 1)
           {
@@ -942,7 +881,7 @@ void main() {
     const triggerInputCount = maxTerminalProfileTriggers + 2;
     const switchRuleInputCount = maxTerminalProfileSwitchRules + 2;
     final document = TerminalProfilesDocument.fromJson({
-      'schemaVersion': 4,
+      'schemaVersion': TerminalProfilesDocument.currentSchemaVersion,
       'profiles': [
         {
           'id': 'bounded',
@@ -1027,7 +966,7 @@ void main() {
 
   test('profile document scans past invalid metadata entries', () {
     final document = TerminalProfilesDocument.fromJson({
-      'schemaVersion': 4,
+      'schemaVersion': TerminalProfilesDocument.currentSchemaVersion,
       'profiles': [
         {
           'id': 'recovered',
@@ -1084,305 +1023,218 @@ void main() {
     );
   });
 
-  test(
-    'profile document migrates only the built-in default pure black background',
-    () {
-      final document = TerminalProfilesDocument.fromJson({
-        'schemaVersion': 4,
-        'profiles': [
-          {
-            'id': 'default',
-            'name': 'Local Shell',
-            'launch': {
-              'program': defaultTerminalProfile().shell,
-              'args': const ['-l'],
-            },
-            'appearance': {
-              'colors': {
-                'special': {'background': '#000000'},
-              },
+  test('profile document preserves explicit pure black backgrounds', () {
+    final document = TerminalProfilesDocument.fromJson({
+      'schemaVersion': TerminalProfilesDocument.currentSchemaVersion,
+      'profiles': [
+        {
+          'id': 'default',
+          'name': 'Local Shell',
+          'launch': {
+            'program': defaultTerminalProfile().shell,
+            'args': const ['-l'],
+          },
+          'appearance': {
+            'colors': {
+              'special': {'background': '#000000'},
             },
           },
-          {
-            'id': 'custom-black',
-            'name': 'Custom Black',
-            'launch': {'program': '/bin/zsh'},
-            'appearance': {
-              'colors': {
-                'special': {'background': '#000000'},
-              },
+        },
+        {
+          'id': 'custom-black',
+          'name': 'Custom Black',
+          'launch': {'program': '/bin/zsh'},
+          'appearance': {
+            'colors': {
+              'special': {'background': '#000000'},
             },
           },
-        ],
-      });
+        },
+      ],
+    });
 
-      final defaultProfile = document.profiles.firstWhere(
-        (profile) => profile.id == 'default',
-      );
-      final customProfile = document.profiles.firstWhere(
-        (profile) => profile.id == 'custom-black',
-      );
+    final defaultProfile = document.profiles.firstWhere(
+      (profile) => profile.id == 'default',
+    );
+    final customProfile = document.profiles.firstWhere(
+      (profile) => profile.id == 'custom-black',
+    );
 
-      expect(defaultProfile.appearance.colors.background, '#000000');
-      expect(customProfile.appearance.colors.background, '#000000');
-    },
-  );
+    expect(defaultProfile.appearance.colors.background, '#000000');
+    expect(customProfile.appearance.colors.background, '#000000');
+  });
 
-  test(
-    'profile document migrates the previous built-in default background',
-    () {
-      final document = TerminalProfilesDocument.fromJson({
-        'schemaVersion': 4,
-        'profiles': [
-          {
-            'id': 'default',
-            'name': 'Local Shell',
-            'launch': {
-              'program': defaultTerminalProfile().shell,
-              'args': const ['-l'],
-            },
-            'appearance': {
-              'colors': {
-                'special': {'background': '#14191E'},
-              },
+  test('profile document preserves explicit prior-looking backgrounds', () {
+    final document = TerminalProfilesDocument.fromJson({
+      'schemaVersion': TerminalProfilesDocument.currentSchemaVersion,
+      'profiles': [
+        {
+          'id': 'default',
+          'name': 'Local Shell',
+          'launch': {
+            'program': defaultTerminalProfile().shell,
+            'args': const ['-l'],
+          },
+          'appearance': {
+            'colors': {
+              'special': {'background': '#14191E'},
             },
           },
-          {
-            'id': 'custom-previous-default',
-            'name': 'Custom Previous Default',
-            'launch': {'program': '/bin/zsh'},
-            'appearance': {
-              'colors': {
-                'special': {'background': '#14191E'},
-              },
+        },
+        {
+          'id': 'custom-previous-default',
+          'name': 'Custom Previous Default',
+          'launch': {'program': '/bin/zsh'},
+          'appearance': {
+            'colors': {
+              'special': {'background': '#14191E'},
             },
           },
-        ],
-      });
+        },
+      ],
+    });
 
-      final defaultProfile = document.profiles.firstWhere(
-        (profile) => profile.id == 'default',
-      );
-      final customProfile = document.profiles.firstWhere(
-        (profile) => profile.id == 'custom-previous-default',
-      );
+    final defaultProfile = document.profiles.firstWhere(
+      (profile) => profile.id == 'default',
+    );
+    final customProfile = document.profiles.firstWhere(
+      (profile) => profile.id == 'custom-previous-default',
+    );
 
-      expect(defaultProfile.appearance.colors.background, '#000000');
-      expect(customProfile.appearance.colors.background, '#14191E');
-    },
-  );
+    expect(defaultProfile.appearance.colors.background, '#14191E');
+    expect(customProfile.appearance.colors.background, '#14191E');
+  });
 
-  test(
-    'profile document migrates the temporary blue built-in default background',
-    () {
-      final document = TerminalProfilesDocument.fromJson({
-        'schemaVersion': 4,
-        'profiles': [
-          {
-            'id': 'default',
-            'name': 'Local Shell',
-            'launch': {
-              'program': defaultTerminalProfile().shell,
-              'args': const ['-l'],
-            },
-            'appearance': {
-              'colors': {
-                'special': {'background': '#203A4F'},
-              },
+  test('profile document preserves explicit blue backgrounds', () {
+    final document = TerminalProfilesDocument.fromJson({
+      'schemaVersion': TerminalProfilesDocument.currentSchemaVersion,
+      'profiles': [
+        {
+          'id': 'default',
+          'name': 'Local Shell',
+          'launch': {
+            'program': defaultTerminalProfile().shell,
+            'args': const ['-l'],
+          },
+          'appearance': {
+            'colors': {
+              'special': {'background': '#203A4F'},
             },
           },
-          {
-            'id': 'custom-temporary-blue',
-            'name': 'Custom Temporary Blue',
-            'launch': {'program': '/bin/zsh'},
-            'appearance': {
-              'colors': {
-                'special': {'background': '#203A4F'},
-              },
+        },
+        {
+          'id': 'custom-temporary-blue',
+          'name': 'Custom Temporary Blue',
+          'launch': {'program': '/bin/zsh'},
+          'appearance': {
+            'colors': {
+              'special': {'background': '#203A4F'},
             },
           },
-        ],
-      });
+        },
+      ],
+    });
 
-      final defaultProfile = document.profiles.firstWhere(
-        (profile) => profile.id == 'default',
-      );
-      final customProfile = document.profiles.firstWhere(
-        (profile) => profile.id == 'custom-temporary-blue',
-      );
+    final defaultProfile = document.profiles.firstWhere(
+      (profile) => profile.id == 'default',
+    );
+    final customProfile = document.profiles.firstWhere(
+      (profile) => profile.id == 'custom-temporary-blue',
+    );
 
-      expect(defaultProfile.appearance.colors.background, '#000000');
-      expect(customProfile.appearance.colors.background, '#203A4F');
-    },
-  );
+    expect(defaultProfile.appearance.colors.background, '#203A4F');
+    expect(customProfile.appearance.colors.background, '#203A4F');
+  });
 
-  test(
-    'profile repository tolerates invalid nested fields and reports warnings',
-    () async {
-      final directory = await Directory.systemTemp.createTemp(
-        'ianvs terminal-profiles-invalid-fields',
-      );
-      final file = File('${directory.path}/ianvs_profiles.json');
-      await file.parent.create(recursive: true);
-      final rawDocument = jsonEncode({
-        'schemaVersion': 3,
-        'profiles': [
-          {
-            'name': '',
-            'tags': const ['ops', 7, ' ops ', ' '],
-            'triggers': const [
-              {'pattern': 'ERROR', 'action': 7},
-              {'pattern': '[', 'action': 'notify'},
-              {'pattern': 'Prompt:', 'action': 'send_text'},
-            ],
-            'automaticProfileSwitching': const [
-              {'kind': 'host', 'pattern': 'prod.example.com'},
-              {'kind': 'role', 'pattern': 'root'},
-              {'kind': 'user', 'pattern': ''},
-              {'kind': 'dir', 'pattern': '/srv', 'caseSensitive': 'yes'},
-            ],
-            'launch': {
-              'program': 7,
-              'args': const ['-l', 3, ''],
-              'env': const {
-                'TERM_PROGRAM': 'ianvs terminal',
-                'BAD': 9,
-                '': 'empty',
-              },
-              'cwd': 42,
+  test('profile repository repairs invalid current nested fields', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'ianvs terminal-profiles-invalid-fields',
+    );
+    final file = File('${directory.path}/ianvs_profiles.json');
+    await file.parent.create(recursive: true);
+    final rawDocument = jsonEncode({
+      'schemaVersion': TerminalProfilesDocument.currentSchemaVersion,
+      'profiles': [
+        {
+          'name': '',
+          'tags': const ['ops', 7, ' ops ', ' '],
+          'triggers': const [
+            {'pattern': 'ERROR', 'action': 7},
+            {'pattern': '[', 'action': 'notify'},
+            {'pattern': 'Prompt:', 'action': 'send_text'},
+          ],
+          'automaticProfileSwitching': const [
+            {'kind': 'host', 'pattern': 'prod.example.com'},
+            {'kind': 'role', 'pattern': 'root'},
+            {'kind': 'user', 'pattern': ''},
+            {'kind': 'dir', 'pattern': '/srv', 'caseSensitive': 'yes'},
+          ],
+          'launch': {
+            'program': 7,
+            'args': const ['-l', 3, ''],
+            'env': const {
+              'TERM_PROGRAM': 'ianvs terminal',
+              'BAD': 9,
+              '': 'empty',
             },
-            'terminal': {'emulation': 'ansi', 'scrollbackLines': -1},
-            'appearance': {
-              'font': {
-                'family': '',
-                'fallback': const ['Monaco', 4, ' '],
-                'size': 0,
-                'lineHeight': -1,
-              },
-              'colors': {
+            'cwd': 42,
+          },
+          'terminal': {'emulation': 'ansi', 'scrollbackLines': -1},
+          'appearance': {
+            'font': {
+              'family': '',
+              'fallback': const ['Monaco', 4, ' '],
+              'size': 0,
+              'lineHeight': -1,
+            },
+            'colors': {
+              'foreground': 'red',
+              'background': '#112233',
+              'cursor': 12,
+              'selection': '#334455',
+              'special': {
                 'foreground': 'red',
                 'background': '#112233',
                 'cursor': 12,
                 'selection': '#334455',
-                'special': {
-                  'foreground': 'red',
-                  'background': '#112233',
-                  'cursor': 12,
-                  'selection': '#334455',
-                },
-                'normal': {'black': '#010203', 'red': 'tomato'},
-                'bright': const ['wrong-shape'],
               },
-              'cursor': {'shape': 'triangle', 'blink': 'yes'},
+              'normal': {'black': '#010203', 'red': 'tomato'},
+              'bright': const ['wrong-shape'],
             },
-            'interaction': {'copyOnSelect': 'no', 'optionDragMode': 'diagonal'},
+            'cursor': {'shape': 'triangle', 'blink': 'yes'},
           },
-        ],
-      });
-      await file.writeAsString(rawDocument);
-      final repository = ProfileRepository(
-        directoryResolver: () async => directory,
-      );
+          'interaction': {'copyOnSelect': 'no', 'optionDragMode': 'diagonal'},
+        },
+      ],
+    });
+    await file.writeAsString(rawDocument);
+    final repository = ProfileRepository(
+      directoryResolver: () async => directory,
+    );
 
-      final loaded = await repository.load();
-      final rawAfterLoad = await file.readAsString();
+    final loaded = await repository.load();
+    final rawAfterLoad = await file.readAsString();
 
-      expect(rawAfterLoad, rawDocument);
-      expect(loaded.profiles.single.id, 'profile-1');
-      expect(loaded.profiles.single.name, 'profile-1');
-      expect(loaded.profiles.single.tags, const ['ops']);
-      expect(loaded.profiles.single.triggers, const [
-        TerminalProfileTrigger(pattern: 'ERROR'),
-      ]);
-      expect(loaded.profiles.single.switchRules, const [
-        TerminalProfileSwitchRule(
-          kind: TerminalProfileSwitchRuleKind.hostname,
-          pattern: 'prod.example.com',
+    expect(rawAfterLoad, isNot(rawDocument));
+    expect(
+      loaded.profiles.map((profile) => profile.id),
+      containsAll(<String>['default', 'vt220']),
+    );
+    expect(
+      loaded.loadWarnings.map((warning) => warning.path),
+      contains('document'),
+    );
+    expect(
+      directory.listSync().whereType<File>().map((entry) => entry.path),
+      contains(
+        predicate<String>(
+          (path) => path.contains('ianvs_profiles.json.corrupt.'),
         ),
-        TerminalProfileSwitchRule(
-          kind: TerminalProfileSwitchRuleKind.directory,
-          pattern: '/srv',
-        ),
-      ]);
-      expect(loaded.profiles.single.shell, defaultTerminalProfile().shell);
-      expect(loaded.profiles.single.args, const ['-l']);
-      expect(loaded.profiles.single.env, const {
-        'TERM_PROGRAM': 'ianvs terminal',
-      });
-      expect(loaded.profiles.single.cwd, isNull);
-      expect(
-        loaded.profiles.single.terminalEmulation,
-        TerminalEmulation.xterm256,
-      );
-      expect(loaded.profiles.single.scrollbackLines, 8000);
-      expect(
-        loaded.profiles.single.appearance.font.family,
-        terminalPrimaryFontFamily,
-      );
-      expect(loaded.profiles.single.appearance.font.fallback, const ['Monaco']);
-      expect(loaded.profiles.single.appearance.font.size, terminalFontSize);
-      expect(
-        loaded.profiles.single.appearance.font.lineHeight,
-        terminalLineHeight,
-      );
-      expect(loaded.profiles.single.appearance.colors.foreground, isNull);
-      expect(loaded.profiles.single.appearance.colors.background, '#112233');
-      expect(loaded.profiles.single.appearance.colors.cursor, isNull);
-      expect(loaded.profiles.single.appearance.colors.selection, '#334455');
-      expect(loaded.profiles.single.appearance.colors.normal.black, '#010203');
-      expect(loaded.profiles.single.appearance.colors.normal.red, isNull);
-      expect(loaded.profiles.single.appearance.colors.bright.blue, isNull);
-      expect(
-        loaded.profiles.single.appearance.cursor.shape,
-        TerminalCursorShape.block,
-      );
-      expect(loaded.profiles.single.appearance.cursor.blink, isTrue);
-      expect(loaded.profiles.single.interaction.copyOnSelect, isFalse);
-      expect(
-        loaded.profiles.single.interaction.optionDragMode,
-        TerminalOptionDragMode.blockSelection,
-      );
-      expect(loaded.loadWarnings, isNotEmpty);
-      expect(
-        loaded.loadWarnings.map((warning) => warning.path),
-        containsAll(<String>[
-          'id',
-          'name',
-          'tags[1]',
-          'triggers[0].action',
-          'triggers[1].pattern',
-          'triggers[2].value',
-          'automaticProfileSwitching[1].kind',
-          'automaticProfileSwitching[2].pattern',
-          'automaticProfileSwitching[3].caseSensitive',
-          'launch.program',
-          'launch.args[1]',
-          'launch.env.BAD',
-          'launch.cwd',
-          'terminal.emulation',
-          'terminal.scrollbackLines',
-          'appearance.font.family',
-          'appearance.font.fallback[1]',
-          'appearance.font.size',
-          'appearance.font.lineHeight',
-          'appearance.colors.foreground',
-          'appearance.colors.background',
-          'appearance.colors.cursor',
-          'appearance.colors.selection',
-          'appearance.colors.special.foreground',
-          'appearance.colors.special.cursor',
-          'appearance.colors.normal.red',
-          'appearance.cursor.shape',
-          'appearance.cursor.blink',
-          'interaction.copyOnSelect',
-          'interaction.optionDragMode',
-        ]),
-      );
-      expect(loaded.toJson().containsKey('loadWarnings'), isFalse);
-    },
-  );
+      ),
+    );
+  });
 
-  test('profile repository tolerates invalid schema version', () async {
+  test('profile repository rejects malformed schema version', () async {
     final directory = await Directory.systemTemp.createTemp(
       'ianvs terminal-profiles-invalid-schema',
     );
@@ -1407,49 +1259,25 @@ void main() {
       directoryResolver: () async => directory,
     );
 
-    final loaded = await repository.load();
-
-    expect(loaded.schemaVersion, TerminalProfilesDocument.currentSchemaVersion);
-    expect(loaded.profiles.single.id, 'default');
-    expect(
-      loaded.loadWarnings,
-      contains(
-        TerminalProfileLoadWarning(
-          profileId: 'document',
-          profileName: 'Profiles document',
-          path: 'schemaVersion',
-          rawValueSummary: '"latest"',
-          fallbackSummary: _currentSchemaFallbackSummary(),
-        ),
-      ),
+    final original = await file.readAsString();
+    await expectLater(
+      repository.load(),
+      throwsA(isA<UnsupportedTerminalProfilesSchemaVersion>()),
     );
+    expect(await file.readAsString(), original);
   });
 
   test('profile document rejects fractional schema versions', () {
-    final document = TerminalProfilesDocument.fromJson(const {
-      'schemaVersion': 2.5,
-      'profiles': [],
-    });
-
     expect(
-      document.schemaVersion,
-      TerminalProfilesDocument.currentSchemaVersion,
-    );
-    expect(
-      document.loadWarnings,
-      contains(
-        TerminalProfileLoadWarning(
-          profileId: 'document',
-          profileName: 'Profiles document',
-          path: 'schemaVersion',
-          rawValueSummary: '2.5',
-          fallbackSummary: _currentSchemaFallbackSummary(),
-        ),
-      ),
+      () => TerminalProfilesDocument.fromJson(const {
+        'schemaVersion': 2.5,
+        'profiles': [],
+      }),
+      throwsA(isA<UnsupportedTerminalProfilesSchemaVersion>()),
     );
   });
 
-  test('profile repository tolerates non-finite schema version', () async {
+  test('profile repository rejects non-finite schema version', () async {
     final directory = await Directory.systemTemp.createTemp(
       'ianvs terminal-profiles-non-finite-schema',
     );
@@ -1472,69 +1300,105 @@ void main() {
       directoryResolver: () async => directory,
     );
 
-    final loaded = await repository.load();
-
-    expect(loaded.schemaVersion, TerminalProfilesDocument.currentSchemaVersion);
-    expect(loaded.profiles.single.id, 'default');
-    expect(
-      loaded.loadWarnings,
-      contains(
-        TerminalProfileLoadWarning(
-          profileId: 'document',
-          profileName: 'Profiles document',
-          path: 'schemaVersion',
-          rawValueSummary: 'Infinity',
-          fallbackSummary: _currentSchemaFallbackSummary(),
-        ),
-      ),
+    final original = await file.readAsString();
+    await expectLater(
+      repository.load(),
+      throwsA(isA<UnsupportedTerminalProfilesSchemaVersion>()),
     );
-  });
-
-  test('profile repository tolerates non-positive schema version', () async {
-    final directory = await Directory.systemTemp.createTemp(
-      'ianvs terminal-profiles-non-positive-schema',
-    );
-    final file = File('${directory.path}/ianvs_profiles.json');
-    await file.parent.create(recursive: true);
-    await file.writeAsString(
-      jsonEncode({
-        'schemaVersion': -2,
-        'profiles': [
-          {
-            'id': 'default',
-            'name': 'Local Shell',
-            'launch': {
-              'program': '/bin/zsh',
-              'args': const ['-l'],
-            },
-          },
-        ],
-      }),
-    );
-    final repository = ProfileRepository(
-      directoryResolver: () async => directory,
-    );
-
-    final loaded = await repository.load();
-
-    expect(loaded.schemaVersion, TerminalProfilesDocument.currentSchemaVersion);
-    expect(loaded.profiles.single.id, 'default');
-    expect(
-      loaded.loadWarnings,
-      contains(
-        TerminalProfileLoadWarning(
-          profileId: 'document',
-          profileName: 'Profiles document',
-          path: 'schemaVersion',
-          rawValueSummary: '-2',
-          fallbackSummary: _currentSchemaFallbackSummary(),
-        ),
-      ),
-    );
+    expect(await file.readAsString(), original);
   });
 
   test(
-    'profile repository upgrades built-in shell presets without explicit login args',
+    'profile repository rejects noncurrent schema without mutation',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'ianvs terminal-profiles-non-positive-schema',
+      );
+      final file = File('${directory.path}/ianvs_profiles.json');
+      await file.parent.create(recursive: true);
+      await file.writeAsString(
+        jsonEncode({
+          'schemaVersion': -2,
+          'profiles': [
+            {
+              'id': 'default',
+              'name': 'Local Shell',
+              'launch': {
+                'program': '/bin/zsh',
+                'args': const ['-l'],
+              },
+            },
+          ],
+        }),
+      );
+      final repository = ProfileRepository(
+        directoryResolver: () async => directory,
+      );
+
+      final original = await file.readAsString();
+      await expectLater(
+        repository.load(),
+        throwsA(isA<UnsupportedTerminalProfilesSchemaVersion>()),
+      );
+      expect(await file.readAsString(), original);
+      expect(
+        directory.listSync().where((e) => e.path.contains('.corrupt')),
+        isEmpty,
+      );
+    },
+  );
+
+  test(
+    'direct save never inherits or replaces opaque secrets from noncurrent data',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'ianvs terminal-profiles-noncurrent-opaque-save',
+      );
+      final file = File('${directory.path}/ianvs_profiles.json');
+      final original = jsonEncode(<String, Object?>{
+        'schemaVersion': 0,
+        'profiles': <Object?>[
+          <String, Object?>{
+            ...defaultTerminalProfile().toJson(),
+            'connection': <String, Object?>{
+              'type': 'ssh',
+              'host': 'opaque.example.test',
+              'user': 'operator',
+              'port': 22,
+              'encryptedSecrets': const <String, Object?>{
+                'format': 'opaque-noncurrent',
+                'payload': 'must-not-be-read-or-rewritten',
+              },
+            },
+          },
+        ],
+      });
+      await file.writeAsString(original);
+      final repository = ProfileRepository(
+        directoryResolver: () async => directory,
+      );
+
+      await expectLater(
+        repository.save(
+          TerminalProfilesDocument(
+            profiles: <TerminalProfile>[defaultTerminalProfile()],
+          ),
+        ),
+        throwsA(isA<UnsupportedTerminalProfilesSchemaVersion>()),
+      );
+
+      expect(await file.readAsString(), original);
+      expect(
+        directory.listSync().where(
+          (entity) => entity.path.contains('.corrupt'),
+        ),
+        isEmpty,
+      );
+    },
+  );
+
+  test(
+    'profile repository does not upgrade current profiles with omitted args',
     () async {
       final directory = await Directory.systemTemp.createTemp(
         'ianvs terminal-profiles-login-shell-upgrade',
@@ -1543,7 +1407,7 @@ void main() {
       await file.parent.create(recursive: true);
       await file.writeAsString(
         jsonEncode({
-          'schemaVersion': 2,
+          'schemaVersion': TerminalProfilesDocument.currentSchemaVersion,
           'profiles': [
             {
               'id': 'default',
@@ -1578,13 +1442,13 @@ void main() {
         loaded.profiles
             .firstWhere((profile) => profile.id == defaultTerminalProfile().id)
             .args,
-        const ['-l'],
+        isEmpty,
       );
       expect(
         loaded.profiles
             .firstWhere((profile) => profile.id == vt220TerminalProfile().id)
             .args,
-        const ['-l'],
+        isEmpty,
       );
     },
   );
@@ -1633,10 +1497,6 @@ void main() {
       );
     },
   );
-}
-
-String _currentSchemaFallbackSummary() {
-  return 'used schema version ${TerminalProfilesDocument.currentSchemaVersion}';
 }
 
 String _profileCollectionRawValueSummary(int inputCount, String entryLabel) {

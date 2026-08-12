@@ -1,14 +1,11 @@
 import '../config/local_terminal_config_bootstrap.dart';
 import '../config/local_terminal_config_loader.dart';
 import '../config/local_terminal_config_models.dart';
-import '../config/local_terminal_config_preferences_adapter.dart';
 import '../config/local_terminal_config_repository.dart';
+import '../persistence/versioned_document.dart';
 import '../preferences/app_preferences_models.dart';
-import '../preferences/app_preferences_repository.dart';
 import '../profiles/profile_models.dart';
 import '../profiles/profile_repository.dart';
-
-typedef LocalConfigFallbackPolicy = bool Function(Object error);
 
 class SessionBootstrapPreparation {
   SessionBootstrapPreparation({
@@ -19,6 +16,9 @@ class SessionBootstrapPreparation {
     required this.configSource,
     required this.preferencesLoadedFromDisk,
     required this.effectiveDefaultProfileId,
+    required this.profileDocument,
+    required this.appPreferencesDocument,
+    required this.localConfigDocument,
   }) : profiles = List.unmodifiable(profiles),
        configurationWarnings = List.unmodifiable(configurationWarnings);
 
@@ -29,34 +29,33 @@ class SessionBootstrapPreparation {
   final LocalTerminalConfigBootstrapSource configSource;
   final bool preferencesLoadedFromDisk;
   final String? effectiveDefaultProfileId;
+  final VersionedDocument<TerminalProfilesDocument> profileDocument;
+  final VersionedDocument<TerminalAppPreferencesDocument>
+  appPreferencesDocument;
+  final VersionedDocument<LocalTerminalConfigDocument> localConfigDocument;
 }
 
 class SessionBootstrapService {
   const SessionBootstrapService({
     required this.profileRepository,
-    required this.appPreferencesRepository,
     required this.localConfigRepository,
     required this.localConfigLoader,
-    this.shouldFallbackToLegacyPreferences = _neverFallback,
   });
 
-  final ProfileRepository profileRepository;
-  final AppPreferencesRepository appPreferencesRepository;
-  final LocalTerminalConfigRepository localConfigRepository;
+  final ProfileRepositoryPort profileRepository;
+  final TerminalConfigRepository localConfigRepository;
   final LocalTerminalConfigLoader localConfigLoader;
-  final LocalConfigFallbackPolicy shouldFallbackToLegacyPreferences;
 
   Future<SessionBootstrapPreparation> prepare({
     String? explicitDefaultProfileId,
   }) async {
-    final profilesDocument = await profileRepository.load();
-    final profiles = profilesDocument.profiles.isEmpty
+    final loadedProfiles = await profileRepository.loadVersioned();
+    final profiles = loadedProfiles.value.profiles.isEmpty
         ? <TerminalProfile>[defaultTerminalProfile()]
-        : profilesDocument.profiles;
+        : loadedProfiles.value.profiles;
     final configBootstrap = await _loadConfig();
     var localConfig = configBootstrap.config;
-    final seededPreferences =
-        LocalTerminalConfigPreferencesAdapter.toAppPreferences(localConfig);
+    final seededPreferences = _preferencesFromCurrentConfig(localConfig);
     final resolution = _resolvePreferences(
       profiles: profiles,
       preferences: seededPreferences,
@@ -65,66 +64,113 @@ class SessionBootstrapService {
     var preferencesLoadedFromDisk =
         configBootstrap.source != LocalTerminalConfigBootstrapSource.defaults;
 
-    if (resolution.shouldRepairWritePreferences) {
-      if (configBootstrap.source ==
-          LocalTerminalConfigBootstrapSource.localConfig) {
-        localConfig = localConfig.copyWith(
-          defaultProfileId: resolution.preferences.defaults.defaultProfileId,
+    var localConfigDocument = VersionedDocument<LocalTerminalConfigDocument>(
+      value: localConfig,
+      revision: configBootstrap.localConfigRevision,
+    );
+    final appPreferencesDocument =
+        VersionedDocument<TerminalAppPreferencesDocument>(
+          value: resolution.preferences,
+          revision: null,
         );
-        await localConfigRepository.save(localConfig);
-      } else {
-        await appPreferencesRepository.save(resolution.preferences);
-      }
+    if (resolution.shouldRepairWritePreferences) {
+      localConfig = localConfig.copyWith(
+        defaultProfileId: resolution.preferences.defaults.defaultProfileId,
+      );
+      localConfigDocument = await localConfigRepository.saveVersioned(
+        localConfigDocument.withValue(localConfig),
+      );
       preferencesLoadedFromDisk = true;
     }
 
     return SessionBootstrapPreparation(
       profiles: profiles,
-      configurationWarnings: profilesDocument.loadWarnings,
+      configurationWarnings: loadedProfiles.value.loadWarnings,
       appPreferences: resolution.preferences,
       localConfig: localConfig,
       configSource: configBootstrap.source,
       preferencesLoadedFromDisk: preferencesLoadedFromDisk,
       effectiveDefaultProfileId: resolution.effectiveDefaultProfileId,
+      profileDocument: loadedProfiles.withValue(
+        TerminalProfilesDocument(
+          schemaVersion: loadedProfiles.value.schemaVersion,
+          profiles: profiles,
+          loadWarnings: loadedProfiles.value.loadWarnings,
+          secretClearIntents: loadedProfiles.value.secretClearIntents,
+        ),
+      ),
+      appPreferencesDocument: appPreferencesDocument,
+      localConfigDocument: localConfigDocument,
     );
   }
 
-  Future<LocalTerminalConfigBootstrapResult> _loadConfig() async {
-    try {
-      return await localConfigLoader.load();
-    } on Object catch (error) {
-      if (!shouldFallbackToLegacyPreferences(error)) {
-        rethrow;
-      }
-      final legacyPreferences = await appPreferencesRepository.load();
-      return LocalTerminalConfigBootstrap.resolve(
-        localConfig: null,
-        legacyAppPreferences: legacyPreferences,
-      );
-    }
-  }
+  Future<LocalTerminalConfigBootstrapResult> _loadConfig() =>
+      localConfigLoader.load();
+}
+
+TerminalAppPreferencesDocument _preferencesFromCurrentConfig(
+  LocalTerminalConfigDocument config,
+) {
+  return TerminalAppPreferencesDocument(
+    defaults: TerminalAppDefaults(defaultProfileId: config.defaultProfileId),
+    appearance: config.appearance,
+    notifications: TerminalAppNotifications(
+      commandFinished: config.notifications.commandFinished,
+      bell: config.notifications.bell,
+      activity: config.notifications.activity,
+    ),
+  );
+}
+
+sealed class SessionBootstrapOutcome {
+  const SessionBootstrapOutcome();
+}
+
+final class SessionBootstrapSuccess extends SessionBootstrapOutcome {
+  const SessionBootstrapSuccess({required this.started});
+
+  final bool started;
+}
+
+final class SessionBootstrapFailure extends SessionBootstrapOutcome {
+  const SessionBootstrapFailure({
+    required this.error,
+    required this.stackTrace,
+    required this.reportedToMountedConsumer,
+  });
+
+  final Object error;
+  final StackTrace stackTrace;
+  final bool reportedToMountedConsumer;
 }
 
 class SessionBootstrapRunner {
   bool _isRunning = false;
 
-  Future<void> run({
+  Future<SessionBootstrapOutcome> run({
     required bool Function() isMounted,
     required void Function() onStarted,
     required Future<void> Function() operation,
     required void Function(Object error, StackTrace stackTrace) onFailed,
   }) async {
     if (_isRunning || !isMounted()) {
-      return;
+      return const SessionBootstrapSuccess(started: false);
     }
     _isRunning = true;
     try {
       onStarted();
       await operation();
+      return const SessionBootstrapSuccess(started: true);
     } on Object catch (error, stackTrace) {
-      if (isMounted()) {
+      final reportedToMountedConsumer = isMounted();
+      if (reportedToMountedConsumer) {
         onFailed(error, stackTrace);
       }
+      return SessionBootstrapFailure(
+        error: error,
+        stackTrace: stackTrace,
+        reportedToMountedConsumer: reportedToMountedConsumer,
+      );
     } finally {
       _isRunning = false;
     }
@@ -197,5 +243,3 @@ class _SessionBootstrapPreferencesResolution {
   final TerminalAppPreferencesDocument preferences;
   final bool shouldRepairWritePreferences;
 }
-
-bool _neverFallback(Object error) => false;

@@ -312,12 +312,16 @@ class _ShellPaneDropTarget {
 
 final shellAnimationsEnabledProvider = Provider<bool>((ref) => true);
 
-final pasteHistoryRepositoryProvider = Provider<PasteHistoryRepository>((ref) {
+final pasteHistoryRepositoryProvider = Provider<PasteHistoryRepositoryPort>((
+  ref,
+) {
   return PasteHistoryRepository();
 });
 
 final instantReplayStoreProvider = Provider<InstantReplayStore>((ref) {
-  return InstantReplayStore();
+  return InstantReplayStore(
+    minimumCaptureInterval: const Duration(milliseconds: 100),
+  );
 });
 
 final passwordManagerStoreProvider = Provider<PasswordManagerStore>((ref) {

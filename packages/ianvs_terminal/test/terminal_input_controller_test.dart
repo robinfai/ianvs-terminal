@@ -11,6 +11,8 @@ import 'package:ianvs_pty/ianvs_pty.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart';
 import 'package:ianvs_terminal/src/terminal/render_terminal_viewport.dart';
 
+import 'support/terminal_frame_from_json.dart';
+
 void main() {
   testWidgets('terminal input controller forwards repeated backspace events', (
     tester,
@@ -1598,7 +1600,7 @@ void main() {
       addTearDown(selectionController.dispose);
       final viewportController = TerminalViewportController()
         ..applySnapshot(
-          TerminalFrameDiff.fromJson(<String, Object?>{
+          terminalFrameFromJson(<String, Object?>{
             ..._singleRowSnapshot(),
             'modes': const <String, Object?>{'focus_tracking': true},
           }),
@@ -1673,14 +1675,14 @@ void main() {
 
     final firstViewportController = TerminalViewportController()
       ..applySnapshot(
-        TerminalFrameDiff.fromJson(<String, Object?>{
+        terminalFrameFromJson(<String, Object?>{
           ..._singleRowSnapshot(),
           'modes': const <String, Object?>{'focus_tracking': true},
         }),
       );
     final secondViewportController = TerminalViewportController()
       ..applySnapshot(
-        TerminalFrameDiff.fromJson(<String, Object?>{
+        terminalFrameFromJson(<String, Object?>{
           ..._singleRowSnapshot(),
           'modes': const <String, Object?>{'focus_tracking': true},
         }),
@@ -1770,7 +1772,7 @@ void main() {
       addTearDown(selectionController.dispose);
       final viewportController = TerminalViewportController()
         ..applySnapshot(
-          TerminalFrameDiff.fromJson(<String, Object?>{
+          terminalFrameFromJson(<String, Object?>{
             ..._singleRowSnapshot(),
             'modes': const <String, Object?>{'focus_tracking': true},
           }),
@@ -2347,7 +2349,7 @@ void main() {
     );
     final viewportController = TerminalViewportController()
       ..applySnapshot(
-        TerminalFrameDiff.fromJson(<String, Object?>{
+        terminalFrameFromJson(<String, Object?>{
           ..._singleRowSnapshot(),
           'modes': const <String, Object?>{
             'mouse_mode': 'normal',
@@ -2424,7 +2426,7 @@ void main() {
 
     TerminalViewportController mouseViewportController() {
       return TerminalViewportController()..applySnapshot(
-        TerminalFrameDiff.fromJson(<String, Object?>{
+        terminalFrameFromJson(<String, Object?>{
           ..._singleRowSnapshot(),
           'modes': const <String, Object?>{
             'mouse_mode': 'normal',
@@ -2531,7 +2533,7 @@ void main() {
     );
     final viewportController = TerminalViewportController()
       ..applySnapshot(
-        TerminalFrameDiff.fromJson(<String, Object?>{
+        terminalFrameFromJson(<String, Object?>{
           ..._singleRowSnapshot(),
           'modes': const <String, Object?>{
             'mouse_mode': 'button_event',
@@ -2613,7 +2615,7 @@ void main() {
     );
     final viewportController = TerminalViewportController()
       ..applySnapshot(
-        TerminalFrameDiff.fromJson(<String, Object?>{
+        terminalFrameFromJson(<String, Object?>{
           ..._singleRowSnapshot(),
           'modes': const <String, Object?>{
             'mouse_mode': 'normal',
@@ -2691,7 +2693,7 @@ void main() {
       );
       final viewportController = TerminalViewportController()
         ..applySnapshot(
-          TerminalFrameDiff.fromJson(<String, Object?>{
+          terminalFrameFromJson(<String, Object?>{
             ..._singleRowSnapshot(),
             'modes': const <String, Object?>{
               'mouse_mode': 'any_event',
@@ -2775,7 +2777,7 @@ void main() {
       );
       final viewportController = TerminalViewportController()
         ..applySnapshot(
-          TerminalFrameDiff.fromJson(<String, Object?>{
+          terminalFrameFromJson(<String, Object?>{
             ..._singleRowSnapshot(),
             'modes': const <String, Object?>{
               'alternate_screen': true,
@@ -2863,7 +2865,7 @@ void main() {
       ),
     );
     final viewportController = TerminalViewportController()
-      ..applySnapshot(TerminalFrameDiff.fromJson(_singleRowSnapshot()));
+      ..applySnapshot(terminalFrameFromJson(_singleRowSnapshot()));
     final inputController = TerminalInputController(
       sessionId: sessionId,
       runtime: runtime,
@@ -2918,7 +2920,7 @@ void main() {
     );
     final viewportController = TerminalViewportController()
       ..applySnapshot(
-        TerminalFrameDiff.fromJson(<String, Object?>{
+        terminalFrameFromJson(<String, Object?>{
           ..._singleRowSnapshot(),
           'modes': const <String, Object?>{'kitty_keyboard_flags': 10},
         }),
@@ -2976,7 +2978,7 @@ void main() {
         ),
       );
       final viewportController = TerminalViewportController()
-        ..applySnapshot(TerminalFrameDiff.fromJson(_singleRowSnapshot()));
+        ..applySnapshot(terminalFrameFromJson(_singleRowSnapshot()));
       final inputController = TerminalInputController(
         sessionId: sessionId,
         runtime: runtime,
@@ -3066,7 +3068,7 @@ void main() {
           ),
         );
         final viewportController = TerminalViewportController()
-          ..applySnapshot(TerminalFrameDiff.fromJson(_singleRowSnapshot()));
+          ..applySnapshot(terminalFrameFromJson(_singleRowSnapshot()));
         var bubbledBackspaces = 0;
         final inputController = TerminalInputController(
           sessionId: sessionId,
@@ -3146,7 +3148,7 @@ void main() {
         );
         final viewportController = TerminalViewportController()
           ..applySnapshot(
-            TerminalFrameDiff.fromJson(<String, Object?>{
+            terminalFrameFromJson(<String, Object?>{
               ..._singleRowSnapshot(),
               'modes': const <String, Object?>{'kitty_keyboard_flags': 10},
             }),
@@ -3228,7 +3230,7 @@ void main() {
           ),
         );
         final viewportController = TerminalViewportController()
-          ..applySnapshot(TerminalFrameDiff.fromJson(_singleRowSnapshot()));
+          ..applySnapshot(terminalFrameFromJson(_singleRowSnapshot()));
         final inputController = TerminalInputController(
           sessionId: sessionId,
           runtime: runtime,
@@ -3309,7 +3311,7 @@ void main() {
         ),
       );
       final viewportController = TerminalViewportController()
-        ..applySnapshot(TerminalFrameDiff.fromJson(_singleRowSnapshot()));
+        ..applySnapshot(terminalFrameFromJson(_singleRowSnapshot()));
       var bubbledBackspaces = 0;
       final inputController = TerminalInputController(
         sessionId: sessionId,
@@ -3386,7 +3388,7 @@ void main() {
           ),
         );
         final viewportController = TerminalViewportController()
-          ..applySnapshot(TerminalFrameDiff.fromJson(_singleRowSnapshot()));
+          ..applySnapshot(terminalFrameFromJson(_singleRowSnapshot()));
         final inputController = TerminalInputController(
           sessionId: sessionId,
           runtime: runtime,
@@ -3471,7 +3473,7 @@ void main() {
           ),
         );
         final viewportController = TerminalViewportController()
-          ..applySnapshot(TerminalFrameDiff.fromJson(_singleRowSnapshot()));
+          ..applySnapshot(terminalFrameFromJson(_singleRowSnapshot()));
         final inputController = TerminalInputController(
           sessionId: sessionId,
           runtime: runtime,
@@ -3687,7 +3689,7 @@ void main() {
           ),
         );
         final viewportController = TerminalViewportController()
-          ..applySnapshot(TerminalFrameDiff.fromJson(_singleRowSnapshot()));
+          ..applySnapshot(terminalFrameFromJson(_singleRowSnapshot()));
         final inputController = TerminalInputController(
           sessionId: sessionId,
           runtime: runtime,
@@ -3785,7 +3787,7 @@ void main() {
         ),
       );
       final viewportController = TerminalViewportController()
-        ..applySnapshot(TerminalFrameDiff.fromJson(_singleRowSnapshot()));
+        ..applySnapshot(terminalFrameFromJson(_singleRowSnapshot()));
       final inputController = TerminalInputController(
         sessionId: sessionId,
         runtime: runtime,
@@ -3891,16 +3893,21 @@ TerminalRuntimeController _runtimeFor(_FakePtyBackend backend) {
   );
 }
 
-class _FakePtyBackend implements PtySessionBackend {
+class _FakePtyBackend
+    implements
+        PtySessionBackend,
+        PtySessionConfigV1Backend,
+        PtySessionFramePacketV1Backend {
   final List<Uint8List> writeCalls = <Uint8List>[];
   final List<(String, Uint8List)> writeSessionCalls = <(String, Uint8List)>[];
   int _nextSessionId = 0;
+  final Map<String, int> _frameSequences = <String, int>{};
 
   @override
   int ping() => 1;
 
   @override
-  String createSession(String sessionConfigJson) {
+  String createSessionV1(String sessionConfigJson) {
     return (++_nextSessionId).toString();
   }
 
@@ -3926,8 +3933,17 @@ class _FakePtyBackend implements PtySessionBackend {
   }) {}
 
   @override
-  String? takeFrameDiffJson(String sessionId) {
-    return jsonEncode(_singleRowSnapshot());
+  Uint8List? takeFramePacketV1Protobuf(
+    String sessionId, {
+    required int? afterSequence,
+  }) {
+    final sequence = (_frameSequences[sessionId] ?? -1) + 1;
+    _frameSequences[sessionId] = sequence;
+    return terminalFramePacketBytes(
+      sessionId: sessionId,
+      sequence: sequence,
+      frame: terminalFrameFromJson(_singleRowSnapshot()),
+    );
   }
 
   @override

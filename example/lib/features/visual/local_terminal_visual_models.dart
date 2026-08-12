@@ -1,5 +1,18 @@
 import 'dart:convert';
 
+const int terminalThemeExportCurrentSchemaVersion = 1;
+
+final class UnsupportedTerminalThemeExportSchemaVersion implements Exception {
+  const UnsupportedTerminalThemeExportSchemaVersion(this.version);
+
+  final Object? version;
+
+  @override
+  String toString() =>
+      'Unsupported terminal theme export schema version: $version; expected '
+      '$terminalThemeExportCurrentSchemaVersion.';
+}
+
 class LocalTerminalColorScheme {
   const LocalTerminalColorScheme({
     required this.background,
@@ -71,7 +84,10 @@ class LocalTerminalThemePreset {
     };
   }
 
-  String encode() => jsonEncode(toJson());
+  String encode() => jsonEncode(<String, Object?>{
+    'schema_version': terminalThemeExportCurrentSchemaVersion,
+    'preset': toJson(),
+  });
 
   static LocalTerminalThemePreset decode(String raw) {
     final decoded = jsonDecode(raw);
@@ -79,7 +95,17 @@ class LocalTerminalThemePreset {
     if (json == null) {
       throw const FormatException('Theme preset JSON must be an object.');
     }
-    return fromJson(json);
+    final version = json['schema_version'];
+    if (version != terminalThemeExportCurrentSchemaVersion) {
+      throw UnsupportedTerminalThemeExportSchemaVersion(version);
+    }
+    final preset = _objectMap(json['preset']);
+    if (preset == null) {
+      throw const FormatException(
+        'Theme preset JSON must contain a preset object.',
+      );
+    }
+    return fromJson(preset);
   }
 
   static LocalTerminalThemePreset fromJson(Map<Object?, Object?> json) {

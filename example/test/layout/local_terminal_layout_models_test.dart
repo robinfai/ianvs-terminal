@@ -138,7 +138,7 @@ void main() {
     });
 
     test('workspace layout normalizes invalid active ids', () {
-      final workspace = TerminalLayout.fromLegacyWorkspaceJson(const {
+      final workspace = _layoutFromCurrentShape(const {
         'activeTabId': 'missing-tab',
         'tabs': [
           {
@@ -170,7 +170,7 @@ void main() {
     });
 
     test('workspace layout trims persisted identifiers', () {
-      final workspace = TerminalLayout.fromLegacyWorkspaceJson(const {
+      final workspace = _layoutFromCurrentShape(const {
         'activeTabId': ' tab-1 ',
         'tabs': [
           {
@@ -277,7 +277,7 @@ void main() {
     });
 
     test('workspace layout skips malformed tabs and panes', () {
-      final workspace = TerminalLayout.fromLegacyWorkspaceJson(const {
+      final workspace = _layoutFromCurrentShape(const {
         'activeTabId': 'missing-tab',
         'tabs': [
           {
@@ -341,7 +341,7 @@ void main() {
     });
 
     test('workspace layout collapses malformed split children', () {
-      final workspace = TerminalLayout.fromLegacyWorkspaceJson(const {
+      final workspace = _layoutFromCurrentShape(const {
         'activeTabId': 'tab-1',
         'tabs': [
           {
@@ -375,7 +375,7 @@ void main() {
     });
 
     test('workspace layout skips malformed closed panes before reopen', () {
-      final workspace = TerminalLayout.fromLegacyWorkspaceJson(const {
+      final workspace = _layoutFromCurrentShape(const {
         'activeTabId': 'tab-1',
         'tabs': [
           {
@@ -414,7 +414,7 @@ void main() {
     test('workspace layout limits persisted closed history scans', () {
       const tooManyMalformedClosedTabs = maxTerminalLayoutClosedTabs * 4 + 1;
       const tooManyMalformedClosedPanes = maxTerminalLayoutClosedPanes * 4 + 1;
-      final workspace = TerminalLayout.fromLegacyWorkspaceJson({
+      final workspace = _layoutFromCurrentShape({
         'activeTabId': 'tab-1',
         'tabs': [
           {
@@ -444,7 +444,7 @@ void main() {
     });
 
     test('workspace layout limits persisted split child scans', () {
-      final workspace = TerminalLayout.fromLegacyWorkspaceJson({
+      final workspace = _layoutFromCurrentShape({
         'activeTabId': 'tab-1',
         'tabs': [
           {
@@ -500,7 +500,7 @@ void main() {
     });
 
     test('workspace layout skips duplicate and blank tab ids', () {
-      final workspace = TerminalLayout.fromLegacyWorkspaceJson(const {
+      final workspace = _layoutFromCurrentShape(const {
         'activeTabId': 'tab-1',
         'tabs': [
           {
@@ -585,16 +585,14 @@ void main() {
 
     test('workspace layout rejects remote-only fields', () {
       expect(
-        () => TerminalLayout.fromLegacyWorkspaceJson(const {
-          'tabs': [],
-          'remoteDomain': 'prod',
-        }),
+        () =>
+            _layoutFromCurrentShape(const {'tabs': [], 'remoteDomain': 'prod'}),
         throwsFormatException,
       );
     });
 
     test('workspace layout clamps persisted split ratios', () {
-      final workspace = TerminalLayout.fromLegacyWorkspaceJson(const {
+      final workspace = _layoutFromCurrentShape(const {
         'tabs': [
           {
             'id': 'tab-1',
@@ -624,7 +622,7 @@ void main() {
     });
 
     test('workspace layout normalizes persisted split direction', () {
-      final workspace = TerminalLayout.fromLegacyWorkspaceJson(const {
+      final workspace = _layoutFromCurrentShape(const {
         'tabs': [
           {
             'id': 'tab-1',
@@ -843,4 +841,33 @@ Map<String, Object?> _leafJson(String paneId) {
     'type': 'leaf',
     'sessionIntent': {'profileId': 'default'},
   };
+}
+
+TerminalLayout _layoutFromCurrentShape(Map<String, Object?> shape) {
+  final current = _currentLayoutValue(shape)! as Map<String, Object?>;
+  current['schemaVersion'] = currentTerminalLayoutSchemaVersion;
+  current['contract'] = terminalLayoutContract;
+  return TerminalLayout.fromJson(current);
+}
+
+Object? _currentLayoutValue(Object? value) {
+  if (value is List) {
+    return value.map(_currentLayoutValue).toList(growable: false);
+  }
+  if (value is! Map) {
+    return value;
+  }
+  final current = <String, Object?>{
+    for (final entry in value.entries)
+      entry.key.toString(): _currentLayoutValue(entry.value),
+  };
+  final intent = current.remove('sessionIntent');
+  if (intent case Map<String, Object?>()) {
+    current['relaunchSpec'] = <String, Object?>{
+      'schemaVersion': currentTerminalRelaunchSpecVersion,
+      'contract': terminalRelaunchSpecContract,
+      ...intent,
+    };
+  }
+  return current;
 }
