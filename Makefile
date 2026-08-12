@@ -123,8 +123,23 @@ install: install-macos
 
 install-macos: sign-macos ## Build, sign, and install the app into INSTALL_DIR.
 	@test -d "$(INSTALL_DIR)" || { printf 'Missing install directory: %s\n' "$(INSTALL_DIR)" >&2; exit 1; }
-	ditto --rsrc --extattr "$(APP_BUNDLE)" "$(INSTALLED_APP)"
-	codesign --verify --deep --strict "$(INSTALLED_APP)"
+	@set -euo pipefail; \
+		stage="$$(mktemp -d "$(INSTALL_DIR)/.ianvs-terminal-install.XXXXXX")"; \
+		staged_app="$$stage/$(APP_NAME).app"; \
+		previous_app="$$stage/previous.app"; \
+		cleanup() { rm -rf "$$stage"; }; \
+		trap cleanup EXIT; \
+		ditto --rsrc --extattr "$(APP_BUNDLE)" "$$staged_app"; \
+		codesign --verify --deep --strict "$$staged_app"; \
+		if test -e "$(INSTALLED_APP)"; then \
+			mv "$(INSTALLED_APP)" "$$previous_app"; \
+		fi; \
+		if ! mv "$$staged_app" "$(INSTALLED_APP)" || \
+		   ! codesign --verify --deep --strict "$(INSTALLED_APP)"; then \
+			rm -rf "$(INSTALLED_APP)"; \
+			if test -e "$$previous_app"; then mv "$$previous_app" "$(INSTALLED_APP)"; fi; \
+			exit 1; \
+		fi
 	@printf 'Installed: %s\n' "$(INSTALLED_APP)"
 
 build-install-macos: install-macos
