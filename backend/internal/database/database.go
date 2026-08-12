@@ -4,12 +4,15 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log"
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -26,58 +29,223 @@ import (
 
 // CurrentSchemaVersion is the latest durable database schema understood by
 // this backend binary.
-const CurrentSchemaVersion uint = 2
+const CurrentSchemaVersion uint = 1
 
 const (
-	mysqlMigrationLockTimeout = 15 * time.Second
-	sqliteBusyTimeout         = 5 * time.Second
-	sqliteMigrationAttempts   = 4
+	currentMetadataFormatVersion uint = 1
+	schemaStateInitializing           = "initializing"
+	schemaStateReady                  = "ready"
+	mysqlMigrationLockTimeout         = 15 * time.Second
+	sqliteBusyTimeout                 = 5 * time.Second
+	sqliteMigrationAttempts           = 4
+	mysqlTableOptions                 = "ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin"
+	mysqlTableEngine                  = "InnoDB"
+	mysqlCharacterSet                 = "utf8mb4"
+	mysqlTableCollation               = "utf8mb4_bin"
 )
 
-type schemaMigration struct {
-	Version   uint      `gorm:"primaryKey;autoIncrement:false"`
-	AppliedAt time.Time `gorm:"not null"`
+type schemaMetadata struct {
+	ID            uint      `gorm:"primaryKey;autoIncrement:false"`
+	FormatVersion uint      `gorm:"not null"`
+	SchemaVersion uint      `gorm:"not null"`
+	ContractID    string    `gorm:"size:64;not null"`
+	State         string    `gorm:"size:16;not null"`
+	NextTable     uint      `gorm:"not null"`
+	InitializedAt time.Time `gorm:"not null"`
+	ReadyAt       *time.Time
 }
 
-func (schemaMigration) TableName() string { return "schema_migrations" }
+func (schemaMetadata) TableName() string { return "schema_metadata" }
 
-var schemaMigrations = []struct {
-	version uint
-	apply   func(*gorm.DB) error
-}{
+type columnContract struct {
+	name       string
+	kind       string
+	logicalMax int64
+	nullable   bool
+	primaryKey bool
+	autoSQLite bool
+	autoMySQL  bool
+}
+
+type indexContract struct {
+	columns []string
+	unique  bool
+}
+
+type mysqlIndexColumn struct {
+	IndexName  string         `gorm:"column:index_name"`
+	NonUnique  int64          `gorm:"column:non_unique"`
+	Sequence   int64          `gorm:"column:seq_in_index"`
+	ColumnName sql.NullString `gorm:"column:column_name"`
+	Collation  sql.NullString `gorm:"column:collation"`
+	SubPart    sql.NullInt64  `gorm:"column:sub_part"`
+	IndexType  string         `gorm:"column:index_type"`
+	Expression sql.NullString `gorm:"column:expression"`
+}
+
+type mysqlColumnStorage struct {
+	ColumnType           string         `gorm:"column:column_type"`
+	CharacterSet         sql.NullString `gorm:"column:character_set_name"`
+	Collation            sql.NullString `gorm:"column:collation_name"`
+	DefaultValue         sql.NullString `gorm:"column:column_default"`
+	Extra                string         `gorm:"column:extra"`
+	GenerationExpression string         `gorm:"column:generation_expression"`
+}
+
+type mysqlTableStorage struct {
+	Engine    sql.NullString `gorm:"column:engine"`
+	Collation sql.NullString `gorm:"column:table_collation"`
+}
+
+type mysqlTableConstraint struct {
+	Name string `gorm:"column:constraint_name"`
+	Type string `gorm:"column:constraint_type"`
+}
+
+type sqliteIndex struct {
+	Sequence int64  `gorm:"column:seq"`
+	Name     string `gorm:"column:name"`
+	Unique   int64  `gorm:"column:unique"`
+	Origin   string `gorm:"column:origin"`
+	Partial  int64  `gorm:"column:partial"`
+}
+
+type sqliteIndexColumn struct {
+	Sequence int64          `gorm:"column:seqno"`
+	CID      int64          `gorm:"column:cid"`
+	Name     sql.NullString `gorm:"column:name"`
+	Desc     int64          `gorm:"column:desc"`
+	Coll     sql.NullString `gorm:"column:coll"`
+	Key      int64          `gorm:"column:key"`
+}
+
+type sqliteTableColumn struct {
+	Name         string         `gorm:"column:name"`
+	DefaultValue sql.NullString `gorm:"column:dflt_value"`
+	Hidden       int64          `gorm:"column:hidden"`
+}
+
+var sqliteCheckConstraintPattern = regexp.MustCompile(`(?i)\bCHECK\s*\(`)
+
+type tableContract struct {
+	name    string
+	model   any
+	columns []columnContract
+	indexes map[string]indexContract
+}
+
+var metadataTableContract = tableContract{
+	name:  "schema_metadata",
+	model: &schemaMetadata{},
+	columns: []columnContract{
+		{name: "id", kind: "integer", primaryKey: true},
+		{name: "format_version", kind: "integer"},
+		{name: "schema_version", kind: "integer"},
+		{name: "contract_id", kind: "string", logicalMax: 64},
+		{name: "state", kind: "string", logicalMax: 16},
+		{name: "next_table", kind: "integer"},
+		{name: "initialized_at", kind: "datetime"},
+		{name: "ready_at", kind: "datetime", nullable: true},
+	},
+}
+
+var currentTableContracts = []tableContract{
 	{
-		version: 1,
-		apply: func(db *gorm.DB) error {
-			return db.AutoMigrate(
-				&model.User{},
-				&authTokenV1{},
-				&model.Resource{},
-				&model.Setting{},
-			)
+		name:  "users",
+		model: &model.User{},
+		columns: []columnContract{
+			{name: "id", kind: "string", logicalMax: 36, primaryKey: true},
+			{name: "username", kind: "string", logicalMax: 191},
+			{name: "password_hash", kind: "string", logicalMax: 255, nullable: true},
+			{name: "key_derivation", kind: "string", logicalMax: 64, nullable: true},
+			{name: "key_salt", kind: "string", logicalMax: 255, nullable: true},
+			{name: "key_verifier", kind: "string", logicalMax: 255, nullable: true},
+			{name: "created_at", kind: "datetime"},
+			{name: "updated_at", kind: "datetime"},
+		},
+		indexes: map[string]indexContract{
+			"idx_users_username": {columns: []string{"username"}, unique: true},
 		},
 	},
 	{
-		version: 2,
-		apply: func(db *gorm.DB) error {
-			return db.AutoMigrate(
-				&model.AuthToken{},
-				&model.AuthOperation{},
-			)
+		name:  "auth_operations",
+		model: &model.AuthOperation{},
+		columns: []columnContract{
+			{name: "operation_hash", kind: "string", logicalMax: 64, primaryKey: true},
+			{name: "kind", kind: "string", logicalMax: 16},
+			{name: "state", kind: "string", logicalMax: 16},
+			{name: "user_id", kind: "string", logicalMax: 36, nullable: true},
+			{name: "expires_at", kind: "datetime"},
+			{name: "created_at", kind: "datetime"},
+			{name: "updated_at", kind: "datetime"},
+		},
+		indexes: map[string]indexContract{
+			"idx_auth_operations_user_id":    {columns: []string{"user_id"}},
+			"idx_auth_operations_expires_at": {columns: []string{"expires_at"}},
+		},
+	},
+	{
+		name:  "auth_tokens",
+		model: &model.AuthToken{},
+		columns: []columnContract{
+			{name: "id", kind: "string", logicalMax: 36, primaryKey: true},
+			{name: "user_id", kind: "string", logicalMax: 36},
+			{name: "token_hash", kind: "string", logicalMax: 64},
+			{name: "operation_hash", kind: "string", logicalMax: 64},
+			{name: "expires_at", kind: "datetime"},
+			{name: "created_at", kind: "datetime"},
+		},
+		indexes: map[string]indexContract{
+			"idx_auth_tokens_user_id":        {columns: []string{"user_id"}},
+			"idx_auth_tokens_token_hash":     {columns: []string{"token_hash"}, unique: true},
+			"idx_auth_tokens_operation_hash": {columns: []string{"operation_hash"}, unique: true},
+			"idx_auth_tokens_expires_at":     {columns: []string{"expires_at"}},
+		},
+	},
+	{
+		name:  "resources",
+		model: &model.Resource{},
+		columns: []columnContract{
+			{name: "id", kind: "string", logicalMax: 36, primaryKey: true},
+			{name: "user_id", kind: "string", logicalMax: 36},
+			{name: "kind", kind: "string", logicalMax: 64},
+			{name: "external_id", kind: "string", logicalMax: 191},
+			{name: "plain_json", kind: "string", logicalMax: 4194304},
+			{name: "sensitive_ciphertext", kind: "string", logicalMax: 6291456, nullable: true},
+			{name: "sensitive_format", kind: "string", logicalMax: 64, nullable: true},
+			{name: "revision", kind: "integer"},
+			{name: "source_id", kind: "string", logicalMax: 64, nullable: true},
+			{name: "source_revision", kind: "integer"},
+			{name: "origin_updated_at", kind: "datetime"},
+			{name: "deleted", kind: "boolean"},
+			{name: "deleted_at", kind: "datetime", nullable: true},
+			{name: "created_at", kind: "datetime"},
+			{name: "updated_at", kind: "datetime"},
+		},
+		indexes: map[string]indexContract{
+			"idx_resource_owner_key":          {columns: []string{"user_id", "kind", "external_id"}, unique: true},
+			"idx_resources_user_id":           {columns: []string{"user_id"}},
+			"idx_resources_kind":              {columns: []string{"kind"}},
+			"idx_resources_origin_updated_at": {columns: []string{"origin_updated_at"}},
+			"idx_resources_deleted":           {columns: []string{"deleted"}},
+			"idx_resources_deleted_at":        {columns: []string{"deleted_at"}},
+		},
+	},
+	{
+		name:  "settings",
+		model: &model.Setting{},
+		columns: []columnContract{
+			{name: "key", kind: "string", logicalMax: 191, primaryKey: true},
+			{name: "value", kind: "string", logicalMax: 4194304},
+			{name: "created_at", kind: "datetime"},
+			{name: "updated_at", kind: "datetime"},
 		},
 	},
 }
 
-// authTokenV1 freezes the version-1 table shape so rebuilding an unversioned
-// database still applies each durable migration in order.
-type authTokenV1 struct {
-	ID        string    `gorm:"primaryKey;size:36"`
-	UserID    string    `gorm:"index;size:36;not null"`
-	TokenHash string    `gorm:"uniqueIndex;size:64;not null"`
-	ExpiresAt time.Time `gorm:"index;not null"`
-	CreatedAt time.Time `gorm:"not null"`
-}
-
-func (authTokenV1) TableName() string { return "auth_tokens" }
+// bootstrapStepHook is nil in product builds and gives package tests a precise
+// failure point around non-transactional DDL.
+var bootstrapStepHook func(string) error
 
 func Open(cfg config.Config) (*gorm.DB, error) {
 	var dialector gorm.Dialector
@@ -230,7 +398,7 @@ func migrateMySQL(db *gorm.DB) error {
 		}()
 
 		// MySQL DDL implicitly commits. The named lock serializes instances, and
-		// each idempotent migration writes its ledger row only after DDL succeeds.
+		// the fresh bootstrap writes its metadata only after DDL succeeds.
 		return migrateOnce(connection.WithContext(context.Background()))
 	})
 }
@@ -306,72 +474,776 @@ func migrateSQLiteOnce(connection *gorm.DB) (migrationErr error) {
 }
 
 func migrateOnce(db *gorm.DB) error {
-	if err := db.AutoMigrate(&schemaMigration{}); err != nil {
-		return fmt.Errorf("create schema migration ledger: %w", err)
+	if !db.Migrator().HasTable(&schemaMetadata{}) {
+		tables, err := db.Migrator().GetTables()
+		if err != nil {
+			return fmt.Errorf("inspect database before current schema bootstrap: %w", err)
+		}
+		if len(tables) != 0 {
+			return errors.New("database is not empty and has no current schema metadata; clear the unreleased data before starting this backend")
+		}
+		if err := createCurrentTable(db, &schemaMetadata{}); err != nil {
+			return fmt.Errorf("create current schema metadata table: %w", err)
+		}
+		if err := runBootstrapStepHook("after-metadata-table"); err != nil {
+			return err
+		}
 	}
-	latestVersion, err := readAndValidateSchemaVersion(db)
+	if err := validateTable(db, metadataTableContract); err != nil {
+		return fmt.Errorf("validate current schema metadata table: %w", err)
+	}
+	metadata, err := loadOrBeginCurrentBootstrap(db)
 	if err != nil {
 		return err
 	}
-	for _, migration := range schemaMigrations {
-		if migration.version <= latestVersion {
-			continue
+	switch metadata.State {
+	case schemaStateInitializing:
+		return resumeCurrentBootstrap(db, metadata)
+	case schemaStateReady:
+		if metadata.NextTable != uint(len(currentTableContracts)) || metadata.ReadyAt == nil {
+			return errors.New("ready current schema metadata has invalid progress")
 		}
-		apply := func(tx *gorm.DB) error {
-			if err := migration.apply(tx); err != nil {
-				return err
-			}
-			return tx.Create(&schemaMigration{
-				Version:   migration.version,
-				AppliedAt: time.Now().UTC(),
-			}).Error
-		}
-		// SQLite's caller holds one outer transaction. MySQL's caller holds its
-		// advisory lock because MySQL DDL cannot be transactionally rolled back.
-		if err := apply(db); err != nil {
-			return fmt.Errorf("apply database schema migration %d: %w", migration.version, err)
-		}
-		latestVersion = migration.version
+		return validateCurrentSchema(db)
+	default:
+		return fmt.Errorf("unsupported current schema state %q", metadata.State)
 	}
-	finalVersion, err := readAndValidateSchemaVersion(db)
-	if err != nil {
-		return err
+}
+
+func loadOrBeginCurrentBootstrap(db *gorm.DB) (schemaMetadata, error) {
+	var count int64
+	if err := db.Model(&schemaMetadata{}).Count(&count).Error; err != nil {
+		return schemaMetadata{}, fmt.Errorf("count current schema metadata rows: %w", err)
 	}
-	if finalVersion != CurrentSchemaVersion {
+	if count > 1 {
+		return schemaMetadata{}, fmt.Errorf("database must contain at most one current schema metadata row, found %d", count)
+	}
+	if count == 0 {
+		if err := validateExactTableSet(db, map[string]bool{metadataTableContract.name: true}); err != nil {
+			return schemaMetadata{}, fmt.Errorf("recover empty current schema metadata: %w", err)
+		}
+		metadata := schemaMetadata{
+			ID:            1,
+			FormatVersion: currentMetadataFormatVersion,
+			SchemaVersion: CurrentSchemaVersion,
+			ContractID:    CurrentSchemaContractID(),
+			State:         schemaStateInitializing,
+			NextTable:     0,
+			InitializedAt: time.Now().UTC(),
+		}
+		if err := db.Create(&metadata).Error; err != nil {
+			return schemaMetadata{}, fmt.Errorf("begin current schema bootstrap: %w", err)
+		}
+		if err := runBootstrapStepHook("after-metadata-record"); err != nil {
+			return schemaMetadata{}, err
+		}
+		return metadata, nil
+	}
+	var metadata schemaMetadata
+	if err := db.Where("id = ?", 1).First(&metadata).Error; err != nil {
+		return schemaMetadata{}, fmt.Errorf("read current schema metadata: %w", err)
+	}
+	if err := validateCurrentMetadata(metadata); err != nil {
+		return schemaMetadata{}, err
+	}
+	return metadata, nil
+}
+
+func validateCurrentMetadata(metadata schemaMetadata) error {
+	if metadata.FormatVersion != currentMetadataFormatVersion {
 		return fmt.Errorf(
-			"database schema migration incomplete: reached version %d, expected %d",
-			finalVersion,
+			"unsupported schema metadata format %d; expected %d",
+			metadata.FormatVersion,
+			currentMetadataFormatVersion,
+		)
+	}
+	if metadata.SchemaVersion > CurrentSchemaVersion {
+		return fmt.Errorf(
+			"database schema version %d is newer than supported version %d",
+			metadata.SchemaVersion,
 			CurrentSchemaVersion,
 		)
+	}
+	if metadata.SchemaVersion != CurrentSchemaVersion || metadata.ContractID != CurrentSchemaContractID() {
+		return errors.New("database metadata does not match the current schema contract; clear the unreleased data before starting this backend")
+	}
+	if metadata.NextTable > uint(len(currentTableContracts)) {
+		return fmt.Errorf("current schema bootstrap progress %d is out of range", metadata.NextTable)
+	}
+	if metadata.State == schemaStateInitializing && metadata.ReadyAt != nil {
+		return errors.New("initializing current schema metadata must not have ready_at")
 	}
 	return nil
 }
 
-func readAndValidateSchemaVersion(db *gorm.DB) (uint, error) {
-	var latest schemaMigration
-	err := db.Order("version DESC").First(&latest).Error
-	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-		return 0, fmt.Errorf("read schema migration ledger: %w", err)
+func resumeCurrentBootstrap(db *gorm.DB, metadata schemaMetadata) error {
+	if metadata.ReadyAt != nil {
+		return errors.New("initializing current schema metadata must not have ready_at")
 	}
-	if latest.Version > CurrentSchemaVersion {
-		return 0, fmt.Errorf(
-			"database schema version %d is newer than supported version %d",
-			latest.Version,
-			CurrentSchemaVersion,
-		)
+	allowedTables := map[string]bool{metadataTableContract.name: true}
+	for index, contract := range currentTableContracts {
+		if uint(index) <= metadata.NextTable {
+			allowedTables[contract.name] = true
+		}
 	}
-	return latest.Version, nil
+	tables, err := db.Migrator().GetTables()
+	if err != nil {
+		return fmt.Errorf("inspect initializing current schema tables: %w", err)
+	}
+	for _, table := range tables {
+		if !allowedTables[strings.ToLower(table)] {
+			return fmt.Errorf("initializing current schema contains unexpected future or foreign table %q", table)
+		}
+	}
+	for tableIndex, contract := range currentTableContracts {
+		index := uint(tableIndex)
+		exists := db.Migrator().HasTable(contract.model)
+		switch {
+		case index < metadata.NextTable:
+			if !exists {
+				return fmt.Errorf("initializing current schema is missing completed table %q", contract.name)
+			}
+			if err := validateTable(db, contract); err != nil {
+				return fmt.Errorf("validate completed current table %q: %w", contract.name, err)
+			}
+		case index == metadata.NextTable:
+			if !exists {
+				if err := createCurrentTable(db, contract.model); err != nil {
+					return fmt.Errorf("create current schema table %q: %w", contract.name, err)
+				}
+				if err := runBootstrapStepHook("after-create:" + contract.name); err != nil {
+					return err
+				}
+			}
+			if err := validateTable(db, contract); err != nil {
+				return fmt.Errorf("validate newly created current table %q: %w", contract.name, err)
+			}
+			result := db.Model(&schemaMetadata{}).
+				Where("id = ? AND state = ? AND next_table = ?", 1, schemaStateInitializing, index).
+				Update("next_table", index+1)
+			if result.Error != nil {
+				return fmt.Errorf("advance current schema bootstrap after %q: %w", contract.name, result.Error)
+			}
+			if result.RowsAffected != 1 {
+				return fmt.Errorf("advance current schema bootstrap after %q: metadata changed unexpectedly", contract.name)
+			}
+			metadata.NextTable = index + 1
+		case exists:
+			return fmt.Errorf("initializing current schema contains unexpected future table %q", contract.name)
+		}
+	}
+	if err := validateCurrentSchema(db); err != nil {
+		return err
+	}
+	readyAt := time.Now().UTC()
+	result := db.Model(&schemaMetadata{}).
+		Where(
+			"id = ? AND state = ? AND next_table = ?",
+			1,
+			schemaStateInitializing,
+			len(currentTableContracts),
+		).
+		Updates(map[string]any{"state": schemaStateReady, "ready_at": readyAt})
+	if result.Error != nil {
+		return fmt.Errorf("mark current schema ready: %w", result.Error)
+	}
+	if result.RowsAffected != 1 {
+		return errors.New("mark current schema ready: metadata changed unexpectedly")
+	}
+	return nil
+}
+
+func validateCurrentSchema(db *gorm.DB) error {
+	expectedTables := map[string]bool{metadataTableContract.name: true}
+	if err := validateTable(db, metadataTableContract); err != nil {
+		return fmt.Errorf("validate current metadata table: %w", err)
+	}
+	for _, contract := range currentTableContracts {
+		expectedTables[contract.name] = true
+		if err := validateTable(db, contract); err != nil {
+			return fmt.Errorf("validate current table %q: %w", contract.name, err)
+		}
+	}
+	return validateExactTableSet(db, expectedTables)
+}
+
+func validateTable(db *gorm.DB, contract tableContract) error {
+	if !db.Migrator().HasTable(contract.model) {
+		return errors.New("table is missing")
+	}
+	if db.Dialector.Name() == "mysql" {
+		if err := validateMySQLTableStructure(db, contract); err != nil {
+			return err
+		}
+	}
+	columns, err := db.Migrator().ColumnTypes(contract.model)
+	if err != nil {
+		return fmt.Errorf("inspect columns: %w", err)
+	}
+	actualColumns := make(map[string]gorm.ColumnType, len(columns))
+	for _, column := range columns {
+		actualColumns[strings.ToLower(column.Name())] = column
+	}
+	if len(actualColumns) != len(contract.columns) {
+		return fmt.Errorf("column count %d does not match current contract %d", len(actualColumns), len(contract.columns))
+	}
+	for _, expected := range contract.columns {
+		actual, found := actualColumns[expected.name]
+		if !found {
+			return fmt.Errorf("column %q is missing", expected.name)
+		}
+		primary, known := actual.PrimaryKey()
+		if !known || primary != expected.primaryKey {
+			return fmt.Errorf("column %q primary-key constraint does not match current contract", expected.name)
+		}
+		if !expected.primaryKey {
+			nullable, known := actual.Nullable()
+			if !known || nullable != expected.nullable {
+				return fmt.Errorf("column %q nullability does not match current contract", expected.name)
+			}
+		}
+		if err := validateColumnStorage(db, contract.name, actual, expected); err != nil {
+			return fmt.Errorf("column %q storage does not match current contract: %w", expected.name, err)
+		}
+	}
+	if db.Dialector.Name() == "sqlite" {
+		var definition string
+		if err := db.Raw(
+			"SELECT sql FROM sqlite_master WHERE type = ? AND name = ?",
+			"table",
+			contract.name,
+		).Scan(&definition).Error; err != nil {
+			return fmt.Errorf("inspect SQLite table definition: %w", err)
+		}
+		expectsAuto := false
+		for _, column := range contract.columns {
+			expectsAuto = expectsAuto || column.autoSQLite
+		}
+		if strings.Contains(strings.ToUpper(definition), "AUTOINCREMENT") != expectsAuto {
+			return errors.New("SQLite AUTOINCREMENT contract does not match")
+		}
+		if err := validateSQLiteTableStructure(db, contract, definition); err != nil {
+			return err
+		}
+	}
+	if db.Dialector.Name() == "mysql" {
+		return validateMySQLIndexes(db, contract)
+	}
+	if db.Dialector.Name() == "sqlite" {
+		return validateSQLiteIndexes(db, contract)
+	}
+	return validateMigratorIndexes(db, contract)
+}
+
+func createCurrentTable(db *gorm.DB, model any) error {
+	if db.Dialector.Name() == "mysql" {
+		return db.Set("gorm:table_options", mysqlTableOptions).Migrator().CreateTable(model)
+	}
+	return db.Migrator().CreateTable(model)
+}
+
+func validateMySQLTableStructure(db *gorm.DB, contract tableContract) error {
+	table := contract.name
+	var storage mysqlTableStorage
+	if err := db.Raw(
+		`SELECT ENGINE AS engine, TABLE_COLLATION AS table_collation
+		   FROM information_schema.TABLES
+		  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`,
+		table,
+	).Scan(&storage).Error; err != nil {
+		return fmt.Errorf("inspect MySQL table storage: %w", err)
+	}
+	if !storage.Engine.Valid || !strings.EqualFold(storage.Engine.String, mysqlTableEngine) {
+		return fmt.Errorf("MySQL table engine %q does not equal %q", storage.Engine.String, mysqlTableEngine)
+	}
+	if !storage.Collation.Valid || !strings.EqualFold(storage.Collation.String, mysqlTableCollation) {
+		return fmt.Errorf("MySQL table collation %q does not equal %q", storage.Collation.String, mysqlTableCollation)
+	}
+	var triggerCount int64
+	if err := db.Raw(
+		`SELECT COUNT(*) FROM information_schema.TRIGGERS
+		  WHERE TRIGGER_SCHEMA = DATABASE() AND EVENT_OBJECT_TABLE = ?`,
+		table,
+	).Scan(&triggerCount).Error; err != nil {
+		return fmt.Errorf("inspect MySQL triggers: %w", err)
+	}
+	if triggerCount != 0 {
+		return fmt.Errorf("MySQL table has %d forbidden trigger(s)", triggerCount)
+	}
+	var constraints []mysqlTableConstraint
+	if err := db.Raw(
+		`SELECT CONSTRAINT_NAME AS constraint_name, CONSTRAINT_TYPE AS constraint_type
+		   FROM information_schema.TABLE_CONSTRAINTS
+		  WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = ?
+		  ORDER BY CONSTRAINT_NAME`,
+		table,
+	).Scan(&constraints).Error; err != nil {
+		return fmt.Errorf("inspect MySQL table constraints: %w", err)
+	}
+	expected := map[string]string{"primary": "PRIMARY KEY"}
+	for name, index := range contract.indexes {
+		if index.unique {
+			expected[name] = "UNIQUE"
+		}
+	}
+	for _, constraint := range constraints {
+		name := strings.ToLower(constraint.Name)
+		want, found := expected[name]
+		if !found || !strings.EqualFold(constraint.Type, want) {
+			return fmt.Errorf("MySQL constraint %q type %q is not part of the current contract", constraint.Name, constraint.Type)
+		}
+		delete(expected, name)
+	}
+	if len(expected) != 0 {
+		return errors.New("MySQL constraint set does not match current contract")
+	}
+	return nil
+}
+
+func validateSQLiteTableStructure(db *gorm.DB, contract tableContract, definition string) error {
+	var columns []sqliteTableColumn
+	if err := db.Raw(
+		"SELECT name, dflt_value, hidden FROM pragma_table_xinfo(?) ORDER BY cid",
+		contract.name,
+	).Scan(&columns).Error; err != nil {
+		return fmt.Errorf("inspect SQLite extended columns: %w", err)
+	}
+	if len(columns) != len(contract.columns) {
+		return fmt.Errorf("SQLite extended column count %d does not match current contract %d", len(columns), len(contract.columns))
+	}
+	for index, column := range columns {
+		if !strings.EqualFold(column.Name, contract.columns[index].name) {
+			return fmt.Errorf("SQLite extended column %d does not match current contract", index+1)
+		}
+		if column.DefaultValue.Valid {
+			return fmt.Errorf("SQLite column %q has a forbidden default", column.Name)
+		}
+		if column.Hidden != 0 {
+			return fmt.Errorf("SQLite column %q is hidden or generated", column.Name)
+		}
+	}
+	var foreignKeyCount int64
+	if err := db.Raw("SELECT COUNT(*) FROM pragma_foreign_key_list(?)", contract.name).Scan(&foreignKeyCount).Error; err != nil {
+		return fmt.Errorf("inspect SQLite foreign keys: %w", err)
+	}
+	if foreignKeyCount != 0 {
+		return fmt.Errorf("SQLite table has %d forbidden foreign key(s)", foreignKeyCount)
+	}
+	var triggerCount int64
+	if err := db.Raw(
+		"SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger' AND tbl_name = ?",
+		contract.name,
+	).Scan(&triggerCount).Error; err != nil {
+		return fmt.Errorf("inspect SQLite triggers: %w", err)
+	}
+	if triggerCount != 0 {
+		return fmt.Errorf("SQLite table has %d forbidden trigger(s)", triggerCount)
+	}
+	if sqliteCheckConstraintPattern.MatchString(definition) {
+		return errors.New("SQLite table has a forbidden CHECK constraint")
+	}
+	return nil
+}
+
+func validateMigratorIndexes(db *gorm.DB, contract tableContract) error {
+	indexes, err := db.Migrator().GetIndexes(contract.model)
+	if err != nil {
+		return fmt.Errorf("inspect indexes: %w", err)
+	}
+	actualIndexes := make(map[string]gorm.Index)
+	for _, index := range indexes {
+		primary, known := index.PrimaryKey()
+		if known && primary {
+			continue
+		}
+		actualIndexes[strings.ToLower(index.Name())] = index
+	}
+	if len(actualIndexes) != len(contract.indexes) {
+		return fmt.Errorf("index count %d does not match current contract %d", len(actualIndexes), len(contract.indexes))
+	}
+	for name, expected := range contract.indexes {
+		actual, found := actualIndexes[name]
+		if !found {
+			return fmt.Errorf("index %q is missing", name)
+		}
+		if !equalFoldedStrings(actual.Columns(), expected.columns) {
+			return fmt.Errorf("index %q columns do not match current contract", name)
+		}
+		unique, known := actual.Unique()
+		if !known || unique != expected.unique {
+			return fmt.Errorf("index %q uniqueness does not match current contract", name)
+		}
+	}
+	return nil
+}
+
+func validateMySQLIndexes(db *gorm.DB, contract tableContract) error {
+	var rows []mysqlIndexColumn
+	if err := db.Raw(
+		`SELECT INDEX_NAME AS index_name,
+		        NON_UNIQUE AS non_unique,
+		        SEQ_IN_INDEX AS seq_in_index,
+		        COLUMN_NAME AS column_name,
+		        COLLATION AS collation,
+		        SUB_PART AS sub_part,
+		        INDEX_TYPE AS index_type,
+		        EXPRESSION AS expression
+		   FROM information_schema.STATISTICS
+		  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?
+		  ORDER BY INDEX_NAME, SEQ_IN_INDEX`,
+		contract.name,
+	).Scan(&rows).Error; err != nil {
+		return fmt.Errorf("inspect MySQL concrete indexes: %w", err)
+	}
+
+	expectedIndexes := make(map[string]indexContract, len(contract.indexes)+1)
+	for name, expected := range contract.indexes {
+		expectedIndexes[name] = expected
+	}
+	primaryColumns := make([]string, 0, 1)
+	for _, column := range contract.columns {
+		if column.primaryKey {
+			primaryColumns = append(primaryColumns, column.name)
+		}
+	}
+	if len(primaryColumns) > 0 {
+		expectedIndexes["primary"] = indexContract{columns: primaryColumns, unique: true}
+	}
+
+	actualIndexes := make(map[string][]mysqlIndexColumn, len(expectedIndexes))
+	for _, row := range rows {
+		name := strings.ToLower(row.IndexName)
+		actualIndexes[name] = append(actualIndexes[name], row)
+	}
+	if len(actualIndexes) != len(expectedIndexes) {
+		return fmt.Errorf("MySQL index count %d does not match current contract %d", len(actualIndexes), len(expectedIndexes))
+	}
+	for name, expected := range expectedIndexes {
+		actual, found := actualIndexes[name]
+		if !found {
+			return fmt.Errorf("MySQL index %q is missing", name)
+		}
+		if len(actual) != len(expected.columns) {
+			return fmt.Errorf("MySQL index %q column count does not match current contract", name)
+		}
+		for position, row := range actual {
+			if row.Sequence != int64(position+1) {
+				return fmt.Errorf("MySQL index %q sequence does not match current contract", name)
+			}
+			if !row.ColumnName.Valid || !strings.EqualFold(row.ColumnName.String, expected.columns[position]) {
+				return fmt.Errorf("MySQL index %q column %d does not match current contract", name, position+1)
+			}
+			if row.SubPart.Valid {
+				return fmt.Errorf("MySQL index %q column %d uses a forbidden prefix length", name, position+1)
+			}
+			if !row.Collation.Valid || !strings.EqualFold(row.Collation.String, "A") {
+				return fmt.Errorf("MySQL index %q column %d sort direction does not match current contract", name, position+1)
+			}
+			if !strings.EqualFold(row.IndexType, "BTREE") {
+				return fmt.Errorf("MySQL index %q type %q does not match current contract", name, row.IndexType)
+			}
+			if row.Expression.Valid {
+				return fmt.Errorf("MySQL index %q column %d is an unsupported expression", name, position+1)
+			}
+			wantNonUnique := int64(1)
+			if expected.unique {
+				wantNonUnique = 0
+			}
+			if row.NonUnique != wantNonUnique {
+				return fmt.Errorf("MySQL index %q uniqueness does not match current contract", name)
+			}
+		}
+	}
+	return nil
+}
+
+func validateSQLiteIndexes(db *gorm.DB, contract tableContract) error {
+	var indexes []sqliteIndex
+	if err := db.Raw(
+		"SELECT seq, name, `unique`, origin, partial FROM pragma_index_list(?) ORDER BY seq",
+		contract.name,
+	).Scan(&indexes).Error; err != nil {
+		return fmt.Errorf("inspect SQLite concrete indexes: %w", err)
+	}
+
+	primaryColumns := make([]string, 0, 1)
+	primaryNeedsIndex := false
+	for _, column := range contract.columns {
+		if column.primaryKey {
+			primaryColumns = append(primaryColumns, column.name)
+			primaryNeedsIndex = column.kind != "integer"
+		}
+	}
+	wantCount := len(contract.indexes)
+	if primaryNeedsIndex {
+		wantCount++
+	}
+	if len(indexes) != wantCount {
+		return fmt.Errorf("SQLite index count %d does not match current contract %d", len(indexes), wantCount)
+	}
+
+	seen := make(map[string]bool, len(contract.indexes))
+	seenPrimary := false
+	for _, index := range indexes {
+		if index.Partial != 0 {
+			return fmt.Errorf("SQLite index %q is a forbidden partial index", index.Name)
+		}
+		var expected indexContract
+		switch strings.ToLower(index.Origin) {
+		case "pk":
+			if !primaryNeedsIndex || seenPrimary {
+				return fmt.Errorf("SQLite index %q is an unexpected primary-key index", index.Name)
+			}
+			seenPrimary = true
+			expected = indexContract{columns: primaryColumns, unique: true}
+		case "c":
+			name := strings.ToLower(index.Name)
+			var found bool
+			expected, found = contract.indexes[name]
+			if !found || seen[name] {
+				return fmt.Errorf("SQLite index %q is not part of the current contract", index.Name)
+			}
+			seen[name] = true
+		default:
+			return fmt.Errorf("SQLite index %q has unsupported origin %q", index.Name, index.Origin)
+		}
+		wantUnique := int64(0)
+		if expected.unique {
+			wantUnique = 1
+		}
+		if index.Unique != wantUnique {
+			return fmt.Errorf("SQLite index %q uniqueness does not match current contract", index.Name)
+		}
+		if err := validateSQLiteIndexColumns(db, index.Name, expected.columns); err != nil {
+			return err
+		}
+	}
+	if seenPrimary != primaryNeedsIndex || len(seen) != len(contract.indexes) {
+		return errors.New("SQLite index set does not match current contract")
+	}
+	return nil
+}
+
+func validateSQLiteIndexColumns(db *gorm.DB, indexName string, expected []string) error {
+	var rows []sqliteIndexColumn
+	if err := db.Raw(
+		"SELECT seqno, cid, name, `desc`, coll, key FROM pragma_index_xinfo(?) ORDER BY seqno",
+		indexName,
+	).Scan(&rows).Error; err != nil {
+		return fmt.Errorf("inspect SQLite index %q columns: %w", indexName, err)
+	}
+	keyRows := make([]sqliteIndexColumn, 0, len(expected))
+	for _, row := range rows {
+		if row.Key == 1 {
+			keyRows = append(keyRows, row)
+		}
+	}
+	if len(keyRows) != len(expected) {
+		return fmt.Errorf("SQLite index %q key-column count does not match current contract", indexName)
+	}
+	for position, row := range keyRows {
+		if row.Sequence != int64(position) || row.CID < 0 || !row.Name.Valid ||
+			!strings.EqualFold(row.Name.String, expected[position]) {
+			return fmt.Errorf("SQLite index %q column %d does not match current contract", indexName, position+1)
+		}
+		if row.Desc != 0 {
+			return fmt.Errorf("SQLite index %q column %d uses a forbidden descending order", indexName, position+1)
+		}
+		if !row.Coll.Valid || !strings.EqualFold(row.Coll.String, "BINARY") {
+			return fmt.Errorf("SQLite index %q column %d collation does not match current contract", indexName, position+1)
+		}
+	}
+	return nil
+}
+
+func validateColumnStorage(db *gorm.DB, table string, actual gorm.ColumnType, expected columnContract) error {
+	driver := db.Dialector.Name()
+	databaseType := strings.ToLower(actual.DatabaseTypeName())
+	if driver == "sqlite" {
+		expectedType := map[string]string{
+			"string": "text", "integer": "integer", "datetime": "datetime", "boolean": "numeric",
+		}[expected.kind]
+		if databaseType != expectedType {
+			return fmt.Errorf("SQLite database type %q does not equal %q", databaseType, expectedType)
+		}
+		return nil
+	}
+	if driver != "mysql" {
+		return fmt.Errorf("unsupported schema validation dialect %q", driver)
+	}
+	var storage mysqlColumnStorage
+	if err := db.Raw(
+		`SELECT COLUMN_TYPE AS column_type,
+		        CHARACTER_SET_NAME AS character_set_name,
+		        COLLATION_NAME AS collation_name,
+		        COLUMN_DEFAULT AS column_default,
+		        EXTRA AS extra,
+		        GENERATION_EXPRESSION AS generation_expression
+		   FROM information_schema.COLUMNS
+		  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
+		table,
+		expected.name,
+	).Scan(&storage).Error; err != nil {
+		return fmt.Errorf("inspect MySQL concrete column type: %w", err)
+	}
+	want := mysqlColumnType(table, expected)
+	if strings.ToLower(storage.ColumnType) != want {
+		return fmt.Errorf("MySQL column type %q does not equal %q", storage.ColumnType, want)
+	}
+	if expected.kind == "string" {
+		if !storage.CharacterSet.Valid || !strings.EqualFold(storage.CharacterSet.String, mysqlCharacterSet) {
+			return fmt.Errorf("MySQL character set %q does not equal %q", storage.CharacterSet.String, mysqlCharacterSet)
+		}
+		if !storage.Collation.Valid || !strings.EqualFold(storage.Collation.String, mysqlTableCollation) {
+			return fmt.Errorf("MySQL collation %q does not equal %q", storage.Collation.String, mysqlTableCollation)
+		}
+	} else if storage.CharacterSet.Valid || storage.Collation.Valid {
+		return errors.New("non-string MySQL column unexpectedly has character storage metadata")
+	}
+	if storage.DefaultValue.Valid {
+		return fmt.Errorf("MySQL column has forbidden default %q", storage.DefaultValue.String)
+	}
+	wantExtra := ""
+	if expected.autoMySQL {
+		wantExtra = "auto_increment"
+	}
+	if !strings.EqualFold(storage.Extra, wantExtra) {
+		return fmt.Errorf("MySQL EXTRA metadata %q does not equal %q", storage.Extra, wantExtra)
+	}
+	if storage.GenerationExpression != "" {
+		return errors.New("MySQL column has a forbidden generation expression")
+	}
+	return nil
+}
+
+func mysqlColumnType(table string, column columnContract) string {
+	switch column.kind {
+	case "string":
+		if column.logicalMax >= 65536 && column.logicalMax <= 1<<24 {
+			return "mediumtext"
+		}
+		return fmt.Sprintf("varchar(%d)", column.logicalMax)
+	case "integer":
+		if table == metadataTableContract.name {
+			return "bigint unsigned"
+		}
+		return "bigint"
+	case "datetime":
+		return "datetime(3)"
+	case "boolean":
+		return "tinyint(1)"
+	default:
+		return ""
+	}
+}
+
+// CurrentSchemaContractID fingerprints the only accepted unreleased schema,
+// including logical field capacities even where SQLite represents strings as
+// unbounded TEXT and application validation enforces the byte limit.
+func CurrentSchemaContractID() string {
+	hash := sha256.New()
+	_, _ = fmt.Fprintf(hash, "mysql-table:%s:%s:%s\n", mysqlTableEngine, mysqlCharacterSet, mysqlTableCollation)
+	contracts := append([]tableContract{metadataTableContract}, currentTableContracts...)
+	for _, contract := range contracts {
+		_, _ = fmt.Fprintf(hash, "table:%s\n", contract.name)
+		for _, column := range contract.columns {
+			_, _ = fmt.Fprintf(
+				hash,
+				"column:%s:%s:%d:%t:%t:%t:%t\n",
+				column.name,
+				column.kind,
+				column.logicalMax,
+				column.nullable,
+				column.primaryKey,
+				column.autoSQLite,
+				column.autoMySQL,
+			)
+		}
+		indexNames := make([]string, 0, len(contract.indexes))
+		for name := range contract.indexes {
+			indexNames = append(indexNames, name)
+		}
+		slices.Sort(indexNames)
+		for _, name := range indexNames {
+			index := contract.indexes[name]
+			_, _ = fmt.Fprintf(hash, "index:%s:%s:%t\n", name, strings.Join(index.columns, ","), index.unique)
+		}
+	}
+	return hex.EncodeToString(hash.Sum(nil))
+}
+
+func validateExactTableSet(db *gorm.DB, expected map[string]bool) error {
+	tables, err := db.Migrator().GetTables()
+	if err != nil {
+		return fmt.Errorf("inspect database tables: %w", err)
+	}
+	actual := make(map[string]bool, len(tables))
+	for _, table := range tables {
+		actual[strings.ToLower(table)] = true
+	}
+	if len(actual) != len(expected) {
+		return fmt.Errorf("table count %d does not match current contract %d", len(actual), len(expected))
+	}
+	for table := range expected {
+		if !actual[table] {
+			return fmt.Errorf("table %q is missing", table)
+		}
+	}
+	return nil
+}
+
+func equalFoldedStrings(actual, expected []string) bool {
+	if len(actual) != len(expected) {
+		return false
+	}
+	for index := range actual {
+		if !strings.EqualFold(actual[index], expected[index]) {
+			return false
+		}
+	}
+	return true
+}
+
+func runBootstrapStepHook(step string) error {
+	if bootstrapStepHook == nil {
+		return nil
+	}
+	if err := bootstrapStepHook(step); err != nil {
+		return fmt.Errorf("current schema bootstrap interrupted at %s: %w", step, err)
+	}
+	return nil
 }
 
 func currentSchemaIsApplied(db *gorm.DB) (bool, error) {
-	if !db.Migrator().HasTable(&schemaMigration{}) {
+	if !db.Migrator().HasTable(&schemaMetadata{}) {
 		return false, nil
 	}
-	version, err := readAndValidateSchemaVersion(db)
-	if err != nil {
+	if err := validateTable(db, metadataTableContract); err != nil {
+		return false, fmt.Errorf("validate current schema metadata table: %w", err)
+	}
+	var count int64
+	if err := db.Model(&schemaMetadata{}).Count(&count).Error; err != nil {
+		return false, fmt.Errorf("count current schema metadata rows: %w", err)
+	}
+	if count == 0 {
+		return false, nil
+	}
+	if count != 1 {
+		return false, fmt.Errorf("database must contain exactly one current schema metadata row, found %d", count)
+	}
+	var metadata schemaMetadata
+	if err := db.Where("id = ?", 1).First(&metadata).Error; err != nil {
+		return false, fmt.Errorf("read current schema metadata: %w", err)
+	}
+	if err := validateCurrentMetadata(metadata); err != nil {
 		return false, err
 	}
-	return version == CurrentSchemaVersion, nil
+	if metadata.State != schemaStateReady {
+		return false, nil
+	}
+	if err := validateCurrentSchema(db); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func isSQLiteBusy(err error) bool {

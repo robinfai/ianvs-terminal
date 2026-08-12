@@ -691,6 +691,89 @@ func TestExportResponseCanBePostedDirectlyToRemoteMerge(t *testing.T) {
 	}
 }
 
+func TestMergeRejectsUnknownFields(t *testing.T) {
+	_, _, handler := testAPI(t, config.ModeLocal)
+	response := request(t, handler, http.MethodPost, "/v1/migrations/merge", map[string]any{
+		"schema_version": 1,
+		"source_id":      "foreign-source",
+		"exported_at":    time.Now().UTC(),
+		"resources":      []any{},
+		"unknown":        true,
+	}, nil)
+	assertTypedError(t, response, http.StatusBadRequest, "invalid_json")
+	if !strings.Contains(response.Body.String(), `unknown field \"unknown\"`) {
+		t.Fatalf("merge unknown-field body = %s", response.Body.String())
+	}
+}
+
+func TestRequestJSONFieldsAreExactAndUniqueAcrossEndpoints(t *testing.T) {
+	tests := []struct {
+		name      string
+		mode      config.Mode
+		method    string
+		target    string
+		duplicate string
+		caseAlias string
+	}{
+		{
+			name:      "registration",
+			mode:      config.ModeRemote,
+			method:    http.MethodPost,
+			target:    "/v1/auth/register/begin",
+			duplicate: `{"username":"one","username":"two","password":"password-long-enough","encryption_key":"encryption-key-long-enough"}`,
+			caseAlias: `{"Username":"one","password":"password-long-enough","encryption_key":"encryption-key-long-enough"}`,
+		},
+		{
+			name:      "login",
+			mode:      config.ModeRemote,
+			method:    http.MethodPost,
+			target:    "/v1/auth/login/begin",
+			duplicate: `{"username":"one","password":"first-password","password":"second-password"}`,
+			caseAlias: `{"username":"one","Password":"password-long-enough"}`,
+		},
+		{
+			name:      "authentication operation",
+			mode:      config.ModeRemote,
+			method:    http.MethodPost,
+			target:    "/v1/auth/cancel-operation",
+			duplicate: `{"operation_id":"first","operation_id":"second"}`,
+			caseAlias: `{"Operation_ID":"first"}`,
+		},
+		{
+			name:      "resource nested data",
+			mode:      config.ModeLocal,
+			method:    http.MethodPut,
+			target:    "/v1/resources/profile/exact-json",
+			duplicate: `{"data":{"name":"first","name":"second"}}`,
+			caseAlias: `{"Data":{"name":"first"}}`,
+		},
+		{
+			name:      "migration merge",
+			mode:      config.ModeLocal,
+			method:    http.MethodPost,
+			target:    "/v1/migrations/merge",
+			duplicate: `{"schema_version":1,"source_id":"one","source_id":"two","resources":[]}`,
+			caseAlias: `{"Schema_Version":1,"source_id":"one","resources":[]}`,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, _, handler := testAPI(t, test.mode)
+			duplicate := requestRawJSON(t, handler, test.method, test.target, test.duplicate)
+			assertTypedError(t, duplicate, http.StatusBadRequest, "invalid_json")
+			if !strings.Contains(duplicate.Body.String(), "duplicate field") {
+				t.Fatalf("duplicate-field body = %s", duplicate.Body.String())
+			}
+
+			caseAlias := requestRawJSON(t, handler, test.method, test.target, test.caseAlias)
+			assertTypedError(t, caseAlias, http.StatusBadRequest, "invalid_json")
+			if !strings.Contains(caseAlias.Body.String(), "unknown field") {
+				t.Fatalf("case-alias body = %s", caseAlias.Body.String())
+			}
+		})
+	}
+}
+
 type registrationSession struct {
 	Token string `json:"token"`
 }
@@ -881,6 +964,20 @@ func requestFromPeer(
 	}
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, req)
+	return response
+}
+
+func requestRawJSON(
+	t *testing.T,
+	handler http.Handler,
+	method, target, body string,
+) *httptest.ResponseRecorder {
+	t.Helper()
+	request := httptest.NewRequest(method, target, strings.NewReader(body))
+	request.RemoteAddr = "127.0.0.1:54321"
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
 	return response
 }
 

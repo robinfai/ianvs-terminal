@@ -23,7 +23,7 @@ type AuthToken struct {
 	ID            string    `gorm:"primaryKey;size:36"`
 	UserID        string    `gorm:"index;size:36;not null"`
 	TokenHash     string    `gorm:"uniqueIndex;size:64;not null"`
-	OperationHash *string   `gorm:"uniqueIndex;size:64"`
+	OperationHash string    `gorm:"uniqueIndex;size:64;not null"`
 	ExpiresAt     time.Time `gorm:"index;not null"`
 	CreatedAt     time.Time `gorm:"not null"`
 }

@@ -2,9 +2,7 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -19,7 +17,6 @@ import (
 	"ianvs-terminal/backend/internal/config"
 	"ianvs-terminal/backend/internal/database"
 	"ianvs-terminal/backend/internal/httpapi"
-	"ianvs-terminal/backend/internal/legacy"
 	"ianvs-terminal/backend/internal/secure"
 	"ianvs-terminal/backend/internal/store"
 )
@@ -32,12 +29,15 @@ func main() {
 }
 
 func run(args []string) error {
-	command := "serve"
-	if len(args) > 0 {
-		command = args[0]
-		args = args[1:]
+	if len(args) == 0 {
+		return errors.New("a command is required (serve or generate-key)")
 	}
+	command := args[0]
+	args = args[1:]
 	if command == "generate-key" {
+		if len(args) != 0 {
+			return errors.New("generate-key does not accept arguments")
+		}
 		key, err := secure.GenerateUserKey()
 		if err != nil {
 			return err
@@ -46,7 +46,13 @@ func run(args []string) error {
 		return nil
 	}
 
-	cfg, err := config.FromEnv()
+	if command != "serve" {
+		return fmt.Errorf("unknown command %q (expected serve or generate-key)", command)
+	}
+	if len(args) != 2 || args[0] != "--config" || args[1] == "" {
+		return errors.New("serve requires exactly --config <path>")
+	}
+	cfg, err := config.Load(args[1])
 	if err != nil {
 		return err
 	}
@@ -65,17 +71,7 @@ func run(args []string) error {
 		}
 	}
 
-	switch command {
-	case "serve":
-		if len(args) != 0 {
-			return errors.New("serve does not accept positional arguments")
-		}
-		return serve(cfg, authService, resourceStore)
-	case "import-legacy":
-		return importLegacy(cfg, authService, resourceStore, args)
-	default:
-		return fmt.Errorf("unknown command %q (expected serve, import-legacy, or generate-key)", command)
-	}
+	return serve(cfg, authService, resourceStore)
 }
 
 func serve(cfg config.Config, authService *auth.Service, resourceStore *store.Store) error {
@@ -138,54 +134,5 @@ func serve(cfg config.Config, authService *auth.Service, resourceStore *store.St
 	if err := server.Shutdown(shutdownContext); err != nil {
 		return fmt.Errorf("shutdown server: %w", err)
 	}
-	return nil
-}
-
-func importLegacy(
-	cfg config.Config,
-	authService *auth.Service,
-	resourceStore *store.Store,
-	args []string,
-) error {
-	if cfg.Mode != config.ModeLocal {
-		return errors.New("import-legacy is available only when IANVS_API_MODE=local")
-	}
-	flags := flag.NewFlagSet("import-legacy", flag.ContinueOnError)
-	directory := flags.String("dir", cfg.LegacyDirectory, "application support directory containing legacy JSON files")
-	if err := flags.Parse(args); err != nil {
-		return err
-	}
-	if flags.NArg() != 0 {
-		return errors.New("import-legacy accepts only the --dir option")
-	}
-	if cfg.EncryptionKey == "" {
-		return errors.New("IANVS_ENCRYPTION_KEY is required for legacy import")
-	}
-	user, _, err := authService.SetupLocalKey(context.Background(), cfg.EncryptionKey)
-	if err != nil {
-		return err
-	}
-	key, err := authService.VerifyKey(user, cfg.EncryptionKey)
-	if err != nil {
-		return err
-	}
-	importer, err := legacy.New(resourceStore, cfg.LegacyProfileKey)
-	if err != nil {
-		return err
-	}
-	report, err := importer.Import(
-		context.Background(),
-		user,
-		key,
-		*directory,
-	)
-	if err != nil {
-		return err
-	}
-	encoded, err := json.MarshalIndent(report, "", "  ")
-	if err != nil {
-		return fmt.Errorf("encode import report: %w", err)
-	}
-	fmt.Println(string(encoded))
 	return nil
 }

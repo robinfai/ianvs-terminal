@@ -74,6 +74,36 @@ func TestResourceEncryptionAndOptimisticRevision(t *testing.T) {
 	}
 }
 
+func TestResourceIdentityRequiresCanonicalLowercaseAcrossDialects(t *testing.T) {
+	ctx := context.Background()
+	db, resourceStore := testStore(t)
+	user, _ := testUser(t, db, "canonical-identity", "canonical-encryption-key-material")
+	for _, key := range []struct{ kind, id string }{
+		{kind: "Profile", id: "work"},
+		{kind: "profile", id: "Work"},
+	} {
+		_, err := resourceStore.Put(ctx, user, nil, key.kind, key.id, store.WriteInput{
+			Data: json.RawMessage(`{"name":"rejected"}`),
+		})
+		if !errors.Is(err, store.ErrInvalidResource) {
+			t.Fatalf("Put(%q, %q) error = %v, want ErrInvalidResource", key.kind, key.id, err)
+		}
+	}
+	if _, err := resourceStore.Put(ctx, user, nil, "profile", "work", store.WriteInput{
+		Data: json.RawMessage(`{"name":"accepted"}`),
+	}); err != nil {
+		t.Fatalf("Put(canonical key) error = %v", err)
+	}
+	_, err := resourceStore.Merge(ctx, user, nil, store.MergeRequest{
+		SchemaVersion: 1,
+		SourceID:      "Foreign-Source",
+		Resources:     []store.ResourceView{},
+	})
+	if !errors.Is(err, store.ErrInvalidResource) {
+		t.Fatalf("Merge(uppercase source_id) error = %v, want ErrInvalidResource", err)
+	}
+}
+
 func TestPutExpectedRevisionZeroCreatesOnlyWhenAbsent(t *testing.T) {
 	ctx := context.Background()
 	db, resourceStore := testStore(t)

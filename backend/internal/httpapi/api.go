@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/subtle"
@@ -14,11 +15,13 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"reflect"
 	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
 
 	"gorm.io/gorm"
 
@@ -805,7 +808,26 @@ func decodeBody(w http.ResponseWriter, r *http.Request, maximum int64, target an
 		return errUnsupportedMediaType
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, maximum)
-	decoder := json.NewDecoder(r.Body)
+	encoded, err := io.ReadAll(r.Body)
+	if err != nil {
+		return err
+	}
+	if !utf8.Valid(encoded) {
+		return errors.New("request body is not valid UTF-8")
+	}
+	if err := validateUniqueJSONFields(encoded); err != nil {
+		return err
+	}
+	var shape any
+	shapeDecoder := json.NewDecoder(bytes.NewReader(encoded))
+	shapeDecoder.UseNumber()
+	if err := shapeDecoder.Decode(&shape); err != nil {
+		return err
+	}
+	if err := validateExactJSONFields(shape, reflect.TypeOf(target)); err != nil {
+		return err
+	}
+	decoder := json.NewDecoder(bytes.NewReader(encoded))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(target); err != nil {
 		return err
@@ -816,6 +838,145 @@ func decodeBody(w http.ResponseWriter, r *http.Request, maximum int64, target an
 			return errors.New("request body must contain one JSON value")
 		}
 		return err
+	}
+	return nil
+}
+
+func validateUniqueJSONFields(encoded []byte) error {
+	decoder := json.NewDecoder(bytes.NewReader(encoded))
+	decoder.UseNumber()
+	if err := scanUniqueJSONValue(decoder); err != nil {
+		return err
+	}
+	if _, err := decoder.Token(); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return errors.New("request body must contain one JSON value")
+		}
+		return err
+	}
+	return nil
+}
+
+func scanUniqueJSONValue(decoder *json.Decoder) error {
+	token, err := decoder.Token()
+	if err != nil {
+		return err
+	}
+	delimiter, compound := token.(json.Delim)
+	if !compound {
+		return nil
+	}
+	switch delimiter {
+	case '{':
+		seen := make(map[string]bool)
+		for decoder.More() {
+			keyToken, err := decoder.Token()
+			if err != nil {
+				return err
+			}
+			key, ok := keyToken.(string)
+			if !ok {
+				return errors.New("JSON object key is not a string")
+			}
+			if seen[key] {
+				return fmt.Errorf("json: duplicate field %q", key)
+			}
+			seen[key] = true
+			if err := scanUniqueJSONValue(decoder); err != nil {
+				return err
+			}
+		}
+		closing, err := decoder.Token()
+		if err != nil {
+			return err
+		}
+		if closing != json.Delim('}') {
+			return errors.New("JSON object was not closed")
+		}
+	case '[':
+		for decoder.More() {
+			if err := scanUniqueJSONValue(decoder); err != nil {
+				return err
+			}
+		}
+		closing, err := decoder.Token()
+		if err != nil {
+			return err
+		}
+		if closing != json.Delim(']') {
+			return errors.New("JSON array was not closed")
+		}
+	default:
+		return fmt.Errorf("unexpected JSON delimiter %q", delimiter)
+	}
+	return nil
+}
+
+var rawMessageType = reflect.TypeOf(json.RawMessage{})
+
+func validateExactJSONFields(value any, target reflect.Type) error {
+	for target.Kind() == reflect.Pointer {
+		target = target.Elem()
+	}
+	if target == rawMessageType || target.Kind() == reflect.Interface {
+		return nil
+	}
+	switch target.Kind() {
+	case reflect.Struct:
+		object, ok := value.(map[string]any)
+		if !ok {
+			return nil
+		}
+		fields := make(map[string]reflect.Type)
+		for index := 0; index < target.NumField(); index++ {
+			field := target.Field(index)
+			if field.PkgPath != "" {
+				continue
+			}
+			name := field.Name
+			if tag, exists := field.Tag.Lookup("json"); exists {
+				name = strings.Split(tag, ",")[0]
+				if name == "-" {
+					continue
+				}
+				if name == "" {
+					name = field.Name
+				}
+			}
+			fields[name] = field.Type
+		}
+		for name, nested := range object {
+			fieldType, found := fields[name]
+			if !found {
+				return fmt.Errorf("json: unknown field %q", name)
+			}
+			if err := validateExactJSONFields(nested, fieldType); err != nil {
+				return err
+			}
+		}
+	case reflect.Slice, reflect.Array:
+		if target == rawMessageType {
+			return nil
+		}
+		array, ok := value.([]any)
+		if !ok {
+			return nil
+		}
+		for _, nested := range array {
+			if err := validateExactJSONFields(nested, target.Elem()); err != nil {
+				return err
+			}
+		}
+	case reflect.Map:
+		object, ok := value.(map[string]any)
+		if !ok {
+			return nil
+		}
+		for _, nested := range object {
+			if err := validateExactJSONFields(nested, target.Elem()); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }

@@ -552,12 +552,12 @@ components:
       in: path
       name: kind
       required: true
-      schema: {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9._:-]*$', maxLength: 64}
+      schema: {$ref: '#/components/schemas/ResourceKind'}
     ResourceID:
       in: path
       name: id
       required: true
-      schema: {type: string, pattern: '^[A-Za-z0-9][A-Za-z0-9._:-]*$', maxLength: 191}
+      schema: {$ref: '#/components/schemas/ResourceID'}
     EncryptionKeyHeader:
       in: header
       name: X-Ianvs-Encryption-Key
@@ -631,6 +631,18 @@ components:
         application/json:
           schema: {$ref: '#/components/schemas/KeyDerivationBusyError'}
   schemas:
+    ResourceKind:
+      type: string
+      pattern: '^[a-z0-9][a-z0-9._:-]*$'
+      maxLength: 64
+    ResourceID:
+      type: string
+      pattern: '^[a-z0-9][a-z0-9._:-]*$'
+      maxLength: 191
+    SourceID:
+      type: string
+      pattern: '^[a-z0-9][a-z0-9._:-]*$'
+      maxLength: 64
     EncryptionKeyRequest:
       type: object
       required: [encryption_key]
@@ -676,15 +688,16 @@ components:
     Resource:
       type: object
       required: [id, kind, data, has_sensitive, revision, source_id, source_revision, source_updated_at, deleted, created_at, updated_at]
+      additionalProperties: false
       properties:
-        id: {type: string}
-        kind: {type: string}
+        id: {$ref: '#/components/schemas/ResourceID'}
+        kind: {$ref: '#/components/schemas/ResourceKind'}
         data: {}
         sensitive:
           description: Present only when explicitly requested with a valid data key.
         has_sensitive: {type: boolean}
         revision: {type: integer, format: int64, minimum: 1}
-        source_id: {type: string}
+        source_id: {$ref: '#/components/schemas/SourceID'}
         source_revision: {type: integer, format: int64, minimum: 1}
         source_updated_at: {type: string, format: date-time}
         deleted: {type: boolean}
@@ -717,12 +730,12 @@ components:
           type: string
           maxLength: 1024
           description: Present only when another page is available.
-    MigrationBundle:
+    MigrationBundleFields:
       type: object
       required: [schema_version, source_id, exported_at, resources]
       properties:
         schema_version: {type: integer, const: 1}
-        source_id: {type: string, maxLength: 64}
+        source_id: {$ref: '#/components/schemas/SourceID'}
         exported_at: {type: string, format: date-time}
         resources:
           type: array
@@ -732,9 +745,13 @@ components:
           type: string
           maxLength: 1024
           description: Export continuation only. Merge ignores this field while applying the current page.
+    MigrationBundle:
+      allOf:
+        - $ref: '#/components/schemas/MigrationBundleFields'
+      unevaluatedProperties: false
     MigrationMergeRequest:
       allOf:
-        - $ref: '#/components/schemas/MigrationBundle'
+        - $ref: '#/components/schemas/MigrationBundleFields'
         - type: object
           properties:
             conflict_policy:
@@ -746,6 +763,7 @@ components:
               type: boolean
               default: false
               description: Tombstones are applied only when true, including monotonic tombstones from the same source.
+      unevaluatedProperties: false
     MergeReport:
       type: object
       required: [created, updated, deleted, skipped, conflicts, results]
@@ -761,8 +779,8 @@ components:
             type: object
             required: [kind, id, status]
             properties:
-              kind: {type: string}
-              id: {type: string}
+              kind: {$ref: '#/components/schemas/ResourceKind'}
+              id: {$ref: '#/components/schemas/ResourceID'}
               status: {type: string, enum: [created, updated, deleted, skipped, conflict]}
               reason: {type: string}
     ErrorResponse:

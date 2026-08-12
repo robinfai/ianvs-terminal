@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"ianvs-terminal/backend/internal/database"
 	"ianvs-terminal/backend/internal/identity"
@@ -40,7 +41,7 @@ var (
 	ErrInvalidResource  = errors.New("invalid resource")
 	ErrInvalidPage      = errors.New("invalid resource page")
 	ErrResponseTooLarge = errors.New("resource response exceeds the documented limit")
-	resourcePartPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]*$`)
+	resourcePartPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9._:-]*$`)
 	internalIDPattern   = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 )
 
@@ -545,8 +546,8 @@ func (s *Store) Merge(
 	if request.SchemaVersion != 1 {
 		return MergeReport{}, fmt.Errorf("%w: unsupported migration schema version", ErrInvalidResource)
 	}
-	if request.SourceID == "" || len(request.SourceID) > 64 {
-		return MergeReport{}, fmt.Errorf("%w: source_id is required", ErrInvalidResource)
+	if request.SourceID == "" || len(request.SourceID) > 64 || !resourcePartPattern.MatchString(request.SourceID) {
+		return MergeReport{}, fmt.Errorf("%w: source_id must be a canonical lowercase identifier", ErrInvalidResource)
 	}
 	if len(request.Resources) > maxMigrationResources {
 		return MergeReport{}, fmt.Errorf("%w: migration contains more than %d resources", ErrInvalidResource, maxMigrationResources)
@@ -883,7 +884,7 @@ func isJSONNull(value []byte) bool {
 
 func ensureServerID(ctx context.Context, db *gorm.DB) (string, error) {
 	var setting model.Setting
-	err := db.WithContext(ctx).Where("key = ?", serverIDSetting).First(&setting).Error
+	err := db.WithContext(ctx).Where(clause.Eq{Column: "key", Value: serverIDSetting}).First(&setting).Error
 	if err == nil {
 		if strings.TrimSpace(setting.Value) == "" {
 			return "", errors.New("stored server id is empty")
@@ -900,7 +901,7 @@ func ensureServerID(ctx context.Context, db *gorm.DB) (string, error) {
 	setting = model.Setting{Key: serverIDSetting, Value: serverID}
 	if err := db.WithContext(ctx).Create(&setting).Error; err != nil {
 		// A concurrent initializer may have inserted the setting first.
-		if loadErr := db.WithContext(ctx).Where("key = ?", serverIDSetting).First(&setting).Error; loadErr == nil {
+		if loadErr := db.WithContext(ctx).Where(clause.Eq{Column: "key", Value: serverIDSetting}).First(&setting).Error; loadErr == nil {
 			return setting.Value, nil
 		}
 		return "", fmt.Errorf("save server id: %w", err)
@@ -910,7 +911,7 @@ func ensureServerID(ctx context.Context, db *gorm.DB) (string, error) {
 
 func ensureCursorSigningKey(ctx context.Context, db *gorm.DB) ([]byte, error) {
 	var setting model.Setting
-	err := db.WithContext(ctx).Where("key = ?", cursorSigningKeySetting).First(&setting).Error
+	err := db.WithContext(ctx).Where(clause.Eq{Column: "key", Value: cursorSigningKeySetting}).First(&setting).Error
 	if err == nil {
 		if strings.TrimSpace(setting.Value) == "" {
 			return nil, errors.New("stored cursor signing key is empty")
@@ -928,7 +929,7 @@ func ensureCursorSigningKey(ctx context.Context, db *gorm.DB) ([]byte, error) {
 	if err := db.WithContext(ctx).Create(&setting).Error; err != nil {
 		// A concurrent initializer may have inserted the setting first.
 		if loadErr := db.WithContext(ctx).
-			Where("key = ?", cursorSigningKeySetting).
+			Where(clause.Eq{Column: "key", Value: cursorSigningKeySetting}).
 			First(&setting).Error; loadErr == nil && strings.TrimSpace(setting.Value) != "" {
 			return []byte(setting.Value), nil
 		}

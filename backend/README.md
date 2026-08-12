@@ -5,7 +5,7 @@
 - `local`：默认绑定 `127.0.0.1:47832`，保留一个本地用户，默认 SQLite。
 - `remote`：Bearer 登录后的多用户服务，可使用 SQLite 或 MySQL。
 
-数据层没有原生 SQL、数据库 JSON 类型、upsert 方言或数据库触发器。所有读写、事务、迁移和条件查询都通过 GORM 完成；JSON 使用普通文本列，便于 SQLite/MySQL 共用 schema。
+业务 CRUD 和事务通过 GORM 完成；并发初始化锁、数据库时钟和 current schema 结构指纹使用少量受控的 SQLite/MySQL 方言 SQL。数据层不依赖数据库 JSON 类型、upsert 方言或数据库触发器；JSON 使用普通文本列，便于 SQLite/MySQL 共用 schema。项目尚未发布，服务只接受唯一的 current schema；遇到旧库或旧 JSON 时会拒绝启动，不在产品代码中迁移旧格式。
 
 ## 数据与安全边界
 
@@ -17,7 +17,7 @@
 | profile 名称、主机、主题、普通偏好和配置 | 明文 JSON 文本 |
 | Bearer token | 客户端持有原值，数据库只保存 SHA-256 摘要 |
 
-每个密文都绑定 `user + kind + resource id` 作为认证数据，不能被复制到其他用户或资源后继续解密。远程模式默认要求 TLS；如果 TLS 在反向代理终止，需显式设置 `IANVS_TRUST_PROXY_HEADERS=true`，并确保外部请求不能绕过代理直连服务。
+每个密文都绑定 `user + kind + resource id` 作为认证数据，不能被复制到其他用户或资源后继续解密。远程模式默认要求 TLS；如果 TLS 在反向代理终止，需在 JSON 配置中显式设置 `trust_proxy_headers: true`，并确保外部请求不能绕过代理直连服务。
 
 数据密钥没有服务端恢复通道：丢失密钥后既有敏感字段无法解密。客户端应把 16–1024 字节的随机密钥备份到受保护的凭据存储。密钥合同 v1 只允许首次创建和同密钥验证；重复 setup/register 不能更换密钥，服务也不提供恢复或在线轮换。完整决策与未来 old+new key 全量重加密要求见 [ADR-0004](../docs/DECISIONS/ADR-0004-data-api-key-lifecycle-v1.md)。
 
@@ -31,57 +31,98 @@ macOS 主应用无需手工运行本节命令：构建阶段会把 `ianvs-api` �
 cd backend
 go mod download
 go run ./cmd/ianvs-api generate-key
-go run ./cmd/ianvs-api serve
 ```
 
-将第一条命令生成的随机值保存在客户端安全存储中，然后只需初始化一次本地用户：
+服务运行配置只从显式 JSON 文件读取，不读取父进程环境变量。`serve` 当前只支持具有 Unix 文件权限语义的平台；Windows 会 fail-closed。主应用会创建权限为 `0600` 的临时配置；独立调试可创建如下文件。示例 token 是 32 字节 ASCII 经无填充 base64url 编码后的合法非生产值，部署时必须替换为 CSPRNG 生成的 32 随机字节：
+
+```json
+{
+  "schema_version": 1,
+  "mode": "local",
+  "address": "127.0.0.1:47832",
+  "database_driver": "sqlite",
+  "database_dsn": "/absolute/application-support/ianvs.db",
+  "local_access_token": "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY",
+  "exit_on_stdin_close": false,
+  "auth_token_ttl_seconds": 86400,
+  "allow_registration": false,
+  "allow_insecure_sensitive_transport": false,
+  "trust_proxy_headers": false
+}
+```
+
+配置包含访问令牌或数据库凭据时必须为普通文件，最大 64 KiB；Unix 上权限必须精确为 `0600` 或只读的 `0400`。然后启动：
+
+```bash
+chmod 0600 /absolute/path/to/ianvs-api-config.json
+go run ./cmd/ianvs-api serve --config /absolute/path/to/ianvs-api-config.json
+```
+
+将 `generate-key` 生成的数据密钥保存在客户端安全存储中，然后只需初始化一次本地用户：
 
 ```bash
 curl -X POST http://127.0.0.1:47832/v1/auth/setup \
+  -H 'Authorization: Bearer <local-access-token>' \
   -H 'Content-Type: application/json' \
   --data '{"encryption_key":"<client-owned-key>"}'
 ```
 
-本地 SQLite 默认是 `backend/ianvs.db`。建议显式放到应用支持目录：
-
-```bash
-IANVS_DB_DSN=/absolute/application-support/ianvs.db \
-  go run ./cmd/ianvs-api serve
-```
+本地 SQLite 路径由配置文件的 `database_dsn` 显式指定。
 
 ## 远程运行
 
-SQLite 适合单实例、小规模部署：
+SQLite 适合单实例、小规模部署。远程配置示例：
 
-```bash
-IANVS_API_MODE=remote \
-IANVS_API_ADDR=0.0.0.0:47832 \
-IANVS_DB_DRIVER=sqlite \
-IANVS_DB_DSN=/var/lib/ianvs/ianvs.db \
-  ./ianvs-api serve
+```json
+{
+  "schema_version": 1,
+  "mode": "remote",
+  "address": "0.0.0.0:47832",
+  "database_driver": "sqlite",
+  "database_dsn": "/var/lib/ianvs/ianvs.db",
+  "local_access_token": "",
+  "exit_on_stdin_close": false,
+  "auth_token_ttl_seconds": 86400,
+  "allow_registration": false,
+  "allow_insecure_sensitive_transport": false,
+  "trust_proxy_headers": true
+}
 ```
 
-MySQL 只需切换 driver 和 DSN，业务代码及迁移不变：
+将配置保存为权限 `0600` 或 `0400` 的文件后运行 `./ianvs-api serve --config /absolute/path/to/ianvs-api-config.json`。
 
-```bash
-IANVS_API_MODE=remote \
-IANVS_DB_DRIVER=mysql \
-IANVS_DB_DSN='ianvs:<password>@tcp(mysql.example:3306)/ianvs?charset=utf8mb4&parseTime=True&loc=UTC' \
-  ./ianvs-api serve
+MySQL 只需在同一 JSON 中切换 driver 和 DSN，业务代码及 current schema 不变：
+
+```json
+{
+  "schema_version": 1,
+  "mode": "remote",
+  "address": "0.0.0.0:47832",
+  "database_driver": "mysql",
+  "database_dsn": "ianvs:<password>@tcp(mysql.example:3306)/ianvs?charset=utf8mb4&parseTime=True&loc=UTC",
+  "local_access_token": "",
+  "exit_on_stdin_close": false,
+  "auth_token_ttl_seconds": 86400,
+  "allow_registration": false,
+  "allow_insecure_sensitive_transport": false,
+  "trust_proxy_headers": true
+}
 ```
 
 仓库也提供仅绑定本机回环地址的开发组合：
 
 ```bash
-IANVS_MYSQL_PASSWORD='<dev-password>' \
-IANVS_MYSQL_ROOT_PASSWORD='<dev-root-password>' \
+IANVS_API_CONFIG_FILE='/absolute/path/to/ianvs-api-config.json' \
+IANVS_MYSQL_PASSWORD='<dev-password>' IANVS_MYSQL_ROOT_PASSWORD='<dev-root-password>' \
   docker compose -f compose.mysql.yaml up --build
 ```
 
+这里的 API 配置文件需使用上面的 MySQL 形式，并把主机名设为 Compose 服务名 `mysql`。Compose 只把宿主 `0400`/`0600` 文件只读挂载到固定入口；容器的 root entrypoint 将其复制为 root 不可遍历写入、`ianvs` 可读的私有 `0400` 文件，然后通过 `su-exec` 降权运行 API。DSN、token 和运行选项不会进入 API 进程环境，argv 只包含容器私有配置路径。
+
 该组合为了本机反向代理/测试显式允许 HTTP，不应直接作为公网部署配置。
 
-远程注册默认关闭。管理员只应在受控注册窗口显式设置
-`IANVS_ALLOW_REGISTRATION=true`，首次用户注册时同时创建登录密码和独立数据密钥：
+远程注册默认关闭。管理员只应在受控注册窗口把配置文件中的
+`allow_registration` 显式改为 `true`，首次用户注册时同时创建登录密码和独立数据密钥：
 
 ```bash
 curl -X POST https://api.example.com/v1/auth/register/begin \
@@ -103,7 +144,7 @@ POST /v1/auth/login/complete     {"operation_id":"<server-issued-capability>"}
 
 ## 资源 API
 
-所有持久化对象使用稳定的 `kind/id`：
+所有持久化对象使用稳定的 `kind/id`。两者都是 canonical lowercase 标识符，必须匹配 `[a-z0-9][a-z0-9._:-]*`；该合同保证 SQLite 与 MySQL 在唯一性、查找和游标排序上的语义一致：
 
 ```text
 GET    /v1/resources?kind=profile&limit=100&cursor=<opaque>
@@ -133,27 +174,6 @@ DELETE /v1/resources/{kind}/{id}
 
 建议的 kind：`profile`、`session`、`config`、`theme`、`layout_template`、`recent_items`、`paste_history`。API 允许增加其他 kind，无需改表。
 
-## 旧 JSON 导入本地 ORM
-
-导入命令识别当前应用的八个文件：profiles、preferences、config、terminal layout、themes、layout templates、recent items 和 paste history。
-
-```bash
-cd backend
-IANVS_ENCRYPTION_KEY='<client-owned-key>' \
-IANVS_LEGACY_PROFILE_KEY='<base64-key-from-client-secure-storage>' \
-  go run ./cmd/ianvs-api import-legacy \
-  --dir '/absolute/path/to/application-support'
-```
-
-profiles 会拆成独立资源；已是明文的 `password`、`privateKeyPassphrase`、`x11AuthCookie` 和 proxy jump 密钥会从普通 JSON 中移出并重新加密。如果客户端显式提供 `IANVS_LEGACY_PROFILE_KEY`，导入器还能验证并解密现有 `ianvs-profile-secrets-v1` envelope，再使用新用户数据密钥重新加密。未提供旧 key 时，envelope 会作为敏感数据原样保护，不会猜测或丢字段。
-
-其余分类：
-
-- preferences/config、theme、layout template：普通 JSON。
-- terminal layout/session relaunch、recent items、paste history：整份加密。
-
-导入使用稳定 ID，重复执行是幂等的；文件发生变化后再次执行会更新对应本地 ORM 资源。命令不会删除或改写旧 JSON，便于回滚验证。
-
 ## 本地到远程单向合并
 
 本地和远程暴露相同的 migration contract：
@@ -179,23 +199,23 @@ curl -sS -X POST 'https://api.example.com/v1/migrations/merge' \
 
 默认冲突策略为 `preserve_destination`：新资源创建；已有资源仅在 `source_id` 与当前来源一致且 `source_revision` 严格递增时原子更新；更低的同源 revision 与内容完全一致的同 revision 重放会跳过，同 revision 但普通或敏感内容不同则报告 `conflict`；其他来源对同一资源的内容变更同样保留目标端并报告 `conflict`。同源高 revision 会一起更新普通字段和显式提供的敏感字段，省略敏感字段仍保留现有密文。显式迁移工具也可提交 `source_wins` 或 `newer_wins`。删除默认不传播，只有 `propagate_deletes: true` 才应用 tombstone。
 
-## 配置
+## 配置合同
 
-| 环境变量 | 默认值 | 说明 |
-|---|---|---|
-| `IANVS_API_MODE` | `local` | `local` 或 `remote` |
-| `IANVS_API_ADDR` | 本地 `127.0.0.1:47832`；远程 `0.0.0.0:47832` | 监听地址 |
-| `IANVS_DB_DRIVER` | `sqlite` | `sqlite` 或 `mysql` |
-| `IANVS_DB_DSN` | `ianvs.db` | SQLite 文件或 MySQL DSN |
-| `IANVS_LOCAL_ACCESS_TOKEN` | 空 | 可选；本地模式所有请求需要的 Bearer token，主应用启动 sidecar 时自动设置 |
-| `IANVS_EXIT_ON_STDIN_CLOSE` | `false` | stdin 关闭时优雅停止服务，供主应用管理 sidecar 生命周期 |
-| `IANVS_AUTH_TOKEN_TTL` | `24h` | 登录 token 有效期 |
-| `IANVS_ALLOW_REGISTRATION` | `false` | 是否开放远程注册；仅在受控注册窗口显式启用 |
-| `IANVS_TRUST_PROXY_HEADERS` | `false` | 是否接受代理提供的 HTTPS 标记 |
-| `IANVS_ALLOW_INSECURE_SENSITIVE_TRANSPORT` | `false` | 仅限受控开发环境 |
-| `IANVS_LEGACY_DATA_DIR` | 空 | legacy import 默认目录 |
-| `IANVS_LEGACY_PROFILE_KEY` | 空 | 可选；旧 profile Keychain 密钥（base64 32 字节） |
-| `IANVS_ENCRYPTION_KEY` | 空 | 仅供一次性 CLI import；服务进程不需要 |
+`serve` 必须且只能通过 `--config <path>` 接收一个 current JSON 配置。所有字段必填，未知字段、重复字段、尾随 JSON、非 current `schema_version`、超限值和不安全的文件权限都会被拒绝；没有环境变量或旧格式回退。
+
+| JSON 字段 | 合同 |
+|---|---|
+| `schema_version` | 必须为 `1` |
+| `mode` | `local` 或 `remote` |
+| `address` | 1–255 字节的 `host:port`；local 必须是数值 loopback |
+| `database_driver` | `sqlite` 或 `mysql` |
+| `database_dsn` | 1–8192 字节；可含凭据，因此不得放在 argv |
+| `local_access_token` | local 必须是 32 随机字节的 canonical 无填充 base64url（精确 43 字符）；remote 必须为空 |
+| `exit_on_stdin_close` | 是否在父进程 stdin 关闭时优雅停止 |
+| `auth_token_ttl_seconds` | `1..2592000` |
+| `allow_registration` | local 必须为 `false` |
+| `allow_insecure_sensitive_transport` | local 必须为 `false`；remote 只限受控开发环境 |
+| `trust_proxy_headers` | local 必须为 `false`；remote 仅在可信反向代理隔离直连时启用 |
 
 完整 HTTP contract 见 [openapi.yaml](openapi.yaml)。
 

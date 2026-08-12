@@ -9,12 +9,12 @@ RUN CGO_ENABLED=1 go build -trimpath -ldflags='-s -w' -o /out/ianvs-api ./cmd/ia
 
 FROM alpine:3.22
 
-RUN apk add --no-cache ca-certificates tzdata \
+RUN apk add --no-cache ca-certificates su-exec tzdata \
     && addgroup -S ianvs \
     && adduser -S -G ianvs -h /var/lib/ianvs ianvs
 COPY --from=build /out/ianvs-api /usr/local/bin/ianvs-api
-USER ianvs
+COPY --chmod=0555 container-entrypoint.sh /usr/local/bin/ianvs-container-entrypoint
 WORKDIR /var/lib/ianvs
 EXPOSE 47832
-ENTRYPOINT ["ianvs-api"]
-CMD ["serve"]
+ENTRYPOINT ["ianvs-container-entrypoint"]
+CMD ["serve", "--config", "/run/secrets/ianvs-api-config.json"]

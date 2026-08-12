@@ -505,17 +505,15 @@ func (s *Service) Logout(ctx context.Context, rawToken string) error {
 
 		// Cancellation and completion lock the operation before touching its
 		// token. Preserve that order here so concurrent cancel/logout cannot
-		// deadlock. Legacy v1 tokens have no linked operation.
+		// deadlock.
 		var operation *model.AuthOperation
-		if token.OperationHash != nil {
-			var linked model.AuthOperation
-			if err := loadAuthOperationForUpdate(tx, *token.OperationHash, &linked); err != nil {
-				if !errors.Is(err, gorm.ErrRecordNotFound) {
-					return fmt.Errorf("load authentication operation for logout: %w", err)
-				}
-			} else {
-				operation = &linked
+		var linked model.AuthOperation
+		if err := loadAuthOperationForUpdate(tx, token.OperationHash, &linked); err != nil {
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return fmt.Errorf("load authentication operation for logout: %w", err)
 			}
+		} else {
+			operation = &linked
 		}
 
 		if err := tx.Where("token_hash = ?", tokenHash).Delete(&model.AuthToken{}).Error; err != nil {
@@ -563,13 +561,7 @@ func ensureUserSessionCapacity(db *gorm.DB, userID string, now time.Time) error 
 		Count(&operationCount).Error; err != nil {
 		return fmt.Errorf("count active authentication operations: %w", err)
 	}
-	var legacyTokenCount int64
-	if err := db.Model(&model.AuthToken{}).
-		Where("user_id = ? AND expires_at > ? AND operation_hash IS NULL", userID, now).
-		Count(&legacyTokenCount).Error; err != nil {
-		return fmt.Errorf("count active legacy authentication tokens: %w", err)
-	}
-	if operationCount+legacyTokenCount >= maximumActiveSessionsPerUser {
+	if operationCount >= maximumActiveSessionsPerUser {
 		return ErrSessionCapacity
 	}
 	return nil
@@ -589,12 +581,11 @@ func (s *Service) issueReservedToken(
 		return Session{}, err
 	}
 	expiresAt := operation.ExpiresAt
-	operationHashCopy := operation.OperationHash
 	token := model.AuthToken{
 		ID:            tokenID,
 		UserID:        user.ID,
 		TokenHash:     hashToken(rawToken),
-		OperationHash: &operationHashCopy,
+		OperationHash: operation.OperationHash,
 		ExpiresAt:     expiresAt,
 	}
 	if err := db.Create(&token).Error; err != nil {

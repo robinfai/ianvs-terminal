@@ -71,6 +71,75 @@ func TestOpenAPIPathsMatchImplementedHTTPRoutes(t *testing.T) {
 	}
 }
 
+func TestOpenAPIReusesCanonicalLowercaseResourceIdentities(t *testing.T) {
+	encoded, err := os.ReadFile(filepath.Join("..", "..", "openapi.yaml"))
+	if err != nil {
+		t.Fatalf("read OpenAPI: %v", err)
+	}
+	contract := string(encoded)
+	for _, schema := range []struct {
+		name      string
+		maxLength string
+	}{
+		{name: "ResourceKind", maxLength: "64"},
+		{name: "ResourceID", maxLength: "191"},
+		{name: "SourceID", maxLength: "64"},
+	} {
+		definition := "    " + schema.name + ":\n" +
+			"      type: string\n" +
+			"      pattern: '^[a-z0-9][a-z0-9._:-]*$'\n" +
+			"      maxLength: " + schema.maxLength + "\n"
+		if !strings.Contains(contract, definition) {
+			t.Errorf("OpenAPI %s does not define the canonical lowercase contract", schema.name)
+		}
+	}
+	for reference, minimum := range map[string]int{
+		"#/components/schemas/ResourceKind": 3,
+		"#/components/schemas/ResourceID":   3,
+		"#/components/schemas/SourceID":     2,
+	} {
+		if count := strings.Count(contract, reference); count < minimum {
+			t.Errorf("OpenAPI reference %s count = %d, want at least %d", reference, count, minimum)
+		}
+	}
+}
+
+func TestOpenAPIMigrationSchemasRejectUnknownFields(t *testing.T) {
+	encoded, err := os.ReadFile(filepath.Join("..", "..", "openapi.yaml"))
+	if err != nil {
+		t.Fatalf("read OpenAPI: %v", err)
+	}
+	contract := string(encoded)
+	for _, schemaName := range []string{"MigrationBundle", "MigrationMergeRequest"} {
+		block := openAPISchemaBlock(t, contract, schemaName)
+		if !strings.Contains(block, "      unevaluatedProperties: false\n") {
+			t.Errorf("OpenAPI %s does not reject unevaluated properties", schemaName)
+		}
+		if !strings.Contains(block, "#/components/schemas/MigrationBundleFields") {
+			t.Errorf("OpenAPI %s does not reuse the exact migration fields", schemaName)
+		}
+	}
+	resource := openAPISchemaBlock(t, contract, "Resource")
+	if !strings.Contains(resource, "      additionalProperties: false\n") {
+		t.Error("OpenAPI Resource does not reject unknown nested migration fields")
+	}
+}
+
+func openAPISchemaBlock(t *testing.T, contract, name string) string {
+	t.Helper()
+	startMarker := "    " + name + ":\n"
+	start := strings.Index(contract, startMarker)
+	if start < 0 {
+		t.Fatalf("OpenAPI schema %s is missing", name)
+	}
+	remainder := contract[start+len(startMarker):]
+	next := regexp.MustCompile(`(?m)^    [A-Za-z][A-Za-z0-9]*:\n`).FindStringIndex(remainder)
+	if next == nil {
+		return remainder
+	}
+	return remainder[:next[0]]
+}
+
 func TestOpenAPIHealthContractMatchesSuccessAndFailureResponses(t *testing.T) {
 	operations := readOpenAPIOperations(t)
 	health := operations["GET /healthz"]

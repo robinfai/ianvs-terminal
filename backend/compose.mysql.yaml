@@ -19,13 +19,8 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
-    environment:
-      IANVS_API_MODE: remote
-      IANVS_API_ADDR: 0.0.0.0:47832
-      IANVS_DB_DRIVER: mysql
-      IANVS_DB_DSN: ianvs:${IANVS_MYSQL_PASSWORD}@tcp(mysql:3306)/ianvs?charset=utf8mb4&parseTime=True&loc=UTC
-      IANVS_ALLOW_REGISTRATION: "true"
-      IANVS_ALLOW_INSECURE_SENSITIVE_TRANSPORT: "true"
+    volumes:
+      - ${IANVS_API_CONFIG_FILE:?set IANVS_API_CONFIG_FILE to a 0400 or 0600 JSON configuration}:/run/secrets/ianvs-api-config.json:ro
     ports:
       - "127.0.0.1:47832:47832"
 
