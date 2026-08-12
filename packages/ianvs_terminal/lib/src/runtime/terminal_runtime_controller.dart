@@ -1307,8 +1307,6 @@ class TerminalRuntimeController implements TerminalInputSink {
     required Future<void> Function(String text) copyToClipboard,
     required Future<String> Function() readClipboard,
     TerminalClipboardTextWriter? writeTextClipboard,
-    Future<bool> Function()? allowClipboardCopy,
-    Future<bool> Function()? allowClipboardPasteRequest,
     Future<bool> Function(TerminalClipboardAccessRequest request)?
     allowClipboardCopyWithContext,
     Future<bool> Function(TerminalClipboardAccessRequest request)?
@@ -1317,8 +1315,6 @@ class TerminalRuntimeController implements TerminalInputSink {
     bool enableSessionPolling = true,
     bool enableWarmUpRefresh = false,
     bool emitRuntimeEventGapDiagnostics = true,
-    TerminalFrameWireFormatPreference frameWireFormatPreference =
-        TerminalFrameWireFormatPreference.automatic,
     TerminalBenchmarkEventSink? benchmarkEventSink,
   }) {
     return TerminalRuntimeController(
@@ -1328,15 +1324,12 @@ class TerminalRuntimeController implements TerminalInputSink {
       copyToClipboard: copyToClipboard,
       readClipboard: readClipboard,
       writeTextClipboard: writeTextClipboard,
-      allowClipboardCopy: allowClipboardCopy,
-      allowClipboardPasteRequest: allowClipboardPasteRequest,
       allowClipboardCopyWithContext: allowClipboardCopyWithContext,
       allowClipboardPasteRequestWithContext:
           allowClipboardPasteRequestWithContext,
       resizeWindowBy: resizeWindowBy,
       enableSessionPolling: enableSessionPolling,
       enableWarmUpRefresh: enableWarmUpRefresh,
-      frameWireFormatPreference: frameWireFormatPreference,
       benchmarkEventSink: benchmarkEventSink,
     );
   }
