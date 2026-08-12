@@ -43,11 +43,11 @@ void main() {
       ]);
     });
 
-    test('legacy initial screen output is published atomically', () {
+    test('current synchronized initial screen output is replayed exactly', () {
       final driver = _ReplayDriver();
       final backend = TerminalReplayBackend(
         delegate: driver,
-        recording: _initialScreenRecording(synchronized: false),
+        recording: _initialScreenRecording(),
         timingMode: TerminalReplayTimingMode.noDelay,
       );
 
@@ -56,25 +56,7 @@ void main() {
       expect(driver.replayOutputs, hasLength(1));
       expect(driver.replayOutputs.single, <int>[
         ..._synchronizedStartFixture,
-        ..._legacyInitialScreenFixture,
-        ..._synchronizedEndFixture,
-      ]);
-    });
-
-    test('synchronized initial screen output is not wrapped twice', () {
-      final driver = _ReplayDriver();
-      final backend = TerminalReplayBackend(
-        delegate: driver,
-        recording: _initialScreenRecording(synchronized: true),
-        timingMode: TerminalReplayTimingMode.noDelay,
-      );
-
-      backend.createSession('{}');
-
-      expect(driver.replayOutputs, hasLength(1));
-      expect(driver.replayOutputs.single, <int>[
-        ..._synchronizedStartFixture,
-        ..._legacyInitialScreenFixture,
+        ..._currentInitialScreenBodyFixture,
         ..._synchronizedEndFixture,
       ]);
     });
@@ -522,40 +504,41 @@ void main() {
       expect(driver.diagnosticRequests, <String>['$sessionId:session_stats']);
     });
 
-    test('materializes v2 checkpoint markers through the native delegate', () {
-      final driver = _ReplayDriver();
-      final recording = const TerminalRecordingCheckpointPlanner(
-        playableEventsPerCheckpoint: 2,
-      ).addCheckpoints(_recording());
-      final backend = TerminalReplayBackend(
-        delegate: driver,
-        recording: recording,
-        timingMode: TerminalReplayTimingMode.noDelay,
-      );
+    test(
+      'materializes current checkpoint markers through the native delegate',
+      () {
+        final driver = _ReplayDriver();
+        final recording = const TerminalRecordingCheckpointPlanner(
+          playableEventsPerCheckpoint: 2,
+        ).addCheckpoints(_recording());
+        final backend = TerminalReplayBackend(
+          delegate: driver,
+          recording: recording,
+          timingMode: TerminalReplayTimingMode.noDelay,
+        );
 
-      final sessionId = backend.createSession('{}');
-      final checkpoints = backend.checkpointsForSession(sessionId);
+        final sessionId = backend.createSession('{}');
+        final checkpoints = backend.checkpointsForSession(sessionId);
 
-      expect(backend.supportsReplayCheckpoints, isTrue);
-      expect(checkpoints.map((checkpoint) => checkpoint.recordingId), <String>[
-        'checkpoint-0',
-        'checkpoint-3',
-        'checkpoint-4',
-      ]);
-      expect(checkpoints.map((checkpoint) => checkpoint.sourceSequence), <int>[
-        0,
-        3,
-        4,
-      ]);
-      expect(
-        driver.calls.where((call) => call.startsWith('checkpoint:')),
-        <String>[
-          'checkpoint:replay-1:1',
-          'checkpoint:replay-1:2',
-          'checkpoint:replay-1:3',
-        ],
-      );
-    });
+        expect(backend.supportsReplayCheckpoints, isTrue);
+        expect(
+          checkpoints.map((checkpoint) => checkpoint.recordingId),
+          <String>['checkpoint-0', 'checkpoint-3', 'checkpoint-4'],
+        );
+        expect(
+          checkpoints.map((checkpoint) => checkpoint.sourceSequence),
+          <int>[0, 3, 4],
+        );
+        expect(
+          driver.calls.where((call) => call.startsWith('checkpoint:')),
+          <String>[
+            'checkpoint:replay-1:1',
+            'checkpoint:replay-1:2',
+            'checkpoint:replay-1:3',
+          ],
+        );
+      },
+    );
 
     test('seeks backward by restoring and replaying from a checkpoint', () {
       final driver = _ReplayDriver();
@@ -889,7 +872,7 @@ const _synchronizedEndFixture = <int>[
   0x36,
   0x6c,
 ];
-const _legacyInitialScreenFixture = <int>[
+const _currentInitialScreenBodyFixture = <int>[
   0x1b,
   0x5b,
   0x32,
@@ -910,7 +893,7 @@ const _legacyInitialScreenFixture = <int>[
   0x68,
 ];
 
-TerminalRecording _initialScreenRecording({required bool synchronized}) {
+TerminalRecording _initialScreenRecording() {
   const sessionId = 'fixture-initial-screen';
   return TerminalRecording(
     metadata: TerminalRecordingMetadata(
@@ -931,13 +914,11 @@ TerminalRecording _initialScreenRecording({required bool synchronized}) {
         sessionId: sessionId,
         sequence: 1,
         monotonicOffset: Duration.zero,
-        bytes: synchronized
-            ? <int>[
-                ..._synchronizedStartFixture,
-                ..._legacyInitialScreenFixture,
-                ..._synchronizedEndFixture,
-              ]
-            : _legacyInitialScreenFixture,
+        bytes: <int>[
+          ..._synchronizedStartFixture,
+          ..._currentInitialScreenBodyFixture,
+          ..._synchronizedEndFixture,
+        ],
       ),
     ],
   );

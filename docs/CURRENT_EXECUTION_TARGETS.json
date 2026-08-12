@@ -279,7 +279,8 @@
           "path": "example/lib/features/recording/local_session_recording_repository.dart",
           "contains": [
             "class LocalSessionRecordingRepository",
-            "root.list(recursive: true",
+            "_destinationSidecarBucketCount = 256",
+            "_maximumOrphanDestinationSidecarsPerPass = 32",
             "ianvs_recordings",
             "writeStringAtomically",
             "TerminalRecordingCodec"
@@ -320,7 +321,7 @@
       "exit_criteria": [
         "Terminal Layout and Relaunch Spec have focused schema, migration and controller coverage.",
         "Project identity, Recent Workspace and project switching are absent from the current app source.",
-        "Recording persistence is independent while legacy nested recordings remain discoverable.",
+        "Recording persistence uses one flat current-format library and fails closed on unsupported repository metadata.",
         "The complete macOS verification entrypoint passes on the current implementation."
       ],
       "reason": "T-331 supersedes the Project Workspace product claims from T-312 through T-317 while retaining their files as migration/history. The current product persists one Terminal Layout, minimal Relaunch Specs and a separate Recording Library; folder opening launches a terminal rather than switching a project container."
@@ -788,18 +789,18 @@
         {
           "path": "packages/ianvs_terminal/test/terminal_recording_codec_test.dart",
           "contains": [
-            "canonically re-encodes the v1 fixture",
+            "canonically re-encodes the current fixture",
             "redacted input never serializes sensitive bytes",
             "reports truncated JSON with a structured error",
             "rejects missing sequence entries and decreasing timestamps"
           ]
         },
         {
-          "path": "docs/recording/FORMAT_V1.md",
+          "path": "docs/recording/FORMAT_CURRENT.md",
           "contains": [
-            "Terminal Recording Format V1",
+            "Terminal Recording Current Format",
             "Input And Output Privacy",
-            "ReplayBackend"
+            "Single Current Schema"
           ]
         },
         {
@@ -832,7 +833,7 @@
         {
           "path": "packages/ianvs_terminal/test/terminal_live_recorder_test.dart",
           "contains": [
-            "starts native capture and decodes the stopped v1 recording",
+            "starts native capture and decodes the stopped current recording",
             "reports bounded native overflow without returning a partial recording"
           ]
         },
@@ -911,7 +912,7 @@
         {
           "path": "packages/ianvs_terminal/lib/src/recording/terminal_recording.dart",
           "contains": [
-            "terminalRecordingCheckpointSchemaVersion",
+            "terminalRecordingSchemaVersion",
             "TerminalRecordingEventKind.checkpoint",
             "class TerminalRecordingCheckpointPlanner",
             "playableEventsPerCheckpoint"
@@ -944,12 +945,12 @@
           ]
         },
         {
-          "path": "docs/recording/FORMAT_V2.md",
+          "path": "docs/recording/FORMAT_CURRENT.md",
           "contains": [
-            "Terminal Recording Format V2 Checkpoints",
-            "Safe Parser Boundaries",
-            "at most 64 checkpoints",
-            "32 MiB"
+            "Terminal Recording Current Format",
+            "checkpoint",
+            "32 MiB",
+            "schema_version: 1"
           ]
         },
         {
@@ -1000,7 +1001,7 @@
           ]
         },
         {
-          "path": "packages/ianvs_terminal/test/fixtures/recording/graphics_v2.ndjson",
+          "path": "packages/ianvs_terminal/test/fixtures/recording/graphics_current.ndjson",
           "contains": [
             "graphic_asset_blob",
             "sha256:0a6b6c68bc93e59b462b904b82daa7ee682deb5e293609553becaa4f8b0c43a0",
@@ -1042,10 +1043,10 @@
         "Session start, raw PTY output, user input, resize and exit are captured under a documented input privacy policy.",
         "ReplayBackend implements the current backend abstraction and supports realtime and no-delay playback.",
         "Realtime replay validates a bounded speed and scales absolute recording offsets without cumulative interval-rounding drift.",
-        "Bounded applied-viewport Frame hash comparison reports the first hash or frame-count divergence without changing Recording v1.",
-        "Recording v2 checkpoint markers materialize bounded native terminal snapshots only at safe control-sequence boundaries while v1 and old delegates remain compatible.",
+        "Bounded applied-viewport Frame hash comparison reports the first hash or frame-count divergence without changing current recording schema.",
+        "Current recording checkpoint markers materialize bounded native terminal snapshots only at safe control-sequence boundaries.",
         "Replay seek restores the latest materialized checkpoint at or before an inclusive target, fast-forwards deterministically and preserves monotonic Runtime Event ordering.",
-        "Recording v2 stores bounded content-addressed graphic assets, rejects corrupt or missing blobs and lets ReplayBackend prefer exact bundled identities before native fallback.",
+        "The current recording schema stores bounded content-addressed graphic assets, rejects corrupt or missing blobs and lets ReplayBackend prefer exact bundled identities before native fallback.",
         "Repeated fixture playback produces a stable event sequence.",
         "Truncated, corrupt and unsupported recordings return structured errors.",
         "The complete repository verification entrypoint passes after live recording and replay are connected."

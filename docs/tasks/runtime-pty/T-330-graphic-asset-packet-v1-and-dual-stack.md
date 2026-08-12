@@ -19,7 +19,8 @@ Protobuf packet while retaining the exact meta/copy symbols for both upgrade dir
 
 ## Non-goals
 
-- Do not change `terminal-frame-diff-v1`, Terminal Frame Packet v1 or Recording v1/v2.
+- Do not change `terminal-frame-diff-v1`, Terminal Frame Packet v1 or the
+  single current recording schema.
 - Do not remove or change `ianvs_session_graphic_asset_meta` or
   `ianvs_session_graphic_asset_rgba_copy`.
 - Do not add live Recording asset capture, file-download migration, remote transport or UI.

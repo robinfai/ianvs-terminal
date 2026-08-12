@@ -65,6 +65,8 @@ void main() {
     expect(result.failures.single.taskName, 'failing');
     expect(result.failures.single.error, isA<StateError>());
     expect(result.toPlatformMessage(), containsPair('failureCount', 1));
+    expect(result.safeToTerminate, isFalse);
+    expect(result.toPlatformMessage(), containsPair('unsafeToTerminate', true));
   });
 
   test('settles application work before infrastructure cleanup', () async {
@@ -107,11 +109,37 @@ void main() {
     expect(result.totalTaskCount, 1);
     expect(result.settledTaskCount, 0);
     expect(result.toPlatformMessage(), containsPair('completed', false));
+    expect(result.toPlatformMessage(), containsPair('safeToTerminate', false));
+    expect(result.toPlatformMessage(), containsPair('unsafeToTerminate', true));
 
     stalledTask.complete();
     final settled = await coordinator.settle();
     expect(settled.timedOut, isFalse);
     expect(settled.settledTaskCount, 1);
+  });
+
+  test('a native retry gets a fresh bound without rerunning tasks', () async {
+    final coordinator = AppShutdownCoordinator(
+      timeout: const Duration(milliseconds: 1),
+    );
+    final gate = Completer<void>();
+    var runCount = 0;
+    coordinator.registerTask('recording', () async {
+      runCount += 1;
+      await gate.future;
+    });
+
+    final first = await coordinator.shutdown();
+    expect(first.timedOut, isTrue);
+    expect(first.unsafeToTerminate, isTrue);
+
+    final retry = coordinator.shutdown();
+    gate.complete();
+    final second = await retry;
+
+    expect(second.timedOut, isFalse);
+    expect(second.safeToTerminate, isTrue);
+    expect(runCount, 1);
   });
 
   test(

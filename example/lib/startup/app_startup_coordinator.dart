@@ -116,8 +116,9 @@ final class AppStartupCoordinator extends ChangeNotifier {
   final Set<AppShutdownFailure> _reportedCloseFailures =
       Set<AppShutdownFailure>.identity();
   var _didReportCloseTimeout = false;
+  var _isObservingCloseSettlement = false;
 
-  bool get shutdownHasStarted => _closeFuture != null;
+  bool get shutdownHasStarted => _closeCoordinator.hasStarted;
 
   Future<void> start() => _runSingleFlight();
 
@@ -664,8 +665,20 @@ final class AppStartupCoordinator extends ChangeNotifier {
     }
     final future = _closeCoordinator.shutdown();
     _closeFuture = future;
-    unawaited(future.then(_reportCloseResult));
-    unawaited(_closeCoordinator.settle().then(_reportCloseResult));
+    unawaited(
+      future.then((result) {
+        _reportCloseResult(result);
+        if (result.timedOut && identical(_closeFuture, future)) {
+          // Preserve the one underlying settlement, but let a future native
+          // Quit request observe it through a new bounded window.
+          _closeFuture = null;
+        }
+      }),
+    );
+    if (!_isObservingCloseSettlement) {
+      _isObservingCloseSettlement = true;
+      unawaited(_closeCoordinator.settle().then(_reportCloseResult));
+    }
     return future;
   }
 

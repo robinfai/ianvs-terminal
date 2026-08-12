@@ -295,6 +295,7 @@ fn supported_operation(value: &str) -> bool {
             | "terminal.recording_start"
             | "terminal.recording_stop"
             | "terminal.recording_stop_prepare"
+            | "terminal.recording_finalize_status"
             | "terminal.recording_cancel"
             | "terminal.search_text"
             | "terminal.selection_text"
@@ -380,6 +381,7 @@ mod tests {
     fn operation_inventory_is_explicit() {
         assert!(supported_operation("ssh.auth_response"));
         assert!(supported_operation("terminal.recording_stop_prepare"));
+        assert!(supported_operation("terminal.recording_finalize_status"));
         assert!(supported_operation("terminal.search_text"));
         assert!(supported_operation("terminal.zmodem.resolve_recovery"));
         assert!(supported_operation("terminal.zmodem.dismiss_recovery"));

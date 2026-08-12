@@ -30,8 +30,7 @@
 - [ARCHITECTURE.md](ARCHITECTURE.md)：稳定设计、模块职责、公开接口和长期约束。
 - [../backend/README.md](../backend/README.md)：Go/GORM 本地与远程数据 API、加密边界和单向迁移合同。
 - [FRAME_DIFF.md](FRAME_DIFF.md)：terminal frame diff 的原理图、生命周期、Snapshot/Delta 对比和收益说明。
-- [recording/FORMAT_V1.md](recording/FORMAT_V1.md)：Iteration 03 的 Recording Metadata/Event v1 格式、兼容错误和输入隐私边界。
-- [recording/FORMAT_V2.md](recording/FORMAT_V2.md)：Recording v2 checkpoint marker、安全 parser 边界、有界 native materialization 与兼容规则。
+- [recording/FORMAT_CURRENT.md](recording/FORMAT_CURRENT.md)：唯一 current Recording schema，包含事件、checkpoint、语义、graphics、错误与隐私边界。
 - [protocols/RUNTIME_CAPABILITIES_V1.md](protocols/RUNTIME_CAPABILITIES_V1.md)：native Runtime Capabilities v1 查询、可选符号和特性清单。
 - [protocols/RUNTIME_EVENT_ENVELOPE_V1.md](protocols/RUNTIME_EVENT_ENVELOPE_V1.md)：Event Envelope/Batch v1、序号、丢失检测和旧协议回退。
 - [protocols/SESSION_CONFIG_V1.md](protocols/SESSION_CONFIG_V1.md)：live/replay 会话创建的 SessionConfig v1、输入边界和旧 Profile wire 双向兼容。

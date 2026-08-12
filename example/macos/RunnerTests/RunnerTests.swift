@@ -34,6 +34,12 @@ private final class DragTrackingMainFlutterWindow: MainFlutterWindow {
 
 class RunnerTests: XCTestCase {
 
+  override func tearDown() {
+    AppDelegate.suppressNextLastWindowTerminate = false
+    AppDelegate.suppressNextTerminateConfirmation = false
+    super.tearDown()
+  }
+
   func testExample() {
     // If you add code to the Runner application, consider adding tests here.
     // See https://developer.apple.com/documentation/xctest for more information about using XCTest.
@@ -45,6 +51,161 @@ class RunnerTests: XCTestCase {
     delegate.applicationDidFinishLaunching(
       Notification(name: NSApplication.didFinishLaunchingNotification)
     )
+  }
+
+  func testDartShutdownMessageRequiresExplicitSafeTerminationContract() {
+    XCTAssertEqual(
+      DartShutdownSafety.fromPlatformResult([
+        "completed": true,
+        "timedOut": false,
+        "safeToTerminate": true,
+        "unsafeToTerminate": false,
+      ]),
+      .safeToTerminate
+    )
+    XCTAssertEqual(
+      DartShutdownSafety.fromPlatformResult([
+        "completed": false,
+        "timedOut": true,
+        "safeToTerminate": false,
+        "unsafeToTerminate": true,
+      ]),
+      .unsafeToTerminate(.dartTimedOut)
+    )
+    XCTAssertEqual(
+      DartShutdownSafety.fromPlatformResult([
+        "completed": true,
+        "timedOut": false,
+      ]),
+      .unsafeToTerminate(.invalidResponse)
+    )
+  }
+
+  func testTimedOutPendingShutdownCancelsQuitAndAFutureQuitCanRetry() {
+    let delegate = AppDelegate()
+    let app = NSApplication.shared
+    var shutdownRequests: [(DartShutdownSafety) -> Void] = []
+    var replies: [Bool] = []
+    var scheduledTimeouts: [() -> Void] = []
+    let firstRequest = expectation(description: "first Dart shutdown request")
+    let firstReply = expectation(description: "first termination reply")
+
+    delegate.dartShutdownRequestOverride = { _, completion in
+      shutdownRequests.append(completion)
+      if shutdownRequests.count == 1 {
+        firstRequest.fulfill()
+      }
+    }
+    delegate.terminationReplyOverride = { _, shouldTerminate in
+      replies.append(shouldTerminate)
+      if replies.count == 1 {
+        firstReply.fulfill()
+      }
+    }
+    delegate.shutdownTimeoutSchedulerOverride = { _, handler in
+      scheduledTimeouts.append(handler)
+      return DispatchWorkItem {}
+    }
+    delegate.unsafeTerminationConfirmationOverride = { _ in false }
+
+    AppDelegate.suppressNextTerminateConfirmation = true
+    XCTAssertEqual(delegate.applicationShouldTerminate(app), .terminateLater)
+    wait(for: [firstRequest], timeout: 1)
+
+    // A pending recording keeps the Dart result unsafe. The native timeout
+    // must cancel this quit instead of destroying the Flutter engine.
+    scheduledTimeouts.first?()
+    wait(for: [firstReply], timeout: 1)
+    XCTAssertEqual(replies, [false])
+    XCTAssertFalse(AppDelegate.suppressNextTerminateConfirmation)
+    XCTAssertFalse(AppDelegate.suppressNextLastWindowTerminate)
+
+    let secondRequest = expectation(description: "retry Dart shutdown request")
+    let secondReply = expectation(description: "retry termination reply")
+    delegate.dartShutdownRequestOverride = { _, completion in
+      shutdownRequests.append(completion)
+      secondRequest.fulfill()
+    }
+    delegate.terminationReplyOverride = { _, shouldTerminate in
+      replies.append(shouldTerminate)
+      secondReply.fulfill()
+    }
+    AppDelegate.suppressNextTerminateConfirmation = true
+    XCTAssertEqual(delegate.applicationShouldTerminate(app), .terminateLater)
+    wait(for: [secondRequest], timeout: 1)
+
+    let staleAttemptDrained = expectation(
+      description: "stale termination attempt callbacks drained"
+    )
+    shutdownRequests.first?(.safeToTerminate)
+    scheduledTimeouts.first?()
+    DispatchQueue.main.async {
+      staleAttemptDrained.fulfill()
+    }
+    wait(for: [staleAttemptDrained], timeout: 1)
+    XCTAssertEqual(replies, [false])
+
+    shutdownRequests.last?(.safeToTerminate)
+    wait(for: [secondReply], timeout: 1)
+
+    XCTAssertEqual(shutdownRequests.count, 2)
+    XCTAssertEqual(replies, [false, true])
+  }
+
+  func testDartTimedOutReplyCancelsQuitWithoutWaitingForNativeFallback() {
+    let delegate = AppDelegate()
+    let app = NSApplication.shared
+    var reply: Bool?
+    let request = expectation(description: "Dart shutdown request")
+    let didReply = expectation(description: "termination reply")
+
+    delegate.dartShutdownRequestOverride = { _, completion in
+      request.fulfill()
+      completion(.unsafeToTerminate(.dartTimedOut))
+    }
+    delegate.terminationReplyOverride = { _, shouldTerminate in
+      reply = shouldTerminate
+      didReply.fulfill()
+    }
+    delegate.shutdownTimeoutSchedulerOverride = { _, _ in DispatchWorkItem {} }
+    delegate.unsafeTerminationConfirmationOverride = { reason in
+      XCTAssertEqual(reason, .dartTimedOut)
+      return false
+    }
+
+    AppDelegate.suppressNextTerminateConfirmation = true
+    XCTAssertEqual(delegate.applicationShouldTerminate(app), .terminateLater)
+    wait(for: [request, didReply], timeout: 1)
+
+    XCTAssertEqual(reply, false)
+    XCTAssertFalse(AppDelegate.suppressNextTerminateConfirmation)
+  }
+
+  func testUnsafeDartResultOnlyTerminatesAfterExplicitSecondConfirmation() {
+    let delegate = AppDelegate()
+    let app = NSApplication.shared
+    var reply: Bool?
+    let request = expectation(description: "Dart shutdown request")
+    let didReply = expectation(description: "termination reply")
+
+    delegate.dartShutdownRequestOverride = { _, completion in
+      request.fulfill()
+      completion(.unsafeToTerminate(.dartRejectedTermination))
+    }
+    delegate.terminationReplyOverride = { _, shouldTerminate in
+      reply = shouldTerminate
+      didReply.fulfill()
+    }
+    delegate.shutdownTimeoutSchedulerOverride = { _, _ in DispatchWorkItem {} }
+    delegate.unsafeTerminationConfirmationOverride = { reason in
+      XCTAssertEqual(reason, .dartRejectedTermination)
+      return true
+    }
+
+    AppDelegate.suppressNextTerminateConfirmation = true
+    XCTAssertEqual(delegate.applicationShouldTerminate(app), .terminateLater)
+    wait(for: [request, didReply], timeout: 1)
+    XCTAssertEqual(reply, true)
   }
 
   func testMainWindowCloseIsCancelledBeforeTheWindowCloses() {

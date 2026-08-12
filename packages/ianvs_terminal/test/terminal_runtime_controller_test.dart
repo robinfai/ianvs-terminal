@@ -10049,6 +10049,8 @@ void main() {
   ) async {
     final runtimeBackend = _FakePtyBackend();
     var exitHookRanBeforeNativeClose = false;
+    var typedExitHookRanBeforeNativeClose = false;
+    TerminalSessionPreCloseSignal? typedPreCloseSignal;
     final runtime = TerminalRuntimeController(
       backend: runtimeBackend,
       copyToClipboard: (_) async {},
@@ -10056,6 +10058,11 @@ void main() {
       enableSessionPolling: false,
       beforeSessionCloseOnExit: (_, _) {
         exitHookRanBeforeNativeClose = runtimeBackend.closeCalls.isEmpty;
+      },
+      beforeSessionCloseOnExitSignal: (signal) {
+        typedPreCloseSignal = signal;
+        typedExitHookRanBeforeNativeClose = runtimeBackend.closeCalls.isEmpty;
+        return const TerminalSessionPreCloseOutcome.allowClose();
       },
     );
     addTearDown(runtime.dispose);
@@ -10098,6 +10105,10 @@ void main() {
 
     expect(runtime.hasSession(sessionId), isFalse);
     expect(exitHookRanBeforeNativeClose, isTrue);
+    expect(typedExitHookRanBeforeNativeClose, isTrue);
+    expect(typedPreCloseSignal?.sessionId, sessionId);
+    expect(typedPreCloseSignal?.sessionEpoch, isPositive);
+    expect(typedPreCloseSignal?.exitCode, 7);
     expect(runtimeBackend.closeCalls, <String>[sessionId]);
     expect(seenEvents.whereType<TerminalSessionExitEvent>().single.exitCode, 7);
     expect(runtimeEventGaps, hasLength(1));
@@ -10106,6 +10117,102 @@ void main() {
     expect(runtimeEventGaps.single.nextSequence, 5);
     expect(runtimeEventGaps.single.stateRefreshRequested, isFalse);
   });
+
+  testWidgets('pre-close retries once before allowing native exit close', (
+    tester,
+  ) async {
+    final backend = _FakePtyBackend();
+    var attempts = 0;
+    final runtime = TerminalRuntimeController(
+      backend: backend,
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      enableSessionPolling: false,
+      beforeSessionCloseOnExitSignal: (_) {
+        attempts += 1;
+        if (attempts == 1) {
+          return TerminalSessionPreCloseOutcome.retryableFailure(
+            error: StateError('transient pre-close failure'),
+            stackTrace: StackTrace.current,
+          );
+        }
+        return const TerminalSessionPreCloseOutcome.allowClose();
+      },
+    );
+    addTearDown(runtime.dispose);
+    final sessionId = runtime.createSession(
+      const TerminalSessionConfig(
+        launch: TerminalLaunchConfig(program: '/bin/sh'),
+      ),
+    );
+    backend.enqueueEvent(
+      sessionId,
+      PtyEvent(
+        kind: 'exit',
+        sessionId: sessionId,
+        payload: const <String, Object?>{'code': 4},
+      ),
+    );
+
+    runtime.refreshSession(sessionId);
+    await tester.pump();
+
+    expect(attempts, 2);
+    expect(runtime.hasSession(sessionId), isFalse);
+    expect(backend.closeCalls, <String>[sessionId]);
+  });
+
+  testWidgets(
+    'persistent pre-close failure retains session and reports error',
+    (tester) async {
+      final backend = _FakePtyBackend();
+      var attempts = 0;
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+        beforeSessionCloseOnExitSignal: (_) {
+          attempts += 1;
+          return TerminalSessionPreCloseOutcome.retryableFailure(
+            error: StateError('persistent pre-close failure'),
+            stackTrace: StackTrace.current,
+          );
+        },
+      );
+      addTearDown(runtime.dispose);
+      final errors = <TerminalSessionBackendErrorEvent>[];
+      final subscription = runtime.events.listen((event) {
+        if (event is TerminalSessionBackendErrorEvent) {
+          errors.add(event);
+        }
+      });
+      addTearDown(subscription.cancel);
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'exit',
+          sessionId: sessionId,
+          payload: const <String, Object?>{'code': 5},
+        ),
+      );
+
+      runtime.refreshSession(sessionId);
+      await tester.pump();
+
+      expect(attempts, 2);
+      expect(runtime.hasSession(sessionId), isTrue);
+      expect(backend.closeCalls, isEmpty);
+      expect(errors, hasLength(1));
+      expect(errors.single.operation, 'beforeSessionCloseOnExitSignal');
+      expect(errors.single.error, isA<StateError>());
+    },
+  );
 
   testWidgets(
     'beginShutdown cancels product exit-close retries until infra disposal',

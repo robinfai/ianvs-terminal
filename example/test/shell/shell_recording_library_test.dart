@@ -128,7 +128,7 @@ class _WidgetRecordingLibraryRepository extends LocalSessionRecordingRepository
          duration: const Duration(milliseconds: 400),
          fileSizeBytes: 512,
          sessionId: 'recorded-session',
-         schemaVersion: terminalRecordingSemanticSchemaVersion,
+         schemaVersion: terminalRecordingSchemaVersion,
          inputPolicy: TerminalRecordingInputPolicy.redact,
        ),
        super(directoryResolver: () async => directory);

@@ -87,7 +87,7 @@ use protocol_callbacks::{
 };
 use protocol_host::drain_protocol_callback_batch;
 use pty_reader::{read_error_is_trusted_eof, wait_until_readable};
-use recording::{RecordingError, RecordingInputPolicy, SessionRecording};
+use recording::{RecordingError, RecordingFinalizeStatus, RecordingInputPolicy, SessionRecording};
 
 const DEFAULT_ROWS: u16 = 32;
 const DEFAULT_COLS: u16 = 120;
@@ -7298,6 +7298,40 @@ pub fn request_session_json(
                 })),
                 Err(error) => recording_error_response(error),
             }
+        }
+        "terminal.recording_finalize_status" => {
+            let Some(job_id) = request
+                .get("job_id")
+                .and_then(serde_json::Value::as_str)
+                .filter(|job_id| recording::valid_recording_finalize_job_id(job_id))
+            else {
+                return invalid_recording_request(
+                    "job_id must be 32 lowercase hexadecimal characters",
+                );
+            };
+            let Some(consume_terminal) = request
+                .get("consume_terminal")
+                .and_then(serde_json::Value::as_bool)
+            else {
+                return invalid_recording_request("consume_terminal must be a boolean");
+            };
+            let status = recording::recording_finalize_status(job_id, consume_terminal);
+            let mut response = serde_json::json!({
+                "ok": true,
+                "state": match status {
+                    RecordingFinalizeStatus::Running => "running",
+                    RecordingFinalizeStatus::Ready => "ready",
+                    RecordingFinalizeStatus::Failed(_) => "failed",
+                    RecordingFinalizeStatus::Unknown => "unknown",
+                },
+            });
+            if let RecordingFinalizeStatus::Failed(error) = status {
+                response["error"] = serde_json::json!({
+                    "code": error.code,
+                    "message": error.message,
+                });
+            }
+            request_json_response(response)
         }
         "terminal.recording_cancel" => {
             let session = STORE.get(session_id)?;

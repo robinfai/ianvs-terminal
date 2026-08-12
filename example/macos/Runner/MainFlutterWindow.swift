@@ -3,6 +3,37 @@ import Carbon.HIToolbox
 import FlutterMacOS
 import UserNotifications
 
+enum DartShutdownSafety: Equatable {
+  enum UnsafeReason: Equatable {
+    case channelUnavailable
+    case invalidResponse
+    case dartTimedOut
+    case dartRejectedTermination
+  }
+
+  case safeToTerminate
+  case unsafeToTerminate(UnsafeReason)
+
+  static func fromPlatformResult(_ result: Any?) -> DartShutdownSafety {
+    guard
+      let message = result as? [AnyHashable: Any],
+      let completed = message["completed"] as? Bool,
+      let timedOut = message["timedOut"] as? Bool,
+      let safeToTerminate = message["safeToTerminate"] as? Bool,
+      let unsafeToTerminate = message["unsafeToTerminate"] as? Bool
+    else {
+      return .unsafeToTerminate(.invalidResponse)
+    }
+    if timedOut {
+      return .unsafeToTerminate(.dartTimedOut)
+    }
+    guard completed, safeToTerminate, !unsafeToTerminate else {
+      return .unsafeToTerminate(.dartRejectedTermination)
+    }
+    return .safeToTerminate
+  }
+}
+
 private final class HotkeyWindowController {
   static let shortcutLabel = "⌥⌘Space"
 
@@ -312,15 +343,15 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
     NSApp.terminate(nil)
   }
 
-  func requestDartShutdown(completion: @escaping () -> Void) {
+  func requestDartShutdown(completion: @escaping (DartShutdownSafety) -> Void) {
     guard let shutdownChannel else {
-      completion()
+      completion(.unsafeToTerminate(.channelUnavailable))
       return
     }
     shutdownChannel.invokeMethod(
       "requestShutdown",
       arguments: nil,
-      result: { _ in completion() }
+      result: { result in completion(DartShutdownSafety.fromPlatformResult(result)) }
     )
   }
 

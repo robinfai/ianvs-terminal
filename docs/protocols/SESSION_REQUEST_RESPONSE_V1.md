@@ -53,7 +53,7 @@ Protocol failure example:
 ```
 
 The UTF-8 request document is limited to 1 MiB. The response ceiling is 16 MiB because the
-existing bounded Recording stop operation returns Recording v1 NDJSON through this channel.
+existing bounded Recording stop operation returns current recording schema NDJSON through this channel.
 Identifiers and operation names are individually bounded. Consumers ignore additive unknown v1
 object fields, but reject a wrong schema/contract, malformed required fields, oversized input and
 request/response correlation mismatch.

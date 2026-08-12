@@ -44,8 +44,10 @@ class _DataApiLifecycleBoundaryState extends State<DataApiLifecycleBoundary> {
     _listener = AppLifecycleListener(
       onDetach: () => unawaited(_shutdown()),
       onExitRequested: () async {
-        await _shutdown();
-        return AppExitResponse.exit;
+        final result = await _shutdown();
+        return result.safeToTerminate
+            ? AppExitResponse.exit
+            : AppExitResponse.cancel;
       },
     );
   }

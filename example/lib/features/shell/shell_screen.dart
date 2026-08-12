@@ -37,6 +37,7 @@ import '../recording/recording_replay_search_index.dart';
 import '../recording/replay_viewport_layout.dart';
 import '../sessions/session_controller.dart';
 import '../sessions/session_state.dart';
+import '../sessions/terminal_event_coordinator.dart';
 import '../ssh/new_session_launcher.dart';
 import '../ssh/ssh_auth_prompt.dart';
 import '../ssh/ssh_profile_import_service.dart';
@@ -243,13 +244,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   final Set<String> _sessionsSeenForActivityNotifications = {};
   final Set<String> _sessionsSeenForNewOutputBadges = {};
   final Set<String> _sessionsWithNewOutput = {};
-  StreamSubscription<terminal.TerminalSessionEvent>? _terminalEventSubscription;
-  StreamSubscription<terminal.TerminalSessionZmodemEvent>?
-  _zmodemEventSubscription;
-  StreamSubscription<
-    terminal.TerminalSessionZmodemDeferredWriteFailedDiagnostic
-  >?
-  _zmodemDeferredWriteFailureSubscription;
+  TerminalEventSinkAttachment? _terminalUiEffectAttachment;
   Future<void> Function()? _searchPasteHandler;
   late final LocalTerminalShellUiWiringSnapshot _completionDiagnosticsSnapshot;
   late final Osc72DragDropController _osc72DragDropController;
@@ -429,15 +424,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     _osc52PromptController = ref.read(sessionOsc52PromptControllerProvider);
     _osc52PromptController?.setAuthorizationHandler(_confirmOsc52Access);
     if (runtime != null) {
-      _terminalEventSubscription = runtime.events.listen(
-        _handleTerminalSessionEvent,
-      );
-      _zmodemEventSubscription = runtime.zmodemEvents.listen(
-        _handleZmodemEvent,
-      );
-      _zmodemDeferredWriteFailureSubscription = runtime
-          .zmodemDeferredWriteFailures
-          .listen(_handleZmodemDeferredWriteFailure);
+      _terminalUiEffectAttachment = ref
+          .read(terminalEventCoordinatorProvider)
+          .attachUiSink(_handleTerminalUiEffect);
     }
     ref.listenManual<SessionState>(
       sessionControllerProvider,
@@ -454,9 +443,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     _appLifecycleListener.dispose();
     unawaited(_osc72DragDropController.dispose());
     _osc52PromptController?.clearAuthorizationHandler();
-    unawaited(_terminalEventSubscription?.cancel());
-    unawaited(_zmodemEventSubscription?.cancel());
-    unawaited(_zmodemDeferredWriteFailureSubscription?.cancel());
+    _terminalUiEffectAttachment?.detach();
     _layoutCueTimer?.cancel();
     for (final timer in _viewportResizeTimers.values) {
       timer.cancel();

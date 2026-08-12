@@ -46,9 +46,21 @@ final class AppShutdownResult {
 
   bool get completedWithinTimeout => !timedOut;
 
+  /// Whether the process may exit without abandoning an owned resource.
+  ///
+  /// A bounded timeout is only an observation deadline; the underlying tasks
+  /// continue to settle. Any task failure is also fail-closed because the
+  /// coordinator cannot prove that the corresponding resource was released.
+  bool get unsafeToTerminate =>
+      timedOut || failures.isNotEmpty || settledTaskCount < totalTaskCount;
+
+  bool get safeToTerminate => !unsafeToTerminate;
+
   Map<String, Object> toPlatformMessage() => <String, Object>{
     'completed': completedWithinTimeout,
     'timedOut': timedOut,
+    'safeToTerminate': safeToTerminate,
+    'unsafeToTerminate': unsafeToTerminate,
     'totalTaskCount': totalTaskCount,
     'settledTaskCount': settledTaskCount,
     'failureCount': failures.length,
@@ -122,7 +134,23 @@ final class AppShutdownCoordinator {
     if (!bounded) {
       return settlement;
     }
-    return _shutdownFuture ??= _boundedResult(settlement);
+    final existing = _shutdownFuture;
+    if (existing != null) {
+      return existing;
+    }
+    final boundedResult = _boundedResult(settlement);
+    _shutdownFuture = boundedResult;
+    unawaited(
+      boundedResult.then((result) {
+        // A native quit that timed out must be cancellable and retryable. The
+        // tasks themselves remain single-flight through [_settlementFuture],
+        // while a later request gets a fresh bounded observation window.
+        if (result.timedOut && identical(_shutdownFuture, boundedResult)) {
+          _shutdownFuture = null;
+        }
+      }),
+    );
+    return boundedResult;
   }
 
   Future<AppShutdownResult> _startShutdown() {

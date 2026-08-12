@@ -3,14 +3,14 @@
 ## Goal
 
 Persist the decoded RGBA needed by recorded graphic placements in a bounded,
-deterministic Recording v2 bundle, then let ReplayBackend resolve an exact recorded
+deterministic current recording schema bundle, then let ReplayBackend resolve an exact recorded
 asset before falling back to the native cache.
 
 ## Scope
 
 - Add immutable public Recording graphic-asset values keyed by positive
   `(asset_id, asset_version)`.
-- Add explicit v1/v2-to-v2 bundling without changing live native v1 capture.
+- Add explicit current-schema bundling without changing live native capture.
 - Store unique decoded RGBA in content-addressed `graphic_asset_blob` records and
   separate canonical identity references.
 - Bound one recording to 128 identities, 128 unique blobs and 32 MiB of unique
@@ -23,7 +23,7 @@ asset before falling back to the native cache.
 
 ## Non-goals
 
-- Do not change Recording v1 bytes, the live native recorder or Frame wire.
+- Do not change current recording schema bytes, the live native recorder or Frame wire.
 - Do not capture assets continuously from the product runtime in this slice.
 - Do not serialize native `TerminalSnapshot`, parser internals or pending graphic
   downloads.
@@ -39,24 +39,24 @@ asset before falling back to the native cache.
 - `packages/ianvs_terminal/pubspec.yaml`
 - `packages/ianvs_terminal/lib/src/recording/terminal_recording.dart`
 - `packages/ianvs_terminal/lib/src/recording/terminal_replay_backend.dart`
-- `packages/ianvs_terminal/test/fixtures/recording/graphics_v2.ndjson`
+- `packages/ianvs_terminal/test/fixtures/recording/graphics_current.ndjson`
 - `packages/ianvs_terminal/test/terminal_recording_codec_test.dart`
 - `packages/ianvs_terminal/test/terminal_replay_backend_test.dart`
-- `docs/recording/FORMAT_V2.md`
+- `docs/recording/FORMAT_CURRENT.md`
 - `docs/tasks/runtime-pty/T-329-replay-graphic-asset-bundle.md`
 - `docs/tasks/README.md`
 - `docs/ROADMAP.md`
 - `docs/CURRENT_EXECUTION_TARGET.md`
 - `docs/CURRENT_EXECUTION_TARGETS.json`
 
-## Format And Compatibility Contract
+## Format And Validation Contract
 
-- A canonical v2 file orders metadata, SHA-256-sorted blobs, identity-sorted
+- A canonical current-schema file orders metadata, SHA-256-sorted blobs, identity-sorted
   references and then ordered events.
 - SHA-256 covers UTF-8 `width:height:` followed by decoded RGBA. Equal dimensions
   and bytes therefore share one blob across multiple identities.
-- V1 cannot directly contain asset records. The explicit bundler upgrades all
-  metadata and events to v2, preserving event kinds, payloads, offsets and order.
+- The explicit bundler preserves the current schema, event kinds, payloads,
+  offsets and order while adding asset records.
 - Decode is all-or-error. Corrupt, missing, duplicate, oversized and out-of-order
   asset records never produce a plausible partial recording.
 - Replay returns a defensive byte copy for an exact bundled identity. An absent
@@ -64,11 +64,11 @@ asset before falling back to the native cache.
 
 ## Functional Acceptance
 
-- The fixed v2 fixture re-encodes byte-for-byte and stores identical RGBA once for
+- The fixed current fixture re-encodes byte-for-byte and stores identical RGBA once for
   two asset identities.
-- The bundler upgrades a validated v1 file explicitly and checkpoint planning
+- The bundler accepts a validated current file and checkpoint planning
   retains its assets.
-- V1 remains byte-stable and rejects direct asset insertion.
+- Current recordings remain byte-stable and support bounded asset insertion.
 - Caller and replay consumers cannot mutate the stored bundle bytes.
 - Same-length corruption, missing references, identity overflow and RGBA size
   drift return structured errors.

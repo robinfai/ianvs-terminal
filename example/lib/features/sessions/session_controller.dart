@@ -27,6 +27,7 @@ import 'session_bootstrap.dart';
 import 'session_ports.dart';
 import 'session_shutdown.dart';
 import 'session_state.dart';
+import 'terminal_event_coordinator.dart';
 
 const Object _recordingLastErrorNoChange = Object();
 
@@ -38,6 +39,11 @@ final ptySessionBackendProvider = Provider<PtySessionBackend>((ref) {
     'The PTY backend must be supplied by the ready application runtime graph.',
   );
 });
+
+final Provider<TerminalPreCloseSignalRelay>
+terminalPreCloseSignalRelayProvider = Provider<TerminalPreCloseSignalRelay>(
+  (ref) => TerminalPreCloseSignalRelay(),
+);
 
 final terminalGraphicsTraceSinkProvider = Provider<TerminalBenchmarkEventSink?>(
   (ref) {
@@ -66,9 +72,8 @@ final terminalGraphicsTraceSinkProvider = Provider<TerminalBenchmarkEventSink?>(
   },
 );
 
-final terminalRuntimeControllerProvider = Provider<TerminalRuntimeController>((
-  ref,
-) {
+final Provider<TerminalRuntimeController>
+terminalRuntimeControllerProvider = Provider<TerminalRuntimeController>((ref) {
   const osc52PromptPreviewRunes = 120;
 
   ({
@@ -162,6 +167,7 @@ final terminalRuntimeControllerProvider = Provider<TerminalRuntimeController>((
     }
   }
 
+  final preCloseSignalRelay = ref.watch(terminalPreCloseSignalRelayProvider);
   final controller = TerminalRuntimeController(
     backend: ref.read(ptySessionBackendProvider),
     copyToClipboard: ref.read(sessionClipboardCopyProvider),
@@ -177,13 +183,7 @@ final terminalRuntimeControllerProvider = Provider<TerminalRuntimeController>((
     enableSessionPolling: ref.read(sessionPollingEnabledProvider),
     enableWarmUpRefresh: ref.read(driverWarmUpRefreshEnabledProvider),
     benchmarkEventSink: ref.watch(terminalGraphicsTraceSinkProvider),
-    beforeSessionCloseOnExit: (sessionId, _) {
-      if (ref.mounted) {
-        ref
-            .read(sessionControllerProvider.notifier)
-            .finalizeRecordingBeforeRuntimeClose(sessionId);
-      }
-    },
+    beforeSessionCloseOnExitSignal: preCloseSignalRelay.add,
   );
   final shutdownCoordinator = ref.read(appShutdownCoordinatorProvider);
   const shutdownTaskName = 'terminal-runtime-provider';
@@ -206,6 +206,21 @@ final terminalRuntimeControllerProvider = Provider<TerminalRuntimeController>((
   });
   return controller;
 });
+
+final Provider<TerminalEventCoordinator> terminalEventCoordinatorProvider =
+    Provider<TerminalEventCoordinator>((ref) {
+      final coordinator = TerminalEventCoordinator(
+        signals: ref.watch(terminalRuntimeControllerProvider).runtimeSignals,
+      );
+      final preCloseAttachment = ref
+          .watch(terminalPreCloseSignalRelayProvider)
+          .attach(coordinator.handlePreClose);
+      ref.onDispose(() {
+        preCloseAttachment.detach();
+        unawaited(coordinator.beginShutdown());
+      });
+      return coordinator;
+    });
 
 void _writeTerminalTraceEvent(IOSink sink, Map<String, Object?> event) {
   try {
@@ -400,6 +415,26 @@ class _AutomaticProfileBaseline {
   final TerminalProfile? profileSnapshot;
 }
 
+final class _PendingNativeRecordingFinalize {
+  _PendingNativeRecordingFinalize({
+    required this.job,
+    required this.handoffDirectory,
+    required this.sessionEpoch,
+  });
+
+  TerminalRecordingFinalizeJob job;
+  final Directory handoffDirectory;
+  final int sessionEpoch;
+  List<TerminalRecordingSemanticEvent> semanticEvents =
+      const <TerminalRecordingSemanticEvent>[];
+  bool prepareAttempted = false;
+  bool prepareUncertain = false;
+  bool prepared = false;
+  int? exitClaimId;
+  Object? preparationError;
+  StackTrace? preparationStackTrace;
+}
+
 class SessionController extends Notifier<SessionState> {
   static const _layoutPersistenceDebounce = Duration(milliseconds: 60);
 
@@ -422,23 +457,12 @@ class SessionController extends Notifier<SessionState> {
       <String, TerminalRecording>{};
   final Map<String, Future<String>> _recordingFinalizationFutures =
       <String, Future<String>>{};
-  final Map<
-    String,
-    ({
-      TerminalRecordingFinalizeJob job,
-      Directory handoffDirectory,
-      List<TerminalRecordingSemanticEvent> semanticEvents,
-    })
-  >
-  _pendingRecordingFinalizeJobs =
-      <
-        String,
-        ({
-          TerminalRecordingFinalizeJob job,
-          Directory handoffDirectory,
-          List<TerminalRecordingSemanticEvent> semanticEvents,
-        })
-      >{};
+  final Map<String, Future<void>> _recordingReservationCleanupFutures =
+      <String, Future<void>>{};
+  final Map<String, TerminalSessionExitClaim> _recordingExitClaims =
+      <String, TerminalSessionExitClaim>{};
+  final Map<String, _PendingNativeRecordingFinalize>
+  _pendingRecordingFinalizeJobs = <String, _PendingNativeRecordingFinalize>{};
   final Map<String, Stopwatch> _recordingStopwatches = <String, Stopwatch>{};
   final Map<String, TerminalRecordingInputPolicy> _recordingInputPolicies =
       <String, TerminalRecordingInputPolicy>{};
@@ -469,7 +493,7 @@ class SessionController extends Notifier<SessionState> {
   LocalTerminalConfigBootstrapSource _configBootstrapSource =
       LocalTerminalConfigBootstrapSource.defaults;
   bool _preferencesLoadedFromDisk = false;
-  StreamSubscription<TerminalSessionEvent>? _runtimeEventsSubscription;
+  TerminalEventSinkAttachment? _runtimeEventAttachment;
   final Map<String, bool> _runtimeSessionActivation = <String, bool>{};
   bool _progressFlushScheduled = false;
   int _progressEventOrder = 0;
@@ -520,7 +544,7 @@ class SessionController extends Notifier<SessionState> {
 
   @visibleForTesting
   bool get hasRuntimeEventSubscriptionForTesting =>
-      _runtimeEventsSubscription != null;
+      _runtimeEventAttachment != null;
 
   bool get _bootstrapWorkAllowed => ref.mounted && !_isShuttingDown;
 
@@ -541,6 +565,7 @@ class SessionController extends Notifier<SessionState> {
   @override
   SessionState build() {
     listenSelf(_handleLayoutStateChanged);
+    _ensureRuntimeSubscription();
     _scheduleBootstrap();
     final liveRecorder = ref.read(sessionDemoFixtureProvider) == null
         ? ref.read(terminalLiveRecorderProvider)
@@ -550,6 +575,7 @@ class SessionController extends Notifier<SessionState> {
     );
     final layoutRepository = ref.read(localTerminalLayoutRepositoryProvider);
     final terminalRuntime = ref.read(terminalRuntimeControllerProvider);
+    final terminalEventCoordinator = ref.read(terminalEventCoordinatorProvider);
     final shutdownCoordinator = ref.read(appShutdownCoordinatorProvider);
     const shutdownTaskName = 'session-runtime';
     shutdownCoordinator.registerTask(
@@ -559,6 +585,7 @@ class SessionController extends Notifier<SessionState> {
         recordingRepository,
         layoutRepository,
         terminalRuntime,
+        terminalEventCoordinator,
       ),
     );
     ref.onDispose(() {
@@ -572,7 +599,7 @@ class SessionController extends Notifier<SessionState> {
         unawaited(shutdownCoordinator.shutdown(bounded: false));
       }
       _layoutPersistenceTimer?.cancel();
-      unawaited(_runtimeEventsSubscription?.cancel());
+      _runtimeEventAttachment?.detach();
       for (final timer in _progressGraceTimers.values) {
         timer.cancel();
       }
@@ -1022,7 +1049,12 @@ class SessionController extends Notifier<SessionState> {
   }
 
   void _ensureRuntimeSubscription() {
-    _runtimeEventsSubscription ??= _runtime.events.listen(_handleRuntimeEvent);
+    _runtimeEventAttachment ??= ref
+        .read(terminalEventCoordinatorProvider)
+        .attachBusinessSink(
+          onEffect: _handleRuntimeEffect,
+          onPreClose: _prepareRecordingForRuntimeExit,
+        );
   }
 
   void createSession(TerminalProfile profile) {
@@ -1553,6 +1585,8 @@ class SessionController extends Notifier<SessionState> {
     final repository = ref.read(localSessionRecordingRepositoryProvider);
     _setRecordingStatus(sessionId, busy: true, lastError: null);
     LocalSessionRecordingDestination? destination;
+    _PendingNativeRecordingFinalize? nativeReservation;
+    var nativeCaptureStarted = false;
     try {
       destination = await repository.reserve(
         runtimeSessionId: sessionId,
@@ -1562,24 +1596,67 @@ class SessionController extends Notifier<SessionState> {
         repository.release(destination);
         return false;
       }
-      final recordingCapacity = recorder.start(
+      final handoffDirectory = await repository.ensureNativeHandoffDirectory();
+      final sessionEpoch = _runtime.sessionEpochFor(sessionId);
+      if (sessionEpoch == null) {
+        throw StateError('Runtime session identity is unavailable.');
+      }
+      final reservedJob = await repository.reserveNativeRecordingJob(
+        sessionId: sessionId,
+        handoffDirectory: handoffDirectory,
+        destination: destination,
+        semanticEvents: const <TerminalRecordingSemanticEvent>[],
+        displayName: pane.title,
+      );
+      nativeReservation = _PendingNativeRecordingFinalize(
+        job: reservedJob,
+        handoffDirectory: handoffDirectory,
+        sessionEpoch: sessionEpoch,
+      );
+      if (_isShuttingDown ||
+          !ref.mounted ||
+          !_runtime.hasSession(sessionId) ||
+          _paneForSession(sessionId) == null) {
+        await repository.abandonNativeRecordingJobReservation(reservedJob);
+        nativeReservation = null;
+        repository.release(destination);
+        return false;
+      }
+      final startOutcome = recorder.startWithOutcome(
         sessionId,
         inputPolicy: inputPolicy,
       );
-      _recordingDestinations[sessionId] = destination;
-      _recordingInputPolicies[sessionId] = inputPolicy;
-      _recordingStopwatches[sessionId] = Stopwatch()..start();
-      _recordingSemanticEvents[sessionId] = <TerminalRecordingSemanticEvent>[];
-      _recordingSemanticEventLimits[sessionId] =
-          recordingCapacity.maxEvents < 4096
-          ? recordingCapacity.maxEvents
-          : 4096;
-      _recordingSemanticByteBudgets[sessionId] =
-          recordingCapacity.maxPayloadBytes < 512 * 1024
-          ? recordingCapacity.maxPayloadBytes
-          : 512 * 1024;
-      _recordingSemanticRetainedBytes[sessionId] = 0;
-      _recordingDroppedSemanticCounts[sessionId] = 0;
+      nativeCaptureStarted = recorder.isRecording(sessionId);
+      final recordingCapacity = startOutcome.result;
+      if (nativeCaptureStarted) {
+        _recordingDestinations[sessionId] = destination;
+        _pendingRecordingFinalizeJobs[sessionId] = nativeReservation;
+        _recordingInputPolicies[sessionId] = inputPolicy;
+        _recordingStopwatches[sessionId] = Stopwatch()..start();
+        _recordingSemanticEvents[sessionId] =
+            <TerminalRecordingSemanticEvent>[];
+        final maxEvents = recordingCapacity?.maxEvents ?? 4096;
+        final maxPayloadBytes =
+            recordingCapacity?.maxPayloadBytes ?? 512 * 1024;
+        _recordingSemanticEventLimits[sessionId] = maxEvents < 4096
+            ? maxEvents
+            : 4096;
+        _recordingSemanticByteBudgets[sessionId] = maxPayloadBytes < 512 * 1024
+            ? maxPayloadBytes
+            : 512 * 1024;
+        _recordingSemanticRetainedBytes[sessionId] = 0;
+        _recordingDroppedSemanticCounts[sessionId] = 0;
+        repository.markNativeRecordingCaptureStartedSynchronously(
+          job: nativeReservation.job,
+          handoffDirectory: nativeReservation.handoffDirectory,
+        );
+      }
+      if (!startOutcome.isAcknowledged) {
+        Error.throwWithStackTrace(
+          startOutcome.error ?? StateError('Native recording start failed.'),
+          startOutcome.stackTrace ?? StackTrace.current,
+        );
+      }
       _setRecordingStatus(
         sessionId,
         active: true,
@@ -1589,7 +1666,36 @@ class SessionController extends Notifier<SessionState> {
       );
       return true;
     } on Object catch (error) {
-      if (destination != null) {
+      final cancelOutcome = nativeCaptureStarted
+          ? recorder.cancel(sessionId)
+          : null;
+      final cancellationAcknowledged = cancelOutcome?.isAcknowledged == true;
+      if (nativeCaptureStarted && !cancellationAcknowledged) {
+        if (ref.mounted && !_isShuttingDown) {
+          final cancellationError = cancelOutcome?.error;
+          final detail = cancellationError == null
+              ? error
+              : StateError('$error; native cancellation: $cancellationError');
+          _setRecordingStatus(
+            sessionId,
+            active: true,
+            pendingSave: false,
+            busy: false,
+            lastError: _recordingError(
+              'Recording start failed; native ownership retained',
+              detail,
+            ),
+          );
+        }
+        return false;
+      }
+      final reservedJob = nativeReservation?.job;
+      if (reservedJob != null) {
+        await repository.abandonNativeRecordingJobReservation(reservedJob);
+      }
+      if (nativeCaptureStarted) {
+        _forgetRecording(sessionId, repository: repository);
+      } else if (destination != null) {
         repository.release(destination);
       }
       if (ref.mounted && !_isShuttingDown) {
@@ -1639,6 +1745,8 @@ class SessionController extends Notifier<SessionState> {
       );
       _pendingRecordings.remove(sessionId);
       _pendingRecordingFinalizeJobs.remove(sessionId);
+      _recordingReservationCleanupFutures.remove(sessionId)?.ignore();
+      _recordingExitClaims.remove(sessionId);
       _recordingDestinations.remove(sessionId);
       _recordingInputPolicies.remove(sessionId);
       final droppedSemantics = _recordingDroppedSemanticCounts[sessionId] ?? 0;
@@ -1718,6 +1826,187 @@ class SessionController extends Notifier<SessionState> {
     });
   }
 
+  TerminalSessionPreCloseOutcome _prepareRecordingForRuntimeExit(
+    TerminalSessionExitClaim claim,
+  ) {
+    if (_isShuttingDown || !ref.mounted) {
+      return TerminalSessionPreCloseOutcome.retryableFailure(
+        error: StateError('Session shutdown already owns runtime close.'),
+        stackTrace: StackTrace.current,
+      );
+    }
+    final recorder = ref.read(terminalLiveRecorderProvider);
+    final pending = _pendingRecordingFinalizeJobs[claim.sessionId];
+    if (pending == null) {
+      if (recorder?.isRecording(claim.sessionId) == true) {
+        return TerminalSessionPreCloseOutcome.retryableFailure(
+          error: StateError(
+            'Active recording has no durable finalize reservation.',
+          ),
+          stackTrace: StackTrace.current,
+        );
+      }
+      return const TerminalSessionPreCloseOutcome.allowClose();
+    }
+    if (pending.sessionEpoch != claim.sessionEpoch) {
+      return TerminalSessionPreCloseOutcome.retryableFailure(
+        error: StateError('Recording reservation used a stale session epoch.'),
+        stackTrace: StackTrace.current,
+      );
+    }
+    final existingClaim = _recordingExitClaims[claim.sessionId];
+    if (existingClaim != null && existingClaim.claimId != claim.claimId) {
+      return TerminalSessionPreCloseOutcome.retryableFailure(
+        error: StateError('Recording exit is owned by another claim.'),
+        stackTrace: StackTrace.current,
+      );
+    }
+    _recordingExitClaims[claim.sessionId] = claim;
+    if (recorder == null) {
+      return TerminalSessionPreCloseOutcome.retryableFailure(
+        error: StateError('Active recording backend is unavailable.'),
+        stackTrace: StackTrace.current,
+      );
+    }
+    try {
+      _prepareReservedRecording(
+        sessionId: claim.sessionId,
+        recorder: recorder,
+        repository: ref.read(localSessionRecordingRepositoryProvider),
+        pending: pending,
+        exitClaimId: claim.claimId,
+      );
+      return const TerminalSessionPreCloseOutcome.allowClose();
+    } on Object catch (error, stackTrace) {
+      if (!recorder.isRecording(claim.sessionId)) {
+        return TerminalSessionPreCloseOutcome.allowClose(
+          error: error,
+          stackTrace: stackTrace,
+        );
+      }
+      return TerminalSessionPreCloseOutcome.retryableFailure(
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
+  }
+
+  void _prepareReservedRecording({
+    required String sessionId,
+    required TerminalLiveRecorder recorder,
+    required LocalSessionRecordingRepository repository,
+    required _PendingNativeRecordingFinalize pending,
+    int? exitClaimId,
+  }) {
+    if (pending.prepared) {
+      return;
+    }
+    final resolvingUncertainPrepare =
+        pending.prepareAttempted && pending.prepareUncertain;
+    if (pending.prepareAttempted && !resolvingUncertainPrepare) {
+      throw StateError('Recording pre-close preparation is already running.');
+    }
+    if (!resolvingUncertainPrepare) {
+      pending
+        ..prepareAttempted = true
+        ..prepareUncertain = false
+        ..exitClaimId = exitClaimId
+        ..preparationError = null
+        ..preparationStackTrace = null
+        ..semanticEvents = _snapshotRecordingSemantics(sessionId);
+      try {
+        repository.prepareNativeRecordingJobMetadataSynchronously(
+          job: pending.job,
+          handoffDirectory: pending.handoffDirectory,
+          semanticEvents: pending.semanticEvents,
+          displayName: _paneForSession(sessionId)?.title,
+        );
+      } on Object catch (error, stackTrace) {
+        pending
+          ..prepareAttempted = false
+          ..preparationError = error
+          ..preparationStackTrace = stackTrace;
+        rethrow;
+      }
+    }
+    final TerminalRecordingPrepareOutcome outcome;
+    try {
+      outcome = recorder.prepareStopWithOutcome(
+        sessionId,
+        handoffDirectory: pending.handoffDirectory.path,
+        jobId: pending.job.jobId,
+        expectedJob: pending.job,
+      );
+    } on Object catch (error, stackTrace) {
+      pending
+        ..prepareAttempted = !recorder.isRecording(sessionId)
+        ..prepareUncertain = false
+        ..preparationError = error
+        ..preparationStackTrace = stackTrace;
+      rethrow;
+    }
+    if (outcome.isAcknowledged) {
+      pending.job = outcome.job;
+      _commitRecordingSemantics(sessionId);
+      pending
+        ..prepareUncertain = false
+        ..prepared = true
+        ..preparationError = null
+        ..preparationStackTrace = null;
+      if (ref.mounted && !_isShuttingDown) {
+        _setRecordingStatus(
+          sessionId,
+          active: false,
+          pendingSave: true,
+          busy: true,
+        );
+      }
+      return;
+    }
+    final error =
+        outcome.error ??
+        StateError('Native recording finalize preparation failed.');
+    final stackTrace = outcome.stackTrace ?? StackTrace.current;
+    if (outcome.disposition ==
+        TerminalRecordingPrepareDisposition.terminationUnknown) {
+      pending
+        ..prepareAttempted = true
+        ..prepareUncertain = true
+        ..preparationError = error
+        ..preparationStackTrace = stackTrace;
+      Error.throwWithStackTrace(error, stackTrace);
+    }
+    if (error case TerminalRecordingBackendException(
+      code: TerminalRecordingBackendErrorCode.unsupportedBackend,
+    )) {
+      _pendingRecordingFinalizeJobs.remove(sessionId);
+      final cleanup = repository.abandonNativeRecordingJobReservation(
+        pending.job,
+      );
+      _recordingReservationCleanupFutures[sessionId] = cleanup;
+      try {
+        final recording = recorder.stop(sessionId);
+        _commitRecordingSemantics(sessionId);
+        _pendingRecordings[sessionId] = _recordingWithSemanticEvents(
+          recording,
+          pending.semanticEvents,
+        );
+      } on Object catch (fallbackError, fallbackStackTrace) {
+        pending
+          ..preparationError = fallbackError
+          ..preparationStackTrace = fallbackStackTrace;
+        Error.throwWithStackTrace(fallbackError, fallbackStackTrace);
+      }
+      return;
+    }
+    pending
+      ..prepareAttempted = !recorder.isRecording(sessionId)
+      ..prepareUncertain = false
+      ..preparationError = error
+      ..preparationStackTrace = stackTrace;
+    Error.throwWithStackTrace(error, stackTrace);
+  }
+
   Future<String> _persistStoppedRecording({
     required String sessionId,
     required TerminalLiveRecorder? recorder,
@@ -1728,80 +2017,51 @@ class SessionController extends Notifier<SessionState> {
     var legacyRecording = _pendingRecordings[sessionId];
     var finalizeJob = _pendingRecordingFinalizeJobs[sessionId];
     if (legacyRecording == null && finalizeJob == null) {
+      throw StateError('Native recording reservation is unavailable.');
+    }
+    if (legacyRecording == null &&
+        (!finalizeJob!.prepareAttempted || finalizeJob.prepareUncertain)) {
       if (recorder == null || !recorder.isRecording(sessionId)) {
         throw StateError('Native recording state is unavailable.');
       }
-      final handoffDirectory = await repository.ensureNativeHandoffDirectory();
-      final semanticEvents = _takeRecordingSemantics(sessionId);
-      final reservedJob = await repository.reserveNativeRecordingJob(
+      _prepareReservedRecording(
         sessionId: sessionId,
-        handoffDirectory: handoffDirectory,
-        destination: destination,
-        semanticEvents: semanticEvents,
-        displayName: displayName,
+        recorder: recorder,
+        repository: repository,
+        pending: finalizeJob,
       );
-      finalizeJob = (
-        job: reservedJob,
-        handoffDirectory: handoffDirectory,
-        semanticEvents: semanticEvents,
-      );
-      _pendingRecordingFinalizeJobs[sessionId] = finalizeJob;
-      try {
-        final job = recorder.prepareStop(
-          sessionId,
-          handoffDirectory: handoffDirectory.path,
-          jobId: reservedJob.jobId,
-        );
-        finalizeJob = (
-          job: job,
-          handoffDirectory: handoffDirectory,
-          semanticEvents: semanticEvents,
-        );
-        _pendingRecordingFinalizeJobs[sessionId] = finalizeJob;
-        await repository.registerNativeRecordingJob(
-          job: finalizeJob.job,
-          handoffDirectory: finalizeJob.handoffDirectory,
-          destination: destination,
-          semanticEvents: finalizeJob.semanticEvents,
-          displayName: displayName,
-        );
-      } on TerminalRecordingBackendException catch (error) {
-        if (error.code ==
-            TerminalRecordingBackendErrorCode.unsupportedBackend) {
-          _pendingRecordingFinalizeJobs.remove(sessionId);
-          await repository.abandonNativeRecordingJobReservation(reservedJob);
-          finalizeJob = null;
-          legacyRecording = _recordingWithSemanticEvents(
-            recorder.stop(sessionId),
-            semanticEvents,
-          );
-          _pendingRecordings[sessionId] = legacyRecording;
-        } else {
-          if (recorder.isRecording(sessionId)) {
-            _pendingRecordingFinalizeJobs.remove(sessionId);
-            await repository.abandonNativeRecordingJobReservation(reservedJob);
-          }
-          rethrow;
-        }
-      }
-      if (ref.mounted) {
-        _setRecordingStatus(
-          sessionId,
-          active: false,
-          pendingSave: true,
-          busy: true,
-        );
-      }
+      legacyRecording = _pendingRecordings[sessionId];
+      finalizeJob = _pendingRecordingFinalizeJobs[sessionId];
     }
     if (finalizeJob != null) {
-      return repository.finalizeNativeRecording(
+      final preparationError = finalizeJob.preparationError;
+      if (preparationError != null) {
+        Error.throwWithStackTrace(
+          preparationError,
+          finalizeJob.preparationStackTrace ?? StackTrace.current,
+        );
+      }
+      if (!finalizeJob.prepared) {
+        throw StateError('Native recording finalize was not prepared.');
+      }
+      await repository.registerNativeRecordingJob(
         job: finalizeJob.job,
         handoffDirectory: finalizeJob.handoffDirectory,
         destination: destination,
         semanticEvents: finalizeJob.semanticEvents,
         displayName: displayName,
       );
+      return repository.finalizeNativeRecording(
+        job: finalizeJob.job,
+        handoffDirectory: finalizeJob.handoffDirectory,
+        destination: destination,
+        semanticEvents: finalizeJob.semanticEvents,
+        displayName: displayName,
+        nativeJobStatusProbe: recorder?.probeFinalizeJobStatus,
+      );
     }
+    await (_recordingReservationCleanupFutures[sessionId] ??
+        Future<void>.value());
     return repository.save(
       destination,
       legacyRecording!,
@@ -2250,15 +2510,19 @@ class SessionController extends Notifier<SessionState> {
     );
   }
 
-  List<TerminalRecordingSemanticEvent> _takeRecordingSemantics(
+  List<TerminalRecordingSemanticEvent> _snapshotRecordingSemantics(
     String sessionId,
   ) {
-    _recordingStopwatches.remove(sessionId)?.stop();
     final semantics =
-        _recordingSemanticEvents.remove(sessionId) ??
+        _recordingSemanticEvents[sessionId] ??
         const <TerminalRecordingSemanticEvent>[];
-    _recordingRemoteCommands.remove(sessionId);
     return List<TerminalRecordingSemanticEvent>.unmodifiable(semantics);
+  }
+
+  void _commitRecordingSemantics(String sessionId) {
+    _recordingStopwatches.remove(sessionId)?.stop();
+    _recordingSemanticEvents.remove(sessionId);
+    _recordingRemoteCommands.remove(sessionId);
   }
 
   bool _isRemoteShellCommand(String command) {
@@ -2274,9 +2538,17 @@ class SessionController extends Notifier<SessionState> {
   }
 
   Future<void> _finalizeRecordingOnRuntimeExitBestEffort(
-    String sessionId,
-  ) async {
+    String sessionId, {
+    TerminalSessionExitClaim? exitClaim,
+  }) async {
     if (!_recordingNeedsFinalization(sessionId)) {
+      return;
+    }
+    final ownedClaim = _recordingExitClaims[sessionId];
+    if (exitClaim == null ||
+        ownedClaim == null ||
+        ownedClaim.claimId != exitClaim.claimId ||
+        ownedClaim.sessionEpoch != exitClaim.sessionEpoch) {
       return;
     }
     final recorder = ref.read(terminalLiveRecorderProvider);
@@ -2303,10 +2575,6 @@ class SessionController extends Notifier<SessionState> {
     }
   }
 
-  void finalizeRecordingBeforeRuntimeClose(String sessionId) {
-    unawaited(_finalizeRecordingOnRuntimeExitBestEffort(sessionId));
-  }
-
   Future<void> _finalizeRecordingsForShutdown(
     TerminalLiveRecorder? recorder,
     LocalSessionRecordingRepository repository,
@@ -2322,6 +2590,7 @@ class SessionController extends Notifier<SessionState> {
     LocalSessionRecordingRepository recordingRepository,
     TerminalLayoutRepository layoutRepository,
     TerminalRuntimeController terminalRuntime,
+    TerminalEventCoordinator terminalEventCoordinator,
   ) {
     final existing = _sessionShutdownFuture;
     if (existing != null) {
@@ -2330,15 +2599,12 @@ class SessionController extends Notifier<SessionState> {
 
     _isShuttingDown = true;
     final bootstrapSettlement = _bootstrapFuture ?? Future<void>.value();
+    final runtimeEventsCancellation = terminalEventCoordinator.beginShutdown();
+    _runtimeEventAttachment?.detach();
+    _runtimeEventAttachment = null;
     terminalRuntime.beginShutdown();
     _layoutPersistenceTimer?.cancel();
     _layoutPersistenceTimer = null;
-
-    final runtimeEventsSubscription = _runtimeEventsSubscription;
-    _runtimeEventsSubscription = null;
-    runtimeEventsSubscription?.pause();
-    final runtimeEventsCancellation =
-        runtimeEventsSubscription?.cancel() ?? Future<void>.value();
 
     final pendingLayoutWrites = _layoutSaveChain;
     final finalLayout = _layoutPersistenceEnabled && state.isReady
@@ -2349,7 +2615,8 @@ class SessionController extends Notifier<SessionState> {
     }
 
     // The recorder snapshot is captured synchronously before its first await,
-    // after the event subscription has been paused. Encoding remains async.
+    // after the event coordinator has gated new effects. Encoding remains
+    // async.
     final recordingFinalization = _finalizeRecordingsForShutdown(
       recorder,
       recordingRepository,
@@ -2411,6 +2678,7 @@ class SessionController extends Notifier<SessionState> {
     await Future.wait(
       sessionIds.map((sessionId) async {
         final destination = _recordingDestinations[sessionId];
+        var ownershipDurablySettled = false;
         try {
           if (destination != null) {
             await _persistStoppedRecordingOnce(
@@ -2421,18 +2689,94 @@ class SessionController extends Notifier<SessionState> {
               displayName: null,
             );
           }
+          ownershipDurablySettled = true;
         } on Object catch (error, stackTrace) {
           firstError ??= error;
           firstStackTrace ??= stackTrace;
-          if (recorder?.isRecording(sessionId) == true) {
+          final pending = _pendingRecordingFinalizeJobs[sessionId];
+          if (pending != null && !pending.prepared && recorder != null) {
             try {
-              recorder?.cancel(sessionId);
+              _prepareReservedRecording(
+                sessionId: sessionId,
+                recorder: recorder,
+                repository: repository,
+                pending: pending,
+              );
             } on Object {
-              // Continue finalizing the remaining sessions.
+              // A same-job re-probe or one explicit retry precedes the
+              // definitive cancel boundary below.
+            }
+          }
+          if (pending?.prepared == true && destination != null) {
+            try {
+              await repository.settleDetachedNativeRecordingForShutdown(
+                job: pending!.job,
+                handoffDirectory: pending.handoffDirectory,
+                destination: destination,
+                semanticEvents: pending.semanticEvents,
+                nativeJobStatusProbe: recorder?.probeFinalizeJobStatus,
+              );
+              recorder?.confirmPrepareOwnershipSettled(pending.job);
+              ownershipDurablySettled = true;
+            } on Object catch (settlementError, settlementStackTrace) {
+              firstError ??= settlementError;
+              firstStackTrace ??= settlementStackTrace;
+            }
+          } else {
+            final cancelOutcome = recorder?.isRecording(sessionId) == true
+                ? recorder?.cancel(sessionId)
+                : null;
+            if (cancelOutcome?.isDetachedPrepareConfirmed == true &&
+                pending != null &&
+                destination != null) {
+              pending
+                ..prepareUncertain = false
+                ..prepared = true
+                ..preparationError = null
+                ..preparationStackTrace = null;
+              _commitRecordingSemantics(sessionId);
+              try {
+                await repository.settleDetachedNativeRecordingForShutdown(
+                  job: pending.job,
+                  handoffDirectory: pending.handoffDirectory,
+                  destination: destination,
+                  semanticEvents: pending.semanticEvents,
+                  nativeJobStatusProbe: recorder?.probeFinalizeJobStatus,
+                );
+                recorder?.confirmPrepareOwnershipSettled(pending.job);
+                ownershipDurablySettled = true;
+              } on Object catch (settlementError, settlementStackTrace) {
+                firstError ??= settlementError;
+                firstStackTrace ??= settlementStackTrace;
+              }
+            } else if (cancelOutcome?.isAcknowledged == true) {
+              if (pending != null) {
+                try {
+                  await repository.abandonNativeRecordingJobReservation(
+                    pending.job,
+                  );
+                  ownershipDurablySettled = true;
+                } on Object catch (cleanupError, cleanupStackTrace) {
+                  firstError ??= cleanupError;
+                  firstStackTrace ??= cleanupStackTrace;
+                }
+              } else {
+                ownershipDurablySettled = true;
+              }
+            } else if (pending == null &&
+                recorder?.isRecording(sessionId) != true) {
+              ownershipDurablySettled = true;
+            } else {
+              // A rejected/transport-unknown cancel is not evidence that a
+              // live capture stopped. Keep the application phase unsettled so
+              // infrastructure never closes the PTY under an unowned writer.
+              await Completer<void>().future;
             }
           }
         } finally {
-          _forgetRecording(sessionId, repository: repository);
+          if (ownershipDurablySettled) {
+            _forgetRecording(sessionId, repository: repository);
+          }
         }
       }),
     );
@@ -2452,6 +2796,8 @@ class SessionController extends Notifier<SessionState> {
     }
     _pendingRecordings.remove(sessionId);
     _pendingRecordingFinalizeJobs.remove(sessionId);
+    _recordingReservationCleanupFutures.remove(sessionId)?.ignore();
+    _recordingExitClaims.remove(sessionId);
     _recordingInputPolicies.remove(sessionId);
     _recordingStopwatches.remove(sessionId)?.stop();
     _recordingSemanticEvents.remove(sessionId);
@@ -2915,7 +3261,37 @@ class SessionController extends Notifier<SessionState> {
     _applyFrame(sessionId, _runtime.viewportFor(sessionId).frame);
   }
 
-  void _handleRuntimeEvent(TerminalSessionEvent event) {
+  TerminalUiEffectContext? _handleRuntimeEffect(TerminalBusinessEffect effect) {
+    final signal = effect.signal;
+    if (signal is TerminalRuntimeSessionEventSignal) {
+      final uiContext = signal.payload is TerminalSessionExitEvent
+          ? _exitUiContext(signal.sessionId)
+          : null;
+      _handleRuntimeEvent(signal.payload, exitClaim: effect.exitClaim);
+      return uiContext;
+    }
+    return null;
+  }
+
+  TerminalSessionExitUiContext? _exitUiContext(String sessionId) {
+    for (final tab in state.tabs) {
+      final panes = tab.effectivePanes;
+      final paneIndex = panes.indexWhere((pane) => pane.sessionId == sessionId);
+      if (paneIndex >= 0) {
+        return TerminalSessionExitUiContext(
+          title: panes[paneIndex].title,
+          paneIndex: paneIndex,
+          paneCount: panes.length,
+        );
+      }
+    }
+    return null;
+  }
+
+  void _handleRuntimeEvent(
+    TerminalSessionEvent event, {
+    TerminalSessionExitClaim? exitClaim,
+  }) {
     if (!ref.mounted) {
       return;
     }
@@ -2927,7 +3303,12 @@ class SessionController extends Notifier<SessionState> {
         _applyFrame(event.sessionId, event.frame);
       case TerminalSessionExitEvent():
         final sshExitError = _sshExitErrorMessage(event);
-        unawaited(_finalizeRecordingOnRuntimeExitBestEffort(event.sessionId));
+        unawaited(
+          _finalizeRecordingOnRuntimeExitBestEffort(
+            event.sessionId,
+            exitClaim: exitClaim,
+          ),
+        );
         _removeSessionState(event.sessionId, runtimeAlreadyClosed: true);
         if (sshExitError != null) {
           state = state.copyWith(lastError: sshExitError);

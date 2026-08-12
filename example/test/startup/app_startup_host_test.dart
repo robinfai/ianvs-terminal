@@ -409,6 +409,9 @@ void main() {
     final message = await response;
 
     expect(message['timedOut'], isTrue);
+    expect(message['safeToTerminate'], isFalse);
+    expect(message['unsafeToTerminate'], isTrue);
+    expect(harness.coordinator.shutdownHasStarted, isTrue);
     expect(
       reportedErrors.map((details) => details.exception),
       contains(isA<TimeoutException>()),
@@ -419,6 +422,13 @@ void main() {
     expect(harness.composeCount, 0);
     await activeAttempt;
     await harness.coordinator.settleClose();
+
+    final retryResponse = _invokeShutdown(tester, channel);
+    await tester.pump();
+    final retryMessage = await retryResponse;
+    expect(retryMessage['timedOut'], isFalse);
+    expect(retryMessage['safeToTerminate'], isTrue);
+    expect(retryMessage['unsafeToTerminate'], isFalse);
   });
 
   testWidgets(

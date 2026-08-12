@@ -2,7 +2,7 @@
 
 ## Goal
 
-Add deterministic, bounded speed control to realtime Recording v1 playback without changing the
+Add deterministic, bounded speed control to realtime current recording schema playback without changing the
 recording wire format, native replay path or synchronous no-delay mode.
 
 ## Scope
@@ -17,7 +17,7 @@ recording wire format, native replay path or synchronous no-delay mode.
 
 - Do not add pause/resume, seek, checkpoint generation or a mutable replay clock.
 - Do not add Replay UI, persistence of playback preferences or keyboard actions.
-- Do not change Recording v1 events, Frame payloads, native FFI or Runtime capabilities.
+- Do not change current recording schema events, Frame payloads, native FFI or Runtime capabilities.
 - Do not add graphics asset bundles or historical Host effect replay.
 - Do not widen the 0.25x–4x bound without a separate compatibility decision.
 
@@ -37,7 +37,7 @@ recording wire format, native replay path or synchronous no-delay mode.
 - Realtime wall offset is `round(recordingOffset.inMicroseconds / playbackSpeed)`.
 - Each timer delay is the difference between two scaled absolute offsets. Scaling absolute offsets
   avoids accumulating per-segment rounding error.
-- A scaled delay may be zero; events still retain Recording v1 sequence order.
+- A scaled delay may be zero; events still retain current recording schema sequence order.
 - No-delay mode validates the configured speed but never creates a timer.
 
 ## Functional Acceptance

@@ -44,6 +44,7 @@ class FakePtyBackend
   final List<String> closedSessionIds = <String>[];
   Map<String, Object?>? lastCreatedSessionPayload;
   bool pingCalled = false;
+  String? forcedSessionId;
 
   @override
   final PtyRuntimeCapabilities runtimeCapabilities =
@@ -96,7 +97,7 @@ class FakePtyBackend
     _throwIfFailing('createSession');
     lastCreatedSessionPayload =
         jsonDecode(sessionConfigJson) as Map<String, Object?>;
-    final sessionId = (++_nextSessionId).toString();
+    final sessionId = forcedSessionId ?? (++_nextSessionId).toString();
     _frames[sessionId] = <String, Object?>{
       'rows': <Object?>[
         <String, Object?>{

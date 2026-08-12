@@ -29,8 +29,9 @@ switch or remember a project container.
 - `ianvs_terminal_layout.json`, `ianvs_config.json`, and the other historical
   app-support JSON documents are one-way local migration inputs. The importer
   never rewrites or deletes them.
-- `ianvs_recordings/` stores new recordings in one flat library. Existing
-  nested legacy recording files remain readable.
+- `ianvs_recordings/` stores recordings in one flat, current-format library.
+  Unsupported recording and repository metadata schemas fail closed; the app
+  does not migrate, discover, or rewrite older recording layouts.
 - Legacy Workspace v1-v3, project identity/index and `workspace` config are
   read-only migration inputs. New writes never recreate them.
 

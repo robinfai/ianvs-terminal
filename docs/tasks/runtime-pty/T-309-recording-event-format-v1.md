@@ -13,7 +13,7 @@ metadata/event format with explicit input privacy and structured decode failures
 - Implement a canonical newline-delimited JSON codec.
 - Reject truncated, malformed, unsupported, mixed-session and out-of-order recordings with stable
   error codes and line numbers.
-- Add a fixed v1 fixture and unit coverage for deterministic round trips and privacy behavior.
+- Add a fixed current fixture and unit coverage for deterministic round trips and privacy behavior.
 
 ## Non-goals
 
@@ -28,16 +28,16 @@ metadata/event format with explicit input privacy and structured decode failures
 
 - `packages/ianvs_terminal/lib/ianvs_terminal.dart`
 - `packages/ianvs_terminal/lib/src/recording/terminal_recording.dart`
-- `packages/ianvs_terminal/test/fixtures/recording/basic_v1.ndjson`
+- `packages/ianvs_terminal/test/fixtures/recording/basic_current.ndjson`
 - `packages/ianvs_terminal/test/terminal_recording_codec_test.dart`
-- `docs/recording/FORMAT_V1.md`
+- `docs/recording/FORMAT_CURRENT.md`
 - `docs/tasks/runtime-pty/T-309-recording-event-format-v1.md`
 
 ## Functional Acceptance
 
-- The v1 fixture decodes and canonical re-encoding is byte-stable.
+- The current fixture decodes and canonical re-encoding is byte-stable.
 - All five MVP event kinds preserve session, sequence and monotonic offset.
-- Additive unknown fields do not break a v1 reader.
+- Additive unknown fields do not break the current reader.
 - Unsupported version, truncated JSON, sequence gaps and decreasing timestamps produce structured
   errors.
 - Redacted input stores its byte length but never serializes the original bytes.
@@ -61,12 +61,12 @@ make verify
 
 ## Result
 
-- Added the public v1 Recording Metadata/Event model and canonical NDJSON codec.
+- Added the public current Recording Metadata/Event model and canonical NDJSON codec.
 - Added stable format error codes for malformed JSON/records, unsupported versions/kinds,
   cross-session data, sequence gaps, decreasing monotonic offsets and invalid payloads.
 - Added explicit `record` and `redact` input policies. The redacted form stores only byte length;
   the format documentation also records that PTY output can itself contain sensitive data.
-- Added the fixed five-event `basic_v1.ndjson` fixture. Seven focused codec/privacy tests pass,
+- Added the fixed five-event `basic_current.ndjson` fixture. Seven focused codec/privacy tests pass,
   and `flutter analyze` reports no issues.
 - The complete `ianvs_terminal` package suite passed 492 tests with 1 intentional skip;
   documentation contracts passed 12 tests.

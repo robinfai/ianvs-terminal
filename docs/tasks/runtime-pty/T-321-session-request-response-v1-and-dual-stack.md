@@ -123,6 +123,6 @@ Session Request/Response v1 is implemented and T-321 is closed.
 ## Risks / Follow-ups
 
 - The 16 MiB response ceiling is intentionally larger than ordinary command responses because a
-  bounded Recording v1 document is currently returned through this channel.
+  bounded current recording schema document is currently returned through this channel.
 - Dedicated Host Request/Response, diagnostic payload and asset transfer migrations remain
   separate tasks.

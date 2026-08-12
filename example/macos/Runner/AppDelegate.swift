@@ -8,14 +8,25 @@ class AppDelegate: FlutterAppDelegate {
   static let dartShutdownTimeout: TimeInterval = 10
 
   private var terminationReplyPending = false
+  private var terminationAttemptGeneration: UInt64 = 0
+  private var pendingTerminationAttempt: UInt64?
   private var shutdownCompleted = false
   private var shutdownTimeoutWorkItem: DispatchWorkItem?
+
+  // Injectable process-boundary seams keep the terminate-later handshake
+  // deterministic in RunnerTests without replacing NSApplication itself.
+  var dartShutdownRequestOverride:
+    ((NSApplication, @escaping (DartShutdownSafety) -> Void) -> Void)?
+  var terminationReplyOverride: ((NSApplication, Bool) -> Void)?
+  var shutdownTimeoutSchedulerOverride: ((TimeInterval, @escaping () -> Void) -> DispatchWorkItem)?
+  var unsafeTerminationConfirmationOverride: ((DartShutdownSafety.UnsafeReason) -> Bool)?
 
   override func applicationDidFinishLaunching(_ notification: Notification) {
     scheduleForegroundMainWindow(for: NSApp)
   }
 
-  override func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+  override func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply
+  {
     if shutdownCompleted {
       DispatchQueue.main.async {
         sender.reply(toApplicationShouldTerminate: true)
@@ -34,23 +45,39 @@ class AppDelegate: FlutterAppDelegate {
     }
 
     terminationReplyPending = true
-    requestDartShutdownBeforeTermination(sender)
+    terminationAttemptGeneration &+= 1
+    let attempt = terminationAttemptGeneration
+    pendingTerminationAttempt = attempt
+    requestDartShutdownBeforeTermination(sender, attempt: attempt)
     return .terminateLater
   }
 
-  private func requestDartShutdownBeforeTermination(_ sender: NSApplication) {
-    let timeoutWorkItem = DispatchWorkItem { [weak self, weak sender] in
+  private func requestDartShutdownBeforeTermination(
+    _ sender: NSApplication,
+    attempt: UInt64
+  ) {
+    let timeoutHandler = { [weak self, weak sender] in
       guard let self, let sender else {
         return
       }
-      self.finishTermination(sender)
+      self.resolveUnsafeTermination(
+        .dartTimedOut,
+        sender: sender,
+        attempt: attempt
+      )
+    }
+    let timeoutWorkItem: DispatchWorkItem
+    if let scheduler = shutdownTimeoutSchedulerOverride {
+      timeoutWorkItem = scheduler(Self.dartShutdownTimeout, timeoutHandler)
+    } else {
+      timeoutWorkItem = DispatchWorkItem(block: timeoutHandler)
+      DispatchQueue.main.asyncAfter(
+        deadline: .now() + Self.dartShutdownTimeout,
+        execute: timeoutWorkItem
+      )
     }
     shutdownTimeoutWorkItem?.cancel()
     shutdownTimeoutWorkItem = timeoutWorkItem
-    DispatchQueue.main.asyncAfter(
-      deadline: .now() + Self.dartShutdownTimeout,
-      execute: timeoutWorkItem
-    )
 
     // Defer the channel call until after applicationShouldTerminate has
     // returned .terminateLater. This also makes a missing Flutter window safe.
@@ -58,33 +85,95 @@ class AppDelegate: FlutterAppDelegate {
       guard let self, let sender else {
         return
       }
-      guard
-        let window = Self.preferredForegroundWindow(from: sender.windows)
-          as? MainFlutterWindow
-      else {
-        self.finishTermination(sender)
-        return
-      }
-      window.requestDartShutdown { [weak self, weak sender] in
+      let completion: (DartShutdownSafety) -> Void = { [weak self, weak sender] safety in
         DispatchQueue.main.async {
           guard let self, let sender else {
             return
           }
-          self.finishTermination(sender)
+          self.resolveDartShutdown(safety, sender: sender, attempt: attempt)
         }
       }
+      if let request = self.dartShutdownRequestOverride {
+        request(sender, completion)
+        return
+      }
+      guard
+        let window = Self.preferredForegroundWindow(from: sender.windows)
+          as? MainFlutterWindow
+      else {
+        completion(.unsafeToTerminate(.channelUnavailable))
+        return
+      }
+      window.requestDartShutdown(completion: completion)
     }
   }
 
-  private func finishTermination(_ sender: NSApplication) {
-    guard terminationReplyPending else {
+  private func resolveDartShutdown(
+    _ safety: DartShutdownSafety,
+    sender: NSApplication,
+    attempt: UInt64
+  ) {
+    guard pendingTerminationAttempt == attempt else {
+      return
+    }
+    switch safety {
+    case .safeToTerminate:
+      finishTermination(sender, attempt: attempt)
+    case .unsafeToTerminate(let reason):
+      resolveUnsafeTermination(reason, sender: sender, attempt: attempt)
+    }
+  }
+
+  private func resolveUnsafeTermination(
+    _ reason: DartShutdownSafety.UnsafeReason,
+    sender: NSApplication,
+    attempt: UInt64
+  ) {
+    guard pendingTerminationAttempt == attempt else {
+      return
+    }
+    let forceTermination =
+      unsafeTerminationConfirmationOverride?(reason)
+      ?? Self.confirmUnsafeApplicationTermination(reason: reason)
+    if forceTermination {
+      finishTermination(sender, attempt: attempt)
+      return
+    }
+    cancelTermination(sender, attempt: attempt)
+  }
+
+  private func finishTermination(_ sender: NSApplication, attempt: UInt64) {
+    guard pendingTerminationAttempt == attempt else {
       return
     }
     terminationReplyPending = false
+    pendingTerminationAttempt = nil
     shutdownCompleted = true
     shutdownTimeoutWorkItem?.cancel()
     shutdownTimeoutWorkItem = nil
-    sender.reply(toApplicationShouldTerminate: true)
+    reply(to: sender, shouldTerminate: true)
+  }
+
+  private func cancelTermination(_ sender: NSApplication, attempt: UInt64) {
+    guard pendingTerminationAttempt == attempt else {
+      return
+    }
+    terminationReplyPending = false
+    pendingTerminationAttempt = nil
+    shutdownCompleted = false
+    shutdownTimeoutWorkItem?.cancel()
+    shutdownTimeoutWorkItem = nil
+    Self.suppressNextLastWindowTerminate = false
+    Self.suppressNextTerminateConfirmation = false
+    reply(to: sender, shouldTerminate: false)
+  }
+
+  private func reply(to sender: NSApplication, shouldTerminate: Bool) {
+    if let replyOverride = terminationReplyOverride {
+      replyOverride(sender, shouldTerminate)
+      return
+    }
+    sender.reply(toApplicationShouldTerminate: shouldTerminate)
   }
 
   static func confirmApplicationTermination() -> Bool {
@@ -95,6 +184,29 @@ class AppDelegate: FlutterAppDelegate {
     let cancelButton = alert.addButton(withTitle: "Cancel")
     _ = alert.addButton(withTitle: "Quit")
     cancelButton.keyEquivalent = "\u{1b}"
+
+    return alert.runModal() == .alertSecondButtonReturn
+  }
+
+  static func confirmUnsafeApplicationTermination(
+    reason: DartShutdownSafety.UnsafeReason
+  ) -> Bool {
+    let alert = NSAlert()
+    alert.messageText = "Ianvs Terminal Is Still Finishing Up"
+    alert.informativeText =
+      switch reason {
+      case .dartTimedOut:
+        "Session recordings or other runtime resources are still being saved. "
+          + "Keep the app open and try Quit again. Quitting now may lose data."
+      case .channelUnavailable, .invalidResponse, .dartRejectedTermination:
+        "Ianvs Terminal could not confirm that session recordings and runtime "
+          + "resources are safe. Keep the app open and try Quit again. "
+          + "Quitting now may lose data."
+      }
+    alert.alertStyle = .critical
+    let keepRunningButton = alert.addButton(withTitle: "Keep Running")
+    _ = alert.addButton(withTitle: "Quit Anyway")
+    keepRunningButton.keyEquivalent = "\u{1b}"
 
     return alert.runModal() == .alertSecondButtonReturn
   }

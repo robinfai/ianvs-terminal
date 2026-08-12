@@ -16,14 +16,14 @@ production native parser and Frame pipeline without starting a child process.
 - Apply the recorded initial geometry and subsequent Resize events in stable sequence order.
 - Ignore historical UserInput and reject new writes or view-driven resize mutations.
 - Suppress historical host-facing effects such as clipboard, OpenURL and terminal responses.
-- Prove repeated playback stability with a fixed validated Recording v1 stream.
+- Prove repeated playback stability with a fixed validated current recording schema stream.
 
 ## Non-goals
 
 - Do not add checkpoint/seek, pause, speed controls, replay editing or product UI.
 - Do not record or replay graphics asset bundles or full Host Request/Response traffic.
 - Do not execute historical user input, clipboard operations, URLs, downloads or child processes.
-- Do not change the Recording v1 wire format or Frame JSON/Protobuf schema.
+- Do not change the current recording schema wire format or Frame JSON/Protobuf schema.
 - Do not broaden Workspace, remote, plugin, renderer or cross-platform scope.
 
 ## Files In Scope
@@ -52,7 +52,7 @@ production native parser and Frame pipeline without starting a child process.
   mutate recorded geometry.
 - Replay creation does not start the configured child process.
 - Historical host effects and terminal responses are drained but not delivered or written.
-- Existing structured Recording v1 corruption and version errors remain the replay input gate.
+- Existing structured current recording schema corruption and version errors remain the replay input gate.
 
 ## Verification Commands
 
@@ -103,9 +103,9 @@ make verify
 
 ## Risks / Follow-ups
 
-- Recording v1 intentionally excludes graphics asset bundles and full Host Request/Response
+- current recording schema intentionally excludes graphics asset bundles and full Host Request/Response
   traffic, so external-resource fidelity remains deferred.
 - Realtime playback currently preserves original timing at 1x only; pause, speed control and seek
   require a separately designed clock/checkpoint contract.
 - PTY output may contain secrets even when explicit UserInput was redacted; replay files retain the
-  privacy boundary documented in `docs/recording/FORMAT_V1.md`.
+  privacy boundary documented in `docs/recording/FORMAT_CURRENT.md`.

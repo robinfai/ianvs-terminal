@@ -476,6 +476,7 @@ Iterable<File> _allowedShellExternalDependencies(Directory libDirectory) {
     'features/sessions/session_controller.dart',
     'features/sessions/session_ports.dart',
     'features/sessions/session_state.dart',
+    'features/sessions/terminal_event_coordinator.dart',
     'features/ssh/new_session_launcher.dart',
     'features/ssh/ssh_auth_prompt.dart',
     'features/ssh/ssh_profile_import_service.dart',

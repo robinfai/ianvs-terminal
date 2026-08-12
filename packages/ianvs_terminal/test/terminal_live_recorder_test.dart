@@ -6,7 +6,7 @@ import 'package:ianvs_terminal/ianvs_terminal.dart';
 
 void main() {
   group('TerminalLiveRecorder', () {
-    test('starts native capture and decodes the stopped v1 recording', () {
+    test('starts native capture and decodes the stopped current recording', () {
       final backend = _RecordingRequestBackend();
       final recorder = TerminalLiveRecorder(
         backend: backend,
@@ -69,6 +69,40 @@ void main() {
       );
     });
 
+    for (final responseFault in <String>[
+      'missing',
+      'malformed',
+      'correlation',
+    ]) {
+      test(
+        'start $responseFault response retains unknown native ownership',
+        () {
+          final backend =
+              _RecordingRequestBackend(
+                  supportsV1: responseFault == 'correlation',
+                )
+                ..missingStartResponse = responseFault == 'missing'
+                ..malformedStartResponse = responseFault == 'malformed'
+                ..mismatchedStartCorrelation = responseFault == 'correlation';
+          final recorder = TerminalLiveRecorder(backend: backend);
+
+          final outcome = recorder.startWithOutcome(
+            '42',
+            inputPolicy: TerminalRecordingInputPolicy.redact,
+          );
+
+          expect(
+            outcome.disposition,
+            TerminalRecordingStartDisposition.terminationUnknown,
+          );
+          expect(outcome.result, isNull);
+          expect(outcome.error, isNotNull);
+          expect(recorder.isRecording('42'), isTrue);
+          expect(backend.nativeStartDispatchCount, 1);
+        },
+      );
+    }
+
     test(
       'reports bounded native overflow without returning a partial recording',
       () {
@@ -116,7 +150,7 @@ void main() {
 
       final job = recorder.prepareStop(
         '42',
-        handoffDirectory: '/private/tmp/ianvs-recording-handoff-v1-test',
+        handoffDirectory: '/private/tmp/ianvs-recording-handoff-current-test',
         jobId: '0123456789abcdef0123456789abcdef',
       );
 
@@ -127,6 +161,243 @@ void main() {
       expect(recorder.isRecording('42'), isFalse);
       expect(backend.requests.last['kind'], 'terminal.recording_stop_prepare');
       expect(backend.requests.last['job_id'], job.jobId);
+    });
+
+    for (final entry in <({String fault, String status})>[
+      (fault: 'missing', status: 'running'),
+      (fault: 'malformed', status: 'ready'),
+      (fault: 'correlation', status: 'failed'),
+    ]) {
+      test(
+        'prepare ${entry.fault} response settles from ${entry.status} status',
+        () {
+          final backend =
+              _RecordingRequestBackend(supportsV1: entry.fault == 'correlation')
+                ..prepareResponseFault = entry.fault
+                ..finalizeState = entry.status;
+          final recorder = TerminalLiveRecorder(backend: backend);
+          recorder.start(
+            '42',
+            inputPolicy: TerminalRecordingInputPolicy.redact,
+          );
+          const job = TerminalRecordingFinalizeJob(
+            sessionId: '42',
+            jobId: '0123456789abcdef0123456789abcdef',
+            handoffPath:
+                '/private/tmp/ianvs-recording-handoff-current-test/'
+                '.ianvs-recording-handoff-'
+                '0123456789abcdef0123456789abcdef.ndjson',
+            errorPath:
+                '/private/tmp/ianvs-recording-handoff-current-test/'
+                '.ianvs-recording-handoff-'
+                '0123456789abcdef0123456789abcdef.ndjson.error.json',
+          );
+
+          final outcome = recorder.prepareStopWithOutcome(
+            '42',
+            handoffDirectory:
+                '/private/tmp/ianvs-recording-handoff-current-test',
+            jobId: job.jobId,
+            expectedJob: job,
+          );
+
+          expect(outcome.isAcknowledged, isTrue);
+          expect(outcome.job.jobId, job.jobId);
+          expect(outcome.status?.state.name, entry.status);
+          expect(recorder.isRecording('42'), isFalse);
+          expect(backend.nativePrepareDispatchCount, 1);
+          expect(backend.statusProbeCount, 1);
+        },
+      );
+    }
+
+    test('uncertain prepare re-probes the same job without redispatch', () {
+      final backend = _RecordingRequestBackend()
+        ..prepareResponseFault = 'missing'
+        ..finalizeState = 'unknown';
+      final recorder = TerminalLiveRecorder(backend: backend);
+      recorder.start('42', inputPolicy: TerminalRecordingInputPolicy.redact);
+      const job = TerminalRecordingFinalizeJob(
+        sessionId: '42',
+        jobId: '0123456789abcdef0123456789abcdef',
+        handoffPath:
+            '/shared/.ianvs-recording-handoff-'
+            '0123456789abcdef0123456789abcdef.ndjson',
+        errorPath:
+            '/shared/.ianvs-recording-handoff-'
+            '0123456789abcdef0123456789abcdef.ndjson.error.json',
+      );
+
+      final uncertain = recorder.prepareStopWithOutcome(
+        '42',
+        handoffDirectory: '/shared',
+        jobId: job.jobId,
+        expectedJob: job,
+      );
+
+      expect(
+        uncertain.disposition,
+        TerminalRecordingPrepareDisposition.terminationUnknown,
+      );
+      expect(recorder.isRecording('42'), isTrue);
+      expect(backend.nativePrepareDispatchCount, 1);
+      expect(backend.statusProbeCount, 1);
+
+      backend.finalizeState = 'running';
+      final resolved = recorder.prepareStopWithOutcome(
+        '42',
+        handoffDirectory: '/shared',
+        jobId: job.jobId,
+        expectedJob: job,
+      );
+
+      expect(resolved.isAcknowledged, isTrue);
+      expect(resolved.status?.state, TerminalRecordingFinalizeJobState.running);
+      expect(recorder.isRecording('42'), isFalse);
+      expect(backend.nativePrepareDispatchCount, 1);
+      expect(backend.statusProbeCount, 2);
+    });
+
+    test(
+      'prepare unknown plus not_active and unknown status cancels safely',
+      () {
+        final backend = _RecordingRequestBackend()
+          ..prepareResponseFault = 'missing'
+          ..finalizeState = 'unknown'
+          ..cancelIsNotActive = true;
+        final recorder = TerminalLiveRecorder(backend: backend);
+        recorder.start('42', inputPolicy: TerminalRecordingInputPolicy.redact);
+
+        final prepare = recorder.prepareStopWithOutcome(
+          '42',
+          handoffDirectory: '/shared',
+          jobId: '0123456789abcdef0123456789abcdef',
+        );
+        final cancel = recorder.cancel('42');
+
+        expect(
+          prepare.disposition,
+          TerminalRecordingPrepareDisposition.terminationUnknown,
+        );
+        expect(cancel.isAcknowledged, isTrue);
+        expect(cancel.isDetachedPrepareConfirmed, isFalse);
+        expect(recorder.isRecording('42'), isFalse);
+        expect(backend.nativePrepareDispatchCount, 1);
+      },
+    );
+
+    test('not_active cancel exposes a concurrently confirmed detached job', () {
+      final backend = _RecordingRequestBackend()
+        ..prepareResponseFault = 'missing'
+        ..finalizeState = 'unknown'
+        ..cancelIsNotActive = true;
+      final recorder = TerminalLiveRecorder(backend: backend);
+      recorder.start('42', inputPolicy: TerminalRecordingInputPolicy.redact);
+      recorder.prepareStopWithOutcome(
+        '42',
+        handoffDirectory: '/shared',
+        jobId: '0123456789abcdef0123456789abcdef',
+      );
+      backend.finalizeState = 'running';
+
+      final cancel = recorder.cancel('42');
+
+      expect(cancel.isAcknowledged, isFalse);
+      expect(cancel.isDetachedPrepareConfirmed, isTrue);
+      expect(
+        cancel.detachedPrepareStatus?.state,
+        TerminalRecordingFinalizeJobState.running,
+      );
+      expect(recorder.isRecording('42'), isFalse);
+    });
+
+    test('not_active cancel with unavailable status retains ownership', () {
+      final backend = _RecordingRequestBackend()
+        ..prepareResponseFault = 'missing'
+        ..throwOnStatus = true
+        ..cancelIsNotActive = true;
+      final recorder = TerminalLiveRecorder(backend: backend);
+      recorder.start('42', inputPolicy: TerminalRecordingInputPolicy.redact);
+      recorder.prepareStopWithOutcome(
+        '42',
+        handoffDirectory: '/shared',
+        jobId: '0123456789abcdef0123456789abcdef',
+      );
+
+      final cancel = recorder.cancel('42');
+
+      expect(
+        cancel.disposition,
+        TerminalRecordingCancelDisposition.terminationUnknown,
+      );
+      expect(cancel.isDetachedPrepareConfirmed, isFalse);
+      expect(recorder.isRecording('42'), isTrue);
+    });
+
+    test('prepare rejects a mismatched expected path before dispatch', () {
+      final backend = _RecordingRequestBackend();
+      final recorder = TerminalLiveRecorder(backend: backend);
+      recorder.start('42', inputPolicy: TerminalRecordingInputPolicy.redact);
+      const mismatched = TerminalRecordingFinalizeJob(
+        sessionId: '42',
+        jobId: '0123456789abcdef0123456789abcdef',
+        handoffPath: '/outside/forged.ndjson',
+        errorPath: '/outside/forged.ndjson.error.json',
+      );
+
+      expect(
+        () => recorder.prepareStopWithOutcome(
+          '42',
+          handoffDirectory: '/shared',
+          jobId: mismatched.jobId,
+          expectedJob: mismatched,
+        ),
+        throwsArgumentError,
+      );
+      expect(backend.nativePrepareDispatchCount, 0);
+      expect(recorder.isRecording('42'), isTrue);
+    });
+
+    test('probes and consumes detached finalize worker terminal status', () {
+      final backend = _RecordingRequestBackend();
+      final recorder = TerminalLiveRecorder(backend: backend);
+      recorder.start('42', inputPolicy: TerminalRecordingInputPolicy.redact);
+      final job = recorder.prepareStop(
+        '42',
+        handoffDirectory: '/private/tmp/ianvs-recording-handoff-current-test',
+        jobId: '0123456789abcdef0123456789abcdef',
+      );
+      backend.finalizeState = 'failed';
+
+      final status = recorder.probeFinalizeJobStatus(job);
+
+      expect(status.state, TerminalRecordingFinalizeJobState.failed);
+      expect(status.isTerminal, isTrue);
+      expect(status.errorCode, 'serialize_failed');
+      expect(status.message, 'recording serialization failed');
+      expect(
+        backend.requests.last,
+        containsPair('kind', 'terminal.recording_finalize_status'),
+      );
+      expect(backend.requests.last['consume_terminal'], isTrue);
+    });
+
+    test('status transport failure is transient rather than terminal', () {
+      final backend = _RecordingRequestBackend();
+      final recorder = TerminalLiveRecorder(backend: backend);
+      const job = TerminalRecordingFinalizeJob(
+        sessionId: '42',
+        jobId: '0123456789abcdef0123456789abcdef',
+        handoffPath: '/private/tmp/handoff.ndjson',
+        errorPath: '/private/tmp/handoff.ndjson.error.json',
+      );
+      backend.throwOnStatus = true;
+
+      final status = recorder.probeFinalizeJobStatus(job);
+
+      expect(status.state, TerminalRecordingFinalizeJobState.unavailable);
+      expect(status.isTerminal, isFalse);
+      expect(status.error, isA<StateError>());
     });
 
     test('rejected handoff keeps the native recording active for retry', () {
@@ -150,6 +421,111 @@ void main() {
       );
       expect(recorder.isRecording('42'), isTrue);
     });
+
+    for (final entry in <String, TerminalRecordingBackendErrorCode>{
+      'capacity_exceeded': TerminalRecordingBackendErrorCode.capacityExceeded,
+      'finalize_capacity_exceeded':
+          TerminalRecordingBackendErrorCode.finalizeCapacityExceeded,
+      'finalize_worker_spawn_failed':
+          TerminalRecordingBackendErrorCode.finalizeWorkerSpawnFailed,
+    }.entries) {
+      test('${entry.key} is typed and keeps capture active for retry', () {
+        final backend = _RecordingRequestBackend()
+          ..prepareErrorCode = entry.key;
+        final recorder = TerminalLiveRecorder(backend: backend);
+        recorder.start('42', inputPolicy: TerminalRecordingInputPolicy.redact);
+
+        expect(
+          () => recorder.prepareStop(
+            '42',
+            handoffDirectory: '/shared',
+            jobId: '0123456789abcdef0123456789abcdef',
+          ),
+          throwsA(
+            isA<TerminalRecordingBackendException>().having(
+              (error) => error.code,
+              'code',
+              entry.value,
+            ),
+          ),
+        );
+        expect(recorder.isRecording('42'), isTrue);
+        expect(recorder.cancel('42').isAcknowledged, isTrue);
+        expect(recorder.isRecording('42'), isFalse);
+
+        recorder.start('42', inputPolicy: TerminalRecordingInputPolicy.redact);
+        expect(recorder.isRecording('42'), isTrue);
+      });
+    }
+
+    test('explicit native start rejection does not claim ownership', () {
+      final backend = _RecordingRequestBackend()..rejectStart = true;
+      final recorder = TerminalLiveRecorder(backend: backend);
+
+      final outcome = recorder.startWithOutcome(
+        '42',
+        inputPolicy: TerminalRecordingInputPolicy.redact,
+      );
+
+      expect(outcome.disposition, TerminalRecordingStartDisposition.rejected);
+      expect(outcome.error, isA<TerminalRecordingBackendException>());
+      expect(recorder.isRecording('42'), isFalse);
+    });
+
+    test('cancel removes ownership only after a native acknowledgment', () {
+      final backend = _RecordingRequestBackend();
+      final recorder = TerminalLiveRecorder(backend: backend);
+      recorder.start('42', inputPolicy: TerminalRecordingInputPolicy.redact);
+
+      final outcome = recorder.cancel('42');
+
+      expect(
+        outcome.disposition,
+        TerminalRecordingCancelDisposition.acknowledged,
+      );
+      expect(outcome.isAcknowledged, isTrue);
+      expect(recorder.isRecording('42'), isFalse);
+    });
+
+    test('rejected cancel retains native recording ownership', () {
+      final backend = _RecordingRequestBackend()..rejectCancel = true;
+      final recorder = TerminalLiveRecorder(backend: backend);
+      recorder.start('42', inputPolicy: TerminalRecordingInputPolicy.redact);
+
+      final outcome = recorder.cancel('42');
+
+      expect(outcome.disposition, TerminalRecordingCancelDisposition.rejected);
+      expect(outcome.error, isA<TerminalRecordingBackendException>());
+      expect(outcome.isAcknowledged, isFalse);
+      expect(recorder.isRecording('42'), isTrue);
+    });
+
+    test('cancel not_active is an idempotent definitive acknowledgment', () {
+      final backend = _RecordingRequestBackend()..cancelIsNotActive = true;
+      final recorder = TerminalLiveRecorder(backend: backend);
+      recorder.start('42', inputPolicy: TerminalRecordingInputPolicy.redact);
+
+      final outcome = recorder.cancel('42');
+
+      expect(outcome.isAcknowledged, isTrue);
+      expect(recorder.isRecording('42'), isFalse);
+    });
+
+    test('cancel transport failure retains native recording ownership', () {
+      final backend = _RecordingRequestBackend()..throwOnCancel = true;
+      final recorder = TerminalLiveRecorder(backend: backend);
+      recorder.start('42', inputPolicy: TerminalRecordingInputPolicy.redact);
+
+      final outcome = recorder.cancel('42');
+
+      expect(
+        outcome.disposition,
+        TerminalRecordingCancelDisposition.terminationUnknown,
+      );
+      expect(outcome.error, isA<StateError>());
+      expect(outcome.isAcknowledged, isFalse);
+      expect(recorder.isRecording('42'), isTrue);
+    });
   });
 }
 
@@ -162,6 +538,20 @@ final class _RecordingRequestBackend
   final bool supportsV1;
   bool overflowOnStop = false;
   bool rejectPrepare = false;
+  String? prepareErrorCode;
+  bool rejectCancel = false;
+  bool cancelIsNotActive = false;
+  bool throwOnCancel = false;
+  bool throwOnStatus = false;
+  bool missingStartResponse = false;
+  bool malformedStartResponse = false;
+  bool mismatchedStartCorrelation = false;
+  String? prepareResponseFault;
+  bool rejectStart = false;
+  String finalizeState = 'running';
+  int nativeStartDispatchCount = 0;
+  int nativePrepareDispatchCount = 0;
+  int statusProbeCount = 0;
 
   @override
   bool get supportsSessionRequestV1 => supportsV1;
@@ -170,6 +560,28 @@ final class _RecordingRequestBackend
   String? requestSessionV1Json(String sessionId, String requestV1Json) {
     final request = (jsonDecode(requestV1Json) as Map).cast<String, Object?>();
     v1Requests.add(request);
+    final operation = request['operation'];
+    if (operation == 'terminal.recording_start') {
+      nativeStartDispatchCount += 1;
+    } else if (operation == 'terminal.recording_stop_prepare') {
+      nativePrepareDispatchCount += 1;
+    } else if (operation == 'terminal.recording_finalize_status') {
+      statusProbeCount += 1;
+    }
+    if (operation == 'terminal.recording_start' && missingStartResponse) {
+      return null;
+    }
+    if (operation == 'terminal.recording_start' && malformedStartResponse) {
+      return '{malformed';
+    }
+    if (operation == 'terminal.recording_stop_prepare' &&
+        prepareResponseFault == 'missing') {
+      return null;
+    }
+    if (operation == 'terminal.recording_stop_prepare' &&
+        prepareResponseFault == 'malformed') {
+      return '{malformed';
+    }
     final payload = (request['payload']! as Map).cast<String, Object?>();
     final legacyRequest = <String, Object?>{
       'kind': request['operation'],
@@ -182,7 +594,13 @@ final class _RecordingRequestBackend
     return jsonEncode(<String, Object?>{
       'schema_version': 1,
       'contract': 'ianvs-session-response-v1',
-      'request_id': request['request_id'],
+      'request_id':
+          (operation == 'terminal.recording_start' &&
+                  mismatchedStartCorrelation) ||
+              (operation == 'terminal.recording_stop_prepare' &&
+                  prepareResponseFault == 'correlation')
+          ? 'wrong-correlation'
+          : request['request_id'],
       'session_id': sessionId,
       'operation': request['operation'],
       'ok': true,
@@ -195,11 +613,39 @@ final class _RecordingRequestBackend
   String? requestSessionJson(String sessionId, String requestJson) {
     final request = (jsonDecode(requestJson) as Map).cast<String, Object?>();
     requests.add(request);
+    if (request['kind'] == 'terminal.recording_start') {
+      nativeStartDispatchCount += 1;
+      if (missingStartResponse) {
+        return null;
+      }
+      if (malformedStartResponse) {
+        return '{malformed';
+      }
+    } else if (request['kind'] == 'terminal.recording_stop_prepare') {
+      nativePrepareDispatchCount += 1;
+      if (prepareResponseFault == 'missing') {
+        return null;
+      }
+      if (prepareResponseFault == 'malformed') {
+        return '{malformed';
+      }
+    } else if (request['kind'] == 'terminal.recording_finalize_status') {
+      statusProbeCount += 1;
+    }
     return _responseFor(sessionId, request);
   }
 
   String? _responseFor(String sessionId, Map<String, Object?> request) {
     return switch (request['kind']) {
+      'terminal.recording_start' when rejectStart => jsonEncode(
+        const <String, Object?>{
+          'ok': false,
+          'error': <String, Object?>{
+            'code': 'native_failure',
+            'message': 'native recording start rejected',
+          },
+        },
+      ),
       'terminal.recording_start' => jsonEncode(<String, Object?>{
         'ok': true,
         'max_events': 4096,
@@ -227,6 +673,14 @@ final class _RecordingRequestBackend
           },
         },
       ),
+      'terminal.recording_stop_prepare' when prepareErrorCode != null =>
+        jsonEncode(<String, Object?>{
+          'ok': false,
+          'error': <String, Object?>{
+            'code': prepareErrorCode,
+            'message': 'native finalize admission failed',
+          },
+        }),
       'terminal.recording_stop_prepare' => () {
         final jobId = request['job_id']! as String;
         final directory = request['handoff_directory']! as String;
@@ -238,6 +692,41 @@ final class _RecordingRequestBackend
           'error_path': '$path.error.json',
         });
       }(),
+      'terminal.recording_cancel' when throwOnCancel => throw StateError(
+        'cancel transport terminated before acknowledgment',
+      ),
+      'terminal.recording_cancel' when rejectCancel => jsonEncode(
+        const <String, Object?>{
+          'ok': false,
+          'error': <String, Object?>{
+            'code': 'native_failure',
+            'message': 'native cancellation was rejected',
+          },
+        },
+      ),
+      'terminal.recording_cancel' when cancelIsNotActive => jsonEncode(
+        const <String, Object?>{
+          'ok': false,
+          'error': <String, Object?>{
+            'code': 'not_active',
+            'message': 'no recording is active for this session',
+          },
+        },
+      ),
+      'terminal.recording_cancel' => jsonEncode(const <String, Object?>{
+        'ok': true,
+      }),
+      'terminal.recording_finalize_status' when throwOnStatus =>
+        throw StateError('status transport unavailable'),
+      'terminal.recording_finalize_status' => jsonEncode(<String, Object?>{
+        'ok': true,
+        'state': finalizeState,
+        if (finalizeState == 'failed')
+          'error': const <String, Object?>{
+            'code': 'serialize_failed',
+            'message': 'recording serialization failed',
+          },
+      }),
       _ => null,
     };
   }

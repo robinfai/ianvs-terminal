@@ -41,8 +41,10 @@ final class _AppStartupLifecycleBoundaryState
     _listener = AppLifecycleListener(
       onDetach: () => unawaited(widget.coordinator.close()),
       onExitRequested: () async {
-        await widget.coordinator.close();
-        return AppExitResponse.exit;
+        final result = await widget.coordinator.close();
+        return result.safeToTerminate
+            ? AppExitResponse.exit
+            : AppExitResponse.cancel;
       },
     );
   }

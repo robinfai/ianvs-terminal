@@ -1082,6 +1082,48 @@ final class TerminalRuntimeZmodemDeferredFailureSignal
   String get sessionId => payload.sessionId;
 }
 
+/// Synchronous notification emitted immediately before an exited native
+/// session is released by the runtime.
+///
+/// Unlike the legacy callback, this signal carries the concrete session
+/// incarnation. Consumers can therefore claim pre-close work without
+/// confusing a later session that reuses the same backend identifier.
+final class TerminalSessionPreCloseSignal {
+  const TerminalSessionPreCloseSignal({
+    required this.sessionId,
+    required this.sessionEpoch,
+    required this.exitCode,
+  });
+
+  final String sessionId;
+  final int sessionEpoch;
+  final int? exitCode;
+}
+
+enum TerminalSessionPreCloseDisposition { allowClose, retryableFailure }
+
+/// Synchronous decision returned before the runtime releases an exited PTY.
+///
+/// A retryable failure keeps the runtime session mapped so product code can
+/// retry transferring any active durable state. [error] is surfaced through
+/// the ordered runtime signal stream after the bounded retry is exhausted.
+final class TerminalSessionPreCloseOutcome {
+  const TerminalSessionPreCloseOutcome.allowClose({this.error, this.stackTrace})
+    : disposition = TerminalSessionPreCloseDisposition.allowClose;
+
+  const TerminalSessionPreCloseOutcome.retryableFailure({
+    required Object this.error,
+    required StackTrace this.stackTrace,
+  }) : disposition = TerminalSessionPreCloseDisposition.retryableFailure;
+
+  final TerminalSessionPreCloseDisposition disposition;
+  final Object? error;
+  final StackTrace? stackTrace;
+
+  bool get permitsClose =>
+      disposition == TerminalSessionPreCloseDisposition.allowClose;
+}
+
 /// Reports an observed loss in the native Runtime Event sequence.
 ///
 /// Gap reconciliation and this diagnostic are established before surviving
@@ -1242,6 +1284,10 @@ class TerminalRuntimeController implements TerminalInputSink {
         TerminalFrameWireFormatPreference.automatic,
     TerminalBenchmarkEventSink? benchmarkEventSink,
     void Function(String sessionId, int? exitCode)? beforeSessionCloseOnExit,
+    TerminalSessionPreCloseOutcome Function(
+      TerminalSessionPreCloseSignal signal,
+    )?
+    beforeSessionCloseOnExitSignal,
     Duration Function()? monotonicNow,
   }) : this.withClipboardPolicy(
          backend: backend,
@@ -1266,6 +1312,7 @@ class TerminalRuntimeController implements TerminalInputSink {
          frameWireFormatPreference: frameWireFormatPreference,
          benchmarkEventSink: benchmarkEventSink,
          beforeSessionCloseOnExit: beforeSessionCloseOnExit,
+         beforeSessionCloseOnExitSignal: beforeSessionCloseOnExitSignal,
          monotonicNow: monotonicNow,
        );
 
@@ -1286,6 +1333,7 @@ class TerminalRuntimeController implements TerminalInputSink {
         TerminalFrameWireFormatPreference.automatic,
     this.benchmarkEventSink,
     this.beforeSessionCloseOnExit,
+    this.beforeSessionCloseOnExitSignal,
     Duration Function()? monotonicNow,
   }) : _backend = backend,
        writeTextClipboard =
@@ -1378,6 +1426,10 @@ class TerminalRuntimeController implements TerminalInputSink {
   /// the session mapping is released.
   final void Function(String sessionId, int? exitCode)?
   beforeSessionCloseOnExit;
+  final TerminalSessionPreCloseOutcome Function(
+    TerminalSessionPreCloseSignal signal,
+  )?
+  beforeSessionCloseOnExitSignal;
   final Duration Function()? _readMonotonicNow;
 
   bool supportsRuntimeFeature(String feature) {
@@ -1434,7 +1486,7 @@ class TerminalRuntimeController implements TerminalInputSink {
         TerminalSessionZmodemDeferredWriteFailedDiagnostic
       >.broadcast();
   final StreamController<TerminalRuntimeSignal> _runtimeSignals =
-      StreamController<TerminalRuntimeSignal>.broadcast();
+      StreamController<TerminalRuntimeSignal>.broadcast(sync: true);
   final StreamController<TerminalSessionRuntimeEventGapDiagnostic>
   _runtimeEventGaps =
       StreamController<TerminalSessionRuntimeEventGapDiagnostic>.broadcast();
@@ -1473,6 +1525,13 @@ class TerminalRuntimeController implements TerminalInputSink {
   Stream<TerminalSessionResizeEvent> get resizeEvents => _resizeEvents.stream;
   bool get shutdownHasStarted => _shutdownStarted;
   bool get disposed => _disposed;
+
+  /// Returns the identity of the currently active incarnation for [sessionId].
+  ///
+  /// This is intended for feature coordinators that must reserve work before
+  /// the first runtime signal is emitted. The value is never reused by a later
+  /// incarnation in this controller.
+  int? sessionEpochFor(String sessionId) => _sessionEpochs[sessionId];
 
   bool get _productOperationsAllowed => !_shutdownStarted && !_disposed;
 
@@ -3675,20 +3734,24 @@ class TerminalRuntimeController implements TerminalInputSink {
     if (!_productEventWorkAllowed(sessionId, sessionEpoch)) {
       return;
     }
-    try {
-      beforeSessionCloseOnExit?.call(sessionId, exitCode);
-    } on Object catch (error, stackTrace) {
-      _emitRuntimeSignal(
-        sessionId,
-        sessionEpoch,
-        TerminalSessionBackendErrorEvent(
-          sessionId,
-          operation: 'beforeSessionCloseOnExit',
-          error: error,
-          stackTrace: stackTrace,
-        ),
-      );
+    final preCloseOutcome = _runPreCloseDecision(
+      sessionId,
+      sessionEpoch,
+      TerminalSessionPreCloseSignal(
+        sessionId: sessionId,
+        sessionEpoch: sessionEpoch,
+        exitCode: exitCode,
+      ),
+    );
+    if (!preCloseOutcome.permitsClose) {
+      return;
     }
+    _runPreCloseCallback(
+      sessionId,
+      sessionEpoch,
+      'beforeSessionCloseOnExit',
+      () => beforeSessionCloseOnExit?.call(sessionId, exitCode),
+    );
     final finalFrame = _sessions.existingViewportFor(sessionId)?.frame;
     _emitRuntimeSignal(
       sessionId,
@@ -3700,6 +3763,88 @@ class TerminalRuntimeController implements TerminalInputSink {
       ),
     );
     _closeExitedSessionIfCurrent(sessionId, sessionEpoch);
+  }
+
+  TerminalSessionPreCloseOutcome _runPreCloseDecision(
+    String sessionId,
+    int sessionEpoch,
+    TerminalSessionPreCloseSignal signal,
+  ) {
+    final callback = beforeSessionCloseOnExitSignal;
+    if (callback == null) {
+      return const TerminalSessionPreCloseOutcome.allowClose();
+    }
+    const maximumAttempts = 2;
+    late TerminalSessionPreCloseOutcome outcome;
+    for (var attempt = 0; attempt < maximumAttempts; attempt += 1) {
+      try {
+        outcome = callback(signal);
+      } on Object catch (error, stackTrace) {
+        outcome = TerminalSessionPreCloseOutcome.retryableFailure(
+          error: error,
+          stackTrace: stackTrace,
+        );
+      }
+      if (outcome.permitsClose) {
+        final diagnostic = outcome.error;
+        if (diagnostic != null) {
+          _emitPreCloseError(
+            sessionId,
+            sessionEpoch,
+            diagnostic,
+            outcome.stackTrace ?? StackTrace.current,
+          );
+        }
+        return outcome;
+      }
+    }
+    _emitPreCloseError(
+      sessionId,
+      sessionEpoch,
+      outcome.error ?? StateError('Pre-close transfer was rejected.'),
+      outcome.stackTrace ?? StackTrace.current,
+    );
+    return outcome;
+  }
+
+  void _emitPreCloseError(
+    String sessionId,
+    int sessionEpoch,
+    Object error,
+    StackTrace stackTrace,
+  ) {
+    _emitRuntimeSignal(
+      sessionId,
+      sessionEpoch,
+      TerminalSessionBackendErrorEvent(
+        sessionId,
+        operation: 'beforeSessionCloseOnExitSignal',
+        error: error,
+        stackTrace: stackTrace,
+      ),
+    );
+  }
+
+  void _runPreCloseCallback(
+    String sessionId,
+    int sessionEpoch,
+    String operation,
+    void Function() callback,
+  ) {
+    try {
+      callback();
+    } on Object catch (error, stackTrace) {
+      _emitRuntimeSignal(
+        sessionId,
+        sessionEpoch,
+        TerminalSessionBackendErrorEvent(
+          sessionId,
+          operation: operation,
+          error: error,
+          stackTrace: stackTrace,
+        ),
+      );
+    }
   }
 
   void _closeExitedSessionIfCurrent(String sessionId, int sessionEpoch) {

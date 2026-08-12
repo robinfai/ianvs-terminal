@@ -32,14 +32,49 @@ class _RecordingConfigRepository extends LocalTerminalConfigRepository {
   Future<void> save(LocalTerminalConfigDocument document) async {}
 }
 
-class _RecordingPtyBackend extends FakePtyBackend {
-  _RecordingPtyBackend({List<String>? timeline, this.maxEvents = 4096})
-    : timeline = timeline ?? <String>[];
+enum _RecordingCancelBehavior {
+  acknowledge,
+  reject,
+  terminationUnknown,
+  notActive,
+}
+
+enum _RecordingStartResponseFault { none, missing, malformed, correlation }
+
+enum _RecordingPrepareResponseFault { none, missing, malformed, correlation }
+
+class _RecordingPtyBackend extends FakePtyBackend
+    implements PtySessionRequestV1Backend {
+  _RecordingPtyBackend({
+    List<String>? timeline,
+    this.maxEvents = 4096,
+    this.prepareFailuresRemaining = 0,
+    this.persistentPrepareFailure = false,
+    this.cancelBehavior = _RecordingCancelBehavior.acknowledge,
+    this.startResponseFault = _RecordingStartResponseFault.none,
+    this.prepareResponseFault = _RecordingPrepareResponseFault.none,
+    this.finalizeState = 'running',
+    List<String>? finalizeStates,
+    this.deferHandoffArtifact = false,
+  }) : timeline = timeline ?? <String>[],
+       finalizeStates = finalizeStates ?? <String>[];
 
   final List<String> timeline;
   final int maxEvents;
   final Map<String, String> _inputPolicies = <String, String>{};
   bool observedManifestBeforePrepare = false;
+  List<Object?> observedSemanticsBeforePrepare = const <Object?>[];
+  int prepareFailuresRemaining;
+  final bool persistentPrepareFailure;
+  _RecordingCancelBehavior cancelBehavior;
+  _RecordingStartResponseFault startResponseFault;
+  final _RecordingPrepareResponseFault prepareResponseFault;
+  String finalizeState;
+  final List<String> finalizeStates;
+  final bool deferHandoffArtifact;
+  String? _deferredHandoffPath;
+  String? _deferredHandoffSessionId;
+  int prepareAttempts = 0;
 
   @override
   String? requestSessionJson(String sessionId, String requestJson) {
@@ -49,6 +84,12 @@ class _RecordingPtyBackend extends FakePtyBackend {
       case 'terminal.recording_start':
         timeline.add('start:$sessionId');
         _inputPolicies[sessionId] = request['input_policy']! as String;
+        if (startResponseFault == _RecordingStartResponseFault.missing) {
+          return null;
+        }
+        if (startResponseFault == _RecordingStartResponseFault.malformed) {
+          return '{malformed';
+        }
         return jsonEncode(<String, Object?>{
           'ok': true,
           'max_events': maxEvents,
@@ -65,37 +106,192 @@ class _RecordingPtyBackend extends FakePtyBackend {
         });
       case 'terminal.recording_stop_prepare':
         timeline.add('stop:$sessionId');
+        prepareAttempts += 1;
         final jobId = request['job_id']! as String;
         final directory = request['handoff_directory']! as String;
         final handoffPath = '$directory/.ianvs-recording-handoff-$jobId.ndjson';
         observedManifestBeforePrepare = File(
           '$handoffPath.manifest.json',
         ).existsSync();
-        File(handoffPath).writeAsStringSync(
-          _recordingFixture(
-            sessionId,
-            inputPolicy: _inputPolicies[sessionId] ?? 'redact',
-          ),
-          flush: true,
-        );
+        if (observedManifestBeforePrepare) {
+          final manifest =
+              jsonDecode(File('$handoffPath.manifest.json').readAsStringSync())
+                  as Map<String, Object?>;
+          observedSemanticsBeforePrepare = List<Object?>.from(
+            manifest['semanticEvents']! as List,
+          );
+        }
+        if (persistentPrepareFailure || prepareFailuresRemaining > 0) {
+          if (prepareFailuresRemaining > 0) {
+            prepareFailuresRemaining -= 1;
+          }
+          return jsonEncode(const <String, Object?>{
+            'ok': false,
+            'error': <String, Object?>{
+              'code': 'invalid_handoff',
+              'message': 'transient handoff rejection',
+            },
+          });
+        }
+        if (deferHandoffArtifact) {
+          _deferredHandoffPath = handoffPath;
+          _deferredHandoffSessionId = sessionId;
+        } else {
+          _writeHandoffArtifact(sessionId, handoffPath);
+        }
+        if (prepareResponseFault == _RecordingPrepareResponseFault.missing) {
+          return null;
+        }
+        if (prepareResponseFault == _RecordingPrepareResponseFault.malformed) {
+          return '{malformed';
+        }
         return jsonEncode(<String, Object?>{
           'ok': true,
           'job_id': jobId,
           'handoff_path': handoffPath,
           'error_path': '$handoffPath.error.json',
         });
+      case 'terminal.recording_finalize_status':
+        timeline.add('status:$sessionId');
+        final currentFinalizeState = finalizeStates.isEmpty
+            ? finalizeState
+            : finalizeStates.removeAt(0);
+        return jsonEncode(<String, Object?>{
+          'ok': true,
+          'state': currentFinalizeState,
+          if (currentFinalizeState == 'failed')
+            'error': const <String, Object?>{
+              'code': 'serialize_failed',
+              'message': 'native finalize failed after ownership transfer',
+            },
+        });
       case 'terminal.recording_cancel':
         timeline.add('cancel:$sessionId');
-        return jsonEncode(const <String, Object?>{'ok': true});
+        return switch (cancelBehavior) {
+          _RecordingCancelBehavior.acknowledge => jsonEncode(
+            const <String, Object?>{'ok': true},
+          ),
+          _RecordingCancelBehavior.reject => jsonEncode(const <String, Object?>{
+            'ok': false,
+            'error': <String, Object?>{
+              'code': 'native_failure',
+              'message': 'native cancellation rejected',
+            },
+          }),
+          _RecordingCancelBehavior.terminationUnknown => throw StateError(
+            'native cancellation transport terminated before acknowledgment',
+          ),
+          _RecordingCancelBehavior.notActive => jsonEncode(
+            const <String, Object?>{
+              'ok': false,
+              'error': <String, Object?>{
+                'code': 'not_active',
+                'message': 'no recording is active for this session',
+              },
+            },
+          ),
+        };
       default:
         return super.requestSessionJson(sessionId, requestJson);
     }
+  }
+
+  void publishDeferredHandoffArtifact() {
+    final sessionId = _deferredHandoffSessionId;
+    final handoffPath = _deferredHandoffPath;
+    if (sessionId == null || handoffPath == null) {
+      throw StateError('No deferred native handoff is pending.');
+    }
+    _writeHandoffArtifact(sessionId, handoffPath);
+    _deferredHandoffSessionId = null;
+    _deferredHandoffPath = null;
+  }
+
+  void _writeHandoffArtifact(String sessionId, String handoffPath) {
+    File(handoffPath).writeAsStringSync(
+      _recordingFixture(
+        sessionId,
+        inputPolicy: _inputPolicies[sessionId] ?? 'redact',
+      ),
+      flush: true,
+    );
+  }
+
+  @override
+  bool get supportsSessionRequestV1 =>
+      startResponseFault == _RecordingStartResponseFault.correlation ||
+      prepareResponseFault == _RecordingPrepareResponseFault.correlation;
+
+  @override
+  String? requestSessionV1Json(String sessionId, String requestV1Json) {
+    final request = (jsonDecode(requestV1Json) as Map).cast<String, Object?>();
+    final payload = (request['payload']! as Map).cast<String, Object?>();
+    final raw = requestSessionJson(
+      sessionId,
+      jsonEncode(<String, Object?>{'kind': request['operation'], ...payload}),
+    );
+    if (raw == null) {
+      return null;
+    }
+    if (raw == '{malformed') {
+      return raw;
+    }
+    return jsonEncode(<String, Object?>{
+      'schema_version': 1,
+      'contract': 'ianvs-session-response-v1',
+      'request_id':
+          (request['operation'] == 'terminal.recording_start' &&
+                  startResponseFault ==
+                      _RecordingStartResponseFault.correlation) ||
+              (request['operation'] == 'terminal.recording_stop_prepare' &&
+                  prepareResponseFault ==
+                      _RecordingPrepareResponseFault.correlation)
+          ? 'wrong-correlation'
+          : request['request_id'],
+      'session_id': sessionId,
+      'operation': request['operation'],
+      'ok': true,
+      'timestamp_micros': 1,
+      'payload': jsonDecode(raw),
+    });
   }
 
   @override
   void closeSession(String sessionId) {
     timeline.add('close:$sessionId');
     super.closeSession(sessionId);
+  }
+}
+
+class _FailingRecordingPhaseRepository extends LocalSessionRecordingRepository {
+  _FailingRecordingPhaseRepository({required super.directoryResolver});
+
+  int abandonAttempts = 0;
+
+  @override
+  void markNativeRecordingCaptureStartedSynchronously({
+    required terminal.TerminalRecordingFinalizeJob job,
+    required Directory handoffDirectory,
+  }) {
+    throw const FileSystemException('recording phase write unavailable');
+  }
+
+  @override
+  void prepareNativeRecordingJobMetadataSynchronously({
+    required terminal.TerminalRecordingFinalizeJob job,
+    required Directory handoffDirectory,
+    required List<terminal.TerminalRecordingSemanticEvent> semanticEvents,
+    String? displayName,
+  }) {
+    throw const FileSystemException('recording phase write unavailable');
+  }
+
+  @override
+  Future<void> abandonNativeRecordingJobReservation(
+    terminal.TerminalRecordingFinalizeJob job,
+  ) {
+    abandonAttempts += 1;
+    return super.abandonNativeRecordingJobReservation(job);
   }
 }
 
@@ -125,6 +321,7 @@ class _FailingOnceRecordingRepository extends LocalSessionRecordingRepository {
     required List<terminal.TerminalRecordingSemanticEvent> semanticEvents,
     String? displayName,
     LocalSessionRecordingFinalizeCancellation? cancellation,
+    LocalSessionRecordingNativeJobStatusProbe? nativeJobStatusProbe,
   }) async {
     if (failNextSave) {
       failNextSave = false;
@@ -137,6 +334,7 @@ class _FailingOnceRecordingRepository extends LocalSessionRecordingRepository {
       semanticEvents: semanticEvents,
       displayName: displayName,
       cancellation: cancellation,
+      nativeJobStatusProbe: nativeJobStatusProbe,
     );
   }
 }
@@ -167,6 +365,7 @@ class _FailSecondRecordingRepository extends LocalSessionRecordingRepository {
     required List<terminal.TerminalRecordingSemanticEvent> semanticEvents,
     String? displayName,
     LocalSessionRecordingFinalizeCancellation? cancellation,
+    LocalSessionRecordingNativeJobStatusProbe? nativeJobStatusProbe,
   }) async {
     saveAttempts += 1;
     if (saveAttempts == 2) {
@@ -179,6 +378,7 @@ class _FailSecondRecordingRepository extends LocalSessionRecordingRepository {
       semanticEvents: semanticEvents,
       displayName: displayName,
       cancellation: cancellation,
+      nativeJobStatusProbe: nativeJobStatusProbe,
     );
   }
 }
@@ -210,6 +410,7 @@ class _BlockingRecordingRepository extends LocalSessionRecordingRepository {
     required List<terminal.TerminalRecordingSemanticEvent> semanticEvents,
     String? displayName,
     LocalSessionRecordingFinalizeCancellation? cancellation,
+    LocalSessionRecordingNativeJobStatusProbe? nativeJobStatusProbe,
   }) async {
     if (!saveStarted.isCompleted) {
       saveStarted.complete();
@@ -222,6 +423,7 @@ class _BlockingRecordingRepository extends LocalSessionRecordingRepository {
       semanticEvents: semanticEvents,
       displayName: displayName,
       cancellation: cancellation,
+      nativeJobStatusProbe: nativeJobStatusProbe,
     );
   }
 }
@@ -260,17 +462,18 @@ class _BlockingFailingRecordingRepository
     required List<terminal.TerminalRecordingSemanticEvent> semanticEvents,
     String? displayName,
     LocalSessionRecordingFinalizeCancellation? cancellation,
+    LocalSessionRecordingNativeJobStatusProbe? nativeJobStatusProbe,
   }) {
     return _failAfterGate();
   }
 
   @override
-  void release(LocalSessionRecordingDestination destination) {
+  bool release(LocalSessionRecordingDestination destination) {
     releaseCount += 1;
     if (!releaseObserved.isCompleted) {
       releaseObserved.complete();
     }
-    super.release(destination);
+    return super.release(destination);
   }
 }
 
@@ -306,6 +509,7 @@ class _OrderedRecordingRepository extends LocalSessionRecordingRepository {
     required List<terminal.TerminalRecordingSemanticEvent> semanticEvents,
     String? displayName,
     LocalSessionRecordingFinalizeCancellation? cancellation,
+    LocalSessionRecordingNativeJobStatusProbe? nativeJobStatusProbe,
   }) async {
     timeline.add('recording-save-start');
     final path = await super.finalizeNativeRecording(
@@ -315,6 +519,7 @@ class _OrderedRecordingRepository extends LocalSessionRecordingRepository {
       semanticEvents: semanticEvents,
       displayName: displayName,
       cancellation: cancellation,
+      nativeJobStatusProbe: nativeJobStatusProbe,
     );
     timeline.add('recording-save-complete');
     return path;
@@ -351,6 +556,36 @@ class _RecordingHarness {
   final Directory directory;
 }
 
+class _ControlledRecordingDelay {
+  final List<Completer<void>> _gates = <Completer<void>>[];
+  Completer<void> _nextEntry = Completer<void>();
+
+  Future<void> call(Duration _) {
+    final gate = Completer<void>();
+    _gates.add(gate);
+    if (!_nextEntry.isCompleted) {
+      _nextEntry.complete();
+    }
+    return gate.future;
+  }
+
+  Future<void> waitForPending() async {
+    if (_gates.any((gate) => !gate.isCompleted)) {
+      return;
+    }
+    await _nextEntry.future;
+  }
+
+  void releaseNext() {
+    final index = _gates.indexWhere((gate) => !gate.isCompleted);
+    if (index == -1) {
+      throw StateError('No recording settlement delay is pending.');
+    }
+    _nextEntry = Completer<void>();
+    _gates[index].complete();
+  }
+}
+
 Future<_RecordingHarness> _createHarness({
   LocalSessionRecordingRepository Function(Directory directory)?
   recordingRepositoryBuilder,
@@ -358,6 +593,18 @@ Future<_RecordingHarness> _createHarness({
   layoutRepositoryBuilder,
   List<String>? timeline,
   int recordingMaxEvents = 4096,
+  int prepareFailuresRemaining = 0,
+  bool persistentPrepareFailure = false,
+  _RecordingCancelBehavior cancelBehavior =
+      _RecordingCancelBehavior.acknowledge,
+  _RecordingStartResponseFault startResponseFault =
+      _RecordingStartResponseFault.none,
+  _RecordingPrepareResponseFault prepareResponseFault =
+      _RecordingPrepareResponseFault.none,
+  String finalizeState = 'running',
+  List<String>? finalizeStates,
+  bool deferHandoffArtifact = false,
+  AppShutdownCoordinator? shutdownCoordinator,
 }) async {
   final directory = await Directory.systemTemp.createTemp(
     'ianvs terminal-session-recording',
@@ -365,6 +612,14 @@ Future<_RecordingHarness> _createHarness({
   final backend = _RecordingPtyBackend(
     timeline: timeline,
     maxEvents: recordingMaxEvents,
+    prepareFailuresRemaining: prepareFailuresRemaining,
+    persistentPrepareFailure: persistentPrepareFailure,
+    cancelBehavior: cancelBehavior,
+    startResponseFault: startResponseFault,
+    prepareResponseFault: prepareResponseFault,
+    finalizeState: finalizeState,
+    finalizeStates: finalizeStates,
+    deferHandoffArtifact: deferHandoffArtifact,
   );
   final layoutRepository =
       layoutRepositoryBuilder?.call(directory) ??
@@ -392,6 +647,8 @@ Future<_RecordingHarness> _createHarness({
       localSessionRecordingRepositoryProvider.overrideWithValue(
         recordingRepository,
       ),
+      if (shutdownCoordinator != null)
+        appShutdownCoordinatorProvider.overrideWithValue(shutdownCoordinator),
     ],
   );
   addTearDown(() async {
@@ -412,7 +669,7 @@ Future<_RecordingHarness> _createHarness({
 
 void main() {
   test(
-    'start and stop save redacted v1 data outside relaunch intent',
+    'start and stop save redacted current data outside relaunch intent',
     () async {
       final harness = await _createHarness();
       final controller = harness.container.read(
@@ -453,6 +710,219 @@ void main() {
         'stop:$sessionId',
       ]);
       expect(harness.backend.observedManifestBeforePrepare, isTrue);
+    },
+  );
+
+  for (final cancelBehavior in <_RecordingCancelBehavior>[
+    _RecordingCancelBehavior.reject,
+    _RecordingCancelBehavior.terminationUnknown,
+  ]) {
+    test('phase write failure retains native ownership when cancel is '
+        '${cancelBehavior.name}', () async {
+      late _FailingRecordingPhaseRepository repository;
+      final harness = await _createHarness(
+        cancelBehavior: cancelBehavior,
+        recordingRepositoryBuilder: (directory) =>
+            repository = _FailingRecordingPhaseRepository(
+              directoryResolver: () async => directory,
+            ),
+      );
+      final controller = harness.container.read(
+        sessionControllerProvider.notifier,
+      );
+      final sessionId = harness.container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+
+      expect(await controller.startSessionRecording(sessionId), isFalse);
+
+      expect(repository.abandonAttempts, 0);
+      expect(
+        harness.container.read(sessionControllerProvider).recordingSessionIds,
+        contains(sessionId),
+      );
+      expect(
+        harness.container
+            .read(terminalLiveRecorderProvider)
+            ?.isRecording(sessionId),
+        isTrue,
+      );
+      final manifests = harness.directory
+          .listSync(recursive: true)
+          .whereType<File>()
+          .where((file) => file.path.endsWith('.manifest.json'))
+          .toList(growable: false);
+      expect(manifests, hasLength(1));
+      final manifest =
+          jsonDecode(manifests.single.readAsStringSync())
+              as Map<String, Object?>;
+      expect(manifest['phase'], 'reserved');
+      final jobId = manifest['jobId']! as String;
+      final recovery = await repository.recoverNativeRecordings();
+      expect(recovery.pendingJobIds, contains(jobId));
+
+      harness.backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'exit',
+          sessionId: sessionId,
+          payload: const <String, Object?>{'code': 9},
+        ),
+      );
+      final runtime = harness.container.read(terminalRuntimeControllerProvider);
+      runtime.refreshSession(sessionId);
+
+      expect(runtime.hasSession(sessionId), isTrue);
+      expect(harness.backend.closedSessionIds, isEmpty);
+      expect(repository.abandonAttempts, 0);
+      expect(manifests.single.existsSync(), isTrue);
+      expect(
+        harness.container.read(sessionControllerProvider).lastError,
+        contains('beforeSessionCloseOnExitSignal'),
+      );
+    });
+  }
+
+  test(
+    'phase write failure abandons intent only after cancel acknowledgment',
+    () async {
+      late _FailingRecordingPhaseRepository repository;
+      final harness = await _createHarness(
+        recordingRepositoryBuilder: (directory) =>
+            repository = _FailingRecordingPhaseRepository(
+              directoryResolver: () async => directory,
+            ),
+      );
+      final controller = harness.container.read(
+        sessionControllerProvider.notifier,
+      );
+      final sessionId = harness.container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+
+      expect(await controller.startSessionRecording(sessionId), isFalse);
+
+      expect(repository.abandonAttempts, 1);
+      expect(
+        harness.container
+            .read(terminalLiveRecorderProvider)
+            ?.isRecording(sessionId),
+        isFalse,
+      );
+      expect(
+        harness.container.read(sessionControllerProvider).recordingSessionIds,
+        isEmpty,
+      );
+      expect(
+        harness.directory
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where((file) => file.path.endsWith('.manifest.json')),
+        isEmpty,
+      );
+    },
+  );
+
+  for (final startFault in <_RecordingStartResponseFault>[
+    _RecordingStartResponseFault.missing,
+    _RecordingStartResponseFault.malformed,
+    _RecordingStartResponseFault.correlation,
+  ]) {
+    test(
+      'start ${startFault.name} response retains recoverable ownership',
+      () async {
+        final harness = await _createHarness(
+          startResponseFault: startFault,
+          cancelBehavior: _RecordingCancelBehavior.terminationUnknown,
+          persistentPrepareFailure: true,
+        );
+        final controller = harness.container.read(
+          sessionControllerProvider.notifier,
+        );
+        final sessionId = harness.container
+            .read(sessionControllerProvider)
+            .activeSessionId!;
+
+        expect(await controller.startSessionRecording(sessionId), isFalse);
+
+        final state = harness.container.read(sessionControllerProvider);
+        expect(state.recordingSessionIds, contains(sessionId));
+        expect(state.lastError, contains('native ownership retained'));
+        expect(
+          harness.container
+              .read(terminalLiveRecorderProvider)
+              ?.isRecording(sessionId),
+          isTrue,
+        );
+        final manifest = harness.directory
+            .listSync(recursive: true)
+            .whereType<File>()
+            .singleWhere((file) => file.path.endsWith('.manifest.json'));
+        final manifestJson =
+            jsonDecode(manifest.readAsStringSync()) as Map<String, Object?>;
+        expect(manifestJson['phase'], 'capturing');
+        final recovery = await harness.recordingRepository
+            .recoverNativeRecordings();
+        expect(recovery.pendingJobIds, contains(manifestJson['jobId']));
+
+        harness.backend.enqueueEvent(
+          sessionId,
+          PtyEvent(
+            kind: 'exit',
+            sessionId: sessionId,
+            payload: const <String, Object?>{'code': 9},
+          ),
+        );
+        harness.container
+            .read(terminalRuntimeControllerProvider)
+            .refreshSession(sessionId);
+        expect(harness.backend.closedSessionIds, isEmpty);
+        expect(manifest.existsSync(), isTrue);
+      },
+    );
+  }
+
+  test(
+    'unknown start followed by not_active cancel releases ownership for retry',
+    () async {
+      final harness = await _createHarness(
+        startResponseFault: _RecordingStartResponseFault.missing,
+        cancelBehavior: _RecordingCancelBehavior.notActive,
+      );
+      final controller = harness.container.read(
+        sessionControllerProvider.notifier,
+      );
+      final sessionId = harness.container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+
+      expect(await controller.startSessionRecording(sessionId), isFalse);
+      expect(
+        harness.container.read(sessionControllerProvider).recordingSessionIds,
+        isEmpty,
+      );
+      expect(
+        harness.container
+            .read(terminalLiveRecorderProvider)
+            ?.isRecording(sessionId),
+        isFalse,
+      );
+      expect(
+        harness.directory
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where((file) => file.path.endsWith('.manifest.json')),
+        isEmpty,
+      );
+
+      harness.backend
+        ..startResponseFault = _RecordingStartResponseFault.none
+        ..cancelBehavior = _RecordingCancelBehavior.acknowledge;
+      expect(await controller.startSessionRecording(sessionId), isTrue);
+      expect(
+        harness.container.read(sessionControllerProvider).recordingSessionIds,
+        contains(sessionId),
+      );
     },
   );
 
@@ -560,7 +1030,7 @@ void main() {
 
       expect(
         recording.metadata.schemaVersion,
-        terminal.terminalRecordingSemanticSchemaVersion,
+        terminal.terminalRecordingSchemaVersion,
       );
       expect(
         semantics.map((event) => event.semanticKind),
@@ -574,6 +1044,55 @@ void main() {
       expect(semantics[1].semanticCommand, 'ls -la');
       expect(semantics[1].semanticRemote, isTrue);
       expect(semantics[3].semanticCommand, 'ssh prod-server');
+    },
+  );
+
+  test(
+    'rejected manual prepare keeps collecting semantics for retry',
+    () async {
+      final harness = await _createHarness(prepareFailuresRemaining: 1);
+      final controller = harness.container.read(
+        sessionControllerProvider.notifier,
+      );
+      final sessionId = harness.container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+      expect(await controller.startSessionRecording(sessionId), isTrue);
+
+      expect(await controller.stopSessionRecording(sessionId), isNull);
+      expect(
+        harness.container.read(sessionControllerProvider).recordingSessionIds,
+        contains(sessionId),
+      );
+
+      harness.backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'shell_command',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'osc633',
+            'eventType': 'command_start',
+            'command': 'captured-after-rejected-prepare',
+          },
+        ),
+      );
+      harness.container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(sessionId);
+
+      final path = await controller.stopSessionRecording(sessionId);
+      final recording = await harness.recordingRepository.load(path!);
+      final semantics = recording.events.where(
+        (event) =>
+            event.kind == terminal.TerminalRecordingEventKind.shellSemantic,
+      );
+
+      expect(
+        semantics.map((event) => event.semanticCommand),
+        contains('captured-after-rejected-prepare'),
+      );
+      expect(harness.backend.prepareAttempts, 2);
     },
   );
 
@@ -847,14 +1366,27 @@ void main() {
         .activeSessionId!;
     await controller.startSessionRecording(sessionId);
 
-    harness.backend.enqueueEvent(
-      sessionId,
-      PtyEvent(
-        kind: 'exit',
-        sessionId: sessionId,
-        payload: const <String, Object?>{'code': 0},
-      ),
-    );
+    harness.backend
+      ..enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'shell_command',
+          sessionId: sessionId,
+          payload: const <String, Object?>{
+            'source': 'osc633',
+            'eventType': 'command_start',
+            'command': 'persist-before-native-prepare',
+          },
+        ),
+      )
+      ..enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'exit',
+          sessionId: sessionId,
+          payload: const <String, Object?>{'code': 0},
+        ),
+      );
     harness.container
         .read(terminalRuntimeControllerProvider)
         .refreshSession(sessionId);
@@ -866,9 +1398,181 @@ void main() {
       description: 'exited recording session removal',
     );
 
-    expect(harness.backend.timeline, contains('stop:$sessionId'));
+    expect(
+      harness.backend.timeline.where((event) => event == 'stop:$sessionId'),
+      hasLength(1),
+    );
+    expect(harness.backend.observedManifestBeforePrepare, isTrue);
+    expect(
+      harness.backend.observedSemanticsBeforePrepare
+          .whereType<Map<Object?, Object?>>()
+          .map((event) => event['command']),
+      contains('persist-before-native-prepare'),
+    );
+    await _waitFor(
+      () => _recordingFiles(harness.directory).isNotEmpty,
+      description: 'exited recording durable destination',
+    );
     expect(_recordingFiles(harness.directory), hasLength(1));
   });
+
+  for (final entry in <({_RecordingPrepareResponseFault fault, String status})>[
+    (fault: _RecordingPrepareResponseFault.missing, status: 'running'),
+    (fault: _RecordingPrepareResponseFault.malformed, status: 'ready'),
+    (fault: _RecordingPrepareResponseFault.correlation, status: 'failed'),
+  ]) {
+    test('pre-close resolves ${entry.fault.name} prepare from '
+        '${entry.status} status before PTY close', () async {
+      final harness = await _createHarness(
+        prepareResponseFault: entry.fault,
+        finalizeState: entry.status,
+      );
+      final controller = harness.container.read(
+        sessionControllerProvider.notifier,
+      );
+      final sessionId = harness.container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+      expect(await controller.startSessionRecording(sessionId), isTrue);
+
+      harness.backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'exit',
+          sessionId: sessionId,
+          payload: const <String, Object?>{'code': 0},
+        ),
+      );
+      harness.container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(sessionId);
+      await _waitFor(
+        () => harness.backend.closedSessionIds.contains(sessionId),
+        description: '${entry.fault.name} prepare ownership resolution',
+      );
+
+      expect(harness.backend.prepareAttempts, 1);
+      expect(
+        harness.backend.timeline.indexOf('status:$sessionId'),
+        greaterThan(harness.backend.timeline.indexOf('stop:$sessionId')),
+      );
+      expect(
+        harness.backend.timeline.indexOf('close:$sessionId'),
+        greaterThan(harness.backend.timeline.indexOf('status:$sessionId')),
+      );
+      expect(
+        harness.container
+            .read(terminalLiveRecorderProvider)
+            ?.isRecording(sessionId),
+        isFalse,
+      );
+    });
+  }
+
+  test(
+    'pre-close retries one rejected prepare before exit closes the PTY',
+    () async {
+      final harness = await _createHarness(prepareFailuresRemaining: 1);
+      final controller = harness.container.read(
+        sessionControllerProvider.notifier,
+      );
+      final sessionId = harness.container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+      expect(await controller.startSessionRecording(sessionId), isTrue);
+
+      harness.backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'exit',
+          sessionId: sessionId,
+          payload: const <String, Object?>{'code': 9},
+        ),
+      );
+      harness.container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(sessionId);
+      await _waitFor(
+        () => _recordingFiles(harness.directory).isNotEmpty,
+        description: 'recording saved after bounded pre-close retry',
+      );
+
+      expect(harness.backend.prepareAttempts, 2);
+      final stops = harness.backend.timeline
+          .where((event) => event == 'stop:$sessionId')
+          .toList(growable: false);
+      expect(stops, hasLength(2));
+      expect(
+        harness.backend.timeline.indexOf('close:$sessionId'),
+        greaterThan(harness.backend.timeline.lastIndexOf('stop:$sessionId')),
+      );
+      expect(
+        harness.container
+            .read(terminalRuntimeControllerProvider)
+            .hasSession(sessionId),
+        isFalse,
+      );
+    },
+  );
+
+  test(
+    'persistent prepare rejection keeps PTY and recoverable recording active',
+    () async {
+      final harness = await _createHarness(persistentPrepareFailure: true);
+      final controller = harness.container.read(
+        sessionControllerProvider.notifier,
+      );
+      final sessionId = harness.container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+      expect(await controller.startSessionRecording(sessionId), isTrue);
+
+      harness.backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'exit',
+          sessionId: sessionId,
+          payload: const <String, Object?>{'code': 9},
+        ),
+      );
+      final runtime = harness.container.read(terminalRuntimeControllerProvider);
+      runtime.refreshSession(sessionId);
+      await _waitFor(
+        () =>
+            harness.container.read(sessionControllerProvider).lastError != null,
+        description: 'visible persistent pre-close failure',
+      );
+
+      expect(harness.backend.prepareAttempts, 2);
+      expect(harness.backend.timeline, isNot(contains('close:$sessionId')));
+      expect(runtime.hasSession(sessionId), isTrue);
+      expect(
+        harness.container.read(sessionControllerProvider).recordingSessionIds,
+        contains(sessionId),
+      );
+      expect(
+        harness.container
+            .read(terminalLiveRecorderProvider)
+            ?.isRecording(sessionId),
+        isTrue,
+      );
+      expect(
+        harness.container.read(sessionControllerProvider).lastError,
+        contains('beforeSessionCloseOnExitSignal'),
+      );
+      final manifests = harness.directory
+          .listSync(recursive: true)
+          .whereType<File>()
+          .where((file) => file.path.endsWith('.manifest.json'))
+          .toList(growable: false);
+      expect(manifests, hasLength(1));
+      final manifest = jsonDecode(await manifests.single.readAsString());
+      expect(manifest, isA<Map<String, Object?>>());
+      expect((manifest as Map<String, Object?>)['sessionId'], sessionId);
+      expect(manifest['phase'], 'preparing');
+      expect(manifest['semanticEvents'], isA<List<Object?>>());
+    },
+  );
 
   test(
     'shutdown coordinator finalizes active recording before disposal',
@@ -889,6 +1593,128 @@ void main() {
       expect(_recordingFiles(harness.directory), hasLength(1));
     },
   );
+
+  for (final terminalState in <String>['ready', 'failed']) {
+    test('shutdown keeps uncertain prepare claimed through late running then '
+        '$terminalState settlement', () async {
+      final settlementDelay = _ControlledRecordingDelay();
+      final harness = await _createHarness(
+        prepareResponseFault: _RecordingPrepareResponseFault.missing,
+        finalizeState: 'running',
+        finalizeStates: <String>['unknown', 'running'],
+        deferHandoffArtifact: true,
+        cancelBehavior: _RecordingCancelBehavior.notActive,
+        recordingRepositoryBuilder: (directory) =>
+            LocalSessionRecordingRepository(
+              directoryResolver: () async => directory,
+              finalizeTimeout: const Duration(microseconds: 1),
+              finalizePollInterval: const Duration(milliseconds: 1),
+              settlementObservationTimeout: const Duration(minutes: 1),
+              delay: settlementDelay.call,
+            ),
+      );
+      final controller = harness.container.read(
+        sessionControllerProvider.notifier,
+      );
+      final sessionId = harness.container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+      expect(await controller.startSessionRecording(sessionId), isTrue);
+
+      final shutdown = harness.container
+          .read(appShutdownCoordinatorProvider)
+          .shutdown(bounded: false);
+      await settlementDelay.waitForPending();
+
+      expect(harness.backend.closedSessionIds, isEmpty);
+      final replacementRepository = LocalSessionRecordingRepository(
+        directoryResolver: () async => harness.directory,
+      );
+      final whileOwned = await replacementRepository.recoverNativeRecordings();
+      expect(whileOwned.pendingJobIds, hasLength(1));
+      expect(whileOwned.recoveredPaths, isEmpty);
+
+      harness.backend.finalizeState = 'running';
+      settlementDelay.releaseNext();
+      await settlementDelay.waitForPending();
+      expect(harness.backend.closedSessionIds, isEmpty);
+
+      harness.backend.finalizeState = terminalState;
+      if (terminalState == 'ready') {
+        harness.backend.publishDeferredHandoffArtifact();
+      }
+      settlementDelay.releaseNext();
+      final result = await shutdown;
+
+      expect(result.failures, isNotEmpty);
+      expect(harness.backend.closedSessionIds, <String>[sessionId]);
+      expect(
+        harness.backend.timeline.indexOf('close:$sessionId'),
+        greaterThan(harness.backend.timeline.lastIndexOf('status:$sessionId')),
+      );
+      final recovered = await replacementRepository.recoverNativeRecordings();
+      if (terminalState == 'ready') {
+        expect(recovered.recoveredPaths, hasLength(1));
+        expect(recovered.failures, isEmpty);
+      } else {
+        expect(recovered.recoveredPaths, isEmpty);
+        expect(
+          recovered.failures.single.failure,
+          LocalSessionRecordingFinalizeFailure.nativeTerminationUnknown,
+        );
+      }
+    });
+  }
+
+  for (final cancelBehavior in <_RecordingCancelBehavior>[
+    _RecordingCancelBehavior.reject,
+    _RecordingCancelBehavior.terminationUnknown,
+  ]) {
+    test(
+      'explicit prepare rejection plus ${cancelBehavior.name} cancel poisons '
+      'shutdown before PTY close',
+      () async {
+        final shutdownCoordinator = AppShutdownCoordinator(
+          timeout: const Duration(microseconds: 1),
+        );
+        final harness = await _createHarness(
+          persistentPrepareFailure: true,
+          cancelBehavior: cancelBehavior,
+          shutdownCoordinator: shutdownCoordinator,
+        );
+        final controller = harness.container.read(
+          sessionControllerProvider.notifier,
+        );
+        final sessionId = harness.container
+            .read(sessionControllerProvider)
+            .activeSessionId!;
+        expect(await controller.startSessionRecording(sessionId), isTrue);
+
+        final bounded = await shutdownCoordinator.shutdown();
+
+        expect(bounded.timedOut, isTrue);
+        expect(harness.backend.prepareAttempts, 2);
+        expect(harness.backend.closedSessionIds, isEmpty);
+        expect(
+          harness.container
+              .read(terminalLiveRecorderProvider)
+              ?.isRecording(sessionId),
+          isTrue,
+        );
+        final replacementRecovery = await LocalSessionRecordingRepository(
+          directoryResolver: () async => harness.directory,
+        ).recoverNativeRecordings();
+        expect(replacementRecovery.pendingJobIds, hasLength(1));
+        var eventuallySettled = false;
+        unawaited(
+          shutdownCoordinator.settle().then((_) => eventuallySettled = true),
+        );
+        await Future<void>.value();
+        expect(eventuallySettled, isFalse);
+        expect(harness.backend.closedSessionIds, isEmpty);
+      },
+    );
+  }
 
   test(
     'session shutdown orders recording, layout flush, then runtime close',
@@ -1142,7 +1968,17 @@ void main() {
           .activeSessionId!;
       expect(await controller.startSessionRecording(sessionId), isTrue);
 
-      controller.finalizeRecordingBeforeRuntimeClose(sessionId);
+      harness.backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'exit',
+          sessionId: sessionId,
+          payload: const <String, Object?>{'code': 0},
+        ),
+      );
+      harness.container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(sessionId);
       await blockingRepository.saveStarted.future;
       controller.reportRuntimeError('sentinel before shutdown');
       final shutdown = harness.container
@@ -1200,7 +2036,7 @@ List<File> _recordingFiles(Directory directory) {
       .where(
         (file) =>
             file.path.endsWith('.ndjson') &&
-            !file.path.contains('.ianvs-recording-handoff-v1-'),
+            !file.path.contains('.ianvs-recording-handoff-'),
       )
       .toList(growable: false);
 }

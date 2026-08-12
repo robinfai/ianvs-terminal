@@ -261,13 +261,15 @@ extension _ShellScreenRecordingLibraryState on _ShellScreenState {
       return;
     }
     try {
-      final moved = await ref.read(shellRecordingTrashProvider)(entry.path);
+      final repository = ref.read(localSessionRecordingRepositoryProvider);
+      final moved = await repository.moveRecordingToTrash(
+        entry.path,
+        ref.read(shellRecordingTrashProvider),
+      );
       if (!moved) {
         throw const FileSystemException('The file could not be moved to Trash');
       }
-      await ref
-          .read(localSessionRecordingRepositoryProvider)
-          .forgetRecording(entry.path);
+      await repository.forgetRecording(entry.path);
       if (_selectedRecordingEntry?.path == entry.path) {
         _closeRecordingReplay();
       }

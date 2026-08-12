@@ -90,6 +90,8 @@ void main() {
 
     expect(runtimeCloseCount, 1);
     expect(message['completed'], isTrue);
+    expect(message['safeToTerminate'], isTrue);
+    expect(message['unsafeToTerminate'], isFalse);
     expect(message['totalTaskCount'], 2);
     expect(message['settledTaskCount'], 2);
 

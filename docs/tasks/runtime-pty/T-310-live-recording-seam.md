@@ -2,7 +2,7 @@
 
 ## Goal
 
-Connect Recording Format v1 to the real native session boundary with bounded, ordered capture of
+Connect the current Recording format to the real native session boundary with bounded, ordered capture of
 raw PTY output, user input, resize and child exit events.
 
 ## Scope
@@ -35,7 +35,7 @@ raw PTY output, user input, resize and child exit events.
 - `packages/ianvs_terminal/lib/ianvs_terminal.dart`
 - `packages/ianvs_terminal/lib/src/recording/terminal_live_recorder.dart`
 - `packages/ianvs_terminal/test/terminal_live_recorder_test.dart`
-- `docs/recording/FORMAT_V1.md`
+- `docs/recording/FORMAT_CURRENT.md`
 - `docs/tasks/runtime-pty/T-310-live-recording-seam.md`
 
 ## Functional Acceptance
@@ -45,7 +45,7 @@ raw PTY output, user input, resize and child exit events.
 - `redact` stores only input byte length; `record` stores exact input bytes.
 - An observed child exit produces `session_exited`, including its exit code.
 - Repeated start, inactive stop/cancel and capacity overflow return structured errors.
-- Stopping a valid recording produces Format v1 NDJSON accepted by `TerminalRecordingCodec`.
+- Stopping a valid recording produces current NDJSON accepted by `TerminalRecordingCodec`.
 - Capacity overflow never returns a plausible partial recording.
 
 ## Verification Commands

@@ -1,0 +1,5 @@
+{"record_type":"metadata","schema_version":1,"session_id":"graphics-session","created_at_utc":"2026-07-21T00:00:00.000Z","input_policy":"redact"}
+{"record_type":"graphic_asset_blob","schema_version":1,"blob_id":"sha256:0a6b6c68bc93e59b462b904b82daa7ee682deb5e293609553becaa4f8b0c43a0","width":1,"height":1,"rgba_base64":"AQID/w=="}
+{"record_type":"graphic_asset","schema_version":1,"session_id":"graphics-session","asset_id":7,"asset_version":1,"blob_id":"sha256:0a6b6c68bc93e59b462b904b82daa7ee682deb5e293609553becaa4f8b0c43a0"}
+{"record_type":"graphic_asset","schema_version":1,"session_id":"graphics-session","asset_id":8,"asset_version":2,"blob_id":"sha256:0a6b6c68bc93e59b462b904b82daa7ee682deb5e293609553becaa4f8b0c43a0"}
+{"record_type":"event","schema_version":1,"session_id":"graphics-session","sequence":0,"monotonic_offset_micros":0,"event_kind":"session_started","payload":{"terminal_emulation":"xterm256","cols":80,"rows":24}}
