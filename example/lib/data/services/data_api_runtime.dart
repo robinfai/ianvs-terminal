@@ -82,29 +82,3 @@ final class DataApiStartupWarning {
 final dataApiStartupWarningProvider = Provider<DataApiStartupWarning?>(
   (ref) => null,
 );
-
-final class DataApiStartupRetryResult {
-  const DataApiStartupRetryResult({
-    required this.succeeded,
-    required this.message,
-  });
-
-  final bool succeeded;
-  final String message;
-}
-
-typedef DataApiStartupRetry = Future<DataApiStartupRetryResult> Function();
-typedef DataApiMigrationKeepRemote =
-    Future<DataApiStartupRetryResult> Function();
-typedef DataApiMigrationResetJournal =
-    Future<DataApiStartupRetryResult> Function();
-
-final dataApiStartupRetryProvider = Provider<DataApiStartupRetry?>(
-  (ref) => null,
-);
-
-final dataApiMigrationKeepRemoteProvider =
-    Provider<DataApiMigrationKeepRemote?>((ref) => null);
-
-final dataApiMigrationResetJournalProvider =
-    Provider<DataApiMigrationResetJournal?>((ref) => null);

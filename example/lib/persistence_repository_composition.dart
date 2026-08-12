@@ -1,7 +1,3 @@
-import 'dart:io';
-
-import 'data/repositories/data_api_installation_identity_repository.dart';
-import 'data/repositories/data_api_legacy_json_migration.dart';
 import 'data/services/data_api_client.dart';
 import 'data/services/data_api_runtime.dart';
 import 'features/config/data_api_terminal_config_repository.dart';
@@ -152,73 +148,4 @@ final class _UnavailableDataApiResourceClient implements DataApiResourceClient {
     bool clearSensitive = false,
     int? expectedRevision,
   }) async => _unavailable();
-}
-
-Future<DataApiLegacyJsonMigrationReport?> prepareDataApiPersistence({
-  required DataApiRuntime? runtime,
-  required Directory appSupportDirectory,
-  DataApiResourceClient? resourceClient,
-  DataApiInstallationIdentity? installationIdentity,
-}) async {
-  if (runtime == null) {
-    return null;
-  }
-  final client = resourceClient ?? DataApiClient.fromRuntime(runtime);
-  if (!client.canAccessResources) {
-    throw const DataApiAuthenticationRequiredException();
-  }
-  try {
-    final identity =
-        installationIdentity ??
-        await DataApiInstallationIdentityRepository(
-          appSupportDirectory: appSupportDirectory,
-        ).loadOrCreate();
-    return await DataApiLegacyJsonMigration(
-      appSupportDirectory: appSupportDirectory,
-      client: client,
-      installationIdentity: identity,
-    ).run();
-  } on DataApiLegacyJsonMigrationConflictException {
-    rethrow;
-  } on Object catch (error, stackTrace) {
-    Error.throwWithStackTrace(
-      DataApiPersistencePreparationException(error),
-      stackTrace,
-    );
-  }
-}
-
-Future<void> acknowledgeDataApiMigrationKeepRemote({
-  required DataApiRuntime runtime,
-  required Directory appSupportDirectory,
-  required DataApiLegacyJsonMigrationConflictException conflict,
-  DataApiResourceClient? resourceClient,
-  DataApiInstallationIdentity? installationIdentity,
-}) async {
-  final client = resourceClient ?? DataApiClient.fromRuntime(runtime);
-  if (!client.canAccessResources) {
-    throw const DataApiAuthenticationRequiredException();
-  }
-  final identity =
-      installationIdentity ??
-      await DataApiInstallationIdentityRepository(
-        appSupportDirectory: appSupportDirectory,
-      ).loadOrCreate();
-  await DataApiLegacyJsonMigration(
-    appSupportDirectory: appSupportDirectory,
-    client: client,
-    installationIdentity: identity,
-  ).acknowledgeKeepRemote(conflict);
-}
-
-final class DataApiPersistencePreparationException implements Exception {
-  const DataApiPersistencePreparationException(this.cause);
-
-  final Object cause;
-
-  @override
-  String toString() {
-    return 'Local Data API migration did not complete: $cause. Remote data '
-        'was not overwritten; restart the app to retry.';
-  }
 }

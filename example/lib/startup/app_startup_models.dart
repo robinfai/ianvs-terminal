@@ -15,7 +15,6 @@ enum AppStartupStage {
   secureRecovery,
   configuration,
   dataBootstrap,
-  migration,
   platform,
   pty,
   configurationValidation,
@@ -56,7 +55,7 @@ final class AppStartupConfigurationAccess {
   });
 
   final DataApiConfigurationRepository repository;
-  final DataApiRemoteSessionStore remoteSessionStore;
+  final DataApiRemoteSessionSlotStore remoteSessionStore;
   final AppStartupDataSettingsCapability settings;
 }
 
@@ -108,45 +107,18 @@ abstract interface class AppStartupDataSettingsCapability {
   Future<void> reconnect(DataApiRemoteLoginRequest request);
 }
 
-enum AppStartupMigrationRecoveryKind { keepRemote, resetJournal }
-
-abstract interface class AppStartupMigrationRecoveryCapability {
-  AppStartupMigrationRecoveryKind get kind;
-
-  Future<void> run();
-}
-
-/// A migration repair that requires a coordinator-owned, short-lived runtime.
-///
-/// Pipeline adapters describe the operation, while the startup coordinator
-/// wraps it in an [AppStartupMigrationRecoveryCapability]. This keeps runtime
-/// creation, single-flight execution, and eventual shutdown out of the UI and
-/// production adapter closures.
-final class AppStartupMigrationRecoveryOperation {
-  const AppStartupMigrationRecoveryOperation({
-    required this.kind,
-    required this.run,
-  });
-
-  final AppStartupMigrationRecoveryKind kind;
-  final Future<void> Function(DataApiRuntime runtime) run;
-}
-
 final class AppStartupFailure {
   AppStartupFailure({
     required this.stage,
     required this.error,
     required this.stackTrace,
     this.dataSettings,
-    Iterable<AppStartupMigrationRecoveryCapability> migrationRecoveries =
-        const <AppStartupMigrationRecoveryCapability>[],
-  }) : migrationRecoveries = List.unmodifiable(migrationRecoveries);
+  });
 
   final AppStartupStage stage;
   final Object error;
   final StackTrace stackTrace;
   final AppStartupDataSettingsCapability? dataSettings;
-  final List<AppStartupMigrationRecoveryCapability> migrationRecoveries;
 
   bool get canRetry => true;
 

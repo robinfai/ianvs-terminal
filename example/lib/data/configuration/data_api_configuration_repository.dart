@@ -9,6 +9,7 @@ import 'package:ffi/ffi.dart';
 
 import '../../platform/corrupt_file_quarantine.dart';
 import '../../platform/local_json_file.dart';
+import '../data_api_json.dart';
 import '../services/data_api_auth_contract.dart';
 import '../services/data_api_client.dart';
 import '../services/data_api_remote_session_store.dart';
@@ -294,11 +295,10 @@ final class AuthenticatedDataApiConfigurationRepository
         DataApiConfigurationRepository,
         DataApiRemoteConfigurationConnector,
         DataApiConfigurationRecoveryStatus,
-        DataApiConfigurationRecoveryLoader,
-        DataApiRemoteSessionStore {
+        DataApiConfigurationRecoveryLoader {
   AuthenticatedDataApiConfigurationRepository({
     required DataApiConfigurationRepository delegate,
-    required DataApiRemoteSessionStore remoteSessionStore,
+    required DataApiRemoteSessionSlotStore remoteSessionStore,
     Directory? sagaDirectory,
     DataApiRemoteConnectionValidator remoteConnectionValidator =
         const DataApiClientRemoteConnectionValidator(),
@@ -311,7 +311,7 @@ final class AuthenticatedDataApiConfigurationRepository
     DataApiSagaJournalWriter? sagaJournalWriter,
     DataApiDisableResetDelete? disableResetDelete,
   }) : _delegate = delegate,
-       _remoteSessionStore = remoteSessionStore,
+       _slotStore = remoteSessionStore,
        _sagaDirectory =
            sagaDirectory ??
            switch (delegate) {
@@ -324,16 +324,7 @@ final class AuthenticatedDataApiConfigurationRepository
        _remoteSessionRevoker = remoteSessionRevoker,
        _authOperationCanceler = authOperationCanceler,
        _sagaJournalWriter = sagaJournalWriter,
-       _disableResetDelete = disableResetDelete ?? _deleteFileIfPresent {
-    if (remoteSessionStore is! DataApiRemoteSessionSlotStore) {
-      throw ArgumentError.value(
-        remoteSessionStore,
-        'remoteSessionStore',
-        'Authenticated configuration requires immutable secure slots.',
-      );
-    }
-    _slotStore = remoteSessionStore as DataApiRemoteSessionSlotStore;
-  }
+       _disableResetDelete = disableResetDelete ?? _deleteFileIfPresent;
 
   static const int _sagaVersion = 1;
   static const int _maximumSagaBytes = 256 * 1024;
@@ -341,8 +332,7 @@ final class AuthenticatedDataApiConfigurationRepository
       <String, Future<void>>{};
 
   final DataApiConfigurationRepository _delegate;
-  final DataApiRemoteSessionStore _remoteSessionStore;
-  late final DataApiRemoteSessionSlotStore _slotStore;
+  final DataApiRemoteSessionSlotStore _slotStore;
   final Directory? _sagaDirectory;
   final DataApiRemoteConnectionValidator _remoteConnectionValidator;
   final DataApiRemoteAuthenticator _remoteAuthenticator;
@@ -380,7 +370,7 @@ final class AuthenticatedDataApiConfigurationRepository
       } on DataApiAuthenticationRequiredException {
         // Settings still needs the non-secret origin to offer reconnect.
       } on DataApiRemoteSessionFormatException {
-        // The explicit non-remote escape path may clear corrupt legacy state.
+        // Settings can still expose the non-secret origin for reconnect.
       } on DataApiConfigurationSagaRecoveryRequiredException {
         // With no transition and a readable journal this can only be a
         // dependency failure; the raw configuration remains inspectable.
@@ -392,17 +382,8 @@ final class AuthenticatedDataApiConfigurationRepository
   Future<void> retryPendingRevocations() {
     return _withSagaLock(() async {
       await _recoverLocked(allowUnavailableRemote: true);
-      var journal = await _readJournal();
-      final configuration = await _delegate.load();
-      final legacyCleanup = await _drainLegacyCleanupLocked(
-        configuration,
-        journal,
-      );
-      journal = legacyCleanup.journal;
-      final errors = <Object>[
-        ...legacyCleanup.errors,
-        ...await _drainRemoteCleanupLocked(journal),
-      ];
+      final journal = await _readJournal();
+      final errors = await _drainRemoteCleanupLocked(journal);
       if (errors.isNotEmpty) {
         throw DataApiRemoteRevocationPendingWarning(_cleanupError(errors)!);
       }
@@ -421,6 +402,7 @@ final class AuthenticatedDataApiConfigurationRepository
   @override
   Future<void> save(DataApiConfiguration configuration) {
     return _withSagaLock(() async {
+      await _preflightCurrentOnlySlotSchemasLocked();
       if (configuration.remoteBaseUri == null) {
         try {
           await _recoverDisableResetLocked();
@@ -462,7 +444,6 @@ final class AuthenticatedDataApiConfigurationRepository
     return _withSagaLock(() async {
       await _recoverLocked(allowUnavailableRemote: true);
       final current = await _delegate.load();
-      final legacyCredential = await _remoteSessionStore.read();
       final newSlot = _newSlotRef();
       final transactionId = _newSlotRef();
       var journal = await _readJournal();
@@ -481,9 +462,6 @@ final class AuthenticatedDataApiConfigurationRepository
         oldSlot: current.remoteCredentialRef,
         newSlot: newSlot,
       );
-      if (legacyCredential != null) {
-        journal = journal.withLegacyCleanupPending(true);
-      }
       journal = journal.withTransition(transition);
       await _writeJournal(journal);
 
@@ -605,12 +583,7 @@ final class AuthenticatedDataApiConfigurationRepository
       }
 
       journal = await _readJournal();
-      final legacyCleanup = await _drainLegacyCleanupLocked(target, journal);
-      journal = legacyCleanup.journal;
-      final cleanupErrors = <Object>[
-        ...legacyCleanup.errors,
-        ...await _drainRemoteCleanupLocked(journal),
-      ];
+      final cleanupErrors = await _drainRemoteCleanupLocked(journal);
       if (cleanupErrors.isNotEmpty) {
         throw DataApiRemoteRevocationPendingWarning(
           _cleanupError(cleanupErrors)!,
@@ -624,44 +597,22 @@ final class AuthenticatedDataApiConfigurationRepository
     DataApiConfiguration selected,
   ) async {
     var journal = await _readJournal();
-    DataApiRemoteSession? legacySession;
-    Object? legacyReadError;
-    try {
-      legacySession = await _remoteSessionStore.read();
-    } on Object catch (error) {
-      legacyReadError = error;
-    }
-    final legacySlot = legacySession == null ? null : _newSlotRef();
     final transactionId = _newSlotRef();
     final target = selected.withPersistenceState(
       generation: current.generation + 1,
       remoteCredentialRef: null,
       lastTransactionId: transactionId,
     );
-    var transition = _DataApiConfigurationTransition(
+    final transition = _DataApiConfigurationTransition(
       transactionId: transactionId,
       phase: _DataApiConfigurationTransitionPhase.prepared,
       before: current,
       beforeDigest: await _configurationDigest(current),
       target: target,
       oldSlot: current.remoteCredentialRef,
-      legacyCleanupSlot: legacySlot,
     );
-    journal =
-        (legacySlot != null
-                ? journal.withLegacyCleanupSlot(legacySlot)
-                : journal.withLegacyCleanupPending(legacyReadError != null))
-            .withTransition(transition);
+    journal = journal.withTransition(transition);
     await _writeJournal(journal);
-    if (legacySession != null && legacySlot != null) {
-      await _slotStore.writeSlot(legacySlot, legacySession);
-      transition = transition.copyWith(
-        phase: _DataApiConfigurationTransitionPhase.staged,
-        sessionHash: await _sessionHash(legacySession),
-      );
-      journal = journal.withTransition(transition);
-      await _writeJournal(journal);
-    }
     await _commitConfigurationLocked(
       expectedGeneration: current.generation,
       expectedDigest: transition.beforeDigest,
@@ -674,13 +625,7 @@ final class AuthenticatedDataApiConfigurationRepository
     await _writeJournal(journal);
     journal = journal.finishCommittedTransition(committed);
     await _writeJournal(journal);
-    final legacyCleanup = await _drainLegacyCleanupLocked(target, journal);
-    journal = legacyCleanup.journal;
-    final cleanupErrors = <Object>[
-      ?legacyReadError,
-      ...legacyCleanup.errors,
-      ...await _drainRemoteCleanupLocked(journal),
-    ];
+    final cleanupErrors = await _drainRemoteCleanupLocked(journal);
     if (cleanupErrors.isNotEmpty) {
       throw DataApiRemoteRevocationPendingWarning(
         _cleanupError(cleanupErrors)!,
@@ -703,9 +648,6 @@ final class AuthenticatedDataApiConfigurationRepository
           }
           if (transition.newSlot != null) {
             journal = journal.enqueueRevocation(transition.newSlot!);
-          }
-          if (transition.legacyCleanupSlot != null) {
-            journal = journal.enqueueRevocation(transition.legacyCleanupSlot!);
           }
           if (transition.authOperationId case final operationId?) {
             final baseUri = transition.target.remoteBaseUri;
@@ -764,12 +706,6 @@ final class AuthenticatedDataApiConfigurationRepository
         configuration = await _delegate.load();
       }
       if (configuration.remoteBaseUri != null) {
-        configuration = await _migrateLegacyCredentialLocked(
-          configuration,
-          journal,
-        );
-      }
-      if (configuration.remoteBaseUri != null) {
         final session = await _readActiveSessionLocked(configuration);
         if (session == null ||
             !session.isUsableFor(configuration.remoteBaseUri!)) {
@@ -789,7 +725,11 @@ final class AuthenticatedDataApiConfigurationRepository
       _sagaRecoveryRequired = true;
       if (error is DataApiConfigurationSagaRecoveryRequiredException ||
           error is DataApiConfigurationGenerationConflictException ||
-          error is DataApiRemoteSessionFormatException) {
+          error is DataApiRemoteSessionFormatException ||
+          error is DataApiConfigurationSagaUnsupportedVersionException ||
+          error is DataApiConfigurationUnsupportedVersionException ||
+          error is DataApiRemoteSessionUnsupportedVersionException ||
+          error is DataApiJsonDuplicateKeyException) {
         rethrow;
       }
       Error.throwWithStackTrace(
@@ -807,7 +747,6 @@ final class AuthenticatedDataApiConfigurationRepository
     final protectedSlots = <String>{
       ?configuration.remoteCredentialRef,
       ...journal.revocationQueue,
-      ?journal.legacyCleanupSlot,
       ?journal.transition?.oldSlot,
       ?journal.transition?.newSlot,
     };
@@ -894,128 +833,6 @@ final class AuthenticatedDataApiConfigurationRepository
     return (journal: nextJournal, configuration: restored);
   }
 
-  Future<DataApiConfiguration> _migrateLegacyCredentialLocked(
-    DataApiConfiguration configuration,
-    _DataApiConfigurationSagaJournal journal,
-  ) async {
-    var currentJournal = journal;
-    if (configuration.remoteCredentialRef != null) {
-      return configuration;
-    }
-    final legacy = await _remoteSessionStore.read();
-    if (legacy == null) {
-      return configuration;
-    }
-    final slot = _newSlotRef();
-    final transactionId = _newSlotRef();
-    final target = configuration.withPersistenceState(
-      generation: configuration.generation + 1,
-      remoteCredentialRef: configuration.remoteBaseUri == null ? null : slot,
-      lastTransactionId: transactionId,
-    );
-    var transition = _DataApiConfigurationTransition(
-      transactionId: transactionId,
-      phase: _DataApiConfigurationTransitionPhase.prepared,
-      before: configuration,
-      beforeDigest: await _configurationDigest(configuration),
-      target: target,
-      newSlot: slot,
-    );
-    currentJournal = currentJournal
-        .withLegacyCleanupPending(true)
-        .withTransition(transition);
-    await _writeJournal(currentJournal);
-    await _slotStore.writeSlot(slot, legacy);
-    transition = transition.copyWith(
-      phase: _DataApiConfigurationTransitionPhase.staged,
-      sessionHash: await _sessionHash(legacy),
-    );
-    currentJournal = currentJournal.withTransition(transition);
-    await _writeJournal(currentJournal);
-    if (target.remoteBaseUri != null) {
-      transition = transition.copyWith(
-        phase: _DataApiConfigurationTransitionPhase.verified,
-      );
-      currentJournal = currentJournal.withTransition(transition);
-      await _writeJournal(currentJournal);
-    }
-    await _commitConfigurationLocked(
-      expectedGeneration: configuration.generation,
-      expectedDigest: transition.beforeDigest,
-      target: target,
-    );
-    transition = transition.copyWith(
-      phase: _DataApiConfigurationTransitionPhase.committed,
-    );
-    currentJournal = currentJournal.withTransition(transition);
-    await _writeJournal(currentJournal);
-    currentJournal = currentJournal.finishCommittedTransition(transition);
-    await _writeJournal(currentJournal);
-    return target;
-  }
-
-  Future<({_DataApiConfigurationSagaJournal journal, List<Object> errors})>
-  _drainLegacyCleanupLocked(
-    DataApiConfiguration configuration,
-    _DataApiConfigurationSagaJournal initialJournal,
-  ) async {
-    var journal = initialJournal;
-    if (!journal.legacyCleanupPending) {
-      return (journal: journal, errors: const <Object>[]);
-    }
-    DataApiRemoteSession? legacy;
-    Object? legacyReadError;
-    try {
-      legacy = await _remoteSessionStore.read();
-    } on Object catch (error) {
-      legacyReadError = error;
-    }
-    if (legacyReadError != null) {
-      // A failed read gives us no evidence that the legacy secret was copied
-      // or revoked. Preserve both the item and the durable pending flag so a
-      // later launch can retry without silently losing the only credential.
-      return (journal: journal, errors: <Object>[legacyReadError]);
-    }
-    try {
-      if (legacy == null) {
-        journal = journal.completeLegacyCleanup();
-        await _writeJournal(journal);
-        return (journal: journal, errors: const <Object>[]);
-      }
-
-      var duplicatesActive = false;
-      if (configuration.remoteCredentialRef case final activeSlot?) {
-        final active = await _slotStore.readSlot(activeSlot);
-        duplicatesActive =
-            active != null &&
-            await _sessionHash(active) == await _sessionHash(legacy);
-      }
-      if (!duplicatesActive) {
-        final cleanupSlot = journal.legacyCleanupSlot ?? _newSlotRef();
-        if (journal.legacyCleanupSlot == null) {
-          journal = journal.withLegacyCleanupSlot(cleanupSlot);
-          await _writeJournal(journal);
-        }
-        final existing = await _slotStore.readSlot(cleanupSlot);
-        if (existing == null) {
-          await _slotStore.writeSlot(cleanupSlot, legacy);
-        } else if (await _sessionHash(existing) != await _sessionHash(legacy)) {
-          throw DataApiRemoteSessionSlotExistsException(cleanupSlot);
-        }
-        journal = journal
-            .enqueueRevocation(cleanupSlot)
-            .withLegacyCleanupSlot(cleanupSlot);
-        await _writeJournal(journal);
-      }
-      await _remoteSessionStore.clear();
-      journal = journal.completeLegacyCleanup();
-      await _writeJournal(journal);
-      return (journal: journal, errors: const <Object>[]);
-    } on Object catch (error) {
-      return (journal: journal, errors: <Object>[error]);
-    }
-  }
-
   Future<DataApiRemoteSession?> _readActiveSessionLocked(
     DataApiConfiguration configuration,
   ) {
@@ -1024,6 +841,22 @@ final class AuthenticatedDataApiConfigurationRepository
       return Future<DataApiRemoteSession?>.value();
     }
     return _slotStore.readSlot(slot);
+  }
+
+  Future<void> _preflightCurrentOnlySlotSchemasLocked() async {
+    final refs = await _slotStore.listSlotRefs();
+    for (final slot in refs) {
+      try {
+        await _slotStore.readSlot(slot);
+      } on DataApiRemoteSessionUnsupportedVersionException {
+        rethrow;
+      } on DataApiJsonDuplicateKeyException {
+        rethrow;
+      } on Object {
+        // Existing current-format recovery semantics handle malformed slots
+        // and transient credential-vault failures later in the operation.
+      }
+    }
   }
 
   Future<void> _commitConfigurationLocked({
@@ -1161,28 +994,6 @@ final class AuthenticatedDataApiConfigurationRepository
     }
   }
 
-  @override
-  Future<DataApiRemoteSession?> read() {
-    return _withSagaLock(() async {
-      await _recoverLocked();
-      return _readActiveSessionLocked(await _delegate.load());
-    });
-  }
-
-  @override
-  Future<void> write(DataApiRemoteSession session) {
-    throw UnsupportedError(
-      'Authenticated configuration owns immutable credential activation.',
-    );
-  }
-
-  @override
-  Future<void> clear() {
-    throw UnsupportedError(
-      'Authenticated configuration owns immutable credential cleanup.',
-    );
-  }
-
   Future<T> _withSagaLock<T>(Future<T> Function() operation) {
     final directory = _sagaDirectory;
     if (directory == null) {
@@ -1257,13 +1068,8 @@ final class AuthenticatedDataApiConfigurationRepository
     await _writeDisableReset(reset);
     await _recoverDisableResetLocked();
 
-    var journal = await _readJournal();
-    final legacyCleanup = await _drainLegacyCleanupLocked(target, journal);
-    journal = legacyCleanup.journal;
-    final errors = <Object>[
-      ...legacyCleanup.errors,
-      ...await _drainRemoteCleanupLocked(journal),
-    ];
+    final journal = await _readJournal();
+    final errors = await _drainRemoteCleanupLocked(journal);
     if (errors.isNotEmpty) {
       throw DataApiRemoteRevocationPendingWarning(_cleanupError(errors)!);
     }
@@ -1272,29 +1078,51 @@ final class AuthenticatedDataApiConfigurationRepository
   Future<_DataApiConfigurationSagaJournal> _collectRecognizableCleanupLocked(
     DataApiConfiguration current,
   ) async {
-    var cleanup = const _DataApiConfigurationSagaJournal(
-      legacyCleanupPending: true,
-    );
+    var cleanup = const _DataApiConfigurationSagaJournal();
     try {
       final priorReset = await _readDisableReset();
       if (priorReset != null) {
         cleanup = _mergeRecognizableCleanup(cleanup, priorReset.cleanup);
       }
+    } on DataApiConfigurationSagaUnsupportedVersionException {
+      rethrow;
+    } on DataApiConfigurationUnsupportedVersionException {
+      rethrow;
+    } on DataApiJsonDuplicateKeyException {
+      rethrow;
     } on Object {
       // A malformed reset is never promoted into executable network cleanup.
       // The explicit Disabled selection will replace it atomically below.
     }
     try {
       cleanup = _mergeRecognizableCleanup(cleanup, await _readJournal());
+    } on DataApiConfigurationSagaUnsupportedVersionException {
+      rethrow;
+    } on DataApiConfigurationUnsupportedVersionException {
+      rethrow;
+    } on DataApiJsonDuplicateKeyException {
+      rethrow;
     } on Object {
       final file = _journalFile;
       if (file != null && await file.exists()) {
         try {
-          final raw = decodeJsonObject(
+          final raw = decodeDataApiJsonObject(
             await _readUtf8FileBounded(file, _maximumSagaBytes),
             documentName: 'Data API configuration saga evidence',
           );
+          if (raw['version'] != _sagaVersion) {
+            throw DataApiConfigurationSagaUnsupportedVersionException(
+              documentName: 'Data API configuration saga',
+              version: raw['version'],
+            );
+          }
           cleanup = _mergeRawRecognizableCleanup(cleanup, raw);
+        } on DataApiConfigurationSagaUnsupportedVersionException {
+          rethrow;
+        } on DataApiConfigurationUnsupportedVersionException {
+          rethrow;
+        } on DataApiJsonDuplicateKeyException {
+          rethrow;
         } on Object {
           // Malformed evidence remains quarantined verbatim. Only identifiers
           // that pass strict parsing are allowed into executable cleanup.
@@ -1312,7 +1140,7 @@ final class AuthenticatedDataApiConfigurationRepository
       // A corrupt Keychain listing must not block the explicit Disabled escape.
       // Known references remain queued and the original vault evidence stays.
     }
-    return cleanup.withTransition(null).withLegacyCleanupPending(true);
+    return cleanup.withTransition(null);
   }
 
   _DataApiConfigurationSagaJournal _mergeRecognizableCleanup(
@@ -1326,9 +1154,6 @@ final class AuthenticatedDataApiConfigurationRepository
         result = result.markRevocationDeleteOnly(slot);
       }
     }
-    if (source.legacyCleanupSlot case final slot?) {
-      result = result.enqueueRevocation(slot);
-    }
     for (final cancellation in source.authCancellationQueue) {
       result = result.enqueueAuthCancellation(
         cancellation.baseUri,
@@ -1336,11 +1161,7 @@ final class AuthenticatedDataApiConfigurationRepository
       );
     }
     if (source.transition case final transition?) {
-      for (final slot in <String?>[
-        transition.oldSlot,
-        transition.newSlot,
-        transition.legacyCleanupSlot,
-      ]) {
+      for (final slot in <String?>[transition.oldSlot, transition.newSlot]) {
         if (slot != null) {
           result = result.enqueueRevocation(slot);
         }
@@ -1381,12 +1202,10 @@ final class AuthenticatedDataApiConfigurationRepository
         addSlot(slot);
       }
     }
-    addSlot(raw['legacy_cleanup_slot']);
     final transition = raw['transition'];
     if (transition is Map) {
       addSlot(transition['old_slot']);
       addSlot(transition['new_slot']);
-      addSlot(transition['legacy_cleanup_slot']);
       final operationId = transition['auth_operation_id'];
       final target = transition['target'];
       final rawOrigin = target is Map ? target['remote_base_url'] : null;
@@ -1449,7 +1268,7 @@ final class AuthenticatedDataApiConfigurationRepository
     }
     try {
       return _DataApiDisableRecoveryReset.fromJson(
-        decodeJsonObject(
+        decodeDataApiJsonObject(
           await _readUtf8FileBounded(file, _maximumSagaBytes),
           documentName: 'Data API Disabled recovery reset',
         ),
@@ -1489,7 +1308,7 @@ final class AuthenticatedDataApiConfigurationRepository
         throw const FormatException('Configuration saga journal is too large.');
       }
       return _DataApiConfigurationSagaJournal.fromJson(
-        decodeJsonObject(
+        decodeDataApiJsonObject(
           await _readUtf8FileBounded(file, _maximumSagaBytes),
           documentName: 'Data API configuration saga',
         ),
@@ -1573,6 +1392,23 @@ final class DataApiConfigurationSagaRecoveryRequiredException
       'Data API configuration transition requires recovery: $message';
 }
 
+final class DataApiConfigurationSagaUnsupportedVersionException
+    implements Exception {
+  const DataApiConfigurationSagaUnsupportedVersionException({
+    required this.documentName,
+    required this.version,
+  });
+
+  final String documentName;
+  final Object? version;
+
+  @override
+  String toString() {
+    return 'Unsupported $documentName version: $version. The original durable '
+        'evidence was preserved.';
+  }
+}
+
 final class _DataApiDisableRecoveryReset {
   const _DataApiDisableRecoveryReset({
     required this.before,
@@ -1582,12 +1418,29 @@ final class _DataApiDisableRecoveryReset {
   });
 
   factory _DataApiDisableRecoveryReset.fromJson(Map<String, Object?> json) {
+    const allowedKeys = <String>{
+      'version',
+      'before',
+      'before_digest',
+      'target',
+      'cleanup',
+    };
+    if (json.keys.any((key) => !allowedKeys.contains(key))) {
+      throw const FormatException(
+        'Data API Disabled recovery reset contains an unsupported field.',
+      );
+    }
+    if (json['version'] != 1) {
+      throw DataApiConfigurationSagaUnsupportedVersionException(
+        documentName: 'Data API Disabled recovery reset',
+        version: json['version'],
+      );
+    }
     final before = json['before'];
     final target = json['target'];
     final beforeDigest = json['before_digest'];
     final cleanup = json['cleanup'];
-    if (json['version'] != 1 ||
-        before is! Map ||
+    if (before is! Map ||
         target is! Map ||
         beforeDigest is! String ||
         !RegExp(r'^[0-9a-f]{64}$').hasMatch(beforeDigest) ||
@@ -1655,12 +1508,27 @@ final class _DataApiConfigurationTransition {
     required this.target,
     this.oldSlot,
     this.newSlot,
-    this.legacyCleanupSlot,
     this.sessionHash,
     this.authOperationId,
   });
 
   factory _DataApiConfigurationTransition.fromJson(Map<String, Object?> json) {
+    const allowedKeys = <String>{
+      'transaction_id',
+      'phase',
+      'before',
+      'before_digest',
+      'target',
+      'old_slot',
+      'new_slot',
+      'session_hash',
+      'auth_operation_id',
+    };
+    if (json.keys.any((key) => !allowedKeys.contains(key))) {
+      throw const FormatException(
+        'Data API configuration saga transition contains an unsupported field.',
+      );
+    }
     final phaseName = json['phase'];
     final transactionId = json['transaction_id'];
     final before = json['before'];
@@ -1668,7 +1536,6 @@ final class _DataApiConfigurationTransition {
     final target = json['target'];
     final oldSlot = json['old_slot'];
     final newSlot = json['new_slot'];
-    final legacyCleanupSlot = json['legacy_cleanup_slot'];
     final sessionHash = json['session_hash'];
     final authOperationId = json['auth_operation_id'];
     final phase = _DataApiConfigurationTransitionPhase.values
@@ -1683,8 +1550,6 @@ final class _DataApiConfigurationTransition {
         target is! Map ||
         (oldSlot != null && !_validCredentialRef(oldSlot)) ||
         (newSlot != null && !_validCredentialRef(newSlot)) ||
-        (legacyCleanupSlot != null &&
-            !_validCredentialRef(legacyCleanupSlot)) ||
         (sessionHash != null &&
             (sessionHash is! String ||
                 !RegExp(r'^[0-9a-f]{64}$').hasMatch(sessionHash))) ||
@@ -1704,9 +1569,7 @@ final class _DataApiConfigurationTransition {
     if (targetConfiguration.generation != beforeConfiguration.generation + 1 ||
         targetConfiguration.remoteCredentialRef != newSlot ||
         targetConfiguration.lastTransactionId != transactionId ||
-        beforeConfiguration.remoteCredentialRef != oldSlot ||
-        (legacyCleanupSlot != null &&
-            (targetConfiguration.remoteBaseUri != null || newSlot != null))) {
+        beforeConfiguration.remoteCredentialRef != oldSlot) {
       throw const FormatException(
         'Data API configuration saga generations or credential refs differ.',
       );
@@ -1719,7 +1582,6 @@ final class _DataApiConfigurationTransition {
       target: targetConfiguration,
       oldSlot: oldSlot as String?,
       newSlot: newSlot as String?,
-      legacyCleanupSlot: legacyCleanupSlot as String?,
       sessionHash: sessionHash as String?,
       authOperationId: authOperationId as String?,
     );
@@ -1732,7 +1594,6 @@ final class _DataApiConfigurationTransition {
   final DataApiConfiguration target;
   final String? oldSlot;
   final String? newSlot;
-  final String? legacyCleanupSlot;
   final String? sessionHash;
   final String? authOperationId;
 
@@ -1749,7 +1610,6 @@ final class _DataApiConfigurationTransition {
       target: target,
       oldSlot: oldSlot,
       newSlot: newSlot,
-      legacyCleanupSlot: legacyCleanupSlot,
       sessionHash: sessionHash ?? this.sessionHash,
       authOperationId: authOperationId ?? this.authOperationId,
     );
@@ -1763,7 +1623,6 @@ final class _DataApiConfigurationTransition {
     'target': target.toJson(),
     if (oldSlot != null) 'old_slot': oldSlot,
     if (newSlot != null) 'new_slot': newSlot,
-    if (legacyCleanupSlot != null) 'legacy_cleanup_slot': legacyCleanupSlot,
     if (sessionHash != null) 'session_hash': sessionHash,
     if (authOperationId != null) 'auth_operation_id': authOperationId,
   };
@@ -1776,6 +1635,12 @@ final class _DataApiAuthCancellation {
   });
 
   factory _DataApiAuthCancellation.fromJson(Map<String, Object?> json) {
+    const allowedKeys = <String>{'base_url', 'operation_id'};
+    if (json.keys.any((key) => !allowedKeys.contains(key))) {
+      throw const FormatException(
+        'Data API authentication cancellation contains an unsupported field.',
+      );
+    }
     final rawBaseUri = json['base_url'];
     final operationId = json['operation_id'];
     if (rawBaseUri is! String ||
@@ -1806,33 +1671,36 @@ final class _DataApiConfigurationSagaJournal {
     this.revocationQueue = const <String>[],
     this.deleteOnlyRevocations = const <String>[],
     this.authCancellationQueue = const <_DataApiAuthCancellation>[],
-    this.legacyCleanupPending = false,
-    this.legacyCleanupSlot,
   });
 
   factory _DataApiConfigurationSagaJournal.fromJson(Map<String, Object?> json) {
+    const allowedKeys = <String>{
+      'version',
+      'transition',
+      'revocation_queue',
+      'delete_only_revocations',
+      'auth_cancellation_queue',
+    };
+    if (json.keys.any((key) => !allowedKeys.contains(key))) {
+      throw const FormatException(
+        'Data API configuration saga contains an unsupported field.',
+      );
+    }
     if (json['version'] !=
         AuthenticatedDataApiConfigurationRepository._sagaVersion) {
-      throw FormatException(
-        'Unsupported Data API configuration saga version: ${json['version']}.',
+      throw DataApiConfigurationSagaUnsupportedVersionException(
+        documentName: 'Data API configuration saga',
+        version: json['version'],
       );
     }
     final rawTransition = json['transition'];
     final rawQueue = json['revocation_queue'];
-    final rawDeleteOnly = json['delete_only_revocations'] ?? const [];
-    final rawCancellations = json['auth_cancellation_queue'] ?? const [];
-    final legacyCleanupPending = json['legacy_cleanup_pending'] ?? false;
-    final legacyCleanupSlot = json['legacy_cleanup_slot'];
-    if (legacyCleanupPending is! bool) {
-      throw const FormatException('Invalid Data API legacy cleanup state.');
-    }
+    final rawDeleteOnly = json['delete_only_revocations'];
+    final rawCancellations = json['auth_cancellation_queue'];
     if (rawTransition != null && rawTransition is! Map ||
         rawQueue is! List ||
         rawDeleteOnly is! List ||
-        rawCancellations is! List ||
-        (legacyCleanupSlot != null &&
-            !_validCredentialRef(legacyCleanupSlot)) ||
-        (legacyCleanupSlot != null && !legacyCleanupPending)) {
+        rawCancellations is! List) {
       throw const FormatException('Invalid Data API configuration saga.');
     }
     final queue = <String>[];
@@ -1888,13 +1756,6 @@ final class _DataApiConfigurationSagaJournal {
         : _DataApiConfigurationTransition.fromJson(
             transitionMap!.map((key, value) => MapEntry(key.toString(), value)),
           );
-    if (decodedTransition?.legacyCleanupSlot case final transitionSlot?) {
-      if (!legacyCleanupPending || legacyCleanupSlot != transitionSlot) {
-        throw const FormatException(
-          'Transition legacy cleanup slot does not match journal cleanup state.',
-        );
-      }
-    }
     return _DataApiConfigurationSagaJournal(
       transition: decodedTransition,
       revocationQueue: List<String>.unmodifiable(queue),
@@ -1902,8 +1763,6 @@ final class _DataApiConfigurationSagaJournal {
       authCancellationQueue: List<_DataApiAuthCancellation>.unmodifiable(
         cancellations,
       ),
-      legacyCleanupPending: legacyCleanupPending,
-      legacyCleanupSlot: legacyCleanupSlot as String?,
     );
   }
 
@@ -1911,47 +1770,12 @@ final class _DataApiConfigurationSagaJournal {
   final List<String> revocationQueue;
   final List<String> deleteOnlyRevocations;
   final List<_DataApiAuthCancellation> authCancellationQueue;
-  final bool legacyCleanupPending;
-  final String? legacyCleanupSlot;
 
   _DataApiConfigurationSagaJournal withTransition(
     _DataApiConfigurationTransition? next,
   ) {
     return _DataApiConfigurationSagaJournal(
       transition: next,
-      revocationQueue: revocationQueue,
-      deleteOnlyRevocations: deleteOnlyRevocations,
-      authCancellationQueue: authCancellationQueue,
-      legacyCleanupPending: legacyCleanupPending,
-      legacyCleanupSlot: legacyCleanupSlot,
-    );
-  }
-
-  _DataApiConfigurationSagaJournal withLegacyCleanupPending(bool pending) {
-    return _DataApiConfigurationSagaJournal(
-      transition: transition,
-      revocationQueue: revocationQueue,
-      deleteOnlyRevocations: deleteOnlyRevocations,
-      authCancellationQueue: authCancellationQueue,
-      legacyCleanupPending: pending,
-      legacyCleanupSlot: pending ? legacyCleanupSlot : null,
-    );
-  }
-
-  _DataApiConfigurationSagaJournal withLegacyCleanupSlot(String? slot) {
-    return _DataApiConfigurationSagaJournal(
-      transition: transition,
-      revocationQueue: revocationQueue,
-      deleteOnlyRevocations: deleteOnlyRevocations,
-      authCancellationQueue: authCancellationQueue,
-      legacyCleanupPending: true,
-      legacyCleanupSlot: slot,
-    );
-  }
-
-  _DataApiConfigurationSagaJournal completeLegacyCleanup() {
-    return _DataApiConfigurationSagaJournal(
-      transition: transition,
       revocationQueue: revocationQueue,
       deleteOnlyRevocations: deleteOnlyRevocations,
       authCancellationQueue: authCancellationQueue,
@@ -1970,8 +1794,6 @@ final class _DataApiConfigurationSagaJournal {
       ]),
       deleteOnlyRevocations: deleteOnlyRevocations,
       authCancellationQueue: authCancellationQueue,
-      legacyCleanupPending: legacyCleanupPending,
-      legacyCleanupSlot: legacyCleanupSlot,
     );
   }
 
@@ -1990,8 +1812,6 @@ final class _DataApiConfigurationSagaJournal {
         slot,
       ]),
       authCancellationQueue: authCancellationQueue,
-      legacyCleanupPending: legacyCleanupPending,
-      legacyCleanupSlot: legacyCleanupSlot,
     );
   }
 
@@ -2006,8 +1826,6 @@ final class _DataApiConfigurationSagaJournal {
         deleteOnlyRevocations.where((value) => value != slot),
       ),
       authCancellationQueue: authCancellationQueue,
-      legacyCleanupPending: legacyCleanupPending,
-      legacyCleanupSlot: legacyCleanupSlot,
     );
   }
 
@@ -2021,8 +1839,6 @@ final class _DataApiConfigurationSagaJournal {
         deleteOnlyRevocations.where((value) => value != slot),
       ),
       authCancellationQueue: authCancellationQueue,
-      legacyCleanupPending: legacyCleanupPending,
-      legacyCleanupSlot: legacyCleanupSlot,
     );
   }
 
@@ -2045,8 +1861,6 @@ final class _DataApiConfigurationSagaJournal {
           _DataApiAuthCancellation(baseUri: baseUri, operationId: operationId),
         ],
       ),
-      legacyCleanupPending: legacyCleanupPending,
-      legacyCleanupSlot: legacyCleanupSlot,
     );
   }
 
@@ -2060,8 +1874,6 @@ final class _DataApiConfigurationSagaJournal {
           (entry) => entry.operationId != operationId,
         ),
       ),
-      legacyCleanupPending: legacyCleanupPending,
-      legacyCleanupSlot: legacyCleanupSlot,
     );
   }
 
@@ -2076,9 +1888,6 @@ final class _DataApiConfigurationSagaJournal {
     if (committed.target.remoteBaseUri == null && committed.newSlot != null) {
       next = next.enqueueRevocation(committed.newSlot!);
     }
-    if (committed.legacyCleanupSlot != null) {
-      next = next.enqueueRevocation(committed.legacyCleanupSlot!);
-    }
     return next;
   }
 
@@ -2086,13 +1895,10 @@ final class _DataApiConfigurationSagaJournal {
     'version': AuthenticatedDataApiConfigurationRepository._sagaVersion,
     if (transition != null) 'transition': transition!.toJson(),
     'revocation_queue': revocationQueue,
-    if (deleteOnlyRevocations.isNotEmpty)
-      'delete_only_revocations': deleteOnlyRevocations,
+    'delete_only_revocations': deleteOnlyRevocations,
     'auth_cancellation_queue': authCancellationQueue
         .map((entry) => entry.toJson())
         .toList(growable: false),
-    if (legacyCleanupPending) 'legacy_cleanup_pending': true,
-    if (legacyCleanupSlot != null) 'legacy_cleanup_slot': legacyCleanupSlot,
   };
 }
 
@@ -2291,15 +2097,21 @@ final class FileDataApiConfigurationRepository
       return const DataApiConfiguration.disabled();
     }
     try {
-      final json = decodeJsonObject(
+      final json = decodeDataApiJsonObject(
         await _readUtf8FileBounded(
           configurationFile,
           _maximumConfigurationBytes,
         ),
         documentName: 'Data API configuration',
       );
+      final recoveryRequired = json.remove('recovery_required');
+      if (recoveryRequired != null && recoveryRequired != true) {
+        throw const FormatException(
+          'Data API configuration recovery state is invalid.',
+        );
+      }
       final configuration = DataApiConfiguration.fromJson(json);
-      if (json['recovery_required'] == true) {
+      if (recoveryRequired == true) {
         _recoveryRequired = true;
         if (!_recoveryExceptionDelivered) {
           _recoveryExceptionDelivered = true;

@@ -31,9 +31,6 @@ Widget buildIanvsTerminalRoot({
   bool dataApiPersistenceRequired = false,
   bool dataApiPersistenceUnavailable = false,
   DataApiStartupWarning? dataApiStartupWarning,
-  DataApiStartupRetry? dataApiStartupRetry,
-  DataApiMigrationKeepRemote? dataApiMigrationKeepRemote,
-  DataApiMigrationResetJournal? dataApiMigrationResetJournal,
   DataApiConfigurationRepository? dataApiConfigurationRepository,
   bool dataApiConfigurationRecoveryRequired = false,
   DirectoryResolver? profileExportDirectoryResolver,
@@ -69,13 +66,6 @@ Widget buildIanvsTerminalRoot({
       dataApiRuntimeProvider.overrideWithValue(effectiveDataApiRuntime),
       dataApiStartupWarningProvider.overrideWithValue(
         effectiveDataApiStartupWarning,
-      ),
-      dataApiStartupRetryProvider.overrideWithValue(dataApiStartupRetry),
-      dataApiMigrationKeepRemoteProvider.overrideWithValue(
-        dataApiMigrationKeepRemote,
-      ),
-      dataApiMigrationResetJournalProvider.overrideWithValue(
-        dataApiMigrationResetJournal,
       ),
       profileRepositoryProvider.overrideWithValue(
         persistenceRepositories.profiles,
@@ -191,9 +181,6 @@ void runIanvsTerminalApp({
   bool dataApiPersistenceRequired = false,
   bool dataApiPersistenceUnavailable = false,
   DataApiStartupWarning? dataApiStartupWarning,
-  DataApiStartupRetry? dataApiStartupRetry,
-  DataApiMigrationKeepRemote? dataApiMigrationKeepRemote,
-  DataApiMigrationResetJournal? dataApiMigrationResetJournal,
   DataApiConfigurationRepository? dataApiConfigurationRepository,
   bool dataApiConfigurationRecoveryRequired = false,
   DirectoryResolver? profileExportDirectoryResolver,
@@ -210,9 +197,6 @@ void runIanvsTerminalApp({
       dataApiPersistenceRequired: dataApiPersistenceRequired,
       dataApiPersistenceUnavailable: dataApiPersistenceUnavailable,
       dataApiStartupWarning: dataApiStartupWarning,
-      dataApiStartupRetry: dataApiStartupRetry,
-      dataApiMigrationKeepRemote: dataApiMigrationKeepRemote,
-      dataApiMigrationResetJournal: dataApiMigrationResetJournal,
       dataApiConfigurationRepository: dataApiConfigurationRepository,
       dataApiConfigurationRecoveryRequired:
           dataApiConfigurationRecoveryRequired,

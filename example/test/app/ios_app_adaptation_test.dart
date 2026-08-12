@@ -234,15 +234,18 @@ final class _DisabledConfigurationRepository
   Future<void> save(DataApiConfiguration configuration) async {}
 }
 
-final class _EmptyRemoteSessionStore implements DataApiRemoteSessionStore {
+final class _EmptyRemoteSessionStore implements DataApiRemoteSessionSlotStore {
   @override
-  Future<void> clear() async {}
+  Future<void> deleteSlot(String slotRef) async {}
 
   @override
-  Future<DataApiRemoteSession?> read() async => null;
+  Future<Set<String>> listSlotRefs() async => const <String>{};
 
   @override
-  Future<void> write(DataApiRemoteSession session) async {}
+  Future<DataApiRemoteSession?> readSlot(String slotRef) async => null;
+
+  @override
+  Future<void> writeSlot(String slotRef, DataApiRemoteSession session) async {}
 }
 
 final class _DisabledStartupSettings

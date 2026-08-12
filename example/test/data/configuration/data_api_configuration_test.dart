@@ -61,12 +61,22 @@ void main() {
         'version': 2,
         'deployment': 'disabled',
       }),
-      throwsFormatException,
+      throwsA(isA<DataApiConfigurationUnsupportedVersionException>()),
     );
     expect(
       () => DataApiConfiguration.fromJson(<String, Object?>{
         'version': DataApiConfiguration.currentVersion,
         'deployment': 'remote',
+      }),
+      throwsFormatException,
+    );
+  });
+
+  test('domain decoder rejects repository recovery envelope fields', () {
+    expect(
+      () => DataApiConfiguration.fromJson(<String, Object?>{
+        ...const DataApiConfiguration.disabled().toJson(),
+        'recovery_required': true,
       }),
       throwsFormatException,
     );

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:app/data/services/data_api_runtime.dart';
@@ -22,9 +23,128 @@ void main() {
     });
 
     test(
+      'writes the sole private runtime config and deletes it with its owner',
+      () async {
+        const accessToken = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+        final configuration =
+            await LocalDataApiSidecarRuntimeConfiguration.create(
+              parent: temporaryDirectory,
+              database: File('${temporaryDirectory.path}/ianvs.db'),
+              localAccessToken: accessToken,
+            );
+
+        final decoded =
+            jsonDecode(await configuration.file.readAsString())
+                as Map<String, Object?>;
+        expect(decoded, <String, Object?>{
+          'schema_version': 1,
+          'mode': 'local',
+          'address': '127.0.0.1:0',
+          'database_driver': 'sqlite',
+          'database_dsn': '${temporaryDirectory.path}/ianvs.db',
+          'local_access_token': accessToken,
+          'exit_on_stdin_close': true,
+          'auth_token_ttl_seconds': 3600,
+          'allow_registration': false,
+          'allow_insecure_sensitive_transport': false,
+          'trust_proxy_headers': false,
+        });
+        if (!Platform.isWindows) {
+          expect((await configuration.directory.stat()).mode & 0x1ff, 0x1c0);
+          expect((await configuration.file.stat()).mode & 0x1ff, 0x180);
+        }
+
+        await configuration.delete();
+        expect(await configuration.directory.exists(), isFalse);
+      },
+    );
+
+    for (final invalidToken in <String>[
+      'short',
+      List<String>.filled(43, 'é').join(),
+      '${List<String>.filled(42, 'A').join()}\u0000',
+      '${List<String>.filled(42, 'A').join()}B',
+    ]) {
+      test(
+        'rejects a non-canonical local token before creating files',
+        () async {
+          await expectLater(
+            LocalDataApiSidecarRuntimeConfiguration.create(
+              parent: temporaryDirectory,
+              database: File('${temporaryDirectory.path}/ianvs.db'),
+              localAccessToken: invalidToken,
+            ),
+            throwsFormatException,
+          );
+          expect(
+            temporaryDirectory.listSync().whereType<Directory>().where(
+              (entry) => entry.path.contains('sidecar-runtime-'),
+            ),
+            isEmpty,
+          );
+        },
+      );
+    }
+
+    test(
+      'starts only with serve config and no inherited IANVS environment',
+      () async {
+        const accessToken = 'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBE';
+        final observedArgs = File('${temporaryDirectory.path}/observed-args');
+        final observedEnvironment = File(
+          '${temporaryDirectory.path}/observed-environment',
+        );
+        final observedConfiguration = File(
+          '${temporaryDirectory.path}/observed-configuration',
+        );
+        final binary = await _writeExecutable(
+          temporaryDirectory,
+          // The test executable requires its shebang as the first byte.
+          // ignore: leading_newlines_in_multiline_strings
+          '''#!/bin/sh
+printf '%s\n' "\$@" > '${observedArgs.path}'
+env > '${observedEnvironment.path}'
+cp "\$3" '${observedConfiguration.path}'
+printf '%s\n' 'IANVS_API_READY=http://127.0.0.1:43199'
+read _
+''',
+        );
+
+        final sidecar = await LocalDataApiSidecar.start(
+          binary: binary,
+          database: File('${temporaryDirectory.path}/ianvs.db'),
+          localAccessToken: accessToken,
+        );
+        expect(sidecar.baseUri, Uri.parse('http://127.0.0.1:43199'));
+        final arguments = await observedArgs.readAsLines();
+        expect(arguments, hasLength(3));
+        expect(arguments.take(2), <String>['serve', '--config']);
+        expect(arguments.last, endsWith('runtime-config.json'));
+        expect(
+          await observedEnvironment.readAsString(),
+          isNot(contains('IANVS_')),
+        );
+        final config =
+            jsonDecode(await observedConfiguration.readAsString())
+                as Map<String, Object?>;
+        expect(config['local_access_token'], accessToken);
+
+        await sidecar.close();
+        final runtimeDirectories = temporaryDirectory
+            .listSync()
+            .whereType<Directory>()
+            .where((entry) => entry.path.contains('sidecar-runtime-'));
+        expect(runtimeDirectories, isEmpty);
+      },
+      skip: Platform.isWindows
+          ? 'The bundled sidecar is a POSIX executable on supported hosts.'
+          : false,
+    );
+
+    test(
       'reports only a bounded and redacted stderr tail when startup exits',
       () async {
-        const accessToken = 'local-access-token-that-must-not-leak';
+        const accessToken = 'CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCI';
         final noise = List<String>.generate(
           40,
           (index) => "printf '%s\\n' 'noise-$index-${'x' * 180}' >&2",
@@ -78,7 +198,7 @@ exit 23
     test(
       'uses bounded signal escalation when startup times out',
       () async {
-        const accessToken = 'timeout-token-that-must-not-leak';
+        const accessToken = 'DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDM';
         final binary = await _writeExecutable(
           temporaryDirectory,
           // The shebang must be the first byte of the executable test fixture.

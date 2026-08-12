@@ -3,10 +3,8 @@ import 'dart:io';
 
 import 'package:app/data/configuration/data_api_configuration.dart';
 import 'package:app/data/configuration/data_api_configuration_repository.dart';
-import 'package:app/data/repositories/data_api_legacy_json_migration.dart';
 import 'package:app/data/services/data_api_remote_session_store.dart';
 import 'package:app/data/services/data_api_runtime.dart';
-import 'package:app/data/services/local_data_api_sidecar.dart';
 import 'package:app/features/recording/local_session_recording_repository.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/persistence_repository_composition.dart';
@@ -26,7 +24,6 @@ void main() {
       AppStartupStage.configuration,
       AppStartupStage.secureRecovery,
       AppStartupStage.dataBootstrap,
-      AppStartupStage.migration,
       AppStartupStage.platform,
       AppStartupStage.pty,
       AppStartupStage.configurationValidation,
@@ -42,12 +39,7 @@ void main() {
         expect(failure.failure.stage, stage);
         expect(failure.failure.canRetry, isTrue);
         expect(failure.failure.canOpenSettings, stage != AppStartupStage.paths);
-        expect(
-          failure.failure.migrationRecoveries,
-          stage == AppStartupStage.migration ? hasLength(1) : isEmpty,
-        );
         if (<AppStartupStage>{
-          AppStartupStage.migration,
           AppStartupStage.platform,
           AppStartupStage.pty,
           AppStartupStage.configurationValidation,
@@ -134,165 +126,6 @@ void main() {
       },
     );
 
-    test('migration recovery is one coordinator-owned flight', () async {
-      final recoveryGate = Completer<void>();
-      final recoveryStarted = Completer<void>();
-      final harness = _StartupHarness(
-        failingStage: AppStartupStage.migration,
-        recoveryOperationGate: recoveryGate.future,
-        recoveryStarted: recoveryStarted,
-      );
-      final coordinator = AppStartupCoordinator(pipeline: harness.pipeline);
-      await coordinator.start();
-      final recovery = (coordinator.state as AppStartupRecoverableFailure)
-          .failure
-          .migrationRecoveries
-          .single;
-
-      final first = recovery.run();
-      await recoveryStarted.future;
-      final second = recovery.run();
-
-      expect(identical(first, second), isTrue);
-      expect(harness.bootstrapCount, 2);
-      expect(harness.recoveryRunCount, 1);
-      recoveryGate.complete();
-      await Future.wait(<Future<void>>[first, second]);
-      expect(harness.runtimeCloseCount, 2);
-      await coordinator.close();
-    });
-
-    test(
-      'timed-out recovery close blocks another runtime until settlement',
-      () async {
-        final closeGate = Completer<void>();
-        final recoveryStarted = Completer<void>();
-        final harness = _StartupHarness(
-          failingStage: AppStartupStage.migration,
-          recoveryRuntimeCloseGate: closeGate.future,
-          recoveryStarted: recoveryStarted,
-          rollbackTimeout: const Duration(milliseconds: 1),
-        );
-        final coordinator = AppStartupCoordinator(pipeline: harness.pipeline);
-        await coordinator.start();
-        final recovery = (coordinator.state as AppStartupRecoverableFailure)
-            .failure
-            .migrationRecoveries
-            .single;
-
-        await expectLater(recovery.run(), throwsA(isA<TimeoutException>()));
-        await recoveryStarted.future;
-        expect(harness.bootstrapCount, 2);
-        expect(harness.recoveryRunCount, 1);
-
-        await expectLater(recovery.run(), throwsA(isA<TimeoutException>()));
-        expect(harness.bootstrapCount, 2);
-        expect(harness.recoveryRunCount, 1);
-
-        closeGate.complete();
-        await recovery.run();
-        expect(harness.bootstrapCount, 3);
-        expect(harness.recoveryRunCount, 2);
-        expect(harness.runtimeCloseCount, 3);
-        await coordinator.close();
-      },
-    );
-
-    test('shutdown awaits an active migration recovery flight', () async {
-      final recoveryGate = Completer<void>();
-      final recoveryStarted = Completer<void>();
-      final harness = _StartupHarness(
-        failingStage: AppStartupStage.migration,
-        recoveryOperationGate: recoveryGate.future,
-        recoveryStarted: recoveryStarted,
-      );
-      final coordinator = AppStartupCoordinator(pipeline: harness.pipeline);
-      await coordinator.start();
-      final recovery = (coordinator.state as AppStartupRecoverableFailure)
-          .failure
-          .migrationRecoveries
-          .single;
-      final recoveryFuture = recovery.run();
-      await recoveryStarted.future;
-
-      var shutdownCompleted = false;
-      final shutdown = coordinator.close();
-      unawaited(shutdown.then((_) => shutdownCompleted = true));
-      await Future<void>.delayed(Duration.zero);
-      expect(shutdownCompleted, isFalse);
-
-      recoveryGate.complete();
-      await recoveryFuture;
-      final result = await shutdown;
-      expect(result.timedOut, isFalse);
-      expect(harness.runtimeCloseCount, 2);
-    });
-
-    test(
-      'shutdown continues to an eventual rollback after active recovery fails',
-      () async {
-        final reportedErrors = <FlutterErrorDetails>[];
-        final previousOnError = FlutterError.onError;
-        FlutterError.onError = reportedErrors.add;
-        addTearDown(() => FlutterError.onError = previousOnError);
-        final operationGate = Completer<void>();
-        final operationStarted = Completer<void>();
-        final closeGate = Completer<void>();
-        final harness = _StartupHarness(
-          failingStage: AppStartupStage.migration,
-          recoveryOperationGate: operationGate.future,
-          recoveryStarted: operationStarted,
-          recoveryOperationError: StateError('injected recovery failure'),
-          recoveryRuntimeCloseGate: closeGate.future,
-          rollbackTimeout: const Duration(milliseconds: 1),
-        );
-        final coordinator = AppStartupCoordinator(pipeline: harness.pipeline);
-        await coordinator.start();
-        final recovery = (coordinator.state as AppStartupRecoverableFailure)
-            .failure
-            .migrationRecoveries
-            .single;
-        final recoveryFuture = recovery.run();
-        unawaited(recoveryFuture.catchError((_) {}));
-        await operationStarted.future;
-
-        final bounded = await coordinator.close();
-        expect(bounded.timedOut, isTrue);
-        operationGate.complete();
-        await Future<void>.delayed(Duration.zero);
-
-        var settlementCompleted = false;
-        final settlement = coordinator.settleClose();
-        unawaited(settlement.then((_) => settlementCompleted = true));
-        await Future<void>.delayed(Duration.zero);
-        expect(settlementCompleted, isFalse);
-
-        closeGate.complete();
-        final settled = await settlement;
-        expect(settled.timedOut, isFalse);
-        expect(settled.failures, hasLength(1));
-        expect(
-          settled.failures.single.error,
-          isA<AppStartupSettlementException>(),
-        );
-        expect(
-          reportedErrors.where(
-            (details) => details.exception is TimeoutException,
-          ),
-          hasLength(1),
-        );
-        expect(
-          reportedErrors.where(
-            (details) => details.exception is AppStartupSettlementException,
-          ),
-          hasLength(1),
-        );
-        await coordinator.settleClose();
-        expect(reportedErrors, hasLength(2));
-        expect(harness.runtimeCloseCount, 2);
-      },
-    );
-
     test(
       'active startup failure cannot skip eventual pending runtime settlement',
       () async {
@@ -355,82 +188,6 @@ void main() {
         await coordinator.settleClose();
         expect(reportedErrors, hasLength(2));
         expect(harness.runtimeCloseCount, 1);
-      },
-    );
-
-    test(
-      'recovery validates its configuration snapshot before the operation',
-      () async {
-        final bootstrapGate = Completer<void>();
-        final bootstrapStarted = Completer<void>();
-        final harness = _StartupHarness(
-          failingStage: AppStartupStage.migration,
-          recoveryBootstrapGate: bootstrapGate.future,
-          recoveryBootstrapStarted: bootstrapStarted,
-        );
-        final coordinator = AppStartupCoordinator(pipeline: harness.pipeline);
-        await coordinator.start();
-        final recovery = (coordinator.state as AppStartupRecoverableFailure)
-            .failure
-            .migrationRecoveries
-            .single;
-
-        final recoveryFuture = recovery.run();
-        await bootstrapStarted.future;
-        harness.configurationRevision += 1;
-        bootstrapGate.complete();
-
-        await expectLater(
-          recoveryFuture,
-          throwsA(isA<AppStartupConfigurationSnapshotConflictException>()),
-        );
-        expect(harness.recoveryRunCount, 0);
-        expect(harness.bootstrapCount, 2);
-        expect(harness.runtimeCloseCount, 2);
-        await coordinator.close();
-      },
-    );
-
-    test(
-      'sidecar termination carrier poisons retry and recovery bootstrap',
-      () async {
-        final reportedErrors = <FlutterErrorDetails>[];
-        final previousOnError = FlutterError.onError;
-        FlutterError.onError = reportedErrors.add;
-        addTearDown(() => FlutterError.onError = previousOnError);
-        final harness = _StartupHarness(
-          failingStage: AppStartupStage.migration,
-          runtimeCloseError: const LocalDataApiSidecarStartException(
-            cause: 'injected sidecar startup failure',
-            sanitizedStderrTail: '',
-            terminationFailure: _TerminationUnknownTestException(),
-          ),
-        );
-        final coordinator = AppStartupCoordinator(pipeline: harness.pipeline);
-        await coordinator.start();
-        final failure = coordinator.state as AppStartupRecoverableFailure;
-        final recovery = failure.failure.migrationRecoveries.single;
-
-        expect(failure.failure.error, isA<AppStartupRollbackException>());
-        await expectLater(
-          recovery.run(),
-          throwsA(isA<AppStartupRollbackException>()),
-        );
-        harness.failingStage = null;
-        await coordinator.retry();
-
-        final poisoned = coordinator.state as AppStartupRecoverableFailure;
-        expect(poisoned.failure.stage, AppStartupStage.runtimeShutdown);
-        expect(harness.bootstrapCount, 1);
-        expect(harness.recoveryRunCount, 0);
-
-        final result = await coordinator.close();
-        expect(result.failures, hasLength(1));
-        expect(
-          result.failures.single.error,
-          isA<AppStartupSettlementException>(),
-        );
-        expect(reportedErrors, hasLength(1));
       },
     );
 
@@ -560,38 +317,6 @@ void main() {
       expect(harness.runtimeCloseCount, 1);
     });
 
-    test('migration failures retain both explicit recovery contracts', () {
-      final paths = AppStartupPaths(appSupportDirectory: Directory.systemTemp);
-
-      final keepRemote = buildProductionMigrationRecoveryCapabilities(
-        error: DataApiPersistencePreparationException(
-          DataApiLegacyJsonMigrationConflictException(
-            resources: const <String, DataApiLegacyResourceMigrationStatus>{
-              'profiles':
-                  DataApiLegacyResourceMigrationStatus.destinationAlreadyExists,
-            },
-          ),
-        ),
-        paths: paths,
-      );
-      final resetJournal = buildProductionMigrationRecoveryCapabilities(
-        error: const DataApiLegacyJsonMigrationJournalRecoveryRequiredException(
-          path: '/tmp/revision.json',
-          cause: FormatException('corrupt'),
-        ),
-        paths: paths,
-      );
-
-      expect(
-        keepRemote.single.kind,
-        AppStartupMigrationRecoveryKind.keepRemote,
-      );
-      expect(
-        resetJournal.single.kind,
-        AppStartupMigrationRecoveryKind.resetJournal,
-      );
-    });
-
     test('session PTY provider fails closed without a ready graph', () {
       final container = ProviderContainer();
       addTearDown(container.dispose);
@@ -667,15 +392,8 @@ final class _StartupHarness {
     this.usesIosSandbox = false,
     this.runtimeCloseGate,
     this.runtimeCloseStarted,
-    this.runtimeCloseError,
-    this.recoveryRuntimeCloseGate,
-    this.recoveryBootstrapGate,
-    this.recoveryBootstrapStarted,
     this.composeGate,
     this.composeStarted,
-    this.recoveryOperationGate,
-    this.recoveryStarted,
-    this.recoveryOperationError,
     this.ptyGate,
     this.ptyStarted,
     this.rollbackTimeout = const Duration(seconds: 8),
@@ -687,22 +405,14 @@ final class _StartupHarness {
   final bool usesIosSandbox;
   final Future<void>? runtimeCloseGate;
   final Completer<void>? runtimeCloseStarted;
-  final Object? runtimeCloseError;
-  final Future<void>? recoveryRuntimeCloseGate;
-  final Future<void>? recoveryBootstrapGate;
-  final Completer<void>? recoveryBootstrapStarted;
   final Future<void>? composeGate;
   final Completer<void>? composeStarted;
-  final Future<void>? recoveryOperationGate;
-  final Completer<void>? recoveryStarted;
-  final Error? recoveryOperationError;
   final Future<void>? ptyGate;
   final Completer<void>? ptyStarted;
   final Duration rollbackTimeout;
   int pathResolveCount = 0;
   int bootstrapCount = 0;
   int runtimeCloseCount = 0;
-  int recoveryRunCount = 0;
   int configurationRevision = 0;
   bool loadedIosSandbox = false;
   final closeOrder = <String>[];
@@ -764,15 +474,6 @@ final class _StartupHarness {
       startupOrder.add('bootstrap');
       bootstrapSnapshot = configurationSnapshot;
       bootstrapCount += 1;
-      if (bootstrapCount == 2) {
-        if (recoveryBootstrapGate case final gate?) {
-          final started = recoveryBootstrapStarted;
-          if (started != null && !started.isCompleted) {
-            started.complete();
-          }
-          await gate;
-        }
-      }
       _fail(AppStartupStage.dataBootstrap);
       if (configurationSnapshot.configuration.deployment ==
           DataApiDeployment.disabled) {
@@ -790,20 +491,11 @@ final class _StartupHarness {
           if (started != null && !started.isCompleted) {
             started.complete();
           }
-          final gate = runtimeNumber == 2 && recoveryRuntimeCloseGate != null
-              ? recoveryRuntimeCloseGate
-              : runtimeCloseGate;
-          if (gate != null) {
-            await gate;
-          }
-          if (runtimeCloseError case final error?) {
-            Error.throwWithStackTrace(error, StackTrace.current);
+          if (runtimeCloseGate != null) {
+            await runtimeCloseGate!;
           }
         },
       );
-    },
-    prepareMigration: (paths, access, configurationSnapshot, runtime) async {
-      _fail(AppStartupStage.migration);
     },
     preparePlatform: (paths) async {
       _fail(AppStartupStage.platform);
@@ -866,30 +558,6 @@ final class _StartupHarness {
             ),
           );
         },
-    migrationRecoveries:
-        ({
-          required error,
-          required paths,
-          required configurationAccess,
-          required configurationSnapshot,
-        }) => <AppStartupMigrationRecoveryOperation>[
-          AppStartupMigrationRecoveryOperation(
-            kind: AppStartupMigrationRecoveryKind.keepRemote,
-            run: (runtime) async {
-              recoveryRunCount += 1;
-              final started = recoveryStarted;
-              if (started != null && !started.isCompleted) {
-                started.complete();
-              }
-              if (recoveryOperationGate case final gate?) {
-                await gate;
-              }
-              if (recoveryOperationError case final error?) {
-                throw error;
-              }
-            },
-          ),
-        ],
     rollbackTimeout: rollbackTimeout,
   );
 
@@ -920,20 +588,18 @@ final class _MemoryConfigurationRepository
   }
 }
 
-final class _TerminationUnknownTestException
-    implements DataApiRuntimeTerminationUnknownFailure {
-  const _TerminationUnknownTestException();
-}
-
-final class _MemoryRemoteSessionStore implements DataApiRemoteSessionStore {
+final class _MemoryRemoteSessionStore implements DataApiRemoteSessionSlotStore {
   @override
-  Future<void> clear() async {}
+  Future<void> deleteSlot(String slotRef) async {}
 
   @override
-  Future<DataApiRemoteSession?> read() async => null;
+  Future<Set<String>> listSlotRefs() async => const <String>{};
 
   @override
-  Future<void> write(DataApiRemoteSession session) async {}
+  Future<DataApiRemoteSession?> readSlot(String slotRef) async => null;
+
+  @override
+  Future<void> writeSlot(String slotRef, DataApiRemoteSession session) async {}
 }
 
 final class _MemorySettingsCapability

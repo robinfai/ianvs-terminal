@@ -75,7 +75,7 @@ class _DataApiStartupWarningBanner extends StatelessWidget {
     return Semantics(
       container: true,
       liveRegion: true,
-      label: 'Data service migration warning.',
+      label: 'Data service warning.',
       child: DecoratedBox(
         key: const Key('data-api-startup-warning'),
         decoration: BoxDecoration(
@@ -98,7 +98,7 @@ class _DataApiStartupWarningBanner extends StatelessWidget {
               ),
               _buildCompactActionButton(
                 key: const Key('data-api-startup-warning-dismiss'),
-                tooltip: 'Dismiss data service migration warning',
+                tooltip: 'Dismiss data service warning',
                 onPressed: onDismiss,
                 icon: Icon(Icons.close_rounded, color: palette.textSubtle),
               ),

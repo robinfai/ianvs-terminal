@@ -8,10 +8,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../data/configuration/data_api_configuration.dart';
 import '../data/configuration/data_api_configuration_repository.dart';
-import '../data/repositories/data_api_installation_identity_repository.dart';
-import '../data/repositories/data_api_legacy_json_migration.dart';
 import '../data/services/data_api_bootstrap.dart';
-import '../data/services/data_api_client.dart';
 import '../data/services/data_api_remote_session_store.dart';
 import '../data/services/data_api_runtime.dart';
 import '../features/pty/pty.dart';
@@ -60,7 +57,7 @@ AppStartupCoordinator createProductionAppStartupCoordinator({
             );
             return AppStartupConfigurationAccess(
               repository: repository,
-              remoteSessionStore: repository,
+              remoteSessionStore: remoteSessionStore,
               settings: _ProductionDataSettingsCapability(
                 repository: repository,
                 localDataApiAvailable: targetPlatform == TargetPlatform.macOS,
@@ -77,12 +74,6 @@ AppStartupCoordinator createProductionAppStartupCoordinator({
           access: access,
           configuration: configurationSnapshot.configuration,
           isMacOS: targetPlatform == TargetPlatform.macOS,
-        );
-      },
-      prepareMigration: (paths, access, configurationSnapshot, runtime) async {
-        await prepareDataApiPersistence(
-          runtime: runtime,
-          appSupportDirectory: paths.appSupportDirectory,
         );
       },
       preparePlatform: (paths) async {
@@ -146,16 +137,6 @@ AppStartupCoordinator createProductionAppStartupCoordinator({
               shutdownCoordinator: AppShutdownCoordinator(),
             );
           },
-      migrationRecoveries:
-          ({
-            required error,
-            required paths,
-            required configurationAccess,
-            required configurationSnapshot,
-          }) => buildProductionMigrationRecoveryCapabilities(
-            error: error,
-            paths: paths,
-          ),
     ),
   );
 }
@@ -211,48 +192,6 @@ Future<String> _configurationDigest(DataApiConfiguration configuration) async {
   return hash.bytes
       .map((byte) => byte.toRadixString(16).padLeft(2, '0'))
       .join();
-}
-
-List<AppStartupMigrationRecoveryOperation>
-buildProductionMigrationRecoveryCapabilities({
-  required Object error,
-  required AppStartupPaths paths,
-}) {
-  final cause = error is DataApiPersistencePreparationException
-      ? error.cause
-      : error;
-  return switch (cause) {
-    final DataApiLegacyJsonMigrationConflictException conflict =>
-      <AppStartupMigrationRecoveryOperation>[
-        AppStartupMigrationRecoveryOperation(
-          kind: AppStartupMigrationRecoveryKind.keepRemote,
-          run: (runtime) => acknowledgeDataApiMigrationKeepRemote(
-            runtime: runtime,
-            appSupportDirectory: paths.appSupportDirectory,
-            conflict: conflict,
-          ),
-        ),
-      ],
-    final DataApiLegacyJsonMigrationJournalRecoveryRequiredException recovery =>
-      <AppStartupMigrationRecoveryOperation>[
-        AppStartupMigrationRecoveryOperation(
-          kind: AppStartupMigrationRecoveryKind.resetJournal,
-          run: (runtime) async {
-            final identity = await DataApiInstallationIdentityRepository(
-              appSupportDirectory: paths.appSupportDirectory,
-            ).loadOrCreate();
-            final migration = DataApiLegacyJsonMigration(
-              appSupportDirectory: paths.appSupportDirectory,
-              client: DataApiClient.fromRuntime(runtime),
-              installationIdentity: identity,
-            );
-            await migration.acknowledgeResetRevisionJournal(recovery);
-            await migration.run();
-          },
-        ),
-      ],
-    _ => const <AppStartupMigrationRecoveryOperation>[],
-  };
 }
 
 Future<DataApiRuntime?> _bootstrapRuntime({

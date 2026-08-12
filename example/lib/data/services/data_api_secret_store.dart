@@ -3,6 +3,8 @@ import 'dart:math';
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+import 'data_api_local_access_token.dart';
+
 abstract interface class DataApiSecretStore {
   Future<String> localAccessToken();
 
@@ -30,14 +32,25 @@ class FlutterSecureDataApiSecretStore implements DataApiSecretStore {
   final Random _secureRandom;
 
   @override
-  Future<String> localAccessToken() => _getOrCreate(_localAccessTokenKey);
+  Future<String> localAccessToken() => _getOrCreate(
+    _localAccessTokenKey,
+    validateExisting: isCanonicalDataApiLocalAccessToken,
+    secretName: 'local access token',
+  );
 
   @override
   Future<String> encryptionKey() => _getOrCreate(_encryptionKeyKey);
 
-  Future<String> _getOrCreate(String key) async {
+  Future<String> _getOrCreate(
+    String key, {
+    bool Function(String value)? validateExisting,
+    String? secretName,
+  }) async {
     final existing = await _storage.read(key: key);
     if (existing != null && existing.isNotEmpty) {
+      if (validateExisting != null && !validateExisting(existing)) {
+        throw DataApiSecretStoreInvalidSecretException(secretName ?? 'secret');
+      }
       return existing;
     }
     final bytes = List<int>.generate(
@@ -48,5 +61,17 @@ class FlutterSecureDataApiSecretStore implements DataApiSecretStore {
     final generated = base64UrlEncode(bytes).replaceAll('=', '');
     await _storage.write(key: key, value: generated);
     return generated;
+  }
+}
+
+final class DataApiSecretStoreInvalidSecretException implements Exception {
+  const DataApiSecretStoreInvalidSecretException(this.secretName);
+
+  final String secretName;
+
+  @override
+  String toString() {
+    return 'The stored Data API $secretName does not match the current '
+        'secret format. Existing secure-storage evidence was preserved.';
   }
 }

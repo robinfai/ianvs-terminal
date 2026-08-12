@@ -197,7 +197,7 @@ class DataApiBootstrap {
   DataApiBootstrap({
     DataApiConfigurationRepository? configurationRepository,
     DataApiSecretStore? secretStore,
-    DataApiRemoteSessionStore? remoteSessionStore,
+    DataApiRemoteSessionSlotStore? remoteSessionStore,
     LocalDataApiRuntimeStarter? localRuntimeStarter,
     DataApiLocalApiInitializer? localApiInitializer,
     Duration sidecarCloseTimeout = const Duration(seconds: 12),
@@ -213,7 +213,7 @@ class DataApiBootstrap {
 
   final DataApiConfigurationRepository? _configurationRepository;
   final DataApiSecretStore? _secretStore;
-  final DataApiRemoteSessionStore? _remoteSessionStore;
+  final DataApiRemoteSessionSlotStore? _remoteSessionStore;
   final LocalDataApiRuntimeStarter? _localRuntimeStarter;
   final DataApiLocalApiInitializer _localApiInitializer;
   final Duration _sidecarCloseTimeout;
@@ -236,12 +236,16 @@ class DataApiBootstrap {
     }
     final remoteBaseUri = effectiveConfiguration.remoteBaseUri;
     if (remoteBaseUri != null) {
+      final credentialRef = effectiveConfiguration.remoteCredentialRef;
+      if (credentialRef == null) {
+        throw const DataApiAuthenticationRequiredException();
+      }
       late DataApiRemoteSession? session;
       try {
         session =
             await (_remoteSessionStore ??
                     FlutterSecureDataApiRemoteSessionStore())
-                .read();
+                .readSlot(credentialRef);
       } on Object catch (error, stackTrace) {
         Error.throwWithStackTrace(
           DataApiStartupDependencyException(

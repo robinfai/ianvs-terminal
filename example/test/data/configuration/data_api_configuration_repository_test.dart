@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:app/data/configuration/data_api_configuration.dart';
 import 'package:app/data/configuration/data_api_configuration_repository.dart';
+import 'package:app/data/data_api_json.dart';
 import 'package:app/data/services/data_api_client.dart';
 import 'package:app/data/services/data_api_remote_session_store.dart';
 import 'package:flutter_secure_storage/test/test_flutter_secure_storage_platform.dart';
@@ -101,6 +102,44 @@ void main() {
       );
     },
   );
+
+  test('duplicate config keys fail closed without mutating evidence', () async {
+    await repository.configurationFile.parent.create(recursive: true);
+    const contents =
+        '{"version":1,"deployment":"local","deployment":"disabled",'
+        '"generation":0}\n';
+    await repository.configurationFile.writeAsString(contents, flush: true);
+    final modified = (await repository.configurationFile.stat()).modified;
+
+    await expectLater(
+      repository.load(),
+      throwsA(isA<DataApiJsonDuplicateKeyException>()),
+    );
+
+    expect(await repository.configurationFile.readAsString(), contents);
+    expect((await repository.configurationFile.stat()).modified, modified);
+    expect(await repository.recoverySentinelFile.exists(), isFalse);
+    expect(
+      repository.configurationFile.parent.listSync().map((entry) => entry.path),
+      <String>[repository.configurationFile.path],
+    );
+  });
+
+  test('non-current config is typed and preserved byte-for-byte', () async {
+    await repository.configurationFile.parent.create(recursive: true);
+    const contents = '{"version":0,"deployment":"disabled","generation":0}\n';
+    await repository.configurationFile.writeAsString(contents, flush: true);
+    final modified = (await repository.configurationFile.stat()).modified;
+
+    await expectLater(
+      repository.load(),
+      throwsA(isA<DataApiConfigurationUnsupportedVersionException>()),
+    );
+
+    expect(await repository.configurationFile.readAsString(), contents);
+    expect((await repository.configurationFile.stat()).modified, modified);
+    expect(await repository.recoverySentinelFile.exists(), isFalse);
+  });
 
   test(
     'a durable recovery sentinel keeps startup locked after quarantine crash',
@@ -249,62 +288,6 @@ void main() {
   });
 
   test(
-    'expired or different-origin remote sessions cannot change mode',
-    () async {
-      await repository.save(const DataApiConfiguration.disabled());
-      final expired = _remoteSession(
-        baseUri: Uri.parse('https://sync.example.com/'),
-        expiresAt: DateTime.now().subtract(const Duration(minutes: 1)),
-      );
-      final store = _MemoryRemoteSessionStore(expired);
-      final guarded = AuthenticatedDataApiConfigurationRepository(
-        delegate: repository,
-        remoteSessionStore: store,
-        remoteConnectionValidator: _RecordingRemoteValidator(),
-      );
-
-      await expectLater(
-        guarded.save(DataApiConfiguration.remote('https://sync.example.com/')),
-        throwsA(isA<DataApiAuthenticationRequiredException>()),
-      );
-      store.session = _remoteSession(
-        baseUri: Uri.parse('https://other.example.com/'),
-      );
-      await expectLater(
-        guarded.save(DataApiConfiguration.remote('https://sync.example.com/')),
-        throwsA(isA<DataApiAuthenticationRequiredException>()),
-      );
-
-      expect(await repository.load(), const DataApiConfiguration.disabled());
-    },
-  );
-
-  test('validated secure session permits remote configuration', () async {
-    final session = _remoteSession(
-      baseUri: Uri.parse('https://sync.example.com/api/'),
-    );
-    final validator = _RecordingRemoteValidator();
-    final remote = DataApiConfiguration.remote('https://sync.example.com/api');
-    await repository.save(remote);
-    final store = _MemoryRemoteSessionStore(session);
-    final guarded = AuthenticatedDataApiConfigurationRepository(
-      delegate: repository,
-      remoteSessionStore: store,
-      remoteConnectionValidator: validator,
-    );
-
-    await guarded.load();
-    await guarded.save(remote);
-
-    expect(validator.validated, same(session));
-    expect(await repository.load(), remote);
-    final plainConfiguration = await repository.configurationFile
-        .readAsString();
-    expect(plainConfiguration, isNot(contains('access-token')));
-    expect(plainConfiguration, isNot(contains('encryption-key')));
-  });
-
-  test(
     'login stores only the resulting secure session before config',
     () async {
       final session = _remoteSession(
@@ -329,7 +312,7 @@ void main() {
 
       expect(authenticator.received, same(request));
       expect(store.slots.values, contains(same(session)));
-      expect(await guarded.read(), same(session));
+      expect(await _activeSession(repository, store), same(session));
       expect(
         await repository.load(),
         DataApiConfiguration.remote('https://sync.example.com/api/'),
@@ -521,10 +504,7 @@ void main() {
 
   test('failed key validation preserves mode and previous session', () async {
     await repository.save(const DataApiConfiguration.local());
-    final previousSession = _remoteSession(
-      baseUri: Uri.parse('https://previous.example.com/'),
-    );
-    final store = _MemoryRemoteSessionStore(previousSession);
+    final store = _MemoryRemoteSessionStore();
     final canceler = _RecordingAuthOperationCanceler();
     final guarded = AuthenticatedDataApiConfigurationRepository(
       delegate: repository,
@@ -558,318 +538,9 @@ void main() {
     );
 
     expect(await repository.load(), const DataApiConfiguration.local());
-    expect(store.session, same(previousSession));
+    expect(store.slots, isEmpty);
     expect(canceler.canceled, hasLength(1));
   });
-
-  test('switching to disabled clears the previous remote session', () async {
-    final previous = _remoteSession(
-      baseUri: Uri.parse('https://sync.example.com/'),
-    );
-    final store = _MemoryRemoteSessionStore(previous);
-    final revoker = _RecordingRemoteRevoker();
-    final guarded = AuthenticatedDataApiConfigurationRepository(
-      delegate: repository,
-      remoteSessionStore: store,
-      remoteSessionRevoker: revoker,
-    );
-
-    await guarded.save(const DataApiConfiguration.disabled());
-
-    expect(store.session, isNull);
-    expect(await repository.load(), const DataApiConfiguration.disabled());
-    expect(revoker.revoked, <DataApiRemoteSession>[previous]);
-  });
-
-  test(
-    'revocation failure warns after disabled mode and local escape are saved',
-    () async {
-      final previous = _remoteSession(
-        baseUri: Uri.parse('https://sync.example.com/'),
-      );
-      final store = _MemoryRemoteSessionStore(previous);
-      final revoker = _RecordingRemoteRevoker(
-        error: const DataApiTimeoutException(Duration(seconds: 5)),
-      );
-      final guarded = AuthenticatedDataApiConfigurationRepository(
-        delegate: repository,
-        remoteSessionStore: store,
-        remoteSessionRevoker: revoker,
-      );
-
-      await expectLater(
-        guarded.save(const DataApiConfiguration.disabled()),
-        throwsA(isA<DataApiRemoteRevocationPendingWarning>()),
-      );
-
-      expect(await repository.load(), const DataApiConfiguration.disabled());
-      expect(store.session, isNull);
-      expect(revoker.revoked, <DataApiRemoteSession>[previous]);
-    },
-  );
-
-  test(
-    'vault read failure saves disabled but preserves unread legacy credential',
-    () async {
-      final previous = _remoteSession(
-        baseUri: Uri.parse('https://sync.example.com/'),
-      );
-      final store = _MemoryRemoteSessionStore(previous)
-        ..readError = StateError('credential vault read failed');
-      final guarded = AuthenticatedDataApiConfigurationRepository(
-        delegate: repository,
-        remoteSessionStore: store,
-      );
-
-      await expectLater(
-        guarded.save(const DataApiConfiguration.disabled()),
-        throwsA(isA<DataApiRemoteRevocationPendingWarning>()),
-      );
-
-      expect(await repository.load(), const DataApiConfiguration.disabled());
-      expect(store.clearCount, 0);
-      expect(store.session, same(previous));
-
-      store.readError = null;
-      final revoker = _RecordingRemoteRevoker();
-      final restarted = AuthenticatedDataApiConfigurationRepository(
-        delegate: FileDataApiConfigurationRepository.forFile(
-          repository.configurationFile,
-        ),
-        remoteSessionStore: store,
-        remoteSessionRevoker: revoker,
-      );
-      await restarted.retryPendingRevocations();
-
-      expect(store.clearCount, 1);
-      expect(store.session, isNull);
-      expect(revoker.revoked, contains(previous));
-    },
-  );
-
-  test(
-    'vault read and clear failures report saved configuration accurately',
-    () async {
-      final store = _MemoryRemoteSessionStore()
-        ..readError = StateError('credential vault read failed')
-        ..clearError = StateError('credential vault clear failed');
-      final guarded = AuthenticatedDataApiConfigurationRepository(
-        delegate: repository,
-        remoteSessionStore: store,
-      );
-
-      await expectLater(
-        guarded.save(const DataApiConfiguration.disabled()),
-        throwsA(isA<DataApiRemoteRevocationPendingWarning>()),
-      );
-
-      expect(await repository.load(), const DataApiConfiguration.disabled());
-      expect(store.clearCount, 0);
-    },
-  );
-
-  test(
-    'nonremote staged legacy cleanup journal decodes and recovers after crash',
-    () async {
-      final legacy = _remoteSession(
-        baseUri: Uri.parse('https://legacy.example.com/'),
-      );
-      final store = _MemoryRemoteSessionStore(legacy);
-      var crashed = false;
-      final crashing = AuthenticatedDataApiConfigurationRepository(
-        delegate: repository,
-        remoteSessionStore: store,
-        sagaJournalWriter: (file, contents) async {
-          await file.parent.create(recursive: true);
-          await file.writeAsString(contents, flush: true);
-          final transition =
-              (jsonDecode(contents) as Map<String, Object?>)['transition'];
-          if (!crashed &&
-              transition is Map &&
-              transition['phase'] == 'staged') {
-            crashed = true;
-            throw StateError('injected staged nonremote crash');
-          }
-        },
-      );
-
-      await expectLater(
-        crashing.save(const DataApiConfiguration.disabled()),
-        throwsStateError,
-      );
-
-      final revoker = _RecordingRemoteRevoker();
-      final restarted = AuthenticatedDataApiConfigurationRepository(
-        delegate: FileDataApiConfigurationRepository.forFile(
-          repository.configurationFile,
-        ),
-        remoteSessionStore: store,
-        remoteSessionRevoker: revoker,
-      );
-      await restarted.recoverForStartup();
-      await restarted.retryPendingRevocations();
-
-      expect(await repository.load(), const DataApiConfiguration.disabled());
-      expect(store.session, isNull);
-      expect(store.slots, isEmpty);
-      expect(revoker.revoked, contains(legacy));
-    },
-  );
-
-  test(
-    'legacy migration crash matrix never revokes the token promoted active',
-    () async {
-      for (final crashPoint in <String>[
-        'prepared',
-        'slot-written',
-        'staged',
-        'committed',
-      ]) {
-        final caseDirectory = Directory(
-          '${temporaryDirectory.path}${Platform.pathSeparator}$crashPoint',
-        );
-        final caseRepository = FileDataApiConfigurationRepository(
-          appSupportDirectory: caseDirectory,
-        );
-        final session = _remoteSession(
-          baseUri: Uri.parse('https://legacy-$crashPoint.example.com/'),
-        );
-        await caseRepository.save(
-          DataApiConfiguration.remote(
-            session.baseUri.toString(),
-          ).withPersistenceState(
-            generation: 1,
-            remoteCredentialRef: null,
-            lastTransactionId: 'legacyBefore0001',
-          ),
-        );
-        final store = _MemoryRemoteSessionStore(session);
-        if (crashPoint == 'slot-written') {
-          store.afterSlotWriteError = StateError(
-            'injected post-slot-write crash',
-          );
-        }
-        var crashed = false;
-        final crashing = AuthenticatedDataApiConfigurationRepository(
-          delegate: caseRepository,
-          remoteSessionStore: store,
-          sagaJournalWriter: (file, contents) async {
-            await file.parent.create(recursive: true);
-            await file.writeAsString(contents, flush: true);
-            final transition =
-                (jsonDecode(contents) as Map<String, Object?>)['transition'];
-            if (!crashed &&
-                crashPoint != 'slot-written' &&
-                transition is Map &&
-                transition['phase'] == crashPoint) {
-              crashed = true;
-              throw StateError('injected $crashPoint legacy migration crash');
-            }
-          },
-        );
-
-        await expectLater(
-          crashing.recoverForStartup(),
-          throwsA(isA<Object>()),
-          reason: crashPoint,
-        );
-
-        store.afterSlotWriteError = null;
-        final revoker = _RecordingRemoteRevoker();
-        final restarted = AuthenticatedDataApiConfigurationRepository(
-          delegate: FileDataApiConfigurationRepository.forFile(
-            caseRepository.configurationFile,
-          ),
-          remoteSessionStore: store,
-          remoteSessionRevoker: revoker,
-        );
-        await restarted.recoverForStartup();
-        await restarted.retryPendingRevocations();
-
-        final recovered = await caseRepository.load();
-        expect(recovered.remoteCredentialRef, isNotNull, reason: crashPoint);
-        expect(
-          store.slots[recovered.remoteCredentialRef],
-          same(session),
-          reason: crashPoint,
-        );
-        expect(await restarted.read(), same(session), reason: crashPoint);
-        expect(store.session, isNull, reason: crashPoint);
-        expect(store.slots, hasLength(1), reason: crashPoint);
-        expect(revoker.revoked, isEmpty, reason: crashPoint);
-      }
-    },
-  );
-
-  test(
-    'nonremote precommit crash matrix deletes a legacy duplicate locally',
-    () async {
-      for (final crashPoint in <String>['prepared', 'slot-written', 'staged']) {
-        final caseDirectory = Directory(
-          '${temporaryDirectory.path}${Platform.pathSeparator}'
-          'nonremote-$crashPoint',
-        );
-        final caseRepository = FileDataApiConfigurationRepository(
-          appSupportDirectory: caseDirectory,
-        );
-        const activeSlot = 'activeCredential0001';
-        final active = _remoteSession(
-          baseUri: Uri.parse('https://active-$crashPoint.example.com/'),
-        );
-        await caseRepository.save(_persistedRemote(active.baseUri, activeSlot));
-        final store = _MemoryRemoteSessionStore(active)
-          ..slots[activeSlot] = active;
-        if (crashPoint == 'slot-written') {
-          store.afterSlotWriteError = StateError(
-            'injected post-slot-write crash',
-          );
-        }
-        var crashed = false;
-        final crashing = AuthenticatedDataApiConfigurationRepository(
-          delegate: caseRepository,
-          remoteSessionStore: store,
-          sagaJournalWriter: (file, contents) async {
-            await file.parent.create(recursive: true);
-            await file.writeAsString(contents, flush: true);
-            final transition =
-                (jsonDecode(contents) as Map<String, Object?>)['transition'];
-            if (!crashed &&
-                crashPoint != 'slot-written' &&
-                transition is Map &&
-                transition['phase'] == crashPoint) {
-              crashed = true;
-              throw StateError('injected $crashPoint nonremote crash');
-            }
-          },
-        );
-
-        await expectLater(
-          crashing.save(const DataApiConfiguration.disabled()),
-          throwsA(isA<Object>()),
-          reason: crashPoint,
-        );
-
-        store.afterSlotWriteError = null;
-        final revoker = _RecordingRemoteRevoker();
-        final restarted = AuthenticatedDataApiConfigurationRepository(
-          delegate: FileDataApiConfigurationRepository.forFile(
-            caseRepository.configurationFile,
-          ),
-          remoteSessionStore: store,
-          remoteSessionRevoker: revoker,
-        );
-        await restarted.recoverForStartup();
-        await restarted.retryPendingRevocations();
-
-        final recovered = await caseRepository.load();
-        expect(recovered.remoteCredentialRef, activeSlot, reason: crashPoint);
-        expect(await restarted.read(), same(active), reason: crashPoint);
-        expect(store.session, isNull, reason: crashPoint);
-        expect(store.slots, <String, DataApiRemoteSession>{activeSlot: active});
-        expect(revoker.revoked, isEmpty, reason: crashPoint);
-      }
-    },
-  );
 
   test(
     'delete-only identity disposition survives a crash before local deletion',
@@ -891,6 +562,8 @@ void main() {
         '${jsonEncode(<String, Object?>{
           'version': 1,
           'revocation_queue': <String>[duplicateSlot],
+          'delete_only_revocations': <String>[],
+          'auth_cancellation_queue': <Object?>[],
         })}\n',
         flush: true,
       );
@@ -923,7 +596,7 @@ void main() {
         store.slots.keys,
         containsAll(<String>[activeSlot, duplicateSlot]),
       );
-      expect(await crashing.read(), same(active));
+      expect(await _activeSession(repository, store), same(active));
 
       final persistedJournal =
           jsonDecode(await journal.readAsString()) as Map<String, Object?>;
@@ -941,7 +614,7 @@ void main() {
 
       expect(revoker.revoked, isEmpty);
       expect(store.slots, <String, DataApiRemoteSession>{activeSlot: active});
-      expect(await restarted.read(), same(active));
+      expect(await _activeSession(repository, store), same(active));
     },
   );
 
@@ -963,6 +636,7 @@ void main() {
           'version': 1,
           'revocation_queue': <String>[retiredSlot],
           'delete_only_revocations': <String>[retiredSlot],
+          'auth_cancellation_queue': <Object?>[],
         })}\n',
         flush: true,
       );
@@ -1007,6 +681,8 @@ void main() {
         '${jsonEncode(<String, Object?>{
           'version': 1,
           'revocation_queue': <String>[retiredSlot],
+          'delete_only_revocations': <String>[],
+          'auth_cancellation_queue': <Object?>[],
         })}\n',
         flush: true,
       );
@@ -1080,52 +756,15 @@ void main() {
   );
 
   test(
-    'vault read failure happens before a new remote token is issued',
-    () async {
-      final newSession = _remoteSession(
-        baseUri: Uri.parse('https://new.example.com/'),
-      );
-      final store = _MemoryRemoteSessionStore()
-        ..readError = StateError('credential vault read failed');
-      final authenticator = _RecordingRemoteAuthenticator(session: newSession);
-      final revoker = _RecordingRemoteRevoker();
-      final guarded = AuthenticatedDataApiConfigurationRepository(
-        delegate: repository,
-        remoteSessionStore: store,
-        remoteAuthenticator: authenticator,
-        remoteSessionRevoker: revoker,
-      );
-
-      await expectLater(
-        guarded.connectAndSaveRemote(
-          DataApiRemoteLoginRequest(
-            baseUri: newSession.baseUri,
-            username: 'alice',
-            password: 'password-1234',
-            encryptionKey: 'encryption-key-material',
-          ),
-        ),
-        throwsStateError,
-      );
-
-      expect(authenticator.received, isNull);
-      expect(revoker.revoked, isEmpty);
-    },
-  );
-
-  test(
     'vault write failure restores old state and revokes new token',
     () async {
-      final oldSession = _remoteSession(
-        baseUri: Uri.parse('https://old.example.com/'),
-      );
       final newSession = DataApiRemoteSession(
         baseUri: Uri.parse('https://new.example.com/'),
         accessToken: 'new-access-token',
         encryptionKey: 'encryption-key-material',
         expiresAt: DateTime.now().add(const Duration(hours: 1)),
       );
-      final store = _MemoryRemoteSessionStore(oldSession)
+      final store = _MemoryRemoteSessionStore()
         ..writeError = StateError('credential vault write failed');
       final revoker = _RecordingRemoteRevoker(
         error: const DataApiTimeoutException(Duration(seconds: 5)),
@@ -1152,7 +791,7 @@ void main() {
         throwsStateError,
       );
 
-      expect(store.session, same(oldSession));
+      expect(store.slots, isEmpty);
       expect(revoker.revoked, isEmpty);
       expect(canceler.canceled, hasLength(1));
     },
@@ -1208,47 +847,11 @@ void main() {
   );
 
   test(
-    'secure store clear failure is typed and never reported as success',
-    () async {
-      final previous = _remoteSession(
-        baseUri: Uri.parse('https://sync.example.com/'),
-      );
-      final store = _MemoryRemoteSessionStore(previous)
-        ..clearError = StateError('credential vault unavailable');
-      final revoker = _RecordingRemoteRevoker();
-      final guarded = AuthenticatedDataApiConfigurationRepository(
-        delegate: repository,
-        remoteSessionStore: store,
-        remoteSessionRevoker: revoker,
-      );
-
-      await expectLater(
-        guarded.save(const DataApiConfiguration.disabled()),
-        throwsA(
-          isA<DataApiRemoteRevocationPendingWarning>().having(
-            (error) => error.toString(),
-            'message',
-            allOf(contains('configuration was saved'), contains('not active')),
-          ),
-        ),
-      );
-
-      expect(await repository.load(), const DataApiConfiguration.disabled());
-      expect(store.session, same(previous));
-      expect(revoker.revoked, <DataApiRemoteSession>[previous]);
-    },
-  );
-
-  test(
     'reconnect replaces an expired session without changing the URL',
     () async {
       final baseUri = Uri.parse('https://sync.example.com/');
-      final expired = _remoteSession(
-        baseUri: baseUri,
-        expiresAt: DateTime.now().subtract(const Duration(minutes: 1)),
-      );
       final renewed = _remoteSession(baseUri: baseUri);
-      final store = _MemoryRemoteSessionStore(expired);
+      final store = _MemoryRemoteSessionStore();
       await repository.save(DataApiConfiguration.remote(baseUri.toString()));
       final guarded = AuthenticatedDataApiConfigurationRepository(
         delegate: repository,
@@ -1266,8 +869,7 @@ void main() {
         ),
       );
 
-      expect(await guarded.read(), same(renewed));
-      expect(store.session, isNull);
+      expect(await _activeSession(repository, store), same(renewed));
       expect(
         await repository.load(),
         DataApiConfiguration.remote(baseUri.toString()),
@@ -1339,7 +941,7 @@ void main() {
         remoteSessionRevoker: revoker,
       );
       await recovered.recoverForStartup();
-      expect(await recovered.read(), same(newSession));
+      expect(await _activeSession(repository, store), same(newSession));
       await recovered.retryPendingRevocations();
 
       expect(revoker.revoked, <DataApiRemoteSession>[oldSession]);
@@ -1418,11 +1020,11 @@ void main() {
       expect(restored.remoteBaseUri, oldSession.baseUri);
       expect(restored.remoteCredentialRef, oldSlot);
       expect(restored.generation, committed.generation + 1);
-      expect(await recovered.read(), same(oldSession));
+      expect(await _activeSession(repository, store), same(oldSession));
     },
   );
 
-  test('corrupt saga journal is fail-closed and preserved', () async {
+  test('non-current saga journal is typed fail-closed and preserved', () async {
     final journal = File(
       '${repository.configurationFile.parent.path}${Platform.pathSeparator}'
       'configuration-saga.json',
@@ -1437,12 +1039,175 @@ void main() {
 
     await expectLater(
       guarded.recoverForStartup(),
-      throwsA(isA<DataApiConfigurationSagaRecoveryRequiredException>()),
+      throwsA(isA<DataApiConfigurationSagaUnsupportedVersionException>()),
     );
 
     expect(guarded.recoveryRequired, isTrue);
     expect(await journal.readAsString(), corrupt);
   });
+
+  test(
+    'nested duplicate saga key blocks explicit Disabled with zero mutation',
+    () async {
+      const activeSlot = 'duplicateCredential01';
+      final active = _remoteSession(
+        baseUri: Uri.parse('https://active.example.com/'),
+      );
+      await repository.save(_persistedRemote(active.baseUri, activeSlot));
+      final store = _MemoryRemoteSessionStore()..slots[activeSlot] = active;
+      final journal = File(
+        '${repository.configurationFile.parent.path}${Platform.pathSeparator}'
+        'configuration-saga.json',
+      );
+      const contents =
+          '{"version":1,"transition":null,"revocation_queue":[],'
+          '"delete_only_revocations":[],"auth_cancellation_queue":['
+          '{"base_url":"https://active.example.com/",'
+          '"base_url":"https://other.example.com/",'
+          '"operation_id":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"}]}\n';
+      await journal.writeAsString(contents, flush: true);
+      final modified = (await journal.stat()).modified;
+      final revoker = _RecordingRemoteRevoker();
+      final canceler = _RecordingAuthOperationCanceler();
+      final guarded = AuthenticatedDataApiConfigurationRepository(
+        delegate: repository,
+        remoteSessionStore: store,
+        remoteSessionRevoker: revoker,
+        authOperationCanceler: canceler,
+      );
+
+      await expectLater(
+        guarded.save(const DataApiConfiguration.disabled()),
+        throwsA(isA<DataApiJsonDuplicateKeyException>()),
+      );
+
+      expect((await repository.load()).deployment, DataApiDeployment.remote);
+      expect(store.slots[activeSlot], same(active));
+      expect(revoker.revoked, isEmpty);
+      expect(canceler.canceled, isEmpty);
+      expect(await journal.readAsString(), contents);
+      expect((await journal.stat()).modified, modified);
+      expect(
+        await File(
+          '${journal.parent.path}${Platform.pathSeparator}'
+          'configuration-saga-disable-reset.json',
+        ).exists(),
+        isFalse,
+      );
+    },
+  );
+
+  for (final evidence in <({String name, String contents})>[
+    (
+      name: 'non-current',
+      contents:
+          '{"version":0,"transition":null,"revocation_queue":['
+          '"stagedCredential0001"],"delete_only_revocations":[],'
+          '"auth_cancellation_queue":[]}\n',
+    ),
+    (
+      name: 'missing-version',
+      contents:
+          '{"transition":null,"revocation_queue":['
+          '"stagedCredential0001"],"delete_only_revocations":[],'
+          '"auth_cancellation_queue":[]}\n',
+    ),
+  ]) {
+    test(
+      '${evidence.name} saga cannot be salvaged by explicit Disabled',
+      () async {
+        const activeSlot = 'activeCredential0001';
+        const stagedSlot = 'stagedCredential0001';
+        final active = _remoteSession(
+          baseUri: Uri.parse('https://active.example.com/'),
+        );
+        final staged = _remoteSession(
+          baseUri: Uri.parse('https://staged.example.com/'),
+        );
+        await repository.save(_persistedRemote(active.baseUri, activeSlot));
+        final store = _MemoryRemoteSessionStore()
+          ..slots[activeSlot] = active
+          ..slots[stagedSlot] = staged;
+        final journal = File(
+          '${repository.configurationFile.parent.path}'
+          '${Platform.pathSeparator}configuration-saga.json',
+        );
+        await journal.writeAsString(evidence.contents, flush: true);
+        final modified = (await journal.stat()).modified;
+        final revoker = _RecordingRemoteRevoker();
+        final canceler = _RecordingAuthOperationCanceler();
+        final guarded = AuthenticatedDataApiConfigurationRepository(
+          delegate: repository,
+          remoteSessionStore: store,
+          remoteSessionRevoker: revoker,
+          authOperationCanceler: canceler,
+        );
+
+        await expectLater(
+          guarded.save(const DataApiConfiguration.disabled()),
+          throwsA(isA<DataApiConfigurationSagaUnsupportedVersionException>()),
+        );
+
+        expect((await repository.load()).deployment, DataApiDeployment.remote);
+        expect(store.slots, <String, DataApiRemoteSession>{
+          activeSlot: active,
+          stagedSlot: staged,
+        });
+        expect(revoker.revoked, isEmpty);
+        expect(canceler.canceled, isEmpty);
+        expect(await journal.readAsString(), evidence.contents);
+        expect((await journal.stat()).modified, modified);
+      },
+    );
+  }
+
+  test(
+    'non-current configuration nested in current saga cannot be salvaged',
+    () async {
+      const transaction = 'embeddedTransaction01';
+      final journal = File(
+        '${repository.configurationFile.parent.path}${Platform.pathSeparator}'
+        'configuration-saga.json',
+      );
+      await journal.parent.create(recursive: true);
+      final contents =
+          '${jsonEncode(<String, Object?>{
+            'version': 1,
+            'transition': <String, Object?>{
+              'transaction_id': transaction,
+              'phase': 'prepared',
+              'before': <String, Object?>{'version': 0, 'deployment': 'disabled', 'generation': 0},
+              'before_digest': List<String>.filled(64, '0').join(),
+              'target': <String, Object?>{'version': 1, 'deployment': 'disabled', 'generation': 1, 'last_transaction_id': transaction},
+            },
+            'revocation_queue': <String>[],
+            'delete_only_revocations': <String>[],
+            'auth_cancellation_queue': <Object?>[],
+          })}\n';
+      await journal.writeAsString(contents, flush: true);
+      final modified = (await journal.stat()).modified;
+      final store = _MemoryRemoteSessionStore();
+      final revoker = _RecordingRemoteRevoker();
+      final canceler = _RecordingAuthOperationCanceler();
+      final guarded = AuthenticatedDataApiConfigurationRepository(
+        delegate: repository,
+        remoteSessionStore: store,
+        remoteSessionRevoker: revoker,
+        authOperationCanceler: canceler,
+      );
+
+      await expectLater(
+        guarded.save(const DataApiConfiguration.disabled()),
+        throwsA(isA<DataApiConfigurationUnsupportedVersionException>()),
+      );
+
+      expect(await journal.readAsString(), contents);
+      expect((await journal.stat()).modified, modified);
+      expect(revoker.revoked, isEmpty);
+      expect(canceler.canceled, isEmpty);
+      expect(store.slots, isEmpty);
+    },
+  );
 
   test(
     'explicit Disabled quarantines corrupt saga and cleans recognizable refs',
@@ -1467,7 +1232,8 @@ void main() {
       await journal.parent.create(recursive: true);
       await journal.writeAsString(
         '${jsonEncode(<String, Object?>{
-          'version': 999,
+          'version': 1,
+          'invalid_current_shape': true,
           'revocation_queue': <String>[stagedSlot],
           'auth_cancellation_queue': <Object?>[
             <String, Object?>{'base_url': 'https://active.example.com/', 'operation_id': operationId},
@@ -1560,7 +1326,7 @@ void main() {
       'configuration-saga.json',
     );
     await journal.parent.create(recursive: true);
-    await journal.writeAsString('{"version":999}\n');
+    await journal.writeAsString('{"version":1}\n');
     final failing = _FailOnceConfigurationRepository(repository);
     final crashing = AuthenticatedDataApiConfigurationRepository(
       delegate: failing,
@@ -1603,7 +1369,7 @@ void main() {
       'configuration-saga.json',
     );
     await journal.parent.create(recursive: true);
-    await journal.writeAsString('{"version":999}\n');
+    await journal.writeAsString('{"version":1}\n');
     final crashing = AuthenticatedDataApiConfigurationRepository(
       delegate: repository,
       remoteSessionStore: store,
@@ -1649,7 +1415,7 @@ void main() {
         'configuration-saga.json',
       );
       await journal.parent.create(recursive: true);
-      await journal.writeAsString('{"version":999}\n');
+      await journal.writeAsString('{"version":1}\n');
       final crashing = AuthenticatedDataApiConfigurationRepository(
         delegate: repository,
         remoteSessionStore: store,
@@ -2072,38 +1838,92 @@ void main() {
     expect((await lock.stat()).mode & 0x1ff, 0x180);
   });
 
-  test('secure slots preserve corrupt evidence and reject overwrite', () async {
-    final previousPlatform = FlutterSecureStoragePlatform.instance;
-    final values = <String, String>{};
-    FlutterSecureStoragePlatform.instance = TestFlutterSecureStoragePlatform(
-      values,
-    );
-    addTearDown(() => FlutterSecureStoragePlatform.instance = previousPlatform);
-    const slot = 'credentialSlot000001';
-    const key = 'ianvs.data-api.remote-session.slot.v1.$slot';
-    values[key] = '{"version":999}';
-    final store = FlutterSecureDataApiRemoteSessionStore();
+  test(
+    'secure slots preserve unsupported evidence and reject overwrite',
+    () async {
+      final previousPlatform = FlutterSecureStoragePlatform.instance;
+      final values = <String, String>{};
+      FlutterSecureStoragePlatform.instance = TestFlutterSecureStoragePlatform(
+        values,
+      );
+      addTearDown(
+        () => FlutterSecureStoragePlatform.instance = previousPlatform,
+      );
+      const slot = 'credentialSlot000001';
+      const key = 'ianvs.data-api.remote-session.slot.v1.$slot';
+      values[key] = '{"version":0}';
+      final store = FlutterSecureDataApiRemoteSessionStore();
 
-    await expectLater(
-      store.readSlot(slot),
-      throwsA(isA<DataApiRemoteSessionFormatException>()),
-    );
-    expect(values[key], '{"version":999}');
+      await expectLater(
+        store.readSlot(slot),
+        throwsA(isA<DataApiRemoteSessionUnsupportedVersionException>()),
+      );
+      expect(values[key], '{"version":0}');
 
-    values.remove(key);
-    final original = _remoteSession(
-      baseUri: Uri.parse('https://sync.example.com/'),
+      const duplicate =
+          '{"version":1,"base_url":"https://sync.example.com/",'
+          '"access_token":"first","access_token":"second",'
+          '"encryption_key":"encryption-key-material",'
+          '"expires_at":"2100-01-01T00:00:00.000Z"}';
+      values[key] = duplicate;
+      await expectLater(
+        store.readSlot(slot),
+        throwsA(isA<DataApiJsonDuplicateKeyException>()),
+      );
+      expect(values[key], duplicate);
+
+      values.remove(key);
+      final original = _remoteSession(
+        baseUri: Uri.parse('https://sync.example.com/'),
+      );
+      await store.writeSlot(slot, original);
+      await expectLater(
+        store.writeSlot(
+          slot,
+          _remoteSession(baseUri: Uri.parse('https://other.example.com/')),
+        ),
+        throwsA(isA<DataApiRemoteSessionSlotExistsException>()),
+      );
+      expect((await store.readSlot(slot))?.baseUri, original.baseUri);
+    },
+  );
+
+  for (final failure in <Exception>[
+    const DataApiRemoteSessionUnsupportedVersionException(version: 0),
+    const DataApiJsonDuplicateKeyException(
+      documentName: 'Remote Data API session',
+      key: 'access_token',
+    ),
+  ]) {
+    test(
+      '${failure.runtimeType} blocks explicit Disabled without cleanup',
+      () async {
+        const slot = 'unsupportedSlot001';
+        final session = _remoteSession(
+          baseUri: Uri.parse('https://sync.example.com/'),
+        );
+        await repository.save(_persistedRemote(session.baseUri, slot));
+        final store = _MemoryRemoteSessionStore()
+          ..slots[slot] = session
+          ..slotReadErrors[slot] = failure;
+        final revoker = _RecordingRemoteRevoker();
+        final guarded = AuthenticatedDataApiConfigurationRepository(
+          delegate: repository,
+          remoteSessionStore: store,
+          remoteSessionRevoker: revoker,
+        );
+
+        await expectLater(
+          guarded.save(const DataApiConfiguration.disabled()),
+          throwsA(same(failure)),
+        );
+
+        expect((await repository.load()).deployment, DataApiDeployment.remote);
+        expect(store.slots[slot], same(session));
+        expect(revoker.revoked, isEmpty);
+      },
     );
-    await store.writeSlot(slot, original);
-    await expectLater(
-      store.writeSlot(
-        slot,
-        _remoteSession(baseUri: Uri.parse('https://other.example.com/')),
-      ),
-      throwsA(isA<DataApiRemoteSessionSlotExistsException>()),
-    );
-    expect((await store.readSlot(slot))?.baseUri, original.baseUri);
-  });
+  }
 
   test('remote session rejects an oversized access token before storage', () {
     expect(
@@ -2141,12 +1961,12 @@ void main() {
     );
   });
 
-  test('legacy non-loopback HTTP secure session is rejected', () {
+  test('non-loopback HTTP secure session is rejected', () {
     expect(
       () => DataApiRemoteSession.fromJson(<String, Object?>{
         'version': DataApiRemoteSession.currentVersion,
         'base_url': 'http://sync.example.com/',
-        'access_token': 'legacy-access-token',
+        'access_token': 'remote-access-token',
         'encryption_key': 'encryption-key-material',
         'expires_at': DateTime.now()
             .add(const Duration(hours: 1))
@@ -2387,18 +2207,21 @@ DataApiConfiguration _persistedRemote(Uri baseUri, String credentialRef) {
   );
 }
 
-final class _MemoryRemoteSessionStore
-    implements DataApiRemoteSessionStore, DataApiRemoteSessionSlotStore {
-  _MemoryRemoteSessionStore([this.session]);
+Future<DataApiRemoteSession?> _activeSession(
+  DataApiConfigurationRepository repository,
+  DataApiRemoteSessionSlotStore store,
+) async {
+  final slotRef = (await repository.load()).remoteCredentialRef;
+  return slotRef == null ? null : store.readSlot(slotRef);
+}
 
-  DataApiRemoteSession? session;
+final class _MemoryRemoteSessionStore implements DataApiRemoteSessionSlotStore {
   Error? readError;
   Error? clearError;
   Error? writeError;
   Error? afterSlotWriteError;
   final Set<int> failingWriteCalls = <int>{};
   int writeCount = 0;
-  int clearCount = 0;
   final Map<String, DataApiRemoteSession> slots =
       <String, DataApiRemoteSession>{};
   final Map<String, Exception> slotReadErrors = <String, Exception>{};
@@ -2407,35 +2230,6 @@ final class _MemoryRemoteSessionStore
 
   @override
   Future<Set<String>> listSlotRefs() async => slots.keys.toSet();
-
-  @override
-  Future<void> clear() async {
-    clearCount += 1;
-    final error = clearError;
-    if (error != null) {
-      throw error;
-    }
-    session = null;
-  }
-
-  @override
-  Future<DataApiRemoteSession?> read() async {
-    final error = readError;
-    if (error != null) {
-      throw error;
-    }
-    return session;
-  }
-
-  @override
-  Future<void> write(DataApiRemoteSession session) async {
-    writeCount += 1;
-    final error = writeError;
-    if (error != null || failingWriteCalls.contains(writeCount)) {
-      throw error ?? StateError('injected credential vault write failure');
-    }
-    this.session = session;
-  }
 
   @override
   Future<DataApiRemoteSession?> readSlot(String slotRef) async {

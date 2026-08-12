@@ -65,13 +65,24 @@ final class DataApiConfiguration {
   }
 
   factory DataApiConfiguration.fromJson(Map<String, Object?> json) {
-    final version = json['version'];
-    if (version != 1 && version != currentVersion) {
-      throw FormatException(
-        'Unsupported data API configuration version: $version.',
+    const allowedKeys = <String>{
+      'version',
+      'deployment',
+      'generation',
+      'remote_base_url',
+      'remote_credential_ref',
+      'last_transaction_id',
+    };
+    if (json.keys.any((key) => !allowedKeys.contains(key))) {
+      throw const FormatException(
+        'Data API configuration contains an unsupported field.',
       );
     }
-    final generation = version == 1 ? 0 : json['generation'];
+    final version = json['version'];
+    if (version != currentVersion) {
+      throw DataApiConfigurationUnsupportedVersionException(version: version);
+    }
+    final generation = json['generation'];
     if (generation is! int || generation < 0) {
       throw const FormatException(
         'Data API configuration generation is invalid.',
@@ -106,9 +117,9 @@ final class DataApiConfiguration {
       ),
     };
     if (configuration.deployment != DataApiDeployment.remote &&
-        credentialRef != null) {
+        (credentialRef != null || json.containsKey('remote_base_url'))) {
       throw const FormatException(
-        'Only remote Data API configuration may reference a credential.',
+        'Only remote Data API configuration may contain remote fields.',
       );
     }
     return configuration.withPersistenceState(
@@ -126,7 +137,11 @@ final class DataApiConfiguration {
     required this.lastTransactionId,
   });
 
-  static const currentVersion = 2;
+  /// The sole configuration schema shipped by the unreleased product.
+  ///
+  /// This version belongs only to the configuration document; secure session
+  /// slots and saga journals version their own independent formats.
+  static const currentVersion = 1;
 
   final DataApiDeployment deployment;
   final Uri? remoteBaseUri;
@@ -174,6 +189,21 @@ final class DataApiConfiguration {
       'remote_credential_ref': remoteCredentialRef,
     if (lastTransactionId != null) 'last_transaction_id': lastTransactionId,
   };
+}
+
+final class DataApiConfigurationUnsupportedVersionException
+    implements Exception {
+  const DataApiConfigurationUnsupportedVersionException({
+    required this.version,
+  });
+
+  final Object? version;
+
+  @override
+  String toString() {
+    return 'Unsupported Data API configuration version: $version. The '
+        'original configuration was preserved.';
+  }
 }
 
 bool _isPersistenceId(Object? value) {

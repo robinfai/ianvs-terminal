@@ -25,63 +25,47 @@ it is not another persistence source.
 
 Theme, layout-template, and recent-item repositories are deliberately deferred.
 They have no production provider/consumer path, so this composition does not
-construct API adapters or migrate their legacy files. Recording and replay
-persistence are also outside this boundary.
+construct API adapters or discover non-current persistence. Recording and
+replay persistence are also outside this boundary.
 
 ## Remote authentication
 
 Remote account login requires HTTPS, except for an explicit loopback HTTP
-development endpoint. The settings flow sends username/password to
-`POST /v1/auth/login`; the password is not persisted. The returned token,
-expiry, and user-supplied encryption key are stored only in the platform
-credential vault. The ordinary `configuration.json` contains only deployment
-mode and normalized base URL.
+development endpoint. Authentication is a two-step transaction: the app
+begins authentication, durably records the prepared credential slot and
+transaction intent, and only then completes the server exchange. Passwords
+are never persisted. The returned token, expiry, and user-supplied encryption
+key live in an immutable, generation-qualified platform credential slot. The
+ordinary `configuration.json` contains only non-secret deployment state,
+normalized base URL, credential-slot reference, generation, and transaction
+identity.
 
 Before committing remote configuration, the client validates both `/v1/me`
 and the bounded `POST /v1/auth/verify-key` account-key verifier. A missing, expired,
 wrong-origin, or wrong-key session leaves the prior configuration unchanged.
 The same URL can be reconnected explicitly after token loss or expiry.
-Switching to local or disabled mode commits the new non-secret configuration,
-clears the remote session locally, and then performs a bounded best-effort
-`POST /v1/auth/logout`. A network failure does not block this escape path: the
-UI reports a typed revocation-pending warning and the server token expires on
-its normal schedule. There is currently no persistent revocation retry queue.
-If credential-vault cleanup itself fails, the UI accurately reports that the
-mode was saved but the old local credential remains; restart still uses the
-new mode.
+Switching to local or disabled mode commits the new non-secret configuration
+and queues the old immutable credential slot for bounded revocation and
+cleanup. Revocation and interrupted-authentication cancellation queues are
+durable and replayed on startup; a network failure does not silently erase the
+pending work. Configuration, saga journal, and credential slots use
+generation/digest compare-and-swap checks under the repository's OS lock, so
+another process cannot replace the snapshot being committed. The UI exposes
+typed pending-cleanup warnings while startup and settings retry the same
+current transaction.
 
-## Concurrency and migration
+## Concurrency and current API persistence
 
-Adapters retain server revisions. Initial writes use
+There is no product-time importer for historical JSON repositories. API-backed
+deployments read and write only the current API resource contract; local JSON
+adapters remain an explicitly selected disabled-mode backend and are never
+silently imported, deleted, or used as fallback data.
+
+API adapters retain server revisions. Initial writes use
 `expected_revision: 0` (create-if-absent); updates and deletes use the revision
 returned by the preceding read. Terminal-config transforms are pure and may be
 replayed up to three times after a typed revision conflict. Ordinary save
 conflicts remain typed and visible to the caller.
-
-Each installation persists a random UUID under the application-support
-`data-api` directory. Legacy import uses that UUID for both its source identity
-and its per-installation completion marker, rather than an account-global
-constant. It submits all production-wired resources to the backend's
-transactional `/v1/migrations/merge` endpoint with `preserve_destination`.
-Each legacy document is a separate bounded merge transaction so the combined
-payload cannot exceed the 12 MiB request contract. A stable installation
-source ID and a per-resource monotonic revision journal make completed batches
-idempotently skip after a mid-sequence restart. The journal keys revisions by
-the SHA-256 of each source file's raw bytes, so a same-size, same-mtime rewrite
-still receives a higher source revision. Migration holds both a process-local
-guard and an operating-system file lock scoped to the installation. Before it
-writes the marker it re-hashes every source that existed at startup and checks
-that every source that was absent is still absent.
-
-Only a conflict-free merge writes the normal completion marker. A network or
-marker-write failure remains idempotently retryable. Existing remote resources
-are never overwritten: a conflict keeps composition in
-`persistence-unavailable`, writes no marker, and is shown on the startup
-surface. The user may explicitly confirm **Keep remote data**, which writes an
-acknowledged marker for that installation while leaving every local JSON file
-unchanged. Either a successful retry or that explicit decision requires a
-restart before API repositories are unlocked; the locked process never seeds
-defaults or falls back to local adapters.
 
 ## HTTP client boundary
 

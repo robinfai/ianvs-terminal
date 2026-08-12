@@ -174,58 +174,6 @@ final class _AppStartupFailureViewState extends State<_AppStartupFailureView> {
     }
   }
 
-  Future<void> _runMigrationRecovery(
-    AppStartupMigrationRecoveryCapability capability,
-  ) async {
-    if (_runningAction) {
-      return;
-    }
-    final confirmed = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) {
-        final (title, content, action) = switch (capability.kind) {
-          AppStartupMigrationRecoveryKind.keepRemote => (
-            'Keep remote data?',
-            'Remote values will remain authoritative. The conflicting local '
-                'JSON files will not be overwritten or deleted. This decision '
-                'applies only to this app installation.',
-            'Keep remote data',
-          ),
-          AppStartupMigrationRecoveryKind.resetJournal => (
-            'Reset migration journal?',
-            'The corrupt per-installation revision journal will be '
-                'quarantined. Ianvs Terminal will re-check and retry every '
-                'local migration item; remote data will not be overwritten '
-                'automatically.',
-            'Reset and retry',
-          ),
-        };
-        return AlertDialog(
-          title: Text(title),
-          content: Text(content),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: Text(action),
-            ),
-          ],
-        );
-      },
-    );
-    if (confirmed != true || !mounted) {
-      return;
-    }
-    await _run(() async {
-      await capability.run();
-      await widget.coordinator.retry();
-    });
-  }
-
   Future<void> _run(Future<void> Function() action) async {
     if (_runningAction) {
       return;
@@ -300,21 +248,6 @@ final class _AppStartupFailureViewState extends State<_AppStartupFailureView> {
                           onPressed: _runningAction ? null : _openSettings,
                           icon: const Icon(Icons.storage_outlined),
                           label: const Text('Data service settings'),
-                        ),
-                      for (final recovery in failure.migrationRecoveries)
-                        OutlinedButton(
-                          key: Key(
-                            'app-startup-migration-${recovery.kind.name}',
-                          ),
-                          onPressed: _runningAction
-                              ? null
-                              : () => _runMigrationRecovery(recovery),
-                          child: Text(switch (recovery.kind) {
-                            AppStartupMigrationRecoveryKind.keepRemote =>
-                              'Keep remote data',
-                            AppStartupMigrationRecoveryKind.resetJournal =>
-                              'Reset migration journal',
-                          }),
                         ),
                     ],
                   ),

@@ -3939,16 +3939,12 @@ class _ShellStartupSurface extends StatelessWidget {
     required this.errorMessage,
     required this.onRetry,
     required this.onOpenSettings,
-    required this.onKeepRemote,
-    required this.onResetMigrationJournal,
   });
 
   final AppThemeTokens palette;
   final String? errorMessage;
   final VoidCallback? onRetry;
   final VoidCallback onOpenSettings;
-  final VoidCallback? onKeepRemote;
-  final VoidCallback? onResetMigrationJournal;
 
   @override
   Widget build(BuildContext context) {
@@ -3983,22 +3979,6 @@ class _ShellStartupSurface extends StatelessWidget {
                           label: 'Data service settings',
                           onPressed: onOpenSettings,
                         ),
-                        if (onKeepRemote != null)
-                          AppActionButton(
-                            buttonKey: const Key('data-api-keep-remote'),
-                            tone: AppActionTone.secondary,
-                            icon: Icons.cloud_done_rounded,
-                            label: 'Keep remote data',
-                            onPressed: onKeepRemote,
-                          ),
-                        if (onResetMigrationJournal != null)
-                          AppActionButton(
-                            buttonKey: const Key('data-api-reset-journal'),
-                            tone: AppActionTone.secondary,
-                            icon: Icons.restore_page_rounded,
-                            label: 'Reset migration journal',
-                            onPressed: onResetMigrationJournal,
-                          ),
                         AppActionButton(
                           buttonKey: const Key('shell-startup-retry'),
                           icon: Icons.refresh,

@@ -32,8 +32,8 @@ T-331 supersedes the current-product claims made by T-312 through T-317:
 - recordings belong to an independent flat **Recording Library**;
 - Project Workspace identity, Recent Workspace and project switching are not
   current capabilities;
-- legacy Workspace/config/recording structures remain read-only migration
-  sources and are not deleted;
+- unsupported Workspace/config/recording structures are outside the current
+  product contract; runtime code neither imports nor deletes them;
 - completion/wiring diagnostics are debug-only; diagnostics export remains a
   user capability.
 
@@ -42,9 +42,10 @@ The authoritative boundary is
 decision is
 [`ADR-0003`](DECISIONS/ADR-0003-terminal-scope-convergence.md).
 
-Historical task documents T-312 through T-317 remain unchanged so their old
-implementation and verification evidence is not rewritten. They do not
-override T-331 or the current scope document.
+Historical task documents T-312 through T-317 remain unchanged as archival
+implementation evidence only. Their compatibility and migration descriptions
+are not product authority and do not override T-331 or the current scope
+document.
 
 ## Current invariants
 

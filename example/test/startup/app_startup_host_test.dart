@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:app/data/configuration/data_api_configuration.dart';
 import 'package:app/data/configuration/data_api_configuration_repository.dart';
 import 'package:app/data/services/data_api_remote_session_store.dart';
-import 'package:app/data/services/data_api_runtime.dart';
 import 'package:app/features/recording/local_session_recording_repository.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/persistence_repository_composition.dart';
@@ -287,65 +286,6 @@ void main() {
     expect(harness.settings.disableCount, 1);
   });
 
-  testWidgets('migration recovery preserves confirmation before retry', (
-    tester,
-  ) async {
-    final harness = _HostHarness.create(
-      failingStage: AppStartupStage.migration,
-    );
-    addTearDown(() => _disposeHarness(tester, harness));
-    await tester.pumpWidget(harness.host());
-    await harness.coordinator.start();
-    await tester.pump();
-    expect(
-      find.byKey(const Key('app-startup-migration-keepRemote')),
-      findsOneWidget,
-    );
-
-    await tester.tap(find.byKey(const Key('app-startup-migration-keepRemote')));
-    await tester.pump();
-    expect(find.text('Keep remote data?'), findsOneWidget);
-    await tester.tap(find.widgetWithText(FilledButton, 'Keep remote data'));
-    await tester.pumpAndSettle();
-    expect(_hasRuntimeGeneration(tester, 1), isTrue);
-
-    expect(harness.migrationRecovery.runCount, 1);
-  });
-
-  testWidgets(
-    'reset journal recovery can retry a partial failure without acknowledging twice',
-    (tester) async {
-      final harness = _HostHarness.create(
-        failingStage: AppStartupStage.migration,
-        migrationRecoveryKind: AppStartupMigrationRecoveryKind.resetJournal,
-        migrationFailuresBeforeSuccess: 1,
-      );
-      addTearDown(() => _disposeHarness(tester, harness));
-      await tester.pumpWidget(harness.host());
-      await harness.coordinator.start();
-      await tester.pump();
-
-      Future<void> runReset() async {
-        await tester.tap(
-          find.byKey(const Key('app-startup-migration-resetJournal')),
-        );
-        await tester.pump();
-        await tester.tap(find.widgetWithText(FilledButton, 'Reset and retry'));
-        await tester.pumpAndSettle();
-      }
-
-      await runReset();
-      expect(find.byKey(const Key('app-startup-action-error')), findsOneWidget);
-      expect(harness.migrationRecovery.runCount, 1);
-      expect(harness.migrationRecovery.acknowledgementCount, 1);
-
-      await runReset();
-      expect(_hasRuntimeGeneration(tester, 1), isTrue);
-      expect(harness.migrationRecovery.runCount, 2);
-      expect(harness.migrationRecovery.acknowledgementCount, 1);
-    },
-  );
-
   testWidgets(
     'stable shutdown channel survives keyed runtime graph replacement',
     (tester) async {
@@ -474,19 +414,12 @@ final class _HostHarness {
     required this.failingStage,
     required this.settings,
     required this.pathGate,
-    required AppStartupMigrationRecoveryKind migrationRecoveryKind,
-    required int migrationFailuresBeforeSuccess,
     required this.rollbackTimeout,
     required this.graphCloseGate,
     required this.graphCloseStarted,
     required this.graphPtyShutdown,
     required this.graphShutdownOrder,
   }) {
-    migrationRecovery = _HostMigrationRecovery(
-      kind: migrationRecoveryKind,
-      failuresBeforeSuccess: migrationFailuresBeforeSuccess,
-      onRun: () => failingStage = null,
-    );
     coordinator = AppStartupCoordinator(pipeline: _pipeline());
   }
 
@@ -496,9 +429,6 @@ final class _HostHarness {
         const DataApiConfiguration.disabled(),
     Object? settingsLoadError,
     Future<void>? pathGate,
-    AppStartupMigrationRecoveryKind migrationRecoveryKind =
-        AppStartupMigrationRecoveryKind.keepRemote,
-    int migrationFailuresBeforeSuccess = 0,
     Duration rollbackTimeout = const Duration(seconds: 8),
     Future<void>? graphCloseGate,
     Completer<void>? graphCloseStarted,
@@ -519,8 +449,6 @@ final class _HostHarness {
       failingStage: failingStage,
       settings: settings,
       pathGate: pathGate,
-      migrationRecoveryKind: migrationRecoveryKind,
-      migrationFailuresBeforeSuccess: migrationFailuresBeforeSuccess,
       rollbackTimeout: rollbackTimeout,
       graphCloseGate: graphCloseGate,
       graphCloseStarted: graphCloseStarted,
@@ -542,7 +470,6 @@ final class _HostHarness {
       _MemoryConfigurationRepository();
   final _MemoryRemoteSessionStore remoteSessionStore =
       _MemoryRemoteSessionStore();
-  late final _HostMigrationRecovery migrationRecovery;
   late final AppStartupCoordinator coordinator;
   int pathResolveCount = 0;
   int composeCount = 0;
@@ -601,15 +528,7 @@ final class _HostHarness {
       },
       bootstrapData: (paths, access, configurationSnapshot) async {
         _fail(AppStartupStage.dataBootstrap);
-        if (failingStage == AppStartupStage.migration) {
-          return DataApiRuntime.remote(
-            baseUri: Uri.parse('https://recovery.example.test/'),
-          );
-        }
         return null;
-      },
-      prepareMigration: (paths, access, configurationSnapshot, runtime) async {
-        _fail(AppStartupStage.migration);
       },
       preparePlatform: (paths) async {
         _fail(AppStartupStage.platform);
@@ -671,18 +590,6 @@ final class _HostHarness {
               shutdownCoordinator: shutdownCoordinator,
             );
           },
-      migrationRecoveries:
-          ({
-            required error,
-            required paths,
-            required configurationAccess,
-            required configurationSnapshot,
-          }) => <AppStartupMigrationRecoveryOperation>[
-            AppStartupMigrationRecoveryOperation(
-              kind: migrationRecovery.kind,
-              run: migrationRecovery.run,
-            ),
-          ],
       rollbackTimeout: rollbackTimeout,
     );
   }
@@ -756,33 +663,6 @@ final class _HostSettings implements AppStartupDataSettingsCapability {
   }
 }
 
-final class _HostMigrationRecovery {
-  _HostMigrationRecovery({
-    required this.kind,
-    required this.failuresBeforeSuccess,
-    required this.onRun,
-  });
-
-  final AppStartupMigrationRecoveryKind kind;
-  final int failuresBeforeSuccess;
-  final void Function() onRun;
-  int runCount = 0;
-  int acknowledgementCount = 0;
-  var _acknowledged = false;
-
-  Future<void> run(DataApiRuntime runtime) async {
-    runCount += 1;
-    if (!_acknowledged) {
-      _acknowledged = true;
-      acknowledgementCount += 1;
-    }
-    if (runCount <= failuresBeforeSuccess) {
-      throw StateError('Injected migration failure after acknowledgement.');
-    }
-    onRun();
-  }
-}
-
 final class _MemoryConfigurationRepository
     implements DataApiConfigurationRepository {
   @override
@@ -794,15 +674,18 @@ final class _MemoryConfigurationRepository
   Future<void> save(DataApiConfiguration configuration) async {}
 }
 
-final class _MemoryRemoteSessionStore implements DataApiRemoteSessionStore {
+final class _MemoryRemoteSessionStore implements DataApiRemoteSessionSlotStore {
   @override
-  Future<void> clear() async {}
+  Future<void> deleteSlot(String slotRef) async {}
 
   @override
-  Future<DataApiRemoteSession?> read() async => null;
+  Future<Set<String>> listSlotRefs() async => const <String>{};
 
   @override
-  Future<void> write(DataApiRemoteSession session) async {}
+  Future<DataApiRemoteSession?> readSlot(String slotRef) async => null;
+
+  @override
+  Future<void> writeSlot(String slotRef, DataApiRemoteSession session) async {}
 }
 
 final class _HostPtyBackend implements PtySessionBackend {

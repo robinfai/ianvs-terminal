@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:io';
 
 import 'package:app/data/configuration/data_api_configuration.dart';
@@ -24,6 +23,8 @@ import '../../support/memory_local_terminal_config_repository.dart';
 import '../../support/memory_paste_history_repository.dart';
 
 void main() {
+  const credentialRef = 'current-credential-slot-0001';
+
   testWidgets(
     'expired remote startup can reconnect from the typed error surface',
     (tester) async {
@@ -31,16 +32,20 @@ void main() {
       addTearDown(() => tester.binding.setSurfaceSize(null));
       final baseUri = Uri.parse('https://sync.example.com/');
       final configurationRepository = _MemoryConfigurationRepository(
-        DataApiConfiguration.remote(baseUri.toString()),
-      );
-      final sessionStore = _MemoryRemoteSessionStore(
-        DataApiRemoteSession(
-          baseUri: baseUri,
-          accessToken: 'expired-token',
-          encryptionKey: 'encryption-key-material',
-          expiresAt: DateTime.now().subtract(const Duration(minutes: 1)),
+        DataApiConfiguration.remote(baseUri.toString()).withPersistenceState(
+          generation: 1,
+          remoteCredentialRef: credentialRef,
+          lastTransactionId: null,
         ),
       );
+      final expiredSession = DataApiRemoteSession(
+        baseUri: baseUri,
+        accessToken: 'expired-token',
+        encryptionKey: 'encryption-key-material',
+        expiresAt: DateTime.now().subtract(const Duration(minutes: 1)),
+      );
+      final sessionStore = _MemoryRemoteSessionStore()
+        ..slots[credentialRef] = expiredSession;
       final renewedSession = DataApiRemoteSession(
         baseUri: baseUri,
         accessToken: 'renewed-token',
@@ -78,7 +83,7 @@ void main() {
             ),
             dataApiStartupWarningProvider.overrideWithValue(
               const DataApiStartupWarning(
-                'Local data migration did not complete. Restart to retry.',
+                'Data service cleanup is pending. Restart to retry.',
               ),
             ),
           ],
@@ -126,8 +131,12 @@ void main() {
         find.textContaining('Data service configuration saved'),
         findsOneWidget,
       );
-      expect(await guardedRepository.read(), same(renewedSession));
-      expect(sessionStore.session, isNull);
+      final saved = await configurationRepository.load();
+      expect(
+        await sessionStore.readSlot(saved.remoteCredentialRef!),
+        same(renewedSession),
+      );
+      expect(await sessionStore.readSlot(credentialRef), isNull);
       expect(configurationRepository.configuration.remoteBaseUri, baseUri);
     },
   );
@@ -139,16 +148,20 @@ void main() {
       addTearDown(() => tester.binding.setSurfaceSize(null));
       final baseUri = Uri.parse('https://sync.example.com/');
       final configurationRepository = _MemoryConfigurationRepository(
-        DataApiConfiguration.remote(baseUri.toString()),
-      );
-      final sessionStore = _MemoryRemoteSessionStore(
-        DataApiRemoteSession(
-          baseUri: baseUri,
-          accessToken: 'expired-token',
-          encryptionKey: 'encryption-key-material',
-          expiresAt: DateTime.now().add(const Duration(hours: 1)),
+        DataApiConfiguration.remote(baseUri.toString()).withPersistenceState(
+          generation: 1,
+          remoteCredentialRef: credentialRef,
+          lastTransactionId: null,
         ),
       );
+      final expiredSession = DataApiRemoteSession(
+        baseUri: baseUri,
+        accessToken: 'expired-token',
+        encryptionKey: 'encryption-key-material',
+        expiresAt: DateTime.now().add(const Duration(hours: 1)),
+      );
+      final sessionStore = _MemoryRemoteSessionStore()
+        ..slots[credentialRef] = expiredSession;
       final guardedRepository = AuthenticatedDataApiConfigurationRepository(
         delegate: configurationRepository,
         remoteSessionStore: sessionStore,
@@ -204,7 +217,7 @@ void main() {
         configurationRepository.configuration,
         const DataApiConfiguration.disabled(),
       );
-      expect(sessionStore.session, isNull);
+      expect(sessionStore.slots[credentialRef], same(expiredSession));
       expect(
         find.byKey(const Key('data-api-revocation-pending-warning')),
         findsOneWidget,
@@ -226,7 +239,11 @@ void main() {
       addTearDown(() => tester.binding.setSurfaceSize(null));
       final baseUri = Uri.parse('https://sync.example.com/');
       final configurationRepository = _MemoryConfigurationRepository(
-        DataApiConfiguration.remote(baseUri.toString()),
+        DataApiConfiguration.remote(baseUri.toString()).withPersistenceState(
+          generation: 1,
+          remoteCredentialRef: credentialRef,
+          lastTransactionId: null,
+        ),
       );
       final unreadableSession = DataApiRemoteSession(
         baseUri: baseUri,
@@ -234,7 +251,8 @@ void main() {
         encryptionKey: 'encryption-key-material',
         expiresAt: DateTime.now().add(const Duration(hours: 1)),
       );
-      final sessionStore = _MemoryRemoteSessionStore(unreadableSession)
+      final sessionStore = _MemoryRemoteSessionStore()
+        ..slots[credentialRef] = unreadableSession
         ..readError = StateError('credential vault read failed');
       final guardedRepository = AuthenticatedDataApiConfigurationRepository(
         delegate: configurationRepository,
@@ -290,137 +308,11 @@ void main() {
         configurationRepository.configuration,
         const DataApiConfiguration.disabled(),
       );
-      expect(sessionStore.session, same(unreadableSession));
-      expect(sessionStore.clearCount, 0);
+      expect(sessionStore.slots[credentialRef], same(unreadableSession));
+      expect(sessionStore.deleteCount, 0);
       expect(
         find.byKey(const Key('data-api-revocation-pending-warning')),
         findsOneWidget,
-      );
-    },
-  );
-
-  testWidgets(
-    'startup retry reruns preparation and keep-remote requires confirmation',
-    (tester) async {
-      await tester.binding.setSurfaceSize(const Size(1000, 820));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      var retryCount = 0;
-      var keepRemoteCount = 0;
-      var resetJournalCount = 0;
-      final retryResult = Completer<DataApiStartupRetryResult>();
-
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            ptySessionBackendProvider.overrideWithValue(FakePtyBackend()),
-            localSessionRecordingRepositoryProvider.overrideWithValue(
-              _NoopRecordingRepository(),
-            ),
-            profileRepositoryProvider.overrideWithValue(
-              const _UnavailableProfileRepository(),
-            ),
-            appPreferencesRepositoryProvider.overrideWithValue(
-              MemoryAppPreferencesRepository(null),
-            ),
-            localTerminalConfigRepositoryProvider.overrideWithValue(
-              MemoryLocalTerminalConfigRepository(null),
-            ),
-            pasteHistoryRepositoryProvider.overrideWithValue(
-              MemoryPasteHistoryRepository(),
-            ),
-            dataApiStartupRetryProvider.overrideWithValue(() async {
-              retryCount += 1;
-              return retryResult.future;
-            }),
-            dataApiMigrationKeepRemoteProvider.overrideWithValue(() async {
-              keepRemoteCount += 1;
-              return const DataApiStartupRetryResult(
-                succeeded: true,
-                message: 'Remote data kept; restart to unlock.',
-              );
-            }),
-            dataApiMigrationResetJournalProvider.overrideWithValue(() async {
-              resetJournalCount += 1;
-              return const DataApiStartupRetryResult(
-                succeeded: true,
-                message: 'Journal reset; migration completed; restart.',
-              );
-            }),
-          ],
-          child: MaterialApp(
-            theme: buildIanvsTerminalTheme(Brightness.dark),
-            home: const ShellScreen(),
-          ),
-        ),
-      );
-      await _pumpUntilFound(
-        tester,
-        find.byKey(const Key('shell-startup-error')),
-      );
-
-      await tester.tap(find.byKey(const Key('shell-startup-retry')));
-      await tester.pump();
-      await tester.tap(find.byKey(const Key('shell-startup-retry')));
-      await tester.pump();
-      expect(retryCount, 1);
-      retryResult.complete(
-        const DataApiStartupRetryResult(
-          succeeded: true,
-          message: 'Preparation completed; restart to unlock.',
-        ),
-      );
-      await tester.pumpAndSettle();
-      expect(retryCount, 1);
-      expect(
-        find.byKey(const Key('data-api-startup-retry-result')),
-        findsOneWidget,
-      );
-      expect(find.byKey(const Key('shell-startup-error')), findsOneWidget);
-      await tester.pump(const Duration(seconds: 5));
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.byKey(const Key('data-api-keep-remote')));
-      await tester.pumpAndSettle();
-      expect(keepRemoteCount, 0);
-      expect(
-        find.byKey(const Key('data-api-keep-remote-confirm')),
-        findsOneWidget,
-      );
-      await tester.tap(find.byKey(const Key('data-api-keep-remote-confirm')));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 500));
-
-      expect(keepRemoteCount, 1);
-      expect(
-        find.byKey(const Key('data-api-keep-remote-result')),
-        findsOneWidget,
-      );
-      expect(find.byKey(const Key('shell-startup-error')), findsOneWidget);
-      await tester.pump(const Duration(seconds: 5));
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.byKey(const Key('data-api-reset-journal')));
-      await tester.pumpAndSettle();
-      expect(resetJournalCount, 0);
-      expect(
-        find.byKey(const Key('data-api-reset-journal-confirm')),
-        findsOneWidget,
-      );
-      expect(
-        find.textContaining('remote data will not be overwritten'),
-        findsOneWidget,
-      );
-      await tester.tap(find.byKey(const Key('data-api-reset-journal-confirm')));
-      await tester.pumpAndSettle();
-      expect(resetJournalCount, 1);
-      expect(
-        find.byKey(const Key('data-api-reset-journal-result')),
-        findsOneWidget,
-      );
-      expect(
-        find.byKey(const Key('shell-startup-error')),
-        findsOneWidget,
-        reason: 'A successful retry remains locked until app restart.',
       );
     },
   );
@@ -432,7 +324,11 @@ void main() {
       addTearDown(() => tester.binding.setSurfaceSize(null));
       final baseUri = Uri.parse('https://sync.example.com/');
       final configurationRepository = _MemoryConfigurationRepository(
-        DataApiConfiguration.remote(baseUri.toString()),
+        DataApiConfiguration.remote(baseUri.toString()).withPersistenceState(
+          generation: 1,
+          remoteCredentialRef: credentialRef,
+          lastTransactionId: null,
+        ),
       );
       final session = DataApiRemoteSession(
         baseUri: baseUri,
@@ -440,7 +336,8 @@ void main() {
         encryptionKey: 'encryption-key-material',
         expiresAt: DateTime.now().add(const Duration(hours: 1)),
       );
-      final sessionStore = _MemoryRemoteSessionStore(session)
+      final sessionStore = _MemoryRemoteSessionStore()
+        ..slots[credentialRef] = session
         ..clearError = StateError('credential vault unavailable');
       final guardedRepository = AuthenticatedDataApiConfigurationRepository(
         delegate: configurationRepository,
@@ -501,7 +398,7 @@ void main() {
         configurationRepository.configuration,
         const DataApiConfiguration.disabled(),
       );
-      expect(sessionStore.session, same(session));
+      expect(sessionStore.slots[credentialRef], same(session));
     },
   );
 
@@ -713,43 +610,17 @@ final class _FailingLoadConfigurationRepository
   }
 }
 
-final class _MemoryRemoteSessionStore
-    implements DataApiRemoteSessionStore, DataApiRemoteSessionSlotStore {
-  _MemoryRemoteSessionStore(this.session);
+final class _MemoryRemoteSessionStore implements DataApiRemoteSessionSlotStore {
+  _MemoryRemoteSessionStore();
 
-  DataApiRemoteSession? session;
   Error? readError;
   Error? clearError;
-  int clearCount = 0;
+  int deleteCount = 0;
   final Map<String, DataApiRemoteSession> slots =
       <String, DataApiRemoteSession>{};
 
   @override
   Future<Set<String>> listSlotRefs() async => slots.keys.toSet();
-
-  @override
-  Future<void> clear() async {
-    clearCount += 1;
-    final error = clearError;
-    if (error != null) {
-      throw error;
-    }
-    session = null;
-  }
-
-  @override
-  Future<DataApiRemoteSession?> read() async {
-    final error = readError;
-    if (error != null) {
-      throw error;
-    }
-    return session;
-  }
-
-  @override
-  Future<void> write(DataApiRemoteSession session) async {
-    this.session = session;
-  }
 
   @override
   Future<DataApiRemoteSession?> readSlot(String slotRef) async {
@@ -770,6 +641,7 @@ final class _MemoryRemoteSessionStore
 
   @override
   Future<void> deleteSlot(String slotRef) async {
+    deleteCount += 1;
     final error = clearError;
     if (error != null) {
       throw error;

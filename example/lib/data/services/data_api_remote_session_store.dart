@@ -3,10 +3,11 @@ import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../configuration/data_api_configuration.dart';
+import '../data_api_json.dart';
 import 'data_api_auth_contract.dart';
 
 /// Authenticated remote Data API material. This object must only be persisted
-/// by a [DataApiRemoteSessionStore], never in the non-secret configuration
+/// by a [DataApiRemoteSessionSlotStore], never in the non-secret configuration
 /// JSON file.
 final class DataApiRemoteSession {
   static const int maximumAccessTokenBytes = 32 * 1024;
@@ -43,9 +44,21 @@ final class DataApiRemoteSession {
   }
 
   factory DataApiRemoteSession.fromJson(Map<String, Object?> json) {
+    const allowedKeys = <String>{
+      'version',
+      'base_url',
+      'access_token',
+      'encryption_key',
+      'expires_at',
+    };
+    if (json.keys.any((key) => !allowedKeys.contains(key))) {
+      throw const FormatException(
+        'Remote Data API session contains an unsupported field.',
+      );
+    }
     if (json['version'] != currentVersion) {
-      throw FormatException(
-        'Unsupported remote Data API session version: ${json['version']}.',
+      throw DataApiRemoteSessionUnsupportedVersionException(
+        version: json['version'],
       );
     }
     final baseUri = json['base_url'];
@@ -100,14 +113,6 @@ final class DataApiRemoteSession {
   };
 }
 
-abstract interface class DataApiRemoteSessionStore {
-  Future<DataApiRemoteSession?> read();
-
-  Future<void> write(DataApiRemoteSession session);
-
-  Future<void> clear();
-}
-
 abstract interface class DataApiRemoteSessionSlotStore {
   Future<Set<String>> listSlotRefs();
 
@@ -135,6 +140,21 @@ final class DataApiRemoteSessionFormatException implements Exception {
   }
 }
 
+final class DataApiRemoteSessionUnsupportedVersionException
+    implements Exception {
+  const DataApiRemoteSessionUnsupportedVersionException({
+    required this.version,
+  });
+
+  final Object? version;
+
+  @override
+  String toString() {
+    return 'Unsupported remote Data API session version: $version. The '
+        'original secure-storage item was preserved.';
+  }
+}
+
 final class DataApiRemoteSessionSlotExistsException implements Exception {
   const DataApiRemoteSessionSlotExistsException(this.slotRef);
 
@@ -149,7 +169,7 @@ final class DataApiRemoteSessionSlotExistsException implements Exception {
 /// platform credential vault. The ordinary configuration file contains only
 /// deployment mode and base URL.
 final class FlutterSecureDataApiRemoteSessionStore
-    implements DataApiRemoteSessionStore, DataApiRemoteSessionSlotStore {
+    implements DataApiRemoteSessionSlotStore {
   FlutterSecureDataApiRemoteSessionStore({FlutterSecureStorage? storage})
     : _storage =
           storage ??
@@ -157,16 +177,10 @@ final class FlutterSecureDataApiRemoteSessionStore
             mOptions: MacOsOptions(usesDataProtectionKeychain: false),
           );
 
-  static const _sessionKey = 'ianvs.data-api.remote-session.v1';
   static const _slotKeyPrefix = 'ianvs.data-api.remote-session.slot.v1.';
   static const int _maximumEncodedSessionBytes = 64 * 1024;
 
   final FlutterSecureStorage _storage;
-
-  @override
-  Future<DataApiRemoteSession?> read() async {
-    return _readKey(_sessionKey, slotRef: 'legacy');
-  }
 
   @override
   Future<DataApiRemoteSession?> readSlot(String slotRef) {
@@ -185,14 +199,11 @@ final class FlutterSecureDataApiRemoteSessionStore
       if (utf8.encode(encoded).length > _maximumEncodedSessionBytes) {
         throw const FormatException('Remote Data API session is too large.');
       }
-      final decoded = jsonDecode(encoded);
-      if (decoded is! Map) {
-        throw const FormatException(
-          'Remote Data API session is not an object.',
-        );
-      }
       return DataApiRemoteSession.fromJson(
-        decoded.map((key, value) => MapEntry(key.toString(), value as Object?)),
+        decodeDataApiJsonObject(
+          encoded,
+          documentName: 'Remote Data API session',
+        ),
       );
     } on FormatException catch (error, stackTrace) {
       Error.throwWithStackTrace(
@@ -201,14 +212,6 @@ final class FlutterSecureDataApiRemoteSessionStore
       );
     }
   }
-
-  @override
-  Future<void> write(DataApiRemoteSession session) {
-    return _storage.write(key: _sessionKey, value: _encodeSession(session));
-  }
-
-  @override
-  Future<void> clear() => _storage.delete(key: _sessionKey);
 
   @override
   Future<void> writeSlot(String slotRef, DataApiRemoteSession session) async {

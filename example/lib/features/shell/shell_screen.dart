@@ -23,7 +23,6 @@ import '../config/local_terminal_config_bootstrap.dart';
 import '../config/local_terminal_config_models.dart';
 import '../config/local_terminal_config_preferences_adapter.dart';
 import '../config/shortcut_editor.dart';
-import '../persistence/data_api_startup_recovery_presenter.dart';
 import '../persistence/versioned_document.dart';
 import '../policies/local_terminal_paste_decision.dart';
 import '../policies/local_terminal_policy_models.dart';
@@ -257,8 +256,6 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   bool _isDefaultsOpen = false;
   bool _isProfilesOpen = false;
   bool _dataApiStartupWarningDismissed = false;
-  bool _dataApiStartupRecoveryRunning = false;
-  late final DataApiStartupRecoveryPresenter _dataApiRecoveryPresenter;
   bool _isSearchOpen = false;
   bool _isAutocompleteOpen = false;
   bool _isAutoComposerOpen = false;
@@ -382,14 +379,6 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   @override
   void initState() {
     super.initState();
-    _dataApiRecoveryPresenter = DataApiStartupRecoveryPresenter(
-      context: () => context,
-      isMounted: () => mounted,
-      isRunning: () => _dataApiStartupRecoveryRunning,
-      setRunning: (running) {
-        setState(() => _dataApiStartupRecoveryRunning = running);
-      },
-    );
     final runtime = ref.read(referenceDemoModeProvider)
         ? null
         : ref.read(terminalRuntimeControllerProvider);
@@ -657,13 +646,6 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     final referenceDemoMode = ref.watch(referenceDemoModeProvider);
     final animationsEnabled = ref.watch(shellAnimationsEnabledProvider);
     final dataApiStartupWarning = ref.watch(dataApiStartupWarningProvider);
-    final dataApiStartupRetry = ref.watch(dataApiStartupRetryProvider);
-    final dataApiMigrationResetJournal = ref.watch(
-      dataApiMigrationResetJournalProvider,
-    );
-    final dataApiMigrationKeepRemote = ref.watch(
-      dataApiMigrationKeepRemoteProvider,
-    );
     TerminalTab? activeTab;
     if (activeSessionId != null) {
       for (final tab in sessionState.tabs) {
@@ -1351,39 +1333,14 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                 ? null
                                 : sessionState.lastError,
                             onRetry:
-                                !_dataApiStartupRecoveryRunning &&
-                                    !sessionState.isReady &&
+                                !sessionState.isReady &&
                                     sessionState.lastError != null
-                                ? dataApiStartupRetry == null
-                                      ? sessionController.retryBootstrap
-                                      : () => unawaited(
-                                          _dataApiRecoveryPresenter.retry(
-                                            dataApiStartupRetry,
-                                          ),
-                                        )
+                                ? sessionController.retryBootstrap
                                 : null,
                             onOpenSettings: () => _openDefaultsAndAppearance(
                               sessionController,
                               sessionState,
                             ),
-                            onKeepRemote:
-                                dataApiMigrationKeepRemote == null ||
-                                    _dataApiStartupRecoveryRunning
-                                ? null
-                                : () => unawaited(
-                                    _dataApiRecoveryPresenter.keepRemote(
-                                      dataApiMigrationKeepRemote,
-                                    ),
-                                  ),
-                            onResetMigrationJournal:
-                                dataApiMigrationResetJournal == null ||
-                                    _dataApiStartupRecoveryRunning
-                                ? null
-                                : () => unawaited(
-                                    _dataApiRecoveryPresenter.resetJournal(
-                                      dataApiMigrationResetJournal,
-                                    ),
-                                  ),
                           )
                         : activeSessionId == null || activeTab == null
                         ? _ShellEmptyState(

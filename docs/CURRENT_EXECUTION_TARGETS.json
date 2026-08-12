@@ -299,7 +299,7 @@
           "path": "docs/TERMINAL_PRODUCT_SCOPE.md",
           "contains": [
             "Open Terminal at Folder",
-            "Legacy Workspace v1-v3",
+            "Unsupported Workspace schemas",
             "SSH is implemented as a **Profile and Session extension**"
           ]
         },

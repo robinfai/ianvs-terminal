@@ -455,7 +455,6 @@ Iterable<File> _allowedShellExternalDependencies(Directory libDirectory) {
     'features/layout/local_terminal_layout_models.dart',
     'features/layout/terminal_layout_action_reducer.dart',
     'features/layout/terminal_layout_production_callbacks.dart',
-    'features/persistence/data_api_startup_recovery_presenter.dart',
     'features/persistence/versioned_document.dart',
     'features/policies/local_terminal_notification_dispatcher.dart',
     'features/policies/local_terminal_paste_decision.dart',

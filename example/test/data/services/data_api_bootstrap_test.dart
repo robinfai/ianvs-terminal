@@ -62,7 +62,7 @@ void main() {
   test('remote configuration creates a runtime without a sidecar', () async {
     final bootstrap = DataApiBootstrap(
       configurationRepository: _MemoryConfigurationRepository(
-        DataApiConfiguration.remote('https://sync.example.com/api'),
+        _remoteConfiguration('https://sync.example.com/api'),
       ),
       remoteSessionStore: _MemoryRemoteSessionStore(
         DataApiRemoteSession(
@@ -87,7 +87,7 @@ void main() {
   test('remote configuration without a secure session fails closed', () async {
     final bootstrap = DataApiBootstrap(
       configurationRepository: _MemoryConfigurationRepository(
-        DataApiConfiguration.remote('https://sync.example.com/api'),
+        _remoteConfiguration('https://sync.example.com/api'),
       ),
       remoteSessionStore: _MemoryRemoteSessionStore(null),
       isMacOS: false,
@@ -175,7 +175,7 @@ void main() {
   test('secure-session read failure is typed and fails closed', () async {
     final bootstrap = DataApiBootstrap(
       configurationRepository: _MemoryConfigurationRepository(
-        DataApiConfiguration.remote('https://sync.example.com/api'),
+        _remoteConfiguration('https://sync.example.com/api'),
       ),
       remoteSessionStore: _ThrowingRemoteSessionStore(
         const FileSystemException('credential vault unavailable'),
@@ -327,36 +327,53 @@ final class _ThrowingConfigurationRepository
   Future<void> save(DataApiConfiguration configuration) async {}
 }
 
-final class _MemoryRemoteSessionStore implements DataApiRemoteSessionStore {
+DataApiConfiguration _remoteConfiguration(String url) {
+  return DataApiConfiguration.remote(url).withPersistenceState(
+    generation: 1,
+    remoteCredentialRef: 'remoteSlot0000001',
+    lastTransactionId: 'remoteTransaction01',
+  );
+}
+
+final class _MemoryRemoteSessionStore implements DataApiRemoteSessionSlotStore {
   _MemoryRemoteSessionStore(this.session);
 
   DataApiRemoteSession? session;
 
   @override
-  Future<void> clear() async => session = null;
+  Future<Set<String>> listSlotRefs() async => const <String>{
+    'remoteSlot0000001',
+  };
 
   @override
-  Future<DataApiRemoteSession?> read() async => session;
+  Future<DataApiRemoteSession?> readSlot(String slotRef) async => session;
 
   @override
-  Future<void> write(DataApiRemoteSession session) async {
-    this.session = session;
-  }
+  Future<void> writeSlot(String slotRef, DataApiRemoteSession session) async =>
+      this.session = session;
+
+  @override
+  Future<void> deleteSlot(String slotRef) async => session = null;
 }
 
-final class _ThrowingRemoteSessionStore implements DataApiRemoteSessionStore {
+final class _ThrowingRemoteSessionStore
+    implements DataApiRemoteSessionSlotStore {
   _ThrowingRemoteSessionStore(this.error);
 
   final Object error;
 
   @override
-  Future<void> clear() async {}
+  Future<Set<String>> listSlotRefs() => Future.error(error);
 
   @override
-  Future<DataApiRemoteSession?> read() => Future.error(error);
+  Future<DataApiRemoteSession?> readSlot(String slotRef) => Future.error(error);
 
   @override
-  Future<void> write(DataApiRemoteSession session) async {}
+  Future<void> writeSlot(String slotRef, DataApiRemoteSession session) =>
+      Future.error(error);
+
+  @override
+  Future<void> deleteSlot(String slotRef) => Future.error(error);
 }
 
 final class _TerminationUnknownFailure

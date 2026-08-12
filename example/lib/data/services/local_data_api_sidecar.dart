@@ -1,7 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ffi' as ffi;
 import 'dart:io';
 
+import 'package:ffi/ffi.dart';
+
+import 'data_api_local_access_token.dart';
 import 'data_api_runtime.dart';
 
 class LocalDataApiSidecar {
@@ -14,6 +18,10 @@ class LocalDataApiSidecar {
   static const _defaultShutdownGracePeriod = Duration(seconds: 5);
   static const _defaultShutdownTerminateTimeout = Duration(seconds: 3);
   static const _defaultShutdownKillTimeout = Duration(seconds: 2);
+  static const _minimumProcessEnvironment = <String, String>{
+    'LANG': 'C',
+    'PATH': '/usr/bin:/bin',
+  };
 
   final Uri baseUri;
   final LocalDataApiSidecarResourceCleanup _resourceCleanup;
@@ -32,23 +40,27 @@ class LocalDataApiSidecar {
       throw StateError('The bundled local data API is missing: ${binary.path}');
     }
     await database.parent.create(recursive: true);
+    final runtimeConfiguration =
+        await LocalDataApiSidecarRuntimeConfiguration.create(
+          parent: database.parent,
+          database: database,
+          localAccessToken: localAccessToken,
+        );
 
-    final process = await Process.start(
-      binary.path,
-      const <String>['serve'],
-      environment: <String, String>{
-        ...Platform.environment,
-        'IANVS_API_MODE': 'local',
-        'IANVS_API_ADDR': '127.0.0.1:0',
-        'IANVS_DB_DRIVER': 'sqlite',
-        'IANVS_DB_DSN': database.path,
-        'IANVS_ALLOW_REGISTRATION': 'false',
-        'IANVS_LOCAL_ACCESS_TOKEN': localAccessToken,
-        'IANVS_EXIT_ON_STDIN_CLOSE': 'true',
-      },
-      workingDirectory: binary.parent.path,
-      runInShell: false,
-    );
+    late final Process process;
+    try {
+      process = await Process.start(
+        binary.path,
+        <String>['serve', '--config', runtimeConfiguration.file.path],
+        environment: _minimumProcessEnvironment,
+        includeParentEnvironment: false,
+        workingDirectory: binary.parent.path,
+        runInShell: false,
+      );
+    } on Object {
+      await runtimeConfiguration.delete();
+      rethrow;
+    }
     final processTerminator = LocalDataApiSidecarProcessTerminator(
       gracePeriod: shutdownGracePeriod,
       terminateTimeout: shutdownTerminateTimeout,
@@ -62,10 +74,8 @@ class LocalDataApiSidecar {
     final stderrTail = _SanitizedStderrTail(
       secrets: <String>{
         localAccessToken,
-        ...Platform.environment.entries
-            .where((entry) => _looksLikeSecretName(entry.key))
-            .map((entry) => entry.value)
-            .where((value) => value.length >= 4),
+        database.path,
+        runtimeConfiguration.file.path,
       },
     );
     final stdoutSubscription = process.stdout
@@ -92,8 +102,11 @@ class LocalDataApiSidecar {
     final resourceCleanup = LocalDataApiSidecarResourceCleanup(
       process: terminationProcess,
       processTerminator: processTerminator,
-      cancelSubscriptions: () =>
-          _cancelSubscriptions(stdoutSubscription, stderrSubscription),
+      cancelSubscriptions: () => _cancelSubscriptionsAndRuntimeConfiguration(
+        stdoutSubscription,
+        stderrSubscription,
+        runtimeConfiguration,
+      ),
     );
     unawaited(
       process.exitCode.then((exitCode) async {
@@ -112,6 +125,9 @@ class LocalDataApiSidecar {
 
     try {
       final baseUri = await ready.future.timeout(startupTimeout);
+      // The backend loads the document before announcing READY. Remove the
+      // token-bearing file immediately; later cleanup remains idempotent.
+      await runtimeConfiguration.delete();
       startupPending = false;
       return LocalDataApiSidecar._(
         baseUri: baseUri,
@@ -135,6 +151,81 @@ class LocalDataApiSidecar {
   }
 
   Future<void> close() => _closeFuture ??= _resourceCleanup.close();
+}
+
+/// One process-private backend configuration document.
+///
+/// It deliberately lives outside the user-facing Data API configuration file
+/// and owns the bearer token only for the lifetime of one local sidecar.
+final class LocalDataApiSidecarRuntimeConfiguration {
+  const LocalDataApiSidecarRuntimeConfiguration._({
+    required this.directory,
+    required this.file,
+  });
+
+  static const currentSchemaVersion = 1;
+
+  final Directory directory;
+  final File file;
+
+  static Future<LocalDataApiSidecarRuntimeConfiguration> create({
+    required Directory parent,
+    required File database,
+    required String localAccessToken,
+  }) async {
+    if (!isCanonicalDataApiLocalAccessToken(localAccessToken)) {
+      throw const FormatException(
+        'The local Data API access token must be a canonical unpadded '
+        'base64url encoding of 32 random bytes.',
+      );
+    }
+    final directory = await parent.createTemp('sidecar-runtime-');
+    final file = File(
+      '${directory.path}${Platform.pathSeparator}runtime-config.json',
+    );
+    RandomAccessFile? writer;
+    var completed = false;
+    try {
+      _setPrivatePosixMode(directory.path, 0x1c0);
+      // The parent directory was freshly created with a random name and 0700
+      // permissions, so this path cannot pre-exist or be observed by peers.
+      writer = await file.open(mode: FileMode.write);
+      _setPrivatePosixMode(file.path, 0x180);
+      final document = <String, Object?>{
+        'schema_version': currentSchemaVersion,
+        'mode': 'local',
+        'address': '127.0.0.1:0',
+        'database_driver': 'sqlite',
+        'database_dsn': database.absolute.path,
+        'local_access_token': localAccessToken,
+        'exit_on_stdin_close': true,
+        'auth_token_ttl_seconds': 3600,
+        'allow_registration': false,
+        'allow_insecure_sensitive_transport': false,
+        'trust_proxy_headers': false,
+      };
+      await writer.writeFrom(utf8.encode('${jsonEncode(document)}\n'));
+      await writer.flush();
+      await writer.close();
+      writer = null;
+      completed = true;
+      return LocalDataApiSidecarRuntimeConfiguration._(
+        directory: directory,
+        file: file,
+      );
+    } finally {
+      await writer?.close();
+      if (!completed && await directory.exists()) {
+        await directory.delete(recursive: true);
+      }
+    }
+  }
+
+  Future<void> delete() async {
+    if (await directory.exists()) {
+      await directory.delete(recursive: true);
+    }
+  }
 }
 
 class LocalDataApiSidecarStartException
@@ -520,19 +611,6 @@ class _SanitizedStderrTail {
   }
 }
 
-bool _looksLikeSecretName(String name) {
-  final normalized = name.toLowerCase();
-  return normalized.contains('token') ||
-      normalized.contains('secret') ||
-      normalized.contains('password') ||
-      normalized.contains('passwd') ||
-      normalized.contains('credential') ||
-      normalized.contains('api_key') ||
-      normalized.contains('apikey') ||
-      normalized.contains('private_key') ||
-      normalized.contains('encryption_key');
-}
-
 Future<bool> _waitForSidecarExit(
   LocalDataApiSidecarProcess process,
   Duration timeout,
@@ -553,4 +631,52 @@ Future<void> _cancelSubscriptions(
     stdoutSubscription.cancel(),
     stderrSubscription.cancel(),
   ]).timeout(const Duration(seconds: 2), onTimeout: () => <void>[]);
+}
+
+Future<void> _cancelSubscriptionsAndRuntimeConfiguration(
+  StreamSubscription<String> stdoutSubscription,
+  StreamSubscription<String> stderrSubscription,
+  LocalDataApiSidecarRuntimeConfiguration runtimeConfiguration,
+) async {
+  Object? cancellationError;
+  StackTrace? cancellationStackTrace;
+  try {
+    await _cancelSubscriptions(stdoutSubscription, stderrSubscription);
+  } on Object catch (error, stackTrace) {
+    cancellationError = error;
+    cancellationStackTrace = stackTrace;
+  }
+  try {
+    await runtimeConfiguration.delete();
+  } on Object catch (error, stackTrace) {
+    cancellationError ??= error;
+    cancellationStackTrace ??= stackTrace;
+  }
+  if (cancellationError != null) {
+    Error.throwWithStackTrace(cancellationError, cancellationStackTrace!);
+  }
+}
+
+int Function(ffi.Pointer<Utf8> path, int mode)? _chmod;
+
+void _setPrivatePosixMode(String path, int mode) {
+  if (Platform.isWindows) {
+    return;
+  }
+  final chmod = _chmod ??= ffi.DynamicLibrary.process()
+      .lookupFunction<
+        ffi.Int32 Function(ffi.Pointer<Utf8> path, ffi.Uint32 mode),
+        int Function(ffi.Pointer<Utf8> path, int mode)
+      >('chmod');
+  final nativePath = path.toNativeUtf8();
+  try {
+    if (chmod(nativePath, mode) != 0) {
+      throw FileSystemException(
+        'Could not restrict local Data API runtime configuration permissions.',
+        path,
+      );
+    }
+  } finally {
+    malloc.free(nativePath);
+  }
 }

@@ -29,13 +29,6 @@ typedef AppStartupDataBootstrap =
       AppStartupConfigurationAccess access,
       AppStartupConfigurationSnapshot configurationSnapshot,
     );
-typedef AppStartupMigration =
-    Future<void> Function(
-      AppStartupPaths paths,
-      AppStartupConfigurationAccess access,
-      AppStartupConfigurationSnapshot configurationSnapshot,
-      DataApiRuntime? runtime,
-    );
 typedef AppStartupPlatformPreparer =
     Future<AppStartupPlatformPreparation> Function(AppStartupPaths paths);
 typedef AppStartupPtyLoader =
@@ -50,13 +43,6 @@ typedef AppStartupGraphComposer =
       required DataApiStartupWarning? dataApiStartupWarning,
       required PtySessionBackend ptySessionBackend,
     });
-typedef AppStartupMigrationRecoveryFactory =
-    List<AppStartupMigrationRecoveryOperation> Function({
-      required Object error,
-      required AppStartupPaths paths,
-      required AppStartupConfigurationAccess configurationAccess,
-      required AppStartupConfigurationSnapshot configurationSnapshot,
-    });
 
 final class AppStartupPipeline {
   const AppStartupPipeline({
@@ -66,11 +52,9 @@ final class AppStartupPipeline {
     required this.validateConfiguration,
     required this.recoverSecureConfiguration,
     required this.bootstrapData,
-    required this.prepareMigration,
     required this.preparePlatform,
     required this.loadPty,
     required this.composeGraph,
-    required this.migrationRecoveries,
     this.rollbackTimeout = const Duration(seconds: 8),
   });
 
@@ -80,11 +64,9 @@ final class AppStartupPipeline {
   final AppStartupConfigurationValidator validateConfiguration;
   final AppStartupSecureRecovery recoverSecureConfiguration;
   final AppStartupDataBootstrap bootstrapData;
-  final AppStartupMigration prepareMigration;
   final AppStartupPlatformPreparer preparePlatform;
   final AppStartupPtyLoader loadPty;
   final AppStartupGraphComposer composeGraph;
-  final AppStartupMigrationRecoveryFactory migrationRecoveries;
   final Duration rollbackTimeout;
 }
 
@@ -104,7 +86,6 @@ final class AppStartupCoordinator extends ChangeNotifier {
   AppStartupState get state => _state;
 
   Future<void>? _activeAttempt;
-  Future<void>? _activeRecovery;
   AppRuntimeGraph? _ownedGraph;
   _PendingRuntimeRollback? _pendingRuntimeRollback;
   _PendingGraphRollback? _pendingGraphRollback;
@@ -125,10 +106,6 @@ final class AppStartupCoordinator extends ChangeNotifier {
   Future<void> retry() => _runSingleFlight();
 
   Future<void> _runSingleFlight() {
-    final activeRecovery = _activeRecovery;
-    if (activeRecovery != null) {
-      return activeRecovery;
-    }
     final activeAttempt = _activeAttempt;
     if (activeAttempt != null) {
       return activeAttempt;
@@ -156,7 +133,6 @@ final class AppStartupCoordinator extends ChangeNotifier {
         poisonedTerminationLease.error,
         poisonedTerminationLease.stackTrace,
         dataSettings: poisonedTerminationLease.dataSettings,
-        migrationRecoveries: poisonedTerminationLease.migrationRecoveries,
       );
       return;
     }
@@ -173,12 +149,7 @@ final class AppStartupCoordinator extends ChangeNotifier {
         if (_closeIsStillSettling(error)) {
           return;
         }
-        _retainPoisonedTerminationLease(
-          error,
-          stackTrace,
-          dataSettings: null,
-          migrationRecoveries: const <AppStartupMigrationRecoveryCapability>[],
-        );
+        _retainPoisonedTerminationLease(error, stackTrace, dataSettings: null);
         _setFailure(AppStartupStage.runtimeShutdown, error, stackTrace);
         if (_disposed) {
           Error.throwWithStackTrace(error, stackTrace);
@@ -208,7 +179,6 @@ final class AppStartupCoordinator extends ChangeNotifier {
           error,
           stackTrace,
           dataSettings: pendingRuntimeRollback.dataSettings,
-          migrationRecoveries: pendingRuntimeRollback.migrationRecoveries,
         );
         return;
       }
@@ -229,7 +199,6 @@ final class AppStartupCoordinator extends ChangeNotifier {
           error,
           stackTrace,
           dataSettings: pendingGraphRollback.dataSettings,
-          migrationRecoveries: pendingGraphRollback.migrationRecoveries,
         );
         return;
       }
@@ -279,18 +248,6 @@ final class AppStartupCoordinator extends ChangeNotifier {
         paths,
         configurationAccess,
         configurationSnapshot,
-      );
-      if (await _stopAttemptIfShutdownRequested(runtime: dataApiRuntime)) {
-        dataApiRuntime = null;
-        return;
-      }
-
-      stage = AppStartupStage.migration;
-      await _pipeline.prepareMigration(
-        paths,
-        configurationAccess,
-        configurationSnapshot,
-        dataApiRuntime,
       );
       if (await _stopAttemptIfShutdownRequested(runtime: dataApiRuntime)) {
         dataApiRuntime = null;
@@ -348,30 +305,6 @@ final class AppStartupCoordinator extends ChangeNotifier {
     } on Object catch (error, stackTrace) {
       Object failureError = error;
       StackTrace failureStackTrace = stackTrace;
-      final recoveryOperations =
-          stage == AppStartupStage.migration &&
-              paths != null &&
-              configurationAccess != null &&
-              configurationSnapshot != null
-          ? _pipeline.migrationRecoveries(
-              error: error,
-              paths: paths,
-              configurationAccess: configurationAccess,
-              configurationSnapshot: configurationSnapshot,
-            )
-          : const <AppStartupMigrationRecoveryOperation>[];
-      final migrationRecoveries = <AppStartupMigrationRecoveryCapability>[
-        if (paths != null && configurationAccess != null)
-          for (final operation in recoveryOperations)
-            _OwnedMigrationRecoveryCapability(
-              owner: this,
-              context: _MigrationRecoveryContext(
-                paths: paths,
-                configurationAccess: configurationAccess,
-              ),
-              operation: operation,
-            ),
-      ];
       final graph = candidateGraph;
       if (graph != null) {
         try {
@@ -381,7 +314,6 @@ final class AppStartupCoordinator extends ChangeNotifier {
             _pendingGraphRollback = _PendingGraphRollback(
               graph: graph,
               dataSettings: configurationAccess?.settings,
-              migrationRecoveries: migrationRecoveries,
             );
           }
           failureError = AppStartupRollbackException(
@@ -400,7 +332,6 @@ final class AppStartupCoordinator extends ChangeNotifier {
               runtime: runtime,
               settlement: settlement,
               dataSettings: configurationAccess?.settings,
-              migrationRecoveries: migrationRecoveries,
             );
           }
           failureError = AppStartupRollbackException(
@@ -414,14 +345,12 @@ final class AppStartupCoordinator extends ChangeNotifier {
         failureError,
         failureStackTrace,
         dataSettings: configurationAccess?.settings,
-        migrationRecoveries: migrationRecoveries,
       );
       _setFailure(
         stage,
         failureError,
         failureStackTrace,
         dataSettings: configurationAccess?.settings,
-        migrationRecoveries: migrationRecoveries,
       );
       if (_disposed) {
         Error.throwWithStackTrace(failureError, failureStackTrace);
@@ -442,147 +371,6 @@ final class AppStartupCoordinator extends ChangeNotifier {
       await runtime?.close();
     }
     return true;
-  }
-
-  Future<void> _runMigrationRecovery(
-    _MigrationRecoveryContext context,
-    AppStartupMigrationRecoveryOperation operation,
-  ) {
-    final activeRecovery = _activeRecovery;
-    if (activeRecovery != null) {
-      return activeRecovery;
-    }
-    if (_disposed) {
-      return Future<void>.error(
-        StateError('Application shutdown has already started.'),
-      );
-    }
-    final poisonedTerminationLease = _poisonedTerminationLease;
-    if (poisonedTerminationLease != null) {
-      return Future<void>.error(
-        poisonedTerminationLease.error,
-        poisonedTerminationLease.stackTrace,
-      );
-    }
-    if (_activeAttempt != null || _ownedGraph != null) {
-      return Future<void>.error(
-        StateError('Startup or an active runtime already owns the pipeline.'),
-      );
-    }
-
-    late final Future<void> recovery;
-    recovery = _executeMigrationRecovery(context, operation).whenComplete(() {
-      if (identical(_activeRecovery, recovery)) {
-        _activeRecovery = null;
-      }
-    });
-    _activeRecovery = recovery;
-    return recovery;
-  }
-
-  Future<void> _executeMigrationRecovery(
-    _MigrationRecoveryContext context,
-    AppStartupMigrationRecoveryOperation operation,
-  ) async {
-    await _settlePendingRollbackBeforeRecovery();
-    if (_disposed) {
-      return;
-    }
-
-    final snapshot = await _pipeline.loadConfiguration(
-      context.configurationAccess,
-    );
-    if (_disposed) {
-      return;
-    }
-    final runtime = await _pipeline.bootstrapData(
-      context.paths,
-      context.configurationAccess,
-      snapshot,
-    );
-    if (runtime == null) {
-      throw StateError('The data service is disabled.');
-    }
-
-    Object? operationError;
-    StackTrace? operationStackTrace;
-    try {
-      if (!_disposed) {
-        await _pipeline.validateConfiguration(
-          context.configurationAccess,
-          snapshot,
-        );
-        if (!_disposed) {
-          await operation.run(runtime);
-        }
-      }
-    } on Object catch (error, stackTrace) {
-      operationError = error;
-      operationStackTrace = stackTrace;
-    }
-
-    final settlement = Future<void>.sync(runtime.close);
-    try {
-      await settlement.timeout(_pipeline.rollbackTimeout);
-    } on Object catch (closeError, closeStackTrace) {
-      if (_closeNeedsRetainedLease(closeError)) {
-        _pendingRuntimeRollback = _PendingRuntimeRollback(
-          runtime: runtime,
-          settlement: settlement,
-          dataSettings: context.configurationAccess.settings,
-          migrationRecoveries: const <AppStartupMigrationRecoveryCapability>[],
-        );
-      }
-      _retainPoisonedTerminationLease(
-        closeError,
-        closeStackTrace,
-        dataSettings: context.configurationAccess.settings,
-        migrationRecoveries: const <AppStartupMigrationRecoveryCapability>[],
-      );
-      if (operationError != null) {
-        Error.throwWithStackTrace(
-          AppStartupRollbackException(
-            startupError: operationError,
-            rollbackError: closeError,
-          ),
-          closeStackTrace,
-        );
-      }
-      Error.throwWithStackTrace(closeError, closeStackTrace);
-    }
-
-    if (operationError != null) {
-      Error.throwWithStackTrace(operationError, operationStackTrace!);
-    }
-  }
-
-  Future<void> _settlePendingRollbackBeforeRecovery() async {
-    final poisonedTerminationLease = _poisonedTerminationLease;
-    if (poisonedTerminationLease != null) {
-      Error.throwWithStackTrace(
-        poisonedTerminationLease.error,
-        poisonedTerminationLease.stackTrace,
-      );
-    }
-    final pendingRuntimeRollback = _pendingRuntimeRollback;
-    if (pendingRuntimeRollback != null) {
-      await pendingRuntimeRollback.settlement.timeout(
-        _pipeline.rollbackTimeout,
-      );
-      if (identical(_pendingRuntimeRollback, pendingRuntimeRollback)) {
-        _pendingRuntimeRollback = null;
-      }
-    }
-
-    final pendingGraphRollback = _pendingGraphRollback;
-    if (pendingGraphRollback != null) {
-      await pendingGraphRollback.graph.settleClose().timeout(
-        _pipeline.rollbackTimeout,
-      );
-      if (identical(_pendingGraphRollback, pendingGraphRollback)) {
-        _pendingGraphRollback = null;
-      }
-    }
   }
 
   bool _closeIsStillSettling(Object error) {
@@ -615,8 +403,6 @@ final class AppStartupCoordinator extends ChangeNotifier {
     Object error,
     StackTrace stackTrace, {
     required AppStartupDataSettingsCapability? dataSettings,
-    required Iterable<AppStartupMigrationRecoveryCapability>
-    migrationRecoveries,
   }) {
     if (!_containsTerminationUnknown(error)) {
       return;
@@ -625,7 +411,6 @@ final class AppStartupCoordinator extends ChangeNotifier {
       error: error,
       stackTrace: stackTrace,
       dataSettings: dataSettings,
-      migrationRecoveries: migrationRecoveries,
     );
   }
 
@@ -634,8 +419,6 @@ final class AppStartupCoordinator extends ChangeNotifier {
     Object error,
     StackTrace stackTrace, {
     AppStartupDataSettingsCapability? dataSettings,
-    Iterable<AppStartupMigrationRecoveryCapability> migrationRecoveries =
-        const <AppStartupMigrationRecoveryCapability>[],
   }) {
     _setState(
       AppStartupRecoverableFailure(
@@ -644,7 +427,6 @@ final class AppStartupCoordinator extends ChangeNotifier {
           error: error,
           stackTrace: stackTrace,
           dataSettings: dataSettings,
-          migrationRecoveries: migrationRecoveries,
         ),
       ),
     );
@@ -715,8 +497,6 @@ final class AppStartupCoordinator extends ChangeNotifier {
 
     final attempt = _activeAttempt;
     await settle('active startup attempt', attempt);
-    await settle('active migration recovery', _activeRecovery);
-
     await settle('owned runtime graph', ownedGraphSettlement);
     _ownedGraph = null;
 
@@ -801,27 +581,18 @@ final class _PendingRuntimeRollback {
     required this.runtime,
     required this.settlement,
     required this.dataSettings,
-    required Iterable<AppStartupMigrationRecoveryCapability>
-    migrationRecoveries,
-  }) : migrationRecoveries = List.unmodifiable(migrationRecoveries);
+  });
 
   final DataApiRuntime runtime;
   final Future<void> settlement;
   final AppStartupDataSettingsCapability? dataSettings;
-  final List<AppStartupMigrationRecoveryCapability> migrationRecoveries;
 }
 
 final class _PendingGraphRollback {
-  _PendingGraphRollback({
-    required this.graph,
-    required this.dataSettings,
-    required Iterable<AppStartupMigrationRecoveryCapability>
-    migrationRecoveries,
-  }) : migrationRecoveries = List.unmodifiable(migrationRecoveries);
+  _PendingGraphRollback({required this.graph, required this.dataSettings});
 
   final AppRuntimeGraph graph;
   final AppStartupDataSettingsCapability? dataSettings;
-  final List<AppStartupMigrationRecoveryCapability> migrationRecoveries;
 }
 
 final class _PoisonedTerminationLease {
@@ -829,43 +600,11 @@ final class _PoisonedTerminationLease {
     required this.error,
     required this.stackTrace,
     required this.dataSettings,
-    required Iterable<AppStartupMigrationRecoveryCapability>
-    migrationRecoveries,
-  }) : migrationRecoveries = List.unmodifiable(migrationRecoveries);
+  });
 
   final Object error;
   final StackTrace stackTrace;
   final AppStartupDataSettingsCapability? dataSettings;
-  final List<AppStartupMigrationRecoveryCapability> migrationRecoveries;
-}
-
-final class _MigrationRecoveryContext {
-  const _MigrationRecoveryContext({
-    required this.paths,
-    required this.configurationAccess,
-  });
-
-  final AppStartupPaths paths;
-  final AppStartupConfigurationAccess configurationAccess;
-}
-
-final class _OwnedMigrationRecoveryCapability
-    implements AppStartupMigrationRecoveryCapability {
-  const _OwnedMigrationRecoveryCapability({
-    required this.owner,
-    required this.context,
-    required this.operation,
-  });
-
-  final AppStartupCoordinator owner;
-  final _MigrationRecoveryContext context;
-  final AppStartupMigrationRecoveryOperation operation;
-
-  @override
-  AppStartupMigrationRecoveryKind get kind => operation.kind;
-
-  @override
-  Future<void> run() => owner._runMigrationRecovery(context, operation);
 }
 
 final class AppStartupSettlementFailure {
