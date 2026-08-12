@@ -78,6 +78,12 @@ void main() {
     for (final source in <String>[canonicalHook, standaloneHook]) {
       expect(source, contains('nativeBuildDependencies(nativeRoot)'));
       expect(source, contains('output.dependencies.add(dependency.uri)'));
+      expect(source, contains("'CARGO_BUILD_JOBS': _cargoBuildJobs"));
+      expect(source, contains("const _cargoBuildJobs = '2';"));
+      expect(source, contains("'SDKROOT': macOSSDKRoot"));
+      expect(source, contains('final macOSSDKRoot = await _macOSSDKRoot()'));
+      expect(source, contains(r"..['CARGO_TARGET_${cargoTarget}_LINKER']"));
+      expect(source, contains(r"..['CC_$ccTarget']"));
       expect(source, isNot(contains("path.endsWith('.rs')")));
       expect(source, isNot(contains("path.endsWith('.proto')")));
     }

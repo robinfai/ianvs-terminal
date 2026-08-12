@@ -6,6 +6,7 @@ import 'package:hooks/hooks.dart';
 import 'native_dependencies.dart';
 
 const _assetName = 'libianvs_core.dylib';
+const _cargoBuildJobs = '2';
 
 void main(List<String> args) async {
   await build(args, (input, output) async {
@@ -38,29 +39,53 @@ void main(List<String> args) async {
     }
 
     final cargoTargetDirectory = input.outputDirectory.resolve('cargo-target/');
+    final macOSSDKRoot = await _macOSSDKRoot();
     final environment = <String, String>{
       ..._rustToolchainEnvironment(Platform.environment),
+      // A cold native build links several host build scripts before compiling
+      // the target library. Letting Cargo use every logical CPU can make ld
+      // fail under memory pressure, while Flutter reports only the final cc
+      // exit code. Keep the hook deterministic and bounded.
+      'CARGO_BUILD_JOBS': _cargoBuildJobs,
       'CARGO_TARGET_DIR': cargoTargetDirectory.toFilePath(),
       'MACOSX_DEPLOYMENT_TARGET': '${code.macOS.targetVersion}.0',
+      // Flutter provides clang/ld/ar as absolute Xcode paths. Unlike
+      // /usr/bin/cc, that clang does not discover the active macOS SDK on its
+      // own, so Rust host build scripts otherwise fail to link libSystem.
+      'SDKROOT': macOSSDKRoot,
     };
+    final cCompiler = code.cCompiler;
+    if (cCompiler != null) {
+      final cargoTarget = target.toUpperCase().replaceAll('-', '_');
+      final ccTarget = target.replaceAll('-', '_');
+      final compiler = cCompiler.compiler.toFilePath();
+      final archiver = cCompiler.archiver.toFilePath();
+      environment
+        ..['CARGO_TARGET_${cargoTarget}_LINKER'] = compiler
+        ..['CC_$ccTarget'] = compiler
+        ..['AR_$ccTarget'] = archiver
+        ..['HOST_CC'] = compiler
+        ..['HOST_AR'] = archiver;
+    }
+    final cargoArguments = <String>[
+      'build',
+      '--locked',
+      '--release',
+      '--manifest-path',
+      manifest.toFilePath(),
+      '--target',
+      target,
+    ];
     final result = await Process.run(
       'cargo',
-      <String>[
-        'build',
-        '--locked',
-        '--release',
-        '--manifest-path',
-        manifest.toFilePath(),
-        '--target',
-        target,
-      ],
+      cargoArguments,
       workingDirectory: coreRoot.toFilePath(),
       environment: environment,
     );
     if (result.exitCode != 0) {
       throw ProcessException(
         'cargo',
-        const <String>['build', '--locked', '--release'],
+        cargoArguments,
         '${result.stdout}\n${result.stderr}',
         result.exitCode,
       );
@@ -97,6 +122,26 @@ void main(List<String> args) async {
       ),
     );
   });
+}
+
+Future<String> _macOSSDKRoot() async {
+  final result = await Process.run('xcrun', const <String>[
+    '--sdk',
+    'macosx',
+    '--show-sdk-path',
+  ]);
+  final sdkRoot = '${result.stdout}'.trim();
+  if (result.exitCode != 0 ||
+      sdkRoot.isEmpty ||
+      !Directory(sdkRoot).existsSync()) {
+    throw ProcessException(
+      'xcrun',
+      const <String>['--sdk', 'macosx', '--show-sdk-path'],
+      '${result.stdout}\n${result.stderr}',
+      result.exitCode,
+    );
+  }
+  return sdkRoot;
 }
 
 Map<String, String> _rustToolchainEnvironment(Map<String, String> environment) {
