@@ -85,7 +85,15 @@ func newWithLogger(
 }
 
 func (a *API) Handler() http.Handler {
-	return a.withRecovery(a.withSecurityHeaders(a.withLocalBoundary(a.mux)))
+	apiHandler := a.withRecovery(a.withSecurityHeaders(a.withLocalBoundary(a.mux)))
+	webUIHandler := a.withRecovery(a.withSecurityHeaders(http.HandlerFunc(a.serveWebUI)))
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if isWebUIRequest(r) {
+			webUIHandler.ServeHTTP(w, r)
+			return
+		}
+		apiHandler.ServeHTTP(w, r)
+	})
 }
 
 func (a *API) routes() {
@@ -670,6 +678,9 @@ func constantTimeEqual(actual, expected string) bool {
 func (a *API) withSecurityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; connect-src 'self'; img-src 'self'; script-src 'self'; style-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
+		w.Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+		w.Header().Set("Referrer-Policy", "no-referrer")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-Frame-Options", "DENY")
 		next.ServeHTTP(w, r)

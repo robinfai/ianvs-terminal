@@ -1,0 +1,133 @@
+{
+  "data": {
+    "schemaVersion": 1,
+    "profiles": [
+      {
+        "id": "fixture-ssh",
+        "name": "Fixture SSH",
+        "launch": {
+          "program": "",
+          "args": [],
+          "env": {},
+          "cwd": null
+        },
+        "connection": {
+          "type": "ssh",
+          "host": "target.example.test",
+          "user": "operator",
+          "port": 22,
+          "auth": "public_key",
+          "privateKeys": ["~/.ssh/id_ed25519"],
+          "hostKeyPolicy": "strict",
+          "connectTimeoutSeconds": 10,
+          "keepaliveSeconds": 0,
+          "keepaliveCountMax": 3,
+          "proxyJumpProfiles": [
+            {
+              "host": "jump.example.test",
+              "user": "jump-user",
+              "port": 22,
+              "auth": "password",
+              "privateKeys": [],
+              "hostKeyPolicy": "strict",
+              "connectTimeoutSeconds": 10,
+              "keepaliveSeconds": 0,
+              "keepaliveCountMax": 3
+            }
+          ],
+          "portForwards": [],
+          "agentForwarding": false,
+          "x11Forwarding": false,
+          "x11TargetPort": 0,
+          "x11AuthProtocol": "MIT-MAGIC-COOKIE-1",
+          "x11ScreenNumber": 0
+        },
+        "terminal": {
+          "emulation": "xterm256",
+          "scrollbackLines": 8000,
+          "graphics": {
+            "enabled": true,
+            "advertise": "kitty",
+            "maxImageBytes": 104857600,
+            "maxTotalBytes": 268435456
+          },
+          "dragDropEnabled": false
+        },
+        "shellIntegration": {
+          "enabled": true
+        },
+        "appearance": {
+          "font": {
+            "family": "JetBrainsMono Nerd Font Mono",
+            "fallback": [
+              "Menlo",
+              "JetBrainsMono Nerd Font",
+              "SF Mono",
+              "Monaco",
+              "Apple Symbols",
+              "Apple Color Emoji",
+              "Segoe UI Emoji",
+              "Noto Color Emoji"
+            ],
+            "size": 14,
+            "lineHeight": 1.6
+          },
+          "colors": {
+            "special": {
+              "foreground": null,
+              "background": null,
+              "cursor": null,
+              "selection": null,
+              "tab": null
+            },
+            "normal": {
+              "black": null,
+              "red": null,
+              "green": null,
+              "yellow": null,
+              "blue": null,
+              "magenta": null,
+              "cyan": null,
+              "white": null
+            },
+            "bright": {
+              "black": null,
+              "red": null,
+              "green": null,
+              "yellow": null,
+              "blue": null,
+              "magenta": null,
+              "cyan": null,
+              "white": null
+            }
+          },
+          "cursor": {
+            "shape": "block",
+            "blink": true
+          }
+        },
+        "interaction": {
+          "copyOnSelect": false,
+          "optionDragMode": "block_selection"
+        }
+      }
+    ]
+  },
+  "sensitive": {
+    "profiles": [
+      {
+        "connection": {
+          "password": " target password ",
+          "privateKeyPassphrase": " target passphrase ",
+          "proxyJumpProfiles": [
+            {
+              "password": " jump password ",
+              "privateKeyPassphrase": " jump passphrase "
+            }
+          ],
+          "x11AuthCookie": " 00112233445566778899aabbccddeeff "
+        }
+      }
+    ]
+  }
+}
