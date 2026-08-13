@@ -19,6 +19,7 @@ import '../support/memory_app_preferences_repository.dart';
 import '../support/memory_local_terminal_config_repository.dart';
 import '../support/memory_paste_history_repository.dart';
 import '../support/no_io_local_session_recording_repository.dart';
+import '../support/no_io_local_terminal_layout_repository.dart';
 
 final class _FailingRemoteProfileRepository extends ProfileRepositoryPort {
   _FailingRemoteProfileRepository()
@@ -107,6 +108,9 @@ Future<void> _pumpShell(
         ),
         localTerminalConfigRepositoryProvider.overrideWithValue(
           MemoryLocalTerminalConfigRepository(null),
+        ),
+        localTerminalLayoutRepositoryProvider.overrideWithValue(
+          noIoLocalTerminalLayoutRepository(),
         ),
         localSessionRecordingRepositoryProvider.overrideWithValue(
           noIoLocalSessionRecordingRepository(),

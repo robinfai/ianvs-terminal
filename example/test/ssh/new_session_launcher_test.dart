@@ -149,6 +149,30 @@ void main() {
     );
   });
 
+  testWidgets('SSH-only launcher has no local session control', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final saved = _sshProfile('saved', 'Saved host', 'saved.example.test');
+
+    await _pumpLauncher(
+      tester,
+      profiles: <TerminalProfile>[defaultTerminalProfile(), saved],
+      imported: const SshProfileImportSnapshot(
+        profiles: [],
+        sourcePath: '~/.ssh/config',
+      ),
+      localSessionsEnabled: false,
+      onClosed: (_) {},
+    );
+
+    expect(find.text('New SSH tab'), findsOneWidget);
+    expect(find.byKey(const Key('new-session-type')), findsNothing);
+    expect(find.text('Local shell'), findsNothing);
+    expect(find.byKey(const Key('new-local-session-default')), findsNothing);
+    expect(find.byKey(const Key('new-ssh-session-saved')), findsOneWidget);
+    expect(find.byKey(const Key('new-custom-ssh-session')), findsOneWidget);
+  });
+
   testWidgets(
     'local-only mode keeps OpenSSH hosts and hides custom SSH profiles',
     (tester) async {
@@ -982,6 +1006,7 @@ Future<void> _pumpLauncher(
   required ValueChanged<NewSessionSelection?> onClosed,
   double textScale = 1,
   bool customSshProfilesEnabled = true,
+  bool localSessionsEnabled = true,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
@@ -1009,6 +1034,7 @@ Future<void> _pumpLauncher(
                     builder: (_) => NewSessionLauncher(
                       profiles: profiles,
                       customSshProfilesEnabled: customSshProfilesEnabled,
+                      localSessionsEnabled: localSessionsEnabled,
                       importOpenSshProfiles: () async => imported,
                     ),
                   ),

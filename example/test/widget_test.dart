@@ -24,6 +24,7 @@ import 'support/memory_local_terminal_config_repository.dart';
 import 'support/memory_paste_history_repository.dart';
 import 'support/memory_profile_repository.dart';
 import 'support/no_io_local_session_recording_repository.dart';
+import 'support/no_io_local_terminal_layout_repository.dart';
 
 class _EventfulPtyBackend extends FakePtyBackend {
   final Map<String, List<PtyEvent>> _queuedEvents = <String, List<PtyEvent>>{};
@@ -178,6 +179,9 @@ Future<void> _pumpShellScreen(
         ),
         localTerminalConfigRepositoryProvider.overrideWithValue(
           MemoryLocalTerminalConfigRepository(null),
+        ),
+        localTerminalLayoutRepositoryProvider.overrideWithValue(
+          noIoLocalTerminalLayoutRepository(),
         ),
         localSessionRecordingRepositoryProvider.overrideWithValue(
           noIoLocalSessionRecordingRepository(),

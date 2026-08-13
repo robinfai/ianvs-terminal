@@ -25,6 +25,7 @@ import '../support/memory_app_preferences_repository.dart';
 import '../support/memory_paste_history_repository.dart';
 import '../support/memory_profile_repository.dart';
 import '../support/no_io_local_session_recording_repository.dart';
+import '../support/no_io_local_terminal_layout_repository.dart';
 
 Future<void> _pumpShellScreen(
   WidgetTester tester, {
@@ -67,6 +68,9 @@ Future<void> _pumpShellScreen(
         ),
         localSessionRecordingRepositoryProvider.overrideWithValue(
           noIoLocalSessionRecordingRepository(),
+        ),
+        localTerminalLayoutRepositoryProvider.overrideWithValue(
+          noIoLocalTerminalLayoutRepository(),
         ),
         if (clipboardPaste != null)
           sessionClipboardPasteProvider.overrideWithValue(clipboardPaste),

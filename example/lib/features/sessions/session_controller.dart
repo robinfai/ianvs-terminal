@@ -29,6 +29,7 @@ import 'session_ports.dart';
 import 'session_shutdown.dart';
 import 'session_state.dart';
 import 'terminal_event_coordinator.dart';
+import 'terminal_session_launch_policy.dart';
 
 const Object _recordingLastErrorNoChange = Object();
 
@@ -756,13 +757,20 @@ class SessionController extends Notifier<SessionState> {
     if (!_bootstrapWorkAllowed) {
       return;
     }
-    final runtimeProfiles = preparation.profiles;
+    final launchPolicy = ref.read(terminalSessionLaunchPolicyProvider);
+    final runtimeProfiles = launchPolicy.visibleProfiles(preparation.profiles);
     _profileDocument = preparation.profileDocument;
     _configBootstrapSource = preparation.configSource;
     _localConfigVersioned = preparation.localConfigDocument;
     _preferencesLoadedFromDisk = preparation.preferencesLoadedFromDisk;
     _appPreferencesDocument = preparation.appPreferencesDocument;
-    final effectiveDefaultProfileId = preparation.effectiveDefaultProfileId;
+    final effectiveDefaultProfileId = _effectiveDefaultProfileIdFor(
+      runtimeProfiles,
+      preferredProfileId: preparation.effectiveDefaultProfileId,
+    );
+    final runtimeProfileIds = runtimeProfiles
+        .map((profile) => profile.id)
+        .toSet();
     var initialTabs = <TerminalTab>[];
     String? initialSessionId;
     String? layoutRestoreError;
@@ -812,7 +820,9 @@ class SessionController extends Notifier<SessionState> {
       return;
     }
 
-    if (initialTabs.isEmpty && effectiveDefaultProfileId != null) {
+    if (initialTabs.isEmpty &&
+        effectiveDefaultProfileId != null &&
+        launchPolicy.opensDefaultSessionOnEmptyLayout) {
       final initialProfile = runtimeProfiles.firstWhere(
         (profile) => profile.id == effectiveDefaultProfileId,
         orElse: () => runtimeProfiles.first,
@@ -848,7 +858,9 @@ class SessionController extends Notifier<SessionState> {
       activeSessionId: initialSessionId,
       defaultProfileId: effectiveDefaultProfileId,
       configuredDefaultProfileId: _configuredDefaultProfileIdForUi(),
-      configurationWarnings: preparation.configurationWarnings,
+      configurationWarnings: preparation.configurationWarnings
+          .where((warning) => runtimeProfileIds.contains(warning.profileId))
+          .toList(growable: false),
       themeMode: _appPreferences.appearance.themeMode,
       terminalViewportPadding:
           _appPreferences.appearance.terminalViewportPadding,
@@ -918,6 +930,10 @@ class SessionController extends Notifier<SessionState> {
   String _layoutRestoreFailureMessage(
     List<LocalTerminalLayoutRelaunchFailure> failures,
   ) {
+    if (ref.read(terminalSessionLaunchPolicyProvider).isSshOnly) {
+      return 'iOS skipped ${failures.length} saved pane(s) that are not '
+          'available as SSH profiles. Choose an SSH profile to open a tab.';
+    }
     final profileIds = failures
         .map((failure) => failure.intent.profileId)
         .where((profileId) => profileId.trim().isNotEmpty)
@@ -1009,6 +1025,14 @@ class SessionController extends Notifier<SessionState> {
     if (ref.read(sessionDemoFixtureProvider) != null) {
       state = state.copyWith(
         lastError: 'New tab at folder is unavailable in reference demo mode.',
+      );
+      return false;
+    }
+    if (ref.read(terminalSessionLaunchPolicyProvider).isSshOnly) {
+      state = state.copyWith(
+        lastError:
+            'Opening a local folder is unavailable on iOS. Choose an SSH '
+            'profile instead.',
       );
       return false;
     }
@@ -1205,6 +1229,14 @@ class SessionController extends Notifier<SessionState> {
   }
 
   String? _createRuntimeSession(TerminalProfile launchProfile) {
+    if (!ref.read(terminalSessionLaunchPolicyProvider).allows(launchProfile)) {
+      state = state.copyWith(
+        lastError:
+            'Local terminal sessions are unavailable on iOS. Choose an SSH '
+            'profile instead.',
+      );
+      return null;
+    }
     try {
       return _runtime.createSession(
         launchProfile.toSessionConfig().copyWith(
@@ -5022,6 +5054,11 @@ class SessionController extends Notifier<SessionState> {
     TerminalProfile profile, {
     Set<ProfileSecretField> clearSecrets = const {},
   }) async {
+    if (!ref.read(terminalSessionLaunchPolicyProvider).allows(profile)) {
+      throw UnsupportedError(
+        'Local terminal profiles cannot be created on iOS.',
+      );
+    }
     if (profile.isSsh &&
         !ref.read(customSshProfileConfigurationEnabledProvider)) {
       throw const CustomSshProfileConfigurationUnavailableException();
@@ -5049,7 +5086,9 @@ class SessionController extends Notifier<SessionState> {
           ),
           base: _profileDocument,
         );
-    final nextProfiles = _profileDocument.value.profiles;
+    final nextProfiles = ref
+        .read(terminalSessionLaunchPolicyProvider)
+        .visibleProfiles(_profileDocument.value.profiles);
     state = state.copyWith(
       profiles: nextProfiles,
       defaultProfileId: _effectiveDefaultProfileIdFor(nextProfiles),
@@ -5302,7 +5341,9 @@ class SessionController extends Notifier<SessionState> {
           ),
           base: _profileDocument,
         );
-    final nextProfiles = _profileDocument.value.profiles;
+    final nextProfiles = ref
+        .read(terminalSessionLaunchPolicyProvider)
+        .visibleProfiles(_profileDocument.value.profiles);
     final deletedConfiguredDefault =
         _normalizeProfileId(_appPreferences.defaults.defaultProfileId) ==
         profileId;
@@ -5325,9 +5366,12 @@ class SessionController extends Notifier<SessionState> {
     );
   }
 
-  String? _effectiveDefaultProfileIdFor(List<TerminalProfile> profiles) {
+  String? _effectiveDefaultProfileIdFor(
+    List<TerminalProfile> profiles, {
+    String? preferredProfileId,
+  }) {
     final configuredDefaultId = _normalizeProfileId(
-      _appPreferences.defaults.defaultProfileId,
+      preferredProfileId ?? _appPreferences.defaults.defaultProfileId,
     );
     if (_hasProfileId(profiles, configuredDefaultId)) {
       return configuredDefaultId;

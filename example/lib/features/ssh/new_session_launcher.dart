@@ -32,19 +32,32 @@ class NewSessionLauncher extends StatefulWidget {
     required this.profiles,
     required this.importOpenSshProfiles,
     this.customSshProfilesEnabled = true,
+    this.localSessionsEnabled = true,
   });
 
   final List<TerminalProfile> profiles;
   final Future<SshProfileImportSnapshot> Function() importOpenSshProfiles;
   final bool customSshProfilesEnabled;
+  final bool localSessionsEnabled;
 
   @override
   State<NewSessionLauncher> createState() => _NewSessionLauncherState();
 }
 
 class _NewSessionLauncherState extends State<NewSessionLauncher> {
-  terminal.TerminalConnectionType _type = terminal.TerminalConnectionType.local;
+  late terminal.TerminalConnectionType _type;
   Future<SshProfileImportSnapshot>? _importedProfiles;
+
+  @override
+  void initState() {
+    super.initState();
+    _type = widget.localSessionsEnabled
+        ? terminal.TerminalConnectionType.local
+        : terminal.TerminalConnectionType.ssh;
+    if (!widget.localSessionsEnabled) {
+      _importedProfiles = widget.importOpenSshProfiles();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -70,7 +83,9 @@ class _NewSessionLauncherState extends State<NewSessionLauncher> {
                     children: [
                       Expanded(
                         child: Text(
-                          'New terminal tab',
+                          widget.localSessionsEnabled
+                              ? 'New terminal tab'
+                              : 'New SSH tab',
                           style: Theme.of(context).textTheme.titleLarge
                               ?.copyWith(
                                 color: palette.textPrimary,
@@ -86,40 +101,44 @@ class _NewSessionLauncherState extends State<NewSessionLauncher> {
                     ],
                   ),
                   Text(
-                    'Choose a local shell or connect to an SSH host.',
+                    widget.localSessionsEnabled
+                        ? 'Choose a local shell or connect to an SSH host.'
+                        : 'Choose a saved SSH profile or create a new one.',
                     style: Theme.of(
                       context,
                     ).textTheme.bodyMedium?.copyWith(color: palette.textSubtle),
                   ),
-                  SizedBox(height: palette.spacing.lg),
-                  SizedBox(
-                    width: double.infinity,
-                    child: SegmentedButton<terminal.TerminalConnectionType>(
-                      key: const Key('new-session-type'),
-                      segments: const [
-                        ButtonSegment(
-                          value: terminal.TerminalConnectionType.local,
-                          icon: Icon(Icons.terminal_rounded),
-                          label: Text('Local shell'),
-                        ),
-                        ButtonSegment(
-                          value: terminal.TerminalConnectionType.ssh,
-                          icon: Icon(Icons.dns_outlined),
-                          label: Text('SSH session'),
-                        ),
-                      ],
-                      selected: {_type},
-                      onSelectionChanged: (selection) {
-                        setState(() {
-                          _type = selection.single;
-                          if (_type == terminal.TerminalConnectionType.ssh) {
-                            _importedProfiles ??= widget
-                                .importOpenSshProfiles();
-                          }
-                        });
-                      },
+                  if (widget.localSessionsEnabled) ...[
+                    SizedBox(height: palette.spacing.lg),
+                    SizedBox(
+                      width: double.infinity,
+                      child: SegmentedButton<terminal.TerminalConnectionType>(
+                        key: const Key('new-session-type'),
+                        segments: const [
+                          ButtonSegment(
+                            value: terminal.TerminalConnectionType.local,
+                            icon: Icon(Icons.terminal_rounded),
+                            label: Text('Local shell'),
+                          ),
+                          ButtonSegment(
+                            value: terminal.TerminalConnectionType.ssh,
+                            icon: Icon(Icons.dns_outlined),
+                            label: Text('SSH session'),
+                          ),
+                        ],
+                        selected: {_type},
+                        onSelectionChanged: (selection) {
+                          setState(() {
+                            _type = selection.single;
+                            if (_type == terminal.TerminalConnectionType.ssh) {
+                              _importedProfiles ??= widget
+                                  .importOpenSshProfiles();
+                            }
+                          });
+                        },
+                      ),
                     ),
-                  ),
+                  ],
                   SizedBox(height: palette.spacing.lg),
                   Flexible(
                     child: AnimatedSwitcher(
@@ -164,24 +183,7 @@ class _NewSessionLauncherState extends State<NewSessionLauncher> {
   }
 
   Future<void> _createCustomSshProfile() async {
-    final result = await showDialog<SshProfileEditorResult>(
-      context: context,
-      builder: (context) => SshProfileEditorDialog(
-        initialValue: defaultTerminalProfile().copyWith(
-          id: 'ssh-${DateTime.now().microsecondsSinceEpoch}',
-          name: 'SSH session',
-          connection: const terminal.TerminalConnectionConfig.ssh(
-            host: '',
-            user: '',
-            // There is no host-key confirmation challenge in the UI yet, so
-            // fail closed for a new destination. Users can explicitly choose
-            // Accept new after comparing or provisioning the host key.
-            hostKeyPolicy: terminal.TerminalSshHostKeyPolicy.strict,
-          ),
-        ),
-        allowSaveChoice: true,
-      ),
-    );
+    final result = await showCreateSshProfileDialog(context);
     if (!mounted || result == null) {
       return;
     }
@@ -192,6 +194,29 @@ class _NewSessionLauncherState extends State<NewSessionLauncher> {
       ),
     );
   }
+}
+
+Future<SshProfileEditorResult?> showCreateSshProfileDialog(
+  BuildContext context,
+) {
+  return showDialog<SshProfileEditorResult>(
+    context: context,
+    builder: (context) => SshProfileEditorDialog(
+      initialValue: defaultTerminalProfile().copyWith(
+        id: 'ssh-${DateTime.now().microsecondsSinceEpoch}',
+        name: 'SSH session',
+        connection: const terminal.TerminalConnectionConfig.ssh(
+          host: '',
+          user: '',
+          // There is no host-key confirmation challenge in the UI yet, so
+          // fail closed for a new destination. Users can explicitly choose
+          // Accept new after comparing or provisioning the host key.
+          hostKeyPolicy: terminal.TerminalSshHostKeyPolicy.strict,
+        ),
+      ),
+      allowSaveChoice: true,
+    ),
+  );
 }
 
 class _LocalProfileList extends StatelessWidget {

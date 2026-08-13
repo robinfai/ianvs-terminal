@@ -72,7 +72,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         instantReplayShortcutLabel: _instantReplayShortcutLabel(),
         searchShortcutLabel: _searchShortcutLabel(),
         clearBufferShortcutLabel: _clearBufferShortcutLabel(),
-        hasDefaultProfile: defaultProfile != null,
+        hasDefaultProfile: _canOpenNewSessionLauncher(sessionState),
         hasActiveSession: hasActiveSession,
         canReopenClosedTab: sessionController.canReopenClosedTab,
         isActiveSessionReadOnly: isActiveSessionReadOnly,
@@ -199,9 +199,9 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
       },
       callbacks: ShellActionProductionCallbacks(
         newTab: (_) {
-          if (defaultProfile == null) {
+          if (!_canOpenNewSessionLauncher(currentState)) {
             return const ShellActionBindingResult.skipped(
-              'No default profile is available.',
+              'No terminal session option is available.',
             );
           }
           unawaited(_openNewSessionLauncher(sessionController, currentState));
@@ -1083,7 +1083,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         await _openTerminalAtFolderFromPicker();
         return;
       case TerminalActionId.newTab:
-        if (defaultProfile == null) {
+        if (!_canOpenNewSessionLauncher(currentState)) {
           return;
         }
         await _openNewSessionLauncher(sessionController, currentState);

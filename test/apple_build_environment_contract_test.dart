@@ -64,6 +64,25 @@ void main() {
     );
   });
 
+  test('iOS Runner links the Debug app without an Xcode debug dylib', () {
+    final project = File(
+      'example/ios/Runner.xcodeproj/project.pbxproj',
+    ).readAsStringSync();
+    final runnerDebug = RegExp(
+      r'97C147061CF9000F007C117D /\* Debug \*/ = \{(.*?)\n\s*\};',
+      dotAll: true,
+    ).firstMatch(project)?.group(1);
+
+    expect(runnerDebug, isNotNull);
+    expect(
+      runnerDebug,
+      contains('ENABLE_DEBUG_DYLIB = NO;'),
+      reason:
+          'The force-loaded Rust core must be linked into Runner itself. '
+          'Xcode\'s debug-dylib launcher otherwise aborts before Flutter starts.',
+    );
+  });
+
   test('iOS Rust build separates host and target Apple SDK roots', () {
     final source = File('tools/build_core_ios.sh').readAsStringSync();
 

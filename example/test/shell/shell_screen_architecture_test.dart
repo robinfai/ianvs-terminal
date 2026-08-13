@@ -386,7 +386,7 @@ export 'shell_screen_feature.dart';
       );
       expect(
         graph.aggregateLineCount,
-        lessThanOrEqualTo(38300),
+        lessThanOrEqualTo(38700),
         reason: 'The complete reachable shell-owned library graph is bounded.',
       );
     });
@@ -441,6 +441,7 @@ Iterable<File> _allowedShellExternalDependencies(Directory libDirectory) {
     'data/repositories/data_api_repository_helpers.dart',
     'data/services/data_api_auth_contract.dart',
     'data/services/data_api_client.dart',
+    'data/services/data_api_migration_service.dart',
     'data/services/data_api_runtime.dart',
     'platform/clipboard_bridge.dart',
     'platform/corrupt_file_quarantine.dart',
@@ -475,8 +476,10 @@ Iterable<File> _allowedShellExternalDependencies(Directory libDirectory) {
     'features/sessions/session_ports.dart',
     'features/sessions/session_state.dart',
     'features/sessions/terminal_event_coordinator.dart',
+    'features/sessions/terminal_session_launch_policy.dart',
     'features/ssh/new_session_launcher.dart',
     'features/ssh/ssh_auth_prompt.dart',
+    'features/ssh/ssh_feature_access.dart',
     'features/ssh/ssh_profile_import_service.dart',
     'features/terminal/selection_controller.dart',
     'features/terminal/terminal.dart',

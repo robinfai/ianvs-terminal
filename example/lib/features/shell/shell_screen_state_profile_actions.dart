@@ -1,6 +1,15 @@
 part of 'shell_screen.dart';
 
 extension _ShellScreenStateProfileActions on _ShellScreenState {
+  bool _canOpenNewSessionLauncher(SessionState sessionState) {
+    final launchPolicy = ref.read(terminalSessionLaunchPolicyProvider);
+    if (launchPolicy.localSessionsEnabled) {
+      return sessionState.profiles.isNotEmpty;
+    }
+    return sessionState.profiles.any((profile) => profile.isSsh) ||
+        ref.read(customSshProfileConfigurationEnabledProvider);
+  }
+
   Future<void> _openNewSessionLauncher(
     SessionController sessionController,
     SessionState sessionState,
@@ -20,6 +29,9 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
           : AnimationStyle.noAnimation,
       builder: (context) => NewSessionLauncher(
         profiles: ref.read(sessionControllerProvider).profiles,
+        localSessionsEnabled: ref
+            .read(terminalSessionLaunchPolicyProvider)
+            .localSessionsEnabled,
         customSshProfilesEnabled: ref.read(
           customSshProfileConfigurationEnabledProvider,
         ),
@@ -40,6 +52,52 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
       );
       return;
     }
+    await _completeNewSessionSelection(
+      sessionController,
+      result,
+      activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
+    );
+  }
+
+  Future<void> _openSshProfileCreator(
+    SessionController sessionController,
+    SessionState sessionState,
+  ) async {
+    if (_isProfilesOpen ||
+        !ref.read(customSshProfileConfigurationEnabledProvider)) {
+      return;
+    }
+    _mutateState(() => _isProfilesOpen = true);
+    final activeSessionIdBeforeOpen = sessionState.activeSessionId;
+    final result = await showCreateSshProfileDialog(context);
+    if (!mounted) {
+      return;
+    }
+    _mutateState(() => _isProfilesOpen = false);
+    if (result == null) {
+      _restoreSessionFocus(
+        activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
+        activeSessionIdAfterClose: ref
+            .read(sessionControllerProvider)
+            .activeSessionId,
+      );
+      return;
+    }
+    await _completeNewSessionSelection(
+      sessionController,
+      NewSessionSelection(
+        profile: result.profile,
+        saveProfile: result.saveProfile,
+      ),
+      activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
+    );
+  }
+
+  Future<void> _completeNewSessionSelection(
+    SessionController sessionController,
+    NewSessionSelection result, {
+    required String? activeSessionIdBeforeOpen,
+  }) async {
     if (result.saveProfile) {
       try {
         if (!ref.read(customSshProfileConfigurationEnabledProvider)) {
