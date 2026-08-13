@@ -167,8 +167,17 @@ void main() {
         project: projectText,
         hook: hookText,
         bundleVerifier: verifierText.replaceFirst(
-          r'release_core="$release_app/Contents/Frameworks/libianvs_core.dylib"',
+          r'release_core="$release_app/Contents/Frameworks/ianvs_core.framework/ianvs_core"',
           '',
+        ),
+      ),
+      _NativeCorePackagingFixture(
+        label: 'missing bundle ABI verification',
+        project: projectText,
+        hook: hookText,
+        bundleVerifier: verifierText.replaceFirst(
+          r'python3 "$ROOT_DIR/tools/verify_native_contract.py"',
+          'python3',
         ),
       ),
     ]) {
@@ -449,12 +458,17 @@ List<String> _nativeCorePackagingViolations({
     violations.add('ianvs_pty hook must bundle the dynamic native asset');
   }
   if (!bundleVerifier.contains(
-    r'release_core="$release_app/Contents/Frameworks/libianvs_core.dylib"',
+    r'release_core="$release_app/Contents/Frameworks/ianvs_core.framework/ianvs_core"',
   )) {
     violations.add('release bundle verification does not require the core');
   }
   if (!bundleVerifier.contains(r'lipo "$release_core" -verify_arch')) {
     violations.add('release bundle verification does not inspect core slices');
+  }
+  if (!bundleVerifier.contains(
+    r'python3 "$ROOT_DIR/tools/verify_native_contract.py"',
+  )) {
+    violations.add('release bundle verification does not inspect core ABI');
   }
   if (!exampleDependencyClosure.contains('ianvs_pty')) {
     violations.add('example dependency closure omits the CodeAsset owner');
