@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CORE_MANIFEST="$ROOT_DIR/native/core/Cargo.toml"
-DEST_DIR="${TARGET_BUILD_DIR:?}/ianvs_core"
+DEST_DIR="${DERIVED_FILE_DIR:?}/ianvs_core"
 requested_archs="${CURRENT_ARCH:-${NATIVE_ARCH_ACTUAL:-}}"
 if [[ -z "$requested_archs" || "$requested_archs" == "undefined_arch" ]]; then
   requested_archs="${ARCHS:-$(uname -m)}"

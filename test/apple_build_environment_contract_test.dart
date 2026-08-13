@@ -126,6 +126,26 @@ void main() {
     );
   });
 
+  test('iOS Rust archive staging stays outside the installed products', () {
+    final script = File('tools/build_core_ios.sh').readAsStringSync();
+    final project = File(
+      'example/ios/Runner.xcodeproj/project.pbxproj',
+    ).readAsStringSync();
+
+    expect(script, contains(r'DEST_DIR="${DERIVED_FILE_DIR:?}/ianvs_core"'));
+    expect(script, isNot(contains(r'DEST_DIR="${TARGET_BUILD_DIR:?}')));
+    expect(
+      r'$(DERIVED_FILE_DIR)/ianvs_core/libianvs_core.a'
+          .allMatches(project),
+      hasLength(4),
+      reason: 'The script output and all linker configurations must agree.',
+    );
+    expect(
+      project,
+      isNot(contains(r'$(TARGET_BUILD_DIR)/ianvs_core/libianvs_core.a')),
+    );
+  });
+
   test('iOS release gate builds the App Store device architecture', () {
     final source = File('tools/verify_ios_simulator.sh').readAsStringSync();
     final workflow = File('.github/workflows/verify.yml').readAsStringSync();

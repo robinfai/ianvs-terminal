@@ -266,7 +266,7 @@
 			);
 			name = "Build Rust Terminal Core";
 			outputPaths = (
-				"$(TARGET_BUILD_DIR)/ianvs_core/libianvs_core.a",
+				"$(DERIVED_FILE_DIR)/ianvs_core/libianvs_core.a",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -409,7 +409,7 @@
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-force_load",
-					"$(TARGET_BUILD_DIR)/ianvs_core/libianvs_core.a",
+					"$(DERIVED_FILE_DIR)/ianvs_core/libianvs_core.a",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = dev.ianvs.terminal;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -597,7 +597,7 @@
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-force_load",
-					"$(TARGET_BUILD_DIR)/ianvs_core/libianvs_core.a",
+					"$(DERIVED_FILE_DIR)/ianvs_core/libianvs_core.a",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = dev.ianvs.terminal.dev;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -627,7 +627,7 @@
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-force_load",
-					"$(TARGET_BUILD_DIR)/ianvs_core/libianvs_core.a",
+					"$(DERIVED_FILE_DIR)/ianvs_core/libianvs_core.a",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = dev.ianvs.terminal;
 				PRODUCT_NAME = "$(TARGET_NAME)";
