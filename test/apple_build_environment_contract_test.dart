@@ -25,7 +25,7 @@ void main() {
 
     for (final command in <String>[
       'flutter build ios --simulator --debug --no-codesign',
-      'flutter build ios --simulator --release --no-codesign',
+      'flutter build ios --release --no-codesign',
       'xcodebuild test',
       r'flutter test -d "$IOS_SIMULATOR_UDID"',
     ]) {
@@ -64,6 +64,35 @@ void main() {
     );
   });
 
+  test('iOS Debug keeps the native ABI in the executable', () {
+    final project = File(
+      'example/ios/Runner.xcodeproj/project.pbxproj',
+    ).readAsStringSync();
+
+    final runnerDebug = RegExp(
+      r'97C147061CF9000F007C117D /\* Debug \*/ = \{(.*?)\n\t\t\};',
+      dotAll: true,
+    ).firstMatch(project);
+    expect(runnerDebug, isNotNull);
+    expect(
+      runnerDebug!.group(1),
+      contains('ENABLE_DEBUG_DYLIB = NO;'),
+      reason: 'Xcode debug dylibs require an extra exported entry point.',
+    );
+  });
+
+  test('iOS ABI verification ignores the Xcode debug stub executable', () {
+    final source = File('tools/verify_ios_simulator.sh').readAsStringSync();
+
+    expect(source, contains(r'link_images=("$executable")'));
+    expect(
+      source,
+      contains(
+        r'link_images=("$ios_app/$executable_name.debug.dylib")',
+      ),
+    );
+  });
+
   test('iOS Rust build separates host and target Apple SDK roots', () {
     final source = File('tools/build_core_ios.sh').readAsStringSync();
 
@@ -78,6 +107,37 @@ void main() {
     expect(
       source.indexOf(r'export SDKROOT="$MACOS_SDKROOT"'),
       lessThan(source.indexOf(r'cargo "${CARGO_ARGS[@]}"')),
+    );
+  });
+
+  test('iOS Rust build merges every simulator architecture from Xcode', () {
+    final source = File('tools/build_core_ios.sh').readAsStringSync();
+
+    expect(source, contains(r'requested_archs="${ARCHS:-$(uname -m)}"'));
+    expect(source, contains(r'for arch in $requested_archs; do'));
+    expect(source, contains('aarch64-apple-ios-sim'));
+    expect(source, contains('x86_64-apple-ios'));
+    expect(
+      source,
+      contains(
+        r'xcrun lipo -create "${slices[@]}" -output '
+        r'"$DEST_DIR/libianvs_core.a"',
+      ),
+    );
+  });
+
+  test('iOS release gate builds the App Store device architecture', () {
+    final source = File('tools/verify_ios_simulator.sh').readAsStringSync();
+    final workflow = File('.github/workflows/verify.yml').readAsStringSync();
+
+    expect(source, contains('build/ios/iphoneos'));
+    expect(
+      source,
+      contains(r'verify_ios_native_exports "$IOS_RELEASE_APP" arm64'),
+    );
+    expect(
+      workflow,
+      matches(RegExp(r'^\s+aarch64-apple-ios\s+\\$', multiLine: true)),
     );
   });
 }

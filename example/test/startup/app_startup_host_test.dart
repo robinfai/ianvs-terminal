@@ -131,7 +131,7 @@ void main() {
     expect(harness.coordinator.state, isA<AppStartupReady>());
   });
 
-  testWidgets('iOS initial data setup blocks use until remote login succeeds', (
+  testWidgets('required data setup blocks use until remote login succeeds', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
