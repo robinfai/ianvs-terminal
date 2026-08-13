@@ -53,12 +53,47 @@ apple_build_env=(
   "LC_ALL=${LC_ALL:-en_US.UTF-8}"
 )
 simulator_arch="$(uname -m)"
+IOS_EXPORTS_FILE="$ROOT_DIR/native/core/ianvs_core_ios_exports.txt"
 if [[ -n "${DEVELOPER_DIR:-}" ]]; then
   apple_build_env+=("DEVELOPER_DIR=$DEVELOPER_DIR")
 fi
 if [[ -n "${TOOLCHAINS:-}" ]]; then
   apple_build_env+=("TOOLCHAINS=$TOOLCHAINS")
 fi
+
+verify_ios_native_exports() {
+  local ios_app="$1"
+  local architecture="$2"
+  local executable_name
+  local executable
+  local actual_symbols
+  local expected_symbols
+  local link_images
+
+  executable_name="$(
+    /usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$ios_app/Info.plist"
+  )"
+  executable="$ios_app/$executable_name"
+  link_images=("$executable")
+  if [[ -f "$ios_app/$executable_name.debug.dylib" ]]; then
+    # Flutter debug builds put app-native objects in this loaded image rather
+    # than the small process launcher executable.
+    link_images+=("$ios_app/$executable_name.debug.dylib")
+  fi
+  actual_symbols="$(
+    for image in "${link_images[@]}"; do
+      nm -arch "$architecture" -gU "$image" 2>/dev/null || true
+    done | awk '$NF ~ /^_ianvs_/ { print $NF }' | LC_ALL=C sort -u
+  )"
+  expected_symbols="$(LC_ALL=C sort -u "$IOS_EXPORTS_FILE")"
+  if [[ "$actual_symbols" != "$expected_symbols" ]]; then
+    echo "The iOS application does not export the exact current Ianvs C ABI." >&2
+    diff -u \
+      <(printf '%s\n' "$expected_symbols") \
+      <(printf '%s\n' "$actual_symbols") >&2 || true
+    exit 1
+  fi
+}
 
 if ! xcrun simctl list devices | grep -F "$IOS_SIMULATOR_UDID" | grep -F '(Booted)' >/dev/null; then
   xcrun simctl boot "$IOS_SIMULATOR_UDID"
@@ -76,28 +111,7 @@ if [[ -z "$IOS_APP" ]]; then
   echo "Flutter did not produce an iOS simulator application." >&2
   exit 1
 fi
-IOS_EXECUTABLE_NAME="$(
-  /usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$IOS_APP/Info.plist"
-)"
-IOS_EXECUTABLE="$IOS_APP/$IOS_EXECUTABLE_NAME"
-IOS_LINK_IMAGES=("$IOS_EXECUTABLE")
-if [[ -f "$IOS_APP/$IOS_EXECUTABLE_NAME.debug.dylib" ]]; then
-  # Flutter debug builds put app-native objects in this loaded image rather
-  # than the small process launcher executable.
-  IOS_LINK_IMAGES+=("$IOS_APP/$IOS_EXECUTABLE_NAME.debug.dylib")
-fi
-symbol_found=0
-for image in "${IOS_LINK_IMAGES[@]}"; do
-  if nm -arch "$simulator_arch" -gU "$image" 2>/dev/null | \
-    awk '{print $NF}' | grep -Fx '_ianvs_ping' >/dev/null; then
-    symbol_found=1
-    break
-  fi
-done
-if [[ "$symbol_found" != "1" ]]; then
-  echo "The iOS application does not export the statically linked ianvs_ping symbol." >&2
-  exit 1
-fi
+verify_ios_native_exports "$IOS_APP" "$simulator_arch"
 
 (
   cd "$EXAMPLE_DIR"
@@ -113,3 +127,17 @@ fi
   "${apple_build_env[@]}" flutter test -d "$IOS_SIMULATOR_UDID" \
     integration_test/ios_sandbox_shell_acceptance_test.dart
 )
+
+(
+  cd "$EXAMPLE_DIR"
+  "${apple_build_env[@]}" flutter build ios --simulator --release --no-codesign
+)
+IOS_RELEASE_APP="$(
+  find "$EXAMPLE_DIR/build/ios/iphonesimulator" \
+    -maxdepth 1 -name '*.app' -print -quit
+)"
+if [[ -z "$IOS_RELEASE_APP" ]]; then
+  echo "Flutter did not produce an iOS Release simulator application." >&2
+  exit 1
+fi
+verify_ios_native_exports "$IOS_RELEASE_APP" "$simulator_arch"

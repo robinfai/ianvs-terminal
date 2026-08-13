@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:test/test.dart';
@@ -24,6 +25,7 @@ void main() {
 
     for (final command in <String>[
       'flutter build ios --simulator --debug --no-codesign',
+      'flutter build ios --simulator --release --no-codesign',
       'xcodebuild test',
       r'flutter test -d "$IOS_SIMULATOR_UDID"',
     ]) {
@@ -35,20 +37,47 @@ void main() {
     }
   });
 
+  test('iOS Runner exports the exact current native ABI', () {
+    final manifest =
+        jsonDecode(
+              File('native/core/ianvs_core_abi_v1.json').readAsStringSync(),
+            )
+            as Map<String, Object?>;
+    final functions = manifest['functions']! as Map<String, Object?>;
+    final expectedSymbols = functions.keys.map((name) => '_$name').toList()
+      ..sort();
+    final exportedSymbols = File(
+      'native/core/ianvs_core_ios_exports.txt',
+    ).readAsLinesSync()..sort();
+    expect(exportedSymbols, expectedSymbols);
+
+    final project = File(
+      'example/ios/Runner.xcodeproj/project.pbxproj',
+    ).readAsStringSync();
+    const setting =
+        'EXPORTED_SYMBOLS_FILE = '
+        r'"$(PROJECT_DIR)/../../native/core/ianvs_core_ios_exports.txt";';
+    expect(
+      setting.allMatches(project),
+      hasLength(3),
+      reason: 'Debug, Profile, and Release must retain the exact C ABI.',
+    );
+  });
+
   test('iOS Rust build separates host and target Apple SDK roots', () {
     final source = File('tools/build_core_ios.sh').readAsStringSync();
 
-    expect(source, contains('IOS_SDKROOT="\${SDKROOT:-'));
+    expect(source, contains(r'IOS_SDKROOT="${SDKROOT:-'));
     expect(
       source,
-      contains('MACOS_SDKROOT="\$(xcrun --sdk macosx --show-sdk-path)"'),
+      contains(r'MACOS_SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"'),
     );
     expect(source, contains('RUSTFLAGS_ENV_NAME="CARGO_TARGET_'));
-    expect(source, contains('link-arg=\$IOS_SDKROOT'));
-    expect(source, contains('export SDKROOT="\$MACOS_SDKROOT"'));
+    expect(source, contains(r'link-arg=$IOS_SDKROOT'));
+    expect(source, contains(r'export SDKROOT="$MACOS_SDKROOT"'));
     expect(
-      source.indexOf('export SDKROOT="\$MACOS_SDKROOT"'),
-      lessThan(source.indexOf('cargo "\${CARGO_ARGS[@]}"')),
+      source.indexOf(r'export SDKROOT="$MACOS_SDKROOT"'),
+      lessThan(source.indexOf(r'cargo "${CARGO_ARGS[@]}"')),
     );
   });
 }

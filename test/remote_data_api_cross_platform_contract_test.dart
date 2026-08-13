@@ -27,6 +27,14 @@ void main() {
     expect(script, contains('/usr/bin/env -i'));
     expect(script, contains(r'"${test_env[@]}" flutter test'));
     expect(script, contains('trap cleanup EXIT INT TERM'));
+    expect(script, contains('for _ in {1..600}; do'));
+    expect(
+      script,
+      contains(
+        'The acceptance credential broker did not become ready within '
+        '30 seconds.',
+      ),
+    );
 
     final macWrite = script.indexOf('run_phase macos macos-write');
     final iosGate = script.indexOf(r'"$IOS_GATE_TARGET" --reporter compact');

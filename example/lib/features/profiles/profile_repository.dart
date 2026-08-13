@@ -11,6 +11,8 @@ import 'profile_models.dart';
 import 'profile_secret_cipher.dart';
 
 typedef DirectoryResolver = Future<Directory> Function();
+typedef TerminalProfilesDocumentUpdate =
+    TerminalProfilesDocument Function(TerminalProfilesDocument current);
 
 abstract class ProfileRepositoryPort {
   const ProfileRepositoryPort();
@@ -28,6 +30,20 @@ abstract class ProfileRepositoryPort {
   ) async {
     await save(document.value);
     return document.withRevision(null);
+  }
+
+  /// Applies a pure document mutation to the supplied snapshot.
+  ///
+  /// Remote implementations may replay [update] after an optimistic-
+  /// concurrency conflict, so it must not perform I/O or externally visible
+  /// side effects. The base implementation is sufficient for local stores;
+  /// the Data API repository overrides this method with a bounded rebase.
+  Future<VersionedDocument<TerminalProfilesDocument>> updateVersioned(
+    TerminalProfilesDocumentUpdate update, {
+    VersionedDocument<TerminalProfilesDocument>? base,
+  }) async {
+    final current = base ?? await loadVersioned();
+    return saveVersioned(current.withValue(update(current.value)));
   }
 
   Future<File> exportDocument(

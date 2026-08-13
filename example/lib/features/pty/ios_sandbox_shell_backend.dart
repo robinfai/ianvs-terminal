@@ -4,6 +4,8 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:ianvs_pty/ianvs_pty.dart';
+import 'package:ianvs_terminal/ianvs_terminal.dart'
+    show TerminalSessionConfigV1;
 
 /// A small, in-process shell for iOS that never launches a child process.
 ///
@@ -14,7 +16,15 @@ final class IosSandboxShellBackend
     implements
         PtySessionBackend,
         PtySessionConfigV1Backend,
-        PtySessionFramePacketV1Backend {
+        PtySessionRequestV1Backend,
+        PtyHostResponseV1Backend,
+        PtyProtocolReplyBackend,
+        PtySessionDiagnosticEventV1Backend,
+        PtySessionGraphicAssetBackend,
+        PtySessionFileDownloadBackend,
+        PtySessionFramePacketV1Backend,
+        PtySessionRefreshHintBackend,
+        PtyRuntimeCapabilityBackend {
   IosSandboxShellBackend({
     required Directory rootDirectory,
     required PtySessionBackend terminalBackend,
@@ -39,6 +49,28 @@ final class IosSandboxShellBackend
 
   @override
   String createSessionV1(String sessionConfigV1Json) {
+    final config = TerminalSessionConfigV1.fromJsonString(sessionConfigV1Json);
+    if (config.config.connection.isSsh) {
+      final backend = _terminalBackend;
+      if (backend is! PtySessionConfigV1Backend) {
+        throw UnsupportedError('Live SessionConfig v1 is not supported');
+      }
+      final nativeConfig = TerminalSessionConfigV1(
+        sessionId: config.sessionId,
+        displayName: config.displayName,
+        config: config.config.copyWith(
+          connection: config.config.connection.copyWith(
+            knownHostsFile:
+                '$_rootPath${Platform.pathSeparator}.ssh'
+                '${Platform.pathSeparator}known_hosts',
+          ),
+        ),
+        zmodemEnabled: config.zmodemEnabled,
+      );
+      return (backend as PtySessionConfigV1Backend).createSessionV1(
+        nativeConfig.toJsonString(),
+      );
+    }
     final output = _terminalBackend;
     final configOutput = output is PtyReplaySessionConfigV1Backend
         ? output as PtyReplaySessionConfigV1Backend
@@ -82,6 +114,15 @@ final class IosSandboxShellBackend
   }) {
     final session = _sessions[sessionId];
     if (session == null) {
+      _terminalBackend.resizeSession(
+        sessionId,
+        cols: cols,
+        rows: rows,
+        pixelWidth: pixelWidth,
+        pixelHeight: pixelHeight,
+        cellWidth: cellWidth,
+        cellHeight: cellHeight,
+      );
       return;
     }
     _terminalBackend.resizeSession(
@@ -99,7 +140,11 @@ final class IosSandboxShellBackend
   @override
   void writeInput(String sessionId, List<int> bytes) {
     final session = _sessions[sessionId];
-    if (session == null || bytes.isEmpty) {
+    if (bytes.isEmpty) {
+      return;
+    }
+    if (session == null) {
+      _terminalBackend.writeInput(sessionId, bytes);
       return;
     }
     var index = 0;
@@ -975,7 +1020,7 @@ Paths are always confined to this app's IanvsShell folder.
 
   @override
   void scrollViewport(String sessionId, int deltaLines) {
-    if (!_sessions.containsKey(sessionId) || deltaLines == 0) {
+    if (deltaLines == 0) {
       return;
     }
     _terminalBackend.scrollViewport(sessionId, deltaLines);
@@ -983,10 +1028,115 @@ Paths are always confined to this app's IanvsShell folder.
 
   @override
   void scrollViewportTo(String sessionId, int offset) {
-    if (!_sessions.containsKey(sessionId)) {
-      return;
-    }
     _terminalBackend.scrollViewportTo(sessionId, offset);
+  }
+
+  @override
+  PtyRuntimeCapabilities? get runtimeCapabilities {
+    final backend = _terminalBackend;
+    return backend is PtyRuntimeCapabilityBackend
+        ? (backend as PtyRuntimeCapabilityBackend).runtimeCapabilities
+        : null;
+  }
+
+  @override
+  String? requestSessionV1Json(String sessionId, String requestV1Json) {
+    final backend = _terminalBackend;
+    if (backend is! PtySessionRequestV1Backend) {
+      throw UnsupportedError('Session Request v1 is not supported');
+    }
+    return (backend as PtySessionRequestV1Backend).requestSessionV1Json(
+      sessionId,
+      requestV1Json,
+    );
+  }
+
+  @override
+  bool get supportsHostResponseV1 {
+    final backend = _terminalBackend;
+    return backend is PtyHostResponseV1Backend &&
+        (backend as PtyHostResponseV1Backend).supportsHostResponseV1;
+  }
+
+  @override
+  bool respondToHostRequestV1(String sessionId, String responseV1Json) {
+    final backend = _terminalBackend;
+    if (backend is! PtyHostResponseV1Backend) {
+      throw UnsupportedError('Host Response v1 is not supported');
+    }
+    return (backend as PtyHostResponseV1Backend).respondToHostRequestV1(
+      sessionId,
+      responseV1Json,
+    );
+  }
+
+  @override
+  bool get supportsProtocolReplies {
+    final backend = _terminalBackend;
+    return backend is PtyProtocolReplyBackend &&
+        (backend as PtyProtocolReplyBackend).supportsProtocolReplies;
+  }
+
+  @override
+  void writeProtocolReply(String sessionId, List<int> bytes) {
+    final backend = _terminalBackend;
+    if (backend is! PtyProtocolReplyBackend) {
+      throw UnsupportedError('Ordered protocol replies are not supported');
+    }
+    (backend as PtyProtocolReplyBackend).writeProtocolReply(sessionId, bytes);
+  }
+
+  @override
+  PtyDiagnosticEventV1? takeDiagnosticEventV1(String sessionId, String name) {
+    final backend = _terminalBackend;
+    return backend is PtySessionDiagnosticEventV1Backend
+        ? (backend as PtySessionDiagnosticEventV1Backend).takeDiagnosticEventV1(
+            sessionId,
+            name,
+          )
+        : null;
+  }
+
+  @override
+  PtyGraphicAsset? loadGraphicAsset(
+    String sessionId, {
+    required int assetId,
+    required int assetVersion,
+  }) {
+    final backend = _terminalBackend;
+    return backend is PtySessionGraphicAssetBackend
+        ? (backend as PtySessionGraphicAssetBackend).loadGraphicAsset(
+            sessionId,
+            assetId: assetId,
+            assetVersion: assetVersion,
+          )
+        : null;
+  }
+
+  @override
+  Uint8List? takeFileDownload(
+    String sessionId, {
+    required int downloadId,
+    required int expectedSize,
+  }) {
+    final backend = _terminalBackend;
+    return backend is PtySessionFileDownloadBackend
+        ? (backend as PtySessionFileDownloadBackend).takeFileDownload(
+            sessionId,
+            downloadId: downloadId,
+            expectedSize: expectedSize,
+          )
+        : null;
+  }
+
+  @override
+  bool discardFileDownload(String sessionId, {required int downloadId}) {
+    final backend = _terminalBackend;
+    return backend is PtySessionFileDownloadBackend &&
+        (backend as PtySessionFileDownloadBackend).discardFileDownload(
+          sessionId,
+          downloadId: downloadId,
+        );
   }
 
   @override
@@ -995,14 +1145,26 @@ Paths are always confined to this app's IanvsShell folder.
     required int? afterSequence,
   }) {
     final backend = _terminalBackend;
-    if (!_sessions.containsKey(sessionId)) {
-      return null;
-    }
     if (backend is! PtySessionFramePacketV1Backend) {
       return null;
     }
     return (backend as PtySessionFramePacketV1Backend)
         .takeFramePacketV1Protobuf(sessionId, afterSequence: afterSequence);
+  }
+
+  @override
+  bool get supportsRefreshHints {
+    final backend = _terminalBackend;
+    return backend is PtySessionRefreshHintBackend &&
+        (backend as PtySessionRefreshHintBackend).supportsRefreshHints;
+  }
+
+  @override
+  int refreshHintFlags(String sessionId) {
+    final backend = _terminalBackend;
+    return backend is PtySessionRefreshHintBackend
+        ? (backend as PtySessionRefreshHintBackend).refreshHintFlags(sessionId)
+        : PtyRefreshHintFlags.none;
   }
 
   void _redraw(_SandboxSession session) {
@@ -1046,9 +1208,7 @@ Paths are always confined to this app's IanvsShell folder.
 
   @override
   List<PtyEvent> pollEvents(String sessionId) {
-    return _sessions.containsKey(sessionId)
-        ? _terminalBackend.pollEvents(sessionId)
-        : const <PtyEvent>[];
+    return _terminalBackend.pollEvents(sessionId);
   }
 }
 

@@ -64,9 +64,11 @@ final class DataApiProfileRepository extends ProfileRepositoryPort {
 
   static const resourceKind = 'profile';
   static const resourceId = 'default';
+  static const _maximumUpdateAttempts = 2;
 
   final DataApiResourceClient _client;
   final DirectoryResolver? _exportDirectoryResolver;
+  Future<void> _updateQueue = Future<void>.value();
   @override
   Future<TerminalProfilesDocument> load() async {
     return (await loadVersioned()).value;
@@ -183,6 +185,33 @@ final class DataApiProfileRepository extends ProfileRepositoryPort {
       value: document.value,
       revision: saved.revision,
     );
+  }
+
+  @override
+  Future<VersionedDocument<TerminalProfilesDocument>> updateVersioned(
+    TerminalProfilesDocumentUpdate update, {
+    VersionedDocument<TerminalProfilesDocument>? base,
+  }) {
+    final operation = _updateQueue.then((_) async {
+      var current = base ?? await loadVersioned();
+      for (var attempt = 0; attempt < _maximumUpdateAttempts; attempt += 1) {
+        final next = current.withValue(update(current.value));
+        try {
+          return await saveVersioned(next);
+        } on DataApiRevisionConflictException {
+          if (attempt == _maximumUpdateAttempts - 1) {
+            rethrow;
+          }
+          current = await loadVersioned();
+        }
+      }
+      throw StateError('Unreachable profile update state.');
+    });
+    _updateQueue = operation.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace _) {},
+    );
+    return operation;
   }
 
   Future<DataApiResource> _put(

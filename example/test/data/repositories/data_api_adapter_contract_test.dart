@@ -136,6 +136,58 @@ void main() {
   });
 
   test(
+    'profile update rebases once without losing a concurrent profile',
+    () async {
+      final client = MemoryDataApiResourceClient();
+      final repository = DataApiProfileRepository(client: client);
+      final base = await repository.loadVersioned();
+      final concurrentProfile = defaultTerminalProfile().copyWith(
+        id: 'phone',
+        name: 'Added on iPhone',
+      );
+      final macProfile = defaultTerminalProfile().copyWith(
+        id: 'mac-ssh',
+        name: 'Mac SSH',
+        connection: const terminal.TerminalConnectionConfig.ssh(
+          host: 'ssh.example.test',
+          user: 'operator',
+        ),
+      );
+      client.beforePut = (memory, kind, id) {
+        final existing = memory.resources[memory.key(kind, id)]!;
+        final remote = TerminalProfilesDocument(
+          profiles: <TerminalProfile>[
+            ...base.value.profiles,
+            concurrentProfile,
+          ],
+        );
+        memory.resources[memory.key(kind, id)] = dataApiTestResource(
+          id: id,
+          kind: kind,
+          data: remote.toJson(),
+          revision: existing.revision + 1,
+        );
+      };
+
+      final saved = await repository.updateVersioned(
+        (current) => TerminalProfilesDocument(
+          profiles: <TerminalProfile>[...current.profiles, macProfile],
+        ),
+        base: base,
+      );
+
+      expect(
+        saved.value.profiles.map((profile) => profile.id),
+        containsAll(<String>['phone', 'mac-ssh']),
+      );
+      expect(
+        (await repository.load()).profiles.map((profile) => profile.id),
+        containsAll(<String>['phone', 'mac-ssh']),
+      );
+    },
+  );
+
+  test(
     'paste history adapter stores the document only as sensitive data',
     () async {
       final client = MemoryDataApiResourceClient();

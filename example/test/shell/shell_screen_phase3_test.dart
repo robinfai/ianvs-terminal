@@ -8,6 +8,7 @@ import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/shell/shell_acceptance.dart';
 import 'package:app/features/shell/shell_screen.dart';
+import 'package:app/features/ssh/ssh_feature_access.dart';
 import 'package:app/features/terminal/terminal_viewport.dart';
 import 'package:app/ui/app_ui.dart';
 import 'package:flutter/material.dart';
@@ -36,6 +37,7 @@ Future<void> _pumpShellScreen(
     ProviderScope(
       overrides: [
         shellAcceptanceProbeProvider.overrideWithValue(shellAcceptanceProbe),
+        customSshProfileConfigurationEnabledProvider.overrideWithValue(true),
         ptySessionBackendProvider.overrideWithValue(fakeBindings),
         profileRepositoryProvider.overrideWithValue(profileRepository),
         pasteHistoryRepositoryProvider.overrideWithValue(
@@ -64,6 +66,20 @@ Future<void> _pumpShellScreen(
     ),
   );
   await tester.pump();
+  await tester.pumpAndSettle();
+  final container = ProviderScope.containerOf(
+    tester.element(find.byType(ShellScreen)),
+  );
+  for (var attempt = 0; attempt < 50; attempt += 1) {
+    if (container.read(sessionControllerProvider).isReady) {
+      break;
+    }
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 20)),
+    );
+    await tester.pump();
+  }
+  expect(container.read(sessionControllerProvider).isReady, isTrue);
   await tester.pumpAndSettle();
 }
 

@@ -5026,23 +5026,30 @@ class SessionController extends Notifier<SessionState> {
         !ref.read(customSshProfileConfigurationEnabledProvider)) {
       throw const CustomSshProfileConfigurationUnavailableException();
     }
-    final nextProfiles = <TerminalProfile>[
-      for (final existing in state.profiles)
-        if (existing.id == profile.id) profile else existing,
-      if (!state.profiles.any((existing) => existing.id == profile.id)) profile,
-    ];
     _profileDocument = await ref
         .read(profileRepositoryProvider)
-        .saveVersioned(
-          _profileDocument.withValue(
-            TerminalProfilesDocument(
-              profiles: nextProfiles,
-              secretClearIntents: <String, Set<ProfileSecretField>>{
-                if (clearSecrets.isNotEmpty) profile.id: clearSecrets,
-              },
-            ),
+        .updateVersioned(
+          (current) => TerminalProfilesDocument(
+            schemaVersion: current.schemaVersion,
+            profiles: <TerminalProfile>[
+              for (final existing in current.profiles)
+                if (existing.id == profile.id) profile else existing,
+              if (!current.profiles.any(
+                (existing) => existing.id == profile.id,
+              ))
+                profile,
+            ],
+            loadWarnings: <TerminalProfileLoadWarning>[
+              for (final warning in current.loadWarnings)
+                if (warning.profileId != profile.id) warning,
+            ],
+            secretClearIntents: <String, Set<ProfileSecretField>>{
+              if (clearSecrets.isNotEmpty) profile.id: clearSecrets,
+            },
           ),
+          base: _profileDocument,
         );
+    final nextProfiles = _profileDocument.value.profiles;
     state = state.copyWith(
       profiles: nextProfiles,
       defaultProfileId: _effectiveDefaultProfileIdFor(nextProfiles),
@@ -5280,16 +5287,22 @@ class SessionController extends Notifier<SessionState> {
   }
 
   Future<void> deleteProfile(String profileId) async {
-    final nextProfiles = state.profiles
-        .where((profile) => profile.id != profileId)
-        .toList();
     _profileDocument = await ref
         .read(profileRepositoryProvider)
-        .saveVersioned(
-          _profileDocument.withValue(
-            TerminalProfilesDocument(profiles: nextProfiles),
+        .updateVersioned(
+          (current) => TerminalProfilesDocument(
+            schemaVersion: current.schemaVersion,
+            profiles: current.profiles
+                .where((profile) => profile.id != profileId)
+                .toList(growable: false),
+            loadWarnings: <TerminalProfileLoadWarning>[
+              for (final warning in current.loadWarnings)
+                if (warning.profileId != profileId) warning,
+            ],
           ),
+          base: _profileDocument,
         );
+    final nextProfiles = _profileDocument.value.profiles;
     final deletedConfiguredDefault =
         _normalizeProfileId(_appPreferences.defaults.defaultProfileId) ==
         profileId;

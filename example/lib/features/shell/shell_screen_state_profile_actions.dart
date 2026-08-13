@@ -46,15 +46,24 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
           throw const CustomSshProfileConfigurationUnavailableException();
         }
         await sessionController.saveProfile(result.profile);
+        _showShellSnackBar(
+          'Saved SSH profile “${result.profile.name}” to '
+          '${_activeProfilePersistenceLabel()}.',
+        );
       } on Object catch (error) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'SSH profile was not saved ($error). Connecting once instead.',
-              ),
-            ),
+        final connectOnce = await _showProfileSaveFailure(
+          profileName: result.profile.name,
+          error: error,
+          allowConnectOnce: true,
+        );
+        if (!mounted || !connectOnce) {
+          _restoreSessionFocus(
+            activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
+            activeSessionIdAfterClose: ref
+                .read(sessionControllerProvider)
+                .activeSessionId,
           );
+          return;
         }
       }
     }
@@ -443,7 +452,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
       }
       final updatedProfile = selection.updatedProfile;
       if (updatedProfile != null) {
-        await sessionController.saveProfile(updatedProfile);
+        await _saveProfileWithFeedback(sessionController, updatedProfile);
       }
     }
 
@@ -564,10 +573,22 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
           ),
         );
         if (confirmed == true) {
-          await sessionController.deleteProfile(profile.id);
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Deleted profile “${profile.name}”.')),
+          try {
+            await sessionController.deleteProfile(profile.id);
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Deleted profile “${profile.name}”.')),
+              );
+            }
+          } on Object catch (error) {
+            await _showProfileSaveFailure(
+              profileName: profile.name,
+              error: error,
+              allowConnectOnce: false,
+              title: 'Profile was not deleted',
+              summary:
+                  '“${profile.name}” is still stored in '
+                  '${_activeProfilePersistenceLabel()}.',
             );
           }
         }
@@ -656,15 +677,107 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
   }) async {
     try {
       await sessionController.saveProfile(profile, clearSecrets: clearSecrets);
+      _showShellSnackBar(
+        'Saved profile “${profile.name}” to '
+        '${_activeProfilePersistenceLabel()}.',
+      );
       return true;
     } on Object catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Profile changes could not be saved: $error')),
-        );
-      }
+      await _showProfileSaveFailure(
+        profileName: profile.name,
+        error: error,
+        allowConnectOnce: false,
+      );
       return false;
     }
+  }
+
+  String _activeProfilePersistenceLabel() {
+    return switch (ref.read(dataApiRuntimeProvider)?.deployment) {
+      DataApiDeployment.remote => 'Remote service',
+      DataApiDeployment.local => 'Bundled local service',
+      DataApiDeployment.disabled || null => 'profile storage',
+    };
+  }
+
+  Future<bool> _showProfileSaveFailure({
+    required String profileName,
+    required Object error,
+    required bool allowConnectOnce,
+    String title = 'Profile was not saved',
+    String? summary,
+  }) async {
+    if (!mounted) {
+      return false;
+    }
+    final destination = _activeProfilePersistenceLabel();
+    return await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (dialogContext) => AlertDialog(
+            key: const Key('profile-save-failure-dialog'),
+            title: Text(title),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  summary ??
+                      '“$profileName” was not written to $destination. '
+                          'It will not appear on your other devices.',
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  _profileSaveFailureMessage(error),
+                  key: const Key('profile-save-failure-message'),
+                ),
+                if (allowConnectOnce) ...[
+                  const SizedBox(height: 12),
+                  const Text(
+                    'You can cancel and try saving again, or explicitly '
+                    'continue with a one-time connection.',
+                  ),
+                ],
+              ],
+            ),
+            actions: [
+              TextButton(
+                key: const Key('profile-save-failure-cancel'),
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: Text(allowConnectOnce ? 'Cancel connection' : 'OK'),
+              ),
+              if (allowConnectOnce)
+                FilledButton(
+                  key: const Key('profile-save-failure-connect-once'),
+                  onPressed: () => Navigator.of(dialogContext).pop(true),
+                  child: const Text('Connect once without saving'),
+                ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
+  String _profileSaveFailureMessage(Object error) {
+    return switch (error) {
+      DataApiRevisionConflictException() =>
+        'Profiles changed on another device while this save was in progress. '
+            'Reload the profiles and try again.',
+      DataApiAuthenticationRequiredException() =>
+        'The Remote service session is no longer authenticated. Open Data '
+            'service settings, sign in again, and retry the save.',
+      DataApiTimeoutException() =>
+        'The Remote service did not respond in time. Check the network '
+            'connection and try again.',
+      DataApiRequestException(:final statusCode, :final code, :final message) =>
+        'Remote service rejected the save ($statusCode/$code): $message',
+      DataApiProtocolException(:final message) =>
+        'The Remote service returned an invalid response: $message',
+      CustomSshProfileConfigurationUnavailableException() =>
+        'Persistent SSH profiles require a connected bundled local or Remote '
+            'service. Open Data service settings and connect one first.',
+      _ => 'Save failed: $error',
+    };
   }
 
   Future<void> _openDynamicProfiles(SessionController sessionController) async {
@@ -684,7 +797,9 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
       return;
     }
     for (final profile in result.profiles) {
-      await sessionController.saveProfile(profile);
+      if (!await _saveProfileWithFeedback(sessionController, profile)) {
+        return;
+      }
     }
     if (!mounted) {
       return;

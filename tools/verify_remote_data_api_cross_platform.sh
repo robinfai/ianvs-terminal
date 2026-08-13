@@ -107,7 +107,7 @@ PY
   python3 "$ROOT_DIR/tools/serve_acceptance_credentials.py" \
   "$credentials_file" "$broker_ready_file" &
 broker_pid=$!
-for _ in {1..100}; do
+for _ in {1..600}; do
   [[ -s "$broker_ready_file" ]] && break
   kill -0 "$broker_pid" 2>/dev/null || {
     echo "The acceptance credential broker exited before becoming ready." >&2
@@ -115,6 +115,10 @@ for _ in {1..100}; do
   }
   sleep 0.05
 done
+if [[ ! -s "$broker_ready_file" ]]; then
+  echo "The acceptance credential broker did not become ready within 30 seconds." >&2
+  exit 1
+fi
 credentials_url="$(cat "$broker_ready_file")"
 if [[ "$credentials_url" != http://127.0.0.1:*/* ]]; then
   echo "The acceptance credential broker did not publish a loopback URL." >&2

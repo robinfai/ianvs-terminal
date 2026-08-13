@@ -1,8 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:app/features/pty/pty.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ianvs_pty/ianvs_pty.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart';
 import 'package:ianvs_terminal/src/runtime/terminal_frame_transport_coordinator.dart';
 
@@ -127,6 +129,64 @@ void main() {
     expect((rowAtCursor['text']! as String).trimRight(), '中');
     expect(_cursor(frame)['col'], 2);
   });
+
+  test('routes SSH sessions to native while preserving the sandbox shell', () {
+    final routingRoot = Directory.systemTemp.createTempSync(
+      'ianvs-ios-routing-test-',
+    );
+    final routingBackend = _RoutingPtyBackend();
+    final composite = IosSandboxShellBackend(
+      rootDirectory: routingRoot,
+      terminalBackend: routingBackend,
+    );
+    addTearDown(() {
+      if (routingRoot.existsSync()) {
+        routingRoot.deleteSync(recursive: true);
+      }
+    });
+
+    expect(composite.runtimeCapabilities?.supports('ssh-session.v1'), isTrue);
+
+    final sandboxId = composite.createSessionV1(_sessionConfig('local'));
+    final sshId = composite.createSessionV1(_sshSessionConfig('ssh'));
+
+    expect(routingBackend.replayConfigs, hasLength(1));
+    expect(routingBackend.liveConfigs, hasLength(1));
+    expect(sandboxId, 'replay-session');
+    expect(sshId, 'live-session');
+    final routedSsh = TerminalSessionConfigV1.fromJsonString(
+      routingBackend.liveConfigs.single,
+    );
+    expect(
+      routedSsh.config.connection.knownHostsFile,
+      '${routingRoot.resolveSymbolicLinksSync()}/.ssh/known_hosts',
+    );
+
+    composite.resizeSession(
+      sshId,
+      cols: 90,
+      rows: 30,
+      pixelWidth: 900,
+      pixelHeight: 600,
+    );
+    composite.writeInput(sshId, const <int>[0x61, 0x62]);
+    composite.scrollViewport(sshId, 3);
+    composite.scrollViewportTo(sshId, 7);
+
+    expect(routingBackend.resizedSessions, <String>[sshId]);
+    expect(routingBackend.writes[sshId], <int>[0x61, 0x62]);
+    expect(routingBackend.scrolledSessions, <String>[sshId]);
+    expect(routingBackend.scrolledToSessions, <String>[sshId]);
+    expect(
+      composite.takeFramePacketV1Protobuf(sshId, afterSequence: null),
+      <int>[1, 2, 3],
+    );
+    expect(composite.pollEvents(sshId).single.kind, 'native-event');
+
+    composite.closeSession(sshId);
+    composite.closeSession(sandboxId);
+    expect(routingBackend.closedSessions, <String>[sshId, sandboxId]);
+  });
 }
 
 String _takeText(IosSandboxShellBackend backend, String sessionId) {
@@ -170,6 +230,20 @@ String _sessionConfig(String sessionId) {
   ).toJsonString();
 }
 
+String _sshSessionConfig(String sessionId) {
+  return TerminalSessionConfigV1(
+    sessionId: sessionId,
+    displayName: 'SSH',
+    config: const TerminalSessionConfig(
+      launch: TerminalLaunchConfig(program: ''),
+      connection: TerminalConnectionConfig.ssh(
+        host: 'ssh.example.test',
+        user: 'operator',
+      ),
+    ),
+  ).toJsonString();
+}
+
 String _frameText(Map<String, Object?> frame) {
   final rows = frame['rows']! as List<Object?>;
   return rows
@@ -180,3 +254,95 @@ String _frameText(Map<String, Object?> frame) {
 
 Map<String, Object?> _cursor(Map<String, Object?> frame) =>
     frame['cursor']! as Map<String, Object?>;
+
+final class _RoutingPtyBackend
+    implements
+        PtySessionBackend,
+        PtyReplaySessionBackend,
+        PtySessionConfigV1Backend,
+        PtyReplaySessionConfigV1Backend,
+        PtySessionFramePacketV1Backend,
+        PtyRuntimeCapabilityBackend {
+  final List<String> liveConfigs = <String>[];
+  final List<String> replayConfigs = <String>[];
+  final List<String> closedSessions = <String>[];
+  final List<String> resizedSessions = <String>[];
+  final Map<String, List<int>> writes = <String, List<int>>{};
+  final List<String> scrolledSessions = <String>[];
+  final List<String> scrolledToSessions = <String>[];
+
+  @override
+  final PtyRuntimeCapabilities runtimeCapabilities =
+      PtyRuntimeCapabilities.fromJson(<String, Object?>{
+        'schema_version': 1,
+        'runtime_contract': 'ianvs-runtime-contract-v1',
+        'frame_schema_versions': <Object?>['terminal-frame-diff-v1'],
+        'recording_schema_versions': <Object?>[],
+        'features': <Object?>['session-config.json.v1', 'ssh-session.v1'],
+      });
+
+  @override
+  int ping() => 1;
+
+  @override
+  String createSessionV1(String sessionConfigV1Json) {
+    liveConfigs.add(sessionConfigV1Json);
+    return 'live-session';
+  }
+
+  @override
+  String createReplaySessionV1(String sessionConfigV1Json) {
+    replayConfigs.add(sessionConfigV1Json);
+    return 'replay-session';
+  }
+
+  @override
+  void replayOutput(String sessionId, List<int> bytes) {}
+
+  @override
+  void replayExit(String sessionId, {int? exitCode}) {}
+
+  @override
+  void closeSession(String sessionId) {
+    closedSessions.add(sessionId);
+  }
+
+  @override
+  void resizeSession(
+    String sessionId, {
+    required int cols,
+    required int rows,
+    required int pixelWidth,
+    required int pixelHeight,
+    int cellWidth = 0,
+    int cellHeight = 0,
+  }) {
+    resizedSessions.add(sessionId);
+  }
+
+  @override
+  void writeInput(String sessionId, List<int> bytes) {
+    writes[sessionId] = List<int>.of(bytes);
+  }
+
+  @override
+  void scrollViewport(String sessionId, int deltaLines) {
+    scrolledSessions.add(sessionId);
+  }
+
+  @override
+  void scrollViewportTo(String sessionId, int offset) {
+    scrolledToSessions.add(sessionId);
+  }
+
+  @override
+  List<PtyEvent> pollEvents(String sessionId) => <PtyEvent>[
+    PtyEvent(kind: 'native-event', sessionId: sessionId),
+  ];
+
+  @override
+  Uint8List takeFramePacketV1Protobuf(
+    String sessionId, {
+    required int? afterSequence,
+  }) => Uint8List.fromList(const <int>[1, 2, 3]);
+}

@@ -16,6 +16,7 @@ import 'package:path_provider/path_provider.dart';
 import '../../data/configuration/data_api_configuration.dart';
 import '../../data/configuration/data_api_configuration_providers.dart';
 import '../../data/configuration/data_api_configuration_repository.dart';
+import '../../data/services/data_api_client.dart';
 import '../../data/services/data_api_migration_service.dart';
 import '../../data/services/data_api_runtime.dart';
 import '../../platform/clipboard_bridge.dart';
