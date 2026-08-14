@@ -1488,10 +1488,13 @@ void main() {
           .read(terminalRuntimeControllerProvider)
           .refreshSession(sessionId);
       await _waitFor(
-        () => _recordingFiles(harness.directory).isNotEmpty,
-        description: 'recording saved after bounded pre-close retry',
+        () =>
+            harness.backend.closedSessionIds.contains(sessionId) &&
+            _recordingFiles(harness.directory).isNotEmpty,
+        description: 'recording save and PTY close after bounded retry',
       );
 
+      expect(_recordingFiles(harness.directory), isNotEmpty);
       expect(harness.backend.prepareAttempts, 2);
       final stops = harness.backend.timeline
           .where((event) => event == 'stop:$sessionId')
@@ -2040,7 +2043,8 @@ Future<void> _waitFor(
   bool Function() condition, {
   required String description,
 }) async {
-  for (var attempt = 0; attempt < 100; attempt += 1) {
+  final timeout = Stopwatch()..start();
+  while (timeout.elapsed < const Duration(seconds: 5)) {
     if (condition()) {
       return;
     }
