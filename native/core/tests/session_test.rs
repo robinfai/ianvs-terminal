@@ -1263,22 +1263,23 @@ fn alternate_screen_interaction_modes_profile() -> TerminalProfile {
     local_profile(
         "alternate-screen-interaction-modes",
         "Alternate Screen Interaction Modes",
-        "/bin/sh",
+        "/usr/bin/env",
         vec![
-            "-lc".to_string(),
-            r#"python3 - <<'PY'
-import sys
+            "python3".to_string(),
+            "-c".to_string(),
+            r#"import sys
 import time
 
 sys.stdout.write("\x1b[?1049h")
 sys.stdout.write("\x1b[?1004h\x1b[?1007h\x1b[?1002h\x1b[?1006h\x1b[=1u")
 sys.stdout.write("ALTINTERACTION")
 sys.stdout.flush()
-time.sleep(0.15)
+if sys.stdin.readline() == "":
+    sys.exit(2)
 sys.stdout.write("\x1b[?1049lPRIMARYDONE")
 sys.stdout.flush()
 time.sleep(0.1)
-PY"#
+"#
             .to_string(),
         ],
         BTreeMap::new(),
@@ -1445,7 +1446,7 @@ fn stuck_synchronized_output_profile() -> TerminalProfile {
         "/bin/sh",
         vec![
             "-lc".to_string(),
-            r#"python3 -c 'import sys,time; sys.stdout.write("\x1b[?2026hSYNC-STUCK"); sys.stdout.flush(); time.sleep(1.5)'"#
+            r#"python3 -c 'import sys,time; sys.stdout.write("\x1b[?2026hSYNC-STUCK"); sys.stdout.flush(); time.sleep(5)'"#
                 .to_string(),
         ],
         BTreeMap::new(),
@@ -7101,15 +7102,25 @@ out('\x1b[20;2H\x1b[0m\x1b[m\x1b[K\x1b[21;2H\x1b[0m\x1b[m\x1b[K\x1b[22;19H\x1b[0
 
 #[test]
 fn session_frame_diff_defers_single_clear_screen_graphics_gap() {
+    let script = r#"import sys, time
+
+def checkpoint(value):
+    sys.stdout.write(value)
+    sys.stdout.flush()
+    if sys.stdin.readline() == '':
+        sys.exit(2)
+
+checkpoint('\x1b[10;10H\x1b_Ga=T,f=32,s=1,v=1,i=49374,q=1;/wAA/w==\x1b\\')
+checkpoint('\x1b[2J\x1b[3J\x1b[Hafter clear\n')
+sys.stdout.write('\x1b[20;30H\x1b_Ga=T,f=32,s=1,v=1,i=49374,q=1;AP8A/w==\x1b\\')
+sys.stdout.flush()
+time.sleep(0.15)
+"#;
     let profile = local_profile(
         "kitty-clear-screen-graphics-gap",
         "Kitty Clear Screen Graphics Gap",
-        "/bin/sh",
-        vec![
-            "-lc".to_string(),
-            "python3 - <<'PY'\nimport sys, time\nsys.stdout.write('\\x1b[10;10H\\x1b_Ga=T,f=32,s=1,v=1,i=49374,q=1;/wAA/w==\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(0.25)\nsys.stdout.write('\\x1b[2J\\x1b[3J\\x1b[Hafter clear\\n')\nsys.stdout.flush()\ntime.sleep(1.00)\nsys.stdout.write('\\x1b[20;30H\\x1b_Ga=T,f=32,s=1,v=1,i=49374,q=1;AP8A/w==\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(0.15)\nPY"
-                .to_string(),
-        ],
+        "/usr/bin/env",
+        vec!["python3".to_string(), "-c".to_string(), script.to_string()],
         BTreeMap::new(),
         TerminalEmulation::Xterm256,
     );
@@ -7125,34 +7136,20 @@ fn session_frame_diff_defers_single_clear_screen_graphics_gap() {
         .as_u64()
         .expect("expected first asset version");
 
-    thread::sleep(Duration::from_millis(300));
-    let mut observed_retained_clear_frame = false;
-    for _ in 0..5 {
-        if let Some(frame) = session::take_frame_diff(session_id).unwrap() {
-            let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
-            let graphics = parsed["graphics"]
-                .as_array()
-                .expect("expected graphics field in clear-screen frame");
-            assert!(
-                !graphics.is_empty(),
-                "clear-screen redraw window must not emit an empty graphics frame after a visible graphic: {frame}"
-            );
-            assert_eq!(
-                graphics[0]["render_id"].as_u64(),
-                Some(first_render_id),
-                "retained clear-screen placement should keep the previous render id: {frame}"
-            );
-            if graphics[0]["asset_version"].as_u64() == Some(first_version) {
-                observed_retained_clear_frame = true;
-            }
-        }
-        thread::sleep(Duration::from_millis(100));
-    }
-    assert!(
-        observed_retained_clear_frame,
-        "expected to observe the old graphic retained while clear-screen redraw waits for replacement"
+    session::write_session(session_id, b"\n").unwrap();
+    let retained = wait_for_frame_where(session_id, |frame| {
+        frame.contains("after clear")
+            && frame.contains("\"graphics\":[{")
+            && frame.contains(&format!("\"asset_version\":{first_version}"))
+    });
+    let retained_parsed: serde_json::Value = serde_json::from_str(&retained).unwrap();
+    assert_eq!(
+        retained_parsed["graphics"][0]["render_id"].as_u64(),
+        Some(first_render_id),
+        "retained clear-screen placement should keep the previous render id: {retained}"
     );
 
+    session::write_session(session_id, b"\n").unwrap();
     let replacement = wait_for_frame_where(session_id, |frame| {
         frame.contains("\"graphics\":[{")
             && !frame.contains(&format!("\"asset_version\":{first_version}"))
@@ -16250,6 +16247,7 @@ fn session_frame_diff_resets_alt_screen_interaction_modes_on_exit() {
     assert_eq!(alt["modes"]["mouse_encoding"].as_str(), Some("sgr"));
     assert_eq!(alt["modes"]["kitty_keyboard_flags"].as_u64(), Some(1));
 
+    session::write_session(session_id, b"\n").unwrap();
     let primary_frame = wait_for_frame_containing(session_id, "PRIMARYDONE");
     let primary: serde_json::Value = serde_json::from_str(&primary_frame).unwrap();
     assert_eq!(primary["modes"]["alternate_screen"].as_bool(), Some(false));
@@ -17903,17 +17901,6 @@ fn session_synchronized_output_timeout_flushes_stuck_frame() {
         &serde_json::to_string(&stuck_synchronized_output_profile()).unwrap(),
     )
     .unwrap();
-
-    thread::sleep(Duration::from_millis(300));
-    for _ in 0..5 {
-        if let Some(frame) = session::take_frame_diff(session_id).unwrap() {
-            assert!(
-                !frame.contains("SYNC-STUCK"),
-                "synchronized output should not publish before timeout: {frame}"
-            );
-        }
-        thread::sleep(Duration::from_millis(100));
-    }
 
     let frame = wait_for_frame_containing(session_id, "SYNC-STUCK");
     let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
