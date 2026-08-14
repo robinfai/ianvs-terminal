@@ -35,9 +35,7 @@ void main() {
     final valid = completeTerminalFrameWireFixture().protobuf;
     final missing = valid.deepCopy()..clearFrameKind();
     final unspecified = valid.deepCopy()
-      ..frameKind = frame_pb
-          .TerminalFrameKind
-          .TERMINAL_FRAME_KIND_UNSPECIFIED;
+      ..frameKind = frame_pb.TerminalFrameKind.TERMINAL_FRAME_KIND_UNSPECIFIED;
     final unknown = <int>[
       ...(valid.deepCopy()..clearFrameKind()).writeToBuffer(),
       0x10,
