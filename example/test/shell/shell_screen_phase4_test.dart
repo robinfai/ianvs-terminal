@@ -4412,7 +4412,7 @@ void main() {
     },
   );
 
-  testWidgets('OSC notification snackbar identifies inactive split pane', (
+  testWidgets('OSC notification stays in the tab instead of a snackbar', (
     tester,
   ) async {
     final fakeBindings = FakePtyBackend();
@@ -4446,20 +4446,18 @@ void main() {
         .refreshSession(inactiveSessionId);
     await tester.pump(const Duration(milliseconds: 40));
 
-    expect(
-      find.descendant(
-        of: find.byType(SnackBar),
-        matching: find.textContaining('Build: Inactive pane done · Pane:'),
-      ),
-      findsOneWidget,
+    expect(find.byType(SnackBar), findsNothing);
+
+    final notificationSignal = find.byKey(
+      Key('shell-tab-pane-signal-${splitState.tabs.single.sessionId}'),
     );
-    expect(
-      find.descendant(
-        of: find.byType(SnackBar),
-        matching: find.textContaining('($inactiveSessionId) · inactive pane'),
-      ),
-      findsOneWidget,
-    );
+    expect(notificationSignal, findsOneWidget);
+
+    await tester.tap(notificationSignal);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Build'), findsOneWidget);
+    expect(find.textContaining('Inactive pane done'), findsOneWidget);
   });
 
   testWidgets('OSC 99 system notification keeps stable ID, expiry and close', (

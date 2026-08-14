@@ -1677,13 +1677,6 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     final message = event.message.trim();
     final visibleTitle = title.isEmpty ? 'Terminal notification' : title;
     final visibleMessage = message.isEmpty ? visibleTitle : message;
-    _showShellSnackBar(
-      _oscNotificationSnackBarMessage(
-        event,
-        title: visibleTitle,
-        message: visibleMessage,
-      ),
-    );
     if (!_activityNotificationsEnabled ||
         !_notificationSessionIsInactive(event.sessionId) ||
         (event.action != 'update' &&
@@ -1729,18 +1722,6 @@ extension _ShellScreenStateEvents on _ShellScreenState {
           interaction.notification,
         );
     }
-  }
-
-  String _oscNotificationSnackBarMessage(
-    terminal.TerminalSessionNotificationEvent event, {
-    required String title,
-    required String message,
-  }) {
-    final baseMessage = '$title: $message';
-    if (!_notificationSessionIsInactive(event.sessionId)) {
-      return baseMessage;
-    }
-    return '$baseMessage · ${_terminalPaneContextLine(event.sessionId)}';
   }
 
   String? _oscNotificationRemoteContext(String sessionId) {
