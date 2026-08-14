@@ -37,7 +37,11 @@ python3 "$ROOT_DIR/tools/osc_semantic_probe.py" --self-test
 (
   cd "$VENDORED_TERMINAL_CORE_DIR"
   cargo fmt --check
-  cargo clippy --locked --all-targets -- -D warnings
+  # Preserve the upstream release snapshot without rewriting hundreds of
+  # format calls to inline captured arguments; all other warnings stay denied.
+  cargo clippy --locked --all-targets -- \
+    -D warnings \
+    -A clippy::uninlined_format_args
   cargo test --locked -- --test-threads=1
 )
 

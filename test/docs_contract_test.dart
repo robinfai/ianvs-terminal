@@ -236,6 +236,17 @@ void main() {
     expect(script, contains('persistence_repository_composition.dart'));
   });
 
+  test('terminal verification scopes the vendored Clippy allowance', () {
+    final script = File('tools/verify_flutter_terminal.sh').readAsStringSync();
+    final vendorBlock = script.indexOf(r'cd "$VENDORED_TERMINAL_CORE_DIR"');
+    final allowance = script.indexOf('-A clippy::uninlined_format_args');
+    final nextBlock = script.indexOf(r'cd "$VENDORED_ZMODEM_DIR"');
+
+    expect(vendorBlock, lessThan(allowance));
+    expect(allowance, lessThan(nextBlock));
+    expect('-A clippy::uninlined_format_args'.allMatches(script), hasLength(1));
+  });
+
   test(
     'terminal verification script automatically discovers example tests',
     () {
