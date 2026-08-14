@@ -7,6 +7,11 @@ import 'package:app/features/profiles/profile_secret_cipher.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
 
+const _privateKeyContents =
+    '-----BEGIN OPENSSH PRIVATE KEY-----\n'
+    'b3BlbnNzaC1rZXktdjEAAAAA\n'
+    '-----END OPENSSH PRIVATE KEY-----';
+
 void main() {
   test(
     'encrypts SSH secrets at rest and restores them with the saved key',
@@ -27,6 +32,7 @@ void main() {
           user: 'operator',
           auth: terminal.TerminalSshAuthMethod.password,
           password: 'plain-password-must-not-leak',
+          privateKeys: <String>[_privateKeyContents],
           privateKeyPassphrase: 'plain-passphrase-must-not-leak',
           proxyJump: 'jump-user@jump.example.test',
           proxyJumpProfiles: <terminal.TerminalSshJumpConfig>[
@@ -53,6 +59,7 @@ void main() {
       ).readAsString();
 
       expect(raw, isNot(contains('plain-password-must-not-leak')));
+      expect(raw, isNot(contains(_privateKeyContents)));
       expect(raw, isNot(contains('plain-passphrase-must-not-leak')));
       expect(raw, isNot(contains('plain-x11-cookie-must-not-leak')));
       expect(raw, isNot(contains('plain-jump-password-must-not-leak')));
@@ -73,6 +80,9 @@ void main() {
         reloaded.profiles.single.connection.privateKeyPassphrase,
         'plain-passphrase-must-not-leak',
       );
+      expect(reloaded.profiles.single.connection.privateKeys, const <String>[
+        _privateKeyContents,
+      ]);
       expect(
         reloaded.profiles.single.connection.x11AuthCookie,
         'plain-x11-cookie-must-not-leak',

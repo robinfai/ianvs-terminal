@@ -1,9 +1,21 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../ui/app_ui.dart';
 import '../terminal/terminal.dart' as terminal;
+
+Future<void> releaseTerminalInputForModal() async {
+  FocusManager.instance.primaryFocus?.unfocus();
+  try {
+    await SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
+  } on MissingPluginException {
+    // Desktop/test hosts may not install a text-input platform channel.
+  } on PlatformException {
+    // A failed keyboard dismissal must not strand the modal-open gate.
+  }
+}
 
 typedef SshAuthenticationResponder =
     FutureOr<bool> Function({
@@ -11,6 +23,211 @@ typedef SshAuthenticationResponder =
       required List<String> responses,
       required bool cancel,
     });
+
+typedef SshHostKeyResponder =
+    FutureOr<bool> Function({
+      required terminal.TerminalSessionSshHostKeyPromptEvent event,
+      required bool accept,
+    });
+
+final class SshHostKeyPromptPresenter {
+  Future<void> _tail = Future<void>.value();
+  final Set<String> _cancelledSessionIds = <String>{};
+  final Map<String, int> _pendingBySessionId = <String, int>{};
+  ({String sessionId, ValueNotifier<bool> cancellation})? _active;
+
+  void cancelSession(String sessionId) {
+    if (!_pendingBySessionId.containsKey(sessionId)) return;
+    _cancelledSessionIds.add(sessionId);
+    final active = _active;
+    if (active?.sessionId == sessionId) {
+      active!.cancellation.value = true;
+    }
+  }
+
+  Future<void> enqueue(
+    BuildContext context,
+    terminal.TerminalSessionSshHostKeyPromptEvent event,
+    SshHostKeyResponder responder,
+  ) {
+    _pendingBySessionId.update(
+      event.sessionId,
+      (count) => count + 1,
+      ifAbsent: () => 1,
+    );
+    return _tail = _tail
+        .catchError((_) {})
+        .then((_) async {
+          if (!context.mounted ||
+              !event.isValid ||
+              _cancelledSessionIds.contains(event.sessionId)) {
+            return;
+          }
+          await releaseTerminalInputForModal();
+          if (!context.mounted ||
+              _cancelledSessionIds.contains(event.sessionId)) {
+            return;
+          }
+          final cancellation = ValueNotifier<bool>(false);
+          _active = (sessionId: event.sessionId, cancellation: cancellation);
+          final accepted = await showDialog<bool>(
+            context: context,
+            barrierDismissible: false,
+            builder: (_) => SshHostKeyPromptDialog(
+              event: event,
+              cancellation: cancellation,
+            ),
+          );
+          if (_active?.cancellation == cancellation) _active = null;
+          cancellation.dispose();
+          if (_cancelledSessionIds.contains(event.sessionId)) return;
+          final responseAccepted = await responder(
+            event: event,
+            accept: accepted == true,
+          );
+          if (!responseAccepted && context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'The SSH host-key confirmation is no longer active.',
+                ),
+              ),
+            );
+          }
+        })
+        .catchError((_) {})
+        .whenComplete(() {
+          final remaining = (_pendingBySessionId[event.sessionId] ?? 1) - 1;
+          if (remaining <= 0) {
+            _pendingBySessionId.remove(event.sessionId);
+            _cancelledSessionIds.remove(event.sessionId);
+          } else {
+            _pendingBySessionId[event.sessionId] = remaining;
+          }
+        });
+  }
+
+  void present(
+    BuildContext context,
+    terminal.TerminalSessionSshHostKeyPromptEvent event,
+    terminal.TerminalRuntimeController runtime,
+  ) {
+    unawaited(
+      enqueue(context, event, ({required event, required accept}) {
+        return runtime.respondSshHostKey(
+          event.sessionId,
+          challengeId: event.challengeId!,
+          accept: accept,
+        );
+      }),
+    );
+  }
+}
+
+class SshHostKeyPromptDialog extends StatefulWidget {
+  const SshHostKeyPromptDialog({
+    super.key,
+    required this.event,
+    this.cancellation,
+  });
+
+  final terminal.TerminalSessionSshHostKeyPromptEvent event;
+  final ValueNotifier<bool>? cancellation;
+
+  @override
+  State<SshHostKeyPromptDialog> createState() => _SshHostKeyPromptDialogState();
+}
+
+class _SshHostKeyPromptDialogState extends State<SshHostKeyPromptDialog> {
+  @override
+  void initState() {
+    super.initState();
+    widget.cancellation?.addListener(_handleCancellation);
+    if (widget.cancellation?.value == true) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _dismissIfMounted());
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.cancellation?.removeListener(_handleCancellation);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final event = widget.event;
+    final changed =
+        event.reason == terminal.TerminalSshHostKeyPromptReason.changed;
+    final palette = context.appTheme;
+    return AlertDialog(
+      key: const Key('ssh-host-key-prompt-dialog'),
+      scrollable: true,
+      icon: Icon(
+        changed ? Icons.warning_amber_rounded : Icons.shield_outlined,
+        color: changed ? palette.danger : palette.accent,
+      ),
+      title: Text(changed ? 'SSH host key changed' : 'Trust this SSH host?'),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 440),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              changed
+                  ? 'The key saved for this server does not match the key it '
+                        'presented now. Only continue if you verified the new '
+                        'fingerprint; accepting replaces the saved key.'
+                  : 'Strict verification has no saved key for this server. '
+                        'Verify the fingerprint before trusting it.',
+            ),
+            SizedBox(height: palette.spacing.lg),
+            AppFieldRow(
+              label: 'Server',
+              control: SelectableText('${event.host}:${event.port}'),
+            ),
+            SizedBox(height: palette.spacing.md),
+            AppFieldRow(
+              label: 'Algorithm',
+              control: SelectableText(event.algorithm!),
+            ),
+            SizedBox(height: palette.spacing.md),
+            AppFieldRow(
+              label: 'SHA-256 fingerprint',
+              control: SelectableText(
+                event.fingerprint!,
+                key: const Key('ssh-host-key-fingerprint'),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          key: const Key('ssh-host-key-reject'),
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Reject'),
+        ),
+        FilledButton(
+          key: const Key('ssh-host-key-accept'),
+          onPressed: () => Navigator.of(context).pop(true),
+          child: Text(
+            changed ? 'Replace key and continue' : 'Trust and continue',
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _handleCancellation() {
+    if (widget.cancellation?.value == true) _dismissIfMounted();
+  }
+
+  void _dismissIfMounted() {
+    if (mounted) Navigator.of(context).pop();
+  }
+}
 
 /// Serializes keyboard-interactive rounds so a server can issue a password,
 /// OTP, approval, or any later challenge without overlapping modal dialogs.
@@ -48,6 +265,11 @@ final class SshAuthenticationPromptPresenter {
         .then((_) async {
           if (!context.mounted ||
               !event.isValid ||
+              _cancelledSessionIds.contains(event.sessionId)) {
+            return;
+          }
+          await releaseTerminalInputForModal();
+          if (!context.mounted ||
               _cancelledSessionIds.contains(event.sessionId)) {
             return;
           }

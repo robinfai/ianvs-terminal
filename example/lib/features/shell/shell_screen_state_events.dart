@@ -3,6 +3,12 @@ part of 'shell_screen.dart';
 const String _activityNotificationBody = 'New terminal output is available.';
 
 extension _ShellScreenStateEvents on _ShellScreenState {
+  bool get _shellModalInputBlocked =>
+      _isCommandMenuOpen ||
+      _isDefaultsOpen ||
+      _isProfilesOpen ||
+      ModalRoute.of(context)?.isCurrent == false;
+
   void _handleTerminalUiEffect(TerminalUiEffect effect) {
     final coordinator = ref.read(terminalEventCoordinatorProvider);
     if (!mounted || !coordinator.isCurrentUiEffect(effect)) {
@@ -22,10 +28,12 @@ extension _ShellScreenStateEvents on _ShellScreenState {
   }
 
   Future<void> _handleNativePasteMenu() async {
-    if (_isSearchOpen) {
-      await _searchPasteHandler?.call();
+    final editableText = focusedEditableTextForCurrentRoute();
+    if (editableText != null) {
+      await editableText.pasteText(SelectionChangedCause.toolbar);
       return;
     }
+    if (_shellModalInputBlocked) return;
     final activeSessionId = ref.read(sessionControllerProvider).activeSessionId;
     if (activeSessionId == null) {
       return;
@@ -82,6 +90,12 @@ extension _ShellScreenStateEvents on _ShellScreenState {
                   cancel: cancel,
                 );
           }),
+        );
+      case terminal.TerminalSessionSshHostKeyPromptEvent():
+        _sshHostKeyPromptPresenter.present(
+          context,
+          event,
+          ref.read(terminalRuntimeControllerProvider),
         );
       case terminal.TerminalSessionFrameEvent(:final sessionId, :final frame):
         final frameSequence =

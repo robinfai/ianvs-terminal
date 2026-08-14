@@ -1,11 +1,54 @@
 import 'dart:async';
 
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 
 import '../../ui/app_ui.dart';
 import '../profiles/profile_models.dart';
 import '../terminal/terminal.dart' as terminal;
 import 'ssh_profile_import_service.dart';
+
+typedef SshPrivateKeySelection = ({String path, String contents});
+typedef SshPrivateKeyPicker = Future<SshPrivateKeySelection?> Function();
+
+const int _maximumPrivateKeyBytes = 64 * 1024;
+
+Future<SshPrivateKeySelection?> pickSshPrivateKeyFile() async {
+  final file = await openFile(confirmButtonText: 'Select key');
+  if (file == null) {
+    return null;
+  }
+  if (await file.length() > _maximumPrivateKeyBytes) {
+    throw const FormatException('Private key files must be 64 KB or smaller.');
+  }
+  final contents = (await file.readAsString()).trim();
+  if (!_looksLikePrivateKeyContents(contents)) {
+    throw const FormatException(
+      'Select a supported SSH private key, not a public key file.',
+    );
+  }
+  return (path: file.path.isEmpty ? file.name : file.path, contents: contents);
+}
+
+bool _looksLikePrivateKeyContents(String value) {
+  final trimmed = value.trimLeft();
+  return RegExp(
+        '^-----BEGIN (?:OPENSSH |RSA |EC |DSA |ENCRYPTED )?PRIVATE KEY-----',
+      ).hasMatch(trimmed) ||
+      trimmed.startsWith('PuTTY-User-Key-File-');
+}
+
+bool _sameStrings(List<String> left, List<String> right) {
+  if (left.length != right.length) {
+    return false;
+  }
+  for (var index = 0; index < left.length; index += 1) {
+    if (left[index] != right[index]) {
+      return false;
+    }
+  }
+  return true;
+}
 
 final class NewSessionSelection {
   const NewSessionSelection({required this.profile, this.saveProfile = false});
@@ -32,25 +75,41 @@ class NewSessionLauncher extends StatefulWidget {
     required this.profiles,
     required this.importOpenSshProfiles,
     this.customSshProfilesEnabled = true,
+    this.localSessionsEnabled = true,
   });
 
   final List<TerminalProfile> profiles;
   final Future<SshProfileImportSnapshot> Function() importOpenSshProfiles;
   final bool customSshProfilesEnabled;
+  final bool localSessionsEnabled;
 
   @override
   State<NewSessionLauncher> createState() => _NewSessionLauncherState();
 }
 
 class _NewSessionLauncherState extends State<NewSessionLauncher> {
-  terminal.TerminalConnectionType _type = terminal.TerminalConnectionType.local;
+  late terminal.TerminalConnectionType _type;
   Future<SshProfileImportSnapshot>? _importedProfiles;
+
+  @override
+  void initState() {
+    super.initState();
+    _type = widget.localSessionsEnabled
+        ? terminal.TerminalConnectionType.local
+        : terminal.TerminalConnectionType.ssh;
+    if (!widget.localSessionsEnabled) {
+      _importedProfiles = widget.importOpenSshProfiles();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final palette = context.appTheme;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+    final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
+    return AnimatedPadding(
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeOutCubic,
+      padding: EdgeInsets.fromLTRB(16, 0, 16, 16 + keyboardInset),
       child: Material(
         key: const Key('new-session-launcher'),
         color: palette.overlay,
@@ -70,7 +129,9 @@ class _NewSessionLauncherState extends State<NewSessionLauncher> {
                     children: [
                       Expanded(
                         child: Text(
-                          'New terminal tab',
+                          widget.localSessionsEnabled
+                              ? 'New terminal tab'
+                              : 'New SSH tab',
                           style: Theme.of(context).textTheme.titleLarge
                               ?.copyWith(
                                 color: palette.textPrimary,
@@ -86,40 +147,44 @@ class _NewSessionLauncherState extends State<NewSessionLauncher> {
                     ],
                   ),
                   Text(
-                    'Choose a local shell or connect to an SSH host.',
+                    widget.localSessionsEnabled
+                        ? 'Choose a local shell or connect to an SSH host.'
+                        : 'Choose a saved SSH profile or create a new one.',
                     style: Theme.of(
                       context,
                     ).textTheme.bodyMedium?.copyWith(color: palette.textSubtle),
                   ),
-                  SizedBox(height: palette.spacing.lg),
-                  SizedBox(
-                    width: double.infinity,
-                    child: SegmentedButton<terminal.TerminalConnectionType>(
-                      key: const Key('new-session-type'),
-                      segments: const [
-                        ButtonSegment(
-                          value: terminal.TerminalConnectionType.local,
-                          icon: Icon(Icons.terminal_rounded),
-                          label: Text('Local shell'),
-                        ),
-                        ButtonSegment(
-                          value: terminal.TerminalConnectionType.ssh,
-                          icon: Icon(Icons.dns_outlined),
-                          label: Text('SSH session'),
-                        ),
-                      ],
-                      selected: {_type},
-                      onSelectionChanged: (selection) {
-                        setState(() {
-                          _type = selection.single;
-                          if (_type == terminal.TerminalConnectionType.ssh) {
-                            _importedProfiles ??= widget
-                                .importOpenSshProfiles();
-                          }
-                        });
-                      },
+                  if (widget.localSessionsEnabled) ...[
+                    SizedBox(height: palette.spacing.lg),
+                    SizedBox(
+                      width: double.infinity,
+                      child: SegmentedButton<terminal.TerminalConnectionType>(
+                        key: const Key('new-session-type'),
+                        segments: const [
+                          ButtonSegment(
+                            value: terminal.TerminalConnectionType.local,
+                            icon: Icon(Icons.terminal_rounded),
+                            label: Text('Local shell'),
+                          ),
+                          ButtonSegment(
+                            value: terminal.TerminalConnectionType.ssh,
+                            icon: Icon(Icons.dns_outlined),
+                            label: Text('SSH session'),
+                          ),
+                        ],
+                        selected: {_type},
+                        onSelectionChanged: (selection) {
+                          setState(() {
+                            _type = selection.single;
+                            if (_type == terminal.TerminalConnectionType.ssh) {
+                              _importedProfiles ??= widget
+                                  .importOpenSshProfiles();
+                            }
+                          });
+                        },
+                      ),
                     ),
-                  ),
+                  ],
                   SizedBox(height: palette.spacing.lg),
                   Flexible(
                     child: AnimatedSwitcher(
@@ -164,24 +229,7 @@ class _NewSessionLauncherState extends State<NewSessionLauncher> {
   }
 
   Future<void> _createCustomSshProfile() async {
-    final result = await showDialog<SshProfileEditorResult>(
-      context: context,
-      builder: (context) => SshProfileEditorDialog(
-        initialValue: defaultTerminalProfile().copyWith(
-          id: 'ssh-${DateTime.now().microsecondsSinceEpoch}',
-          name: 'SSH session',
-          connection: const terminal.TerminalConnectionConfig.ssh(
-            host: '',
-            user: '',
-            // There is no host-key confirmation challenge in the UI yet, so
-            // fail closed for a new destination. Users can explicitly choose
-            // Accept new after comparing or provisioning the host key.
-            hostKeyPolicy: terminal.TerminalSshHostKeyPolicy.strict,
-          ),
-        ),
-        allowSaveChoice: true,
-      ),
-    );
+    final result = await showCreateSshProfileDialog(context);
     if (!mounted || result == null) {
       return;
     }
@@ -192,6 +240,26 @@ class _NewSessionLauncherState extends State<NewSessionLauncher> {
       ),
     );
   }
+}
+
+Future<SshProfileEditorResult?> showCreateSshProfileDialog(
+  BuildContext context,
+) {
+  return showDialog<SshProfileEditorResult>(
+    context: context,
+    builder: (context) => SshProfileEditorDialog(
+      initialValue: defaultTerminalProfile().copyWith(
+        id: 'ssh-${DateTime.now().microsecondsSinceEpoch}',
+        name: 'SSH session',
+        connection: const terminal.TerminalConnectionConfig.ssh(
+          host: '',
+          user: '',
+          hostKeyPolicy: terminal.TerminalSshHostKeyPolicy.acceptNew,
+        ),
+      ),
+      allowSaveChoice: true,
+    ),
+  );
 }
 
 class _LocalProfileList extends StatelessWidget {
@@ -434,18 +502,22 @@ class SshProfileEditorDialog extends StatefulWidget {
     required this.initialValue,
     this.allowSaveChoice = false,
     this.saveWhenPristine = true,
+    this.privateKeyPicker,
   });
 
   final TerminalProfile initialValue;
   final bool allowSaveChoice;
   final bool saveWhenPristine;
+  final SshPrivateKeyPicker? privateKeyPicker;
 
   @override
   State<SshProfileEditorDialog> createState() => _SshProfileEditorDialogState();
 }
 
-class _SshProfileEditorDialogState extends State<SshProfileEditorDialog> {
+class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
+    with WidgetsBindingObserver {
   final _formKey = GlobalKey<FormState>();
+  final _privateKeyFieldKey = GlobalKey<FormFieldState<List<String>>>();
   final _scrollController = ScrollController();
   final _advancedController = ExpansibleController();
   final _nameFocus = FocusNode(debugLabel: 'ssh-profile-name');
@@ -466,7 +538,6 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog> {
   late final TextEditingController _user;
   late final TextEditingController _port;
   late final TextEditingController _password;
-  late final TextEditingController _privateKeys;
   late final TextEditingController _privateKeyPassphrase;
   late final TextEditingController _knownHostsFile;
   late final TextEditingController _connectTimeout;
@@ -482,7 +553,12 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog> {
   late terminal.TerminalSshHostKeyPolicy _hostKeyPolicy;
   late bool _agentForwarding;
   late bool _x11Forwarding;
+  late List<String> _privateKeyValues;
+  String? _privateKeyPath;
+  String? _privateKeySelectionError;
+  bool _selectingPrivateKey = false;
   bool _clearPassword = false;
+  bool _clearPrivateKeys = false;
   bool _clearPrivateKeyPassphrase = false;
   bool _clearX11AuthCookie = false;
   bool _saveProfile = true;
@@ -495,15 +571,20 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    FocusManager.instance.addListener(_handlePrimaryFocusChanged);
     final connection = widget.initialValue.connection;
     _name = TextEditingController(text: widget.initialValue.name);
     _host = TextEditingController(text: connection.host);
     _user = TextEditingController(text: connection.user);
     _port = TextEditingController(text: connection.port.toString());
     _password = TextEditingController(text: connection.password ?? '');
-    _privateKeys = TextEditingController(
-      text: connection.privateKeys.join('\n'),
-    );
+    _privateKeyValues = List<String>.of(connection.privateKeys);
+    _privateKeyPath =
+        connection.privateKeys.length == 1 &&
+            !_looksLikePrivateKeyContents(connection.privateKeys.single)
+        ? connection.privateKeys.single
+        : null;
     _privateKeyPassphrase = TextEditingController(
       text: connection.privateKeyPassphrase ?? '',
     );
@@ -539,6 +620,8 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    FocusManager.instance.removeListener(_handlePrimaryFocusChanged);
     _scrollController.dispose();
     _nameFocus.dispose();
     _hostFocus.dispose();
@@ -559,7 +642,6 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog> {
       _user,
       _port,
       _password,
-      _privateKeys,
       _privateKeyPassphrase,
       _knownHostsFile,
       _connectTimeout,
@@ -578,11 +660,58 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog> {
   }
 
   @override
+  void didChangeMetrics() {
+    _scheduleFocusedFieldReveal();
+  }
+
+  void _handlePrimaryFocusChanged() {
+    _scheduleFocusedFieldReveal();
+  }
+
+  void _scheduleFocusedFieldReveal() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      if (MediaQuery.viewInsetsOf(context).bottom <= 0) {
+        return;
+      }
+      final focus = FocusManager.instance.primaryFocus;
+      final focusContext = focus?.context;
+      final renderObject = focusContext?.findRenderObject();
+      if (focus == null ||
+          !focus.hasFocus ||
+          focusContext == null ||
+          renderObject == null ||
+          !renderObject.attached) {
+        return;
+      }
+      final enclosingForm = focusContext.findAncestorWidgetOfExactType<Form>();
+      if (enclosingForm?.key != _formKey) {
+        return;
+      }
+      unawaited(
+        Scrollable.ensureVisible(
+          focusContext,
+          alignment: 0.2,
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOutCubic,
+        ),
+      );
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final palette = context.appTheme;
     final width = MediaQuery.sizeOf(context).width;
+    final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
     final availableWidth = width - (width < 640 ? 24 : 64);
     final dialogWidth = availableWidth.clamp(0.0, 720.0);
+    final compactKeyboardLayout = width < 640 && keyboardVisible;
+    final contentPadding = compactKeyboardLayout
+        ? palette.spacing.lg
+        : palette.spacing.xl;
     final showsPassword =
         _auth == terminal.TerminalSshAuthMethod.auto ||
         _auth == terminal.TerminalSshAuthMethod.password;
@@ -596,7 +725,7 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog> {
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxHeight: 760),
           child: Padding(
-            padding: EdgeInsets.all(palette.spacing.xl),
+            padding: EdgeInsets.all(contentPadding),
             child: Form(
               key: _formKey,
               onChanged: () => setState(() {}),
@@ -618,13 +747,20 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog> {
                       context,
                     ).textTheme.bodyMedium?.copyWith(color: palette.textSubtle),
                   ),
-                  SizedBox(height: palette.spacing.xl),
+                  SizedBox(
+                    height: compactKeyboardLayout
+                        ? palette.spacing.md
+                        : palette.spacing.xl,
+                  ),
                   Flexible(
                     child: Scrollbar(
                       controller: _scrollController,
                       thumbVisibility: true,
                       child: SingleChildScrollView(
+                        key: const Key('ssh-profile-form-scroll'),
                         controller: _scrollController,
+                        keyboardDismissBehavior:
+                            ScrollViewKeyboardDismissBehavior.onDrag,
                         padding: EdgeInsets.only(
                           right: palette.spacing.md,
                           bottom: palette.spacing.lg,
@@ -859,32 +995,97 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog> {
                             if (showsPrivateKeys) ...[
                               SizedBox(height: palette.spacing.lg),
                               AppFieldRow(
-                                label: 'Private key files',
+                                label: 'Private key',
                                 hint:
-                                    'One path per line, for example ~/.ssh/id_ed25519.',
-                                control: Semantics(
-                                  label: 'Private key files',
-                                  textField: true,
-                                  multiline: true,
-                                  child: TextFormField(
-                                    key: const Key('ssh-private-keys'),
-                                    controller: _privateKeys,
-                                    focusNode: _privateKeysFocus,
-                                    minLines: 1,
-                                    maxLines: 3,
-                                    decoration: const InputDecoration(
-                                      prefixIcon: Icon(Icons.key_rounded),
+                                    'The selected path is shown here. Only the encrypted key contents are saved.',
+                                control: FormField<List<String>>(
+                                  key: _privateKeyFieldKey,
+                                  initialValue: _privateKeyValues,
+                                  validator: (value) =>
+                                      _auth ==
+                                              terminal
+                                                  .TerminalSshAuthMethod
+                                                  .publicKey &&
+                                          (value == null || value.isEmpty)
+                                      ? 'Select a private key file'
+                                      : null,
+                                  builder: (field) => Semantics(
+                                    label: 'Private key file',
+                                    value: _privateKeyDisplayValue,
+                                    child: InputDecorator(
+                                      key: const Key('ssh-private-keys'),
+                                      decoration: InputDecoration(
+                                        prefixIcon: const Icon(
+                                          Icons.key_rounded,
+                                        ),
+                                        errorText:
+                                            _privateKeySelectionError ??
+                                            field.errorText,
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              _privateKeyDisplayValue,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: _privateKeyValues.isEmpty
+                                                  ? Theme.of(context)
+                                                        .textTheme
+                                                        .bodyMedium
+                                                        ?.copyWith(
+                                                          color: palette
+                                                              .textSubtle,
+                                                        )
+                                                  : null,
+                                            ),
+                                          ),
+                                          SizedBox(width: palette.spacing.sm),
+                                          TextButton.icon(
+                                            key: const Key(
+                                              'ssh-select-private-key',
+                                            ),
+                                            focusNode: _privateKeysFocus,
+                                            onPressed: _selectingPrivateKey
+                                                ? null
+                                                : _pickPrivateKey,
+                                            icon: _selectingPrivateKey
+                                                ? const SizedBox.square(
+                                                    dimension: 16,
+                                                    child:
+                                                        CircularProgressIndicator(
+                                                          strokeWidth: 2,
+                                                        ),
+                                                  )
+                                                : const Icon(
+                                                    Icons.folder_open_rounded,
+                                                  ),
+                                            label: Text(
+                                              _privateKeyValues.isEmpty
+                                                  ? 'Select'
+                                                  : 'Replace',
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                                     ),
-                                    validator:
-                                        _auth ==
-                                            terminal
-                                                .TerminalSshAuthMethod
-                                                .publicKey
-                                        ? _required
-                                        : null,
                                   ),
                                 ),
                               ),
+                              if (_privateKeyValues.isNotEmpty)
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: TextButton.icon(
+                                    key: const Key('ssh-clear-private-key'),
+                                    onPressed: _forgetPrivateKey,
+                                    icon: const Icon(
+                                      Icons.delete_outline_rounded,
+                                    ),
+                                    label: const Text(
+                                      'Forget saved private key',
+                                    ),
+                                  ),
+                                ),
                               SizedBox(height: palette.spacing.lg),
                               AppFieldRow(
                                 label: 'Private key passphrase',
@@ -987,14 +1188,16 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog> {
                                     DropdownMenuItem(
                                       value: terminal
                                           .TerminalSshHostKeyPolicy
-                                          .strict,
-                                      child: Text('Strict (recommended)'),
+                                          .acceptNew,
+                                      child: Text(
+                                        'Accept new hosts (recommended)',
+                                      ),
                                     ),
                                     DropdownMenuItem(
                                       value: terminal
                                           .TerminalSshHostKeyPolicy
-                                          .acceptNew,
-                                      child: Text('Accept new hosts'),
+                                          .strict,
+                                      child: Text('Ask before trusting'),
                                     ),
                                     DropdownMenuItem(
                                       value: terminal
@@ -1008,7 +1211,7 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog> {
                                         value ??
                                         terminal
                                             .TerminalSshHostKeyPolicy
-                                            .strict;
+                                            .acceptNew;
                                   }),
                                 ),
                                 SizedBox(height: palette.spacing.md),
@@ -1257,6 +1460,71 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog> {
     return trimmed.isEmpty ? null : trimmed;
   }
 
+  String get _privateKeyDisplayValue {
+    final path = _privateKeyPath;
+    if (path != null && path.isNotEmpty) {
+      return path;
+    }
+    if (_privateKeyValues.isNotEmpty) {
+      return _privateKeyValues.length == 1
+          ? 'Saved private key'
+          : '${_privateKeyValues.length} saved private keys';
+    }
+    return 'No private key selected';
+  }
+
+  Future<void> _pickPrivateKey() async {
+    setState(() {
+      _selectingPrivateKey = true;
+      _privateKeySelectionError = null;
+    });
+    try {
+      final selection =
+          await (widget.privateKeyPicker ?? pickSshPrivateKeyFile)();
+      if (!mounted || selection == null) {
+        return;
+      }
+      final contents = selection.contents.trim();
+      if (contents.length > _maximumPrivateKeyBytes ||
+          !_looksLikePrivateKeyContents(contents)) {
+        throw const FormatException(
+          'Select a supported SSH private key, not a public key file.',
+        );
+      }
+      setState(() {
+        _privateKeyPath = selection.path;
+        _privateKeyValues = <String>[contents];
+        _privateKeySelectionError = null;
+        _clearPrivateKeys = false;
+      });
+      _privateKeyFieldKey.currentState?.didChange(_privateKeyValues);
+    } on Object catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _privateKeySelectionError = switch (error) {
+          FormatException(:final message) => message,
+          _ => 'The selected private key could not be read.',
+        };
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _selectingPrivateKey = false);
+      }
+    }
+  }
+
+  void _forgetPrivateKey() {
+    setState(() {
+      _privateKeyPath = null;
+      _privateKeyValues = const <String>[];
+      _privateKeySelectionError = null;
+      _clearPrivateKeys = true;
+    });
+    _privateKeyFieldKey.currentState?.didChange(_privateKeyValues);
+  }
+
   bool get _hasChanges {
     final initial = widget.initialValue;
     final connection = initial.connection;
@@ -1265,7 +1533,7 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog> {
         _user.text != connection.user ||
         _port.text != connection.port.toString() ||
         _password.text != (connection.password ?? '') ||
-        _privateKeys.text != connection.privateKeys.join('\n') ||
+        !_sameStrings(_privateKeyValues, connection.privateKeys) ||
         _privateKeyPassphrase.text != (connection.privateKeyPassphrase ?? '') ||
         _knownHostsFile.text != (connection.knownHostsFile ?? '') ||
         _connectTimeout.text != connection.connectTimeoutSeconds.toString() ||
@@ -1285,6 +1553,7 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog> {
         _agentForwarding != connection.agentForwarding ||
         _x11Forwarding != connection.x11Forwarding ||
         _clearPassword ||
+        _clearPrivateKeys ||
         _clearPrivateKeyPassphrase ||
         _clearX11AuthCookie;
   }
@@ -1307,7 +1576,7 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog> {
       return (node: _passwordFocus, advanced: false);
     }
     if (_auth == terminal.TerminalSshAuthMethod.publicKey &&
-        _required(_privateKeys.text) != null) {
+        _privateKeyValues.isEmpty) {
       return (node: _privateKeysFocus, advanced: false);
     }
     if (_boundedInteger(_connectTimeout.text, 1, 120) != null) {
@@ -1432,13 +1701,7 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog> {
       port: int.parse(_port.text.trim()),
       auth: _auth,
       password: includesPassword ? _optional(_password.text) : null,
-      privateKeys: includesPrivateKeys
-          ? _privateKeys.text
-                .split(RegExp(r'[\r\n]+'))
-                .map((value) => value.trim())
-                .where((value) => value.isNotEmpty)
-                .toList(growable: false)
-          : const [],
+      privateKeys: includesPrivateKeys ? _privateKeyValues : const [],
       privateKeyPassphrase: includesPrivateKeys
           ? _optional(_privateKeyPassphrase.text)
           : null,
@@ -1474,6 +1737,10 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog> {
               (_auth != widget.initialValue.connection.auth &&
                   !includesPrivateKeys))
             ProfileSecretField.privateKeyPassphrase,
+          if (_clearPrivateKeys ||
+              (_auth != widget.initialValue.connection.auth &&
+                  !includesPrivateKeys))
+            ProfileSecretField.privateKeys,
           if (_clearX11AuthCookie ||
               (widget.initialValue.connection.x11Forwarding && !_x11Forwarding))
             ProfileSecretField.x11AuthCookie,
@@ -1686,7 +1953,7 @@ List<terminal.TerminalSshJumpConfig> parseSshProxyJumpProfiles(String raw) {
         user: user,
         port: port,
         auth: terminal.TerminalSshAuthMethod.auto,
-        hostKeyPolicy: terminal.TerminalSshHostKeyPolicy.strict,
+        hostKeyPolicy: terminal.TerminalSshHostKeyPolicy.acceptNew,
       ),
     );
   }

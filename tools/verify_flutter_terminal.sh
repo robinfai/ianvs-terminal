@@ -156,7 +156,7 @@ fi
   verify_release_bundle() (
     release_app="$1"
     release_executable="$release_app/Contents/MacOS/Ianvs Terminal"
-    release_core="$release_app/Contents/Frameworks/libianvs_core.dylib"
+    release_core="$release_app/Contents/Frameworks/ianvs_core.framework/ianvs_core"
 
     for arch in $(lipo -archs "$release_executable"); do
       if ! lipo "$release_core" -verify_arch "$arch" >/dev/null 2>&1; then
@@ -166,6 +166,9 @@ fi
         exit 1
       fi
     done
+
+    python3 "$ROOT_DIR/tools/verify_native_contract.py" \
+      --library "$release_core"
 
     codesign --verify --deep --strict "$release_app"
     signature_metadata="$(codesign -d --verbose=4 "$release_app" 2>&1)"

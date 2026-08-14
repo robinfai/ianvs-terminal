@@ -7,11 +7,11 @@ import 'package:ianvs_pty/ianvs_pty.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart'
     show TerminalSessionConfigV1;
 
-/// A small, in-process shell for iOS that never launches a child process.
+/// iOS terminal backend adapter with native SSH delegation.
 ///
-/// Every path is mapped into [rootDirectory]. Commands are deliberately
-/// bounded to a useful file-manipulation subset so the terminal can remain
-/// interactive without escaping the iOS application sandbox.
+/// The in-process sandbox shell is retained for isolated development tests,
+/// but production passes [localSessionsEnabled] as false so only SSH session
+/// configs can reach the native runtime.
 final class IosSandboxShellBackend
     implements
         PtySessionBackend,
@@ -28,6 +28,7 @@ final class IosSandboxShellBackend
   IosSandboxShellBackend({
     required Directory rootDirectory,
     required PtySessionBackend terminalBackend,
+    this.localSessionsEnabled = true,
     DateTime Function()? clock,
   }) : rootDirectory = Directory(rootDirectory.absolute.path),
        _terminalBackend = terminalBackend,
@@ -38,6 +39,7 @@ final class IosSandboxShellBackend
   }
 
   final Directory rootDirectory;
+  final bool localSessionsEnabled;
   final PtySessionBackend _terminalBackend;
   final PtyReplaySessionBackend _terminalOutput;
   final DateTime Function() _clock;
@@ -69,6 +71,11 @@ final class IosSandboxShellBackend
       );
       return (backend as PtySessionConfigV1Backend).createSessionV1(
         nativeConfig.toJsonString(),
+      );
+    }
+    if (!localSessionsEnabled) {
+      throw UnsupportedError(
+        'Local terminal sessions are disabled on iOS; choose an SSH profile.',
       );
     }
     final output = _terminalBackend;

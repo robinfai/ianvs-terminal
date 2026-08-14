@@ -105,6 +105,7 @@ AppStartupCoordinator createProductionAppStartupCoordinator({
         return IosSandboxShellBackend(
           rootDirectory: sandboxRoot,
           terminalBackend: nativeBackend,
+          localSessionsEnabled: false,
         );
       },
       composeGraph:

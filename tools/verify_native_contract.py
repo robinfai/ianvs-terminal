@@ -8,6 +8,7 @@ import json
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 
@@ -23,7 +24,7 @@ def binary_ianvs_exports(library: Path) -> set[str]:
     nm = shutil.which("llvm-nm") or shutil.which("nm")
     if nm is None:
         raise SystemExit("neither llvm-nm nor nm is available")
-    if library.suffix == ".dylib":
+    if sys.platform == "darwin":
         command = [nm, "-gU", str(library)]
     else:
         command = [nm, "-D", "--defined-only", str(library)]

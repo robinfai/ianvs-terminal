@@ -7,10 +7,12 @@ PTY_PACKAGE_DIR := $(ROOT_DIR)/packages/ianvs_pty
 TERMINAL_PACKAGE_DIR := $(ROOT_DIR)/packages/ianvs_terminal
 TERMINAL_CORE_PACKAGE_DIR := $(ROOT_DIR)/packages/ianvs_terminal_core
 BACKEND_DIR := $(ROOT_DIR)/backend
+WEBUI_DIR := $(BACKEND_DIR)/webui
 
 FLUTTER ?= flutter
 DART ?= dart
 GO ?= go
+PNPM ?= pnpm
 
 APP_NAME ?= Ianvs Terminal
 RELEASE_DIR := $(EXAMPLE_DIR)/build/macos/Build/Products/Release
@@ -24,7 +26,8 @@ INSTALLED_APP := $(INSTALL_DIR)/$(APP_NAME).app
 	terminal-core-sync terminal-core-check \
 	run run-macos build build-macos sign-macos install install-macos \
 	build-install-macos clean \
-	backend-format backend-test backend-run backend-generate-key
+	backend-format backend-test backend-run backend-generate-key \
+	webui-build webui-typecheck webui-unit webui-e2e
 
 help: ## Show the available commands.
 	@printf '%s\n' \
@@ -45,6 +48,10 @@ help: ## Show the available commands.
 		'  backend-test         Run Go data API tests' \
 		'  backend-run          Run the local Go data API (requires BACKEND_CONFIG)' \
 		'  backend-generate-key Generate a client-owned data key' \
+		'  webui-build          Build the embedded web console' \
+		'  webui-typecheck      Type-check the web console' \
+		'  webui-unit           Run web profile codec contract tests' \
+		'  webui-e2e            Run the web console end-to-end acceptance suite' \
 		'' \
 		'macOS:' \
 		'  run                  Run the example app on macOS' \
@@ -108,6 +115,18 @@ backend-run: ## Run the local Go data API.
 
 backend-generate-key: ## Generate a client-owned data encryption key.
 	cd "$(BACKEND_DIR)" && $(GO) run ./cmd/ianvs-api generate-key
+
+webui-build: ## Build the embedded web console (writes backend/webui/dist).
+	cd "$(WEBUI_DIR)" && $(PNPM) install --frozen-lockfile && $(PNPM) build
+
+webui-typecheck: ## Type-check the web console without producing a build.
+	cd "$(WEBUI_DIR)" && $(PNPM) exec tsc --noEmit
+
+webui-unit: ## Run web profile codec contract tests.
+	cd "$(WEBUI_DIR)" && $(PNPM) test:unit
+
+webui-e2e: ## Run the web console end-to-end acceptance suite.
+	"$(ROOT_DIR)/tools/verify_data_api_webui.sh"
 
 run: run-macos
 

@@ -142,6 +142,27 @@ POST /v1/auth/login/complete     {"operation_id":"<server-issued-capability>"}
 
 访问敏感数据时，客户端还必须通过 `X-Ianvs-Encryption-Key` 提供自己的数据密钥；登录密码不能替代数据密钥。
 
+## Web 控制台
+
+`ianvs-api` 二进制内嵌了一个 React 构建的 SSH Profile 管理站点（源码在 `backend/webui/src`，构建产物提交到 `backend/webui/dist` 并通过 Go `embed` 提供）。服务启动后直接用浏览器打开服务地址即可使用：
+
+- 根路径 `/` 返回单页应用，未知非 API 路径回退到 `index.html`，支持前端导航与深链接；
+- `/healthz` 与 `/v1/*` 仍是纯 JSON API，不会被静态资源处理器遮蔽；
+- 内容哈希资源（`/assets/*`）永久缓存，`index.html` 不缓存；
+- 登录页的静态资源无需认证即可加载，但所有数据端点仍受本地访问令牌或 Bearer 会话令牌保护。
+
+站点首屏是终端风格的认证表单。远程登录只要求用户名和密码，本地 sidecar 登录只要求本地访问令牌；登录和会话恢复都不会请求、校验或发送加密 key。只有用户保存敏感字段、重写已有密文或主动解密时才弹出 key 输入框，校验后的 key 仅保留在当前页面内存中。远程账户创建仍需一次 key 来配置不可变的账户校验器。登录后只展示 SSH profile 与会话安全页，可浏览、创建、编辑、删除 SSH profile，并按需查看敏感字段。Web 与 Flutter 客户端共享 `profile/default` canonical 文档合同；非 SSH profile 会被原样保留。SSH 私钥通过文件选择读取，浏览器界面只记录所选文件名，持久化时保存私钥内容；私钥内容、密码、私钥口令、X11 cookie 与 ProxyJump 密码始终留在 AES-GCM 加密的 `sensitive` envelope 中。
+
+```bash
+cd backend/webui
+pnpm install --frozen-lockfile
+pnpm build        # 产出 dist/，go build 会将其嵌入二进制
+
+make webui-e2e    # 构建前后端并跑 Playwright 端到端验收
+```
+
+端到端验收脚本 `tools/verify_data_api_webui.sh` 会构建前端与 `ianvs-api`，分别启动 local 与 remote（开发 HTTP）两个临时 SQLite 实例，再用真实 Chrome 验证无 key 登录、敏感操作按需请求 key、错误 key 拒绝、SSH profile 创建/查看/解密/编辑/删除、退出与重新登录等流程；用例位于 `backend/webui/e2e/tests`。`pnpm test:unit` 与 Flutter 的 Web UI profile 合同测试共同验证 canonical 文档及递归敏感字段分离。
+
 ## 资源 API
 
 所有持久化对象使用稳定的 `kind/id`。两者都是 canonical lowercase 标识符，必须匹配 `[a-z0-9][a-z0-9._:-]*`；该合同保证 SQLite 与 MySQL 在唯一性、查找和游标排序上的语义一致：

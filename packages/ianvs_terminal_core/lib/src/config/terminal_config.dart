@@ -81,7 +81,7 @@ final class TerminalSshJumpConfig {
     this.password,
     this.privateKeys = const <String>[],
     this.privateKeyPassphrase,
-    this.hostKeyPolicy = TerminalSshHostKeyPolicy.strict,
+    this.hostKeyPolicy = TerminalSshHostKeyPolicy.acceptNew,
     this.knownHostsFile,
     this.connectTimeoutSeconds = 10,
     this.keepaliveSeconds = 0,
@@ -218,9 +218,10 @@ String _sshHostKeyPolicyToJson(TerminalSshHostKeyPolicy policy) {
 
 TerminalSshHostKeyPolicy _sshHostKeyPolicyFromJson(Object? value) {
   return switch (value) {
+    'strict' => TerminalSshHostKeyPolicy.strict,
     'accept_new' => TerminalSshHostKeyPolicy.acceptNew,
     'insecure' => TerminalSshHostKeyPolicy.insecure,
-    _ => TerminalSshHostKeyPolicy.strict,
+    _ => TerminalSshHostKeyPolicy.acceptNew,
   };
 }
 
@@ -303,7 +304,7 @@ class TerminalConnectionConfig {
       password = null,
       privateKeys = const <String>[],
       privateKeyPassphrase = null,
-      hostKeyPolicy = TerminalSshHostKeyPolicy.strict,
+      hostKeyPolicy = TerminalSshHostKeyPolicy.acceptNew,
       knownHostsFile = null,
       connectTimeoutSeconds = 10,
       keepaliveSeconds = 0,
@@ -329,7 +330,7 @@ class TerminalConnectionConfig {
     this.password,
     this.privateKeys = const <String>[],
     this.privateKeyPassphrase,
-    this.hostKeyPolicy = TerminalSshHostKeyPolicy.strict,
+    this.hostKeyPolicy = TerminalSshHostKeyPolicy.acceptNew,
     this.knownHostsFile,
     this.connectTimeoutSeconds = 10,
     this.keepaliveSeconds = 0,
@@ -457,6 +458,7 @@ class TerminalConnectionConfig {
     }
     return copyWith(
       password: null,
+      privateKeys: const <String>[],
       privateKeyPassphrase: null,
       proxyJumpProfiles: proxyJumpProfiles
           .map((jump) => jump.withoutSensitiveFields())
@@ -476,7 +478,7 @@ class TerminalConnectionConfig {
       'port': port,
       'auth': _sshAuthMethodToJson(auth),
       if (includeSensitiveFields && password != null) 'password': password,
-      'privateKeys': privateKeys,
+      if (includeSensitiveFields) 'privateKeys': privateKeys,
       if (includeSensitiveFields && privateKeyPassphrase != null)
         'privateKeyPassphrase': privateKeyPassphrase,
       'hostKeyPolicy': _sshHostKeyPolicyToJson(hostKeyPolicy),

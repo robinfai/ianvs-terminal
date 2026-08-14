@@ -14,6 +14,18 @@ typedef DataApiProfilePayload = ({
 
 DataApiProfilePayload encodeDataApiProfile(TerminalProfile profile) {
   final plain = profile.toJson();
+  final completeConfig = profile.sessionConfig.toJson(
+    includeSensitiveFields: true,
+  );
+  final completeConnection = completeConfig['connection'];
+  if (completeConnection is Map<String, Object?>) {
+    final privateKeys = completeConnection['privateKeys'];
+    if (privateKeys is List && privateKeys.isEmpty) {
+      // Empty private-key lists contain no secret. Omitting them from both
+      // envelopes avoids requiring a key for passwordless profiles.
+      completeConnection.remove('privateKeys');
+    }
+  }
   final complete = <String, Object?>{
     'id': profile.id,
     'name': profile.name,
@@ -26,7 +38,7 @@ DataApiProfilePayload encodeDataApiProfile(TerminalProfile profile) {
       'automaticProfileSwitching': profile.switchRules
           .map((rule) => rule.toJson())
           .toList(growable: false),
-    ...profile.sessionConfig.toJson(includeSensitiveFields: true),
+    ...completeConfig,
   };
   return (data: plain, sensitive: dataApiJsonDifference(complete, plain));
 }

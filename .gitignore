@@ -4,6 +4,7 @@
 .DS_Store
 /.dart_tool/
 /.tmp-home/
+/.pnpm-store/
 /build/
 packages/*/.dart_tool/
 packages/*/build/

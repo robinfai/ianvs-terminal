@@ -4434,6 +4434,11 @@ impl TerminalSession {
                 self.push_event("ssh_auth_prompt", Some(payload));
             }
         }
+        for prompt in auth.take_host_key_prompts() {
+            if let Ok(payload) = serde_json::to_value(prompt) {
+                self.push_event("ssh_host_key_prompt", Some(payload));
+            }
+        }
     }
 
     fn respond_ssh_auth(&self, challenge_id: u64, responses: Vec<String>) -> bool {
@@ -4446,6 +4451,12 @@ impl TerminalSession {
         self.ssh_auth
             .as_ref()
             .is_some_and(|auth| auth.cancel(challenge_id))
+    }
+
+    fn respond_ssh_host_key(&self, challenge_id: u64, accept: bool) -> bool {
+        self.ssh_auth
+            .as_ref()
+            .is_some_and(|auth| auth.respond_host_key(challenge_id, accept))
     }
 
     pub fn take_frame_debug_stats_json(&self) -> Result<Option<String>, SessionError> {
@@ -7191,6 +7202,18 @@ pub fn request_session(
             } else {
                 return Ok(None);
             };
+            request_json_response(serde_json::json!({ "accepted": accepted }))
+        }
+        "ssh.host_key_response" => {
+            let challenge_id = request
+                .get("challengeId")
+                .and_then(serde_json::Value::as_u64);
+            let accept = request.get("accept").and_then(serde_json::Value::as_bool);
+            let (Some(challenge_id), Some(accept)) = (challenge_id, accept) else {
+                return Ok(None);
+            };
+            let session = STORE.get(session_id)?;
+            let accepted = session.respond_ssh_host_key(challenge_id, accept);
             request_json_response(serde_json::json!({ "accepted": accepted }))
         }
         "terminal.recording_start" => {

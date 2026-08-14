@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import '../services/data_api_client.dart';
 
 DataApiResource requireDataApiResourceIdentity(
@@ -117,22 +115,35 @@ Object? _deepCopyValue(Object? value) {
 }
 
 bool dataApiJsonEquivalent(Object? left, Object? right) {
-  return jsonEncode(_canonicalDataApiJson(left)) ==
-      jsonEncode(_canonicalDataApiJson(right));
-}
-
-Object? _canonicalDataApiJson(Object? value) {
-  if (value is Map) {
-    final object = dataApiObject(value, documentName: 'JSON value');
-    final keys = object.keys.toList(growable: false)..sort();
-    return <String, Object?>{
-      for (final key in keys) key: _canonicalDataApiJson(object[key]),
-    };
+  if (left is num && right is num) {
+    return left == right;
   }
-  if (value is List) {
-    return value.map(_canonicalDataApiJson).toList(growable: false);
+  if (left is Map && right is Map) {
+    final leftObject = dataApiObject(left, documentName: 'JSON value');
+    final rightObject = dataApiObject(right, documentName: 'JSON value');
+    if (leftObject.length != rightObject.length) {
+      return false;
+    }
+    for (final entry in leftObject.entries) {
+      if (!rightObject.containsKey(entry.key) ||
+          !dataApiJsonEquivalent(entry.value, rightObject[entry.key])) {
+        return false;
+      }
+    }
+    return true;
   }
-  return value;
+  if (left is List && right is List) {
+    if (left.length != right.length) {
+      return false;
+    }
+    for (var index = 0; index < left.length; index += 1) {
+      if (!dataApiJsonEquivalent(left[index], right[index])) {
+        return false;
+      }
+    }
+    return true;
+  }
+  return left == right;
 }
 
 void _mergeInto(Map<String, Object?> destination, Map<String, Object?> source) {

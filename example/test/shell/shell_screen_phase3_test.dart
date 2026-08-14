@@ -23,6 +23,7 @@ import '../support/memory_local_terminal_config_repository.dart';
 import '../support/memory_paste_history_repository.dart';
 import '../support/memory_profile_repository.dart';
 import '../support/no_io_local_session_recording_repository.dart';
+import '../support/no_io_local_terminal_layout_repository.dart';
 
 Future<void> _pumpShellScreen(
   WidgetTester tester, {
@@ -53,10 +54,9 @@ Future<void> _pumpShellScreen(
         localSessionRecordingRepositoryProvider.overrideWithValue(
           noIoLocalSessionRecordingRepository(),
         ),
-        if (workspaceRepository != null)
-          localTerminalLayoutRepositoryProvider.overrideWithValue(
-            workspaceRepository,
-          ),
+        localTerminalLayoutRepositoryProvider.overrideWithValue(
+          workspaceRepository ?? noIoLocalTerminalLayoutRepository(),
+        ),
       ],
       child: MaterialApp(
         theme: buildIanvsTerminalTheme(Brightness.light),

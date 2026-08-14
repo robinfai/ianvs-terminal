@@ -267,48 +267,6 @@ class _ShellWindowTitleBar extends StatelessWidget {
   }
 }
 
-class _IosSandboxShellNotice extends StatelessWidget {
-  const _IosSandboxShellNotice({required this.palette});
-
-  final AppThemeTokens palette;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      container: true,
-      label:
-          'On-device sandbox shell. Files stay inside the IanvsShell app folder.',
-      child: DecoratedBox(
-        key: const Key('ios-sandbox-shell-notice'),
-        decoration: BoxDecoration(
-          color: palette.selected,
-          border: Border(bottom: BorderSide(color: palette.border)),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          child: Row(
-            children: [
-              Icon(Icons.phone_iphone_rounded, size: 18, color: palette.accent),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'On-device sandbox · Files stay inside IanvsShell',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: palette.textMuted,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _WindowDragHandle extends StatelessWidget {
   const _WindowDragHandle({super.key, required this.child});
 
@@ -2809,9 +2767,54 @@ class _ShellTabButton extends StatefulWidget {
 class _ShellTabButtonState extends State<_ShellTabButton> {
   bool _hovered = false;
 
+  Widget _buildCloseControl(String title, _ShellTabTone tone, bool touch) {
+    final icon = Icon(
+      Icons.close_rounded,
+      size: touch ? 18 : 12,
+      color: touch ? tone.primaryText : tone.subtleText.withValues(alpha: 0.9),
+    );
+    return Semantics(
+      key: Key('shell-tab-close-${widget.tab.sessionId}'),
+      label: 'Close $title tab',
+      button: true,
+      excludeSemantics: true,
+      child: Tooltip(
+        message: 'Close $title',
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () {
+            if (touch) unawaited(HapticFeedback.lightImpact());
+            widget.onClose();
+          },
+          child: SizedBox.square(
+            dimension: touch ? 44 : 12,
+            child: Center(
+              child: touch
+                  ? DecoratedBox(
+                      key: Key(
+                        'shell-tab-close-surface-${widget.tab.sessionId}',
+                      ),
+                      decoration: BoxDecoration(
+                        color: tone.primaryText.withValues(alpha: 0.10),
+                        shape: BoxShape.circle,
+                      ),
+                      child: SizedBox.square(dimension: 28, child: icon),
+                    )
+                  : icon,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final title = _shellTabDisplayTitle(widget.tab);
+    final usesPersistentTouchClose =
+        defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
+    final closeVisible = usesPersistentTouchClose ? widget.isActive : _hovered;
     final badgeInfos = _shellTabBadgeInfos(widget.tab);
     final paneSignalInfos = _shellTabPaneSignalInfos(widget.tab);
     final paneSignalInfo = paneSignalInfos.isEmpty
@@ -2834,30 +2837,30 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
-      child: Semantics(
-        identifier: _shellTabSemanticsIdentifier(widget.tab),
-        label: _shellTabSemanticsLabel(
-          widget.tab,
-          widget.shortcutIndex,
-          hasNewOutput: widget.hasNewOutput,
-        ),
-        selected: widget.isActive,
-        button: true,
-        excludeSemantics: true,
-        child: Listener(
-          behavior: HitTestBehavior.opaque,
-          onPointerDown: (event) {
-            if (event.buttons & kSecondaryMouseButton != 0) {
-              widget.onShowContextMenu(event.position);
-            }
-          },
-          child: SizedBox.expand(
-            child: DecoratedBox(
-              key: Key('shell-tab-border-${widget.tab.sessionId}'),
-              decoration: const BoxDecoration(),
-              child: Stack(
-                children: [
-                  widget.dragRegionBuilder(
+      child: Listener(
+        behavior: HitTestBehavior.opaque,
+        onPointerDown: (event) {
+          if (event.buttons & kSecondaryMouseButton != 0) {
+            widget.onShowContextMenu(event.position);
+          }
+        },
+        child: SizedBox.expand(
+          child: DecoratedBox(
+            key: Key('shell-tab-border-${widget.tab.sessionId}'),
+            decoration: const BoxDecoration(),
+            child: Stack(
+              children: [
+                Semantics(
+                  identifier: _shellTabSemanticsIdentifier(widget.tab),
+                  label: _shellTabSemanticsLabel(
+                    widget.tab,
+                    widget.shortcutIndex,
+                    hasNewOutput: widget.hasNewOutput,
+                  ),
+                  selected: widget.isActive,
+                  button: true,
+                  excludeSemantics: true,
+                  child: widget.dragRegionBuilder(
                     SizedBox.expand(
                       child: TextButton(
                         key: Key('shell-tab-${widget.tab.sessionId}'),
@@ -2867,9 +2870,11 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
                             Size(0, 30),
                           ),
                           padding: WidgetStatePropertyAll(
-                            EdgeInsets.symmetric(
-                              horizontal: widget.compact ? 8 : 12,
-                            ),
+                            usesPersistentTouchClose && widget.isActive
+                                ? const EdgeInsets.only(left: 8, right: 48)
+                                : EdgeInsets.symmetric(
+                                    horizontal: widget.compact ? 8 : 12,
+                                  ),
                           ),
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           visualDensity: const VisualDensity(
@@ -3049,57 +3054,51 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
                       ),
                     ),
                   ),
-                  if (widget.tabColor != null)
-                    Positioned(
-                      top: 2,
-                      left: widget.compact ? 10 : 14,
-                      right: widget.compact ? 10 : 14,
-                      child: IgnorePointer(
-                        child: Tooltip(
-                          message: 'Profile tab color',
-                          child: DecoratedBox(
-                            key: Key('shell-tab-color-${widget.tab.sessionId}'),
-                            decoration: BoxDecoration(
-                              color: widget.tabColor,
-                              borderRadius: BorderRadius.circular(2),
-                              border: Border.all(
-                                color: widget.palette.textPrimary.withValues(
-                                  alpha: 0.18,
-                                ),
+                ),
+                if (widget.tabColor != null)
+                  Positioned(
+                    top: 2,
+                    left: widget.compact ? 10 : 14,
+                    right: widget.compact ? 10 : 14,
+                    child: IgnorePointer(
+                      child: Tooltip(
+                        message: 'Profile tab color',
+                        child: DecoratedBox(
+                          key: Key('shell-tab-color-${widget.tab.sessionId}'),
+                          decoration: BoxDecoration(
+                            color: widget.tabColor,
+                            borderRadius: BorderRadius.circular(2),
+                            border: Border.all(
+                              color: widget.palette.textPrimary.withValues(
+                                alpha: 0.18,
                               ),
                             ),
-                            child: const SizedBox(height: 3),
                           ),
-                        ),
-                      ),
-                    ),
-                  Positioned(
-                    top: 0,
-                    left: widget.palette.spacing.md,
-                    bottom: 0,
-                    child: IgnorePointer(
-                      ignoring: !_hovered,
-                      child: AnimatedOpacity(
-                        duration: const Duration(milliseconds: 80),
-                        opacity: _hovered ? 1 : 0,
-                        child: Tooltip(
-                          message: 'Close $title',
-                          child: GestureDetector(
-                            key: Key('shell-tab-close-${widget.tab.sessionId}'),
-                            behavior: HitTestBehavior.opaque,
-                            onTap: widget.onClose,
-                            child: Icon(
-                              Icons.close_rounded,
-                              size: 12,
-                              color: tone.subtleText.withValues(alpha: 0.9),
-                            ),
-                          ),
+                          child: const SizedBox(height: 3),
                         ),
                       ),
                     ),
                   ),
-                ],
-              ),
+                if (!usesPersistentTouchClose || widget.isActive)
+                  Positioned(
+                    top: 0,
+                    bottom: 0,
+                    left: usesPersistentTouchClose
+                        ? null
+                        : widget.palette.spacing.md,
+                    right: usesPersistentTouchClose ? 0 : null,
+                    child: usesPersistentTouchClose
+                        ? _buildCloseControl(title, tone, true)
+                        : IgnorePointer(
+                            ignoring: !closeVisible,
+                            child: AnimatedOpacity(
+                              duration: const Duration(milliseconds: 80),
+                              opacity: closeVisible ? 1 : 0,
+                              child: _buildCloseControl(title, tone, false),
+                            ),
+                          ),
+                  ),
+              ],
             ),
           ),
         ),

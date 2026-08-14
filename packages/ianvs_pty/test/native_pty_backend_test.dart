@@ -149,7 +149,7 @@ void main() {
     expect(bindings.replayExits, <(int, int?)>[(8, 0)]);
   });
 
-  test('native pty library resolves a bundled macOS code asset framework', () {
+  test('native pty library prefers the bundled macOS code asset framework', () {
     final executableRoot = Directory.systemTemp.createTempSync(
       'ianvs-pty-framework-resolver-test-',
     );
@@ -166,6 +166,9 @@ void main() {
         File('$appContents/Frameworks/ianvs_core.framework/ianvs_core')
           ..createSync(recursive: true)
           ..writeAsStringSync('not a real dylib');
+    File('$appContents/Frameworks/libianvs_core.dylib')
+      ..createSync(recursive: true)
+      ..writeAsStringSync('stale legacy dylib');
 
     final resolved = resolveNativePtyLibraryPath(
       environment: const <String, String>{},

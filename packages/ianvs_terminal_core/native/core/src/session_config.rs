@@ -172,7 +172,7 @@ impl SessionConfigV1 {
                 || connection
                     .private_keys
                     .iter()
-                    .any(|path| invalid_identity_text(path, MAX_PATH_BYTES))
+                    .any(|value| invalid_private_key_value(value))
                 || invalid_optional_text(connection.password.as_deref(), MAX_STRING_BYTES)
                 || invalid_optional_text(
                     connection.private_key_passphrase.as_deref(),
@@ -204,7 +204,7 @@ impl SessionConfigV1 {
                         || jump
                             .private_keys
                             .iter()
-                            .any(|path| invalid_identity_text(path, MAX_PATH_BYTES))
+                            .any(|value| invalid_private_key_value(value))
                         || jump
                             .known_hosts_file
                             .as_ref()
@@ -554,6 +554,23 @@ fn invalid_identity_text(value: &str, maximum: usize) -> bool {
         || value.chars().any(|character| character.is_control())
 }
 
+fn invalid_private_key_value(value: &str) -> bool {
+    if !looks_like_inline_private_key(value) {
+        return invalid_identity_text(value, MAX_PATH_BYTES);
+    }
+    value.trim().is_empty()
+        || value.trim() != value
+        || value.len() > MAX_STRING_BYTES
+        || value
+            .chars()
+            .any(|character| character.is_control() && !matches!(character, '\r' | '\n'))
+}
+
+fn looks_like_inline_private_key(value: &str) -> bool {
+    let trimmed = value.trim_start();
+    trimmed.starts_with("-----BEGIN ") || trimmed.starts_with("PuTTY-User-Key-File-")
+}
+
 fn invalid_optional_text(value: Option<&str>, maximum: usize) -> bool {
     value.is_some_and(|value| invalid_identity_text(value, maximum))
 }
@@ -839,6 +856,19 @@ mod tests {
             decoded.config.connection.auth,
             TerminalSshAuthMethod::PublicKey
         );
+    }
+
+    #[test]
+    fn decodes_inline_private_key_contents() {
+        let private_key = "-----BEGIN OPENSSH PRIVATE KEY-----\n\
+                           b3BlbnNzaC1rZXktdjEAAAAA\n\
+                           -----END OPENSSH PRIVATE KEY-----";
+        let mut value = valid("valid_ssh");
+        value["config"]["connection"]["privateKeys"] = Value::Array(vec![Value::from(private_key)]);
+
+        let decoded = SessionConfigV1::decode_json(&value.to_string()).expect("inline key config");
+
+        assert_eq!(decoded.config.connection.private_keys, [private_key]);
     }
 
     #[test]

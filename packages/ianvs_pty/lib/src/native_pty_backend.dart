@@ -788,8 +788,7 @@ class NativePtyBindings
 
   @override
   bool sessionDiscardFileDownload(int sessionId, int downloadId) {
-    return downloadId > 0 &&
-        _fileDownloadDiscard(sessionId, downloadId) == 0;
+    return downloadId > 0 && _fileDownloadDiscard(sessionId, downloadId) == 0;
   }
 }
 
@@ -1535,8 +1534,8 @@ String resolveNativePtyLibraryPath({
   }
 
   final candidates = <String>[
-    '${executableDir.path}/../Frameworks/libianvs_core.dylib',
     '${executableDir.path}/../Frameworks/ianvs_core.framework/ianvs_core',
+    '${executableDir.path}/../Frameworks/libianvs_core.dylib',
     '${executableDir.path}/../Resources/libianvs_core.dylib',
     if (!isProduct) '../native/core/target/debug/libianvs_core.dylib',
     if (!isProduct) '../../native/core/target/debug/libianvs_core.dylib',

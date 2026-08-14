@@ -38,6 +38,7 @@ import '../recording/replay_viewport_layout.dart';
 import '../sessions/session_controller.dart';
 import '../sessions/session_state.dart';
 import '../sessions/terminal_event_coordinator.dart';
+import '../sessions/terminal_session_launch_policy.dart';
 import '../ssh/new_session_launcher.dart';
 import '../ssh/ssh_auth_prompt.dart';
 import '../ssh/ssh_feature_access.dart';
@@ -76,6 +77,7 @@ part 'shell_screen_search.dart';
 part 'shell_screen_shared_buttons.dart';
 part 'shell_screen_sheets.dart';
 part 'shell_screen_shell_integration.dart';
+part 'shell_screen_ssh_empty_state.dart';
 part 'shell_screen_state_clipboard.dart';
 part 'shell_screen_state_command_actions.dart';
 part 'shell_screen_state_coprocesses.dart';
@@ -248,7 +250,6 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   final Set<String> _sessionsSeenForNewOutputBadges = {};
   final Set<String> _sessionsWithNewOutput = {};
   TerminalEventSinkAttachment? _terminalUiEffectAttachment;
-  Future<void> Function()? _searchPasteHandler;
   late final LocalTerminalShellUiWiringSnapshot _completionDiagnosticsSnapshot;
   late final Osc72DragDropController _osc72DragDropController;
   late final ShellUserAttentionBridge _userAttentionBridge;
@@ -371,6 +372,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   final Map<String, String> _pendingZmodemTerminalMessages = <String, String>{};
   final SshAuthenticationPromptPresenter _sshAuthPromptPresenter =
       SshAuthenticationPromptPresenter();
+  final _sshHostKeyPromptPresenter = SshHostKeyPromptPresenter();
   _ShellZmodemPickerRequest? _zmodemPickerRequest;
   int _zmodemPickerRequestSeed = 0;
   final Map<String, Set<String>> _coprocessInputKeysBySession =
@@ -647,6 +649,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       sessionState.configuredDefaultProfileId,
       sessionState.defaultProfileId,
     );
+    final launchPolicy = ref.watch(terminalSessionLaunchPolicyProvider);
+    final canOpenNewSession = _canOpenNewSessionLauncher(sessionState);
     final referenceDemoMode = ref.watch(referenceDemoModeProvider);
     final animationsEnabled = ref.watch(shellAnimationsEnabledProvider);
     final dataApiStartupWarning = ref.watch(dataApiStartupWarningProvider);
@@ -717,6 +721,11 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
         return KeyEventResult.ignored;
       }
+      final editor = focusedEditableTextForCurrentRoute();
+      if (editor != null) {
+        return KeyEventResult.ignored;
+      }
+      if (_shellModalInputBlocked) return KeyEventResult.handled;
       final copyModeResult = _handleCopyModeKey(
         event,
         sessionController,
@@ -778,9 +787,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         },
         callbacks: ShellActionProductionCallbacks(
           newTab: (_) {
-            if (defaultProfile == null) {
+            if (!canOpenNewSession) {
               return const ShellActionBindingResult.skipped(
-                'No default profile is available.',
+                'No terminal session option is available.',
               );
             }
             unawaited(_openNewSessionLauncher(sessionController, sessionState));
@@ -1065,7 +1074,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         case TerminalActionId.toolbelt:
           return KeyEventResult.handled;
         case TerminalActionId.newTab:
-          if (defaultProfile == null) {
+          if (!canOpenNewSession) {
             return KeyEventResult.handled;
           }
           unawaited(_openNewSessionLauncher(sessionController, sessionState));
@@ -1198,14 +1207,14 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                 tabNewOutputPaneSessionId: _tabNewOutputPaneSessionId,
                 tabColor: (tab) => _tabProfileColor(sessionState, tab),
                 referenceDemoMode: referenceDemoMode,
-                onNewTab: defaultProfile == null
-                    ? null
-                    : () => unawaited(
+                onNewTab: canOpenNewSession
+                    ? () => unawaited(
                         _openNewSessionLauncher(
                           sessionController,
                           sessionState,
                         ),
-                      ),
+                      )
+                    : null,
                 onActivateSession: (sessionId) =>
                     _activateSession(sessionController, sessionId),
                 onActivateBadgePane: (sessionId) =>
@@ -1230,9 +1239,6 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                 onShowCommandMenu: () =>
                     _openCommandMenu(sessionController, sessionState),
               ),
-              if (!referenceDemoMode &&
-                  defaultTargetPlatform == TargetPlatform.iOS)
-                _IosSandboxShellNotice(palette: palette),
               if (sessionState.configurationWarnings.isNotEmpty)
                 _ShellConfigurationWarningsBanner(
                   palette: palette,
@@ -1347,21 +1353,43 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                             ),
                           )
                         : activeSessionId == null || activeTab == null
-                        ? _ShellEmptyState(
-                            key: const Key('shell-empty-state'),
-                            palette: palette,
-                            title: _emptyStateTitle,
-                            message: _emptyStateMessage,
-                            defaultSummary: defaultSummary,
-                            onNewTab: defaultProfile == null
-                                ? null
-                                : () => unawaited(
-                                    _openNewSessionLauncher(
-                                      sessionController,
-                                      sessionState,
-                                    ),
+                        ? launchPolicy.isSshOnly
+                              ? _SshOnlyShellEmptyState(
+                                  key: const Key('shell-empty-state'),
+                                  palette: palette,
+                                  profiles: sessionState.profiles,
+                                  onOpenProfile: (profile) => _createSession(
+                                    sessionController,
+                                    profile,
+                                    returningToLayout: true,
                                   ),
-                          )
+                                  onCreateProfile:
+                                      ref.watch(
+                                        customSshProfileConfigurationEnabledProvider,
+                                      )
+                                      ? () => unawaited(
+                                          _openSshProfileCreator(
+                                            sessionController,
+                                            sessionState,
+                                          ),
+                                        )
+                                      : null,
+                                )
+                              : _ShellEmptyState(
+                                  key: const Key('shell-empty-state'),
+                                  palette: palette,
+                                  title: _emptyStateTitle,
+                                  message: _emptyStateMessage,
+                                  defaultSummary: defaultSummary,
+                                  onNewTab: canOpenNewSession
+                                      ? () => unawaited(
+                                          _openNewSessionLauncher(
+                                            sessionController,
+                                            sessionState,
+                                          ),
+                                        )
+                                      : null,
+                                )
                         : KeyedSubtree(
                             key: ValueKey(
                               (displayedTab ?? activeTab).sessionId,

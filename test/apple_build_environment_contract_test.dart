@@ -64,20 +64,22 @@ void main() {
     );
   });
 
-  test('iOS Debug keeps the native ABI in the executable', () {
+  test('iOS Runner links the Debug app without an Xcode debug dylib', () {
     final project = File(
       'example/ios/Runner.xcodeproj/project.pbxproj',
     ).readAsStringSync();
-
     final runnerDebug = RegExp(
-      r'97C147061CF9000F007C117D /\* Debug \*/ = \{(.*?)\n\t\t\};',
+      r'97C147061CF9000F007C117D /\* Debug \*/ = \{(.*?)\n\s*\};',
       dotAll: true,
-    ).firstMatch(project);
+    ).firstMatch(project)?.group(1);
+
     expect(runnerDebug, isNotNull);
     expect(
-      runnerDebug!.group(1),
+      runnerDebug,
       contains('ENABLE_DEBUG_DYLIB = NO;'),
-      reason: 'Xcode debug dylibs require an extra exported entry point.',
+      reason:
+          'The force-loaded Rust core must be linked into Runner itself. '
+          'Xcode\'s debug-dylib launcher otherwise aborts before Flutter starts.',
     );
   });
 
@@ -87,9 +89,7 @@ void main() {
     expect(source, contains(r'link_images=("$executable")'));
     expect(
       source,
-      contains(
-        r'link_images=("$ios_app/$executable_name.debug.dylib")',
-      ),
+      contains(r'link_images=("$ios_app/$executable_name.debug.dylib")'),
     );
   });
 
@@ -135,8 +135,7 @@ void main() {
     expect(script, contains(r'DEST_DIR="${DERIVED_FILE_DIR:?}/ianvs_core"'));
     expect(script, isNot(contains(r'DEST_DIR="${TARGET_BUILD_DIR:?}')));
     expect(
-      r'$(DERIVED_FILE_DIR)/ianvs_core/libianvs_core.a'
-          .allMatches(project),
+      r'$(DERIVED_FILE_DIR)/ianvs_core/libianvs_core.a'.allMatches(project),
       hasLength(4),
       reason: 'The script output and all linker configurations must agree.',
     );

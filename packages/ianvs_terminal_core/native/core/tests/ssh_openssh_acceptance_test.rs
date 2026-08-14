@@ -5,7 +5,9 @@ use ianvs_core::model::{
     TerminalSshHostKeyPolicy, TerminalSshJumpProfile, TerminalSshPortForward,
     TerminalSshPortForwardKind,
 };
-use ianvs_core::ssh::{SshAuthClient, SshRuntime, spawn_ssh};
+use ianvs_core::ssh::{
+    SshAuthClient, SshHostKeyPrompt, SshHostKeyPromptReason, SshRuntime, spawn_ssh,
+};
 use std::env;
 use std::fs;
 use std::io::{Read, Write};
@@ -70,6 +72,10 @@ fn public_key_connection(host: String, port: u16, identity: &str) -> TerminalPro
 
 fn run_shell_probe(connection: TerminalProfileConnection, expected_role: &str) {
     let runtime = spawn_ssh(connection, 24, 100).expect("native SSH transport should start");
+    run_shell_probe_runtime(runtime, expected_role);
+}
+
+fn run_shell_probe_runtime(runtime: SshRuntime, expected_role: &str) {
     let SshRuntime {
         master: _,
         mut reader,
@@ -116,6 +122,17 @@ fn run_shell_probe(connection: TerminalProfileConnection, expected_role: &str) {
         "native SSH transport reported an error:\n{output}"
     );
     eprintln!("ssh-e2e: {expected_role} accepted through native Rust transport");
+}
+
+fn wait_for_host_key_prompt(auth: &SshAuthClient) -> SshHostKeyPrompt {
+    let deadline = Instant::now() + PROMPT_TIMEOUT;
+    loop {
+        if let Some(prompt) = auth.take_host_key_prompts().pop() {
+            return prompt;
+        }
+        assert!(Instant::now() < deadline, "SSH host-key prompt timed out");
+        thread::sleep(Duration::from_millis(10));
+    }
 }
 
 fn assert_failed_session(
@@ -564,24 +581,11 @@ fn openssh_host_key_policy_acceptance() {
     let default_policy = TerminalProfileConnection::default().host_key_policy;
     assert_eq!(
         default_policy,
-        TerminalSshHostKeyPolicy::Strict,
-        "the product SSH connection default must remain strict"
+        TerminalSshHostKeyPolicy::AcceptNew,
+        "the product SSH connection default must accept and persist new hosts"
     );
-    let mut strict_unknown = public_key_connection("127.0.0.1".to_string(), port, &identity);
-    strict_unknown.host_key_policy = default_policy;
-    strict_unknown.known_hosts_file = Some(known_hosts.clone());
-    assert_failed_session(
-        spawn_ssh(strict_unknown, 24, 100).expect("strict unknown-host transport should start"),
-        "default strict unknown host",
-        &["Unknown server key"],
-    );
-    assert!(
-        !known_hosts_path.exists(),
-        "strict unknown-host rejection must not create known_hosts"
-    );
-
     let mut accept_new = public_key_connection("127.0.0.1".to_string(), port, &identity);
-    accept_new.host_key_policy = TerminalSshHostKeyPolicy::AcceptNew;
+    accept_new.host_key_policy = default_policy;
     accept_new.known_hosts_file = Some(known_hosts.clone());
     run_shell_probe(accept_new, "publickey");
     let learned = fs::read_to_string(&known_hosts_path).expect("accept-new known_hosts entry");
@@ -606,25 +610,38 @@ fn openssh_host_key_policy_acceptance() {
     let mut strict_changed = public_key_connection("127.0.0.1".to_string(), port, &identity);
     strict_changed.host_key_policy = TerminalSshHostKeyPolicy::Strict;
     strict_changed.known_hosts_file = Some(known_hosts.clone());
+    let strict_runtime =
+        spawn_ssh(strict_changed, 24, 100).expect("strict changed-key transport should start");
+    let prompt = wait_for_host_key_prompt(&strict_runtime.auth);
+    assert_eq!(prompt.reason, SshHostKeyPromptReason::Changed);
+    assert!(
+        strict_runtime
+            .auth
+            .respond_host_key(prompt.challenge_id, false)
+    );
     assert_failed_session(
-        spawn_ssh(strict_changed, 24, 100).expect("strict changed-key transport should start"),
+        strict_runtime,
         "strict changed host key",
-        &["The server key changed at line 1"],
+        &["Unknown server key"],
     );
 
     let mut accept_new_changed = public_key_connection("127.0.0.1".to_string(), port, &identity);
     accept_new_changed.host_key_policy = TerminalSshHostKeyPolicy::AcceptNew;
     accept_new_changed.known_hosts_file = Some(known_hosts);
-    assert_failed_session(
-        spawn_ssh(accept_new_changed, 24, 100)
-            .expect("accept-new changed-key transport should start"),
-        "accept-new changed host key",
-        &["The server key changed at line 1"],
+    let changed_runtime = spawn_ssh(accept_new_changed, 24, 100)
+        .expect("accept-new changed-key transport should start");
+    let prompt = wait_for_host_key_prompt(&changed_runtime.auth);
+    assert_eq!(prompt.reason, SshHostKeyPromptReason::Changed);
+    assert!(
+        changed_runtime
+            .auth
+            .respond_host_key(prompt.challenge_id, true)
     );
-    assert_eq!(
-        fs::read_to_string(&known_hosts_path).expect("replaced known_hosts remains readable"),
+    run_shell_probe_runtime(changed_runtime, "publickey");
+    assert_ne!(
+        fs::read_to_string(&known_hosts_path).expect("updated known_hosts remains readable"),
         replaced_entry,
-        "accept-new must not overwrite or append after a changed host key"
+        "explicit acceptance must replace the changed host key"
     );
     eprintln!("ssh-e2e: strict and accept-new host-key state transitions accepted");
 }

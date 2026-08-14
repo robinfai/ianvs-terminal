@@ -74,20 +74,55 @@ final class DataApiTerminalLayoutRepository extends TerminalLayoutRepository {
     VersionedDocument<TerminalLayout> layout,
   ) async {
     final expectedRevision = requireDataApiRevision(layout);
-    final saved = requireDataApiResourceIdentity(
-      await _client.putResource(
+    try {
+      final saved = requireDataApiResourceIdentity(
+        await _client.putResource(
+          kind: resourceKind,
+          id: resourceId,
+          data: const <String, Object?>{'format': 'ianvs-terminal-layout-v1'},
+          sensitive: layout.value.toJson(),
+          expectedRevision: expectedRevision,
+        ),
         kind: resourceKind,
         id: resourceId,
-        data: const <String, Object?>{'format': 'ianvs-terminal-layout-v1'},
-        sensitive: layout.value.toJson(),
-        expectedRevision: expectedRevision,
-      ),
-      kind: resourceKind,
-      id: resourceId,
-    );
-    return VersionedDocument<TerminalLayout>(
-      value: layout.value,
-      revision: saved.revision,
-    );
+      );
+      return VersionedDocument<TerminalLayout>(
+        value: layout.value,
+        revision: saved.revision,
+      );
+    } on DataApiTimeoutException catch (error) {
+      try {
+        final observed = await loadVersioned();
+        final observedLayout = observed.value;
+        if (observedLayout != null &&
+            dataApiJsonEquivalent(
+              observedLayout.toJson(),
+              layout.value.toJson(),
+            )) {
+          return VersionedDocument<TerminalLayout>(
+            value: observedLayout,
+            revision: observed.revision,
+          );
+        }
+      } on DataApiTimeoutException {
+        // The verification request also timed out. The latest layout remains
+        // queued by the controller for retry.
+      }
+      throw TerminalLayoutSaveUnavailableException(error);
+    } on DataApiRevisionConflictException {
+      final observed = await loadVersioned();
+      final observedLayout = observed.value;
+      if (observedLayout != null &&
+          dataApiJsonEquivalent(
+            observedLayout.toJson(),
+            layout.value.toJson(),
+          )) {
+        return VersionedDocument<TerminalLayout>(
+          value: observedLayout,
+          revision: observed.revision,
+        );
+      }
+      rethrow;
+    }
   }
 }

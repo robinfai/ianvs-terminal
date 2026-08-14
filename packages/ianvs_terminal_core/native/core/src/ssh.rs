@@ -14,10 +14,11 @@ use russh::keys::key::PrivateKeyWithHashAlg;
 use russh::{Channel, ChannelMsg, ChannelOpenFailure, Disconnect};
 use std::collections::{HashMap, VecDeque};
 use std::fmt;
+use std::fs;
 use std::io::{Error as IoError, ErrorKind, Read, Result as IoResult, Write};
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex as StdMutex, mpsc as std_mpsc};
 use std::task::{Context as TaskContext, Poll};
 use std::thread;
@@ -64,9 +65,30 @@ pub struct SshAuthPrompt {
     pub prompts: Vec<SshAuthPromptField>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SshHostKeyPromptReason {
+    Unknown,
+    Changed,
+}
+
+#[derive(Clone, Debug, serde::Serialize)]
+pub struct SshHostKeyPrompt {
+    pub challenge_id: u64,
+    pub host: String,
+    pub port: u16,
+    pub reason: SshHostKeyPromptReason,
+    pub algorithm: String,
+    pub fingerprint: String,
+}
+
 struct PendingAuthResponse {
     prompt_count: usize,
     sender: oneshot::Sender<Option<Vec<String>>>,
+}
+
+struct PendingHostKeyResponse {
+    sender: oneshot::Sender<bool>,
 }
 
 #[derive(Default)]
@@ -74,6 +96,24 @@ struct SshAuthBroker {
     next_challenge_id: AtomicU64,
     prompts: StdMutex<VecDeque<SshAuthPrompt>>,
     responses: StdMutex<HashMap<u64, PendingAuthResponse>>,
+    next_host_key_challenge_id: AtomicU64,
+    host_key_prompts: StdMutex<VecDeque<SshHostKeyPrompt>>,
+    host_key_responses: StdMutex<HashMap<u64, PendingHostKeyResponse>>,
+    pending_interactions: AtomicUsize,
+    interaction_changed: Notify,
+}
+
+struct SshInteractionGuard {
+    broker: Arc<SshAuthBroker>,
+}
+
+impl Drop for SshInteractionGuard {
+    fn drop(&mut self) {
+        self.broker
+            .pending_interactions
+            .fetch_sub(1, Ordering::AcqRel);
+        self.broker.interaction_changed.notify_waiters();
+    }
 }
 
 #[derive(Clone, Default)]
@@ -90,6 +130,30 @@ impl fmt::Debug for SshAuthClient {
 }
 
 impl SshAuthClient {
+    fn begin_interaction(&self) -> SshInteractionGuard {
+        self.broker
+            .pending_interactions
+            .fetch_add(1, Ordering::AcqRel);
+        self.broker.interaction_changed.notify_waiters();
+        SshInteractionGuard {
+            broker: Arc::clone(&self.broker),
+        }
+    }
+
+    fn has_pending_interaction(&self) -> bool {
+        self.broker.pending_interactions.load(Ordering::Acquire) != 0
+    }
+
+    async fn wait_until_interactions_complete(&self) {
+        loop {
+            let notified = self.broker.interaction_changed.notified();
+            if !self.has_pending_interaction() {
+                return;
+            }
+            notified.await;
+        }
+    }
+
     pub fn take_prompts(&self) -> Vec<SshAuthPrompt> {
         let Ok(mut prompts) = self.broker.prompts.lock() else {
             return Vec::new();
@@ -114,6 +178,22 @@ impl SshAuthClient {
         pending.sender.send(Some(responses)).is_ok()
     }
 
+    pub fn take_host_key_prompts(&self) -> Vec<SshHostKeyPrompt> {
+        let Ok(mut prompts) = self.broker.host_key_prompts.lock() else {
+            return Vec::new();
+        };
+        prompts.drain(..).collect()
+    }
+
+    pub fn respond_host_key(&self, challenge_id: u64, accept: bool) -> bool {
+        self.broker
+            .host_key_responses
+            .lock()
+            .ok()
+            .and_then(|mut pending| pending.remove(&challenge_id))
+            .is_some_and(|pending| pending.sender.send(accept).is_ok())
+    }
+
     pub fn cancel(&self, challenge_id: u64) -> bool {
         self.broker
             .responses
@@ -132,6 +212,14 @@ impl SshAuthClient {
         if let Ok(mut prompts) = self.broker.prompts.lock() {
             prompts.clear();
         }
+        if let Ok(mut pending) = self.broker.host_key_responses.lock() {
+            for (_, pending) in pending.drain() {
+                let _ = pending.sender.send(false);
+            }
+        }
+        if let Ok(mut prompts) = self.broker.host_key_prompts.lock() {
+            prompts.clear();
+        }
     }
 
     async fn request(
@@ -141,6 +229,7 @@ impl SshAuthClient {
         instructions: String,
         prompts: Vec<SshAuthPromptField>,
     ) -> Result<Vec<String>> {
+        let _interaction = self.begin_interaction();
         let challenge_id = self
             .broker
             .next_challenge_id
@@ -180,6 +269,51 @@ impl SshAuthClient {
                     pending.remove(&challenge_id);
                 }
                 bail!("SSH authentication challenge timed out")
+            }
+        }
+    }
+
+    async fn request_host_key(
+        &self,
+        host: String,
+        port: u16,
+        reason: SshHostKeyPromptReason,
+        server_public_key: &russh::keys::ssh_key::PublicKey,
+    ) -> Result<bool> {
+        let _interaction = self.begin_interaction();
+        let challenge_id = self
+            .broker
+            .next_host_key_challenge_id
+            .fetch_add(1, Ordering::Relaxed)
+            .saturating_add(1);
+        let (sender, receiver) = oneshot::channel();
+        self.broker
+            .host_key_responses
+            .lock()
+            .map_err(|_| anyhow!("SSH host-key response queue is poisoned"))?
+            .insert(challenge_id, PendingHostKeyResponse { sender });
+        self.broker
+            .host_key_prompts
+            .lock()
+            .map_err(|_| anyhow!("SSH host-key prompt queue is poisoned"))?
+            .push_back(SshHostKeyPrompt {
+                challenge_id,
+                host,
+                port,
+                reason,
+                algorithm: server_public_key.algorithm().to_string(),
+                fingerprint: server_public_key
+                    .fingerprint(Default::default())
+                    .to_string(),
+            });
+        match tokio::time::timeout(Duration::from_secs(300), receiver).await {
+            Ok(Ok(accept)) => Ok(accept),
+            Ok(Err(_)) => bail!("SSH host-key confirmation response channel closed"),
+            Err(_) => {
+                if let Ok(mut pending) = self.broker.host_key_responses.lock() {
+                    pending.remove(&challenge_id);
+                }
+                bail!("SSH host-key confirmation timed out")
             }
         }
     }
@@ -429,6 +563,7 @@ struct SshClientHandler {
     port: u16,
     policy: TerminalSshHostKeyPolicy,
     known_hosts_file: Option<PathBuf>,
+    interactions: SshAuthClient,
     remote_forwards: Vec<TerminalSshPortForward>,
     agent_socket: Option<PathBuf>,
     x11_proxy: Option<X11ProxyConfig>,
@@ -590,30 +725,54 @@ impl client::Handler for SshClientHandler {
         if self.policy == TerminalSshHostKeyPolicy::Insecure {
             return Ok(true);
         }
-        let known = if let Some(path) = &self.known_hosts_file {
+        let check = if let Some(path) = &self.known_hosts_file {
             russh::keys::known_hosts::check_known_hosts_path(
                 &self.host,
                 self.port,
                 server_public_key,
                 path,
-            )?
+            )
         } else {
-            russh::keys::check_known_hosts(&self.host, self.port, server_public_key)?
+            russh::keys::check_known_hosts(&self.host, self.port, server_public_key)
         };
-        if known || self.policy == TerminalSshHostKeyPolicy::Strict {
-            return Ok(known);
+        match check {
+            Ok(true) => Ok(true),
+            Ok(false) if self.policy == TerminalSshHostKeyPolicy::AcceptNew => {
+                self.learn_host_key(server_public_key)?;
+                Ok(true)
+            }
+            Ok(false) => {
+                let accepted = self
+                    .interactions
+                    .request_host_key(
+                        self.host.clone(),
+                        self.port,
+                        SshHostKeyPromptReason::Unknown,
+                        server_public_key,
+                    )
+                    .await?;
+                if accepted {
+                    self.learn_host_key(server_public_key)?;
+                }
+                Ok(accepted)
+            }
+            Err(russh::keys::Error::KeyChanged { line }) => {
+                let accepted = self
+                    .interactions
+                    .request_host_key(
+                        self.host.clone(),
+                        self.port,
+                        SshHostKeyPromptReason::Changed,
+                        server_public_key,
+                    )
+                    .await?;
+                if accepted {
+                    self.replace_changed_host_key(line, server_public_key)?;
+                }
+                Ok(accepted)
+            }
+            Err(error) => Err(error.into()),
         }
-        if let Some(path) = &self.known_hosts_file {
-            russh::keys::known_hosts::learn_known_hosts_path(
-                &self.host,
-                self.port,
-                server_public_key,
-                path,
-            )?;
-        } else {
-            russh::keys::known_hosts::learn_known_hosts(&self.host, self.port, server_public_key)?;
-        }
-        Ok(true)
     }
 
     fn server_channel_open_forwarded_tcpip(
@@ -761,6 +920,71 @@ impl client::Handler for SshClientHandler {
             }
             Ok(())
         }
+    }
+}
+
+impl SshClientHandler {
+    fn known_hosts_path(&self) -> Result<PathBuf> {
+        if let Some(path) = &self.known_hosts_file {
+            return Ok(path.clone());
+        }
+        let home = std::env::var_os("HOME")
+            .or_else(|| std::env::var_os("USERPROFILE"))
+            .map(PathBuf::from)
+            .ok_or_else(|| anyhow!("home directory is unavailable for known_hosts"))?;
+        Ok(home.join(".ssh").join("known_hosts"))
+    }
+
+    fn learn_host_key(&self, server_public_key: &russh::keys::ssh_key::PublicKey) -> Result<()> {
+        if let Some(path) = &self.known_hosts_file {
+            russh::keys::known_hosts::learn_known_hosts_path(
+                &self.host,
+                self.port,
+                server_public_key,
+                path,
+            )?;
+        } else {
+            russh::keys::known_hosts::learn_known_hosts(&self.host, self.port, server_public_key)?;
+        }
+        Ok(())
+    }
+
+    fn replace_changed_host_key(
+        &self,
+        line: usize,
+        server_public_key: &russh::keys::ssh_key::PublicKey,
+    ) -> Result<()> {
+        let path = self.known_hosts_path()?;
+        let original =
+            fs::read(&path).with_context(|| format!("could not read {}", path.display()))?;
+        let text = std::str::from_utf8(&original)
+            .with_context(|| format!("{} is not UTF-8", path.display()))?;
+        let mut lines = text.lines().map(str::to_string).collect::<Vec<_>>();
+        let index = line
+            .checked_sub(1)
+            .filter(|index| *index < lines.len())
+            .ok_or_else(|| anyhow!("stored SSH host-key line changed before confirmation"))?;
+        let host_pattern = if self.port == 22 {
+            self.host.clone()
+        } else {
+            format!("[{}]:{}", self.host, self.port)
+        };
+        lines[index] = format!("{host_pattern} {}", server_public_key.to_openssh()?);
+        let mut replacement = lines.join("\n");
+        if text.ends_with('\n') {
+            replacement.push('\n');
+        }
+        if fs::read(&path)? != original {
+            bail!("known_hosts changed while SSH host-key confirmation was open");
+        }
+        let parent = path
+            .parent()
+            .ok_or_else(|| anyhow!("known_hosts has no parent directory"))?;
+        let mut staging = tempfile::NamedTempFile::new_in(parent)?;
+        staging.write_all(replacement.as_bytes())?;
+        staging.as_file().sync_all()?;
+        staging.persist(&path).map_err(|error| error.error)?;
+        Ok(())
     }
 }
 
@@ -1108,18 +1332,34 @@ async fn run_ssh_session(
         &cancellation,
         &forward_runtime,
     );
-    let prepared = tokio::select! {
-        biased;
-        _ = cancellation.cancelled() => {
-            Err(anyhow!("SSH initialization was cancelled"))
-        },
-        result = tokio::time::timeout(setup_timeout, setup) => match result {
-            Ok(result) => result,
-            Err(_) => Err(anyhow!(
+    tokio::pin!(setup);
+    let prepared = loop {
+        let deadline = tokio::time::sleep(setup_timeout);
+        tokio::pin!(deadline);
+        let result = tokio::select! {
+            biased;
+            _ = cancellation.cancelled() => {
+                Some(Err(anyhow!("SSH initialization was cancelled")))
+            },
+            result = &mut setup => Some(result),
+            _ = &mut deadline => None,
+        };
+        if let Some(result) = result {
+            break result;
+        }
+        if !auth.has_pending_interaction() {
+            break Err(anyhow!(
                 "SSH initialization timed out after {} seconds",
                 setup_timeout.as_secs()
-            )),
-        },
+            ));
+        }
+        tokio::select! {
+            biased;
+            _ = cancellation.cancelled() => {
+                break Err(anyhow!("SSH initialization was cancelled"));
+            },
+            _ = auth.wait_until_interactions_complete() => {},
+        }
     };
     let prepared = match prepared {
         Ok(prepared) => prepared,
@@ -1251,6 +1491,7 @@ fn client_config(connection: &TerminalProfileConnection) -> Arc<client::Config> 
 
 fn client_handler(
     connection: &TerminalProfileConnection,
+    interactions: SshAuthClient,
     x11_proxy: Option<X11ProxyConfig>,
     forward_runtime: ForwardRuntime,
 ) -> SshClientHandler {
@@ -1259,6 +1500,7 @@ fn client_handler(
         port: connection.port,
         policy: connection.host_key_policy,
         known_hosts_file: connection.known_hosts_file.as_deref().map(expand_home_path),
+        interactions,
         remote_forwards: connection.port_forwards.clone(),
         agent_socket: connection
             .agent_forwarding
@@ -1657,12 +1899,18 @@ fn proxy_command_arguments(
 
 async fn connect_transport(
     connection: &TerminalProfileConnection,
+    interactions: &SshAuthClient,
     cancellation: &SshCancellation,
     x11_proxy: Option<X11ProxyConfig>,
     forward_runtime: &ForwardRuntime,
 ) -> Result<client::Handle<SshClientHandler>> {
     let config = client_config(connection);
-    let handler = client_handler(connection, x11_proxy, forward_runtime.clone());
+    let handler = client_handler(
+        connection,
+        interactions.clone(),
+        x11_proxy,
+        forward_runtime.clone(),
+    );
     let timeout = Duration::from_secs(connection.connect_timeout_seconds.clamp(1, 120));
     let connect = async {
         if let Some(proxy_command) = connection
@@ -1711,7 +1959,7 @@ async fn connect_authenticated(
             .first()
             .ok_or_else(|| anyhow!("ProxyJump chain is empty"))?;
         let mut current_session =
-            connect_transport(first_jump, cancellation, None, forward_runtime)
+            connect_transport(first_jump, auth, cancellation, None, forward_runtime)
                 .await
                 .with_context(|| {
                     format!("could not connect to ProxyJump host {}", first_jump.host)
@@ -1743,6 +1991,7 @@ async fn connect_authenticated(
                 })?;
             let mut next_session = connect_stream_with_timeout(
                 next_jump,
+                auth,
                 jump_channel.into_stream(),
                 None,
                 forward_runtime,
@@ -1782,6 +2031,7 @@ async fn connect_authenticated(
             })?;
         let mut session = connect_stream_with_timeout(
             connection,
+            auth,
             jump_channel.into_stream(),
             x11_proxy,
             forward_runtime,
@@ -1794,13 +2044,14 @@ async fn connect_authenticated(
     }
 
     let mut session =
-        connect_transport(connection, cancellation, x11_proxy, forward_runtime).await?;
+        connect_transport(connection, auth, cancellation, x11_proxy, forward_runtime).await?;
     authenticate(&mut session, connection, auth).await?;
     Ok((session, Vec::new()))
 }
 
 async fn connect_stream_with_timeout<S>(
     connection: &TerminalProfileConnection,
+    auth: &SshAuthClient,
     stream: S,
     x11_proxy: Option<X11ProxyConfig>,
     forward_runtime: &ForwardRuntime,
@@ -1814,7 +2065,7 @@ where
         client::connect_stream(
             client_config(connection),
             stream,
-            client_handler(connection, x11_proxy, forward_runtime.clone()),
+            client_handler(connection, auth.clone(), x11_proxy, forward_runtime.clone()),
         ),
     )
     .await
@@ -1905,7 +2156,7 @@ fn proxy_jump_connection(
         password: None,
         private_keys: Vec::new(),
         private_key_passphrase: None,
-        host_key_policy: TerminalSshHostKeyPolicy::Strict,
+        host_key_policy: TerminalSshHostKeyPolicy::AcceptNew,
         known_hosts_file: None,
         connect_timeout_seconds: destination.connect_timeout_seconds,
         keepalive_seconds: destination.keepalive_seconds,
@@ -1970,18 +2221,28 @@ async fn authenticate(
         connection.auth,
         TerminalSshAuthMethod::Password | TerminalSshAuthMethod::KeyboardInteractive
     ) {
-        for key_path in &connection.private_keys {
-            let expanded = expand_identity_path(key_path, connection);
-            let key =
-                match load_private_key(&expanded, connection.private_key_passphrase.as_deref()) {
-                    Ok(key) => key,
-                    Err(_) if connection.auth == TerminalSshAuthMethod::Auto => continue,
-                    Err(error) => {
-                        return Err(error).with_context(|| {
-                            format!("could not load private key {}", expanded.display())
-                        });
-                    }
-                };
+        for configured_key in &connection.private_keys {
+            let inline = looks_like_inline_private_key(configured_key);
+            let expanded = (!inline).then(|| expand_identity_path(configured_key, connection));
+            let key = match if inline {
+                decode_private_key(configured_key, connection.private_key_passphrase.as_deref())
+            } else {
+                load_private_key(
+                    expanded.as_deref().expect("path key must be expanded"),
+                    connection.private_key_passphrase.as_deref(),
+                )
+            } {
+                Ok(key) => key,
+                Err(_) if connection.auth == TerminalSshAuthMethod::Auto => continue,
+                Err(error) => {
+                    return Err(error).with_context(|| {
+                        expanded.as_ref().map_or_else(
+                            || "could not decode saved private key".to_string(),
+                            |path| format!("could not load private key {}", path.display()),
+                        )
+                    });
+                }
+            };
             configured_key_loaded = true;
             let result = session
                 .authenticate_publickey(
@@ -2176,6 +2437,15 @@ fn load_private_key(path: &Path, passphrase: Option<&str>) -> Result<PrivateKey>
     russh::keys::load_secret_key(path, passphrase).map_err(Into::into)
 }
 
+fn decode_private_key(value: &str, passphrase: Option<&str>) -> Result<PrivateKey> {
+    russh::keys::decode_secret_key(value, passphrase).map_err(Into::into)
+}
+
+fn looks_like_inline_private_key(value: &str) -> bool {
+    let trimmed = value.trim_start();
+    trimmed.starts_with("-----BEGIN ") || trimmed.starts_with("PuTTY-User-Key-File-")
+}
+
 fn expand_identity_path(value: &str, connection: &TerminalProfileConnection) -> PathBuf {
     let expanded = value
         .replace("%h", &connection.host)
@@ -2196,6 +2466,12 @@ fn expand_home_path(value: &str) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use russh::client::Handler as _;
+
+    const HOST_KEY_A: &str =
+        "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJ4884pTXCgmNvR/oiWTLe71HqB0p1+KknbHps1cKMjH";
+    const HOST_KEY_B: &str =
+        "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMJjiMNIEhO7sPT1lCPs1wEFqf56/HrFkV3+PbB7g04C";
 
     fn wait_for_child_exit(child: &mut dyn Child, timeout: Duration) -> ExitStatus {
         let deadline = std::time::Instant::now() + timeout;
@@ -2209,6 +2485,159 @@ mod tests {
             );
             thread::sleep(Duration::from_millis(10));
         }
+    }
+
+    #[test]
+    fn host_key_policy_accepts_new_and_prompts_for_strict_or_changed() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        runtime.block_on(async {
+            let directory = tempfile::tempdir().expect("known-hosts directory");
+            let known_hosts = directory.path().join("known_hosts");
+            let key_a =
+                russh::keys::ssh_key::PublicKey::from_openssh(HOST_KEY_A).expect("first host key");
+            let key_b = russh::keys::ssh_key::PublicKey::from_openssh(HOST_KEY_B)
+                .expect("replacement host key");
+            let interactions = SshAuthClient::default();
+            let forward_runtime = ForwardRuntime::new(SshCancellation::default());
+
+            let accept_new = TerminalProfileConnection {
+                host: "host.example.test".to_string(),
+                port: 2222,
+                host_key_policy: TerminalSshHostKeyPolicy::AcceptNew,
+                known_hosts_file: Some(known_hosts.to_string_lossy().into_owned()),
+                ..<_>::default()
+            };
+            let mut handler = client_handler(
+                &accept_new,
+                interactions.clone(),
+                None,
+                forward_runtime.clone(),
+            );
+            assert!(handler.check_server_key(&key_a).await.unwrap());
+            assert!(interactions.take_host_key_prompts().is_empty());
+            assert!(
+                russh::keys::known_hosts::check_known_hosts_path(
+                    &accept_new.host,
+                    accept_new.port,
+                    &key_a,
+                    &known_hosts,
+                )
+                .unwrap()
+            );
+
+            let strict_path = directory.path().join("strict_known_hosts");
+            let strict = TerminalProfileConnection {
+                host: "strict.example.test".to_string(),
+                port: 22,
+                host_key_policy: TerminalSshHostKeyPolicy::Strict,
+                known_hosts_file: Some(strict_path.to_string_lossy().into_owned()),
+                ..<_>::default()
+            };
+            let strict_interactions = SshAuthClient::default();
+            let mut strict_handler = client_handler(
+                &strict,
+                strict_interactions.clone(),
+                None,
+                forward_runtime.clone(),
+            );
+            let strict_key = key_a.clone();
+            let strict_task =
+                tokio::spawn(async move { strict_handler.check_server_key(&strict_key).await });
+            let strict_prompt = tokio::time::timeout(Duration::from_secs(1), async {
+                loop {
+                    if let Some(prompt) = strict_interactions.take_host_key_prompts().pop() {
+                        break prompt;
+                    }
+                    tokio::task::yield_now().await;
+                }
+            })
+            .await
+            .expect("strict host-key prompt");
+            assert!(matches!(
+                strict_prompt.reason,
+                SshHostKeyPromptReason::Unknown
+            ));
+            assert!(strict_prompt.fingerprint.starts_with("SHA256:"));
+            assert!(strict_interactions.respond_host_key(strict_prompt.challenge_id, true));
+            assert!(strict_task.await.unwrap().unwrap());
+            assert!(
+                russh::keys::known_hosts::check_known_hosts_path(
+                    &strict.host,
+                    strict.port,
+                    &key_a,
+                    &strict_path,
+                )
+                .unwrap()
+            );
+
+            let changed_interactions = SshAuthClient::default();
+            fs::write(
+                &known_hosts,
+                format!(
+                    "[host.example.test]:2222,[alias.example.test]:2222 {}\n",
+                    key_a.to_openssh().expect("stored key")
+                ),
+            )
+            .expect("multi-host known_hosts entry");
+            assert!(
+                russh::keys::known_hosts::check_known_hosts_path(
+                    &accept_new.host,
+                    accept_new.port,
+                    &key_a,
+                    &known_hosts,
+                )
+                .expect("stored multi-host key")
+            );
+            assert!(matches!(
+                russh::keys::known_hosts::check_known_hosts_path(
+                    &accept_new.host,
+                    accept_new.port,
+                    &key_b,
+                    &known_hosts,
+                ),
+                Err(russh::keys::Error::KeyChanged { .. })
+            ));
+            let mut changed_handler = client_handler(
+                &accept_new,
+                changed_interactions.clone(),
+                None,
+                forward_runtime.clone(),
+            );
+            let changed_key = key_b.clone();
+            let changed_task =
+                tokio::spawn(async move { changed_handler.check_server_key(&changed_key).await });
+            let changed_prompt = tokio::time::timeout(Duration::from_secs(1), async {
+                loop {
+                    if let Some(prompt) = changed_interactions.take_host_key_prompts().pop() {
+                        break prompt;
+                    }
+                    tokio::task::yield_now().await;
+                }
+            })
+            .await
+            .expect("changed host-key prompt");
+            assert!(matches!(
+                changed_prompt.reason,
+                SshHostKeyPromptReason::Changed
+            ));
+            assert!(changed_interactions.respond_host_key(changed_prompt.challenge_id, true));
+            assert!(changed_task.await.unwrap().unwrap());
+            assert!(
+                russh::keys::known_hosts::check_known_hosts_path(
+                    &accept_new.host,
+                    accept_new.port,
+                    &key_b,
+                    &known_hosts,
+                )
+                .unwrap()
+            );
+            let replaced = fs::read_to_string(&known_hosts).expect("replaced known_hosts");
+            assert!(replaced.starts_with("[host.example.test]:2222 "));
+            assert!(!replaced.contains("alias.example.test"));
+        });
     }
 
     #[test]

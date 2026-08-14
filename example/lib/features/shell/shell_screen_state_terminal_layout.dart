@@ -792,10 +792,6 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                                   onPrevious: () => _moveSearchMatch(1),
                                   onNext: () => _moveSearchMatch(-1),
                                   onClose: _closeSearch,
-                                  onPasteHandlerMounted:
-                                      _attachSearchPasteHandler,
-                                  onPasteHandlerUnmounted:
-                                      _detachSearchPasteHandler,
                                 ),
                               ),
                             ),

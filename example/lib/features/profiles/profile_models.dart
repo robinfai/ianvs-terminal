@@ -55,7 +55,12 @@ enum TerminalProfileSwitchRuleKind { hostname, username, directory }
 
 /// An explicit request to remove one encrypted SSH secret from persistent
 /// storage. These intents are transient and are never serialized themselves.
-enum ProfileSecretField { password, privateKeyPassphrase, x11AuthCookie }
+enum ProfileSecretField {
+  password,
+  privateKeys,
+  privateKeyPassphrase,
+  x11AuthCookie,
+}
 
 class TerminalProfileSwitchRule {
   const TerminalProfileSwitchRule({
