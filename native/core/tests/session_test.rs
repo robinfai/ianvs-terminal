@@ -1290,23 +1290,25 @@ fn primary_interaction_modes_across_alternate_screen_profile() -> TerminalProfil
     local_profile(
         "primary-interaction-modes-across-alternate-screen",
         "Primary Interaction Modes Across Alternate Screen",
-        "/bin/sh",
+        "/usr/bin/env",
         vec![
-            "-lc".to_string(),
-            r#"python3 - <<'PY'
-import sys
+            "python3".to_string(),
+            "-c".to_string(),
+            r#"import sys
 import time
 
-def out(value, delay=0.16):
+def checkpoint(value):
     sys.stdout.write(value)
     sys.stdout.flush()
-    time.sleep(delay)
+    sys.stdin.readline()
 
-out("\x1b[?1004h\x1b[?1007h\x1b[?1002h\x1b[?1006h\x1b[=1u\x1b[?2004hPRIMARYMODES")
-out("\x1b[?1049hALTEMPTY")
-out("\x1b[?1004h\x1b[?1007h\x1b[?1003h\x1b[?1016h\x1b[=8uALTMODES")
-out("\x1b[?1049lPRIMARYRESTORED", 0.22)
-PY"#
+checkpoint("\x1b[?1004h\x1b[?1007h\x1b[?1002h\x1b[?1006h\x1b[=1u\x1b[?2004hPRIMARYMODES")
+checkpoint("\x1b[?1049hALTEMPTY")
+checkpoint("\x1b[?1004h\x1b[?1007h\x1b[?1003h\x1b[?1016h\x1b[=8uALTMODES")
+sys.stdout.write("\x1b[?1049lPRIMARYRESTORED")
+sys.stdout.flush()
+time.sleep(0.22)
+"#
             .to_string(),
         ],
         BTreeMap::new(),
@@ -3833,16 +3835,18 @@ fn session_frame_diff_preserves_primary_graphics_across_alt_screen_resize() {
         r#"
 import sys, time
 
-def out(value, delay=0.12):
+def out(value):
     sys.stdout.write(value)
     sys.stdout.flush()
-    time.sleep(delay)
 
 out('\x1b[1;1H\x1b]1337;File=inline=1;width=2px;height=6px;preserveAspectRatio=0;doNotMoveCursor=1:{RED_PIXEL_PNG_BASE64}\x1b\\')
 out('\x1b[5;1H\x1bPq#2~\x1b\\')
 out('\x1b[9;1H\x1b_Ga=T,f=32,s=2,v=6,i=62012,q=1;{raw_rgba_base64}\x1b\\')
-out('\x1b[?1049hALT READY\n', 0.85)
-out('\x1b[?1049lprimary restored\n', 0.25)
+sys.stdin.readline()
+out('\x1b[?1049hALT READY\n')
+sys.stdin.readline()
+out('\x1b[?1049lprimary restored\n')
+time.sleep(0.25)
 "#,
     );
     let profile = local_profile(
@@ -3893,6 +3897,7 @@ out('\x1b[?1049lprimary restored\n', 0.25)
         );
     }
 
+    session::write_session(session_id, b"\n").unwrap();
     let alternate_frame = wait_for_frame_where(session_id, |frame| {
         frame.contains("ALT READY")
             && serde_json::from_str::<serde_json::Value>(frame)
@@ -3934,6 +3939,7 @@ out('\x1b[?1049lprimary restored\n', 0.25)
         "primary-screen graphics must stay hidden while resizing alternate screen: {resized_alternate_frame}"
     );
 
+    session::write_session(session_id, b"\n").unwrap();
     let restored_frame = wait_for_frame_where(session_id, |frame| {
         frame.contains("primary restored")
             && frame.contains("\"viewport_cols\":90")
@@ -5290,11 +5296,24 @@ fn session_frame_diff_scopes_sixel_graphics_to_alternate_screen() {
     let profile = local_profile(
         "sixel-alt-screen-frame-diff",
         "Sixel Alternate Screen Frame Diff",
-        "/bin/sh",
+        "/usr/bin/env",
         vec![
-            "-lc".to_string(),
-            "python3 - <<'PY'\nimport sys, time\n\ndef out(value, delay=0.16):\n    sys.stdout.write(value)\n    sys.stdout.flush()\n    time.sleep(delay)\n\nout('\\x1b[2;1H\\x1bPq#2~\\x1b\\\\')\nout('\\x1b[?1049h')\nout('\\x1b[6;1H\\x1bPq#2~\\x1b\\\\')\nout('\\x1b[?1049lprimary restored\\n', 0.22)\nPY"
-                .to_string(),
+            "python3".to_string(),
+            "-c".to_string(),
+            r#"import sys, time
+
+def checkpoint(value):
+    sys.stdout.write(value)
+    sys.stdout.flush()
+    sys.stdin.readline()
+
+checkpoint('\x1b[2;1H\x1bPq#2~\x1b\\')
+checkpoint('\x1b[?1049h\x1b[6;1H\x1bPq#2~\x1b\\')
+sys.stdout.write('\x1b[?1049lprimary restored\n')
+sys.stdout.flush()
+time.sleep(0.22)
+"#
+            .to_string(),
         ],
         BTreeMap::new(),
         TerminalEmulation::Xterm256,
@@ -5332,6 +5351,7 @@ fn session_frame_diff_scopes_sixel_graphics_to_alternate_screen() {
         "alternate Sixel graphic must not leak into the primary screen frame: {primary}"
     );
 
+    session::write_session(session_id, b"\n").unwrap();
     let alternate = wait_for_frame_where(session_id, |frame| {
         let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
             return false;
@@ -5352,6 +5372,7 @@ fn session_frame_diff_scopes_sixel_graphics_to_alternate_screen() {
         "primary Sixel graphic must not leak into alternate screen frames: {alternate}"
     );
 
+    session::write_session(session_id, b"\n").unwrap();
     let restored = wait_for_frame_where(session_id, |frame| {
         if !frame.contains("primary restored") {
             return false;
@@ -6127,11 +6148,20 @@ fn session_frame_diff_ticks_kitty_animation_without_new_output() {
     let profile = local_profile(
         "kitty-animation-frame-diff",
         "Kitty Animation Frame Diff",
-        "/bin/sh",
+        "/usr/bin/env",
         vec![
-            "-lc".to_string(),
+            "python3".to_string(),
+            "-c".to_string(),
             format!(
-                "python3 - <<'PY'\nimport sys, time\nsys.stdout.write('\\x1b_Ga=f,f=32,s=1,v=1,i=61000,r=1,z=1,q=1;{}\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(0.15)\nsys.stdout.write('\\x1b_Ga=f,f=32,s=1,v=1,i=61000,r=2,z=1,q=1;{}\\x1b\\\\')\nsys.stdout.write('\\x1b_Ga=a,i=61000,s=3,q=1;\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(0.25)\nPY",
+                r#"import sys, time
+sys.stdout.write('\x1b_Ga=f,f=32,s=1,v=1,i=61000,r=1,z=1,q=1;{}\x1b\\')
+sys.stdout.flush()
+sys.stdin.readline()
+sys.stdout.write('\x1b_Ga=f,f=32,s=1,v=1,i=61000,r=2,z=1,q=1;{}\x1b\\')
+sys.stdout.write('\x1b_Ga=a,i=61000,s=2,q=1;\x1b\\')
+sys.stdout.flush()
+time.sleep(0.25)
+"#,
                 RED_RGBA_BASE64, GREEN_RGBA_BASE64
             ),
         ],
@@ -6154,6 +6184,7 @@ fn session_frame_diff_ticks_kitty_animation_without_new_output() {
         .as_u64()
         .expect("expected first asset version");
 
+    session::write_session(session_id, b"\n").unwrap();
     let updated = wait_for_frame_where(session_id, |frame| {
         let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
             return false;
@@ -16270,6 +16301,7 @@ fn session_frame_diff_restores_primary_interaction_modes_after_alt_screen() {
         Some(1)
     );
 
+    session::write_session(session_id, b"\n").unwrap();
     let alt_empty_frame = wait_for_frame_containing(session_id, "ALTEMPTY");
     let alt_empty: serde_json::Value = serde_json::from_str(&alt_empty_frame).unwrap();
     assert_eq!(alt_empty["modes"]["alternate_screen"].as_bool(), Some(true));
@@ -16295,6 +16327,7 @@ fn session_frame_diff_restores_primary_interaction_modes_after_alt_screen() {
     );
     assert_eq!(alt_empty["modes"]["kitty_keyboard_flags"].as_u64(), Some(0));
 
+    session::write_session(session_id, b"\n").unwrap();
     let alt_modes_frame = wait_for_frame_containing(session_id, "ALTMODES");
     let alt_modes: serde_json::Value = serde_json::from_str(&alt_modes_frame).unwrap();
     assert_eq!(alt_modes["modes"]["alternate_screen"].as_bool(), Some(true));
@@ -16307,6 +16340,7 @@ fn session_frame_diff_restores_primary_interaction_modes_after_alt_screen() {
     );
     assert_eq!(alt_modes["modes"]["kitty_keyboard_flags"].as_u64(), Some(8));
 
+    session::write_session(session_id, b"\n").unwrap();
     let restored_frame = wait_for_frame_containing(session_id, "PRIMARYRESTORED");
     let restored: serde_json::Value = serde_json::from_str(&restored_frame).unwrap();
     assert_eq!(restored["modes"]["alternate_screen"].as_bool(), Some(false));
