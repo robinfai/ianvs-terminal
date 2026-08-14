@@ -57,6 +57,34 @@ void main() {
     );
   });
 
+  test('load persists the production Remote API domain migration', () async {
+    await repository.configurationFile.parent.create(recursive: true);
+    await repository.configurationFile.writeAsString(
+      jsonEncode(<String, Object?>{
+        'version': DataApiConfiguration.currentVersion,
+        'deployment': 'remote',
+        'generation': 4,
+        'remote_base_url': legacyRemoteDataApiBaseUrl,
+        'remote_credential_ref': 'i3AHgPmX00rBsr8nvxHHuIL-8ih-SSwM',
+        'last_transaction_id': 'u710iV1BuhsahdS0kV76mIahSQUjeJh4',
+      }),
+      flush: true,
+    );
+
+    final loaded = await repository.load();
+
+    expect(loaded.remoteBaseUri, Uri.parse(defaultRemoteDataApiBaseUrl));
+    final persisted =
+        jsonDecode(await repository.configurationFile.readAsString())
+            as Map<String, Object?>;
+    expect(persisted['remote_base_url'], defaultRemoteDataApiBaseUrl);
+    expect(persisted['generation'], 4);
+    expect(
+      persisted['remote_credential_ref'],
+      'i3AHgPmX00rBsr8nvxHHuIL-8ih-SSwM',
+    );
+  });
+
   test(
     'quarantines invalid config and requires explicit disabled confirmation',
     () async {
@@ -2325,6 +2353,18 @@ void main() {
       ),
       throwsFormatException,
     );
+  });
+
+  test('remote session follows the production base URL migration', () {
+    final session = DataApiRemoteSession(
+      baseUri: Uri.parse(legacyRemoteDataApiBaseUrl),
+      accessToken: 'remote-access-token',
+      encryptionKey: 'encryption-key-material',
+      expiresAt: DateTime.now().add(const Duration(hours: 1)),
+    );
+
+    expect(session.baseUri, Uri.parse(defaultRemoteDataApiBaseUrl));
+    expect(session.isUsableFor(Uri.parse(defaultRemoteDataApiBaseUrl)), isTrue);
   });
 
   test('remote login requires HTTPS except for loopback development', () {

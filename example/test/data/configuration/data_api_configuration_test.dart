@@ -24,6 +24,18 @@ void main() {
     );
   });
 
+  test('former production URL migrates to the current service URL', () {
+    final configuration = DataApiConfiguration.remote(
+      legacyRemoteDataApiBaseUrl,
+    );
+
+    expect(configuration.remoteBaseUri, Uri.parse(defaultRemoteDataApiBaseUrl));
+    expect(
+      configuration.toJson()['remote_base_url'],
+      defaultRemoteDataApiBaseUrl,
+    );
+  });
+
   test('configuration JSON round-trips all deployment modes', () {
     final configurations = <DataApiConfiguration>[
       const DataApiConfiguration.disabled(),

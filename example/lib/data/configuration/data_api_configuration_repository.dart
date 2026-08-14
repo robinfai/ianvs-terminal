@@ -2321,6 +2321,10 @@ final class FileDataApiConfigurationRepository
         );
       }
       final configuration = DataApiConfiguration.fromJson(json);
+      if (recoveryRequired != true &&
+          json['remote_base_url'] == legacyRemoteDataApiBaseUrl) {
+        await _write(configuration, recoveryRequired: false);
+      }
       if (recoveryRequired == true) {
         _recoveryRequired = true;
         if (!_recoveryExceptionDelivered) {

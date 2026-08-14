@@ -1,6 +1,8 @@
 import 'dart:io';
 
 const defaultRemoteDataApiBaseUrl = 'https://api.terminal.ianvs.work/';
+const legacyRemoteDataApiBaseUrl =
+    'https://ianvs-api.43.132.135.30.nip.io:57321/';
 
 enum DataApiDeployment { disabled, local, remote }
 
@@ -57,9 +59,12 @@ final class DataApiConfiguration {
         : uri.path.endsWith('/')
         ? uri.path
         : '${uri.path}/';
+    final normalizedUri = uri.replace(path: path);
     return DataApiConfiguration._(
       deployment: DataApiDeployment.remote,
-      remoteBaseUri: uri.replace(path: path),
+      remoteBaseUri: normalizedUri.toString() == legacyRemoteDataApiBaseUrl
+          ? Uri.parse(defaultRemoteDataApiBaseUrl)
+          : normalizedUri,
       generation: 0,
       remoteCredentialRef: null,
       lastTransactionId: null,
