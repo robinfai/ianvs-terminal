@@ -46,7 +46,7 @@ class _SshOnlyShellEmptyState extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                   sshProfiles.isEmpty
-                      ? 'Create an SSH profile to open your first tab.'
+                      ? 'Create an SSH connection to open your first tab.'
                       : 'Choose a saved profile to open a terminal tab.',
                   textAlign: TextAlign.center,
                   style: Theme.of(
@@ -117,7 +117,7 @@ class _SshOnlyShellEmptyState extends StatelessWidget {
                   child: AppActionButton(
                     buttonKey: const Key('ios-ssh-create-profile'),
                     icon: Icons.add_rounded,
-                    label: 'Create SSH Profile',
+                    label: 'New SSH Connection',
                     onPressed: onCreateProfile,
                   ),
                 ),

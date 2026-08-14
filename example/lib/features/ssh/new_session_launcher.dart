@@ -229,7 +229,10 @@ class _NewSessionLauncherState extends State<NewSessionLauncher> {
   }
 
   Future<void> _createCustomSshProfile() async {
-    final result = await showCreateSshProfileDialog(context);
+    final result = await showCreateSshProfileDialog(
+      context,
+      saveProfileAvailable: widget.customSshProfilesEnabled,
+    );
     if (!mounted || result == null) {
       return;
     }
@@ -243,8 +246,9 @@ class _NewSessionLauncherState extends State<NewSessionLauncher> {
 }
 
 Future<SshProfileEditorResult?> showCreateSshProfileDialog(
-  BuildContext context,
-) {
+  BuildContext context, {
+  bool saveProfileAvailable = true,
+}) {
   return showDialog<SshProfileEditorResult>(
     context: context,
     builder: (context) => SshProfileEditorDialog(
@@ -258,6 +262,7 @@ Future<SshProfileEditorResult?> showCreateSshProfileDialog(
         ),
       ),
       allowSaveChoice: true,
+      saveProfileAvailable: saveProfileAvailable,
     ),
   );
 }
@@ -337,23 +342,25 @@ class _SshProfileListState extends State<_SshProfileList> {
     return ListView(
       shrinkWrap: true,
       children: [
-        if (widget.customSshProfilesEnabled) ...[
-          FilledButton.icon(
-            key: const Key('new-custom-ssh-session'),
-            onPressed: widget.onCreateCustom,
-            icon: const Icon(Icons.add_rounded),
-            label: const Text('New SSH connection'),
+        FilledButton.icon(
+          key: const Key('new-custom-ssh-session'),
+          onPressed: widget.onCreateCustom,
+          icon: const Icon(Icons.add_rounded),
+          label: Text(
+            widget.customSshProfilesEnabled
+                ? 'New SSH connection'
+                : 'New one-time SSH connection',
           ),
-          const SizedBox(height: 10),
-        ] else ...[
+        ),
+        const SizedBox(height: 10),
+        if (!widget.customSshProfilesEnabled) ...[
           const ListTile(
             key: Key('custom-ssh-requires-remote-api'),
-            leading: Icon(Icons.cloud_off_outlined),
-            title: Text('Custom SSH profiles are unavailable'),
+            leading: Icon(Icons.lock_clock_outlined),
+            title: Text('This connection will not be saved'),
             subtitle: Text(
-              'Enable the bundled local API or configure a remote HTTP API '
-              'to create custom SSH profiles. Hosts from ~/.ssh/config '
-              'remain available below.',
+              'Connect a remote data service to save reusable SSH profiles. '
+              'You can still connect once without an Ianvs account or data service.',
             ),
           ),
           const SizedBox(height: 10),
@@ -501,12 +508,14 @@ class SshProfileEditorDialog extends StatefulWidget {
     super.key,
     required this.initialValue,
     this.allowSaveChoice = false,
+    this.saveProfileAvailable = true,
     this.saveWhenPristine = true,
     this.privateKeyPicker,
   });
 
   final TerminalProfile initialValue;
   final bool allowSaveChoice;
+  final bool saveProfileAvailable;
   final bool saveWhenPristine;
   final SshPrivateKeyPicker? privateKeyPicker;
 
@@ -561,7 +570,7 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
   bool _clearPrivateKeys = false;
   bool _clearPrivateKeyPassphrase = false;
   bool _clearX11AuthCookie = false;
-  bool _saveProfile = true;
+  late bool _saveProfile;
   bool _showAdvanced = false;
   bool _showValidationErrors = false;
   bool _obscurePassword = true;
@@ -571,6 +580,7 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
   @override
   void initState() {
     super.initState();
+    _saveProfile = widget.saveProfileAvailable;
     WidgetsBinding.instance.addObserver(this);
     FocusManager.instance.addListener(_handlePrimaryFocusChanged);
     final connection = widget.initialValue.connection;
@@ -1403,11 +1413,15 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                       visualDensity: VisualDensity.compact,
                       value: _saveProfile,
                       title: const Text('Save this SSH session'),
-                      subtitle: const Text(
-                        'Secrets are encrypted; the key stays in platform safe storage.',
+                      subtitle: Text(
+                        widget.saveProfileAvailable
+                            ? 'Secrets are encrypted; the key stays in platform safe storage.'
+                            : 'A remote data service is required to save profiles. This connection is one-time only.',
                       ),
-                      onChanged: (value) =>
-                          setState(() => _saveProfile = value ?? true),
+                      onChanged: widget.saveProfileAvailable
+                          ? (value) =>
+                                setState(() => _saveProfile = value ?? true)
+                          : null,
                     ),
                   ],
                   SizedBox(height: palette.spacing.lg),
@@ -1727,7 +1741,10 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
           name: _name.text.trim(),
           connection: connection,
         ),
-        saveProfile: widget.allowSaveChoice && _saveProfile,
+        saveProfile:
+            widget.allowSaveChoice &&
+            widget.saveProfileAvailable &&
+            _saveProfile,
         clearSecrets: <ProfileSecretField>{
           if (_clearPassword ||
               (_auth != widget.initialValue.connection.auth &&

@@ -131,6 +131,33 @@ void main() {
     expect(harness.coordinator.state, isA<AppStartupReady>());
   });
 
+  testWidgets(
+    'iOS optional setup offers one-time SSH without a bundled API claim',
+    (tester) async {
+      final harness = _HostHarness.create(
+        initialSetupRequirement: AppStartupDataSetupRequirement.optional,
+        localDataApiAvailable: false,
+      );
+      addTearDown(() => _disposeHarness(tester, harness));
+
+      await tester.pumpWidget(harness.host());
+      await harness.coordinator.start();
+      await tester.pump();
+
+      expect(find.textContaining('one-time SSH connections'), findsOneWidget);
+      expect(find.byKey(const Key('app-startup-use-local-api')), findsNothing);
+      expect(find.text('Use bundled local API'), findsNothing);
+      expect(find.text('Use local terminal only'), findsNothing);
+      expect(find.text('Continue without data service'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('app-startup-skip-data-api')));
+      await tester.pumpAndSettle();
+
+      expect(harness.settings.disableCount, 1);
+      expect(harness.coordinator.state, isA<AppStartupReady>());
+    },
+  );
+
   testWidgets('required data setup blocks use until remote login succeeds', (
     tester,
   ) async {
@@ -556,6 +583,7 @@ final class _HostHarness {
     Completer<void>? graphCloseStarted,
     Completer<void>? graphPtyShutdown,
     List<String>? graphShutdownOrder,
+    bool localDataApiAvailable = true,
   }) {
     final directory = Directory.systemTemp.createTempSync(
       'ianvs-startup-host-',
@@ -566,6 +594,7 @@ final class _HostHarness {
       initialSetupRequirement: initialSetupRequirement,
       loadError: settingsLoadError,
       onSaved: () => harness.failingStage = null,
+      localDataApiAvailable: localDataApiAvailable,
     );
     return harness = _HostHarness._(
       directory: directory,
@@ -750,19 +779,19 @@ final class _HostSettings
     required AppStartupDataSetupRequirement? initialSetupRequirement,
     required this.loadError,
     required this.onSaved,
+    required this.localDataApiAvailable,
   }) : _initialSetupRequirement = initialSetupRequirement;
 
   final DataApiConfiguration configuration;
   AppStartupDataSetupRequirement? _initialSetupRequirement;
   final Object? loadError;
   final void Function() onSaved;
+  @override
+  final bool localDataApiAvailable;
   int disableCount = 0;
   int localCount = 0;
   int reconnectCount = 0;
   DataApiRemoteLoginRequest? lastReconnect;
-
-  @override
-  bool get localDataApiAvailable => true;
 
   @override
   Future<AppStartupDataSetupRequirement?> initialSetupRequirement(

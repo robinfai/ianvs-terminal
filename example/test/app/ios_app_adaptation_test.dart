@@ -208,9 +208,10 @@ void main() {
   );
 
   testWidgets(
-    'iPhone empty state creates an SSH profile directly without a local option',
+    'iPhone without a data service creates a one-time SSH connection',
     (tester) async {
       final root = Directory.systemTemp.createTempSync('ianvs-ios-create-');
+      final nativeBackend = _IosSshFakePtyBackend();
       addTearDown(() {
         if (root.existsSync()) {
           root.deleteSync(recursive: true);
@@ -222,8 +223,9 @@ void main() {
       await tester.pumpWidget(
         _buildIosApp(
           root: root,
-          nativeBackend: _IosSshFakePtyBackend(),
+          nativeBackend: nativeBackend,
           profiles: <TerminalProfile>[defaultTerminalProfile()],
+          customSshProfilesEnabled: false,
         ),
       );
       await _pumpUntilReady(tester);
@@ -237,6 +239,43 @@ void main() {
       expect(find.byKey(const Key('ssh-user')), findsOne);
       expect(find.byKey(const Key('new-session-type')), findsNothing);
       expect(find.text('Local shell'), findsNothing);
+
+      final saveProfile = tester.widget<CheckboxListTile>(
+        find.byKey(const Key('ssh-save-profile')),
+      );
+      expect(saveProfile.value, isFalse);
+      expect(saveProfile.onChanged, isNull);
+      await tester.enterText(
+        find.byKey(const Key('ssh-host')),
+        'one-time.example.test',
+      );
+      await tester.enterText(find.byKey(const Key('ssh-user')), 'operator');
+      await tester.ensureVisible(find.byKey(const Key('ssh-connect')));
+      await tester.tap(find.byKey(const Key('ssh-connect')));
+      await tester.pumpAndSettle();
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(IanvsTerminalApp)),
+      );
+      expect(container.read(sessionControllerProvider).tabs, hasLength(1));
+      expect(
+        container
+            .read(sessionControllerProvider)
+            .tabs
+            .single
+            .profileSnapshot!
+            .connection
+            .host,
+        'one-time.example.test',
+      );
+      expect(
+        nativeBackend.lastCreatedSessionPayload?['connection'],
+        isA<Map<Object?, Object?>>().having(
+          (connection) => connection['host'],
+          'host',
+          'one-time.example.test',
+        ),
+      );
       _resetIphoneTestSurface(tester);
     },
   );
@@ -276,6 +315,7 @@ Widget _buildIosApp({
   required Directory root,
   required _IosSshFakePtyBackend nativeBackend,
   required List<TerminalProfile> profiles,
+  bool customSshProfilesEnabled = true,
 }) {
   return ProviderScope(
     overrides: [
@@ -289,7 +329,9 @@ Widget _buildIosApp({
       profileRepositoryProvider.overrideWithValue(
         MemoryProfileRepository(TerminalProfilesDocument(profiles: profiles)),
       ),
-      customSshProfileConfigurationEnabledProvider.overrideWithValue(true),
+      customSshProfileConfigurationEnabledProvider.overrideWithValue(
+        customSshProfilesEnabled,
+      ),
       pasteHistoryRepositoryProvider.overrideWithValue(
         MemoryPasteHistoryRepository(),
       ),

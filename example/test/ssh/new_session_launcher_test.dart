@@ -218,9 +218,10 @@ void main() {
   });
 
   testWidgets(
-    'local-only mode keeps OpenSSH hosts and hides custom SSH profiles',
+    'no-data-service mode keeps OpenSSH hosts and allows one-time SSH',
     (tester) async {
       final saved = _sshProfile('saved', 'Saved host', 'saved.example.test');
+      NewSessionSelection? result;
       final imported = terminalProfileFromImportedSshConfig(
         const pty.ImportedSshProfile(
           id: 'openssh-host',
@@ -248,12 +249,11 @@ void main() {
           sourcePath: '~/.ssh/config',
         ),
         customSshProfilesEnabled: false,
-        onClosed: (_) {},
+        localSessionsEnabled: false,
+        onClosed: (value) => result = value,
       );
 
-      await tester.tap(find.text('SSH session'));
-      await tester.pumpAndSettle();
-      expect(find.byKey(const Key('new-custom-ssh-session')), findsNothing);
+      expect(find.byKey(const Key('new-custom-ssh-session')), findsOneWidget);
       expect(
         find.byKey(const Key('custom-ssh-requires-remote-api')),
         findsOneWidget,
@@ -263,6 +263,25 @@ void main() {
         find.byKey(const Key('new-ssh-session-openssh-host')),
         findsOneWidget,
       );
+
+      await tester.tap(find.byKey(const Key('new-custom-ssh-session')));
+      await tester.pumpAndSettle();
+
+      final saveProfile = tester.widget<CheckboxListTile>(
+        find.byKey(const Key('ssh-save-profile')),
+      );
+      expect(saveProfile.value, isFalse);
+      expect(saveProfile.onChanged, isNull);
+      await tester.enterText(
+        find.byKey(const Key('ssh-host')),
+        'one-time.example.test',
+      );
+      await tester.enterText(find.byKey(const Key('ssh-user')), 'operator');
+      await tester.tap(find.byKey(const Key('ssh-connect')));
+      await tester.pumpAndSettle();
+
+      expect(result?.profile.connection.host, 'one-time.example.test');
+      expect(result?.saveProfile, isFalse);
     },
   );
 

@@ -22,7 +22,7 @@ The app does not automatically upload diagnostics. If a user voluntarily opens a
 
 ## Data retention and deletion
 
-Locally stored app data can be removed through the app where supported or by deleting the app. Data sent to a user-selected SSH host or HTTP API must be deleted through that service or its operator.
+App-container data is removed when the app is deleted. Credentials stored in the operating system credential vault, including remote data-service tokens and encryption keys, may remain after uninstall. Before deleting the app, users can switch off the remote data service in the app to revoke and remove its stored credentials. Data sent to a user-selected SSH host or HTTP API must be deleted through that service or its operator.
 
 ## Children
 
@@ -50,7 +50,7 @@ Ianvs Terminal 开发者不收集、出售、用于广告或跟踪上述数据�
 
 App 不会自动上传诊断信息。用户若主动通过 GitHub Issue 联系开发者，所提交的信息仅用于支持；分享日志或截图前应移除凭据和个人信息。
 
-本地数据可通过 App 提供的功能删除，或通过卸载 App 清除。发送到用户所选 SSH 主机或 HTTP API 的数据，需要通过对应服务或其运营方删除。
+卸载 App 会清除 App 沙盒内的数据。系统凭据保险库中的凭据（包括远程数据服务 Token 和加密密钥）在卸载后可能仍然保留；用户应在卸载前通过 App 关闭远程数据服务，以撤销并删除这些凭据。发送到用户所选 SSH 主机或 HTTP API 的数据，需要通过对应服务或其运营方删除。
 
 如有隐私或支持问题，请访问：
 

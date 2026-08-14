@@ -2,7 +2,7 @@
 
 ## Product and policy
 
-- [x] Users can enter the iOS sandbox terminal without creating an account or configuring a remote service.
+- [x] Users can create a one-time SSH connection without an Ianvs account or a remote data service; the connection is not saved.
 - [x] App Store icon uses the Ianvs Terminal brand asset and contains no transparency.
 - [x] App Store listing draft and privacy policy are present under `docs/app-store/`.
 - [ ] Review all listing claims against the final archive.
@@ -26,7 +26,7 @@
 - [ ] Archive the final signed build and validate it in Xcode Organizer.
 - [ ] Inspect the generated privacy report and resolve every required-reason API declaration before upload.
 - [ ] Test a clean install on current iPhone and iPad devices or simulators.
-- [ ] Verify local-terminal entry, SSH connection, rotation, background/foreground transitions, text input, copy/paste, and data deletion.
+- [ ] Verify the no-data-service one-time SSH path, saved SSH connection, rotation, background/foreground transitions, text input, copy/paste, and data deletion.
 
 ## App Store assets and submission
 
@@ -35,6 +35,6 @@
 - [ ] Provide the public privacy-policy URL and support URL.
 - [ ] Complete App Privacy, content-rights, age-rating, advertising-identifier, and export-compliance sections.
 - [ ] Upload the archive, wait for processing, and select the build for version 1.0.0.
-- [ ] Add review notes explaining the no-account local-terminal path.
+- [ ] Add review notes explaining the no-account, no-data-service one-time SSH path.
 - [ ] Test the processed build in TestFlight before submitting for review.
 - [ ] Submit only after all App Store Connect warnings are cleared.

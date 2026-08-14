@@ -6,8 +6,9 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
     if (launchPolicy.localSessionsEnabled) {
       return sessionState.profiles.isNotEmpty;
     }
-    return sessionState.profiles.any((profile) => profile.isSsh) ||
-        ref.read(customSshProfileConfigurationEnabledProvider);
+    // SSH-only platforms always offer a one-time connection. A data service
+    // is required only when the user chooses to persist the profile.
+    return true;
   }
 
   Future<void> _openNewSessionLauncher(
@@ -65,15 +66,19 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
     SessionController sessionController,
     SessionState sessionState,
   ) async {
-    if (_isProfilesOpen ||
-        !ref.read(customSshProfileConfigurationEnabledProvider)) {
+    if (_isProfilesOpen) {
       return;
     }
     _mutateState(() => _isProfilesOpen = true);
     await releaseTerminalInputForModal();
     if (!mounted) return;
     final activeSessionIdBeforeOpen = sessionState.activeSessionId;
-    final result = await showCreateSshProfileDialog(context);
+    final result = await showCreateSshProfileDialog(
+      context,
+      saveProfileAvailable: ref.read(
+        customSshProfileConfigurationEnabledProvider,
+      ),
+    );
     if (!mounted) {
       return;
     }
@@ -224,6 +229,9 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
         dataApiConfigurationRecoveryRequired:
             dataApiConfigurationRecoveryRequired,
         localDataApiAvailable: defaultTargetPlatform == TargetPlatform.macOS,
+        localSessionsEnabled: ref
+            .read(terminalSessionLaunchPolicyProvider)
+            .localSessionsEnabled,
       ),
     );
     final selection = await Navigator.of(
