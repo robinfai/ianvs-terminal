@@ -4,6 +4,8 @@ import 'package:app/data/services/data_api_client.dart';
 import 'package:app/data/services/data_api_runtime.dart';
 import 'package:app/features/config/data_api_terminal_config_repository.dart';
 import 'package:app/features/config/local_terminal_config_repository.dart';
+import 'package:app/features/layout/local_terminal_layout_models.dart';
+import 'package:app/features/layout/local_terminal_layout_repository.dart';
 import 'package:app/features/profiles/data_api_profile_repository.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/profiles/profile_repository.dart';
@@ -36,6 +38,7 @@ void main() {
     expect(composition.usesDataApi, isFalse);
     expect(composition.profiles, isA<LocalTerminalOnlyProfileRepository>());
     expect(composition.terminalConfig, isA<LocalTerminalConfigRepository>());
+    expect(composition.terminalLayout, isA<LocalTerminalLayoutRepository>());
   });
 
   test(
@@ -88,7 +91,7 @@ void main() {
   );
 
   test(
-    'URL-only remote runtime composes API repositories and fails closed',
+    'remote runtime keeps terminal layout local while API data fails closed',
     () async {
       final composition = PersistenceRepositoryComposition.forRuntime(
         DataApiRuntime.remote(baseUri: Uri.parse('https://sync.example.com/')),
@@ -100,6 +103,14 @@ void main() {
       expect(
         composition.terminalConfig,
         isA<DataApiTerminalConfigRepository>(),
+      );
+      expect(composition.terminalLayout, isA<LocalTerminalLayoutRepository>());
+      await composition.terminalLayout.save(const TerminalLayout());
+      expect(
+        File(
+          '${temporaryDirectory.path}/ianvs_terminal_layout.json',
+        ).existsSync(),
+        isTrue,
       );
       await expectLater(
         composition.terminalConfig.load(),
@@ -121,6 +132,7 @@ void main() {
 
     expect(composition.usesDataApi, isTrue);
     expect(composition.profiles, isA<DataApiProfileRepository>());
+    expect(composition.terminalLayout, isA<LocalTerminalLayoutRepository>());
   });
 
   test(
@@ -166,6 +178,8 @@ void main() {
 
       expect(composition.usesDataApi, isTrue);
       expect(composition.persistenceUnavailable, isTrue);
+      expect(composition.terminalLayout, isA<LocalTerminalLayoutRepository>());
+      await composition.terminalLayout.save(const TerminalLayout());
       await expectLater(
         composition.profiles.load(),
         throwsA(isA<DataApiPersistenceUnavailableException>()),
