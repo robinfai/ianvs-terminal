@@ -66,7 +66,14 @@ void main() {
       expect(pageResources['maxItems'], 100);
       expect(resourcePageProperties, contains('next_cursor'));
       final migrationBundle = schemas['MigrationBundle']! as YamlMap;
-      final migrationProperties = migrationBundle['properties']! as YamlMap;
+      expect(
+        _references(migrationBundle),
+        contains('#/components/schemas/MigrationBundleFields'),
+      );
+      final migrationBundleFields =
+          schemas['MigrationBundleFields']! as YamlMap;
+      final migrationProperties =
+          migrationBundleFields['properties']! as YamlMap;
       expect((migrationProperties['resources']! as YamlMap)['maxItems'], 100);
       expect(migrationProperties, contains('next_cursor'));
 

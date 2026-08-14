@@ -14,7 +14,7 @@ VERIFY_FLUTTER_TERMINAL_SKIP_MACOS_INTEGRATION="${VERIFY_FLUTTER_TERMINAL_SKIP_M
 VERIFY_FLUTTER_TERMINAL_RUN_NIGHTLY_BENCH="${VERIFY_FLUTTER_TERMINAL_RUN_NIGHTLY_BENCH:-0}"
 
 if ! command -v rustup >/dev/null 2>&1 || \
-  ! rustup target list --installed | rg -Fx 'thumbv7em-none-eabihf' >/dev/null; then
+  ! rustup target list --installed | grep -Fqx -- 'thumbv7em-none-eabihf' >/dev/null; then
   echo "Missing Rust target thumbv7em-none-eabihf." >&2
   echo "Install it with: rustup target add thumbv7em-none-eabihf" >&2
   exit 1
@@ -112,15 +112,15 @@ python3 "$ROOT_DIR/tools/osc_semantic_probe.py" --self-test
   fi
 )
 
-if rg -n "Set as default" "$ROOT_DIR/example/lib"; then
+if grep -RFn -- "Set as default" "$ROOT_DIR/example/lib"; then
   echo "Found forbidden inline default mutation text in example/lib" >&2
   exit 1
 fi
 
-rg -n "Defaults & appearance" "$ROOT_DIR/example/lib/features/shell" >/dev/null
+grep -RFn -- "Defaults & appearance" "$ROOT_DIR/example/lib/features/shell" >/dev/null
 
-if rg -n "AppPreferencesRepository" "$ROOT_DIR/example/lib" | \
-  rg -v "features/preferences/app_preferences_repository.dart|features/sessions/session_bootstrap.dart|features/sessions/session_controller.dart|features/config/local_terminal_config_loader.dart"; then
+if grep -RFnw -- "AppPreferencesRepository" "$ROOT_DIR/example/lib" | \
+  grep -Ev "features/preferences/app_preferences_repository.dart|features/sessions/session_bootstrap.dart|features/sessions/session_controller.dart|features/config/local_terminal_config_loader.dart|persistence_repository_composition.dart"; then
   echo "Found AppPreferencesRepository usage outside the approved Phase 3 write/bootstrap paths" >&2
   exit 1
 fi

@@ -79,7 +79,7 @@ void main() {
       contains('ENABLE_DEBUG_DYLIB = NO;'),
       reason:
           'The force-loaded Rust core must be linked into Runner itself. '
-          'Xcode\'s debug-dylib launcher otherwise aborts before Flutter starts.',
+          "Xcode's debug-dylib launcher otherwise aborts before Flutter starts.",
     );
   });
 
