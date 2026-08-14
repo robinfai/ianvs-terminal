@@ -132,7 +132,9 @@ class _DefaultsAndAppearanceDialogState
     _selectedKeybindings = widget.keybindings;
     _selectedDataApiDeployment = widget.dataApiConfiguration.deployment;
     _remoteDataApiUrlController = TextEditingController(
-      text: widget.dataApiConfiguration.remoteBaseUri?.toString() ?? '',
+      text:
+          widget.dataApiConfiguration.remoteBaseUri?.toString() ??
+          defaultRemoteDataApiBaseUrl,
     );
     _remoteDataApiUsernameController = TextEditingController();
     _remoteDataApiPasswordController = TextEditingController();
@@ -1116,7 +1118,7 @@ class _DefaultsAndAppearanceDialogState
                           enableSuggestions: false,
                           decoration: InputDecoration(
                             labelText: 'Remote API base URL',
-                            hintText: 'https://api.example.com/',
+                            hintText: defaultRemoteDataApiBaseUrl,
                             errorText: _remoteDataApiUrlError,
                           ),
                         ),

@@ -86,6 +86,13 @@ void main() {
     expect(find.byKey(const Key('data-api-local')), findsOneWidget);
     await tester.tap(find.byKey(const Key('data-api-remote')));
     await tester.pump();
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('data-api-remote-url')))
+          .controller
+          ?.text,
+      defaultRemoteDataApiBaseUrl,
+    );
 
     await tester.enterText(
       find.byKey(const Key('data-api-remote-url')),

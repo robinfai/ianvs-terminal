@@ -180,6 +180,15 @@ void main() {
     expect(find.byKey(const Key('app-startup-skip-data-api')), findsNothing);
     expect(find.byKey(const Key('app-startup-use-local-api')), findsNothing);
     expect(harness.composeCount, 0);
+    expect(
+      tester
+          .widget<TextField>(
+            find.byKey(const Key('app-startup-initial-data-api-url')),
+          )
+          .controller
+          ?.text,
+      defaultRemoteDataApiBaseUrl,
+    );
 
     await tester.enterText(
       find.byKey(const Key('app-startup-initial-data-api-url')),

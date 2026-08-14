@@ -1,5 +1,7 @@
 import 'dart:io';
 
+const defaultRemoteDataApiBaseUrl = 'https://api.terminal.ianvs.work/';
+
 enum DataApiDeployment { disabled, local, remote }
 
 bool isSecureDataApiRemoteOrigin(Uri uri) {

@@ -14,8 +14,8 @@ info:
 servers:
   - url: http://127.0.0.1:47832
     description: Local loopback service
-  - url: https://api.example.com
-    description: Remote service behind TLS
+  - url: https://api.terminal.ianvs.work
+    description: Ianvs Terminal remote service
 tags:
   - name: health
   - name: auth

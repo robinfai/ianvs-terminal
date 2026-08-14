@@ -10,7 +10,7 @@ RESULT_FILE="${IANVS_ACCEPTANCE_RESULT_FILE:-/private/tmp/ianvs-cross-platform-a
 rm -f "$RESULT_FILE"
 
 if [[ -z "${IANVS_ACCEPTANCE_REMOTE_API_URL:-}" ]]; then
-  IANVS_ACCEPTANCE_REMOTE_API_URL="https://ianvs-api.43.132.135.30.nip.io:57321/"
+  IANVS_ACCEPTANCE_REMOTE_API_URL="https://api.terminal.ianvs.work/"
 fi
 if [[ -z "${IANVS_ACCEPTANCE_REMOTE_USERNAME:-}" || \
       -z "${IANVS_ACCEPTANCE_REMOTE_PASSWORD:-}" || \

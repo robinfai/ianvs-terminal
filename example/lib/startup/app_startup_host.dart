@@ -140,7 +140,9 @@ final class _AppStartupDataSetupView extends StatefulWidget {
 
 final class _AppStartupDataSetupViewState
     extends State<_AppStartupDataSetupView> {
-  final _urlController = TextEditingController();
+  final _urlController = TextEditingController(
+    text: defaultRemoteDataApiBaseUrl,
+  );
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   final _portableMasterKeyController = TextEditingController();
@@ -329,7 +331,7 @@ final class _AppStartupDataSetupViewState
                                 enableSuggestions: false,
                                 decoration: const InputDecoration(
                                   labelText: 'HTTP API URL',
-                                  hintText: 'https://api.example.com/',
+                                  hintText: defaultRemoteDataApiBaseUrl,
                                 ),
                                 enabled: !_runningAction,
                               ),

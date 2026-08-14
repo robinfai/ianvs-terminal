@@ -9,6 +9,14 @@ void main() {
     ).readAsStringSync();
 
     expect(script, contains('set -euo pipefail'));
+    expect(
+      script,
+      contains(
+        'IANVS_ACCEPTANCE_REMOTE_API_URL='
+        '"https://api.terminal.ianvs.work/"',
+      ),
+    );
+    expect(script, isNot(contains('ianvs-api.43.132.135.30.nip.io')));
     expect(script, contains('read -r -s -p "Acceptance password: "'));
     expect(
       script,
