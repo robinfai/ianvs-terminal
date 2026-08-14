@@ -44,6 +44,14 @@ void main() {
         );
         final connection = document.profiles.single.connection;
         expect(connection.password, ' target password ');
+        expect(
+          connection.privateKeys.single,
+          contains('BEGIN OPENSSH PRIVATE KEY'),
+        );
+        expect(
+          encoded.data.toString(),
+          isNot(contains('BEGIN OPENSSH PRIVATE KEY')),
+        );
         expect(connection.proxyJumpProfiles.single.password, ' jump password ');
         expect(
           connection.proxyJumpProfiles.single.privateKeyPassphrase,

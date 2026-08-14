@@ -17,8 +17,7 @@
           "user": "operator",
           "port": 22,
           "auth": "public_key",
-          "privateKeys": ["~/.ssh/id_ed25519"],
-          "hostKeyPolicy": "strict",
+          "hostKeyPolicy": "accept_new",
           "connectTimeoutSeconds": 10,
           "keepaliveSeconds": 0,
           "keepaliveCountMax": 3,
@@ -118,6 +117,9 @@
       {
         "connection": {
           "password": " target password ",
+          "privateKeys": [
+            "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA\n-----END OPENSSH PRIVATE KEY-----"
+          ],
           "privateKeyPassphrase": " target passphrase ",
           "proxyJumpProfiles": [
             {

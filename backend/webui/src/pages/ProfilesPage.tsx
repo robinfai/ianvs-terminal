@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useState, type ChangeEvent, type FormEvent } from 'react'
 import { ApiError, DataApiClient } from '../api/client'
 import { useSession } from '../state/SessionContext'
 import {
@@ -36,6 +36,7 @@ const AUTH_LABELS: Record<SshAuthMethod, string> = {
 }
 
 const AUTH_OPTIONS: SshAuthMethod[] = ['auto', 'password', 'public_key', 'keyboard_interactive']
+const MAX_PRIVATE_KEY_BYTES = 64 * 1024
 
 interface FormValues {
   name: string
@@ -43,7 +44,9 @@ interface FormValues {
   user: string
   port: string
   auth: SshAuthMethod
-  privateKeys: string
+  privateKeyContents: string | null
+  privateKeyFileName: string | null
+  clearPrivateKeys: boolean
   password: string
   clearPassword: boolean
   privateKeyPassphrase: string
@@ -293,7 +296,6 @@ export function ProfilesPage() {
                 <th scope="col">Name</th>
                 <th scope="col">Target</th>
                 <th scope="col">Auth</th>
-                <th scope="col">Private key</th>
                 <th scope="col">
                   <span className="sr-only">Actions</span>
                 </th>
@@ -311,11 +313,6 @@ export function ProfilesPage() {
                   </td>
                   <td>
                     <Badge tone="info">{AUTH_LABELS[profile.connection.auth] ?? profile.connection.auth}</Badge>
-                  </td>
-                  <td className="mono break-word secondary">
-                    {profile.connection.privateKeys?.length
-                      ? profile.connection.privateKeys.join(', ')
-                      : '—'}
                   </td>
                   <td>
                     <div className="row">
@@ -373,13 +370,6 @@ function asRecord(value: unknown): Record<string, unknown> {
   return (value ?? {}) as Record<string, unknown>
 }
 
-function splitPaths(value: string): string[] {
-  return value
-    .split(',')
-    .map((item) => item.trim())
-    .filter((item) => item.length > 0)
-}
-
 function buildConnection(values: FormValues, existing: SshConnection | undefined): SshConnection {
   const base = existing ? { ...existing } : emptySshConnection()
   const connection: SshConnection = {
@@ -389,7 +379,12 @@ function buildConnection(values: FormValues, existing: SshConnection | undefined
     user: values.user.trim(),
     port: clampPort(values.port),
     auth: values.auth,
-    privateKeys: splitPaths(values.privateKeys),
+    privateKeys:
+      values.privateKeyContents !== null
+        ? [values.privateKeyContents]
+        : values.clearPrivateKeys
+          ? []
+          : existing?.privateKeys ?? [],
   }
   const password = values.password
   if (password !== '') {
@@ -410,6 +405,14 @@ function clampPort(raw: string): number {
   const parsed = Number(raw)
   if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65535) return 22
   return parsed
+}
+
+function looksLikePrivateKeyContents(value: string): boolean {
+  const trimmed = value.trimStart()
+  return (
+    /^-----BEGIN (?:OPENSSH |RSA |EC |DSA |ENCRYPTED )?PRIVATE KEY-----/.test(trimmed) ||
+    trimmed.startsWith('PuTTY-User-Key-File-')
+  )
 }
 
 function ProfileViewDialog({
@@ -462,12 +465,6 @@ function ProfileViewDialog({
             <Badge tone="info">{AUTH_LABELS[connection.auth] ?? connection.auth}</Badge>
           </dd>
         </div>
-        <div className="kv">
-          <dt>Private key</dt>
-          <dd className="mono break-word">
-            {connection.privateKeys?.length ? connection.privateKeys.join(', ') : '—'}
-          </dd>
-        </div>
       </dl>
 
       {secrets === null ? (
@@ -487,6 +484,14 @@ function ProfileViewDialog({
         </div>
       ) : (
         <dl className="kv-list">
+          <div className="kv">
+            <dt>Private key</dt>
+            <dd>
+              {secrets.privateKeys?.length
+                ? `${secrets.privateKeys.length} encrypted key${secrets.privateKeys.length === 1 ? '' : 's'} stored`
+                : '—'}
+            </dd>
+          </div>
           <div className="kv">
             <dt>Password</dt>
             <dd className="mono break-word">{secrets.password ?? '—'}</dd>
@@ -525,7 +530,9 @@ function ProfileEditor({
     user: connection.user ?? '',
     port: String(connection.port ?? 22),
     auth: (connection.auth as SshAuthMethod) ?? 'auto',
-    privateKeys: connection.privateKeys?.join(', ') ?? '',
+    privateKeyContents: null,
+    privateKeyFileName: null,
+    clearPrivateKeys: false,
     password: '',
     clearPassword: false,
     privateKeyPassphrase: '',
@@ -535,6 +542,36 @@ function ProfileEditor({
 
   const update = <K extends keyof FormValues>(key: K, value: FormValues[K]) => {
     setValues((current) => ({ ...current, [key]: value }))
+  }
+
+  const selectPrivateKey = async (event: ChangeEvent<HTMLInputElement>) => {
+    const input = event.currentTarget
+    const file = input.files?.[0]
+    if (!file) return
+
+    setError(null)
+    if (file.size > MAX_PRIVATE_KEY_BYTES) {
+      setError('Private key files must be 64 KB or smaller.')
+      input.value = ''
+      return
+    }
+    try {
+      const contents = (await file.text()).trim()
+      if (!looksLikePrivateKeyContents(contents)) {
+        setError('Select a supported SSH private key, not a public key file.')
+        input.value = ''
+        return
+      }
+      setValues((current) => ({
+        ...current,
+        privateKeyContents: contents,
+        privateKeyFileName: file.name,
+        clearPrivateKeys: false,
+      }))
+    } catch {
+      setError('The selected private key could not be read.')
+      input.value = ''
+    }
   }
 
   const submit = (event: FormEvent) => {
@@ -550,6 +587,14 @@ function ProfileEditor({
     }
     if (!values.user.trim()) {
       setError('Enter the SSH user.')
+      return
+    }
+    if (
+      values.auth === 'public_key' &&
+      values.privateKeyContents === null &&
+      (mode === 'create' || values.clearPrivateKeys)
+    ) {
+      setError('Select a private key file for public key authentication.')
       return
     }
     onSave(values)
@@ -617,11 +662,18 @@ function ProfileEditor({
           ))}
         </SelectField>
         <TextField
-          label="Private key paths"
-          value={values.privateKeys}
-          onChange={(event) => update('privateKeys', event.target.value)}
-          placeholder="~/.ssh/id_ed25519"
-          hint="One or more paths, comma separated."
+          key={`${values.privateKeyFileName ?? 'none'}-${values.clearPrivateKeys}`}
+          label="Private key file"
+          type="file"
+          onChange={selectPrivateKey}
+          disabled={saving}
+          hint={
+            values.privateKeyFileName
+              ? `Selected: ${values.privateKeyFileName}. Only its contents will be encrypted and saved.`
+              : isEdit
+                ? 'Choose a file to replace the stored key. Otherwise the encrypted key is preserved.'
+                : 'The browser exposes the file name, not its local path. Only the key contents are encrypted and saved.'
+          }
         />
         <div className="form-grid">
           <TextField
@@ -660,6 +712,19 @@ function ProfileEditor({
               label="Clear stored passphrase"
               checked={values.clearPrivateKeyPassphrase}
               onChange={(value) => update('clearPrivateKeyPassphrase', value)}
+            />
+            <CheckboxField
+              label="Clear stored private key"
+              hint="The key remains stored unless you select a replacement or clear it."
+              checked={values.clearPrivateKeys}
+              onChange={(value) => {
+                setValues((current) => ({
+                  ...current,
+                  clearPrivateKeys: value,
+                  privateKeyContents: value ? null : current.privateKeyContents,
+                  privateKeyFileName: value ? null : current.privateKeyFileName,
+                }))
+              }}
             />
           </div>
         ) : null}

@@ -11,6 +11,11 @@ import {
   type TerminalProfile,
 } from '../src/lib/profileDoc.ts'
 
+const PRIVATE_KEY =
+  '-----BEGIN OPENSSH PRIVATE KEY-----\n' +
+  'b3BlbnNzaC1rZXktdjEAAAAA\n' +
+  '-----END OPENSSH PRIVATE KEY-----'
+
 const fixture = JSON.parse(
   readFileSync(new URL('./fixtures/profile_document.json', import.meta.url), 'utf8'),
 ) as {
@@ -25,6 +30,7 @@ test('profile codec preserves canonical data and recursively encrypted ProxyJump
   assert.ok(isSshProfile(profile))
   assert.equal(profile.connection.host, 'target.example.test')
   assert.equal(profile.connection.password, ' target password ')
+  assert.deepEqual(profile.connection.privateKeys, [PRIVATE_KEY])
   assert.deepEqual(profile.connection.proxyJumpProfiles[0], {
     host: 'jump.example.test',
     user: 'jump-user',
@@ -42,7 +48,10 @@ test('profile codec preserves canonical data and recursively encrypted ProxyJump
   const split = splitProfilesDocument(merged)
   assert.deepEqual(split.data, fixture.data)
   assert.deepEqual(split.sensitive, fixture.sensitive)
-  assert.doesNotMatch(JSON.stringify(split.data), /target password|jump password|passphrase/)
+  assert.doesNotMatch(
+    JSON.stringify(split.data),
+    /target password|jump password|passphrase|BEGIN OPENSSH PRIVATE KEY/,
+  )
 })
 
 test('canonical web profile exactly matches the shared Dart fixture', () => {
@@ -53,7 +62,7 @@ test('canonical web profile exactly matches the shared Dart fixture', () => {
       host: 'target.example.test',
       user: 'operator',
       auth: 'public_key',
-      privateKeys: ['~/.ssh/id_ed25519'],
+      privateKeys: [PRIVATE_KEY],
       password: ' target password ',
       privateKeyPassphrase: ' target passphrase ',
       proxyJumpProfiles: [
@@ -78,6 +87,24 @@ test('canonical web profile exactly matches the shared Dart fixture', () => {
   const split = splitProfilesDocument({ schemaVersion: 1, profiles: [profile] })
   assert.deepEqual(split.data, fixture.data)
   assert.deepEqual(split.sensitive, fixture.sensitive)
+})
+
+test('an empty private key list does not create a sensitive envelope', () => {
+  const profile = createCanonicalSshProfile({
+    id: 'passwordless-ssh',
+    name: 'Passwordless SSH',
+    connection: emptySshConnection({
+      host: 'agent.example.test',
+      user: 'operator',
+    }),
+  })
+
+  const split = splitProfilesDocument({ schemaVersion: 1, profiles: [profile] })
+
+  assert.equal(split.sensitive, null)
+  const connection = (split.data.profiles as Array<{ connection: Record<string, unknown> }>)[0]
+    .connection
+  assert.equal(Object.hasOwn(connection, 'privateKeys'), false)
 })
 
 test('non-SSH profiles remain untouched and are excluded from SSH management', () => {

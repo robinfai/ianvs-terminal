@@ -114,6 +114,34 @@ void main() {
     },
   );
 
+  test(
+    'passwordless SSH profiles do not allocate a sensitive envelope',
+    () async {
+      final client = MemoryDataApiResourceClient();
+      final repository = DataApiProfileRepository(client: client);
+      final profile = TerminalProfile(
+        id: 'agent-only',
+        name: 'Agent only',
+        shell: '/bin/zsh',
+        connection: const terminal.TerminalConnectionConfig.ssh(
+          host: 'agent.example.com',
+          user: 'alice',
+        ),
+      );
+
+      final snapshot = await repository.loadVersioned();
+      await repository.saveVersioned(
+        snapshot.withValue(
+          TerminalProfilesDocument(profiles: <TerminalProfile>[profile]),
+        ),
+      );
+
+      final stored = client.resources['profile/default']!;
+      expect(stored.hasSensitive, isFalse);
+      expect(stored.sensitive, isNull);
+    },
+  );
+
   test('profile default initialization adopts a concurrent winner', () async {
     final client = MemoryDataApiResourceClient();
     final winner = TerminalProfilesDocument(

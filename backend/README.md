@@ -151,7 +151,7 @@ POST /v1/auth/login/complete     {"operation_id":"<server-issued-capability>"}
 - 内容哈希资源（`/assets/*`）永久缓存，`index.html` 不缓存；
 - 登录页的静态资源无需认证即可加载，但所有数据端点仍受本地访问令牌或 Bearer 会话令牌保护。
 
-站点首屏是终端风格的认证表单。远程登录只要求用户名和密码，本地 sidecar 登录只要求本地访问令牌；登录和会话恢复都不会请求、校验或发送加密 key。只有用户保存敏感字段、重写已有密文或主动解密时才弹出 key 输入框，校验后的 key 仅保留在当前页面内存中。远程账户创建仍需一次 key 来配置不可变的账户校验器。登录后只展示 SSH profile 与会话安全页，可浏览、创建、编辑、删除 SSH profile，并按需查看敏感字段。Web 与 Flutter 客户端共享 `profile/default` canonical 文档合同；非 SSH profile 会被原样保留，SSH 与 ProxyJump 密码始终留在加密的 `sensitive` envelope 中。
+站点首屏是终端风格的认证表单。远程登录只要求用户名和密码，本地 sidecar 登录只要求本地访问令牌；登录和会话恢复都不会请求、校验或发送加密 key。只有用户保存敏感字段、重写已有密文或主动解密时才弹出 key 输入框，校验后的 key 仅保留在当前页面内存中。远程账户创建仍需一次 key 来配置不可变的账户校验器。登录后只展示 SSH profile 与会话安全页，可浏览、创建、编辑、删除 SSH profile，并按需查看敏感字段。Web 与 Flutter 客户端共享 `profile/default` canonical 文档合同；非 SSH profile 会被原样保留。SSH 私钥通过文件选择读取，浏览器界面只记录所选文件名，持久化时保存私钥内容；私钥内容、密码、私钥口令、X11 cookie 与 ProxyJump 密码始终留在 AES-GCM 加密的 `sensitive` envelope 中。
 
 ```bash
 cd backend/webui

@@ -9,7 +9,9 @@ export type SshAuthMethod = 'auto' | 'password' | 'public_key' | 'keyboard_inter
 
 export type SshHostKeyPolicy = 'strict' | 'accept_new' | 'insecure'
 
-export const SECRET_CONNECTION_KEYS = ['password', 'privateKeyPassphrase', 'x11AuthCookie'] as const
+const SECRET_TEXT_CONNECTION_KEYS = ['password', 'privateKeyPassphrase', 'x11AuthCookie'] as const
+
+export const SECRET_CONNECTION_KEYS = [...SECRET_TEXT_CONNECTION_KEYS, 'privateKeys'] as const
 
 const SECRET_JUMP_KEYS = ['password', 'privateKeyPassphrase'] as const
 
@@ -67,6 +69,7 @@ export interface ProfilesDocument {
 
 export interface ProfileSecrets {
   password?: string
+  privateKeys?: string[]
   privateKeyPassphrase?: string
   x11AuthCookie?: string
 }
@@ -77,11 +80,18 @@ export function isSshProfile(profile: TerminalProfile): profile is SshProfile {
 
 export function extractSecrets(connection: SshConnection | Record<string, unknown>): ProfileSecrets {
   const secrets: ProfileSecrets = {}
-  for (const key of SECRET_CONNECTION_KEYS) {
+  for (const key of SECRET_TEXT_CONNECTION_KEYS) {
     const value = (connection as Record<string, unknown>)[key]
     if (typeof value === 'string' && value.length > 0) {
       secrets[key] = value
     }
+  }
+  const privateKeys = (connection as Record<string, unknown>).privateKeys
+  if (Array.isArray(privateKeys)) {
+    const values = privateKeys.filter(
+      (value): value is string => typeof value === 'string' && value.length > 0,
+    )
+    if (values.length > 0) secrets.privateKeys = values
   }
   return secrets
 }
@@ -111,7 +121,7 @@ export interface SplitProfilesResult {
 export function splitProfilesDocument(document: ProfilesDocument): SplitProfilesResult {
   const complete: Record<string, unknown> = {
     schemaVersion: document.schemaVersion,
-    profiles: cloneJson(document.profiles),
+    profiles: document.profiles.map(normalizeCompleteProfile),
   }
   const data: Record<string, unknown> = {
     schemaVersion: document.schemaVersion,
@@ -122,6 +132,19 @@ export function splitProfilesDocument(document: ProfilesDocument): SplitProfiles
     data,
     sensitive: Object.keys(difference).length > 0 ? difference : null,
   }
+}
+
+function normalizeCompleteProfile(profile: TerminalProfile): Record<string, unknown> {
+  const copy = cloneJson(profile) as Record<string, unknown>
+  const connection = copy.connection
+  if (!isRecord(connection) || connection.type !== 'ssh') return copy
+
+  // An empty key list carries no secret and must not force an otherwise plain
+  // profile collection to allocate an encrypted envelope.
+  if (Array.isArray(connection.privateKeys) && connection.privateKeys.length === 0) {
+    delete connection.privateKeys
+  }
+  return copy
 }
 
 /** Recombine the plain document with the decrypted sensitive envelope. */
@@ -141,7 +164,7 @@ export function emptySshConnection(partial: Partial<SshConnection> = {}): SshCon
     port: 22,
     auth: 'auto',
     privateKeys: [],
-    hostKeyPolicy: 'strict',
+    hostKeyPolicy: 'accept_new',
     connectTimeoutSeconds: 10,
     keepaliveSeconds: 0,
     keepaliveCountMax: 3,

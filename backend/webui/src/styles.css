@@ -492,6 +492,29 @@ textarea {
   border-color: var(--color-primary);
 }
 
+.input[type="file"] {
+  padding: 0.3rem;
+  cursor: pointer;
+  color: var(--color-text-secondary);
+}
+
+.input[type="file"]::file-selector-button {
+  min-height: 36px;
+  margin-inline-end: var(--space-3);
+  padding: 0.35rem 0.75rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.input[type="file"]:disabled,
+.input[type="file"]:disabled::file-selector-button {
+  cursor: not-allowed;
+}
+
 .field--error .input {
   border-color: var(--color-error);
   box-shadow: 0 0 0 1px var(--color-error);
@@ -550,6 +573,14 @@ textarea.input {
 @media (max-width: 40rem) {
   .form-grid {
     grid-template-columns: 1fr;
+  }
+
+  .dialog__footer {
+    flex-wrap: wrap;
+  }
+
+  .dialog__footer .button {
+    flex: 1 1 8rem;
   }
 }
 

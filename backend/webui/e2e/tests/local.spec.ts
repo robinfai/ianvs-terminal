@@ -4,6 +4,10 @@ import { requireEnv } from './env'
 const LOCAL_URL = requireEnv('WEBUI_LOCAL_URL')
 const TOKEN = requireEnv('WEBUI_LOCAL_TOKEN')
 const KEY = '0123456789abcdef' // 16 bytes — the minimum valid data key.
+const PRIVATE_KEY =
+  '-----BEGIN OPENSSH PRIVATE KEY-----\n' +
+  'b3BlbnNzaC1rZXktdjEAAAAA\n' +
+  '-----END OPENSSH PRIVATE KEY-----'
 
 async function connectLocal(page: Page): Promise<void> {
   await page.goto(LOCAL_URL)
@@ -24,6 +28,12 @@ async function createProfile(
   await dialog.getByLabel('Name').fill(values.name)
   await dialog.getByLabel('Host').fill(values.host)
   await dialog.getByLabel('User').fill(values.user)
+  await dialog.getByLabel('Private key file').setInputFiles({
+    name: 'id_ed25519',
+    mimeType: 'application/octet-stream',
+    buffer: Buffer.from(PRIVATE_KEY),
+  })
+  await expect(dialog).toContainText('Selected: id_ed25519')
   await dialog.getByLabel('Password').fill(values.password)
   await dialog.getByRole('button', { name: 'Save' }).click()
   const prompt = page.getByRole('dialog', { name: 'Encryption key required' })
@@ -53,6 +63,8 @@ test('local sidecar: connect, manage SSH profiles and secrets', async ({ page })
   await expect(viewDialog).toContainText('prod.example.com')
   await viewDialog.getByRole('button', { name: 'Decrypt secrets' }).click()
   await expect(viewDialog.getByText('s3cret')).toBeVisible()
+  await expect(viewDialog.getByText('1 encrypted key stored')).toBeVisible()
+  await expect(viewDialog).not.toContainText('BEGIN OPENSSH PRIVATE KEY')
   await viewDialog.getByRole('button', { name: 'Close', exact: true }).click()
 
   // Forget the key, then edit — the key is now demanded at save time.
@@ -69,6 +81,14 @@ test('local sidecar: connect, manage SSH profiles and secrets', async ({ page })
   await prompt.getByRole('textbox', { name: 'Encryption key (required)' }).fill(KEY)
   await prompt.getByRole('button', { name: 'Unlock' }).click()
   await expect(page.locator('tbody')).toContainText('prod2.example.com')
+
+  // Editing public fields preserves the encrypted private-key contents.
+  await page.locator('tbody tr').first().getByRole('button', { name: 'View' }).click()
+  const updatedViewDialog = page.getByRole('dialog', { name: 'Production' })
+  await updatedViewDialog.getByRole('button', { name: 'Decrypt secrets' }).click()
+  await expect(updatedViewDialog.getByText('1 encrypted key stored')).toBeVisible()
+  await expect(updatedViewDialog).not.toContainText('BEGIN OPENSSH PRIVATE KEY')
+  await updatedViewDialog.getByRole('button', { name: 'Close', exact: true }).click()
 
   // Delete the profile.
   await page.locator('tbody tr').first().getByRole('button', { name: 'Delete' }).click()
