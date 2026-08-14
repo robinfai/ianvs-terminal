@@ -2881,12 +2881,12 @@ Future<_RealPtyHarness> _pumpRealPtyApp(
   ShellUserAttentionBridge? userAttentionBridge,
 }) async {
   ensureMacosIntegrationTestFramesEnabled(tester.binding);
+  final PtySessionBackend ptyBackend = maskRefreshHints
+      ? _MaskedRefreshHintPtyBackend(NativePtyBackend.load())
+      : NativePtyBackend.load(emitRuntimeEventGapDiagnostics: true);
   final container = ProviderContainer(
     overrides: [
-      if (maskRefreshHints)
-        ptySessionBackendProvider.overrideWithValue(
-          _MaskedRefreshHintPtyBackend(NativePtyBackend.load()),
-        ),
+      ptySessionBackendProvider.overrideWithValue(ptyBackend),
       profileRepositoryProvider.overrideWithValue(
         MemoryProfileRepository(TerminalProfilesDocument(profiles: profiles)),
       ),
