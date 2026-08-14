@@ -5,6 +5,14 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
 
+EditableTextState? focusedEditableTextForCurrentRoute() {
+  final context = FocusManager.instance.primaryFocus?.context;
+  final editor = context?.findAncestorStateOfType<EditableTextState>();
+  return editor != null && ModalRoute.of(editor.context)?.isCurrent != false
+      ? editor
+      : null;
+}
+
 class TerminalInputController extends terminal.TerminalInputController {
   TerminalInputController({
     required super.sessionId,

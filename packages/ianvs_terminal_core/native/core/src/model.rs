@@ -78,8 +78,8 @@ pub enum TerminalSshAuthMethod {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TerminalSshHostKeyPolicy {
-    #[default]
     Strict,
+    #[default]
     AcceptNew,
     Insecure,
 }
@@ -179,7 +179,7 @@ impl Default for TerminalSshJumpProfile {
             password: None,
             private_keys: Vec::new(),
             private_key_passphrase: None,
-            host_key_policy: TerminalSshHostKeyPolicy::Strict,
+            host_key_policy: TerminalSshHostKeyPolicy::AcceptNew,
             known_hosts_file: None,
             connect_timeout_seconds: default_ssh_connect_timeout_seconds(),
             keepalive_seconds: 0,
@@ -290,7 +290,7 @@ impl Default for TerminalProfileConnection {
             password: None,
             private_keys: Vec::new(),
             private_key_passphrase: None,
-            host_key_policy: TerminalSshHostKeyPolicy::Strict,
+            host_key_policy: TerminalSshHostKeyPolicy::AcceptNew,
             known_hosts_file: None,
             connect_timeout_seconds: default_ssh_connect_timeout_seconds(),
             keepalive_seconds: 0,

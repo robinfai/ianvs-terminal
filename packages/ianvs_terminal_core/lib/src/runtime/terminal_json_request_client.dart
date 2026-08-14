@@ -49,6 +49,20 @@ final class TerminalJsonRequestClient {
     return decoded?['accepted'] == true;
   }
 
+  bool respondSshHostKey(
+    String sessionId, {
+    required int challengeId,
+    required bool accept,
+  }) {
+    const operation = 'ssh.host_key_response';
+    final decoded = _requestJsonObject(sessionId, operation, <String, Object?>{
+      'kind': operation,
+      'challengeId': challengeId,
+      'accept': accept,
+    });
+    return decoded?['accepted'] == true;
+  }
+
   String? selectionText(
     String sessionId,
     TerminalSelection selection, {

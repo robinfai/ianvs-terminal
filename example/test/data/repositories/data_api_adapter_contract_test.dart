@@ -6,6 +6,7 @@ import 'package:app/features/config/local_terminal_config_models.dart';
 import 'package:app/features/config/local_terminal_config_repository.dart';
 import 'package:app/features/layout/data_api_terminal_layout_repository.dart';
 import 'package:app/features/layout/local_terminal_layout_models.dart';
+import 'package:app/features/layout/local_terminal_layout_repository.dart';
 import 'package:app/features/persistence/versioned_document.dart';
 import 'package:app/features/preferences/app_preferences_models.dart';
 import 'package:app/features/preferences/data_api_app_preferences_repository.dart';
@@ -62,6 +63,7 @@ void main() {
           host: 'work.example.com',
           user: 'alice',
           password: 'profile-secret',
+          privateKeys: <String>['private-key-contents'],
         ),
       );
 
@@ -74,9 +76,14 @@ void main() {
 
       final stored = client.resources['profile/default']!;
       expect(stored.data.toString(), isNot(contains('profile-secret')));
+      expect(stored.data.toString(), isNot(contains('private-key-contents')));
       expect(stored.sensitive.toString(), contains('profile-secret'));
+      expect(stored.sensitive.toString(), contains('private-key-contents'));
       final loaded = await repository.load();
       expect(loaded.profiles.single.connection.password, 'profile-secret');
+      expect(loaded.profiles.single.connection.privateKeys, const <String>[
+        'private-key-contents',
+      ]);
 
       final cleared = loaded.profiles.single.copyWith(
         connection: loaded.profiles.single.connection.copyWith(password: null),
@@ -91,7 +98,11 @@ void main() {
           ),
         ),
       );
-      expect(client.resources['profile/default']!.hasSensitive, isFalse);
+      expect(client.resources['profile/default']!.hasSensitive, isTrue);
+      expect(
+        client.resources['profile/default']!.sensitive.toString(),
+        contains('private-key-contents'),
+      );
 
       await repository.saveVersioned(
         snapshot.withValue(
@@ -517,6 +528,43 @@ void main() {
       expect(client.putCount, 0);
     });
   });
+
+  test(
+    'layout adopts a committed write after its response times out',
+    () async {
+      final client = MemoryDataApiResourceClient();
+      final repository = DataApiTerminalLayoutRepository(client: client);
+      final missing = await repository.loadVersioned();
+      client.putResponse = (_) =>
+          throw const DataApiTimeoutException(Duration(seconds: 15));
+
+      final saved = await repository.saveVersioned(
+        missing.withValue(const TerminalLayout()),
+      );
+
+      expect(saved.revision, 1);
+      expect(client.putCount, 1);
+      expect(client.getCount, 2);
+    },
+  );
+
+  test(
+    'layout exposes a retryable error when timeout was not committed',
+    () async {
+      final client = MemoryDataApiResourceClient();
+      final repository = DataApiTerminalLayoutRepository(client: client);
+      final missing = await repository.loadVersioned();
+      client.beforePut = (_, _, _) =>
+          throw const DataApiTimeoutException(Duration(seconds: 15));
+
+      await expectLater(
+        repository.saveVersioned(missing.withValue(const TerminalLayout())),
+        throwsA(isA<TerminalLayoutSaveUnavailableException>()),
+      );
+      expect(client.putCount, 0);
+      expect(client.getCount, 2);
+    },
+  );
 
   test(
     'an inaccessible API adapter fails instead of using a local source',

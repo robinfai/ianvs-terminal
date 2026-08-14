@@ -192,6 +192,45 @@ final class TerminalSessionSshAuthPromptEvent extends TerminalSessionEvent {
   }
 }
 
+enum TerminalSshHostKeyPromptReason { unknown, changed }
+
+final class TerminalSessionSshHostKeyPromptEvent extends TerminalSessionEvent {
+  TerminalSessionSshHostKeyPromptEvent(
+    super.sessionId, {
+    Map<String, Object?>? rawPayload,
+  }) : rawPayload = Map.unmodifiable(rawPayload ?? const <String, Object?>{});
+
+  final Map<String, Object?> rawPayload;
+
+  int? get challengeId => _wholeIntValue(rawPayload['challenge_id']);
+  String? get host =>
+      TerminalSessionSshAuthPromptEvent._boundedString(rawPayload['host']);
+  int? get port => _wholeIntValue(rawPayload['port']);
+  String? get algorithm =>
+      TerminalSessionSshAuthPromptEvent._boundedString(rawPayload['algorithm']);
+  String? get fingerprint => TerminalSessionSshAuthPromptEvent._boundedString(
+    rawPayload['fingerprint'],
+  );
+  TerminalSshHostKeyPromptReason? get reason => switch (rawPayload['reason']) {
+    'unknown' => TerminalSshHostKeyPromptReason.unknown,
+    'changed' => TerminalSshHostKeyPromptReason.changed,
+    _ => null,
+  };
+  bool get isValid =>
+      challengeId != null &&
+      challengeId! > 0 &&
+      host != null &&
+      host!.isNotEmpty &&
+      port != null &&
+      port! > 0 &&
+      port! <= 65535 &&
+      algorithm != null &&
+      algorithm!.isNotEmpty &&
+      fingerprint != null &&
+      fingerprint!.startsWith('SHA256:') &&
+      reason != null;
+}
+
 final class TerminalSessionBellEvent extends TerminalSessionEvent {
   const TerminalSessionBellEvent(super.sessionId);
 }
@@ -2409,6 +2448,21 @@ class TerminalRuntimeController implements TerminalInputSink {
     );
   }
 
+  bool respondSshHostKey(
+    String sessionId, {
+    required int challengeId,
+    required bool accept,
+  }) {
+    if (!_productSessionAvailable(sessionId) || challengeId <= 0) {
+      return false;
+    }
+    return _jsonRequestClient.respondSshHostKey(
+      sessionId,
+      challengeId: challengeId,
+      accept: accept,
+    );
+  }
+
   /// Clears visible output and retained history using iTerm2's Command-K
   /// semantics, while preserving the current prompt/editing line.
   bool clearBuffer(String sessionId) {
@@ -3869,6 +3923,14 @@ class TerminalRuntimeController implements TerminalInputSink {
     switch (route.kind) {
       case TerminalImmediateEventKind.sshAuthPrompt:
         final event = TerminalSessionSshAuthPromptEvent(
+          sessionId,
+          rawPayload: route.payload,
+        );
+        if (event.isValid) {
+          _emitEventIfCurrent(sessionId, sessionEpoch, event);
+        }
+      case TerminalImmediateEventKind.sshHostKeyPrompt:
+        final event = TerminalSessionSshHostKeyPromptEvent(
           sessionId,
           rawPayload: route.payload,
         );

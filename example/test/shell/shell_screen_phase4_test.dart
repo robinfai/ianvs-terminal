@@ -295,6 +295,40 @@ void main() {
     );
   });
 
+  testWidgets('opening the new-tab sheet releases terminal text input', (
+    tester,
+  ) async {
+    final textInputMethods = <String>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.textInput,
+      (call) async {
+        textInputMethods.add(call.method);
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.textInput,
+        null,
+      ),
+    );
+
+    await _pumpShellScreen(tester, fakeBindings: FakePtyBackend());
+    await tester.tap(find.byType(TerminalViewport));
+    await tester.pump();
+    textInputMethods.clear();
+
+    await tester.tap(find.byKey(const Key('shell-chrome-new-tab')));
+    await tester.pumpAndSettle();
+
+    expect(textInputMethods, contains('TextInput.hide'));
+    expect(find.byKey(const Key('new-session-launcher')), findsOneWidget);
+    expect(
+      FocusManager.instance.primaryFocus?.context?.widget,
+      isNot(isA<EditableText>()),
+    );
+  });
+
   testWidgets('shell resizes the session from the padded terminal viewport', (
     tester,
   ) async {
@@ -5475,6 +5509,120 @@ void main() {
       findsNWidgets(4),
     );
   });
+
+  testWidgets(
+    'modal barriers block native paste and terminal host input',
+    (tester) async {
+      var clipboardReads = 0;
+      final fakeBindings = FakePtyBackend();
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (methodCall) async {
+          if (methodCall.method == 'Clipboard.getData') {
+            clipboardReads += 1;
+            return <String, dynamic>{'text': 'must stay blocked'};
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
+      final shellContext = tester.element(find.byType(ShellScreen));
+      unawaited(
+        showDialog<void>(
+          context: shellContext,
+          builder: (context) => const AlertDialog(
+            key: Key('terminal-input-blocking-modal'),
+            title: Text('Blocking modal'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final viewport = tester.widget<TerminalViewport>(
+        find.byType(TerminalViewport),
+      );
+      final result = viewport.onHostKeyEvent!(
+        const KeyDownEvent(
+          physicalKey: PhysicalKeyboardKey.keyX,
+          logicalKey: LogicalKeyboardKey.keyX,
+          timeStamp: Duration.zero,
+        ),
+      );
+      expect(result, KeyEventResult.handled);
+
+      await _invokeNativeWindowBridge(tester, const MethodCall('nativePaste'));
+      expect(clipboardReads, 0);
+      expect(fakeBindings.writes, isEmpty);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets(
+    'form fields keep command and native paste out of the terminal',
+    (tester) async {
+      var clipboardText = 'command paste';
+      var clipboardReads = 0;
+      final fakeBindings = FakePtyBackend();
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (methodCall) async {
+          if (methodCall.method == 'Clipboard.getData') {
+            clipboardReads += 1;
+            return <String, dynamic>{'text': clipboardText};
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+      await _openCommandMenu(tester);
+      await tester.tap(find.text('Defaults & appearance'));
+      await tester.pumpAndSettle();
+
+      final field = find.byKey(const Key('defaults-terminal-preset-filter'));
+      await tester.ensureVisible(field);
+      await tester.pumpAndSettle();
+      await tester.tap(field);
+      await tester.pump();
+      final editable = find.descendant(
+        of: field,
+        matching: find.byType(EditableText),
+      );
+
+      await _sendMetaShortcut(tester, LogicalKeyboardKey.keyV);
+      expect(
+        tester.state<EditableTextState>(editable).textEditingValue.text,
+        'command paste',
+      );
+      expect(fakeBindings.writes, isEmpty);
+
+      await tester.enterText(field, '');
+      clipboardText = 'native paste';
+      await _invokeNativeWindowBridge(tester, const MethodCall('nativePaste'));
+      expect(
+        tester.state<EditableTextState>(editable).textEditingValue.text,
+        'native paste',
+      );
+      expect(fakeBindings.writes, isEmpty);
+      expect(clipboardReads, 2);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
 
   testWidgets(
     'command-v pastes into the open search field instead of the terminal',

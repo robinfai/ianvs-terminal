@@ -250,6 +250,24 @@ class _CorruptLocalTerminalLayoutRepository
   }
 }
 
+class _TransientLocalTerminalLayoutRepository
+    extends _TestLocalTerminalLayoutRepository {
+  _TransientLocalTerminalLayoutRepository() : super(const TerminalLayout());
+
+  int failuresRemaining = 1;
+  int saveAttempts = 0;
+
+  @override
+  Future<void> save(TerminalLayout layout) async {
+    saveAttempts += 1;
+    if (failuresRemaining > 0) {
+      failuresRemaining -= 1;
+      throw const TerminalLayoutSaveUnavailableException('simulated timeout');
+    }
+    await super.save(layout);
+  }
+}
+
 class _EmptyLocalSessionRecordingRepository
     extends LocalSessionRecordingRepository {
   @override
@@ -5411,6 +5429,55 @@ void main() {
       ['default', 'ssh'],
     );
   });
+
+  test(
+    'transient layout timeout retries without replacing terminal errors',
+    () async {
+      final layoutRepository = _TransientLocalTerminalLayoutRepository();
+      final container = ProviderContainer(
+        overrides: [
+          ptySessionBackendProvider.overrideWithValue(FakePtyBackend()),
+          profileRepositoryProvider.overrideWithValue(
+            _TestProfileRepository(
+              TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
+            ),
+          ),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            _TestAppPreferencesRepository(null),
+          ),
+          localTerminalConfigRepositoryProvider.overrideWithValue(
+            _TestLocalTerminalConfigRepository(
+              const LocalTerminalConfigDocument(
+                layout: LocalTerminalLayoutConfig(restoreLayout: true),
+              ),
+            ),
+          ),
+          localTerminalLayoutRepositoryProvider.overrideWithValue(
+            layoutRepository,
+          ),
+          terminalLayoutRetryDelayProvider.overrideWithValue(
+            (_) => const Duration(milliseconds: 1),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final controller = container.read(sessionControllerProvider.notifier);
+      await _waitForCondition(
+        condition: () => container.read(sessionControllerProvider).isReady,
+        description: 'layout retry bootstrap',
+      );
+      controller.splitActiveSession(sshProfile, TerminalSplitAxis.horizontal);
+      await _waitForCondition(
+        condition: () => layoutRepository.savedDocuments.isNotEmpty,
+        description: 'layout retry success',
+      );
+
+      expect(layoutRepository.saveAttempts, 2);
+      expect(container.read(sessionControllerProvider).lastError, isNull);
+      expect(layoutRepository.savedDocuments.single.tabs, hasLength(1));
+    },
+  );
 
   test(
     'default config observes the missing Data API layout revision before save',

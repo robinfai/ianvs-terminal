@@ -11,6 +11,7 @@ enum TerminalAsyncEventKind {
 
 enum TerminalImmediateEventKind {
   sshAuthPrompt,
+  sshHostKeyPrompt,
   bell,
   shellHook,
   shellContext,
@@ -85,6 +86,10 @@ final class TerminalEventRouter {
     return switch (event.kind) {
       'ssh_auth_prompt' => TerminalImmediateEventRoute(
         kind: TerminalImmediateEventKind.sshAuthPrompt,
+        payload: event.payload,
+      ),
+      'ssh_host_key_prompt' => TerminalImmediateEventRoute(
+        kind: TerminalImmediateEventKind.sshHostKeyPrompt,
         payload: event.payload,
       ),
       'exit' => TerminalExitEventRoute(

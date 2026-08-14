@@ -260,6 +260,18 @@ final localTerminalLayoutRepositoryProvider =
       return LocalTerminalLayoutRepository();
     });
 
+typedef TerminalLayoutRetryDelay = Duration Function(int attempt);
+
+final terminalLayoutRetryDelayProvider = Provider<TerminalLayoutRetryDelay>(
+  (ref) =>
+      (attempt) => switch (attempt) {
+        0 => const Duration(seconds: 2),
+        1 => const Duration(seconds: 5),
+        2 => const Duration(seconds: 15),
+        _ => const Duration(seconds: 30),
+      },
+);
+
 final localSessionRecordingRepositoryProvider =
     Provider<LocalSessionRecordingRepository>((ref) {
       return LocalSessionRecordingRepository();
@@ -492,6 +504,8 @@ class SessionController extends Notifier<SessionState> {
   bool _layoutPersistenceEnabled = false;
   bool _layoutPersistenceBlocked = false;
   Timer? _layoutPersistenceTimer;
+  Timer? _layoutRetryTimer;
+  int _layoutRetryAttempt = 0;
   String? _lastLayoutSnapshot;
   Future<void> _layoutSaveChain = Future<void>.value();
   bool _isShuttingDown = false;
@@ -591,6 +605,7 @@ class SessionController extends Notifier<SessionState> {
         unawaited(shutdownCoordinator.shutdown(bounded: false));
       }
       _layoutPersistenceTimer?.cancel();
+      _layoutRetryTimer?.cancel();
       _runtimeEventAttachment?.detach();
       for (final timer in _progressGraceTimers.values) {
         timer.cancel();
@@ -948,6 +963,9 @@ class SessionController extends Notifier<SessionState> {
     _layoutPersistenceEnabled =
         _localConfigDocument.layout.restoreLayout && !_layoutPersistenceBlocked;
     if (!_layoutPersistenceEnabled) {
+      _layoutRetryTimer?.cancel();
+      _layoutRetryTimer = null;
+      _layoutRetryAttempt = 0;
       _lastLayoutSnapshot = null;
       return;
     }
@@ -974,6 +992,8 @@ class SessionController extends Notifier<SessionState> {
   }
 
   void _queueLayoutSave(TerminalLayout layout) {
+    _layoutRetryTimer?.cancel();
+    _layoutRetryTimer = null;
     final previousSave = _layoutSaveChain;
     final repository = ref.read(localTerminalLayoutRepositoryProvider);
     _layoutSaveChain = _saveLayoutAfter(previousSave, layout, repository);
@@ -1005,6 +1025,11 @@ class SessionController extends Notifier<SessionState> {
       _layoutDocument = await repository.saveVersioned(
         _layoutDocument.withValue(layout),
       );
+      _layoutRetryTimer?.cancel();
+      _layoutRetryTimer = null;
+      _layoutRetryAttempt = 0;
+    } on TerminalLayoutSaveUnavailableException {
+      _scheduleLayoutRetry();
     } on Object catch (error) {
       if (ref.mounted) {
         final detail = _boundedShellMetadata(error.toString(), 240);
@@ -1015,6 +1040,29 @@ class SessionController extends Notifier<SessionState> {
         );
       }
     }
+  }
+
+  void _scheduleLayoutRetry() {
+    if (_isShuttingDown || !_layoutPersistenceEnabled || !state.isReady) {
+      return;
+    }
+    _layoutRetryTimer?.cancel();
+    final attempt = _layoutRetryAttempt;
+    if (_layoutRetryAttempt < 1000000) {
+      _layoutRetryAttempt += 1;
+    }
+    _layoutRetryTimer = Timer(
+      ref.read(terminalLayoutRetryDelayProvider)(attempt),
+      () {
+        _layoutRetryTimer = null;
+        if (_isShuttingDown || !_layoutPersistenceEnabled || !state.isReady) {
+          return;
+        }
+        final latestLayout = LocalSessionLayoutCodec.capture(state);
+        _lastLayoutSnapshot = jsonEncode(latestLayout.toJson());
+        _queueLayoutSave(latestLayout);
+      },
+    );
   }
 
   Future<bool> openTerminalAtFolder(String folderPath) async {
@@ -2585,6 +2633,8 @@ class SessionController extends Notifier<SessionState> {
     terminalRuntime.beginShutdown();
     _layoutPersistenceTimer?.cancel();
     _layoutPersistenceTimer = null;
+    _layoutRetryTimer?.cancel();
+    _layoutRetryTimer = null;
 
     final pendingLayoutWrites = _layoutSaveChain;
     final finalLayout = _layoutPersistenceEnabled && state.isReady
@@ -3277,6 +3327,9 @@ class SessionController extends Notifier<SessionState> {
     switch (event) {
       case TerminalSessionSshAuthPromptEvent():
         // ShellScreen owns the secure modal prompt and native response.
+        break;
+      case TerminalSessionSshHostKeyPromptEvent():
+        // ShellScreen owns explicit host-key verification and native response.
         break;
       case TerminalSessionFrameEvent():
         _applyFrame(event.sessionId, event.frame);
@@ -5195,6 +5248,8 @@ class SessionController extends Notifier<SessionState> {
 
     _layoutPersistenceTimer?.cancel();
     _layoutPersistenceTimer = null;
+    _layoutRetryTimer?.cancel();
+    _layoutRetryTimer = null;
     if (restoreLayout && !_layoutPersistenceEnabled) {
       try {
         _layoutDocument = await ref

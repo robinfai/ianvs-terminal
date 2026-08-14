@@ -35,6 +35,21 @@ void main() {
       });
     });
 
+    test('sends an explicit SSH host-key decision', () {
+      final backend = _JsonRequestBackend('{"accepted":true}');
+      final client = TerminalJsonRequestClient(backend);
+
+      expect(
+        client.respondSshHostKey('7', challengeId: 9, accept: true),
+        isTrue,
+      );
+      expect(backend.requests.single, <String, Object?>{
+        'kind': 'ssh.host_key_response',
+        'challengeId': 9,
+        'accept': true,
+      });
+    });
+
     test('uses the exact correlated Session Request v1 envelope', () {
       final versioned = _JsonRequestBackend('{"text":"versioned"}');
       final versionedClient = TerminalJsonRequestClient(versioned);
@@ -191,15 +206,9 @@ void main() {
         expect(client.clearScrollback('7'), isTrue);
         expect(client.clearBuffer('7'), isTrue);
         backend.response = '{"dismissed":true}';
-        expect(
-          client.dismissOsc99Notification('7', 'deploy-1'),
-          isTrue,
-        );
+        expect(client.dismissOsc99Notification('7', 'deploy-1'), isTrue);
         backend.response = r'{"content":"alpha\nbeta"}';
-        final exported = client.exportScrollbackText(
-          '7',
-          maxLines: 500000,
-        );
+        final exported = client.exportScrollbackText('7', maxLines: 500000);
 
         expect(exported, 'alpha\nbeta');
         expect(backend.requests, <Map<String, Object?>>[
@@ -393,10 +402,7 @@ void main() {
       final searchResult = client.searchTextResult('7', 'hit');
       final clearResult = client.clearScrollback('7');
       final clearBufferResult = client.clearBuffer('7');
-      final dismissResult = client.dismissOsc99Notification(
-        '7',
-        'deploy-1',
-      );
+      final dismissResult = client.dismissOsc99Notification('7', 'deploy-1');
       final exportText = client.exportScrollbackText('7');
       final recoveryPath = client.resolveZmodemRecovery(
         '7',

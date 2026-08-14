@@ -752,12 +752,10 @@ void _validateRawConnection(Object? value) {
       allowEmpty: false,
     );
   }
-  _validateRequiredStringList(
+  _validateRequiredPrivateKeyList(
     connection['privateKeys'],
     path: r'$.config.connection.privateKeys',
     maximumEntries: 128,
-    maximumStringBytes: TerminalSessionConfigV1._maxProgramLength,
-    allowEmpty: false,
   );
   _validateRawJumpProfiles(connection['proxyJumpProfiles']);
   _requiredBoundedInt(
@@ -898,12 +896,10 @@ void _validateRawJumpProfiles(Object? value) {
         'keyboard_interactive',
       },
     );
-    _validateRequiredStringList(
+    _validateRequiredPrivateKeyList(
       jump['privateKeys'],
       path: '$jumpPath.privateKeys',
       maximumEntries: 128,
-      maximumStringBytes: TerminalSessionConfigV1._maxProgramLength,
-      allowEmpty: false,
     );
     _requiredEnum(
       jump['hostKeyPolicy'],
@@ -1107,6 +1103,48 @@ void _validateRequiredStringList(
       );
     }
   }
+}
+
+void _validateRequiredPrivateKeyList(
+  Object? value, {
+  required String path,
+  required int maximumEntries,
+}) {
+  if (value is! List || value.length > maximumEntries) {
+    throw TerminalSessionConfigContractException(
+      code: 'invalid_collection',
+      path: path,
+      message: 'expected at most $maximumEntries private key entries',
+    );
+  }
+  for (final item in value) {
+    final inline = item is String && _looksLikeInlinePrivateKey(item);
+    if (item is! String ||
+        item.isEmpty ||
+        item.trim() != item ||
+        utf8.encode(item).length >
+            (inline
+                ? TerminalSessionConfigV1._maxStringBytes
+                : TerminalSessionConfigV1._maxProgramLength) ||
+        item.runes.any(
+          (rune) =>
+              rune == 0 ||
+              (!inline && _isControlRune(rune)) ||
+              (inline && rune < 32 && rune != 10 && rune != 13),
+        )) {
+      throw TerminalSessionConfigContractException(
+        code: 'invalid_collection',
+        path: path,
+        message: 'contains an invalid private key entry',
+      );
+    }
+  }
+}
+
+bool _looksLikeInlinePrivateKey(String value) {
+  final trimmed = value.trimLeft();
+  return trimmed.startsWith('-----BEGIN ') ||
+      trimmed.startsWith('PuTTY-User-Key-File-');
 }
 
 void _validateRequiredStringMap(

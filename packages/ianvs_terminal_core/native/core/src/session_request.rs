@@ -274,6 +274,7 @@ fn supported_operation(value: &str) -> bool {
     matches!(
         value,
         "ssh.auth_response"
+            | "ssh.host_key_response"
             | "terminal.recording_start"
             | "terminal.recording_stop"
             | "terminal.recording_stop_prepare"
@@ -362,6 +363,7 @@ mod tests {
     #[test]
     fn operation_inventory_is_explicit() {
         assert!(supported_operation("ssh.auth_response"));
+        assert!(supported_operation("ssh.host_key_response"));
         assert!(supported_operation("terminal.recording_stop_prepare"));
         assert!(supported_operation("terminal.recording_finalize_status"));
         assert!(supported_operation("terminal.search_text"));

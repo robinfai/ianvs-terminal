@@ -7,6 +7,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_pty/ianvs_pty.dart' as pty;
 
+const _testPrivateKey =
+    '-----BEGIN OPENSSH PRIVATE KEY-----\n'
+    'b3BlbnNzaC1rZXktdjEAAAAA\n'
+    '-----END OPENSSH PRIVATE KEY-----';
+
 void main() {
   test('parses and formats local, remote, dynamic, and IPv6 forwards', () {
     const source =
@@ -36,7 +41,10 @@ void main() {
     expect(jumps.first.user, 'jump-user');
     expect(jumps.first.port, 2222);
     expect(jumps.first.auth, terminal.TerminalSshAuthMethod.auto);
-    expect(jumps.first.hostKeyPolicy, terminal.TerminalSshHostKeyPolicy.strict);
+    expect(
+      jumps.first.hostKeyPolicy,
+      terminal.TerminalSshHostKeyPolicy.acceptNew,
+    );
     expect(jumps.first.password, isNull);
     expect(jumps.first.privateKeys, isEmpty);
     expect(jumps.last.host, '2001:db8::1');
@@ -173,6 +181,42 @@ void main() {
     expect(find.byKey(const Key('new-custom-ssh-session')), findsOneWidget);
   });
 
+  testWidgets('SSH-only launcher stays above the iPhone keyboard', (
+    tester,
+  ) async {
+    const surfaceSize = Size(390, 844);
+    const keyboardHeight = 336.0;
+    await tester.binding.setSurfaceSize(surfaceSize);
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    addTearDown(tester.view.reset);
+
+    await _pumpLauncher(
+      tester,
+      profiles: <TerminalProfile>[
+        _sshProfile('saved', 'Saved host', 'saved.example.test'),
+      ],
+      imported: const SshProfileImportSnapshot(
+        profiles: [],
+        sourcePath: '~/.ssh/config',
+      ),
+      localSessionsEnabled: false,
+      onClosed: (_) {},
+    );
+
+    await tester.tap(find.byKey(const Key('ssh-profile-search')));
+    tester.view.viewInsets = FakeViewPadding(
+      bottom: keyboardHeight * tester.view.devicePixelRatio,
+    );
+    await tester.pumpAndSettle();
+
+    final keyboardTop = surfaceSize.height - keyboardHeight;
+    expect(
+      tester.getRect(find.byKey(const Key('new-session-launcher'))).bottom,
+      lessThanOrEqualTo(keyboardTop),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'local-only mode keeps OpenSSH hosts and hides custom SSH profiles',
     (tester) async {
@@ -296,7 +340,7 @@ void main() {
     expect(result?.profile.connection.password, 'secret');
     expect(
       result?.profile.connection.hostKeyPolicy,
-      terminal.TerminalSshHostKeyPolicy.strict,
+      terminal.TerminalSshHostKeyPolicy.acceptNew,
     );
     expect(
       result?.profile.connection.auth,
@@ -341,7 +385,6 @@ void main() {
       Key('ssh-user'),
       Key('ssh-port'),
       Key('ssh-password'),
-      Key('ssh-private-keys'),
       Key('ssh-key-passphrase'),
     ];
     final heights = fieldKeys
@@ -355,7 +398,72 @@ void main() {
       );
     }
     expect(heights.first, closeTo(36, 0.01));
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('ssh-private-keys')),
+        matching: find.byType(EditableText),
+      ),
+      findsNothing,
+    );
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('selects a private key file and keeps only its contents', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1000, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    SshProfileEditorResult? result;
+    final profile = _sshProfile('file-key', 'File key', 'key.example.test')
+        .copyWith(
+          connection: const terminal.TerminalConnectionConfig.ssh(
+            host: 'key.example.test',
+            user: 'operator',
+            auth: terminal.TerminalSshAuthMethod.publicKey,
+          ),
+        );
+
+    await _pumpSshEditor(
+      tester,
+      profile: profile,
+      privateKeyPicker: () async =>
+          (path: '/Users/alice/.ssh/id_ed25519', contents: _testPrivateKey),
+      onClosed: (value) => result = value,
+    );
+
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('ssh-private-keys')),
+        matching: find.byType(EditableText),
+      ),
+      findsNothing,
+    );
+    await tester.tap(find.byKey(const Key('ssh-select-private-key')));
+    await tester.pumpAndSettle();
+    expect(find.text('/Users/alice/.ssh/id_ed25519'), findsOneWidget);
+
+    await tester.ensureVisible(find.byKey(const Key('ssh-connect')));
+    await tester.tap(find.byKey(const Key('ssh-connect')));
+    await tester.pumpAndSettle();
+
+    expect(result?.profile.connection.privateKeys, const <String>[
+      _testPrivateKey,
+    ]);
+    expect(
+      result?.profile.connection.privateKeys,
+      isNot(contains('/Users/alice/.ssh/id_ed25519')),
+    );
+    final wire = terminal.TerminalSessionConfigV1(
+      sessionId: 'inline-private-key-session',
+      displayName: result!.profile.name,
+      config: result!.profile.toSessionConfig(),
+    );
+    expect(
+      terminal.TerminalSessionConfigV1.fromJsonString(
+        wire.toJsonString(),
+      ).config.connection.privateKeys,
+      const <String>[_testPrivateKey],
+    );
   });
 
   testWidgets('unrelated SSH edits preserve imported jump profiles', (
@@ -484,7 +592,7 @@ void main() {
       expect(jump.user, 'jump-user');
       expect(jump.port, 2222);
       expect(jump.auth, terminal.TerminalSshAuthMethod.auto);
-      expect(jump.hostKeyPolicy, terminal.TerminalSshHostKeyPolicy.strict);
+      expect(jump.hostKeyPolicy, terminal.TerminalSshHostKeyPolicy.acceptNew);
       expect(jump.password, isNull);
       expect(jump.privateKeys, isEmpty);
       expect(jump.privateKeyPassphrase, isNull);
@@ -516,6 +624,40 @@ void main() {
     expect(saveRect.bottom, lessThan(connectRect.top));
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'SSH form keeps its focused field and actions above the iPhone keyboard',
+    (tester) async {
+      const surfaceSize = Size(390, 844);
+      const keyboardHeight = 336.0;
+      await tester.binding.setSurfaceSize(surfaceSize);
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      addTearDown(tester.view.reset);
+
+      await _pumpSshEditor(
+        tester,
+        profile: _sshProfile('keyboard', 'Keyboard host', 'host.example.test'),
+        onClosed: (_) {},
+      );
+      await tester.tap(find.byKey(const Key('ssh-password')));
+      tester.view.viewInsets = FakeViewPadding(
+        bottom: keyboardHeight * tester.view.devicePixelRatio,
+      );
+      await tester.pumpAndSettle();
+
+      final keyboardTop = surfaceSize.height - keyboardHeight;
+      expect(
+        tester.getRect(find.byKey(const Key('ssh-password'))).bottom,
+        lessThanOrEqualTo(keyboardTop),
+      );
+      expect(
+        tester.getRect(find.byKey(const Key('ssh-connect'))).bottom,
+        lessThanOrEqualTo(keyboardTop),
+      );
+      expect(find.byKey(const Key('ssh-connect')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('advanced timing fields stack in narrow high-scale layouts', (
     tester,
@@ -934,6 +1076,7 @@ void main() {
 
       expect(result?.clearSecrets, <ProfileSecretField>{
         ProfileSecretField.password,
+        ProfileSecretField.privateKeys,
         ProfileSecretField.privateKeyPassphrase,
         ProfileSecretField.x11AuthCookie,
       });
@@ -984,7 +1127,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('ssh-connect')));
     await tester.pumpAndSettle();
-    expect(find.text('Required'), findsOneWidget);
+    expect(find.text('Select a private key file'), findsOneWidget);
   });
 }
 
@@ -1056,6 +1199,7 @@ Future<void> _pumpSshEditor(
   required TerminalProfile profile,
   required ValueChanged<SshProfileEditorResult?> onClosed,
   bool saveWhenPristine = true,
+  SshPrivateKeyPicker? privateKeyPicker,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
@@ -1073,6 +1217,7 @@ Future<void> _pumpSshEditor(
                     builder: (_) => SshProfileEditorDialog(
                       initialValue: profile,
                       saveWhenPristine: saveWhenPristine,
+                      privateKeyPicker: privateKeyPicker,
                     ),
                   ),
                 );

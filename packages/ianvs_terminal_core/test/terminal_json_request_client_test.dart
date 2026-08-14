@@ -35,6 +35,21 @@ void main() {
       });
     });
 
+    test('sends an explicit SSH host-key decision', () {
+      final backend = _JsonRequestBackend('{"accepted":true}');
+      final client = TerminalJsonRequestClient(backend);
+
+      expect(
+        client.respondSshHostKey('7', challengeId: 9, accept: true),
+        isTrue,
+      );
+      expect(backend.requests.single, <String, Object?>{
+        'kind': 'ssh.host_key_response',
+        'challengeId': 9,
+        'accept': true,
+      });
+    });
+
     test('uses the exact correlated Session Request v1 envelope', () {
       final versioned = _JsonRequestBackend('{"text":"versioned"}');
       final versionedClient = TerminalJsonRequestClient(versioned);

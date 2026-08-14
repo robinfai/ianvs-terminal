@@ -9756,6 +9756,10 @@ void main() {
         ),
         isFalse,
       );
+      expect(
+        runtime.respondSshHostKey(sessionId, challengeId: 1, accept: true),
+        isFalse,
+      );
       expect(runtime.clearBuffer(sessionId), isFalse);
       expect(
         runtime.dismissOsc99Notification(sessionId, 'notification'),

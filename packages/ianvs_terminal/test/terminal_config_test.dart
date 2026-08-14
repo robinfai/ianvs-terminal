@@ -112,12 +112,14 @@ void main() {
       host: 'target.example',
       user: 'operator',
       password: 'target-password',
+      privateKeys: <String>['target-private-key'],
       privateKeyPassphrase: 'target-passphrase',
       proxyJumpProfiles: <TerminalSshJumpConfig>[
         TerminalSshJumpConfig(
           host: 'jump.example',
           user: 'jump',
           password: 'jump-password',
+          privateKeys: <String>['jump-private-key'],
           privateKeyPassphrase: 'jump-passphrase',
         ),
       ],
@@ -127,6 +129,7 @@ void main() {
     final json = connection.toJson(includeSensitiveFields: false);
 
     expect(json, isNot(contains('password')));
+    expect(json, isNot(contains('privateKeys')));
     expect(json, isNot(contains('privateKeyPassphrase')));
     expect(json, isNot(contains('x11AuthCookie')));
     final jumpProfiles = switch (json['proxyJumpProfiles']) {
@@ -138,6 +141,7 @@ void main() {
       _ => fail('proxyJumpProfiles entries must be objects'),
     };
     expect(jump, isNot(contains('password')));
+    expect(jump['privateKeys'], const <String>['jump-private-key']);
     expect(jump, isNot(contains('privateKeyPassphrase')));
   });
 

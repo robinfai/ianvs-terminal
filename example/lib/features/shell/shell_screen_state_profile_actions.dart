@@ -18,6 +18,8 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
       return;
     }
     _mutateState(() => _isProfilesOpen = true);
+    await releaseTerminalInputForModal();
+    if (!mounted) return;
     final activeSessionIdBeforeOpen = sessionState.activeSessionId;
     final animationsEnabled = ref.read(shellAnimationsEnabledProvider);
     final result = await showModalBottomSheet<NewSessionSelection>(
@@ -68,6 +70,8 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
       return;
     }
     _mutateState(() => _isProfilesOpen = true);
+    await releaseTerminalInputForModal();
+    if (!mounted) return;
     final activeSessionIdBeforeOpen = sessionState.activeSessionId;
     final result = await showCreateSshProfileDialog(context);
     if (!mounted) {

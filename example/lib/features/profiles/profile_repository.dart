@@ -280,6 +280,7 @@ class ProfileRepository extends ProfileRepositoryPort {
           const <ProfileSecretField>{};
       final hasCleartextSecret =
           profile.connection.password != null ||
+          profile.connection.privateKeys.isNotEmpty ||
           profile.connection.privateKeyPassphrase != null ||
           profile.connection.x11AuthCookie != null;
       if ((hasCleartextSecret || clearIntents.isNotEmpty) &&
@@ -302,6 +303,18 @@ class ProfileRepository extends ProfileRepositoryPort {
           profileId: profile.id,
           field: 'password',
           value: password,
+        );
+      }
+      // Private key values may contain complete PEM/OpenSSH key documents.
+      // They must never be copied into the ordinary profile JSON. Encrypt the
+      // complete list as one authenticated field so key order is preserved.
+      connection.remove('privateKeys');
+      final privateKeys = profile.connection.privateKeys;
+      if (privateKeys.isNotEmpty) {
+        encrypted['privateKeys'] = await _secretCipher.encrypt(
+          profileId: profile.id,
+          field: 'privateKeys',
+          value: jsonEncode(privateKeys),
         );
       }
       final passphrase = profile.connection.privateKeyPassphrase;
@@ -363,6 +376,9 @@ class ProfileRepository extends ProfileRepositoryPort {
           connection.containsKey('x11AuthCookie')) {
         throw const UnsupportedTerminalProfilePlaintextSecrets();
       }
+      if (_containsInlinePrivateKey(connection['privateKeys'])) {
+        throw const UnsupportedTerminalProfilePlaintextSecrets();
+      }
       final encrypted = _mutableStringMap(connection['encryptedSecrets']);
       if (encrypted == null) {
         continue;
@@ -372,6 +388,7 @@ class ProfileRepository extends ProfileRepositoryPort {
       }
       for (final field in const <String>[
         'password',
+        'privateKeys',
         'privateKeyPassphrase',
         'x11AuthCookie',
       ]) {
@@ -379,11 +396,14 @@ class ProfileRepository extends ProfileRepositoryPort {
           continue;
         }
         try {
-          connection[field] = await _secretCipher.decrypt(
+          final cleartext = await _secretCipher.decrypt(
             profileId: profileId,
             field: field,
             envelope: encrypted[field],
           );
+          connection[field] = field == 'privateKeys'
+              ? _decodeEncryptedPrivateKeys(cleartext)
+              : cleartext;
           final opaque = _opaqueEncryptedSecretsByProfileId[profileId];
           opaque?.remove(field);
           if (opaque != null && opaque.keys.every((key) => key == 'format')) {
@@ -532,9 +552,32 @@ final class UnsupportedTerminalProfilePlaintextSecrets implements Exception {
 
 String _secretFieldName(ProfileSecretField field) => switch (field) {
   ProfileSecretField.password => 'password',
+  ProfileSecretField.privateKeys => 'privateKeys',
   ProfileSecretField.privateKeyPassphrase => 'privateKeyPassphrase',
   ProfileSecretField.x11AuthCookie => 'x11AuthCookie',
 };
+
+List<String> _decodeEncryptedPrivateKeys(String value) {
+  final decoded = jsonDecode(value);
+  if (decoded is! List ||
+      decoded.any(
+        (entry) => entry is! String || entry.isEmpty || entry.trim() != entry,
+      )) {
+    throw const FormatException('Invalid encrypted private keys');
+  }
+  return decoded.cast<String>().toList(growable: false);
+}
+
+bool _containsInlinePrivateKey(Object? value) {
+  if (value is! List) {
+    return false;
+  }
+  return value.whereType<String>().any((entry) {
+    final trimmed = entry.trimLeft();
+    return trimmed.startsWith('-----BEGIN ') ||
+        trimmed.startsWith('PuTTY-User-Key-File-');
+  });
+}
 
 Map<String, Object?>? _mutableStringMap(Object? value) {
   if (value is! Map) {

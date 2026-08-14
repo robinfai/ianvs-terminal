@@ -1,16 +1,6 @@
 part of 'shell_screen.dart';
 
 extension _ShellScreenStateSearchCompletion on _ShellScreenState {
-  void _attachSearchPasteHandler(Future<void> Function() handler) {
-    _searchPasteHandler = handler;
-  }
-
-  void _detachSearchPasteHandler(Future<void> Function() handler) {
-    if (identical(_searchPasteHandler, handler)) {
-      _searchPasteHandler = null;
-    }
-  }
-
   void _openSearch() {
     final activeSessionId = ref.read(sessionControllerProvider).activeSessionId;
     if (activeSessionId == null) {

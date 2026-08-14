@@ -250,7 +250,6 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   final Set<String> _sessionsSeenForNewOutputBadges = {};
   final Set<String> _sessionsWithNewOutput = {};
   TerminalEventSinkAttachment? _terminalUiEffectAttachment;
-  Future<void> Function()? _searchPasteHandler;
   late final LocalTerminalShellUiWiringSnapshot _completionDiagnosticsSnapshot;
   late final Osc72DragDropController _osc72DragDropController;
   late final ShellUserAttentionBridge _userAttentionBridge;
@@ -373,6 +372,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   final Map<String, String> _pendingZmodemTerminalMessages = <String, String>{};
   final SshAuthenticationPromptPresenter _sshAuthPromptPresenter =
       SshAuthenticationPromptPresenter();
+  final _sshHostKeyPromptPresenter = SshHostKeyPromptPresenter();
   _ShellZmodemPickerRequest? _zmodemPickerRequest;
   int _zmodemPickerRequestSeed = 0;
   final Map<String, Set<String>> _coprocessInputKeysBySession =
@@ -721,6 +721,11 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
         return KeyEventResult.ignored;
       }
+      final editor = focusedEditableTextForCurrentRoute();
+      if (editor != null) {
+        return KeyEventResult.ignored;
+      }
+      if (_shellModalInputBlocked) return KeyEventResult.handled;
       final copyModeResult = _handleCopyModeKey(
         event,
         sessionController,

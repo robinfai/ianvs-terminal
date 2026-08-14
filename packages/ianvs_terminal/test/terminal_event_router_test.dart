@@ -66,6 +66,7 @@ void main() {
     test('routes passive session events for immediate emission', () {
       final cases = <String, TerminalImmediateEventKind>{
         'ssh_auth_prompt': TerminalImmediateEventKind.sshAuthPrompt,
+        'ssh_host_key_prompt': TerminalImmediateEventKind.sshHostKeyPrompt,
         'bell': TerminalImmediateEventKind.bell,
         'shell_hook': TerminalImmediateEventKind.shellHook,
         'shell_context': TerminalImmediateEventKind.shellContext,

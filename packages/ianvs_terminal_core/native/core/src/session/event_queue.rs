@@ -274,6 +274,7 @@ fn pending_event_is_critical(kind: &str) -> bool {
         kind,
         "exit"
             | "ssh_auth_prompt"
+            | "ssh_host_key_prompt"
             | "clipboard_copy"
             | "clipboard_paste_request"
             | "clipboard_mime_write"

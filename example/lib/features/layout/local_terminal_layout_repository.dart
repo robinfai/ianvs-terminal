@@ -29,6 +29,15 @@ abstract class TerminalLayoutRepository {
   }
 }
 
+final class TerminalLayoutSaveUnavailableException implements Exception {
+  const TerminalLayoutSaveUnavailableException(this.cause);
+
+  final Object cause;
+
+  @override
+  String toString() => 'Terminal layout sync is temporarily unavailable.';
+}
+
 /// Persists the single current local Terminal Layout document.
 class LocalTerminalLayoutRepository extends TerminalLayoutRepository {
   LocalTerminalLayoutRepository({
