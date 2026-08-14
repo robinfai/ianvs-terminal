@@ -1478,11 +1478,30 @@ fn synchronized_output_profile() -> TerminalProfile {
     local_profile(
         "synchronized-output",
         "Synchronized Output",
-        "/bin/sh",
+        "/usr/bin/env",
         vec![
-            "-lc".to_string(),
-            r#"python3 -c 'import sys,time; time.sleep(0.2); sys.stdout.write("\x1b[?2026h"); sys.stdout.flush(); time.sleep(0.2); sys.stdout.write("\rSYNC-MID"); sys.stdout.flush(); time.sleep(0.8); sys.stdout.write("\rSYNC-FINAL\x1b[?2026l\n"); sys.stdout.flush()'"#
-                .to_string(),
+            "python3".to_string(),
+            "-c".to_string(),
+            r#"import sys, termios
+
+try:
+    attrs = termios.tcgetattr(sys.stdin.fileno())
+    attrs[3] = attrs[3] & ~termios.ECHO
+    termios.tcsetattr(sys.stdin.fileno(), termios.TCSANOW, attrs)
+except Exception:
+    pass
+
+if sys.stdin.readline() == '':
+    sys.exit(2)
+sys.stdout.write('\x1b[?2026h\rSYNC-MID')
+sys.stdout.write('\x1b]52;c;U1lOQy1DSEVDS1BPSU5U\x07')
+sys.stdout.flush()
+if sys.stdin.readline() == '':
+    sys.exit(2)
+sys.stdout.write('\rSYNC-FINAL\x1b[?2026l\n')
+sys.stdout.flush()
+"#
+            .to_string(),
         ],
         BTreeMap::new(),
         TerminalEmulation::Xterm256,
@@ -17850,24 +17869,31 @@ fn session_synchronized_output_defers_intermediate_frames_until_disable() {
         session::create_session(&serde_json::to_string(&synchronized_output_profile()).unwrap())
             .unwrap();
 
-    thread::sleep(Duration::from_millis(700));
-    let mut final_frame = None;
-    for _ in 0..5 {
-        if let Some(frame) = session::take_frame_diff(session_id).unwrap() {
-            let visible_text = logical_rows_from_frame(&frame).join("\n");
-            assert!(
-                !visible_text.contains("SYNC-MID"),
-                "synchronized output must not publish the intermediate frame: {frame}"
-            );
-            if visible_text.contains("SYNC-FINAL") {
-                final_frame = Some(frame);
-                break;
-            }
-        }
-        thread::sleep(Duration::from_millis(50));
+    session::write_session(session_id, b"\n").unwrap();
+    let events = collect_events_until(session_id, |events| {
+        events.iter().any(|event| {
+            event["kind"] == "clipboard_copy"
+                && event["payload"]["data"].as_str() == Some("U1lOQy1DSEVDS1BPSU5U")
+        })
+    });
+    assert!(
+        events.iter().any(|event| {
+            event["kind"] == "clipboard_copy"
+                && event["payload"]["data"].as_str() == Some("U1lOQy1DSEVDS1BPSU5U")
+        }),
+        "expected checkpoint after synchronized intermediate output: {events:?}"
+    );
+
+    if let Some(frame) = session::take_frame_diff(session_id).unwrap() {
+        let visible_text = logical_rows_from_frame(&frame).join("\n");
+        assert!(
+            !visible_text.contains("SYNC-MID"),
+            "synchronized output must not publish the intermediate frame: {frame}"
+        );
     }
 
-    let frame = final_frame.unwrap_or_else(|| wait_for_frame_containing(session_id, "SYNC-FINAL"));
+    session::write_session(session_id, b"\n").unwrap();
+    let frame = wait_for_frame_containing(session_id, "SYNC-FINAL");
     let visible_text = logical_rows_from_frame(&frame).join("\n");
     assert!(
         visible_text.contains("SYNC-FINAL"),
