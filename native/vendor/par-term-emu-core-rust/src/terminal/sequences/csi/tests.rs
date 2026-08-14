@@ -1473,6 +1473,9 @@ fn test_synchronized_updates_unterminated_fragments_are_bounded_and_recover() {
         0
     );
 
+    // Keep this test focused on the byte ceiling. Processing the 16 MiB setup
+    // can exceed the independent one-second deadline on a contended runner.
+    term.sync_update_started_at = Some(std::time::Instant::now());
     term.process(b"overflow-without-terminator");
 
     assert!(!term.synchronized_updates);
