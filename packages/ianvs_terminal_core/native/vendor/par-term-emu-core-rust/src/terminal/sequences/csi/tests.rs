@@ -1461,6 +1461,9 @@ fn test_synchronized_updates_unterminated_fragments_are_bounded_and_recover() {
     let fragment = vec![b'x'; crate::terminal::MAX_SYNCHRONIZED_UPDATE_BYTES / 2];
 
     term.process(b"\x1b[?2026h");
+    // Keep this test focused on the byte ceiling. Filtering the 16 MiB setup
+    // can exceed the independent one-second deadline on a contended runner.
+    term.sync_update_started_at = None;
     term.process(&fragment);
     term.process(&fragment);
     assert_eq!(
@@ -1473,8 +1476,6 @@ fn test_synchronized_updates_unterminated_fragments_are_bounded_and_recover() {
         0
     );
 
-    // Keep this test focused on the byte ceiling. Processing the 16 MiB setup
-    // can exceed the independent one-second deadline on a contended runner.
     term.sync_update_started_at = Some(std::time::Instant::now());
     term.process(b"overflow-without-terminator");
 
