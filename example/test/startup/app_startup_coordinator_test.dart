@@ -405,10 +405,18 @@ void main() {
       expect(
         resolveInitialDataApiSetupRequirement(
           platform: TargetPlatform.iOS,
+          hasPersistedConfiguration: false,
+          configuration: disabled,
+        ),
+        AppStartupDataSetupRequirement.optional,
+      );
+      expect(
+        resolveInitialDataApiSetupRequirement(
+          platform: TargetPlatform.iOS,
           hasPersistedConfiguration: true,
           configuration: disabled,
         ),
-        AppStartupDataSetupRequirement.required,
+        isNull,
       );
       expect(
         resolveInitialDataApiSetupRequirement(

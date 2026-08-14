@@ -226,38 +226,35 @@ void main() {
       },
     );
 
-    test(
-      'rejects non-finite schema without mutation',
-      () async {
-        final directory = await Directory.systemTemp.createTemp(
-          'ianvs terminal-config-non-finite-integers',
-        );
-        final file = File('${directory.path}/ianvs_config.json');
-        await file.writeAsString('''
+    test('rejects non-finite schema without mutation', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'ianvs terminal-config-non-finite-integers',
+      );
+      final file = File('${directory.path}/ianvs_config.json');
+      await file.writeAsString('''
 {
   "schemaVersion": 1e999,
   "defaultProfileId": "local-dev",
   "paste": {"historySize": 1e999}
 }
 ''');
-        final repository = LocalTerminalConfigRepository(
-          directoryResolver: () async => directory,
-        );
+      final repository = LocalTerminalConfigRepository(
+        directoryResolver: () async => directory,
+      );
 
-        final original = await file.readAsString();
-        await expectLater(
-          repository.load(),
-          throwsA(isA<UnsupportedLocalTerminalConfigSchemaVersion>()),
-        );
-        expect(await file.readAsString(), original);
-        expect(
-          directory.listSync().any(
-            (entry) => entry.path.contains('ianvs_config.json.corrupt'),
-          ),
-          isFalse,
-        );
-      },
-    );
+      final original = await file.readAsString();
+      await expectLater(
+        repository.load(),
+        throwsA(isA<UnsupportedLocalTerminalConfigSchemaVersion>()),
+      );
+      expect(await file.readAsString(), original);
+      expect(
+        directory.listSync().any(
+          (entry) => entry.path.contains('ianvs_config.json.corrupt'),
+        ),
+        isFalse,
+      );
+    });
 
     test('quarantines corrupt config and writes repaired defaults', () async {
       final directory = await Directory.systemTemp.createTemp(

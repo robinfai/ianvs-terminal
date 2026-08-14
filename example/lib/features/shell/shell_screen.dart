@@ -1363,17 +1363,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                     profile,
                                     returningToLayout: true,
                                   ),
-                                  onCreateProfile:
-                                      ref.watch(
-                                        customSshProfileConfigurationEnabledProvider,
-                                      )
-                                      ? () => unawaited(
-                                          _openSshProfileCreator(
-                                            sessionController,
-                                            sessionState,
-                                          ),
-                                        )
-                                      : null,
+                                  onCreateProfile: () => unawaited(
+                                    _openSshProfileCreator(
+                                      sessionController,
+                                      sessionState,
+                                    ),
+                                  ),
                                 )
                               : _ShellEmptyState(
                                   key: const Key('shell-empty-state'),

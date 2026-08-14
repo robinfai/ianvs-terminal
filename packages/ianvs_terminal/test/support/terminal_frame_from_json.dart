@@ -316,8 +316,7 @@ List<T> _items<T>(Object? value, T? Function(Map<String, Object?>) decode) {
   }
   return <T>[
     for (final item in value)
-      if (_map(item) case final map?)
-        ?decode(map),
+      if (_map(item) case final map?) ?decode(map),
   ];
 }
 

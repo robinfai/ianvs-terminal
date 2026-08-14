@@ -66,6 +66,7 @@ class DefaultsAndAppearanceDialog extends StatefulWidget {
     this.activeDataApiDeployment,
     this.dataApiConfigurationRecoveryRequired = false,
     this.localDataApiAvailable = false,
+    this.localSessionsEnabled = true,
   });
 
   final List<TerminalProfile> profiles;
@@ -83,6 +84,7 @@ class DefaultsAndAppearanceDialog extends StatefulWidget {
   final DataApiDeployment? activeDataApiDeployment;
   final bool dataApiConfigurationRecoveryRequired;
   final bool localDataApiAvailable;
+  final bool localSessionsEnabled;
 
   @override
   State<DefaultsAndAppearanceDialog> createState() =>
@@ -974,10 +976,11 @@ class _DefaultsAndAppearanceDialogState
                   ),
                 ),
                 SizedBox(height: theme.spacing.xxl),
-                const AppSectionHeader(
+                AppSectionHeader(
                   title: 'Data service',
-                  description:
-                      'Choose whether the app starts a local data service or connects to a remote one.',
+                  description: widget.localDataApiAvailable
+                      ? 'Choose whether the app starts a local data service or connects to a remote one.'
+                      : 'Use one-time SSH connections without a data service, or connect a remote service to save profiles and sync them.',
                 ),
                 SizedBox(height: theme.spacing.sm),
                 AppPanel(
@@ -994,7 +997,7 @@ class _DefaultsAndAppearanceDialogState
                             '${_sourceDataApiDeployment.name}',
                         child: Text(
                           'Active now: ${switch (_sourceDataApiDeployment) {
-                            DataApiDeployment.disabled => 'Local terminal',
+                            DataApiDeployment.disabled => widget.localSessionsEnabled ? 'Local terminal' : 'No data service',
                             DataApiDeployment.local => 'Bundled local service',
                             DataApiDeployment.remote => 'Remote service',
                           }}',
@@ -1015,13 +1018,20 @@ class _DefaultsAndAppearanceDialogState
                         },
                         child: Column(
                           children: [
-                            const AppCompactRadioTile<DataApiDeployment>(
-                              tileKey: Key('data-api-disabled'),
+                            AppCompactRadioTile<DataApiDeployment>(
+                              tileKey: const Key('data-api-disabled'),
                               value: DataApiDeployment.disabled,
-                              title: Text('Local terminal'),
+                              title: Text(
+                                widget.localSessionsEnabled
+                                    ? 'Local terminal'
+                                    : 'No data service',
+                              ),
                               subtitle: Text(
-                                'No API process. Use local shells and hosts '
-                                'from ~/.ssh/config only.',
+                                widget.localSessionsEnabled
+                                    ? 'No API process. Use local shells and '
+                                          'hosts from ~/.ssh/config only.'
+                                    : 'No API process. Create one-time SSH '
+                                          'connections without saving them.',
                               ),
                             ),
                             if (widget.localDataApiAvailable)

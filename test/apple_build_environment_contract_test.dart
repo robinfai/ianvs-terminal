@@ -25,7 +25,7 @@ void main() {
 
     for (final command in <String>[
       'flutter build ios --simulator --debug --no-codesign',
-      'flutter build ios --simulator --release --no-codesign',
+      'flutter build ios --release --no-codesign',
       'xcodebuild test',
       r'flutter test -d "$IOS_SIMULATOR_UDID"',
     ]) {
@@ -79,7 +79,17 @@ void main() {
       contains('ENABLE_DEBUG_DYLIB = NO;'),
       reason:
           'The force-loaded Rust core must be linked into Runner itself. '
-          'Xcode\'s debug-dylib launcher otherwise aborts before Flutter starts.',
+          "Xcode's debug-dylib launcher otherwise aborts before Flutter starts.",
+    );
+  });
+
+  test('iOS ABI verification ignores the Xcode debug stub executable', () {
+    final source = File('tools/verify_ios_simulator.sh').readAsStringSync();
+
+    expect(source, contains(r'link_images=("$executable")'));
+    expect(
+      source,
+      contains(r'link_images=("$ios_app/$executable_name.debug.dylib")'),
     );
   });
 
@@ -97,6 +107,56 @@ void main() {
     expect(
       source.indexOf(r'export SDKROOT="$MACOS_SDKROOT"'),
       lessThan(source.indexOf(r'cargo "${CARGO_ARGS[@]}"')),
+    );
+  });
+
+  test('iOS Rust build merges every simulator architecture from Xcode', () {
+    final source = File('tools/build_core_ios.sh').readAsStringSync();
+
+    expect(source, contains(r'requested_archs="${ARCHS:-$(uname -m)}"'));
+    expect(source, contains(r'for arch in $requested_archs; do'));
+    expect(source, contains('aarch64-apple-ios-sim'));
+    expect(source, contains('x86_64-apple-ios'));
+    expect(
+      source,
+      contains(
+        r'xcrun lipo -create "${slices[@]}" -output '
+        r'"$DEST_DIR/libianvs_core.a"',
+      ),
+    );
+  });
+
+  test('iOS Rust archive staging stays outside the installed products', () {
+    final script = File('tools/build_core_ios.sh').readAsStringSync();
+    final project = File(
+      'example/ios/Runner.xcodeproj/project.pbxproj',
+    ).readAsStringSync();
+
+    expect(script, contains(r'DEST_DIR="${DERIVED_FILE_DIR:?}/ianvs_core"'));
+    expect(script, isNot(contains(r'DEST_DIR="${TARGET_BUILD_DIR:?}')));
+    expect(
+      r'$(DERIVED_FILE_DIR)/ianvs_core/libianvs_core.a'.allMatches(project),
+      hasLength(4),
+      reason: 'The script output and all linker configurations must agree.',
+    );
+    expect(
+      project,
+      isNot(contains(r'$(TARGET_BUILD_DIR)/ianvs_core/libianvs_core.a')),
+    );
+  });
+
+  test('iOS release gate builds the App Store device architecture', () {
+    final source = File('tools/verify_ios_simulator.sh').readAsStringSync();
+    final workflow = File('.github/workflows/verify.yml').readAsStringSync();
+
+    expect(source, contains('build/ios/iphoneos'));
+    expect(
+      source,
+      contains(r'verify_ios_native_exports "$IOS_RELEASE_APP" arm64'),
+    );
+    expect(
+      workflow,
+      matches(RegExp(r'^\s+aarch64-apple-ios\s+\\$', multiLine: true)),
     );
   });
 }

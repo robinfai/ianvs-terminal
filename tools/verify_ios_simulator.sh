@@ -60,6 +60,12 @@ fi
 if [[ -n "${TOOLCHAINS:-}" ]]; then
   apple_build_env+=("TOOLCHAINS=$TOOLCHAINS")
 fi
+if [[ -n "${RUSTUP_TOOLCHAIN:-}" ]]; then
+  apple_build_env+=("RUSTUP_TOOLCHAIN=$RUSTUP_TOOLCHAIN")
+fi
+if [[ -n "${PUB_CACHE:-}" ]]; then
+  apple_build_env+=("PUB_CACHE=$PUB_CACHE")
+fi
 
 verify_ios_native_exports() {
   local ios_app="$1"
@@ -78,7 +84,7 @@ verify_ios_native_exports() {
   if [[ -f "$ios_app/$executable_name.debug.dylib" ]]; then
     # Flutter debug builds put app-native objects in this loaded image rather
     # than the small process launcher executable.
-    link_images+=("$ios_app/$executable_name.debug.dylib")
+    link_images=("$ios_app/$executable_name.debug.dylib")
   fi
   actual_symbols="$(
     for image in "${link_images[@]}"; do
@@ -130,14 +136,14 @@ verify_ios_native_exports "$IOS_APP" "$simulator_arch"
 
 (
   cd "$EXAMPLE_DIR"
-  "${apple_build_env[@]}" flutter build ios --simulator --release --no-codesign
+  "${apple_build_env[@]}" flutter build ios --release --no-codesign
 )
 IOS_RELEASE_APP="$(
-  find "$EXAMPLE_DIR/build/ios/iphonesimulator" \
+  find "$EXAMPLE_DIR/build/ios/iphoneos" \
     -maxdepth 1 -name '*.app' -print -quit
 )"
 if [[ -z "$IOS_RELEASE_APP" ]]; then
-  echo "Flutter did not produce an iOS Release simulator application." >&2
+  echo "Flutter did not produce an iOS Release device application." >&2
   exit 1
 fi
-verify_ios_native_exports "$IOS_RELEASE_APP" "$simulator_arch"
+verify_ios_native_exports "$IOS_RELEASE_APP" arm64

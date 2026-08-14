@@ -17,6 +17,7 @@ use std::time::{Duration, UNIX_EPOCH};
 use tempfile::tempdir;
 
 const WAIT_ATTEMPTS: usize = 1_800;
+const TRANSPORT_READY_ATTEMPTS: usize = 50;
 
 struct SessionGuard(u64);
 
@@ -254,7 +255,7 @@ fn zmodem_round_trips_files_over_real_openssh_pty() {
         1_700_000_123_u64
     );
     let transfer_id = offer["payload"]["transferId"].as_str().unwrap();
-    let response = request_session_test(
+    let response = request_session_when_transport_ready(
         receive_session.0,
         &serde_json::json!({
             "kind": "terminal.zmodem.accept_receive",
@@ -341,7 +342,7 @@ fn zmodem_round_trips_files_over_real_openssh_pty() {
     eprintln!("zmodem-e2e: send detected");
     assert_eq!(detected["payload"]["direction"], "send");
     let transfer_id = detected["payload"]["transferId"].as_str().unwrap();
-    let response = request_session_test(
+    let response = request_session_when_transport_ready(
         send_session.0,
         &serde_json::json!({
             "kind": "terminal.zmodem.accept_send",
@@ -392,6 +393,30 @@ fn zmodem_round_trips_files_over_real_openssh_pty() {
         "zmodem-e2e: send verified first_md5={expected_md5} first_size={expected_size} first_mtime={expected_mtime} second_md5={companion_md5} second_size={companion_size} second_mtime=1700000789"
     );
 }
+
+fn request_session_when_transport_ready(
+    session_id: u64,
+    raw: &str,
+) -> Result<Option<String>, session::SessionError> {
+    for attempt in 1..=TRANSPORT_READY_ATTEMPTS {
+        match request_session_test(session_id, raw) {
+            Err(session::SessionError::Zmodem(reason)) if reason == "zmodem_transport_busy" => {
+                if attempt == TRANSPORT_READY_ATTEMPTS {
+                    return Err(session::SessionError::Zmodem(reason));
+                }
+                if attempt == 1 {
+                    eprintln!(
+                        "zmodem-e2e: transport gate still releasing after detection; retrying"
+                    );
+                }
+                thread::sleep(Duration::from_millis(100));
+            }
+            result => return result,
+        }
+    }
+    unreachable!("the bounded transport-ready loop always returns")
+}
+
 fn request_session_test(
     session_id: u64,
     raw: &str,

@@ -7,6 +7,47 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets('iOS disabled mode is described as one-time SSH', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1000, 820));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildIanvsTerminalTheme(Brightness.dark),
+        home: const Scaffold(
+          body: DefaultsAndAppearanceDialog(
+            profiles: [],
+            configuredDefaultProfileId: null,
+            effectiveDefaultProfileId: null,
+            themeMode: TerminalThemeMode.system,
+            terminalViewportPadding:
+                TerminalAppAppearance.defaultTerminalViewportPadding,
+            restoreLayout: false,
+            osc52Policy: LocalTerminalOsc52Policy.ask,
+            openUrlPolicy: LocalTerminalOpenUrlPolicy.ask,
+            requestAttentionPolicy:
+                LocalTerminalRequestAttentionPolicy.disabled,
+            reportVariableDecisions: {},
+            dataApiConfiguration: DataApiConfiguration.disabled(),
+            localDataApiAvailable: false,
+            localSessionsEnabled: false,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('defaults-data-api-panel')),
+      500,
+      scrollable: find.byType(Scrollable).first,
+    );
+
+    expect(find.text('Active now: No data service'), findsOneWidget);
+    expect(find.text('No data service'), findsOneWidget);
+    expect(find.textContaining('one-time SSH connections'), findsWidgets);
+    expect(find.byKey(const Key('data-api-local')), findsNothing);
+  });
+
   testWidgets('remote selection requires ephemeral login credentials', (
     tester,
   ) async {

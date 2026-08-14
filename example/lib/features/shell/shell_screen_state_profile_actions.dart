@@ -1,14 +1,13 @@
 part of 'shell_screen.dart';
 
 extension _ShellScreenStateProfileActions on _ShellScreenState {
-  bool _canOpenNewSessionLauncher(SessionState sessionState) {
-    final launchPolicy = ref.read(terminalSessionLaunchPolicyProvider);
-    if (launchPolicy.localSessionsEnabled) {
-      return sessionState.profiles.isNotEmpty;
-    }
-    return sessionState.profiles.any((profile) => profile.isSsh) ||
-        ref.read(customSshProfileConfigurationEnabledProvider);
-  }
+  bool get _localSessionsEnabled =>
+      ref.read(terminalSessionLaunchPolicyProvider).localSessionsEnabled;
+  bool get _customSshProfilesEnabled =>
+      ref.read(customSshProfileConfigurationEnabledProvider);
+
+  bool _canOpenNewSessionLauncher(SessionState sessionState) =>
+      !_localSessionsEnabled || sessionState.profiles.isNotEmpty;
 
   Future<void> _openNewSessionLauncher(
     SessionController sessionController,
@@ -31,12 +30,8 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
           : AnimationStyle.noAnimation,
       builder: (context) => NewSessionLauncher(
         profiles: ref.read(sessionControllerProvider).profiles,
-        localSessionsEnabled: ref
-            .read(terminalSessionLaunchPolicyProvider)
-            .localSessionsEnabled,
-        customSshProfilesEnabled: ref.read(
-          customSshProfileConfigurationEnabledProvider,
-        ),
+        localSessionsEnabled: _localSessionsEnabled,
+        customSshProfilesEnabled: _customSshProfilesEnabled,
         importOpenSshProfiles: () =>
             ref.read(sshProfileImportServiceProvider).load(),
       ),
@@ -65,15 +60,17 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
     SessionController sessionController,
     SessionState sessionState,
   ) async {
-    if (_isProfilesOpen ||
-        !ref.read(customSshProfileConfigurationEnabledProvider)) {
+    if (_isProfilesOpen) {
       return;
     }
     _mutateState(() => _isProfilesOpen = true);
     await releaseTerminalInputForModal();
     if (!mounted) return;
     final activeSessionIdBeforeOpen = sessionState.activeSessionId;
-    final result = await showCreateSshProfileDialog(context);
+    final result = await showCreateSshProfileDialog(
+      context,
+      saveProfileAvailable: _customSshProfilesEnabled,
+    );
     if (!mounted) {
       return;
     }
@@ -104,7 +101,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
   }) async {
     if (result.saveProfile) {
       try {
-        if (!ref.read(customSshProfileConfigurationEnabledProvider)) {
+        if (!_customSshProfilesEnabled) {
           throw const CustomSshProfileConfigurationUnavailableException();
         }
         await sessionController.saveProfile(result.profile);
@@ -224,6 +221,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
         dataApiConfigurationRecoveryRequired:
             dataApiConfigurationRecoveryRequired,
         localDataApiAvailable: defaultTargetPlatform == TargetPlatform.macOS,
+        localSessionsEnabled: _localSessionsEnabled,
       ),
     );
     final selection = await Navigator.of(
@@ -552,9 +550,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
         return ProfilesSheet(
           profiles: sessionState.profiles,
           effectiveDefaultProfileId: sessionState.defaultProfileId,
-          customSshProfilesEnabled: ref.read(
-            customSshProfileConfigurationEnabledProvider,
-          ),
+          customSshProfilesEnabled: _customSshProfilesEnabled,
         );
       },
     );

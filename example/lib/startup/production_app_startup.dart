@@ -326,9 +326,8 @@ AppStartupDataSetupRequirement? resolveInitialDataApiSetupRequirement({
   return switch (platform) {
     TargetPlatform.macOS when !hasPersistedConfiguration =>
       AppStartupDataSetupRequirement.optional,
-    TargetPlatform.iOS
-        when configuration.deployment != DataApiDeployment.remote =>
-      AppStartupDataSetupRequirement.required,
+    TargetPlatform.iOS when !hasPersistedConfiguration =>
+      AppStartupDataSetupRequirement.optional,
     _ => null,
   };
 }

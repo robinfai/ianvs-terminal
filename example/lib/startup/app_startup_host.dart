@@ -292,9 +292,15 @@ final class _AppStartupDataSetupViewState
                               const SizedBox(height: 10),
                               Text(
                                 canSkip
-                                    ? 'Use only local terminals, start the '
-                                          'bundled offline API, or connect a '
-                                          'remote API for cross-device sync.'
+                                    ? widget.settings.localDataApiAvailable
+                                          ? 'Use only local terminals, start '
+                                                'the bundled offline API, or '
+                                                'connect a remote API for '
+                                                'cross-device sync.'
+                                          : 'Continue without a data service '
+                                                'for one-time SSH connections, '
+                                                'or connect a remote API to '
+                                                'save profiles and sync them.'
                                     : 'A remote HTTP API connection is '
                                           'required before Ianvs Terminal can '
                                           'be used on iOS.',
@@ -395,23 +401,23 @@ final class _AppStartupDataSetupViewState
                                   crossAxisAlignment:
                                       CrossAxisAlignment.stretch,
                                   children: [
-                                    OutlinedButton.icon(
-                                      key: const Key(
-                                        'app-startup-use-local-api',
+                                    if (widget
+                                        .settings
+                                        .localDataApiAvailable) ...[
+                                      OutlinedButton.icon(
+                                        key: const Key(
+                                          'app-startup-use-local-api',
+                                        ),
+                                        onPressed: !_runningAction
+                                            ? _useLocalApi
+                                            : null,
+                                        icon: const Icon(Icons.storage_rounded),
+                                        label: const Text(
+                                          'Use bundled local API',
+                                        ),
                                       ),
-                                      onPressed:
-                                          !_runningAction &&
-                                              widget
-                                                  .settings
-                                                  .localDataApiAvailable
-                                          ? _useLocalApi
-                                          : null,
-                                      icon: const Icon(Icons.storage_rounded),
-                                      label: const Text(
-                                        'Use bundled local API',
-                                      ),
-                                    ),
-                                    const SizedBox(height: 10),
+                                      const SizedBox(height: 10),
+                                    ],
                                     OverflowBar(
                                       alignment: MainAxisAlignment.spaceBetween,
                                       overflowAlignment:
@@ -425,8 +431,12 @@ final class _AppStartupDataSetupViewState
                                           onPressed: _runningAction
                                               ? null
                                               : _skip,
-                                          child: const Text(
-                                            'Use local terminal only',
+                                          child: Text(
+                                            widget
+                                                    .settings
+                                                    .localDataApiAvailable
+                                                ? 'Use local terminal only'
+                                                : 'Continue without data service',
                                           ),
                                         ),
                                         FilledButton.icon(
