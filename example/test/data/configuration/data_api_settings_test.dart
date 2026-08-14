@@ -127,10 +127,6 @@ void main() {
       find.byKey(const Key('data-api-remote-password')),
       'correct horse battery staple',
     );
-    await tester.enterText(
-      find.byKey(const Key('data-api-remote-encryption-key')),
-      'encryption-key-material',
-    );
     await tester.pump();
     expect(
       tester
@@ -180,11 +176,11 @@ void main() {
 
     await tester.tap(find.byKey(const Key('data-api-remote-reconnect')));
     await tester.pump();
+    expect(find.textContaining('one Ianvs master key'), findsOneWidget);
     expect(
-      find.textContaining("Enter this account's existing key"),
-      findsOneWidget,
+      find.byKey(const Key('data-api-remote-encryption-key')),
+      findsNothing,
     );
-    expect(find.textContaining('lost key cannot be recovered'), findsOneWidget);
     expect(
       tester
           .widget<FilledButton>(find.byKey(const Key('defaults-save')))
@@ -198,10 +194,6 @@ void main() {
     await tester.enterText(
       find.byKey(const Key('data-api-remote-password')),
       'new-password',
-    );
-    await tester.enterText(
-      find.byKey(const Key('data-api-remote-encryption-key')),
-      'encryption-key-material',
     );
     await tester.pump();
 

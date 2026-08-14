@@ -7,6 +7,7 @@ import '../data/configuration/data_api_configuration_providers.dart';
 import '../data/configuration/data_api_configuration_repository.dart';
 import '../data/services/data_api_remote_session_store.dart';
 import '../data/services/data_api_runtime.dart';
+import '../data/services/portable_master_key.dart';
 import '../features/recording/local_session_recording_repository.dart';
 import '../persistence_repository_composition.dart';
 import '../platform/app_shutdown_coordinator.dart';
@@ -52,11 +53,13 @@ final class AppStartupConfigurationAccess {
   const AppStartupConfigurationAccess({
     required this.repository,
     required this.remoteSessionStore,
+    required this.masterKeyRepository,
     required this.settings,
   });
 
   final DataApiConfigurationRepository repository;
   final DataApiRemoteSessionSlotStore remoteSessionStore;
+  final PortableMasterKeyRepository masterKeyRepository;
   final AppStartupDataSettingsCapability settings;
 }
 
@@ -108,6 +111,12 @@ abstract interface class AppStartupDataSettingsCapability {
   Future<void> saveLocal();
 
   Future<void> reconnect(DataApiRemoteLoginRequest request);
+}
+
+abstract interface class AppStartupMasterKeyCapability {
+  Future<void> importPortableMasterKey(String encoded);
+
+  Future<String> exportPortableMasterKey();
 }
 
 /// Optional startup gate implemented by hosts that require an initial Data API
@@ -206,6 +215,7 @@ final class AppRuntimeGraph {
     required this.paths,
     required this.dataApiConfiguration,
     required this.dataApiConfigurationRepository,
+    required this.masterKeyRepository,
     required this.dataApiRuntime,
     required this.dataApiStartupWarning,
     required this.ptySessionBackend,
@@ -227,6 +237,7 @@ final class AppRuntimeGraph {
   final AppStartupPaths paths;
   final DataApiConfiguration dataApiConfiguration;
   final DataApiConfigurationRepository dataApiConfigurationRepository;
+  final PortableMasterKeyRepository masterKeyRepository;
   final DataApiRuntime? dataApiRuntime;
   final DataApiStartupWarning? dataApiStartupWarning;
   final PtySessionBackend ptySessionBackend;

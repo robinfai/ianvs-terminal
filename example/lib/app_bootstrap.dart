@@ -7,6 +7,7 @@ import 'data/configuration/data_api_configuration_providers.dart';
 import 'data/configuration/data_api_configuration_repository.dart';
 import 'data/services/data_api_lifecycle.dart';
 import 'data/services/data_api_runtime.dart';
+import 'data/services/portable_master_key.dart';
 import 'features/profiles/profile_repository.dart';
 import 'features/pty/pty.dart';
 import 'features/sessions/session_controller.dart';
@@ -32,6 +33,7 @@ Widget buildIanvsTerminalRoot({
   bool dataApiPersistenceUnavailable = false,
   DataApiStartupWarning? dataApiStartupWarning,
   DataApiConfigurationRepository? dataApiConfigurationRepository,
+  PortableMasterKeyRepository? masterKeyRepository,
   bool dataApiConfigurationRecoveryRequired = false,
   DirectoryResolver? profileExportDirectoryResolver,
   Map<String, String> sessionEnvironmentOverrides = const <String, String>{},
@@ -45,6 +47,8 @@ Widget buildIanvsTerminalRoot({
   final effectiveDataApiConfigurationRepository =
       runtimeGraph?.dataApiConfigurationRepository ??
       dataApiConfigurationRepository;
+  final effectiveMasterKeyRepository =
+      runtimeGraph?.masterKeyRepository ?? masterKeyRepository;
   final effectivePtySessionBackend =
       runtimeGraph?.ptySessionBackend ?? ptySessionBackend;
   final shutdownCoordinator =
@@ -53,6 +57,7 @@ Widget buildIanvsTerminalRoot({
       runtimeGraph?.persistenceRepositories ??
       PersistenceRepositoryComposition.forRuntime(
         effectiveDataApiRuntime,
+        masterKeyRepository: effectiveMasterKeyRepository,
         profileExportDirectoryResolver:
             profileExportDirectoryResolver ?? getApplicationSupportDirectory,
         dataApiPersistenceRequired: dataApiPersistenceRequired,
@@ -92,6 +97,10 @@ Widget buildIanvsTerminalRoot({
       if (effectiveDataApiConfigurationRepository != null)
         dataApiConfigurationRepositoryProvider.overrideWithValue(
           effectiveDataApiConfigurationRepository,
+        ),
+      if (effectiveMasterKeyRepository != null)
+        portableMasterKeyRepositoryProvider.overrideWithValue(
+          effectiveMasterKeyRepository,
         ),
       if (runtimeGraph?.localMigrationRuntimeStarter != null)
         dataApiLocalMigrationRuntimeStarterProvider.overrideWithValue(

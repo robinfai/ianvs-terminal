@@ -76,8 +76,8 @@ void main() {
       final releaseEntitlements = File(
         '${macosRoot.path}/Runner/Release.entitlements',
       ).readAsStringSync();
-      final secretCipher = File(
-        '${exampleRoot.path}/lib/features/profiles/profile_secret_cipher.dart',
+      final masterKeyStorage = File(
+        '${exampleRoot.path}/lib/data/services/portable_master_key.dart',
       ).readAsStringSync();
 
       expect(File('${macosRoot.path}/Podfile').existsSync(), isFalse);
@@ -88,9 +88,10 @@ void main() {
       expect(debugEntitlements, isNot(contains('keychain-access-groups')));
       expect(releaseEntitlements, isNot(contains('keychain-access-groups')));
       expect(
-        secretCipher,
+        masterKeyStorage,
         contains('MacOsOptions(usesDataProtectionKeychain: false)'),
       );
+      expect(masterKeyStorage, contains('ianvs.master-key.v1'));
     },
   );
 

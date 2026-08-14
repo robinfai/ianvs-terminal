@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../services/data_api_runtime.dart';
+import '../services/portable_master_key.dart';
 import 'data_api_configuration.dart';
 import 'data_api_configuration_repository.dart';
 
@@ -25,6 +26,10 @@ final crossDeviceConfigurationSyncEnabledProvider = Provider<bool>((ref) {
 /// bootstrap, so settings and startup always read a single source of truth.
 final dataApiConfigurationRepositoryProvider =
     Provider<DataApiConfigurationRepository?>((ref) => null);
+
+/// The one user-owned key repository shared by all encryption consumers.
+final portableMasterKeyRepositoryProvider =
+    Provider<PortableMasterKeyRepository?>((ref) => null);
 
 /// Starts a temporary bundled local API while the active graph is remote.
 /// The migration caller owns and closes the returned runtime after the copy.

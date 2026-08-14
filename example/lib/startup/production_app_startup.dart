@@ -11,11 +11,14 @@ import '../data/configuration/data_api_configuration_repository.dart';
 import '../data/services/data_api_bootstrap.dart';
 import '../data/services/data_api_migration_service.dart';
 import '../data/services/data_api_remote_session_store.dart';
+import '../data/services/data_api_remote_session_vault.dart';
 import '../data/services/data_api_runtime.dart';
+import '../data/services/portable_master_key.dart';
 import '../features/pty/pty.dart';
 import '../features/recording/local_session_recording_repository.dart';
 import '../persistence_repository_composition.dart';
 import '../platform/app_shutdown_coordinator.dart';
+import '../platform/local_json_file.dart';
 import 'app_startup_coordinator.dart';
 import 'app_startup_models.dart';
 
@@ -31,8 +34,11 @@ AppStartupCoordinator createProductionAppStartupCoordinator({
   AppStartupNativePtyLoader? nativePtyLoader,
   AppStartupConfigurationAccessFactory? configurationAccessFactory,
   AppStartupSecureRecovery? secureRecovery,
+  PortableMasterKeyRepository? masterKeyRepository,
 }) {
   final targetPlatform = platform ?? defaultTargetPlatform;
+  final effectiveMasterKeyRepository =
+      masterKeyRepository ?? PortableMasterKeyRepository();
   final loadNativePty =
       nativePtyLoader ??
       () => Future<NativePtyBackend>.sync(
@@ -51,17 +57,53 @@ AppStartupCoordinator createProductionAppStartupCoordinator({
             final fileRepository = FileDataApiConfigurationRepository(
               appSupportDirectory: paths.appSupportDirectory,
             );
-            final remoteSessionStore = FlutterSecureDataApiRemoteSessionStore();
+            final legacyRemoteSessionStore =
+                FlutterSecureDataApiRemoteSessionStore();
+            final remoteSessionMigrationMarker = File(
+              '${paths.appSupportDirectory.path}${Platform.pathSeparator}'
+              'data-api-remote-session-keychain-migration.v1.complete',
+            );
+            final configurationPredatesMasterKey = await fileRepository
+                .configurationFile
+                .exists();
+            final remoteSessionMigrationComplete =
+                await remoteSessionMigrationMarker.exists();
+            if (!configurationPredatesMasterKey &&
+                !remoteSessionMigrationComplete) {
+              await writeStringAtomically(
+                remoteSessionMigrationMarker,
+                'complete\n',
+              );
+            }
+            final remoteSessionStore = MigratingDataApiRemoteSessionStore(
+              primary: EncryptedFileDataApiRemoteSessionStore(
+                vaultFile: File(
+                  '${paths.appSupportDirectory.path}'
+                  '${Platform.pathSeparator}'
+                  '${EncryptedFileDataApiRemoteSessionStore.fileName}',
+                ),
+                masterKeyRepository: effectiveMasterKeyRepository,
+              ),
+              legacy: legacyRemoteSessionStore,
+              masterKeyRepository: effectiveMasterKeyRepository,
+              migrationMarker: remoteSessionMigrationMarker,
+              legacyMigrationEnabled:
+                  configurationPredatesMasterKey &&
+                  !remoteSessionMigrationComplete,
+            );
             final repository = AuthenticatedDataApiConfigurationRepository(
               delegate: fileRepository,
               remoteSessionStore: remoteSessionStore,
+              masterKeyRepository: effectiveMasterKeyRepository,
             );
             return AppStartupConfigurationAccess(
               repository: repository,
               remoteSessionStore: remoteSessionStore,
+              masterKeyRepository: effectiveMasterKeyRepository,
               settings: _ProductionDataSettingsCapability(
                 repository: repository,
                 fileRepository: fileRepository,
+                masterKeyRepository: effectiveMasterKeyRepository,
                 platform: targetPlatform,
                 localDataApiAvailable: targetPlatform == TargetPlatform.macOS,
               ),
@@ -120,6 +162,7 @@ AppStartupCoordinator createProductionAppStartupCoordinator({
           }) async {
             final persistence = PersistenceRepositoryComposition.forRuntime(
               dataApiRuntime,
+              masterKeyRepository: configurationAccess.masterKeyRepository,
               profileExportDirectoryResolver: () async =>
                   paths.appSupportDirectory,
               dataApiPersistenceRequired:
@@ -131,6 +174,7 @@ AppStartupCoordinator createProductionAppStartupCoordinator({
               paths: paths,
               dataApiConfiguration: configurationSnapshot.configuration,
               dataApiConfigurationRepository: configurationAccess.repository,
+              masterKeyRepository: configurationAccess.masterKeyRepository,
               dataApiRuntime: dataApiRuntime,
               dataApiStartupWarning: dataApiStartupWarning,
               ptySessionBackend: ptySessionBackend,
@@ -224,6 +268,7 @@ Future<DataApiRuntime?> _bootstrapRuntime({
   return DataApiBootstrap(
     configurationRepository: access.repository,
     remoteSessionStore: access.remoteSessionStore,
+    masterKeyRepository: access.masterKeyRepository,
     isMacOS: isMacOS,
   ).start(
     appSupportDirectory: paths.appSupportDirectory,
@@ -234,22 +279,36 @@ Future<DataApiRuntime?> _bootstrapRuntime({
 final class _ProductionDataSettingsCapability
     implements
         AppStartupDataSettingsCapability,
+        AppStartupMasterKeyCapability,
         AppStartupInitialDataSetupCapability {
   const _ProductionDataSettingsCapability({
     required AuthenticatedDataApiConfigurationRepository repository,
     required FileDataApiConfigurationRepository fileRepository,
+    required PortableMasterKeyRepository masterKeyRepository,
     required TargetPlatform platform,
     required this.localDataApiAvailable,
   }) : _repository = repository,
        _fileRepository = fileRepository,
+       _masterKeyRepository = masterKeyRepository,
        _platform = platform;
 
   final AuthenticatedDataApiConfigurationRepository _repository;
   final FileDataApiConfigurationRepository _fileRepository;
+  final PortableMasterKeyRepository _masterKeyRepository;
   final TargetPlatform _platform;
 
   @override
   final bool localDataApiAvailable;
+
+  @override
+  Future<void> importPortableMasterKey(String encoded) async {
+    await _masterKeyRepository.importPortable(encoded);
+  }
+
+  @override
+  Future<String> exportPortableMasterKey() {
+    return _masterKeyRepository.exportPortable();
+  }
 
   @override
   Future<AppStartupDataSetupRequirement?> initialSetupRequirement(

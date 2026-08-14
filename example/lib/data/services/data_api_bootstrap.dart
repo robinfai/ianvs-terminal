@@ -9,6 +9,7 @@ import 'data_api_local_credentials.dart';
 import 'data_api_remote_session_store.dart';
 import 'data_api_runtime.dart';
 import 'local_data_api_sidecar.dart';
+import 'portable_master_key.dart';
 
 typedef LocalDataApiRuntimeStarter =
     Future<DataApiRuntime> Function(Directory appSupportDirectory);
@@ -211,12 +212,18 @@ class DataApiBootstrap {
     LocalDataApiRuntimeStarter? localRuntimeStarter,
     LocalDataApiSidecarLauncher? localSidecarLauncher,
     DataApiLocalApiInitialization? localApiInitializer,
+    PortableMasterKeyRepository? masterKeyRepository,
     Duration sidecarCloseTimeout = const Duration(seconds: 12),
     bool? isMacOS,
   }) : _configurationRepository = configurationRepository,
        _localCredentialsProvider =
            localCredentialsProvider ??
-           KeychainDataApiLocalCredentialsProvider(),
+           KeychainDataApiLocalCredentialsProvider(
+             dataEncryptionKeyStore:
+                 PortableMasterDataApiLocalDataEncryptionKeyStore(
+                   masterKeyRepository: masterKeyRepository,
+                 ),
+           ),
        _remoteSessionStore = remoteSessionStore,
        _localRuntimeStarter = localRuntimeStarter,
        _localSidecarLauncher =

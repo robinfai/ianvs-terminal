@@ -1,5 +1,6 @@
 import 'data/services/data_api_client.dart';
 import 'data/services/data_api_runtime.dart';
+import 'data/services/portable_master_key.dart';
 import 'features/config/data_api_terminal_config_repository.dart';
 import 'features/config/local_terminal_config_repository.dart';
 import 'features/layout/local_terminal_layout_repository.dart';
@@ -7,6 +8,7 @@ import 'features/preferences/app_preferences_repository.dart';
 import 'features/preferences/data_api_app_preferences_repository.dart';
 import 'features/profiles/data_api_profile_repository.dart';
 import 'features/profiles/profile_repository.dart';
+import 'features/profiles/profile_secret_cipher.dart';
 import 'features/shell/data_api_paste_history_repository.dart';
 import 'features/shell/paste_history_repository.dart';
 
@@ -28,6 +30,7 @@ final class PersistenceRepositoryComposition {
   factory PersistenceRepositoryComposition.forRuntime(
     DataApiRuntime? runtime, {
     required DirectoryResolver profileExportDirectoryResolver,
+    PortableMasterKeyRepository? masterKeyRepository,
     bool dataApiPersistenceRequired = false,
     bool dataApiPersistenceUnavailable = false,
   }) {
@@ -50,10 +53,18 @@ final class PersistenceRepositoryComposition {
           persistenceUnavailable: true,
         );
       }
+      const legacyProfileKeyStore = FlutterSecureProfileSecretKeyStore();
       return PersistenceRepositoryComposition._(
         profiles: LocalTerminalOnlyProfileRepository(
           delegate: ProfileRepository(
             directoryResolver: profileExportDirectoryResolver,
+            secretCipher: ProfileSecretCipher(
+              keyStore: PortableMasterProfileSecretKeyStore(
+                masterKeyRepository: masterKeyRepository,
+                legacyStore: legacyProfileKeyStore,
+              ),
+              legacyKeyStore: legacyProfileKeyStore,
+            ),
           ),
         ),
         preferences: AppPreferencesRepository(

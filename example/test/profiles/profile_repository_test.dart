@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:app/data/services/portable_master_key.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/profiles/profile_repository.dart';
 import 'package:app/features/profiles/profile_secret_cipher.dart';
@@ -13,6 +14,58 @@ const _privateKeyContents =
     '-----END OPENSSH PRIVATE KEY-----';
 
 void main() {
+  test('migrates legacy SSH envelopes to the portable master key', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'ianvs-terminal-profile-master-key-migration',
+    );
+    addTearDown(() => directory.delete(recursive: true));
+    final legacyStore = _MemoryProfileSecretKeyStore();
+    final legacyRepository = ProfileRepository(
+      directoryResolver: () async => directory,
+      secretCipher: ProfileSecretCipher(keyStore: legacyStore),
+    );
+    final profile = defaultTerminalProfile().copyWith(
+      id: 'ssh-migrate',
+      connection: const terminal.TerminalConnectionConfig.ssh(
+        host: 'ssh.example.test',
+        user: 'operator',
+        password: 'legacy-secret',
+      ),
+    );
+    await legacyRepository.save(
+      TerminalProfilesDocument(profiles: <TerminalProfile>[profile]),
+    );
+    final masterKeys = PortableMasterKeyRepository(
+      storage: _MemoryPortableMasterKeyStorage(),
+    );
+    await masterKeys.adoptLegacySecret('local-data-master-key-material');
+    final portableKeyStore = PortableMasterProfileSecretKeyStore(
+      masterKeyRepository: masterKeys,
+      legacyStore: legacyStore,
+    );
+
+    final migrated = await ProfileRepository(
+      directoryResolver: () async => directory,
+      secretCipher: ProfileSecretCipher(
+        keyStore: portableKeyStore,
+        legacyKeyStore: legacyStore,
+      ),
+    ).load();
+
+    expect(migrated.profiles.single.connection.password, 'legacy-secret');
+    expect(legacyStore.value, isNull);
+    final reloaded = await ProfileRepository(
+      directoryResolver: () async => directory,
+      secretCipher: ProfileSecretCipher(
+        keyStore: PortableMasterProfileSecretKeyStore(
+          masterKeyRepository: masterKeys,
+          legacyStore: legacyStore,
+        ),
+      ),
+    ).load();
+    expect(reloaded.profiles.single.connection.password, 'legacy-secret');
+  });
+
   test(
     'encrypts SSH secrets at rest and restores them with the saved key',
     () async {
@@ -1531,6 +1584,24 @@ final class _MemoryProfileSecretKeyStore implements ProfileSecretKeyStore {
   Future<void> write(String value) async {
     this.value = value;
     writeCount += 1;
+  }
+
+  @override
+  Future<void> delete() async {
+    value = null;
+  }
+}
+
+final class _MemoryPortableMasterKeyStorage
+    implements PortableMasterKeyStorage {
+  String? value;
+
+  @override
+  Future<String?> read() async => value;
+
+  @override
+  Future<void> write(String portableValue) async {
+    value = portableValue;
   }
 }
 

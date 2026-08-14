@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+import '../../data/services/portable_master_key.dart';
+
 const String _profileKeyName = 'ianvs.ssh.profile-encryption-key.v1';
 const String _envelopeAlgorithm = 'aes-256-gcm';
 const int _envelopeSchemaVersion = 1;
@@ -11,6 +13,8 @@ abstract interface class ProfileSecretKeyStore {
   Future<String?> read();
 
   Future<void> write(String value);
+
+  Future<void> delete();
 }
 
 final class FlutterSecureProfileSecretKeyStore
@@ -33,23 +37,111 @@ final class FlutterSecureProfileSecretKeyStore
   Future<void> write(String value) {
     return _storage.write(key: _profileKeyName, value: value);
   }
+
+  @override
+  Future<void> delete() => _storage.delete(key: _profileKeyName);
+}
+
+/// Adapts the one portable master key to the profile-envelope cipher.
+final class PortableMasterProfileSecretKeyStore
+    implements ProfileSecretKeyStore {
+  PortableMasterProfileSecretKeyStore({
+    PortableMasterKeyRepository? masterKeyRepository,
+    ProfileSecretKeyStore? legacyStore,
+  }) : _masterKeyRepository =
+           masterKeyRepository ?? PortableMasterKeyRepository(),
+       _legacyStore = legacyStore ?? const FlutterSecureProfileSecretKeyStore();
+
+  static const _purpose = 'ssh-profile-secrets-v1';
+
+  final PortableMasterKeyRepository _masterKeyRepository;
+  final ProfileSecretKeyStore _legacyStore;
+  bool _legacySecretObserved = false;
+
+  bool get legacySecretObserved => _legacySecretObserved;
+
+  @override
+  Future<String> read() async {
+    final masterKey = await _masterKeyRepository.readOrCreate(
+      legacyLoader: () async {
+        final legacy = await _legacyStore.read();
+        _legacySecretObserved = legacy != null && legacy.isNotEmpty;
+        return legacy;
+      },
+    );
+    final derived = await masterKey.deriveKey(_purpose);
+    return base64Encode(await derived.extractBytes());
+  }
+
+  @override
+  Future<void> write(String value) {
+    throw StateError('Profile keys are derived from the Ianvs master key.');
+  }
+
+  @override
+  Future<void> delete() {
+    throw StateError(
+      'The Ianvs master key cannot be deleted as a profile key.',
+    );
+  }
 }
 
 /// Encrypts saved SSH secrets with AES-256-GCM.
 ///
-/// Production stores the randomly generated symmetric key in the platform's
-/// safe storage. Every field uses a fresh nonce and profile-specific
-/// authenticated data, preventing ciphertext from being moved between fields.
+/// Production derives this cipher key from the one portable master key. Every
+/// field uses a fresh nonce and profile-specific authenticated data, preventing
+/// ciphertext from being moved between fields.
 final class ProfileSecretCipher {
-  ProfileSecretCipher({
-    ProfileSecretKeyStore keyStore = const FlutterSecureProfileSecretKeyStore(),
+  factory ProfileSecretCipher({
+    ProfileSecretKeyStore? keyStore,
+    ProfileSecretKeyStore? legacyKeyStore,
     AesGcm? algorithm,
+  }) {
+    if (keyStore != null) {
+      return ProfileSecretCipher._(
+        keyStore: keyStore,
+        legacyKeyStore: legacyKeyStore,
+        algorithm: algorithm ?? AesGcm.with256bits(),
+      );
+    }
+    final legacy = legacyKeyStore ?? const FlutterSecureProfileSecretKeyStore();
+    return ProfileSecretCipher._(
+      keyStore: PortableMasterProfileSecretKeyStore(legacyStore: legacy),
+      legacyKeyStore: legacy,
+      algorithm: algorithm ?? AesGcm.with256bits(),
+    );
+  }
+
+  ProfileSecretCipher._({
+    required ProfileSecretKeyStore keyStore,
+    required ProfileSecretKeyStore? legacyKeyStore,
+    required AesGcm algorithm,
   }) : _keyStore = keyStore,
-       _algorithm = algorithm ?? AesGcm.with256bits();
+       _legacyKeyStore = legacyKeyStore,
+       _algorithm = algorithm;
 
   final ProfileSecretKeyStore _keyStore;
+  final ProfileSecretKeyStore? _legacyKeyStore;
   final AesGcm _algorithm;
   Future<SecretKey>? _keyFuture;
+  Future<SecretKey?>? _legacyKeyFuture;
+  bool _usedLegacyKey = false;
+
+  bool get legacyMigrationRequired =>
+      _usedLegacyKey ||
+      switch (_keyStore) {
+        final PortableMasterProfileSecretKeyStore store =>
+          store.legacySecretObserved,
+        _ => false,
+      };
+
+  Future<void> finishLegacyMigration() async {
+    if (!legacyMigrationRequired) {
+      return;
+    }
+    await _legacyKeyStore?.delete();
+    _usedLegacyKey = false;
+  }
 
   Future<Map<String, Object?>> encrypt({
     required String profileId,
@@ -89,11 +181,9 @@ final class ProfileSecretCipher {
           mac.length != _algorithm.macAlgorithm.macLength) {
         throw const FormatException('Invalid encrypted profile secret');
       }
-      final cleartext = await _algorithm.decrypt(
-        SecretBox(ciphertext, nonce: nonce, mac: Mac(mac)),
-        secretKey: await _key(),
-        aad: _associatedData(profileId, field),
-      );
+      final box = SecretBox(ciphertext, nonce: nonce, mac: Mac(mac));
+      final associatedData = _associatedData(profileId, field);
+      final cleartext = await _decryptWithFallback(box, associatedData);
       return utf8.decode(cleartext);
     } on FormatException {
       rethrow;
@@ -105,6 +195,35 @@ final class ProfileSecretCipher {
   }
 
   Future<SecretKey> _key() => _keyFuture ??= _loadOrCreateKey();
+
+  Future<SecretKey?> _legacyKey() {
+    return _legacyKeyFuture ??= _loadExistingKey(_legacyKeyStore);
+  }
+
+  Future<List<int>> _decryptWithFallback(
+    SecretBox box,
+    List<int> associatedData,
+  ) async {
+    try {
+      return await _algorithm.decrypt(
+        box,
+        secretKey: await _key(),
+        aad: associatedData,
+      );
+    } on Object {
+      final legacyKey = await _legacyKey();
+      if (legacyKey == null) {
+        rethrow;
+      }
+      final cleartext = await _algorithm.decrypt(
+        box,
+        secretKey: legacyKey,
+        aad: associatedData,
+      );
+      _usedLegacyKey = true;
+      return cleartext;
+    }
+  }
 
   Future<SecretKey> _loadOrCreateKey() async {
     final encoded = await _keyStore.read();
@@ -129,6 +248,27 @@ final class ProfileSecretCipher {
     }
     await _keyStore.write(base64Encode(bytes));
     return SecretKey(bytes);
+  }
+
+  Future<SecretKey?> _loadExistingKey(ProfileSecretKeyStore? store) async {
+    if (store == null) {
+      return null;
+    }
+    final encoded = await store.read();
+    if (encoded == null || encoded.isEmpty) {
+      return null;
+    }
+    try {
+      final bytes = base64Decode(encoded);
+      if (bytes.length != 32) {
+        throw const FormatException('Invalid profile encryption key');
+      }
+      return SecretKey(bytes);
+    } on FormatException {
+      rethrow;
+    } on Object {
+      throw const FormatException('Invalid profile encryption key');
+    }
   }
 
   List<int> _associatedData(String profileId, String field) {

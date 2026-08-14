@@ -211,6 +211,10 @@ class ProfileRepository extends ProfileRepositoryPort {
         ...decoded.warnings,
       ],
     );
+    if (decoded.warnings.isEmpty && _secretCipher.legacyMigrationRequired) {
+      await save(document);
+      await _secretCipher.finishLegacyMigration();
+    }
     return document;
   }
 

@@ -15,6 +15,7 @@ import '../services/data_api_client.dart';
 import '../services/data_api_migration_service.dart';
 import '../services/data_api_remote_session_store.dart';
 import '../services/data_api_runtime.dart';
+import '../services/portable_master_key.dart';
 import 'data_api_configuration.dart';
 
 abstract interface class DataApiConfigurationRepository {
@@ -78,7 +79,7 @@ final class DataApiRemoteLoginRequest {
     required Uri baseUri,
     required String username,
     required String password,
-    required String encryptionKey,
+    String? encryptionKey,
   }) {
     final normalizedBaseUri = DataApiConfiguration.remote(
       baseUri.toString(),
@@ -91,7 +92,9 @@ final class DataApiRemoteLoginRequest {
     }
     final normalizedUsername = normalizeDataApiUsername(username);
     final validatedPassword = validateDataApiPassword(password);
-    final normalizedEncryptionKey = validateDataApiEncryptionKey(encryptionKey);
+    final normalizedEncryptionKey = encryptionKey == null
+        ? null
+        : validateDataApiEncryptionKey(encryptionKey);
     return DataApiRemoteLoginRequest._(
       baseUri: normalizedBaseUri,
       username: normalizedUsername,
@@ -104,13 +107,34 @@ final class DataApiRemoteLoginRequest {
     required this.baseUri,
     required this.username,
     required this.password,
-    required this.encryptionKey,
-  });
+    required String? encryptionKey,
+  }) : _encryptionKey = encryptionKey;
 
   final Uri baseUri;
   final String username;
   final String password;
-  final String encryptionKey;
+  final String? _encryptionKey;
+
+  String get encryptionKey => requireEncryptionKey;
+
+  String? get encryptionKeyOrNull => _encryptionKey;
+
+  String get requireEncryptionKey {
+    final value = _encryptionKey;
+    if (value == null) {
+      throw StateError('The Ianvs master key was not attached to the login.');
+    }
+    return value;
+  }
+
+  DataApiRemoteLoginRequest withEncryptionKey(String value) {
+    return DataApiRemoteLoginRequest(
+      baseUri: baseUri,
+      username: username,
+      password: password,
+      encryptionKey: value,
+    );
+  }
 }
 
 abstract interface class DataApiRemoteAuthenticator {
@@ -330,7 +354,7 @@ final class DataApiClientRemoteAuthenticator
     return DataApiRemoteSession(
       baseUri: request.baseUri,
       accessToken: login.accessToken,
-      encryptionKey: request.encryptionKey,
+      encryptionKey: request.requireEncryptionKey,
       expiresAt: login.expiresAt,
     );
   }
@@ -367,6 +391,7 @@ final class AuthenticatedDataApiConfigurationRepository
     DataApiDisableResetDelete? disableResetDelete,
     DataApiLocalToRemoteMigrationFactory? localToRemoteMigrationFactory,
     DataApiRuntimeMigrationFactory? runtimeMigrationFactory,
+    PortableMasterKeyRepository? masterKeyRepository,
   }) : _delegate = delegate,
        _slotStore = remoteSessionStore,
        _sagaDirectory =
@@ -385,6 +410,7 @@ final class AuthenticatedDataApiConfigurationRepository
            localToRemoteMigrationFactory ?? _defaultLocalToRemoteMigration,
        _runtimeMigrationFactory =
            runtimeMigrationFactory ?? _defaultRuntimeMigration,
+       _masterKeyRepository = masterKeyRepository,
        _disableResetDelete = disableResetDelete ?? _deleteFileIfPresent;
 
   static const int _sagaVersion = 1;
@@ -402,6 +428,7 @@ final class AuthenticatedDataApiConfigurationRepository
   final DataApiSagaJournalWriter? _sagaJournalWriter;
   final DataApiLocalToRemoteMigrationFactory _localToRemoteMigrationFactory;
   final DataApiRuntimeMigrationFactory _runtimeMigrationFactory;
+  final PortableMasterKeyRepository? _masterKeyRepository;
   final DataApiDisableResetDelete _disableResetDelete;
   _DataApiConfigurationSagaJournal _volatileJournal =
       const _DataApiConfigurationSagaJournal();
@@ -567,6 +594,7 @@ final class AuthenticatedDataApiConfigurationRepository
     required DataApiRuntime? migrationSource,
   }) {
     return _withSagaLock(() async {
+      final effectiveRequest = await _attachMasterKey(request);
       await _recoverLocked(allowUnavailableRemote: true);
       final current = await _delegate.load();
       if (current.deployment == DataApiDeployment.local &&
@@ -582,8 +610,10 @@ final class AuthenticatedDataApiConfigurationRepository
       final newSlot = _newSlotRef();
       final transactionId = _newSlotRef();
       var journal = await _readJournal();
-      final target = DataApiConfiguration.remote(request.baseUri.toString())
-          .withPersistenceState(
+      final target =
+          DataApiConfiguration.remote(
+            effectiveRequest.baseUri.toString(),
+          ).withPersistenceState(
             generation: current.generation + 1,
             remoteCredentialRef: newSlot,
             lastTransactionId: transactionId,
@@ -605,7 +635,9 @@ final class AuthenticatedDataApiConfigurationRepository
       var slotWritten = false;
       var configurationCommitted = false;
       try {
-        final authOperation = await _remoteAuthenticator.begin(request);
+        final authOperation = await _remoteAuthenticator.begin(
+          effectiveRequest,
+        );
         transition = transition.copyWith(
           phase: _DataApiConfigurationTransitionPhase.authPrepared,
           authOperationId: authOperation.operationId,
@@ -613,7 +645,7 @@ final class AuthenticatedDataApiConfigurationRepository
         journal = journal.withTransition(transition);
         await _writeJournal(journal);
         issuedSession = await _remoteAuthenticator.complete(
-          request,
+          effectiveRequest,
           authOperation,
         );
         await _slotStore.writeSlot(newSlot, issuedSession);
@@ -624,7 +656,7 @@ final class AuthenticatedDataApiConfigurationRepository
         );
         journal = journal.withTransition(transition);
         await _writeJournal(journal);
-        if (!issuedSession.isUsableFor(request.baseUri)) {
+        if (!issuedSession.isUsableFor(effectiveRequest.baseUri)) {
           throw const DataApiAuthenticationRequiredException();
         }
         await _remoteConnectionValidator.validate(issuedSession);
@@ -697,7 +729,7 @@ final class AuthenticatedDataApiConfigurationRepository
         final cleanupErrors = <Object>[];
         if (transition.authOperationId case final operationId?) {
           journal = journal.enqueueAuthCancellation(
-            request.baseUri,
+            effectiveRequest.baseUri,
             operationId,
           );
         }
@@ -733,6 +765,21 @@ final class AuthenticatedDataApiConfigurationRepository
       }
       return migrationSummary;
     });
+  }
+
+  Future<DataApiRemoteLoginRequest> _attachMasterKey(
+    DataApiRemoteLoginRequest request,
+  ) async {
+    final repository = _masterKeyRepository;
+    if (repository == null) {
+      return request;
+    }
+    final masterKey = await repository.readOrCreate();
+    final supplied = request.encryptionKeyOrNull;
+    if (supplied != null && supplied != masterKey.secret) {
+      throw const PortableMasterKeyConflictException();
+    }
+    return request.withEncryptionKey(masterKey.secret);
   }
 
   Future<void> _commitNonRemoteLocked(

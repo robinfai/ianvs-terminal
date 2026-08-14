@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:app/data/configuration/data_api_configuration.dart';
 import 'package:app/data/configuration/data_api_configuration_repository.dart';
 import 'package:app/data/services/data_api_remote_session_store.dart';
+import 'package:app/data/services/portable_master_key.dart';
 import 'package:app/features/recording/local_session_recording_repository.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/persistence_repository_composition.dart';
@@ -192,9 +193,9 @@ void main() {
       find.byKey(const Key('app-startup-initial-data-api-password')),
       'correct horse battery',
     );
-    await tester.enterText(
-      find.byKey(const Key('app-startup-initial-data-api-encryption-key')),
-      'sixteen-byte-key!',
+    expect(
+      find.byKey(const Key('app-startup-initial-master-key')),
+      findsOneWidget,
     );
     await tester.pump();
     final connect = find.byKey(const Key('app-startup-connect-data-api'));
@@ -391,9 +392,9 @@ void main() {
       find.byKey(const Key('app-startup-remote-password')),
       'correct horse battery',
     );
-    await tester.enterText(
-      find.byKey(const Key('app-startup-remote-encryption-key')),
-      'sixteen-byte-key!',
+    expect(
+      find.byKey(const Key('app-startup-remote-master-key')),
+      findsOneWidget,
     );
     await tester.tap(find.byKey(const Key('app-startup-reconnect')));
     await tester.pumpAndSettle();
@@ -664,6 +665,7 @@ final class _HostHarness {
         return AppStartupConfigurationAccess(
           repository: configurationRepository,
           remoteSessionStore: remoteSessionStore,
+          masterKeyRepository: PortableMasterKeyRepository(),
           settings: settings,
         );
       },
@@ -728,6 +730,7 @@ final class _HostHarness {
               paths: paths,
               dataApiConfiguration: configurationSnapshot.configuration,
               dataApiConfigurationRepository: configurationAccess.repository,
+              masterKeyRepository: configurationAccess.masterKeyRepository,
               dataApiRuntime: null,
               dataApiStartupWarning: null,
               ptySessionBackend: ptySessionBackend,

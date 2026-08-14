@@ -88,9 +88,9 @@ Future<void> _enterAcceptanceCredentials(
     find.byKey(const Key('app-startup-initial-data-api-password')),
     'acceptance-password',
   );
-  await tester.enterText(
-    find.byKey(const Key('app-startup-initial-data-api-encryption-key')),
-    'acceptance-data-key',
+  expect(
+    find.byKey(const Key('app-startup-initial-master-key')),
+    findsOneWidget,
   );
   await tester.pump();
 }

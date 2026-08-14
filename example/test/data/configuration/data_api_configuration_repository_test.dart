@@ -9,6 +9,7 @@ import 'package:app/data/services/data_api_client.dart';
 import 'package:app/data/services/data_api_migration_service.dart';
 import 'package:app/data/services/data_api_remote_session_store.dart';
 import 'package:app/data/services/data_api_runtime.dart';
+import 'package:app/data/services/portable_master_key.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/test/test_flutter_secure_storage_platform.dart';
 import 'package:flutter_secure_storage_platform_interface/flutter_secure_storage_platform_interface.dart';
@@ -327,6 +328,42 @@ void main() {
       expect(plainConfiguration, isNot(contains('encryption-key-material')));
     },
   );
+
+  test('remote login receives the one installed portable master key', () async {
+    final masterKeys = PortableMasterKeyRepository(
+      storage: _MemoryPortableMasterKeyStorage(),
+    );
+    final masterKey = await masterKeys.adoptLegacySecret(
+      'portable-master-key-material',
+    );
+    final session = _remoteSession(
+      baseUri: Uri.parse('https://sync.example.com/'),
+      encryptionKey: masterKey.secret,
+    );
+    final store = _MemoryRemoteSessionStore();
+    final authenticator = _RecordingRemoteAuthenticator(session: session);
+    final guarded = AuthenticatedDataApiConfigurationRepository(
+      delegate: repository,
+      remoteSessionStore: store,
+      remoteAuthenticator: authenticator,
+      remoteConnectionValidator: _RecordingRemoteValidator(),
+      masterKeyRepository: masterKeys,
+    );
+
+    await guarded.connectAndSaveRemote(
+      DataApiRemoteLoginRequest(
+        baseUri: session.baseUri,
+        username: 'alice',
+        password: 'ephemeral-password',
+      ),
+    );
+
+    expect(authenticator.received?.encryptionKey, masterKey.secret);
+    expect(
+      (await _activeSession(repository, store))?.encryptionKey,
+      masterKey.secret,
+    );
+  });
 
   test(
     'explicit local migration merges before committing remote configuration',
@@ -2540,13 +2577,27 @@ void main() {
 DataApiRemoteSession _remoteSession({
   required Uri baseUri,
   DateTime? expiresAt,
+  String encryptionKey = 'encryption-key-material',
 }) {
   return DataApiRemoteSession(
     baseUri: baseUri,
     accessToken: 'access-token',
-    encryptionKey: 'encryption-key-material',
+    encryptionKey: encryptionKey,
     expiresAt: expiresAt ?? DateTime.now().add(const Duration(hours: 1)),
   );
+}
+
+final class _MemoryPortableMasterKeyStorage
+    implements PortableMasterKeyStorage {
+  String? value;
+
+  @override
+  Future<String?> read() async => value;
+
+  @override
+  Future<void> write(String portableValue) async {
+    value = portableValue;
+  }
 }
 
 DataApiConfiguration _persistedRemote(Uri baseUri, String credentialRef) {

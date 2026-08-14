@@ -143,15 +143,14 @@ final class _AppStartupDataSetupViewState
   final _urlController = TextEditingController();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _encryptionKeyController = TextEditingController();
+  final _portableMasterKeyController = TextEditingController();
   bool _runningAction = false;
   String? _actionError;
 
   bool get _canConnect =>
       _urlController.text.trim().isNotEmpty &&
       _usernameController.text.trim().isNotEmpty &&
-      _passwordController.text.isNotEmpty &&
-      _encryptionKeyController.text.isNotEmpty;
+      _passwordController.text.isNotEmpty;
 
   @override
   void initState() {
@@ -165,7 +164,7 @@ final class _AppStartupDataSetupViewState
     _urlController,
     _usernameController,
     _passwordController,
-    _encryptionKeyController,
+    _portableMasterKeyController,
   ];
 
   void _handleInputChanged() {
@@ -181,13 +180,21 @@ final class _AppStartupDataSetupViewState
       return;
     }
     await _run(() async {
+      final portableMasterKey = _portableMasterKeyController.text.trim();
+      if (portableMasterKey.isNotEmpty) {
+        final settings = widget.settings;
+        if (settings is! AppStartupMasterKeyCapability) {
+          throw StateError('Master-key import is unavailable.');
+        }
+        await (settings as AppStartupMasterKeyCapability)
+            .importPortableMasterKey(portableMasterKey);
+      }
       final configuration = DataApiConfiguration.remote(_urlController.text);
       await widget.settings.reconnect(
         DataApiRemoteLoginRequest(
           baseUri: configuration.remoteBaseUri!,
           username: _usernameController.text,
           password: _passwordController.text,
-          encryptionKey: _encryptionKeyController.text,
         ),
       );
       await widget.coordinator.retry();
@@ -364,17 +371,19 @@ final class _AppStartupDataSetupViewState
                               const SizedBox(height: 14),
                               TextField(
                                 key: const Key(
-                                  'app-startup-initial-data-api-encryption-key',
+                                  'app-startup-initial-master-key',
                                 ),
-                                controller: _encryptionKeyController,
+                                controller: _portableMasterKeyController,
                                 textInputAction: TextInputAction.done,
                                 obscureText: true,
                                 autocorrect: false,
                                 enableSuggestions: false,
                                 decoration: const InputDecoration(
-                                  labelText: 'Encryption key',
+                                  labelText:
+                                      'Master key from another device (optional)',
                                   helperText:
-                                      'Stored in the platform credential vault.',
+                                      'Paste an exported ianvs-key-v1 key to '
+                                      'open existing encrypted data.',
                                 ),
                                 enabled: !_runningAction,
                                 onSubmitted: (_) => _connect(),
@@ -651,7 +660,7 @@ final class _AppStartupDataSettingsDialogState
     extends State<_AppStartupDataSettingsDialog> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _encryptionKeyController = TextEditingController();
+  final _portableMasterKeyController = TextEditingController();
   DataApiConfiguration? _configuration;
   String? _loadError;
   String? _saveError;
@@ -717,13 +726,21 @@ final class _AppStartupDataSettingsDialogState
     if (remoteUri == null) {
       return;
     }
-    await _save(() {
+    await _save(() async {
+      final portableMasterKey = _portableMasterKeyController.text.trim();
+      if (portableMasterKey.isNotEmpty) {
+        final settings = widget.settings;
+        if (settings is! AppStartupMasterKeyCapability) {
+          throw StateError('Master-key import is unavailable.');
+        }
+        await (settings as AppStartupMasterKeyCapability)
+            .importPortableMasterKey(portableMasterKey);
+      }
       return widget.settings.reconnect(
         DataApiRemoteLoginRequest(
           baseUri: remoteUri,
           username: _usernameController.text,
           password: _passwordController.text,
-          encryptionKey: _encryptionKeyController.text,
         ),
       );
     });
@@ -761,7 +778,7 @@ final class _AppStartupDataSettingsDialogState
   void dispose() {
     _usernameController.dispose();
     _passwordController.dispose();
-    _encryptionKeyController.dispose();
+    _portableMasterKeyController.dispose();
     super.dispose();
   }
 
@@ -817,10 +834,14 @@ final class _AppStartupDataSettingsDialogState
                       ),
                       const SizedBox(height: 12),
                       TextField(
-                        key: const Key('app-startup-remote-encryption-key'),
-                        controller: _encryptionKeyController,
+                        key: const Key('app-startup-remote-master-key'),
+                        controller: _portableMasterKeyController,
                         decoration: const InputDecoration(
-                          labelText: 'Encryption key',
+                          labelText:
+                              'Master key from another device (optional)',
+                          helperText:
+                              'Paste an exported ianvs-key-v1 key when this '
+                              'device does not already have it.',
                         ),
                         obscureText: true,
                         enabled: !_saving,

@@ -4,6 +4,7 @@ import 'package:app/app.dart';
 import 'package:app/data/configuration/data_api_configuration.dart';
 import 'package:app/data/configuration/data_api_configuration_repository.dart';
 import 'package:app/data/services/data_api_remote_session_store.dart';
+import 'package:app/data/services/portable_master_key.dart';
 import 'package:app/features/layout/local_terminal_layout_models.dart';
 import 'package:app/features/layout/local_terminal_layout_repository.dart';
 import 'package:app/features/profiles/profile_models.dart';
@@ -53,6 +54,7 @@ void main() {
           return AppStartupConfigurationAccess(
             repository: repository,
             remoteSessionStore: remoteSessionStore,
+            masterKeyRepository: PortableMasterKeyRepository(),
             settings: _DisabledStartupSettings(),
           );
         },

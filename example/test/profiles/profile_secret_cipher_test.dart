@@ -68,4 +68,9 @@ final class _MemoryProfileSecretKeyStore implements ProfileSecretKeyStore {
     this.value = value;
     writeCount += 1;
   }
+
+  @override
+  Future<void> delete() async {
+    value = null;
+  }
 }

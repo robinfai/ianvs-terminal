@@ -5,6 +5,7 @@ import 'package:app/data/configuration/data_api_configuration.dart';
 import 'package:app/data/configuration/data_api_configuration_repository.dart';
 import 'package:app/data/services/data_api_remote_session_store.dart';
 import 'package:app/data/services/data_api_runtime.dart';
+import 'package:app/data/services/portable_master_key.dart';
 import 'package:app/features/recording/local_session_recording_repository.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/persistence_repository_composition.dart';
@@ -355,6 +356,7 @@ void main() {
             return AppStartupConfigurationAccess(
               repository: repository,
               remoteSessionStore: remoteSessionStore,
+              masterKeyRepository: PortableMasterKeyRepository(),
               settings: settings,
             );
           },
@@ -494,6 +496,7 @@ final class _StartupHarness {
       return AppStartupConfigurationAccess(
         repository: _configurationRepository,
         remoteSessionStore: _remoteSessionStore,
+        masterKeyRepository: PortableMasterKeyRepository(),
         settings: _settings,
       );
     },
@@ -595,6 +598,7 @@ final class _StartupHarness {
             paths: paths,
             dataApiConfiguration: configurationSnapshot.configuration,
             dataApiConfigurationRepository: configurationAccess.repository,
+            masterKeyRepository: configurationAccess.masterKeyRepository,
             dataApiRuntime: dataApiRuntime,
             dataApiStartupWarning: dataApiStartupWarning,
             ptySessionBackend: ptySessionBackend,

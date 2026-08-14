@@ -237,8 +237,29 @@ final class FlutterSecureDataApiRemoteSessionStore
     }
   }
 
+  /// Retires the one credential named by the persisted configuration without
+  /// decrypting the predecessor registry.
+  ///
+  /// On the standard macOS login Keychain every item's ACL is evaluated
+  /// independently. Reading the registry after reading the authoritative
+  /// session therefore opens a second password dialog for an ad-hoc build.
+  /// Once that session has been copied to the encrypted file vault, the old
+  /// registry is no longer authoritative and can be deleted directly.
+  Future<void> retireAuthoritativeSlot(String slotRef) async {
+    await _storage.delete(key: _slotKey(slotRef));
+    await _storage.delete(key: _slotRegistryKey);
+  }
+
   @override
   Future<Set<String>> listSlotRefs() => _readSlotRegistry();
+
+  /// Removes the predecessor registry after every predecessor slot has been
+  /// migrated or deleted. New production writes use the encrypted file vault.
+  Future<void> deleteRegistryIfEmpty() async {
+    if ((await _readSlotRegistry()).isEmpty) {
+      await _storage.delete(key: _slotRegistryKey);
+    }
+  }
 
   Future<Set<String>> _readSlotRegistry() async {
     final encoded = await _storage.read(key: _slotRegistryKey);

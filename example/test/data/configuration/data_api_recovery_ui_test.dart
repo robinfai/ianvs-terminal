@@ -119,10 +119,6 @@ void main() {
         find.byKey(const Key('data-api-remote-password')),
         'new-password',
       );
-      await tester.enterText(
-        find.byKey(const Key('data-api-remote-encryption-key')),
-        'encryption-key-material',
-      );
       await tester.pump();
       await tester.tap(find.byKey(const Key('defaults-save')));
       await tester.pumpAndSettle();

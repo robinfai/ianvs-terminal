@@ -4,12 +4,14 @@ import 'package:flutter/material.dart';
 import '../../data/configuration/data_api_configuration.dart';
 import '../../data/configuration/data_api_configuration_repository.dart';
 import '../../data/services/data_api_auth_contract.dart';
+import '../../data/services/portable_master_key.dart';
 import '../../ui/app_ui.dart';
 import '../config/local_terminal_config_models.dart';
 import '../config/local_terminal_keybinding_resolver.dart';
 import '../config/shortcut_editor.dart';
 import '../preferences/app_preferences_models.dart';
 import '../profiles/profile_models.dart';
+import '../security/master_key_management.dart';
 import '../terminal/terminal_viewport_colors.dart';
 
 class DefaultsAndAppearanceSelection {
@@ -67,6 +69,7 @@ class DefaultsAndAppearanceDialog extends StatefulWidget {
     this.dataApiConfigurationRecoveryRequired = false,
     this.localDataApiAvailable = false,
     this.localSessionsEnabled = true,
+    this.masterKeyRepository,
   });
 
   final List<TerminalProfile> profiles;
@@ -85,6 +88,7 @@ class DefaultsAndAppearanceDialog extends StatefulWidget {
   final bool dataApiConfigurationRecoveryRequired;
   final bool localDataApiAvailable;
   final bool localSessionsEnabled;
+  final PortableMasterKeyRepository? masterKeyRepository;
 
   @override
   State<DefaultsAndAppearanceDialog> createState() =>
@@ -97,7 +101,6 @@ class _DefaultsAndAppearanceDialogState
   late final TextEditingController _remoteDataApiUrlController;
   late final TextEditingController _remoteDataApiUsernameController;
   late final TextEditingController _remoteDataApiPasswordController;
-  late final TextEditingController _remoteDataApiEncryptionKeyController;
   late String? _selectedProfileId;
   late String? _selectedTerminalPresetId;
   late TerminalThemeMode _selectedThemeMode;
@@ -133,12 +136,10 @@ class _DefaultsAndAppearanceDialogState
     );
     _remoteDataApiUsernameController = TextEditingController();
     _remoteDataApiPasswordController = TextEditingController();
-    _remoteDataApiEncryptionKeyController = TextEditingController();
     for (final controller in <TextEditingController>[
       _remoteDataApiUrlController,
       _remoteDataApiUsernameController,
       _remoteDataApiPasswordController,
-      _remoteDataApiEncryptionKeyController,
     ]) {
       controller.addListener(_handleRemoteDataApiFieldChanged);
     }
@@ -156,7 +157,6 @@ class _DefaultsAndAppearanceDialogState
       _remoteDataApiUrlController,
       _remoteDataApiUsernameController,
       _remoteDataApiPasswordController,
-      _remoteDataApiEncryptionKeyController,
     ]) {
       controller
         ..removeListener(_handleRemoteDataApiFieldChanged)
@@ -235,7 +235,6 @@ class _DefaultsAndAppearanceDialogState
         baseUri: baseUri,
         username: _remoteDataApiUsernameController.text,
         password: _remoteDataApiPasswordController.text,
-        encryptionKey: _remoteDataApiEncryptionKeyController.text,
       );
     } on FormatException {
       return null;
@@ -260,18 +259,6 @@ class _DefaultsAndAppearanceDialogState
     }
     try {
       validateDataApiPassword(_remoteDataApiPasswordController.text);
-      return null;
-    } on FormatException catch (error) {
-      return error.message;
-    }
-  }
-
-  String? get _remoteEncryptionKeyError {
-    if (!_requiresRemoteLogin) {
-      return null;
-    }
-    try {
-      validateDataApiEncryptionKey(_remoteDataApiEncryptionKeyController.text);
       return null;
     } on FormatException catch (error) {
       return error.message;
@@ -1160,21 +1147,10 @@ class _DefaultsAndAppearanceDialogState
                           ),
                         ),
                         SizedBox(height: theme.spacing.sm),
-                        TextField(
-                          key: const Key('data-api-remote-encryption-key'),
-                          controller: _remoteDataApiEncryptionKeyController,
-                          obscureText: true,
-                          autocorrect: false,
-                          enableSuggestions: false,
-                          decoration: InputDecoration(
-                            labelText: 'Encryption key',
-                            helperText:
-                                "Enter this account's existing key. It cannot "
-                                'currently be changed, and a lost key cannot '
-                                'be recovered. Stored in the platform '
-                                'credential vault after validation.',
-                            errorText: _remoteEncryptionKeyError,
-                          ),
+                        const Text(
+                          'Encryption uses the one Ianvs master key stored on '
+                          'this device. Export or import it in Master key '
+                          'management when moving to another platform.',
                         ),
                       ],
                       SizedBox(height: theme.spacing.sm),
@@ -1188,6 +1164,10 @@ class _DefaultsAndAppearanceDialogState
                   ),
                 ),
                 SizedBox(height: theme.spacing.xxl),
+                if (widget.masterKeyRepository case final repository?) ...[
+                  MasterKeyManagementPanel(repository: repository),
+                  SizedBox(height: theme.spacing.xxl),
+                ],
                 const AppSectionHeader(
                   title: 'Terminal canvas inset',
                   description:

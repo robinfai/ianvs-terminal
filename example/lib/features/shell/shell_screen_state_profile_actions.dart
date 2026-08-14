@@ -222,6 +222,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
             dataApiConfigurationRecoveryRequired,
         localDataApiAvailable: defaultTargetPlatform == TargetPlatform.macOS,
         localSessionsEnabled: _localSessionsEnabled,
+        masterKeyRepository: ref.read(portableMasterKeyRepositoryProvider),
       ),
     );
     final selection = await Navigator.of(
