@@ -2,7 +2,6 @@ import 'data/services/data_api_client.dart';
 import 'data/services/data_api_runtime.dart';
 import 'features/config/data_api_terminal_config_repository.dart';
 import 'features/config/local_terminal_config_repository.dart';
-import 'features/layout/data_api_terminal_layout_repository.dart';
 import 'features/layout/local_terminal_layout_repository.dart';
 import 'features/preferences/app_preferences_repository.dart';
 import 'features/preferences/data_api_app_preferences_repository.dart';
@@ -12,8 +11,9 @@ import 'features/shell/data_api_paste_history_repository.dart';
 import 'features/shell/paste_history_repository.dart';
 
 /// The only production decision point between historical JSON persistence and
-/// the Data API. A configured runtime always selects API adapters; missing
-/// remote credentials fail closed in [DataApiClient] and never fall back.
+/// the Data API. A configured runtime selects API adapters for syncable data;
+/// terminal layout remains device-local. Missing remote credentials fail
+/// closed in [DataApiClient] and never fall back for API-backed repositories.
 final class PersistenceRepositoryComposition {
   const PersistenceRepositoryComposition._({
     required this.profiles,
@@ -31,6 +31,9 @@ final class PersistenceRepositoryComposition {
     bool dataApiPersistenceRequired = false,
     bool dataApiPersistenceUnavailable = false,
   }) {
+    final terminalLayout = LocalTerminalLayoutRepository(
+      directoryResolver: profileExportDirectoryResolver,
+    );
     if (dataApiPersistenceUnavailable || runtime == null) {
       if (dataApiPersistenceUnavailable || dataApiPersistenceRequired) {
         const client = _UnavailableDataApiResourceClient();
@@ -41,7 +44,7 @@ final class PersistenceRepositoryComposition {
           ),
           preferences: DataApiAppPreferencesRepository(client: client),
           terminalConfig: DataApiTerminalConfigRepository(client: client),
-          terminalLayout: DataApiTerminalLayoutRepository(client: client),
+          terminalLayout: terminalLayout,
           pasteHistory: DataApiPasteHistoryRepository(client: client),
           usesDataApi: true,
           persistenceUnavailable: true,
@@ -59,9 +62,7 @@ final class PersistenceRepositoryComposition {
         terminalConfig: LocalTerminalConfigRepository(
           directoryResolver: profileExportDirectoryResolver,
         ),
-        terminalLayout: LocalTerminalLayoutRepository(
-          directoryResolver: profileExportDirectoryResolver,
-        ),
+        terminalLayout: terminalLayout,
         pasteHistory: PasteHistoryRepository(
           directoryResolver: profileExportDirectoryResolver,
         ),
@@ -78,7 +79,7 @@ final class PersistenceRepositoryComposition {
       profiles: profiles,
       preferences: DataApiAppPreferencesRepository(client: client),
       terminalConfig: DataApiTerminalConfigRepository(client: client),
-      terminalLayout: DataApiTerminalLayoutRepository(client: client),
+      terminalLayout: terminalLayout,
       pasteHistory: DataApiPasteHistoryRepository(client: client),
       usesDataApi: true,
       persistenceUnavailable: false,

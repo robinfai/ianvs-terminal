@@ -165,9 +165,8 @@ final class DataApiProfileRepository extends ProfileRepositoryPort {
     if (decoded.schemaVersion !=
             TerminalProfilesDocument.currentSchemaVersion ||
         decoded.loadWarnings.isNotEmpty ||
-        !dataApiJsonEquivalent(canonical.data, data) ||
-        !dataApiJsonEquivalent(canonicalSensitive, validated.sensitive) ||
-        validated.hasSensitive != (canonicalSensitive != null)) {
+        !_isCompatibleProfileJson(data, canonical.data) ||
+        !_isCompatibleProfileJson(validated.sensitive, canonicalSensitive)) {
       throw const FormatException(
         'Profiles are not a canonical current-schema document.',
       );
@@ -267,6 +266,62 @@ final class DataApiProfileRepository extends ProfileRepositoryPort {
     await writeStringAtomically(file, document.encode());
     return file;
   }
+}
+
+bool _isCompatibleProfileJson(Object? stored, Object? canonical) {
+  if (dataApiJsonEquivalent(stored, canonical)) {
+    return true;
+  }
+  if (_isJsonEmpty(stored)) {
+    return true;
+  }
+  if (stored is Map && canonical is Map) {
+    final storedObject = dataApiObject(
+      stored,
+      documentName: 'Stored profile value',
+    );
+    final canonicalObject = dataApiObject(
+      canonical,
+      documentName: 'Canonical profile value',
+    );
+    for (final entry in storedObject.entries) {
+      if (!canonicalObject.containsKey(entry.key)) {
+        if (_isJsonEmpty(entry.value) ||
+            (entry.key == 'caseSensitive' && entry.value is bool)) {
+          continue;
+        }
+        return false;
+      }
+      if (!_isCompatibleProfileJson(entry.value, canonicalObject[entry.key])) {
+        return false;
+      }
+    }
+    // Fields absent from the stored object are reconstructed from current
+    // defaults by the profile model and are therefore compatible.
+    return true;
+  }
+  if (stored is List && canonical is List) {
+    if (stored.length != canonical.length) {
+      return false;
+    }
+    for (var index = 0; index < stored.length; index += 1) {
+      if (!_isCompatibleProfileJson(stored[index], canonical[index])) {
+        return false;
+      }
+    }
+    return true;
+  }
+  return false;
+}
+
+bool _isJsonEmpty(Object? value) {
+  return switch (value) {
+    null => true,
+    final String text => text.trim().isEmpty,
+    final List<Object?> values => values.every(_isJsonEmpty),
+    final Map<Object?, Object?> values => values.values.every(_isJsonEmpty),
+    _ => false,
+  };
 }
 
 String _safeBasename(String basename) {

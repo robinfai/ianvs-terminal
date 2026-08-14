@@ -15,6 +15,7 @@ use russh::{Channel, ChannelMsg, ChannelOpenFailure, Disconnect};
 use std::collections::{HashMap, VecDeque};
 use std::fmt;
 use std::fs;
+use std::future::Future;
 use std::io::{Error as IoError, ErrorKind, Read, Result as IoResult, Write};
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
@@ -35,6 +36,9 @@ const SOCKS_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 const FORWARD_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 const X11_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 const SSH_NETWORK_TEARDOWN_TIMEOUT: Duration = Duration::from_secs(2);
+// Match OpenSSH's default LoginGraceTime so keyboard-interactive prompts do
+// not expire locally before a server using its default authentication window.
+const SSH_AUTH_INTERACTION_TIMEOUT: Duration = Duration::from_secs(120);
 const MAX_PENDING_FORWARD_HANDSHAKES: usize = 64;
 const MAX_ACTIVE_FORWARD_RELAYS: usize = 64;
 const MAX_PENDING_X11_CONNECTIONS: usize = 32;
@@ -154,6 +158,16 @@ impl SshAuthClient {
         }
     }
 
+    async fn wait_until_interaction_begins(&self) {
+        loop {
+            let notified = self.broker.interaction_changed.notified();
+            if self.has_pending_interaction() {
+                return;
+            }
+            notified.await;
+        }
+    }
+
     pub fn take_prompts(&self) -> Vec<SshAuthPrompt> {
         let Ok(mut prompts) = self.broker.prompts.lock() else {
             return Vec::new();
@@ -259,8 +273,7 @@ impl SshAuthClient {
                 instructions,
                 prompts,
             });
-        let timeout = Duration::from_secs(300);
-        match tokio::time::timeout(timeout, receiver).await {
+        match tokio::time::timeout(SSH_AUTH_INTERACTION_TIMEOUT, receiver).await {
             Ok(Ok(Some(responses))) => Ok(responses),
             Ok(Ok(None)) => bail!("SSH authentication challenge was cancelled"),
             Ok(Err(_)) => bail!("SSH authentication challenge response channel closed"),
@@ -1315,6 +1328,48 @@ async fn prepare_ssh_session(
     })
 }
 
+async fn await_ssh_setup<F, T>(
+    setup: F,
+    setup_timeout: Duration,
+    auth: &SshAuthClient,
+    cancellation: &SshCancellation,
+) -> Result<T>
+where
+    F: Future<Output = Result<T>>,
+{
+    tokio::pin!(setup);
+    loop {
+        if auth.has_pending_interaction() {
+            tokio::select! {
+                biased;
+                _ = cancellation.cancelled() => {
+                    return Err(anyhow!("SSH initialization was cancelled"));
+                },
+                result = &mut setup => return result,
+                _ = auth.wait_until_interactions_complete() => {},
+            }
+            continue;
+        }
+
+        let deadline = tokio::time::sleep(setup_timeout);
+        tokio::pin!(deadline);
+        tokio::select! {
+            biased;
+            _ = cancellation.cancelled() => {
+                return Err(anyhow!("SSH initialization was cancelled"));
+            },
+            result = &mut setup => return result,
+            _ = auth.wait_until_interaction_begins() => {},
+            _ = &mut deadline => {
+                return Err(anyhow!(
+                    "SSH initialization timed out after {} seconds",
+                    setup_timeout.as_secs()
+                ));
+            },
+        }
+    }
+}
+
 async fn run_ssh_session(
     connection: TerminalProfileConnection,
     initial_size: PtySize,
@@ -1325,42 +1380,19 @@ async fn run_ssh_session(
 ) -> Result<u32> {
     let forward_runtime = ForwardRuntime::new(cancellation.clone());
     let setup_timeout = Duration::from_secs(connection.connect_timeout_seconds.clamp(1, 120));
-    let setup = prepare_ssh_session(
-        &connection,
-        initial_size,
+    let prepared = await_ssh_setup(
+        prepare_ssh_session(
+            &connection,
+            initial_size,
+            &auth,
+            &cancellation,
+            &forward_runtime,
+        ),
+        setup_timeout,
         &auth,
         &cancellation,
-        &forward_runtime,
-    );
-    tokio::pin!(setup);
-    let prepared = loop {
-        let deadline = tokio::time::sleep(setup_timeout);
-        tokio::pin!(deadline);
-        let result = tokio::select! {
-            biased;
-            _ = cancellation.cancelled() => {
-                Some(Err(anyhow!("SSH initialization was cancelled")))
-            },
-            result = &mut setup => Some(result),
-            _ = &mut deadline => None,
-        };
-        if let Some(result) = result {
-            break result;
-        }
-        if !auth.has_pending_interaction() {
-            break Err(anyhow!(
-                "SSH initialization timed out after {} seconds",
-                setup_timeout.as_secs()
-            ));
-        }
-        tokio::select! {
-            biased;
-            _ = cancellation.cancelled() => {
-                break Err(anyhow!("SSH initialization was cancelled"));
-            },
-            _ = auth.wait_until_interactions_complete() => {},
-        }
-    };
+    )
+    .await;
     let prepared = match prepared {
         Ok(prepared) => prepared,
         Err(error) => {
@@ -2485,6 +2517,61 @@ mod tests {
             );
             thread::sleep(Duration::from_millis(10));
         }
+    }
+
+    #[test]
+    fn keyboard_interactive_timeout_matches_openssh_default_login_grace_time() {
+        assert_eq!(SSH_AUTH_INTERACTION_TIMEOUT, Duration::from_secs(120));
+    }
+
+    #[test]
+    fn ssh_setup_timeout_restarts_after_an_interactive_prompt() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        runtime.block_on(async {
+            let auth = SshAuthClient::default();
+            let setup_auth = auth.clone();
+            let cancellation = SshCancellation::default();
+            let setup = async move {
+                let interaction = setup_auth.begin_interaction();
+                tokio::time::sleep(Duration::from_millis(150)).await;
+                drop(interaction);
+                tokio::time::sleep(Duration::from_millis(80)).await;
+                Ok(())
+            };
+
+            await_ssh_setup(setup, Duration::from_millis(200), &auth, &cancellation)
+                .await
+                .expect("interactive input should not consume the setup timeout");
+        });
+    }
+
+    #[test]
+    fn ssh_setup_still_times_out_without_an_interactive_prompt() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        runtime.block_on(async {
+            let auth = SshAuthClient::default();
+            let cancellation = SshCancellation::default();
+            let error = await_ssh_setup(
+                std::future::pending::<Result<()>>(),
+                Duration::from_millis(20),
+                &auth,
+                &cancellation,
+            )
+            .await
+            .expect_err("non-interactive setup should remain bounded");
+
+            assert!(
+                error
+                    .to_string()
+                    .contains("SSH initialization timed out after")
+            );
+        });
     }
 
     #[test]

@@ -142,6 +142,139 @@ void main() {
     },
   );
 
+  test(
+    'profiles accept omitted defaults and legacy empty SSH secret fields',
+    () async {
+      final client = MemoryDataApiResourceClient();
+      client.resources['profile/default'] = dataApiTestResource(
+        id: 'default',
+        kind: 'profile',
+        data: <String, Object?>{
+          'schemaVersion': TerminalProfilesDocument.currentSchemaVersion,
+          'profiles': <Object?>[
+            <String, Object?>{
+              'id': 'legacy-empty',
+              'name': 'Legacy empty',
+              'tags': <Object?>[],
+              'connection': <String, Object?>{
+                'type': 'ssh',
+                'host': 'legacy.example.test',
+                'user': 'operator',
+                'port': null,
+                'password': '',
+                'privateKeys': <Object?>[],
+                'knownHostsFile': '',
+              },
+            },
+          ],
+        },
+        sensitive: null,
+        hasSensitive: false,
+        revision: 4,
+      );
+      final repository = DataApiProfileRepository(client: client);
+
+      final loaded = await repository.loadVersioned();
+
+      expect(loaded.revision, 4);
+      expect(loaded.value.profiles.single.id, 'legacy-empty');
+      expect(loaded.value.profiles.single.connection.port, 22);
+      expect(loaded.value.profiles.single.connection.password, isNull);
+      expect(loaded.value.profiles.single.connection.privateKeys, isEmpty);
+      expect(client.putCount, 0);
+    },
+  );
+
+  test('profiles accept an empty sensitive envelope', () async {
+    final client = MemoryDataApiResourceClient();
+    final document = TerminalProfilesDocument(
+      profiles: <TerminalProfile>[defaultTerminalProfile()],
+    );
+    client.resources['profile/default'] = dataApiTestResource(
+      id: 'default',
+      kind: 'profile',
+      data: document.toJson(),
+      sensitive: const <String, Object?>{},
+      hasSensitive: true,
+      revision: 2,
+    );
+
+    final loaded = await DataApiProfileRepository(
+      client: client,
+    ).loadVersioned();
+
+    expect(loaded.value.profiles.single.id, 'default');
+    expect(client.putCount, 0);
+  });
+
+  test('profiles still reject nonempty invalid default values', () async {
+    final client = MemoryDataApiResourceClient();
+    final profile = defaultTerminalProfile().copyWith(
+      id: 'invalid-port',
+      name: 'Invalid port',
+      connection: const terminal.TerminalConnectionConfig.ssh(
+        host: 'invalid.example.test',
+        user: 'operator',
+      ),
+    );
+    final data = TerminalProfilesDocument(
+      profiles: <TerminalProfile>[profile],
+    ).toJson();
+    final connection =
+        ((data['profiles']! as List<Object?>).single!
+                as Map<String, Object?>)['connection']!
+            as Map<String, Object?>;
+    connection['port'] = 'not-a-port';
+    client.resources['profile/default'] = dataApiTestResource(
+      id: 'default',
+      kind: 'profile',
+      data: data,
+      sensitive: null,
+      hasSensitive: false,
+      revision: 3,
+    );
+
+    await expectLater(
+      DataApiProfileRepository(client: client).loadVersioned(),
+      throwsFormatException,
+    );
+    expect(client.putCount, 0);
+  });
+
+  test('profiles still reject plaintext private keys', () async {
+    final client = MemoryDataApiResourceClient();
+    final profile = defaultTerminalProfile().copyWith(
+      id: 'plaintext-key',
+      name: 'Plaintext key',
+      connection: const terminal.TerminalConnectionConfig.ssh(
+        host: 'key.example.test',
+        user: 'operator',
+      ),
+    );
+    final data = TerminalProfilesDocument(
+      profiles: <TerminalProfile>[profile],
+    ).toJson();
+    final connection =
+        ((data['profiles']! as List<Object?>).single!
+                as Map<String, Object?>)['connection']!
+            as Map<String, Object?>;
+    connection['privateKeys'] = <String>['private-key-contents'];
+    client.resources['profile/default'] = dataApiTestResource(
+      id: 'default',
+      kind: 'profile',
+      data: data,
+      sensitive: null,
+      hasSensitive: false,
+      revision: 3,
+    );
+
+    await expectLater(
+      DataApiProfileRepository(client: client).loadVersioned(),
+      throwsFormatException,
+    );
+    expect(client.putCount, 0);
+  });
+
   test('profile default initialization adopts a concurrent winner', () async {
     final client = MemoryDataApiResourceClient();
     final winner = TerminalProfilesDocument(
