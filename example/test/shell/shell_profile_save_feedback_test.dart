@@ -8,6 +8,7 @@ import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/shell/shell_screen.dart';
 import 'package:app/features/ssh/ssh_feature_access.dart';
 import 'package:app/features/ssh/ssh_profile_import_service.dart';
+import 'package:app/features/terminal/terminal.dart' as terminal;
 import 'package:app/ui/app_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -18,6 +19,7 @@ import '../support/fake_pty_backend.dart';
 import '../support/memory_app_preferences_repository.dart';
 import '../support/memory_local_terminal_config_repository.dart';
 import '../support/memory_paste_history_repository.dart';
+import '../support/memory_profile_repository.dart';
 import '../support/no_io_local_session_recording_repository.dart';
 import '../support/no_io_local_terminal_layout_repository.dart';
 
@@ -72,6 +74,15 @@ final class _EmptySshProfileImportService implements SshProfileImportService {
   }
 }
 
+final class _StaticSshProfileImportService implements SshProfileImportService {
+  const _StaticSshProfileImportService(this.snapshot);
+
+  final SshProfileImportSnapshot snapshot;
+
+  @override
+  Future<SshProfileImportSnapshot> load({String? configPath}) async => snapshot;
+}
+
 final class _SshFakePtyBackend extends FakePtyBackend {
   @override
   PtyRuntimeCapabilities get runtimeCapabilities =>
@@ -86,9 +97,11 @@ final class _SshFakePtyBackend extends FakePtyBackend {
 
 Future<void> _pumpShell(
   WidgetTester tester,
-  _FailingRemoteProfileRepository repository,
-  _SshFakePtyBackend backend,
-) async {
+  ProfileRepositoryPort repository,
+  _SshFakePtyBackend backend, {
+  SshProfileImportService sshProfileImportService =
+      const _EmptySshProfileImportService(),
+}) async {
   await tester.binding.setSurfaceSize(const Size(1100, 900));
   addTearDown(() => tester.binding.setSurfaceSize(null));
   await tester.pumpWidget(
@@ -96,7 +109,7 @@ Future<void> _pumpShell(
       overrides: [
         customSshProfileConfigurationEnabledProvider.overrideWithValue(true),
         sshProfileImportServiceProvider.overrideWithValue(
-          const _EmptySshProfileImportService(),
+          sshProfileImportService,
         ),
         ptySessionBackendProvider.overrideWithValue(backend),
         profileRepositoryProvider.overrideWithValue(repository),
@@ -155,6 +168,61 @@ Future<void> _submitSavedSshSession(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets('importing an OpenSSH profile saves without connecting', (
+    tester,
+  ) async {
+    final importedProfile = defaultTerminalProfile().copyWith(
+      id: 'imported-only',
+      name: 'Imported only',
+      connection: const terminal.TerminalConnectionConfig.ssh(
+        host: 'imported-only.example.test',
+        user: 'operator',
+      ),
+    );
+    final repository = MemoryProfileRepository(
+      TerminalProfilesDocument(
+        profiles: <TerminalProfile>[defaultTerminalProfile()],
+      ),
+    );
+    final backend = _SshFakePtyBackend();
+    await _pumpShell(
+      tester,
+      repository,
+      backend,
+      sshProfileImportService: _StaticSshProfileImportService(
+        SshProfileImportSnapshot(
+          profiles: <TerminalProfile>[importedProfile],
+          sourcePath: '~/.ssh/config',
+        ),
+      ),
+    );
+    final initialPayload = backend.lastCreatedSessionPayload;
+
+    await tester.tap(find.byKey(const Key('shell-chrome-new-tab')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('SSH session'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const Key('new-ssh-session-imported-only-actions')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const Key('new-ssh-session-imported-only-import')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.bySemanticsIdentifier('shell-tab-2'), findsNothing);
+    expect(backend.lastCreatedSessionPayload, same(initialPayload));
+    expect(
+      (await repository.load()).profiles.map((profile) => profile.id),
+      contains(importedProfile.id),
+    );
+    expect(
+      find.textContaining('Imported SSH profile “Imported only”'),
+      findsOneWidget,
+    );
+  });
+
   testWidgets(
     'a failed SSH profile save requires an explicit one-time connection',
     (tester) async {

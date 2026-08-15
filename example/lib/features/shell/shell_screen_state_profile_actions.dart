@@ -106,14 +106,15 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
         }
         await sessionController.saveProfile(result.profile);
         _showShellSnackBar(
-          'Saved SSH profile “${result.profile.name}” to '
+          '${result.openSession ? 'Saved' : 'Imported'} SSH profile '
+          '“${result.profile.name}” to '
           '${_activeProfilePersistenceLabel()}.',
         );
       } on Object catch (error) {
         final connectOnce = await _showProfileSaveFailure(
           profileName: result.profile.name,
           error: error,
-          allowConnectOnce: true,
+          allowConnectOnce: result.openSession,
         );
         if (!mounted || !connectOnce) {
           _restoreSessionFocus(
@@ -125,6 +126,15 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
           return;
         }
       }
+    }
+    if (!result.openSession) {
+      _restoreSessionFocus(
+        activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
+        activeSessionIdAfterClose: ref
+            .read(sessionControllerProvider)
+            .activeSessionId,
+      );
+      return;
     }
     _createSession(
       sessionController,

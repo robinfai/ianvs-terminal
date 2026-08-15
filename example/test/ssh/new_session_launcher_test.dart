@@ -117,6 +117,11 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('new-ssh-session-saved')), findsOneWidget);
     expect(find.byKey(const Key('new-ssh-session-imported')), findsOneWidget);
+    expect(
+      find.byKey(const Key('new-ssh-session-saved-actions')),
+      findsNothing,
+    );
+    expect(find.byTooltip('More actions for Imported host'), findsOneWidget);
 
     await tester.enterText(
       find.byKey(const Key('ssh-profile-search')),
@@ -130,6 +135,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(result?.profile.id, 'imported');
     expect(result?.saveProfile, isFalse);
+    expect(result?.openSession, isTrue);
     final wire = terminal.TerminalSessionConfigV1(
       sessionId: 'imported-two-leg-session',
       displayName: result!.profile.name,
@@ -155,6 +161,64 @@ void main() {
       decoded.config.connection.proxyJumpProfiles.single.privateKeys,
       isNot(decoded.config.connection.privateKeys),
     );
+  });
+
+  testWidgets('OpenSSH actions connect or import without connecting', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1000, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final imported = _sshProfile(
+      'import-actions',
+      'Import actions',
+      'import-actions.example.test',
+    );
+    NewSessionSelection? result;
+
+    Future<void> openActions() async {
+      await _pumpLauncher(
+        tester,
+        profiles: [defaultTerminalProfile()],
+        imported: SshProfileImportSnapshot(
+          profiles: [imported],
+          sourcePath: '~/.ssh/config',
+        ),
+        onClosed: (value) => result = value,
+      );
+      await tester.tap(find.text('SSH session'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const Key('new-ssh-session-import-actions-actions')),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    await openActions();
+    expect(
+      find.byKey(const Key('new-ssh-session-import-actions-connect')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('new-ssh-session-import-actions-import')),
+      findsOneWidget,
+    );
+    await tester.tap(
+      find.byKey(const Key('new-ssh-session-import-actions-connect')),
+    );
+    await tester.pumpAndSettle();
+    expect(result?.profile.id, imported.id);
+    expect(result?.saveProfile, isFalse);
+    expect(result?.openSession, isTrue);
+
+    result = null;
+    await openActions();
+    await tester.tap(
+      find.byKey(const Key('new-ssh-session-import-actions-import')),
+    );
+    await tester.pumpAndSettle();
+    expect(result?.profile.id, imported.id);
+    expect(result?.saveProfile, isTrue);
+    expect(result?.openSession, isFalse);
   });
 
   testWidgets('SSH-only launcher has no local session control', (tester) async {
@@ -263,6 +327,20 @@ void main() {
         find.byKey(const Key('new-ssh-session-openssh-host')),
         findsOneWidget,
       );
+      await tester.tap(
+        find.byKey(const Key('new-ssh-session-openssh-host-actions')),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<PopupMenuItem<void>>(
+              find.byKey(const Key('new-ssh-session-openssh-host-import')),
+            )
+            .enabled,
+        isFalse,
+      );
+      await tester.tapAt(Offset.zero);
+      await tester.pumpAndSettle();
 
       await tester.tap(find.byKey(const Key('new-custom-ssh-session')));
       await tester.pumpAndSettle();
@@ -378,11 +456,17 @@ void main() {
     expect(result?.saveProfile, isTrue);
   });
 
-  testWidgets('SSH single-line fields share one rendered height', (
+  testWidgets('SSH single-line fields keep one rendered height locally', (
     tester,
   ) async {
     await tester.binding.setSurfaceSize(const Size(1000, 900));
     addTearDown(() => tester.binding.setSurfaceSize(null));
+    final baseTheme = buildIanvsTerminalTheme(Brightness.dark);
+    final themeWithoutInputMinimum = baseTheme.copyWith(
+      inputDecorationTheme: baseTheme.inputDecorationTheme.copyWith(
+        constraints: const BoxConstraints(),
+      ),
+    );
 
     await _pumpLauncher(
       tester,
@@ -392,6 +476,7 @@ void main() {
         sourcePath: '~/.ssh/config',
       ),
       onClosed: (_) {},
+      theme: themeWithoutInputMinimum,
     );
     await tester.tap(find.text('SSH session'));
     await tester.pumpAndSettle();
@@ -409,6 +494,17 @@ void main() {
     final heights = fieldKeys
         .map((key) => tester.getSize(find.byKey(key)).height)
         .toList(growable: false);
+    final paintedContainerHeights = fieldKeys
+        .map((key) {
+          final editable = find.descendant(
+            of: find.byKey(key),
+            matching: find.byType(EditableText),
+          );
+          return InputDecorator.containerOf(
+            tester.element(editable),
+          )!.size.height;
+        })
+        .toList(growable: false);
     for (final height in heights.skip(1)) {
       expect(
         height,
@@ -417,6 +513,48 @@ void main() {
       );
     }
     expect(heights.first, closeTo(36, 0.01));
+    for (final height in paintedContainerHeights) {
+      expect(
+        height,
+        closeTo(36, 0.01),
+        reason:
+            'SSH painted input containers must match: '
+            '$paintedContainerHeights',
+      );
+    }
+    await tester.ensureVisible(
+      find.text('Host verification and advanced options'),
+    );
+    await tester.tap(find.text('Host verification and advanced options'));
+    await tester.pumpAndSettle();
+    const advancedSingleLineFieldKeys = <Key>[
+      Key('ssh-known-hosts-file'),
+      Key('ssh-connect-timeout'),
+      Key('ssh-keepalive-seconds'),
+      Key('ssh-keepalive-count'),
+      Key('ssh-proxy-command'),
+      Key('ssh-proxy-jump'),
+    ];
+    final advancedContainerHeights = advancedSingleLineFieldKeys
+        .map((key) {
+          final editable = find.descendant(
+            of: find.byKey(key),
+            matching: find.byType(EditableText),
+          );
+          return InputDecorator.containerOf(
+            tester.element(editable),
+          )!.size.height;
+        })
+        .toList(growable: false);
+    for (final height in advancedContainerHeights) {
+      expect(
+        height,
+        closeTo(36, 0.01),
+        reason:
+            'Advanced SSH painted input containers must match: '
+            '$advancedContainerHeights',
+      );
+    }
     expect(
       find.descendant(
         of: find.byKey(const Key('ssh-private-keys')),
@@ -1169,11 +1307,13 @@ Future<void> _pumpLauncher(
   double textScale = 1,
   bool customSshProfilesEnabled = true,
   bool localSessionsEnabled = true,
+  ThemeData? theme,
 }) async {
+  final resolvedTheme = theme ?? buildIanvsTerminalTheme(Brightness.dark);
   await tester.pumpWidget(
     MaterialApp(
-      theme: buildIanvsTerminalTheme(Brightness.dark),
-      darkTheme: buildIanvsTerminalTheme(Brightness.dark),
+      theme: resolvedTheme,
+      darkTheme: resolvedTheme,
       themeMode: ThemeMode.dark,
       builder: textScale == 1
           ? null

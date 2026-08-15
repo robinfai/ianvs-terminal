@@ -13,6 +13,30 @@ typedef SshPrivateKeyPicker = Future<SshPrivateKeySelection?> Function();
 
 const int _maximumPrivateKeyBytes = 64 * 1024;
 
+InputDecoration _iconlessSshInputDecoration(
+  BuildContext context, {
+  String? hintText,
+  String? labelText,
+  String? helperText,
+  Widget? suffixIcon,
+}) {
+  final palette = context.appTheme;
+  // InputDecoration's minimum constraint sizes the outer widget, not the
+  // painted container. A narrow, invisible prefix applies the same adaptive
+  // height as real icons without changing the normal text inset.
+  return InputDecoration(
+    hintText: hintText,
+    labelText: labelText,
+    helperText: helperText,
+    prefixIcon: const SizedBox.shrink(),
+    prefixIconConstraints: BoxConstraints(
+      minWidth: palette.spacing.xs,
+      minHeight: context.adaptiveControlHeight(palette.controls.regular),
+    ),
+    suffixIcon: suffixIcon,
+  );
+}
+
 Future<SshPrivateKeySelection?> pickSshPrivateKeyFile() async {
   final file = await openFile(confirmButtonText: 'Select key');
   if (file == null) {
@@ -51,10 +75,15 @@ bool _sameStrings(List<String> left, List<String> right) {
 }
 
 final class NewSessionSelection {
-  const NewSessionSelection({required this.profile, this.saveProfile = false});
+  const NewSessionSelection({
+    required this.profile,
+    this.saveProfile = false,
+    this.openSession = true,
+  });
 
   final TerminalProfile profile;
   final bool saveProfile;
+  final bool openSession;
 }
 
 final class SshProfileEditorResult {
@@ -391,7 +420,11 @@ class _SshProfileListState extends State<_SshProfileList> {
         if (savedProfiles.isNotEmpty) ...[
           const _SectionLabel('Saved SSH profiles'),
           for (final profile in savedProfiles)
-            _SshProfileTile(profile: profile, imported: false),
+            _SshProfileTile(
+              profile: profile,
+              imported: false,
+              canImport: false,
+            ),
         ],
         const _SectionLabel('From ~/.ssh/config'),
         FutureBuilder<SshProfileImportSnapshot>(
@@ -435,7 +468,11 @@ class _SshProfileListState extends State<_SshProfileList> {
             return Column(
               children: [
                 for (final profile in filteredProfiles)
-                  _SshProfileTile(profile: profile, imported: true),
+                  _SshProfileTile(
+                    profile: profile,
+                    imported: true,
+                    canImport: widget.customSshProfilesEnabled,
+                  ),
                 if (imported.warnings.isNotEmpty)
                   ListTile(
                     leading: const Icon(Icons.warning_amber_rounded),
@@ -454,10 +491,15 @@ class _SshProfileListState extends State<_SshProfileList> {
 }
 
 class _SshProfileTile extends StatelessWidget {
-  const _SshProfileTile({required this.profile, required this.imported});
+  const _SshProfileTile({
+    required this.profile,
+    required this.imported,
+    required this.canImport,
+  });
 
   final TerminalProfile profile;
   final bool imported;
+  final bool canImport;
 
   @override
   Widget build(BuildContext context) {
@@ -470,12 +512,60 @@ class _SshProfileTile extends StatelessWidget {
         '${connection.user}@${connection.host}:${connection.port}'
         '${imported ? ' • OpenSSH config' : ''}',
       ),
-      trailing: const Icon(Icons.arrow_forward_rounded),
-      onTap: () =>
-          Navigator.of(context).pop(NewSessionSelection(profile: profile)),
+      trailing: imported
+          ? PopupMenuButton<_ImportedSshProfileAction>(
+              key: Key('new-ssh-session-${profile.id}-actions'),
+              tooltip: 'More actions for ${profile.name}',
+              position: PopupMenuPosition.under,
+              icon: const Icon(Icons.more_horiz_rounded),
+              onSelected: (action) => _selectImportedAction(context, action),
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  key: Key('new-ssh-session-${profile.id}-connect'),
+                  value: _ImportedSshProfileAction.connect,
+                  child: const Text('Connect'),
+                ),
+                PopupMenuItem(
+                  key: Key('new-ssh-session-${profile.id}-import'),
+                  value: _ImportedSshProfileAction.import,
+                  enabled: canImport,
+                  child: const Text('Import'),
+                ),
+              ],
+            )
+          : const Icon(Icons.arrow_forward_rounded),
+      onTap: () => _completeSelection(context),
+    );
+  }
+
+  void _selectImportedAction(
+    BuildContext context,
+    _ImportedSshProfileAction action,
+  ) {
+    switch (action) {
+      case _ImportedSshProfileAction.connect:
+        _completeSelection(context);
+      case _ImportedSshProfileAction.import:
+        _completeSelection(context, saveProfile: true, openSession: false);
+    }
+  }
+
+  void _completeSelection(
+    BuildContext context, {
+    bool saveProfile = false,
+    bool openSession = true,
+  }) {
+    Navigator.of(context).pop(
+      NewSessionSelection(
+        profile: profile,
+        saveProfile: saveProfile,
+        openSession: openSession,
+      ),
     );
   }
 }
+
+enum _ImportedSshProfileAction { connect, import }
 
 class _SectionLabel extends StatelessWidget {
   const _SectionLabel(this.text);
@@ -833,7 +923,8 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                       key: const Key('ssh-user'),
                                       controller: _user,
                                       focusNode: _userFocus,
-                                      decoration: const InputDecoration(
+                                      decoration: _iconlessSshInputDecoration(
+                                        context,
                                         hintText: 'remote user',
                                       ),
                                       validator: _required,
@@ -850,7 +941,8 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                       controller: _port,
                                       focusNode: _portFocus,
                                       keyboardType: TextInputType.number,
-                                      decoration: const InputDecoration(
+                                      decoration: _iconlessSshInputDecoration(
+                                        context,
                                         hintText: '22',
                                       ),
                                       validator: (value) =>
@@ -900,7 +992,9 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                       key: const Key('ssh-auth-method'),
                                       isExpanded: true,
                                       initialValue: _auth,
-                                      decoration: const InputDecoration(),
+                                      decoration: _iconlessSshInputDecoration(
+                                        context,
+                                      ),
                                       items: const [
                                         DropdownMenuItem(
                                           value: terminal
@@ -1111,7 +1205,8 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                     obscureText: _obscurePrivateKeyPassphrase,
                                     enableSuggestions: false,
                                     autocorrect: false,
-                                    decoration: InputDecoration(
+                                    decoration: _iconlessSshInputDecoration(
+                                      context,
                                       suffixIcon: _SecretVisibilityButton(
                                         key: const Key(
                                           'ssh-key-passphrase-visibility',
@@ -1191,7 +1286,8 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                   key: const Key('ssh-host-key-policy'),
                                   isExpanded: true,
                                   initialValue: _hostKeyPolicy,
-                                  decoration: const InputDecoration(
+                                  decoration: _iconlessSshInputDecoration(
+                                    context,
                                     labelText: 'Host key policy',
                                   ),
                                   items: const [
@@ -1226,8 +1322,10 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                 ),
                                 SizedBox(height: palette.spacing.md),
                                 TextFormField(
+                                  key: const Key('ssh-known-hosts-file'),
                                   controller: _knownHostsFile,
-                                  decoration: const InputDecoration(
+                                  decoration: _iconlessSshInputDecoration(
+                                    context,
                                     labelText: 'Known hosts file (optional)',
                                   ),
                                 ),
@@ -1243,8 +1341,10 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                 ),
                                 SizedBox(height: palette.spacing.md),
                                 TextFormField(
+                                  key: const Key('ssh-proxy-command'),
                                   controller: _proxyCommand,
-                                  decoration: const InputDecoration(
+                                  decoration: _iconlessSshInputDecoration(
+                                    context,
                                     labelText: 'ProxyCommand (optional)',
                                   ),
                                 ),
@@ -1253,7 +1353,8 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                   key: const Key('ssh-proxy-jump'),
                                   controller: _proxyJump,
                                   focusNode: _proxyJumpFocus,
-                                  decoration: const InputDecoration(
+                                  decoration: _iconlessSshInputDecoration(
+                                    context,
                                     labelText: 'ProxyJump (optional)',
                                     helperText:
                                         'Comma-separated [user@]host[:port]; bracket IPv6 hosts. New hops use independent Auto authentication.',
@@ -1277,7 +1378,8 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                   focusNode: _portForwardsFocus,
                                   minLines: 2,
                                   maxLines: 5,
-                                  decoration: const InputDecoration(
+                                  decoration: _iconlessSshInputDecoration(
+                                    context,
                                     labelText: 'Port forwards',
                                     helperText:
                                         'One per line: L bind:port target:port, R bind:port target:port, or D bind:port.',
@@ -1306,7 +1408,8 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                   TextFormField(
                                     key: const Key('ssh-agent-socket'),
                                     controller: _agentSocket,
-                                    decoration: const InputDecoration(
+                                    decoration: _iconlessSshInputDecoration(
+                                      context,
                                       labelText: 'Agent socket (optional)',
                                     ),
                                   ),
@@ -1326,7 +1429,8 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                     key: const Key('ssh-x11-target'),
                                     controller: _x11Target,
                                     focusNode: _x11TargetFocus,
-                                    decoration: const InputDecoration(
+                                    decoration: _iconlessSshInputDecoration(
+                                      context,
                                       labelText: 'Local X11 target host:port',
                                     ),
                                     validator: (value) {
@@ -1352,7 +1456,8 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                     obscureText: _obscureX11Cookie,
                                     enableSuggestions: false,
                                     autocorrect: false,
-                                    decoration: InputDecoration(
+                                    decoration: _iconlessSshInputDecoration(
+                                      context,
                                       labelText: 'X11 authentication cookie',
                                       helperText:
                                           'Required: exactly 32 hexadecimal characters.',
@@ -1795,7 +1900,8 @@ class _SshConnectionTimingFields extends StatelessWidget {
         controller: connectTimeout,
         focusNode: connectTimeoutFocus,
         keyboardType: TextInputType.number,
-        decoration: const InputDecoration(
+        decoration: _iconlessSshInputDecoration(
+          context,
           labelText: 'Connect timeout (seconds)',
         ),
         validator: (value) => validator(value, 1, 120),
@@ -1805,7 +1911,10 @@ class _SshConnectionTimingFields extends StatelessWidget {
         controller: keepalive,
         focusNode: keepaliveFocus,
         keyboardType: TextInputType.number,
-        decoration: const InputDecoration(labelText: 'Keepalive (seconds)'),
+        decoration: _iconlessSshInputDecoration(
+          context,
+          labelText: 'Keepalive (seconds)',
+        ),
         validator: (value) => validator(value, 0, 86400),
       ),
       TextFormField(
@@ -1813,7 +1922,10 @@ class _SshConnectionTimingFields extends StatelessWidget {
         controller: keepaliveCount,
         focusNode: keepaliveCountFocus,
         keyboardType: TextInputType.number,
-        decoration: const InputDecoration(labelText: 'Keepalive retries'),
+        decoration: _iconlessSshInputDecoration(
+          context,
+          labelText: 'Keepalive retries',
+        ),
         validator: (value) => validator(value, 1, 100),
       ),
     ];
