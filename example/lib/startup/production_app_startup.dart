@@ -14,6 +14,7 @@ import '../data/services/data_api_remote_session_store.dart';
 import '../data/services/data_api_remote_session_vault.dart';
 import '../data/services/data_api_runtime.dart';
 import '../data/services/portable_master_key.dart';
+import '../data/services/portable_master_key_migration.dart';
 import '../features/pty/pty.dart';
 import '../features/recording/local_session_recording_repository.dart';
 import '../persistence_repository_composition.dart';
@@ -38,7 +39,12 @@ AppStartupCoordinator createProductionAppStartupCoordinator({
 }) {
   final targetPlatform = platform ?? defaultTargetPlatform;
   final effectiveMasterKeyRepository =
-      masterKeyRepository ?? PortableMasterKeyRepository();
+      masterKeyRepository ??
+      PortableMasterKeyRepository(
+        // macOS is the single creator. iOS only consumes the synchronized
+        // item, so a temporarily empty iCloud read can never replace it.
+        allowCreation: targetPlatform != TargetPlatform.iOS,
+      );
   final loadNativePty =
       nativePtyLoader ??
       () => Future<NativePtyBackend>.sync(
@@ -59,6 +65,24 @@ AppStartupCoordinator createProductionAppStartupCoordinator({
             );
             final legacyRemoteSessionStore =
                 FlutterSecureDataApiRemoteSessionStore();
+            final remoteSessionVaultFile = File(
+              '${paths.appSupportDirectory.path}${Platform.pathSeparator}'
+              '${EncryptedFileDataApiRemoteSessionStore.fileName}',
+            );
+            if (targetPlatform == TargetPlatform.macOS) {
+              const legacyMasterKeyStorage =
+                  FlutterSecurePortableMasterKeyStorage.legacyMacOs();
+              await recoverVerifiedLegacyMacOsMasterKey(
+                vaultFile: remoteSessionVaultFile,
+                migrationMarker: File(
+                  '${paths.appSupportDirectory.path}${Platform.pathSeparator}'
+                  'portable-master-key-macos-migration.v1.complete',
+                ),
+                synchronizedRepository: effectiveMasterKeyRepository,
+                legacyStorage: legacyMasterKeyStorage,
+                deleteLegacy: legacyMasterKeyStorage.delete,
+              );
+            }
             final remoteSessionMigrationMarker = File(
               '${paths.appSupportDirectory.path}${Platform.pathSeparator}'
               'data-api-remote-session-keychain-migration.v1.complete',
@@ -77,11 +101,7 @@ AppStartupCoordinator createProductionAppStartupCoordinator({
             }
             final remoteSessionStore = MigratingDataApiRemoteSessionStore(
               primary: EncryptedFileDataApiRemoteSessionStore(
-                vaultFile: File(
-                  '${paths.appSupportDirectory.path}'
-                  '${Platform.pathSeparator}'
-                  '${EncryptedFileDataApiRemoteSessionStore.fileName}',
-                ),
+                vaultFile: remoteSessionVaultFile,
                 masterKeyRepository: effectiveMasterKeyRepository,
               ),
               legacy: legacyRemoteSessionStore,
@@ -385,8 +405,9 @@ AppStartupDataSetupRequirement? resolveInitialDataApiSetupRequirement({
   return switch (platform) {
     TargetPlatform.macOS when !hasPersistedConfiguration =>
       AppStartupDataSetupRequirement.optional,
-    TargetPlatform.iOS when !hasPersistedConfiguration =>
-      AppStartupDataSetupRequirement.optional,
+    TargetPlatform.iOS
+        when configuration.deployment != DataApiDeployment.remote =>
+      AppStartupDataSetupRequirement.required,
     _ => null,
   };
 }

@@ -25,11 +25,11 @@ async function signIn(page: Page): Promise<void> {
 test('remote: sign in without a key and request it only for sensitive operations', async ({ page }) => {
   await openRemoteConnect(page)
 
-  // Register a new account (the key is required to create the account).
+  // Registration authenticates the account only; it never asks for a data key.
   await page.getByRole('tab', { name: 'Create account' }).click()
   await page.getByLabel('Username').fill(USERNAME)
   await page.getByLabel('Password').fill(PASSWORD)
-  await page.getByLabel('Encryption key').fill(KEY)
+  await expect(page.getByLabel('Encryption key')).toHaveCount(0)
   await page.getByRole('button', { name: 'Create and unlock' }).click()
   await expect(page.getByRole('heading', { name: 'SSH Profiles' })).toBeVisible()
 
@@ -63,9 +63,11 @@ test('remote: sign in without a key and request it only for sensitive operations
     .getByRole('textbox', { name: 'Encryption key (required)' })
     .fill('incorrect-encryption-key')
   await decryptPrompt.getByRole('button', { name: 'Unlock' }).click()
-  await expect(decryptPrompt.getByRole('alert')).toContainText('invalid')
-  await decryptPrompt.getByRole('textbox', { name: 'Encryption key (required)' }).fill(KEY)
-  await decryptPrompt.getByRole('button', { name: 'Unlock' }).click()
+  await expect(page.getByRole('alert')).toContainText('invalid')
+  await viewDialog.getByRole('button', { name: 'Decrypt secrets' }).click()
+  const retryPrompt = page.getByRole('dialog', { name: 'Encryption key required' })
+  await retryPrompt.getByRole('textbox', { name: 'Encryption key (required)' }).fill(KEY)
+  await retryPrompt.getByRole('button', { name: 'Unlock' }).click()
   await expect(viewDialog.getByText('s3cret')).toBeVisible()
   await viewDialog.getByRole('button', { name: 'Close', exact: true }).click()
 

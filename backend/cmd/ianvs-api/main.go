@@ -17,7 +17,6 @@ import (
 	"ianvs-terminal/backend/internal/config"
 	"ianvs-terminal/backend/internal/database"
 	"ianvs-terminal/backend/internal/httpapi"
-	"ianvs-terminal/backend/internal/secure"
 	"ianvs-terminal/backend/internal/store"
 )
 
@@ -30,24 +29,12 @@ func main() {
 
 func run(args []string) error {
 	if len(args) == 0 {
-		return errors.New("a command is required (serve or generate-key)")
+		return errors.New("a command is required (serve)")
 	}
 	command := args[0]
 	args = args[1:]
-	if command == "generate-key" {
-		if len(args) != 0 {
-			return errors.New("generate-key does not accept arguments")
-		}
-		key, err := secure.GenerateUserKey()
-		if err != nil {
-			return err
-		}
-		fmt.Println(key)
-		return nil
-	}
-
 	if command != "serve" {
-		return fmt.Errorf("unknown command %q (expected serve or generate-key)", command)
+		return fmt.Errorf("unknown command %q (expected serve)", command)
 	}
 	if len(args) != 2 || args[0] != "--config" || args[1] == "" {
 		return errors.New("serve requires exactly --config <path>")

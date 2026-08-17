@@ -18,7 +18,6 @@ import (
 	"ianvs-terminal/backend/internal/database"
 	"ianvs-terminal/backend/internal/identity"
 	"ianvs-terminal/backend/internal/model"
-	"ianvs-terminal/backend/internal/secure"
 )
 
 const (
@@ -90,11 +89,8 @@ type PreparedOperation struct {
 }
 
 type UserView struct {
-	ID                   string `json:"id"`
-	Username             string `json:"username"`
-	KeyConfigured        bool   `json:"key_configured"`
-	KeyContractVersion   int    `json:"key_contract_version"`
-	KeyRotationSupported bool   `json:"key_rotation_supported"`
+	ID       string `json:"id"`
+	Username string `json:"username"`
 }
 
 func New(db *gorm.DB, tokenTTL time.Duration) *Service {
@@ -103,11 +99,8 @@ func New(db *gorm.DB, tokenTTL time.Duration) *Service {
 
 func View(user model.User) UserView {
 	return UserView{
-		ID:                   user.ID,
-		Username:             user.Username,
-		KeyConfigured:        user.KeyVerifier != "",
-		KeyContractVersion:   secure.KeyContractVersion,
-		KeyRotationSupported: false,
+		ID:       user.ID,
+		Username: user.Username,
 	}
 }
 
@@ -149,49 +142,9 @@ func (s *Service) EnsureLocalUser(ctx context.Context) (model.User, error) {
 	return user, nil
 }
 
-func (s *Service) SetupLocalKey(ctx context.Context, secret string) (model.User, bool, error) {
-	user, err := s.EnsureLocalUser(ctx)
-	if err != nil {
-		return model.User{}, false, err
-	}
-	if user.KeyVerifier != "" {
-		if _, err := secure.VerifyUserKey(user, secret); err != nil {
-			return model.User{}, false, err
-		}
-		return user, false, nil
-	}
-	configured := user
-	if _, err := secure.ConfigureUserKey(&configured, secret); err != nil {
-		return model.User{}, false, err
-	}
-	result := s.db.WithContext(ctx).
-		Model(&model.User{}).
-		Where("id = ? AND key_verifier = ?", user.ID, "").
-		Updates(map[string]any{
-			"key_derivation": configured.KeyDerivation,
-			"key_salt":       configured.KeySalt,
-			"key_verifier":   configured.KeyVerifier,
-		})
-	if result.Error != nil {
-		return model.User{}, false, fmt.Errorf("save local encryption key verifier: %w", result.Error)
-	}
-	if result.RowsAffected == 1 {
-		return configured, true, nil
-	}
-
-	var winner model.User
-	if err := s.db.WithContext(ctx).Where("id = ?", user.ID).First(&winner).Error; err != nil {
-		return model.User{}, false, fmt.Errorf("reload local encryption key verifier: %w", err)
-	}
-	if _, err := secure.VerifyUserKey(winner, secret); err != nil {
-		return model.User{}, false, err
-	}
-	return winner, false, nil
-}
-
 func (s *Service) BeginRegister(
 	ctx context.Context,
-	username, password, encryptionKey string,
+	username, password string,
 ) (PreparedOperation, error) {
 	username = normalizeUsername(username)
 	if !usernamePattern.MatchString(username) || username == LocalUsername {
@@ -199,9 +152,6 @@ func (s *Service) BeginRegister(
 	}
 	if len(password) < minimumPasswordSize || len(password) > maximumPasswordSize {
 		return PreparedOperation{}, ErrInvalidPassword
-	}
-	if err := secure.ValidateUserKeyForConfiguration(encryptionKey); err != nil {
-		return PreparedOperation{}, err
 	}
 	var passwordHash []byte
 	err := passwordHashAdmission.run(func() error {
@@ -220,9 +170,6 @@ func (s *Service) BeginRegister(
 		ID:           id,
 		Username:     username,
 		PasswordHash: string(passwordHash),
-	}
-	if _, err := secure.ConfigureUserKey(&user, encryptionKey); err != nil {
-		return PreparedOperation{}, err
 	}
 	operationID, err := identity.Secret(32)
 	if err != nil {
@@ -526,10 +473,6 @@ func (s *Service) Logout(ctx context.Context, rawToken string) error {
 		}
 		return nil
 	})
-}
-
-func (s *Service) VerifyKey(user model.User, secret string) ([]byte, error) {
-	return secure.VerifyUserKey(user, secret)
 }
 
 func (s *Service) preparedOperationTTL() time.Duration {

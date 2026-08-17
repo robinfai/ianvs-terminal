@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type ChangeEvent, type FormEvent } from 'react'
 import { ApiError, DataApiClient } from '../api/client'
+import { SensitiveDataAuthenticationError } from '../crypto/sensitive'
 import { useSession } from '../state/SessionContext'
 import {
   Badge,
@@ -143,7 +144,7 @@ export function ProfilesPage() {
 
         const { data, sensitive: sensitiveEnvelope } = splitProfilesDocument(next)
         // Introducing secrets (e.g. the first profile with a password) also
-        // requires the key — the server encrypts with the account key.
+        // requires the key so this client can encrypt before upload.
         if (sensitiveEnvelope && !keyValue) {
           const key = await session.requestKey(
             'Saving SSH profile secrets requires the encryption key.',
@@ -162,7 +163,7 @@ export function ProfilesPage() {
         setRefreshToken((value) => value + 1)
         return true
       } catch (err) {
-        if (err instanceof ApiError && err.code === 'invalid_encryption_key') {
+        if (err instanceof SensitiveDataAuthenticationError) {
           session.clearKey()
           setError('The encryption key is invalid. Enter the correct key and try again.')
         } else if (err instanceof ApiError && err.code === 'revision_conflict') {
@@ -239,7 +240,7 @@ export function ProfilesPage() {
         current ? { ...current, secrets: target ? extractSecrets(target.connection) : {} } : current,
       )
     } catch (err) {
-      if (err instanceof ApiError && err.code === 'invalid_encryption_key') {
+      if (err instanceof SensitiveDataAuthenticationError) {
         session.clearKey()
         setError('The encryption key is invalid. Enter the correct key and try again.')
       } else {

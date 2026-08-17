@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'data_api_auth_contract.dart';
 import 'data_api_runtime.dart';
+import 'data_api_sensitive_cipher.dart';
 
 abstract interface class DataApiResourceClient {
   bool get canAccessResources;
@@ -347,6 +348,7 @@ final class DataApiClient
     required String? accessToken,
     required String? encryptionKey,
     DataApiHttpClientFactory? httpClientFactory,
+    DataApiSensitiveCipher? sensitiveCipher,
     this.connectionTimeout = const Duration(seconds: 5),
     this.requestTimeout = const Duration(seconds: 15),
     this.maximumResponseBytes = maximumJsonResponseBytes,
@@ -354,6 +356,7 @@ final class DataApiClient
   }) : baseUri = _normalizeBaseUri(baseUri),
        _accessToken = _nonEmpty(accessToken),
        _encryptionKey = _nonEmpty(encryptionKey),
+       _sensitiveCipher = sensitiveCipher ?? DataApiSensitiveCipher(),
        _httpClientFactory = httpClientFactory ?? HttpClient.new {
     if (connectionTimeout <= Duration.zero ||
         requestTimeout <= Duration.zero ||
@@ -380,11 +383,13 @@ final class DataApiClient
   final Uri baseUri;
   final String? _accessToken;
   final String? _encryptionKey;
+  final DataApiSensitiveCipher _sensitiveCipher;
   final DataApiHttpClientFactory _httpClientFactory;
   final Duration connectionTimeout;
   final Duration requestTimeout;
   final int maximumResponseBytes;
   final int maximumRequestBytes;
+  Future<String>? _ownerIdFuture;
 
   static const int maximumPageSize = 100;
   static const int maximumCursorBytes = 1024;
@@ -395,7 +400,7 @@ final class DataApiClient
   bool get canAccessResources => _accessToken != null;
 
   Future<void> validateAccess() async {
-    await _request('GET', _resourceUri('v1/me'));
+    await _authenticatedOwnerId();
   }
 
   Future<void> logout() async {
@@ -406,24 +411,9 @@ final class DataApiClient
     );
   }
 
-  /// Verifies both bearer authentication and the per-user encryption key.
-  Future<void> validateSession() async {
-    await validateAccess();
-    final response = await _request(
-      'POST',
-      _resourceUri('v1/auth/verify-key'),
-      includeEncryptionKey: true,
-    );
-    final root = _jsonObject(
-      response.body,
-      documentName: 'encryption key verification response',
-    );
-    if (root['verified'] != true || root['basis'] != 'account_key_verifier') {
-      throw const DataApiProtocolException(
-        'encryption key verification was not confirmed.',
-      );
-    }
-  }
+  /// Verifies bearer authentication only. Encryption keys are never sent to
+  /// or verified by the Data API.
+  Future<void> validateSession() => validateAccess();
 
   /// Verifies ephemeral credentials and creates a short-lived server-side
   /// operation without issuing an access token.
@@ -533,7 +523,6 @@ final class DataApiClient
       _resourceUri(
         'v1/resources',
       ).replace(queryParameters: query.isEmpty ? null : query),
-      includeEncryptionKey: includeSensitive,
     );
     final root = _jsonObject(response.body, documentName: 'resource list');
     final resources = root['resources'];
@@ -542,13 +531,14 @@ final class DataApiClient
         'Data API resource list is missing resources.',
       );
     }
-    final decodedResources = resources
-        .map(
-          (value) => DataApiResource.fromJson(
-            _jsonObject(value, documentName: 'resource'),
-          ),
-        )
-        .toList(growable: false);
+    final decodedResources = await Future.wait(
+      resources.map(
+        (value) => _decodeResource(
+          _jsonObject(value, documentName: 'resource'),
+          decryptSensitive: includeSensitive,
+        ),
+      ),
+    );
     final rawNextCursor = root['next_cursor'];
     final nextCursor = _nonEmpty(_stringValue(rawNextCursor));
     if (rawNextCursor != null &&
@@ -581,15 +571,15 @@ final class DataApiClient
     final response = await _request(
       'GET',
       uri,
-      includeEncryptionKey: includeSensitive,
       acceptedStatusCodes: const <int>{HttpStatus.ok, HttpStatus.notFound},
     );
     if (response.statusCode == HttpStatus.notFound) {
       return null;
     }
     return _requireRequestedResource(
-      DataApiResource.fromJson(
+      await _decodeResource(
         _jsonObject(response.body, documentName: 'resource'),
+        decryptSensitive: includeSensitive,
       ),
       requestedKind: kind,
       requestedId: id,
@@ -612,7 +602,11 @@ final class DataApiClient
     }
     final body = <String, Object?>{'data': data};
     if (sensitive != null) {
-      body['sensitive'] = sensitive;
+      body['sensitive'] = await _encryptSensitive(
+        kind: kind,
+        id: id,
+        cleartext: sensitive,
+      );
     }
     if (clearSensitive) {
       body['clear_sensitive'] = true;
@@ -625,12 +619,12 @@ final class DataApiClient
       _resourceUri(
         'v1/resources/${Uri.encodeComponent(kind)}/${Uri.encodeComponent(id)}',
       ),
-      includeEncryptionKey: sensitive != null,
       jsonBody: body,
     );
     return _requireRequestedResource(
-      DataApiResource.fromJson(
+      await _decodeResource(
         _jsonObject(response.body, documentName: 'resource'),
+        decryptSensitive: sensitive != null,
       ),
       requestedKind: kind,
       requestedId: id,
@@ -684,7 +678,6 @@ final class DataApiClient
           'cursor': ?cursor,
         },
       ),
-      includeEncryptionKey: true,
     );
     final root = _jsonObject(response.body, documentName: 'migration export');
     if (root['schema_version'] != 1) {
@@ -698,28 +691,30 @@ final class DataApiClient
     if (sourceId == null || rawResources is! List) {
       throw const FormatException('Invalid Data API migration export.');
     }
+    final decodedResources = await Future.wait(
+      rawResources.map((value) async {
+        final resource = await _decodeResource(
+          _jsonObject(value, documentName: 'migration resource'),
+          decryptSensitive: true,
+        );
+        if (resource.deleted) {
+          throw const FormatException(
+            'Migration export unexpectedly included a deleted resource.',
+          );
+        }
+        return DataApiMigrationResource(
+          id: resource.id,
+          kind: resource.kind,
+          data: resource.data,
+          sensitive: resource.sensitive,
+          sourceRevision: resource.sourceRevision,
+          sourceUpdatedAt: resource.sourceUpdatedAt,
+        );
+      }),
+    );
     return DataApiMigrationExportPage(
       sourceId: sourceId,
-      resources: rawResources
-          .map((value) {
-            final resource = DataApiResource.fromJson(
-              _jsonObject(value, documentName: 'migration resource'),
-            );
-            if (resource.deleted) {
-              throw const FormatException(
-                'Migration export unexpectedly included a deleted resource.',
-              );
-            }
-            return DataApiMigrationResource(
-              id: resource.id,
-              kind: resource.kind,
-              data: resource.data,
-              sensitive: resource.sensitive,
-              sourceRevision: resource.sourceRevision,
-              sourceUpdatedAt: resource.sourceUpdatedAt,
-            );
-          })
-          .toList(growable: false),
+      resources: decodedResources,
       nextCursor: nextCursor,
     );
   }
@@ -731,21 +726,29 @@ final class DataApiClient
     DataApiMigrationConflictPolicy conflictPolicy =
         DataApiMigrationConflictPolicy.preserveDestination,
   }) async {
+    final encodedResources = await Future.wait(
+      resources.map((resource) async {
+        final encoded = resource.toJson();
+        if (resource.sensitive != null) {
+          encoded['sensitive'] = await _encryptSensitive(
+            kind: resource.kind,
+            id: resource.id,
+            cleartext: resource.sensitive,
+          );
+        }
+        return encoded;
+      }),
+    );
     final response = await _request(
       'POST',
       _resourceUri('v1/migrations/merge'),
-      includeEncryptionKey: resources.any(
-        (resource) => resource.sensitive != null,
-      ),
       jsonBody: <String, Object?>{
         'schema_version': 1,
         'source_id': sourceId,
         'exported_at': DateTime.now().toUtc().toIso8601String(),
         'conflict_policy': conflictPolicy.wireValue,
         'propagate_deletes': false,
-        'resources': resources
-            .map((resource) => resource.toJson())
-            .toList(growable: false),
+        'resources': encodedResources,
       },
     );
     final root = _jsonObject(response.body, documentName: 'migration report');
@@ -785,21 +788,89 @@ final class DataApiClient
     );
   }
 
+  Future<String> _authenticatedOwnerId() {
+    return _ownerIdFuture ??= _loadAuthenticatedOwnerId();
+  }
+
+  Future<String> _loadAuthenticatedOwnerId() async {
+    final response = await _request('GET', _resourceUri('v1/me'));
+    final root = _jsonObject(response.body, documentName: 'authenticated user');
+    final user = _jsonObject(root['user'], documentName: 'authenticated user');
+    final ownerId = _nonEmpty(_stringValue(user['id']));
+    if (ownerId == null) {
+      throw const DataApiProtocolException(
+        'authenticated user response is missing user.id.',
+      );
+    }
+    return ownerId;
+  }
+
+  String _requireEncryptionKey() {
+    return _encryptionKey ??
+        (throw const DataApiEncryptionKeyRequiredException());
+  }
+
+  Future<Map<String, Object?>> _encryptSensitive({
+    required String kind,
+    required String id,
+    required Object? cleartext,
+  }) async {
+    return _sensitiveCipher.encrypt(
+      masterKey: _requireEncryptionKey(),
+      ownerId: await _authenticatedOwnerId(),
+      kind: kind,
+      id: id,
+      cleartext: cleartext,
+    );
+  }
+
+  Future<DataApiResource> _decodeResource(
+    Map<String, Object?> json, {
+    required bool decryptSensitive,
+  }) async {
+    final wireResource = DataApiResource.fromJson(json);
+    if (!decryptSensitive || wireResource.sensitive == null) {
+      if (decryptSensitive && wireResource.hasSensitive) {
+        throw const DataApiProtocolException(
+          'resource omitted its requested sensitive envelope.',
+        );
+      }
+      return wireResource;
+    }
+    final cleartext = await _sensitiveCipher.decrypt(
+      masterKey: _requireEncryptionKey(),
+      ownerId: await _authenticatedOwnerId(),
+      kind: wireResource.kind,
+      id: wireResource.id,
+      envelope: wireResource.sensitive,
+    );
+    return DataApiResource(
+      id: wireResource.id,
+      kind: wireResource.kind,
+      data: wireResource.data,
+      sensitive: cleartext,
+      hasSensitive: wireResource.hasSensitive,
+      revision: wireResource.revision,
+      sourceId: wireResource.sourceId,
+      sourceRevision: wireResource.sourceRevision,
+      sourceUpdatedAt: wireResource.sourceUpdatedAt,
+      deleted: wireResource.deleted,
+      createdAt: wireResource.createdAt,
+      updatedAt: wireResource.updatedAt,
+    );
+  }
+
   Uri _resourceUri(String relativePath) => baseUri.resolve(relativePath);
 
   Future<({int statusCode, Object? body})> _request(
     String method,
     Uri uri, {
-    bool includeEncryptionKey = false,
     bool requireAuthentication = true,
     Object? jsonBody,
     Set<int>? acceptedStatusCodes,
   }) async {
     final accessToken = _accessToken;
     if (requireAuthentication && accessToken == null) {
-      throw const DataApiAuthenticationRequiredException();
-    }
-    if (includeEncryptionKey && _encryptionKey == null) {
       throw const DataApiAuthenticationRequiredException();
     }
     final client = _httpClientFactory();
@@ -810,7 +881,6 @@ final class DataApiClient
         method,
         uri,
         accessToken: accessToken,
-        includeEncryptionKey: includeEncryptionKey,
         jsonBody: jsonBody,
         acceptedStatusCodes: acceptedStatusCodes,
       ).timeout(
@@ -827,7 +897,6 @@ final class DataApiClient
     String method,
     Uri uri, {
     required String? accessToken,
-    required bool includeEncryptionKey,
     required Object? jsonBody,
     required Set<int>? acceptedStatusCodes,
   }) async {
@@ -853,9 +922,6 @@ final class DataApiClient
         HttpHeaders.authorizationHeader,
         'Bearer $accessToken',
       );
-    }
-    if (includeEncryptionKey) {
-      request.headers.set('X-Ianvs-Encryption-Key', _encryptionKey!);
     }
     if (encodedJsonBody != null) {
       request.headers.contentType = ContentType.json;

@@ -31,14 +31,12 @@ func TestOpenAPIPathsMatchImplementedHTTPRoutes(t *testing.T) {
 	operations := readOpenAPIOperations(t)
 	wantOperationIDs := map[string]string{
 		"GET /healthz":                     "health",
-		"POST /v1/auth/setup":              "setupLocalUserKey",
 		"POST /v1/auth/register/begin":     "beginRegistration",
 		"POST /v1/auth/register/complete":  "completeRegistration",
 		"POST /v1/auth/login/begin":        "beginLogin",
 		"POST /v1/auth/login/complete":     "completeLogin",
 		"POST /v1/auth/cancel-operation":   "cancelAuthenticationOperation",
 		"POST /v1/auth/logout":             "logout",
-		"POST /v1/auth/verify-key":         "verifyEncryptionKey",
 		"GET /v1/me":                       "getCurrentUser",
 		"GET /v1/resources":                "listResources",
 		"GET /v1/resources/{kind}/{id}":    "getResource",
@@ -174,16 +172,6 @@ func TestOpenAPIHealthContractMatchesSuccessAndFailureResponses(t *testing.T) {
 	response = request(t, handler, http.MethodGet, "/healthz", nil, nil)
 	if response.Code != http.StatusServiceUnavailable {
 		t.Fatalf("unhealthy status = %d, body = %s", response.Code, response.Body.String())
-	}
-}
-
-func TestOpenAPIVerifyKeyDocumentsEveryTypedRuntimeOutcome(t *testing.T) {
-	operations := readOpenAPIOperations(t)
-	verifyKey := operations["POST /v1/auth/verify-key"]
-	for _, status := range []string{"200", "400", "401", "428", "429"} {
-		if _, exists := verifyKey.Responses[status]; !exists {
-			t.Errorf("POST /v1/auth/verify-key does not document status %s", status)
-		}
 	}
 }
 

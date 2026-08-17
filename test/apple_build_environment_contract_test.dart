@@ -4,6 +4,143 @@ import 'dart:io';
 import 'package:test/test.dart';
 
 void main() {
+  test('Apple team detection reads the certificate subject OU', () async {
+    final directory = Directory.systemTemp.createTempSync(
+      'ianvs-apple-team-detector-',
+    );
+    addTearDown(() => directory.deleteSync(recursive: true));
+    final bin = Directory('${directory.path}/bin')..createSync();
+    final uname = File('${bin.path}/uname')
+      ..writeAsStringSync('#!/usr/bin/env bash\necho Darwin\n');
+    final security = File('${bin.path}/security')
+      ..writeAsStringSync(r'''
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "$1" == "find-identity" ]]; then
+  echo '  1) AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA "Apple Development: developer@example.test (WRONG12345)"'
+elif [[ "$1" == "find-certificate" ]]; then
+  echo 'fixture-certificate'
+else
+  exit 64
+fi
+''');
+    final openssl = File('${bin.path}/openssl')
+      ..writeAsStringSync('''
+#!/usr/bin/env bash
+cat >/dev/null
+echo 'subject=C=US,O=Ianvs,OU=RIGHT12345,CN=Apple Development'
+''');
+    final chmod = await Process.run('chmod', <String>[
+      '+x',
+      uname.path,
+      security.path,
+      openssl.path,
+    ]);
+    expect(chmod.exitCode, 0, reason: chmod.stderr as String?);
+
+    final result = await Process.run(
+      'bash',
+      <String>['tools/detect_apple_development_team.sh'],
+      environment: <String, String>{
+        'PATH': '${bin.path}:${Platform.environment['PATH']}',
+      },
+    );
+
+    expect(result.exitCode, 0, reason: result.stderr as String?);
+    expect((result.stdout as String).trim(), 'RIGHT12345');
+  });
+
+  test('Apple app identity is unified without a committed signing team', () {
+    final iosProject = File(
+      'example/ios/Runner.xcodeproj/project.pbxproj',
+    ).readAsStringSync();
+    final macosProject = File(
+      'example/macos/Runner.xcodeproj/project.pbxproj',
+    ).readAsStringSync();
+    final appInfo = File(
+      'example/macos/Runner/Configs/AppInfo.xcconfig',
+    ).readAsStringSync();
+    final iosReleaseEntitlements = File(
+      'example/ios/Runner/Release.entitlements',
+    ).readAsStringSync();
+    final iosDebugProfileEntitlements = File(
+      'example/ios/Runner/DebugProfile.entitlements',
+    ).readAsStringSync();
+    final appleBuilder = File(
+      'tools/build_signed_apple_release.sh',
+    ).readAsStringSync();
+    final teamDetector = File(
+      'tools/detect_apple_development_team.sh',
+    ).readAsStringSync();
+    final macosSigner = File(
+      'tools/sign_macos_with_keychain_identity.sh',
+    ).readAsStringSync();
+    final makefile = File('Makefile').readAsStringSync();
+
+    expect(
+      'PRODUCT_BUNDLE_IDENTIFIER = dev.ianvs.terminal;'.allMatches(iosProject),
+      hasLength(3),
+    );
+    expect(
+      iosProject,
+      isNot(contains('PRODUCT_BUNDLE_IDENTIFIER = dev.ianvs.terminal.dev;')),
+    );
+    expect('DEVELOPMENT_TEAM = "";'.allMatches(iosProject), hasLength(3));
+    expect(
+      RegExp('DEVELOPMENT_TEAM = (?!"";)[A-Z0-9]+;').hasMatch(iosProject),
+      isFalse,
+    );
+    expect(appInfo, contains('PRODUCT_BUNDLE_IDENTIFIER = dev.ianvs.terminal'));
+    expect(macosProject, isNot(contains('DEVELOPMENT_TEAM =')));
+    expect(macosProject, isNot(contains('dev.ianvs.terminal.dev')));
+    for (final entitlements in <String>[
+      iosReleaseEntitlements,
+      iosDebugProfileEntitlements,
+    ]) {
+      expect(
+        entitlements,
+        contains(r'$(AppIdentifierPrefix)dev.ianvs.terminal'),
+      );
+      expect(
+        entitlements,
+        isNot(contains(r'$(PRODUCT_BUNDLE_IDENTIFIER)')),
+        reason:
+            'Development installs must retain the production Keychain group.',
+      );
+    }
+
+    expect(appleBuilder, contains('XCODE_XCCONFIG_FILE='));
+    expect(appleBuilder, contains(r'DEVELOPMENT_TEAM = $TEAM'));
+    expect(
+      appleBuilder,
+      contains(r'PRODUCT_BUNDLE_IDENTIFIER = $IOS_BUNDLE_ID'),
+    );
+    expect(makefile, contains('IPHONE_BUNDLE_ID ?= dev.ianvs.terminal.dev'));
+    expect(makefile, contains('MACOS_BUNDLE_ID ?= dev.ianvs.terminal.dev'));
+    expect(makefile, contains(r'IANVS_IOS_BUNDLE_ID="$(IPHONE_BUNDLE_ID)"'));
+    expect(makefile, contains(r'IANVS_MACOS_BUNDLE_ID="$(MACOS_BUNDLE_ID)"'));
+    expect(appleBuilder, contains('/usr/bin/env -i'));
+    expect(appleBuilder, contains('-allowProvisioningUpdates'));
+    expect(appleBuilder, contains('embedded.provisionprofile'));
+    expect(
+      appleBuilder,
+      contains(r'${SIGNING_TEMP_BASE%/}/ianvs-macos-signing.XXXXXX'),
+      reason: 'xcconfig paths must not contain //, which starts a comment.',
+    );
+    expect(
+      appleBuilder,
+      contains(r'$TEAM.$PRODUCTION_IDENTIFIER'),
+      reason: 'macOS and iOS development installs share the production group.',
+    );
+    expect(teamDetector, contains('security find-identity'));
+    expect(teamDetector, contains('security find-certificate'));
+    expect(teamDetector, contains('openssl x509'));
+    expect(teamDetector, contains('OU='));
+    expect(teamDetector, isNot(matches(RegExp('[A-Z0-9]{10}'))));
+    expect(macosSigner, contains('security find-identity'));
+    expect(macosSigner, contains(r'$team.$EXPECTED_IDENTIFIER'));
+  });
+
   test('iOS verification passes only an explicit environment allowlist', () {
     final source = File('tools/verify_ios_simulator.sh').readAsStringSync();
     final block = RegExp(

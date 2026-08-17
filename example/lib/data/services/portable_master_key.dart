@@ -3,17 +3,24 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:cryptography/cryptography.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'data_api_auth_contract.dart';
+
+bool get usesAutomaticallySynchronizedAppleKeychain =>
+    !kIsWeb &&
+    (defaultTargetPlatform == TargetPlatform.iOS ||
+        defaultTargetPlatform == TargetPlatform.macOS);
 
 typedef PortableMasterKeyLegacyLoader = Future<String?> Function();
 
 /// The one user-owned secret used to unlock every encrypted Ianvs data set.
 ///
-/// [secret] is the value supplied to the Data API key contract. The portable
+/// [secret] is used only by local client-side encryption. The portable
 /// representation wraps that exact UTF-8 value in a versioned base64url
-/// envelope so whitespace and non-ASCII legacy keys survive copy/paste.
+/// envelope so whitespace and non-ASCII values survive explicit transfer on
+/// platforms without synchronized Apple Keychain.
 final class PortableMasterKey {
   factory PortableMasterKey.fromSecret(String secret) {
     validateDataApiEncryptionKey(secret);
@@ -100,11 +107,15 @@ final class FlutterSecurePortableMasterKeyStorage
     implements PortableMasterKeyStorage {
   const FlutterSecurePortableMasterKeyStorage({
     FlutterSecureStorage storage = const FlutterSecureStorage(
-      // Ad-hoc macOS development builds cannot use the Data Protection
-      // Keychain. Android and Windows use the plugin's platform defaults.
-      mOptions: MacOsOptions(usesDataProtectionKeychain: false),
+      iOptions: IOSOptions(synchronizable: true),
+      mOptions: MacOsOptions(synchronizable: true),
     ),
   }) : _storage = storage;
+
+  const FlutterSecurePortableMasterKeyStorage.legacyMacOs()
+    : _storage = const FlutterSecureStorage(
+        mOptions: MacOsOptions(usesDataProtectionKeychain: false),
+      );
 
   static const storageKey = 'ianvs.master-key.v1';
 
@@ -117,6 +128,8 @@ final class FlutterSecurePortableMasterKeyStorage
   Future<void> write(String portableValue) {
     return _storage.write(key: storageKey, value: portableValue);
   }
+
+  Future<void> delete() => _storage.delete(key: storageKey);
 }
 
 final class PortableMasterKeyConflictException implements Exception {
@@ -130,15 +143,29 @@ final class PortableMasterKeyConflictException implements Exception {
   }
 }
 
+final class PortableMasterKeyUnavailableException implements Exception {
+  const PortableMasterKeyUnavailableException();
+
+  @override
+  String toString() {
+    return 'The Ianvs master key has not arrived from iCloud Keychain yet. '
+        'Open Ianvs Terminal on macOS, keep both devices online, and retry.';
+  }
+}
+
 /// Single source of truth for generation, migration, import and export.
 ///
 /// Operations are serialized and an installed key is cached, avoiding repeated
 /// platform-vault reads throughout the process lifetime.
 final class PortableMasterKeyRepository {
-  PortableMasterKeyRepository({PortableMasterKeyStorage? storage})
-    : _storage = storage ?? const FlutterSecurePortableMasterKeyStorage();
+  PortableMasterKeyRepository({
+    PortableMasterKeyStorage? storage,
+    bool allowCreation = true,
+  }) : _storage = storage ?? const FlutterSecurePortableMasterKeyStorage(),
+       _allowCreation = allowCreation;
 
   final PortableMasterKeyStorage _storage;
+  final bool _allowCreation;
   Future<void> _operationTail = Future<void>.value();
   PortableMasterKey? _cached;
 
@@ -156,6 +183,21 @@ final class PortableMasterKeyRepository {
     });
   }
 
+  /// Re-reads the platform vault so an iCloud Keychain update from another
+  /// Apple device becomes visible without restarting this process.
+  ///
+  /// A temporarily missing platform item never discards an already cached
+  /// key and this method never generates replacement key material.
+  Future<PortableMasterKey?> refreshFromStorage() {
+    return _serialized(() async {
+      final encoded = await _storage.read();
+      if (encoded == null || encoded.isEmpty) {
+        return _cached;
+      }
+      return _cached = PortableMasterKey.parsePortable(encoded);
+    });
+  }
+
   Future<PortableMasterKey> readOrCreate({
     PortableMasterKeyLegacyLoader? legacyLoader,
   }) {
@@ -163,6 +205,9 @@ final class PortableMasterKeyRepository {
       final existing = await _readUnlocked();
       if (existing != null) {
         return existing;
+      }
+      if (!_allowCreation) {
+        throw const PortableMasterKeyUnavailableException();
       }
       final legacySecret = await legacyLoader?.call();
       final key = legacySecret == null || legacySecret.isEmpty
@@ -197,6 +242,22 @@ final class PortableMasterKeyRepository {
 
   Future<String> exportPortable() async {
     return (await readOrCreate()).portableValue;
+  }
+
+  /// Replaces the platform-vault item only after a caller has independently
+  /// authenticated existing ciphertext with [encoded].
+  Future<PortableMasterKey> replaceAfterCryptographicVerification(
+    String encoded,
+  ) {
+    final candidate = PortableMasterKey.parsePortable(encoded);
+    return _serialized(() async {
+      await _storage.write(candidate.portableValue);
+      final persisted = await _storage.read();
+      if (persisted != candidate.portableValue) {
+        throw StateError('Verified Ianvs master key did not persist.');
+      }
+      return _cached = candidate;
+    });
   }
 
   Future<PortableMasterKey?> _readUnlocked() async {

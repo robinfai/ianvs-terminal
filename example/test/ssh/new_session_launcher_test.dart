@@ -11,6 +11,13 @@ const _testPrivateKey =
     '-----BEGIN OPENSSH PRIVATE KEY-----\n'
     'b3BlbnNzaC1rZXktdjEAAAAA\n'
     '-----END OPENSSH PRIVATE KEY-----';
+const _testJumpPrivateKey =
+    '-----BEGIN OPENSSH PRIVATE KEY-----\n'
+    'b3BlbnNzaC1rZXktdjEAAAAB\n'
+    '-----END OPENSSH PRIVATE KEY-----';
+
+String _materializeTestPrivateKey(String path) =>
+    path.contains('jump') ? _testJumpPrivateKey : _testPrivateKey;
 
 void main() {
   test('parses and formats local, remote, dynamic, and IPv6 forwards', () {
@@ -99,6 +106,7 @@ void main() {
           ),
         ],
       ),
+      privateKeyLoader: _materializeTestPrivateKey,
     );
     NewSessionSelection? result;
 
@@ -144,9 +152,7 @@ void main() {
     final encoded = wire.toJsonString();
     final decoded = terminal.TerminalSessionConfigV1.fromJsonString(encoded);
     expect(decoded.config.connection.host, 'imported.example.test');
-    expect(decoded.config.connection.privateKeys, <String>[
-      '/keys/target_ed25519',
-    ]);
+    expect(decoded.config.connection.privateKeys, <String>[_testPrivateKey]);
     expect(decoded.config.connection.proxyJump, 'jump-user@jump-alias:2222');
     expect(decoded.config.connection.proxyJumpProfiles, hasLength(1));
     expect(
@@ -155,7 +161,7 @@ void main() {
     );
     expect(
       decoded.config.connection.proxyJumpProfiles.single.privateKeys,
-      <String>['/keys/jump_ed25519'],
+      <String>[_testJumpPrivateKey],
     );
     expect(
       decoded.config.connection.proxyJumpProfiles.single.privateKeys,
@@ -661,6 +667,7 @@ void main() {
           ),
         ],
       ),
+      privateKeyLoader: _materializeTestPrivateKey,
     );
 
     await _pumpSshEditor(
@@ -681,7 +688,7 @@ void main() {
     final jump = result!.profile.connection.proxyJumpProfiles.single;
     expect(jump.host, 'resolved-jump.example.test');
     expect(jump.auth, terminal.TerminalSshAuthMethod.publicKey);
-    expect(jump.privateKeys, <String>['/keys/jump_ed25519']);
+    expect(jump.privateKeys, <String>[_testJumpPrivateKey]);
     expect(jump.hostKeyPolicy, terminal.TerminalSshHostKeyPolicy.acceptNew);
     expect(jump.knownHostsFile, '/known/jump_hosts');
   });

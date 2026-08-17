@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import '../configuration/data_api_configuration.dart';
@@ -76,7 +75,6 @@ abstract interface class DataApiLocalApiInitialization {
   Future<void> initialize({
     required Uri baseUri,
     required String localAccessToken,
-    required String encryptionKey,
   });
 }
 
@@ -98,7 +96,6 @@ final class DataApiLocalApiInitializer
   Future<void> initialize({
     required Uri baseUri,
     required String localAccessToken,
-    required String encryptionKey,
   }) async {
     final client = _httpClientFactory()..connectionTimeout = requestTimeout;
     try {
@@ -106,7 +103,6 @@ final class DataApiLocalApiInitializer
         client: client,
         baseUri: baseUri,
         localAccessToken: localAccessToken,
-        encryptionKey: encryptionKey,
       ).timeout(
         initializationTimeout,
         onTimeout: () => throw DataApiLocalInitializationTimeoutException(
@@ -123,31 +119,8 @@ final class DataApiLocalApiInitializer
     required HttpClient client,
     required Uri baseUri,
     required String localAccessToken,
-    required String encryptionKey,
   }) async {
     await _waitForHealth(client, baseUri, localAccessToken);
-    final request = await _withRequestDeadline(
-      'setup request',
-      client.postUrl(baseUri.resolve('/v1/auth/setup')),
-    );
-    request.headers
-      ..contentType = ContentType.json
-      ..set(HttpHeaders.authorizationHeader, 'Bearer $localAccessToken');
-    request.write(
-      jsonEncode(<String, String>{'encryption_key': encryptionKey}),
-    );
-    final response = await _withRequestDeadline(
-      'setup response',
-      request.close(),
-    );
-    await _withRequestDeadline('setup response body', response.drain<void>());
-    if (response.statusCode != HttpStatus.ok &&
-        response.statusCode != HttpStatus.created) {
-      throw HttpException(
-        'Local data API setup failed with HTTP ${response.statusCode}.',
-        uri: baseUri.resolve('/v1/auth/setup'),
-      );
-    }
   }
 
   Future<void> _waitForHealth(
@@ -315,7 +288,6 @@ class DataApiBootstrap {
       await _localApiInitializer.initialize(
         baseUri: sidecar.baseUri,
         localAccessToken: localAccessToken,
-        encryptionKey: encryptionKey,
       );
     } on Object catch (initializationError, initializationStackTrace) {
       try {

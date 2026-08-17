@@ -32,9 +32,8 @@ void main() {
       expect(document['openapi'], isA<String>());
       expect((document['openapi']! as String).startsWith('3.1.'), isTrue);
       final info = _expectMap(document, 'info');
-      final keyContract = _expectMap(info, 'x-ianvs-encryption-key-contract');
-      expect(keyContract['version'], 1);
-      expect(keyContract['rotation_supported'], isFalse);
+      expect(info, isNot(contains('x-ianvs-encryption-key-contract')));
+      expect(info['description'], contains('never receives or verifies'));
       expect(info['x-ianvs-json-response-limit-bytes'], 12 * 1024 * 1024);
       expect(info['x-ianvs-json-request-limit-bytes'], 12 * 1024 * 1024);
       final paths = _expectMap(document, 'paths');
@@ -57,7 +56,7 @@ void main() {
       expect(expectedRevision['minimum'], 0);
       expect(
         expectedRevision['description'],
-        contains('Zero creates only when absent'),
+        contains('Zero creates only when logically absent'),
       );
 
       final resourcePage = schemas['ResourcePage']! as YamlMap;
@@ -95,38 +94,14 @@ void main() {
         isNot(contains('#/components/parameters/PageCursor')),
       );
 
-      final encryptionKeyRequest = schemas['EncryptionKeyRequest']! as YamlMap;
-      final encryptionKeyProperties =
-          encryptionKeyRequest['properties']! as YamlMap;
-      final encryptionKey =
-          encryptionKeyProperties['encryption_key']! as YamlMap;
-      expect(encryptionKey['x-ianvs-min-utf8-bytes'], 16);
-      expect(encryptionKey['x-ianvs-max-utf8-bytes'], 1024);
-
       final user = schemas['User']! as YamlMap;
-      expect(
-        user['required'],
-        containsAll(<String>['key_contract_version', 'key_rotation_supported']),
-      );
+      expect(user['required'], containsAll(<String>['id', 'username']));
       final userProperties = user['properties']! as YamlMap;
-      expect((userProperties['key_contract_version']! as YamlMap)['const'], 1);
-      expect(
-        (userProperties['key_rotation_supported']! as YamlMap)['const'],
-        isFalse,
-      );
-
-      final verifyKey =
-          (paths['/v1/auth/verify-key']! as YamlMap)['post']! as YamlMap;
-      final verifyResponses = verifyKey['responses']! as YamlMap;
-      expect(
-        verifyResponses.keys.map((key) => key.toString()),
-        containsAll(<String>['400', '401', '428', '429']),
-      );
+      expect(userProperties.keys, unorderedEquals(<String>['id', 'username']));
+      expect(paths, isNot(contains('/v1/auth/verify-key')));
+      expect(paths, isNot(contains('/v1/auth/setup')));
+      expect(source, isNot(contains('X-Ianvs-Encryption-Key')));
       final exactErrors = <String, String>{
-        'InvalidEncryptionKeyError': 'invalid_encryption_key',
-        'EncryptionKeyRequiredError': 'encryption_key_required',
-        'EncryptionKeyTooLongError': 'encryption_key_too_long',
-        'KeyDerivationBusyError': 'key_derivation_busy',
         'AuthOperationNotFoundError': 'auth_operation_not_found',
         'AuthOperationKindMismatchError': 'auth_operation_kind_mismatch',
         'AuthSessionCapacityError': 'auth_session_capacity',

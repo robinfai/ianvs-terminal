@@ -37,6 +37,7 @@ void main() {
       projectText,
       contains('PRODUCT_BUNDLE_IDENTIFIER = dev.ianvs.terminal.RunnerTests;'),
     );
+    expect(projectText, isNot(contains('DEVELOPMENT_TEAM =')));
     expect(projectText, isNot(contains('/* app.app */')));
     expect(projectText, isNot(contains('com.example.app')));
 
@@ -57,7 +58,7 @@ void main() {
   });
 
   test(
-    'macOS uses Swift Package plugins and an ad-hoc-signable Keychain setup',
+    'macOS uses Swift Package plugins and synchronized Keychain storage',
     () {
       final exampleRoot = _exampleRoot();
       final macosRoot = Directory('${exampleRoot.path}/macos');
@@ -87,10 +88,8 @@ void main() {
       expect(releaseConfig, isNot(contains('Pods/Target Support Files')));
       expect(debugEntitlements, isNot(contains('keychain-access-groups')));
       expect(releaseEntitlements, isNot(contains('keychain-access-groups')));
-      expect(
-        masterKeyStorage,
-        contains('MacOsOptions(usesDataProtectionKeychain: false)'),
-      );
+      expect(masterKeyStorage, contains('IOSOptions(synchronizable: true)'));
+      expect(masterKeyStorage, contains('MacOsOptions(synchronizable: true)'));
       expect(masterKeyStorage, contains('ianvs.master-key.v1'));
     },
   );
@@ -272,7 +271,18 @@ void main() {
     );
     expect(verifier, contains('trap cleanup_release_entitlements EXIT'));
     expect(verifier, contains(r'plutil -lint "$release_entitlements"'));
-    expect(verifier, contains('must have an empty entitlement dictionary'));
+    expect(
+      verifier,
+      contains(
+        'Certificate-signed Release app must expose the '
+        'dev.ianvs.terminal Keychain group',
+      ),
+    );
+    expect(
+      verifier,
+      contains('Ad-hoc Release app must have an empty entitlement dictionary'),
+    );
+    expect(verifier, contains('must retain library validation'));
     expect(verifier, contains('must enable hardened runtime'));
     expect(
       RegExp(
@@ -356,6 +366,13 @@ void main() {
       );
       expect(certificate.codesignLog, isNot(contains('--force')));
       expect(certificate.codesignLog, contains('--verify --deep --strict'));
+
+      final wrongCertificate = await _runSignerFixture(
+        signature: 'certificate',
+        entitlements: validEntitlements,
+        authority: 'Developer ID Application: Fixture',
+      );
+      expect(wrongCertificate.result.exitCode, isNonZero);
 
       const falseEntitlements = '''
 <?xml version="1.0" encoding="UTF-8"?>
@@ -569,6 +586,7 @@ final class _SignerFixtureResult {
 Future<_SignerFixtureResult> _runSignerFixture({
   required String signature,
   required String entitlements,
+  String authority = 'Apple Development: developer@example.test (FIXTURE123)',
   bool runtimeFlag = true,
   bool verifySucceeds = true,
 }) async {
@@ -597,6 +615,7 @@ if [[ "$1" == "-d" && "$2" == "--verbose=4" ]]; then
       echo 'CodeDirectory flags=0x2(adhoc)' >&2
     fi
     echo 'Signature=adhoc' >&2
+    echo 'Identifier=dev.ianvs.terminal' >&2
   else
     if [[ "$FAKE_RUNTIME_FLAG" == "true" ]]; then
       echo 'CodeDirectory flags=0x10000(runtime)' >&2
@@ -604,7 +623,9 @@ if [[ "$1" == "-d" && "$2" == "--verbose=4" ]]; then
       echo 'CodeDirectory flags=0x0(none)' >&2
     fi
     echo 'Signature=Developer ID Application' >&2
+    echo "Authority=$FAKE_AUTHORITY" >&2
     echo 'TeamIdentifier=IANVSFIXTURE' >&2
+    echo 'Identifier=dev.ianvs.terminal' >&2
   fi
 elif [[ "$1" == "-d" && "$2" == "--entitlements" ]]; then
   cat "$FAKE_ENTITLEMENTS_FILE"
@@ -629,6 +650,7 @@ fi
       environment: <String, String>{
         'PATH': '${bin.path}:$parentPath',
         'FAKE_SIGNATURE': signature,
+        'FAKE_AUTHORITY': authority,
         'FAKE_RUNTIME_FLAG': runtimeFlag.toString(),
         'FAKE_VERIFY_SUCCEEDS': verifySucceeds.toString(),
         'FAKE_CODESIGN_LOG': codesignLog.path,

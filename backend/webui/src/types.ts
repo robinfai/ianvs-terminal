@@ -12,9 +12,6 @@ export interface Health {
 export interface User {
   id: string
   username: string
-  key_configured: boolean
-  key_contract_version: number
-  key_rotation_supported: boolean
 }
 
 export interface PreparedAuthOperation {
@@ -54,13 +51,6 @@ export interface ResourceWrite {
   sensitive?: unknown
   clear_sensitive?: boolean
   expected_revision?: number
-}
-
-export interface VerifyKeyResult {
-  verified: true
-  basis: 'account_key_verifier'
-  key_contract_version: number
-  key_rotation_supported: false
 }
 
 export interface ErrorBody {

@@ -2,11 +2,12 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:app/data/services/data_api_client.dart';
+import 'package:app/data/services/data_api_sensitive_cipher.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test(
-    'writes the resource contract with auth and encryption headers',
+    'encrypts sensitive data locally and never sends the master key',
     () async {
       final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       addTearDown(() => server.close(force: true));
@@ -16,6 +17,18 @@ void main() {
       late String? encryptionKey;
       late Map<String, Object?> requestBody;
       server.listen((request) async {
+        if (request.uri.path == '/api/v1/me') {
+          request.response
+            ..statusCode = HttpStatus.ok
+            ..headers.contentType = ContentType.json
+            ..write(
+              jsonEncode(<String, Object?>{
+                'user': <String, Object?>{'id': 'owner-a', 'username': 'alice'},
+              }),
+            );
+          await request.response.close();
+          return;
+        }
         method = request.method;
         requestUri = request.uri;
         authorization = request.headers.value(HttpHeaders.authorizationHeader);
@@ -54,8 +67,10 @@ void main() {
       expect(method, 'PUT');
       expect(requestUri.path, '/api/v1/resources/profile/work');
       expect(authorization, 'Bearer access-token');
-      expect(encryptionKey, 'encryption-key-material');
+      expect(encryptionKey, isNull);
       expect(requestBody['data'], <String, Object?>{'name': 'Work'});
+      expect(requestBody['sensitive'].toString(), isNot(contains('secret')));
+      expect(resource.sensitive, <String, Object?>{'password': 'secret'});
       expect(resource.revision, 1);
     },
   );
@@ -92,7 +107,26 @@ void main() {
     late Uri requestUri;
     late String? authorization;
     late String? encryptionKey;
+    final sensitiveEnvelope = await DataApiSensitiveCipher().encrypt(
+      masterKey: 'encryption-key-material',
+      ownerId: 'owner-a',
+      kind: 'profile',
+      id: 'default',
+      cleartext: const <String, Object?>{'secret': 'encrypted'},
+    );
     server.listen((request) async {
+      if (request.uri.path == '/v1/me') {
+        request.response
+          ..statusCode = HttpStatus.ok
+          ..headers.contentType = ContentType.json
+          ..write(
+            jsonEncode(<String, Object?>{
+              'user': <String, Object?>{'id': 'owner-a', 'username': 'alice'},
+            }),
+          );
+        await request.response.close();
+        return;
+      }
       requestUri = request.uri;
       authorization = request.headers.value(HttpHeaders.authorizationHeader);
       encryptionKey = request.headers.value('X-Ianvs-Encryption-Key');
@@ -109,7 +143,7 @@ void main() {
                 id: 'default',
                 kind: 'profile',
                 data: const <String, Object?>{'schemaVersion': 1},
-                sensitive: const <String, Object?>{'secret': 'encrypted'},
+                sensitive: sensitiveEnvelope,
               ),
             ],
             'next_cursor': 'next-page',
@@ -133,9 +167,11 @@ void main() {
       'cursor': 'current-page',
     });
     expect(authorization, 'Bearer access-token');
-    expect(encryptionKey, 'encryption-key-material');
+    expect(encryptionKey, isNull);
     expect(page.sourceId, 'local-api-instance');
-    expect(page.resources.single.sensitive, isNotNull);
+    expect(page.resources.single.sensitive, const <String, Object?>{
+      'secret': 'encrypted',
+    });
     expect(page.nextCursor, 'next-page');
   });
 
@@ -700,7 +736,6 @@ void main() {
       Map<String, Object?>? beginBody;
       Map<String, Object?>? completeBody;
       String? validationAuthorization;
-      String? validationEncryptionKey;
       server.listen((request) async {
         paths.add(request.uri.toString());
         if (request.uri.path == '/v1/auth/login/begin') {
@@ -745,19 +780,8 @@ void main() {
             ..statusCode = HttpStatus.ok
             ..headers.contentType = ContentType.json
             ..write(
-              jsonEncode(<String, Object?>{'id': 1, 'username': 'alice'}),
-            );
-        } else {
-          validationEncryptionKey = request.headers.value(
-            'X-Ianvs-Encryption-Key',
-          );
-          request.response
-            ..statusCode = HttpStatus.ok
-            ..headers.contentType = ContentType.json
-            ..write(
               jsonEncode(<String, Object?>{
-                'verified': true,
-                'basis': 'account_key_verifier',
+                'user': <String, Object?>{'id': 'owner-a', 'username': 'alice'},
               }),
             );
         }
@@ -794,53 +818,68 @@ void main() {
         '/v1/auth/login/begin',
         '/v1/auth/login/complete',
         '/v1/me',
-        '/v1/auth/verify-key',
       ]);
       expect(validationAuthorization, 'Bearer issued-access-token');
-      expect(validationEncryptionKey, 'encryption-key-material');
     },
   );
 
-  test('session validation exposes a wrong encryption key', () async {
-    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-    addTearDown(() => server.close(force: true));
-    server.listen((request) async {
-      request.response.headers.contentType = ContentType.json;
-      if (request.uri.path == '/v1/me') {
-        request.response
-          ..statusCode = HttpStatus.ok
-          ..write(jsonEncode(<String, Object?>{'username': 'alice'}));
-      } else {
-        request.response
-          ..statusCode = HttpStatus.unauthorized
-          ..write(
-            jsonEncode(<String, Object?>{
-              'error': <String, String>{
-                'code': 'invalid_encryption_key',
-                'message': 'the encryption key is invalid',
-              },
-            }),
-          );
-      }
-      await request.response.close();
-    });
-    final client = DataApiClient(
-      baseUri: Uri.parse('http://127.0.0.1:${server.port}/'),
-      accessToken: 'issued-access-token',
-      encryptionKey: 'wrong-encryption-key',
-    );
+  test(
+    'wrong key fails locally while the server only sees bearer auth',
+    () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      final envelope = await DataApiSensitiveCipher().encrypt(
+        masterKey: 'correct-encryption-key',
+        ownerId: 'owner-a',
+        kind: 'profile',
+        id: 'work',
+        cleartext: const <String, Object?>{'password': 'secret'},
+      );
+      final seenPaths = <String>[];
+      final seenEncryptionHeaders = <String?>[];
+      server.listen((request) async {
+        seenPaths.add(request.uri.path);
+        seenEncryptionHeaders.add(
+          request.headers.value('X-Ianvs-Encryption-Key'),
+        );
+        request.response.headers.contentType = ContentType.json;
+        if (request.uri.path == '/v1/me') {
+          request.response
+            ..statusCode = HttpStatus.ok
+            ..write(
+              jsonEncode(<String, Object?>{
+                'user': <String, Object?>{'id': 'owner-a', 'username': 'alice'},
+              }),
+            );
+        } else {
+          request.response
+            ..statusCode = HttpStatus.ok
+            ..write(
+              jsonEncode(
+                _validResourceJson(
+                  id: 'work',
+                  kind: 'profile',
+                  sensitive: envelope,
+                ),
+              ),
+            );
+        }
+        await request.response.close();
+      });
+      final client = DataApiClient(
+        baseUri: Uri.parse('http://127.0.0.1:${server.port}/'),
+        accessToken: 'issued-access-token',
+        encryptionKey: 'wrong-encryption-key',
+      );
 
-    await expectLater(
-      client.validateSession(),
-      throwsA(
-        isA<DataApiRequestException>().having(
-          (error) => error.code,
-          'code',
-          'invalid_encryption_key',
-        ),
-      ),
-    );
-  });
+      await expectLater(
+        client.getResource(kind: 'profile', id: 'work', includeSensitive: true),
+        throwsA(isA<DataApiSensitiveAuthenticationException>()),
+      );
+      expect(seenPaths, <String>['/v1/resources/profile/work', '/v1/me']);
+      expect(seenEncryptionHeaders, everyElement(isNull));
+    },
+  );
 
   test('logout uses the bounded authenticated revocation contract', () async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);

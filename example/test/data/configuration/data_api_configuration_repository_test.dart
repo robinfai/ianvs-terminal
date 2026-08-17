@@ -394,6 +394,45 @@ void main() {
   });
 
   test(
+    'remote login refreshes a master key synchronized after startup',
+    () async {
+      final staleKey = PortableMasterKey.fromSecret(
+        'stale-synchronized-key-material',
+      );
+      final currentKey = PortableMasterKey.fromSecret(
+        'current-synchronized-key-material',
+      );
+      final storage = _MemoryPortableMasterKeyStorage()
+        ..value = staleKey.portableValue;
+      final masterKeys = PortableMasterKeyRepository(storage: storage);
+      await masterKeys.read();
+      storage.value = currentKey.portableValue;
+      final session = _remoteSession(
+        baseUri: Uri.parse('https://sync.example.com/'),
+        encryptionKey: currentKey.secret,
+      );
+      final authenticator = _RecordingRemoteAuthenticator(session: session);
+      final guarded = AuthenticatedDataApiConfigurationRepository(
+        delegate: repository,
+        remoteSessionStore: _MemoryRemoteSessionStore(),
+        remoteAuthenticator: authenticator,
+        remoteConnectionValidator: _RecordingRemoteValidator(),
+        masterKeyRepository: masterKeys,
+      );
+
+      await guarded.connectAndSaveRemote(
+        DataApiRemoteLoginRequest(
+          baseUri: session.baseUri,
+          username: 'alice',
+          password: 'ephemeral-password',
+        ),
+      );
+
+      expect(authenticator.received?.encryptionKey, currentKey.secret);
+    },
+  );
+
+  test(
     'explicit local migration merges before committing remote configuration',
     () async {
       await repository.save(const DataApiConfiguration.local());
@@ -825,7 +864,7 @@ void main() {
     },
   );
 
-  test('failed key validation preserves mode and previous session', () async {
+  test('failed authentication preserves mode and previous session', () async {
     await repository.save(const DataApiConfiguration.disabled());
     final store = _MemoryRemoteSessionStore();
     final canceler = _RecordingAuthOperationCanceler();
@@ -835,8 +874,8 @@ void main() {
       remoteAuthenticator: _RecordingRemoteAuthenticator(
         error: const DataApiRequestException(
           statusCode: 401,
-          code: 'invalid_encryption_key',
-          message: 'the encryption key is invalid',
+          code: 'invalid_credentials',
+          message: 'the credentials are invalid',
         ),
       ),
       authOperationCanceler: canceler,
@@ -855,7 +894,7 @@ void main() {
         isA<DataApiRequestException>().having(
           (error) => error.code,
           'code',
-          'invalid_encryption_key',
+          'invalid_credentials',
         ),
       ),
     );
@@ -2050,9 +2089,9 @@ void main() {
         remoteAuthenticator: _RecordingRemoteAuthenticator(session: issued),
         remoteConnectionValidator: _RecordingRemoteValidator(
           error: const DataApiRequestException(
-            statusCode: HttpStatus.unauthorized,
-            code: 'invalid_encryption_key',
-            message: 'wrong key',
+            statusCode: HttpStatus.serviceUnavailable,
+            code: 'validation_unavailable',
+            message: 'validation unavailable',
           ),
         ),
         authOperationCanceler: _RecordingAuthOperationCanceler(
@@ -2404,101 +2443,87 @@ void main() {
     );
   });
 
-  test('wrong-key validation revokes the newly issued token', () async {
-    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-    addTearDown(() => server.close(force: true));
-    final paths = <String>[];
-    String? logoutAuthorization;
-    server.listen((request) async {
-      paths.add(request.uri.path);
-      request.response.headers.contentType = ContentType.json;
-      switch (request.uri.path) {
-        case '/v1/auth/login/begin':
-          request.response
-            ..statusCode = HttpStatus.ok
-            ..write(
-              jsonEncode(<String, Object?>{
-                'operation_id': List<String>.filled(43, 'A').join(),
-                'expires_at': DateTime.now()
-                    .add(const Duration(minutes: 5))
-                    .toUtc()
-                    .toIso8601String(),
-                'kind': 'login',
-              }),
-            );
-        case '/v1/auth/login/complete':
-          request.response
-            ..statusCode = HttpStatus.ok
-            ..write(
-              jsonEncode(<String, Object?>{
-                'token': 'new-access-token',
-                'expires_at': DateTime.now()
-                    .add(const Duration(hours: 1))
-                    .toUtc()
-                    .toIso8601String(),
-              }),
-            );
-        case '/v1/me':
-          request.response
-            ..statusCode = HttpStatus.ok
-            ..write(jsonEncode(<String, Object?>{'username': 'alice'}));
-        case '/v1/auth/verify-key':
-          request.response
-            ..statusCode = HttpStatus.unauthorized
-            ..write(
-              jsonEncode(<String, Object?>{
-                'error': <String, String>{
-                  'code': 'invalid_encryption_key',
-                  'message': 'wrong key',
-                },
-              }),
-            );
-        case '/v1/auth/cancel-operation':
-          request.response.statusCode = HttpStatus.noContent;
-        case '/v1/auth/logout':
-          logoutAuthorization = request.headers.value(
-            HttpHeaders.authorizationHeader,
-          );
-          request.response.statusCode = HttpStatus.noContent;
-      }
-      await request.response.close();
-    });
-    final baseUri = Uri.parse('http://127.0.0.1:${server.port}/');
-    final store = _MemoryRemoteSessionStore();
-    final guarded = AuthenticatedDataApiConfigurationRepository(
-      delegate: repository,
-      remoteSessionStore: store,
-    );
+  test(
+    'remote authentication never verifies the client encryption key',
+    () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      final paths = <String>[];
+      server.listen((request) async {
+        paths.add(request.uri.path);
+        request.response.headers.contentType = ContentType.json;
+        switch (request.uri.path) {
+          case '/v1/auth/login/begin':
+            request.response
+              ..statusCode = HttpStatus.ok
+              ..write(
+                jsonEncode(<String, Object?>{
+                  'operation_id': List<String>.filled(43, 'A').join(),
+                  'expires_at': DateTime.now()
+                      .add(const Duration(minutes: 5))
+                      .toUtc()
+                      .toIso8601String(),
+                  'kind': 'login',
+                }),
+              );
+          case '/v1/auth/login/complete':
+            request.response
+              ..statusCode = HttpStatus.ok
+              ..write(
+                jsonEncode(<String, Object?>{
+                  'token': 'new-access-token',
+                  'expires_at': DateTime.now()
+                      .add(const Duration(hours: 1))
+                      .toUtc()
+                      .toIso8601String(),
+                }),
+              );
+          case '/v1/me':
+            request.response
+              ..statusCode = HttpStatus.ok
+              ..write(
+                jsonEncode(<String, Object?>{
+                  'user': <String, Object?>{
+                    'id': 'owner-a',
+                    'username': 'alice',
+                  },
+                }),
+              );
+          case '/v1/auth/cancel-operation':
+            request.response.statusCode = HttpStatus.noContent;
+          case '/v1/auth/logout':
+            request.response.statusCode = HttpStatus.noContent;
+        }
+        await request.response.close();
+      });
+      final baseUri = Uri.parse('http://127.0.0.1:${server.port}/');
+      final store = _MemoryRemoteSessionStore();
+      final guarded = AuthenticatedDataApiConfigurationRepository(
+        delegate: repository,
+        remoteSessionStore: store,
+      );
 
-    await expectLater(
-      guarded.connectAndSaveRemote(
+      await guarded.connectAndSaveRemote(
         DataApiRemoteLoginRequest(
           baseUri: baseUri,
           username: 'alice',
           password: 'password-1234',
-          encryptionKey: 'wrong-encryption-key',
+          encryptionKey: 'client-only-encryption-key',
         ),
-      ),
-      throwsA(
-        isA<DataApiRequestException>().having(
-          (error) => error.code,
-          'code',
-          'invalid_encryption_key',
-        ),
-      ),
-    );
+      );
 
-    expect(paths, <String>[
-      '/v1/auth/login/begin',
-      '/v1/auth/login/complete',
-      '/v1/me',
-      '/v1/auth/verify-key',
-      '/v1/auth/cancel-operation',
-      '/v1/auth/logout',
-    ]);
-    expect(logoutAuthorization, 'Bearer new-access-token');
-    expect(store.slots, isEmpty);
-  });
+      expect(paths, <String>[
+        '/v1/auth/login/begin',
+        '/v1/auth/login/complete',
+        '/v1/me',
+      ]);
+      expect(store.slots, hasLength(1));
+      expect(
+        store.slots.values.single.encryptionKey,
+        'client-only-encryption-key',
+      );
+    },
+  );
 
   test('validation and logout failures are preserved together', () async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
@@ -2532,16 +2557,12 @@ void main() {
           );
       } else if (request.uri.path == '/v1/me') {
         request.response
-          ..statusCode = HttpStatus.ok
-          ..write(jsonEncode(<String, Object?>{'username': 'alice'}));
-      } else if (request.uri.path == '/v1/auth/verify-key') {
-        request.response
-          ..statusCode = HttpStatus.unauthorized
+          ..statusCode = HttpStatus.serviceUnavailable
           ..write(
             jsonEncode(<String, Object?>{
               'error': <String, String>{
-                'code': 'invalid_encryption_key',
-                'message': 'wrong key',
+                'code': 'validation_unavailable',
+                'message': 'try later',
               },
             }),
           );
@@ -2592,7 +2613,7 @@ void main() {
               isA<DataApiRequestException>().having(
                 (error) => error.code,
                 'code',
-                'invalid_encryption_key',
+                'validation_unavailable',
               ),
             )
             .having(

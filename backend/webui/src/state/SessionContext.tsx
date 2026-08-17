@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { ApiError, DataApiClient } from '../api/client'
+import { DataApiClient } from '../api/client'
 import { Button, Dialog, Notice, TextField } from '../components/ui'
 import type { Mode, User } from '../types'
 
@@ -38,7 +38,7 @@ interface SessionContextValue extends SessionState {
   signOut: () => void
   /**
    * Resolves with the in-memory encryption key when one is already set,
-   * otherwise prompts the user and verifies (or locally initializes) it.
+   * otherwise prompts the user and keeps it only in page memory.
    * Returns null when the user cancels. Authentication never requests a key.
    */
   requestKey: (reason: string) => Promise<string | null>
@@ -59,7 +59,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [restoring, setRestoring] = useState<boolean>(() => Boolean(readStoredToken()))
   const [keyPrompt, setKeyPrompt] = useState<KeyPromptState | null>(null)
   const [keyPromptError, setKeyPromptError] = useState<string | null>(null)
-  const [keyPromptBusy, setKeyPromptBusy] = useState(false)
+  const keyPromptBusy = false
 
   const clearKey = useCallback(() => {
     setKeyState(null)
@@ -111,37 +111,15 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   )
 
   const submitKeyPrompt = useCallback(
-    async (value: string) => {
+    (value: string) => {
       const current = keyPrompt
       if (!current || !token) return
-      setKeyPromptBusy(true)
       setKeyPromptError(null)
-      try {
-        const client = new DataApiClient({ baseUrl, token, key: value })
-        if (user?.key_configured) {
-          await client.verifyKey()
-        } else if (mode === 'local') {
-          const response = await client.setupLocal(value)
-          setUser(response.user)
-        } else {
-          throw new Error('This account does not have an encryption key configured.')
-        }
-        setKeyState(value)
-        current.resolve(value)
-        setKeyPrompt(null)
-      } catch (err) {
-        setKeyPromptError(
-          err instanceof ApiError
-            ? err.message
-            : err instanceof Error
-              ? err.message
-              : String(err),
-        )
-      } finally {
-        setKeyPromptBusy(false)
-      }
+      setKeyState(value)
+      current.resolve(value)
+      setKeyPrompt(null)
     },
-    [baseUrl, keyPrompt, mode, token, user],
+    [keyPrompt, token],
   )
 
   const cancelKeyPrompt = useCallback(() => {

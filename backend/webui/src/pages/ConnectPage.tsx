@@ -252,7 +252,6 @@ function RegisterForm({ baseUrl }: { baseUrl: string }) {
   const session = useSession()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
-  const [key, setKey] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -262,7 +261,7 @@ function RegisterForm({ baseUrl }: { baseUrl: string }) {
     setBusy(true)
     try {
       const anonymous = new DataApiClient({ baseUrl })
-      const prepared = await anonymous.beginRegister(username.trim(), password, key)
+      const prepared = await anonymous.beginRegister(username.trim(), password)
       const sessionResult = await anonymous.completeRegister(prepared.operation_id)
       await session.signIn(sessionResult.token)
     } catch (err) {
@@ -292,15 +291,6 @@ function RegisterForm({ baseUrl }: { baseUrl: string }) {
         autoComplete="new-password"
         required
         hint="At least 12 characters."
-      />
-      <TextField
-        label="Encryption key"
-        type="password"
-        value={key}
-        onChange={(event) => setKey(event.target.value)}
-        autoComplete="off"
-        required
-        hint="Required once to configure the account verifier; later sign-ins do not request it."
       />
       {error ? (
         <Notice tone="error" role="alert">

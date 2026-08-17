@@ -103,6 +103,8 @@ python3 "$ROOT_DIR/tools/osc_semantic_probe.py" --self-test
     test/backend_makefile_contract_test.dart \
     test/terminal_core_publish_contract_test.dart \
     test/apple_build_environment_contract_test.dart \
+    test/install_ios_simulator_contract_test.dart \
+    test/select_physical_ios_device_test.dart \
     test/openapi_document_test.dart
 )
 
@@ -195,8 +197,32 @@ fi
     codesign -d --entitlements :- "$release_app" \
       2>/dev/null >"$release_entitlements"
     plutil -lint "$release_entitlements" >/dev/null
-    if [ "$(plutil -convert json -o - "$release_entitlements")" != "{}" ]; then
-      echo "Release app must have an empty entitlement dictionary." >&2
+    case "$signature_metadata" in
+      *"Signature=adhoc"*)
+        if [ "$(plutil -convert json -o - "$release_entitlements")" != "{}" ]; then
+          echo "Ad-hoc Release app must have an empty entitlement dictionary." >&2
+          exit 1
+        fi
+        ;;
+      *)
+        keychain_group="$(
+          plutil -extract keychain-access-groups.0 raw \
+            -o - "$release_entitlements" 2>/dev/null || true
+        )"
+        case "$keychain_group" in
+          *dev.ianvs.terminal) ;;
+          *)
+            echo "Certificate-signed Release app must expose the dev.ianvs.terminal Keychain group." >&2
+            exit 1
+            ;;
+        esac
+        ;;
+    esac
+    if [ "$(
+      plutil -extract com.apple.security.cs.disable-library-validation raw \
+        -o - "$release_entitlements" 2>/dev/null || true
+    )" = "true" ] && [[ "$signature_metadata" != *"Signature=adhoc"* ]]; then
+      echo "Certificate-signed Release app must retain library validation." >&2
       exit 1
     fi
   )

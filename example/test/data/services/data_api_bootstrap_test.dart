@@ -182,10 +182,6 @@ void main() {
         );
         expect(launchedBearerToken, _LocalCredentialsProvider.bearerToken);
         expect(initializer.localAccessToken, launchedBearerToken);
-        expect(
-          initializer.encryptionKey,
-          _LocalCredentialsProvider.dataEncryptionKey,
-        );
         expect(runtime?.localAccessToken, launchedBearerToken);
         expect(
           runtime?.encryptionKey,
@@ -306,7 +302,6 @@ void main() {
         initializer.initialize(
           baseUri: Uri.parse('http://127.0.0.1:${server.port}/'),
           localAccessToken: 'access-token',
-          encryptionKey: 'encryption-key',
         ),
         throwsA(
           isA<DataApiLocalInitializationTimeoutException>().having(
@@ -322,50 +317,37 @@ void main() {
     }
   });
 
-  test('local setup response body that never drains has a deadline', () async {
-    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-    final setupSeen = Completer<void>();
-    server.listen((request) async {
-      if (request.uri.path == '/healthz') {
+  test(
+    'local initialization only performs an authenticated health check',
+    () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      final paths = <String>[];
+      server.listen((request) async {
+        paths.add(request.uri.path);
+        expect(
+          request.headers.value(HttpHeaders.authorizationHeader),
+          'Bearer access-token',
+        );
         request.response.statusCode = HttpStatus.ok;
         await request.response.close();
-        return;
-      }
-      if (!setupSeen.isCompleted) {
-        setupSeen.complete();
-      }
-      request.response
-        ..statusCode = HttpStatus.ok
-        ..write('partial');
-      await request.response.flush();
-      // Deliberately leave the chunked response body open.
-    });
-    final initializer = DataApiLocalApiInitializer(
-      requestTimeout: const Duration(milliseconds: 40),
-      healthTimeout: const Duration(milliseconds: 150),
-      initializationTimeout: const Duration(milliseconds: 300),
-    );
+      });
+      final initializer = DataApiLocalApiInitializer(
+        requestTimeout: const Duration(milliseconds: 40),
+        healthTimeout: const Duration(milliseconds: 150),
+        initializationTimeout: const Duration(milliseconds: 300),
+      );
 
-    try {
-      await expectLater(
-        initializer.initialize(
+      try {
+        await initializer.initialize(
           baseUri: Uri.parse('http://127.0.0.1:${server.port}/'),
           localAccessToken: 'access-token',
-          encryptionKey: 'encryption-key',
-        ),
-        throwsA(
-          isA<DataApiLocalInitializationTimeoutException>().having(
-            (error) => error.stage,
-            'stage',
-            'setup response body',
-          ),
-        ),
-      );
-      await setupSeen.future;
-    } finally {
-      await server.close(force: true);
-    }
-  });
+        );
+        expect(paths, <String>['/healthz']);
+      } finally {
+        await server.close(force: true);
+      }
+    },
+  );
 }
 
 DataApiRuntime _localRuntime() => DataApiRuntime.local(
@@ -493,17 +475,14 @@ final class _LocalSidecarHandle implements LocalDataApiSidecarHandle {
 final class _CapturingLocalInitializer
     implements DataApiLocalApiInitialization {
   String? localAccessToken;
-  String? encryptionKey;
 
   @override
   Future<void> initialize({
     required Uri baseUri,
     required String localAccessToken,
-    required String encryptionKey,
   }) async {
     expect(baseUri, Uri.parse('http://127.0.0.1:54321/'));
     this.localAccessToken = localAccessToken;
-    this.encryptionKey = encryptionKey;
   }
 }
 

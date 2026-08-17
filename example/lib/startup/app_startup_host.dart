@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import '../app_bootstrap.dart';
 import '../data/configuration/data_api_configuration.dart';
 import '../data/configuration/data_api_configuration_repository.dart';
+import '../data/services/portable_master_key.dart';
 import '../ui/app_ui.dart';
 import 'app_startup_coordinator.dart';
 import 'app_startup_lifecycle.dart';
@@ -18,6 +19,7 @@ final class AppStartupHost extends StatefulWidget {
   const AppStartupHost({
     required this.coordinator,
     this.disposeCoordinator = true,
+    this.startAutomatically = true,
     this.enableSessionPolling = true,
     this.enableShellAnimations = true,
     this.enableReferenceDemoMode = false,
@@ -28,6 +30,7 @@ final class AppStartupHost extends StatefulWidget {
 
   final AppStartupCoordinator coordinator;
   final bool disposeCoordinator;
+  final bool startAutomatically;
   final bool enableSessionPolling;
   final bool enableShellAnimations;
   final bool enableReferenceDemoMode;
@@ -42,11 +45,13 @@ final class _AppStartupHostState extends State<AppStartupHost> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        unawaited(widget.coordinator.start());
-      }
-    });
+    if (widget.startAutomatically) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          unawaited(widget.coordinator.start());
+        }
+      });
+    }
   }
 
   @override
@@ -371,25 +376,28 @@ final class _AppStartupDataSetupViewState
                                 enabled: !_runningAction,
                               ),
                               const SizedBox(height: 14),
-                              TextField(
-                                key: const Key(
-                                  'app-startup-initial-master-key',
+                              if (usesAutomaticallySynchronizedAppleKeychain)
+                                const _AppleMasterKeyNotice()
+                              else
+                                TextField(
+                                  key: const Key(
+                                    'app-startup-initial-master-key',
+                                  ),
+                                  controller: _portableMasterKeyController,
+                                  textInputAction: TextInputAction.done,
+                                  obscureText: true,
+                                  autocorrect: false,
+                                  enableSuggestions: false,
+                                  decoration: const InputDecoration(
+                                    labelText:
+                                        'Master key from another device (optional)',
+                                    helperText:
+                                        'Paste an exported ianvs-key-v1 key to '
+                                        'open existing encrypted data.',
+                                  ),
+                                  enabled: !_runningAction,
+                                  onSubmitted: (_) => _connect(),
                                 ),
-                                controller: _portableMasterKeyController,
-                                textInputAction: TextInputAction.done,
-                                obscureText: true,
-                                autocorrect: false,
-                                enableSuggestions: false,
-                                decoration: const InputDecoration(
-                                  labelText:
-                                      'Master key from another device (optional)',
-                                  helperText:
-                                      'Paste an exported ianvs-key-v1 key to '
-                                      'open existing encrypted data.',
-                                ),
-                                enabled: !_runningAction,
-                                onSubmitted: (_) => _connect(),
-                              ),
                               if (_actionError case final error?) ...[
                                 const SizedBox(height: 14),
                                 Text(
@@ -835,19 +843,22 @@ final class _AppStartupDataSettingsDialogState
                         enabled: !_saving,
                       ),
                       const SizedBox(height: 12),
-                      TextField(
-                        key: const Key('app-startup-remote-master-key'),
-                        controller: _portableMasterKeyController,
-                        decoration: const InputDecoration(
-                          labelText:
-                              'Master key from another device (optional)',
-                          helperText:
-                              'Paste an exported ianvs-key-v1 key when this '
-                              'device does not already have it.',
+                      if (usesAutomaticallySynchronizedAppleKeychain)
+                        const _AppleMasterKeyNotice()
+                      else
+                        TextField(
+                          key: const Key('app-startup-remote-master-key'),
+                          controller: _portableMasterKeyController,
+                          decoration: const InputDecoration(
+                            labelText:
+                                'Master key from another device (optional)',
+                            helperText:
+                                'Paste an exported ianvs-key-v1 key when this '
+                                'device does not already have it.',
+                          ),
+                          obscureText: true,
+                          enabled: !_saving,
                         ),
-                        obscureText: true,
-                        enabled: !_saving,
-                      ),
                     ] else ...[
                       Text(
                         _configuration?.deployment == DataApiDeployment.local
@@ -893,6 +904,37 @@ final class _AppStartupDataSettingsDialogState
             onPressed: _saving ? null : _reconnect,
             child: const Text('Reconnect and retry'),
           ),
+      ],
+    );
+  }
+}
+
+final class _AppleMasterKeyNotice extends StatelessWidget {
+  const _AppleMasterKeyNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      key: const Key('app-startup-apple-keychain-status'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ExcludeSemantics(
+          child: Icon(
+            Icons.cloud_done_rounded,
+            color: theme.colorScheme.primary,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            'The master key is stored and synchronized automatically through '
+            'iCloud Keychain. No key entry is required.',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
       ],
     );
   }

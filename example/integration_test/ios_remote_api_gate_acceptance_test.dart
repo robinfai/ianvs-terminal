@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:app/data/services/portable_master_key.dart';
 import 'package:app/startup/app_startup_host.dart';
 import 'package:app/startup/app_startup_models.dart';
 import 'package:app/startup/production_app_startup.dart';
@@ -23,6 +24,14 @@ void main() {
     );
     final coordinator = createProductionAppStartupCoordinator(
       platform: TargetPlatform.iOS,
+      masterKeyRepository: PortableMasterKeyRepository(
+        storage: _FixedPortableMasterKeyStorage(
+          PortableMasterKey.fromSecret(
+            'ios-remote-api-gate-acceptance-key-material',
+          ).portableValue,
+        ),
+        allowCreation: false,
+      ),
       appSupportDirectoryResolver: () async => support,
       appDocumentsDirectoryResolver: () async => documents,
       secureRecovery: (_) async => null,
@@ -72,6 +81,20 @@ void main() {
   });
 }
 
+final class _FixedPortableMasterKeyStorage implements PortableMasterKeyStorage {
+  const _FixedPortableMasterKeyStorage(this.value);
+
+  final String value;
+
+  @override
+  Future<String?> read() async => value;
+
+  @override
+  Future<void> write(String portableValue) {
+    throw StateError('The acceptance test master key is read-only.');
+  }
+}
+
 Future<void> _enterAcceptanceCredentials(
   WidgetTester tester, {
   required String url,
@@ -89,8 +112,9 @@ Future<void> _enterAcceptanceCredentials(
     'acceptance-password',
   );
   expect(
-    find.byKey(const Key('app-startup-initial-master-key')),
+    find.byKey(const Key('app-startup-apple-keychain-status')),
     findsOneWidget,
   );
+  expect(find.byKey(const Key('app-startup-initial-master-key')), findsNothing);
   await tester.pump();
 }

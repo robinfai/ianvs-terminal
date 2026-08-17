@@ -79,7 +79,7 @@ TMP_DIR="$(mktemp -d)"
 chmod 700 "$TMP_DIR"
 
 echo "==> Generating local access token"
-LOCAL_TOKEN="$("$BIN" generate-key)"
+LOCAL_TOKEN="$(openssl rand -base64 32 | tr '+/' '-_' | tr -d '=\n')"
 
 start_server() {
   local name="$1" config="$2"

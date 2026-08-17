@@ -1,9 +1,11 @@
+import 'dart:io';
 import 'dart:isolate';
 
 import 'package:ianvs_pty/ianvs_pty.dart' as pty;
 
 import '../profiles/profile_models.dart';
 import '../terminal/terminal.dart' as terminal;
+import 'ssh_private_key_material.dart';
 
 final class SshProfileImportSnapshot {
   const SshProfileImportSnapshot({
@@ -62,34 +64,45 @@ SshProfileImportSnapshot _loadNativeSshProfiles(String? configPath) {
 }
 
 SshProfileImportSnapshot sshProfileImportSnapshotFromDocument(
-  pty.ImportedSshProfilesDocument imported,
-) {
+  pty.ImportedSshProfilesDocument imported, {
+  String Function(String path) privateKeyLoader = readSshPrivateKeyContents,
+}) {
+  final warnings = imported.warnings
+      .map(
+        (warning) => warning.path.isEmpty
+            ? warning.message
+            : '${warning.path}: ${warning.message}',
+      )
+      .toList(growable: true);
+  final profiles = imported.profiles
+      .map(
+        (profile) => terminalProfileFromImportedSshConfig(
+          profile,
+          privateKeyLoader: privateKeyLoader,
+          onPrivateKeyWarning: warnings.add,
+        ),
+      )
+      .toList(growable: false);
+  warnings.addAll(
+    imported.profiles
+        .where((profile) => profile.x11Forwarding)
+        .map(
+          (profile) =>
+              '${profile.name}: ForwardX11 was disabled because OpenSSH config does not provide a reusable 32-character MIT-MAGIC-COOKIE.',
+        ),
+  );
   return SshProfileImportSnapshot(
     sourcePath: imported.sourcePath,
-    profiles: imported.profiles
-        .map(terminalProfileFromImportedSshConfig)
-        .toList(growable: false),
-    warnings: imported.warnings
-        .map(
-          (warning) => warning.path.isEmpty
-              ? warning.message
-              : '${warning.path}: ${warning.message}',
-        )
-        .followedBy(
-          imported.profiles
-              .where((profile) => profile.x11Forwarding)
-              .map(
-                (profile) =>
-                    '${profile.name}: ForwardX11 was disabled because OpenSSH config does not provide a reusable 32-character MIT-MAGIC-COOKIE.',
-              ),
-        )
-        .toList(growable: false),
+    profiles: profiles,
+    warnings: warnings,
   );
 }
 
 TerminalProfile terminalProfileFromImportedSshConfig(
-  pty.ImportedSshProfile profile,
-) {
+  pty.ImportedSshProfile profile, {
+  String Function(String path) privateKeyLoader = readSshPrivateKeyContents,
+  void Function(String warning)? onPrivateKeyWarning,
+}) {
   final hostKeyPolicy = _terminalHostKeyPolicy(profile.hostKeyPolicy);
   final auth = _terminalAuthMethod(profile.auth);
   final portForwards = profile.portForwards
@@ -118,7 +131,16 @@ TerminalProfile terminalProfileFromImportedSshConfig(
           user: jump.user,
           port: jump.port,
           auth: _terminalAuthMethod(jump.auth),
-          privateKeys: jump.privateKeys,
+          privateKeys: _materializeImportedPrivateKeys(
+            jump.privateKeys,
+            host: jump.host,
+            user: jump.user,
+            port: jump.port,
+            profileName: profile.name,
+            location: 'ProxyJump ${jump.user}@${jump.host}:${jump.port}',
+            privateKeyLoader: privateKeyLoader,
+            onWarning: onPrivateKeyWarning,
+          ),
           hostKeyPolicy: _terminalHostKeyPolicy(jump.hostKeyPolicy),
           knownHostsFile: jump.knownHostsFile,
           connectTimeoutSeconds: jump.connectTimeoutSeconds,
@@ -136,7 +158,16 @@ TerminalProfile terminalProfileFromImportedSshConfig(
       user: profile.user,
       port: profile.port,
       auth: auth,
-      privateKeys: profile.privateKeys,
+      privateKeys: _materializeImportedPrivateKeys(
+        profile.privateKeys,
+        host: profile.host,
+        user: profile.user,
+        port: profile.port,
+        profileName: profile.name,
+        location: 'target',
+        privateKeyLoader: privateKeyLoader,
+        onWarning: onPrivateKeyWarning,
+      ),
       hostKeyPolicy: hostKeyPolicy,
       knownHostsFile: profile.knownHostsFile,
       connectTimeoutSeconds: profile.connectTimeoutSeconds,
@@ -153,6 +184,74 @@ TerminalProfile terminalProfileFromImportedSshConfig(
       x11Forwarding: false,
     ),
   );
+}
+
+List<String> _materializeImportedPrivateKeys(
+  List<String> values, {
+  required String host,
+  required String user,
+  required int port,
+  required String profileName,
+  required String location,
+  required String Function(String path) privateKeyLoader,
+  required void Function(String warning)? onWarning,
+}) {
+  final materialized = <String>[];
+  for (final value in values) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) {
+      continue;
+    }
+    if (looksLikeSshPrivateKeyContents(trimmed)) {
+      materialized.add(validateSshPrivateKeyContents(trimmed));
+      continue;
+    }
+    final path = _expandImportedIdentityPath(
+      trimmed,
+      host: host,
+      user: user,
+      port: port,
+    );
+    try {
+      materialized.add(privateKeyLoader(path));
+    } on Object catch (error) {
+      onWarning?.call(
+        '$profileName: $location IdentityFile $path was omitted: '
+        '${_privateKeyImportError(error)}',
+      );
+    }
+  }
+  return materialized;
+}
+
+String _expandImportedIdentityPath(
+  String value, {
+  required String host,
+  required String user,
+  required int port,
+}) {
+  const escapedPercent = '\u0000';
+  final expanded = value
+      .replaceAll('%%', escapedPercent)
+      .replaceAll('%h', host)
+      .replaceAll('%r', user)
+      .replaceAll('%p', port.toString())
+      .replaceAll(escapedPercent, '%');
+  if (!expanded.startsWith('~/')) {
+    return expanded;
+  }
+  final home = Platform.environment['HOME'];
+  return home == null || home.isEmpty
+      ? expanded
+      : '$home/${expanded.substring(2)}';
+}
+
+String _privateKeyImportError(Object error) {
+  return switch (error) {
+    FormatException(:final message) => message,
+    FileSystemException() => 'the private key file could not be read.',
+    _ => 'the private key file could not be loaded.',
+  };
 }
 
 terminal.TerminalSshAuthMethod _terminalAuthMethod(String value) {

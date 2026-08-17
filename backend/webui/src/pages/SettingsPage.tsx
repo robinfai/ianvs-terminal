@@ -66,11 +66,7 @@ export function SettingsPage() {
             <Badge tone={session.key ? 'success' : 'warning'}>
               {session.key ? 'Key ready' : 'No key in this session'}
             </Badge>
-            {session.user?.key_configured ? (
-              <Badge tone="neutral">account key configured</Badge>
-            ) : (
-              <Badge tone="warning">account key not configured</Badge>
-            )}
+            <Badge tone="neutral">never sent to the server</Badge>
           </div>
           {session.key ? (
             <div className="row">

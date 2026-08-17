@@ -28,7 +28,6 @@ import (
 	"ianvs-terminal/backend/internal/auth"
 	"ianvs-terminal/backend/internal/config"
 	"ianvs-terminal/backend/internal/model"
-	"ianvs-terminal/backend/internal/secure"
 	"ianvs-terminal/backend/internal/store"
 )
 
@@ -36,7 +35,6 @@ const (
 	maximumBodySize               = store.MaximumJSONResponseBytes
 	maximumMergeBodySize          = store.MaximumJSONResponseBytes
 	maximumAuthenticationBodySize = 4 << 10
-	encryptionKeyHeader           = "X-Ianvs-Encryption-Key"
 	requestIDHeader               = "X-Request-ID"
 	maximumRequestIDSize          = 128
 )
@@ -98,14 +96,12 @@ func (a *API) Handler() http.Handler {
 
 func (a *API) routes() {
 	a.mux.HandleFunc("GET /healthz", a.health)
-	a.mux.HandleFunc("POST /v1/auth/setup", a.setupLocal)
 	a.mux.HandleFunc("POST /v1/auth/register/begin", a.beginRegister)
 	a.mux.HandleFunc("POST /v1/auth/register/complete", a.completeRegister)
 	a.mux.HandleFunc("POST /v1/auth/login/begin", a.beginLogin)
 	a.mux.HandleFunc("POST /v1/auth/login/complete", a.completeLogin)
 	a.mux.HandleFunc("POST /v1/auth/cancel-operation", a.cancelAuthOperation)
 	a.mux.Handle("POST /v1/auth/logout", a.protected(a.logout))
-	a.mux.Handle("POST /v1/auth/verify-key", a.protected(a.verifyKey))
 	a.mux.Handle("GET /v1/me", a.protected(a.me))
 	a.mux.Handle("GET /v1/resources", a.protected(a.listResources))
 	a.mux.Handle("GET /v1/resources/{kind}/{id}", a.protected(a.getResource))
@@ -113,19 +109,6 @@ func (a *API) routes() {
 	a.mux.Handle("DELETE /v1/resources/{kind}/{id}", a.protected(a.deleteResource))
 	a.mux.Handle("GET /v1/migrations/export", a.protected(a.exportMigration))
 	a.mux.Handle("POST /v1/migrations/merge", a.protected(a.mergeMigration))
-}
-
-func (a *API) verifyKey(w http.ResponseWriter, r *http.Request, user model.User, _ string) {
-	if _, err := a.keyForRequest(r, user, true); err != nil {
-		a.writeServiceError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"verified":               true,
-		"basis":                  "account_key_verifier",
-		"key_contract_version":   secure.KeyContractVersion,
-		"key_rotation_supported": false,
-	})
 }
 
 func (a *API) health(w http.ResponseWriter, r *http.Request) {
@@ -142,37 +125,6 @@ func (a *API) health(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (a *API) setupLocal(w http.ResponseWriter, r *http.Request) {
-	if a.cfg.Mode != config.ModeLocal {
-		writeError(w, http.StatusNotFound, "not_found", "endpoint is available only in local mode")
-		return
-	}
-	if !a.sensitiveTransportAllowed(r) {
-		writeError(w, http.StatusBadRequest, "secure_transport_required", "encryption keys require HTTPS")
-		return
-	}
-	var request struct {
-		EncryptionKey string `json:"encryption_key"`
-	}
-	if err := decodeBody(w, r, maximumAuthenticationBodySize, &request); err != nil {
-		writeDecodeError(w, err)
-		return
-	}
-	user, created, err := a.auth.SetupLocalKey(r.Context(), request.EncryptionKey)
-	if err != nil {
-		a.writeServiceError(w, err)
-		return
-	}
-	status := http.StatusOK
-	if created {
-		status = http.StatusCreated
-	}
-	writeJSON(w, status, map[string]any{
-		"user":        auth.View(user),
-		"initialized": created,
-	})
-}
-
 func (a *API) beginRegister(w http.ResponseWriter, r *http.Request) {
 	if a.cfg.Mode != config.ModeRemote || !a.cfg.AllowRegistration {
 		writeError(w, http.StatusNotFound, "not_found", "registration is not available")
@@ -186,9 +138,8 @@ func (a *API) beginRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var request struct {
-		Username      string `json:"username"`
-		Password      string `json:"password"`
-		EncryptionKey string `json:"encryption_key"`
+		Username string `json:"username"`
+		Password string `json:"password"`
 	}
 	if err := decodeBody(w, r, maximumAuthenticationBodySize, &request); err != nil {
 		writeDecodeError(w, err)
@@ -198,7 +149,6 @@ func (a *API) beginRegister(w http.ResponseWriter, r *http.Request) {
 		r.Context(),
 		request.Username,
 		request.Password,
-		request.EncryptionKey,
 	)
 	if err != nil {
 		a.writeServiceError(w, err)
@@ -340,11 +290,6 @@ func (a *API) listResources(w http.ResponseWriter, r *http.Request, user model.U
 		writeError(w, http.StatusBadRequest, "invalid_query", err.Error())
 		return
 	}
-	key, err := a.keyForRequest(r, user, includeSensitive)
-	if err != nil {
-		a.writeServiceError(w, err)
-		return
-	}
 	limit, cursor, err := queryPage(r)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_query", err.Error())
@@ -353,7 +298,6 @@ func (a *API) listResources(w http.ResponseWriter, r *http.Request, user model.U
 	page, err := a.store.List(
 		r.Context(),
 		user,
-		key,
 		strings.TrimSpace(r.URL.Query().Get("kind")),
 		includeDeleted,
 		includeSensitive,
@@ -373,15 +317,9 @@ func (a *API) getResource(w http.ResponseWriter, r *http.Request, user model.Use
 		writeError(w, http.StatusBadRequest, "invalid_query", err.Error())
 		return
 	}
-	key, err := a.keyForRequest(r, user, includeSensitive)
-	if err != nil {
-		a.writeServiceError(w, err)
-		return
-	}
 	resource, err := a.store.Get(
 		r.Context(),
 		user,
-		key,
 		r.PathValue("kind"),
 		r.PathValue("id"),
 		includeSensitive,
@@ -417,15 +355,9 @@ func (a *API) putResource(w http.ResponseWriter, r *http.Request, user model.Use
 		writeError(w, http.StatusBadRequest, "secure_transport_required", "sensitive data requires HTTPS")
 		return
 	}
-	key, err := a.keyForRequest(r, user, sensitivePresent)
-	if err != nil {
-		a.writeServiceError(w, err)
-		return
-	}
 	resource, err := a.store.Put(
 		r.Context(),
 		user,
-		key,
 		r.PathValue("kind"),
 		r.PathValue("id"),
 		store.WriteInput{
@@ -481,11 +413,6 @@ func (a *API) exportMigration(w http.ResponseWriter, r *http.Request, user model
 		writeError(w, http.StatusBadRequest, "secure_transport_required", "sensitive exports require HTTPS")
 		return
 	}
-	key, err := a.keyForRequest(r, user, includeSensitive)
-	if err != nil {
-		a.writeServiceError(w, err)
-		return
-	}
 	limit, cursor, err := queryPage(r)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_query", err.Error())
@@ -494,7 +421,6 @@ func (a *API) exportMigration(w http.ResponseWriter, r *http.Request, user model
 	bundle, err := a.store.Export(
 		r.Context(),
 		user,
-		key,
 		includeDeleted,
 		includeSensitive,
 		limit,
@@ -524,12 +450,7 @@ func (a *API) mergeMigration(w http.ResponseWriter, r *http.Request, user model.
 		writeError(w, http.StatusBadRequest, "secure_transport_required", "sensitive migrations require HTTPS")
 		return
 	}
-	key, err := a.keyForRequest(r, user, needsKey)
-	if err != nil {
-		a.writeServiceError(w, err)
-		return
-	}
-	report, err := a.store.Merge(r.Context(), user, key, request)
+	report, err := a.store.Merge(r.Context(), user, request)
 	if err != nil {
 		a.writeServiceError(w, err)
 		return
@@ -560,13 +481,6 @@ func (a *API) protected(next protectedHandler) http.Handler {
 		}
 		next(w, r, user, rawToken)
 	})
-}
-
-func (a *API) keyForRequest(r *http.Request, user model.User, required bool) ([]byte, error) {
-	if !required {
-		return nil, nil
-	}
-	return a.auth.VerifyKey(user, r.Header.Get(encryptionKeyHeader))
 }
 
 func (a *API) sensitiveTransportAllowed(r *http.Request) bool {
@@ -604,17 +518,6 @@ func (a *API) writeServiceError(w http.ResponseWriter, err error) {
 	case errors.Is(err, auth.ErrPasswordHashBusy):
 		w.Header().Set("Retry-After", "1")
 		writeError(w, http.StatusTooManyRequests, "password_hash_busy", "password verification capacity is busy")
-	case errors.Is(err, secure.ErrKeyRequired):
-		writeError(w, http.StatusPreconditionRequired, "encryption_key_required", "configure and provide the user encryption key")
-	case errors.Is(err, secure.ErrInvalidKey):
-		writeError(w, http.StatusUnauthorized, "invalid_encryption_key", "the encryption key is invalid")
-	case errors.Is(err, secure.ErrWeakKey):
-		writeError(w, http.StatusBadRequest, "weak_encryption_key", err.Error())
-	case errors.Is(err, secure.ErrKeyTooLong):
-		writeError(w, http.StatusBadRequest, "encryption_key_too_long", err.Error())
-	case errors.Is(err, secure.ErrKeyDerivationBusy):
-		w.Header().Set("Retry-After", "1")
-		writeError(w, http.StatusTooManyRequests, "key_derivation_busy", "encryption key verification capacity is busy")
 	case errors.Is(err, store.ErrNotFound), errors.Is(err, gorm.ErrRecordNotFound):
 		writeError(w, http.StatusNotFound, "not_found", "resource was not found")
 	case errors.Is(err, store.ErrRevisionConflict):

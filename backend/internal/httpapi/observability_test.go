@@ -26,7 +26,7 @@ func TestWithRecoveryLogsPanicWithoutRequestSecrets(t *testing.T) {
 	)
 	request.Header.Set(requestIDHeader, "request-123")
 	request.Header.Set("Authorization", "Bearer authorization-secret")
-	request.Header.Set(encryptionKeyHeader, "encryption-secret")
+	request.Header.Set("X-Ianvs-Encryption-Key", "encryption-secret")
 	response := httptest.NewRecorder()
 
 	handler.ServeHTTP(response, request)

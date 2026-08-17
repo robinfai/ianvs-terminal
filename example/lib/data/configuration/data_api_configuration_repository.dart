@@ -774,7 +774,9 @@ final class AuthenticatedDataApiConfigurationRepository
     if (repository == null) {
       return request;
     }
-    final masterKey = await repository.readOrCreate();
+    final masterKey =
+        await repository.refreshFromStorage() ??
+        await repository.readOrCreate();
     final supplied = request.encryptionKeyOrNull;
     if (supplied != null && supplied != masterKey.secret) {
       throw const PortableMasterKeyConflictException();

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:app/features/ssh/ssh_profile_import_service.dart';
 import 'package:app/features/terminal/terminal.dart' as terminal;
@@ -80,7 +81,11 @@ void main() {
       x11Forwarding: true,
     );
 
-    final profile = terminalProfileFromImportedSshConfig(imported);
+    String materialize(String path) => 'materialized:$path';
+    final profile = terminalProfileFromImportedSshConfig(
+      imported,
+      privateKeyLoader: materialize,
+    );
 
     expect(
       profile.connection.auth,
@@ -96,14 +101,16 @@ void main() {
     expect(profile.connection.x11Forwarding, isFalse);
     expect(profile.connection.x11TargetHost, isNull);
     expect(profile.connection.x11AuthCookie, isNull);
-    expect(profile.connection.privateKeys, <String>['/keys/target_ed25519']);
+    expect(profile.connection.privateKeys, <String>[
+      'materialized:/keys/target_ed25519',
+    ]);
     expect(profile.connection.proxyJumpProfiles, hasLength(1));
     final jump = profile.connection.proxyJumpProfiles.single;
     expect(jump.host, 'jump.example.test');
     expect(jump.user, 'jump-user');
     expect(jump.port, 2222);
     expect(jump.auth, terminal.TerminalSshAuthMethod.publicKey);
-    expect(jump.privateKeys, <String>['/keys/jump_ed25519']);
+    expect(jump.privateKeys, <String>['materialized:/keys/jump_ed25519']);
     expect(jump.privateKeys, isNot(profile.connection.privateKeys));
     expect(jump.hostKeyPolicy, terminal.TerminalSshHostKeyPolicy.strict);
     expect(jump.knownHostsFile, '/known/jump_hosts');
@@ -126,9 +133,123 @@ void main() {
         profiles: <pty.ImportedSshProfile>[imported],
         warnings: <pty.SshConfigImportWarning>[],
       ),
+      privateKeyLoader: materialize,
     );
     expect(snapshot.profiles.single.connection.x11Forwarding, isFalse);
     expect(snapshot.warnings, hasLength(1));
     expect(snapshot.warnings.single, contains('ForwardX11 was disabled'));
   });
+
+  test('materializes target and ProxyJump IdentityFile contents', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'ianvs-ssh-key-import-',
+    );
+    addTearDown(() => directory.delete(recursive: true));
+    final targetKey = File('${directory.path}/target_ed25519');
+    final jumpKey = File('${directory.path}/jump_ed25519');
+    const targetContents =
+        '-----BEGIN OPENSSH PRIVATE KEY-----\n'
+        'target-private-key-material\n'
+        '-----END OPENSSH PRIVATE KEY-----';
+    const jumpContents =
+        '-----BEGIN OPENSSH PRIVATE KEY-----\n'
+        'jump-private-key-material\n'
+        '-----END OPENSSH PRIVATE KEY-----';
+    await targetKey.writeAsString(targetContents);
+    await jumpKey.writeAsString(jumpContents);
+
+    final snapshot = sshProfileImportSnapshotFromDocument(
+      pty.ImportedSshProfilesDocument(
+        sourcePath: '${directory.path}/config',
+        sourceMtimeMicros: 7,
+        profiles: <pty.ImportedSshProfile>[
+          pty.ImportedSshProfile(
+            id: 'work',
+            name: 'Work',
+            group: 'Imported',
+            source: 'openssh_config',
+            alias: 'work',
+            host: 'work.example.test',
+            user: 'operator',
+            port: 22,
+            auth: 'public_key',
+            privateKeys: <String>[targetKey.path],
+            hostKeyPolicy: 'strict',
+            connectTimeoutSeconds: 10,
+            keepaliveSeconds: 0,
+            keepaliveCountMax: 3,
+            proxyJumpProfiles: <pty.ImportedSshJumpProfile>[
+              pty.ImportedSshJumpProfile(
+                host: 'jump.example.test',
+                user: 'jump-user',
+                port: 2222,
+                auth: 'public_key',
+                privateKeys: <String>[jumpKey.path],
+                hostKeyPolicy: 'strict',
+                connectTimeoutSeconds: 10,
+                keepaliveSeconds: 0,
+                keepaliveCountMax: 3,
+              ),
+            ],
+          ),
+        ],
+        warnings: const <pty.SshConfigImportWarning>[],
+      ),
+    );
+
+    final profile = snapshot.profiles.single;
+    expect(profile.connection.privateKeys, <String>[targetContents]);
+    expect(profile.connection.proxyJumpProfiles.single.privateKeys, <String>[
+      jumpContents,
+    ]);
+    expect(profile.connection.privateKeys, isNot(contains(targetKey.path)));
+    expect(snapshot.warnings, isEmpty);
+  });
+
+  test(
+    'omits public and oversized IdentityFile values with warnings',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'ianvs-invalid-ssh-key-import-',
+      );
+      addTearDown(() => directory.delete(recursive: true));
+      final publicKey = File('${directory.path}/id_ed25519.pub');
+      final oversizedKey = File('${directory.path}/oversized_key');
+      await publicKey.writeAsString('ssh-ed25519 AAAA test@example');
+      await oversizedKey.writeAsString(
+        '-----BEGIN OPENSSH PRIVATE KEY-----\n${'x' * (64 * 1024)}',
+      );
+
+      final snapshot = sshProfileImportSnapshotFromDocument(
+        pty.ImportedSshProfilesDocument(
+          sourcePath: '${directory.path}/config',
+          sourceMtimeMicros: 7,
+          profiles: <pty.ImportedSshProfile>[
+            pty.ImportedSshProfile(
+              id: 'invalid-keys',
+              name: 'Invalid keys',
+              group: 'Imported',
+              source: 'openssh_config',
+              alias: 'invalid-keys',
+              host: 'invalid.example.test',
+              user: 'operator',
+              port: 22,
+              auth: 'public_key',
+              privateKeys: <String>[publicKey.path, oversizedKey.path],
+              hostKeyPolicy: 'strict',
+              connectTimeoutSeconds: 10,
+              keepaliveSeconds: 0,
+              keepaliveCountMax: 3,
+            ),
+          ],
+          warnings: const <pty.SshConfigImportWarning>[],
+        ),
+      );
+
+      expect(snapshot.profiles.single.connection.privateKeys, isEmpty);
+      expect(snapshot.warnings, hasLength(2));
+      expect(snapshot.warnings.join('\n'), contains('not a private key'));
+      expect(snapshot.warnings.join('\n'), contains('64 KiB'));
+    },
+  );
 }

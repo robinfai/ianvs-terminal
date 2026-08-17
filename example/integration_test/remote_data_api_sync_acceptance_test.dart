@@ -2,6 +2,10 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:app/data/services/data_api_client.dart';
+import 'package:app/features/profiles/data_api_profile_repository.dart';
+import 'package:app/features/profiles/profile_models.dart';
+import 'package:app/features/ssh/ssh_private_key_material.dart';
+import 'package:app/features/ssh/ssh_profile_import_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
@@ -14,85 +18,168 @@ const _syncResourceId = String.fromEnvironment(
   'IANVS_ACCEPTANCE_SYNC_RESOURCE_ID',
 );
 
-const _resourceKind = 'acceptance';
+const _macOsPassword = 'macos-acceptance-password';
+const _macOsPassphrase = 'macos-acceptance-passphrase';
+const _iosPassword = 'ios-acceptance-password';
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('macOS and iOS exchange a remote Data API resource', (_) async {
+  testWidgets('macOS imports SSH Cloud and iOS decrypts it', (_) async {
     final input = await _AcceptanceInput.load();
     final client = await _login(input);
     try {
       await client.validateSession();
+      final repository = DataApiProfileRepository(client: client);
       switch (input.phase) {
         case _SyncPhase.macOsWrite:
           expect(Platform.isMacOS, isTrue);
-          final existing = await client.getResource(
-            kind: _resourceKind,
-            id: input.resourceId,
-            includeSensitive: true,
+          final imported = await const NativeSshProfileImportService().load();
+          expect(imported.error, isNull);
+          final cloud = imported.profiles.singleWhere(
+            (profile) =>
+                profile.name.toLowerCase() == 'cloud' ||
+                (profile.connection.host == '43.132.135.30' &&
+                    profile.connection.user == 'lighthouse'),
           );
-          expect(existing, isNull);
-          final saved = await client.putResource(
-            kind: _resourceKind,
-            id: input.resourceId,
-            data: <String, Object?>{
-              'schema_version': 1,
-              'writer': 'macos',
-              'resource_id': input.resourceId,
-            },
-            sensitive: const <String, Object?>{'platform': 'macos'},
-            expectedRevision: 0,
+          expect(cloud.connection.host, '43.132.135.30');
+          expect(cloud.connection.user, 'lighthouse');
+          expect(cloud.connection.port, 22);
+          _expectInlinePrivateKeys(cloud.connection.privateKeys);
+
+          final importedWithSecrets = cloud.copyWith(
+            id: 'ssh-cloud-${input.resourceId.substring(5, 13)}',
+            name: 'SSH Cloud',
+            tags: <String>[...cloud.tags, 'Acceptance', input.resourceId],
+            connection: cloud.connection.copyWith(
+              password: _macOsPassword,
+              privateKeyPassphrase: _macOsPassphrase,
+            ),
           );
-          expect(saved.revision, 1);
+          final initial = await repository.loadVersioned();
+          final saved = await repository.saveVersioned(
+            initial.withValue(
+              _withProfiles(initial.value, <TerminalProfile>[
+                ...initial.value.profiles.where(
+                  (profile) => profile.id != importedWithSecrets.id,
+                ),
+                importedWithSecrets,
+              ]),
+            ),
+          );
+          expect(saved.revision, greaterThan(initial.revision!));
+
+          final publicResource = await client.getResource(
+            kind: DataApiProfileRepository.resourceKind,
+            id: DataApiProfileRepository.resourceId,
+          );
+          expect(publicResource, isNotNull);
+          expect(publicResource!.hasSensitive, isTrue);
+          expect(publicResource.sensitive, isNull);
+          expect(publicResource.data.toString(), contains('43.132.135.30'));
+          expect(
+            publicResource.data.toString(),
+            isNot(contains(_macOsPassword)),
+          );
+          expect(
+            publicResource.data.toString(),
+            isNot(contains(_macOsPassphrase)),
+          );
+          expect(
+            publicResource.data.toString(),
+            isNot(contains('PRIVATE KEY-----')),
+          );
         case _SyncPhase.iosReadWrite:
           expect(Platform.isIOS, isTrue);
-          final observed = await _requireResource(client, input.resourceId);
-          expect(_writer(observed), 'macos');
-          expect(observed.sensitive, const <String, Object?>{
-            'platform': 'macos',
-          });
-          final saved = await client.putResource(
-            kind: _resourceKind,
-            id: input.resourceId,
-            data: <String, Object?>{
-              'schema_version': 1,
-              'writer': 'ios',
-              'resource_id': input.resourceId,
-            },
-            sensitive: const <String, Object?>{'platform': 'ios'},
-            expectedRevision: observed.revision,
+          final observed = await repository.loadVersioned();
+          final profile = observed.value.profiles.singleWhere(
+            (profile) => profile.id == _acceptanceProfileId(input.resourceId),
           );
-          expect(saved.revision, greaterThan(observed.revision));
+          _expectImportedCloudProfile(
+            profile,
+            resourceId: input.resourceId,
+            password: _macOsPassword,
+          );
+          expect(profile.connection.privateKeyPassphrase, _macOsPassphrase);
+
+          final updated = profile.copyWith(
+            name: 'SSH Cloud (iOS verified)',
+            connection: profile.connection.copyWith(password: _iosPassword),
+          );
+          final saved = await repository.saveVersioned(
+            observed.withValue(
+              _withProfiles(observed.value, <TerminalProfile>[
+                for (final current in observed.value.profiles)
+                  current.id == updated.id ? updated : current,
+              ]),
+            ),
+          );
+          expect(saved.revision, greaterThan(observed.revision!));
         case _SyncPhase.macOsReadCleanup:
           expect(Platform.isMacOS, isTrue);
-          final observed = await _requireResource(client, input.resourceId);
-          expect(_writer(observed), 'ios');
-          expect(observed.sensitive, const <String, Object?>{
-            'platform': 'ios',
-          });
-          expect(
-            await client.deleteResource(
-              kind: _resourceKind,
-              id: input.resourceId,
-              expectedRevision: observed.revision,
-            ),
-            isTrue,
+          final observed = await repository.loadVersioned();
+          final acceptanceProfileId = _acceptanceProfileId(input.resourceId);
+          final profile = observed.value.profiles.singleWhere(
+            (profile) => profile.id == acceptanceProfileId,
           );
+          _expectImportedCloudProfile(
+            profile,
+            resourceId: input.resourceId,
+            password: _iosPassword,
+          );
+          expect(profile.name, 'SSH Cloud (iOS verified)');
+          expect(profile.connection.privateKeyPassphrase, _macOsPassphrase);
+          final imported = await const NativeSshProfileImportService().load();
+          expect(imported.error, isNull);
+          final localCloud = imported.profiles.singleWhere(
+            (profile) =>
+                profile.name.toLowerCase() == 'cloud' ||
+                (profile.connection.host == '43.132.135.30' &&
+                    profile.connection.user == 'lighthouse'),
+          );
+          final persistedCloud = localCloud.copyWith(name: 'SSH Cloud');
+          _expectInlinePrivateKeys(persistedCloud.connection.privateKeys);
+          final cleaned = await repository.saveVersioned(
+            observed.withValue(
+              _withProfiles(observed.value, <TerminalProfile>[
+                ...observed.value.profiles.where(
+                  (profile) =>
+                      profile.id != acceptanceProfileId &&
+                      profile.id != persistedCloud.id,
+                ),
+                persistedCloud,
+              ]),
+            ),
+          );
+          expect(cleaned.revision, greaterThan(observed.revision!));
+          final savedCloud = cleaned.value.profiles.singleWhere(
+            (profile) => profile.id == persistedCloud.id,
+          );
+          expect(savedCloud.name, 'SSH Cloud');
+          expect(savedCloud.connection.host, '43.132.135.30');
+          expect(savedCloud.connection.user, 'lighthouse');
           expect(
-            await client.getResource(kind: _resourceKind, id: input.resourceId),
-            isNull,
+            await client.getResource(
+              kind: DataApiProfileRepository.resourceKind,
+              id: DataApiProfileRepository.resourceId,
+            ),
+            isNotNull,
           );
         case _SyncPhase.cleanup:
-          final existing = await client.getResource(
-            kind: _resourceKind,
-            id: input.resourceId,
-          );
-          if (existing != null) {
-            await client.deleteResource(
-              kind: _resourceKind,
-              id: input.resourceId,
-              expectedRevision: existing.revision,
+          final observed = await repository.loadVersioned();
+          final acceptanceProfileId = _acceptanceProfileId(input.resourceId);
+          if (observed.value.profiles.any(
+            (profile) => profile.id == acceptanceProfileId,
+          )) {
+            await repository.saveVersioned(
+              observed.withValue(
+                _withProfiles(
+                  observed.value,
+                  observed.value.profiles
+                      .where((profile) => profile.id != acceptanceProfileId)
+                      .toList(growable: false),
+                ),
+              ),
             );
           }
       }
@@ -100,6 +187,21 @@ void main() {
       await _bestEffortLogout(client);
     }
   });
+}
+
+String _acceptanceProfileId(String resourceId) =>
+    'ssh-cloud-${resourceId.substring(5, 13)}';
+
+TerminalProfilesDocument _withProfiles(
+  TerminalProfilesDocument current,
+  List<TerminalProfile> profiles,
+) {
+  return TerminalProfilesDocument(
+    schemaVersion: current.schemaVersion,
+    profiles: profiles,
+    loadWarnings: current.loadWarnings,
+    secretClearIntents: current.secretClearIntents,
+  );
 }
 
 enum _SyncPhase { macOsWrite, iosReadWrite, macOsReadCleanup, cleanup }
@@ -224,22 +326,33 @@ Future<DataApiClient> _login(_AcceptanceInput input) async {
   );
 }
 
-Future<DataApiResource> _requireResource(
-  DataApiClient client,
-  String resourceId,
-) async {
-  final resource = await client.getResource(
-    kind: _resourceKind,
-    id: resourceId,
-    includeSensitive: true,
-  );
-  expect(resource, isNotNull);
-  return resource!;
+void _expectImportedCloudProfile(
+  TerminalProfile profile, {
+  required String resourceId,
+  required String password,
+}) {
+  expect(profile.id, 'ssh-cloud-${resourceId.substring(5, 13)}');
+  expect(profile.tags, containsAll(<String>['SSH', 'OpenSSH', 'Acceptance']));
+  expect(profile.tags, contains(resourceId));
+  expect(profile.connection.host, '43.132.135.30');
+  expect(profile.connection.user, 'lighthouse');
+  expect(profile.connection.port, 22);
+  expect(profile.connection.password, password);
+  _expectInlinePrivateKeys(profile.connection.privateKeys);
 }
 
-String? _writer(DataApiResource resource) {
-  final data = resource.data;
-  return data is Map<String, Object?> ? data['writer'] as String? : null;
+void _expectInlinePrivateKeys(List<String> privateKeys) {
+  if (privateKeys.isEmpty) {
+    fail('The imported SSH profile did not contain a private key.');
+  }
+  for (var index = 0; index < privateKeys.length; index += 1) {
+    if (!looksLikeSshPrivateKeyContents(privateKeys[index])) {
+      fail(
+        'The imported SSH profile private key at index $index was a path '
+        'instead of inline private key contents.',
+      );
+    }
+  }
 }
 
 Future<void> _bestEffortLogout(DataApiClient client) async {

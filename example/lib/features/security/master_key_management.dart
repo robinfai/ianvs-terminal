@@ -177,80 +177,107 @@ final class _MasterKeyManagementPanelState
   @override
   Widget build(BuildContext context) {
     final theme = context.appTheme;
+    final usesAppleKeychain = usesAutomaticallySynchronizedAppleKeychain;
     return ListenableBuilder(
       listenable: _controller,
       builder: (context, _) {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const AppSectionHeader(
+            AppSectionHeader(
               title: 'Master key',
-              description:
-                  'One portable key unlocks local, remote, and SSH profile '
-                  'encryption across supported platforms.',
+              description: usesAppleKeychain
+                  ? 'Encryption is managed automatically on this Apple device.'
+                  : 'One portable key unlocks local, remote, and SSH profile '
+                        'encryption across supported platforms.',
             ),
             SizedBox(height: theme.spacing.sm),
             AppPanel(
               key: const Key('master-key-management-panel'),
               tone: AppPanelTone.panel,
               padding: EdgeInsets.all(theme.spacing.xl),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Wrap(
-                    spacing: theme.spacing.sm,
-                    runSpacing: theme.spacing.sm,
-                    children: [
-                      AppActionButton(
-                        buttonKey: const Key('master-key-copy'),
-                        tone: AppActionTone.secondary,
-                        size: AppActionSize.compact,
-                        icon: Icons.copy_rounded,
-                        label: 'Copy for another device',
-                        onPressed: _controller.busy ? null : _confirmAndCopy,
-                      ),
-                      AppActionButton(
-                        buttonKey: const Key('master-key-import'),
-                        tone: AppActionTone.secondary,
-                        size: AppActionSize.compact,
-                        icon: Icons.content_paste_rounded,
-                        label: 'Paste from another device',
-                        onPressed: _controller.busy ? null : _showImportDialog,
-                      ),
-                    ],
-                  ),
-                  if (_controller.busy) ...[
-                    SizedBox(height: theme.spacing.sm),
-                    const LinearProgressIndicator(),
-                  ],
-                  if (_controller.status case final status?) ...[
-                    SizedBox(height: theme.spacing.sm),
-                    Semantics(
-                      liveRegion: true,
-                      child: Text(
-                        status,
-                        key: const Key('master-key-status'),
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: theme.textSubtle,
+              child: usesAppleKeychain
+                  ? Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        ExcludeSemantics(
+                          child: Icon(
+                            Icons.cloud_done_rounded,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
                         ),
-                      ),
-                    ),
-                  ],
-                  if (_controller.error case final error?) ...[
-                    SizedBox(height: theme.spacing.sm),
-                    Semantics(
-                      liveRegion: true,
-                      child: Text(
-                        error,
-                        key: const Key('master-key-error'),
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.error,
+                        SizedBox(width: theme.spacing.sm),
+                        const Expanded(
+                          child: Text(
+                            'Ianvs Terminal stores the master key in iCloud '
+                            'Keychain and requests synchronization '
+                            'automatically. No manual key entry is required.',
+                            key: Key('master-key-apple-keychain-status'),
+                          ),
                         ),
-                      ),
+                      ],
+                    )
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Wrap(
+                          spacing: theme.spacing.sm,
+                          runSpacing: theme.spacing.sm,
+                          children: [
+                            AppActionButton(
+                              buttonKey: const Key('master-key-copy'),
+                              tone: AppActionTone.secondary,
+                              size: AppActionSize.compact,
+                              icon: Icons.copy_rounded,
+                              label: 'Copy for another device',
+                              onPressed: _controller.busy
+                                  ? null
+                                  : _confirmAndCopy,
+                            ),
+                            AppActionButton(
+                              buttonKey: const Key('master-key-import'),
+                              tone: AppActionTone.secondary,
+                              size: AppActionSize.compact,
+                              icon: Icons.content_paste_rounded,
+                              label: 'Paste from another device',
+                              onPressed: _controller.busy
+                                  ? null
+                                  : _showImportDialog,
+                            ),
+                          ],
+                        ),
+                        if (_controller.busy) ...[
+                          SizedBox(height: theme.spacing.sm),
+                          const LinearProgressIndicator(),
+                        ],
+                        if (_controller.status case final status?) ...[
+                          SizedBox(height: theme.spacing.sm),
+                          Semantics(
+                            liveRegion: true,
+                            child: Text(
+                              status,
+                              key: const Key('master-key-status'),
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(color: theme.textSubtle),
+                            ),
+                          ),
+                        ],
+                        if (_controller.error case final error?) ...[
+                          SizedBox(height: theme.spacing.sm),
+                          Semantics(
+                            liveRegion: true,
+                            child: Text(
+                              error,
+                              key: const Key('master-key-error'),
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: Theme.of(context).colorScheme.error,
+                                  ),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
-                  ],
-                ],
-              ),
             ),
           ],
         );

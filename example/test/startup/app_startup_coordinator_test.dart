@@ -410,7 +410,7 @@ void main() {
           hasPersistedConfiguration: false,
           configuration: disabled,
         ),
-        AppStartupDataSetupRequirement.optional,
+        AppStartupDataSetupRequirement.required,
       );
       expect(
         resolveInitialDataApiSetupRequirement(
@@ -418,7 +418,7 @@ void main() {
           hasPersistedConfiguration: true,
           configuration: disabled,
         ),
-        isNull,
+        AppStartupDataSetupRequirement.required,
       );
       expect(
         resolveInitialDataApiSetupRequirement(

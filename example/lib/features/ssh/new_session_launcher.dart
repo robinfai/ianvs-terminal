@@ -6,12 +6,11 @@ import 'package:flutter/material.dart';
 import '../../ui/app_ui.dart';
 import '../profiles/profile_models.dart';
 import '../terminal/terminal.dart' as terminal;
+import 'ssh_private_key_material.dart';
 import 'ssh_profile_import_service.dart';
 
 typedef SshPrivateKeySelection = ({String path, String contents});
 typedef SshPrivateKeyPicker = Future<SshPrivateKeySelection?> Function();
-
-const int _maximumPrivateKeyBytes = 64 * 1024;
 
 InputDecoration _iconlessSshInputDecoration(
   BuildContext context, {
@@ -42,24 +41,11 @@ Future<SshPrivateKeySelection?> pickSshPrivateKeyFile() async {
   if (file == null) {
     return null;
   }
-  if (await file.length() > _maximumPrivateKeyBytes) {
-    throw const FormatException('Private key files must be 64 KB or smaller.');
+  if (await file.length() > maximumSshPrivateKeyBytes) {
+    throw const FormatException('Private key files must be 64 KiB or smaller.');
   }
-  final contents = (await file.readAsString()).trim();
-  if (!_looksLikePrivateKeyContents(contents)) {
-    throw const FormatException(
-      'Select a supported SSH private key, not a public key file.',
-    );
-  }
+  final contents = validateSshPrivateKeyContents(await file.readAsString());
   return (path: file.path.isEmpty ? file.name : file.path, contents: contents);
-}
-
-bool _looksLikePrivateKeyContents(String value) {
-  final trimmed = value.trimLeft();
-  return RegExp(
-        '^-----BEGIN (?:OPENSSH |RSA |EC |DSA |ENCRYPTED )?PRIVATE KEY-----',
-      ).hasMatch(trimmed) ||
-      trimmed.startsWith('PuTTY-User-Key-File-');
 }
 
 bool _sameStrings(List<String> left, List<String> right) {
@@ -682,7 +668,7 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
     _privateKeyValues = List<String>.of(connection.privateKeys);
     _privateKeyPath =
         connection.privateKeys.length == 1 &&
-            !_looksLikePrivateKeyContents(connection.privateKeys.single)
+            !looksLikeSshPrivateKeyContents(connection.privateKeys.single)
         ? connection.privateKeys.single
         : null;
     _privateKeyPassphrase = TextEditingController(
@@ -1603,13 +1589,7 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
       if (!mounted || selection == null) {
         return;
       }
-      final contents = selection.contents.trim();
-      if (contents.length > _maximumPrivateKeyBytes ||
-          !_looksLikePrivateKeyContents(contents)) {
-        throw const FormatException(
-          'Select a supported SSH private key, not a public key file.',
-        );
-      }
+      final contents = validateSshPrivateKeyContents(selection.contents);
       setState(() {
         _privateKeyPath = selection.path;
         _privateKeyValues = <String>[contents];

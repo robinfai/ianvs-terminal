@@ -1149,10 +1149,14 @@ class _DefaultsAndAppearanceDialogState
                           ),
                         ),
                         SizedBox(height: theme.spacing.sm),
-                        const Text(
-                          'Encryption uses the one Ianvs master key stored on '
-                          'this device. Export or import it in Master key '
-                          'management when moving to another platform.',
+                        Text(
+                          usesAutomaticallySynchronizedAppleKeychain
+                              ? 'Encryption uses the one Ianvs master key '
+                                    'managed automatically by iCloud Keychain.'
+                              : 'Encryption uses the one Ianvs master key '
+                                    'stored on this device. Export or import '
+                                    'it in Master key management when moving '
+                                    'to another platform.',
                         ),
                       ],
                       SizedBox(height: theme.spacing.sm),

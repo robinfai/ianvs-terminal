@@ -6,8 +6,8 @@ import type {
   ResourcePage,
   ResourceWrite,
   User,
-  VerifyKeyResult,
 } from '../types'
+import { decryptSensitive, encryptSensitive } from '../crypto/sensitive'
 
 export class ApiError extends Error {
   readonly status: number
@@ -34,14 +34,15 @@ interface RequestOptions {
 
 /**
  * Thin typed client for the Ianvs Data API. The bearer token is used both as
- * the remote session token and the local sidecar access token; the encryption
- * key travels in `X-Ianvs-Encryption-Key` and is only honored by endpoints
- * that require it.
+ * the remote session token and the local sidecar access token. Sensitive JSON
+ * is encrypted and decrypted here; the master key never enters an HTTP header
+ * or request body.
  */
 export class DataApiClient {
   baseUrl: string
   token?: string
   key?: string
+  private ownerId?: Promise<string>
 
   constructor(options: ClientOptions) {
     this.baseUrl = options.baseUrl.replace(/\/+$/, '')
@@ -53,7 +54,6 @@ export class DataApiClient {
     const headers: Record<string, string> = {}
     if (withBody) headers['Content-Type'] = 'application/json'
     if (this.token) headers['Authorization'] = `Bearer ${this.token}`
-    if (this.key) headers['X-Ianvs-Encryption-Key'] = this.key
     return headers
   }
 
@@ -97,13 +97,9 @@ export class DataApiClient {
     return this.request<Health>('GET', '/healthz')
   }
 
-  setupLocal(encryptionKey: string): Promise<{ user: User; initialized: boolean }> {
-    return this.request('POST', '/v1/auth/setup', { body: { encryption_key: encryptionKey } })
-  }
-
-  beginRegister(username: string, password: string, encryptionKey: string): Promise<PreparedAuthOperation> {
+  beginRegister(username: string, password: string): Promise<PreparedAuthOperation> {
     return this.request('POST', '/v1/auth/register/begin', {
-      body: { username, password, encryption_key: encryptionKey },
+      body: { username, password },
     })
   }
 
@@ -131,36 +127,81 @@ export class DataApiClient {
     return this.request('GET', '/v1/me')
   }
 
-  verifyKey(): Promise<VerifyKeyResult> {
-    return this.request('POST', '/v1/auth/verify-key')
-  }
-
-  listResources(params: {
+  async listResources(params: {
     kind?: string
     include_deleted?: boolean
     include_sensitive?: boolean
     limit?: number
     cursor?: string
   } = {}): Promise<ResourcePage> {
-    return this.request<ResourcePage>('GET', '/v1/resources', { query: { ...params } })
+    const page = await this.request<ResourcePage>('GET', '/v1/resources', { query: { ...params } })
+    if (!params.include_sensitive) return page
+    return {
+      ...page,
+      resources: await Promise.all(page.resources.map((resource) => this.decryptResource(resource))),
+    }
   }
 
-  getResource(kind: string, id: string, includeSensitive = false): Promise<Resource> {
-    return this.request<Resource>('GET', `/v1/resources/${encodeURIComponent(kind)}/${encodeURIComponent(id)}`, {
+  async getResource(kind: string, id: string, includeSensitive = false): Promise<Resource> {
+    const resource = await this.request<Resource>('GET', `/v1/resources/${encodeURIComponent(kind)}/${encodeURIComponent(id)}`, {
       query: { include_sensitive: includeSensitive },
     })
+    return includeSensitive ? this.decryptResource(resource) : resource
   }
 
-  putResource(kind: string, id: string, write: ResourceWrite): Promise<Resource> {
-    return this.request<Resource>('PUT', `/v1/resources/${encodeURIComponent(kind)}/${encodeURIComponent(id)}`, {
-      body: write,
+  async putResource(kind: string, id: string, write: ResourceWrite): Promise<Resource> {
+    const sensitive = write.sensitive
+    const body: ResourceWrite = {
+      ...write,
+      sensitive:
+        sensitive === undefined
+          ? undefined
+          : await encryptSensitive(this.requireKey(), await this.requireOwnerId(), kind, id, sensitive),
+    }
+    const resource = await this.request<Resource>('PUT', `/v1/resources/${encodeURIComponent(kind)}/${encodeURIComponent(id)}`, {
+      body,
     })
+    return sensitive === undefined ? resource : this.decryptResource(resource)
   }
 
   deleteResource(kind: string, id: string, expectedRevision?: number): Promise<void> {
     return this.request<void>('DELETE', `/v1/resources/${encodeURIComponent(kind)}/${encodeURIComponent(id)}`, {
       query: { expected_revision: expectedRevision },
     })
+  }
+
+  private requireKey(): string {
+    if (!this.key) throw new Error('The local encryption key is required for sensitive data.')
+    return this.key
+  }
+
+  private requireOwnerId(): Promise<string> {
+    return (this.ownerId ??= this.loadOwnerId())
+  }
+
+  private async loadOwnerId(): Promise<string> {
+    const { user } = await this.me()
+    if (!user?.id) throw new Error('The authenticated user response is missing user.id.')
+    return user.id
+  }
+
+  private async decryptResource(resource: Resource): Promise<Resource> {
+    if (resource.sensitive === undefined) {
+      if (resource.has_sensitive) {
+        throw new Error('The API omitted its requested sensitive envelope.')
+      }
+      return resource
+    }
+    return {
+      ...resource,
+      sensitive: await decryptSensitive(
+        this.requireKey(),
+        await this.requireOwnerId(),
+        resource.kind,
+        resource.id,
+        resource.sensitive,
+      ),
+    }
   }
 
 }

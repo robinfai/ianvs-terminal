@@ -31,6 +31,8 @@ void main() {
     );
     expect(script, contains(r'--dart-define-from-file="$defines_file"'));
     expect(script, contains('IANVS_ACCEPTANCE_CREDENTIALS_URL'));
+    expect(script, contains('IANVS_ACCEPTANCE_CREDENTIALS_FILE'));
+    expect(script, contains('Acceptance credentials file must be owner-only'));
     expect(script, isNot(contains('"IANVS_ACCEPTANCE_REMOTE_PASSWORD": os.')));
     expect(script, contains('/usr/bin/env -i'));
     expect(script, contains(r'"${test_env[@]}" flutter test'));

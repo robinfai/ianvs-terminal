@@ -7,14 +7,20 @@ TEST_TARGET="integration_test/remote_data_api_sync_acceptance_test.dart"
 IOS_GATE_TARGET="integration_test/ios_remote_api_gate_acceptance_test.dart"
 IOS_SIMULATOR_UDID="${IANVS_IOS_SIMULATOR_UDID:-}"
 RESULT_FILE="${IANVS_ACCEPTANCE_RESULT_FILE:-/private/tmp/ianvs-cross-platform-acceptance.status}"
+CREDENTIALS_SOURCE_FILE="${IANVS_ACCEPTANCE_CREDENTIALS_FILE:-}"
 rm -f "$RESULT_FILE"
 
 if [[ -z "${IANVS_ACCEPTANCE_REMOTE_API_URL:-}" ]]; then
   IANVS_ACCEPTANCE_REMOTE_API_URL="https://api.terminal.ianvs.work/"
 fi
-if [[ -z "${IANVS_ACCEPTANCE_REMOTE_USERNAME:-}" || \
-      -z "${IANVS_ACCEPTANCE_REMOTE_PASSWORD:-}" || \
-      -z "${IANVS_ACCEPTANCE_REMOTE_ENCRYPTION_KEY:-}" ]]; then
+if [[ -n "$CREDENTIALS_SOURCE_FILE" ]]; then
+  if [[ ! -f "$CREDENTIALS_SOURCE_FILE" ]]; then
+    echo "Acceptance credentials file does not exist." >&2
+    exit 2
+  fi
+elif [[ -z "${IANVS_ACCEPTANCE_REMOTE_USERNAME:-}" || \
+        -z "${IANVS_ACCEPTANCE_REMOTE_PASSWORD:-}" || \
+        -z "${IANVS_ACCEPTANCE_REMOTE_ENCRYPTION_KEY:-}" ]]; then
   if [[ ! -t 0 ]]; then
     echo "Acceptance credentials are required in a non-interactive run." >&2
     exit 2
@@ -26,16 +32,14 @@ if [[ -z "${IANVS_ACCEPTANCE_REMOTE_USERNAME:-}" || \
     IANVS_ACCEPTANCE_REMOTE_ENCRYPTION_KEY
   printf '\n'
 fi
-if [[ -z "$IANVS_ACCEPTANCE_REMOTE_USERNAME" || \
-      -z "$IANVS_ACCEPTANCE_REMOTE_PASSWORD" || \
-      -z "$IANVS_ACCEPTANCE_REMOTE_ENCRYPTION_KEY" ]]; then
+if [[ -z "$CREDENTIALS_SOURCE_FILE" && \
+      ( -z "$IANVS_ACCEPTANCE_REMOTE_USERNAME" || \
+        -z "$IANVS_ACCEPTANCE_REMOTE_PASSWORD" || \
+        -z "$IANVS_ACCEPTANCE_REMOTE_ENCRYPTION_KEY" ) ]]; then
   echo "Acceptance username, password, and data encryption key are required." >&2
   exit 2
 fi
 export IANVS_ACCEPTANCE_REMOTE_API_URL
-export IANVS_ACCEPTANCE_REMOTE_USERNAME
-export IANVS_ACCEPTANCE_REMOTE_PASSWORD
-export IANVS_ACCEPTANCE_REMOTE_ENCRYPTION_KEY
 
 if [[ "${IANVS_ACCEPTANCE_REMOTE_API_URL}" != https://* ]]; then
   echo "The cross-platform acceptance API must use HTTPS." >&2
@@ -86,7 +90,36 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-python3 - "$credentials_file" <<'PY'
+if [[ -n "$CREDENTIALS_SOURCE_FILE" ]]; then
+  python3 - "$CREDENTIALS_SOURCE_FILE" "$credentials_file" <<'PY'
+import json
+import os
+import stat
+import sys
+
+source, destination = sys.argv[1:]
+mode = stat.S_IMODE(os.stat(source).st_mode)
+if mode & 0o077:
+    raise SystemExit("Acceptance credentials file must be owner-only (0600 or 0400).")
+with open(source, encoding="utf-8") as input_file:
+    credentials = json.load(input_file)
+for field in ("username", "password", "encryption_key"):
+    if not isinstance(credentials.get(field), str) or not credentials[field]:
+        raise SystemExit(f"Acceptance credentials field {field} is missing.")
+with open(destination, "w", encoding="utf-8") as output:
+    json.dump(
+        {
+            field: credentials[field]
+            for field in ("username", "password", "encryption_key")
+        },
+        output,
+    )
+PY
+else
+  export IANVS_ACCEPTANCE_REMOTE_USERNAME
+  export IANVS_ACCEPTANCE_REMOTE_PASSWORD
+  export IANVS_ACCEPTANCE_REMOTE_ENCRYPTION_KEY
+  python3 - "$credentials_file" <<'PY'
 import json
 import os
 import sys
@@ -101,6 +134,7 @@ with open(sys.argv[1], "w", encoding="utf-8") as output:
         output,
     )
 PY
+fi
 
 /usr/bin/env -i \
   "PATH=$PATH" \

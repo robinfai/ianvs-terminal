@@ -12,6 +12,7 @@ import 'package:app/platform/app_shutdown_coordinator.dart';
 import 'package:app/startup/app_startup_coordinator.dart';
 import 'package:app/startup/app_startup_host.dart';
 import 'package:app/startup/app_startup_models.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -132,44 +133,12 @@ void main() {
     expect(harness.coordinator.state, isA<AppStartupReady>());
   });
 
-  testWidgets(
-    'iOS optional setup offers one-time SSH without a bundled API claim',
-    (tester) async {
-      final harness = _HostHarness.create(
-        initialSetupRequirement: AppStartupDataSetupRequirement.optional,
-        localDataApiAvailable: false,
-      );
-      addTearDown(() => _disposeHarness(tester, harness));
-
-      await tester.pumpWidget(harness.host());
-      await harness.coordinator.start();
-      await tester.pump();
-
-      expect(find.textContaining('one-time SSH connections'), findsOneWidget);
-      expect(find.byKey(const Key('app-startup-use-local-api')), findsNothing);
-      expect(find.text('Use bundled local API'), findsNothing);
-      expect(find.text('Use local terminal only'), findsNothing);
-      expect(find.text('Continue without data service'), findsOneWidget);
-
-      await tester.tap(find.byKey(const Key('app-startup-skip-data-api')));
-      await tester.pumpAndSettle();
-
-      expect(harness.settings.disableCount, 1);
-      expect(harness.coordinator.state, isA<AppStartupReady>());
-    },
-  );
-
-  testWidgets('required data setup blocks use until remote login succeeds', (
+  testWidgets('optional setup without local API offers one-time SSH', (
     tester,
   ) async {
-    tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(375, 667);
-    addTearDown(() {
-      tester.view.resetDevicePixelRatio();
-      tester.view.resetPhysicalSize();
-    });
     final harness = _HostHarness.create(
-      initialSetupRequirement: AppStartupDataSetupRequirement.required,
+      initialSetupRequirement: AppStartupDataSetupRequirement.optional,
+      localDataApiAvailable: false,
     );
     addTearDown(() => _disposeHarness(tester, harness));
 
@@ -177,65 +146,102 @@ void main() {
     await harness.coordinator.start();
     await tester.pump();
 
-    expect(find.byKey(const Key('app-startup-skip-data-api')), findsNothing);
+    expect(find.textContaining('one-time SSH connections'), findsOneWidget);
     expect(find.byKey(const Key('app-startup-use-local-api')), findsNothing);
-    expect(harness.composeCount, 0);
-    expect(
-      tester
-          .widget<TextField>(
-            find.byKey(const Key('app-startup-initial-data-api-url')),
-          )
-          .controller
-          ?.text,
-      defaultRemoteDataApiBaseUrl,
-    );
+    expect(find.text('Use bundled local API'), findsNothing);
+    expect(find.text('Use local terminal only'), findsNothing);
+    expect(find.text('Continue without data service'), findsOneWidget);
 
-    await tester.enterText(
-      find.byKey(const Key('app-startup-initial-data-api-url')),
-      'http://sync.example.com/',
-    );
-    await tester.enterText(
-      find.byKey(const Key('app-startup-initial-data-api-username')),
-      'operator',
-    );
-    await tester.enterText(
-      find.byKey(const Key('app-startup-initial-data-api-password')),
-      'correct horse battery',
-    );
-    expect(
-      find.byKey(const Key('app-startup-initial-master-key')),
-      findsOneWidget,
-    );
-    await tester.pump();
-    final connect = find.byKey(const Key('app-startup-connect-data-api'));
-    await tester.ensureVisible(connect);
-    expect(tester.widget<FilledButton>(connect).onPressed, isNotNull);
-    await tester.tap(connect);
+    await tester.tap(find.byKey(const Key('app-startup-skip-data-api')));
     await tester.pumpAndSettle();
 
-    expect(
-      find.byKey(const Key('app-startup-initial-data-api-error')),
-      findsOneWidget,
-    );
-    expect(harness.settings.reconnectCount, 0);
-    expect(harness.coordinator.state, isA<AppStartupDataSetupRequired>());
-
-    await tester.enterText(
-      find.byKey(const Key('app-startup-initial-data-api-url')),
-      'https://sync.example.com/',
-    );
-    await tester.ensureVisible(connect);
-    await tester.tap(connect);
-    await tester.pumpAndSettle();
-
-    expect(harness.settings.reconnectCount, 1);
-    expect(
-      harness.settings.lastReconnect?.baseUri,
-      Uri.parse('https://sync.example.com/'),
-    );
+    expect(harness.settings.disableCount, 1);
     expect(harness.coordinator.state, isA<AppStartupReady>());
-    expect(harness.composeCount, 1);
   });
+
+  testWidgets(
+    'required data setup blocks use until remote login succeeds',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(375, 667);
+      addTearDown(() {
+        tester.view.resetDevicePixelRatio();
+        tester.view.resetPhysicalSize();
+      });
+      final harness = _HostHarness.create(
+        initialSetupRequirement: AppStartupDataSetupRequirement.required,
+      );
+      addTearDown(() => _disposeHarness(tester, harness));
+
+      await tester.pumpWidget(harness.host());
+      await harness.coordinator.start();
+      await tester.pump();
+
+      expect(find.byKey(const Key('app-startup-skip-data-api')), findsNothing);
+      expect(find.byKey(const Key('app-startup-use-local-api')), findsNothing);
+      expect(harness.composeCount, 0);
+      expect(
+        tester
+            .widget<TextField>(
+              find.byKey(const Key('app-startup-initial-data-api-url')),
+            )
+            .controller
+            ?.text,
+        defaultRemoteDataApiBaseUrl,
+      );
+
+      await tester.enterText(
+        find.byKey(const Key('app-startup-initial-data-api-url')),
+        'http://sync.example.com/',
+      );
+      await tester.enterText(
+        find.byKey(const Key('app-startup-initial-data-api-username')),
+        'operator',
+      );
+      await tester.enterText(
+        find.byKey(const Key('app-startup-initial-data-api-password')),
+        'correct horse battery',
+      );
+      expect(
+        find.byKey(const Key('app-startup-initial-master-key')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const Key('app-startup-apple-keychain-status')),
+        findsOneWidget,
+      );
+      await tester.pump();
+      final connect = find.byKey(const Key('app-startup-connect-data-api'));
+      await tester.ensureVisible(connect);
+      expect(tester.widget<FilledButton>(connect).onPressed, isNotNull);
+      await tester.tap(connect);
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('app-startup-initial-data-api-error')),
+        findsOneWidget,
+      );
+      expect(harness.settings.reconnectCount, 0);
+      expect(harness.coordinator.state, isA<AppStartupDataSetupRequired>());
+
+      await tester.enterText(
+        find.byKey(const Key('app-startup-initial-data-api-url')),
+        'https://sync.example.com/',
+      );
+      await tester.ensureVisible(connect);
+      await tester.tap(connect);
+      await tester.pumpAndSettle();
+
+      expect(harness.settings.reconnectCount, 1);
+      expect(
+        harness.settings.lastReconnect?.baseUri,
+        Uri.parse('https://sync.example.com/'),
+      );
+      expect(harness.coordinator.state, isA<AppStartupReady>());
+      expect(harness.composeCount, 1);
+    },
+    variant: const TargetPlatformVariant(<TargetPlatform>{TargetPlatform.iOS}),
+  );
 
   testWidgets('retry replaces the complete keyed ProviderScope graph', (
     tester,
@@ -371,50 +377,61 @@ void main() {
     },
   );
 
-  testWidgets('remote recovery settings reconnect the same URL then retry', (
-    tester,
-  ) async {
-    final harness = _HostHarness.create(
-      failingStage: AppStartupStage.configuration,
-      recoveryConfiguration: DataApiConfiguration.remote(
-        'https://sync.example.com/',
-      ),
-    );
-    addTearDown(() => _disposeHarness(tester, harness));
-    await tester.pumpWidget(harness.host());
-    await harness.coordinator.start();
-    await tester.pump();
-    expect(
-      find.byKey(const Key('app-startup-open-data-settings')),
-      findsOneWidget,
-    );
+  testWidgets(
+    'remote recovery settings reconnect the same URL then retry',
+    (tester) async {
+      final harness = _HostHarness.create(
+        failingStage: AppStartupStage.configuration,
+        recoveryConfiguration: DataApiConfiguration.remote(
+          'https://sync.example.com/',
+        ),
+      );
+      addTearDown(() => _disposeHarness(tester, harness));
+      await tester.pumpWidget(harness.host());
+      await harness.coordinator.start();
+      await tester.pump();
+      expect(
+        find.byKey(const Key('app-startup-open-data-settings')),
+        findsOneWidget,
+      );
 
-    await tester.tap(find.byKey(const Key('app-startup-open-data-settings')));
-    await tester.pumpAndSettle();
-    expect(find.byKey(const Key('app-startup-remote-origin')), findsOneWidget);
-    expect(find.text('https://sync.example.com/'), findsOneWidget);
-    await tester.enterText(
-      find.byKey(const Key('app-startup-remote-username')),
-      'operator',
-    );
-    await tester.enterText(
-      find.byKey(const Key('app-startup-remote-password')),
-      'correct horse battery',
-    );
-    expect(
-      find.byKey(const Key('app-startup-remote-master-key')),
-      findsOneWidget,
-    );
-    await tester.tap(find.byKey(const Key('app-startup-reconnect')));
-    await tester.pumpAndSettle();
-    expect(_hasRuntimeGeneration(tester, 1), isTrue);
+      await tester.tap(find.byKey(const Key('app-startup-open-data-settings')));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('app-startup-remote-origin')),
+        findsOneWidget,
+      );
+      expect(find.text('https://sync.example.com/'), findsOneWidget);
+      await tester.enterText(
+        find.byKey(const Key('app-startup-remote-username')),
+        'operator',
+      );
+      await tester.enterText(
+        find.byKey(const Key('app-startup-remote-password')),
+        'correct horse battery',
+      );
+      expect(
+        find.byKey(const Key('app-startup-remote-master-key')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const Key('app-startup-apple-keychain-status')),
+        findsOneWidget,
+      );
+      await tester.tap(find.byKey(const Key('app-startup-reconnect')));
+      await tester.pumpAndSettle();
+      expect(_hasRuntimeGeneration(tester, 1), isTrue);
 
-    expect(harness.settings.reconnectCount, 1);
-    expect(
-      harness.settings.lastReconnect?.baseUri,
-      Uri.parse('https://sync.example.com/'),
-    );
-  });
+      expect(harness.settings.reconnectCount, 1);
+      expect(
+        harness.settings.lastReconnect?.baseUri,
+        Uri.parse('https://sync.example.com/'),
+      );
+    },
+    variant: const TargetPlatformVariant(<TargetPlatform>{
+      TargetPlatform.macOS,
+    }),
+  );
 
   testWidgets('explicit Disabled recovery works when recovery load fails', (
     tester,

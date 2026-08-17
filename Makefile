@@ -15,6 +15,14 @@ GO ?= go
 PNPM ?= pnpm
 
 APP_NAME ?= Ianvs Terminal
+IPHONE_DEVICE ?=
+IPHONE_SIMULATOR ?=
+IPHONE_SIMULATOR_CREDENTIALS ?= $(HOME)/Library/Application Support/dev.ianvs.terminal/acceptance/ssh-cloud-simulator.json
+# Apple reserves the production identifier for release builds. Local
+# profile-signed installs use the App ID already owned by the development team;
+# both platforms still share the production-named Keychain access group.
+IPHONE_BUNDLE_ID ?= dev.ianvs.terminal.dev
+MACOS_BUNDLE_ID ?= dev.ianvs.terminal.dev
 RELEASE_DIR := $(EXAMPLE_DIR)/build/macos/Build/Products/Release
 APP_BUNDLE := $(RELEASE_DIR)/$(APP_NAME).app
 INSTALL_DIR ?= /Applications
@@ -25,7 +33,8 @@ INSTALLED_APP := $(INSTALL_DIR)/$(APP_NAME).app
 	acceptance-cross-platform-sync \
 	terminal-core-sync terminal-core-check \
 	run run-macos build build-macos sign-macos install install-macos \
-	build-install-macos clean \
+	build-install-macos install-iphone install-iphone-physical \
+	install-iphone-simulator clean \
 	backend-format backend-test backend-run backend-generate-key \
 	webui-build webui-typecheck webui-unit webui-e2e
 
@@ -60,10 +69,20 @@ help: ## Show the available commands.
 		'  install              Build, sign, and install into /Applications' \
 		'  build-install-macos  Alias for install-macos' \
 		'' \
+		'iPhone:' \
+		'  install-iphone       Install on a physical iPhone, or fall back to a simulator' \
+		'  install-iphone-physical  Require and install on a physical iPhone' \
+		'  install-iphone-simulator Install and launch on an iPhone simulator' \
+		'' \
 		'Maintenance:' \
 		'  clean                Clean example Flutter build outputs' \
 		'' \
-		'Overrides: FLUTTER=<path> DART=<path> INSTALL_DIR=<directory>'
+		'Overrides: FLUTTER=<path> DART=<path> INSTALL_DIR=<directory>' \
+		'           IPHONE_DEVICE=<physical-device-id>' \
+		'           IPHONE_SIMULATOR=<simulator-udid>' \
+		'           IPHONE_SIMULATOR_CREDENTIALS=<owner-only-json>' \
+		'           IPHONE_BUNDLE_ID=<development-bundle-id>' \
+		'           MACOS_BUNDLE_ID=<development-bundle-id>'
 
 bootstrap: ## Resolve workspace dependencies.
 	cd "$(ROOT_DIR)" && $(DART) pub get
@@ -114,7 +133,7 @@ backend-run: ## Run the local Go data API.
 	cd "$(BACKEND_DIR)" && $(GO) run ./cmd/ianvs-api serve --config "$(BACKEND_CONFIG)"
 
 backend-generate-key: ## Generate a client-owned data encryption key.
-	cd "$(BACKEND_DIR)" && $(GO) run ./cmd/ianvs-api generate-key
+	@key="$$(openssl rand -base64 32 | tr '+/' '-_' | tr -d '=\n')"; printf '%s\n' "$$key"
 
 webui-build: ## Build the embedded web console (writes backend/webui/dist).
 	cd "$(WEBUI_DIR)" && $(PNPM) install --frozen-lockfile && $(PNPM) build
@@ -136,12 +155,14 @@ run-macos: ## Run the example app on macOS.
 build: build-macos
 
 build-macos: ## Build the macOS release app.
-	cd "$(EXAMPLE_DIR)" && $(FLUTTER) build macos --release
+	IANVS_MACOS_BUNDLE_ID="$(MACOS_BUNDLE_ID)" \
+		"$(ROOT_DIR)/tools/build_signed_apple_release.sh" macos "$(FLUTTER)"
 	@test -d "$(APP_BUNDLE)" || { printf 'Missing app bundle: %s\n' "$(APP_BUNDLE)" >&2; exit 1; }
 	@printf 'Built: %s\n' "$(APP_BUNDLE)"
 
 sign-macos: build-macos ## Build and prepare the release app for local launch.
-	"$(ROOT_DIR)/tools/sign_local_macos_release.sh" "$(APP_BUNDLE)"
+	IANVS_APP_BUNDLE_ID="$(MACOS_BUNDLE_ID)" \
+		"$(ROOT_DIR)/tools/sign_local_macos_release.sh" "$(APP_BUNDLE)"
 
 install: install-macos
 
@@ -167,6 +188,41 @@ install-macos: sign-macos ## Build, sign, and install the app into INSTALL_DIR.
 	@printf 'Installed: %s\n' "$(INSTALLED_APP)"
 
 build-install-macos: install-macos
+
+install-iphone: ## Install on a physical iPhone, or fall back to a simulator.
+	@set -euo pipefail; \
+		if test -n "$(strip $(IPHONE_DEVICE))"; then \
+			$(MAKE) --no-print-directory install-iphone-physical \
+				IPHONE_DEVICE="$(IPHONE_DEVICE)"; \
+		else \
+			devices_json="$$(cd "$(EXAMPLE_DIR)" && $(FLUTTER) devices --machine)"; \
+			device_id="$$(printf '%s\n' "$$devices_json" | \
+				$(DART) run "$(ROOT_DIR)/tools/select_physical_ios_device.dart" --optional)"; \
+			if test -n "$$device_id"; then \
+				$(MAKE) --no-print-directory install-iphone-physical \
+					IPHONE_DEVICE="$$device_id"; \
+			else \
+				printf '%s\n' 'No supported physical iPhone found; using an iPhone simulator.'; \
+				$(MAKE) --no-print-directory install-iphone-simulator; \
+			fi; \
+		fi
+
+install-iphone-physical: ## Build and install the release app on a physical iPhone.
+	@set -euo pipefail; \
+		devices_json="$$(cd "$(EXAMPLE_DIR)" && $(FLUTTER) devices --machine)"; \
+		device_id="$$(printf '%s\n' "$$devices_json" | \
+			$(DART) run "$(ROOT_DIR)/tools/select_physical_ios_device.dart" "$(IPHONE_DEVICE)")"; \
+		printf 'Using physical iPhone: %s\n' "$$device_id"; \
+		printf 'Using development Bundle ID: %s\n' "$(IPHONE_BUNDLE_ID)"; \
+		IANVS_IOS_BUNDLE_ID="$(IPHONE_BUNDLE_ID)" \
+			"$(ROOT_DIR)/tools/build_signed_apple_release.sh" ios "$(FLUTTER)"; \
+		cd "$(EXAMPLE_DIR)"; \
+		$(FLUTTER) install --release -d "$$device_id"
+
+install-iphone-simulator: ## Build, install, and launch on an iPhone simulator.
+	@IANVS_IOS_SIMULATOR_UDID="$(IPHONE_SIMULATOR)" \
+		IANVS_IOS_SIMULATOR_CREDENTIALS="$(IPHONE_SIMULATOR_CREDENTIALS)" \
+		"$(ROOT_DIR)/tools/install_ios_simulator.sh" "$(FLUTTER)"
 
 clean: ## Clean example Flutter build outputs.
 	cd "$(EXAMPLE_DIR)" && $(FLUTTER) clean

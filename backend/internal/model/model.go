@@ -5,14 +5,11 @@ import "time"
 // User owns every persisted resource. Local mode creates one reserved user;
 // remote mode creates one row for each registered account.
 type User struct {
-	ID            string    `gorm:"primaryKey;size:36"`
-	Username      string    `gorm:"uniqueIndex;size:191;not null"`
-	PasswordHash  string    `gorm:"size:255"`
-	KeyDerivation string    `gorm:"size:64"`
-	KeySalt       string    `gorm:"size:255"`
-	KeyVerifier   string    `gorm:"size:255"`
-	CreatedAt     time.Time `gorm:"not null"`
-	UpdatedAt     time.Time `gorm:"not null"`
+	ID           string    `gorm:"primaryKey;size:36"`
+	Username     string    `gorm:"uniqueIndex;size:191;not null"`
+	PasswordHash string    `gorm:"size:255"`
+	CreatedAt    time.Time `gorm:"not null"`
+	UpdatedAt    time.Time `gorm:"not null"`
 }
 
 func (User) TableName() string { return "users" }
@@ -51,21 +48,20 @@ func (AuthOperation) TableName() string { return "auth_operations" }
 // in text columns instead of dialect-specific JSON columns so SQLite and MySQL
 // use the same model and query paths.
 type Resource struct {
-	ID                  string     `gorm:"primaryKey;size:36"`
-	UserID              string     `gorm:"uniqueIndex:idx_resource_owner_key;index;size:36;not null"`
-	Kind                string     `gorm:"uniqueIndex:idx_resource_owner_key;index;size:64;not null"`
-	ExternalID          string     `gorm:"uniqueIndex:idx_resource_owner_key;size:191;not null"`
-	PlainJSON           string     `gorm:"size:4194304;not null"`
-	SensitiveCiphertext string     `gorm:"size:6291456"`
-	SensitiveFormat     string     `gorm:"size:64"`
-	Revision            int64      `gorm:"not null"`
-	SourceID            string     `gorm:"size:64"`
-	SourceRevision      int64      `gorm:"not null"`
-	OriginUpdatedAt     time.Time  `gorm:"index;not null"`
-	Deleted             bool       `gorm:"index;not null"`
-	DeletedAt           *time.Time `gorm:"index"`
-	CreatedAt           time.Time  `gorm:"not null"`
-	UpdatedAt           time.Time  `gorm:"not null"`
+	ID              string     `gorm:"primaryKey;size:36"`
+	UserID          string     `gorm:"uniqueIndex:idx_resource_owner_key;index;size:36;not null"`
+	Kind            string     `gorm:"uniqueIndex:idx_resource_owner_key;index;size:64;not null"`
+	ExternalID      string     `gorm:"uniqueIndex:idx_resource_owner_key;size:191;not null"`
+	PlainJSON       string     `gorm:"size:4194304;not null"`
+	SensitiveJSON   string     `gorm:"size:6291456"`
+	Revision        int64      `gorm:"not null"`
+	SourceID        string     `gorm:"size:64"`
+	SourceRevision  int64      `gorm:"not null"`
+	OriginUpdatedAt time.Time  `gorm:"index;not null"`
+	Deleted         bool       `gorm:"index;not null"`
+	DeletedAt       *time.Time `gorm:"index"`
+	CreatedAt       time.Time  `gorm:"not null"`
+	UpdatedAt       time.Time  `gorm:"not null"`
 }
 
 func (Resource) TableName() string { return "resources" }

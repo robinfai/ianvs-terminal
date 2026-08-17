@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:app/data/services/portable_master_key.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_secure_storage_platform_interface/flutter_secure_storage_platform_interface.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -21,6 +23,30 @@ void main() {
     expect(base64Url.decode('${key.secret}='), hasLength(32));
   });
 
+  test(
+    'Apple master key writes request synchronizable Keychain storage',
+    () async {
+      final originalPlatform = FlutterSecureStoragePlatform.instance;
+      final recorder = _RecordingSecureStoragePlatform();
+      FlutterSecureStoragePlatform.instance = recorder;
+      addTearDown(() {
+        debugDefaultTargetPlatformOverride = null;
+        FlutterSecureStoragePlatform.instance = originalPlatform;
+      });
+
+      const storage = FlutterSecurePortableMasterKeyStorage();
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      await storage.write('ianvs-key-v1.ios');
+      debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+      await storage.write('ianvs-key-v1.macos');
+
+      expect(recorder.writes, hasLength(2));
+      expect(recorder.writes[0]['synchronizable'], 'true');
+      expect(recorder.writes[1]['synchronizable'], 'true');
+      expect(recorder.writes[1]['usesDataProtectionKeychain'], 'true');
+    },
+  );
+
   test('repository stores one item and caches subsequent reads', () async {
     final storage = _MemoryMasterKeyStorage();
     final repository = PortableMasterKeyRepository(storage: storage);
@@ -33,6 +59,51 @@ void main() {
     expect(exported, first.portableValue);
     expect(storage.writeCount, 1);
     expect(storage.readCount, 1);
+  });
+
+  test('refresh observes a master key synchronized after startup', () async {
+    final first = PortableMasterKey.fromSecret(
+      'first-synchronized-key-material',
+    );
+    final second = PortableMasterKey.fromSecret(
+      'second-synchronized-key-material',
+    );
+    final storage = _MemoryMasterKeyStorage()..value = first.portableValue;
+    final repository = PortableMasterKeyRepository(storage: storage);
+
+    expect((await repository.read())?.secret, first.secret);
+    storage.value = second.portableValue;
+    expect((await repository.read())?.secret, first.secret);
+
+    expect((await repository.refreshFromStorage())?.secret, second.secret);
+    expect((await repository.read())?.secret, second.secret);
+    expect(storage.readCount, 2);
+  });
+
+  test('refresh does not discard a cached key on a missing read', () async {
+    final key = PortableMasterKey.fromSecret('cached-master-key-material');
+    final storage = _MemoryMasterKeyStorage()..value = key.portableValue;
+    final repository = PortableMasterKeyRepository(storage: storage);
+    await repository.read();
+
+    storage.value = null;
+
+    expect((await repository.refreshFromStorage())?.secret, key.secret);
+    expect((await repository.read())?.secret, key.secret);
+  });
+
+  test('consumer-only repository never generates a missing key', () async {
+    final storage = _MemoryMasterKeyStorage();
+    final repository = PortableMasterKeyRepository(
+      storage: storage,
+      allowCreation: false,
+    );
+
+    await expectLater(
+      repository.readOrCreate(),
+      throwsA(isA<PortableMasterKeyUnavailableException>()),
+    );
+    expect(storage.value, isNull);
   });
 
   test(
@@ -109,6 +180,46 @@ void main() {
     expect(profileA, isNot(vault));
     expect(profileA, hasLength(32));
   });
+}
+
+final class _RecordingSecureStoragePlatform
+    extends FlutterSecureStoragePlatform {
+  final List<Map<String, String>> writes = <Map<String, String>>[];
+
+  @override
+  Future<void> write({
+    required String key,
+    required String value,
+    required Map<String, String> options,
+  }) async {
+    writes.add(Map<String, String>.from(options));
+  }
+
+  @override
+  Future<String?> read({
+    required String key,
+    required Map<String, String> options,
+  }) async => null;
+
+  @override
+  Future<bool> containsKey({
+    required String key,
+    required Map<String, String> options,
+  }) async => false;
+
+  @override
+  Future<void> delete({
+    required String key,
+    required Map<String, String> options,
+  }) async {}
+
+  @override
+  Future<Map<String, String>> readAll({
+    required Map<String, String> options,
+  }) async => <String, String>{};
+
+  @override
+  Future<void> deleteAll({required Map<String, String> options}) async {}
 }
 
 final class _MemoryMasterKeyStorage implements PortableMasterKeyStorage {

@@ -5,84 +5,118 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets('copy requires confirmation and exports the portable key', (
-    tester,
-  ) async {
-    final repository = PortableMasterKeyRepository(
-      storage: _MemoryMasterKeyStorage(),
-    );
-    final expected = (await repository.readOrCreate()).portableValue;
-    String? copied;
+  testWidgets(
+    'Apple platforms explain automatic Keychain storage without transfer actions',
+    (tester) async {
+      final repository = PortableMasterKeyRepository(
+        storage: _MemoryMasterKeyStorage(),
+      );
 
-    await _pumpPanel(
-      tester,
-      repository,
-      clipboardWriter: (value) async => copied = value,
-    );
-    await tester.tap(find.byKey(const Key('master-key-copy')));
-    await tester.pumpAndSettle();
+      await _pumpPanel(tester, repository);
 
-    expect(copied, isNull);
-    expect(find.textContaining('Anyone with this key'), findsOneWidget);
+      expect(
+        find.byKey(const Key('master-key-apple-keychain-status')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('master-key-copy')), findsNothing);
+      expect(find.byKey(const Key('master-key-import')), findsNothing);
+    },
+    variant: const TargetPlatformVariant(<TargetPlatform>{
+      TargetPlatform.iOS,
+      TargetPlatform.macOS,
+    }),
+  );
 
-    await tester.tap(find.byKey(const Key('master-key-confirm-copy')));
-    await tester.pumpAndSettle();
+  testWidgets(
+    'copy requires confirmation and exports the portable key',
+    (tester) async {
+      final repository = PortableMasterKeyRepository(
+        storage: _MemoryMasterKeyStorage(),
+      );
+      final expected = (await repository.readOrCreate()).portableValue;
+      String? copied;
 
-    expect(copied, expected);
-    expect(copied, startsWith('ianvs-key-v1.'));
-    expect(find.byKey(const Key('master-key-status')), findsOneWidget);
-  });
+      await _pumpPanel(
+        tester,
+        repository,
+        clipboardWriter: (value) async => copied = value,
+      );
+      await tester.tap(find.byKey(const Key('master-key-copy')));
+      await tester.pumpAndSettle();
 
-  testWidgets('a copied key can be pasted into an empty device', (
-    tester,
-  ) async {
-    final source = PortableMasterKeyRepository(
-      storage: _MemoryMasterKeyStorage(),
-    );
-    await source.readOrCreate();
-    final encoded = await source.exportPortable();
-    final destination = PortableMasterKeyRepository(
-      storage: _MemoryMasterKeyStorage(),
-    );
+      expect(copied, isNull);
+      expect(find.textContaining('Anyone with this key'), findsOneWidget);
 
-    await _pumpPanel(tester, destination);
-    await tester.tap(find.byKey(const Key('master-key-import')));
-    await tester.pumpAndSettle();
-    await tester.enterText(
-      find.byKey(const Key('master-key-import-field')),
-      encoded,
-    );
-    await tester.tap(find.byKey(const Key('master-key-confirm-import')));
-    await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('master-key-confirm-copy')));
+      await tester.pumpAndSettle();
 
-    expect(await destination.exportPortable(), encoded);
-    expect(find.text('Master key imported successfully.'), findsOneWidget);
-  });
+      expect(copied, expected);
+      expect(copied, startsWith('ianvs-key-v1.'));
+      expect(find.byKey(const Key('master-key-status')), findsOneWidget);
+    },
+    variant: const TargetPlatformVariant(<TargetPlatform>{
+      TargetPlatform.android,
+    }),
+  );
 
-  testWidgets('pasting a different key does not replace local key material', (
-    tester,
-  ) async {
-    final destination = PortableMasterKeyRepository(
-      storage: _MemoryMasterKeyStorage(),
-    );
-    final installed = await destination.readOrCreate();
-    final different = PortableMasterKey.fromSecret(
-      'different-master-key-material',
-    );
+  testWidgets(
+    'a copied key can be pasted into an empty device',
+    (tester) async {
+      final source = PortableMasterKeyRepository(
+        storage: _MemoryMasterKeyStorage(),
+      );
+      await source.readOrCreate();
+      final encoded = await source.exportPortable();
+      final destination = PortableMasterKeyRepository(
+        storage: _MemoryMasterKeyStorage(),
+      );
 
-    await _pumpPanel(tester, destination);
-    await tester.tap(find.byKey(const Key('master-key-import')));
-    await tester.pumpAndSettle();
-    await tester.enterText(
-      find.byKey(const Key('master-key-import-field')),
-      different.portableValue,
-    );
-    await tester.tap(find.byKey(const Key('master-key-confirm-import')));
-    await tester.pumpAndSettle();
+      await _pumpPanel(tester, destination);
+      await tester.tap(find.byKey(const Key('master-key-import')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('master-key-import-field')),
+        encoded,
+      );
+      await tester.tap(find.byKey(const Key('master-key-confirm-import')));
+      await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('master-key-error')), findsOneWidget);
-    expect(await destination.exportPortable(), installed.portableValue);
-  });
+      expect(await destination.exportPortable(), encoded);
+      expect(find.text('Master key imported successfully.'), findsOneWidget);
+    },
+    variant: const TargetPlatformVariant(<TargetPlatform>{
+      TargetPlatform.android,
+    }),
+  );
+
+  testWidgets(
+    'pasting a different key does not replace local key material',
+    (tester) async {
+      final destination = PortableMasterKeyRepository(
+        storage: _MemoryMasterKeyStorage(),
+      );
+      final installed = await destination.readOrCreate();
+      final different = PortableMasterKey.fromSecret(
+        'different-master-key-material',
+      );
+
+      await _pumpPanel(tester, destination);
+      await tester.tap(find.byKey(const Key('master-key-import')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('master-key-import-field')),
+        different.portableValue,
+      );
+      await tester.tap(find.byKey(const Key('master-key-confirm-import')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('master-key-error')), findsOneWidget);
+      expect(await destination.exportPortable(), installed.portableValue);
+    },
+    variant: const TargetPlatformVariant(<TargetPlatform>{
+      TargetPlatform.android,
+    }),
+  );
 }
 
 Future<void> _pumpPanel(

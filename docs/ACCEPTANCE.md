@@ -85,9 +85,10 @@
 验收先在真实 iPhone 模拟器证明远程 API 未配置时没有跳过或本地模式入口，
 缺少 URL/凭据不能继续，非 loopback HTTP 会被拒绝。随后使用真实 macOS
 Runner、真实 iPhone 模拟器和远程 HTTPS Data API，按固定顺序执行：macOS
-写入隔离验收资源，iOS 读取后更新，macOS
-读取 iOS 的更新后按 revision 删除该资源。验收覆盖普通数据和客户端加密的
-sensitive 数据，任何阶段失败都会尽力清理远程验收资源。
+从本机 `~/.ssh/config` 导入 `cloud`，通过生产 `DataApiProfileRepository`
+写入 `profile/default`；iOS 读取并解密 SSH 密码、私钥标记和私钥口令后更新；
+macOS 再读取 iOS 的更新并按 revision 删除该资源。任何阶段失败都会尽力清理
+远程验收资源。
 
 先启动一个 iPhone 模拟器，然后运行：
 
@@ -95,12 +96,17 @@ sensitive 数据，任何阶段失败都会尽力清理远程验收资源。
 make acceptance-cross-platform-sync
 ```
 
-命令会在终端中以不回显方式要求输入验收账号密码和数据加密密钥；也可通过
+命令会在终端中以不回显方式要求输入验收账号密码和客户端主密钥；也可通过
 `IANVS_ACCEPTANCE_REMOTE_USERNAME`、`IANVS_ACCEPTANCE_REMOTE_PASSWORD`
 和 `IANVS_ACCEPTANCE_REMOTE_ENCRYPTION_KEY` 提供。默认 API 是项目远程验收
 地址，可用 `IANVS_ACCEPTANCE_REMOTE_API_URL` 覆盖。凭据只写入权限为 0600
 的临时文件，并通过随机 loopback URL 在测试运行时读取；不会成为 Dart define、
-不会进入 Flutter/Xcode 子进程环境，并在验收结束时删除。
+不会进入 Flutter/Xcode 子进程环境，并在验收结束时删除。主密钥只由测试 App
+在本地进行 AEAD 加解密，登录和其他 HTTP 请求不会携带它。
+
+自动化环境也可用 `IANVS_ACCEPTANCE_CREDENTIALS_FILE` 指向一个权限为 0600
+或 0400 的 JSON 文件，字段为 `username`、`password`、`encryption_key`。
+脚本会校验权限与字段并复制到本次运行的临时凭据代理，不会把秘密放进命令行。
 
 ## 结果汇报格式
 

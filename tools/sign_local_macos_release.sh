@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_PATH="${1:-$ROOT_DIR/example/build/macos/Build/Products/Release/Ianvs Terminal.app}"
+EXPECTED_IDENTIFIER="${IANVS_APP_BUNDLE_ID:-dev.ianvs.terminal}"
 LOCAL_ENTITLEMENTS="$ROOT_DIR/example/macos/Runner/LocalRelease.entitlements"
 ENTITLEMENT_VALIDATOR="$ROOT_DIR/tools/validate_local_release_entitlements.py"
 
@@ -29,12 +30,21 @@ if [[ "$signature_details" == *"Signature=adhoc"* ]]; then
     --options runtime \
     --entitlements "$LOCAL_ENTITLEMENTS" \
     "$APP_PATH"
-else
-  echo "Preserving the existing non-ad-hoc app signature"
+elif [[ "$signature_details" != *"Authority=Apple Development:"* ]]; then
+  echo "local macOS release app must use an Apple Development identity" >&2
+  exit 1
+elif [[ "$signature_details" != *"TeamIdentifier="* ]] ||
+     [[ "$signature_details" == *"TeamIdentifier=not set"* ]]; then
+  echo "the selected Apple Development signature has no TeamIdentifier" >&2
+  exit 1
 fi
 
 codesign --verify --deep --strict --verbose=2 "$APP_PATH"
 final_details="$(codesign -d --verbose=4 "$APP_PATH" 2>&1)"
+if [[ "$final_details" != *"Identifier=$EXPECTED_IDENTIFIER"* ]]; then
+  echo "unexpected macOS bundle identifier; expected $EXPECTED_IDENTIFIER" >&2
+  exit 1
+fi
 if [[ "$final_details" != *"flags=0x"*"runtime)"* ]]; then
   echo "local macOS release app is missing the hardened runtime flag" >&2
   exit 1

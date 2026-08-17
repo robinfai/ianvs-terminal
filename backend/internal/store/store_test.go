@@ -17,16 +17,15 @@ import (
 	"ianvs-terminal/backend/internal/database"
 	"ianvs-terminal/backend/internal/identity"
 	"ianvs-terminal/backend/internal/model"
-	"ianvs-terminal/backend/internal/secure"
 	"ianvs-terminal/backend/internal/store"
 )
 
-func TestResourceEncryptionAndOptimisticRevision(t *testing.T) {
+func TestOpaqueSensitivePayloadAndOptimisticRevision(t *testing.T) {
 	ctx := context.Background()
 	db, resourceStore := testStore(t)
-	user, key := testUser(t, db, "alice", "alice-encryption-key-material")
+	user, _ := testUser(t, db, "alice", "alice-encryption-key-material")
 
-	created, err := resourceStore.Put(ctx, user, key, "profile", "work", store.WriteInput{
+	created, err := resourceStore.Put(ctx, user, "profile", "work", store.WriteInput{
 		Data:             json.RawMessage(`{"name":"Work","connection":{"host":"example.com"}}`),
 		Sensitive:        json.RawMessage(`{"connection":{"password":"server-secret"}}`),
 		SensitivePresent: true,
@@ -42,21 +41,18 @@ func TestResourceEncryptionAndOptimisticRevision(t *testing.T) {
 	if err := db.Where("user_id = ? AND kind = ? AND external_id = ?", user.ID, "profile", "work").First(&persisted).Error; err != nil {
 		t.Fatalf("load persisted resource: %v", err)
 	}
-	if strings.Contains(persisted.PlainJSON, "server-secret") || strings.Contains(persisted.SensitiveCiphertext, "server-secret") {
-		t.Fatal("database row contains a plaintext secret")
-	}
-	if persisted.SensitiveFormat != secure.CiphertextFormat {
-		t.Fatalf("SensitiveFormat = %q", persisted.SensitiveFormat)
+	if strings.Contains(persisted.PlainJSON, "server-secret") || !strings.Contains(persisted.SensitiveJSON, "server-secret") {
+		t.Fatal("server did not keep the sensitive payload isolated as opaque JSON")
 	}
 
-	withoutSecret, err := resourceStore.Get(ctx, user, nil, "profile", "work", false)
+	withoutSecret, err := resourceStore.Get(ctx, user, "profile", "work", false)
 	if err != nil {
 		t.Fatalf("Get(without sensitive) error = %v", err)
 	}
 	if withoutSecret.Sensitive != nil || !withoutSecret.HasSensitive {
 		t.Fatalf("Get(without sensitive) = %#v", withoutSecret)
 	}
-	withSecret, err := resourceStore.Get(ctx, user, key, "profile", "work", true)
+	withSecret, err := resourceStore.Get(ctx, user, "profile", "work", true)
 	if err != nil {
 		t.Fatalf("Get(with sensitive) error = %v", err)
 	}
@@ -65,7 +61,7 @@ func TestResourceEncryptionAndOptimisticRevision(t *testing.T) {
 	}
 
 	stale := int64(99)
-	_, err = resourceStore.Put(ctx, user, nil, "profile", "work", store.WriteInput{
+	_, err = resourceStore.Put(ctx, user, "profile", "work", store.WriteInput{
 		Data:             json.RawMessage(`{"name":"Changed"}`),
 		ExpectedRevision: &stale,
 	})
@@ -82,19 +78,19 @@ func TestResourceIdentityRequiresCanonicalLowercaseAcrossDialects(t *testing.T) 
 		{kind: "Profile", id: "work"},
 		{kind: "profile", id: "Work"},
 	} {
-		_, err := resourceStore.Put(ctx, user, nil, key.kind, key.id, store.WriteInput{
+		_, err := resourceStore.Put(ctx, user, key.kind, key.id, store.WriteInput{
 			Data: json.RawMessage(`{"name":"rejected"}`),
 		})
 		if !errors.Is(err, store.ErrInvalidResource) {
 			t.Fatalf("Put(%q, %q) error = %v, want ErrInvalidResource", key.kind, key.id, err)
 		}
 	}
-	if _, err := resourceStore.Put(ctx, user, nil, "profile", "work", store.WriteInput{
+	if _, err := resourceStore.Put(ctx, user, "profile", "work", store.WriteInput{
 		Data: json.RawMessage(`{"name":"accepted"}`),
 	}); err != nil {
 		t.Fatalf("Put(canonical key) error = %v", err)
 	}
-	_, err := resourceStore.Merge(ctx, user, nil, store.MergeRequest{
+	_, err := resourceStore.Merge(ctx, user, store.MergeRequest{
 		SchemaVersion: 1,
 		SourceID:      "Foreign-Source",
 		Resources:     []store.ResourceView{},
@@ -110,7 +106,7 @@ func TestPutExpectedRevisionZeroCreatesOnlyWhenAbsent(t *testing.T) {
 	user, _ := testUser(t, db, "create-once", "create-once-encryption-key-material")
 	createOnly := int64(0)
 
-	created, err := resourceStore.Put(ctx, user, nil, "profile", "default", store.WriteInput{
+	created, err := resourceStore.Put(ctx, user, "profile", "default", store.WriteInput{
 		Data:             json.RawMessage(`{"name":"First"}`),
 		ExpectedRevision: &createOnly,
 	})
@@ -121,19 +117,65 @@ func TestPutExpectedRevisionZeroCreatesOnlyWhenAbsent(t *testing.T) {
 		t.Fatalf("Put(create-if-absent) revision = %d, want 1", created.Revision)
 	}
 
-	_, err = resourceStore.Put(ctx, user, nil, "profile", "default", store.WriteInput{
+	_, err = resourceStore.Put(ctx, user, "profile", "default", store.WriteInput{
 		Data:             json.RawMessage(`{"name":"Lost update"}`),
 		ExpectedRevision: &createOnly,
 	})
 	if !errors.Is(err, store.ErrRevisionConflict) {
 		t.Fatalf("Put(create-if-present) error = %v, want ErrRevisionConflict", err)
 	}
-	preserved, err := resourceStore.Get(ctx, user, nil, "profile", "default", false)
+	preserved, err := resourceStore.Get(ctx, user, "profile", "default", false)
 	if err != nil {
 		t.Fatalf("Get(preserved) error = %v", err)
 	}
 	if string(preserved.Data) != `{"name":"First"}` || preserved.Revision != 1 {
 		t.Fatalf("resource after rejected create = %#v", preserved)
+	}
+}
+
+func TestPutExpectedRevisionZeroRecreatesDeletedResource(t *testing.T) {
+	ctx := context.Background()
+	db, resourceStore := testStore(t)
+	user, _ := testUser(t, db, "recreate-deleted", "recreate-deleted-encryption-key")
+	createOnly := int64(0)
+
+	created, err := resourceStore.Put(ctx, user, "profile", "default", store.WriteInput{
+		Data:             json.RawMessage(`{"name":"Original"}`),
+		Sensitive:        json.RawMessage(`{"password":"deleted-secret"}`),
+		SensitivePresent: true,
+		ExpectedRevision: &createOnly,
+	})
+	if err != nil {
+		t.Fatalf("Put(original) error = %v", err)
+	}
+	if err := resourceStore.Delete(ctx, user, "profile", "default", &created.Revision); err != nil {
+		t.Fatalf("Delete() error = %v", err)
+	}
+	if _, err := resourceStore.Get(ctx, user, "profile", "default", false); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("Get(deleted) error = %v, want ErrNotFound", err)
+	}
+
+	recreated, err := resourceStore.Put(ctx, user, "profile", "default", store.WriteInput{
+		Data:             json.RawMessage(`{"name":"Recreated"}`),
+		ClearSensitive:   true,
+		ExpectedRevision: &createOnly,
+	})
+	if err != nil {
+		t.Fatalf("Put(recreated) error = %v", err)
+	}
+	if recreated.Revision != created.Revision+2 || recreated.Deleted || recreated.HasSensitive {
+		t.Fatalf("Put(recreated) = %#v", recreated)
+	}
+	if string(recreated.Data) != `{"name":"Recreated"}` {
+		t.Fatalf("Put(recreated).Data = %s", recreated.Data)
+	}
+
+	_, err = resourceStore.Put(ctx, user, "profile", "default", store.WriteInput{
+		Data:             json.RawMessage(`{"name":"Lost update"}`),
+		ExpectedRevision: &createOnly,
+	})
+	if !errors.Is(err, store.ErrRevisionConflict) {
+		t.Fatalf("Put(recreate-if-live) error = %v, want ErrRevisionConflict", err)
 	}
 }
 
@@ -151,7 +193,7 @@ func TestConcurrentCreateIfAbsentHasExactlyOneWinner(t *testing.T) {
 		go func() {
 			<-start
 			createOnly := int64(0)
-			_, err := resourceStore.Put(ctx, user, nil, "profile", "default", store.WriteInput{
+			_, err := resourceStore.Put(ctx, user, "profile", "default", store.WriteInput{
 				Data:             json.RawMessage(`{"name":"` + name + `"}`),
 				ExpectedRevision: &createOnly,
 			})
@@ -177,7 +219,7 @@ func TestConcurrentCreateIfAbsentHasExactlyOneWinner(t *testing.T) {
 		t.Fatalf("concurrent create winners = %v, conflicts = %d", winners, conflicts)
 	}
 
-	persisted, err := resourceStore.Get(ctx, user, nil, "profile", "default", false)
+	persisted, err := resourceStore.Get(ctx, user, "profile", "default", false)
 	if err != nil {
 		t.Fatalf("Get(concurrent winner) error = %v", err)
 	}
@@ -193,7 +235,7 @@ func TestResourcePageSnapshotExcludesLaterInsertsAndRejectsCursorTampering(t *te
 	readerDB.Config.NowFunc = func() time.Time { return time.Now().UTC().Add(-24 * time.Hour) }
 	user, _ := testUser(t, writerDB, "snapshot-page", "snapshot-page-encryption-key")
 	for _, id := range []string{"first", "second", "third"} {
-		if _, err := resourceStore.Put(ctx, user, nil, "config", id, store.WriteInput{
+		if _, err := resourceStore.Put(ctx, user, "config", id, store.WriteInput{
 			Data: json.RawMessage(`{"present_at_snapshot":true}`),
 		}); err != nil {
 			t.Fatalf("Put(%s) error = %v", id, err)
@@ -208,13 +250,13 @@ func TestResourcePageSnapshotExcludesLaterInsertsAndRejectsCursorTampering(t *te
 		// Move past that boundary so the shared contract exercises the cutoff
 		// rather than depending on scheduler timing.
 		time.Sleep(5 * time.Millisecond)
-		_, err := resourceStore.Put(ctx, user, nil, "config", "zz-after-snapshot", store.WriteInput{
+		_, err := resourceStore.Put(ctx, user, "config", "zz-after-snapshot", store.WriteInput{
 			Data: json.RawMessage(`{"present_at_snapshot":false}`),
 		})
 		inserted <- err
 	}()
 
-	first, err := pageStore.List(ctx, user, nil, "", false, false, 2, "")
+	first, err := pageStore.List(ctx, user, "", false, false, 2, "")
 	if err != nil {
 		t.Fatalf("List(first snapshot page) error = %v", err)
 	}
@@ -227,21 +269,21 @@ func TestResourcePageSnapshotExcludesLaterInsertsAndRejectsCursorTampering(t *te
 	}
 
 	tampered := "A" + first.NextCursor[1:]
-	if _, err := pageStore.List(ctx, user, nil, "", false, false, 2, tampered); !errors.Is(err, store.ErrInvalidPage) {
+	if _, err := pageStore.List(ctx, user, "", false, false, 2, tampered); !errors.Is(err, store.ErrInvalidPage) {
 		t.Fatalf("List(tampered cursor) error = %v, want ErrInvalidPage", err)
 	}
-	if _, err := pageStore.List(ctx, user, nil, "", true, false, 2, first.NextCursor); !errors.Is(err, store.ErrInvalidPage) {
+	if _, err := pageStore.List(ctx, user, "", true, false, 2, first.NextCursor); !errors.Is(err, store.ErrInvalidPage) {
 		t.Fatalf("List(cursor with changed filters) error = %v, want ErrInvalidPage", err)
 	}
 
-	second, err := pageStore.List(ctx, user, nil, "", false, false, 2, first.NextCursor)
+	second, err := pageStore.List(ctx, user, "", false, false, 2, first.NextCursor)
 	if err != nil {
 		t.Fatalf("List(second snapshot page) error = %v", err)
 	}
 	if len(second.Resources) != 1 || second.Resources[0].ID != "third" || second.NextCursor != "" {
 		t.Fatalf("second snapshot page = %#v", second)
 	}
-	fresh, err := pageStore.List(ctx, user, nil, "", false, false, store.MaximumPageLimit, "")
+	fresh, err := pageStore.List(ctx, user, "", false, false, store.MaximumPageLimit, "")
 	if err != nil {
 		t.Fatalf("List(fresh snapshot) error = %v", err)
 	}
@@ -263,7 +305,7 @@ func TestPaginatedExportCanBeMergedWithoutLossOrDuplication(t *testing.T) {
 			kind = "config"
 		}
 		id := fmt.Sprintf("item-%02d", index)
-		if _, err := sourceStore.Put(ctx, sourceUser, nil, kind, id, store.WriteInput{
+		if _, err := sourceStore.Put(ctx, sourceUser, kind, id, store.WriteInput{
 			Data: json.RawMessage(fmt.Sprintf(`{"index":%d}`, index)),
 		}); err != nil {
 			t.Fatalf("Put(%s/%s) error = %v", kind, id, err)
@@ -274,7 +316,7 @@ func TestPaginatedExportCanBeMergedWithoutLossOrDuplication(t *testing.T) {
 	exported := make(map[string]struct{})
 	var exportedAt time.Time
 	for pageNumber := 1; ; pageNumber++ {
-		bundle, err := sourceStore.Export(ctx, sourceUser, nil, false, false, 2, cursor)
+		bundle, err := sourceStore.Export(ctx, sourceUser, false, false, 2, cursor)
 		if err != nil {
 			t.Fatalf("Export(page %d) error = %v", pageNumber, err)
 		}
@@ -297,7 +339,7 @@ func TestPaginatedExportCanBeMergedWithoutLossOrDuplication(t *testing.T) {
 			}
 			exported[key] = struct{}{}
 		}
-		report, err := destinationStore.Merge(ctx, destinationUser, nil, store.MergeRequest{
+		report, err := destinationStore.Merge(ctx, destinationUser, store.MergeRequest{
 			SchemaVersion: bundle.SchemaVersion,
 			SourceID:      bundle.SourceID,
 			Resources:     bundle.Resources,
@@ -317,14 +359,14 @@ func TestPaginatedExportCanBeMergedWithoutLossOrDuplication(t *testing.T) {
 		t.Fatalf("exported resources = %d, want 5", len(exported))
 	}
 
-	page, err := destinationStore.List(ctx, destinationUser, nil, "", false, false, store.MaximumPageLimit, "")
+	page, err := destinationStore.List(ctx, destinationUser, "", false, false, store.MaximumPageLimit, "")
 	if err != nil {
 		t.Fatalf("List(destination) error = %v", err)
 	}
 	if len(page.Resources) != 5 || page.NextCursor != "" {
 		t.Fatalf("destination page = %#v", page)
 	}
-	_, err = destinationStore.Merge(ctx, destinationUser, nil, store.MergeRequest{
+	_, err = destinationStore.Merge(ctx, destinationUser, store.MergeRequest{
 		SchemaVersion: 1,
 		SourceID:      sourceStore.ServerID(),
 		Resources:     make([]store.ResourceView, store.MaximumPageLimit+1),
@@ -346,7 +388,7 @@ func TestListPageStopsBeforeDocumentedResponseByteLimit(t *testing.T) {
 	}
 	for index := range 4 {
 		id := fmt.Sprintf("large-%02d", index)
-		if _, err := resourceStore.Put(ctx, user, nil, "config", id, store.WriteInput{
+		if _, err := resourceStore.Put(ctx, user, "config", id, store.WriteInput{
 			Data: payload,
 		}); err != nil {
 			t.Fatalf("Put(%s) error = %v", id, err)
@@ -356,7 +398,6 @@ func TestListPageStopsBeforeDocumentedResponseByteLimit(t *testing.T) {
 	first, err := resourceStore.List(
 		ctx,
 		user,
-		nil,
 		"",
 		false,
 		false,
@@ -380,7 +421,6 @@ func TestListPageStopsBeforeDocumentedResponseByteLimit(t *testing.T) {
 	second, err := resourceStore.List(
 		ctx,
 		user,
-		nil,
 		"",
 		false,
 		false,
@@ -406,18 +446,18 @@ func TestPreserveDestinationAppliesOnlyMonotonicSameSourceUpdates(t *testing.T) 
 	// IANVS_TEST_DATABASE_DRIVER=mysql, so this entire scenario is the shared
 	// cross-dialect contract exercised by the MySQL workflow.
 	sourceDB, sourceStore := testStore(t)
-	sourceUser, sourceKey := testUser(t, sourceDB, "monotonic-source", "monotonic-source-key-material")
+	sourceUser, _ := testUser(t, sourceDB, "monotonic-source", "monotonic-source-key-material")
 	destinationDB, destinationStore := testStore(t)
-	destinationUser, destinationKey := testUser(t, destinationDB, "monotonic-destination", "monotonic-destination-key")
+	destinationUser, _ := testUser(t, destinationDB, "monotonic-destination", "monotonic-destination-key")
 
-	if _, err := sourceStore.Put(ctx, sourceUser, sourceKey, "profile", "shared", store.WriteInput{
+	if _, err := sourceStore.Put(ctx, sourceUser, "profile", "shared", store.WriteInput{
 		Data:             json.RawMessage(`{"version":1}`),
 		Sensitive:        json.RawMessage(`{"token":"first"}`),
 		SensitivePresent: true,
 	}); err != nil {
 		t.Fatalf("source Put(initial) error = %v", err)
 	}
-	initial, err := sourceStore.Export(ctx, sourceUser, sourceKey, false, true, 1, "")
+	initial, err := sourceStore.Export(ctx, sourceUser, false, true, 1, "")
 	if err != nil {
 		t.Fatalf("Export(initial) error = %v", err)
 	}
@@ -426,7 +466,7 @@ func TestPreserveDestinationAppliesOnlyMonotonicSameSourceUpdates(t *testing.T) 
 		SourceID:      initial.SourceID,
 		Resources:     initial.Resources,
 	}
-	report, err := destinationStore.Merge(ctx, destinationUser, destinationKey, initialRequest)
+	report, err := destinationStore.Merge(ctx, destinationUser, initialRequest)
 	if err != nil {
 		t.Fatalf("Merge(initial) error = %v", err)
 	}
@@ -434,14 +474,14 @@ func TestPreserveDestinationAppliesOnlyMonotonicSameSourceUpdates(t *testing.T) 
 		t.Fatalf("Merge(initial) = %#v", report)
 	}
 
-	if _, err := sourceStore.Put(ctx, sourceUser, sourceKey, "profile", "shared", store.WriteInput{
+	if _, err := sourceStore.Put(ctx, sourceUser, "profile", "shared", store.WriteInput{
 		Data:             json.RawMessage(`{"version":2}`),
 		Sensitive:        json.RawMessage(`{"token":"second"}`),
 		SensitivePresent: true,
 	}); err != nil {
 		t.Fatalf("source Put(higher revision) error = %v", err)
 	}
-	higher, err := sourceStore.Export(ctx, sourceUser, sourceKey, false, true, 1, "")
+	higher, err := sourceStore.Export(ctx, sourceUser, false, true, 1, "")
 	if err != nil {
 		t.Fatalf("Export(higher revision) error = %v", err)
 	}
@@ -450,14 +490,14 @@ func TestPreserveDestinationAppliesOnlyMonotonicSameSourceUpdates(t *testing.T) 
 		SourceID:      higher.SourceID,
 		Resources:     higher.Resources,
 	}
-	report, err = destinationStore.Merge(ctx, destinationUser, destinationKey, higherRequest)
+	report, err = destinationStore.Merge(ctx, destinationUser, higherRequest)
 	if err != nil {
 		t.Fatalf("Merge(higher same source) error = %v", err)
 	}
 	if report.Updated != 1 || report.Conflicts != 0 {
 		t.Fatalf("Merge(higher same source) = %#v", report)
 	}
-	updated, err := destinationStore.Get(ctx, destinationUser, destinationKey, "profile", "shared", true)
+	updated, err := destinationStore.Get(ctx, destinationUser, "profile", "shared", true)
 	if err != nil {
 		t.Fatalf("Get(higher same source) error = %v", err)
 	}
@@ -470,7 +510,7 @@ func TestPreserveDestinationAppliesOnlyMonotonicSameSourceUpdates(t *testing.T) 
 
 	equalPlainMismatch := higher.Resources[0]
 	equalPlainMismatch.Data = json.RawMessage(`{"version":"same-revision-different"}`)
-	report, err = destinationStore.Merge(ctx, destinationUser, destinationKey, store.MergeRequest{
+	report, err = destinationStore.Merge(ctx, destinationUser, store.MergeRequest{
 		SchemaVersion: higher.SchemaVersion,
 		SourceID:      higher.SourceID,
 		Resources:     []store.ResourceView{equalPlainMismatch},
@@ -485,7 +525,7 @@ func TestPreserveDestinationAppliesOnlyMonotonicSameSourceUpdates(t *testing.T) 
 
 	equalSensitiveMismatch := higher.Resources[0]
 	equalSensitiveMismatch.Sensitive = json.RawMessage(`{"token":"same-revision-different"}`)
-	report, err = destinationStore.Merge(ctx, destinationUser, destinationKey, store.MergeRequest{
+	report, err = destinationStore.Merge(ctx, destinationUser, store.MergeRequest{
 		SchemaVersion: higher.SchemaVersion,
 		SourceID:      higher.SourceID,
 		Resources:     []store.ResourceView{equalSensitiveMismatch},
@@ -497,7 +537,7 @@ func TestPreserveDestinationAppliesOnlyMonotonicSameSourceUpdates(t *testing.T) 
 		!strings.Contains(report.Results[0].Reason, "same source revision") {
 		t.Fatalf("Merge(equal revision, different sensitive data) = %#v", report)
 	}
-	unchangedAfterEqualConflict, err := destinationStore.Get(ctx, destinationUser, destinationKey, "profile", "shared", true)
+	unchangedAfterEqualConflict, err := destinationStore.Get(ctx, destinationUser, "profile", "shared", true)
 	if err != nil {
 		t.Fatalf("Get(after equal-revision conflicts) error = %v", err)
 	}
@@ -508,14 +548,14 @@ func TestPreserveDestinationAppliesOnlyMonotonicSameSourceUpdates(t *testing.T) 
 		t.Fatalf("equal-revision conflict changed destination = %#v", unchangedAfterEqualConflict)
 	}
 
-	report, err = destinationStore.Merge(ctx, destinationUser, destinationKey, higherRequest)
+	report, err = destinationStore.Merge(ctx, destinationUser, higherRequest)
 	if err != nil {
 		t.Fatalf("Merge(replay) error = %v", err)
 	}
 	if report.Skipped != 1 || report.Updated != 0 {
 		t.Fatalf("Merge(replay) = %#v", report)
 	}
-	replayed, err := destinationStore.Get(ctx, destinationUser, destinationKey, "profile", "shared", true)
+	replayed, err := destinationStore.Get(ctx, destinationUser, "profile", "shared", true)
 	if err != nil {
 		t.Fatalf("Get(replay) error = %v", err)
 	}
@@ -523,7 +563,7 @@ func TestPreserveDestinationAppliesOnlyMonotonicSameSourceUpdates(t *testing.T) 
 		t.Fatalf("replay advanced revisions: before=%#v after=%#v", updated, replayed)
 	}
 
-	report, err = destinationStore.Merge(ctx, destinationUser, destinationKey, initialRequest)
+	report, err = destinationStore.Merge(ctx, destinationUser, initialRequest)
 	if err != nil {
 		t.Fatalf("Merge(lower source revision) error = %v", err)
 	}
@@ -534,7 +574,7 @@ func TestPreserveDestinationAppliesOnlyMonotonicSameSourceUpdates(t *testing.T) 
 	foreign := higher.Resources[0]
 	foreign.Data = json.RawMessage(`{"version":"foreign"}`)
 	foreign.SourceRevision = higher.Resources[0].SourceRevision + 100
-	report, err = destinationStore.Merge(ctx, destinationUser, destinationKey, store.MergeRequest{
+	report, err = destinationStore.Merge(ctx, destinationUser, store.MergeRequest{
 		SchemaVersion: 1,
 		SourceID:      "foreign-source",
 		Resources:     []store.ResourceView{foreign},
@@ -545,7 +585,7 @@ func TestPreserveDestinationAppliesOnlyMonotonicSameSourceUpdates(t *testing.T) 
 	if report.Conflicts != 1 || report.Updated != 0 {
 		t.Fatalf("Merge(foreign source) = %#v", report)
 	}
-	preserved, err := destinationStore.Get(ctx, destinationUser, destinationKey, "profile", "shared", true)
+	preserved, err := destinationStore.Get(ctx, destinationUser, "profile", "shared", true)
 	if err != nil {
 		t.Fatalf("Get(after foreign source) error = %v", err)
 	}
@@ -553,16 +593,16 @@ func TestPreserveDestinationAppliesOnlyMonotonicSameSourceUpdates(t *testing.T) 
 		t.Fatalf("foreign source changed destination = %#v", preserved)
 	}
 
-	if _, err := sourceStore.Put(ctx, sourceUser, nil, "profile", "shared", store.WriteInput{
+	if _, err := sourceStore.Put(ctx, sourceUser, "profile", "shared", store.WriteInput{
 		Data: json.RawMessage(`{"version":3}`),
 	}); err != nil {
 		t.Fatalf("source Put(higher revision without sensitive data) error = %v", err)
 	}
-	higherWithoutSensitive, err := sourceStore.Export(ctx, sourceUser, nil, false, false, 1, "")
+	higherWithoutSensitive, err := sourceStore.Export(ctx, sourceUser, false, false, 1, "")
 	if err != nil {
 		t.Fatalf("Export(higher revision without sensitive data) error = %v", err)
 	}
-	report, err = destinationStore.Merge(ctx, destinationUser, nil, store.MergeRequest{
+	report, err = destinationStore.Merge(ctx, destinationUser, store.MergeRequest{
 		SchemaVersion: higherWithoutSensitive.SchemaVersion,
 		SourceID:      higherWithoutSensitive.SourceID,
 		Resources:     higherWithoutSensitive.Resources,
@@ -573,7 +613,7 @@ func TestPreserveDestinationAppliesOnlyMonotonicSameSourceUpdates(t *testing.T) 
 	if report.Updated != 1 || report.Conflicts != 0 {
 		t.Fatalf("Merge(higher revision without sensitive data) = %#v", report)
 	}
-	preservedSensitive, err := destinationStore.Get(ctx, destinationUser, destinationKey, "profile", "shared", true)
+	preservedSensitive, err := destinationStore.Get(ctx, destinationUser, "profile", "shared", true)
 	if err != nil {
 		t.Fatalf("Get(after higher revision without sensitive data) error = %v", err)
 	}
@@ -586,7 +626,7 @@ func TestPreserveDestinationAppliesOnlyMonotonicSameSourceUpdates(t *testing.T) 
 	if err := sourceStore.Delete(ctx, sourceUser, "profile", "shared", nil); err != nil {
 		t.Fatalf("source Delete() error = %v", err)
 	}
-	deleted, err := sourceStore.Export(ctx, sourceUser, nil, true, false, 1, "")
+	deleted, err := sourceStore.Export(ctx, sourceUser, true, false, 1, "")
 	if err != nil {
 		t.Fatalf("Export(deleted) error = %v", err)
 	}
@@ -596,26 +636,26 @@ func TestPreserveDestinationAppliesOnlyMonotonicSameSourceUpdates(t *testing.T) 
 		PropagateDeletes: false,
 		Resources:        deleted.Resources,
 	}
-	report, err = destinationStore.Merge(ctx, destinationUser, nil, deletedRequest)
+	report, err = destinationStore.Merge(ctx, destinationUser, deletedRequest)
 	if err != nil {
 		t.Fatalf("Merge(deletion disabled) error = %v", err)
 	}
 	if report.Skipped != 1 || report.Deleted != 0 {
 		t.Fatalf("Merge(deletion disabled) = %#v", report)
 	}
-	if _, err := destinationStore.Get(ctx, destinationUser, nil, "profile", "shared", false); err != nil {
+	if _, err := destinationStore.Get(ctx, destinationUser, "profile", "shared", false); err != nil {
 		t.Fatalf("Get(after disabled deletion) error = %v", err)
 	}
 
 	deletedRequest.PropagateDeletes = true
-	report, err = destinationStore.Merge(ctx, destinationUser, nil, deletedRequest)
+	report, err = destinationStore.Merge(ctx, destinationUser, deletedRequest)
 	if err != nil {
 		t.Fatalf("Merge(deletion enabled) error = %v", err)
 	}
 	if report.Deleted != 1 {
 		t.Fatalf("Merge(deletion enabled) = %#v", report)
 	}
-	tombstones, err := destinationStore.List(ctx, destinationUser, nil, "profile", true, false, 1, "")
+	tombstones, err := destinationStore.List(ctx, destinationUser, "profile", true, false, 1, "")
 	if err != nil {
 		t.Fatalf("List(tombstone) error = %v", err)
 	}
@@ -625,7 +665,7 @@ func TestPreserveDestinationAppliesOnlyMonotonicSameSourceUpdates(t *testing.T) 
 		t.Fatalf("tombstone = %#v", tombstones)
 	}
 
-	report, err = destinationStore.Merge(ctx, destinationUser, nil, deletedRequest)
+	report, err = destinationStore.Merge(ctx, destinationUser, deletedRequest)
 	if err != nil {
 		t.Fatalf("Merge(deletion replay) error = %v", err)
 	}
@@ -637,11 +677,11 @@ func TestPreserveDestinationAppliesOnlyMonotonicSameSourceUpdates(t *testing.T) 
 func TestOneWayMergeIsIdempotentAndPreservesDestinationConflicts(t *testing.T) {
 	ctx := context.Background()
 	sourceDB, sourceStore := testStore(t)
-	sourceUser, sourceKey := testUser(t, sourceDB, "source", "source-encryption-key-material")
+	sourceUser, _ := testUser(t, sourceDB, "source", "source-encryption-key-material")
 	destinationDB, destinationStore := testStore(t)
-	destinationUser, destinationKey := testUser(t, destinationDB, "destination", "destination-encryption-key-material")
+	destinationUser, _ := testUser(t, destinationDB, "destination", "destination-encryption-key-material")
 
-	_, err := sourceStore.Put(ctx, sourceUser, sourceKey, "profile", "work", store.WriteInput{
+	_, err := sourceStore.Put(ctx, sourceUser, "profile", "work", store.WriteInput{
 		Data:             json.RawMessage(`{"name":"Local work"}`),
 		Sensitive:        json.RawMessage(`{"password":"local-secret"}`),
 		SensitivePresent: true,
@@ -649,7 +689,7 @@ func TestOneWayMergeIsIdempotentAndPreservesDestinationConflicts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("source Put() error = %v", err)
 	}
-	bundle, err := sourceStore.Export(ctx, sourceUser, sourceKey, false, true, store.DefaultPageLimit, "")
+	bundle, err := sourceStore.Export(ctx, sourceUser, false, true, store.DefaultPageLimit, "")
 	if err != nil {
 		t.Fatalf("Export() error = %v", err)
 	}
@@ -658,14 +698,14 @@ func TestOneWayMergeIsIdempotentAndPreservesDestinationConflicts(t *testing.T) {
 		SourceID:      bundle.SourceID,
 		Resources:     bundle.Resources,
 	}
-	report, err := destinationStore.Merge(ctx, destinationUser, destinationKey, request)
+	report, err := destinationStore.Merge(ctx, destinationUser, request)
 	if err != nil {
 		t.Fatalf("Merge() error = %v", err)
 	}
 	if report.Created != 1 || report.Conflicts != 0 {
 		t.Fatalf("first Merge() = %#v", report)
 	}
-	migrated, err := destinationStore.Get(ctx, destinationUser, destinationKey, "profile", "work", true)
+	migrated, err := destinationStore.Get(ctx, destinationUser, "profile", "work", true)
 	if err != nil {
 		t.Fatalf("Get(migrated) error = %v", err)
 	}
@@ -673,7 +713,7 @@ func TestOneWayMergeIsIdempotentAndPreservesDestinationConflicts(t *testing.T) {
 		t.Fatalf("migrated sensitive data = %s", migrated.Sensitive)
 	}
 
-	report, err = destinationStore.Merge(ctx, destinationUser, destinationKey, request)
+	report, err = destinationStore.Merge(ctx, destinationUser, request)
 	if err != nil {
 		t.Fatalf("second Merge() error = %v", err)
 	}
@@ -681,23 +721,23 @@ func TestOneWayMergeIsIdempotentAndPreservesDestinationConflicts(t *testing.T) {
 		t.Fatalf("idempotent Merge() = %#v", report)
 	}
 
-	_, err = destinationStore.Put(ctx, destinationUser, nil, "profile", "work", store.WriteInput{
+	_, err = destinationStore.Put(ctx, destinationUser, "profile", "work", store.WriteInput{
 		Data: json.RawMessage(`{"name":"Remote edit"}`),
 	})
 	if err != nil {
 		t.Fatalf("destination Put() error = %v", err)
 	}
-	_, err = sourceStore.Put(ctx, sourceUser, nil, "profile", "work", store.WriteInput{
+	_, err = sourceStore.Put(ctx, sourceUser, "profile", "work", store.WriteInput{
 		Data: json.RawMessage(`{"name":"New local edit"}`),
 	})
 	if err != nil {
 		t.Fatalf("source update error = %v", err)
 	}
-	newBundle, err := sourceStore.Export(ctx, sourceUser, sourceKey, false, true, store.DefaultPageLimit, "")
+	newBundle, err := sourceStore.Export(ctx, sourceUser, false, true, store.DefaultPageLimit, "")
 	if err != nil {
 		t.Fatalf("second Export() error = %v", err)
 	}
-	report, err = destinationStore.Merge(ctx, destinationUser, destinationKey, store.MergeRequest{
+	report, err = destinationStore.Merge(ctx, destinationUser, store.MergeRequest{
 		SchemaVersion: newBundle.SchemaVersion,
 		SourceID:      newBundle.SourceID,
 		Resources:     newBundle.Resources,
@@ -708,7 +748,7 @@ func TestOneWayMergeIsIdempotentAndPreservesDestinationConflicts(t *testing.T) {
 	if report.Conflicts != 1 {
 		t.Fatalf("conflicting Merge() = %#v", report)
 	}
-	preserved, err := destinationStore.Get(ctx, destinationUser, nil, "profile", "work", false)
+	preserved, err := destinationStore.Get(ctx, destinationUser, "profile", "work", false)
 	if err != nil {
 		t.Fatalf("Get(preserved) error = %v", err)
 	}
@@ -719,11 +759,11 @@ func TestOneWayMergeIsIdempotentAndPreservesDestinationConflicts(t *testing.T) {
 	if err := sourceStore.Delete(ctx, sourceUser, "profile", "work", nil); err != nil {
 		t.Fatalf("source Delete() error = %v", err)
 	}
-	deletedBundle, err := sourceStore.Export(ctx, sourceUser, nil, true, false, store.DefaultPageLimit, "")
+	deletedBundle, err := sourceStore.Export(ctx, sourceUser, true, false, store.DefaultPageLimit, "")
 	if err != nil {
 		t.Fatalf("deleted Export() error = %v", err)
 	}
-	report, err = destinationStore.Merge(ctx, destinationUser, nil, store.MergeRequest{
+	report, err = destinationStore.Merge(ctx, destinationUser, store.MergeRequest{
 		SchemaVersion:    deletedBundle.SchemaVersion,
 		SourceID:         deletedBundle.SourceID,
 		PropagateDeletes: true,
@@ -735,7 +775,7 @@ func TestOneWayMergeIsIdempotentAndPreservesDestinationConflicts(t *testing.T) {
 	if report.Deleted != 1 {
 		t.Fatalf("deletion Merge() = %#v", report)
 	}
-	if _, err := destinationStore.Get(ctx, destinationUser, nil, "profile", "work", false); !errors.Is(err, store.ErrNotFound) {
+	if _, err := destinationStore.Get(ctx, destinationUser, "profile", "work", false); !errors.Is(err, store.ErrNotFound) {
 		t.Fatalf("Get(deleted) error = %v, want ErrNotFound", err)
 	}
 }
@@ -822,12 +862,8 @@ func testUser(t *testing.T, db *gorm.DB, username, encryptionKey string) (model.
 		t.Fatalf("identity.UUID() error = %v", err)
 	}
 	user := model.User{ID: id, Username: username}
-	key, err := secure.ConfigureUserKey(&user, encryptionKey)
-	if err != nil {
-		t.Fatalf("secure.ConfigureUserKey() error = %v", err)
-	}
 	if err := db.Create(&user).Error; err != nil {
 		t.Fatalf("create user: %v", err)
 	}
-	return user, key
+	return user, []byte(encryptionKey)
 }

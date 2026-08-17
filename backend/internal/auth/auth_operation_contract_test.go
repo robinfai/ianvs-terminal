@@ -236,7 +236,6 @@ func TestRegisterBeginCreatesAccountWithoutTokenAndSupportsCancellation(t *testi
 		context.Background(),
 		"prepared-register",
 		operationContractPassword,
-		"registration-encryption-key",
 	)
 	if err != nil {
 		t.Fatalf("BeginRegister() error = %v", err)
@@ -257,7 +256,6 @@ func TestRegisterBeginCreatesAccountWithoutTokenAndSupportsCancellation(t *testi
 		context.Background(),
 		"issued-register",
 		operationContractPassword,
-		"registration-encryption-key",
 	)
 	if err != nil {
 		t.Fatalf("second BeginRegister() error = %v", err)

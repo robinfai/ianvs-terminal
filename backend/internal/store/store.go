@@ -20,7 +20,6 @@ import (
 	"ianvs-terminal/backend/internal/database"
 	"ianvs-terminal/backend/internal/identity"
 	"ianvs-terminal/backend/internal/model"
-	"ianvs-terminal/backend/internal/secure"
 )
 
 const (
@@ -154,7 +153,6 @@ func (s *Store) ServerID() string { return s.serverID }
 func (s *Store) Put(
 	ctx context.Context,
 	user model.User,
-	key []byte,
 	kind, externalID string,
 	input WriteInput,
 ) (ResourceView, error) {
@@ -167,9 +165,6 @@ func (s *Store) Put(
 	}
 	var sensitive []byte
 	if input.SensitivePresent {
-		if len(key) == 0 {
-			return ResourceView{}, secure.ErrKeyRequired
-		}
 		sensitive, err = canonicalJSON(input.Sensitive, true)
 		if err != nil {
 			return ResourceView{}, fmt.Errorf("%w: sensitive: %v", ErrInvalidResource, err)
@@ -196,25 +191,91 @@ func (s *Store) Put(
 			UpdatedAt:       now,
 		}
 		if input.SensitivePresent && !isJSONNull(sensitive) {
-			return encryptSensitive(&saved, key, sensitive)
+			saved.SensitiveJSON = string(sensitive)
 		}
 		return nil
 	}
 	if input.ExpectedRevision != nil && *input.ExpectedRevision == 0 {
-		now, err := database.CurrentTime(ctx, s.db)
-		if err != nil {
-			return ResourceView{}, fmt.Errorf("read resource creation time: %w", err)
-		}
-		if err := buildNewResource(now); err != nil {
-			return ResourceView{}, fmt.Errorf("save resource: %w", err)
-		}
-		if err := s.db.WithContext(ctx).Create(&saved).Error; err != nil {
-			if errors.Is(err, gorm.ErrDuplicatedKey) {
-				return ResourceView{}, fmt.Errorf("save resource: %w", ErrRevisionConflict)
+		err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			var existing model.Resource
+			queryErr := tx.Where(
+				"user_id = ? AND kind = ? AND external_id = ?",
+				user.ID,
+				kind,
+				externalID,
+			).First(&existing).Error
+			now, timeErr := database.CurrentTime(ctx, tx)
+			if timeErr != nil {
+				return timeErr
 			}
+			if errors.Is(queryErr, gorm.ErrRecordNotFound) {
+				if err := buildNewResource(now); err != nil {
+					return err
+				}
+				if err := tx.Create(&saved).Error; err != nil {
+					if errors.Is(err, gorm.ErrDuplicatedKey) {
+						return ErrRevisionConflict
+					}
+					return err
+				}
+				return nil
+			}
+			if queryErr != nil {
+				return queryErr
+			}
+			if !existing.Deleted {
+				return ErrRevisionConflict
+			}
+
+			// A tombstone is absent from the normal resource API. Treat it as
+			// absent for create-if-absent too, while retaining monotonic revision
+			// history. The conditional update gives concurrent recreations exactly
+			// one winner instead of allowing a stale creator to overwrite it.
+			saved = existing
+			saved.PlainJSON = string(plain)
+			saved.Deleted = false
+			saved.DeletedAt = nil
+			saved.Revision++
+			saved.SourceID = s.serverID
+			saved.SourceRevision = saved.Revision
+			saved.OriginUpdatedAt = now
+			saved.UpdatedAt = now
+			if input.ClearSensitive || (input.SensitivePresent && isJSONNull(sensitive)) {
+				saved.SensitiveJSON = ""
+			} else if input.SensitivePresent {
+				saved.SensitiveJSON = string(sensitive)
+			}
+			result := tx.Model(&model.Resource{}).
+				Where(
+					"id = ? AND deleted = ? AND revision = ?",
+					existing.ID,
+					true,
+					existing.Revision,
+				).
+				Select(
+					"plain_json",
+					"sensitive_json",
+					"revision",
+					"source_id",
+					"source_revision",
+					"origin_updated_at",
+					"deleted",
+					"deleted_at",
+					"updated_at",
+				).
+				Updates(&saved)
+			if result.Error != nil {
+				return result.Error
+			}
+			if result.RowsAffected != 1 {
+				return ErrRevisionConflict
+			}
+			return nil
+		})
+		if err != nil {
 			return ResourceView{}, fmt.Errorf("save resource: %w", err)
 		}
-		return resourceView(saved, key, input.SensitivePresent)
+		return resourceView(saved, input.SensitivePresent), nil
 	}
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var existing model.Resource
@@ -253,25 +314,21 @@ func (s *Store) Put(
 		saved.SourceRevision = saved.Revision
 		saved.OriginUpdatedAt = now
 		if input.ClearSensitive || (input.SensitivePresent && isJSONNull(sensitive)) {
-			saved.SensitiveCiphertext = ""
-			saved.SensitiveFormat = ""
+			saved.SensitiveJSON = ""
 		} else if input.SensitivePresent {
-			if err := encryptSensitive(&saved, key, sensitive); err != nil {
-				return err
-			}
+			saved.SensitiveJSON = string(sensitive)
 		}
 		return tx.Save(&saved).Error
 	})
 	if err != nil {
 		return ResourceView{}, fmt.Errorf("save resource: %w", err)
 	}
-	return resourceView(saved, key, input.SensitivePresent)
+	return resourceView(saved, input.SensitivePresent), nil
 }
 
 func (s *Store) Get(
 	ctx context.Context,
 	user model.User,
-	key []byte,
 	kind, externalID string,
 	includeSensitive bool,
 ) (ResourceView, error) {
@@ -291,16 +348,12 @@ func (s *Store) Get(
 		}
 		return ResourceView{}, fmt.Errorf("load resource: %w", err)
 	}
-	if includeSensitive && resource.SensitiveCiphertext != "" && len(key) == 0 {
-		return ResourceView{}, secure.ErrKeyRequired
-	}
-	return resourceView(resource, key, includeSensitive)
+	return resourceView(resource, includeSensitive), nil
 }
 
 func (s *Store) List(
 	ctx context.Context,
 	user model.User,
-	key []byte,
 	kind string,
 	includeDeleted, includeSensitive bool,
 	limit int,
@@ -369,13 +422,7 @@ func (s *Store) List(
 		if err := s.db.ScanRows(rows, &resource); err != nil {
 			return ResourcePage{}, fmt.Errorf("scan resource page: %w", err)
 		}
-		if includeSensitive && resource.SensitiveCiphertext != "" && len(key) == 0 {
-			return ResourcePage{}, secure.ErrKeyRequired
-		}
-		view, err := resourceView(resource, key, includeSensitive)
-		if err != nil {
-			return ResourcePage{}, err
-		}
+		view := resourceView(resource, includeSensitive)
 		encoded, err := json.Marshal(view)
 		if err != nil {
 			return ResourcePage{}, fmt.Errorf("encode resource page item: %w", err)
@@ -441,8 +488,7 @@ func (s *Store) Delete(
 		resource.Deleted = true
 		resource.DeletedAt = &now
 		resource.PlainJSON = "{}"
-		resource.SensitiveCiphertext = ""
-		resource.SensitiveFormat = ""
+		resource.SensitiveJSON = ""
 		resource.Revision++
 		resource.SourceID = s.serverID
 		resource.SourceRevision = resource.Revision
@@ -457,12 +503,11 @@ func (s *Store) Delete(
 func (s *Store) Export(
 	ctx context.Context,
 	user model.User,
-	key []byte,
 	includeDeleted, includeSensitive bool,
 	limit int,
 	cursor string,
 ) (ExportBundle, error) {
-	page, err := s.List(ctx, user, key, "", includeDeleted, includeSensitive, limit, cursor)
+	page, err := s.List(ctx, user, "", includeDeleted, includeSensitive, limit, cursor)
 	if err != nil {
 		return ExportBundle{}, err
 	}
@@ -540,7 +585,6 @@ func (s *Store) encodePageCursor(
 func (s *Store) Merge(
 	ctx context.Context,
 	user model.User,
-	key []byte,
 	request MergeRequest,
 ) (MergeReport, error) {
 	if request.SchemaVersion != 1 {
@@ -563,7 +607,7 @@ func (s *Store) Merge(
 	report := MergeReport{Results: make([]MergeItemResult, 0, len(request.Resources))}
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		for _, incoming := range request.Resources {
-			result, err := s.mergeOne(tx, user, key, request.SourceID, policy, request.PropagateDeletes, incoming)
+			result, err := s.mergeOne(tx, user, request.SourceID, policy, request.PropagateDeletes, incoming)
 			if err != nil {
 				return err
 			}
@@ -592,7 +636,6 @@ func (s *Store) Merge(
 func (s *Store) mergeOne(
 	tx *gorm.DB,
 	user model.User,
-	key []byte,
 	sourceID string,
 	policy ConflictPolicy,
 	propagateDeletes bool,
@@ -609,9 +652,6 @@ func (s *Store) mergeOne(
 	var sensitive []byte
 	sensitivePresent := len(incoming.Sensitive) > 0
 	if sensitivePresent {
-		if len(key) == 0 {
-			return result, secure.ErrKeyRequired
-		}
 		sensitive, err = canonicalJSON(incoming.Sensitive, true)
 		if err != nil {
 			return result, fmt.Errorf("%w: %s/%s sensitive: %v", ErrInvalidResource, incoming.Kind, incoming.ID, err)
@@ -670,9 +710,7 @@ func (s *Store) mergeOne(
 			UpdatedAt:       now,
 		}
 		if sensitivePresent && !isJSONNull(sensitive) {
-			if err := encryptSensitive(&created, key, sensitive); err != nil {
-				return result, err
-			}
+			created.SensitiveJSON = string(sensitive)
 		}
 		if err := tx.Create(&created).Error; err != nil {
 			return result, err
@@ -690,10 +728,7 @@ func (s *Store) mergeOne(
 		return result, nil
 	}
 	sameSourceAdvance := sameSource && sourceRevision > existing.SourceRevision
-	identical, err := sameResource(existing, key, plain, sensitive, sensitivePresent, incoming.Deleted)
-	if err != nil {
-		return result, err
-	}
+	identical := sameResource(existing, plain, sensitive, sensitivePresent, incoming.Deleted)
 	if identical && !sameSourceAdvance {
 		result.Status = "skipped"
 		result.Reason = "content is unchanged"
@@ -730,17 +765,15 @@ func (s *Store) mergeOne(
 		existing.Deleted = true
 		existing.DeletedAt = &now
 		existing.PlainJSON = "{}"
-		existing.SensitiveCiphertext = ""
-		existing.SensitiveFormat = ""
+		existing.SensitiveJSON = ""
 	} else {
 		existing.Deleted = false
 		existing.DeletedAt = nil
 		if sensitivePresent {
 			if isJSONNull(sensitive) {
-				existing.SensitiveCiphertext = ""
-				existing.SensitiveFormat = ""
-			} else if err := encryptSensitive(&existing, key, sensitive); err != nil {
-				return result, err
+				existing.SensitiveJSON = ""
+			} else {
+				existing.SensitiveJSON = string(sensitive)
 			}
 		}
 	}
@@ -755,12 +788,12 @@ func (s *Store) mergeOne(
 	return result, nil
 }
 
-func resourceView(resource model.Resource, key []byte, includeSensitive bool) (ResourceView, error) {
+func resourceView(resource model.Resource, includeSensitive bool) ResourceView {
 	view := ResourceView{
 		ID:              resource.ExternalID,
 		Kind:            resource.Kind,
 		Data:            json.RawMessage(resource.PlainJSON),
-		HasSensitive:    resource.SensitiveCiphertext != "",
+		HasSensitive:    resource.SensitiveJSON != "",
 		Revision:        resource.Revision,
 		SourceID:        resource.SourceID,
 		SourceRevision:  resource.SourceRevision,
@@ -769,66 +802,30 @@ func resourceView(resource model.Resource, key []byte, includeSensitive bool) (R
 		CreatedAt:       resource.CreatedAt,
 		UpdatedAt:       resource.UpdatedAt,
 	}
-	if includeSensitive && resource.SensitiveCiphertext != "" && len(key) > 0 {
-		cleartext, err := decryptSensitive(resource, key)
-		if err != nil {
-			return ResourceView{}, err
-		}
-		view.Sensitive = json.RawMessage(cleartext)
+	if includeSensitive && resource.SensitiveJSON != "" {
+		view.Sensitive = json.RawMessage(resource.SensitiveJSON)
 	}
-	return view, nil
+	return view
 }
 
 func sameResource(
 	existing model.Resource,
-	key, plain, sensitive []byte,
+	plain, sensitive []byte,
 	sensitivePresent, deleted bool,
-) (bool, error) {
+) bool {
 	if existing.Deleted != deleted {
-		return false, nil
+		return false
 	}
 	if !deleted && !bytes.Equal([]byte(existing.PlainJSON), plain) {
-		return false, nil
+		return false
 	}
 	if !sensitivePresent {
-		return true, nil
+		return true
 	}
 	if isJSONNull(sensitive) {
-		return existing.SensitiveCiphertext == "", nil
+		return existing.SensitiveJSON == ""
 	}
-	if existing.SensitiveCiphertext == "" {
-		return false, nil
-	}
-	cleartext, err := decryptSensitive(existing, key)
-	if err != nil {
-		return false, err
-	}
-	return bytes.Equal(cleartext, sensitive), nil
-}
-
-func encryptSensitive(resource *model.Resource, key, cleartext []byte) error {
-	ciphertext, err := secure.Encrypt(
-		key,
-		cleartext,
-		secure.AssociatedData(resource.UserID, resource.Kind, resource.ExternalID),
-	)
-	if err != nil {
-		return err
-	}
-	resource.SensitiveCiphertext = ciphertext
-	resource.SensitiveFormat = secure.CiphertextFormat
-	return nil
-}
-
-func decryptSensitive(resource model.Resource, key []byte) ([]byte, error) {
-	if resource.SensitiveFormat != secure.CiphertextFormat {
-		return nil, fmt.Errorf("unsupported sensitive data format %q", resource.SensitiveFormat)
-	}
-	return secure.Decrypt(
-		key,
-		resource.SensitiveCiphertext,
-		secure.AssociatedData(resource.UserID, resource.Kind, resource.ExternalID),
-	)
+	return bytes.Equal([]byte(existing.SensitiveJSON), sensitive)
 }
 
 func canonicalJSON(raw json.RawMessage, allowEmpty bool) ([]byte, error) {

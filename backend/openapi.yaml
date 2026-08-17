@@ -4,11 +4,9 @@ info:
   version: 1.0.0
   description: >-
     Database-neutral GORM API for local single-user and remote multi-user
-    profile, session, and configuration persistence.
-  x-ianvs-encryption-key-contract:
-    version: 1
-    rotation_supported: false
-    policy: A key is client-owned and immutable after account creation; losing it makes existing sensitive data unrecoverable.
+    profile, session, and configuration persistence. Sensitive payloads are
+    opaque client-generated authenticated-encryption envelopes; the service
+    never receives or verifies client encryption keys.
   x-ianvs-json-response-limit-bytes: 12582912
   x-ianvs-json-request-limit-bytes: 12582912
 servers:
@@ -42,34 +40,6 @@ paths:
         '401': {$ref: '#/components/responses/LocalAccessDenied'}
         '403': {$ref: '#/components/responses/LocalOnly'}
         '503': {$ref: '#/components/responses/DatabaseUnavailable'}
-  /v1/auth/setup:
-    post:
-      tags: [auth]
-      operationId: setupLocalUserKey
-      x-ianvs-json-request-limit-bytes: 4096
-      summary: Configure the client-owned key for the reserved local user.
-      description: Key contract v1 permits first creation and same-key verification only. Supplying a different key never rotates or re-encrypts existing data.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/EncryptionKeyRequest'
-      responses:
-        '201': {description: Local key was configured.}
-        '200': {description: Existing local key was verified.}
-        '401': {$ref: '#/components/responses/InvalidEncryptionKey'}
-        '400':
-          description: The proposed encryption key violates the bounded key contract.
-          content:
-            application/json:
-              schema:
-                oneOf:
-                  - $ref: '#/components/schemas/WeakEncryptionKeyError'
-                  - $ref: '#/components/schemas/EncryptionKeyTooLongError'
-        '429': {$ref: '#/components/responses/KeyDerivationBusy'}
-        '413': {description: Authentication request exceeds 4096 bytes.}
-        '415': {description: Request Content-Type is not application/json.}
   /v1/auth/register/begin:
     post:
       tags: [auth]
@@ -83,12 +53,11 @@ paths:
           application/json:
             schema:
               type: object
-              required: [username, password, encryption_key]
+              required: [username, password]
               additionalProperties: false
               properties:
                 username: {type: string, minLength: 3, maxLength: 64}
                 password: {type: string, description: Must encode to 12-72 UTF-8 bytes., x-ianvs-min-utf8-bytes: 12, x-ianvs-max-utf8-bytes: 72}
-                encryption_key: {type: string, description: Must encode to 16-1024 UTF-8 bytes., x-ianvs-min-utf8-bytes: 16, x-ianvs-max-utf8-bytes: 1024}
       responses:
         '201':
           description: Account and prepared registration operation were created; no token exists.
@@ -96,7 +65,7 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/PreparedAuthOperation'}
         '400':
-          description: Account, JSON, encryption-key, or secure-transport validation failed.
+          description: Account, JSON, or secure-transport validation failed.
           content:
             application/json:
               schema:
@@ -104,8 +73,6 @@ paths:
                   - $ref: '#/components/schemas/InvalidJSONError'
                   - $ref: '#/components/schemas/SecureTransportRequiredError'
                   - $ref: '#/components/schemas/InvalidAccountError'
-                  - $ref: '#/components/schemas/WeakEncryptionKeyError'
-                  - $ref: '#/components/schemas/EncryptionKeyTooLongError'
         '401': {$ref: '#/components/responses/LocalAccessDenied'}
         '403': {$ref: '#/components/responses/LocalOnly'}
         '404':
@@ -117,7 +84,7 @@ paths:
         '413': {$ref: '#/components/responses/AuthenticationRequestTooLarge'}
         '415': {$ref: '#/components/responses/UnsupportedMediaType'}
         '429':
-          description: Per-peer authentication, password hashing, or key derivation capacity was exhausted.
+          description: Per-peer authentication or password hashing capacity was exhausted.
           headers:
             Retry-After:
               schema: {type: integer, minimum: 1}
@@ -127,7 +94,6 @@ paths:
                 oneOf:
                   - $ref: '#/components/schemas/AuthenticationRateLimitedError'
                   - $ref: '#/components/schemas/PasswordHashBusyError'
-                  - $ref: '#/components/schemas/KeyDerivationBusyError'
         '500':
           description: The operation could not be prepared because of an internal failure.
           content:
@@ -362,40 +328,6 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/InternalError'}
-  /v1/auth/verify-key:
-    post:
-      tags: [auth]
-      operationId: verifyEncryptionKey
-      summary: Verify the account encryption key without listing or decrypting resources.
-      description: Uses the bounded account key verifier, so an account with zero resources is verified the same way as any other account. Key contract v1 explicitly does not support rotation.
-      security: [{bearerAuth: []}]
-      parameters:
-        - $ref: '#/components/parameters/EncryptionKeyHeader'
-      responses:
-        '200':
-          description: The supplied key matches the account key verifier.
-          content:
-            application/json:
-              schema:
-                type: object
-                required: [verified, basis, key_contract_version, key_rotation_supported]
-                additionalProperties: false
-                properties:
-                  verified: {type: boolean, const: true}
-                  basis: {type: string, const: account_key_verifier}
-                  key_contract_version: {type: integer, const: 1}
-                  key_rotation_supported: {type: boolean, const: false}
-        '400': {$ref: '#/components/responses/EncryptionKeyTooLong'}
-        '401':
-          description: The bearer token or encryption key is invalid; the exact typed error code disambiguates them.
-          content:
-            application/json:
-              schema:
-                oneOf:
-                  - $ref: '#/components/schemas/UnauthorizedError'
-                  - $ref: '#/components/schemas/InvalidEncryptionKeyError'
-        '428': {$ref: '#/components/responses/EncryptionKeyRequired'}
-        '429': {$ref: '#/components/responses/KeyDerivationBusy'}
   /v1/auth/logout:
     post:
       tags: [auth]
@@ -436,7 +368,6 @@ paths:
           schema: {type: boolean, default: false}
         - $ref: '#/components/parameters/PageLimit'
         - $ref: '#/components/parameters/PageCursor'
-        - $ref: '#/components/parameters/EncryptionKeyHeader'
       responses:
         '200':
           description: A deterministically ordered page of resources owned by the current user. The encoded response never exceeds 12 MiB.
@@ -456,7 +387,6 @@ paths:
         - in: query
           name: include_sensitive
           schema: {type: boolean, default: false}
-        - $ref: '#/components/parameters/EncryptionKeyHeader'
       responses:
         '200':
           description: Resource.
@@ -468,8 +398,6 @@ paths:
       tags: [resources]
       operationId: putResource
       security: [{bearerAuth: []}]
-      parameters:
-        - $ref: '#/components/parameters/EncryptionKeyHeader'
       requestBody:
         required: true
         content:
@@ -481,7 +409,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/Resource'}
-        '409': {description: Expected revision did not match, including create-if-absent when the resource already exists.}
+        '409': {description: Expected revision did not match, including create-if-absent when a live resource already exists.}
     delete:
       tags: [resources]
       operationId: deleteResource
@@ -509,7 +437,6 @@ paths:
           schema: {type: boolean, default: false}
         - $ref: '#/components/parameters/PageLimit'
         - $ref: '#/components/parameters/PageCursor'
-        - $ref: '#/components/parameters/EncryptionKeyHeader'
       responses:
         '200':
           description: A bounded bundle accepted directly by the merge endpoint. Follow next_cursor until absent.
@@ -524,8 +451,6 @@ paths:
       summary: Merge a local bundle into the current remote user.
       description: Under preserve_destination, a resource advances only when source_id matches the destination resource's current source and source_revision is strictly higher. A lower same-source revision, or an identical replay at the same revision, is skipped; different plain or sensitive content at the same revision is a conflict. A changed foreign-source resource is also a conflict. A higher revision updates explicitly supplied sensitive fields while preserving existing encrypted sensitive data when the field is omitted. Deletions still require propagate_deletes.
       security: [{bearerAuth: []}]
-      parameters:
-        - $ref: '#/components/parameters/EncryptionKeyHeader'
       requestBody:
         required: true
         content:
@@ -543,10 +468,6 @@ components:
       type: http
       scheme: bearer
       bearerFormat: opaque
-    dataKey:
-      type: apiKey
-      in: header
-      name: X-Ianvs-Encryption-Key
   parameters:
     Kind:
       in: path
@@ -558,12 +479,6 @@ components:
       name: id
       required: true
       schema: {$ref: '#/components/schemas/ResourceID'}
-    EncryptionKeyHeader:
-      in: header
-      name: X-Ianvs-Encryption-Key
-      required: false
-      description: Required only when sensitive JSON is read or written. Under key contract v1 it is immutable after creation and cannot be recovered by the service.
-      schema: {type: string, description: Must encode to 16-1024 UTF-8 bytes., x-ianvs-min-utf8-bytes: 16, x-ianvs-max-utf8-bytes: 1024}
     PageLimit:
       in: query
       name: limit
@@ -607,29 +522,6 @@ components:
       content:
         application/json:
           schema: {$ref: '#/components/schemas/ErrorResponse'}
-    InvalidEncryptionKey:
-      description: The client-owned key is invalid.
-      content:
-        application/json:
-          schema: {$ref: '#/components/schemas/InvalidEncryptionKeyError'}
-    EncryptionKeyRequired:
-      description: The encryption key header is missing or the account has no supported verifier.
-      content:
-        application/json:
-          schema: {$ref: '#/components/schemas/EncryptionKeyRequiredError'}
-    EncryptionKeyTooLong:
-      description: The encryption key exceeds the key contract byte limit.
-      content:
-        application/json:
-          schema: {$ref: '#/components/schemas/EncryptionKeyTooLongError'}
-    KeyDerivationBusy:
-      description: Global bounded encryption-key derivation capacity is busy.
-      headers:
-        Retry-After:
-          schema: {type: integer, minimum: 1}
-      content:
-        application/json:
-          schema: {$ref: '#/components/schemas/KeyDerivationBusyError'}
   schemas:
     ResourceKind:
       type: string
@@ -643,12 +535,6 @@ components:
       type: string
       pattern: '^[a-z0-9][a-z0-9._:-]*$'
       maxLength: 64
-    EncryptionKeyRequest:
-      type: object
-      required: [encryption_key]
-      additionalProperties: false
-      properties:
-        encryption_key: {type: string, description: Must encode to 16-1024 UTF-8 bytes., x-ianvs-min-utf8-bytes: 16, x-ianvs-max-utf8-bytes: 1024}
     AuthOperationID:
       type: string
       minLength: 43
@@ -671,13 +557,11 @@ components:
         kind: {type: string, enum: [login, register]}
     User:
       type: object
-      required: [id, username, key_configured, key_contract_version, key_rotation_supported]
+      required: [id, username]
+      additionalProperties: false
       properties:
         id: {type: string}
         username: {type: string}
-        key_configured: {type: boolean}
-        key_contract_version: {type: integer, const: 1}
-        key_rotation_supported: {type: boolean, const: false}
     AuthSession:
       type: object
       required: [token, expires_at, user]
@@ -694,7 +578,7 @@ components:
         kind: {$ref: '#/components/schemas/ResourceKind'}
         data: {}
         sensitive:
-          description: Present only when explicitly requested with a valid data key.
+          description: Opaque client-generated AEAD envelope, present only when explicitly requested.
         has_sensitive: {type: boolean}
         revision: {type: integer, format: int64, minimum: 1}
         source_id: {$ref: '#/components/schemas/SourceID'}
@@ -710,13 +594,13 @@ components:
       properties:
         data: {}
         sensitive:
-          description: Replaces encrypted JSON when present; null clears it.
+          description: Replaces the opaque client-generated AEAD envelope when present; null clears it.
         clear_sensitive: {type: boolean, default: false}
         expected_revision:
           type: integer
           format: int64
           minimum: 0
-          description: Zero creates only when absent; a positive value updates only that revision; omission is unconditional.
+          description: Zero creates only when logically absent (including recreation from a tombstone); a positive value updates only that revision; omission is unconditional.
     ResourcePage:
       type: object
       required: [resources]
@@ -914,66 +798,6 @@ components:
           additionalProperties: false
           properties:
             code: {type: string, const: invalid_account}
-            message: {type: string}
-    InvalidEncryptionKeyError:
-      type: object
-      required: [error]
-      additionalProperties: false
-      properties:
-        error:
-          type: object
-          required: [code, message]
-          additionalProperties: false
-          properties:
-            code: {type: string, const: invalid_encryption_key}
-            message: {type: string}
-    EncryptionKeyRequiredError:
-      type: object
-      required: [error]
-      additionalProperties: false
-      properties:
-        error:
-          type: object
-          required: [code, message]
-          additionalProperties: false
-          properties:
-            code: {type: string, const: encryption_key_required}
-            message: {type: string}
-    WeakEncryptionKeyError:
-      type: object
-      required: [error]
-      additionalProperties: false
-      properties:
-        error:
-          type: object
-          required: [code, message]
-          additionalProperties: false
-          properties:
-            code: {type: string, const: weak_encryption_key}
-            message: {type: string}
-    EncryptionKeyTooLongError:
-      type: object
-      required: [error]
-      additionalProperties: false
-      properties:
-        error:
-          type: object
-          required: [code, message]
-          additionalProperties: false
-          properties:
-            code: {type: string, const: encryption_key_too_long}
-            message: {type: string}
-    KeyDerivationBusyError:
-      type: object
-      required: [error]
-      additionalProperties: false
-      properties:
-        error:
-          type: object
-          required: [code, message]
-          additionalProperties: false
-          properties:
-            code: {type: string, const: key_derivation_busy}
             message: {type: string}
     PasswordHashBusyError:
       type: object

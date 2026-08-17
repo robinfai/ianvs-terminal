@@ -21,101 +21,44 @@ import (
 	"ianvs-terminal/backend/internal/httpapi"
 	"ianvs-terminal/backend/internal/identity"
 	"ianvs-terminal/backend/internal/model"
-	"ianvs-terminal/backend/internal/secure"
 	"ianvs-terminal/backend/internal/store"
 )
 
-func TestLocalAPISetupAndEncryptedResourceRoundTrip(t *testing.T) {
-	cfg, db, handler := testAPI(t, config.ModeLocal)
-	_ = cfg
-	key := "locally-created-encryption-key-material"
-
-	response := request(t, handler, http.MethodPost, "/v1/auth/setup", map[string]any{
-		"encryption_key": key,
-	}, nil)
-	if response.Code != http.StatusCreated {
-		t.Fatalf("setup status = %d, body = %s", response.Code, response.Body.String())
+func TestServerStoresOpaqueSensitivePayloadWithoutEncryptionKey(t *testing.T) {
+	_, db, handler := testAPI(t, config.ModeLocal)
+	opaque := map[string]any{
+		"version":    1,
+		"algorithm":  "aes-256-gcm",
+		"nonce":      "client-generated-nonce",
+		"ciphertext": "client-generated-ciphertext",
+		"mac":        "client-generated-mac",
 	}
 
-	response = request(t, handler, http.MethodPut, "/v1/resources/profile/work", map[string]any{
-		"data":      map[string]any{"name": "Work", "host": "example.com"},
-		"sensitive": map[string]any{"password": "api-secret"},
-	}, map[string]string{"X-Ianvs-Encryption-Key": key})
+	response := request(t, handler, http.MethodPut, "/v1/resources/profile/work", map[string]any{
+		"data":      map[string]any{"name": "Work"},
+		"sensitive": opaque,
+	}, nil)
 	if response.Code != http.StatusOK {
-		t.Fatalf("put status = %d, body = %s", response.Code, response.Body.String())
+		t.Fatalf("opaque put status = %d, body = %s", response.Code, response.Body.String())
 	}
 
 	var persisted model.Resource
 	if err := db.Where("kind = ? AND external_id = ?", "profile", "work").First(&persisted).Error; err != nil {
-		t.Fatalf("load resource: %v", err)
+		t.Fatalf("load opaque resource: %v", err)
 	}
-	if strings.Contains(persisted.SensitiveCiphertext, "api-secret") || strings.Contains(persisted.PlainJSON, "api-secret") {
-		t.Fatal("API persisted sensitive data in plaintext")
+	if persisted.SensitiveJSON == "" || !strings.Contains(persisted.SensitiveJSON, "client-generated-ciphertext") {
+		t.Fatalf("opaque sensitive payload was not stored unchanged: %q", persisted.SensitiveJSON)
 	}
 
-	response = request(t, handler, http.MethodGet, "/v1/resources/profile/work", nil, nil)
-	if response.Code != http.StatusOK || strings.Contains(response.Body.String(), "api-secret") {
-		t.Fatalf("plain get status = %d, body = %s", response.Code, response.Body.String())
-	}
 	response = request(t, handler, http.MethodGet, "/v1/resources/profile/work?include_sensitive=true", nil, nil)
-	if response.Code != http.StatusPreconditionRequired {
-		t.Fatalf("keyless sensitive get status = %d, body = %s", response.Code, response.Body.String())
-	}
-	response = request(t, handler, http.MethodGet, "/v1/resources/profile/work?include_sensitive=true", nil, map[string]string{
-		"X-Ianvs-Encryption-Key": key,
-	})
-	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "api-secret") {
-		t.Fatalf("sensitive get status = %d, body = %s", response.Code, response.Body.String())
-	}
-}
-
-func TestLocalSetupRejectsRotationAfterTheKeyIsCreated(t *testing.T) {
-	_, _, handler := testAPI(t, config.ModeLocal)
-	first := request(t, handler, http.MethodPost, "/v1/auth/setup", map[string]any{
-		"encryption_key": "immutable-local-key-material",
-	}, nil)
-	if first.Code != http.StatusCreated {
-		t.Fatalf("initial setup status = %d", first.Code)
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "client-generated-ciphertext") {
+		t.Fatalf("opaque get status = %d, body = %s", response.Code, response.Body.String())
 	}
 
-	rotation := request(t, handler, http.MethodPost, "/v1/auth/setup", map[string]any{
-		"encryption_key": "replacement-local-key-material",
-	}, nil)
-	if rotation.Code != http.StatusUnauthorized ||
-		!strings.Contains(rotation.Body.String(), `"code":"invalid_encryption_key"`) {
-		t.Fatalf("rotation attempt status = %d, body = %s", rotation.Code, rotation.Body.String())
+	response = request(t, handler, http.MethodPost, "/v1/auth/verify-key", nil, nil)
+	if response.Code != http.StatusNotFound {
+		t.Fatalf("legacy verify-key status = %d, want 404", response.Code)
 	}
-}
-
-func TestEncryptionKeyEndpointsRejectOversizedSecrets(t *testing.T) {
-	oversized := strings.Repeat("x", secure.MaximumUserKeyBytes+1)
-
-	_, _, localHandler := testAPI(t, config.ModeLocal)
-	setup := request(t, localHandler, http.MethodPost, "/v1/auth/setup", map[string]any{
-		"encryption_key": oversized,
-	}, nil)
-	assertTypedError(t, setup, http.StatusBadRequest, "encryption_key_too_long")
-
-	_, _, remoteHandler := testAPI(t, config.ModeRemote)
-	registration := request(t, remoteHandler, http.MethodPost, "/v1/auth/register/begin", map[string]any{
-		"username":       "bounded-key-user",
-		"password":       "bounded-password-value",
-		"encryption_key": oversized,
-	}, nil)
-	assertTypedError(t, registration, http.StatusBadRequest, "encryption_key_too_long")
-
-	session := register(
-		t,
-		remoteHandler,
-		"verify-key-limit-user",
-		"verify-key-password",
-		"bounded-verification-key",
-	)
-	verification := request(t, remoteHandler, http.MethodPost, "/v1/auth/verify-key", nil, map[string]string{
-		"Authorization":          "Bearer " + session.Token,
-		"X-Ianvs-Encryption-Key": oversized,
-	})
-	assertTypedError(t, verification, http.StatusBadRequest, "encryption_key_too_long")
 }
 
 func TestPutExpectedRevisionZeroHasCreateIfAbsentContract(t *testing.T) {
@@ -135,25 +78,17 @@ func TestPutExpectedRevisionZeroHasCreateIfAbsentContract(t *testing.T) {
 	if response.Code != http.StatusConflict || !strings.Contains(response.Body.String(), `"code":"revision_conflict"`) {
 		t.Fatalf("duplicate create status = %d, body = %s", response.Code, response.Body.String())
 	}
+	response = request(t, handler, http.MethodDelete, "/v1/resources/profile/default?expected_revision=1", nil, nil)
+	if response.Code != http.StatusNoContent {
+		t.Fatalf("delete status = %d, body = %s", response.Code, response.Body.String())
+	}
+	response = create("Recreated", 0)
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"revision":3`) {
+		t.Fatalf("recreate status = %d, body = %s", response.Code, response.Body.String())
+	}
 	response = create("Invalid", -1)
 	if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), `"code":"invalid_request"`) {
 		t.Fatalf("negative revision status = %d, body = %s", response.Code, response.Body.String())
-	}
-}
-
-func TestLocalSetupRejectsBrowserSimpleContentType(t *testing.T) {
-	_, _, handler := testAPI(t, config.ModeLocal)
-	req := httptest.NewRequest(
-		http.MethodPost,
-		"/v1/auth/setup",
-		strings.NewReader(`{"encryption_key":"attacker-controlled-key"}`),
-	)
-	req.RemoteAddr = "127.0.0.1:54321"
-	req.Header.Set("Content-Type", "text/plain")
-	response := httptest.NewRecorder()
-	handler.ServeHTTP(response, req)
-	if response.Code != http.StatusUnsupportedMediaType {
-		t.Fatalf("setup status = %d, body = %s", response.Code, response.Body.String())
 	}
 }
 
@@ -183,15 +118,13 @@ func TestRemoteAPIIsolatesUsersWithBearerAuthentication(t *testing.T) {
 	putForUser(t, handler, bob.Token, "bob-encryption-key-material", "Bob profile", "bob-secret")
 
 	aliceResponse := request(t, handler, http.MethodGet, "/v1/resources/profile/shared?include_sensitive=true", nil, map[string]string{
-		"Authorization":          "Bearer " + alice.Token,
-		"X-Ianvs-Encryption-Key": "alice-encryption-key-material",
+		"Authorization": "Bearer " + alice.Token,
 	})
 	if aliceResponse.Code != http.StatusOK || !strings.Contains(aliceResponse.Body.String(), "Alice profile") || !strings.Contains(aliceResponse.Body.String(), "alice-secret") || strings.Contains(aliceResponse.Body.String(), "bob-secret") {
 		t.Fatalf("alice get status = %d, body = %s", aliceResponse.Code, aliceResponse.Body.String())
 	}
 	bobResponse := request(t, handler, http.MethodGet, "/v1/resources/profile/shared?include_sensitive=true", nil, map[string]string{
-		"Authorization":          "Bearer " + bob.Token,
-		"X-Ianvs-Encryption-Key": "bob-encryption-key-material",
+		"Authorization": "Bearer " + bob.Token,
 	})
 	if bobResponse.Code != http.StatusOK || !strings.Contains(bobResponse.Body.String(), "Bob profile") || !strings.Contains(bobResponse.Body.String(), "bob-secret") || strings.Contains(bobResponse.Body.String(), "alice-secret") {
 		t.Fatalf("bob get status = %d, body = %s", bobResponse.Code, bobResponse.Body.String())
@@ -449,9 +382,8 @@ func TestAuthenticationOperationDatabaseFailuresUseUnifiedInternalErrorContract(
 			name: "begin registration",
 			path: "/v1/auth/register/begin",
 			body: map[string]any{
-				"username":       "database-failure-register",
-				"password":       "database-failure-password",
-				"encryption_key": "database-failure-encryption-key",
+				"username": "database-failure-register",
+				"password": "database-failure-password",
 			},
 		},
 		{
@@ -550,44 +482,6 @@ func TestRemoteRegistrationRateLimitRunsBeforeRequestDecoding(t *testing.T) {
 	assertRateLimited(t, limited)
 }
 
-func TestVerifyKeyIsBoundedAndIndependentOfResourceCount(t *testing.T) {
-	_, db, handler := testAPI(t, config.ModeRemote)
-	key := "verify-key-without-resources"
-	session := register(t, handler, "key-verifier", "verify-password-long", key)
-
-	var resourceCount int64
-	if err := db.Model(&model.Resource{}).Count(&resourceCount).Error; err != nil {
-		t.Fatalf("count resources: %v", err)
-	}
-	if resourceCount != 0 {
-		t.Fatalf("resource count before verification = %d, want 0", resourceCount)
-	}
-
-	verify := func(providedKey string) *httptest.ResponseRecorder {
-		headers := map[string]string{"Authorization": "Bearer " + session.Token}
-		if providedKey != "" {
-			headers["X-Ianvs-Encryption-Key"] = providedKey
-		}
-		return request(t, handler, http.MethodPost, "/v1/auth/verify-key", nil, headers)
-	}
-	response := verify(key)
-	if response.Code != http.StatusOK ||
-		!strings.Contains(response.Body.String(), `"verified":true`) ||
-		!strings.Contains(response.Body.String(), `"basis":"account_key_verifier"`) ||
-		!strings.Contains(response.Body.String(), `"key_contract_version":1`) ||
-		!strings.Contains(response.Body.String(), `"key_rotation_supported":false`) {
-		t.Fatalf("verify key status = %d, body = %s", response.Code, response.Body.String())
-	}
-	response = verify("different-verification-key")
-	if response.Code != http.StatusUnauthorized || !strings.Contains(response.Body.String(), `"code":"invalid_encryption_key"`) {
-		t.Fatalf("wrong key status = %d, body = %s", response.Code, response.Body.String())
-	}
-	response = verify("")
-	if response.Code != http.StatusPreconditionRequired || !strings.Contains(response.Body.String(), `"code":"encryption_key_required"`) {
-		t.Fatalf("missing key status = %d, body = %s", response.Code, response.Body.String())
-	}
-}
-
 func TestResourceListUsesBoundedStableCursorPages(t *testing.T) {
 	_, _, handler := testAPI(t, config.ModeLocal)
 	for _, id := range []string{"first", "second", "third"} {
@@ -647,23 +541,14 @@ func TestResourceListUsesBoundedStableCursorPages(t *testing.T) {
 
 func TestExportResponseCanBePostedDirectlyToRemoteMerge(t *testing.T) {
 	_, _, localHandler := testAPI(t, config.ModeLocal)
-	localKey := "local-export-encryption-key"
-	response := request(t, localHandler, http.MethodPost, "/v1/auth/setup", map[string]any{
-		"encryption_key": localKey,
-	}, nil)
-	if response.Code != http.StatusCreated {
-		t.Fatalf("local setup status = %d, body = %s", response.Code, response.Body.String())
-	}
-	response = request(t, localHandler, http.MethodPut, "/v1/resources/profile/migrated", map[string]any{
+	response := request(t, localHandler, http.MethodPut, "/v1/resources/profile/migrated", map[string]any{
 		"data":      map[string]any{"name": "Migrated"},
-		"sensitive": map[string]any{"password": "migration-secret"},
-	}, map[string]string{"X-Ianvs-Encryption-Key": localKey})
+		"sensitive": map[string]any{"ciphertext": "client-encrypted-migration-secret"},
+	}, nil)
 	if response.Code != http.StatusOK {
 		t.Fatalf("local put status = %d, body = %s", response.Code, response.Body.String())
 	}
-	response = request(t, localHandler, http.MethodGet, "/v1/migrations/export?include_sensitive=true", nil, map[string]string{
-		"X-Ianvs-Encryption-Key": localKey,
-	})
+	response = request(t, localHandler, http.MethodGet, "/v1/migrations/export?include_sensitive=true", nil, nil)
 	if response.Code != http.StatusOK {
 		t.Fatalf("export status = %d, body = %s", response.Code, response.Body.String())
 	}
@@ -673,20 +558,17 @@ func TestExportResponseCanBePostedDirectlyToRemoteMerge(t *testing.T) {
 	}
 
 	_, _, remoteHandler := testAPI(t, config.ModeRemote)
-	remoteKey := "different-remote-encryption-key"
-	remote := register(t, remoteHandler, "migrator", "migration-password-long", remoteKey)
+	remote := register(t, remoteHandler, "migrator", "migration-password-long", "")
 	response = request(t, remoteHandler, http.MethodPost, "/v1/migrations/merge", bundle, map[string]string{
-		"Authorization":          "Bearer " + remote.Token,
-		"X-Ianvs-Encryption-Key": remoteKey,
+		"Authorization": "Bearer " + remote.Token,
 	})
 	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"created":1`) {
 		t.Fatalf("merge status = %d, body = %s", response.Code, response.Body.String())
 	}
 	response = request(t, remoteHandler, http.MethodGet, "/v1/resources/profile/migrated?include_sensitive=true", nil, map[string]string{
-		"Authorization":          "Bearer " + remote.Token,
-		"X-Ianvs-Encryption-Key": remoteKey,
+		"Authorization": "Bearer " + remote.Token,
 	})
-	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "migration-secret") {
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "client-encrypted-migration-secret") {
 		t.Fatalf("merged get status = %d, body = %s", response.Code, response.Body.String())
 	}
 }
@@ -784,12 +666,11 @@ type preparedOperationResponse struct {
 	Kind        string    `json:"kind"`
 }
 
-func register(t *testing.T, handler http.Handler, username, password, encryptionKey string) registrationSession {
+func register(t *testing.T, handler http.Handler, username, password, _ string) registrationSession {
 	t.Helper()
 	response := request(t, handler, http.MethodPost, "/v1/auth/register/begin", map[string]any{
-		"username":       username,
-		"password":       password,
-		"encryption_key": encryptionKey,
+		"username": username,
+		"password": password,
 	}, nil)
 	if response.Code != http.StatusCreated {
 		t.Fatalf("begin register %s status = %d, body = %s", username, response.Code, response.Body.String())
@@ -858,14 +739,13 @@ func newOperationID(t *testing.T) string {
 	return operationID
 }
 
-func putForUser(t *testing.T, handler http.Handler, token, key, name, secret string) {
+func putForUser(t *testing.T, handler http.Handler, token, _ string, name, secret string) {
 	t.Helper()
 	response := request(t, handler, http.MethodPut, "/v1/resources/profile/shared", map[string]any{
 		"data":      map[string]any{"name": name},
 		"sensitive": map[string]any{"password": secret},
 	}, map[string]string{
-		"Authorization":          "Bearer " + token,
-		"X-Ianvs-Encryption-Key": key,
+		"Authorization": "Bearer " + token,
 	})
 	if response.Code != http.StatusOK {
 		t.Fatalf("put %s status = %d, body = %s", name, response.Code, response.Body.String())

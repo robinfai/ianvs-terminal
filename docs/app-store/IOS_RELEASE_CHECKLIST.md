@@ -13,7 +13,7 @@
 ## Apple account and identifiers
 
 - [ ] Confirm the App Store Connect legal entity, paid-app agreements, tax, and banking status as applicable.
-- [ ] Register or confirm the production bundle identifier `dev.ianvs.terminal` in Apple Developer. Debug builds continue to use `dev.ianvs.terminal.dev`.
+- [ ] Register or confirm the production bundle identifier `dev.ianvs.terminal` in Apple Developer. Local profile-signed installs use the team-owned `dev.ianvs.terminal.dev` identifier while retaining the shared `dev.ianvs.terminal` Keychain access group.
 - [x] Set Apple Developer Team `ZTF4Y7VNJ2` in the Runner target.
 - [ ] Enable automatic signing or install matching distribution credentials after the latest Apple Developer Program License Agreement is accepted.
 - [ ] Create the App Store Connect app record with platform iOS, name `Ianvs Terminal`, the final bundle ID, and a stable SKU.
