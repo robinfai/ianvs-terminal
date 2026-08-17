@@ -2045,7 +2045,7 @@ void main() {
   });
 
   testWidgets(
-    'iTerm thumbnail locks geometry across repeated viewport resizes',
+    'iTerm thumbnail keeps its size while current viewport clipping changes',
     (tester) async {
       tester.view.devicePixelRatio = 2.0;
       tester.view.physicalSize = const Size(2720, 2000);
@@ -2074,6 +2074,9 @@ void main() {
         required int viewportRows,
         bool includeGraphic = true,
         int placementRow = 13,
+        int heightCells = 76,
+        int sourceYOffsetPx = 0,
+        int visibleHeightPx = 3040,
       }) => TerminalFrameDiff(
         rows: const [TerminalRow(index: 0, text: 'image')],
         cursor: const TerminalCursor(row: 0, col: 0, visible: false),
@@ -2093,7 +2096,9 @@ void main() {
                   widthPx: 2036,
                   heightPx: 3040,
                   widthCells: 102,
-                  heightCells: 76,
+                  heightCells: heightCells,
+                  sourceYOffsetPx: sourceYOffsetPx,
+                  visibleHeightPx: visibleHeightPx,
                 ),
               ]
             : const <TerminalGraphicPlacement>[],
@@ -2174,11 +2179,18 @@ void main() {
       expect(find.byKey(const Key('terminal-graphic-1074')), findsNothing);
 
       tester.view.physicalSize = const Size(2720, 560);
-      controller.updateFrame(frame(viewportRows: 14, placementRow: 4));
+      controller.updateFrame(
+        frame(
+          viewportRows: 14,
+          placementRow: 4,
+          sourceYOffsetPx: 1216,
+          visibleHeightPx: 608,
+        ),
+      );
       await tester.pump();
       await tester.pump();
       positioned = graphicPosition();
-      expect(positioned.height, closeTo(500, 0.001));
+      expect(positioned.height, closeTo(100, 0.001));
       expect(positioned.width, closeTo(500 * 2036 / 3040, 0.001));
       expect(positioned.left, baselineLeft);
       expect(positioned.top, 4 * controller.measuredCellSize!.height);
@@ -2200,6 +2212,32 @@ void main() {
       expect(positioned.left, baselineLeft);
       expect(positioned.top, 7 * controller.measuredCellSize!.height);
       expect(find.byType(RawImage), findsOneWidget);
+      expect(assetLoadCount, 1);
+
+      // Font zoom updates Flutter's cell metrics before the native resize
+      // response. The stale row span must temporarily clip, rather than paint
+      // the fixed-size thumbnail over the following terminal rows.
+      final zoomedCellSize = Size(controller.measuredCellSize!.width, 4);
+      controller.updateMeasuredCellSize(zoomedCellSize);
+      controller.updateFrame(
+        frame(viewportRows: 150, placementRow: 7, heightCells: 76),
+      );
+      await tester.pump();
+
+      positioned = graphicPosition();
+      expect(positioned.height, closeTo(76 * zoomedCellSize.height, 0.001));
+      expect(positioned.height, lessThan(500));
+
+      // The resized frame expands the reservation while preserving the image's
+      // locked pixel dimensions, so the complete thumbnail becomes visible.
+      controller.updateFrame(
+        frame(viewportRows: 150, placementRow: 7, heightCells: 125),
+      );
+      await tester.pump();
+
+      positioned = graphicPosition();
+      expect(positioned.height, closeTo(500, 0.001));
+      expect(positioned.width, closeTo(500 * 2036 / 3040, 0.001));
       expect(assetLoadCount, 1);
     },
   );

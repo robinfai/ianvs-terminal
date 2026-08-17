@@ -258,6 +258,12 @@ pub struct TerminalGraphic {
     pub cell_dimensions: Option<(u32, u32)>,
     /// Resolved display span in terminal cells for hit testing
     pub display_cell_span: Option<(usize, usize)>,
+    /// Fixed rendered size for iTerm thumbnails. Cell spans may change when
+    /// the terminal font changes, but this pixel geometry does not.
+    pub display_size_px: Option<(usize, usize)>,
+    /// Whether this inline image advanced the cursor and therefore owns a
+    /// zero-width reservation of terminal rows.
+    pub reserves_rows: bool,
     /// Rows scrolled off visible area (for partial rendering)
     pub scroll_offset_rows: usize,
     /// Row in scrollback buffer (only set when in scrollback)
@@ -311,6 +317,8 @@ impl TerminalGraphic {
             pixels: Arc::new(pixels),
             cell_dimensions: None,
             display_cell_span: None,
+            display_size_px: None,
+            reserves_rows: false,
             scroll_offset_rows: 0,
             scrollback_row: None,
             alternate_screen: false,
@@ -348,6 +356,8 @@ impl TerminalGraphic {
             pixels,
             cell_dimensions: None,
             display_cell_span: None,
+            display_size_px: None,
+            reserves_rows: false,
             scroll_offset_rows: 0,
             scrollback_row: None,
             alternate_screen: false,
@@ -372,6 +382,40 @@ impl TerminalGraphic {
     /// Set the resolved display span used by scoped Kitty deletes.
     pub fn set_display_cell_span(&mut self, columns: usize, rows: usize) {
         self.display_cell_span = Some((columns.max(1), rows.max(1)));
+    }
+
+    /// Lock the rendered thumbnail size while allowing its cell reservation
+    /// to adapt to future terminal font metrics.
+    pub fn set_display_size_px(&mut self, width: usize, height: usize) {
+        self.display_size_px = Some((width.max(1), height.max(1)));
+    }
+
+    /// Return the fixed iTerm display size, deriving it from legacy stored
+    /// cell geometry when the explicit pixel lock predates this field.
+    pub fn locked_iterm_display_size_px(&self) -> Option<(usize, usize)> {
+        if self.protocol != GraphicProtocol::ITermInline {
+            return None;
+        }
+        if let Some((width, height)) = self.display_size_px {
+            return Some((width.max(1), height.max(1)));
+        }
+        let (span_cols, span_rows) = self.display_cell_span?;
+        let (cell_width, cell_height) = self.cell_dimensions?;
+        let (_, _, source_width, source_height) = self.source_rect_pixels()?;
+        let width_bound = span_cols
+            .saturating_mul(cell_width.max(1) as usize)
+            .saturating_sub(self.placement.x_offset as usize)
+            .max(1);
+        let height_bound = span_rows
+            .saturating_mul(cell_height.max(1) as usize)
+            .saturating_sub(self.placement.y_offset as usize)
+            .max(1);
+        let scale = (width_bound as f64 / source_width.max(1) as f64)
+            .min(height_bound as f64 / source_height.max(1) as f64);
+        Some((
+            (source_width as f64 * scale).floor().max(1.0) as usize,
+            (source_height as f64 * scale).floor().max(1.0) as usize,
+        ))
     }
 
     /// Mark which screen buffer owns this placement.
@@ -410,6 +454,11 @@ impl TerminalGraphic {
         viewport_cols: Option<usize>,
         viewport_rows: Option<usize>,
     ) -> (usize, usize) {
+        if self.protocol == GraphicProtocol::ITermInline {
+            if let Some((width, height)) = self.display_size_px {
+                return (width.max(1), height.max(1));
+            }
+        }
         let cell_width = self.cell_dimensions.map(|(w, _)| w as usize).unwrap_or(1);
         let cell_height = self.cell_dimensions.map(|(_, h)| h as usize).unwrap_or(2);
         let cell_width = cell_width.max(1);
@@ -2918,6 +2967,53 @@ impl GraphicsStore {
         self.adjust_for_scroll_up_with_scope(lines, top, bottom, grid_scrollback_len, None, None);
     }
 
+    /// Reattach primary-screen graphics when height-resize rows are restored
+    /// from text scrollback to the visible grid.
+    pub fn restore_primary_resize_scrollback(
+        &mut self,
+        old_scrollback_len: usize,
+        new_scrollback_len: usize,
+    ) {
+        if new_scrollback_len >= old_scrollback_len {
+            return;
+        }
+
+        for graphic in self
+            .placements
+            .iter_mut()
+            .filter(|graphic| !graphic.alternate_screen)
+        {
+            let original_absolute_row = old_scrollback_len
+                .saturating_add(graphic.position.1)
+                .saturating_sub(graphic.scroll_offset_rows);
+            if original_absolute_row >= new_scrollback_len {
+                graphic.position.1 = original_absolute_row - new_scrollback_len;
+                graphic.scroll_offset_rows = 0;
+            } else {
+                graphic.position.1 = 0;
+                graphic.scroll_offset_rows = new_scrollback_len - original_absolute_row;
+            }
+        }
+
+        let mut restored = Vec::new();
+        self.scrollback.retain(|graphic| {
+            let Some(scrollback_row) = graphic.scrollback_row else {
+                return false;
+            };
+            if scrollback_row < new_scrollback_len {
+                return true;
+            }
+            let mut graphic = graphic.clone();
+            graphic.position.1 = scrollback_row - new_scrollback_len;
+            graphic.scrollback_row = None;
+            graphic.scroll_offset_rows = 0;
+            restored.push(graphic);
+            false
+        });
+        self.placements.extend(restored);
+        self.tracked_text_scrollback_len = new_scrollback_len;
+    }
+
     fn adjust_for_scroll_up_with_scope(
         &mut self,
         lines: usize,
@@ -2983,14 +3079,20 @@ impl GraphicsStore {
                     // Move to scrollback - set scrollback_row to match text scrollback position
                     // The graphic was originally at graphic_row, which is now at scrollback position
                     let mut scrollback_graphic = g.clone();
-                    let pushed_row = graphic_row
-                        .saturating_sub(top)
-                        .saturating_sub(previous_scroll_offset);
-                    if pushed_row < evicted_new_scrollback_rows {
+                    // `position` is clamped at the scroll-region top while a
+                    // tall graphic is only partially hidden. Recover the
+                    // original top row by subtracting the accumulated hidden
+                    // rows from the current text scrollback boundary.
+                    let Some(original_top_row) = retained_old_scrollback_len
+                        .saturating_add(graphic_row.saturating_sub(top))
+                        .checked_sub(previous_scroll_offset)
+                    else {
+                        return false;
+                    };
+                    if original_top_row < evicted_new_scrollback_rows {
                         return false;
                     }
-                    let scrollback_row = retained_old_scrollback_len
-                        .saturating_add(pushed_row - evicted_new_scrollback_rows);
+                    let scrollback_row = original_top_row - evicted_new_scrollback_rows;
                     if scrollback_row >= current_grid_scrollback_len {
                         return false;
                     }
@@ -3378,6 +3480,9 @@ fn refresh_graphic_cell_dimensions(
     cols: usize,
     rows: usize,
 ) {
+    if graphic.protocol == GraphicProtocol::ITermInline && graphic.display_size_px.is_none() {
+        graphic.display_size_px = graphic.locked_iterm_display_size_px();
+    }
     graphic.set_cell_dimensions(cell_width, cell_height);
     let (span_cols, span_rows) = graphic.resolved_cell_span(Some(cols), Some(rows));
     graphic.set_display_cell_span(span_cols, span_rows);
@@ -3883,29 +3988,17 @@ mod tests {
     }
 
     #[test]
-    fn resolved_cell_span_honors_single_dimension_without_preserving_aspect_ratio() {
-        let mut graphic = TerminalGraphic::new(
-            1,
-            GraphicProtocol::ITermInline,
-            (0, 0),
-            1,
-            1,
-            vec![255u8; 4],
-        );
+    fn non_thumbnail_cell_span_honors_single_dimension_without_preserving_aspect_ratio() {
+        let mut graphic =
+            TerminalGraphic::new(1, GraphicProtocol::Sixel, (0, 0), 1, 1, vec![255u8; 4]);
         graphic.set_cell_dimensions(1, 2);
         graphic.placement.requested_height = ImageDimension::cells(3.0);
         graphic.placement.preserve_aspect_ratio = false;
 
         assert_eq!(graphic.resolved_cell_span(Some(80), Some(24)), (1, 3));
 
-        let mut width_only = TerminalGraphic::new(
-            2,
-            GraphicProtocol::ITermInline,
-            (0, 0),
-            1,
-            1,
-            vec![255u8; 4],
-        );
+        let mut width_only =
+            TerminalGraphic::new(2, GraphicProtocol::Sixel, (0, 0), 1, 1, vec![255u8; 4]);
         width_only.set_cell_dimensions(1, 2);
         width_only.placement.requested_width = ImageDimension::cells(4.0);
         width_only.placement.preserve_aspect_ratio = false;

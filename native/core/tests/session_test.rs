@@ -518,7 +518,7 @@ fn truncated_transcript_graphic_profile() -> TerminalProfile {
         vec![
             "-lc".to_string(),
             format!(
-                "python3 - <<'PY'\nimport sys\nsys.stdout.write('\\x1b]999;' + ('x' * 270000) + '\\x07')\nsys.stdout.write('\\x1b[20;1H')\nsys.stdout.write('\\x1b]1337;File=inline=1;width=100%;height=100%:{}\\x1b\\\\')\nsys.stdout.flush()\nPY",
+                "stty -echo 2>/dev/null || true\nprintf 'METRICS-READY\\r\\n'\nIFS= read -r _\npython3 - <<'PY'\nimport sys\nsys.stdout.write('\\x1b]999;' + ('x' * 270000) + '\\x07')\nsys.stdout.write('\\x1b[20;1H')\nsys.stdout.write('\\x1b]1337;File=inline=1;width=100%;height=100%:{}\\x1b\\\\')\nsys.stdout.flush()\nPY\nIFS= read -r _\nprintf '\\r\\nSIGWINCH-REDRAW\\r\\n'\nsleep 3",
                 RED_PIXEL_PNG_BASE64
             ),
         ],
@@ -3653,7 +3653,6 @@ fn session_frame_diff_locks_percent_iterm_graphic_geometry_after_resize() {
     let initial_height_cells = initial_graphic["height_cells"].as_u64();
     let initial_width_px = initial_graphic["width_px"].as_u64();
     let initial_height_px = initial_graphic["height_px"].as_u64();
-
     session::resize_session(session_id, 40, 12, 0, 0).unwrap();
 
     let resized_frame = wait_for_frame_where(session_id, |frame| {
@@ -3674,6 +3673,139 @@ fn session_frame_diff_locks_percent_iterm_graphic_geometry_after_resize() {
     assert_eq!(placement["height_cells"].as_u64(), initial_height_cells);
     assert_eq!(placement["width_px"].as_u64(), initial_width_px);
     assert_eq!(placement["height_px"].as_u64(), initial_height_px);
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_height_shrink_clips_fixed_iterm_rows_and_grow_restores_them() {
+    let profile = local_profile(
+        "iterm-height-shrink-text-placement",
+        "iTerm Height Shrink Text Placement",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            format!(
+                "python3 - <<'PY'\nimport sys, time\nsys.stdout.write('\\x1b]1337;File=inline=1;width=100%;height=100%;preserveAspectRatio=0:{}\\x1b\\\\AFTER_IMAGE')\nsys.stdout.flush()\ntime.sleep(3)\nPY",
+                RED_PIXEL_PNG_BASE64
+            ),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let initial_frame = wait_for_frame_where(session_id, |frame| {
+        frame.contains("\"protocol\":\"iterm\"") && frame.contains("AFTER_IMAGE")
+    });
+    let initial: serde_json::Value = serde_json::from_str(&initial_frame).unwrap();
+    let initial_height_cells = initial["viewport_rows"]
+        .as_u64()
+        .expect("expected initial viewport rows")
+        / 2;
+    assert_eq!(
+        initial["graphics"][0]["height_cells"].as_u64(),
+        Some(initial_height_cells)
+    );
+    assert_eq!(
+        frame_row_with_text(&initial, "AFTER_IMAGE")["index"].as_u64(),
+        Some(initial_height_cells),
+        "text must start immediately after the initial thumbnail reservation: {initial_frame}"
+    );
+    assert!(
+        frame_row_with_text(&initial, "AFTER_IMAGE")["text"]
+            .as_str()
+            .is_some_and(|text| text.starts_with("AFTER_IMAGE")),
+        "the image must reserve rows without reserving text columns: {initial_frame}"
+    );
+    let initial_height_px = initial["graphics"][0]["height_px"]
+        .as_u64()
+        .expect("expected initial thumbnail height");
+
+    session::resize_session(session_id, 80, 8, 0, 0).unwrap();
+    let resized_frame = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["viewport_rows"].as_u64() == Some(8)
+            && parsed["graphics"].as_array().is_some_and(|graphics| {
+                graphics
+                    .iter()
+                    .any(|graphic| graphic["protocol"].as_str() == Some("iterm"))
+            })
+            && logical_rows_from_frame(frame)
+                .iter()
+                .any(|row| row.contains("AFTER_IMAGE"))
+    });
+    let resized: serde_json::Value = serde_json::from_str(&resized_frame).unwrap();
+    let graphic = resized["graphics"]
+        .as_array()
+        .and_then(|graphics| {
+            graphics
+                .iter()
+                .find(|graphic| graphic["protocol"].as_str() == Some("iterm"))
+        })
+        .expect("expected resized iTerm thumbnail");
+    assert_eq!(
+        graphic["height_cells"].as_u64(),
+        Some(initial_height_cells),
+        "resize must not change the thumbnail's reserved row count: {resized_frame}"
+    );
+    assert_eq!(graphic["height_px"].as_u64(), Some(initial_height_px));
+    assert!(graphic["source_y_offset_px"].as_u64().unwrap_or(0) > 0);
+    assert!(
+        graphic["visible_height_px"].as_u64().unwrap_or(0) < initial_height_px,
+        "the short viewport should expose only the current visible slice: {resized_frame}"
+    );
+    assert_eq!(
+        frame_row_with_text(&resized, "AFTER_IMAGE")["index"].as_u64(),
+        Some(7),
+        "the fixed image rows must push following text to the last visible row: {resized_frame}"
+    );
+    assert!(
+        frame_row_with_text(&resized, "AFTER_IMAGE")["text"]
+            .as_str()
+            .is_some_and(|text| text.starts_with("AFTER_IMAGE")),
+        "following text must remain at column zero after resize: {resized_frame}"
+    );
+
+    session::resize_session(session_id, 80, 24, 0, 0).unwrap();
+    let restored_frame = wait_for_frame_where(session_id, |frame| {
+        let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+            return false;
+        };
+        parsed["viewport_rows"].as_u64() == Some(24)
+            && parsed["graphics"].as_array().is_some_and(|graphics| {
+                graphics.iter().any(|graphic| {
+                    graphic["protocol"].as_str() == Some("iterm")
+                        && graphic["source_y_offset_px"].as_u64() == Some(0)
+                        && graphic["visible_height_px"].as_u64() == Some(initial_height_px)
+                })
+            })
+            && logical_rows_from_frame(frame)
+                .iter()
+                .any(|row| row.contains("AFTER_IMAGE"))
+    });
+    let restored: serde_json::Value = serde_json::from_str(&restored_frame).unwrap();
+    let restored_graphic = &restored["graphics"][0];
+    assert_eq!(
+        restored_graphic["height_cells"].as_u64(),
+        Some(initial_height_cells)
+    );
+    assert_eq!(
+        restored_graphic["height_px"].as_u64(),
+        Some(initial_height_px)
+    );
+    assert_eq!(restored_graphic["source_y_offset_px"].as_u64(), Some(0));
+    assert_eq!(
+        restored_graphic["visible_height_px"].as_u64(),
+        Some(initial_height_px)
+    );
+    assert_eq!(
+        frame_row_with_text(&restored, "AFTER_IMAGE")["index"].as_u64(),
+        Some(initial_height_cells),
+        "growing the viewport must restore the full thumbnail and original text row: {restored_frame}"
+    );
 
     session::close_session(session_id).unwrap();
 }
@@ -4044,7 +4176,6 @@ fn session_frame_diff_locks_percent_iterm_scrollback_geometry_after_resize() {
     let initial_height_cells = initial_placement["height_cells"].as_u64();
     let initial_width_px = initial_placement["width_px"].as_u64();
     let initial_height_px = initial_placement["height_px"].as_u64();
-
     session::resize_session(session_id, 40, 12, 0, 0).unwrap();
     session::scroll_to_session(session_id, usize::MAX).unwrap();
 
@@ -22109,39 +22240,185 @@ fn truncated_transcript_resize_keeps_recent_iterm_thumbnail_placement() {
     )
     .unwrap();
 
-    let _ = wait_for_frame_where(session_id, |candidate| {
+    let _ = wait_for_frame_containing(session_id, "METRICS-READY");
+    session::resize_session_with_cell_size(session_id, 80, 24, 800, 480, 10, 20).unwrap();
+    session::write_session(session_id, b"\n").unwrap();
+
+    let initial_frame = wait_for_frame_where(session_id, |candidate| {
         serde_json::from_str::<serde_json::Value>(candidate)
             .ok()
             .and_then(|value| value["graphics"].as_array().map(|items| !items.is_empty()))
             .unwrap_or(false)
     });
+    let initial: serde_json::Value = serde_json::from_str(&initial_frame).unwrap();
+    let initial_graphic = &initial["graphics"][0];
+    let initial_height_px = initial_graphic["height_px"]
+        .as_u64()
+        .expect("expected initial graphic height");
+    let initial_height_cells = initial_graphic["height_cells"]
+        .as_u64()
+        .expect("expected initial graphic row span");
+    let initial_cursor_row = initial["cursor"]["row"]
+        .as_u64()
+        .expect("expected initial cursor row");
+    let initial_scrollback_max = initial["scrollback_max_offset"]
+        .as_u64()
+        .expect("expected initial scrollback extent");
+    assert_eq!(initial_graphic["source_y_offset_px"].as_u64(), Some(0));
+    assert_eq!(
+        initial_graphic["visible_height_px"].as_u64(),
+        Some(initial_height_px)
+    );
     let stats = session::take_session_debug_stats_json(session_id)
         .unwrap()
         .expect("expected session debug stats before resize");
     let stats: serde_json::Value = serde_json::from_str(&stats).unwrap();
     assert_eq!(stats["transcript_truncated"].as_bool(), Some(true));
+    let baseline_resize_replay_count = stats["resize_replay_count"].as_u64().unwrap_or(0);
+    let baseline_skipped_truncated_count = stats["resize_replay_skipped_truncated_count"]
+        .as_u64()
+        .unwrap_or(0);
 
-    session::resize_session(session_id, 80, 10, 800, 200).unwrap();
+    session::resize_session(session_id, 40, 10, 400, 200).unwrap();
     let frame = session::take_frame_diff(session_id)
         .unwrap()
         .expect("expected frame immediately after truncated resize");
     let frame: serde_json::Value = serde_json::from_str(&frame).unwrap();
     let graphic = &frame["graphics"][0];
-    assert!(graphic["row"].as_u64().is_some_and(|row| row < 10));
+    assert!(
+        graphic["row"].as_u64().is_some_and(|row| row < 10),
+        "retained fixed thumbnail must stay inside the resized viewport: {frame}"
+    );
     assert!(
         graphic["visible_height_px"]
             .as_u64()
             .is_some_and(|height| height > 0)
+    );
+    assert!(
+        graphic["source_y_offset_px"].as_u64().unwrap_or(0) > 0,
+        "shrinking below the fixed image rows must expose a clipped source slice: {frame}"
+    );
+
+    session::resize_session(session_id, 30, 4, 300, 80).unwrap();
+    let tiny_frame = session::take_frame_diff(session_id)
+        .unwrap()
+        .expect("expected frame after extreme truncated resize");
+    let tiny: serde_json::Value = serde_json::from_str(&tiny_frame).unwrap();
+    assert!(
+        tiny["graphics"][0]["source_y_offset_px"]
+            .as_u64()
+            .is_some_and(|offset| offset > 0),
+        "extreme shrink must show only the current image slice: {tiny_frame}"
+    );
+
+    // Model an interactive shell's prompt redraw between drag-resize events.
+    // These extra output rows must remain real history, while the image crop
+    // introduced only by the short viewport must still be reversible.
+    session::write_session(session_id, b"\n").unwrap();
+    let redraw_frame = wait_for_frame_containing(session_id, "SIGWINCH-REDRAW");
+    let redraw: serde_json::Value = serde_json::from_str(&redraw_frame).unwrap();
+    assert!(
+        redraw["graphics"][0]["source_y_offset_px"]
+            .as_u64()
+            .is_some_and(|offset| offset > 0),
+        "shell redraw in the short viewport should keep the temporary crop: {redraw_frame}"
+    );
+
+    session::resize_session(session_id, 80, 32, 800, 640).unwrap();
+    let restored_frame = session::take_frame_diff(session_id)
+        .unwrap()
+        .expect("expected frame after growing the truncated session");
+    let restored: serde_json::Value = serde_json::from_str(&restored_frame).unwrap();
+    let restored_graphic = &restored["graphics"][0];
+    assert_eq!(
+        restored_graphic["height_cells"].as_u64(),
+        Some(initial_height_cells),
+        "grow must retain the original fixed row span: {restored_frame}"
+    );
+    assert_eq!(
+        restored_graphic["height_px"].as_u64(),
+        Some(initial_height_px)
+    );
+    assert_eq!(
+        restored_graphic["source_y_offset_px"].as_u64(),
+        Some(0),
+        "grow must discard the transient resize crop: {restored_frame}"
+    );
+    assert_eq!(
+        restored_graphic["visible_height_px"].as_u64(),
+        Some(initial_height_px),
+        "grow must restore the full thumbnail: {restored_frame}"
+    );
+    assert_eq!(
+        restored["cursor"]["row"].as_u64(),
+        Some(initial_cursor_row),
+        "grow must restore the text cursor below the fixed image rows: {restored_frame}"
+    );
+    assert_eq!(
+        restored["scrollback_max_offset"].as_u64(),
+        Some(initial_scrollback_max + 2),
+        "grow must remove resize-only history while retaining the two redraw rows: {restored_frame}"
+    );
+
+    let restored_marker_row = frame_row_with_text(&restored, "SIGWINCH-REDRAW")["index"]
+        .as_u64()
+        .expect("expected redraw marker row after grow");
+    session::resize_session_with_cell_size(session_id, 160, 64, 800, 640, 5, 10).unwrap();
+    let smaller_font_frame = session::take_frame_diff(session_id)
+        .unwrap()
+        .expect("expected frame after reducing font cell size");
+    let smaller_font: serde_json::Value = serde_json::from_str(&smaller_font_frame).unwrap();
+    let smaller_font_graphic = &smaller_font["graphics"][0];
+    assert_eq!(
+        smaller_font_graphic["height_px"].as_u64(),
+        Some(initial_height_px),
+        "font zoom must not resize the thumbnail pixels: {smaller_font_frame}"
+    );
+    assert_eq!(
+        smaller_font_graphic["height_cells"].as_u64(),
+        Some(initial_height_cells * 2),
+        "halving the cell height must double the fixed thumbnail's row reservation: {smaller_font_frame}"
+    );
+    let smaller_font_marker_row = frame_row_with_text(&smaller_font, "SIGWINCH-REDRAW")["index"]
+        .as_u64()
+        .expect("expected redraw marker after font zoom");
+    assert!(
+        smaller_font_marker_row
+            >= smaller_font_graphic["row"].as_u64().unwrap_or(0)
+                + smaller_font_graphic["height_cells"].as_u64().unwrap_or(0),
+        "text following the image must remain below its expanded row reservation: {smaller_font_frame}"
+    );
+    assert!(smaller_font_marker_row > restored_marker_row);
+
+    session::resize_session_with_cell_size(session_id, 80, 32, 800, 640, 10, 20).unwrap();
+    let restored_font_frame = session::take_frame_diff(session_id)
+        .unwrap()
+        .expect("expected frame after restoring font cell size");
+    let restored_font: serde_json::Value = serde_json::from_str(&restored_font_frame).unwrap();
+    assert_eq!(
+        restored_font["graphics"][0]["height_px"].as_u64(),
+        Some(initial_height_px)
+    );
+    assert_eq!(
+        restored_font["graphics"][0]["height_cells"].as_u64(),
+        Some(initial_height_cells)
+    );
+    assert_eq!(
+        restored_font["graphics"][0]["source_y_offset_px"].as_u64(),
+        Some(0)
     );
 
     let stats = session::take_session_debug_stats_json(session_id)
         .unwrap()
         .expect("expected session debug stats after resize");
     let stats: serde_json::Value = serde_json::from_str(&stats).unwrap();
-    assert_eq!(stats["resize_replay_count"].as_u64(), Some(0));
+    assert_eq!(
+        stats["resize_replay_count"].as_u64(),
+        Some(baseline_resize_replay_count)
+    );
     assert_eq!(
         stats["resize_replay_skipped_truncated_count"].as_u64(),
-        Some(1)
+        Some(baseline_skipped_truncated_count + 5)
     );
 
     session::close_session(session_id).unwrap();

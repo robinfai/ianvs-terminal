@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -2040,6 +2041,428 @@ void main() {
 
     runtime.dispose();
     controller.dispose();
+  });
+
+  testWidgets(
+    'iTerm thumbnail keeps its size while current viewport clipping changes',
+    (tester) async {
+      tester.view.devicePixelRatio = 2.0;
+      tester.view.physicalSize = const Size(2720, 2000);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final sourceImage = (await tester.runAsync(
+        () => createTestImage(cache: false),
+      ))!;
+      addTearDown(sourceImage.dispose);
+      var assetLoadCount = 0;
+      final cache = TerminalGraphicsCache(
+        loadAsset: (key) async {
+          assetLoadCount += 1;
+          return TerminalGraphicAsset(
+            key: key,
+            width: 1,
+            height: 1,
+            rgba: Uint8List.fromList(const <int>[255, 0, 0, 255]),
+          );
+        },
+        decodeImage: (_, _, _) async => sourceImage.clone(),
+      );
+      addTearDown(cache.dispose);
+      TerminalFrameDiff frame({
+        required int viewportRows,
+        bool includeGraphic = true,
+        int placementRow = 13,
+        int heightCells = 76,
+        int sourceYOffsetPx = 0,
+        int visibleHeightPx = 3040,
+      }) => TerminalFrameDiff(
+        rows: const [TerminalRow(index: 0, text: 'image')],
+        cursor: const TerminalCursor(row: 0, col: 0, visible: false),
+        viewportRows: viewportRows,
+        viewportCols: 136,
+        dirtyRanges: const [TerminalDirtyRange(start: 0, end: 1)],
+        scrollbackOffset: 0,
+        scrollbackMaxOffset: 0,
+        graphics: includeGraphic
+            ? <TerminalGraphicPlacement>[
+                TerminalGraphicPlacement(
+                  placementId: 1074,
+                  assetKey: const TerminalGraphicAssetKey(id: 1074, version: 1),
+                  protocol: 'iterm',
+                  row: placementRow,
+                  col: 0,
+                  widthPx: 2036,
+                  heightPx: 3040,
+                  widthCells: 102,
+                  heightCells: heightCells,
+                  sourceYOffsetPx: sourceYOffsetPx,
+                  visibleHeightPx: visibleHeightPx,
+                ),
+              ]
+            : const <TerminalGraphicPlacement>[],
+      );
+      final controller = TerminalViewportController()
+        ..updateMeasuredCellSize(const Size(10, 20))
+        ..updateFrame(frame(viewportRows: 40));
+      final selectionController = SelectionController();
+      final runtime = TerminalRuntimeController(
+        backend: _NoopPtyBackend(),
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        runtime: runtime,
+        readFrame: () => controller.frame,
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+      addTearDown(controller.dispose);
+      addTearDown(selectionController.dispose);
+      addTearDown(runtime.dispose);
+
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: SizedBox.expand(
+            child: TerminalViewport(
+              controller: controller,
+              selectionController: selectionController,
+              inputController: inputController,
+              onScrollLines: (_) {},
+              onScrollToOffset: (_) {},
+              graphicsCache: cache,
+              contentPadding: EdgeInsets.zero,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      controller.updateFrame(frame(viewportRows: 40));
+      await tester.pump();
+      await tester.pump();
+      expect(find.byType(RawImage), findsOneWidget);
+      expect(assetLoadCount, 1);
+
+      Positioned graphicPosition() => tester.widget<Positioned>(
+        find.ancestor(
+          of: find.byKey(const Key('terminal-graphic-1074')),
+          matching: find.byType(Positioned),
+        ),
+      );
+
+      var positioned = graphicPosition();
+      final baselineLeft = positioned.left;
+      expect(positioned.height, closeTo(500, 0.001));
+      expect(positioned.width, closeTo(500 * 2036 / 3040, 0.001));
+      expect(positioned.width, lessThanOrEqualTo(680));
+      expect(positioned.height, lessThanOrEqualTo(500.000001));
+
+      tester.view.physicalSize = const Size(2720, 1200);
+      controller.updateFrame(frame(viewportRows: 30, placementRow: 10));
+      await tester.pump();
+
+      positioned = graphicPosition();
+      expect(positioned.height, closeTo(500, 0.001));
+      expect(positioned.width, closeTo(500 * 2036 / 3040, 0.001));
+      expect(positioned.left, baselineLeft);
+      expect(positioned.top, 10 * controller.measuredCellSize!.height);
+
+      tester.view.physicalSize = const Size(2720, 400);
+      controller.updateFrame(frame(viewportRows: 10, includeGraphic: false));
+      await tester.pump();
+      expect(find.byKey(const Key('terminal-graphic-1074')), findsNothing);
+
+      tester.view.physicalSize = const Size(2720, 560);
+      controller.updateFrame(
+        frame(
+          viewportRows: 14,
+          placementRow: 4,
+          sourceYOffsetPx: 1216,
+          visibleHeightPx: 608,
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+      positioned = graphicPosition();
+      expect(positioned.height, closeTo(100, 0.001));
+      expect(positioned.width, closeTo(500 * 2036 / 3040, 0.001));
+      expect(positioned.left, baselineLeft);
+      expect(positioned.top, 4 * controller.measuredCellSize!.height);
+      expect(find.byKey(const Key('terminal-graphic-1074')), findsOneWidget);
+      expect(find.byType(RawImage), findsOneWidget);
+      expect(assetLoadCount, 1);
+
+      tester.view.physicalSize = const Size(2720, 1200);
+      controller.updateFrame(frame(viewportRows: 30, placementRow: 7));
+      await tester.pump();
+
+      tester.view.physicalSize = const Size(1600, 1200);
+      controller.updateFrame(frame(viewportRows: 30, placementRow: 7));
+      await tester.pump();
+
+      positioned = graphicPosition();
+      expect(positioned.height, closeTo(500, 0.001));
+      expect(positioned.width, closeTo(500 * 2036 / 3040, 0.001));
+      expect(positioned.left, baselineLeft);
+      expect(positioned.top, 7 * controller.measuredCellSize!.height);
+      expect(find.byType(RawImage), findsOneWidget);
+      expect(assetLoadCount, 1);
+
+      // Font zoom updates Flutter's cell metrics before the native resize
+      // response. The stale row span must temporarily clip, rather than paint
+      // the fixed-size thumbnail over the following terminal rows.
+      final zoomedCellSize = Size(controller.measuredCellSize!.width, 4);
+      controller.updateMeasuredCellSize(zoomedCellSize);
+      controller.updateFrame(
+        frame(viewportRows: 150, placementRow: 7, heightCells: 76),
+      );
+      await tester.pump();
+
+      positioned = graphicPosition();
+      expect(positioned.height, closeTo(76 * zoomedCellSize.height, 0.001));
+      expect(positioned.height, lessThan(500));
+
+      // The resized frame expands the reservation while preserving the image's
+      // locked pixel dimensions, so the complete thumbnail becomes visible.
+      controller.updateFrame(
+        frame(viewportRows: 150, placementRow: 7, heightCells: 125),
+      );
+      await tester.pump();
+
+      positioned = graphicPosition();
+      expect(positioned.height, closeTo(500, 0.001));
+      expect(positioned.width, closeTo(500 * 2036 / 3040, 0.001));
+      expect(assetLoadCount, 1);
+    },
+  );
+
+  testWidgets('terminal graphic thumbnail exposes image actions and preview', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final sourceImage = (await tester.runAsync(
+      () => createTestImage(cache: false),
+    ))!;
+    addTearDown(sourceImage.dispose);
+    final cache = TerminalGraphicsCache(
+      loadAsset: (key) async => TerminalGraphicAsset(
+        key: key,
+        width: 2,
+        height: 2,
+        rgba: Uint8List.fromList(const <int>[
+          255,
+          0,
+          0,
+          255,
+          0,
+          255,
+          0,
+          255,
+          0,
+          0,
+          255,
+          255,
+          255,
+          255,
+          0,
+          255,
+        ]),
+      ),
+      decodeImage: (_, _, _) async => sourceImage.clone(),
+    );
+    addTearDown(cache.dispose);
+
+    final controller = TerminalViewportController()
+      ..updateMeasuredCellSize(const Size(10, 20))
+      ..updateFrame(
+        const TerminalFrameDiff(
+          rows: [
+            TerminalRow(index: 0, text: ''),
+            TerminalRow(index: 1, text: ''),
+            TerminalRow(index: 2, text: ''),
+            TerminalRow(index: 3, text: ''),
+          ],
+          cursor: TerminalCursor(row: 0, col: 0, visible: false),
+          viewportRows: 4,
+          viewportCols: 20,
+          dirtyRanges: [TerminalDirtyRange(start: 0, end: 4)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+          graphics: [
+            TerminalGraphicPlacement(
+              renderId: 404,
+              placementId: 404,
+              assetKey: TerminalGraphicAssetKey(id: 44, version: 1),
+              protocol: 'iterm',
+              row: 0,
+              col: 0,
+              widthPx: 100,
+              heightPx: 40,
+              widthCells: 10,
+              heightCells: 2,
+              preserveAspectRatio: false,
+            ),
+          ],
+        ),
+      );
+    final selectionController = SelectionController();
+    final runtime = TerminalRuntimeController(
+      backend: _NoopPtyBackend(),
+      copyToClipboard: (_) async {},
+      readClipboard: () async => '',
+      enableSessionPolling: false,
+    );
+    final inputController = TerminalInputController(
+      sessionId: '1',
+      runtime: runtime,
+      readFrame: () => controller.frame,
+      readSelection: () => '',
+      copySelection: (_) async {},
+      readClipboard: () async => '',
+    );
+    addTearDown(controller.dispose);
+    addTearDown(selectionController.dispose);
+    addTearDown(runtime.dispose);
+    final savedImages = <TerminalGraphicImage>[];
+    final copiedImages = <TerminalGraphicImage>[];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 200,
+            height: 80,
+            child: TerminalViewport(
+              controller: controller,
+              selectionController: selectionController,
+              inputController: inputController,
+              onScrollLines: (_) {},
+              onScrollToOffset: (_) {},
+              graphicsCache: cache,
+              onSaveGraphicImage: (image) async {
+                savedImages.add(image);
+              },
+              onCopyGraphicImage: (image) async {
+                copiedImages.add(image);
+              },
+              debugGraphicImageEncoder: (_) async => Uint8List.fromList(
+                const <int>[137, 80, 78, 71, 13, 10, 26, 10],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+    await tester.pump();
+
+    final thumbnail = find.byKey(const Key('terminal-graphic-404'));
+    expect(thumbnail, findsOneWidget);
+    final thumbnailImage = find.descendant(
+      of: thumbnail,
+      matching: find.byType(RawImage),
+    );
+    expect(thumbnailImage, findsOneWidget);
+    expect(tester.widget<RawImage>(thumbnailImage).fit, BoxFit.contain);
+    final thumbnailSemantics = find.bySemanticsLabel(
+      'Open terminal image preview',
+    );
+    expect(thumbnailSemantics, findsOneWidget);
+    expect(
+      tester
+          .getSemantics(thumbnailSemantics)
+          .getSemanticsData()
+          .hasAction(ui.SemanticsAction.tap),
+      isTrue,
+    );
+
+    var pointerId = 20;
+    Future<void> openContextMenu() async {
+      final pointer = TestPointer(pointerId, PointerDeviceKind.mouse);
+      pointerId += 1;
+      await tester.sendEventToBinding(
+        pointer.down(
+          tester.getCenter(thumbnail),
+          buttons: kSecondaryMouseButton,
+        ),
+      );
+      await tester.pump();
+      await tester.sendEventToBinding(pointer.up());
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> pumpUntil(bool Function() condition) async {
+      for (var attempt = 0; attempt < 20 && !condition(); attempt += 1) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+    }
+
+    await openContextMenu();
+    expect(find.text('Save Image As…'), findsOneWidget);
+    expect(find.text('Copy Image'), findsOneWidget);
+    expect(find.text('Open Image'), findsOneWidget);
+    expect(find.text('Inspect'), findsOneWidget);
+
+    await tester.tap(find.byKey(terminalGraphicCopyImageMenuItemKey));
+    await tester.pumpAndSettle();
+    await pumpUntil(() => copiedImages.isNotEmpty);
+    expect(copiedImages, hasLength(1));
+    expect(copiedImages.single.pixelWidth, 1);
+    expect(copiedImages.single.pixelHeight, 1);
+    expect(
+      copiedImages.single.pngBytes.take(8),
+      orderedEquals(const <int>[137, 80, 78, 71, 13, 10, 26, 10]),
+    );
+
+    await openContextMenu();
+    await tester.tap(find.byKey(terminalGraphicSaveImageMenuItemKey));
+    await tester.pumpAndSettle();
+    await pumpUntil(() => savedImages.isNotEmpty);
+    expect(savedImages, hasLength(1));
+    expect(savedImages.single.suggestedFileName, 'terminal-image-44-1.png');
+
+    await openContextMenu();
+    await tester.tap(find.byKey(terminalGraphicInspectMenuItemKey));
+    await tester.pumpAndSettle();
+    expect(find.byKey(terminalGraphicInspectorKey), findsOneWidget);
+    expect(find.text('Image Information'), findsOneWidget);
+    expect(find.textContaining('Protocol: iterm'), findsOneWidget);
+    expect(find.textContaining('Source size: 1 × 1 px'), findsOneWidget);
+    expect(find.textContaining('Display size: 100 × 40 px'), findsOneWidget);
+    await tester.tap(find.byKey(terminalGraphicInspectorCloseKey));
+    await tester.pumpAndSettle();
+    expect(find.byKey(terminalGraphicInspectorKey), findsNothing);
+
+    await openContextMenu();
+    await tester.tap(find.byKey(terminalGraphicOpenImageMenuItemKey));
+    await tester.pumpAndSettle();
+    expect(find.byKey(terminalGraphicPreviewKey), findsOneWidget);
+    await tester.tap(find.byKey(terminalGraphicPreviewCloseKey));
+    await tester.pumpAndSettle();
+    expect(find.byKey(terminalGraphicPreviewKey), findsNothing);
+    expect(thumbnail, findsOneWidget);
+    expect(thumbnailImage, findsOneWidget);
+
+    await tester.tap(thumbnail);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(terminalGraphicPreviewKey), findsOneWidget);
+    expect(find.byType(InteractiveViewer), findsOneWidget);
+    expect(find.byType(RawImage), findsNWidgets(2));
+
+    await tester.tap(find.byKey(terminalGraphicPreviewCloseKey));
+    await tester.pumpAndSettle();
+    expect(find.byKey(terminalGraphicPreviewKey), findsNothing);
+    expect(thumbnail, findsOneWidget);
+    expect(thumbnailImage, findsOneWidget);
   });
 
   testWidgets(

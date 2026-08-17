@@ -308,18 +308,10 @@ typedef _GraphicGeometryKey = ({
   bool belowText,
   TerminalGraphicAssetKey assetKey,
 });
-typedef _GraphicOverlayGeometry = ({
-  double width,
-  double height,
-  double displayWidth,
-  double displayHeight,
-  double sourceXOffset,
-  double sourceYOffset,
-});
 
 class _TerminalViewportState extends State<TerminalViewport>
     with TextInputClient {
-  static const int _maxLockedItermGraphicGeometries = 256;
+  static const int _maxLockedItermGraphicScales = 256;
   static const Duration _selectionAutoScrollInterval = Duration(
     milliseconds: 50,
   );
@@ -370,8 +362,8 @@ class _TerminalViewportState extends State<TerminalViewport>
   int _pendingMobileRawBackspaces = 0;
   bool _mobileRawBackspaceResetScheduled = false;
   final TerminalGraphicsSync _graphicsSync = TerminalGraphicsSync();
-  final Map<_GraphicGeometryKey, _GraphicOverlayGeometry>
-  _graphicOverlayGeometries = <_GraphicGeometryKey, _GraphicOverlayGeometry>{};
+  final Map<_GraphicGeometryKey, double> _lockedItermGraphicScales =
+      <_GraphicGeometryKey, double>{};
   late MouseCursor _lastTerminalPointerCursor;
   FocusNode get _focusNode =>
       widget.focusNode ??
@@ -400,7 +392,7 @@ class _TerminalViewportState extends State<TerminalViewport>
     }
     if (!identical(oldWidget.controller, widget.controller) ||
         !identical(oldWidget.graphicsCache, widget.graphicsCache)) {
-      _graphicOverlayGeometries.clear();
+      _lockedItermGraphicScales.clear();
       _syncGraphicsCache();
     }
     final focusNodeChanged = !identical(oldWidget.focusNode, widget.focusNode);
@@ -525,12 +517,11 @@ class _TerminalViewportState extends State<TerminalViewport>
       cache: widget.graphicsCache,
       assetRevision: controller.graphicsAssetRevision,
       // A resize can temporarily omit an otherwise live iTerm placement from
-      // the frame. Keep assets that own locked thumbnail geometry resident so
-      // repeated empty/visible frames cannot race cache eviction against image
-      // decoding and leave a blank reservation behind.
+      // the frame. Keep assets with a locked thumbnail scale resident so an
+      // omitted/clipped/visible cycle cannot race cache eviction.
       liveAssetKeys: <TerminalGraphicAssetKey>{
         ...controller.graphicsAssetKeys,
-        for (final key in _graphicOverlayGeometries.keys) key.assetKey,
+        for (final key in _lockedItermGraphicScales.keys) key.assetKey,
       },
     );
   }
@@ -2422,31 +2413,51 @@ class _TerminalViewportState extends State<TerminalViewport>
       devicePixelRatio,
     );
     final geometryKey = (belowText: belowText, assetKey: graphic.assetKey);
-    final currentGeometry = (
-      width: graphic.visibleWidthPx / devicePixelRatio * viewportScale,
-      height: graphic.visibleHeightPx / devicePixelRatio * viewportScale,
-      displayWidth: graphic.widthPx / devicePixelRatio * viewportScale,
-      displayHeight: graphic.heightPx / devicePixelRatio * viewportScale,
-      sourceXOffset: graphic.sourceXOffsetPx / devicePixelRatio * viewportScale,
-      sourceYOffset: graphic.sourceYOffsetPx / devicePixelRatio * viewportScale,
-    );
-    final previousGeometry = _graphicOverlayGeometries[geometryKey];
-    final geometry = graphic.protocol == 'iterm' && previousGeometry != null
-        ? previousGeometry
-        : currentGeometry;
+    var displayScale = viewportScale;
     if (graphic.protocol == 'iterm') {
-      // Once an iTerm thumbnail has been resolved, every later window resize
-      // clips that fixed rectangle instead of rescaling it. The entry also
-      // keeps its asset resident while the placement is temporarily omitted.
-      if (!_graphicOverlayGeometries.containsKey(geometryKey) &&
-          _graphicOverlayGeometries.length >=
-              _maxLockedItermGraphicGeometries) {
-        _graphicOverlayGeometries.remove(_graphicOverlayGeometries.keys.first);
+      final lockedScale = _lockedItermGraphicScales[geometryKey];
+      if (lockedScale != null) {
+        displayScale = lockedScale;
+      } else {
+        if (_lockedItermGraphicScales.length >= _maxLockedItermGraphicScales) {
+          _lockedItermGraphicScales.remove(
+            _lockedItermGraphicScales.keys.first,
+          );
+        }
+        _lockedItermGraphicScales[geometryKey] = viewportScale;
       }
-      _graphicOverlayGeometries[geometryKey] = geometry;
     }
-    // Lock only the thumbnail rectangle. Always take row and column from the
-    // latest placement so resize reflow keeps it attached to its terminal rows.
+    final currentGeometry = (
+      width: graphic.visibleWidthPx / devicePixelRatio * displayScale,
+      height: graphic.visibleHeightPx / devicePixelRatio * displayScale,
+      displayWidth: graphic.widthPx / devicePixelRatio * displayScale,
+      displayHeight: graphic.heightPx / devicePixelRatio * displayScale,
+      sourceXOffset: graphic.sourceXOffsetPx / devicePixelRatio * displayScale,
+      sourceYOffset: graphic.sourceYOffsetPx / devicePixelRatio * displayScale,
+    );
+    // Full display size stays fixed after the first render. Only the visible
+    // rectangle and its source offset come from the current frame, so shrinking
+    // clips the thumbnail and growing restores the original image.
+    // A font zoom changes the measured cell height before the resized native
+    // frame arrives. During that short interval, constrain an iTerm thumbnail
+    // to the rows owned by the previous frame so it cannot paint over text.
+    // The image's display dimensions stay untouched; once the native frame
+    // reports the recalculated row span, the full thumbnail is visible again.
+    final reservedHeight = graphic.protocol == 'iterm'
+        ? math.max(
+            0.0,
+            graphic.heightCells * cellSize.height -
+                graphic.yOffsetPx / devicePixelRatio,
+          )
+        : currentGeometry.height;
+    final geometry = (
+      width: currentGeometry.width,
+      height: math.min(currentGeometry.height, reservedHeight),
+      displayWidth: currentGeometry.displayWidth,
+      displayHeight: currentGeometry.displayHeight,
+      sourceXOffset: currentGeometry.sourceXOffset,
+      sourceYOffset: currentGeometry.sourceYOffset,
+    );
     return Positioned(
       left:
           contentPadding.left +

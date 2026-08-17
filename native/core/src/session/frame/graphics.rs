@@ -493,26 +493,7 @@ fn graphic_display_geometry(
 }
 
 fn locked_iterm_display_size_px(graphic: &TerminalGraphic) -> Option<(usize, usize)> {
-    if graphic.protocol.as_str() != "iterm" {
-        return None;
-    }
-    let (span_cols, span_rows) = graphic.display_cell_span?;
-    let (cell_width_px, cell_height_px) = graphic_cell_dimensions_px(graphic);
-    let (_, _, source_width, source_height) = graphic.source_rect_pixels()?;
-    let width_bound = span_cols
-        .saturating_mul(cell_width_px)
-        .saturating_sub(graphic.placement.x_offset as usize)
-        .max(1);
-    let height_bound = span_rows
-        .saturating_mul(cell_height_px)
-        .saturating_sub(graphic.placement.y_offset as usize)
-        .max(1);
-    let scale = (width_bound as f64 / source_width.max(1) as f64)
-        .min(height_bound as f64 / source_height.max(1) as f64);
-    Some((
-        (source_width as f64 * scale).floor().max(1.0) as usize,
-        (source_height as f64 * scale).floor().max(1.0) as usize,
-    ))
+    graphic.locked_iterm_display_size_px()
 }
 
 fn graphic_cell_dimensions_px(graphic: &TerminalGraphic) -> (usize, usize) {

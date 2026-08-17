@@ -108,6 +108,12 @@ pub struct SerializableGraphic {
     /// Resolved display span in terminal cells
     #[serde(default)]
     pub display_cell_span: Option<(usize, usize)>,
+    /// Fixed rendered iTerm thumbnail size in pixels.
+    #[serde(default)]
+    pub display_size_px: Option<(usize, usize)>,
+    /// Whether the placement owns cursor-advanced terminal rows.
+    #[serde(default)]
+    pub reserves_rows: bool,
     /// Rows scrolled off visible area
     pub scroll_offset_rows: usize,
     /// Row in scrollback buffer
@@ -198,6 +204,8 @@ impl From<&TerminalGraphic> for SerializableGraphic {
             original_height: g.original_height,
             cell_dimensions: g.cell_dimensions,
             display_cell_span: g.display_cell_span,
+            display_size_px: g.display_size_px,
+            reserves_rows: g.reserves_rows,
             scroll_offset_rows: g.scroll_offset_rows,
             scrollback_row: g.scrollback_row,
             alternate_screen: g.alternate_screen,
@@ -238,6 +246,8 @@ impl SerializableGraphic {
             pixels: Arc::new(pixels),
             cell_dimensions: self.cell_dimensions,
             display_cell_span: self.display_cell_span,
+            display_size_px: self.display_size_px,
+            reserves_rows: self.reserves_rows,
             scroll_offset_rows: self.scroll_offset_rows,
             scrollback_row: self.scrollback_row,
             alternate_screen: self.alternate_screen,

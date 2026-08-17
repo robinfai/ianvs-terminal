@@ -5,6 +5,53 @@ use crate::grid::Grid;
 use std::time::Instant;
 
 impl Grid {
+    /// Move the most recently resize-scrolled history rows back to the top of
+    /// the visible grid.
+    ///
+    /// This is the inverse of a full-screen `scroll_region_up` used solely by
+    /// terminal height resize. It canonicalizes the circular scrollback first
+    /// so later pushes continue to use the normal append path safely.
+    pub(crate) fn restore_recent_scrollback_rows(&mut self, lines: usize) -> usize {
+        let lines = lines.min(self.scrollback_lines);
+        if lines == 0 || self.cols == 0 {
+            return 0;
+        }
+
+        self.normalize_screen_rows();
+        let remaining_lines = self.scrollback_lines - lines;
+        let mut remaining_cells = Vec::with_capacity(remaining_lines * self.cols);
+        let mut remaining_wrapped = Vec::with_capacity(remaining_lines);
+        for index in 0..remaining_lines {
+            if let Some(row) = self.scrollback_line(index) {
+                remaining_cells.extend_from_slice(row);
+                remaining_wrapped.push(self.is_scrollback_wrapped(index));
+            }
+        }
+
+        let mut restored_cells = Vec::with_capacity(lines * self.cols + self.cells.len());
+        let mut restored_wrapped = Vec::with_capacity(lines + self.wrapped.len());
+        for index in remaining_lines..self.scrollback_lines {
+            if let Some(row) = self.scrollback_line(index) {
+                restored_cells.extend_from_slice(row);
+                restored_wrapped.push(self.is_scrollback_wrapped(index));
+            }
+        }
+        restored_cells.append(&mut self.cells);
+        restored_wrapped.append(&mut self.wrapped);
+
+        self.cells = restored_cells;
+        self.wrapped = restored_wrapped;
+        self.rows = self.rows.saturating_add(lines);
+        self.screen_row_start = 0;
+        self.scrollback_cells = remaining_cells;
+        self.scrollback_wrapped = remaining_wrapped;
+        self.scrollback_lines = remaining_lines;
+        self.scrollback_start = 0;
+        self.sanitize_multicell_fragments();
+        self.damage.mark_full_repaint("restore_resize_scrollback");
+        lines
+    }
+
     fn push_rows_to_scrollback(&mut self, start_row: usize, line_count: usize) {
         if self.max_scrollback == 0 || line_count == 0 {
             return;

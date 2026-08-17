@@ -105,7 +105,7 @@ use crate::cell::{Cell, CellFlags};
 use crate::color::{Color, NamedColor};
 use crate::cursor::{Cursor, CursorStyle};
 use crate::debug;
-use crate::graphics::{GraphicsLimits, GraphicsStore, TerminalGraphic};
+use crate::graphics::{GraphicProtocol, GraphicsLimits, GraphicsStore, TerminalGraphic};
 use crate::grid::Grid;
 use crate::mouse::{MouseEncoding, MouseEvent, MouseEventRecord, MouseMode, MousePosition};
 use crate::shell_integration::Osc633ExpectedNonce;
@@ -933,6 +933,12 @@ pub struct Terminal {
     pub(crate) kitty_parser: Option<crate::graphics::kitty::KittyParser>,
     /// iTerm2 multi-part image transfer state (MultipartFile/FilePart protocol)
     pub(crate) iterm_multipart_buffer: Option<ITermMultipartState>,
+    /// One-shot geometry captured before a host-driven transcript replay.
+    ///
+    /// Replayed iTerm images consume matching entries before advancing the
+    /// cursor, so their original row reservation participates in layout. The
+    /// queue is ephemeral and is never part of a terminal snapshot.
+    pub(crate) iterm_replay_geometry_overrides: Vec<TerminalGraphic>,
     /// File transfer manager for tracking file downloads and uploads
     pub(crate) file_transfer_manager: FileTransferManager,
     /// Clipboard content (OSC 52)
@@ -1214,6 +1220,12 @@ pub struct Terminal {
     pub(crate) process_debug_stats: TerminalProcessDebugStats,
     /// Conservative mirror of parser state used to decide plain ASCII fast path safety.
     pub(crate) plain_text_parser_state: PlainTextParserState,
+    /// Primary-screen rows pushed only to keep the cursor visible during a
+    /// height shrink and still eligible to be restored by a later grow.
+    pub(crate) resize_scrollback_restore_rows: usize,
+    /// `total_lines_scrolled` lower bound after the last eligible resize push.
+    /// A smaller value means history was explicitly cleared or reset.
+    pub(crate) resize_scrollback_restore_generation: usize,
 }
 
 impl std::fmt::Debug for Terminal {
@@ -1330,6 +1342,7 @@ impl Terminal {
             graphics_passthrough_state: graphics::GraphicsPassthroughState::default(),
             kitty_parser: None,
             iterm_multipart_buffer: None,
+            iterm_replay_geometry_overrides: Vec::new(),
             file_transfer_manager: FileTransferManager::default(),
             clipboard_content: None,
             allow_clipboard_read: false,
@@ -1489,6 +1502,8 @@ impl Terminal {
             damage_full_repaint_reason: None,
             process_debug_stats: TerminalProcessDebugStats::default(),
             plain_text_parser_state: PlainTextParserState::Ground,
+            resize_scrollback_restore_rows: 0,
+            resize_scrollback_restore_generation: 0,
         }
     }
 
@@ -1617,6 +1632,40 @@ impl Terminal {
             self.clear_iterm_buttons();
         }
 
+        if self.resize_scrollback_restore_rows > 0
+            && self.grid.total_lines_scrolled() < self.resize_scrollback_restore_generation
+        {
+            // History was explicitly cleared or reset after the shrink, so
+            // those resize rows no longer exist and must not be synthesized.
+            // A larger counter is normal SIGWINCH redraw or terminal output;
+            // growing still pulls the newest eligible rows back from history.
+            self.resize_scrollback_restore_rows = 0;
+        }
+
+        if rows > old_rows && self.resize_scrollback_restore_rows > 0 {
+            // Reflow to the new width first so restored history rows use the
+            // current column count, then prepend only rows previously pushed
+            // by height shrink.
+            if cols != old_cols {
+                self.grid.resize(cols, old_rows);
+            }
+            let requested = rows
+                .saturating_sub(old_rows)
+                .min(self.resize_scrollback_restore_rows);
+            let old_scrollback_len = self.grid.scrollback_len();
+            let restored = self.grid.restore_recent_scrollback_rows(requested);
+            let new_scrollback_len = self.grid.scrollback_len();
+            self.graphics_store
+                .restore_primary_resize_scrollback(old_scrollback_len, new_scrollback_len);
+            if self.alt_screen_active {
+                self.alt_cursor.row = self.alt_cursor.row.saturating_add(restored);
+            } else {
+                self.cursor.row = self.cursor.row.saturating_add(restored);
+            }
+            self.resize_scrollback_restore_rows =
+                self.resize_scrollback_restore_rows.saturating_sub(restored);
+        }
+
         // A height shrink commonly happens on mobile when the software
         // keyboard or a full-screen route appears. Keep the cursor's trailing
         // content visible by performing the same screen scroll that ordinary
@@ -1648,6 +1697,10 @@ impl Terminal {
                 } else {
                     self.cursor.row = self.cursor.row.saturating_sub(primary_scroll);
                 }
+                self.resize_scrollback_restore_rows = self
+                    .resize_scrollback_restore_rows
+                    .saturating_add(primary_scroll);
+                self.resize_scrollback_restore_generation = self.grid.total_lines_scrolled();
             }
 
             let alternate_scroll = alternate_cursor_row.saturating_sub(last_new_row);
@@ -2594,10 +2647,128 @@ impl Terminal {
     pub fn set_cell_dimensions(&mut self, width: u32, height: u32) {
         let width = width.max(1);
         let height = height.max(1);
-        self.cell_dimensions = (width, height);
+        if self.cell_dimensions == (width, height) {
+            return;
+        }
         let (cols, rows) = self.size();
+        let mut reservation_changes = self
+            .graphics_store
+            .all_graphics()
+            .iter()
+            .filter(|graphic| {
+                graphic.protocol == GraphicProtocol::ITermInline
+                    && graphic.reserves_rows
+                    && graphic.scroll_offset_rows == 0
+            })
+            .filter_map(|graphic| {
+                let (_, old_rows) = graphic.display_cell_span?;
+                let mut updated = graphic.clone();
+                if updated.display_size_px.is_none() {
+                    updated.display_size_px = updated.locked_iterm_display_size_px();
+                }
+                updated.set_cell_dimensions(width, height);
+                let (_, new_rows) = updated.resolved_cell_span(Some(cols), Some(rows));
+                (new_rows != old_rows).then_some((
+                    graphic.alternate_screen,
+                    graphic.position.1,
+                    old_rows,
+                    new_rows,
+                ))
+            })
+            .collect::<Vec<_>>();
+        reservation_changes.sort_unstable_by_key(|(_, row, _, _)| std::cmp::Reverse(*row));
+
+        // When the font becomes smaller, fixed-height thumbnails need more
+        // terminal rows. Insert those rows while graphics still have their old
+        // spans, so the placement owning the reservation is not moved.
+        for &(alternate_screen, row, old_rows, new_rows) in &reservation_changes {
+            if new_rows > old_rows {
+                self.insert_iterm_reservation_rows(
+                    alternate_screen,
+                    row.saturating_add(old_rows),
+                    new_rows - old_rows,
+                );
+            }
+        }
+
+        self.cell_dimensions = (width, height);
         self.graphics_store
             .refresh_cell_dimensions(width, height, cols, rows);
+
+        // When the font becomes larger, remove the now-unneeded tail of each
+        // reservation after spans have shrunk. Following text moves up without
+        // intersecting the fixed-size thumbnail.
+        for &(alternate_screen, row, old_rows, new_rows) in &reservation_changes {
+            if new_rows < old_rows {
+                self.delete_iterm_reservation_rows(
+                    alternate_screen,
+                    row.saturating_add(new_rows),
+                    old_rows - new_rows,
+                );
+            }
+        }
+    }
+
+    fn insert_iterm_reservation_rows(&mut self, alternate_screen: bool, row: usize, lines: usize) {
+        let grid = if alternate_screen {
+            &mut self.alt_grid
+        } else {
+            &mut self.grid
+        };
+        let Some(bottom) = grid.rows().checked_sub(1) else {
+            return;
+        };
+        if row > bottom || lines == 0 {
+            return;
+        }
+        let effective_lines = lines.min(bottom - row + 1);
+        grid.insert_lines(effective_lines, row, bottom);
+        self.graphics_store.adjust_for_insert_lines_for_screen(
+            effective_lines,
+            row,
+            bottom,
+            alternate_screen,
+        );
+        let cursor = if alternate_screen {
+            &mut self.alt_cursor
+        } else {
+            &mut self.cursor
+        };
+        if cursor.row >= row {
+            cursor.row = cursor.row.saturating_add(effective_lines).min(bottom);
+        }
+    }
+
+    fn delete_iterm_reservation_rows(&mut self, alternate_screen: bool, row: usize, lines: usize) {
+        let grid = if alternate_screen {
+            &mut self.alt_grid
+        } else {
+            &mut self.grid
+        };
+        let Some(bottom) = grid.rows().checked_sub(1) else {
+            return;
+        };
+        if row > bottom || lines == 0 {
+            return;
+        }
+        let effective_lines = lines.min(bottom - row + 1);
+        grid.delete_lines(effective_lines, row, bottom);
+        self.graphics_store.adjust_for_delete_lines_for_screen(
+            effective_lines,
+            row,
+            bottom,
+            alternate_screen,
+        );
+        let cursor = if alternate_screen {
+            &mut self.alt_cursor
+        } else {
+            &mut self.cursor
+        };
+        if cursor.row >= row.saturating_add(effective_lines) {
+            cursor.row = cursor.row.saturating_sub(effective_lines);
+        } else if cursor.row >= row {
+            cursor.row = row.min(bottom);
+        }
     }
 
     /// Set graphics memory limits for all supported image protocols.
@@ -3897,6 +4068,8 @@ impl Terminal {
         let response_buffer_overflow_count = self.response_buffer_overflow_count;
         let terminal_event_dropped_count = self.terminal_event_dropped_count;
         let next_iterm_button_id = self.iterm_buttons.next_id();
+        let iterm_replay_geometry_overrides =
+            std::mem::take(&mut self.iterm_replay_geometry_overrides);
         // UAPI OSC 3008 explicitly defines terminal reset as context-neutral.
         let terminal_context_stack = self.terminal_context_stack.clone();
         let mut osc21_color_state = self.osc21_color_state.clone();
@@ -3904,6 +4077,7 @@ impl Terminal {
 
         *self = Self::with_scrollback(cols, rows, scrollback);
         self.iterm_buttons.preserve_next_id(next_iterm_button_id);
+        self.iterm_replay_geometry_overrides = iterm_replay_geometry_overrides;
         self.suppress_synchronized_update_enable = suppress_synchronized_update_enable;
         self.osc_capability_policy = osc_capability_policy;
         self.disable_insecure_sequences = disable_insecure_sequences;

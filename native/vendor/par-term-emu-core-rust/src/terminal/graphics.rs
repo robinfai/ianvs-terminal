@@ -44,6 +44,35 @@ impl GraphicsPassthroughState {
 }
 
 impl Terminal {
+    /// Supply fixed iTerm image geometry for the next transcript replay.
+    ///
+    /// Each matching image consumes one entry. Applying the override before
+    /// cursor advancement keeps the replayed text grid and image placement on
+    /// the same row geometry.
+    pub fn set_iterm_replay_geometry_overrides(&mut self, graphics: Vec<TerminalGraphic>) {
+        self.iterm_replay_geometry_overrides = graphics
+            .into_iter()
+            .filter(|graphic| graphic.protocol.as_str() == "iterm")
+            .collect();
+    }
+
+    fn take_iterm_replay_geometry_override(
+        &mut self,
+        graphic: &TerminalGraphic,
+    ) -> Option<TerminalGraphic> {
+        let index = self
+            .iterm_replay_geometry_overrides
+            .iter()
+            .position(|candidate| {
+                candidate.protocol.as_str() == "iterm"
+                    && candidate.asset_version == graphic.asset_version
+                    && candidate.width == graphic.width
+                    && candidate.height == graphic.height
+                    && candidate.pixels.as_ref() == graphic.pixels.as_ref()
+            })?;
+        Some(self.iterm_replay_geometry_overrides.remove(index))
+    }
+
     /// Incrementally unwrap tmux/screen DCS passthrough wrappers.
     ///
     /// Decoded bytes are returned on each call so OSC policy and size limits
@@ -1323,16 +1352,26 @@ impl Terminal {
                     };
                     graphic.animation_id = animation_id;
                     graphic.set_alternate_screen(self.alt_screen_active);
+                    graphic.reserves_rows = !parser.do_not_move_cursor();
                     // Set cell dimensions
                     let (cell_w, cell_h) = self.cell_dimensions;
                     graphic.set_cell_dimensions(cell_w, cell_h);
+                    if let Some(locked) = self.take_iterm_replay_geometry_override(&graphic) {
+                        graphic.display_size_px = locked.locked_iterm_display_size_px();
+                    }
                     let (cols, rows) = self.size();
-                    let (graphic_width_in_cols, graphic_height_in_rows) =
-                        graphic.resolved_cell_span(Some(cols), Some(rows));
+                    if graphic.display_size_px.is_none() {
+                        let (width_px, height_px) =
+                            graphic.resolved_display_size_px(Some(cols), Some(rows));
+                        graphic.set_display_size_px(width_px, height_px);
+                    }
+                    let (graphic_width_in_cols, graphic_height_in_rows) = graphic
+                        .display_cell_span
+                        .unwrap_or_else(|| graphic.resolved_cell_span(Some(cols), Some(rows)));
                     graphic.set_display_cell_span(graphic_width_in_cols, graphic_height_in_rows);
 
                     let mut should_add_graphic = true;
-                    if !parser.do_not_move_cursor() {
+                    if graphic.reserves_rows {
                         should_add_graphic = self.advance_cursor_after_graphic_block(
                             &mut graphic,
                             graphic_height_in_rows,
@@ -1927,6 +1966,70 @@ mod tests {
             0,
             "Graphic should be removed when bottom scrolls off"
         );
+    }
+
+    #[test]
+    fn test_tall_graphic_keeps_original_top_row_in_scrollback() {
+        let mut term = Terminal::with_scrollback(80, 12, 128);
+        term.graphics_store
+            .add_graphic(create_test_graphic(0, 0, 10, 32));
+        term.process(b"\x1b[12;1H");
+
+        for _ in 0..16 {
+            term.process(b"\n");
+        }
+
+        assert_eq!(term.graphics_store.graphics_count(), 0);
+        assert_eq!(term.all_scrollback_graphics().len(), 1);
+        assert_eq!(term.all_scrollback_graphics()[0].scrollback_row, Some(0));
+    }
+
+    #[test]
+    fn test_height_shrink_then_grow_restores_graphic_crop_and_cursor_rows() {
+        let mut term = Terminal::with_scrollback(80, 32, 128);
+        term.graphics_store
+            .add_graphic(create_test_graphic(0, 15, 10, 32));
+        term.process(b"\x1b[32;1H");
+
+        term.resize(80, 10);
+        assert_eq!(term.cursor.row, 9);
+        assert_eq!(term.all_graphics()[0].position.1, 0);
+        assert_eq!(term.all_graphics()[0].scroll_offset_rows, 7);
+
+        term.resize(80, 4);
+        assert_eq!(term.cursor.row, 3);
+        assert_eq!(term.all_graphics()[0].scroll_offset_rows, 13);
+
+        term.resize(80, 32);
+        assert_eq!(term.cursor.row, 31);
+        assert_eq!(term.all_graphics()[0].position.1, 15);
+        assert_eq!(term.all_graphics()[0].scroll_offset_rows, 0);
+        assert_eq!(term.scrollback_len(), 0);
+    }
+
+    #[test]
+    fn test_output_scroll_after_shrink_preserves_resize_row_and_graphic_restoration() {
+        let mut term = Terminal::with_scrollback(80, 32, 128);
+        term.graphics_store
+            .add_graphic(create_test_graphic(0, 15, 10, 32));
+        term.process(b"\x1b[32;1H");
+
+        term.resize(80, 10);
+        let resize_scrollback = term.scrollback_len();
+        assert_eq!(term.all_graphics()[0].scroll_offset_rows, 7);
+
+        // Interactive shells commonly redraw after SIGWINCH while a window is
+        // still being dragged. That output is real, but it must not turn the
+        // resize-only image crop into permanent placement state.
+        term.process(b"\n");
+        assert!(term.scrollback_len() > resize_scrollback);
+        assert_eq!(term.all_graphics()[0].scroll_offset_rows, 8);
+
+        term.resize(80, 32);
+        assert_eq!(term.cursor.row, 31);
+        assert_eq!(term.scrollback_len(), 1);
+        assert_eq!(term.all_graphics()[0].position.1, 14);
+        assert_eq!(term.all_graphics()[0].scroll_offset_rows, 0);
     }
 
     #[test]

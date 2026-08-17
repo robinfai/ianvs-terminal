@@ -70,6 +70,7 @@ fn resize_drains_full_repaint_damage() {
 #[test]
 fn resize_height_shrink_keeps_inline_graphic_near_cursor_visible() {
     let mut term = Terminal::with_scrollback(80, 24, 100);
+    term.set_cell_dimensions(10, 20);
     let mut graphic = TerminalGraphic::new(
         1,
         GraphicProtocol::ITermInline,
@@ -88,10 +89,44 @@ fn resize_height_shrink_keeps_inline_graphic_near_cursor_visible() {
     assert_eq!(term.cursor().row, 9);
     assert_eq!(term.all_graphics().len(), 1);
     let graphic = &term.all_graphics()[0];
-    assert_eq!(graphic.position.1, 4);
-    assert_eq!(graphic.display_cell_span, Some((12, 5)));
+    assert_eq!(graphic.position.1, 5);
+    assert_eq!(graphic.display_cell_span, Some((10, 4)));
     assert_eq!(graphic.scroll_offset_rows, 0);
     assert!(graphic.position.1 + graphic.display_cell_span.unwrap().1 <= 10);
+}
+
+#[test]
+fn font_cell_height_change_reflows_iterm_rows_without_resizing_pixels() {
+    let mut term = Terminal::with_scrollback(80, 24, 100);
+    term.set_cell_dimensions(10, 20);
+    let mut graphic = TerminalGraphic::new(
+        1,
+        GraphicProtocol::ITermInline,
+        (0, 2),
+        100,
+        80,
+        vec![255; 100 * 80 * 4],
+    );
+    graphic.set_cell_dimensions(10, 20);
+    graphic.set_display_cell_span(10, 4);
+    graphic.reserves_rows = true;
+    assert!(term.graphics_store.add_graphic(graphic));
+    term.process(b"\x1b[7;1HAFTER");
+    assert_eq!(term.cursor().row, 6);
+
+    term.set_cell_dimensions(10, 10);
+
+    let graphic = &term.all_graphics()[0];
+    assert_eq!(graphic.cell_dimensions, Some((10, 10)));
+    assert_eq!(graphic.display_cell_span, Some((10, 8)));
+    assert_eq!(term.cursor().row, 10);
+    assert_eq!(term.active_grid().row(10).unwrap()[0].get_grapheme(), "A");
+
+    term.set_cell_dimensions(10, 20);
+    let graphic = &term.all_graphics()[0];
+    assert_eq!(graphic.display_cell_span, Some((10, 4)));
+    assert_eq!(term.cursor().row, 6);
+    assert_eq!(term.active_grid().row(6).unwrap()[0].get_grapheme(), "A");
 }
 
 #[test]

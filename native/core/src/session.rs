@@ -39,7 +39,7 @@ use par_term_emu_core_rust::terminal::{
 use par_term_emu_core_rust::{WidthConfig, str_width};
 use parking_lot::{Mutex, MutexGuard};
 use regex::RegexBuilder;
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::io::{Read, Write};
 use std::sync::{
@@ -3359,8 +3359,7 @@ impl TerminalSession {
             return Ok(());
         }
 
-        let visible_iterm_graphics_before_resize =
-            self.iterm_graphics_to_preserve_for_resize(&state);
+        let iterm_graphics_before_resize = self.iterm_graphics_to_preserve_for_resize(&state);
         let previous_max = current_scrollback_max(&state);
 
         // Keep SIGWINCH-triggered redraw output from being processed between
@@ -3410,6 +3409,7 @@ impl TerminalSession {
                     cell_height,
                 );
             }
+            terminal.set_iterm_replay_geometry_overrides(iterm_graphics_before_resize.clone());
             let replay_started_at = Instant::now();
             terminal.process(&transcript);
             resize_replay_observation = Some((
@@ -3450,10 +3450,8 @@ impl TerminalSession {
         if state.terminal.is_alt_screen_active() {
             state.scrollback_offset = 0;
         }
-        let resize_guard_graphics = restore_iterm_graphics_after_resize(
-            &mut state.terminal,
-            visible_iterm_graphics_before_resize,
-        );
+        let resize_guard_graphics =
+            restore_iterm_graphics_after_resize(&mut state.terminal, iterm_graphics_before_resize);
         self.arm_resize_iterm_redraw_guard(resize_guard_graphics);
         drop(state);
 
@@ -3496,14 +3494,19 @@ impl TerminalSession {
     }
 
     fn iterm_graphics_to_preserve_for_resize(&self, state: &TerminalState) -> Vec<TerminalGraphic> {
-        let visible = visible_iterm_graphics(&state.terminal, state.scrollback_offset);
+        let mut graphics = state
+            .terminal
+            .all_scrollback_graphics()
+            .iter()
+            .chain(state.terminal.all_graphics().iter())
+            .filter(|graphic| graphic.protocol.as_str() == "iterm")
+            .cloned()
+            .collect::<Vec<_>>();
         let guard = self.resize_iterm_redraw_guard.lock();
-        // The deadline protects only immediate SIGWINCH redraw output. Once a
-        // thumbnail has stable geometry, every later resize (width, height, or
-        // both) starts from the persisted placement instead of recomputing it
-        // from the new viewport dimensions.
-        let mut graphics = guard.graphics.clone();
-        for candidate in visible {
+        // The deadline protects only immediate SIGWINCH redraw output, while
+        // the retained entries also bridge a resize where a clipped placement
+        // is temporarily absent from the current terminal stores.
+        for candidate in guard.graphics.iter().cloned() {
             if !graphics
                 .iter()
                 .any(|graphic| same_iterm_graphic_asset(graphic, &candidate))
@@ -3553,11 +3556,9 @@ impl TerminalSession {
             let Some(candidate) = candidate else {
                 return false;
             };
-            let locked_cell_dimensions = protected.cell_dimensions;
-            let locked_display_cell_span = protected.display_cell_span;
+            let locked_display_size_px = protected.locked_iterm_display_size_px();
             *protected = candidate.clone();
-            protected.cell_dimensions = locked_cell_dimensions;
-            protected.display_cell_span = locked_display_cell_span;
+            protected.display_size_px = locked_display_size_px;
             true
         });
         if guard.graphics.is_empty() {
@@ -6087,6 +6088,7 @@ fn same_iterm_graphic_asset(left: &TerminalGraphic, right: &TerminalGraphic) -> 
 /// whether their backing placement lives on the active grid or in scrollback.
 /// A resize replay can move a still-visible image between those stores, so the
 /// store alone is not a reliable source of resize persistence.
+#[cfg(test)]
 fn visible_iterm_graphics(terminal: &Terminal, scrollback_offset: usize) -> Vec<TerminalGraphic> {
     let alt_screen_active = terminal.is_alt_screen_active();
     let (_, viewport_rows) = terminal.size();
@@ -6143,27 +6145,49 @@ fn restore_iterm_graphics_after_resize(
     }
 
     let mut restored = Vec::with_capacity(protected.len());
+    let mut matched_active = HashSet::new();
+    let mut matched_scrollback = HashSet::new();
     for graphic in protected {
-        if let Some(index) = terminal
-            .all_graphics()
-            .iter()
-            .position(|candidate| same_iterm_graphic_asset(candidate, &graphic))
+        if let Some(index) =
+            terminal
+                .all_graphics()
+                .iter()
+                .enumerate()
+                .find_map(|(index, candidate)| {
+                    (!matched_active.contains(&index)
+                        && same_iterm_graphic_asset(candidate, &graphic))
+                    .then_some(index)
+                })
         {
+            matched_active.insert(index);
             let candidate = &mut terminal.graphics_store_mut().all_graphics_mut()[index];
             apply_locked_iterm_geometry(candidate, &graphic);
             restored.push(candidate.clone());
         } else if let Some(index) = terminal
             .all_scrollback_graphics()
             .iter()
-            .position(|candidate| same_iterm_graphic_asset(candidate, &graphic))
+            .enumerate()
+            .find_map(|(index, candidate)| {
+                (!matched_scrollback.contains(&index)
+                    && same_iterm_graphic_asset(candidate, &graphic))
+                .then_some(index)
+            })
         {
+            matched_scrollback.insert(index);
             let candidate = &mut terminal.graphics_store_mut().all_scrollback_graphics_mut()[index];
             apply_locked_iterm_geometry(candidate, &graphic);
             restored.push(candidate.clone());
         } else {
             // A truncated replay can temporarily omit the backing placement.
-            // Retain its terminal-row anchor until a later resize can rebuild
-            // the same content; never normalize it to a viewport coordinate.
+            // Retain its terminal-row anchor and original row reservation until
+            // a later replay can rebuild the same content.
+            let mut graphic = graphic;
+            graphic.display_size_px = graphic.locked_iterm_display_size_px();
+            let (cell_width, cell_height) = terminal.cell_dimensions();
+            graphic.set_cell_dimensions(cell_width, cell_height);
+            let (cols, rows) = terminal.size();
+            let (span_cols, span_rows) = graphic.resolved_cell_span(Some(cols), Some(rows));
+            graphic.set_display_cell_span(span_cols, span_rows);
             let _ = terminal.graphics_store_mut().add_graphic(graphic.clone());
             restored.push(graphic);
         }
@@ -6172,11 +6196,10 @@ fn restore_iterm_graphics_after_resize(
 }
 
 fn apply_locked_iterm_geometry(candidate: &mut TerminalGraphic, locked: &TerminalGraphic) {
-    // Position, scroll offset, and scrollback ownership come from the replayed
-    // candidate so the image stays attached to the terminal rows that created
-    // it. Only its first stable rendered size remains locked across resize.
-    candidate.cell_dimensions = locked.cell_dimensions;
-    candidate.display_cell_span = locked.display_cell_span;
+    // Keep the thumbnail's rendered pixels stable. The candidate's current
+    // cell dimensions and span are authoritative because font zoom changes
+    // how many terminal rows those fixed pixels need to reserve.
+    candidate.display_size_px = locked.locked_iterm_display_size_px();
 }
 
 /// Reuse the asset identity of an unchanged iTerm image after transcript replay.
