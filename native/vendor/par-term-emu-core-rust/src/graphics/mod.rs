@@ -389,6 +389,35 @@ impl TerminalGraphic {
         let cell_height = self.cell_dimensions.map(|(_, h)| h as usize).unwrap_or(2);
         let cell_width = cell_width.max(1);
         let cell_height = cell_height.max(1);
+        let (width_px, height_px) = self.resolved_display_size_px(viewport_cols, viewport_rows);
+
+        let width_span_px = (self.placement.x_offset as usize).saturating_add(width_px);
+        let height_span_px = (self.placement.y_offset as usize).saturating_add(height_px);
+
+        (
+            width_span_px.div_ceil(cell_width).max(1),
+            height_span_px.div_ceil(cell_height).max(1),
+        )
+    }
+
+    /// Resolve the rendered image size in pixels for the current viewport.
+    ///
+    /// iTerm2 inline images are presented as thumbnails capped to half of the
+    /// terminal viewport in both dimensions. The cap only scales images down;
+    /// smaller images retain their protocol-requested or intrinsic size.
+    pub fn resolved_display_size_px(
+        &self,
+        viewport_cols: Option<usize>,
+        viewport_rows: Option<usize>,
+    ) -> (usize, usize) {
+        let cell_width = self.cell_dimensions.map(|(w, _)| w as usize).unwrap_or(1);
+        let cell_height = self.cell_dimensions.map(|(_, h)| h as usize).unwrap_or(2);
+        let cell_width = cell_width.max(1);
+        let cell_height = cell_height.max(1);
+        let viewport_width_px =
+            viewport_cols.map(|cols| cols.saturating_mul(cell_width).max(cell_width));
+        let viewport_height_px =
+            viewport_rows.map(|rows| rows.saturating_mul(cell_height).max(cell_height));
         let (_, _, source_width, source_height) =
             self.source_rect_pixels()
                 .unwrap_or((0, 0, self.width.max(1), self.height.max(1)));
@@ -396,16 +425,16 @@ impl TerminalGraphic {
             self.placement.requested_width,
             source_width,
             cell_width,
-            viewport_cols.map(|cols| cols.saturating_mul(cell_width).max(cell_width)),
+            viewport_width_px,
         );
         let requested_height = graphic_dimension_px_for_cell_span(
             self.placement.requested_height,
             source_height,
             cell_height,
-            viewport_rows.map(|rows| rows.saturating_mul(cell_height).max(cell_height)),
+            viewport_height_px,
         );
 
-        let (width_px, height_px) = match (requested_width, requested_height) {
+        let resolved = match (requested_width, requested_height) {
             (Some(width), Some(height)) => (width, height),
             (Some(width), None) if self.placement.preserve_aspect_ratio && source_width > 0 => {
                 let height = ((width as f64 * source_height as f64) / source_width as f64)
@@ -424,12 +453,37 @@ impl TerminalGraphic {
             _ => (source_width.max(1), source_height.max(1)),
         };
 
-        let width_span_px = (self.placement.x_offset as usize).saturating_add(width_px);
-        let height_span_px = (self.placement.y_offset as usize).saturating_add(height_px);
+        if self.protocol != GraphicProtocol::ITermInline {
+            return resolved;
+        }
 
-        (
-            width_span_px.div_ceil(cell_width).max(1),
-            height_span_px.div_ceil(cell_height).max(1),
+        // The app presents iTerm2 inline images as previews rather than as
+        // protocol-sized canvases. A single requested dimension determines
+        // the other from the decoded source ratio; two requested dimensions
+        // form an aspect-fit box. This keeps even `preserveAspectRatio=0`
+        // thumbnails proportional on narrow mobile viewports.
+        let thumbnail_bounds = match (requested_width, requested_height) {
+            (Some(width), Some(height)) => (width, height),
+            (Some(width), None) => (width, scaled_dimension(width, source_height, source_width)),
+            (None, Some(height)) => (
+                scaled_dimension(height, source_width, source_height),
+                height,
+            ),
+            (None, None) => (source_width, source_height),
+        };
+        let max_width = viewport_width_px
+            .map(|width| (width / 2).max(1))
+            .map_or(thumbnail_bounds.0, |viewport_limit| {
+                thumbnail_bounds.0.min(viewport_limit)
+            });
+        let max_height = viewport_height_px
+            .map(|height| (height / 2).max(1))
+            .map_or(thumbnail_bounds.1, |viewport_limit| {
+                thumbnail_bounds.1.min(viewport_limit)
+            });
+        fit_size_to_bounds_preserving_aspect_ratio(
+            (source_width, source_height),
+            (max_width, max_height),
         )
     }
 
@@ -589,6 +643,26 @@ fn graphic_dimension_px_for_cell_span(
         }
     };
     Some(px.max(1))
+}
+
+fn fit_size_to_bounds_preserving_aspect_ratio(
+    (width, height): (usize, usize),
+    (max_width, max_height): (usize, usize),
+) -> (usize, usize) {
+    let width = width.max(1);
+    let height = height.max(1);
+    let scale =
+        (max_width.max(1) as f64 / width as f64).min(max_height.max(1) as f64 / height as f64);
+    (
+        ((width as f64) * scale).floor().max(1.0) as usize,
+        ((height as f64) * scale).floor().max(1.0) as usize,
+    )
+}
+
+fn scaled_dimension(target: usize, source_numerator: usize, source_denominator: usize) -> usize {
+    ((target.max(1) as f64 * source_numerator.max(1) as f64) / source_denominator.max(1) as f64)
+        .round()
+        .max(1.0) as usize
 }
 
 fn graphic_cell_span(graphic: &TerminalGraphic) -> (usize, usize) {
@@ -3257,6 +3331,11 @@ impl GraphicsStore {
         &self.scrollback
     }
 
+    /// Get mutable access to graphics attached to terminal scrollback rows.
+    pub fn all_scrollback_graphics_mut(&mut self) -> &mut Vec<TerminalGraphic> {
+        &mut self.scrollback
+    }
+
     /// Clear scrollback graphics
     pub fn clear_scrollback_graphics(&mut self) {
         self.scrollback.clear();
@@ -3635,6 +3714,48 @@ mod tests {
         let (cols, rows) = graphic.cell_span(10, 10);
         assert_eq!(cols, 13); // ceil(100/8) = 13
         assert_eq!(rows, 4); // ceil(50/16) = 4
+    }
+
+    #[test]
+    fn iterm_inline_portrait_image_is_capped_to_half_viewport_thumbnail() {
+        let mut graphic =
+            TerminalGraphic::new(1, GraphicProtocol::ITermInline, (0, 0), 600, 1000, vec![]);
+        graphic.set_cell_dimensions(10, 20);
+
+        assert_eq!(
+            graphic.resolved_display_size_px(Some(80), Some(24)),
+            (144, 240),
+        );
+        assert_eq!(graphic.resolved_cell_span(Some(80), Some(24)), (15, 12),);
+    }
+
+    #[test]
+    fn iterm_inline_thumbnail_cap_does_not_upscale_small_images() {
+        let mut graphic =
+            TerminalGraphic::new(1, GraphicProtocol::ITermInline, (0, 0), 100, 80, vec![]);
+        graphic.set_cell_dimensions(10, 20);
+
+        assert_eq!(
+            graphic.resolved_display_size_px(Some(80), Some(24)),
+            (100, 80),
+        );
+        assert_eq!(graphic.resolved_cell_span(Some(80), Some(24)), (10, 4),);
+    }
+
+    #[test]
+    fn iterm_inline_thumbnail_preserves_source_aspect_ratio_when_protocol_disables_it() {
+        let mut graphic =
+            TerminalGraphic::new(1, GraphicProtocol::ITermInline, (0, 0), 600, 1000, vec![]);
+        graphic.set_cell_dimensions(10, 20);
+        graphic.placement.requested_width = ImageDimension::percent(100.0);
+        graphic.placement.requested_height = ImageDimension::percent(100.0);
+        graphic.placement.preserve_aspect_ratio = false;
+
+        assert_eq!(
+            graphic.resolved_display_size_px(Some(80), Some(24)),
+            (144, 240),
+        );
+        assert_eq!(graphic.resolved_cell_span(Some(80), Some(24)), (15, 12));
     }
 
     #[test]

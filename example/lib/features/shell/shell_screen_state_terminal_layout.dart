@@ -670,6 +670,8 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                                     radius: 3,
                                   ),
                               graphicsCache: graphicsCache,
+                              onSaveGraphicImage: _saveTerminalGraphicImage,
+                              onCopyGraphicImage: _copyTerminalGraphicImage,
                               benchmarkEventSink: ref.watch(
                                 terminalGraphicsTraceSinkProvider,
                               ),
@@ -1101,6 +1103,24 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
     terminal.TerminalLinkTarget target,
   ) {
     return _openTerminalLink(target.uri, sourceSessionId: sessionId);
+  }
+
+  Future<void> _saveTerminalGraphicImage(
+    terminal.TerminalGraphicImage image,
+  ) async {
+    final message = await saveTerminalGraphicImage(
+      image,
+      chooseLocation: (name) =>
+          WindowBridge.chooseFileDownloadLocation(suggestedName: name),
+      write: ref.read(shellFileDownloadWriterProvider),
+    );
+    if (message != null) _showShellSnackBar(message);
+  }
+
+  Future<void> _copyTerminalGraphicImage(
+    terminal.TerminalGraphicImage image,
+  ) async {
+    _showShellSnackBar(await copyTerminalGraphicImage(image));
   }
 
   Future<void> _handleTerminalLinkContextMenu(

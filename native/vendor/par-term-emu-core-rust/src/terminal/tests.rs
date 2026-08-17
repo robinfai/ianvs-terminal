@@ -68,6 +68,33 @@ fn resize_drains_full_repaint_damage() {
 }
 
 #[test]
+fn resize_height_shrink_keeps_inline_graphic_near_cursor_visible() {
+    let mut term = Terminal::with_scrollback(80, 24, 100);
+    let mut graphic = TerminalGraphic::new(
+        1,
+        GraphicProtocol::ITermInline,
+        (0, 19),
+        100,
+        80,
+        vec![255; 100 * 80 * 4],
+    );
+    graphic.set_cell_dimensions(10, 20);
+    graphic.set_display_cell_span(10, 4);
+    assert!(term.graphics_store.add_graphic(graphic));
+    term.process(b"\x1b[24;1H");
+
+    term.resize(80, 10);
+
+    assert_eq!(term.cursor().row, 9);
+    assert_eq!(term.all_graphics().len(), 1);
+    let graphic = &term.all_graphics()[0];
+    assert_eq!(graphic.position.1, 4);
+    assert_eq!(graphic.display_cell_span, Some((12, 5)));
+    assert_eq!(graphic.scroll_offset_rows, 0);
+    assert!(graphic.position.1 + graphic.display_cell_span.unwrap().1 <= 10);
+}
+
+#[test]
 fn restore_from_snapshot_drains_full_repaint_damage() {
     let mut term = Terminal::new(8, 4);
     let snapshot = term.capture_snapshot();

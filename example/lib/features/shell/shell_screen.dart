@@ -20,6 +20,7 @@ import '../../data/services/data_api_client.dart';
 import '../../data/services/data_api_migration_service.dart';
 import '../../data/services/data_api_runtime.dart';
 import '../../platform/clipboard_bridge.dart';
+import '../../platform/terminal_graphic_image_actions.dart';
 import '../../ui/app_ui.dart';
 import '../config/local_terminal_config_bootstrap.dart';
 import '../config/local_terminal_config_models.dart';

@@ -23,6 +23,26 @@ import 'terminal_viewport_colors.dart';
 const Key terminalScrollbarTrackKey = Key('terminal-scrollbar-track');
 const Key terminalScrollbarThumbKey = Key('terminal-scrollbar-thumb');
 const Key terminalLinkTooltipKey = Key('terminal-link-tooltip');
+const Key terminalGraphicPreviewKey = Key('terminal-graphic-preview');
+const Key terminalGraphicPreviewCloseKey = Key(
+  'terminal-graphic-preview-close',
+);
+const Key terminalGraphicSaveImageMenuItemKey = Key(
+  'terminal-graphic-save-image-menu-item',
+);
+const Key terminalGraphicCopyImageMenuItemKey = Key(
+  'terminal-graphic-copy-image-menu-item',
+);
+const Key terminalGraphicOpenImageMenuItemKey = Key(
+  'terminal-graphic-open-image-menu-item',
+);
+const Key terminalGraphicInspectMenuItemKey = Key(
+  'terminal-graphic-inspect-menu-item',
+);
+const Key terminalGraphicInspectorKey = Key('terminal-graphic-inspector');
+const Key terminalGraphicInspectorCloseKey = Key(
+  'terminal-graphic-inspector-close',
+);
 Key terminalBlockToggleKey(String id) => Key('terminal-block-toggle-$id');
 Key terminalBlockRenderCloseKey(String id) =>
     Key('terminal-block-render-close-$id');
@@ -100,6 +120,29 @@ class TerminalLinkTarget {
         text.isNotEmpty &&
         text != target;
   }
+}
+
+typedef TerminalGraphicImageCallback =
+    Future<void> Function(TerminalGraphicImage image);
+typedef TerminalGraphicImageEncoder =
+    Future<Uint8List?> Function(ui.Image image);
+
+/// A PNG-encoded terminal graphic delivered to app-level platform actions.
+class TerminalGraphicImage {
+  const TerminalGraphicImage({
+    required this.pngBytes,
+    required this.pixelWidth,
+    required this.pixelHeight,
+    required this.placement,
+  });
+
+  final Uint8List pngBytes;
+  final int pixelWidth;
+  final int pixelHeight;
+  final TerminalGraphicPlacement placement;
+
+  String get suggestedFileName =>
+      'terminal-image-${placement.assetKey.id}-${placement.assetKey.version}.png';
 }
 
 class TerminalViewportController extends ChangeNotifier {
@@ -194,6 +237,9 @@ class TerminalViewport extends StatefulWidget {
     this.activeSearchMatchIndex = -1,
     this.searchHighlightStyle,
     this.graphicsCache,
+    this.onSaveGraphicImage,
+    this.onCopyGraphicImage,
+    this.debugGraphicImageEncoder,
     this.benchmarkEventSink,
     this.graphicsDiagnosticSessionId,
     this.onToggleBlock,
@@ -236,6 +282,12 @@ class TerminalViewport extends StatefulWidget {
   final int activeSearchMatchIndex;
   final TerminalSearchHighlightStyle? searchHighlightStyle;
   final TerminalGraphicsCache? graphicsCache;
+  final TerminalGraphicImageCallback? onSaveGraphicImage;
+  final TerminalGraphicImageCallback? onCopyGraphicImage;
+
+  @visibleForTesting
+  final TerminalGraphicImageEncoder? debugGraphicImageEncoder;
+
   final TerminalBenchmarkEventSink? benchmarkEventSink;
   final String? graphicsDiagnosticSessionId;
   final ValueChanged<TerminalBlock>? onToggleBlock;
@@ -252,8 +304,22 @@ class TerminalViewport extends StatefulWidget {
 
 enum _LocalSelectionMode { cell, word }
 
+typedef _GraphicGeometryKey = ({
+  bool belowText,
+  TerminalGraphicAssetKey assetKey,
+});
+typedef _GraphicOverlayGeometry = ({
+  double width,
+  double height,
+  double displayWidth,
+  double displayHeight,
+  double sourceXOffset,
+  double sourceYOffset,
+});
+
 class _TerminalViewportState extends State<TerminalViewport>
     with TextInputClient {
+  static const int _maxLockedItermGraphicGeometries = 256;
   static const Duration _selectionAutoScrollInterval = Duration(
     milliseconds: 50,
   );
@@ -304,6 +370,8 @@ class _TerminalViewportState extends State<TerminalViewport>
   int _pendingMobileRawBackspaces = 0;
   bool _mobileRawBackspaceResetScheduled = false;
   final TerminalGraphicsSync _graphicsSync = TerminalGraphicsSync();
+  final Map<_GraphicGeometryKey, _GraphicOverlayGeometry>
+  _graphicOverlayGeometries = <_GraphicGeometryKey, _GraphicOverlayGeometry>{};
   late MouseCursor _lastTerminalPointerCursor;
   FocusNode get _focusNode =>
       widget.focusNode ??
@@ -332,6 +400,7 @@ class _TerminalViewportState extends State<TerminalViewport>
     }
     if (!identical(oldWidget.controller, widget.controller) ||
         !identical(oldWidget.graphicsCache, widget.graphicsCache)) {
+      _graphicOverlayGeometries.clear();
       _syncGraphicsCache();
     }
     final focusNodeChanged = !identical(oldWidget.focusNode, widget.focusNode);
@@ -455,7 +524,14 @@ class _TerminalViewportState extends State<TerminalViewport>
       controllerIdentity: controller,
       cache: widget.graphicsCache,
       assetRevision: controller.graphicsAssetRevision,
-      liveAssetKeys: controller.graphicsAssetKeys,
+      // A resize can temporarily omit an otherwise live iTerm placement from
+      // the frame. Keep assets that own locked thumbnail geometry resident so
+      // repeated empty/visible frames cannot race cache eviction against image
+      // decoding and leave a blank reservation behind.
+      liveAssetKeys: <TerminalGraphicAssetKey>{
+        ...controller.graphicsAssetKeys,
+        for (final key in _graphicOverlayGeometries.keys) key.assetKey,
+      },
     );
   }
 
@@ -1978,6 +2054,20 @@ class _TerminalViewportState extends State<TerminalViewport>
                 return LayoutBuilder(
                   builder: (context, constraints) {
                     final contentPadding = widget.contentPadding;
+                    final graphicViewportSize = Size(
+                      constraints.maxWidth.isFinite
+                          ? math.max(
+                              0.0,
+                              constraints.maxWidth - contentPadding.horizontal,
+                            )
+                          : double.infinity,
+                      constraints.maxHeight.isFinite
+                          ? math.max(
+                              0.0,
+                              constraints.maxHeight - contentPadding.vertical,
+                            )
+                          : double.infinity,
+                    );
                     final trackHeight = math.max(
                       0.0,
                       constraints.maxHeight - 16,
@@ -1992,6 +2082,7 @@ class _TerminalViewportState extends State<TerminalViewport>
                             frame,
                             graphics,
                             contentPadding,
+                            graphicViewportSize,
                             belowText: true,
                           ),
                           Positioned.fill(
@@ -2027,6 +2118,7 @@ class _TerminalViewportState extends State<TerminalViewport>
                             frame,
                             graphics,
                             contentPadding,
+                            graphicViewportSize,
                             belowText: false,
                           ),
                           if (widget.showLineTimestamps)
@@ -2255,7 +2347,8 @@ class _TerminalViewportState extends State<TerminalViewport>
   List<Widget> _buildGraphicOverlays(
     TerminalFrameDiff frame,
     List<TerminalGraphicPlacement> graphics,
-    EdgeInsets contentPadding, {
+    EdgeInsets contentPadding,
+    Size graphicViewportSize, {
     required bool belowText,
   }) {
     final graphicsCache = widget.graphicsCache;
@@ -2301,6 +2394,7 @@ class _TerminalViewportState extends State<TerminalViewport>
           contentPadding,
           cellSize,
           devicePixelRatio,
+          graphicViewportSize,
           belowText: belowText,
           slot: slot,
           renderIdCounts: renderIdCounts,
@@ -2314,13 +2408,45 @@ class _TerminalViewportState extends State<TerminalViewport>
     TerminalGraphicPlacement graphic,
     EdgeInsets contentPadding,
     Size cellSize,
-    double devicePixelRatio, {
+    double devicePixelRatio,
+    Size graphicViewportSize, {
     required bool belowText,
     required int slot,
     required Map<int, int> renderIdCounts,
     required Map<int, int> renderIdOccurrences,
     required TerminalGraphicsCache graphicsCache,
   }) {
+    final viewportScale = _graphicViewportScale(
+      graphic,
+      graphicViewportSize,
+      devicePixelRatio,
+    );
+    final geometryKey = (belowText: belowText, assetKey: graphic.assetKey);
+    final currentGeometry = (
+      width: graphic.visibleWidthPx / devicePixelRatio * viewportScale,
+      height: graphic.visibleHeightPx / devicePixelRatio * viewportScale,
+      displayWidth: graphic.widthPx / devicePixelRatio * viewportScale,
+      displayHeight: graphic.heightPx / devicePixelRatio * viewportScale,
+      sourceXOffset: graphic.sourceXOffsetPx / devicePixelRatio * viewportScale,
+      sourceYOffset: graphic.sourceYOffsetPx / devicePixelRatio * viewportScale,
+    );
+    final previousGeometry = _graphicOverlayGeometries[geometryKey];
+    final geometry = graphic.protocol == 'iterm' && previousGeometry != null
+        ? previousGeometry
+        : currentGeometry;
+    if (graphic.protocol == 'iterm') {
+      // Once an iTerm thumbnail has been resolved, every later window resize
+      // clips that fixed rectangle instead of rescaling it. The entry also
+      // keeps its asset resident while the placement is temporarily omitted.
+      if (!_graphicOverlayGeometries.containsKey(geometryKey) &&
+          _graphicOverlayGeometries.length >=
+              _maxLockedItermGraphicGeometries) {
+        _graphicOverlayGeometries.remove(_graphicOverlayGeometries.keys.first);
+      }
+      _graphicOverlayGeometries[geometryKey] = geometry;
+    }
+    // Lock only the thumbnail rectangle. Always take row and column from the
+    // latest placement so resize reflow keeps it attached to its terminal rows.
     return Positioned(
       left:
           contentPadding.left +
@@ -2330,29 +2456,58 @@ class _TerminalViewportState extends State<TerminalViewport>
           contentPadding.top +
           graphic.row * cellSize.height +
           graphic.yOffsetPx / devicePixelRatio,
-      width: graphic.visibleWidthPx / devicePixelRatio,
-      height: graphic.visibleHeightPx / devicePixelRatio,
-      child: IgnorePointer(
-        child: _TerminalGraphicOverlay(
-          key: _terminalGraphicOverlayStateKey(
-            belowText: belowText,
-            slot: slot,
-          ),
-          overlayKey: _terminalGraphicOverlayKey(
-            graphic,
-            renderIdCounts: renderIdCounts,
-            renderIdOccurrences: renderIdOccurrences,
-          ),
-          cache: graphicsCache,
-          placement: graphic,
-          displayWidth: graphic.widthPx / devicePixelRatio,
-          displayHeight: graphic.heightPx / devicePixelRatio,
-          sourceXOffset: graphic.sourceXOffsetPx / devicePixelRatio,
-          sourceYOffset: graphic.sourceYOffsetPx / devicePixelRatio,
-          diagnosticSessionId: widget.graphicsDiagnosticSessionId,
-          diagnosticEventSink: widget.benchmarkEventSink,
+      width: geometry.width,
+      height: geometry.height,
+      child: _TerminalGraphicOverlay(
+        key: _terminalGraphicOverlayStateKey(belowText: belowText, slot: slot),
+        overlayKey: _terminalGraphicOverlayKey(
+          graphic,
+          renderIdCounts: renderIdCounts,
+          renderIdOccurrences: renderIdOccurrences,
         ),
+        cache: graphicsCache,
+        placement: graphic,
+        displayWidth: geometry.displayWidth,
+        displayHeight: geometry.displayHeight,
+        sourceXOffset: geometry.sourceXOffset,
+        sourceYOffset: geometry.sourceYOffset,
+        onSaveGraphicImage: widget.onSaveGraphicImage,
+        onCopyGraphicImage: widget.onCopyGraphicImage,
+        imageEncoder: widget.debugGraphicImageEncoder,
+        diagnosticSessionId: widget.graphicsDiagnosticSessionId,
+        diagnosticEventSink: widget.benchmarkEventSink,
       ),
+    );
+  }
+
+  double _graphicViewportScale(
+    TerminalGraphicPlacement graphic,
+    Size graphicViewportSize,
+    double devicePixelRatio,
+  ) {
+    if (graphic.protocol != 'iterm') {
+      return 1.0;
+    }
+    final displayWidth = graphic.widthPx / devicePixelRatio;
+    final displayHeight = graphic.heightPx / devicePixelRatio;
+    if (!displayWidth.isFinite ||
+        !displayHeight.isFinite ||
+        displayWidth <= 0 ||
+        displayHeight <= 0) {
+      return 1.0;
+    }
+    final maxWidth = graphicViewportSize.width.isFinite
+        ? graphicViewportSize.width / 2
+        : displayWidth;
+    final maxHeight = graphicViewportSize.height.isFinite
+        ? graphicViewportSize.height / 2
+        : displayHeight;
+    if (maxWidth <= 0 || maxHeight <= 0) {
+      return 0.0;
+    }
+    return math.min(
+      1.0,
+      math.min(maxWidth / displayWidth, maxHeight / displayHeight),
     );
   }
 
@@ -3471,6 +3626,9 @@ class _TerminalGraphicOverlay extends StatefulWidget {
     required this.displayHeight,
     required this.sourceXOffset,
     required this.sourceYOffset,
+    this.onSaveGraphicImage,
+    this.onCopyGraphicImage,
+    this.imageEncoder,
     this.diagnosticSessionId,
     this.diagnosticEventSink,
   });
@@ -3482,6 +3640,9 @@ class _TerminalGraphicOverlay extends StatefulWidget {
   final double displayHeight;
   final double sourceXOffset;
   final double sourceYOffset;
+  final TerminalGraphicImageCallback? onSaveGraphicImage;
+  final TerminalGraphicImageCallback? onCopyGraphicImage;
+  final TerminalGraphicImageEncoder? imageEncoder;
   final String? diagnosticSessionId;
   final TerminalBenchmarkEventSink? diagnosticEventSink;
 
@@ -3494,6 +3655,8 @@ class _TerminalGraphicOverlayState extends State<_TerminalGraphicOverlay> {
   Future<ui.Image?>? _imageFuture;
   TerminalGraphicAssetKey? _assetKey;
   ui.Image? _visibleImage;
+  bool _previewOpen = false;
+  bool _showFocusHighlight = false;
 
   @override
   void initState() {
@@ -3584,6 +3747,169 @@ class _TerminalGraphicOverlayState extends State<_TerminalGraphicOverlay> {
     _visibleImage = null;
   }
 
+  void _openPreview() {
+    if (_previewOpen ||
+        Navigator.maybeOf(context, rootNavigator: true) == null) {
+      return;
+    }
+    final image = _visibleImage;
+    if (image == null) {
+      return;
+    }
+    unawaited(_showPreview(image.clone()));
+  }
+
+  Future<void> _showPreview(ui.Image image) async {
+    _previewOpen = true;
+    try {
+      await showDialog<void>(
+        context: context,
+        useSafeArea: false,
+        barrierColor: Colors.black.withValues(alpha: 0.92),
+        builder: (context) => _TerminalGraphicPreview(image: image),
+      );
+    } finally {
+      image.dispose();
+      _previewOpen = false;
+    }
+  }
+
+  Future<void> _showContextMenu(Offset globalPosition) async {
+    final navigator = Navigator.maybeOf(context, rootNavigator: true);
+    final overlay = navigator?.overlay?.context.findRenderObject();
+    if (overlay is! RenderBox) {
+      return;
+    }
+    final action = await showMenu<_TerminalGraphicMenuAction>(
+      context: context,
+      useRootNavigator: true,
+      position: RelativeRect.fromRect(
+        Rect.fromLTWH(globalPosition.dx, globalPosition.dy, 1, 1),
+        Offset.zero & overlay.size,
+      ),
+      items: <PopupMenuEntry<_TerminalGraphicMenuAction>>[
+        PopupMenuItem<_TerminalGraphicMenuAction>(
+          key: terminalGraphicSaveImageMenuItemKey,
+          value: _TerminalGraphicMenuAction.saveAs,
+          enabled: widget.onSaveGraphicImage != null,
+          child: const Text('Save Image As…'),
+        ),
+        PopupMenuItem<_TerminalGraphicMenuAction>(
+          key: terminalGraphicCopyImageMenuItemKey,
+          value: _TerminalGraphicMenuAction.copy,
+          enabled: widget.onCopyGraphicImage != null,
+          child: const Text('Copy Image'),
+        ),
+        const PopupMenuItem<_TerminalGraphicMenuAction>(
+          key: terminalGraphicOpenImageMenuItemKey,
+          value: _TerminalGraphicMenuAction.open,
+          child: Text('Open Image'),
+        ),
+        const PopupMenuItem<_TerminalGraphicMenuAction>(
+          key: terminalGraphicInspectMenuItemKey,
+          value: _TerminalGraphicMenuAction.inspect,
+          child: Text('Inspect'),
+        ),
+      ],
+    );
+    if (!mounted || action == null) {
+      return;
+    }
+    switch (action) {
+      case _TerminalGraphicMenuAction.saveAs:
+        final callback = widget.onSaveGraphicImage;
+        if (callback != null) {
+          await _dispatchEncodedImage(callback);
+        }
+      case _TerminalGraphicMenuAction.copy:
+        final callback = widget.onCopyGraphicImage;
+        if (callback != null) {
+          await _dispatchEncodedImage(callback);
+        }
+      case _TerminalGraphicMenuAction.open:
+        _openPreview();
+      case _TerminalGraphicMenuAction.inspect:
+        _openInspector();
+    }
+  }
+
+  Future<void> _dispatchEncodedImage(
+    TerminalGraphicImageCallback callback,
+  ) async {
+    final visibleImage = _visibleImage;
+    if (visibleImage == null) {
+      return;
+    }
+    final image = visibleImage.clone();
+    try {
+      final pngBytes =
+          await (widget.imageEncoder ?? _encodeTerminalGraphicImageAsPng)(
+            image,
+          );
+      if (pngBytes == null) {
+        return;
+      }
+      await callback(
+        TerminalGraphicImage(
+          pngBytes: pngBytes,
+          pixelWidth: image.width,
+          pixelHeight: image.height,
+          placement: widget.placement,
+        ),
+      );
+    } catch (error, stackTrace) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'ianvs_terminal',
+          context: ErrorDescription('while handling a terminal image action'),
+        ),
+      );
+    } finally {
+      image.dispose();
+    }
+  }
+
+  void _openInspector() {
+    final image = _visibleImage;
+    if (image == null ||
+        Navigator.maybeOf(context, rootNavigator: true) == null) {
+      return;
+    }
+    final placement = widget.placement;
+    unawaited(
+      showDialog<void>(
+        context: context,
+        useRootNavigator: true,
+        builder: (context) => AlertDialog(
+          key: terminalGraphicInspectorKey,
+          title: const Text('Image Information'),
+          content: SelectionArea(
+            child: Text(
+              'Protocol: ${placement.protocol}\n'
+              'Source size: ${image.width} × ${image.height} px\n'
+              'Display size: ${placement.widthPx} × ${placement.heightPx} px\n'
+              'Visible area: ${placement.visibleWidthPx} × '
+              '${placement.visibleHeightPx} px\n'
+              'Cell position: ${placement.row}, ${placement.col}\n'
+              'Render ID: ${placement.renderId}\n'
+              'Placement ID: ${placement.placementId}\n'
+              'Asset: ${placement.assetKey.id}:${placement.assetKey.version}',
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              key: terminalGraphicInspectorCloseKey,
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _emitDiagnostic(
     String event, {
     TerminalGraphicAssetKey? assetKey,
@@ -3615,29 +3941,154 @@ class _TerminalGraphicOverlayState extends State<_TerminalGraphicOverlay> {
         child: const SizedBox.shrink(),
       );
     }
-    return KeyedSubtree(
-      key: widget.overlayKey,
-      child: ClipRect(
-        child: Transform.translate(
-          offset: Offset(-widget.sourceXOffset, -widget.sourceYOffset),
-          child: OverflowBox(
-            alignment: Alignment.topLeft,
-            minWidth: widget.displayWidth,
-            maxWidth: widget.displayWidth,
-            minHeight: widget.displayHeight,
-            maxHeight: widget.displayHeight,
-            child: SizedBox(
-              width: widget.displayWidth,
-              height: widget.displayHeight,
-              child: RawImage(
-                image: image,
-                fit: widget.placement.preserveAspectRatio
-                    ? BoxFit.contain
-                    : BoxFit.fill,
-                filterQuality: FilterQuality.medium,
-              ),
+    final thumbnail = ClipRect(
+      child: Transform.translate(
+        offset: Offset(-widget.sourceXOffset, -widget.sourceYOffset),
+        child: OverflowBox(
+          alignment: Alignment.topLeft,
+          minWidth: widget.displayWidth,
+          maxWidth: widget.displayWidth,
+          minHeight: widget.displayHeight,
+          maxHeight: widget.displayHeight,
+          child: SizedBox(
+            width: widget.displayWidth,
+            height: widget.displayHeight,
+            child: RawImage(
+              image: image,
+              // iTerm graphics are intentionally presented as thumbnails in
+              // this app. Keep that preview proportional even when a remote
+              // sender requested a stretched protocol canvas.
+              fit:
+                  widget.placement.protocol == 'iterm' ||
+                      widget.placement.preserveAspectRatio
+                  ? BoxFit.contain
+                  : BoxFit.fill,
+              filterQuality: FilterQuality.medium,
             ),
           ),
+        ),
+      ),
+    );
+    return KeyedSubtree(
+      key: widget.overlayKey,
+      child: Semantics(
+        button: true,
+        label: 'Open terminal image preview',
+        onTap: _openPreview,
+        child: FocusableActionDetector(
+          mouseCursor: SystemMouseCursors.click,
+          shortcuts: const <ShortcutActivator, Intent>{
+            SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
+            SingleActivator(LogicalKeyboardKey.space): ActivateIntent(),
+          },
+          actions: <Type, Action<Intent>>{
+            ActivateIntent: CallbackAction<ActivateIntent>(
+              onInvoke: (_) {
+                _openPreview();
+                return null;
+              },
+            ),
+          },
+          onShowFocusHighlight: (value) {
+            if (mounted) {
+              setState(() => _showFocusHighlight = value);
+            }
+          },
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            excludeFromSemantics: true,
+            onTap: _openPreview,
+            onSecondaryTapDown: (details) {
+              unawaited(_showContextMenu(details.globalPosition));
+            },
+            onLongPressStart: (details) {
+              unawaited(_showContextMenu(details.globalPosition));
+            },
+            child: DecoratedBox(
+              position: DecorationPosition.foreground,
+              decoration: BoxDecoration(
+                border: Border.all(
+                  color: _showFocusHighlight
+                      ? Theme.of(context).colorScheme.primary
+                      : Colors.transparent,
+                  width: 2,
+                ),
+              ),
+              child: thumbnail,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+enum _TerminalGraphicMenuAction { saveAs, copy, open, inspect }
+
+Future<Uint8List?> _encodeTerminalGraphicImageAsPng(ui.Image image) async {
+  final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+  return byteData?.buffer.asUint8List(
+    byteData.offsetInBytes,
+    byteData.lengthInBytes,
+  );
+}
+
+class _TerminalGraphicPreview extends StatelessWidget {
+  const _TerminalGraphicPreview({required this.image});
+
+  final ui.Image image;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Material(
+      key: terminalGraphicPreviewKey,
+      // A neutral black canvas keeps the preview independent of terminal and
+      // application theme colors while preserving image contrast.
+      color: Colors.black,
+      child: SafeArea(
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: Semantics(
+                image: true,
+                label: 'Terminal image preview',
+                child: InteractiveViewer(
+                  minScale: 0.5,
+                  maxScale: 8,
+                  boundaryMargin: const EdgeInsets.all(64),
+                  child: SizedBox.expand(
+                    child: FittedBox(
+                      fit: BoxFit.contain,
+                      child: SizedBox(
+                        width: image.width.toDouble(),
+                        height: image.height.toDouble(),
+                        child: RawImage(
+                          image: image,
+                          filterQuality: FilterQuality.high,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: IconButton(
+                key: terminalGraphicPreviewCloseKey,
+                tooltip: 'Close image preview',
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.close_rounded),
+                style: IconButton.styleFrom(
+                  minimumSize: const Size.square(48),
+                  foregroundColor: colors.onSurface,
+                  backgroundColor: colors.surface.withValues(alpha: 0.88),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

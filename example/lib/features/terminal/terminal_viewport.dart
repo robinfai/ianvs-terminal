@@ -64,6 +64,8 @@ class TerminalViewport extends StatelessWidget {
     this.activeSearchMatchIndex = -1,
     this.searchHighlightStyle,
     this.graphicsCache,
+    this.onSaveGraphicImage,
+    this.onCopyGraphicImage,
     this.benchmarkEventSink,
     this.graphicsDiagnosticSessionId,
     this.onToggleBlock,
@@ -101,6 +103,8 @@ class TerminalViewport extends StatelessWidget {
   final int activeSearchMatchIndex;
   final terminal.TerminalSearchHighlightStyle? searchHighlightStyle;
   final terminal.TerminalGraphicsCache? graphicsCache;
+  final terminal.TerminalGraphicImageCallback? onSaveGraphicImage;
+  final terminal.TerminalGraphicImageCallback? onCopyGraphicImage;
   final terminal.TerminalBenchmarkEventSink? benchmarkEventSink;
   final String? graphicsDiagnosticSessionId;
   final ValueChanged<terminal.TerminalBlock>? onToggleBlock;
@@ -141,6 +145,8 @@ class TerminalViewport extends StatelessWidget {
       activeSearchMatchIndex: activeSearchMatchIndex,
       searchHighlightStyle: searchHighlightStyle,
       graphicsCache: graphicsCache,
+      onSaveGraphicImage: onSaveGraphicImage,
+      onCopyGraphicImage: onCopyGraphicImage,
       benchmarkEventSink: benchmarkEventSink,
       graphicsDiagnosticSessionId: graphicsDiagnosticSessionId,
       onToggleBlock: onToggleBlock,

@@ -1617,6 +1617,58 @@ impl Terminal {
             self.clear_iterm_buttons();
         }
 
+        // A height shrink commonly happens on mobile when the software
+        // keyboard or a full-screen route appears. Keep the cursor's trailing
+        // content visible by performing the same screen scroll that ordinary
+        // terminal output would have caused at the smaller height. This also
+        // moves graphics with their reserved rows before Grid::resize can
+        // truncate those rows and leave a stale off-screen image anchor.
+        if rows > 0 && rows < old_rows {
+            let (primary_cursor_row, alternate_cursor_row) = if self.alt_screen_active {
+                (self.alt_cursor.row, self.cursor.row)
+            } else {
+                (self.cursor.row, self.alt_cursor.row)
+            };
+            let last_new_row = rows - 1;
+            let primary_scroll = primary_cursor_row.saturating_sub(last_new_row);
+            if primary_scroll > 0 {
+                self.grid.scroll_region_up(primary_scroll, 0, old_rows - 1);
+                let current_scrollback_len = self.grid.scrollback_len();
+                self.graphics_store
+                    .adjust_for_scroll_up_for_screen_with_scrollback_len(
+                        primary_scroll,
+                        0,
+                        old_rows - 1,
+                        current_scrollback_len.saturating_sub(primary_scroll),
+                        current_scrollback_len,
+                        false,
+                    );
+                if self.alt_screen_active {
+                    self.alt_cursor.row = self.alt_cursor.row.saturating_sub(primary_scroll);
+                } else {
+                    self.cursor.row = self.cursor.row.saturating_sub(primary_scroll);
+                }
+            }
+
+            let alternate_scroll = alternate_cursor_row.saturating_sub(last_new_row);
+            if alternate_scroll > 0 {
+                self.alt_grid
+                    .scroll_region_up(alternate_scroll, 0, old_rows - 1);
+                self.graphics_store.adjust_for_scroll_up_for_screen(
+                    alternate_scroll,
+                    0,
+                    old_rows - 1,
+                    0,
+                    true,
+                );
+                if self.alt_screen_active {
+                    self.cursor.row = self.cursor.row.saturating_sub(alternate_scroll);
+                } else {
+                    self.alt_cursor.row = self.alt_cursor.row.saturating_sub(alternate_scroll);
+                }
+            }
+        }
+
         self.grid.resize(cols, rows);
         self.alt_grid.resize(cols, rows);
         self.grid.sanitize_multicell_fragments();

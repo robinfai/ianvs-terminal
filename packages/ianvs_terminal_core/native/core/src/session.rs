@@ -23,9 +23,9 @@ use crate::zmodem::{
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use par_term_emu_core_rust::cell::{Cell, CellFlags};
 use par_term_emu_core_rust::color::Color;
-use par_term_emu_core_rust::graphics::PLACEHOLDER_CHAR;
 #[cfg(test)]
-use par_term_emu_core_rust::graphics::{ImageDimension, TerminalGraphic};
+use par_term_emu_core_rust::graphics::ImageDimension;
+use par_term_emu_core_rust::graphics::{PLACEHOLDER_CHAR, TerminalGraphic};
 use par_term_emu_core_rust::grid::Grid;
 use par_term_emu_core_rust::mouse::{MouseEncoding, MouseMode};
 use par_term_emu_core_rust::terminal::terminal_snapshot::TerminalSnapshot;
@@ -108,6 +108,7 @@ const ZMODEM_WIRE_MAX_QUEUED_BYTES: usize = 1024 * 1024;
 const RESOURCE_SAMPLE_INTERVAL: Duration = Duration::from_secs(1);
 const ZMODEM_DEADLINE_POLL_INTERVAL: Duration = Duration::from_millis(50);
 const INLINE_CLEAR_REPAINT_GRACE: Duration = Duration::from_millis(180);
+const RESIZE_ITERM_REDRAW_GUARD: Duration = Duration::from_secs(2);
 const RESOURCE_SAMPLER_MAX_FAILURES: u64 = 5;
 
 #[cfg(test)]
@@ -747,6 +748,7 @@ pub struct TerminalSession {
     deferred_clear_graphics_frame: Mutex<Option<DeferredFrameGrace>>,
     deferred_kitty_delete_graphics_frame: Mutex<Option<DeferredFrameGrace>>,
     deferred_inline_clear_frame: Mutex<Option<DeferredFrameGrace>>,
+    resize_iterm_redraw_guard: Mutex<ResizeItermRedrawGuard>,
     worker_handles: Mutex<SessionWorkerHandles>,
     exited: AtomicBool,
 }
@@ -756,6 +758,15 @@ struct ZmodemInFlight {
     transfer_id: u64,
     direction: ZmodemDirection,
     started_at: Instant,
+}
+
+#[derive(Default)]
+struct ResizeItermRedrawGuard {
+    // Placements outlive `expires_at` so a later height-only resize can bring
+    // a fixed thumbnail row back into view. The deadline only controls whether
+    // immediate SIGWINCH redraw output may restore a temporarily cleared image.
+    expires_at: Option<Instant>,
+    graphics: Vec<TerminalGraphic>,
 }
 
 struct ZmodemWireJob {
@@ -1243,6 +1254,7 @@ impl TerminalSession {
             deferred_clear_graphics_frame: Mutex::new(None),
             deferred_kitty_delete_graphics_frame: Mutex::new(None),
             deferred_inline_clear_frame: Mutex::new(None),
+            resize_iterm_redraw_guard: Mutex::new(ResizeItermRedrawGuard::default()),
             worker_handles: Mutex::new(SessionWorkerHandles::default()),
             exited: AtomicBool::new(false),
         })
@@ -1299,6 +1311,12 @@ impl TerminalSession {
                 ProtocolCallbackPolicy::Disabled
             };
             let parser_batch = drain_protocol_callback_batch(&mut state, callback_policy);
+            if parser_batch.terminal_reset {
+                self.clear_resize_iterm_redraw_guard();
+            } else {
+                self.restore_resize_guarded_iterm_graphics(&mut state.terminal);
+            }
+            self.reconcile_resize_iterm_redraw_guard(&state.terminal);
             let cleared_scrollback = parser_batch.cleared_scrollback;
             callback_events.extend(parser_batch.callbacks);
             if self.emulation == TerminalEmulation::Xterm256 {
@@ -3318,7 +3336,6 @@ impl TerminalSession {
         let mut resize_replay_skipped_truncated = false;
         let (current_cols, current_rows) = state.terminal.size();
         let size_changed = current_cols != cols as usize || current_rows != rows as usize;
-
         if !size_changed {
             apply_terminal_pixel_metrics(
                 &mut state.terminal,
@@ -3342,6 +3359,8 @@ impl TerminalSession {
             return Ok(());
         }
 
+        let visible_iterm_graphics_before_resize =
+            self.iterm_graphics_to_preserve_for_resize(&state);
         let previous_max = current_scrollback_max(&state);
 
         // Keep SIGWINCH-triggered redraw output from being processed between
@@ -3431,6 +3450,11 @@ impl TerminalSession {
         if state.terminal.is_alt_screen_active() {
             state.scrollback_offset = 0;
         }
+        let resize_guard_graphics = restore_iterm_graphics_after_resize(
+            &mut state.terminal,
+            visible_iterm_graphics_before_resize,
+        );
+        self.arm_resize_iterm_redraw_guard(resize_guard_graphics);
         drop(state);
 
         {
@@ -3469,6 +3493,76 @@ impl TerminalSession {
             return Err(SessionError::ReadOnlyReplaySession(self.session_id));
         }
         self.write_non_zmodem_ordered(bytes, true, false)
+    }
+
+    fn iterm_graphics_to_preserve_for_resize(&self, state: &TerminalState) -> Vec<TerminalGraphic> {
+        let visible = visible_iterm_graphics(&state.terminal, state.scrollback_offset);
+        let guard = self.resize_iterm_redraw_guard.lock();
+        // The deadline protects only immediate SIGWINCH redraw output. Once a
+        // thumbnail has stable geometry, every later resize (width, height, or
+        // both) starts from the persisted placement instead of recomputing it
+        // from the new viewport dimensions.
+        let mut graphics = guard.graphics.clone();
+        for candidate in visible {
+            if !graphics
+                .iter()
+                .any(|graphic| same_iterm_graphic_asset(graphic, &candidate))
+            {
+                graphics.push(candidate);
+            }
+        }
+        graphics
+    }
+
+    fn arm_resize_iterm_redraw_guard(&self, graphics: Vec<TerminalGraphic>) {
+        let mut guard = self.resize_iterm_redraw_guard.lock();
+        guard.graphics = graphics;
+        guard.expires_at =
+            (!guard.graphics.is_empty()).then(|| Instant::now() + RESIZE_ITERM_REDRAW_GUARD);
+    }
+
+    fn clear_resize_iterm_redraw_guard(&self) {
+        let mut guard = self.resize_iterm_redraw_guard.lock();
+        guard.expires_at = None;
+        guard.graphics.clear();
+    }
+
+    fn restore_resize_guarded_iterm_graphics(&self, terminal: &mut Terminal) {
+        let protected = {
+            let mut guard = self.resize_iterm_redraw_guard.lock();
+            let is_active = guard
+                .expires_at
+                .is_some_and(|expires_at| Instant::now() <= expires_at);
+            if !is_active {
+                guard.expires_at = None;
+                return;
+            }
+            guard.graphics.clone()
+        };
+        restore_iterm_graphics_after_resize(terminal, protected);
+    }
+
+    fn reconcile_resize_iterm_redraw_guard(&self, terminal: &Terminal) {
+        let mut guard = self.resize_iterm_redraw_guard.lock();
+        guard.graphics.retain_mut(|protected| {
+            let candidate = terminal
+                .all_graphics()
+                .iter()
+                .chain(terminal.all_scrollback_graphics().iter())
+                .find(|candidate| same_iterm_graphic_asset(candidate, protected));
+            let Some(candidate) = candidate else {
+                return false;
+            };
+            let locked_cell_dimensions = protected.cell_dimensions;
+            let locked_display_cell_span = protected.display_cell_span;
+            *protected = candidate.clone();
+            protected.cell_dimensions = locked_cell_dimensions;
+            protected.display_cell_span = locked_display_cell_span;
+            true
+        });
+        if guard.graphics.is_empty() {
+            guard.expires_at = None;
+        }
     }
 
     pub fn write_protocol_reply(&self, bytes: &[u8]) -> Result<(), SessionError> {
@@ -3897,7 +3991,7 @@ impl TerminalSession {
                     viewport_row_shift,
                 })
             };
-        let (graphics, active_graphics_count, scrollback_graphics_count, asset_snapshots) =
+        let (mut graphics, active_graphics_count, scrollback_graphics_count, mut asset_snapshots) =
             if self.graphics_enabled {
                 let active_graphics_count = terminal.graphics_count();
                 let scrollback_graphics_count = terminal.scrollback_graphics_count();
@@ -3967,6 +4061,11 @@ impl TerminalSession {
             return Ok(None);
         }
         let deferred_kitty_delete_count = terminal.deferred_kitty_delete_count();
+        canonicalize_replayed_iterm_asset_ids(
+            &state.graphic_assets,
+            &mut graphics,
+            &mut asset_snapshots,
+        );
         cache_graphic_asset_snapshots(&mut state, asset_snapshots);
         *last_rows = current_rows;
         *last_frame_meta = Some(frame_meta);
@@ -5972,6 +6071,160 @@ fn cache_graphic_asset_snapshots(state: &mut TerminalState, snapshots: Vec<Graph
                 .graphic_asset_bytes
                 .saturating_sub(removed.pixels.len());
         }
+    }
+}
+
+fn same_iterm_graphic_asset(left: &TerminalGraphic, right: &TerminalGraphic) -> bool {
+    left.protocol.as_str() == "iterm"
+        && right.protocol.as_str() == "iterm"
+        && left.asset_version == right.asset_version
+        && left.width == right.width
+        && left.height == right.height
+        && left.pixels.as_ref() == right.pixels.as_ref()
+}
+
+/// Capture iTerm placements as the user currently sees them, regardless of
+/// whether their backing placement lives on the active grid or in scrollback.
+/// A resize replay can move a still-visible image between those stores, so the
+/// store alone is not a reliable source of resize persistence.
+fn visible_iterm_graphics(terminal: &Terminal, scrollback_offset: usize) -> Vec<TerminalGraphic> {
+    let alt_screen_active = terminal.is_alt_screen_active();
+    let (_, viewport_rows) = terminal.size();
+    let projection = display_projection_for_terminal(terminal);
+    let scrollback_max_offset = if alt_screen_active {
+        0
+    } else {
+        projection.rows.len().saturating_sub(viewport_rows)
+    };
+    let viewport_display_start_row = if alt_screen_active {
+        0
+    } else {
+        scrollback_max_offset.saturating_sub(scrollback_offset.min(scrollback_max_offset))
+    };
+    let scrollback_len = if alt_screen_active {
+        0
+    } else {
+        terminal.grid().scrollback_len()
+    };
+    let placements = build_projected_graphic_placements(
+        terminal,
+        &projection,
+        viewport_display_start_row,
+        viewport_rows,
+        scrollback_len,
+        alt_screen_active,
+        false,
+    );
+
+    placements
+        .into_iter()
+        .filter(|placement| placement.protocol == "iterm")
+        .filter_map(|placement| {
+            terminal
+                .all_graphics()
+                .iter()
+                .chain(terminal.all_scrollback_graphics().iter())
+                .find(|graphic| {
+                    graphic.protocol.as_str() == "iterm"
+                        && graphic.id == placement.asset_id
+                        && graphic.asset_version == placement.asset_version
+                })
+                .cloned()
+        })
+        .collect()
+}
+
+fn restore_iterm_graphics_after_resize(
+    terminal: &mut Terminal,
+    protected: Vec<TerminalGraphic>,
+) -> Vec<TerminalGraphic> {
+    if protected.is_empty() {
+        return Vec::new();
+    }
+
+    let mut restored = Vec::with_capacity(protected.len());
+    for graphic in protected {
+        if let Some(index) = terminal
+            .all_graphics()
+            .iter()
+            .position(|candidate| same_iterm_graphic_asset(candidate, &graphic))
+        {
+            let candidate = &mut terminal.graphics_store_mut().all_graphics_mut()[index];
+            apply_locked_iterm_geometry(candidate, &graphic);
+            restored.push(candidate.clone());
+        } else if let Some(index) = terminal
+            .all_scrollback_graphics()
+            .iter()
+            .position(|candidate| same_iterm_graphic_asset(candidate, &graphic))
+        {
+            let candidate = &mut terminal.graphics_store_mut().all_scrollback_graphics_mut()[index];
+            apply_locked_iterm_geometry(candidate, &graphic);
+            restored.push(candidate.clone());
+        } else {
+            // A truncated replay can temporarily omit the backing placement.
+            // Retain its terminal-row anchor until a later resize can rebuild
+            // the same content; never normalize it to a viewport coordinate.
+            let _ = terminal.graphics_store_mut().add_graphic(graphic.clone());
+            restored.push(graphic);
+        }
+    }
+    restored
+}
+
+fn apply_locked_iterm_geometry(candidate: &mut TerminalGraphic, locked: &TerminalGraphic) {
+    // Position, scroll offset, and scrollback ownership come from the replayed
+    // candidate so the image stays attached to the terminal rows that created
+    // it. Only its first stable rendered size remains locked across resize.
+    candidate.cell_dimensions = locked.cell_dimensions;
+    candidate.display_cell_span = locked.display_cell_span;
+}
+
+/// Reuse the asset identity of an unchanged iTerm image after transcript replay.
+///
+/// Main-screen resize rebuilds the parser terminal from its bounded transcript.
+/// The parser correctly assigns fresh placement IDs, but an iTerm image's pixel
+/// asset is unchanged. Exposing the fresh ID as a fresh asset makes a burst of
+/// resizes race the UI's asynchronous asset loader and can leave a placement
+/// with no decodable image after older snapshots are evicted. Canonicalizing
+/// only byte-identical iTerm assets keeps placement geometry fresh while the
+/// image cache key remains stable.
+fn canonicalize_replayed_iterm_asset_ids(
+    cached_assets: &VecDeque<GraphicAssetSnapshot>,
+    placements: &mut [crate::model::TerminalGraphicPlacement],
+    snapshots: &mut [GraphicAssetSnapshot],
+) {
+    for snapshot in snapshots {
+        let referenced_by_iterm = placements.iter().any(|placement| {
+            placement.protocol == "iterm"
+                && placement.asset_id == snapshot.asset_id
+                && placement.asset_version == snapshot.asset_version
+        });
+        if !referenced_by_iterm {
+            continue;
+        }
+
+        let Some(canonical_asset_id) = cached_assets.iter().rev().find_map(|cached| {
+            (cached.asset_version == snapshot.asset_version
+                && cached.width == snapshot.width
+                && cached.height == snapshot.height
+                && cached.pixels.as_ref() == snapshot.pixels.as_ref())
+            .then_some(cached.asset_id)
+        }) else {
+            continue;
+        };
+        if canonical_asset_id == snapshot.asset_id {
+            continue;
+        }
+
+        let transient_asset_id = snapshot.asset_id;
+        for placement in placements.iter_mut().filter(|placement| {
+            placement.protocol == "iterm"
+                && placement.asset_id == transient_asset_id
+                && placement.asset_version == snapshot.asset_version
+        }) {
+            placement.asset_id = canonical_asset_id;
+        }
+        snapshot.asset_id = canonical_asset_id;
     }
 }
 
@@ -12366,6 +12619,44 @@ mod tests {
         assert_eq!(placement.height_cells, 5);
         assert_eq!(placement.source_y_offset_px, 20);
         assert_eq!(placement.visible_height_px, 80);
+    }
+
+    #[test]
+    fn resize_restore_keeps_iterm_graphic_attached_to_its_scrollback_rows() {
+        let mut terminal = Terminal::with_scrollback(20, 6, 32);
+        terminal.set_cell_dimensions(10, 10);
+        let mut graphic = TerminalGraphic::new(
+            91,
+            par_term_emu_core_rust::graphics::GraphicProtocol::ITermInline,
+            (0, 0),
+            10,
+            30,
+            vec![255; 10 * 30 * 4],
+        );
+        graphic.set_cell_dimensions(10, 10);
+        graphic.placement.requested_width = ImageDimension::cells(1.0);
+        graphic.placement.requested_height = ImageDimension::cells(3.0);
+        graphic.set_display_cell_span(1, 3);
+        assert!(terminal.graphics_store_mut().add_graphic(graphic));
+
+        terminal.process(b"\x1b[6;1H\n\n\n\n\n\n\n\n\n\n");
+        assert_eq!(terminal.all_scrollback_graphics().len(), 1);
+        let projection = display_projection_for_terminal(&terminal);
+        let (_, viewport_rows) = terminal.size();
+        let top_offset = projection.rows.len().saturating_sub(viewport_rows);
+        let protected = visible_iterm_graphics(&terminal, top_offset);
+        assert_eq!(protected.len(), 1);
+        assert!(visible_iterm_graphics(&terminal, 0).is_empty());
+
+        let restored = restore_iterm_graphics_after_resize(&mut terminal, protected);
+
+        assert_eq!(restored.len(), 1);
+        assert!(visible_iterm_graphics(&terminal, 0).is_empty());
+        assert_eq!(visible_iterm_graphics(&terminal, top_offset).len(), 1);
+        assert_eq!(
+            restored[0].asset_version,
+            terminal.all_scrollback_graphics()[0].asset_version
+        );
     }
 
     #[test]

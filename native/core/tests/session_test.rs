@@ -510,6 +510,24 @@ fn large_transcript_profile() -> TerminalProfile {
     )
 }
 
+fn truncated_transcript_graphic_profile() -> TerminalProfile {
+    local_profile_with_scrollback(
+        "truncated-transcript-graphic",
+        "Truncated Transcript Graphic",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            format!(
+                "python3 - <<'PY'\nimport sys\nsys.stdout.write('\\x1b]999;' + ('x' * 270000) + '\\x07')\nsys.stdout.write('\\x1b[20;1H')\nsys.stdout.write('\\x1b]1337;File=inline=1;width=100%;height=100%:{}\\x1b\\\\')\nsys.stdout.flush()\nPY",
+                RED_PIXEL_PNG_BASE64
+            ),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+        100,
+    )
+}
+
 fn scrollback_profile() -> TerminalProfile {
     local_profile(
         "scrollback",
@@ -3125,9 +3143,9 @@ fn session_frame_diff_exports_graphic_placements_and_asset_bytes() {
     assert_eq!(placement["row"].as_u64(), Some(0));
     assert_eq!(placement["col"].as_u64(), Some(0));
     assert_eq!(placement["width_px"].as_u64(), Some(2));
-    assert_eq!(placement["height_px"].as_u64(), Some(4));
+    assert_eq!(placement["height_px"].as_u64(), Some(2));
     assert_eq!(placement["width_cells"].as_u64(), Some(2));
-    assert_eq!(placement["height_cells"].as_u64(), Some(2));
+    assert_eq!(placement["height_cells"].as_u64(), Some(1));
     let asset_id = placement["asset_id"]
         .as_u64()
         .expect("expected graphic asset id");
@@ -3365,9 +3383,9 @@ fn session_frame_diff_exports_screen_wrapped_iterm_inline_image() {
     assert_eq!(placement["row"].as_u64(), Some(2));
     assert_eq!(placement["col"].as_u64(), Some(3));
     assert_eq!(placement["width_px"].as_u64(), Some(2));
-    assert_eq!(placement["height_px"].as_u64(), Some(4));
+    assert_eq!(placement["height_px"].as_u64(), Some(2));
     assert_eq!(placement["width_cells"].as_u64(), Some(2));
-    assert_eq!(placement["height_cells"].as_u64(), Some(2));
+    assert_eq!(placement["height_cells"].as_u64(), Some(1));
     assert_eq!(placement["preserve_aspect_ratio"].as_bool(), Some(false));
     let asset_id = placement["asset_id"]
         .as_u64()
@@ -3446,9 +3464,9 @@ PY"#,
     assert_eq!(placement["row"].as_u64(), Some(3));
     assert_eq!(placement["col"].as_u64(), Some(4));
     assert_eq!(placement["width_px"].as_u64(), Some(2));
-    assert_eq!(placement["height_px"].as_u64(), Some(4));
+    assert_eq!(placement["height_px"].as_u64(), Some(2));
     assert_eq!(placement["width_cells"].as_u64(), Some(2));
-    assert_eq!(placement["height_cells"].as_u64(), Some(2));
+    assert_eq!(placement["height_cells"].as_u64(), Some(1));
     assert_eq!(placement["preserve_aspect_ratio"].as_bool(), Some(false));
     let asset_id = placement["asset_id"]
         .as_u64()
@@ -3553,9 +3571,9 @@ time.sleep(0.15)
     assert_eq!(placement["row"].as_u64(), Some(1));
     assert_eq!(placement["col"].as_u64(), Some(2));
     assert_eq!(placement["width_px"].as_u64(), Some(2));
-    assert_eq!(placement["height_px"].as_u64(), Some(4));
+    assert_eq!(placement["height_px"].as_u64(), Some(2));
     assert_eq!(placement["width_cells"].as_u64(), Some(2));
-    assert_eq!(placement["height_cells"].as_u64(), Some(2));
+    assert_eq!(placement["height_cells"].as_u64(), Some(1));
     assert_eq!(placement["preserve_aspect_ratio"].as_bool(), Some(false));
     let asset_id = placement["asset_id"]
         .as_u64()
@@ -3594,7 +3612,7 @@ time.sleep(0.15)
 }
 
 #[test]
-fn session_frame_diff_recomputes_percent_graphic_placements_after_resize() {
+fn session_frame_diff_locks_percent_iterm_graphic_geometry_after_resize() {
     let profile = local_profile(
         "iterm-percent-resize-graphics",
         "iTerm Percent Resize Graphics",
@@ -3622,21 +3640,19 @@ fn session_frame_diff_recomputes_percent_graphic_placements_after_resize() {
         "expected one initial percent-sized graphic: {initial_frame}"
     );
     let initial_graphic = &initial_graphics[0];
-    let initial_cols = initial["viewport_cols"]
-        .as_u64()
-        .expect("expected initial viewport cols");
     let initial_rows = initial["viewport_rows"]
         .as_u64()
         .expect("expected initial viewport rows");
     assert_eq!(initial_graphic["protocol"].as_str(), Some("iterm"));
-    assert_eq!(
-        initial_graphic["width_cells"].as_u64(),
-        Some(initial_cols / 2)
-    );
+    assert_eq!(initial_graphic["width_cells"].as_u64(), Some(initial_rows));
     assert_eq!(
         initial_graphic["height_cells"].as_u64(),
         Some(initial_rows / 2)
     );
+    let initial_width_cells = initial_graphic["width_cells"].as_u64();
+    let initial_height_cells = initial_graphic["height_cells"].as_u64();
+    let initial_width_px = initial_graphic["width_px"].as_u64();
+    let initial_height_px = initial_graphic["height_px"].as_u64();
 
     session::resize_session(session_id, 40, 12, 0, 0).unwrap();
 
@@ -3654,10 +3670,257 @@ fn session_frame_diff_recomputes_percent_graphic_placements_after_resize() {
     );
     let placement = &resized_graphics[0];
     assert_eq!(placement["protocol"].as_str(), Some("iterm"));
-    assert_eq!(placement["width_cells"].as_u64(), Some(20));
-    assert_eq!(placement["height_cells"].as_u64(), Some(6));
-    assert_eq!(placement["width_px"].as_u64(), Some(20));
-    assert_eq!(placement["height_px"].as_u64(), Some(12));
+    assert_eq!(placement["width_cells"].as_u64(), initial_width_cells);
+    assert_eq!(placement["height_cells"].as_u64(), initial_height_cells);
+    assert_eq!(placement["width_px"].as_u64(), initial_width_px);
+    assert_eq!(placement["height_px"].as_u64(), initial_height_px);
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_repeated_resize_replay_keeps_iterm_asset_key_loadable() {
+    let profile = local_profile(
+        "iterm-repeated-resize-stable-asset",
+        "iTerm Repeated Resize Stable Asset",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            format!(
+                "python3 - <<'PY'\nimport sys, time\nsys.stdout.write('\\x1b]1337;File=inline=1;width=100%;height=100%;preserveAspectRatio=0;doNotMoveCursor=1:{}\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(5)\nPY",
+                RED_PIXEL_PNG_BASE64
+            ),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let initial_frame =
+        wait_for_frame_where(session_id, |frame| frame.contains("\"protocol\":\"iterm\""));
+    let initial: serde_json::Value = serde_json::from_str(&initial_frame).unwrap();
+    let initial_placement = &initial["graphics"][0];
+    let stable_asset_id = initial_placement["asset_id"]
+        .as_u64()
+        .expect("expected initial iTerm asset id");
+    let stable_asset_version = initial_placement["asset_version"]
+        .as_u64()
+        .expect("expected initial iTerm asset version");
+    let mut placement_ids = std::collections::BTreeSet::new();
+    placement_ids.insert(
+        initial_placement["placement_id"]
+            .as_u64()
+            .expect("expected initial placement id"),
+    );
+
+    for index in 0..24_u16 {
+        let cols = 42 + (index % 5) * 9;
+        let rows = 12 + (index % 4) * 3;
+        session::resize_session(session_id, cols, rows, cols * 10, rows * 20).unwrap();
+        let resized_frame = wait_for_frame_where(session_id, |frame| {
+            let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
+                return false;
+            };
+            parsed["viewport_cols"].as_u64() == Some(u64::from(cols))
+                && parsed["viewport_rows"].as_u64() == Some(u64::from(rows))
+                && parsed["graphics"].as_array().is_some_and(|graphics| {
+                    graphics
+                        .iter()
+                        .any(|graphic| graphic["protocol"].as_str() == Some("iterm"))
+                })
+        });
+        let resized: serde_json::Value = serde_json::from_str(&resized_frame).unwrap();
+        let placement = resized["graphics"]
+            .as_array()
+            .and_then(|graphics| {
+                graphics
+                    .iter()
+                    .find(|graphic| graphic["protocol"].as_str() == Some("iterm"))
+            })
+            .expect("expected iTerm placement after resize");
+        assert_eq!(placement["asset_id"].as_u64(), Some(stable_asset_id));
+        assert_eq!(
+            placement["asset_version"].as_u64(),
+            Some(stable_asset_version)
+        );
+        placement_ids.insert(
+            placement["placement_id"]
+                .as_u64()
+                .expect("expected resized placement id"),
+        );
+
+        let mut meta = TestGraphicAssetMeta::default();
+        assert_eq!(
+            unsafe {
+                test_graphic_asset_meta(
+                    session_id,
+                    stable_asset_id,
+                    stable_asset_version,
+                    &mut meta,
+                )
+            },
+            0,
+            "the stable asset must remain loadable after resize {index}"
+        );
+        assert_eq!((meta.width, meta.height, meta.rgba_len), (1, 1, 4));
+    }
+
+    assert!(
+        placement_ids.len() > 1,
+        "the test must exercise transcript replay with fresh placements"
+    );
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_repeated_resize_keeps_iterm_thumbnail_size_and_position() {
+    let profile = local_profile(
+        "iterm-height-resize-locked-geometry",
+        "iTerm Height Resize Locked Geometry",
+        "/bin/sh",
+        vec![
+            "-lc".to_string(),
+            format!(
+                "python3 - <<'PY'\nimport sys, time\nsys.stdout.write('\\x1b[8;1H\\x1b]1337;File=inline=1;width=100%;height=100%;preserveAspectRatio=0;doNotMoveCursor=1:{}\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(3)\nPY",
+                RED_PIXEL_PNG_BASE64
+            ),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let _ = wait_for_frame_where(session_id, |frame| frame.contains("\"protocol\":\"iterm\""));
+    session::resize_session(session_id, 80, 24, 0, 0).unwrap();
+    let initial_frame = session::take_frame_diff(session_id)
+        .unwrap()
+        .expect("expected baseline resize frame");
+    let initial: serde_json::Value = serde_json::from_str(&initial_frame).unwrap();
+    let initial_graphic = &initial["graphics"][0];
+    let locked_geometry = (
+        initial_graphic["col"].as_u64(),
+        initial_graphic["width_px"].as_u64(),
+        initial_graphic["height_px"].as_u64(),
+        initial_graphic["width_cells"].as_u64(),
+        initial_graphic["height_cells"].as_u64(),
+    );
+
+    let locked_row = initial_graphic["row"].as_u64().unwrap() as u16;
+    assert!(locked_row > 1, "test image must start below the first row");
+
+    for (cols, rows) in [
+        (60, locked_row + 2),
+        (100, locked_row),
+        (48, 2),
+        (96, locked_row + 1),
+        (80, 24),
+    ] {
+        session::resize_session(session_id, cols, rows, 0, 0).unwrap();
+        let frame = session::take_frame_diff(session_id)
+            .unwrap()
+            .expect("expected height-only resize frame");
+        let frame: serde_json::Value = serde_json::from_str(&frame).unwrap();
+        let graphic = frame["graphics"].as_array().and_then(|graphics| {
+            graphics
+                .iter()
+                .find(|graphic| graphic["protocol"].as_str() == Some("iterm"))
+        });
+        if rows <= locked_row {
+            continue;
+        }
+        let graphic = graphic.expect("expected fixed iTerm thumbnail after viewport grows again");
+        assert_eq!(
+            (
+                graphic["col"].as_u64(),
+                graphic["width_px"].as_u64(),
+                graphic["height_px"].as_u64(),
+                graphic["width_cells"].as_u64(),
+                graphic["height_cells"].as_u64(),
+            ),
+            locked_geometry,
+            "resize to {cols}x{rows} must preserve thumbnail geometry: {frame}"
+        );
+        if (cols, rows) == (80, 24) {
+            assert_eq!(graphic["row"].as_u64(), initial_graphic["row"].as_u64());
+        }
+    }
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn session_resize_redraw_preserves_iterm_graphic_but_ris_still_clears_it() {
+    let script = format!(
+        r#"import sys, time
+
+def out(value):
+    sys.stdout.write(value)
+    sys.stdout.flush()
+
+out('\x1b]1337;File=inline=1;doNotMoveCursor=1:{payload}\x07READY\n')
+sys.stdin.readline()
+out('\x1b[H\x1b[JREDRAW\n')
+sys.stdin.readline()
+out('\x1bcRESET\n')
+time.sleep(2)
+"#,
+        payload = RED_PIXEL_PNG_BASE64
+    );
+    let profile = local_profile(
+        "iterm-resize-redraw-guard",
+        "iTerm Resize Redraw Guard",
+        "/usr/bin/env",
+        vec!["python3".to_string(), "-c".to_string(), script],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    );
+    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+
+    let initial_frame = wait_for_frame_containing(session_id, "READY");
+    let initial: serde_json::Value = serde_json::from_str(&initial_frame).unwrap();
+    assert_eq!(
+        initial["graphics"].as_array().map(Vec::len),
+        Some(1),
+        "expected the initial iTerm image: {initial_frame}"
+    );
+    let initial_asset_id = initial["graphics"][0]["asset_id"]
+        .as_u64()
+        .expect("expected initial asset id");
+
+    session::resize_session(session_id, 80, 24, 800, 480).unwrap();
+    let resized_frame =
+        wait_for_frame_where(session_id, |frame| frame.contains("\"viewport_cols\":80"));
+    assert!(
+        resized_frame.contains("\"protocol\":\"iterm\""),
+        "expected iTerm graphic in resized frame: {resized_frame}"
+    );
+    session::write_session(session_id, b"\n").unwrap();
+
+    let redraw_frame = wait_for_frame_containing(session_id, "REDRAW");
+    let redraw: serde_json::Value = serde_json::from_str(&redraw_frame).unwrap();
+    assert_eq!(
+        redraw["graphics"][0]["asset_id"].as_u64(),
+        Some(initial_asset_id),
+        "a partial erase redraw immediately caused by resize must retain the iTerm image asset: {redraw_frame}"
+    );
+
+    session::resize_session(session_id, 81, 25, 810, 500).unwrap();
+    let resized_frame =
+        wait_for_frame_where(session_id, |frame| frame.contains("\"viewport_cols\":81"));
+    assert!(
+        resized_frame.contains("\"protocol\":\"iterm\""),
+        "expected restored iTerm graphic in second resized frame: {resized_frame}"
+    );
+    session::write_session(session_id, b"\n").unwrap();
+
+    let reset_frame = wait_for_frame_containing(session_id, "RESET");
+    let reset: serde_json::Value = serde_json::from_str(&reset_frame).unwrap();
+    assert!(
+        reset["graphics"]
+            .as_array()
+            .is_none_or(|graphics| graphics.is_empty()),
+        "RIS must continue to clear graphics even inside the resize guard window: {reset_frame}"
+    );
 
     session::close_session(session_id).unwrap();
 }
@@ -3711,7 +3974,7 @@ fn session_resize_replay_preserves_profile_graphics_memory_limits() {
 }
 
 #[test]
-fn session_frame_diff_recomputes_percent_iterm_scrollback_placements_after_resize() {
+fn session_frame_diff_locks_percent_iterm_scrollback_geometry_after_resize() {
     let profile = local_profile_with_scrollback(
         "iterm-percent-scrollback-resize-graphics",
         "iTerm Percent Scrollback Resize Graphics",
@@ -3764,25 +4027,23 @@ fn session_frame_diff_recomputes_percent_iterm_scrollback_placements_after_resiz
                 .find(|graphic| graphic["protocol"].as_str() == Some("iterm"))
         })
         .expect("expected iTerm2 scrollback placement before resize");
-    let initial_cols = initial["viewport_cols"]
-        .as_u64()
-        .expect("expected initial viewport cols");
     let initial_rows = initial["viewport_rows"]
         .as_u64()
         .expect("expected initial viewport rows");
     assert_eq!(
         initial_placement["width_cells"].as_u64(),
-        Some(initial_cols / 2)
+        Some(initial_rows)
     );
     assert_eq!(
         initial_placement["height_cells"].as_u64(),
         Some(initial_rows / 2)
     );
-    assert_eq!(
-        initial_placement["width_px"].as_u64(),
-        Some(initial_cols / 2)
-    );
+    assert_eq!(initial_placement["width_px"].as_u64(), Some(initial_rows));
     assert_eq!(initial_placement["height_px"].as_u64(), Some(initial_rows));
+    let initial_width_cells = initial_placement["width_cells"].as_u64();
+    let initial_height_cells = initial_placement["height_cells"].as_u64();
+    let initial_width_px = initial_placement["width_px"].as_u64();
+    let initial_height_px = initial_placement["height_px"].as_u64();
 
     session::resize_session(session_id, 40, 12, 0, 0).unwrap();
     session::scroll_to_session(session_id, usize::MAX).unwrap();
@@ -3812,10 +4073,16 @@ fn session_frame_diff_recomputes_percent_iterm_scrollback_placements_after_resiz
                 .find(|graphic| graphic["protocol"].as_str() == Some("iterm"))
         })
         .expect("expected iTerm2 scrollback placement after resize");
-    assert_eq!(resized_placement["width_cells"].as_u64(), Some(20));
-    assert_eq!(resized_placement["height_cells"].as_u64(), Some(6));
-    assert_eq!(resized_placement["width_px"].as_u64(), Some(20));
-    assert_eq!(resized_placement["height_px"].as_u64(), Some(12));
+    assert_eq!(
+        resized_placement["width_cells"].as_u64(),
+        initial_width_cells
+    );
+    assert_eq!(
+        resized_placement["height_cells"].as_u64(),
+        initial_height_cells
+    );
+    assert_eq!(resized_placement["width_px"].as_u64(), initial_width_px);
+    assert_eq!(resized_placement["height_px"].as_u64(), initial_height_px);
 
     session::close_session(session_id).unwrap();
 }
@@ -3949,24 +4216,27 @@ time.sleep(0.25)
             && frame.contains("\"asset_id\":62012")
     });
     let initial: serde_json::Value = serde_json::from_str(&initial_frame).unwrap();
-    for (label, placement) in [
+    for (label, placement, expected_height_cells) in [
         (
             "iTerm2",
             placement_with(&initial, |graphic| {
                 graphic["protocol"].as_str() == Some("iterm")
             }),
+            1,
         ),
         (
             "Sixel",
             placement_with(&initial, |graphic| {
                 graphic["protocol"].as_str() == Some("sixel")
             }),
+            3,
         ),
         (
             "Kitty",
             placement_with(&initial, |graphic| {
                 graphic["asset_id"].as_u64() == Some(62012)
             }),
+            3,
         ),
     ] {
         assert_eq!(
@@ -3976,7 +4246,7 @@ time.sleep(0.25)
         );
         assert_eq!(
             placement["height_cells"].as_u64(),
-            Some(3),
+            Some(expected_height_cells),
             "initial {label} placement should use the original 2px-tall cell size: {initial_frame}"
         );
     }
@@ -4045,6 +4315,8 @@ time.sleep(0.25)
                 graphic["protocol"].as_str() == Some("iterm")
             }),
             0,
+            2,
+            1,
         ),
         (
             "Sixel",
@@ -4052,6 +4324,8 @@ time.sleep(0.25)
                 graphic["protocol"].as_str() == Some("sixel")
             }),
             4,
+            6,
+            2,
         ),
         (
             "Kitty",
@@ -4059,9 +4333,13 @@ time.sleep(0.25)
                 graphic["asset_id"].as_u64() == Some(62012)
             }),
             8,
+            6,
+            2,
         ),
     ];
-    for (label, placement, expected_row) in restored_placements {
+    for (label, placement, expected_row, expected_height_px, expected_height_cells) in
+        restored_placements
+    {
         assert_eq!(
             placement["row"].as_u64(),
             Some(expected_row),
@@ -4069,7 +4347,7 @@ time.sleep(0.25)
         );
         assert_eq!(placement["col"].as_u64(), Some(0));
         assert_eq!(placement["width_px"].as_u64(), Some(2));
-        assert_eq!(placement["height_px"].as_u64(), Some(6));
+        assert_eq!(placement["height_px"].as_u64(), Some(expected_height_px));
         assert_eq!(
             placement["width_cells"].as_u64(),
             Some(1),
@@ -4077,7 +4355,7 @@ time.sleep(0.25)
         );
         assert_eq!(
             placement["height_cells"].as_u64(),
-            Some(2),
+            Some(expected_height_cells),
             "restored {label} placement should be recomputed against resized 3px-tall cells: {restored_frame}"
         );
     }
@@ -4274,10 +4552,10 @@ fn session_frame_diff_exports_iterm_scrollback_placements_when_scrolled_back() {
     assert_eq!(placement["row"].as_u64(), Some(0));
     assert_eq!(placement["col"].as_u64(), Some(0));
     assert_eq!(placement["width_px"].as_u64(), Some(1));
-    assert_eq!(placement["height_px"].as_u64(), Some(2));
+    assert_eq!(placement["height_px"].as_u64(), Some(1));
     assert_eq!(placement["width_cells"].as_u64(), Some(1));
     assert_eq!(placement["height_cells"].as_u64(), Some(1));
-    assert_eq!(placement["visible_height_px"].as_u64(), Some(2));
+    assert_eq!(placement["visible_height_px"].as_u64(), Some(1));
     assert_eq!(placement["source_y_offset_px"].as_u64(), Some(0));
 
     session::close_session(session_id).unwrap();
@@ -14141,9 +14419,25 @@ fn parser_terminal_iterm_requested_height_advances_cursor_by_display_span() {
 
     assert_eq!(terminal.graphics_count(), 1);
     assert_eq!(terminal.all_graphics()[0].protocol.as_str(), "iterm");
-    assert_eq!(terminal.all_graphics()[0].display_cell_span, Some((1, 3)));
+    assert_eq!(terminal.all_graphics()[0].display_cell_span, Some((6, 3)));
     assert_eq!(terminal.active_grid().row_text(0).trim_end(), "");
     assert_eq!(terminal.active_grid().row_text(3).trim_end(), "X");
+}
+
+#[test]
+fn parser_terminal_iterm_thumbnail_cap_prevents_tall_image_scroll_crop() {
+    let mut terminal = ParserTerminal::new(80, 24);
+    let image = format!(
+        "\x1b]1337;File=inline=1;width=100%;height=100%;preserveAspectRatio=0:{RED_PIXEL_PNG_BASE64}\x1b\\"
+    );
+
+    terminal.process(image.as_bytes());
+
+    assert_eq!(terminal.graphics_count(), 1);
+    let graphic = &terminal.all_graphics()[0];
+    assert_eq!(graphic.display_cell_span, Some((24, 12)));
+    assert_eq!(graphic.scroll_offset_rows, 0);
+    assert_eq!(terminal.cursor().row, 12);
 }
 
 #[test]
@@ -14169,15 +14463,15 @@ fn parser_terminal_iterm_advancement_respects_scroll_region_bottom() {
     assert_eq!(terminal.graphics_count(), 1);
     let graphic = &terminal.all_graphics()[0];
     assert_eq!(graphic.protocol.as_str(), "iterm");
-    assert_eq!(graphic.display_cell_span, Some((1, 3)));
+    assert_eq!(graphic.display_cell_span, Some((4, 2)));
     assert_eq!(
         graphic.position,
         (0, 1),
         "partially clipped iTerm2 images should stay anchored at the scroll region top"
     );
     assert_eq!(
-        graphic.scroll_offset_rows, 1,
-        "iTerm2 images clipped by partial scroll regions should track hidden top rows"
+        graphic.scroll_offset_rows, 0,
+        "aspect-fit iTerm2 thumbnails should avoid unnecessary top cropping in narrow regions"
     );
 }
 
@@ -14195,8 +14489,8 @@ fn parser_terminal_iterm_px_dimensions_accept_space_before_unit() {
     assert_eq!(graphic.protocol.as_str(), "iterm");
     assert_eq!(
         graphic.display_cell_span,
-        Some((2, 2)),
-        "iTerm2 px dimensions should accept a space before the unit"
+        Some((2, 1)),
+        "iTerm2 px dimensions should accept a space before the unit and remain proportional"
     );
 }
 
@@ -14236,7 +14530,7 @@ fn parser_terminal_iterm_do_not_move_cursor_keeps_text_position() {
 
     assert_eq!(terminal.graphics_count(), 1);
     assert_eq!(terminal.all_graphics()[0].protocol.as_str(), "iterm");
-    assert_eq!(terminal.all_graphics()[0].display_cell_span, Some((1, 3)));
+    assert_eq!(terminal.all_graphics()[0].display_cell_span, Some((6, 3)));
     assert_eq!(terminal.active_grid().row_text(0).trim_end(), "X");
     assert_eq!(terminal.active_grid().row_text(3).trim_end(), "");
 }
@@ -14252,14 +14546,14 @@ fn parser_terminal_resize_refreshes_percent_graphic_cell_span() {
 
     assert_eq!(terminal.graphics_count(), 1);
     assert_eq!(terminal.all_graphics()[0].protocol.as_str(), "iterm");
-    assert_eq!(terminal.all_graphics()[0].display_cell_span, Some((40, 12)));
+    assert_eq!(terminal.all_graphics()[0].display_cell_span, Some((24, 12)));
 
     terminal.resize(40, 12);
 
     assert_eq!(
         terminal.all_graphics()[0].display_cell_span,
-        Some((20, 6)),
-        "resize should recompute percent-sized graphic spans against the new viewport"
+        Some((12, 6)),
+        "resize should recompute aspect-preserving percent-sized thumbnails against the new viewport"
     );
 }
 
@@ -14273,7 +14567,7 @@ fn parser_terminal_resize_refreshes_scrollback_percent_graphic_cell_span() {
     terminal.process(image.as_bytes());
     assert_eq!(terminal.graphics_count(), 1);
     assert_eq!(terminal.all_graphics()[0].protocol.as_str(), "iterm");
-    assert_eq!(terminal.all_graphics()[0].display_cell_span, Some((40, 12)));
+    assert_eq!(terminal.all_graphics()[0].display_cell_span, Some((24, 12)));
 
     terminal.process(b"\x1b[24;1H");
     for _ in 0..13 {
@@ -14288,15 +14582,15 @@ fn parser_terminal_resize_refreshes_scrollback_percent_graphic_cell_span() {
     assert_eq!(terminal.scrollback_graphics_count(), 1);
     assert_eq!(
         terminal.all_scrollback_graphics()[0].display_cell_span,
-        Some((40, 12))
+        Some((24, 12))
     );
 
     terminal.resize(40, 12);
 
     assert_eq!(
         terminal.all_scrollback_graphics()[0].display_cell_span,
-        Some((20, 6)),
-        "resize should recompute percent-sized graphics retained in scrollback"
+        Some((12, 6)),
+        "resize should recompute aspect-preserving thumbnails retained in scrollback"
     );
 }
 
@@ -21802,6 +22096,51 @@ fn scrollback_heavy_transcript_is_bounded_and_resize_still_returns_snapshot() {
     assert_eq!(parsed["resize_replay_micros"].as_u64(), Some(0));
     assert_eq!(
         parsed["resize_replay_skipped_truncated_count"].as_u64(),
+        Some(1)
+    );
+
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn truncated_transcript_resize_keeps_recent_iterm_thumbnail_placement() {
+    let session_id = session::create_session(
+        &serde_json::to_string(&truncated_transcript_graphic_profile()).unwrap(),
+    )
+    .unwrap();
+
+    let _ = wait_for_frame_where(session_id, |candidate| {
+        serde_json::from_str::<serde_json::Value>(candidate)
+            .ok()
+            .and_then(|value| value["graphics"].as_array().map(|items| !items.is_empty()))
+            .unwrap_or(false)
+    });
+    let stats = session::take_session_debug_stats_json(session_id)
+        .unwrap()
+        .expect("expected session debug stats before resize");
+    let stats: serde_json::Value = serde_json::from_str(&stats).unwrap();
+    assert_eq!(stats["transcript_truncated"].as_bool(), Some(true));
+
+    session::resize_session(session_id, 80, 10, 800, 200).unwrap();
+    let frame = session::take_frame_diff(session_id)
+        .unwrap()
+        .expect("expected frame immediately after truncated resize");
+    let frame: serde_json::Value = serde_json::from_str(&frame).unwrap();
+    let graphic = &frame["graphics"][0];
+    assert!(graphic["row"].as_u64().is_some_and(|row| row < 10));
+    assert!(
+        graphic["visible_height_px"]
+            .as_u64()
+            .is_some_and(|height| height > 0)
+    );
+
+    let stats = session::take_session_debug_stats_json(session_id)
+        .unwrap()
+        .expect("expected session debug stats after resize");
+    let stats: serde_json::Value = serde_json::from_str(&stats).unwrap();
+    assert_eq!(stats["resize_replay_count"].as_u64(), Some(0));
+    assert_eq!(
+        stats["resize_replay_skipped_truncated_count"].as_u64(),
         Some(1)
     );
 

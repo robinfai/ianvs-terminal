@@ -64,7 +64,9 @@ pub(super) enum ProtocolCallbackPolicy {
 #[derive(Default)]
 pub(super) struct ProtocolCallbackBatch {
     pub(super) callbacks: Vec<CallbackEvent>,
+    pub(super) cleared_screen: bool,
     pub(super) cleared_scrollback: bool,
+    pub(super) terminal_reset: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -1159,13 +1161,16 @@ pub(super) fn callback_events_from_parser_events(
 ) -> ProtocolCallbackBatch {
     let mut batch = ProtocolCallbackBatch::default();
     for event in parser_events {
-        if matches!(
-            &event,
-            ParserTerminalEvent::ScreenCleared {
-                include_scrollback: true
+        match &event {
+            ParserTerminalEvent::ScreenCleared { include_scrollback } => {
+                if *include_scrollback {
+                    batch.cleared_scrollback = true;
+                } else {
+                    batch.cleared_screen = true;
+                }
             }
-        ) {
-            batch.cleared_scrollback = true;
+            ParserTerminalEvent::TerminalReset => batch.terminal_reset = true,
+            _ => {}
         }
         let ProtocolCallbackPolicy::Enabled {
             suppress_shell_zones,

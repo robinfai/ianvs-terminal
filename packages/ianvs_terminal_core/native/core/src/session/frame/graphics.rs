@@ -6,9 +6,7 @@ use crate::model::TerminalGraphicPlacement;
 use par_term_emu_core_rust::cell::Cell;
 use par_term_emu_core_rust::color::Color;
 use par_term_emu_core_rust::graphics::placeholder::{PlaceholderInfo, parse_diacritics};
-use par_term_emu_core_rust::graphics::{
-    ImageDimension, ImageSizeUnit, PLACEHOLDER_CHAR, TerminalGraphic,
-};
+use par_term_emu_core_rust::graphics::{ImageDimension, PLACEHOLDER_CHAR, TerminalGraphic};
 use par_term_emu_core_rust::terminal::Terminal;
 use std::sync::Arc;
 
@@ -452,45 +450,11 @@ fn graphic_display_geometry(
     viewport_rows: usize,
 ) -> Option<GraphicDisplayGeometry> {
     let (cell_width_px, cell_height_px) = graphic_cell_dimensions_px(graphic);
-    let terminal_width_px = viewport_cols
-        .saturating_mul(cell_width_px)
-        .max(cell_width_px);
-    let terminal_height_px = viewport_rows
-        .saturating_mul(cell_height_px)
-        .max(cell_height_px);
     let (source_x, source_y, source_width, source_height) = graphic.source_rect_pixels()?;
-
-    let requested_width = graphic_dimension_px(
-        graphic.placement.requested_width,
-        source_width,
-        cell_width_px,
-        terminal_width_px,
-    );
-    let requested_height = graphic_dimension_px(
-        graphic.placement.requested_height,
-        source_height,
-        cell_height_px,
-        terminal_height_px,
-    );
-
-    let (visible_width_px, visible_height_px) = match (requested_width, requested_height) {
-        (Some(width), Some(height)) => (width, height),
-        (Some(width), None) if graphic.placement.preserve_aspect_ratio && source_width > 0 => {
-            let height = ((width as f64 * source_height as f64) / source_width as f64)
-                .round()
-                .max(1.0) as usize;
-            (width, height)
-        }
-        (None, Some(height)) if graphic.placement.preserve_aspect_ratio && source_height > 0 => {
-            let width = ((height as f64 * source_width as f64) / source_height as f64)
-                .round()
-                .max(1.0) as usize;
-            (width, height)
-        }
-        (Some(width), None) => (width, source_height.max(1)),
-        (None, Some(height)) => (source_width.max(1), height),
-        _ => (source_width.max(1), source_height.max(1)),
-    };
+    let (visible_width_px, visible_height_px) = locked_iterm_display_size_px(graphic)
+        .unwrap_or_else(|| {
+            graphic.resolved_display_size_px(Some(viewport_cols), Some(viewport_rows))
+        });
 
     let scale_x = visible_width_px as f64 / source_width as f64;
     let scale_y = visible_height_px as f64 / source_height as f64;
@@ -528,31 +492,35 @@ fn graphic_display_geometry(
     })
 }
 
+fn locked_iterm_display_size_px(graphic: &TerminalGraphic) -> Option<(usize, usize)> {
+    if graphic.protocol.as_str() != "iterm" {
+        return None;
+    }
+    let (span_cols, span_rows) = graphic.display_cell_span?;
+    let (cell_width_px, cell_height_px) = graphic_cell_dimensions_px(graphic);
+    let (_, _, source_width, source_height) = graphic.source_rect_pixels()?;
+    let width_bound = span_cols
+        .saturating_mul(cell_width_px)
+        .saturating_sub(graphic.placement.x_offset as usize)
+        .max(1);
+    let height_bound = span_rows
+        .saturating_mul(cell_height_px)
+        .saturating_sub(graphic.placement.y_offset as usize)
+        .max(1);
+    let scale = (width_bound as f64 / source_width.max(1) as f64)
+        .min(height_bound as f64 / source_height.max(1) as f64);
+    Some((
+        (source_width as f64 * scale).floor().max(1.0) as usize,
+        (source_height as f64 * scale).floor().max(1.0) as usize,
+    ))
+}
+
 fn graphic_cell_dimensions_px(graphic: &TerminalGraphic) -> (usize, usize) {
     let (cell_width_px, cell_height_px) = graphic.cell_dimensions.unwrap_or((1, 1));
     (
         (cell_width_px as usize).max(1),
         (cell_height_px as usize).max(1),
     )
-}
-
-fn graphic_dimension_px(
-    dimension: ImageDimension,
-    fallback_px: usize,
-    cell_px: usize,
-    terminal_px: usize,
-) -> Option<usize> {
-    if dimension.is_auto() {
-        return None;
-    }
-    let value = dimension.value.max(0.0);
-    let px = match dimension.unit {
-        ImageSizeUnit::Auto => fallback_px,
-        ImageSizeUnit::Cells => (value * cell_px as f64).round() as usize,
-        ImageSizeUnit::Pixels => value.round() as usize,
-        ImageSizeUnit::Percent => ((value / 100.0) * terminal_px as f64).round() as usize,
-    };
-    Some(px.max(1))
 }
 
 #[cfg(test)]
