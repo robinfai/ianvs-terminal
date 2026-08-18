@@ -120,6 +120,7 @@ void main() {
           TerminalActionId.newTab,
           TerminalActionId.openTerminalAtFolder,
           TerminalActionId.openRecording,
+          TerminalActionId.openSftpPanel,
           TerminalActionId.splitRight,
           TerminalActionId.splitDown,
           TerminalActionId.copy,
@@ -129,6 +130,12 @@ void main() {
           TerminalActionId.instantReplay,
           TerminalActionId.exportDiagnostics,
         }),
+      );
+      expect(
+        ShellActionRegistry.commandPaletteVisible(
+          TerminalActionId.openSftpPanel,
+        ),
+        isTrue,
       );
       expect(
         ShellActionRegistry.releaseActionIds,

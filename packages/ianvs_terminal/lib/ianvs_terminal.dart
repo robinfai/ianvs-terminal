@@ -11,6 +11,7 @@ export 'src/runtime/terminal_clipboard_policy.dart';
 export 'src/runtime/terminal_diagnostics.dart';
 export 'src/runtime/terminal_refresh_policy.dart';
 export 'src/runtime/terminal_runtime_controller.dart';
+export 'src/runtime/terminal_sftp.dart';
 export 'src/runtime/terminal_zmodem_recovery.dart';
 export 'src/terminal/selection_controller.dart';
 export 'src/terminal/terminal_graphics_cache.dart';

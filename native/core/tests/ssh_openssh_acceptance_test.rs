@@ -6,7 +6,7 @@ use ianvs_core::model::{
     TerminalSshPortForwardKind,
 };
 use ianvs_core::ssh::{
-    SshAuthClient, SshHostKeyPrompt, SshHostKeyPromptReason, SshRuntime, spawn_ssh,
+    SftpOperation, SshAuthClient, SshHostKeyPrompt, SshHostKeyPromptReason, SshRuntime, spawn_ssh,
 };
 use std::env;
 use std::fs;
@@ -16,7 +16,7 @@ use std::net::{TcpListener, TcpStream};
 use std::os::unix::net::UnixListener;
 use std::sync::mpsc;
 use std::thread;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 const TEST_USER: &str = "ianvs";
 const TEST_PASSWORD: &str = "ianvs-e2e-password";
@@ -75,6 +75,127 @@ fn run_shell_probe(connection: TerminalProfileConnection, expected_role: &str) {
     run_shell_probe_runtime(runtime, expected_role);
 }
 
+fn run_sftp_probe(connection: TerminalProfileConnection, expected_role: &str) {
+    let runtime = spawn_ssh(connection, 24, 100).expect("native SSH transport should start");
+    let request = runtime
+        .sftp
+        .start_list_directory("/".to_string())
+        .expect("SFTP directory request should enqueue");
+    let (completion_sender, completion_receiver) = mpsc::sync_channel(1);
+    thread::spawn(move || {
+        let _ = completion_sender.send(request.blocking_recv());
+    });
+    let listing = completion_receiver
+        .recv_timeout(SESSION_TIMEOUT)
+        .expect("SFTP directory request should complete")
+        .expect("SFTP response channel should remain open")
+        .expect("SFTP root directory should be readable");
+    assert_eq!(listing.path, "/");
+    assert!(
+        !listing.entries.is_empty(),
+        "SFTP fixture root should contain entries"
+    );
+    assert!(
+        listing
+            .entries
+            .iter()
+            .all(|entry| entry.name != "." && entry.name != ".."),
+        "SFTP listings must omit dot entries"
+    );
+    let scratch = tempfile::tempdir().expect("SFTP local scratch directory");
+    let upload_path = scratch.path().join("upload.txt");
+    let download_path = scratch.path().join("download.txt");
+    fs::write(&upload_path, b"ianvs-sftp-round-trip\n").expect("write SFTP upload fixture");
+    let nonce = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("system clock should follow Unix epoch")
+        .as_nanos();
+    let remote_directory = format!("/tmp/ianvs-sftp-e2e-{nonce}");
+    let remote_file = format!("{remote_directory}/round-trip.txt");
+    run_sftp_operation(
+        &runtime,
+        SftpOperation::CreateDirectory {
+            path: remote_directory.clone(),
+        },
+        "create remote directory",
+    );
+    run_sftp_operation(
+        &runtime,
+        SftpOperation::UploadFile {
+            local_path: upload_path.to_string_lossy().into_owned(),
+            remote_path: remote_file.clone(),
+        },
+        "upload remote file",
+    );
+    run_sftp_operation(
+        &runtime,
+        SftpOperation::DownloadFile {
+            remote_path: remote_file.clone(),
+            local_path: download_path.to_string_lossy().into_owned(),
+        },
+        "download remote file",
+    );
+    assert_eq!(
+        fs::read(&download_path).expect("read SFTP download fixture"),
+        b"ianvs-sftp-round-trip\n"
+    );
+    fs::write(&upload_path, b"ianvs-sftp-overwrite\n").expect("rewrite SFTP upload fixture");
+    run_sftp_operation(
+        &runtime,
+        SftpOperation::UploadFile {
+            local_path: upload_path.to_string_lossy().into_owned(),
+            remote_path: remote_file.clone(),
+        },
+        "atomically overwrite remote file",
+    );
+    run_sftp_operation(
+        &runtime,
+        SftpOperation::DownloadFile {
+            remote_path: remote_file.clone(),
+            local_path: download_path.to_string_lossy().into_owned(),
+        },
+        "download overwritten remote file",
+    );
+    assert_eq!(
+        fs::read(&download_path).expect("read overwritten SFTP fixture"),
+        b"ianvs-sftp-overwrite\n"
+    );
+    run_sftp_operation(
+        &runtime,
+        SftpOperation::DeleteEntry {
+            path: remote_file,
+            is_directory: false,
+        },
+        "delete remote file",
+    );
+    run_sftp_operation(
+        &runtime,
+        SftpOperation::DeleteEntry {
+            path: remote_directory,
+            is_directory: true,
+        },
+        "delete remote directory",
+    );
+    eprintln!("ssh-e2e: SFTP root accepted through the active SSH transport");
+    run_shell_probe_runtime(runtime, expected_role);
+}
+
+fn run_sftp_operation(runtime: &SshRuntime, operation: SftpOperation, label: &str) {
+    let request = runtime
+        .sftp
+        .start_operation(operation)
+        .unwrap_or_else(|error| panic!("{label} should enqueue: {error}"));
+    let (completion_sender, completion_receiver) = mpsc::sync_channel(1);
+    thread::spawn(move || {
+        let _ = completion_sender.send(request.blocking_recv());
+    });
+    completion_receiver
+        .recv_timeout(SESSION_TIMEOUT)
+        .unwrap_or_else(|error| panic!("{label} should complete: {error}"))
+        .unwrap_or_else(|error| panic!("{label} response channel should remain open: {error}"))
+        .unwrap_or_else(|error| panic!("{label} should succeed: {error}"));
+}
+
 fn run_shell_probe_runtime(runtime: SshRuntime, expected_role: &str) {
     let SshRuntime {
         master: _,
@@ -82,6 +203,7 @@ fn run_shell_probe_runtime(runtime: SshRuntime, expected_role: &str) {
         mut writer,
         mut child,
         auth: _,
+        sftp: _,
     } = runtime;
     let (output_sender, output_receiver) = mpsc::channel();
     thread::spawn(move || {
@@ -147,6 +269,7 @@ fn assert_failed_session(
         writer: _,
         mut child,
         auth: _,
+        sftp: _,
     } = runtime;
     let (output_sender, output_receiver) = mpsc::channel();
     thread::spawn(move || {
@@ -297,6 +420,7 @@ fn run_multi_round_otp_probe(port: u16) {
         mut writer,
         mut child,
         auth: _,
+        sftp: _,
     } = runtime;
     let (output_sender, output_receiver) = mpsc::channel();
     thread::spawn(move || {
@@ -436,6 +560,7 @@ fn run_forwarding_probe(port: u16, identity: &str) {
         mut writer,
         mut child,
         auth: _,
+        sftp: _,
     } = runtime;
     let (output_sender, output_receiver) = mpsc::channel();
     thread::spawn(move || {
@@ -518,7 +643,7 @@ fn run_forwarding_probe(port: u16, identity: &str) {
 #[test]
 #[ignore = "requires the dedicated Docker OpenSSH topology; run tools/ssh_e2e/run.sh"]
 fn openssh_authentication_and_proxy_jump_acceptance() {
-    run_shell_probe(
+    run_sftp_probe(
         password_connection(required_port("IANVS_SSH_E2E_PASSWORD_PORT")),
         "password",
     );

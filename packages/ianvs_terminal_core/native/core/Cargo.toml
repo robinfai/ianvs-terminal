@@ -15,6 +15,7 @@ regenerate-proto = ["prost-build"]
 anyhow = "1.0"
 base64 = "0.22"
 bytes = "1.10"
+futures-util = "0.3"
 glob = "0.3"
 getrandom = "0.3"
 libc = "0.2"
@@ -24,6 +25,7 @@ par-term-emu-core-rust = { path = "../vendor/par-term-emu-core-rust", default-fe
 prost = "0.14.3"
 regex = "1.12.3"
 russh = "0.62.4"
+russh-sftp = "2.4.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sha2 = "0.10"
@@ -31,10 +33,13 @@ shell-words = "1.1"
 strip-ansi-escapes = "0.2.1"
 tempfile = "3.23.0"
 thiserror = "2.0"
-tokio = { version = "1.47", features = ["rt-multi-thread", "sync", "time", "net", "io-util", "process"] }
+tokio = { version = "1.47", features = ["rt-multi-thread", "sync", "time", "net", "io-util", "process", "fs"] }
 unicode-normalization = "0.1.25"
 url = "2.5.8"
 zmodem2 = { path = "../vendor/zmodem2", version = "=0.7.2" }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = ["Win32_Storage_FileSystem"] }
 
 [dev-dependencies]
 cbindgen = "0.29.2"

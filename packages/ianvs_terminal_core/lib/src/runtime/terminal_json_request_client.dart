@@ -4,6 +4,7 @@ import '../config/terminal_defaults.dart';
 import '../terminal/terminal_models.dart';
 import 'terminal_backend_request_error.dart';
 import 'terminal_session_request_transport.dart';
+import 'terminal_sftp.dart';
 import 'terminal_zmodem_recovery.dart';
 
 const int _maxSearchMatchesPerResponse = 1000;
@@ -61,6 +62,105 @@ final class TerminalJsonRequestClient {
       'accept': accept,
     });
     return decoded?['accepted'] == true;
+  }
+
+  String? startSftpDirectoryListing(String sessionId, String path) {
+    const operation = 'ssh.sftp.list_directory_start';
+    final decoded = _requestJsonObject(sessionId, operation, <String, Object?>{
+      'kind': operation,
+      'path': path,
+    });
+    final jobId = decoded?['jobId'];
+    if (jobId is! String ||
+        jobId.isEmpty ||
+        jobId.length > 20 ||
+        int.tryParse(jobId) == null) {
+      return null;
+    }
+    return jobId;
+  }
+
+  TerminalSftpDirectoryPollResult? pollSftpDirectoryListing(
+    String sessionId,
+    String jobId,
+  ) {
+    const operation = 'ssh.sftp.list_directory_poll';
+    final decoded = _requestJsonObject(sessionId, operation, <String, Object?>{
+      'kind': operation,
+      'jobId': jobId,
+    });
+    if (decoded == null) {
+      return null;
+    }
+    try {
+      return TerminalSftpDirectoryPollResult.fromJson(decoded);
+    } on Object catch (error, stackTrace) {
+      _onRequestError?.call(sessionId, operation, error, stackTrace);
+      return null;
+    }
+  }
+
+  bool cancelSftpDirectoryListing(String sessionId, String jobId) {
+    const operation = 'ssh.sftp.list_directory_cancel';
+    final decoded = _requestJsonObject(sessionId, operation, <String, Object?>{
+      'kind': operation,
+      'jobId': jobId,
+    });
+    return decoded?['cancelled'] == true;
+  }
+
+  String? startSftpOperation(
+    String sessionId, {
+    required TerminalSftpOperationAction action,
+    required String remotePath,
+    String? localPath,
+    bool? isDirectory,
+  }) {
+    const operation = 'ssh.sftp.operation_start';
+    final decoded = _requestJsonObject(sessionId, operation, <String, Object?>{
+      'kind': operation,
+      'action': action.wireName,
+      'remotePath': remotePath,
+      'localPath': ?localPath,
+      'isDirectory': ?isDirectory,
+    });
+    final jobId = decoded?['jobId'];
+    if (jobId is! String ||
+        jobId.isEmpty ||
+        jobId.length > 20 ||
+        int.tryParse(jobId) == null) {
+      return null;
+    }
+    return jobId;
+  }
+
+  TerminalSftpOperationPollResult? pollSftpOperation(
+    String sessionId,
+    String jobId,
+  ) {
+    const operation = 'ssh.sftp.operation_poll';
+    final decoded = _requestJsonObject(sessionId, operation, <String, Object?>{
+      'kind': operation,
+      'jobId': jobId,
+    });
+    if (decoded == null) {
+      return null;
+    }
+    try {
+      return TerminalSftpOperationPollResult.fromJson(decoded);
+    } on Object catch (error, stackTrace) {
+      _onRequestError?.call(sessionId, operation, error, stackTrace);
+      return null;
+    }
+  }
+
+  bool cancelSftpOperation(String sessionId, String jobId) {
+    const operation = 'ssh.sftp.operation_cancel';
+    final decoded = _requestJsonObject(sessionId, operation, <String, Object?>{
+      'kind': operation,
+      'jobId': jobId,
+    });
+    return decoded?['cancelled'] == true;
   }
 
   String? selectionText(

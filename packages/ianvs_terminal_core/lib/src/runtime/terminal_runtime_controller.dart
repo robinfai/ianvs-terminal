@@ -27,6 +27,7 @@ import 'terminal_refresh_policy.dart';
 import 'terminal_refresh_scheduler.dart';
 import 'terminal_resize_coordinator.dart';
 import 'terminal_session_registry.dart';
+import 'terminal_sftp.dart';
 import 'terminal_zmodem_recovery.dart';
 
 export 'terminal_clipboard_policy.dart';
@@ -50,6 +51,9 @@ const int _maxDeferredProtocolReplyBytes = 16 * 1024 * 1024;
 const int _maxDeferredProtocolReplyChunks = 2048;
 const Duration _disposeRetryInterval = Duration(milliseconds: 50);
 const Duration _zmodemDisabledPollingInterval = Duration(milliseconds: 50);
+const Duration _sftpDirectoryPollInterval = Duration(milliseconds: 25);
+const Duration _sftpDirectoryOverallTimeout = Duration(seconds: 20);
+const Duration _sftpFileOperationOverallTimeout = Duration(minutes: 30);
 
 enum _TerminalSessionCloseOutcome { closed, retryableBusy, failed }
 
@@ -2461,6 +2465,253 @@ class TerminalRuntimeController implements TerminalInputSink {
       challengeId: challengeId,
       accept: accept,
     );
+  }
+
+  Future<TerminalSftpDirectorySnapshot> listSftpDirectory(
+    String sessionId,
+    String path, {
+    TerminalSftpCancellation? cancellation,
+  }) async {
+    if (path.isEmpty ||
+        path.length > 4096 ||
+        !path.startsWith('/') ||
+        path.contains('\u0000')) {
+      throw ArgumentError.value(path, 'path', 'must be a valid absolute path');
+    }
+    if (!_productSessionAvailable(sessionId)) {
+      throw const TerminalSftpException('The SSH session is unavailable.');
+    }
+    if (!supportsRuntimeFeature(ptyRuntimeFeatureSftpDirectoryListingV1)) {
+      throw const TerminalSftpException(
+        'The terminal runtime does not advertise SFTP directory browsing.',
+      );
+    }
+    if (cancellation?.isCancelled == true) {
+      throw const TerminalSftpException(
+        'The SFTP directory request was cancelled.',
+      );
+    }
+    final jobId = _jsonRequestClient.startSftpDirectoryListing(sessionId, path);
+    if (jobId == null) {
+      throw const TerminalSftpException(
+        'SFTP file browsing is unavailable for this session.',
+      );
+    }
+    final elapsed = Stopwatch()..start();
+    var completed = false;
+    try {
+      while (elapsed.elapsed < _sftpDirectoryOverallTimeout) {
+        if (cancellation?.isCancelled == true) {
+          throw const TerminalSftpException(
+            'The SFTP directory request was cancelled.',
+          );
+        }
+        if (!_productSessionAvailable(sessionId)) {
+          throw const TerminalSftpException('The SSH session was closed.');
+        }
+        final result = _jsonRequestClient.pollSftpDirectoryListing(
+          sessionId,
+          jobId,
+        );
+        switch (result?.status) {
+          case TerminalSftpDirectoryPollStatus.pending:
+            final cancelled = await _waitForSftpPollOrCancellation(
+              cancellation,
+            );
+            if (cancelled) {
+              throw const TerminalSftpException(
+                'The SFTP directory request was cancelled.',
+              );
+            }
+            continue;
+          case TerminalSftpDirectoryPollStatus.complete:
+            completed = true;
+            return result!.snapshot!;
+          case TerminalSftpDirectoryPollStatus.failed:
+            throw const TerminalSftpException(
+              'Unable to read the remote directory.',
+            );
+          case null:
+            throw const TerminalSftpException(
+              'The SFTP directory response was invalid.',
+            );
+        }
+      }
+      throw const TerminalSftpException(
+        'The SFTP directory request timed out.',
+      );
+    } finally {
+      if (!completed && hasSession(sessionId)) {
+        _jsonRequestClient.cancelSftpDirectoryListing(sessionId, jobId);
+      }
+    }
+  }
+
+  Future<void> downloadSftpFile(
+    String sessionId,
+    String remotePath,
+    String localPath, {
+    TerminalSftpCancellation? cancellation,
+  }) {
+    return _runSftpOperation(
+      sessionId,
+      action: TerminalSftpOperationAction.downloadFile,
+      remotePath: remotePath,
+      localPath: localPath,
+      cancellation: cancellation,
+    );
+  }
+
+  Future<void> uploadSftpFile(
+    String sessionId,
+    String localPath,
+    String remotePath, {
+    TerminalSftpCancellation? cancellation,
+  }) {
+    return _runSftpOperation(
+      sessionId,
+      action: TerminalSftpOperationAction.uploadFile,
+      remotePath: remotePath,
+      localPath: localPath,
+      cancellation: cancellation,
+    );
+  }
+
+  Future<void> createSftpDirectory(
+    String sessionId,
+    String remotePath, {
+    TerminalSftpCancellation? cancellation,
+  }) {
+    return _runSftpOperation(
+      sessionId,
+      action: TerminalSftpOperationAction.createDirectory,
+      remotePath: remotePath,
+      cancellation: cancellation,
+    );
+  }
+
+  Future<void> deleteSftpEntry(
+    String sessionId,
+    String remotePath, {
+    required bool isDirectory,
+    TerminalSftpCancellation? cancellation,
+  }) {
+    return _runSftpOperation(
+      sessionId,
+      action: TerminalSftpOperationAction.deleteEntry,
+      remotePath: remotePath,
+      isDirectory: isDirectory,
+      cancellation: cancellation,
+    );
+  }
+
+  Future<void> _runSftpOperation(
+    String sessionId, {
+    required TerminalSftpOperationAction action,
+    required String remotePath,
+    String? localPath,
+    bool? isDirectory,
+    TerminalSftpCancellation? cancellation,
+  }) async {
+    if (remotePath.isEmpty ||
+        remotePath.length > 4096 ||
+        !remotePath.startsWith('/') ||
+        remotePath.contains('\u0000')) {
+      throw ArgumentError.value(
+        remotePath,
+        'remotePath',
+        'must be a valid absolute path',
+      );
+    }
+    if (localPath != null &&
+        (localPath.isEmpty ||
+            localPath.length > 4096 ||
+            localPath.contains('\u0000'))) {
+      throw ArgumentError.value(localPath, 'localPath', 'must be a valid path');
+    }
+    if (!_productSessionAvailable(sessionId)) {
+      throw const TerminalSftpException('The SSH session is unavailable.');
+    }
+    if (!supportsRuntimeFeature(ptyRuntimeFeatureSftpFileOperationsV1)) {
+      throw const TerminalSftpException(
+        'The terminal runtime does not advertise SFTP file operations.',
+      );
+    }
+    if (cancellation?.isCancelled == true) {
+      throw const TerminalSftpException('The SFTP file request was cancelled.');
+    }
+    final jobId = _jsonRequestClient.startSftpOperation(
+      sessionId,
+      action: action,
+      remotePath: remotePath,
+      localPath: localPath,
+      isDirectory: isDirectory,
+    );
+    if (jobId == null) {
+      throw const TerminalSftpException(
+        'SFTP file operations are unavailable for this session.',
+      );
+    }
+    final elapsed = Stopwatch()..start();
+    var completed = false;
+    try {
+      while (elapsed.elapsed < _sftpFileOperationOverallTimeout) {
+        if (cancellation?.isCancelled == true) {
+          throw const TerminalSftpException(
+            'The SFTP file request was cancelled.',
+          );
+        }
+        if (!_productSessionAvailable(sessionId)) {
+          throw const TerminalSftpException('The SSH session was closed.');
+        }
+        final result = _jsonRequestClient.pollSftpOperation(sessionId, jobId);
+        switch (result?.status) {
+          case TerminalSftpOperationPollStatus.pending:
+            final cancelled = await _waitForSftpPollOrCancellation(
+              cancellation,
+            );
+            if (cancelled) {
+              throw const TerminalSftpException(
+                'The SFTP file request was cancelled.',
+              );
+            }
+            continue;
+          case TerminalSftpOperationPollStatus.complete:
+            completed = true;
+            return;
+          case TerminalSftpOperationPollStatus.failed:
+            throw const TerminalSftpException(
+              'The remote file operation failed.',
+            );
+          case null:
+            throw const TerminalSftpException(
+              'The SFTP file response was invalid.',
+            );
+        }
+      }
+      throw const TerminalSftpException('The SFTP file request timed out.');
+    } finally {
+      if (!completed && hasSession(sessionId)) {
+        _jsonRequestClient.cancelSftpOperation(sessionId, jobId);
+      }
+    }
+  }
+
+  Future<bool> _waitForSftpPollOrCancellation(
+    TerminalSftpCancellation? cancellation,
+  ) {
+    if (cancellation == null) {
+      return Future<void>.delayed(
+        _sftpDirectoryPollInterval,
+      ).then((_) => false);
+    }
+    if (cancellation.isCancelled) {
+      return Future<bool>.value(true);
+    }
+    return Future.any<bool>(<Future<bool>>[
+      Future<void>.delayed(_sftpDirectoryPollInterval).then((_) => false),
+      cancellation.whenCancelled.then((_) => true),
+    ]);
   }
 
   /// Clears visible output and retained history using iTerm2's Command-K

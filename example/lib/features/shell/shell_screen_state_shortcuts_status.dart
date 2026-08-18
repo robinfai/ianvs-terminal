@@ -71,6 +71,9 @@ extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
     if (_isCommandMenuOpen) {
       return 'commandMenu';
     }
+    if (_isSftpPanelOpen) {
+      return 'sftp';
+    }
     if (_isToolbeltOpen) {
       return 'toolbelt';
     }

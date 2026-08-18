@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_terminal_core/src/pty/ianvs_pty.dart';
 import 'package:ianvs_terminal_core/src/runtime/terminal_json_request_client.dart';
+import 'package:ianvs_terminal_core/src/runtime/terminal_sftp.dart';
 import 'package:ianvs_terminal_core/src/runtime/terminal_zmodem_recovery.dart';
 import 'package:ianvs_terminal_core/src/terminal/terminal_models.dart';
 
@@ -49,6 +50,108 @@ void main() {
         'accept': true,
       });
     });
+
+    test('starts and decodes a correlated SFTP directory job', () {
+      final backend = _JsonRequestBackend('{"jobId":"12"}');
+      final client = TerminalJsonRequestClient(backend);
+
+      expect(client.startSftpDirectoryListing('7', '/srv/app'), '12');
+      backend.response = jsonEncode(<String, Object?>{
+        'status': 'complete',
+        'path': '/srv/app',
+        'entries': <Object?>[
+          <String, Object?>{
+            'name': 'lib',
+            'kind': 'directory',
+            'permissions': 'drwxr-xr-x',
+            'modified_at_epoch_seconds': 1700000000,
+          },
+          <String, Object?>{
+            'name': 'main.dart',
+            'kind': 'file',
+            'size_bytes': 2450,
+            'permissions': '-rw-r--r--',
+          },
+        ],
+      });
+      final result = client.pollSftpDirectoryListing('7', '12');
+
+      expect(result?.status, TerminalSftpDirectoryPollStatus.complete);
+      expect(result?.snapshot?.path, '/srv/app');
+      expect(result?.snapshot?.entries, hasLength(2));
+      expect(
+        result?.snapshot?.entries.first.kind,
+        TerminalSftpDirectoryEntryKind.directory,
+      );
+      expect(result?.snapshot?.entries.last.sizeBytes, 2450);
+      expect(backend.requests, <Map<String, Object?>>[
+        <String, Object?>{
+          'kind': 'ssh.sftp.list_directory_start',
+          'path': '/srv/app',
+        },
+        <String, Object?>{
+          'kind': 'ssh.sftp.list_directory_poll',
+          'jobId': '12',
+        },
+      ]);
+    });
+
+    test('rejects malformed SFTP directory responses', () {
+      final errors = <Object>[];
+      final backend = _JsonRequestBackend(
+        '{"status":"complete","path":"/","entries":[{"name":"../bad","kind":"file"}]}',
+      );
+      final client = TerminalJsonRequestClient(
+        backend,
+        onRequestError: (_, _, error, _) => errors.add(error),
+      );
+
+      expect(client.pollSftpDirectoryListing('7', '9'), isNull);
+      expect(errors.single, isA<FormatException>());
+    });
+
+    test('cancels an unfinished SFTP directory job', () {
+      final backend = _JsonRequestBackend('{"cancelled":true}');
+      final client = TerminalJsonRequestClient(backend);
+
+      expect(client.cancelSftpDirectoryListing('7', '19'), isTrue);
+      expect(backend.requests.single, <String, Object?>{
+        'kind': 'ssh.sftp.list_directory_cancel',
+        'jobId': '19',
+      });
+    });
+
+    test(
+      'encodes and polls SFTP file operations without embedding file data',
+      () {
+        final backend = _JsonRequestBackend('{"jobId":"23"}');
+        final client = TerminalJsonRequestClient(backend);
+
+        expect(
+          client.startSftpOperation(
+            '7',
+            action: TerminalSftpOperationAction.uploadFile,
+            remotePath: '/srv/app/main.dart',
+            localPath: '/tmp/main.dart',
+          ),
+          '23',
+        );
+        expect(backend.requests.single, <String, Object?>{
+          'kind': 'ssh.sftp.operation_start',
+          'action': 'upload_file',
+          'remotePath': '/srv/app/main.dart',
+          'localPath': '/tmp/main.dart',
+        });
+
+        backend.response = '{"status":"complete"}';
+        expect(
+          client.pollSftpOperation('7', '23')?.status,
+          TerminalSftpOperationPollStatus.complete,
+        );
+        backend.response = '{"cancelled":true}';
+        expect(client.cancelSftpOperation('7', '23'), isTrue);
+      },
+    );
 
     test('uses the exact correlated Session Request v1 envelope', () {
       final versioned = _JsonRequestBackend('{"text":"versioned"}');

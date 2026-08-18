@@ -28,6 +28,8 @@ const FEATURES: &[&str] = &[
     "session-recording.v1",
     "session-request-envelope.json.v1",
     "ssh-session.v1",
+    "ssh-sftp-directory-listing.v1",
+    "ssh-sftp-file-operations.v1",
     "zmodem.receive.v1",
     "zmodem.send.v1",
 ];
@@ -179,6 +181,18 @@ mod tests {
                 .iter()
                 .any(|feature| feature == "zmodem.receive.v1"),
             cfg!(any(target_os = "macos", target_os = "linux"))
+        );
+        assert!(
+            capabilities
+                .features
+                .iter()
+                .any(|feature| feature == "ssh-sftp-directory-listing.v1")
+        );
+        assert!(
+            capabilities
+                .features
+                .iter()
+                .any(|feature| feature == "ssh-sftp-file-operations.v1")
         );
         assert_eq!(
             capabilities

@@ -40,6 +40,7 @@ import '../sessions/session_controller.dart';
 import '../sessions/session_state.dart';
 import '../sessions/terminal_event_coordinator.dart';
 import '../sessions/terminal_session_launch_policy.dart';
+import '../sftp/sftp_side_panel.dart';
 import '../ssh/new_session_launcher.dart';
 import '../ssh/ssh_auth_prompt.dart';
 import '../ssh/ssh_feature_access.dart';
@@ -78,6 +79,7 @@ part 'shell_screen_search.dart';
 part 'shell_screen_shared_buttons.dart';
 part 'shell_screen_sheets.dart';
 part 'shell_screen_shell_integration.dart';
+part 'shell_screen_sftp.dart';
 part 'shell_screen_ssh_empty_state.dart';
 part 'shell_screen_state_clipboard.dart';
 part 'shell_screen_state_command_actions.dart';
@@ -267,6 +269,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   bool _isAutoComposerOpen = false;
   bool _isCopyModeOpen = false;
   bool _isToolbeltOpen = false;
+  bool _isSftpPanelOpen = false;
+  String? _sftpPanelSessionId;
   bool _activeTerminalHasFocus = false;
   bool _recentlyClosedLastSession = false;
   bool _showLayoutCue = false;
@@ -1074,6 +1078,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           return KeyEventResult.handled;
         case TerminalActionId.toolbelt:
           return KeyEventResult.handled;
+        case TerminalActionId.openSftpPanel:
+          _openSftpPanel(sessionState, activeSessionId);
+          return KeyEventResult.handled;
         case TerminalActionId.newTab:
           if (!canOpenNewSession) {
             return KeyEventResult.handled;
@@ -1390,117 +1397,126 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                             key: ValueKey(
                               (displayedTab ?? activeTab).sessionId,
                             ),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: _buildTerminalLayout(
-                                    context: context,
-                                    sessionController: sessionController,
-                                    sessionState: sessionState,
-                                    activeTab: displayedTab ?? activeTab,
-                                    activeSessionId:
-                                        displayedSessionId ?? activeSessionId,
-                                    palette: palette,
-                                    onHostKeyEvent: handleShellShortcut,
+                            child: _buildSftpSupportingPane(
+                              sessionState: sessionState,
+                              activeSessionId: activeSessionId,
+                              primary: Row(
+                                children: [
+                                  Expanded(
+                                    child: _buildTerminalLayout(
+                                      context: context,
+                                      sessionController: sessionController,
+                                      sessionState: sessionState,
+                                      activeTab: displayedTab ?? activeTab,
+                                      activeSessionId:
+                                          displayedSessionId ?? activeSessionId,
+                                      palette: palette,
+                                      onHostKeyEvent: handleShellShortcut,
+                                    ),
                                   ),
-                                ),
-                                if (_isToolbeltOpen)
-                                  _ShellToolbelt(
-                                    capturedOutputEntries:
-                                        _capturedOutputForSession(
-                                          activeSessionId,
-                                        ),
-                                    pasteHistoryEntries: _pasteHistoryEntries,
-                                    shellIntegration: activeShellIntegration,
-                                    promptMarkCount:
-                                        _effectivePromptMarksForSession(
-                                          activeSessionId,
-                                          sessionState: sessionState,
-                                        ).length,
-                                    tmuxControlModeActive:
-                                        _tmuxControlModeActive(activeSessionId),
-                                    coprocessActive: _coprocesses.containsKey(
-                                      activeSessionId,
-                                    ),
-                                    annotationCount: _annotationsForSession(
-                                      activeSessionId,
-                                    ).length,
-                                    completionDiagnosticsSnapshot:
-                                        _completionDiagnosticsSnapshot,
-                                    palette: palette,
-                                    onClose: _closeToolbelt,
-                                    onOpenCapturedOutput: () =>
-                                        _openToolbeltChild(
-                                          () => _openCapturedOutput(
+                                  if (_isToolbeltOpen)
+                                    _ShellToolbelt(
+                                      capturedOutputEntries:
+                                          _capturedOutputForSession(
                                             activeSessionId,
                                           ),
-                                        ),
-                                    onOpenPasteHistory: () =>
-                                        _openToolbeltChild(
-                                          () => _openPasteHistory(sessionState),
-                                        ),
-                                    onOpenShellIntegrationUtilities: () =>
-                                        _openToolbeltChild(
-                                          () => _openShellIntegrationUtilities(
-                                            sessionState,
+                                      pasteHistoryEntries: _pasteHistoryEntries,
+                                      shellIntegration: activeShellIntegration,
+                                      promptMarkCount:
+                                          _effectivePromptMarksForSession(
+                                            activeSessionId,
+                                            sessionState: sessionState,
+                                          ).length,
+                                      tmuxControlModeActive:
+                                          _tmuxControlModeActive(
                                             activeSessionId,
                                           ),
-                                        ),
-                                    onInsertCommand: (command) {
-                                      _closeToolbelt();
-                                      _sendPlainTextToSession(
+                                      coprocessActive: _coprocesses.containsKey(
                                         activeSessionId,
-                                        command,
-                                      );
-                                    },
-                                    onChangeDirectory: (directory) {
-                                      _closeToolbelt();
-                                      _sendPlainTextToSession(
+                                      ),
+                                      annotationCount: _annotationsForSession(
                                         activeSessionId,
-                                        'cd ${_shellQuotedPath(directory)}',
-                                      );
-                                    },
-                                    onOpenTmuxIntegration: () =>
-                                        _openToolbeltChild(
-                                          () => _openTmuxIntegration(
-                                            activeSessionId,
+                                      ).length,
+                                      completionDiagnosticsSnapshot:
+                                          _completionDiagnosticsSnapshot,
+                                      palette: palette,
+                                      onClose: _closeToolbelt,
+                                      onOpenCapturedOutput: () =>
+                                          _openToolbeltChild(
+                                            () => _openCapturedOutput(
+                                              activeSessionId,
+                                            ),
                                           ),
-                                        ),
-                                    onOpenCoprocess: () => _openToolbeltChild(
-                                      () => _openCoprocess(activeSessionId),
-                                    ),
-                                    onOpenAnnotations: () {
-                                      final selectionController =
-                                          _selectionControllers.putIfAbsent(
-                                            activeSessionId,
-                                            SelectionController.new,
-                                          );
-                                      _openToolbeltChild(
-                                        () => _openAnnotations(
-                                          sessionController,
+                                      onOpenPasteHistory: () =>
+                                          _openToolbeltChild(
+                                            () =>
+                                                _openPasteHistory(sessionState),
+                                          ),
+                                      onOpenShellIntegrationUtilities: () =>
+                                          _openToolbeltChild(
+                                            () =>
+                                                _openShellIntegrationUtilities(
+                                                  sessionState,
+                                                  activeSessionId,
+                                                ),
+                                          ),
+                                      onInsertCommand: (command) {
+                                        _closeToolbelt();
+                                        _sendPlainTextToSession(
                                           activeSessionId,
-                                          selectionController,
-                                        ),
-                                      );
-                                    },
-                                    onOpenInstantReplay: () =>
+                                          command,
+                                        );
+                                      },
+                                      onChangeDirectory: (directory) {
+                                        _closeToolbelt();
+                                        _sendPlainTextToSession(
+                                          activeSessionId,
+                                          'cd ${_shellQuotedPath(directory)}',
+                                        );
+                                      },
+                                      onOpenTmuxIntegration: () =>
+                                          _openToolbeltChild(
+                                            () => _openTmuxIntegration(
+                                              activeSessionId,
+                                            ),
+                                          ),
+                                      onOpenCoprocess: () => _openToolbeltChild(
+                                        () => _openCoprocess(activeSessionId),
+                                      ),
+                                      onOpenAnnotations: () {
+                                        final selectionController =
+                                            _selectionControllers.putIfAbsent(
+                                              activeSessionId,
+                                              SelectionController.new,
+                                            );
                                         _openToolbeltChild(
-                                          () =>
-                                              _openInstantReplay(sessionState),
-                                        ),
-                                    onOpenPasswordManager: () =>
-                                        _openToolbeltChild(
-                                          () => _openPasswordManager(
+                                          () => _openAnnotations(
                                             sessionController,
                                             activeSessionId,
+                                            selectionController,
                                           ),
-                                        ),
-                                    showHiddenRedesignEntryPointsForTesting: ref
-                                        .watch(
-                                          shellHiddenRedesignEntryPointsProvider,
-                                        ),
-                                  ),
-                              ],
+                                        );
+                                      },
+                                      onOpenInstantReplay: () =>
+                                          _openToolbeltChild(
+                                            () => _openInstantReplay(
+                                              sessionState,
+                                            ),
+                                          ),
+                                      onOpenPasswordManager: () =>
+                                          _openToolbeltChild(
+                                            () => _openPasswordManager(
+                                              sessionController,
+                                              activeSessionId,
+                                            ),
+                                          ),
+                                      showHiddenRedesignEntryPointsForTesting:
+                                          ref.watch(
+                                            shellHiddenRedesignEntryPointsProvider,
+                                          ),
+                                    ),
+                                ],
+                              ),
                             ),
                           ),
                   ),

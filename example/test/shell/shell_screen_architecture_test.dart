@@ -386,7 +386,7 @@ export 'shell_screen_feature.dart';
       );
       expect(
         graph.aggregateLineCount,
-        lessThanOrEqualTo(38700),
+        lessThanOrEqualTo(39450),
         reason: 'The complete reachable shell-owned library graph is bounded.',
       );
     });
@@ -480,6 +480,7 @@ Iterable<File> _allowedShellExternalDependencies(Directory libDirectory) {
     'features/sessions/session_state.dart',
     'features/sessions/terminal_event_coordinator.dart',
     'features/sessions/terminal_session_launch_policy.dart',
+    'features/sftp/sftp_side_panel.dart',
     'features/ssh/new_session_launcher.dart',
     'features/ssh/ssh_auth_prompt.dart',
     'features/ssh/ssh_feature_access.dart',

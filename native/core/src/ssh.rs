@@ -3,6 +3,7 @@ use crate::model::{
     TerminalSshJumpProfile, TerminalSshPortForward, TerminalSshPortForwardKind,
 };
 use anyhow::{Context, Result, anyhow, bail};
+use futures_util::{StreamExt, future::BoxFuture, stream::FuturesUnordered};
 use parking_lot::Mutex;
 use portable_pty::{Child, ChildKiller, ExitStatus, MasterPty, PtySize};
 use russh::client;
@@ -12,6 +13,13 @@ use russh::keys::PrivateKey;
 use russh::keys::agent::{AgentIdentity, client::AgentClient};
 use russh::keys::key::PrivateKeyWithHashAlg;
 use russh::{Channel, ChannelMsg, ChannelOpenFailure, Disconnect};
+use russh_sftp::client::{
+    Config as SftpConfig, RawSftpSession, SftpSession, error::Error as SftpError,
+};
+use russh_sftp::protocol::{
+    FileAttributes as SftpFileAttributes, FileType as SftpFileType, Packet as SftpPacket,
+    StatusCode as SftpStatusCode,
+};
 use std::collections::{HashMap, VecDeque};
 use std::fmt;
 use std::fs;
@@ -36,6 +44,20 @@ const SOCKS_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 const FORWARD_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 const X11_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 const SSH_NETWORK_TEARDOWN_TIMEOUT: Duration = Duration::from_secs(2);
+const SFTP_DIRECTORY_REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
+const SFTP_FILE_OPERATION_REQUEST_TIMEOUT: Duration = Duration::from_secs(30 * 60);
+const SFTP_FILE_CANCELLATION_CLEANUP_TIMEOUT: Duration = Duration::from_secs(15);
+const MAX_CONCURRENT_SFTP_REQUESTS: usize = 16;
+const MAX_SFTP_DIRECTORY_ENTRIES: usize = 10_000;
+const MAX_SFTP_ENTRY_NAME_BYTES: usize = 1024;
+const MAX_SFTP_INBOUND_PACKET_BYTES: u32 = 256 * 1024;
+const SFTP_LIMITED_READ_CHUNK_BYTES: usize = 8 * 1024;
+// Keep the directory payload comfortably below the 16 MiB session-response
+// limit. This is enforced while entries are collected so JSON escaping cannot
+// amplify a remote filename into one large, late allocation.
+const MAX_SFTP_DIRECTORY_WIRE_BYTES: usize = 8 * 1024 * 1024;
+const MAX_SFTP_FILE_TRANSFER_BYTES: u64 = 2 * 1024 * 1024 * 1024;
+const SFTP_FILE_COPY_BUFFER_BYTES: usize = 64 * 1024;
 // Match OpenSSH's default LoginGraceTime so keyboard-interactive prompts do
 // not expire locally before a server using its default authentication window.
 const SSH_AUTH_INTERACTION_TIMEOUT: Duration = Duration::from_secs(120);
@@ -51,6 +73,79 @@ pub struct SshRuntime {
     pub writer: Box<dyn Write + Send>,
     pub child: Box<dyn Child + Send + Sync>,
     pub auth: SshAuthClient,
+    pub sftp: SshSftpClient,
+}
+
+#[derive(Clone, Debug)]
+pub struct SshSftpClient {
+    sender: mpsc::UnboundedSender<SshCommand>,
+}
+
+#[derive(Clone, Debug, serde::Serialize)]
+pub struct SftpDirectoryListing {
+    pub path: String,
+    pub entries: Vec<SftpDirectoryEntry>,
+}
+
+#[derive(Clone, Debug, serde::Serialize)]
+pub struct SftpDirectoryEntry {
+    pub name: String,
+    pub kind: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub size_bytes: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub modified_at_epoch_seconds: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub permissions: Option<String>,
+}
+
+pub type SftpDirectoryResult = std::result::Result<SftpDirectoryListing, String>;
+pub type SftpOperationResult = std::result::Result<(), String>;
+
+#[derive(Clone, Debug)]
+pub enum SftpOperation {
+    DownloadFile {
+        remote_path: String,
+        local_path: String,
+    },
+    UploadFile {
+        local_path: String,
+        remote_path: String,
+    },
+    CreateDirectory {
+        path: String,
+    },
+    DeleteEntry {
+        path: String,
+        is_directory: bool,
+    },
+}
+
+impl SshSftpClient {
+    pub fn start_list_directory(
+        &self,
+        path: String,
+    ) -> std::result::Result<oneshot::Receiver<SftpDirectoryResult>, String> {
+        let (response, receiver) = oneshot::channel();
+        self.sender
+            .send(SshCommand::ListDirectory { path, response })
+            .map_err(|_| "SSH session is closed".to_string())?;
+        Ok(receiver)
+    }
+
+    pub fn start_operation(
+        &self,
+        operation: SftpOperation,
+    ) -> std::result::Result<oneshot::Receiver<SftpOperationResult>, String> {
+        let (response, receiver) = oneshot::channel();
+        self.sender
+            .send(SshCommand::SftpOperation {
+                operation,
+                response,
+            })
+            .map_err(|_| "SSH session is closed".to_string())?;
+        Ok(receiver)
+    }
 }
 
 #[derive(Clone, Debug, serde::Serialize)]
@@ -336,6 +431,14 @@ impl SshAuthClient {
 enum SshCommand {
     Data(Vec<u8>),
     Resize(PtySize),
+    ListDirectory {
+        path: String,
+        response: oneshot::Sender<SftpDirectoryResult>,
+    },
+    SftpOperation {
+        operation: SftpOperation,
+        response: oneshot::Sender<SftpOperationResult>,
+    },
     Close,
 }
 
@@ -1179,7 +1282,7 @@ pub fn spawn_ssh(
     let reader = master.try_clone_reader()?;
     let writer = master.take_writer()?;
     let child = Box::new(SshChild {
-        sender: command_sender,
+        sender: command_sender.clone(),
         status: Arc::clone(&status),
         auth: auth.clone(),
         cancellation: cancellation.clone(),
@@ -1228,6 +1331,9 @@ pub fn spawn_ssh(
         writer,
         child,
         auth,
+        sftp: SshSftpClient {
+            sender: command_sender,
+        },
     })
 }
 
@@ -1418,12 +1524,17 @@ async fn run_ssh_session(
 
     let mut exit_status = 0;
     let session_result: Result<()> = async {
+        let mut sftp_requests: FuturesUnordered<BoxFuture<'_, ()>> =
+            FuturesUnordered::new();
+        let sftp_operation_root = SftpOperationCancellation::new();
+        let channel_loop_result: Result<()> = async {
         loop {
         tokio::select! {
             biased;
             _ = cancellation.cancelled() => {
                 break;
             },
+            _ = sftp_requests.next(), if !sftp_requests.is_empty() => {},
             command = commands.recv() => match command {
                 Some(SshCommand::Data(bytes)) => channel.data_bytes(bytes).await?,
                 Some(SshCommand::Resize(size)) => {
@@ -1433,6 +1544,78 @@ async fn run_ssh_session(
                         u32::from(size.pixel_width),
                         u32::from(size.pixel_height),
                     ).await?;
+                }
+                Some(SshCommand::ListDirectory { path, mut response }) => {
+                    if response.is_closed() {
+                        continue;
+                    }
+                    if sftp_requests.len() >= MAX_CONCURRENT_SFTP_REQUESTS {
+                        let _ = response.send(Err(
+                            "too many concurrent SFTP directory requests".to_string(),
+                        ));
+                        continue;
+                    }
+                    let request = list_sftp_directory(&session, path);
+                    sftp_requests.push(Box::pin(async move {
+                        let result = tokio::select! {
+                            biased;
+                            _ = response.closed() => return,
+                            result = tokio::time::timeout(
+                                SFTP_DIRECTORY_REQUEST_TIMEOUT,
+                                request,
+                            ) => match result {
+                                Ok(result) => result.map_err(|error| error.to_string()),
+                                Err(_) => Err("SFTP directory request timed out".to_string()),
+                            },
+                        };
+                        let _ = response.send(result);
+                    }));
+                }
+                Some(SshCommand::SftpOperation { operation, mut response }) => {
+                    if response.is_closed() {
+                        continue;
+                    }
+                    if sftp_requests.len() >= MAX_CONCURRENT_SFTP_REQUESTS {
+                        let _ = response.send(Err(
+                            "too many concurrent SFTP file requests".to_string(),
+                        ));
+                        continue;
+                    }
+                    let cancellation = sftp_operation_root.child();
+                    let request = execute_sftp_operation(
+                        &session,
+                        operation,
+                        cancellation.clone(),
+                    );
+                    sftp_requests.push(Box::pin(async move {
+                        tokio::pin!(request);
+                        let result = tokio::select! {
+                            biased;
+                            _ = response.closed() => {
+                                cancellation.cancel();
+                                let _ = tokio::time::timeout(
+                                    SFTP_FILE_CANCELLATION_CLEANUP_TIMEOUT,
+                                    &mut request,
+                                ).await;
+                                return;
+                            },
+                            result = tokio::time::timeout(
+                                SFTP_FILE_OPERATION_REQUEST_TIMEOUT,
+                                &mut request,
+                            ) => match result {
+                                Ok(result) => result.map_err(|error| error.to_string()),
+                                Err(_) => {
+                                    cancellation.cancel();
+                                    let _ = tokio::time::timeout(
+                                        SFTP_FILE_CANCELLATION_CLEANUP_TIMEOUT,
+                                        &mut request,
+                                    ).await;
+                                    Err("SFTP file operation timed out".to_string())
+                                },
+                            },
+                        };
+                        let _ = response.send(result);
+                    }));
                 }
                 Some(SshCommand::Close) | None => {
                     break;
@@ -1500,6 +1683,12 @@ async fn run_ssh_session(
         }
         }
         Ok(())
+        }.await;
+        finish_sftp_request_scope(
+            channel_loop_result,
+            &sftp_operation_root,
+            &mut sftp_requests,
+        ).await
     }
     .await;
     forward_listeners.abort_all();
@@ -1508,6 +1697,775 @@ async fn run_ssh_session(
     teardown_ssh_network(channel, session, jump_sessions).await;
     session_result?;
     Ok(exit_status)
+}
+
+async fn finish_sftp_request_scope<T>(
+    channel_loop_result: Result<T>,
+    cancellation: &SftpOperationCancellation,
+    requests: &mut FuturesUnordered<BoxFuture<'_, ()>>,
+) -> Result<T> {
+    cancellation.cancel();
+    let _ = tokio::time::timeout(SFTP_FILE_CANCELLATION_CLEANUP_TIMEOUT, async {
+        while requests.next().await.is_some() {}
+    })
+    .await;
+    channel_loop_result
+}
+
+async fn list_sftp_directory(
+    session: &client::Handle<SshClientHandler>,
+    path: String,
+) -> Result<SftpDirectoryListing> {
+    let channel = session
+        .channel_open_session()
+        .await
+        .context("could not open SFTP channel")?;
+    channel
+        .request_subsystem(true, "sftp")
+        .await
+        .context("remote server rejected the SFTP subsystem")?;
+    let sftp = RawSftpSession::new_with_config(
+        SftpPacketLengthLimitedStream::new(channel.into_stream(), MAX_SFTP_INBOUND_PACKET_BYTES),
+        SftpConfig {
+            max_packet_len: MAX_SFTP_INBOUND_PACKET_BYTES,
+            request_timeout_secs: 10,
+            ..SftpConfig::default()
+        },
+    );
+    sftp.init().await.context("could not initialize SFTP")?;
+    let handle = sftp
+        .opendir(path.clone())
+        .await
+        .context("could not open remote directory")?
+        .handle;
+    let entries_result: Result<Vec<SftpDirectoryEntry>> = async {
+        let mut entries = Vec::new();
+        let mut wire_bytes = serde_json::to_vec(&serde_json::json!({
+            "status": "complete",
+            "path": path,
+            "entries": [],
+        }))
+        .context("could not measure SFTP directory response")?
+        .len();
+        loop {
+            let files = match sftp.readdir(handle.clone()).await {
+                Ok(response) => response.files,
+                Err(SftpError::Status(status)) if status.status_code == SftpStatusCode::Eof => {
+                    break;
+                }
+                Err(error) => return Err(error).context("could not read remote directory"),
+            };
+            for file in files {
+                if file.filename == "." || file.filename == ".." {
+                    continue;
+                }
+                if entries.len() >= MAX_SFTP_DIRECTORY_ENTRIES {
+                    bail!("remote directory exceeds the entry limit");
+                }
+                let name = file.filename;
+                if !is_valid_sftp_entry_name(&name) {
+                    bail!("remote directory contains an invalid entry name");
+                }
+                let metadata = file.attrs;
+                let file_type = metadata.file_type();
+                let kind = match file_type {
+                    SftpFileType::Dir => "directory",
+                    SftpFileType::File => "file",
+                    SftpFileType::Symlink => "symbolic_link",
+                    SftpFileType::Other => "other",
+                };
+                let permissions = metadata.permissions.map(|_| {
+                    let prefix = match file_type {
+                        SftpFileType::Dir => 'd',
+                        SftpFileType::File => '-',
+                        SftpFileType::Symlink => 'l',
+                        SftpFileType::Other => '?',
+                    };
+                    format!("{prefix}{}", metadata.permissions())
+                });
+                let entry = SftpDirectoryEntry {
+                    name,
+                    kind,
+                    size_bytes: metadata.size.and_then(|size| i64::try_from(size).ok()),
+                    modified_at_epoch_seconds: metadata.mtime,
+                    permissions,
+                };
+                reserve_sftp_entry_wire_bytes(&mut wire_bytes, &entry)?;
+                entries.push(entry);
+            }
+        }
+        Ok(entries)
+    }
+    .await;
+    let _ = sftp.close(handle).await;
+    let _ = sftp.close_session();
+    let entries = entries_result?;
+    Ok(SftpDirectoryListing { path, entries })
+}
+
+async fn open_sftp_session(session: &client::Handle<SshClientHandler>) -> Result<SftpSession> {
+    let channel = session
+        .channel_open_session()
+        .await
+        .context("could not open SFTP channel")?;
+    channel
+        .request_subsystem(true, "sftp")
+        .await
+        .context("remote server rejected the SFTP subsystem")?;
+    SftpSession::new_with_config(
+        SftpPacketLengthLimitedStream::new(channel.into_stream(), MAX_SFTP_INBOUND_PACKET_BYTES),
+        SftpConfig {
+            max_packet_len: MAX_SFTP_INBOUND_PACKET_BYTES,
+            request_timeout_secs: 10,
+            ..SftpConfig::default()
+        },
+    )
+    .await
+    .context("could not initialize SFTP")
+}
+
+async fn execute_sftp_operation(
+    session: &client::Handle<SshClientHandler>,
+    operation: SftpOperation,
+    cancellation: SftpOperationCancellation,
+) -> Result<()> {
+    let sftp = tokio::select! {
+        biased;
+        _ = cancellation.cancelled() => bail!("SFTP file operation was cancelled"),
+        result = open_sftp_session(session) => result?,
+    };
+    let result = match operation {
+        SftpOperation::DownloadFile {
+            remote_path,
+            local_path,
+        } => download_sftp_file(&sftp, &remote_path, &local_path, &cancellation).await,
+        SftpOperation::UploadFile {
+            local_path,
+            remote_path,
+        } => {
+            upload_sftp_file(
+                Some(session),
+                &sftp,
+                &local_path,
+                &remote_path,
+                &cancellation,
+            )
+            .await
+        }
+        SftpOperation::CreateDirectory { path } => {
+            sftp_operation_step(&cancellation, sftp.create_dir(path))
+                .await
+                .context("could not create remote directory")
+        }
+        SftpOperation::DeleteEntry { path, is_directory } => {
+            if is_directory {
+                sftp_operation_step(&cancellation, sftp.remove_dir(path))
+                    .await
+                    .context("could not delete remote directory")
+            } else {
+                sftp_operation_step(&cancellation, sftp.remove_file(path))
+                    .await
+                    .context("could not delete remote file")
+            }
+        }
+    };
+    let _ = sftp.close().await;
+    result
+}
+
+async fn download_sftp_file(
+    sftp: &SftpSession,
+    remote_path: &str,
+    local_path: &str,
+    cancellation: &SftpOperationCancellation,
+) -> Result<()> {
+    let destination = PathBuf::from(local_path);
+    let parent = destination
+        .parent()
+        .filter(|path| !path.as_os_str().is_empty())
+        .ok_or_else(|| anyhow!("download destination has no parent directory"))?;
+    let file_name = destination
+        .file_name()
+        .and_then(|name| name.to_str())
+        .filter(|name| !name.is_empty())
+        .ok_or_else(|| anyhow!("download destination has no file name"))?;
+    let staging = parent.join(format!(
+        ".{file_name}.ianvs-{}.download",
+        random_sftp_transfer_token()?
+    ));
+    let mut staging_cleanup = LocalStagingCleanup::new(staging.clone());
+
+    let result: Result<()> = async {
+        let mut remote = sftp_operation_step(cancellation, sftp.open(remote_path))
+            .await
+            .context("could not open remote file")?;
+        let mut local = sftp_operation_step(
+            cancellation,
+            tokio::fs::OpenOptions::new()
+                .create_new(true)
+                .write(true)
+                .open(&staging),
+        )
+        .await
+        .context("could not create local download")?;
+        let mut buffer = vec![0_u8; SFTP_FILE_COPY_BUFFER_BYTES];
+        let mut copied = 0_u64;
+        loop {
+            let read = sftp_operation_step(cancellation, remote.read(&mut buffer))
+                .await
+                .context("could not read remote file")?;
+            if read == 0 {
+                break;
+            }
+            copied = copied
+                .checked_add(read as u64)
+                .ok_or_else(|| anyhow!("remote file size overflowed"))?;
+            if copied > MAX_SFTP_FILE_TRANSFER_BYTES {
+                bail!("remote file exceeds the transfer size limit");
+            }
+            sftp_operation_step(cancellation, local.write_all(&buffer[..read]))
+                .await
+                .context("could not write local download")?;
+        }
+        sftp_operation_step(cancellation, local.flush())
+            .await
+            .context("could not flush local download")?;
+        sftp_operation_step(cancellation, local.sync_all())
+            .await
+            .context("could not persist local download")?;
+        sftp_operation_step(cancellation, remote.close())
+            .await
+            .context("could not close remote file")?;
+        drop(local);
+        install_local_download(&staging, &destination, cancellation).await?;
+        Ok(())
+    }
+    .await;
+    if result.is_ok() {
+        staging_cleanup.disarm();
+    }
+    result
+}
+
+#[cfg(not(windows))]
+async fn install_local_download(
+    staging: &Path,
+    destination: &Path,
+    cancellation: &SftpOperationCancellation,
+) -> Result<()> {
+    sftp_operation_step(cancellation, tokio::fs::rename(staging, destination))
+        .await
+        .context("could not atomically install local download")
+}
+
+#[cfg(windows)]
+async fn install_local_download(
+    staging: &Path,
+    destination: &Path,
+    _cancellation: &SftpOperationCancellation,
+) -> Result<()> {
+    use std::iter;
+    use std::os::windows::ffi::OsStrExt as _;
+    use windows_sys::Win32::Storage::FileSystem::{
+        MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH, MoveFileExW,
+    };
+
+    let staging_wide: Vec<u16> = staging
+        .as_os_str()
+        .encode_wide()
+        .chain(iter::once(0))
+        .collect();
+    let destination_wide: Vec<u16> = destination
+        .as_os_str()
+        .encode_wide()
+        .chain(iter::once(0))
+        .collect();
+    tokio::task::spawn_blocking(move || {
+        // SAFETY: both pointers reference owned, NUL-terminated UTF-16 buffers
+        // for the duration of this call. MoveFileExW does not retain them.
+        let moved = unsafe {
+            MoveFileExW(
+                staging_wide.as_ptr(),
+                destination_wide.as_ptr(),
+                MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
+            )
+        };
+        if moved == 0 {
+            Err(IoError::last_os_error())
+        } else {
+            Ok(())
+        }
+    })
+    .await
+    .context("local download replacement worker failed")?
+    .context("could not atomically install local download")
+}
+
+async fn upload_sftp_file(
+    ssh_session: Option<&client::Handle<SshClientHandler>>,
+    sftp: &SftpSession,
+    local_path: &str,
+    remote_path: &str,
+    cancellation: &SftpOperationCancellation,
+) -> Result<()> {
+    let metadata = sftp_operation_step(cancellation, tokio::fs::metadata(local_path))
+        .await
+        .context("could not inspect local edit")?;
+    if !metadata.is_file() {
+        bail!("local edit is not a regular file");
+    }
+    if metadata.len() > MAX_SFTP_FILE_TRANSFER_BYTES {
+        bail!("local edit exceeds the transfer size limit");
+    }
+    let token = random_sftp_transfer_token()?;
+    let staging_path = format!("{remote_path}.ianvs-{token}.upload");
+    if staging_path.len() > 4096 {
+        bail!("remote path is too long for a safe upload");
+    }
+
+    let (target_existed, original_permissions) = tokio::select! {
+        biased;
+        _ = cancellation.cancelled() => bail!("SFTP file operation was cancelled"),
+        result = sftp.metadata(remote_path) => match result {
+            Ok(metadata) => (true, metadata.permissions),
+            Err(SftpError::Status(status))
+                if status.status_code == SftpStatusCode::NoSuchFile => (false, None),
+            Err(error) => return Err(error).context("could not inspect remote file"),
+        },
+    };
+    let result: Result<()> = async {
+        let mut local = sftp_operation_step(cancellation, tokio::fs::File::open(local_path))
+            .await
+            .context("could not open local edit")?;
+        let mut remote = sftp_operation_step(cancellation, sftp.create(&staging_path))
+            .await
+            .context("could not create remote upload")?;
+        let mut buffer = vec![0_u8; SFTP_FILE_COPY_BUFFER_BYTES];
+        let mut copied = 0_u64;
+        loop {
+            let read = sftp_operation_step(cancellation, local.read(&mut buffer))
+                .await
+                .context("could not read local edit")?;
+            if read == 0 {
+                break;
+            }
+            copied = copied
+                .checked_add(read as u64)
+                .ok_or_else(|| anyhow!("local edit size overflowed"))?;
+            if copied > MAX_SFTP_FILE_TRANSFER_BYTES {
+                bail!("local edit exceeds the transfer size limit");
+            }
+            sftp_operation_step(cancellation, remote.write_all(&buffer[..read]))
+                .await
+                .context("could not write remote upload")?;
+        }
+        sftp_operation_step(cancellation, remote.flush())
+            .await
+            .context("could not flush remote upload")?;
+        let permissions = SftpFileAttributes {
+            permissions: original_permissions,
+            ..SftpFileAttributes::empty()
+        };
+        if permissions.permissions.is_some() {
+            sftp_operation_step(cancellation, remote.set_metadata(permissions))
+                .await
+                .context("could not preserve remote file permissions")?;
+        }
+        sftp_operation_step(cancellation, remote.sync_all())
+            .await
+            .context("could not persist remote upload")?;
+        sftp_operation_step(cancellation, remote.close())
+            .await
+            .context("could not close remote upload")?;
+
+        let used_posix_rename = if let Some(ssh_session) = ssh_session {
+            posix_rename_sftp_file(ssh_session, &staging_path, remote_path, cancellation).await?
+        } else {
+            #[cfg(test)]
+            {
+                sftp_operation_step(cancellation, sftp.rename(&staging_path, remote_path))
+                    .await
+                    .context("test SFTP server could not install the upload")?;
+                true
+            }
+            #[cfg(not(test))]
+            {
+                bail!("atomic SFTP rename adapter is unavailable");
+            }
+        };
+        if !used_posix_rename {
+            if target_existed {
+                bail!("remote server does not support atomic replacement of an existing file");
+            }
+            sftp_operation_step(cancellation, sftp.rename(&staging_path, remote_path))
+                .await
+                .context("could not install the new remote file")?;
+        }
+        Ok(())
+    }
+    .await;
+    if result.is_err() {
+        let _ = sftp.remove_file(&staging_path).await;
+    }
+    result
+}
+
+async fn posix_rename_sftp_file(
+    session: &client::Handle<SshClientHandler>,
+    old_path: &str,
+    new_path: &str,
+    cancellation: &SftpOperationCancellation,
+) -> Result<bool> {
+    let channel = sftp_operation_step(cancellation, session.channel_open_session())
+        .await
+        .context("could not open atomic SFTP rename channel")?;
+    sftp_operation_step(cancellation, channel.request_subsystem(true, "sftp"))
+        .await
+        .context("remote server rejected the atomic SFTP rename channel")?;
+    let raw = RawSftpSession::new_with_config(
+        SftpPacketLengthLimitedStream::new(channel.into_stream(), MAX_SFTP_INBOUND_PACKET_BYTES),
+        SftpConfig {
+            max_packet_len: MAX_SFTP_INBOUND_PACKET_BYTES,
+            request_timeout_secs: 10,
+            ..SftpConfig::default()
+        },
+    );
+    let version = sftp_operation_step(cancellation, raw.init())
+        .await
+        .context("could not initialize atomic SFTP rename")?;
+    if version
+        .extensions
+        .get("posix-rename@openssh.com")
+        .map(String::as_str)
+        != Some("1")
+    {
+        let _ = raw.close_session();
+        return Ok(false);
+    }
+    let mut data = Vec::with_capacity(old_path.len() + new_path.len() + 8);
+    append_sftp_string(&mut data, old_path)?;
+    append_sftp_string(&mut data, new_path)?;
+    let response =
+        sftp_operation_step(cancellation, raw.extended("posix-rename@openssh.com", data))
+            .await
+            .context("atomic SFTP rename request failed")?;
+    let _ = raw.close_session();
+    match response {
+        SftpPacket::Status(status) if status.status_code == SftpStatusCode::Ok => Ok(true),
+        SftpPacket::Status(status) => {
+            Err(SftpError::Status(status)).context("atomic SFTP rename was rejected")
+        }
+        _ => bail!("atomic SFTP rename returned an unexpected packet"),
+    }
+}
+
+fn append_sftp_string(buffer: &mut Vec<u8>, value: &str) -> Result<()> {
+    let length = u32::try_from(value.len()).context("SFTP path length overflowed")?;
+    buffer.extend_from_slice(&length.to_be_bytes());
+    buffer.extend_from_slice(value.as_bytes());
+    Ok(())
+}
+
+#[derive(Clone)]
+struct SftpOperationCancellation {
+    state: Arc<SftpOperationCancellationState>,
+    parent: Option<Arc<SftpOperationCancellationState>>,
+}
+
+struct SftpOperationCancellationState {
+    cancelled: AtomicBool,
+    notify: Notify,
+}
+
+impl SftpOperationCancellation {
+    fn new() -> Self {
+        Self {
+            state: Arc::new(SftpOperationCancellationState {
+                cancelled: AtomicBool::new(false),
+                notify: Notify::new(),
+            }),
+            parent: None,
+        }
+    }
+
+    fn child(&self) -> Self {
+        Self {
+            state: Arc::new(SftpOperationCancellationState {
+                cancelled: AtomicBool::new(false),
+                notify: Notify::new(),
+            }),
+            parent: Some(Arc::clone(&self.state)),
+        }
+    }
+
+    fn cancel(&self) {
+        if !self.state.cancelled.swap(true, Ordering::AcqRel) {
+            self.state.notify.notify_waiters();
+        }
+    }
+
+    async fn cancelled(&self) {
+        if let Some(parent) = &self.parent {
+            tokio::select! {
+                _ = wait_for_sftp_cancellation(&self.state) => {},
+                _ = wait_for_sftp_cancellation(parent) => {},
+            }
+        } else {
+            wait_for_sftp_cancellation(&self.state).await;
+        }
+    }
+}
+
+async fn wait_for_sftp_cancellation(state: &SftpOperationCancellationState) {
+    loop {
+        let notified = state.notify.notified();
+        if state.cancelled.load(Ordering::Acquire) {
+            return;
+        }
+        notified.await;
+    }
+}
+
+async fn sftp_operation_step<T, E, F>(
+    cancellation: &SftpOperationCancellation,
+    operation: F,
+) -> Result<T>
+where
+    F: Future<Output = std::result::Result<T, E>>,
+    E: std::error::Error + Send + Sync + 'static,
+{
+    tokio::select! {
+        biased;
+        _ = cancellation.cancelled() => bail!("SFTP file operation was cancelled"),
+        result = operation => result.map_err(anyhow::Error::new),
+    }
+}
+
+struct LocalStagingCleanup {
+    path: PathBuf,
+    armed: bool,
+}
+
+impl LocalStagingCleanup {
+    fn new(path: PathBuf) -> Self {
+        Self { path, armed: true }
+    }
+
+    fn disarm(&mut self) {
+        self.armed = false;
+    }
+}
+
+impl Drop for LocalStagingCleanup {
+    fn drop(&mut self) {
+        if self.armed {
+            let _ = fs::remove_file(&self.path);
+        }
+    }
+}
+
+fn random_sftp_transfer_token() -> Result<String> {
+    let mut bytes = [0_u8; 12];
+    getrandom::fill(&mut bytes)
+        .map_err(|error| anyhow!("could not generate an SFTP transfer token: {error}"))?;
+    let mut token = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        use std::fmt::Write as _;
+        write!(&mut token, "{byte:02x}").expect("writing to a string cannot fail");
+    }
+    Ok(token)
+}
+
+/// Enforces the SFTP frame length before the upstream decoder allocates its
+/// payload buffer. `russh-sftp` 2.4.0 applies `Config.max_packet_len` to
+/// outgoing requests but reads incoming frames with a `u32::MAX` limit.
+struct SftpPacketLengthLimitedStream<S> {
+    inner: S,
+    max_packet_len: u32,
+    prefix: [u8; 4],
+    prefix_len: usize,
+    prefix_sent: usize,
+    payload_remaining: Option<u32>,
+    rejected: bool,
+}
+
+impl<S> SftpPacketLengthLimitedStream<S> {
+    fn new(inner: S, max_packet_len: u32) -> Self {
+        Self {
+            inner,
+            max_packet_len,
+            prefix: [0; 4],
+            prefix_len: 0,
+            prefix_sent: 0,
+            payload_remaining: None,
+            rejected: false,
+        }
+    }
+
+    fn finish_frame(&mut self) {
+        self.prefix_len = 0;
+        self.prefix_sent = 0;
+        self.payload_remaining = None;
+    }
+}
+
+impl<S> AsyncRead for SftpPacketLengthLimitedStream<S>
+where
+    S: AsyncRead + Unpin,
+{
+    fn poll_read(
+        self: Pin<&mut Self>,
+        context: &mut TaskContext<'_>,
+        buffer: &mut ReadBuf<'_>,
+    ) -> Poll<IoResult<()>> {
+        let this = self.get_mut();
+        let initially_filled = buffer.filled().len();
+        loop {
+            if buffer.remaining() == 0 {
+                return Poll::Ready(Ok(()));
+            }
+            if this.rejected {
+                return Poll::Ready(Err(IoError::new(
+                    ErrorKind::UnexpectedEof,
+                    "SFTP stream terminated after rejecting an oversized packet",
+                )));
+            }
+            if this.payload_remaining.is_none() {
+                while this.prefix_len < this.prefix.len() {
+                    let mut prefix_buffer = ReadBuf::new(&mut this.prefix[this.prefix_len..]);
+                    match Pin::new(&mut this.inner).poll_read(context, &mut prefix_buffer) {
+                        Poll::Pending => {
+                            return if buffer.filled().len() > initially_filled {
+                                Poll::Ready(Ok(()))
+                            } else {
+                                Poll::Pending
+                            };
+                        }
+                        Poll::Ready(Err(error)) => return Poll::Ready(Err(error)),
+                        Poll::Ready(Ok(())) => {
+                            let read = prefix_buffer.filled().len();
+                            if read == 0 {
+                                return if this.prefix_len == 0 {
+                                    Poll::Ready(Ok(()))
+                                } else {
+                                    Poll::Ready(Err(IoError::new(
+                                        ErrorKind::UnexpectedEof,
+                                        "SFTP packet ended inside its length prefix",
+                                    )))
+                                };
+                            }
+                            this.prefix_len += read;
+                        }
+                    }
+                }
+                let packet_len = u32::from_be_bytes(this.prefix);
+                if packet_len > this.max_packet_len {
+                    this.rejected = true;
+                    return Poll::Ready(Err(IoError::new(
+                        ErrorKind::InvalidData,
+                        "SFTP packet length limit exceeded",
+                    )));
+                }
+                this.payload_remaining = Some(packet_len);
+                this.prefix_sent = 0;
+            }
+
+            if this.prefix_sent < this.prefix.len() {
+                let count = (this.prefix.len() - this.prefix_sent).min(buffer.remaining());
+                buffer.put_slice(&this.prefix[this.prefix_sent..this.prefix_sent + count]);
+                this.prefix_sent += count;
+                if buffer.remaining() == 0 {
+                    return Poll::Ready(Ok(()));
+                }
+            }
+
+            let remaining = this
+                .payload_remaining
+                .expect("validated SFTP frame must track its payload");
+            if remaining == 0 {
+                this.finish_frame();
+                continue;
+            }
+
+            let limit = buffer
+                .remaining()
+                .min(remaining as usize)
+                .min(SFTP_LIMITED_READ_CHUNK_BYTES);
+            let mut scratch = [0; SFTP_LIMITED_READ_CHUNK_BYTES];
+            let mut payload_buffer = ReadBuf::new(&mut scratch[..limit]);
+            match Pin::new(&mut this.inner).poll_read(context, &mut payload_buffer) {
+                Poll::Pending => {
+                    return if buffer.filled().len() > initially_filled {
+                        Poll::Ready(Ok(()))
+                    } else {
+                        Poll::Pending
+                    };
+                }
+                Poll::Ready(Err(error)) => return Poll::Ready(Err(error)),
+                Poll::Ready(Ok(())) => {
+                    let read = payload_buffer.filled().len();
+                    if read == 0 {
+                        return Poll::Ready(Err(IoError::new(
+                            ErrorKind::UnexpectedEof,
+                            "SFTP packet ended inside its payload",
+                        )));
+                    }
+                    buffer.put_slice(payload_buffer.filled());
+                    let next_remaining = remaining - read as u32;
+                    this.payload_remaining = Some(next_remaining);
+                    if next_remaining == 0 {
+                        this.finish_frame();
+                    }
+                    return Poll::Ready(Ok(()));
+                }
+            }
+        }
+    }
+}
+
+impl<S> AsyncWrite for SftpPacketLengthLimitedStream<S>
+where
+    S: AsyncWrite + Unpin,
+{
+    fn poll_write(
+        self: Pin<&mut Self>,
+        context: &mut TaskContext<'_>,
+        buffer: &[u8],
+    ) -> Poll<IoResult<usize>> {
+        Pin::new(&mut self.get_mut().inner).poll_write(context, buffer)
+    }
+
+    fn poll_flush(self: Pin<&mut Self>, context: &mut TaskContext<'_>) -> Poll<IoResult<()>> {
+        Pin::new(&mut self.get_mut().inner).poll_flush(context)
+    }
+
+    fn poll_shutdown(self: Pin<&mut Self>, context: &mut TaskContext<'_>) -> Poll<IoResult<()>> {
+        Pin::new(&mut self.get_mut().inner).poll_shutdown(context)
+    }
+}
+
+fn reserve_sftp_entry_wire_bytes(wire_bytes: &mut usize, entry: &SftpDirectoryEntry) -> Result<()> {
+    let entry_bytes = serde_json::to_vec(entry)
+        .context("could not measure SFTP directory entry")?
+        .len()
+        .saturating_add(1);
+    let next = wire_bytes
+        .checked_add(entry_bytes)
+        .ok_or_else(|| anyhow!("remote directory response size overflowed"))?;
+    if next > MAX_SFTP_DIRECTORY_WIRE_BYTES {
+        bail!("remote directory exceeds the response size limit");
+    }
+    *wire_bytes = next;
+    Ok(())
+}
+
+fn is_valid_sftp_entry_name(name: &str) -> bool {
+    !name.is_empty()
+        && name != "."
+        && name != ".."
+        && name.len() <= MAX_SFTP_ENTRY_NAME_BYTES
+        && !name.contains(['/', '\\'])
+        && !name.chars().any(char::is_control)
 }
 
 fn client_config(connection: &TerminalProfileConnection) -> Arc<client::Config> {
@@ -2499,6 +3457,143 @@ fn expand_home_path(value: &str) -> PathBuf {
 mod tests {
     use super::*;
     use russh::client::Handler as _;
+    use russh_sftp::protocol::{Attrs, Data, Handle, OpenFlags, Status};
+
+    struct InMemorySftpServer {
+        files: Arc<Mutex<HashMap<String, Vec<u8>>>>,
+    }
+
+    impl russh_sftp::server::Handler for InMemorySftpServer {
+        type Error = SftpStatusCode;
+
+        fn unimplemented(&self) -> Self::Error {
+            SftpStatusCode::OpUnsupported
+        }
+
+        async fn open(
+            &mut self,
+            id: u32,
+            filename: String,
+            pflags: OpenFlags,
+            _attrs: SftpFileAttributes,
+        ) -> std::result::Result<Handle, Self::Error> {
+            let mut files = self.files.lock();
+            if pflags.contains(OpenFlags::TRUNCATE) {
+                files.insert(filename.clone(), Vec::new());
+            } else if pflags.contains(OpenFlags::CREATE) {
+                files.entry(filename.clone()).or_default();
+            } else if !files.contains_key(&filename) {
+                return Err(SftpStatusCode::NoSuchFile);
+            }
+            Ok(Handle {
+                id,
+                handle: filename,
+            })
+        }
+
+        async fn close(
+            &mut self,
+            id: u32,
+            _handle: String,
+        ) -> std::result::Result<Status, Self::Error> {
+            Ok(sftp_ok_status(id))
+        }
+
+        async fn read(
+            &mut self,
+            id: u32,
+            handle: String,
+            offset: u64,
+            len: u32,
+        ) -> std::result::Result<Data, Self::Error> {
+            let files = self.files.lock();
+            let data = files.get(&handle).ok_or(SftpStatusCode::NoSuchFile)?;
+            let offset = usize::try_from(offset).map_err(|_| SftpStatusCode::Failure)?;
+            if offset >= data.len() {
+                return Err(SftpStatusCode::Eof);
+            }
+            let end = offset.saturating_add(len as usize).min(data.len());
+            Ok(Data {
+                id,
+                data: data[offset..end].to_vec(),
+            })
+        }
+
+        async fn write(
+            &mut self,
+            id: u32,
+            handle: String,
+            offset: u64,
+            data: Vec<u8>,
+        ) -> std::result::Result<Status, Self::Error> {
+            let mut files = self.files.lock();
+            let file = files.get_mut(&handle).ok_or(SftpStatusCode::NoSuchFile)?;
+            let offset = usize::try_from(offset).map_err(|_| SftpStatusCode::Failure)?;
+            let end = offset
+                .checked_add(data.len())
+                .ok_or(SftpStatusCode::Failure)?;
+            if file.len() < end {
+                file.resize(end, 0);
+            }
+            file[offset..end].copy_from_slice(&data);
+            Ok(sftp_ok_status(id))
+        }
+
+        async fn stat(&mut self, id: u32, path: String) -> std::result::Result<Attrs, Self::Error> {
+            let files = self.files.lock();
+            let data = files.get(&path).ok_or(SftpStatusCode::NoSuchFile)?;
+            Ok(Attrs {
+                id,
+                attrs: SftpFileAttributes {
+                    size: Some(data.len() as u64),
+                    permissions: Some(0o100640),
+                    ..SftpFileAttributes::empty()
+                },
+            })
+        }
+
+        async fn fsetstat(
+            &mut self,
+            id: u32,
+            _handle: String,
+            _attrs: SftpFileAttributes,
+        ) -> std::result::Result<Status, Self::Error> {
+            Ok(sftp_ok_status(id))
+        }
+
+        async fn rename(
+            &mut self,
+            id: u32,
+            oldpath: String,
+            newpath: String,
+        ) -> std::result::Result<Status, Self::Error> {
+            let mut files = self.files.lock();
+            let data = files.remove(&oldpath).ok_or(SftpStatusCode::NoSuchFile)?;
+            files.insert(newpath, data);
+            Ok(sftp_ok_status(id))
+        }
+
+        async fn remove(
+            &mut self,
+            id: u32,
+            filename: String,
+        ) -> std::result::Result<Status, Self::Error> {
+            self.files
+                .lock()
+                .remove(&filename)
+                .ok_or(SftpStatusCode::NoSuchFile)?;
+            Ok(sftp_ok_status(id))
+        }
+    }
+
+    fn sftp_ok_status(id: u32) -> Status {
+        Status {
+            id,
+            status_code: SftpStatusCode::Ok,
+            error_message: "Ok".to_string(),
+            language_tag: "en-US".to_string(),
+        }
+    }
 
     const HOST_KEY_A: &str =
         "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJ4884pTXCgmNvR/oiWTLe71HqB0p1+KknbHps1cKMjH";
@@ -2522,6 +3617,313 @@ mod tests {
     #[test]
     fn keyboard_interactive_timeout_matches_openssh_default_login_grace_time() {
         assert_eq!(SSH_AUTH_INTERACTION_TIMEOUT, Duration::from_secs(120));
+    }
+
+    #[test]
+    fn sftp_client_enqueues_directory_work_without_blocking_the_caller() {
+        let (sender, mut commands) = mpsc::unbounded_channel();
+        let client = SshSftpClient { sender };
+
+        let receiver = client
+            .start_list_directory("/srv/app".to_string())
+            .expect("enqueue directory request");
+        let command = commands.try_recv().expect("queued SFTP command");
+        let SshCommand::ListDirectory { path, response } = command else {
+            panic!("expected an SFTP directory command");
+        };
+        assert_eq!(path, "/srv/app");
+        response
+            .send(Ok(SftpDirectoryListing {
+                path,
+                entries: Vec::new(),
+            }))
+            .expect("deliver directory response");
+        assert!(
+            receiver
+                .blocking_recv()
+                .expect("receive directory response")
+                .is_ok()
+        );
+    }
+
+    #[test]
+    fn sftp_file_transfer_round_trips_through_the_protocol() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("SFTP transfer test runtime");
+        runtime.block_on(async {
+            let files = Arc::new(Mutex::new(HashMap::from([(
+                "/remote.txt".to_string(),
+                b"remote-before\n".to_vec(),
+            )])));
+            let (client_stream, server_stream) = tokio::io::duplex(1024 * 1024);
+            let server = tokio::spawn(russh_sftp::server::run(
+                server_stream,
+                InMemorySftpServer {
+                    files: Arc::clone(&files),
+                },
+            ));
+            let sftp = SftpSession::new_with_config(
+                SftpPacketLengthLimitedStream::new(client_stream, MAX_SFTP_INBOUND_PACKET_BYTES),
+                SftpConfig {
+                    max_packet_len: MAX_SFTP_INBOUND_PACKET_BYTES,
+                    request_timeout_secs: 10,
+                    ..SftpConfig::default()
+                },
+            )
+            .await
+            .expect("initialize in-memory SFTP client");
+            let scratch = tempfile::tempdir().expect("local SFTP scratch directory");
+            let local_path = scratch.path().join("remote.txt");
+            let cancellation = SftpOperationCancellation::new();
+
+            download_sftp_file(
+                &sftp,
+                "/remote.txt",
+                &local_path.to_string_lossy(),
+                &cancellation,
+            )
+            .await
+            .expect("download remote fixture");
+            assert_eq!(
+                fs::read(&local_path).expect("read local SFTP download"),
+                b"remote-before\n"
+            );
+
+            fs::write(&local_path, b"local-after\n").expect("write local SFTP edit");
+            upload_sftp_file(
+                None,
+                &sftp,
+                &local_path.to_string_lossy(),
+                "/remote.txt",
+                &cancellation,
+            )
+            .await
+            .expect("upload local edit");
+            assert_eq!(
+                files.lock().get("/remote.txt").cloned(),
+                Some(b"local-after\n".to_vec())
+            );
+            upload_sftp_file(
+                None,
+                &sftp,
+                &local_path.to_string_lossy(),
+                "/created.txt",
+                &cancellation,
+            )
+            .await
+            .expect("upload a new remote file");
+            assert_eq!(
+                files.lock().get("/created.txt").cloned(),
+                Some(b"local-after\n".to_vec())
+            );
+            files
+                .lock()
+                .insert("/remote.txt".to_string(), b"remote-second\n".to_vec());
+            download_sftp_file(
+                &sftp,
+                "/remote.txt",
+                &local_path.to_string_lossy(),
+                &cancellation,
+            )
+            .await
+            .expect("atomically replace an existing local download");
+            assert_eq!(
+                fs::read(&local_path).expect("read replaced local SFTP download"),
+                b"remote-second\n"
+            );
+            assert!(
+                files.lock().keys().all(|path| !path.contains(".ianvs-")),
+                "successful upload must remove its remote staging and backup files"
+            );
+            let _ = sftp.close().await;
+            server.await.expect("in-memory SFTP server task");
+        });
+    }
+
+    #[test]
+    fn dropping_sftp_receiver_cancels_queued_directory_work() {
+        let (sender, mut commands) = mpsc::unbounded_channel();
+        let client = SshSftpClient { sender };
+
+        let receiver = client
+            .start_list_directory("/srv/app".to_string())
+            .expect("enqueue directory request");
+        let command = commands.try_recv().expect("queued SFTP command");
+        let SshCommand::ListDirectory { response, .. } = command else {
+            panic!("expected an SFTP directory command");
+        };
+
+        drop(receiver);
+        assert!(response.is_closed());
+    }
+
+    #[test]
+    fn dropping_sftp_operation_receiver_cancels_queued_work() {
+        let (sender, mut commands) = mpsc::unbounded_channel();
+        let client = SshSftpClient { sender };
+
+        let receiver = client
+            .start_operation(SftpOperation::DeleteEntry {
+                path: "/srv/app/stale.log".to_string(),
+                is_directory: false,
+            })
+            .expect("enqueue SFTP operation");
+        let command = commands.try_recv().expect("queued SFTP operation");
+        let SshCommand::SftpOperation { response, .. } = command else {
+            panic!("expected an SFTP operation command");
+        };
+
+        drop(receiver);
+        assert!(response.is_closed());
+    }
+
+    #[test]
+    fn sftp_operation_cancellation_interrupts_a_pending_step() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        runtime.block_on(async {
+            let cancellation = SftpOperationCancellation::new();
+            let pending =
+                sftp_operation_step::<(), IoError, _>(&cancellation, std::future::pending());
+            tokio::pin!(pending);
+            cancellation.cancel();
+
+            let error = pending.await.expect_err("cancellation must win");
+            assert!(error.to_string().contains("cancelled"));
+        });
+    }
+
+    #[test]
+    fn sftp_session_cancellation_reaches_running_child_operations() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        runtime.block_on(async {
+            let root = SftpOperationCancellation::new();
+            let child = root.child();
+            let pending = sftp_operation_step::<(), IoError, _>(&child, std::future::pending());
+            tokio::pin!(pending);
+            root.cancel();
+
+            let error = pending.await.expect_err("root cancellation must win");
+            assert!(error.to_string().contains("cancelled"));
+        });
+    }
+
+    #[test]
+    fn sftp_scope_errors_still_cancel_and_drain_running_operations() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        runtime.block_on(async {
+            let root = SftpOperationCancellation::new();
+            let child = root.child();
+            let cleaned = Arc::new(AtomicBool::new(false));
+            let cleaned_by_request = Arc::clone(&cleaned);
+            let mut requests: FuturesUnordered<BoxFuture<'_, ()>> = FuturesUnordered::new();
+            requests.push(Box::pin(async move {
+                child.cancelled().await;
+                cleaned_by_request.store(true, Ordering::SeqCst);
+            }));
+
+            let error = finish_sftp_request_scope::<()>(
+                Err(anyhow!("shell channel write failed")),
+                &root,
+                &mut requests,
+            )
+            .await
+            .expect_err("the shell error must survive cleanup");
+
+            assert!(error.to_string().contains("shell channel write failed"));
+            assert!(cleaned.load(Ordering::SeqCst));
+            assert!(requests.is_empty());
+        });
+    }
+
+    #[test]
+    fn sftp_directory_wire_budget_rejects_escape_amplification() {
+        let entry = SftpDirectoryEntry {
+            name: "\\\"".repeat(MAX_SFTP_ENTRY_NAME_BYTES),
+            kind: "file",
+            size_bytes: Some(1),
+            modified_at_epoch_seconds: None,
+            permissions: Some("-rw-r--r--".to_string()),
+        };
+        let encoded_entry_size = serde_json::to_vec(&entry).unwrap().len();
+        assert!(encoded_entry_size > entry.name.len());
+
+        let mut wire_bytes = MAX_SFTP_DIRECTORY_WIRE_BYTES - encoded_entry_size;
+        assert!(reserve_sftp_entry_wire_bytes(&mut wire_bytes, &entry).is_err());
+    }
+
+    #[test]
+    fn sftp_entry_names_cannot_escape_a_local_edit_directory() {
+        assert!(is_valid_sftp_entry_name("deploy.log"));
+        assert!(!is_valid_sftp_entry_name("../deploy.log"));
+        assert!(!is_valid_sftp_entry_name("..\\deploy.log"));
+        assert!(!is_valid_sftp_entry_name("."));
+        assert!(!is_valid_sftp_entry_name(".."));
+    }
+
+    #[test]
+    fn sftp_stream_rejects_oversized_frame_before_reading_its_payload() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        runtime.block_on(async {
+            let (mut remote, transport) = tokio::io::duplex(16);
+            remote
+                .write_all(&(MAX_SFTP_INBOUND_PACKET_BYTES + 1).to_be_bytes())
+                .await
+                .expect("write forged SFTP prefix");
+            let mut limited =
+                SftpPacketLengthLimitedStream::new(transport, MAX_SFTP_INBOUND_PACKET_BYTES);
+            let mut prefix = [0; 4];
+
+            let error = limited
+                .read_exact(&mut prefix)
+                .await
+                .expect_err("oversized prefix must fail without a payload");
+
+            assert_eq!(error.kind(), ErrorKind::InvalidData);
+
+            let terminal_error = limited
+                .read_exact(&mut prefix)
+                .await
+                .expect_err("rejected SFTP stream must terminate on the next read");
+            assert_eq!(terminal_error.kind(), ErrorKind::UnexpectedEof);
+        });
+    }
+
+    #[test]
+    fn sftp_stream_preserves_a_frame_within_the_inbound_limit() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        runtime.block_on(async {
+            let (mut remote, transport) = tokio::io::duplex(16);
+            remote
+                .write_all(&[0, 0, 0, 1, 0x7f])
+                .await
+                .expect("write bounded SFTP frame");
+            let mut limited = SftpPacketLengthLimitedStream::new(transport, 1);
+            let mut frame = [0; 5];
+
+            limited
+                .read_exact(&mut frame)
+                .await
+                .expect("bounded SFTP frame");
+
+            assert_eq!(frame, [0, 0, 0, 1, 0x7f]);
+        });
     }
 
     #[test]

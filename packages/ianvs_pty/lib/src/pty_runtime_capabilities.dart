@@ -2,6 +2,10 @@ import 'dart:convert';
 
 const int ptyRuntimeCapabilitiesSchemaVersion = 1;
 const String ptyRuntimeContractV1 = 'ianvs-runtime-contract-v1';
+const String ptyRuntimeFeatureSftpDirectoryListingV1 =
+    'ssh-sftp-directory-listing.v1';
+const String ptyRuntimeFeatureSftpFileOperationsV1 =
+    'ssh-sftp-file-operations.v1';
 
 final class UnsupportedPtyRuntimeCapabilitiesSchemaVersion
     implements Exception {

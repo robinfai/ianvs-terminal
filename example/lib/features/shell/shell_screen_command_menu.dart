@@ -9,6 +9,7 @@ class _ShellCommandMenu extends StatefulWidget {
     required this.clearBufferShortcutLabel,
     required this.hasDefaultProfile,
     required this.hasActiveSession,
+    required this.isActiveSessionSsh,
     required this.canReopenClosedTab,
     required this.isActiveSessionReadOnly,
     required this.isActiveSessionRecording,
@@ -26,6 +27,7 @@ class _ShellCommandMenu extends StatefulWidget {
   final String clearBufferShortcutLabel;
   final bool hasDefaultProfile;
   final bool hasActiveSession;
+  final bool isActiveSessionSsh;
   final bool canReopenClosedTab;
   final bool isActiveSessionReadOnly;
   final bool isActiveSessionRecording;
@@ -57,6 +59,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
     final clearBufferShortcutLabel = widget.clearBufferShortcutLabel;
     final hasDefaultProfile = widget.hasDefaultProfile;
     final hasActiveSession = widget.hasActiveSession;
+    final isActiveSessionSsh = widget.isActiveSessionSsh;
     final canReopenClosedTab = widget.canReopenClosedTab;
     final isActiveSessionReadOnly = widget.isActiveSessionReadOnly;
     final isActiveSessionRecording = widget.isActiveSessionRecording;
@@ -390,6 +393,19 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                         ).pop(TerminalActionId.clearBuffer),
                       ),
                       commandTile(
+                        key: const Key('shell-open-sftp-panel'),
+                        actionId: TerminalActionId.openSftpPanel,
+                        icon: Icons.folder_open_rounded,
+                        title: 'Open SFTP panel',
+                        subtitle:
+                            'Session action • Browse files for the active SSH connection in a right-side panel.',
+                        enabled: isActiveSessionSsh,
+                        disabledReason: 'Requires an active SSH session.',
+                        onTap: () => Navigator.of(
+                          context,
+                        ).pop(TerminalActionId.openSftpPanel),
+                      ),
+                      commandTile(
                         key: const Key('shell-export-scrollback'),
                         actionId: TerminalActionId.exportScrollback,
                         icon: Icons.ios_share_rounded,
@@ -556,6 +572,10 @@ const _commandMenuActionSearchEntries = <MapEntry<String, TerminalActionId>>[
     TerminalActionId.clearBuffer,
   ),
   MapEntry('toolbelt terminal tools sidebar', TerminalActionId.toolbelt),
+  MapEntry(
+    'open sftp panel remote files ssh side sheet file browser',
+    TerminalActionId.openSftpPanel,
+  ),
   MapEntry(
     'replay recent activity instant terminal frames',
     TerminalActionId.instantReplay,

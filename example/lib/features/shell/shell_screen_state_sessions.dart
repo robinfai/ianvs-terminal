@@ -292,6 +292,8 @@ extension _ShellScreenStateSessions on _ShellScreenState {
       _isAutoComposerOpen = false;
       _isCopyModeOpen = false;
       _isToolbeltOpen = false;
+      _isSftpPanelOpen = false;
+      _sftpPanelSessionId = null;
       _searchQuery = '';
       _searchErrorText = null;
       _searchMatchesBySession = const {};
@@ -310,6 +312,13 @@ extension _ShellScreenStateSessions on _ShellScreenState {
       _layoutCueTimer?.cancel();
       _layoutCueTimer = null;
     } else {
+      if (_isSftpPanelOpen &&
+          (_sftpPanelSessionId != sessionState.activeSessionId ||
+              _sftpTargetFor(sessionState, sessionState.activeSessionId) ==
+                  null)) {
+        _isSftpPanelOpen = false;
+        _sftpPanelSessionId = null;
+      }
       final copyModeSessionId = _copyModeSessionId;
       if (_isCopyModeOpen &&
           (copyModeSessionId == null ||

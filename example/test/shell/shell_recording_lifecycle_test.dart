@@ -442,7 +442,12 @@ void main() {
         'recording',
       );
       await tester.pump(const Duration(milliseconds: 200));
-      await tester.tap(find.byKey(const Key('shell-toggle-session-recording')));
+      final startRecordingAction = find.byKey(
+        const Key('shell-toggle-session-recording'),
+      );
+      await tester.ensureVisible(startRecordingAction);
+      await tester.pump();
+      await tester.tap(startRecordingAction);
       await _pumpUntil(
         tester,
         () => recordingBackend.recordingStarted.isCompleted,
@@ -472,6 +477,8 @@ void main() {
       final recordingAction = find.byKey(
         const Key('shell-toggle-session-recording'),
       );
+      await tester.ensureVisible(recordingAction);
+      await tester.pump();
       await tester.tap(recordingAction);
       await _pumpUntil(
         tester,

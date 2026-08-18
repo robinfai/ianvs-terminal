@@ -13433,6 +13433,186 @@ void main() {
 
     expect(signals, hasLength(signalCountAfterDispose));
   });
+
+  testWidgets(
+    'SFTP cancellation stops polling and sends a native cancel request',
+    (tester) async {
+      final backend = _FakePtyBackend()
+        ..runtimeCapabilities = PtyRuntimeCapabilities.fromJson(
+          const <String, Object?>{
+            'schema_version': ptyRuntimeCapabilitiesSchemaVersion,
+            'runtime_contract': ptyRuntimeContractV1,
+            'frame_schema_versions': <String>[],
+            'recording_schema_versions': <int>[],
+            'features': <String>[ptyRuntimeFeatureSftpDirectoryListingV1],
+          },
+        );
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.tryDispose);
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      final cancellation = TerminalSftpCancellation();
+      final listing = runtime.listSftpDirectory(
+        sessionId,
+        '/',
+        cancellation: cancellation,
+      );
+      final expectation = expectLater(
+        listing,
+        throwsA(
+          isA<TerminalSftpException>().having(
+            (error) => error.message,
+            'message',
+            contains('cancelled'),
+          ),
+        ),
+      );
+
+      await tester.pump();
+      expect(
+        backend.jsonRequests.map((request) => request['kind']),
+        containsAllInOrder(<String>[
+          'ssh.sftp.list_directory_start',
+          'ssh.sftp.list_directory_poll',
+        ]),
+      );
+      cancellation.cancel();
+      await tester.pump();
+      await expectation;
+
+      expect(
+        backend.jsonRequests
+            .where(
+              (request) => request['kind'] == 'ssh.sftp.list_directory_cancel',
+            )
+            .length,
+        1,
+      );
+      final pollCount = backend.jsonRequests
+          .where((request) => request['kind'] == 'ssh.sftp.list_directory_poll')
+          .length;
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(
+        backend.jsonRequests
+            .where(
+              (request) => request['kind'] == 'ssh.sftp.list_directory_poll',
+            )
+            .length,
+        pollCount,
+      );
+    },
+  );
+
+  testWidgets(
+    'SFTP API rejects runtimes that do not advertise the capability',
+    (tester) async {
+      final backend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.tryDispose);
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+
+      await expectLater(
+        runtime.listSftpDirectory(sessionId, '/'),
+        throwsA(
+          isA<TerminalSftpException>().having(
+            (error) => error.message,
+            'message',
+            contains('does not advertise'),
+          ),
+        ),
+      );
+      expect(
+        backend.jsonRequests.where(
+          (request) => request['kind'].toString().startsWith('ssh.sftp.'),
+        ),
+        isEmpty,
+      );
+    },
+  );
+
+  testWidgets(
+    'SFTP file APIs preserve local paths outside the JSON payload data',
+    (tester) async {
+      final backend = _FakePtyBackend()
+        ..sftpOperationStatus = 'complete'
+        ..runtimeCapabilities = PtyRuntimeCapabilities.fromJson(
+          const <String, Object?>{
+            'schema_version': ptyRuntimeCapabilitiesSchemaVersion,
+            'runtime_contract': ptyRuntimeContractV1,
+            'frame_schema_versions': <String>[],
+            'recording_schema_versions': <int>[],
+            'features': <String>[ptyRuntimeFeatureSftpFileOperationsV1],
+          },
+        );
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.tryDispose);
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+
+      await runtime.downloadSftpFile(sessionId, '/srv/app/main.dart', '/tmp/a');
+      await runtime.uploadSftpFile(sessionId, '/tmp/a', '/srv/app/main.dart');
+      await runtime.createSftpDirectory(sessionId, '/srv/app/new-dir');
+      await runtime.deleteSftpEntry(
+        sessionId,
+        '/srv/app/old-dir',
+        isDirectory: true,
+      );
+
+      final starts = backend.jsonRequests.where(
+        (request) => request['kind'] == 'ssh.sftp.operation_start',
+      );
+      expect(starts, <Map<String, Object?>>[
+        <String, Object?>{
+          'kind': 'ssh.sftp.operation_start',
+          'action': 'download_file',
+          'remotePath': '/srv/app/main.dart',
+          'localPath': '/tmp/a',
+        },
+        <String, Object?>{
+          'kind': 'ssh.sftp.operation_start',
+          'action': 'upload_file',
+          'remotePath': '/srv/app/main.dart',
+          'localPath': '/tmp/a',
+        },
+        <String, Object?>{
+          'kind': 'ssh.sftp.operation_start',
+          'action': 'create_directory',
+          'remotePath': '/srv/app/new-dir',
+        },
+        <String, Object?>{
+          'kind': 'ssh.sftp.operation_start',
+          'action': 'delete_entry',
+          'remotePath': '/srv/app/old-dir',
+          'isDirectory': true,
+        },
+      ]);
+    },
+  );
 }
 
 PtyEvent _clipboardPasteHostRequestEvent(
@@ -13520,6 +13700,7 @@ class _FakePtyBackend
     'kind': 'custom',
   };
   bool dismissOsc99NotificationResponse = true;
+  String sftpOperationStatus = 'pending';
   String? scrollbackRawResponse;
   Map<String, Object?>? diagnosticsResponse;
   String? diagnosticsRawResponse;
@@ -13699,6 +13880,24 @@ class _FakePtyBackend
       'terminal.clear_buffer' => jsonEncode(<String, Object?>{'cleared': true}),
       'terminal.dismiss_osc99_notification' => jsonEncode(<String, Object?>{
         'dismissed': dismissOsc99NotificationResponse,
+      }),
+      'ssh.sftp.list_directory_start' => jsonEncode(<String, Object?>{
+        'jobId': '77',
+      }),
+      'ssh.sftp.list_directory_poll' => jsonEncode(<String, Object?>{
+        'status': 'pending',
+      }),
+      'ssh.sftp.list_directory_cancel' => jsonEncode(<String, Object?>{
+        'cancelled': true,
+      }),
+      'ssh.sftp.operation_start' => jsonEncode(<String, Object?>{
+        'jobId': '78',
+      }),
+      'ssh.sftp.operation_poll' => jsonEncode(<String, Object?>{
+        'status': sftpOperationStatus,
+      }),
+      'ssh.sftp.operation_cancel' => jsonEncode(<String, Object?>{
+        'cancelled': true,
       }),
       'terminal.set_block_folded' => jsonEncode(<String, Object?>{
         'updated': setBlockFoldedResponse,

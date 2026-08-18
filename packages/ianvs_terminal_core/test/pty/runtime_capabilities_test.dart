@@ -25,6 +25,28 @@ void main() {
     expect(capabilities.supports('missing.feature.v1'), isFalse);
   });
 
+  test('exposes the stable SFTP directory-listing capability identifier', () {
+    final capabilities = PtyRuntimeCapabilities.fromJson(<String, Object?>{
+      'schema_version': 1,
+      'runtime_contract': 'ianvs-runtime-contract-v1',
+      'frame_schema_versions': <Object?>['terminal-frame-diff-v1'],
+      'recording_schema_versions': <Object?>[1],
+      'features': <Object?>[
+        ptyRuntimeFeatureSftpDirectoryListingV1,
+        ptyRuntimeFeatureSftpFileOperationsV1,
+      ],
+    });
+
+    expect(
+      capabilities.supports(ptyRuntimeFeatureSftpDirectoryListingV1),
+      isTrue,
+    );
+    expect(
+      capabilities.supports(ptyRuntimeFeatureSftpFileOperationsV1),
+      isTrue,
+    );
+  });
+
   test('reports unsupported schema versions with a typed error', () {
     expect(
       () => PtyRuntimeCapabilities.fromJson(<String, Object?>{

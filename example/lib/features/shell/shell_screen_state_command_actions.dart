@@ -49,6 +49,8 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
 
     final activeSessionIdBeforeOpen = sessionState.activeSessionId;
     final hasActiveSession = activeSessionIdBeforeOpen != null;
+    final isActiveSessionSsh =
+        _sftpTargetFor(sessionState, activeSessionIdBeforeOpen) != null;
     final isActiveSessionReadOnly =
         activeSessionIdBeforeOpen != null &&
         _isSessionReadOnly(activeSessionIdBeforeOpen);
@@ -74,6 +76,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         clearBufferShortcutLabel: _clearBufferShortcutLabel(),
         hasDefaultProfile: _canOpenNewSessionLauncher(sessionState),
         hasActiveSession: hasActiveSession,
+        isActiveSessionSsh: isActiveSessionSsh,
         canReopenClosedTab: sessionController.canReopenClosedTab,
         isActiveSessionReadOnly: isActiveSessionReadOnly,
         isActiveSessionRecording: isActiveSessionRecording,
@@ -303,6 +306,8 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         },
         toolbelt: (_) {
           _mutateState(() {
+            _isSftpPanelOpen = false;
+            _sftpPanelSessionId = null;
             _isToolbeltOpen = true;
           });
           return const ShellActionBindingResult.completed();
@@ -1090,8 +1095,13 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         return;
       case TerminalActionId.toolbelt:
         _mutateState(() {
+          _isSftpPanelOpen = false;
+          _sftpPanelSessionId = null;
           _isToolbeltOpen = true;
         });
+        return;
+      case TerminalActionId.openSftpPanel:
+        _openSftpPanel(currentState, currentSessionId);
         return;
       case TerminalActionId.splitRight:
         if (defaultProfile == null || currentSessionId == null) {

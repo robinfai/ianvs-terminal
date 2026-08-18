@@ -209,6 +209,7 @@ fn public_runtime_error(error: &session::SessionError) -> (&'static str, &'stati
             "unsupported_platform",
             "ZMODEM file transfer is unsupported on this platform",
         ),
+        session::SessionError::Sftp(_) => ("sftp_error", "the remote directory request failed"),
         _ => ("runtime_error", "the session request failed"),
     }
 }
@@ -275,6 +276,12 @@ fn supported_operation(value: &str) -> bool {
         value,
         "ssh.auth_response"
             | "ssh.host_key_response"
+            | "ssh.sftp.list_directory_start"
+            | "ssh.sftp.list_directory_poll"
+            | "ssh.sftp.list_directory_cancel"
+            | "ssh.sftp.operation_start"
+            | "ssh.sftp.operation_poll"
+            | "ssh.sftp.operation_cancel"
             | "terminal.recording_start"
             | "terminal.recording_stop"
             | "terminal.recording_stop_prepare"
@@ -364,6 +371,12 @@ mod tests {
     fn operation_inventory_is_explicit() {
         assert!(supported_operation("ssh.auth_response"));
         assert!(supported_operation("ssh.host_key_response"));
+        assert!(supported_operation("ssh.sftp.list_directory_start"));
+        assert!(supported_operation("ssh.sftp.list_directory_poll"));
+        assert!(supported_operation("ssh.sftp.list_directory_cancel"));
+        assert!(supported_operation("ssh.sftp.operation_start"));
+        assert!(supported_operation("ssh.sftp.operation_poll"));
+        assert!(supported_operation("ssh.sftp.operation_cancel"));
         assert!(supported_operation("terminal.recording_stop_prepare"));
         assert!(supported_operation("terminal.recording_finalize_status"));
         assert!(supported_operation("terminal.search_text"));

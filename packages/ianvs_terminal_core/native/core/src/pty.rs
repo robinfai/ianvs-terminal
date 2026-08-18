@@ -26,6 +26,7 @@ pub struct PtyRuntime {
     pub(crate) shell_integration: ShellIntegrationPlanStatus,
     pub(crate) shell_integration_proxy: Option<ShellIntegrationProxy>,
     pub(crate) ssh_auth: Option<crate::ssh::SshAuthClient>,
+    pub(crate) ssh_sftp: Option<crate::ssh::SshSftpClient>,
 }
 
 struct SpawnedChildGuard {
@@ -216,6 +217,7 @@ pub fn spawn_terminal_transport(
                 shell_integration: ShellIntegrationPlanStatus::disabled("remote_ssh"),
                 shell_integration_proxy: None,
                 ssh_auth: Some(runtime.auth),
+                ssh_sftp: Some(runtime.sftp),
             })
         }
     }
@@ -286,6 +288,7 @@ where
         shell_integration: plan.shell_integration,
         shell_integration_proxy: plan.shell_integration_proxy,
         ssh_auth: None,
+        ssh_sftp: None,
     })
 }
 
