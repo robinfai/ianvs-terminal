@@ -160,6 +160,101 @@ void main() {
   });
 
   testWidgets(
+    'iPhone optional setup keeps remote API primary without opening keyboard',
+    (tester) async {
+      final harness = _HostHarness.create(
+        initialSetupRequirement: AppStartupDataSetupRequirement.optional,
+        localDataApiAvailable: false,
+      );
+      addTearDown(() => _disposeHarness(tester, harness));
+
+      await tester.pumpWidget(harness.host());
+      await harness.coordinator.start();
+      await tester.pump();
+
+      final urlField = tester.widget<TextField>(
+        find.byKey(const Key('app-startup-initial-data-api-url')),
+      );
+      expect(urlField.autofocus, isFalse);
+      expect(
+        tester
+            .widget<SingleChildScrollView>(find.byType(SingleChildScrollView))
+            .keyboardDismissBehavior,
+        ScrollViewKeyboardDismissBehavior.onDrag,
+      );
+      expect(find.text('Continue without data service'), findsOneWidget);
+      expect(
+        tester.widget(find.byKey(const Key('app-startup-skip-data-api'))),
+        isA<TextButton>(),
+      );
+      expect(
+        tester.widget(find.byKey(const Key('app-startup-connect-data-api'))),
+        isA<FilledButton>(),
+      );
+    },
+    variant: const TargetPlatformVariant(<TargetPlatform>{TargetPlatform.iOS}),
+  );
+
+  testWidgets(
+    'iPhone landscape setup keeps credentials and actions usable with keyboard',
+    (tester) async {
+      const surfaceSize = Size(844, 390);
+      const keyboardHeight = 216.0;
+      await tester.binding.setSurfaceSize(surfaceSize);
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      addTearDown(tester.view.reset);
+      final harness = _HostHarness.create(
+        initialSetupRequirement: AppStartupDataSetupRequirement.optional,
+        localDataApiAvailable: false,
+      );
+      addTearDown(() => _disposeHarness(tester, harness));
+
+      await tester.pumpWidget(harness.host());
+      await harness.coordinator.start();
+      await tester.pumpAndSettle();
+
+      final username = find.byKey(
+        const Key('app-startup-initial-data-api-username'),
+      );
+      final password = find.byKey(
+        const Key('app-startup-initial-data-api-password'),
+      );
+      final connect = find.byKey(const Key('app-startup-connect-data-api'));
+      expect(tester.getTopLeft(username).dy, tester.getTopLeft(password).dy);
+      expect(tester.getRect(connect).bottom, lessThanOrEqualTo(390));
+      expect(
+        tester.widget<TextField>(password).textInputAction,
+        TextInputAction.done,
+      );
+      expect(tester.takeException(), isNull);
+
+      await tester.tap(password);
+      tester.view.viewInsets = FakeViewPadding(
+        bottom: keyboardHeight * tester.view.devicePixelRatio,
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.getRect(password).bottom,
+        lessThanOrEqualTo(surfaceSize.height - keyboardHeight),
+      );
+      tester.widget<TextField>(password).onSubmitted?.call('');
+      await tester.pump();
+      expect(
+        tester
+            .widget<EditableText>(
+              find.descendant(of: password, matching: find.byType(EditableText)),
+            )
+            .focusNode
+            .hasFocus,
+        isFalse,
+      );
+      expect(tester.takeException(), isNull);
+    },
+    variant: const TargetPlatformVariant(<TargetPlatform>{TargetPlatform.iOS}),
+  );
+
+  testWidgets(
     'required data setup blocks use until remote login succeeds',
     (tester) async {
       tester.view.devicePixelRatio = 1;

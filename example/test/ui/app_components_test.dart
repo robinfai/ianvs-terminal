@@ -222,6 +222,41 @@ void main() {
     expect(closeCount, 1);
   });
 
+  testWidgets('app dialog scaffold centers inside the keyboard-safe viewport', (
+    tester,
+  ) async {
+    const surfaceSize = Size(844, 390);
+    const keyboardHeight = 216.0;
+    await tester.binding.setSurfaceSize(surfaceSize);
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    addTearDown(tester.view.reset);
+
+    await pumpHarness(
+      tester,
+      const AppDialogScaffold(
+        title: 'Keyboard-safe dialog',
+        body: Text('Visible body'),
+        width: 320,
+        height: 120,
+        insetPadding: EdgeInsets.all(12),
+      ),
+      platform: TargetPlatform.iOS,
+    );
+
+    tester.view.viewInsets = FakeViewPadding(
+      bottom: keyboardHeight * tester.view.devicePixelRatio,
+    );
+    await tester.pumpAndSettle();
+
+    final keyboardTop = surfaceSize.height - keyboardHeight;
+    expect(
+      tester.getRect(find.byType(AppPanel)).bottom,
+      lessThanOrEqualTo(keyboardTop),
+    );
+    expect(find.text('Visible body'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('app action button supports enabled and disabled states', (
     tester,
   ) async {

@@ -561,6 +561,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
         return ProfilesSheet(
           profiles: sessionState.profiles,
           effectiveDefaultProfileId: sessionState.defaultProfileId,
+          localShellProfilesEnabled: _localSessionsEnabled,
           customSshProfilesEnabled: _customSshProfilesEnabled,
         );
       },

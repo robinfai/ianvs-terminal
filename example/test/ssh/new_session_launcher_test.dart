@@ -811,12 +811,77 @@ void main() {
 
       final keyboardTop = surfaceSize.height - keyboardHeight;
       expect(
+        MediaQuery.of(tester.element(find.byType(Dialog))).viewInsets.bottom,
+        keyboardHeight,
+      );
+      expect(find.text('SSH connection'), findsNothing);
+      expect(
         tester.getRect(find.byKey(const Key('ssh-password'))).bottom,
         lessThanOrEqualTo(keyboardTop),
       );
       expect(
         tester.getRect(find.byKey(const Key('ssh-connect'))).bottom,
         lessThanOrEqualTo(keyboardTop),
+      );
+      expect(find.byKey(const Key('ssh-connect')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'one-time SSH form does not overflow above a landscape iPhone keyboard',
+    (tester) async {
+      const surfaceSize = Size(844, 390);
+      const keyboardHeight = 216.0;
+      await tester.binding.setSurfaceSize(surfaceSize);
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      addTearDown(tester.view.reset);
+
+      await _pumpSshEditor(
+        tester,
+        profile: _sshProfile('landscape', 'Landscape host', ''),
+        allowSaveChoice: true,
+        saveProfileAvailable: false,
+        onClosed: (_) {},
+      );
+      await tester.ensureVisible(find.byKey(const Key('ssh-host')));
+      await tester.tap(find.byKey(const Key('ssh-host')));
+      tester.view.viewInsets = FakeViewPadding(
+        bottom: keyboardHeight * tester.view.devicePixelRatio,
+      );
+      await tester.pumpAndSettle();
+
+      final keyboardTop = surfaceSize.height - keyboardHeight;
+      expect(
+        tester.getRect(find.byKey(const Key('ssh-connect'))).bottom,
+        lessThanOrEqualTo(keyboardTop),
+      );
+      expect(find.byKey(const Key('ssh-save-profile')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'one-time SSH save notice scrolls with the form at large text sizes',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(390, 844));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      await _pumpSshEditor(
+        tester,
+        profile: _sshProfile('large-text', 'Large text host', ''),
+        allowSaveChoice: true,
+        saveProfileAvailable: false,
+        textScaler: const TextScaler.linear(2),
+        onClosed: (_) {},
+      );
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('ssh-profile-form-scroll')),
+          matching: find.byKey(const Key('ssh-save-profile')),
+        ),
+        findsOneWidget,
       );
       expect(find.byKey(const Key('ssh-connect')), findsOneWidget);
       expect(tester.takeException(), isNull);
@@ -1365,10 +1430,19 @@ Future<void> _pumpSshEditor(
   required TerminalProfile profile,
   required ValueChanged<SshProfileEditorResult?> onClosed,
   bool saveWhenPristine = true,
+  bool allowSaveChoice = false,
+  bool saveProfileAvailable = true,
+  TextScaler? textScaler,
   SshPrivateKeyPicker? privateKeyPicker,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
+      builder: textScaler == null
+          ? null
+          : (context, child) => MediaQuery(
+              data: MediaQuery.of(context).copyWith(textScaler: textScaler),
+              child: child!,
+            ),
       theme: buildIanvsTerminalTheme(Brightness.dark),
       darkTheme: buildIanvsTerminalTheme(Brightness.dark),
       themeMode: ThemeMode.dark,
@@ -1382,6 +1456,8 @@ Future<void> _pumpSshEditor(
                     context: context,
                     builder: (_) => SshProfileEditorDialog(
                       initialValue: profile,
+                      allowSaveChoice: allowSaveChoice,
+                      saveProfileAvailable: saveProfileAvailable,
                       saveWhenPristine: saveWhenPristine,
                       privateKeyPicker: privateKeyPicker,
                     ),

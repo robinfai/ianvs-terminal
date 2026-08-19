@@ -154,31 +154,33 @@ class AppDialogScaffold extends StatelessWidget {
       ),
     );
 
-    final paddedPanel = Padding(
-      padding:
-          insetPadding ??
-          EdgeInsets.symmetric(
-            horizontal: theme.spacing.xxl,
-            vertical: theme.spacing.xxl,
-          ),
-      child: panel,
+    final resolvedInsetPadding =
+        insetPadding ??
+        EdgeInsets.symmetric(
+          horizontal: theme.spacing.xxl,
+          vertical: theme.spacing.xxl,
+        );
+    final viewportPadding = resolvedInsetPadding.add(
+      MediaQuery.viewInsetsOf(context),
+    );
+    final positionedPanel = AnimatedPadding(
+      duration: MediaQuery.disableAnimationsOf(context)
+          ? Duration.zero
+          : const Duration(milliseconds: 100),
+      curve: Curves.decelerate,
+      padding: viewportPadding,
+      child: centerInViewport ? Center(child: panel) : panel,
     );
 
-    final accessibleDialog = Semantics(
+    return Semantics(
       role: ui.SemanticsRole.dialog,
       container: true,
       explicitChildNodes: true,
       label: '$title dialog',
       child: FocusTraversalGroup(
         policy: OrderedTraversalPolicy(),
-        child: paddedPanel,
+        child: positionedPanel,
       ),
     );
-
-    if (!centerInViewport) {
-      return accessibleDialog;
-    }
-
-    return Center(child: accessibleDialog);
   }
 }

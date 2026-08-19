@@ -74,19 +74,14 @@ Future<void> main() async {
   }
 
   final launchConfiguration = await _readNativeSimulatorLaunchConfiguration();
-  final credentialsUrl = Uri.tryParse(
-    launchConfiguration[_credentialsUrlEnvironment] ?? '',
+  final credentialsUrl = parseIosSimulatorCredentialsUrl(
+    launchConfiguration[_credentialsUrlEnvironment],
   );
   if (credentialsUrl == null) {
     runApp(
       AppStartupHost(coordinator: createProductionAppStartupCoordinator()),
     );
     return;
-  }
-  if (credentialsUrl.scheme != 'http' || credentialsUrl.host != '127.0.0.1') {
-    throw const FormatException(
-      'Simulator acceptance credentials must use an ephemeral loopback URL.',
-    );
   }
   final configuration =
       IosSimulatorAcceptanceConfiguration.fromCredentialDocument(
@@ -129,6 +124,25 @@ Future<void> main() async {
   }
 
   runApp(AppStartupHost(coordinator: coordinator, startAutomatically: false));
+}
+
+/// Parses the optional one-use credential broker URL for the simulator.
+///
+/// `Uri.tryParse('')` returns an empty URI rather than `null`, so absence must
+/// be handled before parsing. Without this guard a normal credential-free
+/// simulator launch fails before Flutter can render its first frame.
+Uri? parseIosSimulatorCredentialsUrl(String? value) {
+  final normalized = value?.trim() ?? '';
+  if (normalized.isEmpty) {
+    return null;
+  }
+  final uri = Uri.tryParse(normalized);
+  if (uri == null || uri.scheme != 'http' || uri.host != '127.0.0.1') {
+    throw const FormatException(
+      'Simulator acceptance credentials must use an ephemeral loopback URL.',
+    );
+  }
+  return uri;
 }
 
 Future<Map<String, String>> _readNativeSimulatorLaunchConfiguration() async {

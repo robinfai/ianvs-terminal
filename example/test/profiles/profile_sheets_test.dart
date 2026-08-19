@@ -85,6 +85,34 @@ void main() {
     expect(find.bySemanticsIdentifier('profiles-search-field'), findsOneWidget);
   });
 
+  testWidgets('profiles empty state fits above a landscape iPhone keyboard', (
+    tester,
+  ) async {
+    const surfaceSize = Size(844, 390);
+    const keyboardHeight = 216.0;
+    await tester.binding.setSurfaceSize(surfaceSize);
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    addTearDown(tester.view.reset);
+
+    await _pumpProfilesSheetHarness(
+      tester,
+      profiles: const <TerminalProfile>[],
+      effectiveDefaultProfileId: null,
+      platform: TargetPlatform.iOS,
+      onClosed: (_) {},
+    );
+    expect(tester.takeException(), isNull);
+
+    await tester.tap(find.byKey(const Key('profiles-search-field')));
+    tester.view.viewInsets = FakeViewPadding(
+      bottom: keyboardHeight * tester.view.devicePixelRatio,
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('profiles-empty-scroll')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'profiles sheet edit affordance returns the selected edit result',
     (tester) async {
@@ -163,6 +191,66 @@ void main() {
     expect(find.byKey(const Key('profiles-create-local')), findsOneWidget);
     expect(find.byKey(const Key('profiles-create-ssh')), findsNothing);
   });
+
+  testWidgets('iPhone remote mode offers SSH creation without local shell', (
+    tester,
+  ) async {
+    await _pumpProfilesSheetHarness(
+      tester,
+      profiles: const <TerminalProfile>[],
+      effectiveDefaultProfileId: null,
+      platform: TargetPlatform.iOS,
+      localShellProfilesEnabled: false,
+      onClosed: (_) {},
+    );
+
+    expect(find.text('No SSH profiles yet'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('profiles-create')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('profiles-create-local')), findsNothing);
+    expect(find.byKey(const Key('profiles-create-ssh')), findsOneWidget);
+  });
+
+  testWidgets(
+    'iPhone without a data service does not offer unusable profile types',
+    (tester) async {
+      final local = defaultTerminalProfile();
+      final ssh = local.copyWith(
+        id: 'hidden-ssh',
+        connection: const terminal.TerminalConnectionConfig.ssh(
+          host: 'ssh.example.test',
+          user: 'developer',
+        ),
+      );
+
+      await _pumpProfilesSheetHarness(
+        tester,
+        profiles: <TerminalProfile>[local, ssh],
+        effectiveDefaultProfileId: null,
+        platform: TargetPlatform.iOS,
+        localShellProfilesEnabled: false,
+        customSshProfilesEnabled: false,
+        onClosed: (_) {},
+      );
+
+      expect(find.byKey(const Key('profiles-search-field')), findsNothing);
+      expect(find.text('No saved profiles'), findsOneWidget);
+      expect(
+        find.text(
+          'Connect a remote data service to create and sync SSH profiles.',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<FilledButton>(find.byKey(const Key('profiles-create')))
+            .onPressed,
+        isNull,
+      );
+      expect(find.byKey(Key('profile-entry-${local.id}')), findsNothing);
+      expect(find.byKey(const Key('profile-entry-hidden-ssh')), findsNothing);
+    },
+  );
 
   testWidgets(
     'profiles sheet delete affordance returns the selected delete result',
@@ -367,6 +455,7 @@ Future<void> _pumpProfilesSheetHarness(
   required String? effectiveDefaultProfileId,
   required ValueChanged<ProfilesSheetResult?> onClosed,
   TargetPlatform platform = TargetPlatform.macOS,
+  bool localShellProfilesEnabled = true,
   bool customSshProfilesEnabled = true,
 }) async {
   await tester.pumpWidget(
@@ -388,6 +477,7 @@ Future<void> _pumpProfilesSheetHarness(
                       builder: (_) => ProfilesSheet(
                         profiles: profiles,
                         effectiveDefaultProfileId: effectiveDefaultProfileId,
+                        localShellProfilesEnabled: localShellProfilesEnabled,
                         customSshProfilesEnabled: customSshProfilesEnabled,
                       ),
                     ),

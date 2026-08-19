@@ -38,11 +38,13 @@ class ProfilesSheet extends StatefulWidget {
     super.key,
     required this.profiles,
     required this.effectiveDefaultProfileId,
+    this.localShellProfilesEnabled = true,
     this.customSshProfilesEnabled = true,
   });
 
   final List<TerminalProfile> profiles;
   final String? effectiveDefaultProfileId;
+  final bool localShellProfilesEnabled;
   final bool customSshProfilesEnabled;
 
   @override
@@ -63,15 +65,58 @@ class _ProfilesSheetState extends State<ProfilesSheet> {
     final normalizedQuery = _query.trim().toLowerCase();
     if (normalizedQuery.isEmpty) {
       return widget.profiles
-          .where((profile) => widget.customSshProfilesEnabled || !profile.isSsh)
+          .where(_profileTypeIsAvailable)
           .toList(growable: false);
     }
     return [
       for (final profile in widget.profiles)
-        if ((widget.customSshProfilesEnabled || !profile.isSsh) &&
+        if (_profileTypeIsAvailable(profile) &&
             _profileMatchesQuery(profile, normalizedQuery))
           profile,
     ];
+  }
+
+  bool get _canCreateProfile =>
+      widget.localShellProfilesEnabled || widget.customSshProfilesEnabled;
+
+  bool _profileTypeIsAvailable(TerminalProfile profile) => profile.isSsh
+      ? widget.customSshProfilesEnabled
+      : widget.localShellProfilesEnabled;
+
+  String get _sheetDescription {
+    if (!widget.localShellProfilesEnabled && !widget.customSshProfilesEnabled) {
+      return 'Saved SSH profiles require a remote data service on iPhone.';
+    }
+    if (!widget.localShellProfilesEnabled) {
+      return 'Open a saved SSH profile or edit its terminal settings.';
+    }
+    return 'Open a tab with any saved profile or edit its terminal settings.';
+  }
+
+  String get _emptyTitle {
+    if (_query.trim().isNotEmpty) {
+      return 'No matching profiles';
+    }
+    if (!widget.localShellProfilesEnabled && !widget.customSshProfilesEnabled) {
+      return 'No saved profiles';
+    }
+    if (!widget.localShellProfilesEnabled) {
+      return 'No SSH profiles yet';
+    }
+    return 'No profiles yet';
+  }
+
+  String get _emptyMessage {
+    if (_query.trim().isNotEmpty) {
+      return 'Try a different profile name, shell, or tag.';
+    }
+    if (!widget.localShellProfilesEnabled && !widget.customSshProfilesEnabled) {
+      return 'Connect a remote data service to create and sync SSH profiles.';
+    }
+    if (!widget.localShellProfilesEnabled) {
+      return 'Create an SSH profile to connect to a remote host.';
+    }
+    return 'Create a profile to customize a terminal session.';
   }
 
   @override
@@ -95,150 +140,183 @@ class _ProfilesSheetState extends State<ProfilesSheet> {
           color: palette.overlay,
           borderRadius: BorderRadius.circular(palette.radius.xl),
           elevation: 0,
-          child: SafeArea(
-            top: false,
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(
-                palette.spacing.xl,
-                palette.spacing.lg,
-                palette.spacing.xl,
-                palette.spacing.lg,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final compactLayout =
+                  context.usesTouchControlDensity &&
+                  constraints.maxHeight < 260;
+              return SafeArea(
+                top: false,
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    palette.spacing.xl,
+                    compactLayout ? palette.spacing.xs : palette.spacing.lg,
+                    palette.spacing.xl,
+                    compactLayout ? palette.spacing.xs : palette.spacing.lg,
+                  ),
+                  child: Column(
+                    mainAxisSize: compactLayout
+                        ? MainAxisSize.max
+                        : MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: Text(
-                          'Profiles',
-                          style: Theme.of(context).textTheme.titleLarge
-                              ?.copyWith(
-                                color: palette.textPrimary,
-                                fontWeight: FontWeight.w700,
-                              ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Profiles',
+                              style: Theme.of(context).textTheme.titleLarge
+                                  ?.copyWith(
+                                    color: palette.textPrimary,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                            ),
+                          ),
+                          Tooltip(
+                            message: _canCreateProfile
+                                ? 'Create profile'
+                                : 'Connect a remote data service to create saved SSH profiles',
+                            child: FilledButton.icon(
+                              key: const Key('profiles-create'),
+                              onPressed: _canCreateProfile
+                                  ? _createProfile
+                                  : null,
+                              icon: const Icon(Icons.add_rounded, size: 18),
+                              label: const Text('New'),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          AppActionButton(
+                            tooltip: 'Close profiles',
+                            tone: AppActionTone.ghost,
+                            size: AppActionSize.dense,
+                            onPressed: () => Navigator.of(context).pop(),
+                            icon: Icons.close_rounded,
+                          ),
+                        ],
+                      ),
+                      if (!compactLayout)
+                        Text(
+                          _sheetDescription,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(color: palette.textSubtle),
                         ),
-                      ),
-                      FilledButton.icon(
-                        key: const Key('profiles-create'),
-                        onPressed: _createProfile,
-                        icon: const Icon(Icons.add_rounded, size: 18),
-                        label: const Text('New'),
-                      ),
-                      const SizedBox(width: 6),
-                      AppActionButton(
-                        tooltip: 'Close profiles',
-                        tone: AppActionTone.ghost,
-                        size: AppActionSize.dense,
-                        onPressed: () => Navigator.of(context).pop(),
-                        icon: Icons.close_rounded,
+                      if (_canCreateProfile || filteredProfiles.isNotEmpty) ...[
+                        SizedBox(
+                          height: compactLayout
+                              ? palette.spacing.sm
+                              : palette.spacing.md,
+                        ),
+                        Semantics(
+                          identifier: 'profiles-search-field',
+                          label: 'Search profiles or tags',
+                          container: true,
+                          explicitChildNodes: true,
+                          child: TextField(
+                            key: const Key('profiles-search-field'),
+                            controller: _searchController,
+                            autofocus: !context.usesTouchControlDensity,
+                            decoration: const InputDecoration(
+                              prefixIcon: Icon(Icons.search_rounded),
+                              labelText: 'Search profiles or tags',
+                            ),
+                            textInputAction: TextInputAction.done,
+                            onSubmitted: (_) =>
+                                FocusScope.of(context).unfocus(),
+                            onTapOutside: (_) =>
+                                FocusScope.of(context).unfocus(),
+                            onChanged: (value) {
+                              setState(() {
+                                _query = value;
+                              });
+                            },
+                          ),
+                        ),
+                      ],
+                      if (!compactLayout) SizedBox(height: palette.spacing.md),
+                      Flexible(
+                        child: filteredProfiles.isEmpty
+                            ? SingleChildScrollView(
+                                key: const Key('profiles-empty-scroll'),
+                                keyboardDismissBehavior:
+                                    ScrollViewKeyboardDismissBehavior.onDrag,
+                                child: Padding(
+                                  padding: EdgeInsets.symmetric(
+                                    vertical: palette.spacing.lg,
+                                  ),
+                                  child: AppEmptyState(
+                                    title: _emptyTitle,
+                                    message: _emptyMessage,
+                                  ),
+                                ),
+                              )
+                            : ListView.separated(
+                                shrinkWrap: true,
+                                itemCount: filteredProfiles.length,
+                                separatorBuilder: (_, _) =>
+                                    const Divider(height: 1),
+                                itemBuilder: (context, index) {
+                                  final profile = filteredProfiles[index];
+                                  final isDefault =
+                                      profile.id ==
+                                      widget.effectiveDefaultProfileId;
+                                  final summary = _profileSummary(
+                                    profile,
+                                    isDefault: isDefault,
+                                  );
+                                  return ListTile(
+                                    key: Key('profile-entry-${profile.id}'),
+                                    title: Text(
+                                      profile.name,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleMedium
+                                          ?.copyWith(
+                                            color: palette.textPrimary,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                    ),
+                                    subtitle: _ProfileEntrySubtitle(
+                                      summary: summary,
+                                      tags: profile.tags,
+                                    ),
+                                    trailing: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        AppActionButton(
+                                          tooltip: 'Edit ${profile.name}',
+                                          tone: AppActionTone.ghost,
+                                          size: AppActionSize.dense,
+                                          onPressed: () => Navigator.of(
+                                            context,
+                                          ).pop(EditProfileResult(profile)),
+                                          icon: Icons.edit_outlined,
+                                        ),
+                                        AppActionButton(
+                                          tooltip: 'Delete ${profile.name}',
+                                          tone: AppActionTone.ghost,
+                                          size: AppActionSize.dense,
+                                          onPressed: widget.profiles.length <= 1
+                                              ? null
+                                              : () => Navigator.of(context).pop(
+                                                  DeleteProfileResult(profile),
+                                                ),
+                                          icon: Icons.delete_outline_rounded,
+                                        ),
+                                      ],
+                                    ),
+                                    onTap: () => Navigator.of(
+                                      context,
+                                    ).pop(OpenProfileResult(profile)),
+                                  );
+                                },
+                              ),
                       ),
                     ],
                   ),
-                  Text(
-                    'Open a tab with any saved profile or edit its terminal settings.',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodyMedium?.copyWith(color: palette.textSubtle),
-                  ),
-                  SizedBox(height: palette.spacing.md),
-                  Semantics(
-                    identifier: 'profiles-search-field',
-                    label: 'Search profiles or tags',
-                    container: true,
-                    explicitChildNodes: true,
-                    child: TextField(
-                      key: const Key('profiles-search-field'),
-                      controller: _searchController,
-                      autofocus: !context.usesTouchControlDensity,
-                      decoration: const InputDecoration(
-                        prefixIcon: Icon(Icons.search_rounded),
-                        labelText: 'Search profiles or tags',
-                      ),
-                      onChanged: (value) {
-                        setState(() {
-                          _query = value;
-                        });
-                      },
-                    ),
-                  ),
-                  SizedBox(height: palette.spacing.md),
-                  Flexible(
-                    child: filteredProfiles.isEmpty
-                        ? Padding(
-                            padding: EdgeInsets.symmetric(
-                              vertical: palette.spacing.xl,
-                            ),
-                            child: const AppEmptyState(
-                              title: 'No matching profiles',
-                              message:
-                                  'Try a different profile name, shell, or tag.',
-                            ),
-                          )
-                        : ListView.separated(
-                            shrinkWrap: true,
-                            itemCount: filteredProfiles.length,
-                            separatorBuilder: (_, _) =>
-                                const Divider(height: 1),
-                            itemBuilder: (context, index) {
-                              final profile = filteredProfiles[index];
-                              final isDefault =
-                                  profile.id ==
-                                  widget.effectiveDefaultProfileId;
-                              final summary = _profileSummary(
-                                profile,
-                                isDefault: isDefault,
-                              );
-                              return ListTile(
-                                key: Key('profile-entry-${profile.id}'),
-                                title: Text(
-                                  profile.name,
-                                  style: Theme.of(context).textTheme.titleMedium
-                                      ?.copyWith(
-                                        color: palette.textPrimary,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                ),
-                                subtitle: _ProfileEntrySubtitle(
-                                  summary: summary,
-                                  tags: profile.tags,
-                                ),
-                                trailing: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    AppActionButton(
-                                      tooltip: 'Edit ${profile.name}',
-                                      tone: AppActionTone.ghost,
-                                      size: AppActionSize.dense,
-                                      onPressed: () => Navigator.of(
-                                        context,
-                                      ).pop(EditProfileResult(profile)),
-                                      icon: Icons.edit_outlined,
-                                    ),
-                                    AppActionButton(
-                                      tooltip: 'Delete ${profile.name}',
-                                      tone: AppActionTone.ghost,
-                                      size: AppActionSize.dense,
-                                      onPressed: widget.profiles.length <= 1
-                                          ? null
-                                          : () => Navigator.of(
-                                              context,
-                                            ).pop(DeleteProfileResult(profile)),
-                                      icon: Icons.delete_outline_rounded,
-                                    ),
-                                  ],
-                                ),
-                                onTap: () => Navigator.of(
-                                  context,
-                                ).pop(OpenProfileResult(profile)),
-                              );
-                            },
-                          ),
-                  ),
-                ],
-              ),
-            ),
+                ),
+              );
+            },
           ),
         ),
       ),
@@ -251,17 +329,18 @@ class _ProfilesSheetState extends State<ProfilesSheet> {
       builder: (dialogContext) => SimpleDialog(
         title: const Text('New profile'),
         children: [
-          SimpleDialogOption(
-            key: const Key('profiles-create-local'),
-            onPressed: () => Navigator.of(
-              dialogContext,
-            ).pop(NewProfileConnectionType.localShell),
-            child: const ListTile(
-              leading: Icon(Icons.terminal_rounded),
-              title: Text('Local shell'),
-              subtitle: Text('Run a shell on this device.'),
+          if (widget.localShellProfilesEnabled)
+            SimpleDialogOption(
+              key: const Key('profiles-create-local'),
+              onPressed: () => Navigator.of(
+                dialogContext,
+              ).pop(NewProfileConnectionType.localShell),
+              child: const ListTile(
+                leading: Icon(Icons.terminal_rounded),
+                title: Text('Local shell'),
+                subtitle: Text('Run a shell on this device.'),
+              ),
             ),
-          ),
           if (widget.customSshProfilesEnabled)
             SimpleDialogOption(
               key: const Key('profiles-create-ssh'),

@@ -23,6 +23,7 @@ import 'terminal_viewport_colors.dart';
 const Key terminalScrollbarTrackKey = Key('terminal-scrollbar-track');
 const Key terminalScrollbarThumbKey = Key('terminal-scrollbar-thumb');
 const Key terminalLinkTooltipKey = Key('terminal-link-tooltip');
+const Key terminalTouchCopyMenuItemKey = Key('terminal-touch-copy-menu-item');
 const Key terminalGraphicPreviewKey = Key('terminal-graphic-preview');
 const Key terminalGraphicPreviewCloseKey = Key(
   'terminal-graphic-preview-close',
@@ -304,6 +305,8 @@ class TerminalViewport extends StatefulWidget {
 
 enum _LocalSelectionMode { cell, word }
 
+enum _TerminalTouchSelectionAction { copy }
+
 typedef _GraphicGeometryKey = ({
   bool belowText,
   TerminalGraphicAssetKey assetKey,
@@ -346,6 +349,7 @@ class _TerminalViewportState extends State<TerminalViewport>
   bool _selectionMovedSincePointerDown = false;
   bool _blockTogglePointerActive = false;
   bool _pinchGestureActive = false;
+  bool _touchScrollGestureActive = false;
   _LocalSelectionMode _localSelectionMode = _LocalSelectionMode.cell;
   _TerminalWordRange? _wordSelectionAnchor;
   TextInputConnection? _textInputConnection;
@@ -1076,6 +1080,10 @@ class _TerminalViewportState extends State<TerminalViewport>
     if (_blockTogglePointerActive) {
       return;
     }
+    if (_isMobileTouchEvent(event)) {
+      _cancelPendingLinkOpen();
+      return;
+    }
     if (!_terminalMouseEnabled) {
       if (_isSecondaryButton(event.buttons)) {
         _showLinkContextMenuAt(event.position);
@@ -1169,6 +1177,9 @@ class _TerminalViewportState extends State<TerminalViewport>
     if (_pinchGestureActive) {
       return;
     }
+    if (_isMobileTouchEvent(event)) {
+      return;
+    }
     if (!_terminalMouseEnabled) {
       if (!_isLocalSelectionActive ||
           !_isPrimarySelectionButton(event.buttons)) {
@@ -1224,6 +1235,9 @@ class _TerminalViewportState extends State<TerminalViewport>
     if (_pinchGestureActive) {
       return;
     }
+    if (_isMobileTouchEvent(event)) {
+      return;
+    }
     if (!_terminalMouseEnabled) {
       if (_isLocalSelectionActive) {
         _selectionPointerGlobalPosition = event.position;
@@ -1269,6 +1283,10 @@ class _TerminalViewportState extends State<TerminalViewport>
 
   void _handlePointerCancel(PointerCancelEvent event) {
     _stopScrollMomentum();
+    if (_isMobileTouchEvent(event)) {
+      _touchScrollGestureActive = false;
+      return;
+    }
     if (_terminalMouseEnabled) {
       if (widget.controller.frame.modes.mouseMode == 'x10') {
         _activeMouseButton = null;
@@ -1304,15 +1322,29 @@ class _TerminalViewportState extends State<TerminalViewport>
   }
 
   void _handleScaleStart(ScaleStartDetails details) {
+    _stopScrollMomentum();
+    _resetPendingScroll();
+    _touchScrollGestureActive = false;
     widget.onScaleStart?.call(details);
   }
 
   void _handleScaleUpdate(ScaleUpdateDetails details) {
     if (details.pointerCount < 2) {
+      if (!_usesMobileTextInput || _pinchGestureActive) {
+        return;
+      }
+      final deltaY = details.focalPointDelta.dy;
+      if (deltaY == 0) {
+        return;
+      }
+      _touchScrollGestureActive = true;
+      _handleScrollDelta(deltaY);
       return;
     }
     if (!_pinchGestureActive) {
       _pinchGestureActive = true;
+      _touchScrollGestureActive = false;
+      _stopScrollMomentum();
       _isLocalSelectionActive = false;
       _selectionPointerGlobalPosition = null;
       _selectionPointerDownGlobalPosition = null;
@@ -1328,8 +1360,119 @@ class _TerminalViewportState extends State<TerminalViewport>
   void _handleScaleEnd(ScaleEndDetails details) {
     if (_pinchGestureActive) {
       widget.onScaleEnd?.call(details);
+    } else if (_touchScrollGestureActive &&
+        !_terminalMouseEnabled &&
+        !_terminalAlternateScrollEnabled) {
+      _scrollMomentumLinesPerSecond = _rawScrollLinesForDelta(
+        details.velocity.pixelsPerSecond.dy,
+      );
+      _startScrollMomentumIfNeeded();
+    } else {
+      _resetPendingScroll();
     }
     _pinchGestureActive = false;
+    _touchScrollGestureActive = false;
+  }
+
+  bool _isMobileTouchEvent(PointerEvent event) {
+    return _usesMobileTextInput && event.kind == PointerDeviceKind.touch;
+  }
+
+  void _handleTerminalTapUp(TapUpDetails details) {
+    if (_usesMobileTextInput) {
+      _openLinkAt(details.globalPosition);
+    }
+  }
+
+  void _handleTerminalLongPressStart(LongPressStartDetails details) {
+    if (!_usesMobileTextInput ||
+        _scrollbarContainsGlobalPosition(details.globalPosition) ||
+        !_surfaceContainsGlobalPosition(details.globalPosition)) {
+      return;
+    }
+    final cell = _selectionCellForGlobalPosition(details.globalPosition);
+    if (cell == null) {
+      return;
+    }
+    final sourceRow = widget.controller.frame.mappedSourceRowForViewportRow(
+      cell.row,
+    );
+    if (sourceRow == null) {
+      return;
+    }
+    _stopScrollMomentum();
+    _cancelPendingLinkOpen();
+    _isLocalSelectionActive = true;
+    _selectionPointerGlobalPosition = details.globalPosition;
+    _selectionPointerDownGlobalPosition = details.globalPosition;
+    final wordRange = _wordRangeAtCell(cell);
+    if (wordRange != null) {
+      _localSelectionMode = _LocalSelectionMode.word;
+      _wordSelectionAnchor = wordRange;
+      widget.selectionController.setSelection(wordRange.selection);
+    } else {
+      _localSelectionMode = _LocalSelectionMode.cell;
+      _wordSelectionAnchor = null;
+      widget.selectionController.begin(
+        cell,
+        viewportStartRow: widget.controller.frame.viewportStartRow,
+        sourceRow: sourceRow,
+      );
+    }
+    _syncSelectionAutoScroll();
+  }
+
+  void _handleTerminalLongPressMoveUpdate(LongPressMoveUpdateDetails details) {
+    if (!_usesMobileTextInput || !_isLocalSelectionActive) {
+      return;
+    }
+    _selectionPointerGlobalPosition = details.globalPosition;
+    _updateSelectionFromPointer(details.globalPosition);
+    _syncSelectionAutoScroll();
+  }
+
+  void _handleTerminalLongPressEnd(LongPressEndDetails details) {
+    if (!_usesMobileTextInput || !_isLocalSelectionActive) {
+      return;
+    }
+    _selectionPointerGlobalPosition = details.globalPosition;
+    _updateSelectionFromPointer(details.globalPosition);
+    _isLocalSelectionActive = false;
+    _selectionPointerGlobalPosition = null;
+    _selectionPointerDownGlobalPosition = null;
+    _wordSelectionAnchor = null;
+    _localSelectionMode = _LocalSelectionMode.cell;
+    _stopSelectionAutoScroll();
+    unawaited(_showTouchSelectionMenu(details.globalPosition));
+  }
+
+  Future<void> _showTouchSelectionMenu(Offset globalPosition) async {
+    if (widget.selectionController.selection == null) {
+      return;
+    }
+    final navigator = Navigator.maybeOf(context, rootNavigator: true);
+    final overlay = navigator?.overlay?.context.findRenderObject();
+    if (overlay is! RenderBox) {
+      return;
+    }
+    final action = await showMenu<_TerminalTouchSelectionAction>(
+      context: context,
+      useRootNavigator: true,
+      position: RelativeRect.fromRect(
+        Rect.fromLTWH(globalPosition.dx, globalPosition.dy, 1, 1),
+        Offset.zero & overlay.size,
+      ),
+      items: const <PopupMenuEntry<_TerminalTouchSelectionAction>>[
+        PopupMenuItem<_TerminalTouchSelectionAction>(
+          key: terminalTouchCopyMenuItemKey,
+          value: _TerminalTouchSelectionAction.copy,
+          child: Text('Copy'),
+        ),
+      ],
+    );
+    if (action == _TerminalTouchSelectionAction.copy && mounted) {
+      await widget.inputController.copySelection();
+    }
   }
 
   void _sendMouseWheel(double deltaY, {Offset? globalPosition}) {
@@ -2016,9 +2159,13 @@ class _TerminalViewportState extends State<TerminalViewport>
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: _focusTerminalFromTap,
-        onScaleStart: widget.onScaleUpdate == null ? null : _handleScaleStart,
-        onScaleUpdate: widget.onScaleUpdate == null ? null : _handleScaleUpdate,
-        onScaleEnd: widget.onScaleUpdate == null ? null : _handleScaleEnd,
+        onTapUp: _handleTerminalTapUp,
+        onLongPressStart: _handleTerminalLongPressStart,
+        onLongPressMoveUpdate: _handleTerminalLongPressMoveUpdate,
+        onLongPressEnd: _handleTerminalLongPressEnd,
+        onScaleStart: _handleScaleStart,
+        onScaleUpdate: _handleScaleUpdate,
+        onScaleEnd: _handleScaleEnd,
         child: MouseRegion(
           cursor: _effectivePointerCursor,
           onExit: (_) {

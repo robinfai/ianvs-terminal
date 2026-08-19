@@ -790,13 +790,19 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
   @override
   Widget build(BuildContext context) {
     final palette = context.appTheme;
-    final width = MediaQuery.sizeOf(context).width;
-    final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
+    final mediaSize = MediaQuery.sizeOf(context);
+    final width = mediaSize.width;
+    final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
+    final keyboardVisible = keyboardInset > 0;
     final availableWidth = width - (width < 640 ? 24 : 64);
     final dialogWidth = availableWidth.clamp(0.0, 720.0);
-    final compactKeyboardLayout = width < 640 && keyboardVisible;
+    final compactKeyboardLayout =
+        keyboardVisible && (width < 640 || mediaSize.height < width);
+    final largeTextLayout =
+        MediaQuery.textScalerOf(context).scale(16) / 16 >= 1.3;
+    final scrollsSaveChoice = compactKeyboardLayout || largeTextLayout;
     final contentPadding = compactKeyboardLayout
-        ? palette.spacing.lg
+        ? palette.spacing.sm
         : palette.spacing.xl;
     final showsPassword =
         _auth == terminal.TerminalSshAuthMethod.auto ||
@@ -819,26 +825,29 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                   ? AutovalidateMode.always
                   : AutovalidateMode.disabled,
               child: Column(
-                mainAxisSize: MainAxisSize.min,
+                mainAxisSize: compactKeyboardLayout
+                    ? MainAxisSize.max
+                    : MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'SSH connection',
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
-                  SizedBox(height: palette.spacing.xs),
-                  Text(
-                    'Connect once or save a reusable session profile.',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodyMedium?.copyWith(color: palette.textSubtle),
-                  ),
+                  if (!compactKeyboardLayout) ...[
+                    Text(
+                      'SSH connection',
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                    SizedBox(height: palette.spacing.xs),
+                    Text(
+                      'Connect once or save a reusable session profile.',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: palette.textSubtle,
+                      ),
+                    ),
+                  ],
                   SizedBox(
-                    height: compactKeyboardLayout
-                        ? palette.spacing.md
-                        : palette.spacing.xl,
+                    height: compactKeyboardLayout ? 0 : palette.spacing.xl,
                   ),
                   Flexible(
+                    fit: compactKeyboardLayout ? FlexFit.tight : FlexFit.loose,
                     child: Scrollbar(
                       controller: _scrollController,
                       thumbVisibility: true,
@@ -1491,17 +1500,37 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                 ],
                               ],
                             ),
+                            if (widget.allowSaveChoice &&
+                                scrollsSaveChoice) ...[
+                              SizedBox(height: palette.spacing.lg),
+                              const Divider(),
+                              CheckboxListTile(
+                                key: const Key('ssh-save-profile'),
+                                contentPadding: EdgeInsets.zero,
+                                value: _saveProfile,
+                                title: const Text('Save this SSH session'),
+                                subtitle: Text(
+                                  widget.saveProfileAvailable
+                                      ? 'Secrets are encrypted; the key stays in platform safe storage.'
+                                      : 'A remote data service is required to save profiles. This connection is one-time only.',
+                                ),
+                                onChanged: widget.saveProfileAvailable
+                                    ? (value) => setState(
+                                        () => _saveProfile = value ?? true,
+                                      )
+                                    : null,
+                              ),
+                            ],
                           ],
                         ),
                       ),
                     ),
                   ),
-                  if (widget.allowSaveChoice) ...[
+                  if (widget.allowSaveChoice && !scrollsSaveChoice) ...[
                     SizedBox(height: palette.spacing.md),
                     CheckboxListTile(
                       key: const Key('ssh-save-profile'),
                       contentPadding: EdgeInsets.zero,
-                      visualDensity: VisualDensity.compact,
                       value: _saveProfile,
                       title: const Text('Save this SSH session'),
                       subtitle: Text(
@@ -1515,15 +1544,21 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                           : null,
                     ),
                   ],
-                  SizedBox(height: palette.spacing.lg),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
+                  SizedBox(
+                    height: compactKeyboardLayout
+                        ? palette.spacing.sm
+                        : palette.spacing.lg,
+                  ),
+                  OverflowBar(
+                    alignment: MainAxisAlignment.end,
+                    overflowAlignment: OverflowBarAlignment.end,
+                    spacing: palette.spacing.sm,
+                    overflowSpacing: palette.spacing.sm,
                     children: [
                       TextButton(
                         onPressed: () => Navigator.of(context).pop(),
                         child: const Text('Cancel'),
                       ),
-                      SizedBox(width: palette.spacing.sm),
                       FilledButton.icon(
                         key: const Key('ssh-connect'),
                         onPressed:

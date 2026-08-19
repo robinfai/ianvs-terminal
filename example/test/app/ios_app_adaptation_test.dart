@@ -11,6 +11,7 @@ import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/pty/pty.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/sessions/session_ports.dart';
+import 'package:app/features/sessions/session_state.dart';
 import 'package:app/features/shell/shell_screen.dart';
 import 'package:app/features/ssh/ssh_feature_access.dart';
 import 'package:app/features/terminal/terminal.dart' as terminal;
@@ -160,6 +161,32 @@ void main() {
         ),
       );
 
+      controller.splitActiveSession(_sshProfile, TerminalSplitAxis.horizontal);
+      await tester.pumpAndSettle();
+      final splitState = container.read(sessionControllerProvider);
+      expect(splitState.tabs.single.effectivePanes, hasLength(2));
+      for (final pane in splitState.tabs.single.effectivePanes) {
+        expect(
+          tester
+              .getSize(find.byKey(Key('shell-pane-header-${pane.sessionId}')))
+              .height,
+          44,
+        );
+      }
+      final activePaneId = splitState.activeSessionId!;
+      final closePaneSize = tester.getSize(
+        find.byKey(Key('shell-pane-action-close-$activePaneId')),
+      );
+      expect(closePaneSize.width, greaterThanOrEqualTo(44));
+      expect(closePaneSize.height, 44);
+      final zoomPaneSize = tester.getSize(
+        find.byKey(Key('shell-pane-action-zoom-$activePaneId')),
+      );
+      expect(zoomPaneSize.width, greaterThanOrEqualTo(44));
+      expect(zoomPaneSize.height, 44);
+      expect(await controller.closeSession(activePaneId), isTrue);
+      await tester.pumpAndSettle();
+
       controller.createSession(_sshProfile);
       await tester.pumpAndSettle();
       final twoTabState = container.read(sessionControllerProvider);
@@ -206,6 +233,42 @@ void main() {
       expect(container.read(sessionControllerProvider).tabs, isEmpty);
       expect(find.byKey(const Key('ios-ssh-profile-empty-state')), findsOne);
       _resetIphoneTestSurface(tester);
+    },
+  );
+
+  testWidgets(
+    'iPhone SSH empty state scrolls when a landscape keyboard reduces the shell',
+    (tester) async {
+      final root = Directory.systemTemp.createTempSync('ianvs-ios-empty-');
+      final nativeBackend = _IosSshFakePtyBackend();
+      addTearDown(() {
+        debugDefaultTargetPlatformOverride = null;
+        tester.view.reset();
+        if (root.existsSync()) {
+          root.deleteSync(recursive: true);
+        }
+      });
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(844, 390);
+
+      await tester.pumpWidget(
+        _buildIosApp(
+          root: root,
+          nativeBackend: nativeBackend,
+          profiles: <TerminalProfile>[defaultTerminalProfile()],
+        ),
+      );
+      await _pumpUntilReady(tester);
+
+      tester.view.viewInsets = const FakeViewPadding(bottom: 216);
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('ios-ssh-empty-state-scroll')), findsOne);
+      expect(find.byKey(const Key('ios-ssh-create-profile')), findsOne);
+      expect(tester.takeException(), isNull);
+      debugDefaultTargetPlatformOverride = null;
+      tester.view.reset();
     },
   );
 

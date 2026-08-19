@@ -141,6 +141,7 @@ class ReplayFloatingStage extends StatefulWidget {
     this.onDockDragStateChanged,
     this.maxDockWidth = 1180,
     this.margin = 8,
+    this.bottomInset = 0,
   });
 
   final Size? recordedViewportSize;
@@ -155,6 +156,7 @@ class ReplayFloatingStage extends StatefulWidget {
   final ValueChanged<bool>? onDockDragStateChanged;
   final double maxDockWidth;
   final double margin;
+  final double bottomInset;
 
   @override
   State<ReplayFloatingStage> createState() => _ReplayFloatingStageState();
@@ -224,10 +226,11 @@ class _ReplayFloatingStageState extends State<ReplayFloatingStage> {
     Offset dockOffset,
   ) {
     final dockHeight = _dockSize.height;
+    final bottomInset = _bottomInsetFor(stageSize);
     final baseLeft = (stageSize.width - dockWidth) / 2;
     final baseTop = math.max(
       widget.margin,
-      stageSize.height - widget.margin - dockHeight,
+      stageSize.height - widget.margin - bottomInset - dockHeight,
     );
     final maxLeft = math.max(
       widget.margin,
@@ -235,7 +238,7 @@ class _ReplayFloatingStageState extends State<ReplayFloatingStage> {
     );
     final maxTop = math.max(
       widget.margin,
-      stageSize.height - widget.margin - dockHeight,
+      stageSize.height - widget.margin - bottomInset - dockHeight,
     );
     final left = (baseLeft + dockOffset.dx).clamp(widget.margin, maxLeft);
     final top = (baseTop + dockOffset.dy).clamp(widget.margin, maxTop);
@@ -245,6 +248,13 @@ class _ReplayFloatingStageState extends State<ReplayFloatingStage> {
       left: left,
       top: top,
       maxTop: maxTop,
+    );
+  }
+
+  double _bottomInsetFor(Size stageSize) {
+    return widget.bottomInset.clamp(
+      0,
+      math.max(0, stageSize.height - widget.margin * 2),
     );
   }
 
@@ -330,81 +340,94 @@ class _ReplayFloatingStageState extends State<ReplayFloatingStage> {
                 left: baseGeometry.baseLeft,
                 top: baseGeometry.baseTop,
                 width: dockWidth,
-                child: ValueListenableBuilder<_ReplayDockMotion>(
-                  valueListenable: _dockMotion,
-                  child: RepaintBoundary(child: widget.dock),
-                  builder: (context, motion, dock) {
-                    final geometry = _geometryFor(
-                      stageSize,
-                      dockWidth,
-                      motion.offset,
-                    );
-                    return Transform.translate(
-                      offset: Offset(
-                        geometry.left - geometry.baseLeft,
-                        geometry.top - geometry.baseTop,
-                      ),
-                      transformHitTests: true,
-                      child: KeyedSubtree(
-                        key: widget.floatingDockKey,
-                        child: Stack(
-                          key: _dockMeasureKey,
-                          clipBehavior: Clip.none,
-                          children: [
-                            dock!,
-                            Positioned(
-                              top: 0,
-                              left: 0,
-                              right: 0,
-                              height: _dragStripHeight,
-                              child: Semantics(
-                                label:
-                                    'Drag replay controls. Double tap to reset position.',
-                                button: true,
-                                child: MouseRegion(
-                                  cursor: motion.dragging
-                                      ? SystemMouseCursors.grabbing
-                                      : SystemMouseCursors.grab,
-                                  child: GestureDetector(
-                                    key: widget.dragHandleKey,
-                                    behavior: HitTestBehavior.translucent,
-                                    onDoubleTap: _resetDock,
-                                    onPanStart: (_) {
-                                      _setDockMotion(
-                                        _ReplayDockMotion(
-                                          offset: motion.offset,
-                                          dragging: true,
-                                        ),
-                                      );
-                                    },
-                                    onPanUpdate: (details) => _moveDock(
-                                      details,
-                                      stageSize,
-                                      dockWidth,
-                                    ),
-                                    onPanEnd: (_) =>
-                                        _finishMovingDock(stageSize, dockWidth),
-                                    onPanCancel: () =>
-                                        _finishMovingDock(stageSize, dockWidth),
-                                    child: Align(
-                                      alignment: Alignment.topCenter,
-                                      child: Padding(
-                                        padding: const EdgeInsets.only(top: 7),
-                                        child: DecoratedBox(
-                                          decoration: BoxDecoration(
-                                            color: widget.dragHandleColor
-                                                .withValues(
-                                                  alpha: motion.dragging
-                                                      ? 0.78
-                                                      : 0.52,
-                                                ),
-                                            borderRadius: BorderRadius.circular(
-                                              99,
-                                            ),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: math.max(
+                      0,
+                      stageSize.height - widget.margin * 2,
+                    ),
+                  ),
+                  child: ValueListenableBuilder<_ReplayDockMotion>(
+                    valueListenable: _dockMotion,
+                    child: RepaintBoundary(child: widget.dock),
+                    builder: (context, motion, dock) {
+                      final geometry = _geometryFor(
+                        stageSize,
+                        dockWidth,
+                        motion.offset,
+                      );
+                      return Transform.translate(
+                        offset: Offset(
+                          geometry.left - geometry.baseLeft,
+                          geometry.top - geometry.baseTop,
+                        ),
+                        transformHitTests: true,
+                        child: KeyedSubtree(
+                          key: widget.floatingDockKey,
+                          child: Stack(
+                            key: _dockMeasureKey,
+                            clipBehavior: Clip.none,
+                            children: [
+                              dock!,
+                              Positioned(
+                                top: 0,
+                                left: 0,
+                                right: 0,
+                                height: _dragStripHeight,
+                                child: Semantics(
+                                  label:
+                                      'Drag replay controls. Double tap to reset position.',
+                                  button: true,
+                                  child: MouseRegion(
+                                    cursor: motion.dragging
+                                        ? SystemMouseCursors.grabbing
+                                        : SystemMouseCursors.grab,
+                                    child: GestureDetector(
+                                      key: widget.dragHandleKey,
+                                      behavior: HitTestBehavior.translucent,
+                                      onDoubleTap: _resetDock,
+                                      onPanStart: (_) {
+                                        _setDockMotion(
+                                          _ReplayDockMotion(
+                                            offset: motion.offset,
+                                            dragging: true,
                                           ),
-                                          child: const SizedBox(
-                                            width: 38,
-                                            height: 4,
+                                        );
+                                      },
+                                      onPanUpdate: (details) => _moveDock(
+                                        details,
+                                        stageSize,
+                                        dockWidth,
+                                      ),
+                                      onPanEnd: (_) => _finishMovingDock(
+                                        stageSize,
+                                        dockWidth,
+                                      ),
+                                      onPanCancel: () => _finishMovingDock(
+                                        stageSize,
+                                        dockWidth,
+                                      ),
+                                      child: Align(
+                                        alignment: Alignment.topCenter,
+                                        child: Padding(
+                                          padding: const EdgeInsets.only(
+                                            top: 7,
+                                          ),
+                                          child: DecoratedBox(
+                                            decoration: BoxDecoration(
+                                              color: widget.dragHandleColor
+                                                  .withValues(
+                                                    alpha: motion.dragging
+                                                        ? 0.78
+                                                        : 0.52,
+                                                  ),
+                                              borderRadius:
+                                                  BorderRadius.circular(99),
+                                            ),
+                                            child: const SizedBox(
+                                              width: 38,
+                                              height: 4,
+                                            ),
                                           ),
                                         ),
                                       ),
@@ -412,12 +435,12 @@ class _ReplayFloatingStageState extends State<ReplayFloatingStage> {
                                   ),
                                 ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                    );
-                  },
+                      );
+                    },
+                  ),
                 ),
               ),
             ],

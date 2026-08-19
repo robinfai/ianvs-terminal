@@ -970,41 +970,68 @@ class _ReplayTimelineLegend extends StatelessWidget {
       color: palette.textSubtle,
       fontWeight: FontWeight.w600,
     );
-    return SizedBox(
-      height: 22,
-      child: Row(
-        children: [
-          _ReplayLegendItem(
-            color: palette.accent,
-            label: 'Command',
-            style: style,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 600) {
+          return Wrap(
+            spacing: 12,
+            runSpacing: 4,
+            children: [
+              _ReplayLegendItem(
+                color: palette.accent,
+                label: 'Command',
+                style: style,
+              ),
+              _ReplayLegendItem(
+                color: palette.warning,
+                label: 'Remote',
+                style: style,
+              ),
+              _ReplayLegendItem(
+                color: palette.borderStrong,
+                label: 'Idle',
+                style: style,
+              ),
+            ],
+          );
+        }
+        return SizedBox(
+          height: 22,
+          child: Row(
+            children: [
+              _ReplayLegendItem(
+                color: palette.accent,
+                label: 'Command',
+                style: style,
+              ),
+              const SizedBox(width: 14),
+              _ReplayLegendItem(
+                color: palette.warning,
+                label: 'Remote session',
+                style: style,
+              ),
+              const SizedBox(width: 14),
+              _ReplayLegendItem(
+                color: palette.borderStrong,
+                label: 'Idle gap',
+                style: style,
+              ),
+              const Spacer(),
+              Flexible(
+                child: Text(
+                  model.hasSemanticCommands
+                      ? 'Shell semantics'
+                      : 'Activity fallback · no shell hook',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.end,
+                  style: style,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 14),
-          _ReplayLegendItem(
-            color: palette.warning,
-            label: 'Remote session',
-            style: style,
-          ),
-          const SizedBox(width: 14),
-          _ReplayLegendItem(
-            color: palette.borderStrong,
-            label: 'Idle gap',
-            style: style,
-          ),
-          const Spacer(),
-          Flexible(
-            child: Text(
-              model.hasSemanticCommands
-                  ? 'Shell semantics'
-                  : 'Activity fallback · no shell hook',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.end,
-              style: style,
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -1046,6 +1073,7 @@ class _ReplayDockLayout extends StatelessWidget {
     required this.transport,
     required this.search,
     required this.actions,
+    required this.keyboardActions,
     required this.palette,
   });
 
@@ -1054,6 +1082,7 @@ class _ReplayDockLayout extends StatelessWidget {
   final Widget transport;
   final Widget search;
   final Widget actions;
+  final Widget keyboardActions;
   final AppThemeTokens palette;
 
   @override
@@ -1071,50 +1100,84 @@ class _ReplayDockLayout extends StatelessWidget {
             ),
           ),
         ),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 24, 12, 10),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final compact = constraints.maxWidth < 960;
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  timeline,
-                  const SizedBox(height: 6),
-                  Divider(height: 1, color: palette.border),
-                  const SizedBox(height: 8),
-                  if (compact) ...[
-                    Row(
-                      children: [
-                        Expanded(child: metadata),
-                        actions,
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        transport,
-                        const SizedBox(width: 8),
-                        Expanded(child: search),
-                      ],
-                    ),
-                  ] else
-                    Row(
-                      children: [
-                        Expanded(flex: 3, child: metadata),
-                        const SizedBox(width: 12),
-                        transport,
-                        const SizedBox(width: 12),
-                        SizedBox(width: 250, child: search),
-                        const SizedBox(width: 8),
-                        actions,
-                      ],
-                    ),
-                ],
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxWidth < 960;
+            final narrow = constraints.maxWidth < 600;
+            final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
+            final shortViewport = MediaQuery.sizeOf(context).height < 600;
+            if (keyboardVisible) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                child: Row(
+                  children: [
+                    Expanded(child: search),
+                    const SizedBox(width: 6),
+                    keyboardActions,
+                  ],
+                ),
               );
-            },
-          ),
+            }
+            final content = Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                timeline,
+                const SizedBox(height: 6),
+                Divider(height: 1, color: palette.border),
+                const SizedBox(height: 8),
+                if (narrow) ...[
+                  metadata,
+                  const SizedBox(height: 8),
+                  Align(alignment: Alignment.centerLeft, child: transport),
+                  const SizedBox(height: 8),
+                  search,
+                  const SizedBox(height: 8),
+                  Align(alignment: Alignment.centerRight, child: actions),
+                ] else if (compact) ...[
+                  Row(
+                    children: [
+                      Expanded(child: metadata),
+                      actions,
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      transport,
+                      const SizedBox(width: 8),
+                      Expanded(child: search),
+                    ],
+                  ),
+                ] else
+                  Row(
+                    children: [
+                      Expanded(flex: 3, child: metadata),
+                      const SizedBox(width: 12),
+                      transport,
+                      const SizedBox(width: 12),
+                      SizedBox(width: 250, child: search),
+                      const SizedBox(width: 8),
+                      actions,
+                    ],
+                  ),
+              ],
+            );
+            if (shortViewport ||
+                (constraints.hasBoundedHeight && constraints.maxHeight < 420)) {
+              return SingleChildScrollView(
+                key: const Key('replay-mobile-controls-scroll'),
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                padding: const EdgeInsets.fromLTRB(12, 24, 12, 10),
+                child: content,
+              );
+            }
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(12, 24, 12, 10),
+              child: content,
+            );
+          },
         ),
       ),
     );

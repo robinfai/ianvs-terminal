@@ -114,6 +114,9 @@ class _DefaultsAndAppearanceDialogState
   late LocalTerminalKeybindingsConfig _selectedKeybindings;
   late DataApiDeployment _selectedDataApiDeployment;
   bool _remoteReconnectRequested = false;
+  bool _remoteDataApiUrlEdited = false;
+  bool _remoteDataApiUsernameEdited = false;
+  bool _remoteDataApiPasswordEdited = false;
   String _terminalPresetFilter = '';
 
   @override
@@ -195,6 +198,9 @@ class _DefaultsAndAppearanceDialogState
   }
 
   String? get _remoteDataApiUrlError {
+    if (!_remoteDataApiUrlEdited) {
+      return null;
+    }
     final value = _remoteDataApiUrlController.text.trim();
     if (value.isEmpty) {
       return 'Enter the remote API base URL.';
@@ -244,26 +250,26 @@ class _DefaultsAndAppearanceDialogState
   }
 
   String? get _remoteUsernameError {
-    if (!_requiresRemoteLogin) {
+    if (!_requiresRemoteLogin || !_remoteDataApiUsernameEdited) {
       return null;
     }
     try {
       normalizeDataApiUsername(_remoteDataApiUsernameController.text);
       return null;
-    } on FormatException catch (error) {
-      return error.message;
+    } on FormatException {
+      return 'Use 3–64 lowercase letters, numbers, . _ or -.';
     }
   }
 
   String? get _remotePasswordError {
-    if (!_requiresRemoteLogin) {
+    if (!_requiresRemoteLogin || !_remoteDataApiPasswordEdited) {
       return null;
     }
     try {
       validateDataApiPassword(_remoteDataApiPasswordController.text);
       return null;
-    } on FormatException catch (error) {
-      return error.message;
+    } on FormatException {
+      return 'Use 12–72 UTF-8 bytes.';
     }
   }
 
@@ -358,15 +364,15 @@ class _DefaultsAndAppearanceDialogState
     final theme = context.appTheme;
     final mediaSize = MediaQuery.sizeOf(context);
     final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
-    final dialogWidth = (mediaSize.width - theme.spacing.xxl * 2).clamp(
-      0.0,
-      720.0,
-    );
-    final dialogHeight =
-        (mediaSize.height - keyboardInset - theme.spacing.xxl * 2).clamp(
-          0.0,
-          720.0,
-        );
+    final keyboardVisible = keyboardInset > 0;
+    final compactLayout = mediaSize.width < 600;
+    final compactKeyboardLayout =
+        keyboardVisible &&
+        (compactLayout || mediaSize.height < mediaSize.width);
+    final dialogInset = compactLayout ? theme.spacing.md : theme.spacing.xxl;
+    final dialogWidth = (mediaSize.width - dialogInset * 2).clamp(0.0, 720.0);
+    final dialogHeight = (mediaSize.height - keyboardInset - dialogInset * 2)
+        .clamp(0.0, 720.0);
     final effectiveProfile = _effectiveProfileFor(
       configuredProfileId: _selectedProfileId,
       effectiveProfileId: widget.effectiveDefaultProfileId,
@@ -402,10 +408,12 @@ class _DefaultsAndAppearanceDialogState
       child: AppDialogScaffold(
         key: const Key('defaults-dialog'),
         title: 'Defaults & appearance',
-        subtitle:
-            'Pick the default profile for new tabs and choose how the shell follows the app theme.',
+        subtitle: compactKeyboardLayout
+            ? null
+            : 'Pick the default profile for new tabs and choose how the shell follows the app theme.',
         onClose: () => Navigator.of(context).pop(),
         closeTooltip: 'Close defaults',
+        insetPadding: EdgeInsets.all(dialogInset),
         constraints: const BoxConstraints(maxWidth: 720),
         width: dialogWidth,
         height: dialogHeight,
@@ -419,16 +427,16 @@ class _DefaultsAndAppearanceDialogState
           context,
         ).textTheme.bodyMedium?.copyWith(color: theme.textSubtle),
         headerPadding: EdgeInsets.fromLTRB(
-          theme.spacing.xxl,
-          theme.spacing.xl,
-          theme.spacing.xxl,
-          theme.spacing.md,
+          compactLayout ? theme.spacing.lg : theme.spacing.xxl,
+          compactKeyboardLayout ? theme.spacing.sm : theme.spacing.xl,
+          compactLayout ? theme.spacing.md : theme.spacing.xxl,
+          compactKeyboardLayout ? theme.spacing.sm : theme.spacing.md,
         ),
         bodyPadding: EdgeInsets.fromLTRB(
-          theme.spacing.xxl,
-          theme.spacing.xl,
-          theme.spacing.md,
-          theme.spacing.xl,
+          compactLayout ? theme.spacing.lg : theme.spacing.xxl,
+          compactKeyboardLayout ? theme.spacing.sm : theme.spacing.xl,
+          compactLayout ? theme.spacing.sm : theme.spacing.md,
+          compactKeyboardLayout ? theme.spacing.sm : theme.spacing.xl,
         ),
         footerPadding: EdgeInsets.fromLTRB(
           theme.spacing.xxl,
@@ -443,6 +451,7 @@ class _DefaultsAndAppearanceDialogState
           thickness: theme.spacing.xs,
           child: SingleChildScrollView(
             controller: _scrollController,
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             padding: EdgeInsets.only(right: theme.spacing.md),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -579,6 +588,8 @@ class _DefaultsAndAppearanceDialogState
                   child: TextField(
                     key: const Key('defaults-terminal-preset-filter'),
                     textInputAction: TextInputAction.search,
+                    onTapOutside: (_) =>
+                        FocusManager.instance.primaryFocus?.unfocus(),
                     decoration: const InputDecoration(
                       isDense: true,
                       prefixIcon: Icon(Icons.search_rounded),
@@ -1113,31 +1124,64 @@ class _DefaultsAndAppearanceDialogState
                         TextField(
                           key: const Key('data-api-remote-url'),
                           controller: _remoteDataApiUrlController,
+                          onChanged: (_) {
+                            if (!_remoteDataApiUrlEdited) {
+                              setState(() => _remoteDataApiUrlEdited = true);
+                            }
+                          },
+                          scrollPadding: EdgeInsets.only(
+                            bottom: theme.spacing.xxl * 2,
+                          ),
                           keyboardType: TextInputType.url,
+                          textInputAction: TextInputAction.next,
                           autocorrect: false,
                           enableSuggestions: false,
                           decoration: InputDecoration(
                             labelText: 'Remote API base URL',
                             hintText: defaultRemoteDataApiBaseUrl,
                             errorText: _remoteDataApiUrlError,
+                            errorMaxLines: 2,
                           ),
                         ),
                         SizedBox(height: theme.spacing.sm),
                         TextField(
                           key: const Key('data-api-remote-username'),
                           controller: _remoteDataApiUsernameController,
+                          onChanged: (_) {
+                            if (!_remoteDataApiUsernameEdited) {
+                              setState(
+                                () => _remoteDataApiUsernameEdited = true,
+                              );
+                            }
+                          },
+                          scrollPadding: EdgeInsets.only(
+                            bottom: theme.spacing.xxl * 2,
+                          ),
+                          textInputAction: TextInputAction.next,
                           autocorrect: false,
                           enableSuggestions: false,
                           autofillHints: const <String>[AutofillHints.username],
                           decoration: InputDecoration(
                             labelText: 'Username',
                             errorText: _remoteUsernameError,
+                            errorMaxLines: 2,
                           ),
                         ),
                         SizedBox(height: theme.spacing.sm),
                         TextField(
                           key: const Key('data-api-remote-password'),
                           controller: _remoteDataApiPasswordController,
+                          onChanged: (_) {
+                            if (!_remoteDataApiPasswordEdited) {
+                              setState(
+                                () => _remoteDataApiPasswordEdited = true,
+                              );
+                            }
+                          },
+                          scrollPadding: EdgeInsets.only(
+                            bottom: theme.spacing.xxl * 2,
+                          ),
+                          textInputAction: TextInputAction.done,
                           obscureText: true,
                           autocorrect: false,
                           enableSuggestions: false,
@@ -1146,7 +1190,10 @@ class _DefaultsAndAppearanceDialogState
                             labelText: 'Password',
                             helperText: 'Used only for this login request.',
                             errorText: _remotePasswordError,
+                            errorMaxLines: 2,
                           ),
+                          onSubmitted: (_) =>
+                              FocusManager.instance.primaryFocus?.unfocus(),
                         ),
                         SizedBox(height: theme.spacing.sm),
                         Text(
@@ -1300,132 +1347,143 @@ class _DefaultsAndAppearanceDialogState
             ),
           ),
         ),
-        footer: LayoutBuilder(
-          builder: (context, constraints) {
-            final resetActions = Wrap(
-              key: const Key('defaults-footer-reset-actions'),
-              spacing: theme.spacing.sm,
-              runSpacing: theme.spacing.sm,
-              children: [
-                AppActionButton(
-                  tone: AppActionTone.secondary,
-                  size: AppActionSize.compact,
-                  label: 'Reset default',
-                  onPressed: _selectedProfileId == null
-                      ? null
-                      : () {
-                          setState(() {
-                            _selectedProfileId = null;
-                            _selectedTerminalPresetId = _matchingPresetIdFor(
-                              _effectiveProfileFor(
-                                configuredProfileId: null,
-                                effectiveProfileId:
-                                    widget.effectiveDefaultProfileId,
-                              ),
-                            );
-                          });
-                        },
-                ),
-                AppActionButton(
-                  tone: AppActionTone.secondary,
-                  size: AppActionSize.compact,
-                  label: 'Reset theme',
-                  onPressed:
-                      _selectedThemeMode == TerminalThemeMode.system &&
-                          _selectedTerminalViewportPadding ==
-                              TerminalAppAppearance
-                                  .defaultTerminalViewportPadding
-                      ? null
-                      : () {
-                          setState(() {
-                            _selectedThemeMode = TerminalThemeMode.system;
-                            _selectedTerminalViewportPadding =
-                                TerminalAppAppearance
-                                    .defaultTerminalViewportPadding;
-                          });
-                        },
-                ),
-              ],
-            );
-            final confirmationActions = Wrap(
-              key: const Key('defaults-footer-confirmation-actions'),
-              spacing: theme.spacing.sm,
-              runSpacing: theme.spacing.sm,
-              children: [
-                AppActionButton(
-                  tone: AppActionTone.secondary,
-                  size: AppActionSize.compact,
-                  label: 'Cancel',
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
-                AppActionButton(
-                  buttonKey: const Key('defaults-save'),
-                  label: _migratesLocalDataToRemote
-                      ? 'Migrate to remote API'
-                      : _migratesRemoteDataToLocal
-                      ? 'Migrate to local API'
-                      : 'Save changes',
-                  onPressed:
-                      LocalTerminalKeyBindingResolver.conflicts(
-                            LocalTerminalKeyBindingResolver.resolve(
-                              config: _selectedKeybindings,
-                            ),
-                          ).isNotEmpty ||
-                          selectedDataApiConfiguration == null ||
-                          (_requiresRemoteLogin &&
-                              remoteLoginRequest == null) ||
-                          !hasChanges
-                      ? null
-                      : () {
-                          Navigator.of(context).pop(
-                            DefaultsAndAppearanceSelection(
-                              configuredDefaultProfileId: _selectedProfileId,
-                              themeMode: _selectedThemeMode,
-                              terminalViewportPadding:
-                                  _selectedTerminalViewportPadding,
-                              restoreLayout: _selectedRestoreLayout,
-                              osc52Policy: _selectedOsc52Policy,
-                              openUrlPolicy: _selectedOpenUrlPolicy,
-                              requestAttentionPolicy:
-                                  _selectedRequestAttentionPolicy,
-                              reportVariableDecisions:
-                                  _selectedReportVariableDecisions,
-                              keybindings: _selectedKeybindings,
-                              dataApiConfiguration:
-                                  selectedDataApiConfiguration,
-                              dataApiRemoteLogin: remoteLoginRequest,
-                              migrateLocalDataToRemote:
-                                  _migratesLocalDataToRemote,
-                              migrateRemoteDataToLocal:
-                                  _migratesRemoteDataToLocal,
-                              updatedProfile: _updatedProfileForPreset(
-                                effectiveProfile,
-                              ),
-                              openProfiles: false,
-                            ),
-                          );
-                        },
-                ),
-              ],
-            );
-            if (constraints.maxWidth < 800) {
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Align(alignment: Alignment.centerLeft, child: resetActions),
-                  SizedBox(height: theme.spacing.md),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: confirmationActions,
-                  ),
-                ],
-              );
-            }
-            return Row(
-              children: [resetActions, const Spacer(), confirmationActions],
-            );
-          },
-        ),
+        footer: compactKeyboardLayout
+            ? null
+            : LayoutBuilder(
+                builder: (context, constraints) {
+                  final resetActions = Wrap(
+                    key: const Key('defaults-footer-reset-actions'),
+                    spacing: theme.spacing.sm,
+                    runSpacing: theme.spacing.sm,
+                    children: [
+                      AppActionButton(
+                        tone: AppActionTone.secondary,
+                        size: AppActionSize.compact,
+                        label: 'Reset default',
+                        onPressed: _selectedProfileId == null
+                            ? null
+                            : () {
+                                setState(() {
+                                  _selectedProfileId = null;
+                                  _selectedTerminalPresetId =
+                                      _matchingPresetIdFor(
+                                        _effectiveProfileFor(
+                                          configuredProfileId: null,
+                                          effectiveProfileId:
+                                              widget.effectiveDefaultProfileId,
+                                        ),
+                                      );
+                                });
+                              },
+                      ),
+                      AppActionButton(
+                        tone: AppActionTone.secondary,
+                        size: AppActionSize.compact,
+                        label: 'Reset theme',
+                        onPressed:
+                            _selectedThemeMode == TerminalThemeMode.system &&
+                                _selectedTerminalViewportPadding ==
+                                    TerminalAppAppearance
+                                        .defaultTerminalViewportPadding
+                            ? null
+                            : () {
+                                setState(() {
+                                  _selectedThemeMode = TerminalThemeMode.system;
+                                  _selectedTerminalViewportPadding =
+                                      TerminalAppAppearance
+                                          .defaultTerminalViewportPadding;
+                                });
+                              },
+                      ),
+                    ],
+                  );
+                  final confirmationActions = Wrap(
+                    key: const Key('defaults-footer-confirmation-actions'),
+                    spacing: theme.spacing.sm,
+                    runSpacing: theme.spacing.sm,
+                    children: [
+                      AppActionButton(
+                        tone: AppActionTone.secondary,
+                        size: AppActionSize.compact,
+                        label: 'Cancel',
+                        onPressed: () => Navigator.of(context).pop(),
+                      ),
+                      AppActionButton(
+                        buttonKey: const Key('defaults-save'),
+                        label: _migratesLocalDataToRemote
+                            ? 'Migrate to remote API'
+                            : _migratesRemoteDataToLocal
+                            ? 'Migrate to local API'
+                            : 'Save changes',
+                        onPressed:
+                            LocalTerminalKeyBindingResolver.conflicts(
+                                  LocalTerminalKeyBindingResolver.resolve(
+                                    config: _selectedKeybindings,
+                                  ),
+                                ).isNotEmpty ||
+                                selectedDataApiConfiguration == null ||
+                                (_requiresRemoteLogin &&
+                                    remoteLoginRequest == null) ||
+                                !hasChanges
+                            ? null
+                            : () {
+                                Navigator.of(context).pop(
+                                  DefaultsAndAppearanceSelection(
+                                    configuredDefaultProfileId:
+                                        _selectedProfileId,
+                                    themeMode: _selectedThemeMode,
+                                    terminalViewportPadding:
+                                        _selectedTerminalViewportPadding,
+                                    restoreLayout: _selectedRestoreLayout,
+                                    osc52Policy: _selectedOsc52Policy,
+                                    openUrlPolicy: _selectedOpenUrlPolicy,
+                                    requestAttentionPolicy:
+                                        _selectedRequestAttentionPolicy,
+                                    reportVariableDecisions:
+                                        _selectedReportVariableDecisions,
+                                    keybindings: _selectedKeybindings,
+                                    dataApiConfiguration:
+                                        selectedDataApiConfiguration,
+                                    dataApiRemoteLogin: remoteLoginRequest,
+                                    migrateLocalDataToRemote:
+                                        _migratesLocalDataToRemote,
+                                    migrateRemoteDataToLocal:
+                                        _migratesRemoteDataToLocal,
+                                    updatedProfile: _updatedProfileForPreset(
+                                      effectiveProfile,
+                                    ),
+                                    openProfiles: false,
+                                  ),
+                                );
+                              },
+                      ),
+                    ],
+                  );
+                  if (constraints.maxWidth < 800) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: resetActions,
+                        ),
+                        SizedBox(height: theme.spacing.md),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: confirmationActions,
+                        ),
+                      ],
+                    );
+                  }
+                  return Row(
+                    children: [
+                      resetActions,
+                      const Spacer(),
+                      confirmationActions,
+                    ],
+                  );
+                },
+              ),
       ),
     );
   }

@@ -305,6 +305,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
           return const ShellActionBindingResult.completed();
         },
         toolbelt: (_) {
+          FocusManager.instance.primaryFocus?.unfocus();
           _mutateState(() {
             _isSftpPanelOpen = false;
             _sftpPanelSessionId = null;
@@ -1094,6 +1095,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         await _openNewSessionLauncher(sessionController, currentState);
         return;
       case TerminalActionId.toolbelt:
+        FocusManager.instance.primaryFocus?.unfocus();
         _mutateState(() {
           _isSftpPanelOpen = false;
           _sftpPanelSessionId = null;

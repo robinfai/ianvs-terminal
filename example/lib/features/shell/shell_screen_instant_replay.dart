@@ -521,6 +521,7 @@ class _InstantReplayLayoutState extends State<_InstantReplayLayout> {
   @override
   Widget build(BuildContext context) {
     final palette = widget.palette;
+    final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
     final activeFrame = _activeFrame;
     final recordedViewportSize = activeFrame == null
         ? null
@@ -670,9 +671,11 @@ class _InstantReplayLayoutState extends State<_InstantReplayLayout> {
           child: ColoredBox(
             color: palette.canvas,
             child: Padding(
-              padding: const EdgeInsets.all(12),
+              padding: EdgeInsets.all(keyboardVisible ? 4 : 12),
               child: ReplayFloatingStage(
                 key: const Key('instant-replay-stage'),
+                margin: keyboardVisible ? 0 : 8,
+                bottomInset: MediaQuery.viewInsetsOf(context).bottom,
                 recordedViewportSize: recordedViewportSize,
                 viewportFitKey: const Key('instant-replay-fit'),
                 viewportContentKey: const Key('instant-replay-fit-content'),
@@ -798,6 +801,12 @@ class _InstantReplayLayoutControls extends StatelessWidget {
       includeClose: true,
       palette: palette,
     );
+    final keyboardActions = _InstantReplayControlButton(
+      tooltip: 'Close replay',
+      onPressed: onExit,
+      icon: Icons.close_rounded,
+      palette: palette,
+    );
     final header = _InstantReplayControlHeader(
       sourceLabel: sourceLabel,
       frameDetail: frameDetail,
@@ -856,6 +865,7 @@ class _InstantReplayLayoutControls extends StatelessWidget {
         transport: playbackControls,
         search: search,
         actions: actions,
+        keyboardActions: keyboardActions,
         palette: palette,
       ),
     );
@@ -1014,6 +1024,7 @@ class _ReplaySpeedControl extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final controlExtent = _instantReplayControlExtent(context);
     final speedLabel = speed == speed.roundToDouble()
         ? speed.toInt().toString()
         : speed.toString();
@@ -1033,8 +1044,8 @@ class _ReplaySpeedControl extends StatelessWidget {
             ),
         ],
         child: Container(
-          height: 36,
-          constraints: const BoxConstraints(minWidth: 46),
+          height: controlExtent,
+          constraints: BoxConstraints(minWidth: math.max(46, controlExtent)),
           alignment: Alignment.center,
           padding: const EdgeInsets.symmetric(horizontal: 8),
           decoration: BoxDecoration(
@@ -1071,6 +1082,7 @@ class _ReplayTimeModeControl extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final controlExtent = _instantReplayControlExtent(context);
     final label = switch (mode) {
       terminal.TerminalReplayTimeMode.realTime => 'Real',
       terminal.TerminalReplayTimeMode.smart => 'Smart',
@@ -1092,7 +1104,7 @@ class _ReplayTimeModeControl extends StatelessWidget {
           ),
         ],
         child: Container(
-          height: 36,
+          height: controlExtent,
           constraints: const BoxConstraints(minWidth: 58),
           alignment: Alignment.center,
           padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -1217,6 +1229,7 @@ class _InstantReplaySearchControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final controlExtent = _instantReplayControlExtent(context);
     final searchField = Focus(
       onKeyEvent: (_, event) {
         if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
@@ -1236,6 +1249,11 @@ class _InstantReplaySearchControls extends StatelessWidget {
         key: searchKey,
         enabled: enabled,
         onChanged: onSearchChanged,
+        onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
+        onSubmitted: (_) {
+          onSearchNext?.call();
+          FocusManager.instance.primaryFocus?.unfocus();
+        },
         textInputAction: TextInputAction.search,
         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
           color: palette.textPrimary,
@@ -1275,7 +1293,12 @@ class _InstantReplaySearchControls extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Expanded(child: searchField),
+        Expanded(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: controlExtent),
+            child: searchField,
+          ),
+        ),
         const SizedBox(width: 6),
         _InstantReplayControlButton(
           key: previousKey,
@@ -1325,6 +1348,7 @@ class _InstantReplayControlButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final controlExtent = _instantReplayControlExtent(context);
     final enabled = onPressed != null;
     final background = active
         ? palette.accent
@@ -1347,9 +1371,9 @@ class _InstantReplayControlButton extends StatelessWidget {
         onPressed: onPressed,
         icon: Icon(icon, size: 19),
         style: ButtonStyle(
-          fixedSize: const WidgetStatePropertyAll(Size.square(36)),
-          minimumSize: const WidgetStatePropertyAll(Size.square(36)),
-          maximumSize: const WidgetStatePropertyAll(Size.square(36)),
+          fixedSize: WidgetStatePropertyAll(Size.square(controlExtent)),
+          minimumSize: WidgetStatePropertyAll(Size.square(controlExtent)),
+          maximumSize: WidgetStatePropertyAll(Size.square(controlExtent)),
           padding: const WidgetStatePropertyAll(EdgeInsets.zero),
           visualDensity: VisualDensity.compact,
           backgroundColor: WidgetStateProperty.resolveWith((states) {
@@ -1375,6 +1399,13 @@ class _InstantReplayControlButton extends StatelessWidget {
       ),
     );
   }
+}
+
+double _instantReplayControlExtent(BuildContext context) {
+  return switch (Theme.of(context).platform) {
+    TargetPlatform.iOS || TargetPlatform.android => 44,
+    _ => 36,
+  };
 }
 
 class _SearchSummaryText extends StatelessWidget {

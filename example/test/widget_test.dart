@@ -163,6 +163,7 @@ Future<void> _pumpShellScreen(
   ShellNotificationSender? notificationSender,
   bool showHiddenRedesignEntryPointsForTesting = false,
   bool settle = true,
+  TargetPlatform? platform,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -192,8 +193,8 @@ Future<void> _pumpShellScreen(
           shellHiddenRedesignEntryPointsProvider.overrideWithValue(true),
       ],
       child: MaterialApp(
-        theme: buildIanvsTerminalTheme(Brightness.light),
-        darkTheme: buildIanvsTerminalTheme(Brightness.dark),
+        theme: buildIanvsTerminalTheme(Brightness.light, platform: platform),
+        darkTheme: buildIanvsTerminalTheme(Brightness.dark, platform: platform),
         home: const ShellScreen(),
       ),
     ),
@@ -2560,6 +2561,144 @@ void main() {
       semantics.dispose();
     },
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets(
+    'instant replay stays usable with touch-sized controls on iPhone',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(430, 932));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      addTearDown(tester.view.reset);
+
+      final fakeBindings = _SshEventfulPtyBackend();
+      var replayNow = DateTime(2026, 1, 1, 12);
+      final instantReplayStore = InstantReplayStore(now: () => replayNow);
+      const windowBridgeChannel = MethodChannel('app/window_bridge');
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        windowBridgeChannel,
+        (methodCall) async {
+          if (methodCall.method == 'windowMetrics') {
+            return const <String, Object?>{
+              'contentWidth': 430.0,
+              'contentHeight': 932.0,
+              'frameWidth': 430.0,
+              'frameHeight': 932.0,
+              'devicePixelRatio': 3.0,
+            };
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          windowBridgeChannel,
+          null,
+        ),
+      );
+
+      terminal.TerminalFrameDiff frame(String text) {
+        return terminal.TerminalFrameDiff(
+          rows: [terminal.TerminalRow(index: 0, text: text)],
+          cursor: const terminal.TerminalCursor(row: 0, col: 0, visible: true),
+          viewportRows: 24,
+          viewportCols: 80,
+          dirtyRanges: const [terminal.TerminalDirtyRange(start: 0, end: 1)],
+          scrollbackOffset: 0,
+          scrollbackMaxOffset: 0,
+        );
+      }
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(
+            profiles: [
+              TerminalProfile(
+                id: 'mobile-review',
+                name: 'Mobile review',
+                shell: '/usr/bin/ssh',
+                connection: const terminal.TerminalConnectionConfig.ssh(
+                  host: 'review.example.test',
+                  user: 'reviewer',
+                ),
+              ),
+            ],
+          ),
+        ),
+        instantReplayStore: instantReplayStore,
+        platform: TargetPlatform.iOS,
+      );
+
+      await tester.tap(
+        find.byKey(const Key('ios-ssh-empty-profile-mobile-review')),
+      );
+      await tester.pumpAndSettle();
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final sessionId = container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+      instantReplayStore.record(sessionId, frame('first replay frame'));
+      replayNow = replayNow.add(const Duration(seconds: 1));
+      instantReplayStore.record(sessionId, frame('second replay frame'));
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
+      await _openToolbelt(tester);
+      final replayAction = find.byKey(const Key('toolbelt-instant-replay'));
+      await tester.ensureVisible(replayAction);
+      await tester.tap(replayAction);
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('instant-replay-layout')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+
+      final screen = Offset.zero & tester.binding.renderViews.first.size;
+      final dock = tester.getRect(
+        find.byKey(const Key('instant-replay-floating-dock')),
+      );
+      expect(screen.contains(dock.topLeft), isTrue);
+      expect(screen.contains(dock.bottomRight), isTrue);
+
+      for (final key in const [
+        Key('instant-replay-fit-recorded-size'),
+        Key('instant-replay-copy-visible'),
+        Key('instant-replay-copy-selection'),
+        Key('instant-replay-clear'),
+        Key('instant-replay-search-previous'),
+        Key('instant-replay-search-next'),
+      ]) {
+        final size = tester.getSize(find.byKey(key));
+        expect(size.width, greaterThanOrEqualTo(44));
+        expect(size.height, greaterThanOrEqualTo(44));
+      }
+
+      await tester.binding.setSurfaceSize(const Size(844, 390));
+      await tester.pumpAndSettle();
+      final landscapeStage = tester.getRect(
+        find.byKey(const Key('instant-replay-stage')),
+      );
+      final landscapeDock = tester.getRect(
+        find.byKey(const Key('instant-replay-floating-dock')),
+      );
+      expect(landscapeStage.contains(landscapeDock.topLeft), isTrue);
+      expect(landscapeStage.contains(landscapeDock.bottomRight), isTrue);
+      expect(tester.takeException(), isNull);
+
+      final search = find.byKey(const Key('instant-replay-search'));
+      await tester.ensureVisible(search);
+      await tester.pumpAndSettle();
+      await tester.tap(search);
+      tester.view.viewInsets = FakeViewPadding(
+        bottom: 216 * tester.view.devicePixelRatio,
+      );
+      await tester.pumpAndSettle();
+      const keyboardTop = 390.0 - 216.0;
+      expect(tester.getRect(search).bottom, lessThanOrEqualTo(keyboardTop));
+      expect(tester.takeException(), isNull);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.iOS),
   );
 
   testWidgets('password manager sends saved passwords only at prompts', (
@@ -5162,6 +5301,53 @@ void main() {
     expect(find.byKey(const Key('captured-output-sheet')), findsOneWidget);
     expect(find.text('ERROR 42 failed'), findsOneWidget);
   });
+
+  testWidgets(
+    'toolbelt survives the iPhone landscape keyboard transition',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(430, 932));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      addTearDown(tester.view.reset);
+
+      final fakeBindings = _SshEventfulPtyBackend();
+      final profile = TerminalProfile(
+        id: 'toolbelt-mobile-review',
+        name: 'Toolbelt mobile review',
+        shell: '/usr/bin/ssh',
+        connection: const terminal.TerminalConnectionConfig.ssh(
+          host: 'review.example.test',
+          user: 'reviewer',
+        ),
+      );
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [profile]),
+        ),
+        platform: TargetPlatform.iOS,
+      );
+
+      await tester.tap(
+        find.byKey(const Key('ios-ssh-empty-profile-toolbelt-mobile-review')),
+      );
+      await tester.pumpAndSettle();
+      await _openToolbelt(tester);
+
+      expect(find.byKey(const Key('shell-toolbelt-panel')), findsOneWidget);
+      await tester.binding.setSurfaceSize(const Size(844, 390));
+      tester.view.viewInsets = FakeViewPadding(
+        bottom: 216 * tester.view.devicePixelRatio,
+      );
+      await tester.pump();
+      expect(
+        find.byKey(const Key('toolbelt-short-height-scroll')),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+  );
 
   testWidgets('toolbelt exposes focused semantics and keyboard tab traversal', (
     tester,

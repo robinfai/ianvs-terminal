@@ -1851,6 +1851,7 @@ class _TerminalPaneHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final isIos = defaultTargetPlatform == TargetPlatform.iOS;
     final foregroundColor = isActive ? palette.textPrimary : palette.textMuted;
     final metadataColor = isActive ? palette.textMuted : palette.textSubtle;
     return DecoratedBox(
@@ -1867,7 +1868,7 @@ class _TerminalPaneHeader extends StatelessWidget {
         ),
       ),
       child: SizedBox(
-        height: 32,
+        height: isIos ? 44 : 32,
         child: Padding(
           padding: const EdgeInsetsDirectional.only(start: 8, end: 5),
           child: LayoutBuilder(
@@ -2018,8 +2019,9 @@ class _TerminalPaneHeaderIndicatorChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isIos = defaultTargetPlatform == TargetPlatform.iOS;
     final chip = ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 112, minHeight: 20),
+      constraints: BoxConstraints(maxWidth: 112, minHeight: isIos ? 44 : 20),
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: backgroundColor,
@@ -2139,6 +2141,7 @@ class _TerminalPaneHeaderAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isIos = defaultTargetPlatform == TargetPlatform.iOS;
     final enabled = onPressed != null;
     final color = selected
         ? palette.focusRing
@@ -2150,9 +2153,12 @@ class _TerminalPaneHeaderAction extends StatelessWidget {
       tooltip: tooltip,
       icon: Icon(icon, color: color),
       onPressed: onPressed,
-      splashRadius: 14,
-      iconSize: 15,
-      constraints: const BoxConstraints.tightFor(width: 26, height: 24),
+      splashRadius: isIos ? 22 : 14,
+      iconSize: isIos ? 18 : 15,
+      constraints: BoxConstraints.tightFor(
+        width: isIos ? 44 : 26,
+        height: isIos ? 44 : 24,
+      ),
       padding: EdgeInsets.zero,
       isSelected: selected,
       selectedIcon: Icon(icon, color: color),

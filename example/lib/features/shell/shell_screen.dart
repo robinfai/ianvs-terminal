@@ -1195,6 +1195,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       onKeyEvent: (_, event) => handleShellShortcut(event),
       child: Scaffold(
         backgroundColor: palette.canvas,
+        resizeToAvoidBottomInset:
+            instantReplaySession == null && _selectedRecording == null,
         body: ColoredBox(
           color: palette.canvas,
           child: Column(

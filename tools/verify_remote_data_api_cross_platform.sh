@@ -167,6 +167,9 @@ test_env=(
   "LANG=${LANG:-en_US.UTF-8}"
   "LC_ALL=${LC_ALL:-en_US.UTF-8}"
 )
+if [[ -n "${GOROOT:-}" ]]; then
+  test_env+=("GOROOT=$GOROOT")
+fi
 if [[ -n "${DEVELOPER_DIR:-}" ]]; then
   test_env+=("DEVELOPER_DIR=$DEVELOPER_DIR")
 fi

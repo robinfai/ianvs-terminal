@@ -6,7 +6,178 @@ import 'package:app/ui/foundation/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+Future<void> _pumpIosDefaultsDialog(WidgetTester tester) async {
+  await tester.pumpWidget(
+    MaterialApp(
+      theme: buildIanvsTerminalTheme(
+        Brightness.dark,
+        platform: TargetPlatform.iOS,
+      ),
+      home: Builder(
+        builder: (context) => Scaffold(
+          body: Center(
+            child: FilledButton(
+              onPressed: () => showDialog<void>(
+                context: context,
+                builder: (_) => const DefaultsAndAppearanceDialog(
+                  profiles: [],
+                  configuredDefaultProfileId: null,
+                  effectiveDefaultProfileId: null,
+                  themeMode: TerminalThemeMode.system,
+                  terminalViewportPadding:
+                      TerminalAppAppearance.defaultTerminalViewportPadding,
+                  restoreLayout: false,
+                  osc52Policy: LocalTerminalOsc52Policy.ask,
+                  openUrlPolicy: LocalTerminalOpenUrlPolicy.ask,
+                  requestAttentionPolicy:
+                      LocalTerminalRequestAttentionPolicy.disabled,
+                  reportVariableDecisions: {},
+                ),
+              ),
+              child: const Text('Open defaults'),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+  await tester.tap(find.text('Open defaults'));
+  await tester.pumpAndSettle();
+}
+
 void main() {
+  testWidgets(
+    'defaults keeps focused content above the portrait iPhone keyboard',
+    (tester) async {
+      const surfaceSize = Size(430, 932);
+      const keyboardHeight = 337.0;
+      await tester.binding.setSurfaceSize(surfaceSize);
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      addTearDown(tester.view.reset);
+
+      await _pumpIosDefaultsDialog(tester);
+
+      final filter = find.byKey(const Key('defaults-terminal-preset-filter'));
+      await tester.ensureVisible(filter);
+      await tester.tap(filter);
+      tester.view.viewInsets = FakeViewPadding(
+        bottom: keyboardHeight * tester.view.devicePixelRatio,
+      );
+      await tester.pumpAndSettle();
+
+      final keyboardTop = surfaceSize.height - keyboardHeight;
+      expect(tester.getRect(filter).bottom, lessThanOrEqualTo(keyboardTop));
+      expect(find.byKey(const Key('defaults-save')), findsNothing);
+      final bodyScroll = tester.widget<SingleChildScrollView>(
+        find
+            .descendant(
+              of: find.byKey(const Key('defaults-dialog')),
+              matching: find.byType(SingleChildScrollView),
+            )
+            .first,
+      );
+      expect(
+        bodyScroll.keyboardDismissBehavior,
+        ScrollViewKeyboardDismissBehavior.onDrag,
+      );
+      expect(tester.takeException(), isNull);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+  );
+
+  testWidgets(
+    'defaults retains usable body space above a landscape iPhone keyboard',
+    (tester) async {
+      const surfaceSize = Size(844, 390);
+      const keyboardHeight = 216.0;
+      await tester.binding.setSurfaceSize(surfaceSize);
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      addTearDown(tester.view.reset);
+
+      await _pumpIosDefaultsDialog(tester);
+
+      final filter = find.byKey(const Key('defaults-terminal-preset-filter'));
+      await tester.ensureVisible(filter);
+      await tester.tap(filter);
+      tester.view.viewInsets = FakeViewPadding(
+        bottom: keyboardHeight * tester.view.devicePixelRatio,
+      );
+      await tester.pumpAndSettle();
+
+      final keyboardTop = surfaceSize.height - keyboardHeight;
+      expect(find.text('Defaults & appearance'), findsOneWidget);
+      expect(tester.getRect(filter).bottom, lessThanOrEqualTo(keyboardTop));
+      expect(find.byKey(const Key('defaults-save')), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+  );
+
+  testWidgets(
+    'defaults remote login uses readable errors and mobile keyboard progression',
+    (tester) async {
+      const surfaceSize = Size(844, 390);
+      const keyboardHeight = 216.0;
+      await tester.binding.setSurfaceSize(surfaceSize);
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      addTearDown(tester.view.reset);
+
+      await _pumpIosDefaultsDialog(tester);
+      final remote = find.byKey(const Key('data-api-remote'));
+      await tester.scrollUntilVisible(
+        remote,
+        500,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(remote);
+      await tester.pumpAndSettle();
+
+      final url = find.byKey(const Key('data-api-remote-url'));
+      final username = find.byKey(const Key('data-api-remote-username'));
+      final password = find.byKey(const Key('data-api-remote-password'));
+      final urlField = tester.widget<TextField>(url);
+      final usernameField = tester.widget<TextField>(username);
+      final passwordField = tester.widget<TextField>(password);
+      expect(urlField.textInputAction, TextInputAction.next);
+      expect(usernameField.textInputAction, TextInputAction.next);
+      expect(passwordField.textInputAction, TextInputAction.done);
+      expect(passwordField.onSubmitted, isNotNull);
+      expect(urlField.decoration?.errorMaxLines, 2);
+      expect(usernameField.decoration?.errorMaxLines, 2);
+      expect(passwordField.decoration?.errorMaxLines, 2);
+      expect(urlField.scrollPadding.bottom, greaterThanOrEqualTo(40));
+      expect(usernameField.scrollPadding.bottom, greaterThanOrEqualTo(40));
+      expect(passwordField.scrollPadding.bottom, greaterThanOrEqualTo(40));
+      expect(
+        find.text('Use 3–64 lowercase letters, numbers, . _ or -.'),
+        findsNothing,
+      );
+      expect(find.text('Use 12–72 UTF-8 bytes.'), findsNothing);
+
+      await tester.enterText(username, 'a');
+      await tester.enterText(password, 'a');
+      await tester.pump();
+      expect(
+        find.text('Use 3–64 lowercase letters, numbers, . _ or -.'),
+        findsOneWidget,
+      );
+      expect(find.text('Use 12–72 UTF-8 bytes.'), findsOneWidget);
+
+      await tester.ensureVisible(username);
+      await tester.tap(username);
+      tester.view.viewInsets = FakeViewPadding(
+        bottom: keyboardHeight * tester.view.devicePixelRatio,
+      );
+      await tester.pumpAndSettle();
+
+      final keyboardTop = surfaceSize.height - keyboardHeight;
+      expect(tester.getRect(username).bottom, lessThanOrEqualTo(keyboardTop));
+      expect(find.text('Defaults & appearance'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+  );
+
   testWidgets('iOS disabled mode is described as one-time SSH', (tester) async {
     await tester.binding.setSurfaceSize(const Size(1000, 820));
     addTearDown(() => tester.binding.setSurfaceSize(null));

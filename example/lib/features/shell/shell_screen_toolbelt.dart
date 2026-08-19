@@ -114,10 +114,9 @@ class _ShellToolbeltState extends State<_ShellToolbelt> {
                     palette.spacing.lg,
                     palette.spacing.xl,
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final header = Row(
                         children: [
                           Expanded(
                             child: Text(
@@ -138,9 +137,8 @@ class _ShellToolbeltState extends State<_ShellToolbelt> {
                             ),
                           ),
                         ],
-                      ),
-                      SizedBox(height: palette.spacing.sm),
-                      _ToolbeltPanelTabs(
+                      );
+                      final tabs = _ToolbeltPanelTabs(
                         activePanel: _activePanel,
                         palette: palette,
                         tabFocusNodes: _tabFocusNodes,
@@ -156,102 +154,120 @@ class _ShellToolbeltState extends State<_ShellToolbelt> {
                             _activePanel = panel;
                           });
                         },
-                      ),
-                      SizedBox(height: palette.spacing.md),
-                      Expanded(
-                        child: SingleChildScrollView(
+                      );
+                      final body = Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _ToolbeltPrimaryPanel(
+                            activePanel: _activePanel,
+                            palette: palette,
+                            capturedOutputEntries: widget.capturedOutputEntries,
+                            pasteHistoryEntries: widget.pasteHistoryEntries,
+                            shellIntegration: widget.shellIntegration,
+                            onOpenCapturedOutput: widget.onOpenCapturedOutput,
+                            onOpenPasteHistory: widget.onOpenPasteHistory,
+                            onOpenShellIntegrationUtilities:
+                                widget.onOpenShellIntegrationUtilities,
+                            onInsertCommand: widget.onInsertCommand,
+                            onChangeDirectory: widget.onChangeDirectory,
+                          ),
+                          Divider(color: palette.border, height: 22),
+                          _ToolbeltActionRow(
+                            key: const Key('toolbelt-prompt-marks'),
+                            icon: Icons.assistant_direction_rounded,
+                            title: 'Prompt marks',
+                            countLabel:
+                                '${widget.promptMarkCount} mark${widget.promptMarkCount == 1 ? '' : 's'}',
+                            palette: palette,
+                            onTap: widget.onOpenShellIntegrationUtilities,
+                          ),
+                          _ToolbeltActionRow(
+                            key: const Key('toolbelt-tmux-integration'),
+                            icon: Icons.account_tree_rounded,
+                            title: 'tmux integration',
+                            countLabel: widget.tmuxControlModeActive
+                                ? 'Control mode active'
+                                : 'Start or attach',
+                            palette: palette,
+                            onTap: widget.onOpenTmuxIntegration,
+                          ),
+                          _ToolbeltActionRow(
+                            key: const Key('toolbelt-coprocess'),
+                            icon: Icons.hub_rounded,
+                            title: 'Coprocess',
+                            countLabel: widget.coprocessActive
+                                ? 'Automation active'
+                                : 'Run automation',
+                            palette: palette,
+                            onTap: widget.onOpenCoprocess,
+                          ),
+                          _ToolbeltActionRow(
+                            key: const Key('toolbelt-annotations'),
+                            icon: Icons.sticky_note_2_rounded,
+                            title: 'Annotations',
+                            countLabel:
+                                '${widget.annotationCount} note${widget.annotationCount == 1 ? '' : 's'}',
+                            palette: palette,
+                            onTap: widget.onOpenAnnotations,
+                          ),
+                          Divider(color: palette.border, height: 18),
+                          _ToolbeltActionRow(
+                            key: const Key('toolbelt-instant-replay'),
+                            icon: Icons.replay_rounded,
+                            title: 'Replay recent activity',
+                            countLabel: 'Recent frames',
+                            palette: palette,
+                            onTap: widget.onOpenInstantReplay,
+                          ),
+                          if (widget.showHiddenRedesignEntryPointsForTesting)
+                            _ToolbeltActionRow(
+                              key: const Key('toolbelt-password-manager'),
+                              icon: Icons.password_rounded,
+                              title: 'Password manager',
+                              countLabel: 'Prompt-gated sends',
+                              palette: palette,
+                              onTap: widget.onOpenPasswordManager,
+                            ),
+                          if (kDebugMode) ...[
+                            Divider(color: palette.border, height: 18),
+                            LocalTerminalCompletionDiagnosticsPanel(
+                              key: const Key('toolbelt-completion-diagnostics'),
+                              snapshot: widget.completionDiagnosticsSnapshot,
+                              maxItemsPerSection: 4,
+                            ),
+                          ],
+                        ],
+                      );
+                      final fixedHeaderExtent =
+                          44 + palette.spacing.sm + 44 + palette.spacing.md;
+                      if (constraints.maxHeight < fixedHeaderExtent) {
+                        return SingleChildScrollView(
+                          key: const Key('toolbelt-short-height-scroll'),
+                          keyboardDismissBehavior:
+                              ScrollViewKeyboardDismissBehavior.onDrag,
                           child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              _ToolbeltPrimaryPanel(
-                                activePanel: _activePanel,
-                                palette: palette,
-                                capturedOutputEntries:
-                                    widget.capturedOutputEntries,
-                                pasteHistoryEntries: widget.pasteHistoryEntries,
-                                shellIntegration: widget.shellIntegration,
-                                onOpenCapturedOutput:
-                                    widget.onOpenCapturedOutput,
-                                onOpenPasteHistory: widget.onOpenPasteHistory,
-                                onOpenShellIntegrationUtilities:
-                                    widget.onOpenShellIntegrationUtilities,
-                                onInsertCommand: widget.onInsertCommand,
-                                onChangeDirectory: widget.onChangeDirectory,
-                              ),
-                              Divider(color: palette.border, height: 22),
-                              _ToolbeltActionRow(
-                                key: const Key('toolbelt-prompt-marks'),
-                                icon: Icons.assistant_direction_rounded,
-                                title: 'Prompt marks',
-                                countLabel:
-                                    '${widget.promptMarkCount} mark${widget.promptMarkCount == 1 ? '' : 's'}',
-                                palette: palette,
-                                onTap: widget.onOpenShellIntegrationUtilities,
-                              ),
-                              _ToolbeltActionRow(
-                                key: const Key('toolbelt-tmux-integration'),
-                                icon: Icons.account_tree_rounded,
-                                title: 'tmux integration',
-                                countLabel: widget.tmuxControlModeActive
-                                    ? 'Control mode active'
-                                    : 'Start or attach',
-                                palette: palette,
-                                onTap: widget.onOpenTmuxIntegration,
-                              ),
-                              _ToolbeltActionRow(
-                                key: const Key('toolbelt-coprocess'),
-                                icon: Icons.hub_rounded,
-                                title: 'Coprocess',
-                                countLabel: widget.coprocessActive
-                                    ? 'Automation active'
-                                    : 'Run automation',
-                                palette: palette,
-                                onTap: widget.onOpenCoprocess,
-                              ),
-                              _ToolbeltActionRow(
-                                key: const Key('toolbelt-annotations'),
-                                icon: Icons.sticky_note_2_rounded,
-                                title: 'Annotations',
-                                countLabel:
-                                    '${widget.annotationCount} note${widget.annotationCount == 1 ? '' : 's'}',
-                                palette: palette,
-                                onTap: widget.onOpenAnnotations,
-                              ),
-                              Divider(color: palette.border, height: 18),
-                              _ToolbeltActionRow(
-                                key: const Key('toolbelt-instant-replay'),
-                                icon: Icons.replay_rounded,
-                                title: 'Replay recent activity',
-                                countLabel: 'Recent frames',
-                                palette: palette,
-                                onTap: widget.onOpenInstantReplay,
-                              ),
-                              if (widget
-                                  .showHiddenRedesignEntryPointsForTesting)
-                                _ToolbeltActionRow(
-                                  key: const Key('toolbelt-password-manager'),
-                                  icon: Icons.password_rounded,
-                                  title: 'Password manager',
-                                  countLabel: 'Prompt-gated sends',
-                                  palette: palette,
-                                  onTap: widget.onOpenPasswordManager,
-                                ),
-                              if (kDebugMode) ...[
-                                Divider(color: palette.border, height: 18),
-                                LocalTerminalCompletionDiagnosticsPanel(
-                                  key: const Key(
-                                    'toolbelt-completion-diagnostics',
-                                  ),
-                                  snapshot:
-                                      widget.completionDiagnosticsSnapshot,
-                                  maxItemsPerSection: 4,
-                                ),
-                              ],
+                              header,
+                              SizedBox(height: palette.spacing.sm),
+                              tabs,
+                              SizedBox(height: palette.spacing.md),
+                              body,
                             ],
                           ),
-                        ),
-                      ),
-                    ],
+                        );
+                      }
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          header,
+                          SizedBox(height: palette.spacing.sm),
+                          tabs,
+                          SizedBox(height: palette.spacing.md),
+                          Expanded(child: SingleChildScrollView(child: body)),
+                        ],
+                      );
+                    },
                   ),
                 ),
               ),

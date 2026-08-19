@@ -1026,6 +1026,7 @@ class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
   @override
   Widget build(BuildContext context) {
     final palette = widget.palette;
+    final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
     final runtime = _runtime;
     final sessionId = _sessionId;
     final replayController = _replayController;
@@ -1120,9 +1121,13 @@ class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
       key: const Key('recording-replay-layout'),
       color: palette.canvas,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+        padding: keyboardInset > 0
+            ? const EdgeInsets.all(4)
+            : const EdgeInsets.fromLTRB(12, 12, 12, 10),
         child: ReplayFloatingStage(
           key: const Key('recording-replay-stage'),
+          margin: keyboardInset > 0 ? 0 : 8,
+          bottomInset: keyboardInset,
           recordedViewportSize: recordedViewportSize,
           viewportFitKey: const Key('recording-replay-fit'),
           viewportContentKey: const Key('recording-replay-fit-content'),
@@ -1362,6 +1367,12 @@ class _RecordingReplayDock extends StatelessWidget {
         ),
       ],
     );
+    final keyboardActions = _InstantReplayControlButton(
+      tooltip: 'Close replay',
+      onPressed: onClose,
+      icon: Icons.close_rounded,
+      palette: palette,
+    );
     final timeline = _ReplaySemanticTimeline(
       timelineKey: const Key('recording-replay-timeline'),
       effectsKey: const Key('recording-replay-timeline-effects'),
@@ -1400,6 +1411,7 @@ class _RecordingReplayDock extends StatelessWidget {
         transport: transport,
         search: search,
         actions: actions,
+        keyboardActions: keyboardActions,
         palette: palette,
       ),
     );

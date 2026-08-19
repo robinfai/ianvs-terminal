@@ -253,6 +253,65 @@ final class _AppStartupDataSetupViewState
     }
   }
 
+  Widget _buildUrlField({required bool isIos}) {
+    return TextField(
+      key: const Key('app-startup-initial-data-api-url'),
+      controller: _urlController,
+      autofocus: !isIos,
+      keyboardType: TextInputType.url,
+      textInputAction: TextInputAction.next,
+      autocorrect: false,
+      enableSuggestions: false,
+      onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
+      decoration: const InputDecoration(
+        labelText: 'HTTP API URL',
+        hintText: defaultRemoteDataApiBaseUrl,
+      ),
+      enabled: !_runningAction,
+    );
+  }
+
+  Widget _buildUsernameField() {
+    return TextField(
+      key: const Key('app-startup-initial-data-api-username'),
+      controller: _usernameController,
+      textInputAction: TextInputAction.next,
+      autocorrect: false,
+      enableSuggestions: false,
+      autofillHints: const <String>[AutofillHints.username],
+      onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
+      decoration: const InputDecoration(labelText: 'Username'),
+      enabled: !_runningAction,
+    );
+  }
+
+  Widget _buildPasswordField() {
+    final isLastEditableField = usesAutomaticallySynchronizedAppleKeychain;
+    return TextField(
+      key: const Key('app-startup-initial-data-api-password'),
+      controller: _passwordController,
+      textInputAction: isLastEditableField
+          ? TextInputAction.done
+          : TextInputAction.next,
+      obscureText: true,
+      autocorrect: false,
+      enableSuggestions: false,
+      autofillHints: const <String>[AutofillHints.password],
+      onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
+      onSubmitted: isLastEditableField
+          ? (_) async {
+              if (_canConnect) {
+                await _connect();
+              } else {
+                FocusManager.instance.primaryFocus?.unfocus();
+              }
+            }
+          : null,
+      decoration: const InputDecoration(labelText: 'Password'),
+      enabled: !_runningAction,
+    );
+  }
+
   @override
   void dispose() {
     for (final controller in _controllers) {
@@ -267,43 +326,74 @@ final class _AppStartupDataSetupViewState
   Widget build(BuildContext context) {
     final canSkip =
         widget.requirement == AppStartupDataSetupRequirement.optional;
+    final isIos = defaultTargetPlatform == TargetPlatform.iOS;
     final theme = Theme.of(context);
     return Scaffold(
       key: const Key('app-startup-data-api-setup'),
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final minimumHeight = constraints.maxHeight > 64
-                ? constraints.maxHeight - 64
+            final compactLandscape =
+                isIos &&
+                constraints.maxWidth >= 600 &&
+                constraints.maxHeight < 600;
+            final outerInset = compactLandscape ? 12.0 : 32.0;
+            final cardInset = compactLandscape ? 16.0 : 28.0;
+            final minimumHeight = constraints.maxHeight > outerInset * 2
+                ? constraints.maxHeight - outerInset * 2
                 : 0.0;
             return SingleChildScrollView(
-              padding: const EdgeInsets.all(32),
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              padding: EdgeInsets.all(outerInset),
               child: ConstrainedBox(
                 constraints: BoxConstraints(minHeight: minimumHeight),
                 child: Center(
                   child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 560),
+                    constraints: BoxConstraints(
+                      maxWidth: compactLandscape ? 760 : 560,
+                    ),
                     child: Card(
                       margin: EdgeInsets.zero,
                       child: Padding(
-                        padding: const EdgeInsets.all(28),
+                        padding: EdgeInsets.all(cardInset),
                         child: AutofillGroup(
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              Icon(
-                                Icons.cloud_outlined,
-                                size: 44,
-                                color: theme.colorScheme.primary,
-                              ),
-                              const SizedBox(height: 20),
-                              Text(
-                                'Choose your data mode',
-                                textAlign: TextAlign.center,
-                                style: theme.textTheme.headlineSmall,
-                              ),
-                              const SizedBox(height: 10),
+                              if (compactLandscape)
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.cloud_outlined,
+                                      size: 30,
+                                      color: theme.colorScheme.primary,
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Flexible(
+                                      child: Text(
+                                        'Choose your data mode',
+                                        textAlign: TextAlign.center,
+                                        style: theme.textTheme.titleLarge,
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              else ...[
+                                Icon(
+                                  Icons.cloud_outlined,
+                                  size: 44,
+                                  color: theme.colorScheme.primary,
+                                ),
+                                const SizedBox(height: 20),
+                                Text(
+                                  'Choose your data mode',
+                                  textAlign: TextAlign.center,
+                                  style: theme.textTheme.headlineSmall,
+                                ),
+                              ],
+                              SizedBox(height: compactLandscape ? 6 : 10),
                               Text(
                                 canSkip
                                     ? widget.settings.localDataApiAvailable
@@ -323,58 +413,23 @@ final class _AppStartupDataSetupViewState
                                   color: theme.colorScheme.onSurfaceVariant,
                                 ),
                               ),
-                              const SizedBox(height: 28),
-                              TextField(
-                                key: const Key(
-                                  'app-startup-initial-data-api-url',
-                                ),
-                                controller: _urlController,
-                                autofocus: true,
-                                keyboardType: TextInputType.url,
-                                textInputAction: TextInputAction.next,
-                                autocorrect: false,
-                                enableSuggestions: false,
-                                decoration: const InputDecoration(
-                                  labelText: 'HTTP API URL',
-                                  hintText: defaultRemoteDataApiBaseUrl,
-                                ),
-                                enabled: !_runningAction,
-                              ),
-                              const SizedBox(height: 14),
-                              TextField(
-                                key: const Key(
-                                  'app-startup-initial-data-api-username',
-                                ),
-                                controller: _usernameController,
-                                textInputAction: TextInputAction.next,
-                                autocorrect: false,
-                                enableSuggestions: false,
-                                autofillHints: const <String>[
-                                  AutofillHints.username,
-                                ],
-                                decoration: const InputDecoration(
-                                  labelText: 'Username',
-                                ),
-                                enabled: !_runningAction,
-                              ),
-                              const SizedBox(height: 14),
-                              TextField(
-                                key: const Key(
-                                  'app-startup-initial-data-api-password',
-                                ),
-                                controller: _passwordController,
-                                textInputAction: TextInputAction.next,
-                                obscureText: true,
-                                autocorrect: false,
-                                enableSuggestions: false,
-                                autofillHints: const <String>[
-                                  AutofillHints.password,
-                                ],
-                                decoration: const InputDecoration(
-                                  labelText: 'Password',
-                                ),
-                                enabled: !_runningAction,
-                              ),
+                              SizedBox(height: compactLandscape ? 14 : 28),
+                              _buildUrlField(isIos: isIos),
+                              SizedBox(height: compactLandscape ? 10 : 14),
+                              if (compactLandscape)
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(child: _buildUsernameField()),
+                                    const SizedBox(width: 12),
+                                    Expanded(child: _buildPasswordField()),
+                                  ],
+                                )
+                              else ...[
+                                _buildUsernameField(),
+                                const SizedBox(height: 14),
+                                _buildPasswordField(),
+                              ],
                               const SizedBox(height: 14),
                               if (usesAutomaticallySynchronizedAppleKeychain)
                                 const _AppleMasterKeyNotice()
@@ -388,6 +443,10 @@ final class _AppStartupDataSetupViewState
                                   obscureText: true,
                                   autocorrect: false,
                                   enableSuggestions: false,
+                                  onTapOutside: (_) => FocusManager
+                                      .instance
+                                      .primaryFocus
+                                      ?.unfocus(),
                                   decoration: const InputDecoration(
                                     labelText:
                                         'Master key from another device (optional)',
@@ -414,67 +473,116 @@ final class _AppStartupDataSetupViewState
                                 const SizedBox(height: 18),
                                 const LinearProgressIndicator(),
                               ],
-                              const SizedBox(height: 24),
+                              SizedBox(height: compactLandscape ? 14 : 24),
                               if (canSkip)
-                                Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  children: [
-                                    if (widget
-                                        .settings
-                                        .localDataApiAvailable) ...[
-                                      OutlinedButton.icon(
-                                        key: const Key(
-                                          'app-startup-use-local-api',
-                                        ),
-                                        onPressed: !_runningAction
-                                            ? _useLocalApi
-                                            : null,
-                                        icon: const Icon(Icons.storage_rounded),
-                                        label: const Text(
-                                          'Use bundled local API',
+                                if (compactLandscape &&
+                                    !widget.settings.localDataApiAvailable)
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: SizedBox(
+                                          height: 48,
+                                          child: OutlinedButton(
+                                            key: const Key(
+                                              'app-startup-skip-data-api',
+                                            ),
+                                            onPressed: _runningAction
+                                                ? null
+                                                : _skip,
+                                            child: const Text(
+                                              'Continue without data service',
+                                            ),
+                                          ),
                                         ),
                                       ),
-                                      const SizedBox(height: 10),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: SizedBox(
+                                          height: 48,
+                                          child: FilledButton.icon(
+                                            key: const Key(
+                                              'app-startup-connect-data-api',
+                                            ),
+                                            onPressed:
+                                                !_runningAction && _canConnect
+                                                ? _connect
+                                                : null,
+                                            icon: const Icon(
+                                              Icons.login_rounded,
+                                            ),
+                                            label: const Text(
+                                              'Connect remote API',
+                                            ),
+                                          ),
+                                        ),
+                                      ),
                                     ],
-                                    OverflowBar(
-                                      alignment: MainAxisAlignment.spaceBetween,
-                                      overflowAlignment:
-                                          OverflowBarAlignment.end,
-                                      spacing: 12,
-                                      children: [
-                                        TextButton(
+                                  )
+                                else
+                                  Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      if (widget
+                                          .settings
+                                          .localDataApiAvailable) ...[
+                                        OutlinedButton.icon(
                                           key: const Key(
-                                            'app-startup-skip-data-api',
+                                            'app-startup-use-local-api',
                                           ),
-                                          onPressed: _runningAction
-                                              ? null
-                                              : _skip,
-                                          child: Text(
-                                            widget
-                                                    .settings
-                                                    .localDataApiAvailable
-                                                ? 'Use local terminal only'
-                                                : 'Continue without data service',
-                                          ),
-                                        ),
-                                        FilledButton.icon(
-                                          key: const Key(
-                                            'app-startup-connect-data-api',
-                                          ),
-                                          onPressed:
-                                              !_runningAction && _canConnect
-                                              ? _connect
+                                          onPressed: !_runningAction
+                                              ? _useLocalApi
                                               : null,
-                                          icon: const Icon(Icons.login_rounded),
+                                          icon: const Icon(
+                                            Icons.storage_rounded,
+                                          ),
                                           label: const Text(
-                                            'Connect remote API',
+                                            'Use bundled local API',
                                           ),
                                         ),
+                                        const SizedBox(height: 10),
                                       ],
-                                    ),
-                                  ],
-                                )
+                                      OverflowBar(
+                                        alignment:
+                                            MainAxisAlignment.spaceBetween,
+                                        overflowAlignment:
+                                            OverflowBarAlignment.end,
+                                        spacing: 12,
+                                        children: [
+                                          TextButton(
+                                            key: const Key(
+                                              'app-startup-skip-data-api',
+                                            ),
+                                            onPressed: _runningAction
+                                                ? null
+                                                : _skip,
+                                            child: Text(
+                                              widget
+                                                      .settings
+                                                      .localDataApiAvailable
+                                                  ? 'Use local terminal only'
+                                                  : 'Continue without data service',
+                                            ),
+                                          ),
+                                          FilledButton.icon(
+                                            key: const Key(
+                                              'app-startup-connect-data-api',
+                                            ),
+                                            onPressed:
+                                                !_runningAction && _canConnect
+                                                ? _connect
+                                                : null,
+                                            icon: const Icon(
+                                              Icons.login_rounded,
+                                            ),
+                                            label: const Text(
+                                              'Connect remote API',
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  )
                               else
                                 SizedBox(
                                   height: 48,
