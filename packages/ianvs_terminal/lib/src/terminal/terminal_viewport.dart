@@ -332,6 +332,7 @@ class _TerminalViewportState extends State<TerminalViewport>
   final GlobalKey _surfaceKey = GlobalKey();
   double _pendingScrollLines = 0.0;
   double _scrollMomentumLinesPerSecond = 0.0;
+  bool _scrollMomentumIgnoresTerminalMouseMode = false;
   Duration? _lastPanZoomUpdateTimeStamp;
   Size? _lastReportedCellSize;
   int? _activeMouseButton;
@@ -494,7 +495,7 @@ class _TerminalViewportState extends State<TerminalViewport>
       setState(() {});
     }
     if (_isLocalSelectionActive &&
-        !_terminalMouseEnabled &&
+        !_terminalMouseBlocksLocalSelection &&
         _selectionPointerGlobalPosition != null) {
       _updateSelectionFromPointer(_selectionPointerGlobalPosition!);
       _syncSelectionAutoScroll();
@@ -838,8 +839,9 @@ class _TerminalViewportState extends State<TerminalViewport>
     _startScrollMomentumIfNeeded();
   }
 
-  void _startScrollMomentumIfNeeded() {
-    if (_terminalMouseEnabled ||
+  void _startScrollMomentumIfNeeded({bool ignoreTerminalMouseMode = false}) {
+    _scrollMomentumIgnoresTerminalMouseMode = ignoreTerminalMouseMode;
+    if ((!ignoreTerminalMouseMode && _terminalMouseEnabled) ||
         _scrollMomentumLinesPerSecond.abs() <
             _scrollMomentumStartThresholdLinesPerSecond) {
       _stopScrollMomentum(resetPendingScroll: false);
@@ -852,7 +854,8 @@ class _TerminalViewportState extends State<TerminalViewport>
   }
 
   void _handleScrollMomentumTick() {
-    if (!mounted || _terminalMouseEnabled) {
+    if (!mounted ||
+        (_terminalMouseEnabled && !_scrollMomentumIgnoresTerminalMouseMode)) {
       _stopScrollMomentum();
       return;
     }
@@ -892,6 +895,7 @@ class _TerminalViewportState extends State<TerminalViewport>
   void _stopScrollMomentum({bool resetPendingScroll = true}) {
     _cancelScrollMomentumTimer();
     _scrollMomentumLinesPerSecond = 0.0;
+    _scrollMomentumIgnoresTerminalMouseMode = false;
     _lastPanZoomUpdateTimeStamp = null;
     if (resetPendingScroll) {
       _pendingScrollLines = 0.0;
@@ -905,6 +909,9 @@ class _TerminalViewportState extends State<TerminalViewport>
 
   bool get _terminalMouseEnabled =>
       widget.controller.frame.modes.mouseMode != 'off';
+
+  bool get _terminalMouseBlocksLocalSelection =>
+      _terminalMouseEnabled && !_usesMobileTextInput;
 
   MouseCursor get _terminalPointerCursor {
     final frame = widget.controller.frame;
@@ -1285,6 +1292,13 @@ class _TerminalViewportState extends State<TerminalViewport>
     _stopScrollMomentum();
     if (_isMobileTouchEvent(event)) {
       _touchScrollGestureActive = false;
+      _isLocalSelectionActive = false;
+      _selectionPointerGlobalPosition = null;
+      _selectionPointerDownGlobalPosition = null;
+      _selectionMovedSincePointerDown = false;
+      _wordSelectionAnchor = null;
+      _localSelectionMode = _LocalSelectionMode.cell;
+      _stopSelectionAutoScroll();
       return;
     }
     if (_terminalMouseEnabled) {
@@ -1338,7 +1352,7 @@ class _TerminalViewportState extends State<TerminalViewport>
         return;
       }
       _touchScrollGestureActive = true;
-      _handleScrollDelta(deltaY);
+      _applyRawScrollLines(_rawScrollLinesForDelta(deltaY));
       return;
     }
     if (!_pinchGestureActive) {
@@ -1348,6 +1362,7 @@ class _TerminalViewportState extends State<TerminalViewport>
       _isLocalSelectionActive = false;
       _selectionPointerGlobalPosition = null;
       _selectionPointerDownGlobalPosition = null;
+      _selectionMovedSincePointerDown = false;
       _wordSelectionAnchor = null;
       _localSelectionMode = _LocalSelectionMode.cell;
       _cancelPendingLinkOpen();
@@ -1360,13 +1375,11 @@ class _TerminalViewportState extends State<TerminalViewport>
   void _handleScaleEnd(ScaleEndDetails details) {
     if (_pinchGestureActive) {
       widget.onScaleEnd?.call(details);
-    } else if (_touchScrollGestureActive &&
-        !_terminalMouseEnabled &&
-        !_terminalAlternateScrollEnabled) {
+    } else if (_touchScrollGestureActive) {
       _scrollMomentumLinesPerSecond = _rawScrollLinesForDelta(
         details.velocity.pixelsPerSecond.dy,
       );
-      _startScrollMomentumIfNeeded();
+      _startScrollMomentumIfNeeded(ignoreTerminalMouseMode: true);
     } else {
       _resetPendingScroll();
     }
@@ -1405,6 +1418,7 @@ class _TerminalViewportState extends State<TerminalViewport>
     _isLocalSelectionActive = true;
     _selectionPointerGlobalPosition = details.globalPosition;
     _selectionPointerDownGlobalPosition = details.globalPosition;
+    _selectionMovedSincePointerDown = false;
     final wordRange = _wordRangeAtCell(cell);
     if (wordRange != null) {
       _localSelectionMode = _LocalSelectionMode.word;
@@ -1427,6 +1441,9 @@ class _TerminalViewportState extends State<TerminalViewport>
       return;
     }
     _selectionPointerGlobalPosition = details.globalPosition;
+    _selectionMovedSincePointerDown =
+        _selectionMovedSincePointerDown ||
+        _didSelectionMoveBeyondTapSlop(details.globalPosition);
     _updateSelectionFromPointer(details.globalPosition);
     _syncSelectionAutoScroll();
   }
@@ -1440,6 +1457,7 @@ class _TerminalViewportState extends State<TerminalViewport>
     _isLocalSelectionActive = false;
     _selectionPointerGlobalPosition = null;
     _selectionPointerDownGlobalPosition = null;
+    _selectionMovedSincePointerDown = false;
     _wordSelectionAnchor = null;
     _localSelectionMode = _LocalSelectionMode.cell;
     _stopSelectionAutoScroll();
@@ -1788,12 +1806,21 @@ class _TerminalViewportState extends State<TerminalViewport>
       return 0;
     }
     final localPosition = renderObject.globalToLocal(pointer);
-    if (localPosition.dy < 0) {
-      return _autoScrollLinesForOvershoot(-localPosition.dy);
+    final lineHeight = _lineHeight;
+    final visibleRowsHeight = math.min(
+      renderObject.size.height,
+      widget.controller.frame.viewportRows * lineHeight,
+    );
+    if (visibleRowsHeight <= 0) {
+      return 0;
     }
-    if (localPosition.dy > renderObject.size.height) {
+    final edgeExtent = math.min(lineHeight, visibleRowsHeight / 2);
+    if (localPosition.dy < edgeExtent) {
+      return _autoScrollLinesForOvershoot(math.max(0, -localPosition.dy));
+    }
+    if (localPosition.dy > visibleRowsHeight - edgeExtent) {
       return -_autoScrollLinesForOvershoot(
-        localPosition.dy - renderObject.size.height,
+        math.max(0, localPosition.dy - visibleRowsHeight),
       );
     }
     return 0;
@@ -1822,7 +1849,8 @@ class _TerminalViewportState extends State<TerminalViewport>
   void _syncSelectionAutoScroll() {
     final deltaLines = _selectionAutoScrollDelta();
     if (!_isLocalSelectionActive ||
-        _terminalMouseEnabled ||
+        !_selectionMovedSincePointerDown ||
+        _terminalMouseBlocksLocalSelection ||
         deltaLines == 0 ||
         !_canScrollSelection(deltaLines)) {
       _stopSelectionAutoScroll();
@@ -1837,7 +1865,8 @@ class _TerminalViewportState extends State<TerminalViewport>
   void _handleSelectionAutoScrollTick() {
     final deltaLines = _selectionAutoScrollDelta();
     if (!_isLocalSelectionActive ||
-        _terminalMouseEnabled ||
+        !_selectionMovedSincePointerDown ||
+        _terminalMouseBlocksLocalSelection ||
         deltaLines == 0 ||
         !_canScrollSelection(deltaLines)) {
       _stopSelectionAutoScroll();

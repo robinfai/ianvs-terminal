@@ -3,8 +3,8 @@ import 'dart:typed_data';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ianvs_terminal/ianvs_terminal.dart';
-import 'package:ianvs_terminal/src/terminal/render_terminal_viewport.dart';
+import 'package:ianvs_terminal_core/ianvs_terminal_core.dart';
+import 'package:ianvs_terminal_core/src/terminal/render_terminal_viewport.dart';
 
 void main() {
   testWidgets(
