@@ -152,6 +152,35 @@ void main() {
       expect(connectedState.tabs.single.profileId, _sshProfile.id);
       expect(find.byType(TerminalViewport), findsOne);
       expect(find.byKey(const Key('ios-terminal-input-bar')), findsOne);
+      expect(find.byKey(const Key('shell-chrome-window-title')), findsNothing);
+      expect(find.byKey(const Key('shell-chrome-title-surface')), findsNothing);
+      expect(
+        tester.getSize(find.byKey(const Key('shell-chrome-bar'))).height,
+        52,
+      );
+      expect(find.byKey(const Key('shell-tab-strip')), findsOne);
+      final newTabButton = find.byKey(const Key('shell-chrome-new-tab'));
+      final commandMenuButton = find.byKey(const Key('shell-chrome-menu'));
+      expect(tester.getSize(newTabButton), const Size(44, 44));
+      expect(tester.getSize(commandMenuButton), const Size(44, 44));
+      expect(
+        tester.getRect(commandMenuButton).right,
+        lessThanOrEqualTo(
+          tester.getRect(find.byKey(const Key('shell-tab-strip'))).left,
+        ),
+      );
+      expect(
+        tester.getRect(find.byKey(const Key('shell-tab-strip'))).right,
+        lessThanOrEqualTo(tester.getRect(newTabButton).left),
+      );
+      await tester.tap(commandMenuButton);
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('shell-command-menu-overlay')),
+        findsOneWidget,
+      );
+      await tester.tap(find.byTooltip('Close command palette'));
+      await tester.pumpAndSettle();
       expect(
         nativeBackend.lastCreatedSessionPayload?['connection'],
         isA<Map<Object?, Object?>>().having(
@@ -261,6 +290,11 @@ void main() {
       );
       await _pumpUntilReady(tester);
 
+      expect(find.byKey(const Key('shell-chrome-window-title')), findsNothing);
+      expect(
+        tester.getSize(find.byKey(const Key('shell-chrome-bar'))).height,
+        52,
+      );
       tester.view.viewInsets = const FakeViewPadding(bottom: 216);
       await tester.pumpAndSettle();
 

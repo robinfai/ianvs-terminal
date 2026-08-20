@@ -5,6 +5,7 @@ const double _shellChromeTabRailHeight = 38;
 const double _iosShellChromeTitleHeight = 44;
 const double _iosShellChromeTabRailHeight = 52;
 const double _shellChromeHorizontalInset = 12;
+const double _compactMobileChromeBreakpoint = 600;
 const String _shellApplicationTitle = 'Ianvs Terminal';
 
 class _ShellChromeBar extends StatelessWidget {
@@ -70,6 +71,18 @@ class _ShellChromeBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isIos = defaultTargetPlatform == TargetPlatform.iOS;
+    final isMobilePlatform = switch (defaultTargetPlatform) {
+      TargetPlatform.android || TargetPlatform.iOS => true,
+      TargetPlatform.fuchsia ||
+      TargetPlatform.linux ||
+      TargetPlatform.macOS ||
+      TargetPlatform.windows => false,
+    };
+    final windowSize = MediaQuery.sizeOf(context);
+    final usesCompactMobileChrome =
+        isMobilePlatform &&
+        math.min(windowSize.width, windowSize.height) <
+            _compactMobileChromeBreakpoint;
     final titleHeight = isIos
         ? _iosShellChromeTitleHeight
         : _shellChromeTitleHeight;
@@ -98,16 +111,19 @@ class _ShellChromeBar extends StatelessWidget {
           topRight: Radius.circular(palette.radius.lg),
         ),
         child: SizedBox(
-          height: titleHeight + tabRailHeight,
+          height: (usesCompactMobileChrome ? 0 : titleHeight) + tabRailHeight,
           child: Column(
             children: [
-              _ShellWindowTitleBar(
-                height: titleHeight,
-                palette: palette,
-                tone: chromeTone,
-                backgroundColor: chromeSurface,
-                onShowCommandMenu: referenceDemoMode ? null : onShowCommandMenu,
-              ),
+              if (!usesCompactMobileChrome)
+                _ShellWindowTitleBar(
+                  height: titleHeight,
+                  palette: palette,
+                  tone: chromeTone,
+                  backgroundColor: chromeSurface,
+                  onShowCommandMenu: referenceDemoMode
+                      ? null
+                      : onShowCommandMenu,
+                ),
               SizedBox(
                 height: tabRailHeight,
                 child: DecoratedBox(
@@ -130,49 +146,83 @@ class _ShellChromeBar extends StatelessWidget {
                       _shellChromeHorizontalInset,
                       5,
                     ),
-                    child: DecoratedBox(
-                      key: const Key('shell-chrome-tab-track'),
-                      decoration: BoxDecoration(
-                        color: chromeTone.trackBackground,
-                        borderRadius: BorderRadius.circular(15),
-                      ),
-                      child: referenceDemoMode
-                          ? _ReferenceDemoTabStrip(
-                              palette: palette,
-                              tabs: tabs,
-                              activeSessionId: activeSessionId,
-                              onActivateSession: onActivateSession,
-                            )
-                          : _ShellTabStrip(
-                              key: tabStripKey,
-                              palette: palette,
-                              chromeBackgroundColor: terminalBackgroundColor,
-                              paneDropInsertionIndex: paneDropInsertionIndex,
-                              tabs: tabs,
-                              activeSessionId: activeSessionId,
-                              tabHasNewOutput: tabHasNewOutput,
-                              tabNewOutputTooltip: tabNewOutputTooltip,
-                              hiddenTabsNewOutputTooltip:
-                                  hiddenTabsNewOutputTooltip,
-                              hiddenTabsNewOutputPaneSessionId:
-                                  hiddenTabsNewOutputPaneSessionId,
-                              tabNewOutputPaneSessionId:
-                                  tabNewOutputPaneSessionId,
-                              tabColor: tabColor,
-                              onNewTab: onNewTab,
-                              onActivateSession: onActivateSession,
-                              onActivateBadgePane: onActivateBadgePane,
-                              onNotificationInteraction:
-                                  onNotificationInteraction,
-                              onActivateNewOutputPane: onActivateNewOutputPane,
-                              onCloseSession: onCloseSession,
-                              onReorderTab: onReorderTab,
-                              onSessionDragStarted: onSessionDragStarted,
-                              onSessionDragUpdated: onSessionDragUpdated,
-                              onSessionDragEnded: onSessionDragEnded,
-                              onSessionDragCancelled: onSessionDragCancelled,
-                              onShowTabContextMenu: onShowTabContextMenu,
+                    child: Row(
+                      children: [
+                        if (usesCompactMobileChrome && !referenceDemoMode) ...[
+                          _buildChromeIconButton(
+                            key: const Key('shell-chrome-menu'),
+                            tooltip: 'Open command palette',
+                            onPressed: onShowCommandMenu,
+                            iconSize: 16,
+                            hoverBackgroundColor: chromeTone.hoverBackground,
+                            icon: Icon(
+                              Icons.tune_rounded,
+                              color: chromeTone.subtleText,
                             ),
+                          ),
+                          const SizedBox(width: 4),
+                        ],
+                        Expanded(
+                          child: DecoratedBox(
+                            key: const Key('shell-chrome-tab-track'),
+                            decoration: BoxDecoration(
+                              color: chromeTone.trackBackground,
+                              borderRadius: BorderRadius.circular(15),
+                            ),
+                            child: referenceDemoMode
+                                ? _ReferenceDemoTabStrip(
+                                    palette: palette,
+                                    tabs: tabs,
+                                    activeSessionId: activeSessionId,
+                                    onActivateSession: onActivateSession,
+                                  )
+                                : _ShellTabStrip(
+                                    key: tabStripKey,
+                                    palette: palette,
+                                    chromeBackgroundColor:
+                                        terminalBackgroundColor,
+                                    paneDropInsertionIndex:
+                                        paneDropInsertionIndex,
+                                    tabs: tabs,
+                                    activeSessionId: activeSessionId,
+                                    tabHasNewOutput: tabHasNewOutput,
+                                    tabNewOutputTooltip: tabNewOutputTooltip,
+                                    hiddenTabsNewOutputTooltip:
+                                        hiddenTabsNewOutputTooltip,
+                                    hiddenTabsNewOutputPaneSessionId:
+                                        hiddenTabsNewOutputPaneSessionId,
+                                    tabNewOutputPaneSessionId:
+                                        tabNewOutputPaneSessionId,
+                                    tabColor: tabColor,
+                                    showNewTabAction: !usesCompactMobileChrome,
+                                    onNewTab: onNewTab,
+                                    onActivateSession: onActivateSession,
+                                    onActivateBadgePane: onActivateBadgePane,
+                                    onNotificationInteraction:
+                                        onNotificationInteraction,
+                                    onActivateNewOutputPane:
+                                        onActivateNewOutputPane,
+                                    onCloseSession: onCloseSession,
+                                    onReorderTab: onReorderTab,
+                                    onSessionDragStarted: onSessionDragStarted,
+                                    onSessionDragUpdated: onSessionDragUpdated,
+                                    onSessionDragEnded: onSessionDragEnded,
+                                    onSessionDragCancelled:
+                                        onSessionDragCancelled,
+                                    onShowTabContextMenu: onShowTabContextMenu,
+                                  ),
+                          ),
+                        ),
+                        if (usesCompactMobileChrome && !referenceDemoMode) ...[
+                          const SizedBox(width: 4),
+                          _ShellNewTabButton(
+                            palette: palette,
+                            tone: chromeTone,
+                            width: 44,
+                            onPressed: onNewTab,
+                          ),
+                        ],
+                      ],
                     ),
                   ),
                 ),
@@ -706,6 +756,7 @@ class _ShellTabStrip extends StatefulWidget {
     required this.hiddenTabsNewOutputPaneSessionId,
     required this.tabNewOutputPaneSessionId,
     required this.tabColor,
+    this.showNewTabAction = true,
     required this.onNewTab,
     required this.onActivateSession,
     required this.onActivateBadgePane,
@@ -732,6 +783,7 @@ class _ShellTabStrip extends StatefulWidget {
   hiddenTabsNewOutputPaneSessionId;
   final String? Function(TerminalTab tab) tabNewOutputPaneSessionId;
   final Color? Function(TerminalTab tab) tabColor;
+  final bool showNewTabAction;
   final VoidCallback? onNewTab;
   final ValueChanged<String> onActivateSession;
   final ValueChanged<String> onActivateBadgePane;
@@ -960,8 +1012,21 @@ class _ShellTabStripState extends State<_ShellTabStrip> {
               _tabActionButtonWidth,
               totalWidth,
             );
-            final tabsAreaWidth = math.max(0.0, totalWidth - actionButtonWidth);
-            final visibleTabCount = _visibleTabCountFor(tabsAreaWidth);
+            final initialTabsAreaWidth = widget.showNewTabAction
+                ? math.max(0.0, totalWidth - actionButtonWidth)
+                : totalWidth;
+            final initialVisibleTabCount = _visibleTabCountFor(
+              initialTabsAreaWidth,
+            );
+            final needsOverflowAction =
+                initialVisibleTabCount < widget.tabs.length;
+            final tabsAreaWidth =
+                !widget.showNewTabAction && needsOverflowAction
+                ? math.max(0.0, totalWidth - actionButtonWidth)
+                : initialTabsAreaWidth;
+            final visibleTabCount = needsOverflowAction
+                ? _visibleTabCountFor(tabsAreaWidth)
+                : initialVisibleTabCount;
             _visibleTabCount = visibleTabCount;
             final hasOverflow = visibleTabCount < widget.tabs.length;
             final hiddenTabs = hasOverflow
@@ -1168,7 +1233,9 @@ class _ShellTabStripState extends State<_ShellTabStrip> {
                     onActivateNewOutputPane: widget.onActivateNewOutputPane,
                     width: actionButtonWidth,
                   ),
-                if (!hasOverflow && actionButtonWidth > 0)
+                if (!hasOverflow &&
+                    widget.showNewTabAction &&
+                    actionButtonWidth > 0)
                   _ShellNewTabButton(
                     palette: widget.palette,
                     tone: chromeTone,
