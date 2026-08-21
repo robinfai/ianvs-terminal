@@ -168,7 +168,7 @@ class _ProfilesSheetState extends State<ProfilesSheet> {
                               style: Theme.of(context).textTheme.titleLarge
                                   ?.copyWith(
                                     color: palette.textPrimary,
-                                    fontWeight: FontWeight.w700,
+                                    fontWeight: FontWeight.w600,
                                   ),
                             ),
                           ),
@@ -426,7 +426,7 @@ class _ProfileEntrySubtitle extends StatelessWidget {
                     tag,
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
                       color: palette.textMuted,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),

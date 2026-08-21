@@ -150,7 +150,7 @@ class _NewSessionLauncherState extends State<NewSessionLauncher> {
                           style: Theme.of(context).textTheme.titleLarge
                               ?.copyWith(
                                 color: palette.textPrimary,
-                                fontWeight: FontWeight.w700,
+                                fontWeight: FontWeight.w600,
                               ),
                         ),
                       ),
@@ -569,7 +569,7 @@ class _SectionLabel extends StatelessWidget {
         text,
         style: Theme.of(context).textTheme.labelLarge?.copyWith(
           color: palette.textMuted,
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );

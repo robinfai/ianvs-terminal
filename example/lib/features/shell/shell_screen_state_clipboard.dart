@@ -646,7 +646,7 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
                 dialogContext.l10n.preview,
                 style: Theme.of(
                   dialogContext,
-                ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700),
+                ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 6),
               ConstrainedBox(

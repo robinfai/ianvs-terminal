@@ -80,7 +80,7 @@ class _SshOnlyShellEmptyState extends StatelessWidget {
       textAlign: TextAlign.center,
       style: Theme.of(context).textTheme.headlineSmall?.copyWith(
         color: palette.textPrimary,
-        fontWeight: FontWeight.w700,
+        fontWeight: FontWeight.w600,
       ),
     );
     return Column(

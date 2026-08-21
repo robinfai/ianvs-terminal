@@ -124,7 +124,7 @@ class _ShellToolbeltState extends State<_ShellToolbelt> {
                               style: Theme.of(context).textTheme.titleMedium
                                   ?.copyWith(
                                     color: palette.textPrimary,
-                                    fontWeight: FontWeight.w800,
+                                    fontWeight: FontWeight.w700,
                                   ),
                             ),
                           ),
@@ -438,7 +438,7 @@ class _ToolbeltPanelTab extends StatelessWidget {
                       style: Theme.of(context).textTheme.labelMedium?.copyWith(
                         color: foreground,
                         fontWeight: selected
-                            ? FontWeight.w800
+                            ? FontWeight.w700
                             : FontWeight.w600,
                       ),
                     ),
@@ -447,7 +447,7 @@ class _ToolbeltPanelTab extends StatelessWidget {
                     count.toString(),
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
                       color: foreground,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ],
@@ -684,7 +684,7 @@ class _ToolbeltPreviewSection extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
                       color: palette.textPrimary,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                   Text(
@@ -749,7 +749,7 @@ class _ToolbeltPreviewTile extends StatelessWidget {
         overflow: TextOverflow.ellipsis,
         style: Theme.of(context).textTheme.bodySmall?.copyWith(
           color: palette.textPrimary,
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w600,
         ),
       ),
       subtitle: Text(
@@ -825,7 +825,7 @@ class _ToolbeltActionRow extends StatelessWidget {
         overflow: TextOverflow.ellipsis,
         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
           color: palette.textPrimary,
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w600,
         ),
       ),
       subtitle: Text(

@@ -212,6 +212,10 @@ void main() {
     expect(find.text('Body'), findsOneWidget);
     expect(find.text('Footer'), findsOneWidget);
     expect(
+      tester.widget<Text>(find.text('Preferences')).style?.fontWeight,
+      FontWeight.w700,
+    );
+    expect(
       tester.getSemantics(find.bySemanticsLabel('Preferences dialog')),
       matchesSemantics(label: 'Preferences dialog'),
     );

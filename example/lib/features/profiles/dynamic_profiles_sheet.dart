@@ -168,7 +168,7 @@ class _DynamicProfilesSheetState extends State<DynamicProfilesSheet> {
             key: const Key('dynamic-profiles-preview-summary'),
             style: Theme.of(context).textTheme.labelLarge?.copyWith(
               color: palette.textPrimary,
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w700,
             ),
           ),
           SizedBox(height: palette.spacing.sm),
@@ -195,7 +195,7 @@ class _DynamicProfilesSheetState extends State<DynamicProfilesSheet> {
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: palette.textPrimary,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
@@ -208,7 +208,7 @@ class _DynamicProfilesSheetState extends State<DynamicProfilesSheet> {
                       color: preview.replacementIds.contains(profile.id)
                           ? palette.warning
                           : palette.textMuted,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ],
@@ -247,7 +247,7 @@ class _DynamicProfilesSheetState extends State<DynamicProfilesSheet> {
                           style: Theme.of(context).textTheme.titleLarge
                               ?.copyWith(
                                 color: palette.textPrimary,
-                                fontWeight: FontWeight.w700,
+                                fontWeight: FontWeight.w600,
                               ),
                         ),
                       ),

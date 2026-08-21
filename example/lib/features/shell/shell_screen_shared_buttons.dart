@@ -218,7 +218,7 @@ class _ReplaySourceMark extends StatelessWidget {
             context.l10n.replay,
             style: Theme.of(context).textTheme.titleSmall?.copyWith(
               color: palette.textPrimary,
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w700,
             ),
           ),
           const SizedBox(width: 8),
@@ -234,7 +234,7 @@ class _ReplaySourceMark extends StatelessWidget {
                 sourceLabel,
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
                   color: palette.textSubtle,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ),

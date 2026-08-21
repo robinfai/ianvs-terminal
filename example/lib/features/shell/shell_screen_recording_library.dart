@@ -128,7 +128,7 @@ class _SavedRecordingsShelf extends StatelessWidget {
                       context.l10n.savedRecordings,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         color: palette.textPrimary,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
@@ -495,7 +495,7 @@ class _RecordingGroup extends StatelessWidget {
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
                       color: palette.textSubtle,
                       letterSpacing: 0.7,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
@@ -611,8 +611,8 @@ class _RecordingLibraryRow extends StatelessWidget {
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: palette.textPrimary,
                           fontWeight: selected
-                              ? FontWeight.w700
-                              : FontWeight.w600,
+                              ? FontWeight.w600
+                              : FontWeight.w500,
                         ),
                       ),
                       const SizedBox(height: 3),
@@ -1333,7 +1333,7 @@ class _RecordingReplayDock extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.labelMedium?.copyWith(
                   color: palette.textPrimary,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
               Text(

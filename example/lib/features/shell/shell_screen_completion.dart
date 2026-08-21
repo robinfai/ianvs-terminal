@@ -62,7 +62,7 @@ class _TerminalAutocompleteMenu extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.labelLarge?.copyWith(
                           color: palette.textPrimary,
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
@@ -297,7 +297,7 @@ class _AutocompleteSuggestionTile extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: active ? palette.textPrimary : palette.textSubtle,
-                      fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                      fontWeight: active ? FontWeight.w600 : FontWeight.w500,
                     ),
                   ),
                 ),
@@ -362,7 +362,7 @@ class _AutoComposerSuggestionTile extends StatelessWidget {
                               ? palette.textPrimary
                               : palette.textSubtle,
                           fontWeight: active
-                              ? FontWeight.w700
+                              ? FontWeight.w600
                               : FontWeight.w500,
                         ),
                       ),

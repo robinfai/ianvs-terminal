@@ -79,7 +79,7 @@ class AppDialogScaffold extends StatelessWidget {
                       titleTextStyle ??
                       Theme.of(context).textTheme.titleMedium?.copyWith(
                         color: theme.textPrimary,
-                        fontWeight: FontWeight.w800,
+                        fontWeight: FontWeight.w700,
                         letterSpacing: 0,
                       ),
                 ),

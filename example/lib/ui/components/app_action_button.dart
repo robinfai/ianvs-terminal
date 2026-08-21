@@ -230,8 +230,10 @@ class AppActionButton extends StatelessWidget {
           },
         ),
       ),
-      textStyle: const WidgetStatePropertyAll(
-        TextStyle(fontWeight: FontWeight.w700),
+      textStyle: WidgetStatePropertyAll(
+        Theme.of(
+          context,
+        ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
       ),
       tapTargetSize: Theme.of(context).materialTapTargetSize,
     );

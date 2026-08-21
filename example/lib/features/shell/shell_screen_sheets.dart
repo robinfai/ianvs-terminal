@@ -86,7 +86,7 @@ class _AdvancedPasteSheetState extends State<_AdvancedPasteSheet> {
                           style: Theme.of(context).textTheme.titleLarge
                               ?.copyWith(
                                 color: palette.textPrimary,
-                                fontWeight: FontWeight.w700,
+                                fontWeight: FontWeight.w600,
                               ),
                         ),
                       ),
@@ -241,7 +241,7 @@ class _CapturedOutputSheetState extends State<_CapturedOutputSheet> {
                         context.l10n.capturedOutput,
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
                           color: palette.textPrimary,
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
@@ -468,7 +468,7 @@ class _AnnotationsSheetState extends State<_AnnotationsSheet> {
                         context.l10n.annotations,
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
                           color: palette.textPrimary,
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
@@ -656,7 +656,7 @@ class _ShellGuidedEmptyState extends StatelessWidget {
                         title,
                         style: textTheme.titleSmall?.copyWith(
                           color: palette.textPrimary,
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -719,7 +719,7 @@ class _ShellGuidedEmptyStep extends StatelessWidget {
                 '$index',
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
                   color: palette.textMuted,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ),
@@ -824,7 +824,7 @@ class _PasteHistorySheetState extends State<_PasteHistorySheet> {
                         context.l10n.pasteHistory,
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
                           color: palette.textPrimary,
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
@@ -1162,7 +1162,7 @@ class _PasswordManagerSheetState extends State<_PasswordManagerSheet> {
                         context.l10n.passwordManager,
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
                           color: palette.textPrimary,
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
@@ -1362,7 +1362,7 @@ class _CoprocessIndicator extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.labelMedium?.copyWith(
                     color: palette.textPrimary,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
@@ -1414,7 +1414,7 @@ class _TerminalAnnotationBadge extends StatelessWidget {
                   '$count annotation${count == 1 ? '' : 's'}',
                   style: Theme.of(context).textTheme.labelMedium?.copyWith(
                     color: palette.textPrimary,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],
@@ -1457,7 +1457,7 @@ class _ShellLayoutCue extends StatelessWidget {
               title,
               style: Theme.of(context).textTheme.labelLarge?.copyWith(
                 color: palette.textPrimary,
-                fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ],

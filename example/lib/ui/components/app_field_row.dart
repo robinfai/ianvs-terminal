@@ -26,7 +26,7 @@ class AppFieldRow extends StatelessWidget {
           label,
           style: Theme.of(context).textTheme.labelLarge?.copyWith(
             color: theme.textPrimary,
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w600,
           ),
         ),
         if (hint != null) ...[

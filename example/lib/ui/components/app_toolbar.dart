@@ -48,7 +48,7 @@ class AppToolbar extends StatelessWidget {
                         style: Theme.of(context).textTheme.titleMedium
                             ?.copyWith(
                               color: theme.textPrimary,
-                              fontWeight: FontWeight.w800,
+                              fontWeight: FontWeight.w700,
                             ),
                       ),
                     if (subtitle != null)

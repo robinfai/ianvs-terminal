@@ -603,7 +603,7 @@ class _ReplaySemanticTimeline extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
                       color: palette.textMuted,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
@@ -613,7 +613,7 @@ class _ReplaySemanticTimeline extends StatelessWidget {
                   key: const Key('replay-timeline-time'),
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     color: palette.textMuted,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w600,
                     fontFeatures: const [FontFeature.tabularFigures()],
                   ),
                 ),
@@ -925,8 +925,8 @@ class _ReplaySegmentLane extends StatelessWidget {
                                         ? palette.textPrimary
                                         : palette.textMuted,
                                     fontWeight: active
-                                        ? FontWeight.w700
-                                        : FontWeight.w600,
+                                        ? FontWeight.w600
+                                        : FontWeight.w500,
                                   ),
                             )
                           : Column(
@@ -943,8 +943,8 @@ class _ReplaySegmentLane extends StatelessWidget {
                                             ? palette.textPrimary
                                             : palette.textMuted,
                                         fontWeight: active
-                                            ? FontWeight.w700
-                                            : FontWeight.w600,
+                                            ? FontWeight.w600
+                                            : FontWeight.w500,
                                       ),
                                 ),
                                 const SizedBox(height: 2),

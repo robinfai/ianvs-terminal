@@ -20,6 +20,10 @@ void main() {
     );
     await tester.pump();
     expect(find.text('New tab'), findsOneWidget);
+    expect(
+      tester.widget<Text>(find.text('New tab')).style?.fontWeight,
+      FontWeight.w600,
+    );
 
     await tester.tap(find.byKey(const Key('shortcut-edit-newTab')));
     await tester.pumpAndSettle();

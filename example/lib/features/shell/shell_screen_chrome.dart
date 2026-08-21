@@ -289,7 +289,7 @@ class _ShellWindowTitleBar extends StatelessWidget {
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         color: tone.mutedText,
                         fontSize: 13.5,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
@@ -364,7 +364,7 @@ class _ShellConfigurationWarningsBanner extends StatelessWidget {
                         context.l10n.configurationWarningsSummary,
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: palette.textPrimary,
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -583,7 +583,7 @@ class _ShellZmodemTransferBanner extends StatelessWidget {
                       transfer.title,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: palette.textPrimary,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                     const SizedBox(height: 2),
@@ -1478,7 +1478,7 @@ class _ShellExternalTabDragFeedback extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.labelMedium?.copyWith(
                       color: palette.textPrimary,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
@@ -2216,7 +2216,7 @@ class _ShellTabOverflowRowState extends State<_ShellTabOverflowRow> {
                     fontSize: 12,
                     height: 1,
                     fontWeight: widget.isActive
-                        ? FontWeight.w700
+                        ? FontWeight.w600
                         : FontWeight.w500,
                   ),
                 ),
@@ -2488,7 +2488,7 @@ class _ShellTabBadgeChip extends StatelessWidget {
                   color: foreground,
                   fontSize: 9.5,
                   height: 1,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ),
@@ -2702,7 +2702,7 @@ class _ShellTabNotificationMenuText extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: Theme.of(context).textTheme.labelLarge?.copyWith(
             color: palette.textPrimary,
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w600,
           ),
         ),
         if (subtitle.isNotEmpty) ...[
@@ -2921,7 +2921,7 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
     final tabTextStyle = Theme.of(context).textTheme.titleSmall!.copyWith(
       color: widget.isActive ? tone.primaryText : tone.mutedText,
       fontSize: 12.5,
-      fontWeight: widget.isActive ? FontWeight.w700 : FontWeight.w600,
+      fontWeight: widget.isActive ? FontWeight.w600 : FontWeight.w500,
     );
 
     return MouseRegion(
@@ -3135,7 +3135,7 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
                                         ?.copyWith(
                                           color: tone.subtleText,
                                           fontSize: 11,
-                                          fontWeight: FontWeight.w700,
+                                          fontWeight: FontWeight.w600,
                                         ),
                                   ),
                                 ],
@@ -3381,7 +3381,7 @@ class _ShellTabStatusLabel extends StatelessWidget {
                 color: foreground,
                 fontSize: 10.5,
                 height: 1,
-                fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ),

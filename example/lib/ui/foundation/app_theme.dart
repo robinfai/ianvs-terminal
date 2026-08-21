@@ -56,55 +56,62 @@ ThemeData buildIanvsTerminalTheme(
     borderSide: BorderSide(color: tokens.border),
   );
 
+  final typography = Typography.material2021(
+    platform: resolvedPlatform,
+    colorScheme: colorScheme,
+  );
   final baseTextTheme = brightness == Brightness.dark
-      ? Typography.material2021().white
-      : Typography.material2021().black;
+      ? typography.white
+      : typography.black;
   final textTheme = baseTextTheme
       .copyWith(
         headlineSmall: baseTextTheme.headlineSmall?.copyWith(
-          height: 1.12,
+          height: 1.18,
           fontWeight: FontWeight.w700,
         ),
         titleLarge: baseTextTheme.titleLarge?.copyWith(
-          height: 1.12,
-          fontWeight: FontWeight.w700,
+          height: 1.2,
+          fontWeight: FontWeight.w600,
         ),
         titleMedium: baseTextTheme.titleMedium?.copyWith(
           fontSize: usesTouchControlDensity ? 17 : 14,
-          height: 1.14,
-          fontWeight: FontWeight.w700,
+          height: 1.24,
+          fontWeight: FontWeight.w600,
         ),
         titleSmall: baseTextTheme.titleSmall?.copyWith(
           fontSize: usesTouchControlDensity ? 15 : 12.5,
-          height: 1.16,
-          fontWeight: FontWeight.w700,
+          height: 1.28,
+          fontWeight: FontWeight.w600,
         ),
         bodyLarge: baseTextTheme.bodyLarge?.copyWith(
           fontSize: usesTouchControlDensity ? 17 : 13,
-          height: 1.32,
+          height: 1.4,
+          fontWeight: FontWeight.w400,
         ),
         bodyMedium: baseTextTheme.bodyMedium?.copyWith(
           fontSize: usesTouchControlDensity ? 15 : 12.5,
-          height: 1.3,
+          height: 1.36,
+          fontWeight: FontWeight.w400,
         ),
         bodySmall: baseTextTheme.bodySmall?.copyWith(
           fontSize: usesTouchControlDensity ? 13 : 11,
-          height: 1.28,
+          height: 1.32,
+          fontWeight: FontWeight.w400,
         ),
         labelLarge: baseTextTheme.labelLarge?.copyWith(
           fontSize: usesTouchControlDensity ? 15 : 11.5,
-          height: 1.12,
-          fontWeight: FontWeight.w600,
+          height: 1.2,
+          fontWeight: FontWeight.w500,
         ),
         labelMedium: baseTextTheme.labelMedium?.copyWith(
           fontSize: usesTouchControlDensity ? 13 : 10.5,
-          height: 1.1,
-          fontWeight: FontWeight.w600,
+          height: 1.2,
+          fontWeight: FontWeight.w500,
         ),
         labelSmall: baseTextTheme.labelSmall?.copyWith(
           fontSize: usesTouchControlDensity ? 11 : 9.5,
-          height: 1.08,
-          fontWeight: FontWeight.w600,
+          height: 1.2,
+          fontWeight: FontWeight.w500,
         ),
       )
       .apply(bodyColor: tokens.textPrimary, displayColor: tokens.textPrimary);
@@ -112,6 +119,7 @@ ThemeData buildIanvsTerminalTheme(
   return ThemeData(
     useMaterial3: true,
     platform: resolvedPlatform,
+    typography: typography,
     visualDensity: VisualDensity.standard,
     materialTapTargetSize: usesTouchControlDensity
         ? MaterialTapTargetSize.padded
@@ -139,6 +147,7 @@ ThemeData buildIanvsTerminalTheme(
         foreground: colorScheme.onPrimary,
         minimumHeight: regularControlHeight,
         horizontalPadding: tokens.spacing.xl,
+        textStyle: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
@@ -149,6 +158,7 @@ ThemeData buildIanvsTerminalTheme(
         minimumHeight: regularControlHeight,
         horizontalPadding: tokens.spacing.xl,
         side: BorderSide(color: tokens.borderStrong),
+        textStyle: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
       ),
     ),
     textButtonTheme: TextButtonThemeData(
@@ -158,6 +168,7 @@ ThemeData buildIanvsTerminalTheme(
         foreground: tokens.textPrimary,
         minimumHeight: compactControlHeight,
         horizontalPadding: tokens.spacing.lg,
+        textStyle: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
       ),
     ),
     iconButtonTheme: IconButtonThemeData(
@@ -195,17 +206,17 @@ ThemeData buildIanvsTerminalTheme(
         horizontal: tokens.spacing.md,
         vertical: tokens.spacing.sm,
       ),
-      labelStyle: TextStyle(
+      labelStyle: textTheme.labelMedium?.copyWith(
         color: tokens.textMuted,
         fontSize: usesTouchControlDensity ? 13 : 11.5,
         height: 1.1,
       ),
-      helperStyle: TextStyle(
+      helperStyle: textTheme.bodySmall?.copyWith(
         color: tokens.textSubtle,
         fontSize: usesTouchControlDensity ? 13 : 11,
         height: 1.25,
       ),
-      hintStyle: TextStyle(
+      hintStyle: textTheme.bodyMedium?.copyWith(
         color: tokens.textSubtle,
         fontSize: usesTouchControlDensity ? 13 : 11.5,
         height: 1.18,
@@ -262,6 +273,7 @@ ButtonStyle _buttonStyle({
   required Color foreground,
   required double minimumHeight,
   required double horizontalPadding,
+  required TextStyle? textStyle,
   BorderSide? side,
 }) {
   return ButtonStyle(
@@ -308,9 +320,7 @@ ButtonStyle _buttonStyle({
             }
             return side;
           }),
-    textStyle: const WidgetStatePropertyAll(
-      TextStyle(fontWeight: FontWeight.w700),
-    ),
+    textStyle: WidgetStatePropertyAll(textStyle),
     minimumSize: WidgetStatePropertyAll(Size(0, minimumHeight)),
     padding: WidgetStatePropertyAll(
       EdgeInsets.symmetric(

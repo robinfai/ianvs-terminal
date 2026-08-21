@@ -79,7 +79,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
             text,
             style: Theme.of(context).textTheme.labelLarge?.copyWith(
               color: palette.textSubtle,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w600,
               letterSpacing: 0.24,
             ),
           ),
@@ -166,7 +166,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                                 style: Theme.of(context).textTheme.titleMedium
                                     ?.copyWith(
                                       color: palette.textPrimary,
-                                      fontWeight: FontWeight.w700,
+                                      fontWeight: FontWeight.w600,
                                     ),
                               ),
                             ),
@@ -842,7 +842,7 @@ class _ShellCommandTile extends StatelessWidget {
               shortcutLabel!,
               style: Theme.of(context).textTheme.labelMedium?.copyWith(
                 color: enabled ? palette.textMuted : palette.textSubtle,
-                fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.w600,
               ),
             ),
       enabled: enabled,

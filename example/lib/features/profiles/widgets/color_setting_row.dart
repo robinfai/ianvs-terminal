@@ -41,7 +41,7 @@ class ColorSettingRow extends StatelessWidget {
     final theme = context.appTheme;
     final labelStyle = Theme.of(context).textTheme.labelLarge?.copyWith(
       color: theme.textPrimary,
-      fontWeight: FontWeight.w700,
+      fontWeight: FontWeight.w600,
     );
     return LayoutBuilder(
       builder: (context, constraints) {

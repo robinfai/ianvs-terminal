@@ -89,7 +89,7 @@ class _CoprocessSheetState extends State<_CoprocessSheet> {
                           style: Theme.of(context).textTheme.titleLarge
                               ?.copyWith(
                                 color: palette.textPrimary,
-                                fontWeight: FontWeight.w700,
+                                fontWeight: FontWeight.w600,
                               ),
                         ),
                       ),
@@ -330,7 +330,7 @@ class _TmuxIntegrationSheetState extends State<_TmuxIntegrationSheet> {
                           style: Theme.of(context).textTheme.titleLarge
                               ?.copyWith(
                                 color: palette.textPrimary,
-                                fontWeight: FontWeight.w700,
+                                fontWeight: FontWeight.w600,
                               ),
                         ),
                       ),
@@ -496,7 +496,7 @@ class _TmuxStatusChip extends StatelessWidget {
                 color: controlModeDetected
                     ? palette.textPrimary
                     : palette.textSubtle,
-                fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ],
@@ -603,7 +603,7 @@ class _ShellIntegrationUtilitiesSheet extends StatelessWidget {
                           style: Theme.of(context).textTheme.titleLarge
                               ?.copyWith(
                                 color: palette.textPrimary,
-                                fontWeight: FontWeight.w700,
+                                fontWeight: FontWeight.w600,
                               ),
                         ),
                       ),
@@ -868,7 +868,7 @@ class _ShellIntegrationSectionHeader extends StatelessWidget {
               title,
               style: Theme.of(context).textTheme.labelLarge?.copyWith(
                 color: palette.textPrimary,
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.w700,
               ),
             ),
           ),

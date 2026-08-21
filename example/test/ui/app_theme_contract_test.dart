@@ -85,6 +85,12 @@ void main() {
       expect(lightTheme.textTheme.bodyMedium?.fontSize, 12.5);
       expect(lightTheme.textTheme.bodySmall?.fontSize, 11);
       expect(lightTheme.textTheme.titleMedium?.fontSize, 14);
+      expect(lightTheme.textTheme.bodyMedium?.fontFamily, '.AppleSystemUIFont');
+      expect(lightTheme.textTheme.headlineSmall?.fontWeight, FontWeight.w700);
+      expect(lightTheme.textTheme.titleLarge?.fontWeight, FontWeight.w600);
+      expect(lightTheme.textTheme.titleMedium?.fontWeight, FontWeight.w600);
+      expect(lightTheme.textTheme.bodyMedium?.fontWeight, FontWeight.w400);
+      expect(lightTheme.textTheme.labelLarge?.fontWeight, FontWeight.w500);
       final lightInputPadding =
           lightTheme.inputDecorationTheme.contentPadding! as EdgeInsets;
       expect(lightInputPadding.top, 5);
@@ -118,6 +124,14 @@ void main() {
       expect(
         lightTheme.filledButtonTheme.style?.minimumSize?.resolve({}),
         const Size(0, 36),
+      );
+      expect(
+        lightTheme.filledButtonTheme.style?.textStyle?.resolve({})?.fontWeight,
+        FontWeight.w600,
+      );
+      expect(
+        lightTheme.filledButtonTheme.style?.textStyle?.resolve({})?.fontFamily,
+        '.AppleSystemUIFont',
       );
       expect(
         lightTheme.outlinedButtonTheme.style?.minimumSize?.resolve({}),
@@ -183,6 +197,7 @@ void main() {
       );
       expect(darkTheme.textTheme.bodyMedium?.fontSize, 12.5);
       expect(darkTheme.textTheme.bodySmall?.fontSize, 11);
+      expect(darkTheme.textTheme.bodyMedium?.fontFamily, '.AppleSystemUIFont');
       expect(
         contrastRatio(darkTokens.textPrimary, darkTokens.panel),
         greaterThanOrEqualTo(4.5),
@@ -220,6 +235,7 @@ void main() {
     expect(theme.textTheme.bodyMedium?.fontSize, 15);
     expect(theme.textTheme.bodySmall?.fontSize, 13);
     expect(theme.textTheme.labelSmall?.fontSize, 11);
+    expect(theme.textTheme.bodyMedium?.fontFamily, 'CupertinoSystemText');
     expect(theme.inputDecorationTheme.constraints?.minHeight, 48);
     expect(
       theme.inputDecorationTheme.prefixIconConstraints,

@@ -1064,7 +1064,7 @@ class _ReplaySpeedControl extends StatelessWidget {
             '$speedLabel×',
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
               color: palette.textSubtle,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ),
@@ -1124,7 +1124,7 @@ class _ReplayTimeModeControl extends StatelessWidget {
             label,
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
               color: palette.textSubtle,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ),
@@ -1429,7 +1429,7 @@ class _SearchSummaryText extends StatelessWidget {
       overflow: TextOverflow.ellipsis,
       style: Theme.of(context).textTheme.bodySmall?.copyWith(
         color: palette.textSubtle,
-        fontWeight: FontWeight.w700,
+        fontWeight: FontWeight.w600,
       ),
     );
   }

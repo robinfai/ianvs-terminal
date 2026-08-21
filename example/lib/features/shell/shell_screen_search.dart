@@ -180,7 +180,7 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
     final palette = widget.palette;
     final style = Theme.of(context).textTheme.labelMedium?.copyWith(
       color: palette.textPrimary,
-      fontWeight: FontWeight.w800,
+      fontWeight: FontWeight.w700,
       height: 1,
     );
     return switch (mode) {
@@ -291,7 +291,7 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
           _searchModeLabel(mode),
           style: textTheme.bodyMedium?.copyWith(
             color: palette.textPrimary,
-            fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+            fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
           ),
         ),
       );
@@ -304,7 +304,7 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
           context.l10n.filter,
           style: textTheme.titleSmall?.copyWith(
             color: palette.textPrimary,
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ),
@@ -390,7 +390,7 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.labelMedium?.copyWith(
                     color: palette.textPrimary,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w700,
                     height: 1,
                   ),
                 ),
@@ -435,7 +435,7 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
           _searchScopeLabel(scope),
           style: textTheme.bodyMedium?.copyWith(
             color: palette.textPrimary,
-            fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+            fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
           ),
         ),
       );
@@ -448,7 +448,7 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
           context.l10n.scope,
           style: textTheme.titleSmall?.copyWith(
             color: palette.textPrimary,
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ),
@@ -552,7 +552,7 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.labelLarge?.copyWith(
               color: foreground.withValues(alpha: 0.92),
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w600,
               height: 1,
             ),
           ),
@@ -866,7 +866,7 @@ class _TerminalSearchErrorPopover extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: colorScheme.onErrorContainer,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),

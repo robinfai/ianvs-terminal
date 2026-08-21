@@ -1655,7 +1655,7 @@ class _ShellPaneDragStartRegion extends StatelessWidget {
                     style: TextStyle(
                       color: palette.textPrimary,
                       fontSize: 12,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
@@ -1790,7 +1790,7 @@ class _TerminalPaneDropOverlay extends StatelessWidget {
                             style: Theme.of(context).textTheme.labelMedium
                                 ?.copyWith(
                                   color: palette.textPrimary,
-                                  fontWeight: FontWeight.w800,
+                                  fontWeight: FontWeight.w700,
                                 ),
                           ),
                         ],
@@ -1969,7 +1969,7 @@ class _TerminalPaneHeader extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                               style: textTheme.labelMedium?.copyWith(
                                 color: foregroundColor,
-                                fontWeight: FontWeight.w800,
+                                fontWeight: FontWeight.w700,
                                 height: 1,
                               ),
                             ),
@@ -1986,7 +1986,7 @@ class _TerminalPaneHeader extends StatelessWidget {
                                 overflow: TextOverflow.ellipsis,
                                 style: textTheme.labelSmall?.copyWith(
                                   color: metadataColor,
-                                  fontWeight: FontWeight.w700,
+                                  fontWeight: FontWeight.w600,
                                   height: 1,
                                 ),
                               ),
@@ -2070,7 +2070,7 @@ class _TerminalPaneHeaderIndicatorChip extends StatelessWidget {
                     color: foregroundColor,
                     fontSize: 10.5,
                     height: 1,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ),

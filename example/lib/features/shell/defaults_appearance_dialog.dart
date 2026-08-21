@@ -495,8 +495,7 @@ class _DefaultsAndAppearanceDialogState
         borderRadius: compactLayout ? BorderRadius.zero : null,
         titleTextStyle: Theme.of(context).textTheme.titleLarge?.copyWith(
           color: theme.textPrimary,
-          fontWeight: FontWeight.w800,
-          letterSpacing: -0.2,
+          fontWeight: FontWeight.w700,
         ),
         subtitleTextStyle: Theme.of(
           context,
@@ -965,7 +964,7 @@ class _DefaultsAndAppearanceDialogState
                         ),
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: theme.textPrimary,
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                       SizedBox(height: theme.spacing.xs),
@@ -1344,7 +1343,7 @@ class _DefaultsAndAppearanceDialogState
                               style: Theme.of(context).textTheme.bodyMedium
                                   ?.copyWith(
                                     color: theme.textPrimary,
-                                    fontWeight: FontWeight.w700,
+                                    fontWeight: FontWeight.w600,
                                   ),
                             ),
                           ),
@@ -1353,7 +1352,7 @@ class _DefaultsAndAppearanceDialogState
                             style: Theme.of(context).textTheme.labelLarge
                                 ?.copyWith(
                                   color: theme.textMuted,
-                                  fontWeight: FontWeight.w700,
+                                  fontWeight: FontWeight.w600,
                                   fontFamily: 'monospace',
                                 ),
                           ),
@@ -1657,7 +1656,7 @@ class _ShortcutSettingsEntry extends StatelessWidget {
                           context.l10n.keyboardShortcuts,
                           style: textTheme.bodyMedium?.copyWith(
                             color: theme.textPrimary,
-                            fontWeight: FontWeight.w700,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                         SizedBox(height: theme.spacing.xs),
@@ -1678,7 +1677,7 @@ class _ShortcutSettingsEntry extends StatelessWidget {
                       context.l10n.manageShortcuts,
                       style: textTheme.labelLarge?.copyWith(
                         color: theme.textPrimary,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   SizedBox(width: theme.spacing.xs),
@@ -1741,7 +1740,7 @@ class _ProfilesNotice extends StatelessWidget {
                     context.l10n.detailedSettingsInProfiles,
                     style: textTheme.bodyMedium?.copyWith(
                       color: theme.textPrimary,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                   SizedBox(height: theme.spacing.xs),
@@ -2009,8 +2008,8 @@ class _TerminalPresetChoice extends StatelessWidget {
                       style: textTheme.labelLarge?.copyWith(
                         color: foreground,
                         fontWeight: selected
-                            ? FontWeight.w700
-                            : FontWeight.w600,
+                            ? FontWeight.w600
+                            : FontWeight.w500,
                       ),
                     ),
                   ),

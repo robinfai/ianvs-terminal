@@ -471,7 +471,7 @@ class _ShortcutConflictSummary extends StatelessWidget {
                     context.l10n.resolveShortcutConflicts,
                     style: Theme.of(context).textTheme.labelLarge?.copyWith(
                       color: theme.textPrimary,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                   SizedBox(height: theme.spacing.xs),
@@ -602,7 +602,7 @@ class _ShortcutActionRow extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: theme.textPrimary,
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                       SizedBox(height: theme.spacing.xs),
@@ -793,7 +793,7 @@ class _ShortcutCaptureDialogState extends State<_ShortcutCaptureDialog> {
                 widget.actionLabel,
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
                   color: theme.textPrimary,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
               SizedBox(height: theme.spacing.md),
@@ -859,7 +859,7 @@ class _ShortcutCaptureDialogState extends State<_ShortcutCaptureDialog> {
                         key: const Key('shortcut-capture-value'),
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
                           color: theme.textPrimary,
-                          fontWeight: FontWeight.w800,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                       SizedBox(height: theme.spacing.xs),

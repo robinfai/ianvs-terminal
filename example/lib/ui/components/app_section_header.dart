@@ -18,7 +18,7 @@ class AppSectionHeader extends StatelessWidget {
           title,
           style: Theme.of(context).textTheme.titleSmall?.copyWith(
             color: theme.textPrimary,
-            fontWeight: FontWeight.w800,
+            fontWeight: FontWeight.w700,
           ),
         ),
         if (description != null) ...[

@@ -1629,7 +1629,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                 color: matchingSections.isEmpty
                     ? theme.warning
                     : theme.textMuted,
-                fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.w600,
               ),
             ),
           )
@@ -1642,7 +1642,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
               key: const Key('profile-editor-dirty-summary'),
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
                 color: theme.warning,
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.w700,
               ),
             ),
           )
@@ -1765,8 +1765,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
           expandBody: true,
           titleTextStyle: Theme.of(context).textTheme.titleLarge?.copyWith(
             color: theme.textPrimary,
-            fontWeight: FontWeight.w800,
-            letterSpacing: -0.2,
+            fontWeight: FontWeight.w700,
           ),
           subtitleTextStyle: Theme.of(
             context,
@@ -2304,7 +2303,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                             .textTheme
                                             .titleSmall
                                             ?.copyWith(
-                                              fontWeight: FontWeight.w700,
+                                              fontWeight: FontWeight.w600,
                                             ),
                                       ),
                                       SizedBox(height: theme.spacing.md),
@@ -2539,7 +2538,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                 title,
                 style: Theme.of(
                   context,
-                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
               ),
             ),
             AppActionButton(
@@ -2745,7 +2744,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                 context.l10n.environmentVariables,
                 style: Theme.of(
                   context,
-                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
               ),
             ),
             AppActionButton(
@@ -2914,7 +2913,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
           title,
           style: Theme.of(
             context,
-          ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+          ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
         ),
         SizedBox(height: theme.spacing.xs + 1),
         Text(
@@ -2968,7 +2967,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
           context.l10n.themePresets,
           style: Theme.of(
             context,
-          ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+          ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
         ),
         SizedBox(height: theme.spacing.xs + 1),
         Text(
@@ -3158,7 +3157,7 @@ class _ProfileFormGroup extends StatelessWidget {
                 title,
                 style: textTheme.titleMedium?.copyWith(
                   color: theme.textPrimary,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
               SizedBox(height: theme.spacing.xl),
@@ -3280,7 +3279,7 @@ class _ProfileRuleEditor extends StatelessWidget {
           label,
           style: textTheme.titleSmall?.copyWith(
             color: theme.textPrimary,
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w600,
           ),
         ),
         SizedBox(height: theme.spacing.sm),
@@ -3369,7 +3368,7 @@ class _ProfileEditorSectionNavItem extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               color: foreground,
-              fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
             ),
           ),
         ),
@@ -3519,7 +3518,7 @@ class _FollowAppThemeColorChoice extends StatelessWidget {
                             style: Theme.of(context).textTheme.labelLarge
                                 ?.copyWith(
                                   color: theme.textPrimary,
-                                  fontWeight: FontWeight.w800,
+                                  fontWeight: FontWeight.w700,
                                 ),
                           ),
                           SizedBox(height: theme.spacing.xs),
@@ -3590,7 +3589,7 @@ class _TerminalThemePresetButton extends StatelessWidget {
     final theme = context.appTheme;
     final titleStyle = Theme.of(context).textTheme.labelLarge?.copyWith(
       color: theme.textPrimary,
-      fontWeight: FontWeight.w700,
+      fontWeight: FontWeight.w600,
     );
     final toneColor = selected ? theme.textPrimary : theme.textMuted;
 
@@ -3645,7 +3644,7 @@ class _TerminalThemePresetButton extends StatelessWidget {
                   preset.tone.label,
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     color: toneColor,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
                 SizedBox(height: theme.spacing.sm),
@@ -3860,7 +3859,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
                           : context.l10n.currentColorValue(previewHex),
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: theme.textPrimary,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
@@ -3900,7 +3899,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
                     context.l10n.hex,
                     style: Theme.of(context).textTheme.labelLarge?.copyWith(
                       color: theme.textPrimary,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                   SizedBox(height: theme.spacing.xs),
@@ -3921,7 +3920,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
                               style: Theme.of(context).textTheme.labelLarge
                                   ?.copyWith(
                                     color: theme.textPrimary,
-                                    fontWeight: FontWeight.w700,
+                                    fontWeight: FontWeight.w600,
                                   ),
                             ),
                             SizedBox(height: theme.spacing.xs),
@@ -3936,7 +3935,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
                   context.l10n.palette,
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
                     color: theme.textPrimary,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
                 SizedBox(height: theme.spacing.sm),
@@ -3951,7 +3950,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
                   context.l10n.hue,
                   style: Theme.of(context).textTheme.labelLarge?.copyWith(
                     color: theme.textPrimary,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
                 SizedBox(height: theme.spacing.xs + 1),

@@ -868,7 +868,7 @@ class _SftpPanelHeader extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
                       color: palette.textPrimary,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                   Text(
@@ -1011,7 +1011,7 @@ class _SftpErrorState extends StatelessWidget {
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.titleSmall?.copyWith(
                 color: palette.textPrimary,
-                fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.w600,
               ),
             ),
             SizedBox(height: palette.spacing.sm),
