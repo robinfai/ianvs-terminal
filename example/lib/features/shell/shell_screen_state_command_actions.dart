@@ -33,6 +33,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
     SessionController sessionController,
     SessionState sessionState,
   ) async {
+    final l10n = context.l10n;
     final defaultProfile = _effectiveDefaultProfileFor(
       sessionState.profiles,
       sessionState.defaultProfileId,
@@ -91,7 +92,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
 
     final commandMenuRoute = RawDialogRoute<TerminalActionId>(
       barrierDismissible: true,
-      barrierLabel: 'Close command palette',
+      barrierLabel: l10n.closeCommandPalette,
       barrierColor: Colors.black.withValues(alpha: 0.42),
       transitionDuration: animationsEnabled
           ? const Duration(milliseconds: 160)
@@ -203,8 +204,8 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
       callbacks: ShellActionProductionCallbacks(
         newTab: (_) {
           if (!_canOpenNewSessionLauncher(currentState)) {
-            return const ShellActionBindingResult.skipped(
-              'No terminal session option is available.',
+            return ShellActionBindingResult.skipped(
+              l10n.noTerminalSessionOptionAvailable,
             );
           }
           unawaited(_openNewSessionLauncher(sessionController, currentState));
@@ -212,14 +213,14 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         },
         closeTab: (_) {
           if (currentSessionId == null) {
-            return const ShellActionBindingResult.skipped(
-              'Close tab requires an active session.',
+            return ShellActionBindingResult.skipped(
+              l10n.closeTabRequiresActiveSession,
             );
           }
           final currentTab = _tabForSession(currentState, currentSessionId);
           if (currentTab == null) {
-            return const ShellActionBindingResult.skipped(
-              'Close tab requires an active tab.',
+            return ShellActionBindingResult.skipped(
+              l10n.closeTabRequiresActiveTab,
             );
           }
           _closeTab(sessionController, currentState, currentTab.sessionId);
@@ -227,21 +228,21 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         },
         duplicateCurrentCwd: (_) {
           if (defaultProfile == null || currentSessionId == null) {
-            return const ShellActionBindingResult.skipped(
-              'Duplicate current directory requires a default profile and active session.',
+            return ShellActionBindingResult.skipped(
+              l10n.duplicateCwdRequiresProfileSession,
             );
           }
           final currentPane = _paneForSession(currentState, currentSessionId);
           final currentDirectory =
               currentPane?.shellIntegration.currentDirectory;
           if (currentDirectory == null || currentDirectory.isEmpty) {
-            return const ShellActionBindingResult.skipped(
-              'No current directory is available to duplicate.',
+            return ShellActionBindingResult.skipped(
+              l10n.noCurrentDirectoryAvailable,
             );
           }
           if (_shellHostIsRemote(currentPane?.shellIntegration.hostname)) {
-            return const ShellActionBindingResult.skipped(
-              'Remote-reported current directories cannot be duplicated as local sessions.',
+            return ShellActionBindingResult.skipped(
+              l10n.remoteDirectoryCannotDuplicate,
             );
           }
           _createSession(
@@ -253,8 +254,8 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
               .read(sessionControllerProvider)
               .activeSessionId;
           if (duplicateSessionId == null) {
-            return const ShellActionBindingResult.skipped(
-              'No duplicated session was created.',
+            return ShellActionBindingResult.skipped(
+              l10n.noDuplicatedSessionCreated,
             );
           }
           _sendPlainTextToSession(
@@ -265,8 +266,8 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         },
         reopenClosedTab: (_) {
           if (!sessionController.canReopenClosedTab) {
-            return const ShellActionBindingResult.skipped(
-              'No recently closed tab is available.',
+            return ShellActionBindingResult.skipped(
+              l10n.noRecentlyClosedTabAvailable,
             );
           }
           sessionController.reopenClosedTab();
@@ -275,14 +276,14 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         },
         reopenClosedPane: (_) {
           if (!sessionController.canReopenClosedPane) {
-            return const ShellActionBindingResult.skipped(
-              'No recently closed pane is available for this tab.',
+            return ShellActionBindingResult.skipped(
+              l10n.noRecentlyClosedPaneForTab,
             );
           }
           final reopenedSessionId = sessionController.reopenClosedPane();
           if (reopenedSessionId == null) {
-            return const ShellActionBindingResult.skipped(
-              'No recently closed pane could be reopened.',
+            return ShellActionBindingResult.skipped(
+              l10n.noRecentlyClosedPaneReopened,
             );
           }
           _syncZoomedPaneForActivation(
@@ -297,8 +298,8 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         },
         closePane: (_) {
           if (currentSessionId == null) {
-            return const ShellActionBindingResult.skipped(
-              'Close pane requires an active session.',
+            return ShellActionBindingResult.skipped(
+              l10n.closePaneRequiresActiveSession,
             );
           }
           _closeSession(sessionController, currentState, currentSessionId);
@@ -315,8 +316,8 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         },
         splitRight: (_) {
           if (defaultProfile == null || currentSessionId == null) {
-            return const ShellActionBindingResult.skipped(
-              'Split right requires a default profile and active session.',
+            return ShellActionBindingResult.skipped(
+              l10n.splitRightRequiresProfileSession,
             );
           }
           final currentTab = _tabForSession(currentState, currentSessionId);
@@ -341,16 +342,14 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
             defaultProfile,
             TerminalSplitAxis.horizontal,
           )) {
-            return const ShellActionBindingResult.skipped(
-              'Split right is unavailable.',
-            );
+            return ShellActionBindingResult.skipped(l10n.splitRightUnavailable);
           }
           return const ShellActionBindingResult.completed();
         },
         splitDown: (_) {
           if (defaultProfile == null || currentSessionId == null) {
-            return const ShellActionBindingResult.skipped(
-              'Split down requires a default profile and active session.',
+            return ShellActionBindingResult.skipped(
+              l10n.splitDownRequiresProfileSession,
             );
           }
           final currentTab = _tabForSession(currentState, currentSessionId);
@@ -375,16 +374,14 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
             defaultProfile,
             TerminalSplitAxis.vertical,
           )) {
-            return const ShellActionBindingResult.skipped(
-              'Split down is unavailable.',
-            );
+            return ShellActionBindingResult.skipped(l10n.splitDownUnavailable);
           }
           return const ShellActionBindingResult.completed();
         },
         focusNextPane: (_) {
           if (currentSessionId == null) {
-            return const ShellActionBindingResult.skipped(
-              'Focus next pane requires an active session.',
+            return ShellActionBindingResult.skipped(
+              l10n.focusNextPaneRequiresSession,
             );
           }
           final currentTab = _tabForSession(currentState, currentSessionId);
@@ -395,16 +392,14 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
                 currentSessionId,
                 delta: 1,
               )) {
-            return const ShellActionBindingResult.skipped(
-              'No next pane is available.',
-            );
+            return ShellActionBindingResult.skipped(l10n.noNextPaneAvailable);
           }
           return const ShellActionBindingResult.completed();
         },
         focusPreviousPane: (_) {
           if (currentSessionId == null) {
-            return const ShellActionBindingResult.skipped(
-              'Focus previous pane requires an active session.',
+            return ShellActionBindingResult.skipped(
+              l10n.focusPreviousPaneRequiresSession,
             );
           }
           final currentTab = _tabForSession(currentState, currentSessionId);
@@ -415,16 +410,16 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
                 currentSessionId,
                 delta: -1,
               )) {
-            return const ShellActionBindingResult.skipped(
-              'No previous pane is available.',
+            return ShellActionBindingResult.skipped(
+              l10n.noPreviousPaneAvailable,
             );
           }
           return const ShellActionBindingResult.completed();
         },
         resizePaneRight: (_) {
           if (currentSessionId == null) {
-            return const ShellActionBindingResult.skipped(
-              'Resize pane requires an active session.',
+            return ShellActionBindingResult.skipped(
+              l10n.resizePaneRequiresSession,
             );
           }
           final currentTab = _tabForSession(currentState, currentSessionId);
@@ -435,8 +430,8 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
             return ShellActionBindingResult.skipped(blockedReason);
           }
           if (currentTab == null) {
-            return const ShellActionBindingResult.skipped(
-              'Resize pane requires at least two panes.',
+            return ShellActionBindingResult.skipped(
+              l10n.resizePaneRequiresTwoPanes,
             );
           }
           final growthBlockedReason = _growActivePaneUnavailableReason(
@@ -446,7 +441,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
           if (growthBlockedReason != null ||
               !_growActivePane(currentTab, currentSessionId)) {
             return ShellActionBindingResult.skipped(
-              growthBlockedReason ?? 'Resize pane requires at least two panes.',
+              growthBlockedReason ?? l10n.resizePaneRequiresTwoPanes,
             );
           }
           _focusSession(currentSessionId);
@@ -454,8 +449,8 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         },
         swapPane: (_) {
           if (currentSessionId == null) {
-            return const ShellActionBindingResult.skipped(
-              'Swap pane requires an active session.',
+            return ShellActionBindingResult.skipped(
+              l10n.swapPaneRequiresSession,
             );
           }
           final currentTab = _tabForSession(currentState, currentSessionId);
@@ -466,8 +461,8 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
             return ShellActionBindingResult.skipped(blockedReason);
           }
           if ((currentTab?.effectivePanes.length ?? 0) < 2) {
-            return const ShellActionBindingResult.skipped(
-              'Swap pane requires at least two panes.',
+            return ShellActionBindingResult.skipped(
+              l10n.swapPaneRequiresTwoPanes,
             );
           }
           sessionController.swapActivePaneWithSibling();
@@ -476,14 +471,14 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         },
         zoomPane: (_) {
           if (currentSessionId == null) {
-            return const ShellActionBindingResult.skipped(
-              'Zoom pane requires an active session.',
+            return ShellActionBindingResult.skipped(
+              l10n.zoomPaneRequiresSession,
             );
           }
           final currentTab = _tabForSession(currentState, currentSessionId);
           if ((currentTab?.effectivePanes.length ?? 0) < 2) {
-            return const ShellActionBindingResult.skipped(
-              'Zoom pane requires at least two panes.',
+            return ShellActionBindingResult.skipped(
+              l10n.zoomPaneRequiresTwoPanes,
             );
           }
           _mutateState(() {
@@ -496,14 +491,12 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         },
         copy: (_) async {
           if (currentSessionId == null) {
-            return const ShellActionBindingResult.skipped(
-              'Copy requires an active session.',
-            );
+            return ShellActionBindingResult.skipped(l10n.copyRequiresSession);
           }
           final selectionController = _selectionControllers[currentSessionId];
           if (selectionController == null) {
-            return const ShellActionBindingResult.skipped(
-              'Copy requires an active selection controller.',
+            return ShellActionBindingResult.skipped(
+              l10n.copyRequiresSelectionController,
             );
           }
           await _copySelection(
@@ -519,8 +512,8 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         },
         copyCommandOutput: (_) async {
           if (currentSessionId == null) {
-            return const ShellActionBindingResult.skipped(
-              'Copy command output requires an active session.',
+            return ShellActionBindingResult.skipped(
+              l10n.copyCommandOutputRequiresSession,
             );
           }
           final selectionController = _selectionControllers.putIfAbsent(
@@ -537,8 +530,8 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
               activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
               activeSessionIdAfterClose: currentSessionId,
             );
-            return const ShellActionBindingResult.skipped(
-              'No command output is available to copy.',
+            return ShellActionBindingResult.skipped(
+              l10n.noCommandOutputAvailable,
             );
           }
           await _copySelection(
@@ -554,8 +547,8 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         },
         copyMode: (_) {
           if (currentSessionId == null) {
-            return const ShellActionBindingResult.skipped(
-              'Copy mode requires an active session.',
+            return ShellActionBindingResult.skipped(
+              l10n.copyModeRequiresSession,
             );
           }
           final selectionController = _selectionControllers.putIfAbsent(
@@ -571,9 +564,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         },
         paste: (_) async {
           if (currentSessionId == null) {
-            return const ShellActionBindingResult.skipped(
-              'Paste requires an active session.',
-            );
+            return ShellActionBindingResult.skipped(l10n.pasteRequiresSession);
           }
           await _pasteToSession(currentSessionId);
           _restoreSessionFocus(
@@ -584,8 +575,8 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         },
         advancedPaste: (_) async {
           if (currentSessionId == null) {
-            return const ShellActionBindingResult.skipped(
-              'Advanced paste requires an active session.',
+            return ShellActionBindingResult.skipped(
+              l10n.advancedPasteRequiresSession,
             );
           }
           await _openAdvancedPaste(currentSessionId);
@@ -597,8 +588,8 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         },
         pasteHistory: (_) async {
           if (currentSessionId == null) {
-            return const ShellActionBindingResult.skipped(
-              'Paste history requires an active session.',
+            return ShellActionBindingResult.skipped(
+              l10n.pasteHistoryRequiresSession,
             );
           }
           await _openPasteHistory(sessionState);
@@ -606,17 +597,15 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         },
         instantReplay: (_) async {
           if (currentSessionId == null) {
-            return const ShellActionBindingResult.skipped(
-              'Replay recent activity requires an active session.',
-            );
+            return ShellActionBindingResult.skipped(l10n.replayRequiresSession);
           }
           await _openInstantReplay(sessionState);
           return const ShellActionBindingResult.completed();
         },
         toggleReadOnly: (_) {
           if (currentSessionId == null) {
-            return const ShellActionBindingResult.skipped(
-              'Read-only mode requires an active session.',
+            return ShellActionBindingResult.skipped(
+              l10n.readOnlyRequiresSession,
             );
           }
           final willEnableReadOnly = !_isSessionReadOnly(currentSessionId);
@@ -626,8 +615,8 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
               SnackBar(
                 content: Text(
                   willEnableReadOnly
-                      ? 'Read-only mode enabled. Input is blocked for this pane.'
-                      : 'Read-only mode disabled. Input is active for this pane.',
+                      ? l10n.readOnlyEnabledNotice
+                      : l10n.readOnlyDisabledNotice,
                 ),
               ),
             );
@@ -636,8 +625,8 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         },
         clearBuffer: (_) {
           if (currentSessionId == null) {
-            return const ShellActionBindingResult.skipped(
-              'Clear buffer requires an active session.',
+            return ShellActionBindingResult.skipped(
+              l10n.clearBufferRequiresSession,
             );
           }
           final cleared = ref
@@ -647,27 +636,21 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
             ref
                 .read(sessionControllerProvider.notifier)
                 .clearPromptMarks(currentSessionId);
-            _showShellSnackBar(
-              'Buffer cleared. The current command line was kept.',
-            );
+            _showShellSnackBar(l10n.bufferClearedCommandKept);
           }
           if (!cleared && mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Clear buffer requires native runtime support.'),
-              ),
+              SnackBar(content: Text(l10n.clearBufferRequiresNative)),
             );
           }
           return ShellActionBindingResult.completed(
-            cleared
-                ? 'Cleared buffer.'
-                : 'Clear buffer is not supported by this runtime.',
+            cleared ? l10n.bufferCleared : l10n.clearBufferUnsupported,
           );
         },
         globalSearch: (_) async {
           if (sessionState.tabs.isEmpty) {
-            return const ShellActionBindingResult.skipped(
-              'Global search requires at least one tab.',
+            return ShellActionBindingResult.skipped(
+              l10n.globalSearchRequiresTab,
             );
           }
           await _openGlobalSearch(sessionState);
@@ -675,8 +658,8 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         },
         autocomplete: (_) {
           if (currentSessionId == null) {
-            return const ShellActionBindingResult.skipped(
-              'Autocomplete requires an active session.',
+            return ShellActionBindingResult.skipped(
+              l10n.autocompleteRequiresSession,
             );
           }
           _openAutocomplete();
@@ -684,8 +667,8 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         },
         autoComposer: (_) {
           if (currentSessionId == null) {
-            return const ShellActionBindingResult.skipped(
-              'Auto composer requires an active session.',
+            return ShellActionBindingResult.skipped(
+              l10n.autoComposerRequiresSession,
             );
           }
           _openAutoComposer();
@@ -693,17 +676,15 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         },
         searchScrollback: (_) {
           if (currentSessionId == null) {
-            return const ShellActionBindingResult.skipped(
-              'Search requires an active session.',
-            );
+            return ShellActionBindingResult.skipped(l10n.searchRequiresSession);
           }
           _openSearch();
           return const ShellActionBindingResult.completed();
         },
         previousPrompt: (_) {
           if (currentSessionId == null) {
-            return const ShellActionBindingResult.skipped(
-              'Previous prompt requires an active session.',
+            return ShellActionBindingResult.skipped(
+              l10n.previousPromptRequiresSession,
             );
           }
           _navigateShellPrompt(currentSessionId, direction: -1);
@@ -711,8 +692,8 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         },
         nextPrompt: (_) {
           if (currentSessionId == null) {
-            return const ShellActionBindingResult.skipped(
-              'Next prompt requires an active session.',
+            return ShellActionBindingResult.skipped(
+              l10n.nextPromptRequiresSession,
             );
           }
           _navigateShellPrompt(currentSessionId, direction: 1);
@@ -720,8 +701,8 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         },
         selectCommandOutput: (_) {
           if (currentSessionId == null) {
-            return const ShellActionBindingResult.skipped(
-              'Select command output requires an active session.',
+            return ShellActionBindingResult.skipped(
+              l10n.selectCommandOutputRequiresSession,
             );
           }
           final selectionController = _selectionControllers.putIfAbsent(
@@ -743,8 +724,8 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         },
         shellIntegrationUtilities: (_) async {
           if (currentSessionId == null) {
-            return const ShellActionBindingResult.skipped(
-              'Shell integration utilities require an active session.',
+            return ShellActionBindingResult.skipped(
+              l10n.shellIntegrationRequiresSession,
             );
           }
           await _openShellIntegrationUtilities(currentState, currentSessionId);
@@ -756,16 +737,16 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         },
         openRecentDirectory: (_) {
           if (currentSessionId == null) {
-            return const ShellActionBindingResult.skipped(
-              'Open recent directory requires an active session.',
+            return ShellActionBindingResult.skipped(
+              l10n.openRecentDirectoryRequiresSession,
             );
           }
           final currentPane = _paneForSession(currentState, currentSessionId);
           final recentDirectories =
               currentPane?.shellIntegration.recentDirectories ?? const [];
           if (recentDirectories.isEmpty) {
-            return const ShellActionBindingResult.skipped(
-              'No recent directory is available.',
+            return ShellActionBindingResult.skipped(
+              l10n.noRecentDirectoryAvailable,
             );
           }
           _sendPlainTextToSession(
@@ -780,8 +761,8 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         },
         tmuxIntegration: (_) async {
           if (currentSessionId == null) {
-            return const ShellActionBindingResult.skipped(
-              'tmux integration requires an active session.',
+            return ShellActionBindingResult.skipped(
+              l10n.tmuxIntegrationRequiresSession,
             );
           }
           await _openTmuxIntegration(currentSessionId);
@@ -793,8 +774,8 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         },
         coprocess: (_) async {
           if (currentSessionId == null) {
-            return const ShellActionBindingResult.skipped(
-              'Coprocess requires an active session.',
+            return ShellActionBindingResult.skipped(
+              l10n.coprocessRequiresSession,
             );
           }
           await _openCoprocess(currentSessionId);
@@ -806,8 +787,8 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         },
         annotations: (_) async {
           if (currentSessionId == null) {
-            return const ShellActionBindingResult.skipped(
-              'Annotations require an active session.',
+            return ShellActionBindingResult.skipped(
+              l10n.annotationsRequireSession,
             );
           }
           final selectionController = _selectionControllers.putIfAbsent(
@@ -827,8 +808,8 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         },
         capturedOutput: (_) async {
           if (currentSessionId == null) {
-            return const ShellActionBindingResult.skipped(
-              'Captured output requires an active session.',
+            return ShellActionBindingResult.skipped(
+              l10n.capturedOutputRequiresSession,
             );
           }
           await _openCapturedOutput(currentSessionId);
@@ -840,8 +821,8 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         },
         passwordManager: (_) async {
           if (currentSessionId == null) {
-            return const ShellActionBindingResult.skipped(
-              'Password manager requires an active session.',
+            return ShellActionBindingResult.skipped(
+              l10n.passwordManagerRequiresSession,
             );
           }
           await _openPasswordManager(sessionController, currentSessionId);
@@ -855,9 +836,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
           final toggled = await _toggleHotkeyWindowWithFeedback();
           return toggled
               ? const ShellActionBindingResult.completed()
-              : const ShellActionBindingResult.skipped(
-                  'Hotkey window is unavailable.',
-                );
+              : ShellActionBindingResult.skipped(l10n.hotkeyWindowUnavailable);
         },
         openDefaults: (_) async {
           await _openDefaultsAndAppearance(sessionController, sessionState);
@@ -881,19 +860,19 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         },
         applyLayoutTemplate: (_) {
           if (defaultProfile == null || currentSessionId == null) {
-            return const ShellActionBindingResult.skipped(
-              'Apply layout template requires a default profile and active session.',
+            return ShellActionBindingResult.skipped(
+              l10n.layoutTemplateRequiresProfileSession,
             );
           }
           final currentTab = _tabForSession(currentState, currentSessionId);
           if (currentTab == null) {
-            return const ShellActionBindingResult.skipped(
-              'No active tab is available for layout templates.',
+            return ShellActionBindingResult.skipped(
+              l10n.noActiveTabForLayoutTemplates,
             );
           }
           if (currentTab.effectivePanes.length > 1) {
-            return const ShellActionBindingResult.skipped(
-              'Two-pane layout template is already satisfied.',
+            return ShellActionBindingResult.skipped(
+              l10n.twoPaneLayoutAlreadySatisfied,
             );
           }
           if (!_splitActiveSession(
@@ -901,72 +880,64 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
             defaultProfile,
             TerminalSplitAxis.horizontal,
           )) {
-            return const ShellActionBindingResult.skipped(
-              'Apply layout template is unavailable.',
+            return ShellActionBindingResult.skipped(
+              l10n.layoutTemplateUnavailable,
             );
           }
           return const ShellActionBindingResult.completed();
         },
         exportScrollback: (_) async {
           if (currentSessionId == null) {
-            return const ShellActionBindingResult.skipped(
-              'Export scrollback requires an active session.',
+            return ShellActionBindingResult.skipped(
+              l10n.exportScrollbackRequiresSession,
             );
           }
           final file = await _exportVisibleFrame(currentSessionId);
           if (file == null) {
-            return const ShellActionBindingResult.skipped(
-              'No visible terminal content is available to export.',
+            return ShellActionBindingResult.skipped(
+              l10n.noVisibleContentToExport,
             );
           }
           if (mounted) {
             _showShellPathSnackBar(
-              message: 'Scrollback exported',
+              message: l10n.scrollbackExported,
               path: file.path,
             );
           }
-          return const ShellActionBindingResult.completed(
-            'Exported terminal scrollback.',
+          return ShellActionBindingResult.completed(
+            l10n.exportedTerminalScrollback,
           );
         },
         exportDiagnostics: (_) async {
           if (currentSessionId == null) {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text(
-                    'Export diagnostics requires an active session.',
-                  ),
-                ),
+                SnackBar(content: Text(l10n.exportDiagnosticsRequiresSession)),
               );
             }
-            return const ShellActionBindingResult.skipped(
-              'Export diagnostics requires an active session.',
+            return ShellActionBindingResult.skipped(
+              l10n.exportDiagnosticsRequiresSession,
             );
           }
           final directory = await _exportDiagnosticsBundle(currentState);
           if (directory == null) {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text(
-                    'Diagnostics export is unavailable for the active sessions.',
-                  ),
-                ),
+                SnackBar(content: Text(l10n.diagnosticsExportUnavailable)),
               );
             }
-            return const ShellActionBindingResult.skipped(
-              'Diagnostics export is unavailable for the active sessions.',
+            return ShellActionBindingResult.skipped(
+              l10n.diagnosticsExportUnavailable,
             );
           }
           if (mounted) {
             _showShellPathSnackBar(
-              message: 'Diagnostics exported',
+              message: l10n.diagnosticsExported,
               path: directory.path,
             );
           }
-          return const ShellActionBindingResult.completed(
-            'Exported terminal diagnostics.',
+          return ShellActionBindingResult.completed(
+            l10n.exportedTerminalDiagnostics,
           );
         },
         toggleCommandFinishedNotify: (_) async {
@@ -983,7 +954,9 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
               messenger.showSnackBar(
                 SnackBar(
                   content: Text(
-                    'Command-finished notifications ${_commandFinishedNotificationsEnabled ? 'enabled' : 'disabled'} and saved.',
+                    l10n.commandFinishedNotificationsSaved(
+                      _commandFinishedNotificationsEnabled.toString(),
+                    ),
                   ),
                 ),
               );
@@ -995,12 +968,14 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
             });
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Unable to save notifications: $error')),
+                SnackBar(
+                  content: Text(l10n.unableSaveNotifications(error.toString())),
+                ),
               );
             }
-            return const ShellActionBindingResult.failed(
+            return ShellActionBindingResult.failed(
               failureCode: ShellActionBindingFailureCode.platformFailure,
-              message: 'Unable to save command-finished notifications.',
+              message: l10n.unableSaveCommandFinishedNotifications,
             );
           }
         },
@@ -1017,7 +992,9 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
               messenger.showSnackBar(
                 SnackBar(
                   content: Text(
-                    'Bell notifications ${_bellNotificationsEnabled ? 'enabled' : 'disabled'} and saved.',
+                    l10n.bellNotificationsSaved(
+                      _bellNotificationsEnabled.toString(),
+                    ),
                   ),
                 ),
               );
@@ -1029,12 +1006,14 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
             });
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Unable to save notifications: $error')),
+                SnackBar(
+                  content: Text(l10n.unableSaveNotifications(error.toString())),
+                ),
               );
             }
-            return const ShellActionBindingResult.failed(
+            return ShellActionBindingResult.failed(
               failureCode: ShellActionBindingFailureCode.platformFailure,
-              message: 'Unable to save bell notifications.',
+              message: l10n.unableSaveBellNotifications,
             );
           }
         },
@@ -1051,7 +1030,9 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
               messenger.showSnackBar(
                 SnackBar(
                   content: Text(
-                    'Activity monitor ${_activityNotificationsEnabled ? 'enabled' : 'disabled'} and saved.',
+                    l10n.activityMonitorSaved(
+                      _activityNotificationsEnabled.toString(),
+                    ),
                   ),
                 ),
               );
@@ -1063,12 +1044,14 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
             });
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Unable to save notifications: $error')),
+                SnackBar(
+                  content: Text(l10n.unableSaveNotifications(error.toString())),
+                ),
               );
             }
-            return const ShellActionBindingResult.failed(
+            return ShellActionBindingResult.failed(
               failureCode: ShellActionBindingFailureCode.platformFailure,
-              message: 'Unable to save activity monitor notifications.',
+              message: l10n.unableSaveActivityMonitor,
             );
           }
         },
@@ -1372,19 +1355,19 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
     final hasCurrentDirectory =
         (targetPane?.shellIntegration.currentDirectory ?? '').isNotEmpty;
     final duplicateCwdBlockedReason = defaultProfile == null
-        ? 'No default profile is available.'
+        ? context.l10n.noDefaultProfileAvailable
         : !hasCurrentDirectory
-        ? 'No current directory is available.'
+        ? context.l10n.noCurrentDirectoryAvailable
         : _shellHostIsRemote(targetPane?.shellIntegration.hostname)
-        ? 'Remote-reported current directories cannot be duplicated as local sessions.'
+        ? context.l10n.remoteDirectoryCannotDuplicate
         : null;
     final growPaneBlockedReason = targetPane == null
-        ? 'Add another pane to use this action.'
+        ? context.l10n.addAnotherPaneForAction
         : paneManagementBlockedReason ??
               _growActivePaneUnavailableReason(tab, targetSessionId);
     final reopenClosedPaneBlockedReason = sessionController.canReopenClosedPane
         ? null
-        : 'No recently closed pane is available for this tab.';
+        : context.l10n.noRecentlyClosedPaneForTab;
     final overlay = Overlay.of(context).context.findRenderObject();
     final overlaySize = overlay is RenderBox
         ? overlay.size
@@ -1417,7 +1400,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
               Padding(
                 padding: const EdgeInsets.only(left: 28),
                 child: Text(
-                  'Unavailable: $reason',
+                  context.l10n.unavailableReason(reason),
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Theme.of(context).disabledColor,
                   ),
@@ -1439,68 +1422,68 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         item(
           action: TerminalActionId.duplicateCurrentCwd,
           icon: Icons.create_new_folder_rounded,
-          title: 'Duplicate current directory',
+          title: context.l10n.duplicateCurrentDirectory,
           enabled: duplicateCwdBlockedReason == null,
           disabledReason: duplicateCwdBlockedReason,
         ),
         item(
           action: TerminalActionId.splitRight,
           icon: Icons.vertical_split_rounded,
-          title: 'Split right',
+          title: context.l10n.terminalActionName('split_right'),
           enabled: defaultProfile != null && splitRightBlockedReason == null,
           disabledReason: splitRightBlockedReason,
         ),
         item(
           action: TerminalActionId.splitDown,
           icon: Icons.horizontal_split_rounded,
-          title: 'Split down',
+          title: context.l10n.terminalActionName('split_down'),
           enabled: defaultProfile != null && splitDownBlockedReason == null,
           disabledReason: splitDownBlockedReason,
         ),
         item(
           action: TerminalActionId.reopenClosedPane,
           icon: Icons.restore_page_rounded,
-          title: 'Reopen closed pane',
+          title: context.l10n.terminalActionName('reopen_closed_pane'),
           enabled: reopenClosedPaneBlockedReason == null,
           disabledReason: reopenClosedPaneBlockedReason,
         ),
         item(
           action: TerminalActionId.applyLayoutTemplate,
           icon: Icons.dashboard_customize_rounded,
-          title: 'Apply two-pane layout',
+          title: context.l10n.applyTwoPaneLayout,
           enabled: defaultProfile != null && !hasMultiplePanes,
           disabledReason: hasMultiplePanes
-              ? 'This tab already has multiple panes.'
+              ? context.l10n.tabAlreadyMultiplePanes
               : null,
         ),
         const PopupMenuDivider(),
         item(
           action: TerminalActionId.resizePane,
           icon: Icons.open_with_rounded,
-          title: 'Grow active pane',
+          title: context.l10n.growActivePane,
           enabled: hasMultiplePanes && growPaneBlockedReason == null,
           disabledReason: growPaneBlockedReason,
         ),
         item(
           action: TerminalActionId.swapPane,
           icon: Icons.swap_horiz_rounded,
-          title: 'Swap active pane',
+          title: context.l10n.swapActivePane,
           enabled: hasMultiplePanes && paneManagementBlockedReason == null,
           disabledReason: hasMultiplePanes
               ? paneManagementBlockedReason
-              : 'Add another pane to use this action.',
+              : context.l10n.addAnotherPaneForAction,
         ),
         const PopupMenuDivider(),
         item(
           action: TerminalActionId.closePane,
           icon: Icons.close_fullscreen_rounded,
-          title: 'Close active pane',
+          title: context.l10n.closeActivePane,
           enabled: true,
         ),
         item(
           action: TerminalActionId.closeActiveTab,
           icon: Icons.close_rounded,
-          title: 'Close tab',
+          title: context.l10n.terminalActionName('close_active_tab'),
           enabled: true,
         ),
       ],
@@ -1561,9 +1544,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
           return;
         }
         if (_shellHostIsRemote(currentPane?.shellIntegration.hostname)) {
-          _showShellSnackBar(
-            'Remote-reported current directories cannot be duplicated as local sessions.',
-          );
+          _showShellSnackBar(context.l10n.remoteDirectoryCannotDuplicate);
           return;
         }
         _createSession(

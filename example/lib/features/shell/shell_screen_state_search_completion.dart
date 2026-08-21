@@ -131,7 +131,7 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
           title:
               activeTab?.paneFor(activeSessionId)?.title ??
               activeTab?.title ??
-              'Active pane',
+              context.l10n.activePane,
         ),
       ],
       _TerminalSearchScope.currentTab => [

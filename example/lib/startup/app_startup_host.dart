@@ -112,8 +112,11 @@ final class _StartupMaterialApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Ianvs Terminal',
+      onGenerateTitle: (context) => context.l10n.appTitle,
       debugShowCheckedModeBanner: false,
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      localeListResolutionCallback: resolveAppLocale,
       theme: buildIanvsTerminalTheme(
         Brightness.light,
         platform: defaultTargetPlatform,
@@ -191,7 +194,7 @@ final class _AppStartupDataSetupViewState
       if (portableMasterKey.isNotEmpty) {
         final settings = widget.settings;
         if (settings is! AppStartupMasterKeyCapability) {
-          throw StateError('Master-key import is unavailable.');
+          throw StateError(context.l10n.masterKeyImportUnavailable);
         }
         await (settings as AppStartupMasterKeyCapability)
             .importPortableMasterKey(portableMasterKey);
@@ -263,8 +266,8 @@ final class _AppStartupDataSetupViewState
       autocorrect: false,
       enableSuggestions: false,
       onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
-      decoration: const InputDecoration(
-        labelText: 'HTTP API URL',
+      decoration: InputDecoration(
+        labelText: context.l10n.httpApiUrl,
         hintText: defaultRemoteDataApiBaseUrl,
       ),
       enabled: !_runningAction,
@@ -280,7 +283,7 @@ final class _AppStartupDataSetupViewState
       enableSuggestions: false,
       autofillHints: const <String>[AutofillHints.username],
       onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
-      decoration: const InputDecoration(labelText: 'Username'),
+      decoration: InputDecoration(labelText: context.l10n.username),
       enabled: !_runningAction,
     );
   }
@@ -307,7 +310,7 @@ final class _AppStartupDataSetupViewState
               }
             }
           : null,
-      decoration: const InputDecoration(labelText: 'Password'),
+      decoration: InputDecoration(labelText: context.l10n.password),
       enabled: !_runningAction,
     );
   }
@@ -373,7 +376,7 @@ final class _AppStartupDataSetupViewState
                                     const SizedBox(width: 10),
                                     Flexible(
                                       child: Text(
-                                        'Choose your data mode',
+                                        context.l10n.chooseDataMode,
                                         textAlign: TextAlign.center,
                                         style: theme.textTheme.titleLarge,
                                       ),
@@ -388,7 +391,7 @@ final class _AppStartupDataSetupViewState
                                 ),
                                 const SizedBox(height: 20),
                                 Text(
-                                  'Choose your data mode',
+                                  context.l10n.chooseDataMode,
                                   textAlign: TextAlign.center,
                                   style: theme.textTheme.headlineSmall,
                                 ),
@@ -397,17 +400,11 @@ final class _AppStartupDataSetupViewState
                               Text(
                                 canSkip
                                     ? widget.settings.localDataApiAvailable
-                                          ? 'Use only local terminals, start '
-                                                'the bundled offline API, or '
-                                                'connect a remote API for '
-                                                'cross-device sync.'
-                                          : 'Continue without a data service '
-                                                'for one-time SSH connections, '
-                                                'or connect a remote API to '
-                                                'save profiles and sync them.'
-                                    : 'A remote HTTP API connection is '
-                                          'required before Ianvs Terminal can '
-                                          'be used on iOS.',
+                                          ? context
+                                                .l10n
+                                                .dataModeLocalBundledOrRemote
+                                          : context.l10n.dataModeLocalOrRemote
+                                    : context.l10n.remoteApiRequiredOnIos,
                                 textAlign: TextAlign.center,
                                 style: theme.textTheme.bodyMedium?.copyWith(
                                   color: theme.colorScheme.onSurfaceVariant,
@@ -447,12 +444,12 @@ final class _AppStartupDataSetupViewState
                                       .instance
                                       .primaryFocus
                                       ?.unfocus(),
-                                  decoration: const InputDecoration(
-                                    labelText:
-                                        'Master key from another device (optional)',
+                                  decoration: InputDecoration(
+                                    labelText: context
+                                        .l10n
+                                        .masterKeyFromAnotherDeviceOptional,
                                     helperText:
-                                        'Paste an exported ianvs-key-v1 key to '
-                                        'open existing encrypted data.',
+                                        context.l10n.masterKeyOpenExistingHelp,
                                   ),
                                   enabled: !_runningAction,
                                   onSubmitted: (_) => _connect(),
@@ -489,8 +486,10 @@ final class _AppStartupDataSetupViewState
                                             onPressed: _runningAction
                                                 ? null
                                                 : _skip,
-                                            child: const Text(
-                                              'Continue without data service',
+                                            child: Text(
+                                              context
+                                                  .l10n
+                                                  .continueWithoutDataService,
                                             ),
                                           ),
                                         ),
@@ -510,8 +509,8 @@ final class _AppStartupDataSetupViewState
                                             icon: const Icon(
                                               Icons.login_rounded,
                                             ),
-                                            label: const Text(
-                                              'Connect remote API',
+                                            label: Text(
+                                              context.l10n.connectRemoteApi,
                                             ),
                                           ),
                                         ),
@@ -536,8 +535,8 @@ final class _AppStartupDataSetupViewState
                                           icon: const Icon(
                                             Icons.storage_rounded,
                                           ),
-                                          label: const Text(
-                                            'Use bundled local API',
+                                          label: Text(
+                                            context.l10n.useBundledLocalApi,
                                           ),
                                         ),
                                         const SizedBox(height: 10),
@@ -560,8 +559,12 @@ final class _AppStartupDataSetupViewState
                                               widget
                                                       .settings
                                                       .localDataApiAvailable
-                                                  ? 'Use local terminal only'
-                                                  : 'Continue without data service',
+                                                  ? context
+                                                        .l10n
+                                                        .useLocalTerminalOnly
+                                                  : context
+                                                        .l10n
+                                                        .continueWithoutDataService,
                                             ),
                                           ),
                                           FilledButton.icon(
@@ -575,8 +578,8 @@ final class _AppStartupDataSetupViewState
                                             icon: const Icon(
                                               Icons.login_rounded,
                                             ),
-                                            label: const Text(
-                                              'Connect remote API',
+                                            label: Text(
+                                              context.l10n.connectRemoteApi,
                                             ),
                                           ),
                                         ],
@@ -594,7 +597,9 @@ final class _AppStartupDataSetupViewState
                                         ? _connect
                                         : null,
                                     icon: const Icon(Icons.login_rounded),
-                                    label: const Text('Connect and continue'),
+                                    label: Text(
+                                      context.l10n.connectAndContinue,
+                                    ),
                                   ),
                                 ),
                             ],
@@ -624,13 +629,13 @@ final class _AppStartupLoadingView extends StatelessWidget {
       body: Center(
         child: Semantics(
           liveRegion: true,
-          label: 'Starting Ianvs Terminal, attempt $attempt',
-          child: const Column(
+          label: context.l10n.startingAppAttempt(attempt),
+          child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 20),
-              Text('Preparing terminal runtime…'),
+              const CircularProgressIndicator(),
+              const SizedBox(height: 20),
+              Text(context.l10n.preparingTerminalRuntime),
             ],
           ),
         ),
@@ -713,11 +718,15 @@ final class _AppStartupFailureViewState extends State<_AppStartupFailureView> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Ianvs Terminal could not start',
+                    context.l10n.appCouldNotStart,
                     style: Theme.of(context).textTheme.headlineSmall,
                   ),
                   const SizedBox(height: 12),
-                  Text('Stage: ${failure.stage.name}'),
+                  Text(
+                    context.l10n.startupStage(
+                      context.l10n.startupStageName(failure.stage.name),
+                    ),
+                  ),
                   const SizedBox(height: 8),
                   SelectableText(failure.error.toString()),
                   if (_actionError case final error?) ...[
@@ -739,14 +748,14 @@ final class _AppStartupFailureViewState extends State<_AppStartupFailureView> {
                         key: const Key('app-startup-retry'),
                         onPressed: _runningAction ? null : _retry,
                         icon: const Icon(Icons.refresh),
-                        label: const Text('Retry startup'),
+                        label: Text(context.l10n.retryStartup),
                       ),
                       if (failure.dataSettings != null)
                         OutlinedButton.icon(
                           key: const Key('app-startup-open-data-settings'),
                           onPressed: _runningAction ? null : _openSettings,
                           icon: const Icon(Icons.storage_outlined),
-                          label: const Text('Data service settings'),
+                          label: Text(context.l10n.dataServiceSettings),
                         ),
                     ],
                   ),
@@ -815,21 +824,17 @@ final class _AppStartupDataSettingsDialogState
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Disable the data service?'),
-        content: const Text(
-          'This explicitly switches to local-terminal-only mode on the next '
-          'startup attempt. No API process will start; existing remote data '
-          'is not deleted.',
-        ),
+        title: Text(dialogContext.l10n.disableDataServiceQuestion),
+        content: Text(dialogContext.l10n.disableDataServiceExplanation),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
+            child: Text(dialogContext.l10n.cancel),
           ),
           FilledButton(
             key: const Key('app-startup-confirm-disabled'),
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Use local terminal'),
+            child: Text(dialogContext.l10n.useLocalTerminal),
           ),
         ],
       ),
@@ -849,7 +854,7 @@ final class _AppStartupDataSettingsDialogState
       if (portableMasterKey.isNotEmpty) {
         final settings = widget.settings;
         if (settings is! AppStartupMasterKeyCapability) {
-          throw StateError('Master-key import is unavailable.');
+          throw StateError(context.l10n.masterKeyImportUnavailable);
         }
         await (settings as AppStartupMasterKeyCapability)
             .importPortableMasterKey(portableMasterKey);
@@ -904,7 +909,7 @@ final class _AppStartupDataSettingsDialogState
   Widget build(BuildContext context) {
     final remoteUri = _configuration?.remoteBaseUri;
     return AlertDialog(
-      title: const Text('Data service recovery'),
+      title: Text(context.l10n.dataServiceRecovery),
       content: SizedBox(
         width: 520,
         child: _loading
@@ -915,17 +920,11 @@ final class _AppStartupDataSettingsDialogState
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     if (_loadError case final error?) ...[
-                      const Text(
-                        'The current configuration could not be read. You can '
-                        'still explicitly select Disabled.',
-                      ),
+                      Text(context.l10n.configurationReadFailed),
                       const SizedBox(height: 8),
                       SelectableText(error),
                     ] else if (remoteUri != null) ...[
-                      const Text(
-                        'Reconnect to the configured remote origin before '
-                        'startup retries. The origin cannot be changed here.',
-                      ),
+                      Text(context.l10n.reconnectConfiguredOrigin),
                       const SizedBox(height: 12),
                       SelectableText(
                         remoteUri.toString(),
@@ -935,8 +934,8 @@ final class _AppStartupDataSettingsDialogState
                       TextField(
                         key: const Key('app-startup-remote-username'),
                         controller: _usernameController,
-                        decoration: const InputDecoration(
-                          labelText: 'Username',
+                        decoration: InputDecoration(
+                          labelText: context.l10n.username,
                         ),
                         enabled: !_saving,
                       ),
@@ -944,8 +943,8 @@ final class _AppStartupDataSettingsDialogState
                       TextField(
                         key: const Key('app-startup-remote-password'),
                         controller: _passwordController,
-                        decoration: const InputDecoration(
-                          labelText: 'Password',
+                        decoration: InputDecoration(
+                          labelText: context.l10n.password,
                         ),
                         obscureText: true,
                         enabled: !_saving,
@@ -957,12 +956,10 @@ final class _AppStartupDataSettingsDialogState
                         TextField(
                           key: const Key('app-startup-remote-master-key'),
                           controller: _portableMasterKeyController,
-                          decoration: const InputDecoration(
+                          decoration: InputDecoration(
                             labelText:
-                                'Master key from another device (optional)',
-                            helperText:
-                                'Paste an exported ianvs-key-v1 key when this '
-                                'device does not already have it.',
+                                context.l10n.masterKeyFromAnotherDeviceOptional,
+                            helperText: context.l10n.masterKeyImportHelp,
                           ),
                           obscureText: true,
                           enabled: !_saving,
@@ -970,12 +967,8 @@ final class _AppStartupDataSettingsDialogState
                     ] else ...[
                       Text(
                         _configuration?.deployment == DataApiDeployment.local
-                            ? 'The local data service could not start. Select '
-                                  'local terminal mode to continue without an '
-                                  'API. Local API data is retained.'
-                            : 'The app is already in local terminal mode. '
-                                  'Retry startup or save that mode again to '
-                                  'clear its recovery lock.',
+                            ? context.l10n.localDataServiceStartFailed
+                            : context.l10n.alreadyUsingLocalTerminal,
                       ),
                     ],
                     if (_saveError case final error?) ...[
@@ -999,18 +992,18 @@ final class _AppStartupDataSettingsDialogState
       actions: [
         TextButton(
           onPressed: _saving ? null : () => Navigator.of(context).pop(false),
-          child: const Text('Cancel'),
+          child: Text(context.l10n.cancel),
         ),
         OutlinedButton(
           key: const Key('app-startup-save-disabled'),
           onPressed: _saving ? null : _disable,
-          child: const Text('Use local terminal'),
+          child: Text(context.l10n.useLocalTerminal),
         ),
         if (remoteUri != null)
           FilledButton(
             key: const Key('app-startup-reconnect'),
             onPressed: _saving ? null : _reconnect,
-            child: const Text('Reconnect and retry'),
+            child: Text(context.l10n.reconnectAndRetry),
           ),
       ],
     );
@@ -1036,8 +1029,7 @@ final class _AppleMasterKeyNotice extends StatelessWidget {
         const SizedBox(width: 12),
         Expanded(
           child: Text(
-            'The master key is stored and synchronized automatically through '
-            'iCloud Keychain. No key entry is required.',
+            context.l10n.appleMasterKeySynchronized,
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),

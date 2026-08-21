@@ -56,7 +56,9 @@ extension _ShellScreenRecordingLibraryState on _ShellScreenState {
       return true;
     } on Object catch (error) {
       if (mounted) {
-        _showShellSnackBar('Could not open recording: $error');
+        _showShellSnackBar(
+          context.l10n.couldNotOpenRecording(error.toString()),
+        );
       }
       return false;
     } finally {
@@ -96,7 +98,9 @@ extension _ShellScreenRecordingLibraryState on _ShellScreenState {
     } on Object catch (error) {
       if (mounted) {
         _mutateState(() {
-          _recordingLibraryError = 'Could not load recordings: $error';
+          _recordingLibraryError = context.l10n.couldNotLoadRecordings(
+            error.toString(),
+          );
         });
       }
     } finally {
@@ -130,7 +134,9 @@ extension _ShellScreenRecordingLibraryState on _ShellScreenState {
     } on Object catch (error) {
       if (mounted) {
         _mutateState(() {
-          _recordingLibraryError = 'Could not open recording: $error';
+          _recordingLibraryError = context.l10n.couldNotOpenRecording(
+            error.toString(),
+          );
         });
       }
     } finally {
@@ -150,6 +156,7 @@ extension _ShellScreenRecordingLibraryState on _ShellScreenState {
   }
 
   Future<void> _importRecording() async {
+    final l10n = context.l10n;
     final sourcePath = await _chooseRecordingFile();
     if (!mounted || sourcePath == null) {
       return;
@@ -161,35 +168,38 @@ extension _ShellScreenRecordingLibraryState on _ShellScreenState {
       await _loadRecordingLibrary();
       if (mounted) {
         await _selectRecording(entry);
-        _showShellSnackBar('Recording imported');
+        _showShellSnackBar(l10n.recordingImported);
       }
     } on Object catch (error) {
-      _showShellSnackBar('Could not import recording: $error');
+      _showShellSnackBar(l10n.couldNotImportRecording(error.toString()));
     }
   }
 
   Future<void> _renameRecording(LocalSessionRecordingEntry entry) async {
+    final l10n = context.l10n;
     final controller = TextEditingController(text: entry.displayName);
     final nextName = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Rename recording'),
+        title: Text(dialogContext.l10n.renameRecording),
         content: TextField(
           key: const Key('recording-rename-field'),
           controller: controller,
           autofocus: true,
           maxLength: 120,
-          decoration: const InputDecoration(labelText: 'Recording name'),
+          decoration: InputDecoration(
+            labelText: dialogContext.l10n.recordingName,
+          ),
           onSubmitted: (value) => Navigator.of(dialogContext).pop(value),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Cancel'),
+            child: Text(dialogContext.l10n.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(controller.text),
-            child: const Text('Rename'),
+            child: Text(dialogContext.l10n.rename),
           ),
         ],
       ),
@@ -204,19 +214,21 @@ extension _ShellScreenRecordingLibraryState on _ShellScreenState {
           .renameRecording(entry.path, nextName);
       await _loadRecordingLibrary();
     } on Object catch (error) {
-      _showShellSnackBar('Could not rename recording: $error');
+      _showShellSnackBar(l10n.couldNotRenameRecording(error.toString()));
     }
   }
 
   Future<void> _revealRecording(LocalSessionRecordingEntry entry) async {
+    final l10n = context.l10n;
     try {
       await ref.read(shellRecordingRevealProvider)(entry.path);
     } on Object catch (error) {
-      _showShellSnackBar('Could not reveal recording: $error');
+      _showShellSnackBar(l10n.couldNotRevealRecording(error.toString()));
     }
   }
 
   Future<void> _exportRecording(LocalSessionRecordingEntry entry) async {
+    final l10n = context.l10n;
     final suggestedName = '${_recordingFileName(entry.displayName)}.ndjson';
     final destination = await ref.read(shellRecordingExportPickerProvider)(
       suggestedName,
@@ -228,31 +240,32 @@ extension _ShellScreenRecordingLibraryState on _ShellScreenState {
       await ref
           .read(localSessionRecordingRepositoryProvider)
           .exportRecording(entry.path, destination);
-      _showShellSnackBar('Recording exported');
+      _showShellSnackBar(l10n.recordingExported);
     } on Object catch (error) {
-      _showShellSnackBar('Could not export recording: $error');
+      _showShellSnackBar(l10n.couldNotExportRecording(error.toString()));
     }
   }
 
   Future<void> _deleteRecording(LocalSessionRecordingEntry entry) async {
+    final l10n = context.l10n;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Move recording to Trash?'),
+        title: Text(dialogContext.l10n.moveRecordingToTrashQuestion),
         content: Text(
-          '“${entry.displayName}” will be removed from Saved Recordings.',
+          dialogContext.l10n.recordingRemovedFromSaved(entry.displayName),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
+            child: Text(dialogContext.l10n.cancel),
           ),
           FilledButton(
             style: FilledButton.styleFrom(
               backgroundColor: context.appTheme.danger,
             ),
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Move to Trash'),
+            child: Text(dialogContext.l10n.moveToTrash),
           ),
         ],
       ),
@@ -274,9 +287,9 @@ extension _ShellScreenRecordingLibraryState on _ShellScreenState {
         _closeRecordingReplay();
       }
       await _loadRecordingLibrary();
-      _showShellSnackBar('Recording moved to Trash');
+      _showShellSnackBar(l10n.recordingMovedToTrash);
     } on Object catch (error) {
-      _showShellSnackBar('Could not remove recording: $error');
+      _showShellSnackBar(l10n.couldNotRemoveRecording(error.toString()));
     }
   }
 

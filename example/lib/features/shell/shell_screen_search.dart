@@ -92,13 +92,13 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
 
   String get _counterText {
     if (widget.errorText != null) {
-      return 'Regex error';
+      return context.l10n.regexError;
     }
     if (widget.query.isEmpty) {
       return '';
     }
     if (widget.matches == 0) {
-      return 'No matches';
+      return context.l10n.noMatches;
     }
     return '${widget.activeIndex + 1}/${widget.matches}';
   }
@@ -147,14 +147,32 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
 
   String _searchModeLabel(terminal.TerminalSearchMode mode) {
     return switch (mode) {
-      terminal.TerminalSearchMode.smartCaseSubstring => 'Smart Case Substring',
+      terminal.TerminalSearchMode.smartCaseSubstring =>
+        context.l10n.smartCaseSubstring,
       terminal.TerminalSearchMode.caseSensitiveSubstring =>
-        'Case-Sensitive Substring',
+        context.l10n.caseSensitiveSubstring,
       terminal.TerminalSearchMode.caseInsensitiveSubstring =>
-        'Case-Insensitive Substring',
-      terminal.TerminalSearchMode.caseSensitiveRegex => 'Case-Sensitive Regex',
+        context.l10n.caseInsensitiveSubstring,
+      terminal.TerminalSearchMode.caseSensitiveRegex =>
+        context.l10n.caseSensitiveRegex,
       terminal.TerminalSearchMode.caseInsensitiveRegex =>
-        'Case-Insensitive Regex',
+        context.l10n.caseInsensitiveRegex,
+    };
+  }
+
+  String _searchScopeLabel(_TerminalSearchScope scope) {
+    return switch (scope) {
+      _TerminalSearchScope.activePane => context.l10n.activePane,
+      _TerminalSearchScope.currentTab => context.l10n.currentTab,
+      _TerminalSearchScope.allTabs => context.l10n.allTabs,
+    };
+  }
+
+  String _searchScopeShortLabel(_TerminalSearchScope scope) {
+    return switch (scope) {
+      _TerminalSearchScope.activePane => context.l10n.paneShort,
+      _TerminalSearchScope.currentTab => context.l10n.tabShort,
+      _TerminalSearchScope.allTabs => context.l10n.all,
     };
   }
 
@@ -196,10 +214,12 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
   ) {
     final palette = widget.palette;
     return Tooltip(
-      message: 'Search filter: ${_searchModeLabel(widget.searchMode)}',
+      message: context.l10n.searchFilterValue(
+        _searchModeLabel(widget.searchMode),
+      ),
       child: Semantics(
         button: true,
-        label: 'Search filter',
+        label: context.l10n.searchFilter,
         child: InkWell(
           key: const Key('terminal-search-mode'),
           borderRadius: BorderRadius.circular(palette.radius.sm),
@@ -281,7 +301,7 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
       Padding(
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
         child: Text(
-          'Filter',
+          context.l10n.filter,
           style: textTheme.titleSmall?.copyWith(
             color: palette.textPrimary,
             fontWeight: FontWeight.w700,
@@ -336,10 +356,14 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
   ) {
     final palette = widget.palette;
     return Tooltip(
-      message: 'Search scope: ${widget.searchScope.label}',
+      message: context.l10n.searchScopeValue(
+        _searchScopeLabel(widget.searchScope),
+      ),
       child: Semantics(
         button: true,
-        label: 'Search scope: ${widget.searchScope.label}',
+        label: context.l10n.searchScopeValue(
+          _searchScopeLabel(widget.searchScope),
+        ),
         child: InkWell(
           key: const Key('terminal-search-scope'),
           borderRadius: BorderRadius.circular(palette.radius.sm),
@@ -361,7 +385,7 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
               height: _searchBarControlHeight,
               child: Center(
                 child: Text(
-                  widget.searchScope.shortLabel,
+                  _searchScopeShortLabel(widget.searchScope),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.labelMedium?.copyWith(
@@ -408,7 +432,7 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
           color: palette.textPrimary,
         ),
         child: Text(
-          scope.label,
+          _searchScopeLabel(scope),
           style: textTheme.bodyMedium?.copyWith(
             color: palette.textPrimary,
             fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
@@ -421,7 +445,7 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
       Padding(
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
         child: Text(
-          'Scope',
+          context.l10n.scope,
           style: textTheme.titleSmall?.copyWith(
             color: palette.textPrimary,
             fontWeight: FontWeight.w700,
@@ -499,7 +523,7 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
   Widget _buildInlineSearchClearButton() {
     return _buildCompactActionButton(
       key: const Key('terminal-search-clear'),
-      tooltip: 'Clear search text',
+      tooltip: context.l10n.clearSearchText,
       onPressed: widget.onClear,
       splashRadius: 12,
       iconSize: 15,
@@ -516,7 +540,7 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
     final foreground = _statusForeground(context);
     return Semantics(
       liveRegion: true,
-      label: 'Search result: $_counterText',
+      label: context.l10n.searchResultValue(_counterText),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 68),
         child: Padding(
@@ -569,7 +593,7 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
                   child: Focus(
                     onKeyEvent: _handleSearchKeyEvent,
                     child: Semantics(
-                      label: 'Search terminal output',
+                      label: context.l10n.searchTerminalOutput,
                       textField: true,
                       child: SizedBox(
                         height: _searchBarControlHeight,
@@ -599,7 +623,7 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
                                 filled: false,
                                 fillColor: Colors.transparent,
                                 contentPadding: EdgeInsets.zero,
-                                hintText: 'Search',
+                                hintText: context.l10n.search,
                                 hintStyle: hintTextStyle,
                                 border: InputBorder.none,
                                 enabledBorder: InputBorder.none,
@@ -638,7 +662,7 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
     return [
       _buildCompactActionButton(
         key: const Key('terminal-search-previous'),
-        tooltip: 'Previous match',
+        tooltip: context.l10n.previousMatch,
         onPressed: widget.matches == 0 ? null : widget.onPrevious,
         splashRadius: 13,
         iconSize: 18,
@@ -648,7 +672,7 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
       ),
       _buildCompactActionButton(
         key: const Key('terminal-search-next'),
-        tooltip: 'Next match',
+        tooltip: context.l10n.nextMatch,
         onPressed: widget.matches == 0 ? null : widget.onNext,
         splashRadius: 13,
         iconSize: 18,
@@ -662,7 +686,7 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
   Widget _buildSearchCloseButton(BoxConstraints constraints) {
     return _buildCompactActionButton(
       key: const Key('terminal-search-close'),
-      tooltip: 'Close search',
+      tooltip: context.l10n.closeSearch,
       onPressed: widget.onClose,
       splashRadius: 13,
       iconSize: 17,
@@ -873,11 +897,8 @@ class _GlobalSearchSheetState extends State<_GlobalSearchSheet> {
   String _query = '';
   List<_GlobalSearchResult> _results = const [];
 
-  String get _scopeText {
-    final count = widget.sessions.length;
-    final noun = count == 1 ? 'session' : 'sessions';
-    return 'Searching across $count $noun';
-  }
+  String get _scopeText =>
+      context.l10n.searchingAcrossSessions(widget.sessions.length);
 
   void _handleQueryChanged(String value) {
     setState(() {
@@ -919,7 +940,7 @@ class _GlobalSearchSheetState extends State<_GlobalSearchSheet> {
                               ?.copyWith(color: palette.textPrimary),
                           decoration: InputDecoration(
                             prefixIcon: const Icon(Icons.manage_search_rounded),
-                            hintText: 'Global search',
+                            hintText: context.l10n.globalSearch,
                             isDense: true,
                             filled: true,
                             fillColor: palette.overlay,
@@ -934,7 +955,7 @@ class _GlobalSearchSheetState extends State<_GlobalSearchSheet> {
                       ),
                       const SizedBox(width: 12),
                       Text(
-                        '$resultCount matches',
+                        context.l10n.matchCount(resultCount),
                         style: Theme.of(context).textTheme.labelMedium
                             ?.copyWith(
                               color: palette.textSubtle,
@@ -944,7 +965,7 @@ class _GlobalSearchSheetState extends State<_GlobalSearchSheet> {
                       const SizedBox(width: 8),
                       _buildSheetCloseButton(
                         buttonKey: const Key('terminal-global-search-close'),
-                        tooltip: 'Close global search',
+                        tooltip: context.l10n.closeGlobalSearch,
                         onPressed: () => Navigator.of(context).pop(),
                       ),
                     ],
@@ -962,7 +983,7 @@ class _GlobalSearchSheetState extends State<_GlobalSearchSheet> {
                         : resultCount == 0
                         ? Center(
                             child: Text(
-                              'No matches',
+                              context.l10n.noMatches,
                               style: Theme.of(context).textTheme.bodyMedium
                                   ?.copyWith(color: palette.textMuted),
                             ),
@@ -980,8 +1001,10 @@ class _GlobalSearchSheetState extends State<_GlobalSearchSheet> {
                                 ),
                                 dense: true,
                                 title: result.match.text,
-                                subtitle:
-                                    '${result.session.title} • row ${result.match.row + 1}',
+                                subtitle: context.l10n.searchResultLocation(
+                                  result.session.title,
+                                  result.match.row + 1,
+                                ),
                                 subtitleMaxLines: 1,
                                 trailing: const Icon(
                                   Icons.keyboard_return_rounded,

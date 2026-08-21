@@ -82,7 +82,7 @@ class _AdvancedPasteSheetState extends State<_AdvancedPasteSheet> {
                     children: [
                       Expanded(
                         child: Text(
-                          'Advanced Paste',
+                          context.l10n.advancedPaste,
                           style: Theme.of(context).textTheme.titleLarge
                               ?.copyWith(
                                 color: palette.textPrimary,
@@ -91,7 +91,7 @@ class _AdvancedPasteSheetState extends State<_AdvancedPasteSheet> {
                         ),
                       ),
                       AppActionButton(
-                        tooltip: 'Close advanced paste',
+                        tooltip: context.l10n.closeAdvancedPaste,
                         tone: AppActionTone.ghost,
                         size: AppActionSize.dense,
                         onPressed: () => Navigator.of(context).pop(),
@@ -102,7 +102,7 @@ class _AdvancedPasteSheetState extends State<_AdvancedPasteSheet> {
                   const SizedBox(height: 8),
                   MergeSemantics(
                     child: Semantics(
-                      label: 'Paste text',
+                      label: context.l10n.pasteText,
                       textField: true,
                       child: TextField(
                         key: const Key('advanced-paste-text-field'),
@@ -110,8 +110,8 @@ class _AdvancedPasteSheetState extends State<_AdvancedPasteSheet> {
                         minLines: 4,
                         maxLines: 8,
                         keyboardType: TextInputType.multiline,
-                        decoration: const InputDecoration(
-                          labelText: 'Text',
+                        decoration: InputDecoration(
+                          labelText: context.l10n.text,
                           alignLabelWithHint: true,
                         ),
                       ),
@@ -120,7 +120,7 @@ class _AdvancedPasteSheetState extends State<_AdvancedPasteSheet> {
                   const SizedBox(height: 8),
                   _ShellSwitchTile(
                     tileKey: const Key('advanced-paste-escape'),
-                    title: 'Escape special characters',
+                    title: context.l10n.escapeSpecialCharacters,
                     value: _escapeSpecialCharacters,
                     onChanged: (value) {
                       setState(() {
@@ -130,7 +130,7 @@ class _AdvancedPasteSheetState extends State<_AdvancedPasteSheet> {
                   ),
                   _ShellSwitchTile(
                     tileKey: const Key('advanced-paste-base64'),
-                    title: 'Base64 encode',
+                    title: context.l10n.base64Encode,
                     value: _base64Encode,
                     onChanged: (value) {
                       setState(() {
@@ -140,7 +140,7 @@ class _AdvancedPasteSheetState extends State<_AdvancedPasteSheet> {
                   ),
                   _ShellSwitchTile(
                     tileKey: const Key('advanced-paste-newline'),
-                    title: 'Append newline',
+                    title: context.l10n.appendNewline,
                     value: _appendNewline,
                     onChanged: (value) {
                       setState(() {
@@ -153,7 +153,7 @@ class _AdvancedPasteSheetState extends State<_AdvancedPasteSheet> {
                     children: [
                       Expanded(
                         child: Text(
-                          '$_transformedByteCount byte${_transformedByteCount == 1 ? '' : 's'}',
+                          context.l10n.byteCount(_transformedByteCount),
                           style: Theme.of(context).textTheme.labelMedium
                               ?.copyWith(
                                 color: palette.textSubtle,
@@ -165,7 +165,7 @@ class _AdvancedPasteSheetState extends State<_AdvancedPasteSheet> {
                         key: const Key('advanced-paste-send'),
                         onPressed: transformedText.isEmpty ? null : _send,
                         icon: const Icon(Icons.send_rounded, size: 18),
-                        label: const Text('Paste'),
+                        label: Text(context.l10n.paste),
                       ),
                     ],
                   ),
@@ -238,7 +238,7 @@ class _CapturedOutputSheetState extends State<_CapturedOutputSheet> {
                   children: [
                     Expanded(
                       child: Text(
-                        'Captured Output',
+                        context.l10n.capturedOutput,
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
                           color: palette.textPrimary,
                           fontWeight: FontWeight.w700,
@@ -246,7 +246,7 @@ class _CapturedOutputSheetState extends State<_CapturedOutputSheet> {
                       ),
                     ),
                     AppActionButton(
-                      tooltip: 'Close captured output',
+                      tooltip: context.l10n.closeCapturedOutput,
                       tone: AppActionTone.ghost,
                       size: AppActionSize.dense,
                       onPressed: () => Navigator.of(context).pop(),
@@ -257,7 +257,7 @@ class _CapturedOutputSheetState extends State<_CapturedOutputSheet> {
                 Row(
                   children: [
                     Text(
-                      '${_entries.length} captured line${_entries.length == 1 ? '' : 's'}',
+                      context.l10n.capturedLineCount(_entries.length),
                       style: Theme.of(context).textTheme.labelMedium?.copyWith(
                         color: palette.textSubtle,
                         fontWeight: FontWeight.w600,
@@ -278,7 +278,7 @@ class _CapturedOutputSheetState extends State<_CapturedOutputSheet> {
                               widget.onClear();
                             },
                       icon: const Icon(Icons.delete_outline_rounded, size: 16),
-                      label: const Text('Clear'),
+                      label: Text(context.l10n.clear),
                     ),
                   ],
                 ),
@@ -294,13 +294,12 @@ class _CapturedOutputSheetState extends State<_CapturedOutputSheet> {
                               ),
                               stepKeyPrefix: 'captured-output-empty-step',
                               icon: Icons.outbox_rounded,
-                              title: 'Start capturing matching output',
-                              body:
-                                  'Captured rows appear after a profile trigger or coprocess pattern matches terminal output.',
-                              steps: const [
-                                'Open Profiles and add a trigger pattern.',
-                                'Run a command that prints the pattern.',
-                                'Reopen Captured Output to review and copy matches.',
+                              title: context.l10n.startCapturingMatchingOutput,
+                              body: context.l10n.capturedOutputEmptyBody,
+                              steps: [
+                                context.l10n.openProfilesAndAddTrigger,
+                                context.l10n.runCommandThatPrintsPattern,
+                                context.l10n.reopenCapturedOutput,
                               ],
                               palette: palette,
                             ),
@@ -350,11 +349,14 @@ class _CapturedOutputEntryTile extends StatelessWidget {
       leading: Icon(Icons.outbox_rounded, color: palette.textMuted),
       title: entry.text,
       titleMaxLines: 2,
-      subtitle: 'Pattern ${entry.pattern} • Row ${entry.rowIndex}',
+      subtitle: context.l10n.capturedOutputLocation(
+        entry.pattern,
+        entry.rowIndex,
+      ),
       subtitleMaxLines: 1,
       trailing: _buildEntryActionButton(
         key: Key('captured-output-copy-$index'),
-        tooltip: 'Copy captured output',
+        tooltip: context.l10n.copyCapturedOutput,
         onPressed: onCopy,
         icon: Icons.copy_rounded,
       ),
@@ -463,7 +465,7 @@ class _AnnotationsSheetState extends State<_AnnotationsSheet> {
                   children: [
                     Expanded(
                       child: Text(
-                        'Annotations',
+                        context.l10n.annotations,
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
                           color: palette.textPrimary,
                           fontWeight: FontWeight.w700,
@@ -472,7 +474,7 @@ class _AnnotationsSheetState extends State<_AnnotationsSheet> {
                     ),
                     AppActionButton(
                       buttonKey: const Key('annotations-close'),
-                      tooltip: 'Close annotations',
+                      tooltip: context.l10n.closeAnnotations,
                       tone: AppActionTone.ghost,
                       size: AppActionSize.dense,
                       onPressed: () => Navigator.of(context).pop(),
@@ -509,7 +511,7 @@ class _AnnotationsSheetState extends State<_AnnotationsSheet> {
                   )
                 else
                   Text(
-                    'Select terminal text to add an annotation.',
+                    context.l10n.selectTerminalTextToAnnotate,
                     style: Theme.of(
                       context,
                     ).textTheme.bodySmall?.copyWith(color: palette.textSubtle),
@@ -521,8 +523,8 @@ class _AnnotationsSheetState extends State<_AnnotationsSheet> {
                   enabled: hasSelection,
                   minLines: 2,
                   maxLines: 4,
-                  decoration: const InputDecoration(
-                    labelText: 'Note',
+                  decoration: InputDecoration(
+                    labelText: context.l10n.note,
                     alignLabelWithHint: true,
                   ),
                   onSubmitted: (_) => _save(),
@@ -534,14 +536,14 @@ class _AnnotationsSheetState extends State<_AnnotationsSheet> {
                     key: const Key('annotation-save'),
                     onPressed: _canSave ? _save : null,
                     icon: const Icon(Icons.add_comment_rounded, size: 18),
-                    label: const Text('Add Annotation'),
+                    label: Text(context.l10n.addAnnotation),
                   ),
                 ),
                 const SizedBox(height: 8),
                 Row(
                   children: [
                     Text(
-                      '${_entries.length} annotation${_entries.length == 1 ? '' : 's'}',
+                      context.l10n.annotationCount(_entries.length),
                       style: Theme.of(context).textTheme.labelMedium?.copyWith(
                         color: palette.textSubtle,
                         fontWeight: FontWeight.w600,
@@ -560,21 +562,23 @@ class _AnnotationsSheetState extends State<_AnnotationsSheet> {
                               stepKeyPrefix: 'annotations-empty-step',
                               icon: Icons.sticky_note_2_rounded,
                               title: hasSelection
-                                  ? 'Add the first annotation'
-                                  : 'Select output before annotating',
+                                  ? context.l10n.addFirstAnnotation
+                                  : context.l10n.selectOutputBeforeAnnotating,
                               body: hasSelection
-                                  ? 'Use the note field above to attach a note to the selected terminal output.'
-                                  : 'Annotations are created from selected terminal text in the active pane.',
+                                  ? context.l10n.annotationSelectionReadyBody
+                                  : context
+                                        .l10n
+                                        .annotationSelectionRequiredBody,
                               steps: hasSelection
-                                  ? const [
-                                      'Enter a note for the selected output.',
-                                      'Save the annotation.',
-                                      'Use the annotation badge to reopen notes later.',
+                                  ? [
+                                      context.l10n.enterNoteForSelectedOutput,
+                                      context.l10n.saveAnnotation,
+                                      context.l10n.useAnnotationBadge,
                                     ]
-                                  : const [
-                                      'Select terminal output in the pane.',
-                                      'Open Annotations again.',
-                                      'Enter a note and save it.',
+                                  : [
+                                      context.l10n.selectTerminalOutputInPane,
+                                      context.l10n.openAnnotationsAgain,
+                                      context.l10n.enterNoteAndSave,
                                     ],
                               palette: palette,
                             ),
@@ -760,7 +764,7 @@ class _AnnotationEntryTile extends StatelessWidget {
       subtitleMaxLines: 2,
       trailing: _buildEntryActionButton(
         key: Key('annotation-remove-$index'),
-        tooltip: 'Remove annotation',
+        tooltip: context.l10n.removeAnnotation,
         onPressed: onRemove,
         icon: Icons.delete_outline_rounded,
       ),
@@ -817,7 +821,7 @@ class _PasteHistorySheetState extends State<_PasteHistorySheet> {
                   children: [
                     Expanded(
                       child: Text(
-                        'Paste History',
+                        context.l10n.pasteHistory,
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
                           color: palette.textPrimary,
                           fontWeight: FontWeight.w700,
@@ -825,7 +829,7 @@ class _PasteHistorySheetState extends State<_PasteHistorySheet> {
                       ),
                     ),
                     AppActionButton(
-                      tooltip: 'Close paste history',
+                      tooltip: context.l10n.closePasteHistory,
                       tone: AppActionTone.ghost,
                       size: AppActionSize.dense,
                       onPressed: () => Navigator.of(context).pop(),
@@ -835,9 +839,8 @@ class _PasteHistorySheetState extends State<_PasteHistorySheet> {
                 ),
                 _ShellSwitchTile(
                   tileKey: const Key('paste-history-persist'),
-                  title: 'Save History to Disk',
-                  subtitle:
-                      'Keep recent copied and pasted text across launches.',
+                  title: context.l10n.saveHistoryToDisk,
+                  subtitle: context.l10n.keepPasteHistoryAcrossLaunches,
                   value: _persistToDisk,
                   onChanged: (value) {
                     setState(() {
@@ -849,7 +852,7 @@ class _PasteHistorySheetState extends State<_PasteHistorySheet> {
                 Row(
                   children: [
                     Text(
-                      '${_entries.length} recent item${_entries.length == 1 ? '' : 's'}',
+                      context.l10n.recentItemCount(_entries.length),
                       style: Theme.of(context).textTheme.labelMedium?.copyWith(
                         color: palette.textSubtle,
                         fontWeight: FontWeight.w600,
@@ -873,7 +876,7 @@ class _PasteHistorySheetState extends State<_PasteHistorySheet> {
                               widget.onClear();
                             },
                       icon: const Icon(Icons.delete_outline_rounded, size: 16),
-                      label: const Text('Clear'),
+                      label: Text(context.l10n.clear),
                     ),
                   ],
                 ),
@@ -884,7 +887,7 @@ class _PasteHistorySheetState extends State<_PasteHistorySheet> {
                           padding: const EdgeInsets.symmetric(vertical: 22),
                           child: Center(
                             child: Text(
-                              'No copied or pasted text yet.',
+                              context.l10n.noPasteHistoryYet,
                               style: Theme.of(context).textTheme.bodyMedium
                                   ?.copyWith(color: palette.textSubtle),
                             ),
@@ -1156,7 +1159,7 @@ class _PasswordManagerSheetState extends State<_PasswordManagerSheet> {
                   children: [
                     Expanded(
                       child: Text(
-                        'Password Manager',
+                        context.l10n.passwordManager,
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
                           color: palette.textPrimary,
                           fontWeight: FontWeight.w700,
@@ -1164,7 +1167,7 @@ class _PasswordManagerSheetState extends State<_PasswordManagerSheet> {
                       ),
                     ),
                     AppActionButton(
-                      tooltip: 'Close password manager',
+                      tooltip: context.l10n.closePasswordManager,
                       tone: AppActionTone.ghost,
                       size: AppActionSize.dense,
                       onPressed: () => Navigator.of(context).pop(),
@@ -1174,15 +1177,15 @@ class _PasswordManagerSheetState extends State<_PasswordManagerSheet> {
                 ),
                 Text(
                   widget.promptDetected
-                      ? 'Password prompt detected in the active session.'
-                      : 'Open a password prompt before sending a password.',
+                      ? context.l10n.passwordPromptDetected
+                      : context.l10n.openPasswordPromptFirst,
                   style: Theme.of(
                     context,
                   ).textTheme.bodySmall?.copyWith(color: palette.textSubtle),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Passwords are kept for this app session and can only be sent when the active terminal appears to be asking for one.',
+                  context.l10n.passwordManagerSessionSecurity,
                   style: Theme.of(
                     context,
                   ).textTheme.bodySmall?.copyWith(color: palette.textSubtle),
@@ -1192,17 +1195,17 @@ class _PasswordManagerSheetState extends State<_PasswordManagerSheet> {
                   key: const Key('password-manager-label-field'),
                   controller: _labelController,
                   textInputAction: TextInputAction.next,
-                  decoration: const InputDecoration(
-                    labelText: 'Label',
-                    hintText: 'Server or account',
+                  decoration: InputDecoration(
+                    labelText: context.l10n.label,
+                    hintText: context.l10n.serverOrAccount,
                   ),
                 ),
                 const SizedBox(height: 8),
                 Semantics(
-                  label: 'Password',
+                  label: context.l10n.password,
                   value: _passwordController.text.isEmpty
                       ? ''
-                      : 'Password entered',
+                      : context.l10n.passwordEntered,
                   textField: true,
                   obscured: true,
                   excludeSemantics: true,
@@ -1220,7 +1223,9 @@ class _PasswordManagerSheetState extends State<_PasswordManagerSheet> {
                     obscureText: true,
                     enableSuggestions: false,
                     autocorrect: false,
-                    decoration: const InputDecoration(labelText: 'Password'),
+                    decoration: InputDecoration(
+                      labelText: context.l10n.password,
+                    ),
                     onSubmitted: (_) => _addEntry(),
                   ),
                 ),
@@ -1231,7 +1236,7 @@ class _PasswordManagerSheetState extends State<_PasswordManagerSheet> {
                     key: const Key('password-manager-add'),
                     onPressed: _canAddEntry ? _addEntry : null,
                     icon: const Icon(Icons.add_rounded, size: 18),
-                    label: const Text('Add'),
+                    label: Text(context.l10n.add),
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -1241,7 +1246,7 @@ class _PasswordManagerSheetState extends State<_PasswordManagerSheet> {
                           padding: const EdgeInsets.symmetric(vertical: 20),
                           child: Center(
                             child: Text(
-                              'No saved passwords in this session. Add one above, then open a password prompt before sending.',
+                              context.l10n.noSavedSessionPasswords,
                               style: Theme.of(context).textTheme.bodyMedium
                                   ?.copyWith(color: palette.textSubtle),
                             ),
@@ -1299,21 +1304,21 @@ class _PasswordManagerEntryTile extends StatelessWidget {
       leading: Icon(Icons.key_rounded, color: palette.textMuted),
       title: entry.label,
       subtitle: promptDetected
-          ? 'Ready to send'
-          : 'Waiting for password prompt',
+          ? context.l10n.readyToSend
+          : context.l10n.waitingForPasswordPrompt,
       trailing: Wrap(
         spacing: 4,
         children: [
           _buildEntryActionButton(
             key: Key('password-manager-remove-$index'),
-            tooltip: 'Remove password',
+            tooltip: context.l10n.removePassword,
             onPressed: onRemove,
             icon: Icons.delete_outline_rounded,
           ),
           FilledButton(
             key: Key('password-manager-send-$index'),
             onPressed: promptDetected ? onSend : null,
-            child: const Text('Send'),
+            child: Text(context.l10n.send),
           ),
         ],
       ),

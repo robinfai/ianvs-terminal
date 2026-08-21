@@ -285,11 +285,7 @@ extension _ShellScreenStateIntegrations on _ShellScreenState {
         final latestFrame = sessionController.viewportFor(sessionId).frame;
         if (!_frameHasPasswordPrompt(latestFrame)) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Password send blocked: no password prompt is active.',
-              ),
-            ),
+            SnackBar(content: Text(context.l10n.passwordSendBlockedNoPrompt)),
           );
           return;
         }

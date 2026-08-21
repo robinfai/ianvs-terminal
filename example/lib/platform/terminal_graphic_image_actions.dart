@@ -1,5 +1,6 @@
 import 'package:ianvs_terminal/ianvs_terminal.dart';
 
+import '../l10n/l10n.dart';
 import 'clipboard_bridge.dart';
 
 typedef TerminalGraphicImageLocationPicker =
@@ -11,12 +12,13 @@ Future<String?> saveTerminalGraphicImage(
   TerminalGraphicImage image, {
   required TerminalGraphicImageLocationPicker chooseLocation,
   required TerminalGraphicImageWriter write,
+  required AppLocalizations l10n,
 }) async {
   String? path;
   try {
     path = await chooseLocation(image.suggestedFileName);
   } on Object {
-    return 'Could not open the image save dialog';
+    return l10n.couldNotOpenImageSaveDialog;
   }
   if (path == null) {
     return null;
@@ -24,18 +26,21 @@ Future<String?> saveTerminalGraphicImage(
   try {
     await write(path, image.pngBytes);
   } on Object {
-    return 'Could not save image';
+    return l10n.couldNotSaveImage;
   }
-  return 'Saved image';
+  return l10n.savedImage;
 }
 
-Future<String> copyTerminalGraphicImage(TerminalGraphicImage image) async {
+Future<String> copyTerminalGraphicImage(
+  TerminalGraphicImage image, {
+  required AppLocalizations l10n,
+}) async {
   try {
     await ClipboardBridge.writeMimeItems(<TerminalClipboardMimeItem>[
       TerminalClipboardMimeItem(mimeType: 'image/png', bytes: image.pngBytes),
     ]);
   } on Object {
-    return 'Could not copy image';
+    return l10n.couldNotCopyImage;
   }
-  return 'Copied image';
+  return l10n.copiedImage;
 }

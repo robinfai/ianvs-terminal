@@ -114,21 +114,17 @@ final class _MasterKeyManagementPanelState
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: const Text('Copy the master key?'),
-        content: const Text(
-          'Anyone with this key can decrypt your Ianvs data. The key will be '
-          'placed on the system clipboard; paste it into the destination app '
-          'and then clear the clipboard.',
-        ),
+        title: Text(context.l10n.copyMasterKeyQuestion),
+        content: Text(context.l10n.copyMasterKeyWarning),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+            child: Text(context.l10n.cancel),
           ),
           FilledButton(
             key: const Key('master-key-confirm-copy'),
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Copy key'),
+            child: Text(context.l10n.copyKey),
           ),
         ],
       ),
@@ -144,27 +140,27 @@ final class _MasterKeyManagementPanelState
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: const Text('Import master key'),
+        title: Text(context.l10n.importMasterKey),
         content: TextField(
           key: const Key('master-key-import-field'),
           obscureText: true,
           autocorrect: false,
           enableSuggestions: false,
           onChanged: (value) => input = value,
-          decoration: const InputDecoration(
-            labelText: 'Ianvs master key',
-            helperText: 'Paste the complete value beginning with ianvs-key-v1.',
+          decoration: InputDecoration(
+            labelText: context.l10n.ianvsMasterKey,
+            helperText: context.l10n.masterKeyPasteHelp,
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
+            child: Text(context.l10n.cancel),
           ),
           FilledButton(
             key: const Key('master-key-confirm-import'),
             onPressed: () => Navigator.of(context).pop(input),
-            child: const Text('Import'),
+            child: Text(context.l10n.importAction),
           ),
         ],
       ),
@@ -185,11 +181,10 @@ final class _MasterKeyManagementPanelState
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             AppSectionHeader(
-              title: 'Master key',
+              title: context.l10n.masterKey,
               description: usesAppleKeychain
-                  ? 'Encryption is managed automatically on this Apple device.'
-                  : 'One portable key unlocks local, remote, and SSH profile '
-                        'encryption across supported platforms.',
+                  ? context.l10n.appleEncryptionManagedAutomatically
+                  : context.l10n.portableMasterKeyDescription,
             ),
             SizedBox(height: theme.spacing.sm),
             AppPanel(
@@ -207,12 +202,10 @@ final class _MasterKeyManagementPanelState
                           ),
                         ),
                         SizedBox(width: theme.spacing.sm),
-                        const Expanded(
+                        Expanded(
                           child: Text(
-                            'Ianvs Terminal stores the master key in iCloud '
-                            'Keychain and requests synchronization '
-                            'automatically. No manual key entry is required.',
-                            key: Key('master-key-apple-keychain-status'),
+                            context.l10n.appleMasterKeyStorageDescription,
+                            key: const Key('master-key-apple-keychain-status'),
                           ),
                         ),
                       ],
@@ -229,7 +222,7 @@ final class _MasterKeyManagementPanelState
                               tone: AppActionTone.secondary,
                               size: AppActionSize.compact,
                               icon: Icons.copy_rounded,
-                              label: 'Copy for another device',
+                              label: context.l10n.copyForAnotherDevice,
                               onPressed: _controller.busy
                                   ? null
                                   : _confirmAndCopy,
@@ -239,7 +232,7 @@ final class _MasterKeyManagementPanelState
                               tone: AppActionTone.secondary,
                               size: AppActionSize.compact,
                               icon: Icons.content_paste_rounded,
-                              label: 'Paste from another device',
+                              label: context.l10n.pasteFromAnotherDevice,
                               onPressed: _controller.busy
                                   ? null
                                   : _showImportDialog,

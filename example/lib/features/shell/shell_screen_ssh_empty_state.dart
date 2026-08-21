@@ -43,7 +43,7 @@ class _SshOnlyShellEmptyState extends StatelessWidget {
                       const SizedBox(height: 12),
                       _buildCompactProfiles(context, sshProfiles),
                       const SizedBox(height: 12),
-                      _buildCreateButton(),
+                      _buildCreateButton(context),
                     ],
                   ),
                 );
@@ -59,7 +59,7 @@ class _SshOnlyShellEmptyState extends StatelessWidget {
                       child: _buildRegularProfiles(context, sshProfiles),
                     ),
                     const SizedBox(height: 16),
-                    _buildCreateButton(),
+                    _buildCreateButton(context),
                   ],
                 ),
               );
@@ -76,7 +76,7 @@ class _SshOnlyShellEmptyState extends StatelessWidget {
     bool compact = false,
   }) {
     final title = Text(
-      'Connect with SSH',
+      context.l10n.connectWithSsh,
       textAlign: TextAlign.center,
       style: Theme.of(context).textTheme.headlineSmall?.copyWith(
         color: palette.textPrimary,
@@ -103,8 +103,8 @@ class _SshOnlyShellEmptyState extends StatelessWidget {
         const SizedBox(height: 8),
         Text(
           sshProfiles.isEmpty
-              ? 'Create an SSH connection to open your first tab.'
-              : 'Choose a saved profile to open a terminal tab.',
+              ? context.l10n.createSshConnectionFirstTab
+              : context.l10n.chooseSavedProfileForTab,
           textAlign: TextAlign.center,
           style: Theme.of(
             context,
@@ -112,7 +112,7 @@ class _SshOnlyShellEmptyState extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(
-          'Local terminal sessions are unavailable on iPhone.',
+          context.l10n.localSessionsUnavailableOnIphone,
           textAlign: TextAlign.center,
           style: Theme.of(
             context,
@@ -157,7 +157,7 @@ class _SshOnlyShellEmptyState extends StatelessWidget {
 
   Widget _emptyProfilesLabel(BuildContext context) {
     return Text(
-      'No SSH profiles yet',
+      context.l10n.noSshProfilesYet,
       key: const Key('ios-ssh-empty-profile-list'),
       textAlign: TextAlign.center,
       style: Theme.of(
@@ -188,13 +188,13 @@ class _SshOnlyShellEmptyState extends StatelessWidget {
     );
   }
 
-  Widget _buildCreateButton() {
+  Widget _buildCreateButton(BuildContext context) {
     return SizedBox(
       width: double.infinity,
       child: AppActionButton(
         buttonKey: const Key('ios-ssh-create-profile'),
         icon: Icons.add_rounded,
-        label: 'New SSH Connection',
+        label: context.l10n.newSshConnection,
         onPressed: onCreateProfile,
       ),
     );

@@ -87,11 +87,7 @@ final class SshHostKeyPromptPresenter {
           );
           if (!responseAccepted && context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'The SSH host-key confirmation is no longer active.',
-                ),
-              ),
+              SnackBar(content: Text(context.l10n.sshHostKeyPromptInactive)),
             );
           }
         })
@@ -167,7 +163,11 @@ class _SshHostKeyPromptDialogState extends State<SshHostKeyPromptDialog> {
         changed ? Icons.warning_amber_rounded : Icons.shield_outlined,
         color: changed ? palette.danger : palette.accent,
       ),
-      title: Text(changed ? 'SSH host key changed' : 'Trust this SSH host?'),
+      title: Text(
+        changed
+            ? context.l10n.sshHostKeyChanged
+            : context.l10n.trustThisSshHost,
+      ),
       content: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 440),
         child: Column(
@@ -176,25 +176,22 @@ class _SshHostKeyPromptDialogState extends State<SshHostKeyPromptDialog> {
           children: [
             Text(
               changed
-                  ? 'The key saved for this server does not match the key it '
-                        'presented now. Only continue if you verified the new '
-                        'fingerprint; accepting replaces the saved key.'
-                  : 'Strict verification has no saved key for this server. '
-                        'Verify the fingerprint before trusting it.',
+                  ? context.l10n.sshHostKeyChangedWarning
+                  : context.l10n.sshUnknownHostWarning,
             ),
             SizedBox(height: palette.spacing.lg),
             AppFieldRow(
-              label: 'Server',
+              label: context.l10n.server,
               control: SelectableText('${event.host}:${event.port}'),
             ),
             SizedBox(height: palette.spacing.md),
             AppFieldRow(
-              label: 'Algorithm',
+              label: context.l10n.algorithm,
               control: SelectableText(event.algorithm!),
             ),
             SizedBox(height: palette.spacing.md),
             AppFieldRow(
-              label: 'SHA-256 fingerprint',
+              label: context.l10n.sha256Fingerprint,
               control: SelectableText(
                 event.fingerprint!,
                 key: const Key('ssh-host-key-fingerprint'),
@@ -207,13 +204,15 @@ class _SshHostKeyPromptDialogState extends State<SshHostKeyPromptDialog> {
         TextButton(
           key: const Key('ssh-host-key-reject'),
           onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Reject'),
+          child: Text(context.l10n.reject),
         ),
         FilledButton(
           key: const Key('ssh-host-key-accept'),
           onPressed: () => Navigator.of(context).pop(true),
           child: Text(
-            changed ? 'Replace key and continue' : 'Trust and continue',
+            changed
+                ? context.l10n.replaceKeyAndContinue
+                : context.l10n.trustAndContinue,
           ),
         ),
       ],
@@ -297,10 +296,8 @@ final class SshAuthenticationPromptPresenter {
           );
           if (!accepted && context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'The SSH authentication challenge is no longer active.',
-                ),
+              SnackBar(
+                content: Text(context.l10n.sshAuthenticationPromptInactive),
               ),
             );
           }
@@ -364,7 +361,7 @@ class _SshAuthenticationPromptDialogState
     final event = widget.event;
     final palette = context.appTheme;
     final challengeName = event.name.trim().isEmpty
-        ? 'SSH authentication'
+        ? context.l10n.sshAuthentication
         : event.name.trim();
     final viewportWidth = MediaQuery.sizeOf(context).width;
     final horizontalInset = viewportWidth < 600 ? 16.0 : 40.0;
@@ -417,14 +414,14 @@ class _SshAuthenticationPromptDialogState
               for (var index = 0; index < event.prompts.length; index++) ...[
                 AppFieldRow(
                   label: event.prompts[index].prompt.trim().isEmpty
-                      ? 'Response ${index + 1}'
+                      ? context.l10n.responseNumber(index + 1)
                       : event.prompts[index].prompt.trim(),
                   hint: event.prompts[index].echo
                       ? null
-                      : 'Your response is hidden.',
+                      : context.l10n.responseHidden,
                   control: Semantics(
                     label: event.prompts[index].prompt.trim().isEmpty
-                        ? 'Response ${index + 1}'
+                        ? context.l10n.responseNumber(index + 1)
                         : event.prompts[index].prompt.trim(),
                     textField: true,
                     obscured: !event.prompts[index].echo,
@@ -456,12 +453,12 @@ class _SshAuthenticationPromptDialogState
         TextButton(
           key: const Key('ssh-auth-cancel'),
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: Text(context.l10n.cancel),
         ),
         FilledButton(
           key: const Key('ssh-auth-submit'),
           onPressed: _submit,
-          child: const Text('Continue'),
+          child: Text(context.l10n.continueAction),
         ),
       ],
     );

@@ -87,9 +87,9 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
       );
     }
 
-    const activeSessionRequired = 'Open a terminal tab first.';
-    const defaultProfileRequired = 'No default profile is configured.';
-    const closedTabRequired = 'No recently closed tab is available.';
+    final activeSessionRequired = context.l10n.openTerminalTabFirst;
+    final defaultProfileRequired = context.l10n.noDefaultProfileConfigured;
+    final closedTabRequired = context.l10n.noRecentlyClosedTab;
     var commandTileTraversalOrder = 1.0;
 
     Widget commandTile({
@@ -162,7 +162,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                           children: [
                             Expanded(
                               child: Text(
-                                'Command palette',
+                                context.l10n.commandPalette,
                                 style: Theme.of(context).textTheme.titleMedium
                                     ?.copyWith(
                                       color: palette.textPrimary,
@@ -173,7 +173,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                             FocusTraversalOrder(
                               order: const NumericFocusOrder(1000),
                               child: _buildSheetCloseButton(
-                                tooltip: 'Close command palette',
+                                tooltip: context.l10n.closeCommandPalette,
                                 onPressed: () => Navigator.of(context).pop(),
                               ),
                             ),
@@ -184,7 +184,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                         padding: const EdgeInsets.fromLTRB(6, 3, 6, 5),
                         child: Semantics(
                           identifier: 'shell-command-search-field',
-                          label: 'Search actions',
+                          label: context.l10n.searchActions,
                           container: true,
                           explicitChildNodes: true,
                           textField: true,
@@ -199,8 +199,8 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                               decoration: InputDecoration(
                                 isDense: true,
                                 prefixIcon: const Icon(Icons.search_rounded),
-                                labelText: 'Search actions',
-                                hintText: 'Type an action and press Enter',
+                                labelText: context.l10n.searchActions,
+                                hintText: context.l10n.typeActionAndPressEnter,
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(
                                     palette.radius.lg,
@@ -220,7 +220,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
                                       content: Text(
-                                        'No action matches "$query".',
+                                        context.l10n.noActionMatches(query),
                                       ),
                                     ),
                                   );
@@ -232,14 +232,13 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                           ),
                         ),
                       ),
-                      sectionLabel('Quick actions'),
+                      sectionLabel(context.l10n.quickActions),
                       commandTile(
                         key: const Key('shell-search-scrollback-top'),
                         actionId: TerminalActionId.search,
                         icon: Icons.search_rounded,
-                        title: 'Search terminal output',
-                        subtitle:
-                            'Top action • Open in-terminal search for the active pane.',
+                        title: context.l10n.searchTerminalOutput,
+                        subtitle: context.l10n.searchTerminalOutputDescription,
                         shortcutLabel: searchShortcutLabel,
                         enabled: hasActiveSession,
                         disabledReason: activeSessionRequired,
@@ -250,9 +249,8 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                         key: const Key('shell-top-new-tab'),
                         actionId: TerminalActionId.newTab,
                         icon: Icons.add_box_outlined,
-                        title: 'New tab',
-                        subtitle:
-                            'Top action • Open the default shell profile.',
+                        title: context.l10n.newTab,
+                        subtitle: context.l10n.newTabDescription,
                         shortcutLabel: newTabShortcutLabel,
                         enabled: hasDefaultProfile,
                         disabledReason: defaultProfileRequired,
@@ -263,23 +261,21 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                         key: const Key('shell-top-toolbelt'),
                         actionId: TerminalActionId.toolbelt,
                         icon: Icons.view_sidebar_rounded,
-                        title: 'Toolbelt',
-                        subtitle:
-                            'Top action • Open terminal tools for this pane.',
+                        title: context.l10n.toolbelt,
+                        subtitle: context.l10n.toolbeltDescription,
                         enabled: hasActiveSession,
                         disabledReason: activeSessionRequired,
                         onTap: () => Navigator.of(
                           context,
                         ).pop(TerminalActionId.toolbelt),
                       ),
-                      sectionLabel('App actions'),
+                      sectionLabel(context.l10n.appActions),
                       commandTile(
                         key: const Key('shell-command-defaults'),
                         actionId: TerminalActionId.defaults,
                         icon: Icons.tune_rounded,
-                        title: 'Defaults & appearance',
-                        subtitle:
-                            'App action • Pick the default profile and theme.',
+                        title: context.l10n.defaultsAppearance,
+                        subtitle: context.l10n.defaultsAppearanceDescription,
                         enabled: true,
                         onTap: () => Navigator.of(
                           context,
@@ -289,9 +285,8 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                         key: const Key('shell-reopen-closed-tab'),
                         actionId: TerminalActionId.reopenClosedTab,
                         icon: Icons.restore_rounded,
-                        title: 'Reopen closed tab',
-                        subtitle:
-                            'App action • Recreate the most recently closed tab.',
+                        title: context.l10n.reopenClosedTab,
+                        subtitle: context.l10n.reopenClosedTabDescription,
                         enabled: canReopenClosedTab,
                         disabledReason: closedTabRequired,
                         onTap: () => Navigator.of(
@@ -302,9 +297,8 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                         key: const Key('shell-theme-picker'),
                         actionId: TerminalActionId.openThemePicker,
                         icon: Icons.palette_rounded,
-                        title: 'Terminal color presets',
-                        subtitle:
-                            'App action • Open Defaults & appearance to choose terminal colors.',
+                        title: context.l10n.terminalColorPresets,
+                        subtitle: context.l10n.terminalColorPresetsDescription,
                         enabled: true,
                         onTap: () => Navigator.of(
                           context,
@@ -314,11 +308,16 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                         key: const Key('shell-toggle-command-finished-notify'),
                         actionId: TerminalActionId.toggleCommandFinishedNotify,
                         icon: Icons.notifications_active_rounded,
-                        title:
-                            '${commandFinishedNotificationsEnabled ? 'Disable' : 'Enable'} command-finished notifications',
+                        title: context.l10n.commandFinishedNotifications(
+                          commandFinishedNotificationsEnabled.toString(),
+                        ),
                         subtitle: notificationsBlockedBySystem
-                            ? 'App action • Toggle shell hook completion alerts. macOS notifications are currently blocked in System Settings.'
-                            : 'App action • Toggle shell hook completion alerts.',
+                            ? context
+                                  .l10n
+                                  .commandFinishedNotificationsBlockedDescription
+                            : context
+                                  .l10n
+                                  .commandFinishedNotificationsDescription,
                         subtitleMaxLines: notificationsBlockedBySystem ? 2 : 1,
                         enabled: true,
                         onTap: () => Navigator.of(
@@ -329,11 +328,12 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                         key: const Key('shell-toggle-activity-monitor'),
                         actionId: TerminalActionId.toggleActivityMonitor,
                         icon: Icons.notification_important_rounded,
-                        title:
-                            '${activityMonitorEnabled ? 'Disable' : 'Enable'} activity monitor',
+                        title: context.l10n.activityMonitor(
+                          activityMonitorEnabled.toString(),
+                        ),
                         subtitle: notificationsBlockedBySystem
-                            ? 'App action • Toggle inactive-session activity alerts. macOS notifications are currently blocked in System Settings.'
-                            : 'App action • Toggle inactive-session activity alerts.',
+                            ? context.l10n.activityMonitorBlockedDescription
+                            : context.l10n.activityMonitorDescription,
                         subtitleMaxLines: notificationsBlockedBySystem ? 2 : 1,
                         enabled: true,
                         onTap: () => Navigator.of(
@@ -344,21 +344,21 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                         key: const Key('shell-command-profiles'),
                         actionId: TerminalActionId.profiles,
                         icon: Icons.folder_open_rounded,
-                        title: 'Profiles…',
-                        subtitle: 'App action • Open or edit shell profiles.',
+                        title: context.l10n.profilesEllipsis,
+                        subtitle: context.l10n.profilesDescription,
                         enabled: true,
                         onTap: () => Navigator.of(
                           context,
                         ).pop(TerminalActionId.profiles),
                       ),
-                      sectionLabel('Session actions'),
+                      sectionLabel(context.l10n.sessionActions),
                       if (!hasActiveSession)
                         Padding(
                           padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
                           child: Align(
                             alignment: Alignment.centerLeft,
                             child: Text(
-                              'Requires an active shell session.',
+                              context.l10n.requiresActiveShellSession,
                               style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(color: palette.textSubtle),
                             ),
@@ -368,10 +368,10 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                         key: const Key('shell-toggle-read-only'),
                         actionId: TerminalActionId.toggleReadOnly,
                         icon: Icons.lock_outline_rounded,
-                        title:
-                            '${isActiveSessionReadOnly ? 'Disable' : 'Enable'} read-only mode',
-                        subtitle:
-                            'Session action • Block terminal input for this pane.',
+                        title: context.l10n.readOnlyMode(
+                          isActiveSessionReadOnly.toString(),
+                        ),
+                        subtitle: context.l10n.readOnlyModeDescription,
                         enabled: hasActiveSession,
                         disabledReason: activeSessionRequired,
                         onTap: () => Navigator.of(
@@ -382,9 +382,8 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                         key: const Key('shell-clear-buffer'),
                         actionId: TerminalActionId.clearBuffer,
                         icon: Icons.clear_all_rounded,
-                        title: 'Clear buffer',
-                        subtitle:
-                            'Session action • Clear visible output and history; keep the current command line.',
+                        title: context.l10n.clearBuffer,
+                        subtitle: context.l10n.clearBufferDescription,
                         shortcutLabel: clearBufferShortcutLabel,
                         enabled: hasActiveSession,
                         disabledReason: activeSessionRequired,
@@ -396,11 +395,10 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                         key: const Key('shell-open-sftp-panel'),
                         actionId: TerminalActionId.openSftpPanel,
                         icon: Icons.folder_open_rounded,
-                        title: 'Open SFTP panel',
-                        subtitle:
-                            'Session action • Browse files for the active SSH connection in a right-side panel.',
+                        title: context.l10n.openSftpPanel,
+                        subtitle: context.l10n.openSftpPanelDescription,
                         enabled: isActiveSessionSsh,
-                        disabledReason: 'Requires an active SSH session.',
+                        disabledReason: context.l10n.requiresActiveSshSession,
                         onTap: () => Navigator.of(
                           context,
                         ).pop(TerminalActionId.openSftpPanel),
@@ -409,9 +407,8 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                         key: const Key('shell-export-scrollback'),
                         actionId: TerminalActionId.exportScrollback,
                         icon: Icons.ios_share_rounded,
-                        title: 'Export terminal history',
-                        subtitle:
-                            'Session action • Save retained text as a .txt file for sharing or later review.',
+                        title: context.l10n.exportTerminalHistory,
+                        subtitle: context.l10n.exportTerminalHistoryDescription,
                         enabled: hasActiveSession,
                         disabledReason: activeSessionRequired,
                         onTap: () => Navigator.of(
@@ -422,23 +419,21 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                         key: const Key('shell-export-diagnostics'),
                         actionId: TerminalActionId.exportDiagnostics,
                         icon: Icons.bug_report_rounded,
-                        title: 'Export diagnostics',
-                        subtitle:
-                            'Session action • Save a local resource evidence bundle.',
+                        title: context.l10n.exportDiagnostics,
+                        subtitle: context.l10n.exportDiagnosticsDescription,
                         enabled: hasActiveSession,
                         disabledReason: activeSessionRequired,
                         onTap: () => Navigator.of(
                           context,
                         ).pop(TerminalActionId.exportDiagnostics),
                       ),
-                      sectionLabel('Replay'),
+                      sectionLabel(context.l10n.replay),
                       commandTile(
                         key: const Key('shell-replay-recent-activity'),
                         actionId: TerminalActionId.instantReplay,
                         icon: Icons.replay_rounded,
-                        title: 'Replay recent activity',
-                        subtitle:
-                            'Replay • Review the current pane’s rolling frame history.',
+                        title: context.l10n.replayRecentActivity,
+                        subtitle: context.l10n.replayRecentActivityDescription,
                         shortcutLabel: instantReplayShortcutLabel,
                         enabled: hasActiveSession,
                         disabledReason: activeSessionRequired,
@@ -455,16 +450,15 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                             ? Icons.save_outlined
                             : Icons.fiber_manual_record_outlined,
                         title: isActiveSessionRecording
-                            ? 'Stop & save recording'
+                            ? context.l10n.stopAndSaveRecording
                             : isActiveRecordingPendingSave
-                            ? 'Retry saving recording'
-                            : 'Start recording for Replay',
-                        subtitle:
-                            'Replay • Capture this session as a durable recording. Keystrokes are redacted; shell command metadata is included when available.',
+                            ? context.l10n.retrySavingRecording
+                            : context.l10n.startRecordingForReplay,
+                        subtitle: context.l10n.recordingDescription,
                         subtitleMaxLines: 2,
                         enabled: hasActiveSession && !isActiveRecordingBusy,
                         disabledReason: hasActiveSession
-                            ? 'A recording operation is already in progress.'
+                            ? context.l10n.recordingOperationInProgress
                             : activeSessionRequired,
                         onTap: () => Navigator.of(
                           context,
@@ -474,21 +468,20 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                         key: const Key('shell-open-recording'),
                         actionId: TerminalActionId.openRecording,
                         icon: Icons.video_file_outlined,
-                        title: 'Open recording in Replay…',
-                        subtitle:
-                            'Replay • Open one saved terminal recording without importing it.',
+                        title: context.l10n.openRecordingInReplay,
+                        subtitle: context.l10n.openRecordingInReplayDescription,
                         enabled: true,
                         onTap: () => Navigator.of(
                           context,
                         ).pop(TerminalActionId.openRecording),
                       ),
-                      sectionLabel('Shell tools'),
+                      sectionLabel(context.l10n.shellTools),
                       commandTile(
                         key: const Key('shell-global-search'),
                         actionId: TerminalActionId.globalSearch,
                         icon: Icons.manage_search_rounded,
-                        title: 'Global search',
-                        subtitle: 'Shell tool • Search all tabs at once.',
+                        title: context.l10n.globalSearch,
+                        subtitle: context.l10n.globalSearchDescription,
                         enabled: hasActiveSession,
                         disabledReason: activeSessionRequired,
                         onTap: () => Navigator.of(
@@ -507,7 +500,9 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                             const SizedBox(width: 6),
                             Expanded(
                               child: Text(
-                                'Open command palette with $launcherShortcutLabel',
+                                context.l10n.openCommandPaletteWith(
+                                  launcherShortcutLabel,
+                                ),
                                 style: Theme.of(context).textTheme.labelMedium
                                     ?.copyWith(color: palette.textSubtle),
                               ),
@@ -703,6 +698,9 @@ class _PaneDividerHandleState extends State<_PaneDividerHandle> {
   @override
   Widget build(BuildContext context) {
     final horizontal = widget.direction == Axis.horizontal;
+    final resizeLabel = horizontal
+        ? context.l10n.dragResizePanesHorizontally
+        : context.l10n.dragResizePanesVertically;
     final background = _active
         ? widget.palette.accent.withValues(alpha: _dragging ? 0.16 : 0.09)
         : widget.terminalBackground;
@@ -721,13 +719,9 @@ class _PaneDividerHandleState extends State<_PaneDividerHandle> {
         onEnter: (_) => _setHovered(true),
         onExit: (_) => _setHovered(false),
         child: Tooltip(
-          message: horizontal
-              ? 'Drag to resize panes horizontally'
-              : 'Drag to resize panes vertically',
+          message: resizeLabel,
           child: Semantics(
-            label: horizontal
-                ? 'Drag to resize panes horizontally'
-                : 'Drag to resize panes vertically',
+            label: resizeLabel,
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
               onHorizontalDragStart: horizontal
@@ -808,7 +802,9 @@ class _ShellCommandTile extends StatelessWidget {
     final palette = context.appTheme;
     final effectiveSubtitle = enabled
         ? subtitle
-        : 'Unavailable: ${disabledReason ?? 'Unavailable in the current context.'}';
+        : context.l10n.unavailableReason(
+            disabledReason ?? context.l10n.unavailableInCurrentContext,
+          );
     return ListTile(
       dense: true,
       visualDensity: const VisualDensity(horizontal: -3, vertical: -3),

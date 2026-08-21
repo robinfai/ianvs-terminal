@@ -14,32 +14,35 @@ const List<TerminalKeyBindingScope> editableTerminalShortcutScopes = [
 class LocalTerminalShortcutFormatter {
   const LocalTerminalShortcutFormatter._();
 
-  static String actionLabel(TerminalActionDescriptor descriptor) {
-    final words = descriptor.label.split('_');
-    if (words.isEmpty) {
-      return descriptor.label;
-    }
-    return [_capitalize(words.first), ...words.skip(1)].join(' ');
-  }
+  static String actionLabel(
+    AppLocalizations l10n,
+    TerminalActionDescriptor descriptor,
+  ) => l10n.terminalActionName(descriptor.label);
 
-  static String categoryLabel(TerminalActionCategory category) {
+  static String categoryLabel(
+    AppLocalizations l10n,
+    TerminalActionCategory category,
+  ) {
     return switch (category) {
-      TerminalActionCategory.app => 'App',
-      TerminalActionCategory.session => 'Session',
-      TerminalActionCategory.replay => 'Replay',
-      TerminalActionCategory.pane => 'Pane',
-      TerminalActionCategory.layout => 'Layout',
-      TerminalActionCategory.navigation => 'Navigation',
-      TerminalActionCategory.integration => 'Integration',
+      TerminalActionCategory.app => l10n.appCategory,
+      TerminalActionCategory.session => l10n.sessionCategory,
+      TerminalActionCategory.replay => l10n.replayCategory,
+      TerminalActionCategory.pane => l10n.paneCategory,
+      TerminalActionCategory.layout => l10n.layoutCategory,
+      TerminalActionCategory.navigation => l10n.navigationCategory,
+      TerminalActionCategory.integration => l10n.integrationCategory,
     };
   }
 
-  static String scopeLabel(TerminalKeyBindingScope scope) {
+  static String scopeLabel(
+    AppLocalizations l10n,
+    TerminalKeyBindingScope scope,
+  ) {
     return switch (scope) {
-      TerminalKeyBindingScope.focusedApp => 'App focused',
-      TerminalKeyBindingScope.terminalFocused => 'Terminal focused',
-      TerminalKeyBindingScope.global => 'App-wide fallback',
-      TerminalKeyBindingScope.commandPaletteOpen => 'Command menu open',
+      TerminalKeyBindingScope.focusedApp => l10n.appFocused,
+      TerminalKeyBindingScope.terminalFocused => l10n.terminalFocused,
+      TerminalKeyBindingScope.global => l10n.appWideFallback,
+      TerminalKeyBindingScope.commandPaletteOpen => l10n.commandMenuOpen,
     };
   }
 
@@ -55,11 +58,12 @@ class LocalTerminalShortcutFormatter {
   }
 
   static String resolvedBindingLabel(
+    AppLocalizations l10n,
     TerminalActionId actionId,
     LocalTerminalKeybindingsConfig config,
   ) {
     final binding = currentBinding(actionId, config);
-    return binding == null ? 'Not assigned' : bindingLabel(binding);
+    return binding == null ? l10n.notAssigned : bindingLabel(binding);
   }
 
   static LocalTerminalKeyBinding? currentBinding(
@@ -116,13 +120,6 @@ class LocalTerminalShortcutFormatter {
       _ => normalized,
     };
   }
-
-  static String _capitalize(String value) {
-    if (value.isEmpty) {
-      return value;
-    }
-    return '${value[0].toUpperCase()}${value.substring(1)}';
-  }
 }
 
 class ShortcutEditorPanel extends StatefulWidget {
@@ -163,7 +160,10 @@ class _ShortcutEditorPanelState extends State<ShortcutEditorPanel> {
           if (query.isEmpty) {
             return true;
           }
-          final label = LocalTerminalShortcutFormatter.actionLabel(descriptor);
+          final label = LocalTerminalShortcutFormatter.actionLabel(
+            context.l10n,
+            descriptor,
+          );
           return '$label ${descriptor.label} ${descriptor.category.name}'
               .toLowerCase()
               .contains(query);
@@ -175,8 +175,11 @@ class _ShortcutEditorPanelState extends State<ShortcutEditorPanel> {
         return categoryOrder;
       }
       return LocalTerminalShortcutFormatter.actionLabel(
+        context.l10n,
         left,
-      ).compareTo(LocalTerminalShortcutFormatter.actionLabel(right));
+      ).compareTo(
+        LocalTerminalShortcutFormatter.actionLabel(context.l10n, right),
+      );
     });
     return actions;
   }
@@ -249,7 +252,10 @@ class _ShortcutEditorPanelState extends State<ShortcutEditorPanel> {
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => _ShortcutCaptureDialog(
-        actionLabel: LocalTerminalShortcutFormatter.actionLabel(descriptor),
+        actionLabel: LocalTerminalShortcutFormatter.actionLabel(
+          context.l10n,
+          descriptor,
+        ),
         initialBinding: current,
         suggestedScope:
             descriptor.defaultKeyBinding?.scope ??
@@ -284,26 +290,25 @@ class _ShortcutEditorPanelState extends State<ShortcutEditorPanel> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const AppSectionHeader(
-          title: 'Keyboard shortcuts',
-          description:
-              'Select a shortcut to record a new key combination. Changes apply immediately after saving.',
+        AppSectionHeader(
+          title: context.l10n.keyboardShortcuts,
+          description: context.l10n.keyboardShortcutsDescription,
         ),
         SizedBox(height: theme.spacing.sm),
         LayoutBuilder(
           builder: (context, constraints) {
             final search = Semantics(
-              label: 'Filter shortcut actions',
+              label: context.l10n.filterShortcutActions,
               container: true,
               explicitChildNodes: true,
               child: TextField(
                 key: const Key('shortcut-editor-filter'),
                 controller: _filterController,
                 textInputAction: TextInputAction.search,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   isDense: true,
-                  prefixIcon: Icon(Icons.search_rounded),
-                  labelText: 'Filter actions',
+                  prefixIcon: const Icon(Icons.search_rounded),
+                  labelText: context.l10n.filterActions,
                 ),
                 onChanged: (_) => setState(() {}),
               ),
@@ -312,20 +317,23 @@ class _ShortcutEditorPanelState extends State<ShortcutEditorPanel> {
               key: const Key('shortcut-editor-category'),
               initialValue: _category,
               isExpanded: true,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 isDense: true,
-                labelText: 'Category',
+                labelText: context.l10n.category,
               ),
               items: [
-                const DropdownMenuItem<TerminalActionCategory?>(
+                DropdownMenuItem<TerminalActionCategory?>(
                   value: null,
-                  child: Text('All actions'),
+                  child: Text(context.l10n.allActions),
                 ),
                 for (final value in TerminalActionCategory.values)
                   DropdownMenuItem<TerminalActionCategory?>(
                     value: value,
                     child: Text(
-                      LocalTerminalShortcutFormatter.categoryLabel(value),
+                      LocalTerminalShortcutFormatter.categoryLabel(
+                        context.l10n,
+                        value,
+                      ),
                     ),
                   ),
               ],
@@ -336,7 +344,7 @@ class _ShortcutEditorPanelState extends State<ShortcutEditorPanel> {
               tone: AppActionTone.secondary,
               size: AppActionSize.compact,
               icon: Icons.restart_alt_rounded,
-              label: 'Restore all defaults',
+              label: context.l10n.restoreAllDefaults,
               onPressed: hasCustomizations
                   ? () =>
                         widget.onChanged(const LocalTerminalKeybindingsConfig())
@@ -376,9 +384,9 @@ class _ShortcutEditorPanelState extends State<ShortcutEditorPanel> {
           child: SizedBox(
             height: 360,
             child: visibleActions.isEmpty
-                ? const AppEmptyState(
-                    title: 'No matching actions',
-                    message: 'Try another action name or category.',
+                ? AppEmptyState(
+                    title: context.l10n.noMatchingActions,
+                    message: context.l10n.tryAnotherActionOrCategory,
                   )
                 : Scrollbar(
                     child: ListView.separated(
@@ -421,8 +429,7 @@ class _ShortcutConflictSummary extends StatelessWidget {
       key: const Key('shortcut-editor-conflict-summary'),
       liveRegion: true,
       container: true,
-      label:
-          '${conflicts.length} shortcut ${conflicts.length == 1 ? 'conflict' : 'conflicts'}. Resolve conflicts before saving.',
+      label: context.l10n.shortcutConflictSummary(conflicts.length),
       child: AppPanel(
         tone: AppPanelTone.danger,
         padding: EdgeInsets.all(theme.spacing.md),
@@ -436,7 +443,7 @@ class _ShortcutConflictSummary extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Resolve shortcut conflicts before saving',
+                    context.l10n.resolveShortcutConflicts,
                     style: Theme.of(context).textTheme.labelLarge?.copyWith(
                       color: theme.textPrimary,
                       fontWeight: FontWeight.w800,
@@ -445,7 +452,7 @@ class _ShortcutConflictSummary extends StatelessWidget {
                   SizedBox(height: theme.spacing.xs),
                   for (final conflict in conflicts)
                     Text(
-                      _conflictDescription(conflict),
+                      _conflictDescription(context, conflict),
                       style: Theme.of(
                         context,
                       ).textTheme.bodySmall?.copyWith(color: theme.textSubtle),
@@ -460,13 +467,19 @@ class _ShortcutConflictSummary extends StatelessWidget {
   }
 
   String _conflictDescription(
+    BuildContext context,
     ResolvedLocalTerminalKeyBindingConflict conflict,
   ) {
     final labels =
         conflict.actionIds
             .map((actionId) => ShellActionRegistry.actions[actionId])
             .whereType<TerminalActionDescriptor>()
-            .map(LocalTerminalShortcutFormatter.actionLabel)
+            .map(
+              (descriptor) => LocalTerminalShortcutFormatter.actionLabel(
+                context.l10n,
+                descriptor,
+              ),
+            )
             .toList(growable: false)
           ..sort();
     final resolved = LocalTerminalKeyBinding(
@@ -477,7 +490,7 @@ class _ShortcutConflictSummary extends StatelessWidget {
       shift: conflict.signature.contains('+shift+'),
       alt: conflict.signature.contains('+alt+'),
     );
-    return '${LocalTerminalShortcutFormatter.bindingLabel(resolved)} · ${labels.join(' and ')}';
+    return '${LocalTerminalShortcutFormatter.bindingLabel(resolved)} · ${labels.join(context.l10n.listAndSeparator)}';
   }
 
   TerminalKeyBindingScope _scopeFromSignature(String signature) {
@@ -511,26 +524,34 @@ class _ShortcutActionRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = context.appTheme;
-    final actionLabel = LocalTerminalShortcutFormatter.actionLabel(descriptor);
+    final actionLabel = LocalTerminalShortcutFormatter.actionLabel(
+      context.l10n,
+      descriptor,
+    );
     final binding = LocalTerminalShortcutFormatter.currentBinding(
       descriptor.id,
       config,
     );
     final disabled = binding == null && customized;
     final stateLabel = conflicted
-        ? 'Conflict'
+        ? context.l10n.shortcutConflict
         : disabled
-        ? 'Disabled'
+        ? context.l10n.shortcutDisabled
         : customized
-        ? 'Custom'
+        ? context.l10n.shortcutCustom
         : binding == null
-        ? 'Unassigned'
-        : 'Default';
+        ? context.l10n.shortcutUnassigned
+        : context.l10n.shortcutDefault;
 
     return Semantics(
       container: true,
-      label:
-          '$actionLabel, $stateLabel, ${binding == null ? 'no shortcut' : LocalTerminalShortcutFormatter.bindingLabel(binding)}',
+      label: context.l10n.shortcutActionSemantics(
+        actionLabel,
+        stateLabel,
+        binding == null
+            ? context.l10n.noShortcut
+            : LocalTerminalShortcutFormatter.bindingLabel(binding),
+      ),
       child: Padding(
         padding: EdgeInsets.symmetric(
           horizontal: theme.spacing.md,
@@ -561,7 +582,7 @@ class _ShortcutActionRow extends StatelessWidget {
                       ),
                       SizedBox(height: theme.spacing.xs),
                       Text(
-                        '${LocalTerminalShortcutFormatter.categoryLabel(descriptor.category)} · $stateLabel${binding == null ? '' : ' · ${LocalTerminalShortcutFormatter.scopeLabel(binding.scope)}'}',
+                        '${LocalTerminalShortcutFormatter.categoryLabel(context.l10n, descriptor.category)} · $stateLabel${binding == null ? '' : ' · ${LocalTerminalShortcutFormatter.scopeLabel(context.l10n, binding.scope)}'}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -584,9 +605,9 @@ class _ShortcutActionRow extends StatelessWidget {
                   size: AppActionSize.compact,
                   icon: Icons.keyboard_rounded,
                   label: binding == null
-                      ? 'Add shortcut'
+                      ? context.l10n.addShortcut
                       : LocalTerminalShortcutFormatter.bindingLabel(binding),
-                  tooltip: 'Edit shortcut for $actionLabel',
+                  tooltip: context.l10n.editShortcutFor(actionLabel),
                   onPressed: onEdit,
                 ),
                 if (binding != null) ...[
@@ -596,7 +617,7 @@ class _ShortcutActionRow extends StatelessWidget {
                     tone: AppActionTone.ghost,
                     size: AppActionSize.compact,
                     icon: Icons.link_off_rounded,
-                    tooltip: 'Disable shortcut for $actionLabel',
+                    tooltip: context.l10n.disableShortcutFor(actionLabel),
                     onPressed: onDisable,
                   ),
                 ],
@@ -607,7 +628,7 @@ class _ShortcutActionRow extends StatelessWidget {
                     tone: AppActionTone.ghost,
                     size: AppActionSize.compact,
                     icon: Icons.restart_alt_rounded,
-                    tooltip: 'Restore default shortcut for $actionLabel',
+                    tooltip: context.l10n.restoreShortcutFor(actionLabel),
                     onPressed: onRestore,
                   ),
                 ],
@@ -732,7 +753,7 @@ class _ShortcutCaptureDialogState extends State<_ShortcutCaptureDialog> {
     final theme = context.appTheme;
     return AlertDialog(
       key: const Key('shortcut-capture-dialog'),
-      title: const Text('Record shortcut'),
+      title: Text(context.l10n.recordShortcut),
       content: SizedBox(
         width: 420,
         child: Focus(
@@ -754,16 +775,19 @@ class _ShortcutCaptureDialogState extends State<_ShortcutCaptureDialog> {
               AppDropdownFormField<TerminalKeyBindingScope>(
                 key: const Key('shortcut-capture-scope'),
                 initialValue: _scope,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   isDense: true,
-                  labelText: 'Active when',
+                  labelText: context.l10n.activeWhen,
                 ),
                 items: [
                   for (final scope in editableTerminalShortcutScopes)
                     DropdownMenuItem(
                       value: scope,
                       child: Text(
-                        LocalTerminalShortcutFormatter.scopeLabel(scope),
+                        LocalTerminalShortcutFormatter.scopeLabel(
+                          context.l10n,
+                          scope,
+                        ),
                       ),
                     ),
                 ],
@@ -783,8 +807,12 @@ class _ShortcutCaptureDialogState extends State<_ShortcutCaptureDialog> {
               Semantics(
                 liveRegion: true,
                 label: _candidate == null
-                    ? 'Waiting for shortcut'
-                    : 'Recorded ${LocalTerminalShortcutFormatter.bindingLabel(_candidate!)}',
+                    ? context.l10n.waitingForShortcut
+                    : context.l10n.recordedShortcut(
+                        LocalTerminalShortcutFormatter.bindingLabel(
+                          _candidate!,
+                        ),
+                      ),
                 child: AppPanel(
                   tone: _error == null
                       ? AppPanelTone.selected
@@ -799,7 +827,7 @@ class _ShortcutCaptureDialogState extends State<_ShortcutCaptureDialog> {
                       SizedBox(height: theme.spacing.sm),
                       Text(
                         _candidate == null
-                            ? 'Press a shortcut'
+                            ? context.l10n.pressShortcut
                             : LocalTerminalShortcutFormatter.bindingLabel(
                                 _candidate!,
                               ),
@@ -811,8 +839,7 @@ class _ShortcutCaptureDialogState extends State<_ShortcutCaptureDialog> {
                       ),
                       SizedBox(height: theme.spacing.xs),
                       Text(
-                        _error ??
-                            'Press Escape to cancel, or Delete to disable this shortcut.',
+                        _error ?? context.l10n.shortcutCaptureHelp,
                         key: _error == null
                             ? null
                             : const Key('shortcut-capture-error'),
@@ -834,13 +861,13 @@ class _ShortcutCaptureDialogState extends State<_ShortcutCaptureDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: Text(context.l10n.cancel),
         ),
         TextButton(
           key: const Key('shortcut-capture-disable'),
           onPressed: () =>
               Navigator.of(context).pop(const _ShortcutCaptureResult.clear()),
-          child: const Text('Disable shortcut'),
+          child: Text(context.l10n.disableShortcut),
         ),
         FilledButton(
           key: const Key('shortcut-capture-apply'),
@@ -849,7 +876,7 @@ class _ShortcutCaptureDialogState extends State<_ShortcutCaptureDialog> {
               : () => Navigator.of(
                   context,
                 ).pop(_ShortcutCaptureResult.binding(_candidate)),
-          child: const Text('Apply'),
+          child: Text(context.l10n.apply),
         ),
       ],
     );

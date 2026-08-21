@@ -59,16 +59,16 @@ class ColorSettingRow extends StatelessWidget {
           buttonKey: pickKey,
           tone: AppActionTone.secondary,
           size: AppActionSize.compact,
-          label: 'Pick',
-          tooltip: 'Pick $label color',
+          label: context.l10n.pick,
+          tooltip: context.l10n.pickNamedColor(label),
           onPressed: enabled ? onPick : null,
         );
         final resetButton = AppActionButton(
           buttonKey: resetKey,
           tone: AppActionTone.secondary,
           size: AppActionSize.compact,
-          label: 'Reset',
-          tooltip: 'Reset $label color',
+          label: context.l10n.reset,
+          tooltip: context.l10n.resetNamedColor(label),
           onPressed: enabled ? onReset : null,
         );
 
@@ -183,7 +183,7 @@ class ColorSettingRow extends StatelessWidget {
         decoration: const InputDecoration()
             .applyDefaults(inputTheme)
             .copyWith(
-              hintText: '#RRGGBB or empty',
+              hintText: context.l10n.hexColorOrEmpty,
               errorText: errorText,
               labelText: null,
               helperText: null,

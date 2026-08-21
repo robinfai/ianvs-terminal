@@ -85,38 +85,38 @@ class _ProfilesSheetState extends State<ProfilesSheet> {
 
   String get _sheetDescription {
     if (!widget.localShellProfilesEnabled && !widget.customSshProfilesEnabled) {
-      return 'Saved SSH profiles require a remote data service on iPhone.';
+      return context.l10n.savedSshProfilesRequireRemote;
     }
     if (!widget.localShellProfilesEnabled) {
-      return 'Open a saved SSH profile or edit its terminal settings.';
+      return context.l10n.openSavedSshOrEdit;
     }
-    return 'Open a tab with any saved profile or edit its terminal settings.';
+    return context.l10n.openSavedProfileOrEdit;
   }
 
   String get _emptyTitle {
     if (_query.trim().isNotEmpty) {
-      return 'No matching profiles';
+      return context.l10n.noMatchingProfiles;
     }
     if (!widget.localShellProfilesEnabled && !widget.customSshProfilesEnabled) {
-      return 'No saved profiles';
+      return context.l10n.noSavedProfiles;
     }
     if (!widget.localShellProfilesEnabled) {
-      return 'No SSH profiles yet';
+      return context.l10n.noSshProfilesYet;
     }
-    return 'No profiles yet';
+    return context.l10n.noProfilesYet;
   }
 
   String get _emptyMessage {
     if (_query.trim().isNotEmpty) {
-      return 'Try a different profile name, shell, or tag.';
+      return context.l10n.tryDifferentProfileSearch;
     }
     if (!widget.localShellProfilesEnabled && !widget.customSshProfilesEnabled) {
-      return 'Connect a remote data service to create and sync SSH profiles.';
+      return context.l10n.connectRemoteToCreateSyncSsh;
     }
     if (!widget.localShellProfilesEnabled) {
-      return 'Create an SSH profile to connect to a remote host.';
+      return context.l10n.createSshProfileToConnect;
     }
-    return 'Create a profile to customize a terminal session.';
+    return context.l10n.createProfileToCustomize;
   }
 
   @override
@@ -128,7 +128,7 @@ class _ProfilesSheetState extends State<ProfilesSheet> {
         ? Duration.zero
         : const Duration(milliseconds: 160);
     return Semantics(
-      label: 'Profiles',
+      label: context.l10n.profiles,
       container: true,
       explicitChildNodes: true,
       child: AnimatedPadding(
@@ -164,7 +164,7 @@ class _ProfilesSheetState extends State<ProfilesSheet> {
                         children: [
                           Expanded(
                             child: Text(
-                              'Profiles',
+                              context.l10n.profiles,
                               style: Theme.of(context).textTheme.titleLarge
                                   ?.copyWith(
                                     color: palette.textPrimary,
@@ -174,20 +174,20 @@ class _ProfilesSheetState extends State<ProfilesSheet> {
                           ),
                           Tooltip(
                             message: _canCreateProfile
-                                ? 'Create profile'
-                                : 'Connect a remote data service to create saved SSH profiles',
+                                ? context.l10n.createProfile
+                                : context.l10n.connectRemoteToCreateSavedSsh,
                             child: FilledButton.icon(
                               key: const Key('profiles-create'),
                               onPressed: _canCreateProfile
                                   ? _createProfile
                                   : null,
                               icon: const Icon(Icons.add_rounded, size: 18),
-                              label: const Text('New'),
+                              label: Text(context.l10n.newAction),
                             ),
                           ),
                           const SizedBox(width: 6),
                           AppActionButton(
-                            tooltip: 'Close profiles',
+                            tooltip: context.l10n.closeProfiles,
                             tone: AppActionTone.ghost,
                             size: AppActionSize.dense,
                             onPressed: () => Navigator.of(context).pop(),
@@ -209,16 +209,16 @@ class _ProfilesSheetState extends State<ProfilesSheet> {
                         ),
                         Semantics(
                           identifier: 'profiles-search-field',
-                          label: 'Search profiles or tags',
+                          label: context.l10n.searchProfilesOrTags,
                           container: true,
                           explicitChildNodes: true,
                           child: TextField(
                             key: const Key('profiles-search-field'),
                             controller: _searchController,
                             autofocus: !context.usesTouchControlDensity,
-                            decoration: const InputDecoration(
-                              prefixIcon: Icon(Icons.search_rounded),
-                              labelText: 'Search profiles or tags',
+                            decoration: InputDecoration(
+                              prefixIcon: const Icon(Icons.search_rounded),
+                              labelText: context.l10n.searchProfilesOrTags,
                             ),
                             textInputAction: TextInputAction.done,
                             onSubmitted: (_) =>
@@ -284,7 +284,9 @@ class _ProfilesSheetState extends State<ProfilesSheet> {
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
                                         AppActionButton(
-                                          tooltip: 'Edit ${profile.name}',
+                                          tooltip: context.l10n.editNamedItem(
+                                            profile.name,
+                                          ),
                                           tone: AppActionTone.ghost,
                                           size: AppActionSize.dense,
                                           onPressed: () => Navigator.of(
@@ -293,7 +295,9 @@ class _ProfilesSheetState extends State<ProfilesSheet> {
                                           icon: Icons.edit_outlined,
                                         ),
                                         AppActionButton(
-                                          tooltip: 'Delete ${profile.name}',
+                                          tooltip: context.l10n.deleteNamedItem(
+                                            profile.name,
+                                          ),
                                           tone: AppActionTone.ghost,
                                           size: AppActionSize.dense,
                                           onPressed: widget.profiles.length <= 1
@@ -327,7 +331,7 @@ class _ProfilesSheetState extends State<ProfilesSheet> {
     final connectionType = await showDialog<NewProfileConnectionType>(
       context: context,
       builder: (dialogContext) => SimpleDialog(
-        title: const Text('New profile'),
+        title: Text(dialogContext.l10n.newProfile),
         children: [
           if (widget.localShellProfilesEnabled)
             SimpleDialogOption(
@@ -335,10 +339,10 @@ class _ProfilesSheetState extends State<ProfilesSheet> {
               onPressed: () => Navigator.of(
                 dialogContext,
               ).pop(NewProfileConnectionType.localShell),
-              child: const ListTile(
-                leading: Icon(Icons.terminal_rounded),
-                title: Text('Local shell'),
-                subtitle: Text('Run a shell on this device.'),
+              child: ListTile(
+                leading: const Icon(Icons.terminal_rounded),
+                title: Text(dialogContext.l10n.localShell),
+                subtitle: Text(dialogContext.l10n.runShellOnDevice),
               ),
             ),
           if (widget.customSshProfilesEnabled)
@@ -347,10 +351,10 @@ class _ProfilesSheetState extends State<ProfilesSheet> {
               onPressed: () => Navigator.of(
                 dialogContext,
               ).pop(NewProfileConnectionType.sshSession),
-              child: const ListTile(
-                leading: Icon(Icons.dns_outlined),
-                title: Text('SSH session'),
-                subtitle: Text('Connect to a remote host.'),
+              child: ListTile(
+                leading: const Icon(Icons.dns_outlined),
+                title: Text(dialogContext.l10n.sshSession),
+                subtitle: Text(dialogContext.l10n.connectRemoteHost),
               ),
             ),
         ],
@@ -365,8 +369,8 @@ class _ProfilesSheetState extends State<ProfilesSheet> {
   String _profileSummary(TerminalProfile profile, {required bool isDefault}) {
     final base = profile.isSsh
         ? 'SSH • ${profile.connection.user}@${profile.connection.host}:${profile.connection.port}'
-        : '${profile.shell} • ${terminalEmulationLabel(profile.terminalEmulation)} • ${profile.scrollbackLines} lines';
-    return isDefault ? '$base • Default profile' : base;
+        : '${profile.shell} • ${terminalEmulationLabel(profile.terminalEmulation)} • ${context.l10n.scrollbackLineCount(profile.scrollbackLines)}';
+    return isDefault ? '$base • ${context.l10n.defaultProfile}' : base;
   }
 
   bool _profileMatchesQuery(TerminalProfile profile, String query) {

@@ -75,7 +75,7 @@ class _DataApiStartupWarningBanner extends StatelessWidget {
     return Semantics(
       container: true,
       liveRegion: true,
-      label: 'Data service warning.',
+      label: context.l10n.dataServiceWarning,
       child: DecoratedBox(
         key: const Key('data-api-startup-warning'),
         decoration: BoxDecoration(
@@ -98,7 +98,7 @@ class _DataApiStartupWarningBanner extends StatelessWidget {
               ),
               _buildCompactActionButton(
                 key: const Key('data-api-startup-warning-dismiss'),
-                tooltip: 'Dismiss data service warning',
+                tooltip: context.l10n.dismissDataServiceWarning,
                 onPressed: onDismiss,
                 icon: Icon(Icons.close_rounded, color: palette.textSubtle),
               ),
@@ -193,7 +193,7 @@ class _ReplaySourceMark extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Semantics(
-      label: 'Replay source: $sourceLabel',
+      label: context.l10n.replaySource(sourceLabel),
       container: true,
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -215,7 +215,7 @@ class _ReplaySourceMark extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Text(
-            'Replay',
+            context.l10n.replay,
             style: Theme.of(context).textTheme.titleSmall?.copyWith(
               color: palette.textPrimary,
               fontWeight: FontWeight.w800,

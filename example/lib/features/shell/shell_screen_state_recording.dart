@@ -5,6 +5,7 @@ extension _ShellScreenStateRecording on _ShellScreenState {
     SessionController sessionController,
     String? sessionId,
   ) async {
+    final l10n = context.l10n;
     if (sessionId == null) {
       return;
     }
@@ -20,9 +21,7 @@ extension _ShellScreenStateRecording on _ShellScreenState {
       return;
     }
     if (await sessionController.startSessionRecording(sessionId)) {
-      _showShellSnackBar(
-        'Recording for Replay started. Keystrokes are redacted; shell command metadata is included when available.',
-      );
+      _showShellSnackBar(l10n.recordingReplayStarted);
     }
   }
 
@@ -40,7 +39,7 @@ extension _ShellScreenStateRecording on _ShellScreenState {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Recording saved · $fileName',
+              context.l10n.recordingSavedNamed(fileName),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
@@ -59,7 +58,7 @@ extension _ShellScreenStateRecording on _ShellScreenState {
                     messenger.hideCurrentSnackBar();
                     unawaited(_openRecordingAtPath(path));
                   },
-                  child: const Text('Replay'),
+                  child: Text(context.l10n.replay),
                 ),
                 TextButton(
                   key: const Key('recording-saved-reveal'),
@@ -69,7 +68,7 @@ extension _ShellScreenStateRecording on _ShellScreenState {
                     ).colorScheme.inversePrimary,
                   ),
                   onPressed: () => unawaited(_revealShellPath(path)),
-                  child: const Text('Reveal'),
+                  child: Text(context.l10n.reveal),
                 ),
               ],
             ),

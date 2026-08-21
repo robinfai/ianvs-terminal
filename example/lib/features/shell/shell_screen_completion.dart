@@ -56,7 +56,9 @@ class _TerminalAutocompleteMenu extends StatelessWidget {
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
-                        prefix.isEmpty ? 'Completions' : 'Complete "$prefix"',
+                        prefix.isEmpty
+                            ? context.l10n.completions
+                            : context.l10n.completePrefix(prefix),
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.labelLarge?.copyWith(
                           color: palette.textPrimary,
@@ -66,7 +68,7 @@ class _TerminalAutocompleteMenu extends StatelessWidget {
                     ),
                     _buildCompactActionButton(
                       key: const Key('terminal-autocomplete-previous'),
-                      tooltip: 'Previous completion',
+                      tooltip: context.l10n.previousCompletion,
                       onPressed: suggestions.length < 2 ? null : onPrevious,
                       splashRadius: 14,
                       iconSize: 16,
@@ -74,7 +76,7 @@ class _TerminalAutocompleteMenu extends StatelessWidget {
                     ),
                     _buildCompactActionButton(
                       key: const Key('terminal-autocomplete-next'),
-                      tooltip: 'Next completion',
+                      tooltip: context.l10n.nextCompletion,
                       onPressed: suggestions.length < 2 ? null : onNext,
                       splashRadius: 14,
                       iconSize: 16,
@@ -82,7 +84,7 @@ class _TerminalAutocompleteMenu extends StatelessWidget {
                     ),
                     _buildCompactActionButton(
                       key: const Key('terminal-autocomplete-close'),
-                      tooltip: 'Close completions',
+                      tooltip: context.l10n.closeCompletions,
                       onPressed: onClose,
                       splashRadius: 14,
                       iconSize: 16,
@@ -183,8 +185,8 @@ class _TerminalAutoComposer extends StatelessWidget {
                                 color: palette.textPrimary,
                                 fontWeight: FontWeight.w600,
                               ),
-                          decoration: const InputDecoration(
-                            hintText: 'Compose command',
+                          decoration: InputDecoration(
+                            hintText: context.l10n.composeCommand,
                             border: InputBorder.none,
                             isDense: true,
                           ),
@@ -198,7 +200,7 @@ class _TerminalAutoComposer extends StatelessWidget {
                       ),
                       _buildCompactActionButton(
                         key: const Key('terminal-auto-composer-previous'),
-                        tooltip: 'Previous completion',
+                        tooltip: context.l10n.previousCompletion,
                         onPressed: suggestions.length < 2 ? null : onPrevious,
                         splashRadius: 16,
                         iconSize: 18,
@@ -206,7 +208,7 @@ class _TerminalAutoComposer extends StatelessWidget {
                       ),
                       _buildCompactActionButton(
                         key: const Key('terminal-auto-composer-next'),
-                        tooltip: 'Next completion',
+                        tooltip: context.l10n.nextCompletion,
                         onPressed: suggestions.length < 2 ? null : onNext,
                         splashRadius: 16,
                         iconSize: 18,
@@ -214,7 +216,7 @@ class _TerminalAutoComposer extends StatelessWidget {
                       ),
                       _buildCompactActionButton(
                         key: const Key('terminal-auto-composer-send'),
-                        tooltip: 'Send command',
+                        tooltip: context.l10n.sendCommand,
                         onPressed: canSend ? onSend : null,
                         splashRadius: 16,
                         iconSize: 18,
@@ -222,7 +224,7 @@ class _TerminalAutoComposer extends StatelessWidget {
                       ),
                       _buildCompactActionButton(
                         key: const Key('terminal-auto-composer-close'),
-                        tooltip: 'Close composer',
+                        tooltip: context.l10n.closeComposer,
                         onPressed: onClose,
                         splashRadius: 16,
                         iconSize: 18,

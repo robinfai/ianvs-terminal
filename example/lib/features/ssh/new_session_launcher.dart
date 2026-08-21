@@ -145,8 +145,8 @@ class _NewSessionLauncherState extends State<NewSessionLauncher> {
                       Expanded(
                         child: Text(
                           widget.localSessionsEnabled
-                              ? 'New terminal tab'
-                              : 'New SSH tab',
+                              ? context.l10n.newTerminalTab
+                              : context.l10n.newSshTab,
                           style: Theme.of(context).textTheme.titleLarge
                               ?.copyWith(
                                 color: palette.textPrimary,
@@ -155,7 +155,7 @@ class _NewSessionLauncherState extends State<NewSessionLauncher> {
                         ),
                       ),
                       IconButton(
-                        tooltip: 'Close',
+                        tooltip: context.l10n.close,
                         onPressed: () => Navigator.of(context).pop(),
                         icon: const Icon(Icons.close_rounded),
                       ),
@@ -163,8 +163,8 @@ class _NewSessionLauncherState extends State<NewSessionLauncher> {
                   ),
                   Text(
                     widget.localSessionsEnabled
-                        ? 'Choose a local shell or connect to an SSH host.'
-                        : 'Choose a saved SSH profile or create a new one.',
+                        ? context.l10n.chooseLocalShellOrSsh
+                        : context.l10n.chooseSavedSshOrCreate,
                     style: Theme.of(
                       context,
                     ).textTheme.bodyMedium?.copyWith(color: palette.textSubtle),
@@ -175,16 +175,16 @@ class _NewSessionLauncherState extends State<NewSessionLauncher> {
                       width: double.infinity,
                       child: SegmentedButton<terminal.TerminalConnectionType>(
                         key: const Key('new-session-type'),
-                        segments: const [
+                        segments: [
                           ButtonSegment(
                             value: terminal.TerminalConnectionType.local,
-                            icon: Icon(Icons.terminal_rounded),
-                            label: Text('Local shell'),
+                            icon: const Icon(Icons.terminal_rounded),
+                            label: Text(context.l10n.localShell),
                           ),
                           ButtonSegment(
                             value: terminal.TerminalConnectionType.ssh,
-                            icon: Icon(Icons.dns_outlined),
-                            label: Text('SSH session'),
+                            icon: const Icon(Icons.dns_outlined),
+                            label: Text(context.l10n.sshSession),
                           ),
                         ],
                         selected: {_type},
@@ -269,7 +269,7 @@ Future<SshProfileEditorResult?> showCreateSshProfileDialog(
     builder: (context) => SshProfileEditorDialog(
       initialValue: defaultTerminalProfile().copyWith(
         id: 'ssh-${DateTime.now().microsecondsSinceEpoch}',
-        name: 'SSH session',
+        name: context.l10n.sshSession,
         connection: const terminal.TerminalConnectionConfig.ssh(
           host: '',
           user: '',
@@ -363,37 +363,34 @@ class _SshProfileListState extends State<_SshProfileList> {
           icon: const Icon(Icons.add_rounded),
           label: Text(
             widget.customSshProfilesEnabled
-                ? 'New SSH connection'
-                : 'New one-time SSH connection',
+                ? context.l10n.newSshConnectionLower
+                : context.l10n.newOneTimeSshConnection,
           ),
         ),
         const SizedBox(height: 10),
         if (!widget.customSshProfilesEnabled) ...[
-          const ListTile(
-            key: Key('custom-ssh-requires-remote-api'),
-            leading: Icon(Icons.lock_clock_outlined),
-            title: Text('This connection will not be saved'),
-            subtitle: Text(
-              'Connect a remote data service to save reusable SSH profiles. '
-              'You can still connect once without an Ianvs account or data service.',
-            ),
+          ListTile(
+            key: const Key('custom-ssh-requires-remote-api'),
+            leading: const Icon(Icons.lock_clock_outlined),
+            title: Text(context.l10n.connectionWillNotBeSaved),
+            subtitle: Text(context.l10n.remoteDataRequiredToSaveSsh),
           ),
           const SizedBox(height: 10),
         ],
         Semantics(
-          label: 'Search SSH profiles',
+          label: context.l10n.searchSshProfiles,
           textField: true,
           child: TextField(
             key: const Key('ssh-profile-search'),
             controller: _search,
             onChanged: (_) => setState(() {}),
             decoration: InputDecoration(
-              hintText: 'Search by name, host, or user',
+              hintText: context.l10n.searchByNameHostUser,
               prefixIcon: const Icon(Icons.search_rounded),
               suffixIcon: _search.text.isEmpty
                   ? null
                   : IconButton(
-                      tooltip: 'Clear search',
+                      tooltip: context.l10n.clearSearch,
                       onPressed: () {
                         _search.clear();
                         setState(() {});
@@ -404,7 +401,7 @@ class _SshProfileListState extends State<_SshProfileList> {
           ),
         ),
         if (savedProfiles.isNotEmpty) ...[
-          const _SectionLabel('Saved SSH profiles'),
+          _SectionLabel(context.l10n.savedSshProfiles),
           for (final profile in savedProfiles)
             _SshProfileTile(
               profile: profile,
@@ -412,7 +409,7 @@ class _SshProfileListState extends State<_SshProfileList> {
               canImport: false,
             ),
         ],
-        const _SectionLabel('From ~/.ssh/config'),
+        _SectionLabel(context.l10n.fromOpenSshConfig),
         FutureBuilder<SshProfileImportSnapshot>(
           future: widget.importedProfiles,
           builder: (context, snapshot) {
@@ -426,18 +423,18 @@ class _SshProfileListState extends State<_SshProfileList> {
             if (imported.error != null) {
               return ListTile(
                 leading: const Icon(Icons.warning_amber_rounded),
-                title: const Text('OpenSSH profiles unavailable'),
+                title: Text(context.l10n.openSshProfilesUnavailable),
                 subtitle: Text(imported.error!),
                 trailing: TextButton(
                   onPressed: widget.onRetryImport,
-                  child: const Text('Retry'),
+                  child: Text(context.l10n.retry),
                 ),
               );
             }
             if (imported.profiles.isEmpty) {
               return ListTile(
                 leading: const Icon(Icons.info_outline_rounded),
-                title: const Text('No concrete SSH hosts found'),
+                title: Text(context.l10n.noConcreteSshHosts),
                 subtitle: Text(imported.sourcePath),
               );
             }
@@ -445,10 +442,10 @@ class _SshProfileListState extends State<_SshProfileList> {
                 .where(_matches)
                 .toList(growable: false);
             if (filteredProfiles.isEmpty && _search.text.trim().isNotEmpty) {
-              return const ListTile(
-                leading: Icon(Icons.search_off_rounded),
-                title: Text('No matching SSH profiles'),
-                subtitle: Text('Try a different name, host, or user.'),
+              return ListTile(
+                leading: const Icon(Icons.search_off_rounded),
+                title: Text(context.l10n.noMatchingSshProfiles),
+                subtitle: Text(context.l10n.tryDifferentNameHostUser),
               );
             }
             return Column(
@@ -501,7 +498,7 @@ class _SshProfileTile extends StatelessWidget {
       trailing: imported
           ? PopupMenuButton<_ImportedSshProfileAction>(
               key: Key('new-ssh-session-${profile.id}-actions'),
-              tooltip: 'More actions for ${profile.name}',
+              tooltip: context.l10n.moreActionsFor(profile.name),
               position: PopupMenuPosition.under,
               icon: const Icon(Icons.more_horiz_rounded),
               onSelected: (action) => _selectImportedAction(context, action),
@@ -509,13 +506,13 @@ class _SshProfileTile extends StatelessWidget {
                 PopupMenuItem(
                   key: Key('new-ssh-session-${profile.id}-connect'),
                   value: _ImportedSshProfileAction.connect,
-                  child: const Text('Connect'),
+                  child: Text(context.l10n.connect),
                 ),
                 PopupMenuItem(
                   key: Key('new-ssh-session-${profile.id}-import'),
                   value: _ImportedSshProfileAction.import,
                   enabled: canImport,
-                  child: const Text('Import'),
+                  child: Text(context.l10n.importAction),
                 ),
               ],
             )
@@ -832,12 +829,12 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                 children: [
                   if (!compactKeyboardLayout) ...[
                     Text(
-                      'SSH connection',
+                      context.l10n.sshConnection,
                       style: Theme.of(context).textTheme.headlineSmall,
                     ),
                     SizedBox(height: palette.spacing.xs),
                     Text(
-                      'Connect once or save a reusable session profile.',
+                      context.l10n.connectOnceOrSaveProfile,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: palette.textSubtle,
                       ),
@@ -863,24 +860,24 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const AppSectionHeader(
-                              title: 'Connection',
+                            AppSectionHeader(
+                              title: context.l10n.connection,
                               description:
-                                  'Name the session and enter the destination address.',
+                                  context.l10n.connectionSectionDescription,
                             ),
                             SizedBox(height: palette.spacing.lg),
                             AppFieldRow(
-                              label: 'Session name',
+                              label: context.l10n.sessionName,
                               control: Semantics(
-                                label: 'Session name',
+                                label: context.l10n.sessionName,
                                 textField: true,
                                 child: TextFormField(
                                   key: const Key('ssh-profile-name'),
                                   controller: _name,
                                   focusNode: _nameFocus,
-                                  decoration: const InputDecoration(
-                                    hintText: 'For example, Production',
-                                    prefixIcon: Icon(
+                                  decoration: InputDecoration(
+                                    hintText: context.l10n.exampleProduction,
+                                    prefixIcon: const Icon(
                                       Icons.label_outline_rounded,
                                     ),
                                   ),
@@ -893,26 +890,28 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                               builder: (context, constraints) {
                                 final stacked = constraints.maxWidth < 560;
                                 Widget hostField() => AppFieldRow(
-                                  label: 'Host',
+                                  label: context.l10n.host,
                                   control: Semantics(
-                                    label: 'Host',
+                                    label: context.l10n.host,
                                     textField: true,
                                     child: TextFormField(
                                       key: const Key('ssh-host'),
                                       controller: _host,
                                       focusNode: _hostFocus,
-                                      decoration: const InputDecoration(
-                                        hintText: 'hostname or IP address',
-                                        prefixIcon: Icon(Icons.dns_outlined),
+                                      decoration: InputDecoration(
+                                        hintText: context.l10n.hostnameOrIp,
+                                        prefixIcon: const Icon(
+                                          Icons.dns_outlined,
+                                        ),
                                       ),
                                       validator: _required,
                                     ),
                                   ),
                                 );
                                 Widget userField() => AppFieldRow(
-                                  label: 'User',
+                                  label: context.l10n.user,
                                   control: Semantics(
-                                    label: 'User',
+                                    label: context.l10n.user,
                                     textField: true,
                                     child: TextFormField(
                                       key: const Key('ssh-user'),
@@ -920,16 +919,16 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                       focusNode: _userFocus,
                                       decoration: _iconlessSshInputDecoration(
                                         context,
-                                        hintText: 'remote user',
+                                        hintText: context.l10n.remoteUser,
                                       ),
                                       validator: _required,
                                     ),
                                   ),
                                 );
                                 Widget portField() => AppFieldRow(
-                                  label: 'Port',
+                                  label: context.l10n.port,
                                   control: Semantics(
-                                    label: 'Port',
+                                    label: context.l10n.port,
                                     textField: true,
                                     child: TextFormField(
                                       key: const Key('ssh-port'),
@@ -969,16 +968,16 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                               },
                             ),
                             SizedBox(height: palette.spacing.xl),
-                            const AppSectionHeader(
-                              title: 'Authentication',
+                            AppSectionHeader(
+                              title: context.l10n.authentication,
                               description:
-                                  'Choose how the server should verify your identity.',
+                                  context.l10n.authenticationDescription,
                             ),
                             SizedBox(height: palette.spacing.lg),
                             AppFieldRow(
-                              label: 'Method',
+                              label: context.l10n.method,
                               control: Semantics(
-                                label: 'Authentication method',
+                                label: context.l10n.authenticationMethod,
                                 button: true,
                                 child:
                                     AppDropdownFormField<
@@ -990,33 +989,35 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                       decoration: _iconlessSshInputDecoration(
                                         context,
                                       ),
-                                      items: const [
+                                      items: [
                                         DropdownMenuItem(
                                           value: terminal
                                               .TerminalSshAuthMethod
                                               .auto,
                                           child: Text(
-                                            'Automatic (keys, then password)',
+                                            context
+                                                .l10n
+                                                .automaticKeysThenPassword,
                                           ),
                                         ),
                                         DropdownMenuItem(
                                           value: terminal
                                               .TerminalSshAuthMethod
                                               .publicKey,
-                                          child: Text('Private key'),
+                                          child: Text(context.l10n.privateKey),
                                         ),
                                         DropdownMenuItem(
                                           value: terminal
                                               .TerminalSshAuthMethod
                                               .password,
-                                          child: Text('Password'),
+                                          child: Text(context.l10n.password),
                                         ),
                                         DropdownMenuItem(
                                           value: terminal
                                               .TerminalSshAuthMethod
                                               .keyboardInteractive,
                                           child: Text(
-                                            'Keyboard interactive / OTP',
+                                            context.l10n.keyboardInteractiveOtp,
                                           ),
                                         ),
                                       ],
@@ -1034,14 +1035,14 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                 label:
                                     _auth ==
                                         terminal.TerminalSshAuthMethod.password
-                                    ? 'Password'
-                                    : 'Password fallback',
+                                    ? context.l10n.password
+                                    : context.l10n.passwordFallback,
                                 hint:
                                     _auth == terminal.TerminalSshAuthMethod.auto
-                                    ? 'Used only when key authentication is unavailable.'
+                                    ? context.l10n.passwordFallbackHelp
                                     : null,
                                 control: Semantics(
-                                  label: 'Password',
+                                  label: context.l10n.password,
                                   textField: true,
                                   obscured: _obscurePassword,
                                   child: TextFormField(
@@ -1060,7 +1061,7 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                           'ssh-password-visibility',
                                         ),
                                         obscured: _obscurePassword,
-                                        label: 'password',
+                                        label: context.l10n.password,
                                         onPressed: () => setState(() {
                                           _obscurePassword = !_obscurePassword;
                                         }),
@@ -1087,16 +1088,15 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                   icon: const Icon(
                                     Icons.delete_outline_rounded,
                                   ),
-                                  label: const Text('Forget saved password'),
+                                  label: Text(context.l10n.forgetSavedPassword),
                                 ),
                               ),
                             ],
                             if (showsPrivateKeys) ...[
                               SizedBox(height: palette.spacing.lg),
                               AppFieldRow(
-                                label: 'Private key',
-                                hint:
-                                    'The selected path is shown here. Only the encrypted key contents are saved.',
+                                label: context.l10n.privateKey,
+                                hint: context.l10n.privateKeyDescription,
                                 control: FormField<List<String>>(
                                   key: _privateKeyFieldKey,
                                   initialValue: _privateKeyValues,
@@ -1109,7 +1109,7 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                       ? 'Select a private key file'
                                       : null,
                                   builder: (field) => Semantics(
-                                    label: 'Private key file',
+                                    label: context.l10n.privateKeyFile,
                                     value: _privateKeyDisplayValue,
                                     child: InputDecorator(
                                       key: const Key('ssh-private-keys'),
@@ -1161,8 +1161,8 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                                   ),
                                             label: Text(
                                               _privateKeyValues.isEmpty
-                                                  ? 'Select'
-                                                  : 'Replace',
+                                                  ? context.l10n.select
+                                                  : context.l10n.replace,
                                             ),
                                           ),
                                         ],
@@ -1180,18 +1180,17 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                     icon: const Icon(
                                       Icons.delete_outline_rounded,
                                     ),
-                                    label: const Text(
-                                      'Forget saved private key',
+                                    label: Text(
+                                      context.l10n.forgetSavedPrivateKey,
                                     ),
                                   ),
                                 ),
                               SizedBox(height: palette.spacing.lg),
                               AppFieldRow(
-                                label: 'Private key passphrase',
-                                hint:
-                                    'Leave blank for an unencrypted private key.',
+                                label: context.l10n.privateKeyPassphrase,
+                                hint: context.l10n.privateKeyPassphraseHelp,
                                 control: Semantics(
-                                  label: 'Private key passphrase',
+                                  label: context.l10n.privateKeyPassphrase,
                                   textField: true,
                                   obscured: _obscurePrivateKeyPassphrase,
                                   child: TextFormField(
@@ -1207,7 +1206,8 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                           'ssh-key-passphrase-visibility',
                                         ),
                                         obscured: _obscurePrivateKeyPassphrase,
-                                        label: 'private key passphrase',
+                                        label:
+                                            context.l10n.privateKeyPassphrase,
                                         onPressed: () => setState(() {
                                           _obscurePrivateKeyPassphrase =
                                               !_obscurePrivateKeyPassphrase;
@@ -1228,8 +1228,8 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                   icon: const Icon(
                                     Icons.delete_outline_rounded,
                                   ),
-                                  label: const Text(
-                                    'Forget saved key passphrase',
+                                  label: Text(
+                                    context.l10n.forgetSavedKeyPassphrase,
                                   ),
                                 ),
                               ),
@@ -1251,9 +1251,9 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                       color: palette.accent,
                                     ),
                                     SizedBox(width: palette.spacing.md),
-                                    const Expanded(
+                                    Expanded(
                                       child: Text(
-                                        'The server will ask for each required response after the connection starts, including multi-step OTP challenges.',
+                                        context.l10n.keyboardInteractiveHelp,
                                       ),
                                     ),
                                   ],
@@ -1266,11 +1266,13 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                               initiallyExpanded: _showAdvanced,
                               onExpansionChanged: (value) =>
                                   _showAdvanced = value,
-                              title: const Text(
-                                'Host verification and advanced options',
+                              title: Text(
+                                context.l10n.hostVerificationAdvanced,
                               ),
-                              subtitle: const Text(
-                                'Host keys, jump hosts, tunnels, agent and X11 forwarding',
+                              subtitle: Text(
+                                context
+                                    .l10n
+                                    .hostVerificationAdvancedDescription,
                               ),
                               tilePadding: EdgeInsets.zero,
                               childrenPadding: EdgeInsets.zero,
@@ -1283,28 +1285,32 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                   initialValue: _hostKeyPolicy,
                                   decoration: _iconlessSshInputDecoration(
                                     context,
-                                    labelText: 'Host key policy',
+                                    labelText: context.l10n.hostKeyPolicy,
                                   ),
-                                  items: const [
+                                  items: [
                                     DropdownMenuItem(
                                       value: terminal
                                           .TerminalSshHostKeyPolicy
                                           .acceptNew,
                                       child: Text(
-                                        'Accept new hosts (recommended)',
+                                        context.l10n.acceptNewHostsRecommended,
                                       ),
                                     ),
                                     DropdownMenuItem(
                                       value: terminal
                                           .TerminalSshHostKeyPolicy
                                           .strict,
-                                      child: Text('Ask before trusting'),
+                                      child: Text(
+                                        context.l10n.askBeforeTrusting,
+                                      ),
                                     ),
                                     DropdownMenuItem(
                                       value: terminal
                                           .TerminalSshHostKeyPolicy
                                           .insecure,
-                                      child: Text('Do not verify (unsafe)'),
+                                      child: Text(
+                                        context.l10n.doNotVerifyUnsafe,
+                                      ),
                                     ),
                                   ],
                                   onChanged: (value) => setState(() {
@@ -1321,7 +1327,8 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                   controller: _knownHostsFile,
                                   decoration: _iconlessSshInputDecoration(
                                     context,
-                                    labelText: 'Known hosts file (optional)',
+                                    labelText:
+                                        context.l10n.knownHostsFileOptional,
                                   ),
                                 ),
                                 SizedBox(height: palette.spacing.md),
@@ -1340,7 +1347,8 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                   controller: _proxyCommand,
                                   decoration: _iconlessSshInputDecoration(
                                     context,
-                                    labelText: 'ProxyCommand (optional)',
+                                    labelText:
+                                        context.l10n.proxyCommandOptional,
                                   ),
                                 ),
                                 SizedBox(height: palette.spacing.md),
@@ -1350,9 +1358,8 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                   focusNode: _proxyJumpFocus,
                                   decoration: _iconlessSshInputDecoration(
                                     context,
-                                    labelText: 'ProxyJump (optional)',
-                                    helperText:
-                                        'Comma-separated [user@]host[:port]; bracket IPv6 hosts. New hops use independent Auto authentication.',
+                                    labelText: context.l10n.proxyJumpOptional,
+                                    helperText: context.l10n.proxyJumpHelp,
                                   ),
                                   validator: (value) {
                                     if ((value ?? '').trim().isEmpty) {
@@ -1375,9 +1382,8 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                   maxLines: 5,
                                   decoration: _iconlessSshInputDecoration(
                                     context,
-                                    labelText: 'Port forwards',
-                                    helperText:
-                                        'One per line: L bind:port target:port, R bind:port target:port, or D bind:port.',
+                                    labelText: context.l10n.portForwards,
+                                    helperText: context.l10n.portForwardsHelp,
                                   ),
                                   validator: (value) {
                                     try {
@@ -1392,10 +1398,8 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                   key: const Key('ssh-agent-forwarding'),
                                   contentPadding: EdgeInsets.zero,
                                   value: _agentForwarding,
-                                  title: const Text('Forward SSH agent'),
-                                  subtitle: const Text(
-                                    'Blank socket path uses SSH_AUTH_SOCK.',
-                                  ),
+                                  title: Text(context.l10n.forwardSshAgent),
+                                  subtitle: Text(context.l10n.agentSocketHelp),
                                   onChanged: (value) =>
                                       setState(() => _agentForwarding = value),
                                 ),
@@ -1405,16 +1409,17 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                     controller: _agentSocket,
                                     decoration: _iconlessSshInputDecoration(
                                       context,
-                                      labelText: 'Agent socket (optional)',
+                                      labelText:
+                                          context.l10n.agentSocketOptional,
                                     ),
                                   ),
                                 SwitchListTile(
                                   key: const Key('ssh-x11-forwarding'),
                                   contentPadding: EdgeInsets.zero,
                                   value: _x11Forwarding,
-                                  title: const Text('Forward X11'),
-                                  subtitle: const Text(
-                                    'Blank target uses DISPLAY; a 32-character MIT-MAGIC-COOKIE is required.',
+                                  title: Text(context.l10n.forwardX11),
+                                  subtitle: Text(
+                                    context.l10n.x11ForwardingHelp,
                                   ),
                                   onChanged: (value) =>
                                       setState(() => _x11Forwarding = value),
@@ -1426,7 +1431,7 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                     focusNode: _x11TargetFocus,
                                     decoration: _iconlessSshInputDecoration(
                                       context,
-                                      labelText: 'Local X11 target host:port',
+                                      labelText: context.l10n.localX11Target,
                                     ),
                                     validator: (value) {
                                       if (!_x11Forwarding) {
@@ -1453,15 +1458,18 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                     autocorrect: false,
                                     decoration: _iconlessSshInputDecoration(
                                       context,
-                                      labelText: 'X11 authentication cookie',
+                                      labelText:
+                                          context.l10n.x11AuthenticationCookie,
                                       helperText:
-                                          'Required: exactly 32 hexadecimal characters.',
+                                          context.l10n.x11CookieRequired,
                                       suffixIcon: _SecretVisibilityButton(
                                         key: const Key(
                                           'ssh-x11-cookie-visibility',
                                         ),
                                         obscured: _obscureX11Cookie,
-                                        label: 'X11 authentication cookie',
+                                        label: context
+                                            .l10n
+                                            .x11AuthenticationCookie,
                                         onPressed: () => setState(() {
                                           _obscureX11Cookie =
                                               !_obscureX11Cookie;
@@ -1492,8 +1500,8 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                       icon: const Icon(
                                         Icons.delete_outline_rounded,
                                       ),
-                                      label: const Text(
-                                        'Forget saved X11 cookie',
+                                      label: Text(
+                                        context.l10n.forgetSavedX11Cookie,
                                       ),
                                     ),
                                   ),
@@ -1508,11 +1516,13 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                 key: const Key('ssh-save-profile'),
                                 contentPadding: EdgeInsets.zero,
                                 value: _saveProfile,
-                                title: const Text('Save this SSH session'),
+                                title: Text(context.l10n.saveThisSshSession),
                                 subtitle: Text(
                                   widget.saveProfileAvailable
-                                      ? 'Secrets are encrypted; the key stays in platform safe storage.'
-                                      : 'A remote data service is required to save profiles. This connection is one-time only.',
+                                      ? context.l10n.secretsEncryptedDescription
+                                      : context
+                                            .l10n
+                                            .remoteServiceRequiredToSaveProfile,
                                 ),
                                 onChanged: widget.saveProfileAvailable
                                     ? (value) => setState(
@@ -1532,11 +1542,11 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                       key: const Key('ssh-save-profile'),
                       contentPadding: EdgeInsets.zero,
                       value: _saveProfile,
-                      title: const Text('Save this SSH session'),
+                      title: Text(context.l10n.saveThisSshSession),
                       subtitle: Text(
                         widget.saveProfileAvailable
-                            ? 'Secrets are encrypted; the key stays in platform safe storage.'
-                            : 'A remote data service is required to save profiles. This connection is one-time only.',
+                            ? context.l10n.secretsEncryptedDescription
+                            : context.l10n.remoteServiceRequiredToSaveProfile,
                       ),
                       onChanged: widget.saveProfileAvailable
                           ? (value) =>
@@ -1557,7 +1567,7 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                     children: [
                       TextButton(
                         onPressed: () => Navigator.of(context).pop(),
-                        child: const Text('Cancel'),
+                        child: Text(context.l10n.cancel),
                       ),
                       FilledButton.icon(
                         key: const Key('ssh-connect'),
@@ -1569,7 +1579,9 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                             : null,
                         icon: const Icon(Icons.login_rounded),
                         label: Text(
-                          widget.allowSaveChoice ? 'Connect' : 'Save',
+                          widget.allowSaveChoice
+                              ? context.l10n.connect
+                              : context.l10n.save,
                         ),
                       ),
                     ],
@@ -1584,13 +1596,15 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
   }
 
   String? _required(String? value) {
-    return value == null || value.trim().isEmpty ? 'Required' : null;
+    return value == null || value.trim().isEmpty
+        ? context.l10n.requiredField
+        : null;
   }
 
   String? _boundedInteger(String? value, int minimum, int maximum) {
     final parsed = int.tryParse(value?.trim() ?? '');
     if (parsed == null || parsed < minimum || parsed > maximum) {
-      return 'Enter $minimum–$maximum';
+      return context.l10n.enterRange(minimum, maximum);
     }
     return null;
   }
@@ -1917,7 +1931,7 @@ class _SshConnectionTimingFields extends StatelessWidget {
         keyboardType: TextInputType.number,
         decoration: _iconlessSshInputDecoration(
           context,
-          labelText: 'Connect timeout (seconds)',
+          labelText: context.l10n.connectTimeoutSeconds,
         ),
         validator: (value) => validator(value, 1, 120),
       ),
@@ -1928,7 +1942,7 @@ class _SshConnectionTimingFields extends StatelessWidget {
         keyboardType: TextInputType.number,
         decoration: _iconlessSshInputDecoration(
           context,
-          labelText: 'Keepalive (seconds)',
+          labelText: context.l10n.keepaliveSeconds,
         ),
         validator: (value) => validator(value, 0, 86400),
       ),
@@ -1939,7 +1953,7 @@ class _SshConnectionTimingFields extends StatelessWidget {
         keyboardType: TextInputType.number,
         decoration: _iconlessSshInputDecoration(
           context,
-          labelText: 'Keepalive retries',
+          labelText: context.l10n.keepaliveRetries,
         ),
         validator: (value) => validator(value, 1, 100),
       ),

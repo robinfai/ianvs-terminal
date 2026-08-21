@@ -12,8 +12,6 @@ import 'widgets/color_setting_row.dart';
 import 'widgets/settings_section.dart';
 import 'widgets/toggle_setting_row.dart';
 
-const _hexColorErrorText = 'Use #RRGGBB or leave empty.';
-
 List<String> _normalizedTagsFromText(String text) {
   final tags = <String>[];
   final seen = <String>{};
@@ -379,12 +377,12 @@ class ProfileEditorDialog extends StatefulWidget {
   const ProfileEditorDialog({
     super.key,
     required this.initialValue,
-    this.title = 'Edit profile',
+    this.title,
     this.saveWhenPristine = true,
   });
 
   final TerminalProfile initialValue;
-  final String title;
+  final String? title;
   final bool saveWhenPristine;
 
   @override
@@ -721,7 +719,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
 
   String? _requiredFieldError(String value, String label) {
     if (value.trim().isEmpty) {
-      return '$label is required';
+      return context.l10n.fieldIsRequired(label);
     }
     return null;
   }
@@ -729,14 +727,14 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
   String? _positiveIntegerError(String value, String label, {int? maximum}) {
     final trimmed = value.trim();
     if (trimmed.isEmpty) {
-      return '$label is required';
+      return context.l10n.fieldIsRequired(label);
     }
     final parsed = int.tryParse(trimmed);
     if (parsed == null || parsed < 1) {
-      return '$label must be a positive integer';
+      return context.l10n.fieldMustBePositiveInteger(label);
     }
     if (maximum != null && parsed > maximum) {
-      return '$label must be $maximum or less';
+      return context.l10n.fieldMustBeAtMost(label, maximum);
     }
     return null;
   }
@@ -744,11 +742,11 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
   String? _positiveDoubleError(String value, String label) {
     final trimmed = value.trim();
     if (trimmed.isEmpty) {
-      return '$label is required';
+      return context.l10n.fieldIsRequired(label);
     }
     final parsed = double.tryParse(trimmed);
     if (parsed == null || !parsed.isFinite || parsed <= 0) {
-      return '$label must be greater than 0';
+      return context.l10n.fieldMustBeGreaterThanZero(label);
     }
     return null;
   }
@@ -762,14 +760,14 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     }
     final trimmed = _envControllers[index].keyController.text.trim();
     if (trimmed.isEmpty) {
-      return 'Key is required';
+      return context.l10n.environmentKeyRequired;
     }
     final duplicateCount = _envControllers
         .map((entry) => entry.keyController.text.trim())
         .where((key) => key == trimmed)
         .length;
     if (duplicateCount > 1) {
-      return 'Key must be unique';
+      return context.l10n.environmentKeyUnique;
     }
     return null;
   }
@@ -781,7 +779,9 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     if (trimmed.isEmpty) {
       return null;
     }
-    return isValidOptionalHexColor(trimmed) ? null : _hexColorErrorText;
+    return isValidOptionalHexColor(trimmed)
+        ? null
+        : context.l10n.hexColorValidation;
   }
 
   void _handleColorChanged(String fieldKey, String value) {
@@ -806,7 +806,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
         nextText = normalizeHexColor(trimmed);
         nextError = null;
       } on FormatException {
-        nextError = _hexColorErrorText;
+        nextError = context.l10n.hexColorValidation;
       }
     }
 
@@ -1135,9 +1135,8 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
       context: context,
       builder: (dialogContext) => AppDialogScaffold(
         key: const Key('profile-editor-discard-dialog'),
-        title: 'Discard changes?',
-        subtitle:
-            'You have unsaved profile changes. Close the editor and lose them?',
+        title: dialogContext.l10n.discardChangesQuestion,
+        subtitle: dialogContext.l10n.discardProfileChangesWarning,
         body: const SizedBox.shrink(),
         footer: Wrap(
           spacing: dialogContext.appTheme.spacing.sm,
@@ -1147,14 +1146,14 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
             AppActionButton(
               buttonKey: const Key('profile-editor-discard-cancel'),
               tone: AppActionTone.secondary,
-              label: 'Keep editing',
+              label: dialogContext.l10n.keepEditing,
               onPressed: () => Navigator.of(dialogContext).pop(false),
             ),
             AppActionButton(
               buttonKey: const Key('profile-editor-discard-confirm'),
               tone: AppActionTone.danger,
               icon: Icons.delete_outline,
-              label: 'Discard changes',
+              label: dialogContext.l10n.discardChanges,
               onPressed: () => Navigator.of(dialogContext).pop(true),
             ),
           ],
@@ -1364,6 +1363,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
         .where((spec) {
           final searchable = <String>[
             spec.label,
+            context.l10n.profileSectionName(spec.section.name),
             ...spec.searchTerms,
           ].join('\n').toLowerCase();
           return normalizedTerms.every(searchable.contains);
@@ -1589,7 +1589,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
       order: const NumericFocusOrder(10),
       child: Semantics(
         identifier: 'profile-editor-section-search',
-        label: 'Find profile setting',
+        label: context.l10n.findProfileSetting,
         container: true,
         explicitChildNodes: true,
         child: TextField(
@@ -1599,12 +1599,12 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
           onChanged: _updateSectionSearch,
           textInputAction: TextInputAction.search,
           decoration: InputDecoration(
-            hintText: 'Find setting',
+            hintText: context.l10n.findSetting,
             prefixIcon: const Icon(Icons.search_outlined, size: 18),
             suffixIcon: searchHasQuery
                 ? IconButton(
                     key: const Key('profile-editor-section-search-clear'),
-                    tooltip: 'Clear settings search',
+                    tooltip: context.l10n.clearSettingsSearch,
                     icon: const Icon(Icons.close, size: 18),
                     onPressed: () {
                       _sectionSearchController.clear();
@@ -1622,8 +1622,8 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
             padding: EdgeInsets.only(top: theme.spacing.xs),
             child: Text(
               matchingSections.isEmpty
-                  ? 'No settings found'
-                  : '${matchingSections.length} section${matchingSections.length == 1 ? '' : 's'} found',
+                  ? context.l10n.noSettingsFound
+                  : context.l10n.sectionsFound(matchingSections.length),
               key: const Key('profile-editor-section-search-count'),
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
                 color: matchingSections.isEmpty
@@ -1638,7 +1638,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
         ? Padding(
             padding: EdgeInsets.only(top: theme.spacing.xs),
             child: Text(
-              '$dirtySectionCount modified section${dirtySectionCount == 1 ? '' : 's'}',
+              context.l10n.modifiedSections(dirtySectionCount),
               key: const Key('profile-editor-dirty-summary'),
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
                 color: theme.warning,
@@ -1651,7 +1651,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
         ? Padding(
             padding: EdgeInsets.only(top: theme.spacing.sm),
             child: Text(
-              'No profile settings match "${_sectionSearchQuery.trim()}".',
+              context.l10n.noProfileSettingsMatch(_sectionSearchQuery.trim()),
               key: const Key('profile-editor-section-search-empty'),
               style: Theme.of(
                 context,
@@ -1663,7 +1663,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     if (!vertical) {
       return Semantics(
         identifier: 'profile-editor-section-nav',
-        label: 'Profile editor section navigation',
+        label: context.l10n.profileEditorSectionNavigation,
         container: true,
         explicitChildNodes: true,
         child: FocusTraversalGroup(
@@ -1697,7 +1697,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
 
     return Semantics(
       identifier: 'profile-editor-section-nav',
-      label: 'Profile editor section navigation',
+      label: context.l10n.profileEditorSectionNavigation,
       container: true,
       explicitChildNodes: true,
       child: FocusTraversalGroup(
@@ -1749,16 +1749,15 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
       },
       child: Semantics(
         identifier: 'profile-editor-dialog',
-        label: 'Profile editor dialog',
+        label: context.l10n.profileEditorDialog,
         container: true,
         explicitChildNodes: true,
         child: AppDialogScaffold(
           key: const Key('profile-editor-dialog'),
-          title: widget.title,
-          subtitle:
-              'Changes apply to new sessions only. Existing tabs keep the profile snapshot they started with.',
+          title: widget.title ?? context.l10n.editProfile,
+          subtitle: context.l10n.profileChangesNewSessionsOnly,
           onClose: () => unawaited(_closeWithResult(null)),
-          closeTooltip: 'Close profile editor',
+          closeTooltip: context.l10n.closeProfileEditor,
           insetPadding: EdgeInsets.all(theme.spacing.md),
           constraints: const BoxConstraints(maxWidth: 960),
           width: dialogWidth,
@@ -1823,13 +1822,13 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                               key: const Key('profile-editor-section-identity'),
                               child: SettingsSection(
                                 anchorKey: _generalSectionKey,
-                                title: 'General',
+                                title: context.l10n.general,
                                 description:
-                                    'Name and tag the profile before configuring launch behavior.',
+                                    context.l10n.generalProfileDescription,
                                 contained: true,
                                 children: [
                                   _ProfileLabeledControl(
-                                    label: 'Name',
+                                    label: context.l10n.name,
                                     child: TextFormField(
                                       key: const Key('profile-editor-name'),
                                       controller: _nameController,
@@ -1837,14 +1836,14 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                       decoration: _profileFieldDecoration(),
                                       validator: (value) => _requiredFieldError(
                                         value ?? '',
-                                        'Name',
+                                        context.l10n.name,
                                       ),
                                     ),
                                   ),
                                   SizedBox(height: theme.spacing.xxl),
                                   _ProfileLabeledControl(
-                                    label: 'Tags',
-                                    helperText: 'Separate tags with commas.',
+                                    label: context.l10n.tags,
+                                    helperText: context.l10n.tagsCommaHelp,
                                     child: TextFormField(
                                       key: const Key('profile-editor-tags'),
                                       controller: _tagsController,
@@ -1866,19 +1865,19 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                             key: const Key('profile-editor-section-startup'),
                             child: SettingsSection(
                               anchorKey: _startupSectionKey,
-                              title: 'Startup',
+                              title: context.l10n.startup,
                               description:
-                                  'Configure the command, working directory, and process environment.',
+                                  context.l10n.profileStartupDescription,
                               children: [
                                 _ProfileFormGroup(
                                   key: const Key(
                                     'profile-editor-group-command',
                                   ),
-                                  title: 'Command',
+                                  title: context.l10n.command,
                                   tone: AppPanelTone.elevated,
                                   children: [
                                     _ProfileLabeledControl(
-                                      label: 'Shell / Program',
+                                      label: context.l10n.shellProgram,
                                       child: TextFormField(
                                         key: const Key('profile-editor-shell'),
                                         controller: _shellController,
@@ -1887,15 +1886,15 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                         validator: (value) =>
                                             _requiredFieldError(
                                               value ?? '',
-                                              'Shell',
+                                              context.l10n.shell,
                                             ),
                                       ),
                                     ),
                                     SizedBox(height: theme.spacing.xxl),
                                     _ProfileLabeledControl(
-                                      label: 'Working directory',
+                                      label: context.l10n.workingDirectory,
                                       helperText:
-                                          'Leave empty to use the default working directory.',
+                                          context.l10n.workingDirectoryHelp,
                                       child: TextFormField(
                                         key: const Key('profile-editor-cwd'),
                                         controller: _cwdController,
@@ -1908,11 +1907,11 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                   key: const Key(
                                     'profile-editor-group-launch-data',
                                   ),
-                                  title: 'Arguments and environment',
+                                  title: context.l10n.argumentsAndEnvironment,
                                   tone: AppPanelTone.elevated,
                                   children: [
                                     _buildStringListEditor(
-                                      title: 'Arguments',
+                                      title: context.l10n.arguments,
                                       addKey: const Key(
                                         'profile-editor-add-arg',
                                       ),
@@ -1947,15 +1946,15 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                               key: const Key('profile-editor-section-session'),
                               child: SettingsSection(
                                 anchorKey: _terminalSectionKey,
-                                title: 'Terminal',
+                                title: context.l10n.terminal,
                                 description:
-                                    'Pick terminal emulation and scrollback retention.',
+                                    context.l10n.terminalProfileDescription,
                                 children: [
                                   _ProfileFormGroup(
                                     key: const Key(
                                       'profile-editor-group-terminal',
                                     ),
-                                    title: 'Emulation',
+                                    title: context.l10n.emulation,
                                     tone: AppPanelTone.elevated,
                                     children: [
                                       ConstrainedBox(
@@ -1967,7 +1966,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                               CrossAxisAlignment.stretch,
                                           children: [
                                             _ProfileLabeledControl(
-                                              label: 'Emulation',
+                                              label: context.l10n.emulation,
                                               child:
                                                   AppDropdownFormField<
                                                     TerminalEmulation
@@ -2018,7 +2017,8 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                             ),
                                             SizedBox(height: theme.spacing.xxl),
                                             _ProfileLabeledControl(
-                                              label: 'Scrollback lines',
+                                              label:
+                                                  context.l10n.scrollbackLines,
                                               child: TextFormField(
                                                 key: const Key(
                                                   'profile-editor-scrollback',
@@ -2037,7 +2037,9 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                                 validator: (value) =>
                                                     _positiveIntegerError(
                                                       value ?? '',
-                                                      'Scrollback lines',
+                                                      context
+                                                          .l10n
+                                                          .scrollbackLines,
                                                       maximum:
                                                           maxTerminalScrollbackLines,
                                                     ),
@@ -2061,19 +2063,19 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                             key: const Key('profile-editor-section-appearance'),
                             child: SettingsSection(
                               anchorKey: _appearanceSectionKey,
-                              title: 'Appearance',
+                              title: context.l10n.appearance,
                               description:
-                                  'Control typography, terminal colors, and cursor rendering.',
+                                  context.l10n.profileAppearanceDescription,
                               children: [
                                 _ProfileFormGroup(
                                   key: const Key(
                                     'profile-editor-group-typography',
                                   ),
-                                  title: 'Typography',
+                                  title: context.l10n.typography,
                                   tone: AppPanelTone.elevated,
                                   children: [
                                     _ProfileLabeledControl(
-                                      label: 'Font family',
+                                      label: context.l10n.fontFamily,
                                       child: TextFormField(
                                         key: const Key(
                                           'profile-editor-font-family',
@@ -2084,13 +2086,13 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                         validator: (value) =>
                                             _requiredFieldError(
                                               value ?? '',
-                                              'Font family',
+                                              context.l10n.fontFamily,
                                             ),
                                       ),
                                     ),
                                     SizedBox(height: theme.spacing.xxl),
                                     _buildStringListEditor(
-                                      title: 'Fallback fonts',
+                                      title: context.l10n.fallbackFonts,
                                       addKey: const Key(
                                         'profile-editor-add-fallback',
                                       ),
@@ -2112,7 +2114,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                     SizedBox(height: theme.spacing.xxl),
                                     _ProfileResponsiveFieldPair(
                                       first: _ProfileLabeledControl(
-                                        label: 'Font size',
+                                        label: context.l10n.fontSize,
                                         child: TextFormField(
                                           key: const Key(
                                             'profile-editor-font-size',
@@ -2127,12 +2129,12 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                           validator: (value) =>
                                               _positiveDoubleError(
                                                 value ?? '',
-                                                'Font size',
+                                                context.l10n.fontSize,
                                               ),
                                         ),
                                       ),
                                       second: _ProfileLabeledControl(
-                                        label: 'Line height',
+                                        label: context.l10n.lineHeight,
                                         child: TextFormField(
                                           key: const Key(
                                             'profile-editor-font-line-height',
@@ -2147,7 +2149,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                           validator: (value) =>
                                               _positiveDoubleError(
                                                 value ?? '',
-                                                'Line height',
+                                                context.l10n.lineHeight,
                                               ),
                                         ),
                                       ),
@@ -2156,27 +2158,27 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                 ),
                                 _ProfileFormGroup(
                                   key: const Key('profile-editor-group-colors'),
-                                  title: 'Colors',
+                                  title: context.l10n.colors,
                                   tone: AppPanelTone.elevated,
                                   children: [
                                     _buildThemePresetSection(),
                                     const SizedBox(height: 16),
                                     _buildColorGroupSection(
-                                      title: 'Special',
+                                      title: context.l10n.specialColors,
                                       description:
                                           'Foreground, background, cursor, selection, and tab.',
                                       specs: _specialColorFieldSpecs,
                                     ),
                                     const SizedBox(height: 16),
                                     _buildColorGroupSection(
-                                      title: 'ANSI normal',
+                                      title: context.l10n.ansiNormal,
                                       description:
                                           'Standard ANSI 0-7 terminal colors.',
                                       specs: _normalAnsiColorFieldSpecs,
                                     ),
                                     const SizedBox(height: 16),
                                     _buildColorGroupSection(
-                                      title: 'ANSI bright',
+                                      title: context.l10n.ansiBright,
                                       description:
                                           'Bright ANSI 8-15 terminal colors.',
                                       specs: _brightAnsiColorFieldSpecs,
@@ -2185,11 +2187,11 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                 ),
                                 _ProfileFormGroup(
                                   key: const Key('profile-editor-group-cursor'),
-                                  title: 'Cursor',
+                                  title: context.l10n.cursor,
                                   tone: AppPanelTone.elevated,
                                   children: [
                                     _ProfileLabeledControl(
-                                      label: 'Cursor shape',
+                                      label: context.l10n.cursorShape,
                                       child:
                                           AppDropdownFormField<
                                             TerminalCursorShape
@@ -2238,7 +2240,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                       key: const Key(
                                         'profile-editor-cursor-blink',
                                       ),
-                                      label: 'Blink cursor',
+                                      label: context.l10n.blinkCursor,
                                       value: _cursorBlink,
                                       onChanged: (value) {
                                         setState(() {
@@ -2264,21 +2266,21 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                               ),
                               child: SettingsSection(
                                 anchorKey: _keysSectionKey,
-                                title: 'Keys',
+                                title: context.l10n.keys,
                                 description:
-                                    'Choose selection defaults for newly opened sessions.',
+                                    context.l10n.keysProfileDescription,
                                 children: [
                                   _ProfileFormGroup(
                                     key: const Key(
                                       'profile-editor-group-selection',
                                     ),
-                                    title: 'Selection',
+                                    title: context.l10n.selection,
                                     children: [
                                       ToggleSettingRow(
                                         key: const Key(
                                           'profile-editor-copy-on-select',
                                         ),
-                                        label: 'Copy on select',
+                                        label: context.l10n.copyOnSelect,
                                         value: _copyOnSelect,
                                         onChanged: (value) {
                                           setState(() {
@@ -2297,7 +2299,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                         ),
                                       ),
                                       Text(
-                                        'Option-drag mode',
+                                        context.l10n.optionDragMode,
                                         style: Theme.of(context)
                                             .textTheme
                                             .titleSmall
@@ -2322,23 +2324,22 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                             key: const Key('profile-editor-section-automation'),
                             child: SettingsSection(
                               anchorKey: _automationSectionKey,
-                              title: 'Automation',
+                              title: context.l10n.automation,
                               description:
-                                  'Match terminal output, then notify you or type a fixed reply.',
+                                  context.l10n.automationProfileDescription,
                               children: [
                                 _ProfileFormGroup(
                                   key: const Key(
                                     'profile-editor-group-automation-rules',
                                   ),
-                                  title: 'Rules',
+                                  title: context.l10n.rules,
                                   children: [
                                     _ProfileRuleEditor(
                                       fieldKey: const Key(
                                         'profile-editor-triggers',
                                       ),
-                                      label: 'Triggers',
-                                      helperText:
-                                          'Examples: ERROR => notify, Password: => send: secret',
+                                      label: context.l10n.triggers,
+                                      helperText: context.l10n.triggerExamples,
                                       controller: _triggersController,
                                       focusNode: _triggersFocusNode,
                                       validator: (value) =>
@@ -2357,9 +2358,12 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                       fieldKey: const Key(
                                         'profile-editor-switch-rules',
                                       ),
-                                      label: 'Automatic profile switching',
-                                      helperText:
-                                          'Change this profile after host, user, or directory changes.',
+                                      label: context
+                                          .l10n
+                                          .automaticProfileSwitching,
+                                      helperText: context
+                                          .l10n
+                                          .automaticProfileSwitchingHelp,
                                       controller: _switchRulesController,
                                       focusNode: _switchRulesFocusNode,
                                       validator: (value) =>
@@ -2378,23 +2382,24 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                             key: const Key('profile-editor-section-advanced'),
                             child: SettingsSection(
                               anchorKey: _advancedSectionKey,
-                              title: 'Advanced',
+                              title: context.l10n.advanced,
                               description:
-                                  'Control shell-aware profile behavior for new sessions.',
+                                  context.l10n.advancedProfileDescription,
                               children: [
                                 _ProfileFormGroup(
                                   key: const Key(
                                     'profile-editor-group-integration',
                                   ),
-                                  title: 'Integration',
+                                  title: context.l10n.integration,
                                   children: [
                                     ToggleSettingRow(
                                       key: const Key(
                                         'profile-editor-shell-integration',
                                       ),
-                                      label: 'Shell integration',
-                                      description:
-                                          'Enable prompt marks, badges, command navigation, and shell-aware actions.',
+                                      label: context.l10n.shellIntegration,
+                                      description: context
+                                          .l10n
+                                          .shellIntegrationDescription,
                                       value: _shellIntegrationEnabled,
                                       onChanged: (value) {
                                         setState(() {
@@ -2464,14 +2469,14 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
               AppActionButton(
                 buttonKey: const Key('profile-editor-cancel'),
                 tone: AppActionTone.secondary,
-                label: 'Cancel',
+                label: context.l10n.cancel,
                 onPressed: () => unawaited(_closeWithResult(null)),
               ),
               SizedBox(width: theme.spacing.sm),
               AppActionButton(
                 buttonKey: const Key('profile-editor-save'),
                 icon: Icons.save_outlined,
-                label: 'Save',
+                label: context.l10n.save,
                 onPressed:
                     _hasColorErrors || (!_didEdit && !widget.saveWhenPristine)
                     ? null
@@ -2631,19 +2636,19 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
           SizedBox(width: theme.spacing.sm),
         _buildListActionButton(
           buttonKey: Key('$fieldKeyPrefix-$index-up'),
-          tooltip: 'Move up',
+          tooltip: context.l10n.moveUp,
           onPressed: index == 0 ? null : () => onMoveUp(index),
           icon: Icons.arrow_upward,
         ),
         _buildListActionButton(
           buttonKey: Key('$fieldKeyPrefix-$index-down'),
-          tooltip: 'Move down',
+          tooltip: context.l10n.moveDown,
           onPressed: index == itemCount - 1 ? null : () => onMoveDown(index),
           icon: Icons.arrow_downward,
         ),
         _buildListActionButton(
           buttonKey: Key('$fieldKeyPrefix-$index-remove'),
-          tooltip: 'Remove',
+          tooltip: context.l10n.remove,
           onPressed: () => onRemove(index),
           icon: Icons.delete_outline,
         ),
@@ -2737,7 +2742,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
           children: [
             Expanded(
               child: Text(
-                'Environment variables',
+                context.l10n.environmentVariables,
                 style: Theme.of(
                   context,
                 ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
@@ -2748,8 +2753,8 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
               tone: AppActionTone.ghost,
               size: AppActionSize.compact,
               icon: Icons.add,
-              label: 'Add variable',
-              tooltip: 'Add variable',
+              label: context.l10n.addVariable,
+              tooltip: context.l10n.addVariable,
               onPressed: canAdd ? _addEnv : null,
             ),
           ],
@@ -2758,7 +2763,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
           Padding(
             padding: EdgeInsets.only(top: theme.spacing.xs + 1),
             child: Text(
-              'No environment variables',
+              context.l10n.noEnvironmentVariables,
               style: Theme.of(
                 context,
               ).textTheme.bodySmall?.copyWith(color: theme.textSubtle),
@@ -2789,7 +2794,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                         children: [
                           Expanded(
                             child: Text(
-                              'Key',
+                              context.l10n.key,
                               style: Theme.of(context).textTheme.labelMedium
                                   ?.copyWith(color: theme.textMuted),
                             ),
@@ -2797,7 +2802,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                           SizedBox(width: theme.spacing.md),
                           Expanded(
                             child: Text(
-                              'Value',
+                              context.l10n.value,
                               style: Theme.of(context).textTheme.labelMedium
                                   ?.copyWith(color: theme.textMuted),
                             ),
@@ -2822,7 +2827,9 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                             Expanded(
                               child: Semantics(
                                 textField: true,
-                                label: 'Environment variable key ${index + 1}',
+                                label: context.l10n.environmentVariableKey(
+                                  index + 1,
+                                ),
                                 child: TextFormField(
                                   key: Key('profile-editor-env-key-$index'),
                                   controller:
@@ -2830,7 +2837,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                   focusNode:
                                       _envControllers[index].keyFocusNode,
                                   decoration: _integratedRowDecoration(
-                                    hintText: 'Variable name',
+                                    hintText: context.l10n.variableName,
                                   ),
                                   onChanged: (_) => setState(() {}),
                                   validator: (_) => _envKeyError(index),
@@ -2841,14 +2848,15 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                             Expanded(
                               child: Semantics(
                                 textField: true,
-                                label:
-                                    'Environment variable value ${index + 1}',
+                                label: context.l10n.environmentVariableValue(
+                                  index + 1,
+                                ),
                                 child: TextFormField(
                                   key: Key('profile-editor-env-value-$index'),
                                   controller:
                                       _envControllers[index].valueController,
                                   decoration: _integratedRowDecoration(
-                                    hintText: 'Value',
+                                    hintText: context.l10n.value,
                                   ),
                                 ),
                               ),
@@ -2858,7 +2866,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                               buttonKey: Key(
                                 'profile-editor-env-remove-$index',
                               ),
-                              tooltip: 'Remove variable',
+                              tooltip: context.l10n.removeVariable,
                               onPressed: () => _removeEnv(index),
                               icon: Icons.delete_outline,
                             ),
@@ -2932,7 +2940,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
   Widget _buildColorField(_ColorFieldSpec spec) {
     final controller = _colorControllerForSpec(spec);
     return ColorSettingRow(
-      label: spec.label,
+      label: context.l10n.profileColorName('${spec.group}_${spec.slot}'),
       controller: controller,
       focusNode: _colorFocusNodeForSpec(spec),
       inputKey: spec.inputKey,
@@ -2957,14 +2965,14 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Theme presets',
+          context.l10n.themePresets,
           style: Theme.of(
             context,
           ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
         ),
         SizedBox(height: theme.spacing.xs + 1),
         Text(
-          'Follow the app theme, apply a curated palette, or fine-tune individual colors.',
+          context.l10n.themePresetsDescription,
           style: Theme.of(
             context,
           ).textTheme.bodySmall?.copyWith(color: theme.textSubtle),
@@ -3330,6 +3338,7 @@ class _ProfileEditorSectionNavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = context.appTheme;
+    final sectionLabel = context.l10n.profileSectionName(spec.section.name);
     final foreground = selected ? theme.textPrimary : theme.textMuted;
     final background = selected
         ? theme.selected.withValues(alpha: 0.86)
@@ -3355,7 +3364,7 @@ class _ProfileEditorSectionNavItem extends StatelessWidget {
         SizedBox(width: theme.spacing.sm),
         Flexible(
           child: Text(
-            spec.label,
+            sectionLabel,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -3377,7 +3386,7 @@ class _ProfileEditorSectionNavItem extends StatelessWidget {
           SizedBox(width: theme.spacing.xs),
           AppActionButton(
             buttonKey: Key('profile-editor-reset-${spec.section.name}'),
-            tooltip: 'Reset ${spec.label}',
+            tooltip: context.l10n.resetProfileSection(sectionLabel),
             icon: Icons.restore,
             tone: AppActionTone.ghost,
             size: AppActionSize.dense,
@@ -3393,11 +3402,14 @@ class _ProfileEditorSectionNavItem extends StatelessWidget {
         identifier: 'profile-editor-nav-${spec.section.name}',
         button: true,
         selected: selected,
-        label: '${spec.label} profile section${dirty ? ', modified' : ''}',
+        label: context.l10n.profileSectionSemantics(
+          sectionLabel,
+          dirty.toString(),
+        ),
         onTap: onTap,
         excludeSemantics: true,
         child: Tooltip(
-          message: spec.label,
+          message: sectionLabel,
           child: Padding(
             padding: EdgeInsets.only(
               right: vertical ? 0 : theme.spacing.xs,
@@ -3465,7 +3477,7 @@ class _FollowAppThemeColorChoice extends StatelessWidget {
     return Semantics(
       button: true,
       selected: selected,
-      label: 'Follow application theme colors',
+      label: context.l10n.followApplicationThemeColors,
       child: Material(
         color: Colors.transparent,
         child: InkWell(
@@ -3503,7 +3515,7 @@ class _FollowAppThemeColorChoice extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Follow app theme',
+                            context.l10n.followAppTheme,
                             style: Theme.of(context).textTheme.labelLarge
                                 ?.copyWith(
                                   color: theme.textPrimary,
@@ -3512,7 +3524,7 @@ class _FollowAppThemeColorChoice extends StatelessWidget {
                           ),
                           SizedBox(height: theme.spacing.xs),
                           Text(
-                            'Terminal background and text update when the application theme changes.',
+                            context.l10n.followAppThemeDescription,
                             style: Theme.of(context).textTheme.bodySmall
                                 ?.copyWith(color: theme.textSubtle),
                           ),
@@ -3736,7 +3748,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
       });
     } on FormatException {
       setState(() {
-        _hexError = _hexColorErrorText;
+        _hexError = context.l10n.hexColorValidation;
       });
     }
   }
@@ -3760,7 +3772,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
       });
     } on FormatException {
       setState(() {
-        _hexError = _hexColorErrorText;
+        _hexError = context.l10n.hexColorValidation;
       });
     }
   }
@@ -3785,7 +3797,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
         (_hexController.text.trim().isNotEmpty && _hexError == null);
     return AppDialogScaffold(
       key: const Key('color-picker-dialog'),
-      title: 'Pick color',
+      title: context.l10n.pickColor,
       onClose: () {
         Navigator.of(context).pop(const _ColorPickerResult(applied: false));
       },
@@ -3844,8 +3856,8 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
                   Expanded(
                     child: Text(
                       _inheritsDefault
-                          ? 'Inheriting default terminal color'
-                          : 'Current color $previewHex',
+                          ? context.l10n.inheritingDefaultTerminalColor
+                          : context.l10n.currentColorValue(previewHex),
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: theme.textPrimary,
                         fontWeight: FontWeight.w700,
@@ -3865,7 +3877,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
               FilteringTextInputFormatter.allow(RegExp('[#0-9a-fA-F]')),
             ],
             decoration: InputDecoration(
-              hintText: '#RRGGBB or empty',
+              hintText: context.l10n.hexColorOrEmpty,
               errorText: _hexError,
             ),
             onChanged: _handleHexChanged,
@@ -3885,7 +3897,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
                   previewCard,
                   SizedBox(height: theme.spacing.sm + 1),
                   Text(
-                    'Hex',
+                    context.l10n.hex,
                     style: Theme.of(context).textTheme.labelLarge?.copyWith(
                       color: theme.textPrimary,
                       fontWeight: FontWeight.w700,
@@ -3905,7 +3917,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Hex',
+                              context.l10n.hex,
                               style: Theme.of(context).textTheme.labelLarge
                                   ?.copyWith(
                                     color: theme.textPrimary,
@@ -3921,7 +3933,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
                   ),
                 SizedBox(height: theme.spacing.md),
                 Text(
-                  'Palette',
+                  context.l10n.palette,
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
                     color: theme.textPrimary,
                     fontWeight: FontWeight.w700,
@@ -3936,7 +3948,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
                 ),
                 SizedBox(height: theme.spacing.sm),
                 Text(
-                  'Hue',
+                  context.l10n.hue,
                   style: Theme.of(context).textTheme.labelLarge?.copyWith(
                     color: theme.textPrimary,
                     fontWeight: FontWeight.w700,
@@ -3961,7 +3973,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
           AppActionButton(
             buttonKey: const Key('color-picker-reset'),
             tone: AppActionTone.ghost,
-            label: 'Reset to default',
+            label: context.l10n.resetToDefault,
             onPressed: () {
               Navigator.of(
                 context,
@@ -3971,7 +3983,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
           AppActionButton(
             buttonKey: const Key('color-picker-cancel'),
             tone: AppActionTone.secondary,
-            label: 'Cancel',
+            label: context.l10n.cancel,
             onPressed: () {
               Navigator.of(
                 context,
@@ -3981,7 +3993,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
           AppActionButton(
             buttonKey: const Key('color-picker-apply'),
             icon: Icons.check_rounded,
-            label: 'Apply',
+            label: context.l10n.apply,
             onPressed: applyEnabled
                 ? () {
                     Navigator.of(context).pop(

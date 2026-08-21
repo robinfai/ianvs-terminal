@@ -89,7 +89,7 @@ class _ShellToolbeltState extends State<_ShellToolbelt> {
     final palette = widget.palette;
     return Semantics(
       identifier: 'toolbelt-panel',
-      label: 'Toolbelt terminal tools',
+      label: context.l10n.toolbeltTerminalTools,
       container: true,
       explicitChildNodes: true,
       child: FocusTraversalGroup(
@@ -120,7 +120,7 @@ class _ShellToolbeltState extends State<_ShellToolbelt> {
                         children: [
                           Expanded(
                             child: Text(
-                              'Toolbelt',
+                              context.l10n.toolbelt,
                               style: Theme.of(context).textTheme.titleMedium
                                   ?.copyWith(
                                     color: palette.textPrimary,
@@ -131,7 +131,7 @@ class _ShellToolbeltState extends State<_ShellToolbelt> {
                           FocusTraversalOrder(
                             order: const NumericFocusOrder(1),
                             child: _buildSheetCloseButton(
-                              tooltip: 'Close toolbelt',
+                              tooltip: context.l10n.closeToolbelt,
                               onPressed: widget.onClose,
                               buttonKey: const Key('toolbelt-close'),
                             ),
@@ -175,38 +175,40 @@ class _ShellToolbeltState extends State<_ShellToolbelt> {
                           _ToolbeltActionRow(
                             key: const Key('toolbelt-prompt-marks'),
                             icon: Icons.assistant_direction_rounded,
-                            title: 'Prompt marks',
-                            countLabel:
-                                '${widget.promptMarkCount} mark${widget.promptMarkCount == 1 ? '' : 's'}',
+                            title: context.l10n.promptMarks,
+                            countLabel: context.l10n.promptMarkCount(
+                              widget.promptMarkCount,
+                            ),
                             palette: palette,
                             onTap: widget.onOpenShellIntegrationUtilities,
                           ),
                           _ToolbeltActionRow(
                             key: const Key('toolbelt-tmux-integration'),
                             icon: Icons.account_tree_rounded,
-                            title: 'tmux integration',
+                            title: context.l10n.tmuxIntegration,
                             countLabel: widget.tmuxControlModeActive
-                                ? 'Control mode active'
-                                : 'Start or attach',
+                                ? context.l10n.controlModeActive
+                                : context.l10n.startOrAttach,
                             palette: palette,
                             onTap: widget.onOpenTmuxIntegration,
                           ),
                           _ToolbeltActionRow(
                             key: const Key('toolbelt-coprocess'),
                             icon: Icons.hub_rounded,
-                            title: 'Coprocess',
+                            title: context.l10n.coprocess,
                             countLabel: widget.coprocessActive
-                                ? 'Automation active'
-                                : 'Run automation',
+                                ? context.l10n.automationActive
+                                : context.l10n.runAutomation,
                             palette: palette,
                             onTap: widget.onOpenCoprocess,
                           ),
                           _ToolbeltActionRow(
                             key: const Key('toolbelt-annotations'),
                             icon: Icons.sticky_note_2_rounded,
-                            title: 'Annotations',
-                            countLabel:
-                                '${widget.annotationCount} note${widget.annotationCount == 1 ? '' : 's'}',
+                            title: context.l10n.annotations,
+                            countLabel: context.l10n.annotationCount(
+                              widget.annotationCount,
+                            ),
                             palette: palette,
                             onTap: widget.onOpenAnnotations,
                           ),
@@ -214,8 +216,8 @@ class _ShellToolbeltState extends State<_ShellToolbelt> {
                           _ToolbeltActionRow(
                             key: const Key('toolbelt-instant-replay'),
                             icon: Icons.replay_rounded,
-                            title: 'Replay recent activity',
-                            countLabel: 'Recent frames',
+                            title: context.l10n.replayRecentActivity,
+                            countLabel: context.l10n.recentFrames,
                             palette: palette,
                             onTap: widget.onOpenInstantReplay,
                           ),
@@ -223,8 +225,8 @@ class _ShellToolbeltState extends State<_ShellToolbelt> {
                             _ToolbeltActionRow(
                               key: const Key('toolbelt-password-manager'),
                               icon: Icons.password_rounded,
-                              title: 'Password manager',
-                              countLabel: 'Prompt-gated sends',
+                              title: context.l10n.passwordManager,
+                              countLabel: context.l10n.promptGatedSends,
                               palette: palette,
                               onTap: widget.onOpenPasswordManager,
                             ),
@@ -311,7 +313,7 @@ class _ToolbeltPanelTabs extends StatelessWidget {
           activePanel: activePanel,
           palette: palette,
           icon: Icons.list_alt_rounded,
-          label: 'Commands',
+          label: context.l10n.commands,
           count: commandHistoryCount,
           focusNode: tabFocusNodes[_ToolbeltPanel.commandHistory],
           onChanged: onChanged,
@@ -321,7 +323,7 @@ class _ToolbeltPanelTabs extends StatelessWidget {
           activePanel: activePanel,
           palette: palette,
           icon: Icons.folder_rounded,
-          label: 'Dirs',
+          label: context.l10n.directoriesShort,
           count: recentDirectoryCount,
           focusNode: tabFocusNodes[_ToolbeltPanel.recentDirectories],
           onChanged: onChanged,
@@ -331,7 +333,7 @@ class _ToolbeltPanelTabs extends StatelessWidget {
           activePanel: activePanel,
           palette: palette,
           icon: Icons.outbox_rounded,
-          label: 'Output',
+          label: context.l10n.output,
           count: capturedOutputCount,
           focusNode: tabFocusNodes[_ToolbeltPanel.capturedOutput],
           onChanged: onChanged,
@@ -341,7 +343,7 @@ class _ToolbeltPanelTabs extends StatelessWidget {
           activePanel: activePanel,
           palette: palette,
           icon: Icons.history_rounded,
-          label: 'Paste',
+          label: context.l10n.paste,
           count: pasteHistoryCount,
           focusNode: tabFocusNodes[_ToolbeltPanel.pasteHistory],
           onChanged: onChanged,
@@ -503,18 +505,18 @@ class _ToolbeltPrimaryPanel extends StatelessWidget {
     return _ToolbeltPreviewSection(
       sectionKey: const Key('toolbelt-panel-command-history'),
       icon: Icons.list_alt_rounded,
-      title: 'Command history',
-      subtitle:
-          '${shellIntegration.recentCommands.length} command'
-          '${shellIntegration.recentCommands.length == 1 ? '' : 's'}',
+      title: context.l10n.commandHistory,
+      subtitle: context.l10n.commandCount(
+        shellIntegration.recentCommands.length,
+      ),
       palette: palette,
       actionKey: const Key('toolbelt-command-history'),
-      actionLabel: 'All',
+      actionLabel: context.l10n.all,
       onAction: onOpenShellIntegrationUtilities,
       children: commands.isEmpty
           ? [
               _ToolbeltEmptyPreview(
-                message: 'Run a command in this tab to fill command history.',
+                message: context.l10n.runCommandToFillHistory,
                 palette: palette,
               ),
             ]
@@ -524,7 +526,7 @@ class _ToolbeltPrimaryPanel extends StatelessWidget {
                   tileKey: Key('toolbelt-command-history-entry-$index'),
                   icon: Icons.keyboard_return_rounded,
                   title: commands[index],
-                  subtitle: 'Insert command',
+                  subtitle: context.l10n.insertCommand,
                   palette: palette,
                   onTap: () => onInsertCommand(commands[index]),
                 ),
@@ -537,18 +539,18 @@ class _ToolbeltPrimaryPanel extends StatelessWidget {
     return _ToolbeltPreviewSection(
       sectionKey: const Key('toolbelt-panel-recent-directories'),
       icon: Icons.folder_rounded,
-      title: 'Recent directories',
-      subtitle:
-          '${shellIntegration.recentDirectories.length} director'
-          '${shellIntegration.recentDirectories.length == 1 ? 'y' : 'ies'}',
+      title: context.l10n.recentDirectories,
+      subtitle: context.l10n.directoryCount(
+        shellIntegration.recentDirectories.length,
+      ),
       palette: palette,
       actionKey: const Key('toolbelt-recent-directories'),
-      actionLabel: 'All',
+      actionLabel: context.l10n.all,
       onAction: onOpenShellIntegrationUtilities,
       children: directories.isEmpty
           ? [
               _ToolbeltEmptyPreview(
-                message: 'Change directories to fill recent directories.',
+                message: context.l10n.changeDirectoriesToFillHistory,
                 palette: palette,
               ),
             ]
@@ -558,7 +560,7 @@ class _ToolbeltPrimaryPanel extends StatelessWidget {
                   tileKey: Key('toolbelt-recent-directory-entry-$index'),
                   icon: Icons.subdirectory_arrow_right_rounded,
                   title: directories[index],
-                  subtitle: 'Insert cd command',
+                  subtitle: context.l10n.insertCdCommand,
                   palette: palette,
                   onTap: () => onChangeDirectory(directories[index]),
                 ),
@@ -571,18 +573,16 @@ class _ToolbeltPrimaryPanel extends StatelessWidget {
     return _ToolbeltPreviewSection(
       sectionKey: const Key('toolbelt-panel-captured-output'),
       icon: Icons.outbox_rounded,
-      title: 'Captured output',
-      subtitle:
-          '${capturedOutputEntries.length} captured line'
-          '${capturedOutputEntries.length == 1 ? '' : 's'}',
+      title: context.l10n.capturedOutput,
+      subtitle: context.l10n.capturedLineCount(capturedOutputEntries.length),
       palette: palette,
       actionKey: const Key('toolbelt-captured-output'),
-      actionLabel: 'Open',
+      actionLabel: context.l10n.open,
       onAction: onOpenCapturedOutput,
       children: entries.isEmpty
           ? [
               _ToolbeltEmptyPreview(
-                message: 'Profile triggers and coprocesses can capture output.',
+                message: context.l10n.profileAutomationCapturesOutput,
                 palette: palette,
               ),
             ]
@@ -592,8 +592,10 @@ class _ToolbeltPrimaryPanel extends StatelessWidget {
                   tileKey: Key('toolbelt-captured-output-entry-$index'),
                   icon: Icons.outbox_rounded,
                   title: entries[index].text,
-                  subtitle:
-                      'Pattern ${entries[index].pattern} - Row ${entries[index].rowIndex}',
+                  subtitle: context.l10n.capturedOutputLocation(
+                    entries[index].pattern,
+                    entries[index].rowIndex,
+                  ),
                   palette: palette,
                   onTap: onOpenCapturedOutput,
                 ),
@@ -606,18 +608,16 @@ class _ToolbeltPrimaryPanel extends StatelessWidget {
     return _ToolbeltPreviewSection(
       sectionKey: const Key('toolbelt-panel-paste-history'),
       icon: Icons.history_rounded,
-      title: 'Paste history',
-      subtitle:
-          '${pasteHistoryEntries.length} recent item'
-          '${pasteHistoryEntries.length == 1 ? '' : 's'}',
+      title: context.l10n.pasteHistory,
+      subtitle: context.l10n.recentItemCount(pasteHistoryEntries.length),
       palette: palette,
       actionKey: const Key('toolbelt-paste-history'),
-      actionLabel: 'Open',
+      actionLabel: context.l10n.open,
       onAction: onOpenPasteHistory,
       children: entries.isEmpty
           ? [
               _ToolbeltEmptyPreview(
-                message: 'Copied and pasted text appears here.',
+                message: context.l10n.copiedAndPastedTextAppearsHere,
                 palette: palette,
               ),
             ]
@@ -630,8 +630,8 @@ class _ToolbeltPrimaryPanel extends StatelessWidget {
                       : Icons.content_paste_rounded,
                   title: entries[index].text.replaceAll('\n', r' \n '),
                   subtitle: switch (entries[index].kind) {
-                    PasteHistoryKind.copy => 'Copied',
-                    PasteHistoryKind.paste => 'Pasted',
+                    PasteHistoryKind.copy => context.l10n.copied,
+                    PasteHistoryKind.paste => context.l10n.pasted,
                   },
                   palette: palette,
                   onTap: onOpenPasteHistory,

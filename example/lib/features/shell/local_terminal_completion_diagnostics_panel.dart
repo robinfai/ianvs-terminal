@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../ui/app_ui.dart';
 import 'local_terminal_shell_ui_wiring_exports.dart';
 
 class LocalTerminalCompletionDiagnosticsPanel extends StatelessWidget {
@@ -27,29 +28,40 @@ class LocalTerminalCompletionDiagnosticsPanel extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(viewModel.title, style: theme.textTheme.titleMedium),
+              Text(
+                viewModel.canCloseObjective
+                    ? context.l10n.localTerminalObjectiveComplete
+                    : context.l10n.localTerminalObjectiveBlocked,
+                style: theme.textTheme.titleMedium,
+              ),
               const SizedBox(height: 8),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
                 children: [
                   _DiagnosticsCountChip(
-                    label: 'Milestones',
+                    label: context.l10n.milestones,
                     count: snapshot.blockedMilestoneCount,
                   ),
                   _DiagnosticsCountChip(
-                    label: 'Backlog',
+                    label: context.l10n.backlog,
                     count: snapshot.blockedBacklogItemCount,
                   ),
                   _DiagnosticsCountChip(
-                    label: 'Verification',
+                    label: context.l10n.verification,
                     count: snapshot.blockedVerificationGateCount,
                   ),
                 ],
               ),
               const SizedBox(height: 12),
               for (final section in sections) ...[
-                Text(section.title, style: theme.textTheme.titleSmall),
+                Text(
+                  _localizedDiagnosticsSectionTitle(
+                    section.title,
+                    context.l10n,
+                  ),
+                  style: theme.textTheme.titleSmall,
+                ),
                 const SizedBox(height: 4),
                 for (final item in section.items.take(maxItemsPerSection))
                   Padding(
@@ -65,6 +77,18 @@ class LocalTerminalCompletionDiagnosticsPanel extends StatelessWidget {
     );
   }
 }
+
+String _localizedDiagnosticsSectionTitle(String title, AppLocalizations l10n) =>
+    switch (title) {
+      'Blocked milestones' => l10n.blockedMilestones,
+      'Missing production milestones' => l10n.missingProductionMilestones,
+      'Blocked real-wiring backlog' => l10n.blockedRealWiringBacklog,
+      'Missing real-wiring backlog' => l10n.missingRealWiringBacklog,
+      'Blocked verification gates' => l10n.blockedVerificationGates,
+      'Missing verification gates' => l10n.missingVerificationGates,
+      'Completion' => l10n.completion,
+      _ => title,
+    };
 
 class _DiagnosticsCountChip extends StatelessWidget {
   const _DiagnosticsCountChip({required this.label, required this.count});

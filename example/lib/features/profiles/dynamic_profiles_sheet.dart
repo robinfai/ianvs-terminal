@@ -90,7 +90,7 @@ class _DynamicProfilesSheetState extends State<DynamicProfilesSheet> {
       final decoded = jsonDecode(_controller.text);
       if (decoded is! Map) {
         setState(() {
-          _errorText = 'Top-level JSON must be an object.';
+          _errorText = context.l10n.dynamicProfilesTopLevelObject;
           _preview = null;
         });
         return;
@@ -100,7 +100,7 @@ class _DynamicProfilesSheetState extends State<DynamicProfilesSheet> {
       );
       if (document.profiles.isEmpty) {
         setState(() {
-          _errorText = 'No profiles found in JSON.';
+          _errorText = context.l10n.dynamicProfilesNoneFound;
           _preview = null;
         });
         return;
@@ -121,12 +121,12 @@ class _DynamicProfilesSheetState extends State<DynamicProfilesSheet> {
       });
     } on FormatException catch (error) {
       setState(() {
-        _errorText = error.message;
+        _errorText = context.l10n.dynamicProfilesInvalid(error.message);
         _preview = null;
       });
     } on Object catch (error) {
       setState(() {
-        _errorText = error.toString();
+        _errorText = context.l10n.dynamicProfilesInvalid(error.toString());
         _preview = null;
       });
     }
@@ -149,11 +149,12 @@ class _DynamicProfilesSheetState extends State<DynamicProfilesSheet> {
 
   Widget _buildPreview(_DynamicProfilesImportPreview preview) {
     final palette = context.appTheme;
-    final summary =
-        '${preview.profiles.length} profile${preview.profiles.length == 1 ? '' : 's'} ready'
-        ' • ${preview.addedCount} new'
-        ' • ${preview.replacementCount} replacement${preview.replacementCount == 1 ? '' : 's'}'
-        '${preview.warningCount == 0 ? '' : ' • ${preview.warningCount} warning${preview.warningCount == 1 ? '' : 's'}'}';
+    final summary = context.l10n.dynamicProfilesPreviewSummary(
+      preview.profiles.length,
+      preview.addedCount,
+      preview.replacementCount,
+      preview.warningCount,
+    );
     return AppPanel(
       key: const Key('dynamic-profiles-preview'),
       tone: AppPanelTone.chrome,
@@ -201,8 +202,8 @@ class _DynamicProfilesSheetState extends State<DynamicProfilesSheet> {
                   SizedBox(width: palette.spacing.sm),
                   Text(
                     preview.replacementIds.contains(profile.id)
-                        ? 'Replaces existing'
-                        : 'New profile',
+                        ? context.l10n.replacesExisting
+                        : context.l10n.newProfile,
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
                       color: preview.replacementIds.contains(profile.id)
                           ? palette.warning
@@ -242,7 +243,7 @@ class _DynamicProfilesSheetState extends State<DynamicProfilesSheet> {
                     children: [
                       Expanded(
                         child: Text(
-                          'Dynamic Profiles',
+                          context.l10n.dynamicProfiles,
                           style: Theme.of(context).textTheme.titleLarge
                               ?.copyWith(
                                 color: palette.textPrimary,
@@ -251,7 +252,7 @@ class _DynamicProfilesSheetState extends State<DynamicProfilesSheet> {
                         ),
                       ),
                       AppActionButton(
-                        tooltip: 'Close dynamic profiles',
+                        tooltip: context.l10n.closeDynamicProfiles,
                         tone: AppActionTone.ghost,
                         size: AppActionSize.dense,
                         onPressed: () => Navigator.of(context).pop(),
@@ -261,7 +262,7 @@ class _DynamicProfilesSheetState extends State<DynamicProfilesSheet> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Paste an iTerm2 dynamic profile JSON document. This local build only launches local commands.',
+                    context.l10n.dynamicProfilesPasteHelp,
                     style: Theme.of(
                       context,
                     ).textTheme.bodySmall?.copyWith(color: palette.textSubtle),
@@ -306,13 +307,13 @@ class _DynamicProfilesSheetState extends State<DynamicProfilesSheet> {
                           key: const Key('dynamic-profiles-preview-action'),
                           onPressed: _previewProfiles,
                           icon: const Icon(Icons.fact_check_outlined),
-                          label: const Text('Preview'),
+                          label: Text(context.l10n.preview),
                         ),
                         FilledButton.icon(
                           key: const Key('dynamic-profiles-import'),
                           onPressed: preview == null ? null : _importProfiles,
                           icon: const Icon(Icons.download_rounded),
-                          label: const Text('Import'),
+                          label: Text(context.l10n.import),
                         ),
                       ],
                     ),

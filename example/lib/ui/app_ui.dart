@@ -1,3 +1,4 @@
+export '../l10n/l10n.dart';
 export 'components/app_action_button.dart';
 export 'components/app_compact_radio_tile.dart';
 export 'components/app_dialog_scaffold.dart';

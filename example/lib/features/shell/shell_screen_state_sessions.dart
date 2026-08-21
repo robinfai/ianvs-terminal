@@ -176,14 +176,14 @@ extension _ShellScreenStateSessions on _ShellScreenState {
 
   String get _emptyStateTitle {
     return _recentlyClosedLastSession
-        ? 'Shell layout is idle'
-        : 'Start a shell layout';
+        ? context.l10n.shellLayoutIdle
+        : context.l10n.startShellLayout;
   }
 
   String get _emptyStateMessage {
     return _recentlyClosedLastSession
-        ? 'The last session has closed. Open a new tab to keep working in the shell layout.'
-        : 'Open a new tab to start working in the shell layout.';
+        ? context.l10n.lastSessionClosedHelp
+        : context.l10n.openNewTabToStart;
   }
 
   FocusNode _focusNodeFor(String sessionId) {
@@ -248,7 +248,7 @@ extension _ShellScreenStateSessions on _ShellScreenState {
   }
 
   void _scheduleReturningCue() {
-    _scheduleLayoutCue('Back in shell');
+    _scheduleLayoutCue(context.l10n.backInShell);
   }
 
   void _showScheduledLayoutCueNow() {
@@ -546,16 +546,16 @@ extension _ShellScreenStateSessions on _ShellScreenState {
   String _tabNewOutputTooltip(TerminalTab tab) {
     final panes = _tabNewOutputPanes(tab);
     if (panes.isEmpty || tab.effectivePanes.length < 2) {
-      return 'New output';
+      return context.l10n.newOutput;
     }
     final focusHint = panes.length == 1
-        ? 'Click to focus this pane.'
-        : 'Click to focus the first pane with new output.';
+        ? context.l10n.clickToFocusPane
+        : context.l10n.clickFocusFirstPaneWithNewOutput;
     return [
       if (panes.length == 1)
-        'New output in a split pane.'
+        context.l10n.newOutputInSplitPane
       else
-        'New output in ${panes.length} split panes.',
+        context.l10n.newOutputInSplitPanes(panes.length),
       for (final pane in panes) _terminalPaneContextLine(pane.sessionId),
       focusHint,
     ].join('\n');
@@ -564,34 +564,37 @@ extension _ShellScreenStateSessions on _ShellScreenState {
   String _hiddenTabsNewOutputTooltip(Iterable<TerminalTab> tabs) {
     final targets = _hiddenTabsNewOutputTargets(tabs);
     if (targets.isEmpty) {
-      return 'Hidden tabs have new output';
+      return context.l10n.hiddenTabsHaveNewOutput;
     }
     final activeSessionId = ref.read(sessionControllerProvider).activeSessionId;
     if (targets.length == 1) {
       final target = targets.single;
       final needsFocus = target.pane.sessionId != activeSessionId;
       return [
-        'New output in a hidden tab.',
-        'Tab: ${_shellTabDisplayTitle(target.tab)} (${target.tab.sessionId})',
+        context.l10n.newOutputInHiddenTab,
+        context.l10n.tabSessionDetails(
+          _shellTabDisplayTitle(target.tab),
+          target.tab.sessionId,
+        ),
         _terminalPaneContextLine(target.pane.sessionId),
         if (needsFocus)
-          'Click to focus this pane.'
+          context.l10n.clickToFocusPane
         else
-          'Pane already focused.',
+          context.l10n.paneAlreadyFocused,
       ].join('\n');
     }
     final hasFocusableTarget = targets.any(
       (target) => target.pane.sessionId != activeSessionId,
     );
     return [
-      'New output in ${targets.length} hidden panes.',
+      context.l10n.newOutputInHiddenPanes(targets.length),
       for (final target in targets)
         '${_shellTabDisplayTitle(target.tab)} (${target.tab.sessionId}) - '
             '${_terminalPaneContextLine(target.pane.sessionId)}',
       if (hasFocusableTarget)
-        'Click to focus the first pane with new output.'
+        context.l10n.clickFocusFirstPaneWithNewOutput
       else
-        'Pane already focused.',
+        context.l10n.paneAlreadyFocused,
     ].join('\n');
   }
 
@@ -679,11 +682,11 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     TerminalSplitAxis requestedAxis,
   ) {
     if (sessionId == null) {
-      return 'No active pane is available.';
+      return context.l10n.noActivePaneAvailable;
     }
     final tab = _tabForSession(sessionState, sessionId);
     if (tab == null || tab.paneFor(sessionId) == null) {
-      return 'No active pane is available.';
+      return context.l10n.noActivePaneAvailable;
     }
     final frame = ref
         .read(sessionControllerProvider.notifier)
@@ -710,8 +713,10 @@ extension _ShellScreenStateSessions on _ShellScreenState {
 
   String _minimumPaneSizeConflictReason(TerminalSplitAxis axis) {
     return axis == TerminalSplitAxis.horizontal
-        ? 'Another pane would become narrower than ${_ShellScreenState._minimumHorizontalPaneCols} columns.'
-        : 'Another pane would become shorter than ${_ShellScreenState._minimumVerticalPaneRows} rows.';
+        ? context.l10n.paneTooNarrow(
+            _ShellScreenState._minimumHorizontalPaneCols,
+          )
+        : context.l10n.paneTooShort(_ShellScreenState._minimumVerticalPaneRows);
   }
 
   bool _sessionHasRenderableContent(
@@ -794,7 +799,9 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     final normalizedIndex = nextIndex < 0
         ? nextIndex + panes.length
         : nextIndex;
-    _scheduleLayoutCue('Pane ${normalizedIndex + 1} of ${panes.length}');
+    _scheduleLayoutCue(
+      context.l10n.panePosition(normalizedIndex + 1, panes.length),
+    );
     _activateSession(sessionController, panes[normalizedIndex].sessionId);
     return true;
   }
@@ -813,7 +820,7 @@ extension _ShellScreenStateSessions on _ShellScreenState {
   ) {
     final panes = activeTab.effectivePanes;
     if (panes.length < 2 || !activeTab.containsSession(activeSessionId)) {
-      return 'Add another pane to use this action.';
+      return context.l10n.addAnotherPaneForAction;
     }
 
     if (_paneGrowthWouldShrinkSiblingTooFar(
@@ -821,8 +828,12 @@ extension _ShellScreenStateSessions on _ShellScreenState {
       activeSessionId,
     )) {
       return activeTab.splitAxis == TerminalSplitAxis.horizontal
-          ? 'Another pane would become narrower than ${_ShellScreenState._minimumHorizontalPaneCols} columns.'
-          : 'Another pane would become shorter than ${_ShellScreenState._minimumVerticalPaneRows} rows.';
+          ? context.l10n.paneTooNarrow(
+              _ShellScreenState._minimumHorizontalPaneCols,
+            )
+          : context.l10n.paneTooShort(
+              _ShellScreenState._minimumVerticalPaneRows,
+            );
     }
 
     final sessionController = ref.read(sessionControllerProvider.notifier);
@@ -877,7 +888,7 @@ extension _ShellScreenStateSessions on _ShellScreenState {
         !tab.containsSession(zoomedPaneSessionId)) {
       return null;
     }
-    return 'Unzoom the active pane to manage other panes.';
+    return context.l10n.unzoomActivePaneToManage;
   }
 
   bool _isSessionReadOnly(String sessionId) {
@@ -1190,13 +1201,19 @@ extension _ShellScreenStateSessions on _ShellScreenState {
       effectiveDefaultProfileId,
     );
     if (configuredDefaultProfileId == null) {
-      return 'Current new-tab profile • ${effectiveProfile?.name ?? 'No profile available'}';
+      return context.l10n.currentNewTabProfile(
+        effectiveProfile?.name ?? context.l10n.noProfileAvailable,
+      );
     }
     final configuredProfile = _profileForId(
       profiles,
       configuredDefaultProfileId,
     );
-    return 'Configured default • ${configuredProfile?.name ?? effectiveProfile?.name ?? 'No profile available'}';
+    return context.l10n.configuredDefaultProfile(
+      configuredProfile?.name ??
+          effectiveProfile?.name ??
+          context.l10n.noProfileAvailable,
+    );
   }
 }
 

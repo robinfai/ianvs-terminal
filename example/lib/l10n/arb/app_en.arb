@@ -1,0 +1,2564 @@
+{
+  "@@locale": "en",
+  "appTitle": "Ianvs Terminal",
+  "@appTitle": {
+    "description": "Application title"
+  },
+  "cancel": "Cancel",
+  "@cancel": {
+    "description": "Generic cancel action"
+  },
+  "close": "Close",
+  "@close": {
+    "description": "Generic close action"
+  },
+  "retry": "Retry",
+  "@retry": {
+    "description": "Generic retry action"
+  },
+  "save": "Save",
+  "@save": {
+    "description": "Generic save action"
+  },
+  "delete": "Delete",
+  "@delete": {
+    "description": "Generic delete action"
+  },
+  "continueAction": "Continue",
+  "@continueAction": {
+    "description": "Generic continue action"
+  },
+  "username": "Username",
+  "@username": {
+    "description": "Username field label"
+  },
+  "password": "Password",
+  "@password": {
+    "description": "Password field label"
+  },
+  "importAction": "Import",
+  "@importAction": {
+    "description": "Generic import action"
+  },
+  "preview": "Preview",
+  "@preview": {
+    "description": "Generic preview label"
+  },
+  "dialogSemantics": "{title} dialog",
+  "@dialogSemantics": {
+    "description": "Accessibility label for a dialog",
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "closeDialog": "Close dialog",
+  "@closeDialog": {
+    "description": "Tooltip for closing a dialog"
+  },
+  "startingAppAttempt": "Starting Ianvs Terminal, attempt {attempt}",
+  "@startingAppAttempt": {
+    "description": "Accessibility label shown while the application starts",
+    "placeholders": {
+      "attempt": {
+        "type": "int"
+      }
+    }
+  },
+  "preparingTerminalRuntime": "Preparing terminal runtime…",
+  "@preparingTerminalRuntime": {
+    "description": "Status shown while the terminal runtime is initialized"
+  },
+  "startupStage": "Stage: {stage}",
+  "@startupStage": {
+    "description": "Startup failure stage label",
+    "placeholders": {
+      "stage": {
+        "type": "String"
+      }
+    }
+  },
+  "retryStartup": "Retry startup",
+  "@retryStartup": {
+    "description": "Action that retries application startup"
+  },
+  "dataServiceSettings": "Data service settings",
+  "@dataServiceSettings": {
+    "description": "Title or action for data service settings"
+  },
+  "connectAndContinue": "Connect and continue",
+  "@connectAndContinue": {
+    "description": "Action that connects to the configured data service"
+  },
+  "disableDataServiceQuestion": "Disable the data service?",
+  "@disableDataServiceQuestion": {
+    "description": "Confirmation title for disabling the data service"
+  },
+  "disableDataServiceExplanation": "This explicitly switches to local-terminal-only mode on the next startup attempt. No API process will start; existing remote data is not deleted.",
+  "@disableDataServiceExplanation": {
+    "description": "Explanation shown before disabling the data service"
+  },
+  "useLocalTerminal": "Use local terminal",
+  "@useLocalTerminal": {
+    "description": "Action that switches to local-terminal-only mode"
+  },
+  "dataServiceRecovery": "Data service recovery",
+  "@dataServiceRecovery": {
+    "description": "Data service recovery dialog title"
+  },
+  "configurationReadFailed": "The current configuration could not be read. You can still explicitly select Disabled.",
+  "@configurationReadFailed": {
+    "description": "Message shown when the data service configuration cannot be read"
+  },
+  "reconnectConfiguredOrigin": "Reconnect to the configured remote origin before startup retries. The origin cannot be changed here.",
+  "@reconnectConfiguredOrigin": {
+    "description": "Recovery instructions for reconnecting to the data service"
+  },
+  "masterKeyFromAnotherDeviceOptional": "Master key from another device (optional)",
+  "@masterKeyFromAnotherDeviceOptional": {
+    "description": "Optional imported master-key field label"
+  },
+  "masterKeyImportHelp": "Paste an exported ianvs-key-v1 key when this device does not already have it.",
+  "@masterKeyImportHelp": {
+    "description": "Help text for importing a master key"
+  },
+  "localDataServiceStartFailed": "The local data service could not start. Select local terminal mode to continue without an API. Local API data is retained.",
+  "@localDataServiceStartFailed": {
+    "description": "Recovery message when the local data service failed to start"
+  },
+  "alreadyUsingLocalTerminal": "The app is already in local terminal mode. Retry startup or save that mode again to clear its recovery lock.",
+  "@alreadyUsingLocalTerminal": {
+    "description": "Recovery message when the app already uses local terminal mode"
+  },
+  "reconnectAndRetry": "Reconnect and retry",
+  "@reconnectAndRetry": {
+    "description": "Action that reconnects the data service and retries startup"
+  },
+  "appleMasterKeySynchronized": "The master key is stored and synchronized automatically through iCloud Keychain. No key entry is required.",
+  "@appleMasterKeySynchronized": {
+    "description": "Explanation of automatic Apple master-key synchronization"
+  },
+  "masterKeyImportUnavailable": "Master-key import is unavailable.",
+  "@masterKeyImportUnavailable": {
+    "description": "Error shown when master-key import is unavailable"
+  },
+  "httpApiUrl": "HTTP API URL",
+  "@httpApiUrl": {
+    "description": "HTTP data API URL field label"
+  },
+  "chooseDataMode": "Choose your data mode",
+  "@chooseDataMode": {
+    "description": "Initial data-mode setup heading"
+  },
+  "dataModeLocalBundledOrRemote": "Use only local terminals, start the bundled offline API, or connect a remote API for cross-device sync.",
+  "@dataModeLocalBundledOrRemote": {
+    "description": "Data-mode choices when the bundled API is available"
+  },
+  "dataModeLocalOrRemote": "Continue without a data service for one-time SSH connections, or connect a remote API to save profiles and sync them.",
+  "@dataModeLocalOrRemote": {
+    "description": "Data-mode choices when the bundled API is unavailable"
+  },
+  "remoteApiRequiredOnIos": "A remote HTTP API connection is required before Ianvs Terminal can be used on iOS.",
+  "@remoteApiRequiredOnIos": {
+    "description": "Explanation that iOS requires a remote HTTP API"
+  },
+  "masterKeyOpenExistingHelp": "Paste an exported ianvs-key-v1 key to open existing encrypted data.",
+  "@masterKeyOpenExistingHelp": {
+    "description": "Help text for opening existing encrypted data with a master key"
+  },
+  "continueWithoutDataService": "Continue without data service",
+  "@continueWithoutDataService": {
+    "description": "Action that continues without a data service"
+  },
+  "connectRemoteApi": "Connect remote API",
+  "@connectRemoteApi": {
+    "description": "Action that connects a remote data API"
+  },
+  "useBundledLocalApi": "Use bundled local API",
+  "@useBundledLocalApi": {
+    "description": "Action that starts the bundled local data API"
+  },
+  "useLocalTerminalOnly": "Use local terminal only",
+  "@useLocalTerminalOnly": {
+    "description": "Action that uses only local terminal features"
+  },
+  "appCouldNotStart": "Ianvs Terminal could not start",
+  "@appCouldNotStart": {
+    "description": "Startup failure heading"
+  },
+  "startupStageName": "{stage, select, paths{File paths} secureRecovery{Secure recovery} configuration{Configuration} dataBootstrap{Data service startup} platform{Platform initialization} pty{Terminal runtime} configurationValidation{Configuration validation} runtimeComposition{Runtime composition} runtimeShutdown{Runtime shutdown} other{{stage}}}",
+  "@startupStageName": {
+    "description": "Localized name of an application startup stage",
+    "placeholders": {
+      "stage": {
+        "type": "String"
+      }
+    }
+  },
+  "openCommandPalette": "Open command palette",
+  "@openCommandPalette": {
+    "description": "Tooltip for opening the command palette"
+  },
+  "commandPalette": "Command palette",
+  "@commandPalette": {
+    "description": "Command palette title"
+  },
+  "closeCommandPalette": "Close command palette",
+  "@closeCommandPalette": {
+    "description": "Tooltip for closing the command palette"
+  },
+  "searchActions": "Search actions",
+  "@searchActions": {
+    "description": "Command palette search field label"
+  },
+  "typeActionAndPressEnter": "Type an action and press Enter",
+  "@typeActionAndPressEnter": {
+    "description": "Command palette search field hint"
+  },
+  "noActionMatches": "No action matches \"{query}\".",
+  "@noActionMatches": {
+    "description": "Message shown when command search has no match",
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
+  "quickActions": "Quick actions",
+  "@quickActions": {
+    "description": "Command palette quick-actions section"
+  },
+  "appActions": "App actions",
+  "@appActions": {
+    "description": "Command palette application-actions section"
+  },
+  "sessionActions": "Session actions",
+  "@sessionActions": {
+    "description": "Command palette session-actions section"
+  },
+  "replay": "Replay",
+  "@replay": {
+    "description": "Replay feature label"
+  },
+  "shellTools": "Shell tools",
+  "@shellTools": {
+    "description": "Command palette shell-tools section"
+  },
+  "openTerminalTabFirst": "Open a terminal tab first.",
+  "@openTerminalTabFirst": {
+    "description": "Disabled reason when an action needs an active terminal"
+  },
+  "noDefaultProfileConfigured": "No default profile is configured.",
+  "@noDefaultProfileConfigured": {
+    "description": "Disabled reason when no default profile exists"
+  },
+  "noRecentlyClosedTab": "No recently closed tab is available.",
+  "@noRecentlyClosedTab": {
+    "description": "Disabled reason when there is no tab to reopen"
+  },
+  "searchTerminalOutput": "Search terminal output",
+  "@searchTerminalOutput": {
+    "description": "Command palette action title"
+  },
+  "searchTerminalOutputDescription": "Top action • Open in-terminal search for the active pane.",
+  "@searchTerminalOutputDescription": {
+    "description": "Command palette action description"
+  },
+  "newTab": "New tab",
+  "newTabTitleCase": "New Tab",
+  "@newTab": {
+    "description": "Action that opens a new terminal tab"
+  },
+  "newTabDescription": "Top action • Open the default shell profile.",
+  "@newTabDescription": {
+    "description": "Command palette new-tab description"
+  },
+  "toolbelt": "Toolbelt",
+  "@toolbelt": {
+    "description": "Terminal toolbelt title"
+  },
+  "toolbeltDescription": "Top action • Open terminal tools for this pane.",
+  "@toolbeltDescription": {
+    "description": "Command palette toolbelt description"
+  },
+  "defaultsAppearance": "Defaults & appearance",
+  "@defaultsAppearance": {
+    "description": "Defaults and appearance settings title"
+  },
+  "defaultsAppearanceDescription": "App action • Pick the default profile and theme.",
+  "@defaultsAppearanceDescription": {
+    "description": "Command palette defaults description"
+  },
+  "reopenClosedTab": "Reopen closed tab",
+  "@reopenClosedTab": {
+    "description": "Action that reopens the latest closed terminal tab"
+  },
+  "reopenClosedTabDescription": "App action • Recreate the most recently closed tab.",
+  "@reopenClosedTabDescription": {
+    "description": "Command palette reopen-tab description"
+  },
+  "terminalColorPresets": "Terminal color presets",
+  "@terminalColorPresets": {
+    "description": "Terminal color preset picker title"
+  },
+  "terminalColorPresetsDescription": "App action • Open Defaults & appearance to choose terminal colors.",
+  "@terminalColorPresetsDescription": {
+    "description": "Command palette terminal color presets description"
+  },
+  "commandFinishedNotifications": "{enabled, select, true{Disable command-finished notifications} other{Enable command-finished notifications}}",
+  "@commandFinishedNotifications": {
+    "description": "Toggle title for command-finished notifications",
+    "placeholders": {
+      "enabled": {
+        "type": "String"
+      }
+    }
+  },
+  "commandFinishedNotificationsDescription": "App action • Toggle shell hook completion alerts.",
+  "@commandFinishedNotificationsDescription": {
+    "description": "Command-finished notification toggle description"
+  },
+  "commandFinishedNotificationsBlockedDescription": "App action • Toggle shell hook completion alerts. macOS notifications are currently blocked in System Settings.",
+  "@commandFinishedNotificationsBlockedDescription": {
+    "description": "Command-finished notification toggle description when system access is blocked"
+  },
+  "activityMonitor": "{enabled, select, true{Disable activity monitor} other{Enable activity monitor}}",
+  "@activityMonitor": {
+    "description": "Toggle title for the activity monitor",
+    "placeholders": {
+      "enabled": {
+        "type": "String"
+      }
+    }
+  },
+  "activityMonitorDescription": "App action • Toggle inactive-session activity alerts.",
+  "@activityMonitorDescription": {
+    "description": "Activity monitor toggle description"
+  },
+  "activityMonitorBlockedDescription": "App action • Toggle inactive-session activity alerts. macOS notifications are currently blocked in System Settings.",
+  "@activityMonitorBlockedDescription": {
+    "description": "Activity monitor toggle description when system access is blocked"
+  },
+  "profilesEllipsis": "Profiles…",
+  "@profilesEllipsis": {
+    "description": "Action that opens profile management"
+  },
+  "profilesDescription": "App action • Open or edit shell profiles.",
+  "@profilesDescription": {
+    "description": "Command palette profiles description"
+  },
+  "requiresActiveShellSession": "Requires an active shell session.",
+  "@requiresActiveShellSession": {
+    "description": "Message shown when no active shell session exists"
+  },
+  "readOnlyMode": "{enabled, select, true{Disable read-only mode} other{Enable read-only mode}}",
+  "@readOnlyMode": {
+    "description": "Toggle title for terminal read-only mode",
+    "placeholders": {
+      "enabled": {
+        "type": "String"
+      }
+    }
+  },
+  "readOnlyModeDescription": "Session action • Block terminal input for this pane.",
+  "@readOnlyModeDescription": {
+    "description": "Read-only mode action description"
+  },
+  "clearBuffer": "Clear buffer",
+  "@clearBuffer": {
+    "description": "Action that clears terminal output and history"
+  },
+  "clearBufferDescription": "Session action • Clear visible output and history; keep the current command line.",
+  "@clearBufferDescription": {
+    "description": "Clear-buffer action description"
+  },
+  "openSftpPanel": "Open SFTP panel",
+  "@openSftpPanel": {
+    "description": "Action that opens the SFTP file panel"
+  },
+  "openSftpPanelDescription": "Session action • Browse files for the active SSH connection in a right-side panel.",
+  "@openSftpPanelDescription": {
+    "description": "Open-SFTP-panel action description"
+  },
+  "requiresActiveSshSession": "Requires an active SSH session.",
+  "@requiresActiveSshSession": {
+    "description": "Disabled reason when an action needs an SSH session"
+  },
+  "exportTerminalHistory": "Export terminal history",
+  "@exportTerminalHistory": {
+    "description": "Action that exports terminal scrollback"
+  },
+  "exportTerminalHistoryDescription": "Session action • Save retained text as a .txt file for sharing or later review.",
+  "@exportTerminalHistoryDescription": {
+    "description": "Export-terminal-history action description"
+  },
+  "exportDiagnostics": "Export diagnostics",
+  "@exportDiagnostics": {
+    "description": "Action that exports diagnostics"
+  },
+  "exportDiagnosticsDescription": "Session action • Save a local resource evidence bundle.",
+  "@exportDiagnosticsDescription": {
+    "description": "Export-diagnostics action description"
+  },
+  "replayRecentActivity": "Replay recent activity",
+  "@replayRecentActivity": {
+    "description": "Action that opens recent terminal activity replay"
+  },
+  "replayRecentActivityDescription": "Replay • Review the current pane’s rolling frame history.",
+  "@replayRecentActivityDescription": {
+    "description": "Recent-activity replay action description"
+  },
+  "stopAndSaveRecording": "Stop & save recording",
+  "@stopAndSaveRecording": {
+    "description": "Action that stops and saves an active recording"
+  },
+  "retrySavingRecording": "Retry saving recording",
+  "@retrySavingRecording": {
+    "description": "Action that retries saving a recording"
+  },
+  "startRecordingForReplay": "Start recording for Replay",
+  "@startRecordingForReplay": {
+    "description": "Action that starts terminal recording"
+  },
+  "recordingDescription": "Replay • Capture this session as a durable recording. Keystrokes are redacted; shell command metadata is included when available.",
+  "@recordingDescription": {
+    "description": "Terminal recording action description"
+  },
+  "recordingOperationInProgress": "A recording operation is already in progress.",
+  "@recordingOperationInProgress": {
+    "description": "Disabled reason while recording work is in progress"
+  },
+  "openRecordingInReplay": "Open recording in Replay…",
+  "@openRecordingInReplay": {
+    "description": "Action that opens a saved recording"
+  },
+  "openRecordingInReplayDescription": "Replay • Open one saved terminal recording without importing it.",
+  "@openRecordingInReplayDescription": {
+    "description": "Open-recording action description"
+  },
+  "globalSearch": "Global search",
+  "@globalSearch": {
+    "description": "Action that searches all terminal tabs"
+  },
+  "globalSearchDescription": "Shell tool • Search all tabs at once.",
+  "@globalSearchDescription": {
+    "description": "Global-search action description"
+  },
+  "openCommandPaletteWith": "Open command palette with {shortcut}",
+  "@openCommandPaletteWith": {
+    "description": "Command palette keyboard shortcut hint",
+    "placeholders": {
+      "shortcut": {
+        "type": "String"
+      }
+    }
+  },
+  "configurationWarningsSummary": "Some terminal profile values were ignored and reset to safe defaults.",
+  "@configurationWarningsSummary": {
+    "description": "Summary shown when terminal profile values were repaired"
+  },
+  "dismissConfigurationWarnings": "Dismiss configuration warnings",
+  "@dismissConfigurationWarnings": {
+    "description": "Tooltip that dismisses profile configuration warnings"
+  },
+  "reviewProfiles": "Review Profiles",
+  "@reviewProfiles": {
+    "description": "Action that opens profiles after a configuration warning"
+  },
+  "dismiss": "Dismiss",
+  "@dismiss": {
+    "description": "Generic dismiss action"
+  },
+  "terminalRuntimeError": "Terminal runtime error.",
+  "@terminalRuntimeError": {
+    "description": "Accessibility label for a terminal runtime error"
+  },
+  "dismissRuntimeError": "Dismiss runtime error",
+  "@dismissRuntimeError": {
+    "description": "Tooltip that dismisses a runtime error"
+  },
+  "terminalCouldNotStart": "Terminal could not start",
+  "@terminalCouldNotStart": {
+    "description": "Terminal startup error title inside the main shell"
+  },
+  "terminalCouldNotStartHelp": "Review the startup error, then try loading the layout again.",
+  "@terminalCouldNotStartHelp": {
+    "description": "Terminal startup error recovery guidance"
+  },
+  "shellLayoutIdle": "Shell layout is idle",
+  "@shellLayoutIdle": {
+    "description": "Empty-state title after the final shell session closes"
+  },
+  "startShellLayout": "Start a shell layout",
+  "@startShellLayout": {
+    "description": "Empty-state title before opening a shell session"
+  },
+  "lastSessionClosedHelp": "The last session has closed. Open a new tab to keep working in the shell layout.",
+  "@lastSessionClosedHelp": {
+    "description": "Empty-state guidance after the final shell session closes"
+  },
+  "openNewTabToStart": "Open a new tab to start working in the shell layout.",
+  "@openNewTabToStart": {
+    "description": "Empty-state guidance before opening a shell session"
+  },
+  "currentNewTabProfile": "Current new-tab profile • {profile}",
+  "@currentNewTabProfile": {
+    "description": "Summary of the effective profile used for new tabs",
+    "placeholders": {
+      "profile": {
+        "type": "String"
+      }
+    }
+  },
+  "configuredDefaultProfile": "Configured default • {profile}",
+  "@configuredDefaultProfile": {
+    "description": "Summary of the configured default profile",
+    "placeholders": {
+      "profile": {
+        "type": "String"
+      }
+    }
+  },
+  "noProfileAvailable": "No profile available",
+  "@noProfileAvailable": {
+    "description": "Fallback when no terminal profile exists"
+  },
+  "connectWithSsh": "Connect with SSH",
+  "@connectWithSsh": {
+    "description": "SSH-only empty-state title"
+  },
+  "createSshConnectionFirstTab": "Create an SSH connection to open your first tab.",
+  "@createSshConnectionFirstTab": {
+    "description": "SSH-only empty-state guidance without saved profiles"
+  },
+  "chooseSavedProfileForTab": "Choose a saved profile to open a terminal tab.",
+  "@chooseSavedProfileForTab": {
+    "description": "SSH-only empty-state guidance with saved profiles"
+  },
+  "localSessionsUnavailableOnIphone": "Local terminal sessions are unavailable on iPhone.",
+  "@localSessionsUnavailableOnIphone": {
+    "description": "Explanation of the iPhone SSH-only limitation"
+  },
+  "noSshProfilesYet": "No SSH profiles yet",
+  "@noSshProfilesYet": {
+    "description": "Empty state for the SSH profile list"
+  },
+  "newSshConnection": "New SSH Connection",
+  "@newSshConnection": {
+    "description": "Action that creates a new SSH connection"
+  },
+  "newTerminalTab": "New terminal tab",
+  "@newTerminalTab": {
+    "description": "New-session launcher title when local sessions are available"
+  },
+  "newSshTab": "New SSH tab",
+  "@newSshTab": {
+    "description": "New-session launcher title in SSH-only mode"
+  },
+  "chooseLocalShellOrSsh": "Choose a local shell or connect to an SSH host.",
+  "@chooseLocalShellOrSsh": {
+    "description": "New-session launcher guidance with local sessions"
+  },
+  "chooseSavedSshOrCreate": "Choose a saved SSH profile or create a new one.",
+  "@chooseSavedSshOrCreate": {
+    "description": "New-session launcher guidance in SSH-only mode"
+  },
+  "localShell": "Local shell",
+  "@localShell": {
+    "description": "Local shell connection type"
+  },
+  "sshSession": "SSH session",
+  "@sshSession": {
+    "description": "SSH session connection type"
+  },
+  "newSshConnectionLower": "New SSH connection",
+  "@newSshConnectionLower": {
+    "description": "Action that creates a saved SSH connection"
+  },
+  "newOneTimeSshConnection": "New one-time SSH connection",
+  "@newOneTimeSshConnection": {
+    "description": "Action that creates a one-time SSH connection"
+  },
+  "connectionWillNotBeSaved": "This connection will not be saved",
+  "@connectionWillNotBeSaved": {
+    "description": "Warning title for a one-time SSH connection"
+  },
+  "remoteDataRequiredToSaveSsh": "Connect a remote data service to save reusable SSH profiles. You can still connect once without an Ianvs account or data service.",
+  "@remoteDataRequiredToSaveSsh": {
+    "description": "Explanation of why an SSH connection cannot be saved"
+  },
+  "searchSshProfiles": "Search SSH profiles",
+  "@searchSshProfiles": {
+    "description": "Accessibility label for SSH profile search"
+  },
+  "searchByNameHostUser": "Search by name, host, or user",
+  "@searchByNameHostUser": {
+    "description": "SSH profile search hint"
+  },
+  "clearSearch": "Clear search",
+  "@clearSearch": {
+    "description": "Action that clears a search query"
+  },
+  "savedSshProfiles": "Saved SSH profiles",
+  "@savedSshProfiles": {
+    "description": "Saved SSH profile section title"
+  },
+  "fromOpenSshConfig": "From ~/.ssh/config",
+  "@fromOpenSshConfig": {
+    "description": "Imported OpenSSH configuration section title"
+  },
+  "openSshProfilesUnavailable": "OpenSSH profiles unavailable",
+  "@openSshProfilesUnavailable": {
+    "description": "Error title when OpenSSH profiles cannot be imported"
+  },
+  "noConcreteSshHosts": "No concrete SSH hosts found",
+  "@noConcreteSshHosts": {
+    "description": "Empty state for imported OpenSSH hosts"
+  },
+  "noMatchingSshProfiles": "No matching SSH profiles",
+  "@noMatchingSshProfiles": {
+    "description": "Empty state for filtered SSH profiles"
+  },
+  "tryDifferentNameHostUser": "Try a different name, host, or user.",
+  "@tryDifferentNameHostUser": {
+    "description": "Guidance after SSH profile search has no matches"
+  },
+  "moreActionsFor": "More actions for {name}",
+  "@moreActionsFor": {
+    "description": "Tooltip for opening item actions",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "connect": "Connect",
+  "@connect": {
+    "description": "Generic connect action"
+  },
+  "profiles": "Profiles",
+  "@profiles": {
+    "description": "Terminal profile management title"
+  },
+  "savedSshProfilesRequireRemote": "Saved SSH profiles require a remote data service on iPhone.",
+  "@savedSshProfilesRequireRemote": {
+    "description": "Profile sheet description when saved SSH profiles are unavailable"
+  },
+  "openSavedSshOrEdit": "Open a saved SSH profile or edit its terminal settings.",
+  "@openSavedSshOrEdit": {
+    "description": "Profile sheet description in SSH-only mode"
+  },
+  "openSavedProfileOrEdit": "Open a tab with any saved profile or edit its terminal settings.",
+  "@openSavedProfileOrEdit": {
+    "description": "Profile sheet description"
+  },
+  "noMatchingProfiles": "No matching profiles",
+  "@noMatchingProfiles": {
+    "description": "Empty state for filtered profiles"
+  },
+  "noSavedProfiles": "No saved profiles",
+  "@noSavedProfiles": {
+    "description": "Empty state when saved profiles are unavailable"
+  },
+  "noProfilesYet": "No profiles yet",
+  "@noProfilesYet": {
+    "description": "Empty state when no terminal profiles exist"
+  },
+  "tryDifferentProfileSearch": "Try a different profile name, shell, or tag.",
+  "@tryDifferentProfileSearch": {
+    "description": "Guidance after profile search has no matches"
+  },
+  "connectRemoteToCreateSyncSsh": "Connect a remote data service to create and sync SSH profiles.",
+  "@connectRemoteToCreateSyncSsh": {
+    "description": "Guidance when SSH profiles require a remote data service"
+  },
+  "createSshProfileToConnect": "Create an SSH profile to connect to a remote host.",
+  "@createSshProfileToConnect": {
+    "description": "Guidance when no SSH profiles exist"
+  },
+  "createProfileToCustomize": "Create a profile to customize a terminal session.",
+  "@createProfileToCustomize": {
+    "description": "Guidance when no terminal profiles exist"
+  },
+  "createProfile": "Create profile",
+  "@createProfile": {
+    "description": "Action that creates a terminal profile"
+  },
+  "connectRemoteToCreateSavedSsh": "Connect a remote data service to create saved SSH profiles",
+  "@connectRemoteToCreateSavedSsh": {
+    "description": "Disabled reason for creating saved SSH profiles"
+  },
+  "newAction": "New",
+  "@newAction": {
+    "description": "Generic new-item action"
+  },
+  "closeProfiles": "Close profiles",
+  "@closeProfiles": {
+    "description": "Tooltip for closing profile management"
+  },
+  "searchProfilesOrTags": "Search profiles or tags",
+  "@searchProfilesOrTags": {
+    "description": "Profile search field label"
+  },
+  "editNamedItem": "Edit {name}",
+  "@editNamedItem": {
+    "description": "Tooltip for editing a named item",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "deleteNamedItem": "Delete {name}",
+  "@deleteNamedItem": {
+    "description": "Tooltip for deleting a named item",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "newProfile": "New profile",
+  "@newProfile": {
+    "description": "New profile dialog title"
+  },
+  "runShellOnDevice": "Run a shell on this device.",
+  "@runShellOnDevice": {
+    "description": "Local shell profile description"
+  },
+  "connectRemoteHost": "Connect to a remote host.",
+  "@connectRemoteHost": {
+    "description": "SSH profile description"
+  },
+  "scrollbackLineCount": "{count, plural, =1{1 line} other{{count} lines}}",
+  "@scrollbackLineCount": {
+    "description": "Terminal scrollback line count",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "defaultProfile": "Default profile",
+  "@defaultProfile": {
+    "description": "Label for the default terminal profile"
+  },
+  "defaultsAppearanceSubtitle": "Pick the default profile for new tabs and choose how the shell follows the app theme.",
+  "@defaultsAppearanceSubtitle": {
+    "description": "Defaults and appearance dialog subtitle"
+  },
+  "closeDefaults": "Close defaults",
+  "@closeDefaults": {
+    "description": "Tooltip for closing defaults and appearance"
+  },
+  "useAutomaticFallback": "Use automatic fallback",
+  "@useAutomaticFallback": {
+    "description": "Option to automatically choose a default profile"
+  },
+  "noProfileForNewTabs": "No profile is available for new tabs.",
+  "@noProfileForNewTabs": {
+    "description": "Message when no profile can be used for new tabs"
+  },
+  "newTabsUseProfileAutomatically": "New tabs use {profile} automatically until you choose a fixed default.",
+  "@newTabsUseProfileAutomatically": {
+    "description": "Automatic default profile explanation",
+    "placeholders": {
+      "profile": {
+        "type": "String"
+      }
+    }
+  },
+  "automaticFallbackProfile": "Automatic fallback • {profile}",
+  "@automaticFallbackProfile": {
+    "description": "Automatic profile fallback summary",
+    "placeholders": {
+      "profile": {
+        "type": "String"
+      }
+    }
+  },
+  "unknownProfile": "Unknown profile",
+  "@unknownProfile": {
+    "description": "Fallback for a missing configured profile"
+  },
+  "terminalPreset": "Terminal preset",
+  "@terminalPreset": {
+    "description": "Terminal color preset section title"
+  },
+  "createProfileBeforeColors": "Create a profile before choosing terminal colors.",
+  "@createProfileBeforeColors": {
+    "description": "Guidance when terminal colors cannot be selected"
+  },
+  "applyPaletteToProfile": "Apply a curated terminal color palette to {profile}.",
+  "@applyPaletteToProfile": {
+    "description": "Terminal color preset section guidance",
+    "placeholders": {
+      "profile": {
+        "type": "String"
+      }
+    }
+  },
+  "filterTerminalPresets": "Filter terminal presets",
+  "@filterTerminalPresets": {
+    "description": "Terminal preset filter field label"
+  },
+  "keepCurrent": "Keep current",
+  "@keepCurrent": {
+    "description": "Option that keeps current terminal colors"
+  },
+  "customColors": "Custom colors",
+  "@customColors": {
+    "description": "Label for custom terminal colors"
+  },
+  "currentlyPreset": "Currently {preset}",
+  "@currentlyPreset": {
+    "description": "Current terminal preset summary",
+    "placeholders": {
+      "preset": {
+        "type": "String"
+      }
+    }
+  },
+  "noTerminalPresetsMatch": "No terminal presets match “{query}”.",
+  "@noTerminalPresetsMatch": {
+    "description": "Empty state for terminal preset search",
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
+  "startup": "Startup",
+  "@startup": {
+    "description": "Startup settings section title"
+  },
+  "startupLayoutDescription": "Choose whether the terminal should rebuild your last tab and pane arrangement.",
+  "@startupLayoutDescription": {
+    "description": "Startup layout settings description"
+  },
+  "restoreTabsAndPanes": "Restore tabs and panes on launch",
+  "@restoreTabsAndPanes": {
+    "description": "Startup layout restoration toggle title"
+  },
+  "restoreTabsAndPanesDescription": "Starts new shell processes and restores their folders. Running processes are not resumed.",
+  "@restoreTabsAndPanesDescription": {
+    "description": "Startup layout restoration explanation"
+  },
+  "appearance": "Appearance",
+  "@appearance": {
+    "description": "Appearance settings section title"
+  },
+  "themeModeName": "{mode, select, system{System} light{Light} dark{Dark} other{{mode}}}",
+  "@themeModeName": {
+    "description": "Application theme mode name",
+    "placeholders": {
+      "mode": {
+        "type": "String"
+      }
+    }
+  },
+  "themeModeDescription": "{mode, select, system{Follow the current device appearance.} light{Keep the shell app in light mode.} dark{Keep the shell app in dark mode.} other{{mode}}}",
+  "@themeModeDescription": {
+    "description": "Application theme mode description",
+    "placeholders": {
+      "mode": {
+        "type": "String"
+      }
+    }
+  },
+  "terminalCanvasInset": "Terminal canvas inset",
+  "@terminalCanvasInset": {
+    "description": "Terminal canvas inset section title"
+  },
+  "terminalCanvasInsetDescription": "Adjust the empty space between the shell frame and terminal text.",
+  "@terminalCanvasInsetDescription": {
+    "description": "Terminal canvas inset explanation"
+  },
+  "viewportPadding": "Viewport padding",
+  "@viewportPadding": {
+    "description": "Terminal viewport padding setting label"
+  },
+  "pixelCount": "{count} pixels",
+  "@pixelCount": {
+    "description": "Accessibility value for a pixel measurement",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "decreaseViewportPadding": "Decrease viewport padding",
+  "@decreaseViewportPadding": {
+    "description": "Action that decreases terminal viewport padding"
+  },
+  "increaseViewportPadding": "Increase viewport padding",
+  "@increaseViewportPadding": {
+    "description": "Action that increases terminal viewport padding"
+  },
+  "viewportPaddingRange": "Range {minimum}–{maximum} px",
+  "@viewportPaddingRange": {
+    "description": "Terminal viewport padding range",
+    "placeholders": {
+      "minimum": {
+        "type": "int"
+      },
+      "maximum": {
+        "type": "int"
+      }
+    }
+  },
+  "viewportPaddingDescription": "Lower values keep the prompt close to the edges; higher values create a larger terminal gutter.",
+  "@viewportPaddingDescription": {
+    "description": "Terminal viewport padding explanation"
+  },
+  "resetDefault": "Reset default",
+  "@resetDefault": {
+    "description": "Action that resets the default profile"
+  },
+  "resetTheme": "Reset theme",
+  "@resetTheme": {
+    "description": "Action that resets appearance settings"
+  },
+  "migrateToRemoteApi": "Migrate to remote API",
+  "@migrateToRemoteApi": {
+    "description": "Action that migrates local data to a remote API"
+  },
+  "migrateToLocalApi": "Migrate to local API",
+  "@migrateToLocalApi": {
+    "description": "Action that migrates remote data to a local API"
+  },
+  "saveChanges": "Save changes",
+  "@saveChanges": {
+    "description": "Action that saves settings changes"
+  },
+  "detailedSettingsInProfiles": "Detailed terminal settings live in Profiles.",
+  "@detailedSettingsInProfiles": {
+    "description": "Profile settings notice title"
+  },
+  "editTerminalDetailsInProfiles": "Edit font, colors, cursor, scrollback, and startup arguments from the Profiles editor.",
+  "@editTerminalDetailsInProfiles": {
+    "description": "Profile settings notice explanation"
+  },
+  "editProfileInProfiles": "Edit {profile} in Profiles",
+  "@editProfileInProfiles": {
+    "description": "Action that opens a profile in profile management",
+    "placeholders": {
+      "profile": {
+        "type": "String"
+      }
+    }
+  },
+  "keyboardShortcuts": "Keyboard shortcuts",
+  "@keyboardShortcuts": {
+    "description": "Keyboard shortcut settings title"
+  },
+  "keyboardShortcutsDescription": "Select a shortcut to record a new key combination. Changes apply immediately after saving.",
+  "@keyboardShortcutsDescription": {
+    "description": "Keyboard shortcut settings explanation"
+  },
+  "filterShortcutActions": "Filter shortcut actions",
+  "@filterShortcutActions": {
+    "description": "Accessibility label for shortcut action filtering"
+  },
+  "filterActions": "Filter actions",
+  "@filterActions": {
+    "description": "Shortcut action filter field label"
+  },
+  "category": "Category",
+  "@category": {
+    "description": "Shortcut category field label"
+  },
+  "allActions": "All actions",
+  "@allActions": {
+    "description": "Option showing all shortcut actions"
+  },
+  "restoreAllDefaults": "Restore all defaults",
+  "@restoreAllDefaults": {
+    "description": "Action that restores all default shortcuts"
+  },
+  "noMatchingActions": "No matching actions",
+  "@noMatchingActions": {
+    "description": "Empty state for shortcut action search"
+  },
+  "tryAnotherActionOrCategory": "Try another action name or category.",
+  "@tryAnotherActionOrCategory": {
+    "description": "Guidance after shortcut action search has no matches"
+  },
+  "shortcutConflictSummary": "{count, plural, =1{1 shortcut conflict. Resolve conflicts before saving.} other{{count} shortcut conflicts. Resolve conflicts before saving.}}",
+  "@shortcutConflictSummary": {
+    "description": "Accessibility summary of shortcut conflicts",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "resolveShortcutConflicts": "Resolve shortcut conflicts before saving",
+  "@resolveShortcutConflicts": {
+    "description": "Shortcut conflict error title"
+  },
+  "addShortcut": "Add shortcut",
+  "@addShortcut": {
+    "description": "Action that adds a shortcut"
+  },
+  "editShortcutFor": "Edit shortcut for {action}",
+  "@editShortcutFor": {
+    "description": "Tooltip for editing an action shortcut",
+    "placeholders": {
+      "action": {
+        "type": "String"
+      }
+    }
+  },
+  "disableShortcutFor": "Disable shortcut for {action}",
+  "@disableShortcutFor": {
+    "description": "Tooltip for disabling an action shortcut",
+    "placeholders": {
+      "action": {
+        "type": "String"
+      }
+    }
+  },
+  "restoreShortcutFor": "Restore default shortcut for {action}",
+  "@restoreShortcutFor": {
+    "description": "Tooltip for restoring an action shortcut",
+    "placeholders": {
+      "action": {
+        "type": "String"
+      }
+    }
+  },
+  "recordShortcut": "Record shortcut",
+  "@recordShortcut": {
+    "description": "Shortcut capture dialog title"
+  },
+  "activeWhen": "Active when",
+  "@activeWhen": {
+    "description": "Shortcut scope field label"
+  },
+  "waitingForShortcut": "Waiting for shortcut",
+  "@waitingForShortcut": {
+    "description": "Accessibility status while waiting for shortcut input"
+  },
+  "recordedShortcut": "Recorded {shortcut}",
+  "@recordedShortcut": {
+    "description": "Accessibility status after recording a shortcut",
+    "placeholders": {
+      "shortcut": {
+        "type": "String"
+      }
+    }
+  },
+  "pressShortcut": "Press a shortcut",
+  "@pressShortcut": {
+    "description": "Shortcut capture prompt"
+  },
+  "shortcutCaptureHelp": "Press Escape to cancel, or Delete to disable this shortcut.",
+  "@shortcutCaptureHelp": {
+    "description": "Shortcut capture keyboard guidance"
+  },
+  "disableShortcut": "Disable shortcut",
+  "@disableShortcut": {
+    "description": "Action that disables a shortcut"
+  },
+  "apply": "Apply",
+  "@apply": {
+    "description": "Generic apply action"
+  },
+  "copyMasterKeyQuestion": "Copy the master key?",
+  "@copyMasterKeyQuestion": {
+    "description": "Master key copy confirmation title"
+  },
+  "copyMasterKeyWarning": "Anyone with this key can decrypt your Ianvs data. The key will be placed on the system clipboard; paste it into the destination app and then clear the clipboard.",
+  "@copyMasterKeyWarning": {
+    "description": "Security warning before copying the master key"
+  },
+  "copyKey": "Copy key",
+  "@copyKey": {
+    "description": "Action that copies a master key"
+  },
+  "importMasterKey": "Import master key",
+  "@importMasterKey": {
+    "description": "Master key import dialog title"
+  },
+  "ianvsMasterKey": "Ianvs master key",
+  "@ianvsMasterKey": {
+    "description": "Master key input field label"
+  },
+  "masterKeyPasteHelp": "Paste the complete value beginning with ianvs-key-v1.",
+  "@masterKeyPasteHelp": {
+    "description": "Master key input help text"
+  },
+  "masterKey": "Master key",
+  "@masterKey": {
+    "description": "Master key management title"
+  },
+  "appleEncryptionManagedAutomatically": "Encryption is managed automatically on this Apple device.",
+  "@appleEncryptionManagedAutomatically": {
+    "description": "Apple master key management summary"
+  },
+  "portableMasterKeyDescription": "One portable key unlocks local, remote, and SSH profile encryption across supported platforms.",
+  "@portableMasterKeyDescription": {
+    "description": "Portable master key summary"
+  },
+  "appleMasterKeyStorageDescription": "Ianvs Terminal stores the master key in iCloud Keychain and requests synchronization automatically. No manual key entry is required.",
+  "@appleMasterKeyStorageDescription": {
+    "description": "Apple master key storage explanation"
+  },
+  "copyForAnotherDevice": "Copy for another device",
+  "@copyForAnotherDevice": {
+    "description": "Action that copies the master key for transfer"
+  },
+  "pasteFromAnotherDevice": "Paste from another device",
+  "@pasteFromAnotherDevice": {
+    "description": "Action that imports a master key from another device"
+  },
+  "closeSftpPanel": "Close SFTP panel",
+  "@closeSftpPanel": {
+    "description": "Tooltip for closing the SFTP panel"
+  },
+  "copyFullPath": "Copy full path",
+  "@copyFullPath": {
+    "description": "SFTP action that copies a remote path"
+  },
+  "editLocally": "Edit locally",
+  "@editLocally": {
+    "description": "SFTP action that edits a remote file locally"
+  },
+  "createDirectory": "Create directory",
+  "@createDirectory": {
+    "description": "SFTP action that creates a directory"
+  },
+  "copiedPath": "Copied {path}",
+  "@copiedPath": {
+    "description": "Confirmation after copying a remote path",
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
+  "createdNamedItem": "Created {name}",
+  "@createdNamedItem": {
+    "description": "Confirmation after creating a named item",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "couldNotCreateNamedItem": "Could not create {name}.",
+  "@couldNotCreateNamedItem": {
+    "description": "Error after failing to create a named item",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "name": "Name",
+  "@name": {
+    "description": "Generic name field label"
+  },
+  "create": "Create",
+  "@create": {
+    "description": "Generic create action"
+  },
+  "deleteNamedItemQuestion": "Delete {name}?",
+  "@deleteNamedItemQuestion": {
+    "description": "Confirmation title for deleting a named item",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "directoryMustBeEmpty": "The directory must be empty before it can be deleted.",
+  "@directoryMustBeEmpty": {
+    "description": "SFTP directory deletion explanation"
+  },
+  "remoteFileDeletedPermanently": "This remote file will be deleted permanently.",
+  "@remoteFileDeletedPermanently": {
+    "description": "SFTP file deletion warning"
+  },
+  "deletedNamedItem": "Deleted {name}",
+  "@deletedNamedItem": {
+    "description": "Confirmation after deleting a named item",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "couldNotDeleteNamedItem": "Could not delete {name}.",
+  "@couldNotDeleteNamedItem": {
+    "description": "Error after failing to delete a named item",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "sftpPanelFor": "SFTP panel for {address}",
+  "@sftpPanelFor": {
+    "description": "Accessibility label for an SFTP panel",
+    "placeholders": {
+      "address": {
+        "type": "String"
+      }
+    }
+  },
+  "remoteRoot": "Remote root",
+  "@remoteRoot": {
+    "description": "SFTP action that navigates to the remote root"
+  },
+  "parentDirectory": "Parent directory",
+  "@parentDirectory": {
+    "description": "SFTP action that navigates to the parent directory"
+  },
+  "refreshRemoteDirectory": "Refresh remote directory",
+  "@refreshRemoteDirectory": {
+    "description": "SFTP action that reloads a remote directory"
+  },
+  "loadingRemoteDirectory": "Loading remote directory",
+  "@loadingRemoteDirectory": {
+    "description": "Accessibility status while loading SFTP content"
+  },
+  "unableLoadRemoteDirectory": "Unable to load the remote directory.",
+  "@unableLoadRemoteDirectory": {
+    "description": "Generic SFTP directory load error"
+  },
+  "remoteFilesUnavailable": "Remote files unavailable",
+  "@remoteFilesUnavailable": {
+    "description": "SFTP directory error title"
+  },
+  "remoteDirectoryEmpty": "This remote directory is empty.",
+  "@remoteDirectoryEmpty": {
+    "description": "SFTP directory empty state"
+  },
+  "remoteEntrySemantics": "{type} {name}",
+  "@remoteEntrySemantics": {
+    "description": "Accessibility label for a remote file or folder",
+    "placeholders": {
+      "type": {
+        "type": "String"
+      },
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "folder": "Folder",
+  "@folder": {
+    "description": "Folder item type"
+  },
+  "file": "File",
+  "@file": {
+    "description": "File item type"
+  },
+  "sshHostKeyChanged": "SSH host key changed",
+  "@sshHostKeyChanged": {
+    "description": "SSH changed-host-key warning title"
+  },
+  "trustThisSshHost": "Trust this SSH host?",
+  "@trustThisSshHost": {
+    "description": "SSH unknown-host confirmation title"
+  },
+  "sshHostKeyChangedWarning": "The key saved for this server does not match the key it presented now. Only continue if you verified the new fingerprint; accepting replaces the saved key.",
+  "@sshHostKeyChangedWarning": {
+    "description": "SSH changed-host-key security warning"
+  },
+  "sshUnknownHostWarning": "Strict verification has no saved key for this server. Verify the fingerprint before trusting it.",
+  "@sshUnknownHostWarning": {
+    "description": "SSH unknown-host security warning"
+  },
+  "server": "Server",
+  "@server": {
+    "description": "Server detail label"
+  },
+  "algorithm": "Algorithm",
+  "@algorithm": {
+    "description": "Cryptographic algorithm detail label"
+  },
+  "sha256Fingerprint": "SHA-256 fingerprint",
+  "@sha256Fingerprint": {
+    "description": "SSH host-key fingerprint label"
+  },
+  "reject": "Reject",
+  "@reject": {
+    "description": "Action that rejects an SSH host key"
+  },
+  "replaceKeyAndContinue": "Replace key and continue",
+  "@replaceKeyAndContinue": {
+    "description": "Action that replaces a changed SSH host key"
+  },
+  "trustAndContinue": "Trust and continue",
+  "@trustAndContinue": {
+    "description": "Action that trusts an SSH host key"
+  },
+  "sshAuthentication": "SSH authentication",
+  "@sshAuthentication": {
+    "description": "Fallback SSH authentication prompt title"
+  },
+  "responseNumber": "Response {number}",
+  "@responseNumber": {
+    "description": "Fallback label for an SSH authentication response",
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "responseHidden": "Your response is hidden.",
+  "@responseHidden": {
+    "description": "Explanation for an obscured SSH authentication response"
+  },
+  "editProfile": "Edit profile",
+  "@editProfile": {
+    "description": "Profile editor title"
+  },
+  "discardChangesQuestion": "Discard changes?",
+  "@discardChangesQuestion": {
+    "description": "Unsaved profile changes confirmation title"
+  },
+  "discardProfileChangesWarning": "You have unsaved profile changes. Close the editor and lose them?",
+  "@discardProfileChangesWarning": {
+    "description": "Unsaved profile changes confirmation message"
+  },
+  "keepEditing": "Keep editing",
+  "@keepEditing": {
+    "description": "Action that returns to profile editing"
+  },
+  "discardChanges": "Discard changes",
+  "@discardChanges": {
+    "description": "Action that discards unsaved changes"
+  },
+  "findProfileSetting": "Find profile setting",
+  "@findProfileSetting": {
+    "description": "Accessibility label for profile setting search"
+  },
+  "findSetting": "Find setting",
+  "@findSetting": {
+    "description": "Profile setting search hint"
+  },
+  "clearSettingsSearch": "Clear settings search",
+  "@clearSettingsSearch": {
+    "description": "Action that clears profile setting search"
+  },
+  "noSettingsFound": "No settings found",
+  "@noSettingsFound": {
+    "description": "Empty profile setting search result"
+  },
+  "sectionsFound": "{count, plural, =1{1 section found} other{{count} sections found}}",
+  "@sectionsFound": {
+    "description": "Profile setting search result count",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "modifiedSections": "{count, plural, =1{1 modified section} other{{count} modified sections}}",
+  "@modifiedSections": {
+    "description": "Modified profile section count",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "noProfileSettingsMatch": "No profile settings match “{query}”.",
+  "@noProfileSettingsMatch": {
+    "description": "Empty state for profile setting search",
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
+  "profileEditorSectionNavigation": "Profile editor section navigation",
+  "@profileEditorSectionNavigation": {
+    "description": "Accessibility label for profile editor navigation"
+  },
+  "profileEditorDialog": "Profile editor dialog",
+  "@profileEditorDialog": {
+    "description": "Accessibility label for the profile editor dialog"
+  },
+  "profileChangesNewSessionsOnly": "Changes apply to new sessions only. Existing tabs keep the profile snapshot they started with.",
+  "@profileChangesNewSessionsOnly": {
+    "description": "Profile editor change scope explanation"
+  },
+  "closeProfileEditor": "Close profile editor",
+  "@closeProfileEditor": {
+    "description": "Tooltip for closing the profile editor"
+  },
+  "profileSectionName": "{section, select, general{General} startup{Startup} terminal{Terminal} appearance{Appearance} keys{Keys} automation{Automation} advanced{Advanced} other{{section}}}",
+  "@profileSectionName": {
+    "description": "Profile editor section name",
+    "placeholders": {
+      "section": {
+        "type": "String"
+      }
+    }
+  },
+  "resetProfileSection": "Reset {section}",
+  "@resetProfileSection": {
+    "description": "Action that resets one profile section",
+    "placeholders": {
+      "section": {
+        "type": "String"
+      }
+    }
+  },
+  "profileSectionSemantics": "{section} profile section{modified, select, true{, modified} other{}}",
+  "@profileSectionSemantics": {
+    "description": "Accessibility label for a profile editor section",
+    "placeholders": {
+      "section": {
+        "type": "String"
+      },
+      "modified": {
+        "type": "String"
+      }
+    }
+  },
+  "sshConnection": "SSH connection",
+  "connectOnceOrSaveProfile": "Connect once or save a reusable session profile.",
+  "connection": "Connection",
+  "connectionSectionDescription": "Name the session and enter the destination address.",
+  "sessionName": "Session name",
+  "exampleProduction": "For example, Production",
+  "host": "Host",
+  "hostnameOrIp": "hostname or IP address",
+  "user": "User",
+  "remoteUser": "remote user",
+  "port": "Port",
+  "authentication": "Authentication",
+  "authenticationDescription": "Choose how the server should verify your identity.",
+  "method": "Method",
+  "authenticationMethod": "Authentication method",
+  "automaticKeysThenPassword": "Automatic (keys, then password)",
+  "privateKey": "Private key",
+  "keyboardInteractiveOtp": "Keyboard interactive / OTP",
+  "passwordFallback": "Password fallback",
+  "passwordFallbackHelp": "Used only when key authentication is unavailable.",
+  "forgetSavedPassword": "Forget saved password",
+  "privateKeyDescription": "The selected path is shown here. Only the encrypted key contents are saved.",
+  "privateKeyFile": "Private key file",
+  "select": "Select",
+  "replace": "Replace",
+  "forgetSavedPrivateKey": "Forget saved private key",
+  "privateKeyPassphrase": "Private key passphrase",
+  "privateKeyPassphraseHelp": "Leave blank for an unencrypted private key.",
+  "forgetSavedKeyPassphrase": "Forget saved key passphrase",
+  "keyboardInteractiveHelp": "The server will ask for each required response after the connection starts, including multi-step OTP challenges.",
+  "hostVerificationAdvanced": "Host verification and advanced options",
+  "hostVerificationAdvancedDescription": "Host keys, jump hosts, tunnels, agent and X11 forwarding",
+  "hostKeyPolicy": "Host key policy",
+  "acceptNewHostsRecommended": "Accept new hosts (recommended)",
+  "askBeforeTrusting": "Ask before trusting",
+  "doNotVerifyUnsafe": "Do not verify (unsafe)",
+  "knownHostsFileOptional": "Known hosts file (optional)",
+  "proxyCommandOptional": "ProxyCommand (optional)",
+  "proxyJumpOptional": "ProxyJump (optional)",
+  "proxyJumpHelp": "Comma-separated [user@]host[:port]; bracket IPv6 hosts. New hops use independent Auto authentication.",
+  "portForwards": "Port forwards",
+  "portForwardsHelp": "One per line: L bind:port target:port, R bind:port target:port, or D bind:port.",
+  "forwardSshAgent": "Forward SSH agent",
+  "agentSocketHelp": "Blank socket path uses SSH_AUTH_SOCK.",
+  "agentSocketOptional": "Agent socket (optional)",
+  "forwardX11": "Forward X11",
+  "x11ForwardingHelp": "Blank target uses DISPLAY; a 32-character MIT-MAGIC-COOKIE is required.",
+  "localX11Target": "Local X11 target host:port",
+  "x11AuthenticationCookie": "X11 authentication cookie",
+  "x11CookieRequired": "Required: exactly 32 hexadecimal characters.",
+  "forgetSavedX11Cookie": "Forget saved X11 cookie",
+  "saveThisSshSession": "Save this SSH session",
+  "secretsEncryptedDescription": "Secrets are encrypted; the key stays in platform safe storage.",
+  "remoteServiceRequiredToSaveProfile": "A remote data service is required to save profiles. This connection is one-time only.",
+  "requiredField": "Required",
+  "enterRange": "Enter {minimum}–{maximum}",
+  "@enterRange": {
+    "description": "Numeric field range validation message",
+    "placeholders": {
+      "minimum": {"type": "int"},
+      "maximum": {"type": "int"}
+    }
+  },
+  "connectTimeoutSeconds": "Connect timeout (seconds)",
+  "keepaliveSeconds": "Keepalive (seconds)",
+  "keepaliveRetries": "Keepalive retries",
+  "general": "General",
+  "generalProfileDescription": "Name and tag the profile before configuring launch behavior.",
+  "tags": "Tags",
+  "tagsCommaHelp": "Separate tags with commas.",
+  "profileStartupDescription": "Configure the command, working directory, and process environment.",
+  "command": "Command",
+  "shellProgram": "Shell / Program",
+  "workingDirectory": "Working directory",
+  "workingDirectoryHelp": "Leave empty to use the default working directory.",
+  "argumentsAndEnvironment": "Arguments and environment",
+  "arguments": "Arguments",
+  "terminal": "Terminal",
+  "terminalProfileDescription": "Choose terminal emulation and retained scrollback for new sessions.",
+  "emulation": "Emulation",
+  "scrollbackLines": "Scrollback lines",
+  "profileAppearanceDescription": "Control typography, colors, and cursor behavior.",
+  "typography": "Typography",
+  "fontFamily": "Font family",
+  "fallbackFonts": "Fallback fonts",
+  "fontSize": "Font size",
+  "lineHeight": "Line height",
+  "colors": "Colors",
+  "specialColors": "Special",
+  "ansiNormal": "ANSI normal",
+  "ansiBright": "ANSI bright",
+  "cursor": "Cursor",
+  "cursorShape": "Cursor shape",
+  "blinkCursor": "Blink cursor",
+  "keys": "Keys",
+  "keysProfileDescription": "Choose selection defaults for newly opened sessions.",
+  "selection": "Selection",
+  "copyOnSelect": "Copy on select",
+  "optionDragMode": "Option-drag mode",
+  "automation": "Automation",
+  "automationProfileDescription": "Match terminal output, then notify you or type a fixed reply.",
+  "rules": "Rules",
+  "triggers": "Triggers",
+  "triggerExamples": "Examples: ERROR => notify, Password: => send: secret",
+  "automaticProfileSwitching": "Automatic profile switching",
+  "automaticProfileSwitchingHelp": "Change this profile after host, user, or directory changes.",
+  "advanced": "Advanced",
+  "advancedProfileDescription": "Control shell-aware profile behavior for new sessions.",
+  "integration": "Integration",
+  "shellIntegration": "Shell Integration",
+  "shellIntegrationDescription": "Enable prompt marks, badges, command navigation, and shell-aware actions.",
+  "toolbeltTerminalTools": "Toolbelt terminal tools",
+  "closeToolbelt": "Close toolbelt",
+  "promptMarks": "Prompt Marks",
+  "promptMarkCount": "{count, plural, =1{1 mark} other{{count} marks}}",
+  "tmuxIntegration": "tmux integration",
+  "controlModeActive": "Control mode active",
+  "startOrAttach": "Start or attach",
+  "coprocess": "Coprocess",
+  "automationActive": "Automation active",
+  "runAutomation": "Run automation",
+  "annotations": "Annotations",
+  "annotationCount": "{count, plural, =1{1 note} other{{count} notes}}",
+  "recentFrames": "Recent frames",
+  "passwordManager": "Password manager",
+  "promptGatedSends": "Prompt-gated sends",
+  "commands": "Commands",
+  "directoriesShort": "Dirs",
+  "output": "Output",
+  "paste": "Paste",
+  "commandHistory": "Command History",
+  "commandCount": "{count, plural, =1{1 command} other{{count} commands}}",
+  "all": "All",
+  "runCommandToFillHistory": "Run a command in this tab to fill command history.",
+  "insertCommand": "Insert command",
+  "recentDirectories": "Recent Directories",
+  "directoryCount": "{count, plural, =1{1 directory} other{{count} directories}}",
+  "changeDirectoriesToFillHistory": "Change directories to fill recent directories.",
+  "insertCdCommand": "Insert cd command",
+  "capturedOutput": "Captured output",
+  "capturedLineCount": "{count, plural, =1{1 captured line} other{{count} captured lines}}",
+  "open": "Open",
+  "profileAutomationCapturesOutput": "Profile triggers and coprocesses can capture output.",
+  "capturedOutputLocation": "Pattern {pattern} · Row {row}",
+  "pasteHistory": "Paste history",
+  "recentItemCount": "{count, plural, =1{1 recent item} other{{count} recent items}}",
+  "copiedAndPastedTextAppearsHere": "Copied and pasted text appears here.",
+  "copied": "Copied",
+  "pasted": "Pasted",
+  "@promptMarkCount": {"placeholders": {"count": {"type": "int"}}},
+  "@annotationCount": {"placeholders": {"count": {"type": "int"}}},
+  "@commandCount": {"placeholders": {"count": {"type": "int"}}},
+  "@directoryCount": {"placeholders": {"count": {"type": "int"}}},
+  "@capturedLineCount": {"placeholders": {"count": {"type": "int"}}},
+  "@capturedOutputLocation": {"placeholders": {"pattern": {"type": "String"}, "row": {"type": "int"}}},
+  "@recentItemCount": {"placeholders": {"count": {"type": "int"}}},
+  "advancedPaste": "Advanced Paste",
+  "closeAdvancedPaste": "Close advanced paste",
+  "pasteText": "Paste text",
+  "text": "Text",
+  "escapeSpecialCharacters": "Escape special characters",
+  "base64Encode": "Base64 encode",
+  "appendNewline": "Append newline",
+  "byteCount": "{count, plural, =1{1 byte} other{{count} bytes}}",
+  "@byteCount": {"placeholders": {"count": {"type": "int"}}},
+  "closeCapturedOutput": "Close captured output",
+  "clear": "Clear",
+  "startCapturingMatchingOutput": "Start capturing matching output",
+  "capturedOutputEmptyBody": "Captured rows appear after a profile trigger or coprocess pattern matches terminal output.",
+  "openProfilesAndAddTrigger": "Open Profiles and add a trigger pattern.",
+  "runCommandThatPrintsPattern": "Run a command that prints the pattern.",
+  "reopenCapturedOutput": "Reopen Captured Output to review and copy matches.",
+  "copyCapturedOutput": "Copy captured output",
+  "closeAnnotations": "Close annotations",
+  "selectTerminalTextToAnnotate": "Select terminal text to add an annotation.",
+  "note": "Note",
+  "addAnnotation": "Add Annotation",
+  "addFirstAnnotation": "Add the first annotation",
+  "selectOutputBeforeAnnotating": "Select output before annotating",
+  "annotationSelectionReadyBody": "Use the note field above to attach a note to the selected terminal output.",
+  "annotationSelectionRequiredBody": "Annotations are created from selected terminal text in the active pane.",
+  "enterNoteForSelectedOutput": "Enter a note for the selected output.",
+  "saveAnnotation": "Save the annotation.",
+  "useAnnotationBadge": "Use the annotation badge to reopen notes later.",
+  "selectTerminalOutputInPane": "Select terminal output in the pane.",
+  "openAnnotationsAgain": "Open Annotations again.",
+  "enterNoteAndSave": "Enter a note and save it.",
+  "removeAnnotation": "Remove annotation",
+  "closePasteHistory": "Close paste history",
+  "saveHistoryToDisk": "Save History to Disk",
+  "keepPasteHistoryAcrossLaunches": "Keep recent copied and pasted text across launches.",
+  "noPasteHistoryYet": "No copied or pasted text yet.",
+  "closePasswordManager": "Close password manager",
+  "passwordPromptDetected": "Password prompt detected in the active session.",
+  "openPasswordPromptFirst": "Open a password prompt before sending a password.",
+  "passwordManagerSessionSecurity": "Passwords are kept for this app session and can only be sent when the active terminal appears to be asking for one.",
+  "label": "Label",
+  "serverOrAccount": "Server or account",
+  "passwordEntered": "Password entered",
+  "add": "Add",
+  "noSavedSessionPasswords": "No saved passwords in this session. Add one above, then open a password prompt before sending.",
+  "readyToSend": "Ready to send",
+  "waitingForPasswordPrompt": "Waiting for password prompt",
+  "removePassword": "Remove password",
+  "send": "Send",
+  "closeCoprocess": "Close coprocess",
+  "runCoprocess": "Run Coprocess",
+  "onePerSession": "one per session",
+  "commandLabel": "Command label",
+  "inputPattern": "Input pattern",
+  "coprocessOutput": "Coprocess output",
+  "run": "Run",
+  "lineCount": "{count, plural, =1{1 line} other{{count} lines}}",
+  "@lineCount": {"placeholders": {"count": {"type": "int"}}},
+  "patternValue": "Pattern {pattern}",
+  "@patternValue": {"placeholders": {"pattern": {"type": "String"}}},
+  "stop": "Stop",
+  "closeTmuxIntegration": "Close tmux integration",
+  "controlMode": "Control Mode",
+  "startTmuxControlMode": "Start tmux -CC",
+  "startTmuxControlModeDescription": "Create a new tmux control-mode session.",
+  "attachTmuxControlMode": "Attach tmux -CC",
+  "attachTmuxControlModeDescription": "Attach to an existing tmux session.",
+  "tmuxActions": "tmux Actions",
+  "available": "available",
+  "waiting": "waiting",
+  "newWindow": "New window",
+  "newWindowDescription": "Send new-window to tmux control mode.",
+  "splitPaneRight": "Split pane right",
+  "splitPaneRightDescription": "Send split-window -h.",
+  "splitPaneDown": "Split pane down",
+  "splitPaneDownDescription": "Send split-window -v.",
+  "detachClient": "Detach client",
+  "detachClientDescription": "Detach while leaving tmux running.",
+  "sendTmuxCommand": "Send tmux command",
+  "tmuxCommand": "tmux command",
+  "controlModeDetected": "Control mode detected",
+  "noTmuxControlModeDetected": "No tmux control mode detected",
+  "closeShellIntegration": "Close shell integration",
+  "runCommandAfterOpeningTab": "Run a command after opening this tab to fill command history.",
+  "insertPreviousCommand": "Insert previous command",
+  "changeDirectoriesAfterOpeningTab": "Change directories after opening this tab to fill this list.",
+  "promptMarksAppearAfterPrompt": "Prompt marks appear after the shell draws new prompts.",
+  "commandSucceededShort": "ok",
+  "commandExitCodeShort": "exit {code}",
+  "@commandExitCodeShort": {"placeholders": {"code": {"type": "int"}}},
+  "globalLine": "Global line {line}",
+  "@globalLine": {"placeholders": {"line": {"type": "int"}}},
+  "scrollbackOffset": "Offset {offset}",
+  "@scrollbackOffset": {"placeholders": {"offset": {"type": "int"}}},
+  "shellPromptMark": "Shell prompt mark",
+  "regexError": "Regex error",
+  "noMatches": "No matches",
+  "smartCaseSubstring": "Smart Case Substring",
+  "caseSensitiveSubstring": "Case-Sensitive Substring",
+  "caseInsensitiveSubstring": "Case-Insensitive Substring",
+  "caseSensitiveRegex": "Case-Sensitive Regex",
+  "caseInsensitiveRegex": "Case-Insensitive Regex",
+  "searchFilterValue": "Search filter: {filter}",
+  "@searchFilterValue": {"placeholders": {"filter": {"type": "String"}}},
+  "searchFilter": "Search filter",
+  "filter": "Filter",
+  "currentTab": "Current tab",
+  "allTabs": "All tabs",
+  "paneShort": "Pane",
+  "tabShort": "Tab",
+  "scope": "Scope",
+  "searchScopeValue": "Search scope: {scope}",
+  "@searchScopeValue": {"placeholders": {"scope": {"type": "String"}}},
+  "clearSearchText": "Clear search text",
+  "searchResultValue": "Search result: {result}",
+  "@searchResultValue": {"placeholders": {"result": {"type": "String"}}},
+  "search": "Search",
+  "previousMatch": "Previous match",
+  "nextMatch": "Next match",
+  "closeSearch": "Close search",
+  "searchingAcrossSessions": "Searching across {count, plural, =1{1 session} other{{count} sessions}}",
+  "@searchingAcrossSessions": {"placeholders": {"count": {"type": "int"}}},
+  "matchCount": "{count, plural, =1{1 match} other{{count} matches}}",
+  "@matchCount": {"placeholders": {"count": {"type": "int"}}},
+  "closeGlobalSearch": "Close global search",
+  "searchResultLocation": "{session} · row {row}",
+  "@searchResultLocation": {"placeholders": {"session": {"type": "String"}, "row": {"type": "int"}}},
+  "noMatchesInReplayHistory": "No matches in replay history.",
+  "uniqueReplayMatchCount": "{count, plural, =1{1 unique match in replay} other{{count} unique matches in replay}}",
+  "@uniqueReplayMatchCount": {"placeholders": {"count": {"type": "int"}}},
+  "idleGapValue": "Idle gap: {duration}",
+  "@idleGapValue": {"placeholders": {"duration": {"type": "String"}}},
+  "noReplayFrames": "No replay frames",
+  "recordedAtDimensions": "Recorded at {columns}x{rows}",
+  "@recordedAtDimensions": {"placeholders": {"columns": {"type": "int"}, "rows": {"type": "int"}}},
+  "noReplayFramesCapturedYet": "No replay frames captured yet.",
+  "replayRecentActivityLayout": "Replay recent activity layout",
+  "closeReplay": "Close replay",
+  "terminalChanged": "Terminal changed",
+  "replayControlsRecentActivity": "Replay controls for recent activity",
+  "retentionDisabled": "Retention disabled",
+  "retainsLatestFrames": "Retains latest {count, plural, =1{1 frame} other{{count} frames}}",
+  "@retainsLatestFrames": {"placeholders": {"count": {"type": "int"}}},
+  "recentActivity": "Recent activity",
+  "stepBackInReplay": "Step back in replay",
+  "pauseReplay": "Pause replay",
+  "playReplay": "Play replay",
+  "stepForwardInReplay": "Step forward in replay",
+  "playbackSpeedValue": "Playback speed {speed} times",
+  "@playbackSpeedValue": {"placeholders": {"speed": {"type": "String"}}},
+  "playbackSpeed": "Playback speed",
+  "realTimeShort": "Real",
+  "smartTimeShort": "Smart",
+  "replayTimingValue": "{mode} replay timing",
+  "@replayTimingValue": {"placeholders": {"mode": {"type": "String"}}},
+  "replayTiming": "Replay timing",
+  "smartReplayTimingDescription": "Smart · skip long idle gaps",
+  "realReplayTimingDescription": "Real time · preserve all gaps",
+  "fitRecordedSize": "Fit recorded size",
+  "copyVisible": "Copy visible",
+  "copySelection": "Copy selection",
+  "clearHistory": "Clear history",
+  "searchReplay": "Search replay",
+  "previousSearchMatch": "Previous search match",
+  "nextSearchMatch": "Next search match",
+  "savedTerminalRecordings": "Saved terminal recordings",
+  "savedRecordings": "Saved Recordings",
+  "importEllipsis": "Import…",
+  "refreshRecordings": "Refresh recordings",
+  "closeSavedRecordings": "Close Saved Recordings",
+  "searchRecordings": "Search recordings",
+  "filterPlayableOnly": "Filter: Playable only",
+  "filterAllRecordings": "Filter: All recordings",
+  "filterRecordings": "Filter recordings",
+  "allRecordings": "All recordings",
+  "playableOnly": "Playable only",
+  "recordingSortValue": "Sort: {sort}",
+  "@recordingSortValue": {"placeholders": {"sort": {"type": "String"}}},
+  "recordingSortOrder": "Recording sort order",
+  "newest": "Newest",
+  "oldest": "Oldest",
+  "recordingsMayContainSensitiveOutput": "Recordings may contain sensitive terminal output.",
+  "recordingMayContainSensitiveOutput": "This recording may contain sensitive output.",
+  "recordingCount": "{count, plural, =1{1 recording} other{{count} recordings}}",
+  "@recordingCount": {"placeholders": {"count": {"type": "int"}}},
+  "noMatchingRecordings": "No matching recordings",
+  "noSavedRecordings": "No saved recordings",
+  "actionsForNamedItem": "Actions for {name}",
+  "@actionsForNamedItem": {"placeholders": {"name": {"type": "String"}}},
+  "recordingActions": "Recording actions",
+  "renameEllipsis": "Rename…",
+  "revealInFinder": "Reveal in Finder",
+  "exportEllipsis": "Export…",
+  "moveToTrash": "Move to Trash",
+  "couldNotStartReplay": "Could not start replay: {error}",
+  "@couldNotStartReplay": {"placeholders": {"error": {"type": "String"}}},
+  "couldNotSeekRecording": "Could not seek recording: {error}",
+  "@couldNotSeekRecording": {"placeholders": {"error": {"type": "String"}}},
+  "inputIncluded": "Input included",
+  "keystrokesRedactedCommandMetadataIncluded": "Keystrokes redacted · command metadata included",
+  "keystrokesRedacted": "Keystrokes redacted",
+  "recordedSession": "Recorded session",
+  "recordingDetail": "{session} · {disclosure}",
+  "@recordingDetail": {"placeholders": {"session": {"type": "String"}, "disclosure": {"type": "String"}}},
+  "preparingReplay": "Preparing replay…",
+  "replayRecordingLayout": "Replay recording layout for {name}",
+  "@replayRecordingLayout": {"placeholders": {"name": {"type": "String"}}},
+  "recording": "Recording",
+  "matchesAcrossReplay": "{count, plural, =1{1 match across replay} other{{count} matches across replay}}",
+  "@matchesAcrossReplay": {"placeholders": {"count": {"type": "int"}}},
+  "replayControlsForRecording": "Replay controls for recording",
+  "idleInterval": "Idle interval",
+  "inputEvent": "Input event",
+  "terminalResized": "Terminal resized",
+  "sessionExited": "Session exited",
+  "outputEvent": "Output event",
+  "activity": "Activity",
+  "remoteActivity": "Remote activity",
+  "commandNumber": "Command {number}",
+  "@commandNumber": {"placeholders": {"number": {"type": "int"}}},
+  "replayTimelineSemantics": "{context}, {position} of {duration}",
+  "@replayTimelineSemantics": {"placeholders": {"context": {"type": "String"}, "position": {"type": "String"}, "duration": {"type": "String"}}},
+  "exitCode": "Exit code {code}",
+  "@exitCode": {"placeholders": {"code": {"type": "int"}}},
+  "jumpToReplaySegment": "Jump to {segment} at {time}",
+  "@jumpToReplaySegment": {"placeholders": {"segment": {"type": "String"}, "time": {"type": "String"}}},
+  "remote": "Remote",
+  "idle": "Idle",
+  "remoteSession": "Remote session",
+  "idleGap": "Idle gap",
+  "shellSemantics": "Shell semantics",
+  "activityFallbackNoShellHook": "Activity fallback · no shell hook",
+  "terminalActionName": "{action, select, new_tab{New tab} new_tab_at_folder{New tab at folder} open_recording_for_replay{Open recording for replay} duplicate_current_cwd{Duplicate current directory} reopen_closed_tab{Reopen closed tab} open_launcher{Open launcher} open_command_menu{Open command menu} toolbelt{Toolbelt} open_sftp_panel{Open SFTP panel} split_right{Split right} split_down{Split down} focus_next_pane{Focus next pane} focus_previous_pane{Focus previous pane} resize_pane{Resize pane} swap_pane{Swap pane} zoom_pane{Zoom pane} close_pane{Close pane} reopen_closed_pane{Reopen closed pane} close_active_tab{Close active tab} open_defaults{Open defaults} activate_tab{Activate tab} copy{Copy} copy_mode{Copy mode} copy_command_output{Copy command output} paste{Paste} advanced_paste{Advanced paste} paste_history{Paste history} toggle_read_only{Toggle read-only} toggle_replay_recording{Toggle replay recording} clear_buffer{Clear buffer} shell_integration{Shell integration} select_command_output{Select command output} open_recent_directory{Open recent directory} tmux_integration{tmux integration} coprocess{Coprocess} annotations{Annotations} captured_output{Captured output} password_manager{Password manager} replay_recent_activity{Replay recent activity} search_scrollback{Search scrollback} next_search_match{Next search match} previous_search_match{Previous search match} clear_search{Clear search} global_search{Global search} autocomplete{Autocomplete} auto_composer{Auto composer} hotkey_window{Hotkey window} defaults{Defaults} profiles{Profiles} dynamic_profiles{Dynamic profiles} request_quit_confirmation{Request quit confirmation} previous_prompt{Previous prompt} next_prompt{Next prompt} toggle_command_finished_notify{Toggle command-finished notifications} toggle_bell_notify{Toggle bell notifications} toggle_activity_monitor{Toggle activity monitor} export_scrollback{Export scrollback} export_diagnostics{Export diagnostics} open_theme_picker{Open theme picker} apply_theme{Apply theme} apply_layout_template{Apply layout template} other{{action}}}",
+  "@terminalActionName": {"placeholders": {"action": {"type": "String"}}},
+  "appCategory": "App",
+  "sessionCategory": "Session",
+  "replayCategory": "Replay",
+  "paneCategory": "Pane",
+  "layoutCategory": "Layout",
+  "navigationCategory": "Navigation",
+  "integrationCategory": "Integration",
+  "appFocused": "App focused",
+  "terminalFocused": "Terminal focused",
+  "appWideFallback": "App-wide fallback",
+  "commandMenuOpen": "Command menu open",
+  "notAssigned": "Not assigned",
+  "noShortcut": "no shortcut",
+  "shortcutConflict": "Conflict",
+  "shortcutDisabled": "Disabled",
+  "shortcutCustom": "Custom",
+  "shortcutUnassigned": "Unassigned",
+  "shortcutDefault": "Default",
+  "shortcutActionSemantics": "{action}, {state}, {shortcut}",
+  "@shortcutActionSemantics": {"placeholders": {"action": {"type": "String"}, "state": {"type": "String"}, "shortcut": {"type": "String"}}},
+  "listAndSeparator": " and ",
+  "profileColorName": "{color, select, special_foreground{Foreground} special_background{Background} special_cursor{Cursor color} special_selection{Selection color} special_tab{Tab color} normal_black{Black} normal_red{Red} normal_green{Green} normal_yellow{Yellow} normal_blue{Blue} normal_magenta{Magenta} normal_cyan{Cyan} normal_white{White} bright_black{Bright black} bright_red{Bright red} bright_green{Bright green} bright_yellow{Bright yellow} bright_blue{Bright blue} bright_magenta{Bright magenta} bright_cyan{Bright cyan} bright_white{Bright white} other{{color}}}",
+  "@profileColorName": {"placeholders": {"color": {"type": "String"}}},
+  "moveUp": "Move up",
+  "moveDown": "Move down",
+  "remove": "Remove",
+  "environmentVariables": "Environment variables",
+  "addVariable": "Add variable",
+  "noEnvironmentVariables": "No environment variables",
+  "key": "Key",
+  "value": "Value",
+  "environmentVariableKey": "Environment variable key {number}",
+  "environmentVariableValue": "Environment variable value {number}",
+  "@environmentVariableKey": {"placeholders": {"number": {"type": "int"}}},
+  "@environmentVariableValue": {"placeholders": {"number": {"type": "int"}}},
+  "variableName": "Variable name",
+  "removeVariable": "Remove variable",
+  "themePresets": "Theme presets",
+  "themePresetsDescription": "Follow the app theme, apply a curated palette, or fine-tune individual colors.",
+  "followApplicationThemeColors": "Follow application theme colors",
+  "followAppTheme": "Follow app theme",
+  "followAppThemeDescription": "Terminal background and text update when the application theme changes.",
+  "pickColor": "Pick color",
+  "inheritingDefaultTerminalColor": "Inheriting default terminal color",
+  "currentColorValue": "Current color {color}",
+  "@currentColorValue": {"placeholders": {"color": {"type": "String"}}},
+  "hexColorOrEmpty": "#RRGGBB or empty",
+  "hex": "Hex",
+  "palette": "Palette",
+  "hue": "Hue",
+  "resetToDefault": "Reset to default",
+  "pick": "Pick",
+  "reset": "Reset",
+  "pickNamedColor": "Pick {name} color",
+  "resetNamedColor": "Reset {name} color",
+  "@pickNamedColor": {"placeholders": {"name": {"type": "String"}}},
+  "@resetNamedColor": {"placeholders": {"name": {"type": "String"}}},
+  "colorPalette": "Color palette",
+  "hueSlider": "Hue slider",
+  "hexColorValidation": "Use #RRGGBB or leave empty.",
+  "dynamicProfilesTopLevelObject": "Top-level JSON must be an object.",
+  "dynamicProfilesNoneFound": "No profiles found in JSON.",
+  "dynamicProfilesInvalid": "Could not read profiles: {error}",
+  "@dynamicProfilesInvalid": {"placeholders": {"error": {"type": "String"}}},
+  "dynamicProfilesPreviewSummary": "{profiles, plural, =1{1 profile ready} other{{profiles} profiles ready}} • {added} new • {replacements, plural, =1{1 replacement} other{{replacements} replacements}}{warnings, plural, =0{} =1{ • 1 warning} other{ • {warnings} warnings}}",
+  "@dynamicProfilesPreviewSummary": {"placeholders": {"profiles": {"type": "int"}, "added": {"type": "int"}, "replacements": {"type": "int"}, "warnings": {"type": "int"}}},
+  "replacesExisting": "Replaces existing",
+  "dynamicProfiles": "Dynamic Profiles",
+  "closeDynamicProfiles": "Close dynamic profiles",
+  "dynamicProfilesPasteHelp": "Paste an iTerm2 dynamic profile JSON document. This local build only launches local commands.",
+  "import": "Import",
+  "osc52Clipboard": "OSC 52 clipboard",
+  "osc52ClipboardDescription": "Choose how terminal escape sequences may access the system clipboard.",
+  "terminalUrlRequests": "Terminal URL requests",
+  "terminalUrlRequestsDescription": "Choose whether OSC 1337 OpenURL requests may ask for permission. URLs are never opened automatically.",
+  "terminalAttentionRequests": "Terminal attention requests",
+  "terminalAttentionRequestsDescription": "Choose whether OSC 1337 RequestAttention may use a bounded Dock alert or a cursor-local visual effect. Requests never activate or focus the app.",
+  "terminalVariableReports": "Terminal variable reports",
+  "terminalVariableReportsDescription": "OSC 1337 ReportVariable requests are denied the first time. Remembered decisions apply only to the named session.* or user.* variable.",
+  "noRememberedDecisions": "No remembered decisions",
+  "rememberedDecisionSummary": "{count} remembered · {allowed} allowed · {denied} denied",
+  "@rememberedDecisionSummary": {"placeholders": {"count": {"type": "int"}, "allowed": {"type": "int"}, "denied": {"type": "int"}}},
+  "forgettingDecisionsHelp": "Forgetting decisions restores the safe first-request denial and lets the app ask again later.",
+  "allow": "Allow",
+  "deny": "Deny",
+  "forgetDecisionFor": "Forget decision for {name}",
+  "@forgetDecisionFor": {"placeholders": {"name": {"type": "String"}}},
+  "forgetAllDecisions": "Forget all decisions",
+  "dataService": "Data service",
+  "dataServiceDescriptionLocalAvailable": "Choose whether the app starts a local data service or connects to a remote one.",
+  "dataServiceDescriptionRemoteOnly": "Use one-time SSH connections without a data service, or connect a remote service to save profiles and sync them.",
+  "activeDataService": "Active data service: {service}",
+  "activeNow": "Active now: {service}",
+  "@activeDataService": {"placeholders": {"service": {"type": "String"}}},
+  "@activeNow": {"placeholders": {"service": {"type": "String"}}},
+  "localTerminal": "Local terminal",
+  "noDataService": "No data service",
+  "bundledLocalService": "Bundled local service",
+  "remoteService": "Remote service",
+  "localTerminalNoApiDescription": "No API process. Use local shells and hosts from ~/.ssh/config only.",
+  "noDataServiceDescription": "No API process. Create one-time SSH connections without saving them.",
+  "bundledLocalServiceDescription": "Offline API persistence and custom SSH profiles on this Mac.",
+  "migrateRemoteApiData": "Migrate remote API data",
+  "migrateRemoteApiDataDescription": "The app starts a temporary bundled API and merges remote resources before switching. Remote data is retained if startup, export, or merge fails.",
+  "remoteServiceDescription": "Custom SSH profiles, persistent settings, and cross-device sync over HTTPS.",
+  "migrateLocalApiData": "Migrate local API data",
+  "migrateLocalApiDataDescription": "The app exports and merges local resources before switching. Local data is retained if authentication, export, or merge fails.",
+  "reconnectRequested": "Reconnect requested",
+  "reconnectSignIn": "Reconnect / sign in",
+  "remoteApiBaseUrl": "Remote API base URL",
+  "loginPasswordHelp": "Used only for this login request.",
+  "appleMasterKeyEncryptionDescription": "Encryption uses the one Ianvs master key managed automatically by iCloud Keychain.",
+  "deviceMasterKeyEncryptionDescription": "Encryption uses the one Ianvs master key stored on this device. Export or import it in Master key management when moving to another platform.",
+  "dataServiceRestartNotice": "The selection is stored in the app configuration and takes effect after restart.",
+  "enterRemoteApiBaseUrl": "Enter the remote API base URL.",
+  "invalidRemoteApiBaseUrl": "Enter a valid remote API base URL.",
+  "usernameValidation": "Use 3–64 lowercase letters, numbers, . _ or -.",
+  "passwordValidation": "Use 12–72 UTF-8 bytes.",
+  "osc52PolicyName": "{policy, select, disabled{Deny} profile{Profile} allow{Allow} ask{Ask} other{{policy}}}",
+  "osc52PolicyDescription": "{policy, select, disabled{Block OSC 52 clipboard copy and paste-read requests.} profile{Allow clipboard writes and prompt before paste-read requests.} allow{Allow trusted terminal sessions to use OSC 52 without prompting.} ask{Prompt before each OSC 52 clipboard write or paste-read request.} other{{policy}}}",
+  "openUrlPolicyName": "{policy, select, disabled{Deny} ask{Ask every time} other{{policy}}}",
+  "openUrlPolicyDescription": "{policy, select, disabled{Block every OSC 1337 OpenURL request without showing a dialog.} ask{Require confirmation for each accepted request from the active terminal.} other{{policy}}}",
+  "requestAttentionPolicyName": "{policy, select, disabled{Deny} allow{Allow with limits} other{{policy}}}",
+  "requestAttentionPolicyDescription": "{policy, select, disabled{Block OSC 1337 RequestAttention. Cancellation requests are still honored.} allow{Allow rate-limited Dock attention and a short cursor-local visual effect.} other{{policy}}}",
+  "@osc52PolicyName": {"placeholders": {"policy": {"type": "String"}}},
+  "@osc52PolicyDescription": {"placeholders": {"policy": {"type": "String"}}},
+  "@openUrlPolicyName": {"placeholders": {"policy": {"type": "String"}}},
+  "@openUrlPolicyDescription": {"placeholders": {"policy": {"type": "String"}}},
+  "@requestAttentionPolicyName": {"placeholders": {"policy": {"type": "String"}}},
+  "@requestAttentionPolicyDescription": {"placeholders": {"policy": {"type": "String"}}},
+  "osc5522PasteDeliveryFailed": "OSC 5522 paste event could not be delivered.",
+  "confirmPaste": "Confirm paste",
+  "pasteCharacterLineCount": "Paste {characters, plural, =1{1 character} other{{characters} characters}} across {lines, plural, =1{1 line} other{{lines} lines}}?",
+  "@pasteCharacterLineCount": {"placeholders": {"characters": {"type": "int"}, "lines": {"type": "int"}}},
+  "clearRecentReplayHistoryQuestion": "Clear recent replay history?",
+  "clearRecentReplayHistoryWarning": "Recent activity frames for this pane will be removed from Replay. This action cannot be undone.",
+  "recordingReplayStarted": "Recording for Replay started. Keystrokes are redacted; shell command metadata is included when available.",
+  "recordingSavedNamed": "Recording saved · {name}",
+  "@recordingSavedNamed": {"placeholders": {"name": {"type": "String"}}},
+  "reveal": "Reveal",
+  "couldNotOpenRecording": "Could not open recording: {error}",
+  "couldNotLoadRecordings": "Could not load recordings: {error}",
+  "recordingImported": "Recording imported",
+  "couldNotImportRecording": "Could not import recording: {error}",
+  "renameRecording": "Rename recording",
+  "recordingName": "Recording name",
+  "rename": "Rename",
+  "couldNotRenameRecording": "Could not rename recording: {error}",
+  "couldNotRevealRecording": "Could not reveal recording: {error}",
+  "recordingExported": "Recording exported",
+  "couldNotExportRecording": "Could not export recording: {error}",
+  "moveRecordingToTrashQuestion": "Move recording to Trash?",
+  "recordingRemovedFromSaved": "“{name}” will be removed from Saved Recordings.",
+  "recordingMovedToTrash": "Recording moved to Trash",
+  "couldNotRemoveRecording": "Could not remove recording: {error}",
+  "@couldNotOpenRecording": {"placeholders": {"error": {"type": "String"}}},
+  "@couldNotLoadRecordings": {"placeholders": {"error": {"type": "String"}}},
+  "@couldNotImportRecording": {"placeholders": {"error": {"type": "String"}}},
+  "@couldNotRenameRecording": {"placeholders": {"error": {"type": "String"}}},
+  "@couldNotRevealRecording": {"placeholders": {"error": {"type": "String"}}},
+  "@couldNotExportRecording": {"placeholders": {"error": {"type": "String"}}},
+  "@recordingRemovedFromSaved": {"placeholders": {"name": {"type": "String"}}},
+  "@couldNotRemoveRecording": {"placeholders": {"error": {"type": "String"}}},
+  "noTerminalSessionOptionAvailable": "No terminal session option is available.",
+  "closeTabRequiresActiveSession": "Close tab requires an active session.",
+  "closeTabRequiresActiveTab": "Close tab requires an active tab.",
+  "duplicateCwdRequiresProfileSession": "Duplicate current directory requires a default profile and active session.",
+  "noCurrentDirectoryAvailable": "No current directory is available.",
+  "remoteDirectoryCannotDuplicate": "Remote-reported current directories cannot be duplicated as local sessions.",
+  "noDuplicatedSessionCreated": "No duplicated session was created.",
+  "noRecentlyClosedTabAvailable": "No recently closed tab is available.",
+  "noRecentlyClosedPaneForTab": "No recently closed pane is available for this tab.",
+  "noRecentlyClosedPaneReopened": "No recently closed pane could be reopened.",
+  "closePaneRequiresActiveSession": "Close pane requires an active session.",
+  "splitRightRequiresProfileSession": "Split right requires a default profile and active session.",
+  "splitRightUnavailable": "Split right is unavailable.",
+  "splitDownRequiresProfileSession": "Split down requires a default profile and active session.",
+  "splitDownUnavailable": "Split down is unavailable.",
+  "focusNextPaneRequiresSession": "Focus next pane requires an active session.",
+  "noNextPaneAvailable": "No next pane is available.",
+  "focusPreviousPaneRequiresSession": "Focus previous pane requires an active session.",
+  "noPreviousPaneAvailable": "No previous pane is available.",
+  "resizePaneRequiresSession": "Resize pane requires an active session.",
+  "resizePaneRequiresTwoPanes": "Resize pane requires at least two panes.",
+  "swapPaneRequiresSession": "Swap pane requires an active session.",
+  "swapPaneRequiresTwoPanes": "Swap pane requires at least two panes.",
+  "zoomPaneRequiresSession": "Zoom pane requires an active session.",
+  "zoomPaneRequiresTwoPanes": "Zoom pane requires at least two panes.",
+  "copyRequiresSession": "Copy requires an active session.",
+  "copyRequiresSelectionController": "Copy requires an active selection controller.",
+  "copyCommandOutputRequiresSession": "Copy command output requires an active session.",
+  "noCommandOutputAvailable": "No command output is available to copy.",
+  "copyModeRequiresSession": "Copy mode requires an active session.",
+  "pasteRequiresSession": "Paste requires an active session.",
+  "advancedPasteRequiresSession": "Advanced paste requires an active session.",
+  "pasteHistoryRequiresSession": "Paste history requires an active session.",
+  "replayRequiresSession": "Replay recent activity requires an active session.",
+  "readOnlyRequiresSession": "Read-only mode requires an active session.",
+  "readOnlyEnabledNotice": "Read-only mode enabled. Input is blocked for this pane.",
+  "readOnlyDisabledNotice": "Read-only mode disabled. Input is active for this pane.",
+  "clearBufferRequiresSession": "Clear buffer requires an active session.",
+  "bufferClearedCommandKept": "Buffer cleared. The current command line was kept.",
+  "clearBufferRequiresNative": "Clear buffer requires native runtime support.",
+  "bufferCleared": "Cleared buffer.",
+  "clearBufferUnsupported": "Clear buffer is not supported by this runtime.",
+  "globalSearchRequiresTab": "Global search requires at least one tab.",
+  "autocompleteRequiresSession": "Autocomplete requires an active session.",
+  "autoComposerRequiresSession": "Auto composer requires an active session.",
+  "searchRequiresSession": "Search requires an active session.",
+  "previousPromptRequiresSession": "Previous prompt requires an active session.",
+  "nextPromptRequiresSession": "Next prompt requires an active session.",
+  "selectCommandOutputRequiresSession": "Select command output requires an active session.",
+  "shellIntegrationRequiresSession": "Shell integration utilities require an active session.",
+  "openRecentDirectoryRequiresSession": "Open recent directory requires an active session.",
+  "noRecentDirectoryAvailable": "No recent directory is available.",
+  "tmuxIntegrationRequiresSession": "tmux integration requires an active session.",
+  "coprocessRequiresSession": "Coprocess requires an active session.",
+  "annotationsRequireSession": "Annotations require an active session.",
+  "capturedOutputRequiresSession": "Captured output requires an active session.",
+  "passwordManagerRequiresSession": "Password manager requires an active session.",
+  "hotkeyWindowUnavailable": "Hotkey window is unavailable.",
+  "layoutTemplateRequiresProfileSession": "Apply layout template requires a default profile and active session.",
+  "noActiveTabForLayoutTemplates": "No active tab is available for layout templates.",
+  "twoPaneLayoutAlreadySatisfied": "Two-pane layout template is already satisfied.",
+  "layoutTemplateUnavailable": "Apply layout template is unavailable.",
+  "exportScrollbackRequiresSession": "Export scrollback requires an active session.",
+  "noVisibleContentToExport": "No visible terminal content is available to export.",
+  "scrollbackExported": "Scrollback exported",
+  "exportedTerminalScrollback": "Exported terminal scrollback.",
+  "exportDiagnosticsRequiresSession": "Export diagnostics requires an active session.",
+  "diagnosticsExportUnavailable": "Diagnostics export is unavailable for the active sessions.",
+  "diagnosticsExported": "Diagnostics exported",
+  "exportedTerminalDiagnostics": "Exported terminal diagnostics.",
+  "commandFinishedNotificationsSaved": "Command-finished notifications {enabled, select, true{enabled} other{disabled}} and saved.",
+  "bellNotificationsSaved": "Bell notifications {enabled, select, true{enabled} other{disabled}} and saved.",
+  "activityMonitorSaved": "Activity monitor {enabled, select, true{enabled} other{disabled}} and saved.",
+  "@commandFinishedNotificationsSaved": {"placeholders": {"enabled": {"type": "String"}}},
+  "@bellNotificationsSaved": {"placeholders": {"enabled": {"type": "String"}}},
+  "@activityMonitorSaved": {"placeholders": {"enabled": {"type": "String"}}},
+  "unableSaveNotifications": "Unable to save notifications: {error}",
+  "@unableSaveNotifications": {"placeholders": {"error": {"type": "String"}}},
+  "unableSaveCommandFinishedNotifications": "Unable to save command-finished notifications.",
+  "unableSaveBellNotifications": "Unable to save bell notifications.",
+  "unableSaveActivityMonitor": "Unable to save activity monitor notifications.",
+  "noDefaultProfileAvailable": "No default profile is available.",
+  "addAnotherPaneForAction": "Add another pane to use this action.",
+  "unavailableReason": "Unavailable: {reason}",
+  "@unavailableReason": {"placeholders": {"reason": {"type": "String"}}},
+  "duplicateCurrentDirectory": "Duplicate current directory",
+  "applyTwoPaneLayout": "Apply two-pane layout",
+  "tabAlreadyMultiplePanes": "This tab already has multiple panes.",
+  "growActivePane": "Grow active pane",
+  "swapActivePane": "Swap active pane",
+  "closeActivePane": "Close active pane",
+  "movedToNewTab": "Moved to a new tab",
+  "panePosition": "Pane {index}/{count}",
+  "@panePosition": {"placeholders": {"index": {"type": "int"}, "count": {"type": "int"}}},
+  "splitRight": "Split right",
+  "splitDown": "Split down",
+  "splitRightUnavailableReason": "Split right unavailable: {reason}",
+  "splitDownUnavailableReason": "Split down unavailable: {reason}",
+  "@splitRightUnavailableReason": {"placeholders": {"reason": {"type": "String"}}},
+  "@splitDownUnavailableReason": {"placeholders": {"reason": {"type": "String"}}},
+  "activePane": "Active pane",
+  "inactivePane": "Inactive pane",
+  "paneContextUntitled": "Pane: {id} · {state}",
+  "paneContextTitled": "Pane: {title} ({id}) · {state}",
+  "@paneContextUntitled": {"placeholders": {"id": {"type": "String"}, "state": {"type": "String"}}},
+  "@paneContextTitled": {"placeholders": {"title": {"type": "String"}, "id": {"type": "String"}, "state": {"type": "String"}}},
+  "openLink": "Open link",
+  "copyLink": "Copy link",
+  "copyLinkText": "Copy link text",
+  "showTarget": "Show target",
+  "copiedLinkTarget": "Copied link target",
+  "copiedLinkText": "Copied link text",
+  "unknown": "unknown",
+  "blockedLinkScheme": "Blocked link scheme: {scheme}",
+  "@blockedLinkScheme": {"placeholders": {"scheme": {"type": "String"}}},
+  "blockedFileLink": "Blocked file link",
+  "couldNotOpenLink": "Could not open link",
+  "couldNotOpenLinkDetails": "Could not open link: {error}",
+  "@couldNotOpenLinkDetails": {"placeholders": {"error": {"type": "String"}}},
+  "openLocalFileLinkQuestion": "Open local file link?",
+  "terminalRequestsLocalFile": "The terminal is asking to open a local file URL.",
+  "sourceValue": "Source: {source}",
+  "@sourceValue": {"placeholders": {"source": {"type": "String"}}},
+  "linkTextOpensTarget": "Link text “{text}” opens {target}",
+  "linkTargetValue": "Link target: {target}",
+  "@linkTextOpensTarget": {"placeholders": {"text": {"type": "String"}, "target": {"type": "String"}}},
+  "@linkTargetValue": {"placeholders": {"target": {"type": "String"}}},
+  "clickToFocusPane": "Click to focus this pane.",
+  "remoteContextReported": "Remote context reported by shell integration.",
+  "hostValue": "Host: {host}",
+  "userValue": "User: {user}",
+  "localFileActionsDisabledRemote": "Local file actions stay disabled for remote paths.",
+  "@hostValue": {"placeholders": {"host": {"type": "String"}}},
+  "@userValue": {"placeholders": {"user": {"type": "String"}}},
+  "terminalProgressInPane": "Terminal progress in this pane.",
+  "osc1337BadgeValue": "OSC 1337 badge: {badge}",
+  "@osc1337BadgeValue": {"placeholders": {"badge": {"type": "String"}}},
+  "alternateScreenActive": "Alternate screen buffer is active.",
+  "mouseReportingActive": "Mouse reporting is active: {mode}, {encoding}.",
+  "@mouseReportingActive": {"placeholders": {"mode": {"type": "String"}, "encoding": {"type": "String"}}},
+  "mimePasteActive": "OSC 5522 paste events are active and take precedence over bracketed paste.",
+  "bracketedPasteActive": "Bracketed paste mode is active.",
+  "focusReportingActive": "Focus reporting is active. The application receives focus-in and focus-out events.",
+  "synchronizedOutputActive": "Synchronized output mode is active. Intermediate updates are held until the application flushes.",
+  "readOnlyPaneActive": "Read-only mode is enabled for this pane. Input and paste sends are blocked.",
+  "terminalRequestedAttention": "Terminal requested attention",
+  "dragPaneToSplit": "Drag {title} to split or move it to the tab bar",
+  "dropToTarget": "Drop to {target}",
+  "@dragPaneToSplit": {"placeholders": {"title": {"type": "String"}}},
+  "@dropToTarget": {"placeholders": {"target": {"type": "String"}}},
+  "unzoomPane": "Unzoom pane",
+  "zoomPane": "Zoom pane",
+  "localFile": "Local file",
+  "protocolHost": "{protocol} host: {host}",
+  "@protocolHost": {"placeholders": {"protocol": {"type": "String"}, "host": {"type": "String"}}},
+  "openTerminalRequestedUrlQuestion": "Open terminal-requested URL?",
+  "terminalRequestedUrlWarning": "The active terminal requested permission to open this URL. Terminal output can be untrusted.",
+  "destinationValue": "Destination: {destination}",
+  "@destinationValue": {"placeholders": {"destination": {"type": "String"}}},
+  "osc1337OpenUrlBlocked": "OSC 1337 Open URL blocked",
+  "osc1337OpenUrlSourceInactive": "OSC 1337 Open URL blocked: source is no longer active",
+  "allowFutureVariableReportsQuestion": "Allow future variable reports?",
+  "variableReportDeniedHelp": "The current request was denied and received an empty response. Choose whether future terminal programs may read this variable.",
+  "variable": "Variable",
+  "variableReportPrivacyHelp": "Ianvs only reports session-owned title, dimensions, shell context, and user.* values. It never reads host environment variables or files for this request.",
+  "notNow": "Not Now",
+  "alwaysAllow": "Always Allow",
+  "alwaysDeny": "Always Deny",
+  "variableDecisionSourceInactive": "Variable-reporting decision not saved: source is no longer active",
+  "futureVariableReportsAllowed": "Future reports of {name} are allowed",
+  "futureVariableReportsDenied": "Future reports of {name} are denied",
+  "@futureVariableReportsAllowed": {"placeholders": {"name": {"type": "String"}}},
+  "@futureVariableReportsDenied": {"placeholders": {"name": {"type": "String"}}},
+  "receivedFile": "Received {name} ({size})",
+  "@receivedFile": {"placeholders": {"name": {"type": "String"}, "size": {"type": "String"}}},
+  "allowClipboardCopyQuestion": "Allow {protocol} clipboard copy?",
+  "allowPasteReadQuestion": "Allow {protocol} paste read?",
+  "allowClipboardWriteQuestion": "Allow {protocol} clipboard write?",
+  "allowClipboardReadQuestion": "Allow {protocol} clipboard read?",
+  "@allowClipboardCopyQuestion": {"placeholders": {"protocol": {"type": "String"}}},
+  "@allowPasteReadQuestion": {"placeholders": {"protocol": {"type": "String"}}},
+  "@allowClipboardWriteQuestion": {"placeholders": {"protocol": {"type": "String"}}},
+  "@allowClipboardReadQuestion": {"placeholders": {"protocol": {"type": "String"}}},
+  "alwaysAllowLower": "Always allow",
+  "session": "Session",
+  "mimeTypes": "MIME types",
+  "application": "Application",
+  "size": "Size",
+  "characterCount": "{count, plural, =1{1 character} other{{count} characters}}",
+  "@characterCount": {"placeholders": {"count": {"type": "int"}}},
+  "previewUnavailable": "Preview unavailable",
+  "clipboardEmpty": "Clipboard is empty",
+  "previewTruncated": "preview truncated",
+  "terminalRequestsClipboardRead": "The terminal is requesting clipboard contents and will send them back to the session if allowed.",
+  "terminalRequestsClipboardWrite": "The terminal wants to write the following text to your clipboard.",
+  "alwaysAllowClipboardHelp": "“Always allow” permits future OSC 5522 clipboard reads and writes that use this exact application name and password, only for the current terminal session.",
+  "trustedSessionsOnly": "Only allow this for trusted sessions.",
+  "sessionEnded": "Session ended",
+  "sessionExitedBody": "{session} exited{code, select, none{} other{ with code {code}}}.",
+  "@sessionExitedBody": {"placeholders": {"session": {"type": "String"}, "code": {"type": "String"}}},
+  "sessionNamed": "Session {id}",
+  "paneNamed": "pane {number}",
+  "@sessionNamed": {"placeholders": {"id": {"type": "String"}}},
+  "@paneNamed": {"placeholders": {"number": {"type": "int"}}},
+  "newTerminalOutputAvailable": "New terminal output is available.",
+  "osc1337OpenUrlBlockedByPolicy": "OSC 1337 Open URL blocked by policy",
+  "couldNotOpenSaveDialog": "Could not open the save dialog",
+  "receivedFileDiscarded": "Received file discarded",
+  "receivedFileUnavailable": "Received file is no longer available",
+  "couldNotSaveFile": "Could not save {name}",
+  "savedFile": "Saved {name}",
+  "@couldNotSaveFile": {"placeholders": {"name": {"type": "String"}}},
+  "@savedFile": {"placeholders": {"name": {"type": "String"}}},
+  "fileDownloadRejected": "File download rejected: {reason}",
+  "@fileDownloadRejected": {"placeholders": {"reason": {"type": "String"}}},
+  "fileUploadRequestBlocked": "File upload request blocked",
+  "zmodemTransportFailed": "ZMODEM transport failed in session {session}: {bytes} bytes in {chunks} queued writes were not confirmed. The terminal connection was closed.",
+  "@zmodemTransportFailed": {"placeholders": {"session": {"type": "String"}, "bytes": {"type": "int"}, "chunks": {"type": "int"}}},
+  "notificationInSession": "{title} in {session}",
+  "@notificationInSession": {"placeholders": {"title": {"type": "String"}, "session": {"type": "String"}}},
+  "zmodemFilePreserved": "ZMODEM file preserved",
+  "zmodemFilePreservedBody": "ZMODEM publish failed. A complete file was preserved; focus the pane to reveal or dismiss it.",
+  "zmodemReceiveCompleted": "ZMODEM receive completed",
+  "zmodemSendCompleted": "ZMODEM send completed",
+  "zmodemTransferCancelled": "ZMODEM transfer cancelled",
+  "zmodemPreservedUnavailable": "ZMODEM publish failed; preserved file is unavailable to reveal",
+  "zmodemTransferFailed": "ZMODEM transfer failed: {reason}",
+  "@zmodemTransferFailed": {"placeholders": {"reason": {"type": "String"}}},
+  "protocolError": "protocol error",
+  "zmodemTransferUpdate": "ZMODEM transfer update",
+  "zmodemTransferNeedsAttention": "ZMODEM transfer needs attention",
+  "zmodemStateLost": "Transfer state was lost after an event gap. Focus the pane to retry cancellation.",
+  "remoteSkippedZmodemFile": "Remote skipped a ZMODEM file; continuing the batch",
+  "remoteSkippedNamedFile": "Remote skipped {name}; continuing the batch",
+  "@remoteSkippedNamedFile": {"placeholders": {"name": {"type": "String"}}},
+  "zmodemDirectionUnsupported": "This terminal runtime does not support this ZMODEM direction.",
+  "zmodemFileSelectionUnavailable": "ZMODEM file selection is unavailable on this platform.",
+  "retryCancellation": "Retry cancellation.",
+  "transferWasCancelled": "The transfer was cancelled.",
+  "inactiveTransferWasCancelled": "The inactive transfer was cancelled.",
+  "focusPaneRetryCancellation": "Focus the pane to retry cancellation.",
+  "zmodemRequestCancelled": "ZMODEM request cancelled",
+  "zmodemRequestNeedsAttention": "ZMODEM request needs attention",
+  "couldNotCancelAfterSessionChanged": "Could not cancel after the session changed. Retry or cancel again.",
+  "remoteZmodemRequestCancelled": "A remote {direction, select, send{send} other{receive}} request was cancelled because its pane is inactive.",
+  "remoteZmodemRequestCancelFailed": "A remote {direction, select, send{send} other{receive}} request could not be cancelled. Focus the pane to retry.",
+  "@remoteZmodemRequestCancelled": {"placeholders": {"direction": {"type": "String"}}},
+  "@remoteZmodemRequestCancelFailed": {"placeholders": {"direction": {"type": "String"}}},
+  "zmodemPickerAlreadyOpen": "A previous ZMODEM file picker is still open. Close it, then retry this transfer.",
+  "zmodemDestinationSelectionUnavailable": "ZMODEM destination selection is unavailable on this platform.",
+  "couldNotOpenDestinationPicker": "Could not open the destination picker. Retry or cancel the transfer.",
+  "sessionChangedCancellationFailed": "The session changed and cancellation failed. Retry cancellation.",
+  "destinationSelectionCancelled": "Destination selection cancelled. Retry or cancel the transfer.",
+  "couldNotAuthorizeDestination": "Could not authorize this destination. Retry or cancel the transfer.",
+  "couldNotOpenFilePicker": "Could not open the file picker. Retry or cancel the transfer.",
+  "fileSelectionCancelled": "File selection cancelled. Retry or cancel the transfer.",
+  "zmodemFileLimit": "You can send at most 256 files. Select fewer files and retry.",
+  "couldNotAuthorizeFiles": "Could not authorize these files. Retry or cancel the transfer.",
+  "zmodemPickerResultIgnored": "ZMODEM transfer already ended; the picker result was not used.",
+  "couldNotCancelZmodem": "Could not cancel the ZMODEM transfer. Retry cancellation.",
+  "couldNotRevealExport": "Could not reveal export on this platform",
+  "couldNotRevealExportDetails": "Could not reveal export: {error}",
+  "@couldNotRevealExportDetails": {"placeholders": {"error": {"type": "String"}}},
+  "zmodemRecoveryUnavailable": "Preserved ZMODEM file is no longer available",
+  "zmodemRecoveryResolveFailed": "Could not resolve the preserved ZMODEM file; try again",
+  "couldNotRevealPreservedZmodem": "Could not reveal preserved ZMODEM file",
+  "couldNotReleaseZmodemRecovery": "Could not release the ZMODEM recovery token",
+  "couldNotDismissZmodemRecovery": "Could not dismiss the ZMODEM recovery notice",
+  "preservedZmodemFile": "the preserved ZMODEM file",
+  "permanentlyDiscardFileQuestion": "Permanently discard file?",
+  "zmodemDiscardWarning": "{filename} is the only recovery copy retained by Ianvs Terminal. Discarding it permanently deletes the file and cannot be undone.",
+  "@zmodemDiscardWarning": {"placeholders": {"filename": {"type": "String"}}},
+  "discardFile": "Discard file",
+  "zmodemPreservedSemantics": "ZMODEM file preserved. {filename} from {source}.",
+  "zmodemPublishFailedPreserved": "ZMODEM publish failed. Complete file preserved as {filename} from {source}.",
+  "@zmodemPreservedSemantics": {"placeholders": {"filename": {"type": "String"}, "source": {"type": "String"}}},
+  "@zmodemPublishFailedPreserved": {"placeholders": {"filename": {"type": "String"}, "source": {"type": "String"}}},
+  "permanentlyDeletePreservedZmodem": "Permanently delete preserved ZMODEM file",
+  "discardFileEllipsis": "Discard file…",
+  "zmodemProgress": "ZMODEM progress",
+  "indeterminate": "indeterminate",
+  "percentValue": "{percent} percent",
+  "@percentValue": {"placeholders": {"percent": {"type": "int"}}},
+  "cancelling": "Cancelling…",
+  "notificationButton": "Button {number}",
+  "notificationAction": "Notification action {number}",
+  "@notificationButton": {"placeholders": {"number": {"type": "int"}}},
+  "@notificationAction": {"placeholders": {"number": {"type": "int"}}},
+  "closeAndReportToTerminal": "Close and report to the terminal process",
+  "removeNotification": "Remove this notification",
+  "profileTabColor": "Profile tab color",
+  "osc21337StatusIndicator": "OSC 21337 session status indicator",
+  "dataServiceWarning": "Data service warning.",
+  "dismissDataServiceWarning": "Dismiss data service warning",
+  "replaySource": "Replay source: {source}",
+  "@replaySource": {"placeholders": {"source": {"type": "String"}}},
+  "dragResizePanesHorizontally": "Drag to resize panes horizontally",
+  "dragResizePanesVertically": "Drag to resize panes vertically",
+  "completions": "Completions",
+  "completePrefix": "Complete \"{prefix}\"",
+  "@completePrefix": {"placeholders": {"prefix": {"type": "String"}}},
+  "previousCompletion": "Previous completion",
+  "nextCompletion": "Next completion",
+  "closeCompletions": "Close completions",
+  "composeCommand": "Compose command",
+  "sendCommand": "Send command",
+  "closeComposer": "Close composer",
+  "terminalKeyboardShortcuts": "Terminal keyboard shortcuts",
+  "decreaseTerminalTextSize": "Decrease terminal text size",
+  "resetTerminalTextSize": "Reset terminal text size",
+  "increaseTerminalTextSize": "Increase terminal text size",
+  "insertTerminalKey": "Insert {key}",
+  "@insertTerminalKey": {"placeholders": {"key": {"type": "String"}}},
+  "dismissKeyboard": "Dismiss keyboard",
+  "sshHostKeyPromptInactive": "The SSH host-key confirmation is no longer active.",
+  "sshAuthenticationPromptInactive": "The SSH authentication challenge is no longer active.",
+  "dataServiceConfigurationUnavailable": "Data service configuration is unavailable in this build.",
+  "remoteAuthenticationUnavailable": "Remote authentication is unavailable in this build.",
+  "localApiMigrationUnavailable": "The active bundled local API is unavailable for migration.",
+  "remoteToLocalMigrationUnavailable": "Remote-to-local migration is unavailable in this build.",
+  "migrationToRemoteSummary": "Migrated {resources} local resources: {created} created, {updated} updated, {skipped} already current. Restart the app to use the remote API.",
+  "migrationToLocalSummary": "Migrated {resources} remote resources: {created} created, {updated} updated, {skipped} already current. Restart the app to use the bundled local API.",
+  "@migrationToRemoteSummary": {"placeholders": {"resources": {"type": "int"}, "created": {"type": "int"}, "updated": {"type": "int"}, "skipped": {"type": "int"}}},
+  "@migrationToLocalSummary": {"placeholders": {"resources": {"type": "int"}, "created": {"type": "int"}, "updated": {"type": "int"}, "skipped": {"type": "int"}}},
+  "dataServiceConfigurationSaved": "Data service configuration saved. Restart the app to apply it.",
+  "unableToSaveDataServiceConfiguration": "Unable to save the data service configuration: {error}",
+  "@unableToSaveDataServiceConfiguration": {"placeholders": {"error": {"type": "String"}}},
+  "deleteProfileQuestion": "Delete profile?",
+  "deleteProfileWarning": "Delete “{name}”? Open terminal tabs will keep their current session settings.",
+  "@deleteProfileWarning": {"placeholders": {"name": {"type": "String"}}},
+  "deletedProfile": "Deleted profile “{name}”.",
+  "@deletedProfile": {"placeholders": {"name": {"type": "String"}}},
+  "profileWasNotDeleted": "Profile was not deleted",
+  "profileStillStored": "“{name}” is still stored in {destination}.",
+  "@profileStillStored": {"placeholders": {"name": {"type": "String"}, "destination": {"type": "String"}}},
+  "newSshProfile": "New SSH Profile",
+  "savedProfileTo": "Saved profile “{name}” to {destination}.",
+  "@savedProfileTo": {"placeholders": {"name": {"type": "String"}, "destination": {"type": "String"}}},
+  "profileStorageDestination": "{deployment, select, remote{Remote service} local{Bundled local service} other{profile storage}}",
+  "@profileStorageDestination": {"placeholders": {"deployment": {"type": "String"}}},
+  "profileWasNotSaved": "Profile was not saved",
+  "profileNotWritten": "“{name}” was not written to {destination}. It will not appear on your other devices.",
+  "@profileNotWritten": {"placeholders": {"name": {"type": "String"}, "destination": {"type": "String"}}},
+  "profileSaveFailureConnectOnceHelp": "You can cancel and try saving again, or explicitly continue with a one-time connection.",
+  "cancelConnection": "Cancel connection",
+  "ok": "OK",
+  "connectOnceWithoutSaving": "Connect once without saving",
+  "profilesChangedElsewhere": "Profiles changed on another device while this save was in progress. Reload the profiles and try again.",
+  "remoteServiceAuthenticationExpired": "The Remote service session is no longer authenticated. Open Data service settings, sign in again, and retry the save.",
+  "remoteServiceTimeout": "The Remote service did not respond in time. Check the network connection and try again.",
+  "remoteServiceRejectedSave": "Remote service rejected the save ({status}/{code}): {message}",
+  "@remoteServiceRejectedSave": {"placeholders": {"status": {"type": "int"}, "code": {"type": "String"}, "message": {"type": "String"}}},
+  "remoteServiceInvalidResponse": "The Remote service returned an invalid response: {message}",
+  "@remoteServiceInvalidResponse": {"placeholders": {"message": {"type": "String"}}},
+  "persistentSshProfilesRequireService": "Persistent SSH profiles require a connected bundled local or Remote service. Open Data service settings and connect one first.",
+  "saveFailed": "Save failed: {error}",
+  "@saveFailed": {"placeholders": {"error": {"type": "String"}}},
+  "dynamicProfilesImported": "Imported {total} dynamic profiles ({added} new, {replaced} replaced, {warnings} warnings).",
+  "@dynamicProfilesImported": {"placeholders": {"total": {"type": "int"}, "added": {"type": "int"}, "replaced": {"type": "int"}, "warnings": {"type": "int"}}},
+  "passwordSendBlockedNoPrompt": "Password send blocked: no password prompt is active.",
+  "sshProfileStored": "{action, select, saved{Saved} other{Imported}} SSH profile “{name}” to {destination}.",
+  "@sshProfileStored": {"placeholders": {"action": {"type": "String"}, "name": {"type": "String"}, "destination": {"type": "String"}}},
+  "dragReplayControls": "Drag replay controls. Double tap to reset position.",
+  "localTerminalObjectiveComplete": "Local terminal objective is complete",
+  "localTerminalObjectiveBlocked": "Local terminal objective is blocked",
+  "milestones": "Milestones",
+  "backlog": "Backlog",
+  "verification": "Verification",
+  "blockedMilestones": "Blocked milestones",
+  "missingProductionMilestones": "Missing production milestones",
+  "blockedRealWiringBacklog": "Blocked real-wiring backlog",
+  "missingRealWiringBacklog": "Missing real-wiring backlog",
+  "blockedVerificationGates": "Blocked verification gates",
+  "missingVerificationGates": "Missing verification gates",
+  "completion": "Completion",
+  "unavailableInCurrentContext": "Unavailable in the current context.",
+  "terminalModeAlt": "ALT",
+  "terminalModeMouse": "MOUSE",
+  "terminalModeMimePaste": "MIME PASTE",
+  "terminalModePaste": "PASTE",
+  "terminalModeFocus": "FOCUS",
+  "terminalModeKeys": "KEYS",
+  "terminalModeSync": "SYNC",
+  "terminalModeReadOnly": "READ ONLY",
+  "saveImageAs": "Save Image As…",
+  "copyImage": "Copy Image",
+  "openImage": "Open Image",
+  "inspect": "Inspect",
+  "imageInformation": "Image Information",
+  "protocol": "Protocol",
+  "sourceSize": "Source size",
+  "displaySize": "Display size",
+  "visibleArea": "Visible area",
+  "cellPosition": "Cell position",
+  "renderId": "Render ID",
+  "placementId": "Placement ID",
+  "asset": "Asset",
+  "couldNotOpenImageSaveDialog": "Could not open the image save dialog",
+  "couldNotSaveImage": "Could not save image",
+  "savedImage": "Saved image",
+  "couldNotCopyImage": "Could not copy image",
+  "copiedImage": "Copied image",
+  "unfoldTerminalBlock": "Unfold terminal block",
+  "foldTerminalBlock": "Fold terminal block",
+  "unfoldBlock": "Unfold block",
+  "foldBlock": "Fold block",
+  "renderedTerminalDocument": "Rendered terminal document",
+  "closeRenderedDocument": "Close rendered document",
+  "closeTerminalTextDocument": "Close terminal text document",
+  "openTerminalImagePreview": "Open terminal image preview",
+  "terminalImagePreview": "Terminal image preview",
+  "closeImagePreview": "Close image preview",
+  "current": "current",
+  "oscClipboardCopied": "{protocol} copied {count} characters to the clipboard",
+  "oscClipboardCopyBlocked": "{protocol} clipboard copy blocked by policy",
+  "oscClipboardCopyInvalid": "{protocol} clipboard copy ignored: invalid payload",
+  "oscPasteReadReplied": "{protocol} paste read replied with {count} characters",
+  "oscPasteReadBlocked": "{protocol} paste read blocked by policy",
+  "oscPasteReadInvalid": "{protocol} paste read ignored: invalid payload",
+  "oscMimeWriteSucceeded": "OSC 5522 wrote {types} MIME types ({bytes} bytes)",
+  "oscMimeWriteBlocked": "OSC 5522 MIME clipboard write blocked by policy",
+  "oscMimeWriteFailed": "OSC 5522 MIME clipboard write failed",
+  "oscMimeReadSucceeded": "OSC 5522 replied with {types} MIME types ({bytes} bytes)",
+  "oscMimeReadBlocked": "OSC 5522 MIME clipboard read blocked by policy",
+  "oscMimeReadFailed": "OSC 5522 MIME clipboard read failed",
+  "@oscClipboardCopied": {"placeholders": {"protocol": {"type": "String"}, "count": {"type": "int"}}},
+  "@oscClipboardCopyBlocked": {"placeholders": {"protocol": {"type": "String"}}},
+  "@oscClipboardCopyInvalid": {"placeholders": {"protocol": {"type": "String"}}},
+  "@oscPasteReadReplied": {"placeholders": {"protocol": {"type": "String"}, "count": {"type": "int"}}},
+  "@oscPasteReadBlocked": {"placeholders": {"protocol": {"type": "String"}}},
+  "@oscPasteReadInvalid": {"placeholders": {"protocol": {"type": "String"}}},
+  "@oscMimeWriteSucceeded": {"placeholders": {"types": {"type": "int"}, "bytes": {"type": "int"}}},
+  "@oscMimeReadSucceeded": {"placeholders": {"types": {"type": "int"}, "bytes": {"type": "int"}}},
+  "terminalNotification": "Terminal notification",
+  "notificationOnRemoteInSession": "{title} on {remote} in {session}",
+  "@notificationOnRemoteInSession": {"placeholders": {"title": {"type": "String"}, "remote": {"type": "String"}, "session": {"type": "String"}}},
+  "bell": "Bell",
+  "terminalRequestedAttentionBody": "The terminal requested attention.",
+  "commandFinished": "Command finished",
+  "commandFinishedInSession": "Command finished in {session}",
+  "commandFinishedOnRemoteInSession": "Command finished on {remote} in {session}",
+  "@commandFinishedInSession": {"placeholders": {"session": {"type": "String"}}},
+  "@commandFinishedOnRemoteInSession": {"placeholders": {"remote": {"type": "String"}, "session": {"type": "String"}}},
+  "terminalSettingsCouldNotLoad": "Terminal settings could not be loaded: {error}",
+  "@terminalSettingsCouldNotLoad": {"placeholders": {"error": {"type": "String"}}},
+  "shortcutValue": "shortcut: {shortcut}",
+  "errorValue": "error: {error}",
+  "@shortcutValue": {"placeholders": {"shortcut": {"type": "String"}}},
+  "@errorValue": {"placeholders": {"error": {"type": "String"}}},
+  "backInShell": "Back in shell",
+  "newOutput": "New output",
+  "clickFocusFirstPaneWithNewOutput": "Click to focus the first pane with new output.",
+  "newOutputInSplitPane": "New output in a split pane.",
+  "newOutputInSplitPanes": "New output in {count} split panes.",
+  "hiddenTabsHaveNewOutput": "Hidden tabs have new output",
+  "newOutputInHiddenTab": "New output in a hidden tab.",
+  "tabSessionDetails": "Tab: {title} ({id})",
+  "paneAlreadyFocused": "Pane already focused.",
+  "newOutputInHiddenPanes": "New output in {count} hidden panes.",
+  "@newOutputInSplitPanes": {"placeholders": {"count": {"type": "int"}}},
+  "@tabSessionDetails": {"placeholders": {"title": {"type": "String"}, "id": {"type": "String"}}},
+  "@newOutputInHiddenPanes": {"placeholders": {"count": {"type": "int"}}},
+  "noActivePaneAvailable": "No active pane is available.",
+  "paneTooNarrow": "Another pane would become narrower than {columns} columns.",
+  "paneTooShort": "Another pane would become shorter than {rows} rows.",
+  "@paneTooNarrow": {"placeholders": {"columns": {"type": "int"}}},
+  "@paneTooShort": {"placeholders": {"rows": {"type": "int"}}},
+  "unzoomActivePaneToManage": "Unzoom the active pane to manage other panes.",
+  "closeNamedTab": "Close {title} tab",
+  "closeNamed": "Close {title}",
+  "osc21337Status": "OSC 21337 status: {status}",
+  "@closeNamedTab": {"placeholders": {"title": {"type": "String"}}},
+  "@closeNamed": {"placeholders": {"title": {"type": "String"}}},
+  "@osc21337Status": {"placeholders": {"status": {"type": "String"}}},
+  "remoteApiBaseUrlWithoutCredentials": "The remote data API URL must be an http(s) base URL without credentials, query, or fragment.",
+  "remoteApiRequiresHttps": "Remote data API authentication requires HTTPS. HTTP is allowed only for a loopback development endpoint.",
+  "shell": "Shell",
+  "fieldIsRequired": "{field} is required",
+  "fieldMustBePositiveInteger": "{field} must be a positive integer",
+  "fieldMustBeAtMost": "{field} must be {maximum} or less",
+  "fieldMustBeGreaterThanZero": "{field} must be greater than 0",
+  "@fieldIsRequired": {"placeholders": {"field": {"type": "String"}}},
+  "@fieldMustBePositiveInteger": {"placeholders": {"field": {"type": "String"}}},
+  "@fieldMustBeAtMost": {"placeholders": {"field": {"type": "String"}, "maximum": {"type": "int"}}},
+  "@fieldMustBeGreaterThanZero": {"placeholders": {"field": {"type": "String"}}},
+  "environmentKeyRequired": "Key is required",
+  "environmentKeyUnique": "Key must be unique",
+  "newProfileDefaultName": "New Profile",
+  "terminalTabSemantics": "{title} tab",
+  "terminalStatus": "status {status}",
+  "terminalStatusFromActivePane": "status {status} from active pane",
+  "statusIndicatorActive": "status indicator active",
+  "statusIndicatorActiveOnActivePane": "status indicator active on active pane",
+  "terminalBadgeFromPane": "badge {badge} from {state}",
+  "badgeSemanticsValue": "badge {badge}",
+  "plusOtherPaneBadges": "{count, plural, =1{plus 1 other pane badge} other{plus {count} other pane badges}}",
+  "signalFromPane": " from {state}",
+  "terminalSignalSummary": "{title}: {summary}{scope}",
+  "plusOtherPaneSignals": "{count, plural, =1{plus 1 other pane signal} other{plus {count} other pane signals}}",
+  "newOutputLower": "new output",
+  "newOutputInSplitPaneLower": "new output in split pane",
+  "commandShortcut": "Command {index}",
+  "otherPaneBadges": "Other pane badges:",
+  "terminalBadgeValue": "Terminal badge: {badge}",
+  "otherPaneBadgeCount": "{count, plural, =1{1 other pane badge} other{{count} other pane badges}}",
+  "additionalOsc1337Badge": "Additional OSC 1337 badge: {badge}",
+  "additionalOsc1337BadgesSplitTab": "Additional OSC 1337 badges in this split tab.",
+  "clickFocusFirstRemainingBadgePane": "Click to focus the first remaining badge pane.",
+  "firstRemainingBadgePaneFocused": "First remaining badge pane is already focused.",
+  "terminalBadgesAdditional": "Terminal badges: {count} additional pane badges in {title}; {action}",
+  "clickFocusPaneSemantics": "click to focus this pane",
+  "paneAlreadyFocusedSemantics": "pane already focused",
+  "clickFocusFirstRemainingBadgePaneSemantics": "click to focus the first remaining badge pane",
+  "firstRemainingBadgePaneFocusedSemantics": "first remaining badge pane is already focused",
+  "terminalProgressAbbreviation": "PROG",
+  "terminalProgress": "Terminal progress",
+  "terminalNotificationAbbreviation": "NOTE",
+  "paneSignalAbbreviation": "PANE",
+  "otherPaneSignals": "Other pane signals:",
+  "signalInSplitPane": "{signal} in a split pane.",
+  "clickInspectRecentNotifications": "Click to inspect recent notifications.",
+  "clickFocusFirstPaneWithSignal": "Click to focus the first pane with a signal.",
+  "clickInspectNotificationActionsSemantics": "click to inspect notification actions",
+  "otherPaneSignalCount": "{count, plural, =1{1 other pane signal} other{{count} other pane signals}}",
+  "terminalProgressReportedBy": "Terminal progress reported by {source}.",
+  "labelValue": "Label: {value}",
+  "progressPercentValue": "Percent: {value}%",
+  "stateValue": "State: {value}",
+  "idValue": "ID: {value}",
+  "terminalNotificationReportedBy": "Terminal notification reported by {source}.",
+  "titleValue": "Title: {value}",
+  "messageValue": "Message: {value}",
+  "remoteHostValue": "Remote host: {value}",
+  "remoteUserValue": "Remote user: {value}",
+  "countValue": "Count: {value}",
+  "osc1337BadgeInHiddenTab": "OSC 1337 badge in a hidden tab.",
+  "osc1337BadgesInHiddenPanes": "OSC 1337 badges in {count} hidden panes.",
+  "clickFocusFirstBadgePane": "Click to focus the first badge pane.",
+  "signalInHiddenTab": "{signal} in a hidden tab.",
+  "paneSignalsInHiddenPanes": "Pane signals in {count} hidden panes.",
+  "showHiddenTabs": "{count, plural, =1{Show 1 hidden tab} other{Show {count} hidden tabs}}",
+  "hiddenOsc1337BadgePanesTooltip": "{count, plural, =1{Hidden OSC 1337 badge: 1 pane} other{Hidden OSC 1337 badges: {count} panes}}",
+  "hiddenPaneSignalsTooltip": "{count, plural, =1{Hidden pane signal: 1 pane} other{Hidden pane signals: {count} panes}}",
+  "hiddenNewOutputTabsTooltip": "{count, plural, =1{Hidden new output: 1 tab} other{Hidden new output: {count} tabs}}",
+  "signalMarkersFocusSources": "Signal markers can focus their source panes.",
+  "hiddenOsc1337BadgePanesSemantics": "{count, plural, =1{1 hidden OSC 1337 badge pane} other{{count} hidden OSC 1337 badge panes}}",
+  "hiddenPaneSignalsSemantics": "{count, plural, =1{1 hidden pane signal} other{{count} hidden pane signals}}",
+  "hiddenNewOutputTabsSemantics": "{count, plural, =1{1 hidden tab with new output} other{{count} hidden tabs with new output}}",
+  "@terminalTabSemantics": {"placeholders": {"title": {"type": "String"}}},
+  "@terminalStatus": {"placeholders": {"status": {"type": "String"}}},
+  "@terminalStatusFromActivePane": {"placeholders": {"status": {"type": "String"}}},
+  "@terminalBadgeFromPane": {"placeholders": {"badge": {"type": "String"}, "state": {"type": "String"}}},
+  "@badgeSemanticsValue": {"placeholders": {"badge": {"type": "String"}}},
+  "@plusOtherPaneBadges": {"placeholders": {"count": {"type": "int"}}},
+  "@signalFromPane": {"placeholders": {"state": {"type": "String"}}},
+  "@terminalSignalSummary": {"placeholders": {"title": {"type": "String"}, "summary": {"type": "String"}, "scope": {"type": "String"}}},
+  "@plusOtherPaneSignals": {"placeholders": {"count": {"type": "int"}}},
+  "@commandShortcut": {"placeholders": {"index": {"type": "int"}}},
+  "@terminalBadgeValue": {"placeholders": {"badge": {"type": "String"}}},
+  "@otherPaneBadgeCount": {"placeholders": {"count": {"type": "int"}}},
+  "@additionalOsc1337Badge": {"placeholders": {"badge": {"type": "String"}}},
+  "@terminalBadgesAdditional": {"placeholders": {"count": {"type": "int"}, "title": {"type": "String"}, "action": {"type": "String"}}},
+  "@signalInSplitPane": {"placeholders": {"signal": {"type": "String"}}},
+  "@otherPaneSignalCount": {"placeholders": {"count": {"type": "int"}}},
+  "@terminalProgressReportedBy": {"placeholders": {"source": {"type": "String"}}},
+  "@labelValue": {"placeholders": {"value": {"type": "String"}}},
+  "@progressPercentValue": {"placeholders": {"value": {"type": "int"}}},
+  "@stateValue": {"placeholders": {"value": {"type": "String"}}},
+  "@idValue": {"placeholders": {"value": {"type": "String"}}},
+  "@terminalNotificationReportedBy": {"placeholders": {"source": {"type": "String"}}},
+  "@titleValue": {"placeholders": {"value": {"type": "String"}}},
+  "@messageValue": {"placeholders": {"value": {"type": "String"}}},
+  "@remoteHostValue": {"placeholders": {"value": {"type": "String"}}},
+  "@remoteUserValue": {"placeholders": {"value": {"type": "String"}}},
+  "@countValue": {"placeholders": {"value": {"type": "int"}}},
+  "@osc1337BadgesInHiddenPanes": {"placeholders": {"count": {"type": "int"}}},
+  "@signalInHiddenTab": {"placeholders": {"signal": {"type": "String"}}},
+  "@paneSignalsInHiddenPanes": {"placeholders": {"count": {"type": "int"}}},
+  "@showHiddenTabs": {"placeholders": {"count": {"type": "int"}}},
+  "@hiddenOsc1337BadgePanesTooltip": {"placeholders": {"count": {"type": "int"}}},
+  "@hiddenPaneSignalsTooltip": {"placeholders": {"count": {"type": "int"}}},
+  "@hiddenNewOutputTabsTooltip": {"placeholders": {"count": {"type": "int"}}},
+  "@hiddenOsc1337BadgePanesSemantics": {"placeholders": {"count": {"type": "int"}}},
+  "@hiddenPaneSignalsSemantics": {"placeholders": {"count": {"type": "int"}}},
+  "@hiddenNewOutputTabsSemantics": {"placeholders": {"count": {"type": "int"}}}
+}

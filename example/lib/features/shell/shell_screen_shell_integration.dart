@@ -85,7 +85,7 @@ class _CoprocessSheetState extends State<_CoprocessSheet> {
                     children: [
                       Expanded(
                         child: Text(
-                          'Coprocess',
+                          context.l10n.coprocess,
                           style: Theme.of(context).textTheme.titleLarge
                               ?.copyWith(
                                 color: palette.textPrimary,
@@ -94,7 +94,7 @@ class _CoprocessSheetState extends State<_CoprocessSheet> {
                         ),
                       ),
                       _buildSheetCloseButton(
-                        tooltip: 'Close coprocess',
+                        tooltip: context.l10n.closeCoprocess,
                         onPressed: () => Navigator.of(context).pop(),
                       ),
                     ],
@@ -108,14 +108,14 @@ class _CoprocessSheetState extends State<_CoprocessSheet> {
                           children: [
                             _ShellIntegrationSectionHeader(
                               icon: Icons.hub_rounded,
-                              title: 'Run Coprocess',
-                              countLabel: 'one per session',
+                              title: context.l10n.runCoprocess,
+                              countLabel: context.l10n.onePerSession,
                               palette: palette,
                             ),
                             _CoprocessTextField(
                               fieldKey: const Key('coprocess-command-field'),
                               controller: _commandController,
-                              label: 'Command label',
+                              label: context.l10n.commandLabel,
                               icon: Icons.label_rounded,
                               palette: palette,
                               onChanged: (_) => setState(() {}),
@@ -124,7 +124,7 @@ class _CoprocessSheetState extends State<_CoprocessSheet> {
                             _CoprocessTextField(
                               fieldKey: const Key('coprocess-pattern-field'),
                               controller: _patternController,
-                              label: 'Input pattern',
+                              label: context.l10n.inputPattern,
                               icon: Icons.search_rounded,
                               palette: palette,
                               onChanged: (_) => setState(() {}),
@@ -133,7 +133,7 @@ class _CoprocessSheetState extends State<_CoprocessSheet> {
                             _CoprocessTextField(
                               fieldKey: const Key('coprocess-response-field'),
                               controller: _responseController,
-                              label: 'Coprocess output',
+                              label: context.l10n.coprocessOutput,
                               icon: Icons.keyboard_return_rounded,
                               palette: palette,
                               maxLines: 3,
@@ -146,7 +146,7 @@ class _CoprocessSheetState extends State<_CoprocessSheet> {
                                 key: const Key('coprocess-start'),
                                 onPressed: _canStart ? _start : null,
                                 icon: const Icon(Icons.play_arrow_rounded),
-                                label: const Text('Run'),
+                                label: Text(context.l10n.run),
                               ),
                             ),
                           ],
@@ -224,11 +224,11 @@ class _ActiveCoprocessPanel extends StatelessWidget {
         _ShellIntegrationSectionHeader(
           icon: Icons.hub_rounded,
           title: coprocess.command,
-          countLabel: '${coprocess.inputLineCount} lines',
+          countLabel: context.l10n.lineCount(coprocess.inputLineCount),
           palette: palette,
         ),
         Text(
-          'Pattern ${coprocess.pattern}',
+          context.l10n.patternValue(coprocess.pattern),
           style: Theme.of(
             context,
           ).textTheme.bodyMedium?.copyWith(color: palette.textSubtle),
@@ -252,7 +252,7 @@ class _ActiveCoprocessPanel extends StatelessWidget {
             key: const Key('coprocess-stop'),
             onPressed: onStop,
             icon: const Icon(Icons.stop_rounded),
-            label: const Text('Stop'),
+            label: Text(context.l10n.stop),
           ),
         ),
       ],
@@ -326,7 +326,7 @@ class _TmuxIntegrationSheetState extends State<_TmuxIntegrationSheet> {
                     children: [
                       Expanded(
                         child: Text(
-                          'tmux Integration',
+                          context.l10n.tmuxIntegration,
                           style: Theme.of(context).textTheme.titleLarge
                               ?.copyWith(
                                 color: palette.textPrimary,
@@ -335,7 +335,7 @@ class _TmuxIntegrationSheetState extends State<_TmuxIntegrationSheet> {
                         ),
                       ),
                       _buildSheetCloseButton(
-                        tooltip: 'Close tmux integration',
+                        tooltip: context.l10n.closeTmuxIntegration,
                         onPressed: () => Navigator.of(context).pop(),
                       ),
                     ],
@@ -352,40 +352,42 @@ class _TmuxIntegrationSheetState extends State<_TmuxIntegrationSheet> {
                         children: [
                           _ShellIntegrationSectionHeader(
                             icon: Icons.terminal_rounded,
-                            title: 'Control Mode',
+                            title: context.l10n.controlMode,
                             countLabel: 'tmux -CC',
                             palette: palette,
                           ),
                           _TmuxActionTile(
                             key: const Key('tmux-start-control-mode'),
                             icon: Icons.play_arrow_rounded,
-                            title: 'Start tmux -CC',
-                            subtitle: 'Create a new tmux control-mode session.',
+                            title: context.l10n.startTmuxControlMode,
+                            subtitle:
+                                context.l10n.startTmuxControlModeDescription,
                             palette: palette,
                             onTap: () => _send('tmux -CC\n'),
                           ),
                           _TmuxActionTile(
                             key: const Key('tmux-attach-control-mode'),
                             icon: Icons.login_rounded,
-                            title: 'Attach tmux -CC',
-                            subtitle: 'Attach to an existing tmux session.',
+                            title: context.l10n.attachTmuxControlMode,
+                            subtitle:
+                                context.l10n.attachTmuxControlModeDescription,
                             palette: palette,
                             onTap: () => _send('tmux -CC attach\n'),
                           ),
                           const SizedBox(height: 8),
                           _ShellIntegrationSectionHeader(
                             icon: Icons.account_tree_rounded,
-                            title: 'tmux Actions',
+                            title: context.l10n.tmuxActions,
                             countLabel: controlModeDetected
-                                ? 'available'
-                                : 'waiting',
+                                ? context.l10n.available
+                                : context.l10n.waiting,
                             palette: palette,
                           ),
                           _TmuxActionTile(
                             key: const Key('tmux-new-window'),
                             icon: Icons.add_box_outlined,
-                            title: 'New window',
-                            subtitle: 'Send new-window to tmux control mode.',
+                            title: context.l10n.newWindow,
+                            subtitle: context.l10n.newWindowDescription,
                             palette: palette,
                             enabled: controlModeDetected,
                             onTap: () => _send('new-window\n'),
@@ -393,8 +395,8 @@ class _TmuxIntegrationSheetState extends State<_TmuxIntegrationSheet> {
                           _TmuxActionTile(
                             key: const Key('tmux-split-right'),
                             icon: Icons.vertical_split_rounded,
-                            title: 'Split pane right',
-                            subtitle: 'Send split-window -h.',
+                            title: context.l10n.splitPaneRight,
+                            subtitle: context.l10n.splitPaneRightDescription,
                             palette: palette,
                             enabled: controlModeDetected,
                             onTap: () => _send('split-window -h\n'),
@@ -402,8 +404,8 @@ class _TmuxIntegrationSheetState extends State<_TmuxIntegrationSheet> {
                           _TmuxActionTile(
                             key: const Key('tmux-split-down'),
                             icon: Icons.horizontal_split_rounded,
-                            title: 'Split pane down',
-                            subtitle: 'Send split-window -v.',
+                            title: context.l10n.splitPaneDown,
+                            subtitle: context.l10n.splitPaneDownDescription,
                             palette: palette,
                             enabled: controlModeDetected,
                             onTap: () => _send('split-window -v\n'),
@@ -411,8 +413,8 @@ class _TmuxIntegrationSheetState extends State<_TmuxIntegrationSheet> {
                           _TmuxActionTile(
                             key: const Key('tmux-detach-client'),
                             icon: Icons.logout_rounded,
-                            title: 'Detach client',
-                            subtitle: 'Detach while leaving tmux running.',
+                            title: context.l10n.detachClient,
+                            subtitle: context.l10n.detachClientDescription,
                             palette: palette,
                             enabled: controlModeDetected,
                             onTap: () => _send('detach-client\n'),
@@ -429,13 +431,13 @@ class _TmuxIntegrationSheetState extends State<_TmuxIntegrationSheet> {
                               prefixIcon: const Icon(Icons.code_rounded),
                               suffixIcon: IconButton(
                                 key: const Key('tmux-send-command'),
-                                tooltip: 'Send tmux command',
+                                tooltip: context.l10n.sendTmuxCommand,
                                 onPressed: controlModeDetected
                                     ? _sendCustomCommand
                                     : null,
                                 icon: const Icon(Icons.keyboard_return_rounded),
                               ),
-                              hintText: 'tmux command',
+                              hintText: context.l10n.tmuxCommand,
                             ),
                           ),
                         ],
@@ -488,8 +490,8 @@ class _TmuxStatusChip extends StatelessWidget {
             const SizedBox(width: 6),
             Text(
               controlModeDetected
-                  ? 'Control mode detected'
-                  : 'No tmux control mode detected',
+                  ? context.l10n.controlModeDetected
+                  : context.l10n.noTmuxControlModeDetected,
               style: Theme.of(context).textTheme.labelMedium?.copyWith(
                 color: controlModeDetected
                     ? palette.textPrimary
@@ -597,7 +599,7 @@ class _ShellIntegrationUtilitiesSheet extends StatelessWidget {
                     children: [
                       Expanded(
                         child: Text(
-                          'Shell Integration',
+                          context.l10n.shellIntegration,
                           style: Theme.of(context).textTheme.titleLarge
                               ?.copyWith(
                                 color: palette.textPrimary,
@@ -606,7 +608,7 @@ class _ShellIntegrationUtilitiesSheet extends StatelessWidget {
                         ),
                       ),
                       AppActionButton(
-                        tooltip: 'Close shell integration',
+                        tooltip: context.l10n.closeShellIntegration,
                         tone: AppActionTone.ghost,
                         size: AppActionSize.dense,
                         onPressed: () => Navigator.of(context).pop(),
@@ -625,15 +627,13 @@ class _ShellIntegrationUtilitiesSheet extends StatelessWidget {
                       children: [
                         _ShellIntegrationSectionHeader(
                           icon: Icons.list_alt_rounded,
-                          title: 'Command History',
-                          countLabel:
-                              '$commandCount command${commandCount == 1 ? '' : 's'}',
+                          title: context.l10n.commandHistory,
+                          countLabel: context.l10n.commandCount(commandCount),
                           palette: palette,
                         ),
                         if (integration.recentCommands.isEmpty)
                           _ShellIntegrationEmptyRow(
-                            message:
-                                'Run a command after opening this tab to fill command history.',
+                            message: context.l10n.runCommandAfterOpeningTab,
                             palette: palette,
                           )
                         else
@@ -647,7 +647,7 @@ class _ShellIntegrationUtilitiesSheet extends StatelessWidget {
                               key: Key('shell-command-history-entry-$index'),
                               icon: Icons.keyboard_return_rounded,
                               title: integration.recentCommands[index],
-                              subtitle: 'Insert previous command',
+                              subtitle: context.l10n.insertPreviousCommand,
                               palette: palette,
                               onTap: () {
                                 Navigator.of(context).pop();
@@ -659,15 +659,16 @@ class _ShellIntegrationUtilitiesSheet extends StatelessWidget {
                         const SizedBox(height: 8),
                         _ShellIntegrationSectionHeader(
                           icon: Icons.folder_rounded,
-                          title: 'Recent Directories',
-                          countLabel:
-                              '$directoryCount director${directoryCount == 1 ? 'y' : 'ies'}',
+                          title: context.l10n.recentDirectories,
+                          countLabel: context.l10n.directoryCount(
+                            directoryCount,
+                          ),
                           palette: palette,
                         ),
                         if (integration.recentDirectories.isEmpty)
                           _ShellIntegrationEmptyRow(
                             message:
-                                'Change directories after opening this tab to fill this list.',
+                                context.l10n.changeDirectoriesAfterOpeningTab,
                             palette: palette,
                           )
                         else
@@ -681,7 +682,7 @@ class _ShellIntegrationUtilitiesSheet extends StatelessWidget {
                               key: Key('shell-recent-directory-$index'),
                               icon: Icons.subdirectory_arrow_right_rounded,
                               title: integration.recentDirectories[index],
-                              subtitle: 'Insert cd command',
+                              subtitle: context.l10n.insertCdCommand,
                               palette: palette,
                               onTap: () {
                                 Navigator.of(context).pop();
@@ -693,15 +694,13 @@ class _ShellIntegrationUtilitiesSheet extends StatelessWidget {
                         const SizedBox(height: 8),
                         _ShellIntegrationSectionHeader(
                           icon: Icons.assistant_direction_rounded,
-                          title: 'Prompt Marks',
-                          countLabel:
-                              '$markCount mark${markCount == 1 ? '' : 's'}',
+                          title: context.l10n.promptMarks,
+                          countLabel: context.l10n.promptMarkCount(markCount),
                           palette: palette,
                         ),
                         if (integration.promptMarks.isEmpty)
                           _ShellIntegrationEmptyRow(
-                            message:
-                                'Prompt marks appear after the shell draws new prompts.',
+                            message: context.l10n.promptMarksAppearAfterPrompt,
                             palette: palette,
                           )
                         else
@@ -768,7 +767,7 @@ class _ShellIntegrationSummary extends StatelessWidget {
       children: [
         _ShellIntegrationChip(
           icon: Icons.account_tree_rounded,
-          label: identity ?? 'Local shell',
+          label: identity ?? context.l10n.localShell,
           palette: palette,
         ),
         if (directory != null)
@@ -782,7 +781,7 @@ class _ShellIntegrationSummary extends StatelessWidget {
             icon: Icons.terminal_rounded,
             label: exitCode == null
                 ? _compactText(command, 42)
-                : '${_compactText(command, 32)} ${exitCode == 0 ? 'ok' : 'exit $exitCode'}',
+                : '${_compactText(command, 32)} ${exitCode == 0 ? context.l10n.commandSucceededShort : context.l10n.commandExitCodeShort(exitCode)}',
             palette: palette,
           ),
       ],
@@ -967,9 +966,9 @@ class _ShellPromptMarkTile extends StatelessWidget {
         size: 20,
       ),
       title: scrollbackOffset == null
-          ? 'Global line ${mark.globalLine}'
-          : 'Offset $scrollbackOffset',
-      subtitle: subtitle.isEmpty ? 'Shell prompt mark' : subtitle,
+          ? context.l10n.globalLine(mark.globalLine)
+          : context.l10n.scrollbackOffset(scrollbackOffset!),
+      subtitle: subtitle.isEmpty ? context.l10n.shellPromptMark : subtitle,
       subtitleMaxLines: 1,
       onTap: onTap,
     );

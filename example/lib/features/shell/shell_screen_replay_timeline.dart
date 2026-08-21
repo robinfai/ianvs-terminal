@@ -92,18 +92,18 @@ final class _ReplayTimelineModel {
   final List<_ReplaySemanticPoint> pathMarks;
   final bool hasSemanticCommands;
 
-  String contextLabelAt(Duration position) {
+  String contextLabelAt(Duration position, AppLocalizations l10n) {
     final active = segments.lastWhere(
       (segment) => position >= segment.start && position <= segment.end,
       orElse: () => segments.first,
     );
     if (active.kind == _ReplayTimelineSegmentKind.activity) {
-      return 'Activity';
+      return l10n.activity;
     }
     if (active.remoteActivity) {
-      return '${active.label} · Remote activity';
+      return '${_localizedReplayLabel(active.label, l10n)} · ${l10n.remoteActivity}';
     }
-    return active.label;
+    return _localizedReplayLabel(active.label, l10n);
   }
 
   String? pathAt(Duration position) {
@@ -121,6 +121,7 @@ final class _ReplayTimelineModel {
 _ReplayTimelineModel _buildReplayTimelineModel({
   required List<_ReplaySemanticPoint> points,
   required Duration duration,
+  required String activityLabel,
 }) {
   final safeDuration = duration <= Duration.zero
       ? const Duration(microseconds: 1)
@@ -195,7 +196,7 @@ _ReplayTimelineModel _buildReplayTimelineModel({
       _ReplayTimelineSegment(
         start: Duration.zero,
         end: safeDuration,
-        label: 'Activity',
+        label: activityLabel,
         kind: _ReplayTimelineSegmentKind.activity,
       ),
     );
@@ -206,7 +207,7 @@ _ReplayTimelineModel _buildReplayTimelineModel({
       _ReplayTimelineSegment(
         start: Duration.zero,
         end: safeDuration,
-        label: 'Activity',
+        label: activityLabel,
         kind: _ReplayTimelineSegmentKind.activity,
       ),
     );
@@ -401,6 +402,17 @@ String _replayCommandLabel(String? command, int anonymousIndex) {
 
 bool _isAnonymousReplayLabel(String label) => label.startsWith('Command ');
 
+String _localizedReplayLabel(String label, AppLocalizations l10n) {
+  if (label == 'Activity') {
+    return l10n.activity;
+  }
+  final match = RegExp(r'^Command (\d+)$').firstMatch(label);
+  if (match != null) {
+    return l10n.commandNumber(int.parse(match.group(1)!));
+  }
+  return label;
+}
+
 bool _replayLabelsCanMerge(String left, String right) {
   return _isAnonymousReplayLabel(left) ||
       _isAnonymousReplayLabel(right) ||
@@ -561,13 +573,15 @@ class _ReplaySemanticTimeline extends StatelessWidget {
     final safeMax = max <= 0 ? 1.0 : max;
     final safeValue = value.clamp(0.0, safeMax);
     final path = model.pathAt(position);
+    final contextLabel = model.contextLabelAt(position, context.l10n);
     final visiblePosition = displayPosition ?? position;
     final visibleDuration = displayDuration ?? duration;
     return Semantics(
-      label:
-          '${model.contextLabelAt(position)}, '
-          '${_formatRecordingDuration(visiblePosition)} of '
-          '${_formatRecordingDuration(visibleDuration)}',
+      label: context.l10n.replayTimelineSemantics(
+        contextLabel,
+        _formatRecordingDuration(visiblePosition),
+        _formatRecordingDuration(visibleDuration),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -583,7 +597,7 @@ class _ReplaySemanticTimeline extends StatelessWidget {
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    path ?? model.contextLabelAt(position),
+                    path ?? contextLabel,
                     key: const Key('replay-timeline-context'),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -816,6 +830,7 @@ class _ReplaySegmentLane extends StatelessWidget {
     _ReplayTimelineSegment segment,
     int index,
   ) {
+    final segmentLabel = _localizedReplayLabel(segment.label, context.l10n);
     final start = (segment.start.inMicroseconds / max).clamp(0.0, 1.0);
     final end = (segment.end.inMicroseconds / max).clamp(start, 1.0);
     final rawWidth = width * (end - start);
@@ -864,16 +879,18 @@ class _ReplaySegmentLane extends StatelessWidget {
       height: height,
       child: Tooltip(
         message: [
-          segment.label,
+          segmentLabel,
           if (segment.cwd != null) segment.cwd!,
-          if (segment.remoteActivity) 'Remote activity',
-          if (segment.exitCode != null) 'Exit ${segment.exitCode}',
+          if (segment.remoteActivity) context.l10n.remoteActivity,
+          if (segment.exitCode != null)
+            context.l10n.exitCode(segment.exitCode!),
         ].join(' · '),
         child: Semantics(
           button: onSeek != null,
-          label:
-              'Jump to ${segment.label} at '
-              '${_formatRecordingDuration(segment.start)}',
+          label: context.l10n.jumpToReplaySegment(
+            segmentLabel,
+            _formatRecordingDuration(segment.start),
+          ),
           child: Material(
             color: Colors.transparent,
             child: InkWell(
@@ -899,7 +916,7 @@ class _ReplaySegmentLane extends StatelessWidget {
                     Expanded(
                       child: height < 34 || segmentWidth < 78
                           ? Text(
-                              segment.label,
+                              segmentLabel,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: Theme.of(context).textTheme.labelSmall
@@ -917,7 +934,7 @@ class _ReplaySegmentLane extends StatelessWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  segment.label,
+                                  segmentLabel,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: Theme.of(context).textTheme.labelMedium
@@ -934,7 +951,7 @@ class _ReplaySegmentLane extends StatelessWidget {
                                 Text(
                                   [
                                     if (segment.remoteActivity)
-                                      'Remote activity',
+                                      context.l10n.remoteActivity,
                                     '${_formatRecordingDuration(segment.start)}'
                                         ' – '
                                         '${_formatRecordingDuration(segment.end)}',
@@ -979,17 +996,17 @@ class _ReplayTimelineLegend extends StatelessWidget {
             children: [
               _ReplayLegendItem(
                 color: palette.accent,
-                label: 'Command',
+                label: context.l10n.command,
                 style: style,
               ),
               _ReplayLegendItem(
                 color: palette.warning,
-                label: 'Remote',
+                label: context.l10n.remote,
                 style: style,
               ),
               _ReplayLegendItem(
                 color: palette.borderStrong,
-                label: 'Idle',
+                label: context.l10n.idle,
                 style: style,
               ),
             ],
@@ -1001,27 +1018,27 @@ class _ReplayTimelineLegend extends StatelessWidget {
             children: [
               _ReplayLegendItem(
                 color: palette.accent,
-                label: 'Command',
+                label: context.l10n.command,
                 style: style,
               ),
               const SizedBox(width: 14),
               _ReplayLegendItem(
                 color: palette.warning,
-                label: 'Remote session',
+                label: context.l10n.remoteSession,
                 style: style,
               ),
               const SizedBox(width: 14),
               _ReplayLegendItem(
                 color: palette.borderStrong,
-                label: 'Idle gap',
+                label: context.l10n.idleGap,
                 style: style,
               ),
               const Spacer(),
               Flexible(
                 child: Text(
                   model.hasSemanticCommands
-                      ? 'Shell semantics'
-                      : 'Activity fallback · no shell hook',
+                      ? context.l10n.shellSemantics
+                      : context.l10n.activityFallbackNoShellHook,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.end,

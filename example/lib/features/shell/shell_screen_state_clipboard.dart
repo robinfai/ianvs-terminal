@@ -588,7 +588,7 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
     if (runtime.viewportFor(sessionId).frame.modes.mimePaste) {
       final sent = await runtime.sendOsc5522PasteEvent(sessionId);
       if (!sent && mounted) {
-        _showShellSnackBar('OSC 5522 paste event could not be delivered');
+        _showShellSnackBar(context.l10n.osc5522PasteDeliveryFailed);
       }
       _focusSession(sessionId);
       return;
@@ -630,17 +630,20 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
       builder: (dialogContext) {
         return AlertDialog(
           key: const Key('paste-confirmation-dialog'),
-          title: const Text('Confirm paste'),
+          title: Text(dialogContext.l10n.confirmPaste),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Paste ${decision.text.length} characters across $lineCount lines?',
+                dialogContext.l10n.pasteCharacterLineCount(
+                  decision.text.length,
+                  lineCount,
+                ),
               ),
               const SizedBox(height: 12),
               Text(
-                'Preview',
+                dialogContext.l10n.preview,
                 style: Theme.of(
                   dialogContext,
                 ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700),
@@ -676,11 +679,11 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('Cancel'),
+              child: Text(dialogContext.l10n.cancel),
             ),
             FilledButton(
               onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: const Text('Paste'),
+              child: Text(dialogContext.l10n.paste),
             ),
           ],
         );

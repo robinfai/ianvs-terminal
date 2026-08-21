@@ -210,6 +210,61 @@ class TerminalViewportController extends ChangeNotifier {
   }
 }
 
+@immutable
+class TerminalViewportStrings {
+  const TerminalViewportStrings({
+    this.saveImageAs = 'Save Image As…',
+    this.copyImage = 'Copy Image',
+    this.openImage = 'Open Image',
+    this.inspect = 'Inspect',
+    this.imageInformation = 'Image Information',
+    this.protocol = 'Protocol',
+    this.sourceSize = 'Source size',
+    this.displaySize = 'Display size',
+    this.visibleArea = 'Visible area',
+    this.cellPosition = 'Cell position',
+    this.renderId = 'Render ID',
+    this.placementId = 'Placement ID',
+    this.asset = 'Asset',
+    this.close = 'Close',
+    this.unfoldTerminalBlock = 'Unfold terminal block',
+    this.foldTerminalBlock = 'Fold terminal block',
+    this.unfoldBlock = 'Unfold block',
+    this.foldBlock = 'Fold block',
+    this.renderedTerminalDocument = 'Rendered terminal document',
+    this.closeRenderedDocument = 'Close rendered document',
+    this.closeTerminalTextDocument = 'Close terminal text document',
+    this.openTerminalImagePreview = 'Open terminal image preview',
+    this.terminalImagePreview = 'Terminal image preview',
+    this.closeImagePreview = 'Close image preview',
+  });
+
+  final String saveImageAs;
+  final String copyImage;
+  final String openImage;
+  final String inspect;
+  final String imageInformation;
+  final String protocol;
+  final String sourceSize;
+  final String displaySize;
+  final String visibleArea;
+  final String cellPosition;
+  final String renderId;
+  final String placementId;
+  final String asset;
+  final String close;
+  final String unfoldTerminalBlock;
+  final String foldTerminalBlock;
+  final String unfoldBlock;
+  final String foldBlock;
+  final String renderedTerminalDocument;
+  final String closeRenderedDocument;
+  final String closeTerminalTextDocument;
+  final String openTerminalImagePreview;
+  final String terminalImagePreview;
+  final String closeImagePreview;
+}
+
 class TerminalViewport extends StatefulWidget {
   const TerminalViewport({
     super.key,
@@ -252,6 +307,7 @@ class TerminalViewport extends StatefulWidget {
     this.onScaleStart,
     this.onScaleUpdate,
     this.onScaleEnd,
+    this.strings = const TerminalViewportStrings(),
   });
 
   final TerminalViewportController controller;
@@ -301,6 +357,7 @@ class TerminalViewport extends StatefulWidget {
   final GestureScaleStartCallback? onScaleStart;
   final GestureScaleUpdateCallback? onScaleUpdate;
   final GestureScaleEndCallback? onScaleEnd;
+  final TerminalViewportStrings strings;
 
   @override
   State<TerminalViewport> createState() => _TerminalViewportState();
@@ -1562,11 +1619,11 @@ class _TerminalViewportState extends State<TerminalViewport>
         Rect.fromLTWH(globalPosition.dx, globalPosition.dy, 1, 1),
         Offset.zero & overlay.size,
       ),
-      items: const <PopupMenuEntry<_TerminalTouchSelectionAction>>[
+      items: <PopupMenuEntry<_TerminalTouchSelectionAction>>[
         PopupMenuItem<_TerminalTouchSelectionAction>(
           key: terminalTouchCopyMenuItemKey,
           value: _TerminalTouchSelectionAction.copy,
-          child: Text('Copy'),
+          child: Text(MaterialLocalizations.of(context).copyButtonLabel),
         ),
       ],
     );
@@ -2881,6 +2938,7 @@ class _TerminalViewportState extends State<TerminalViewport>
         displayHeight: geometry.displayHeight,
         sourceXOffset: geometry.sourceXOffset,
         sourceYOffset: geometry.sourceYOffset,
+        strings: widget.strings,
         onSaveGraphicImage: widget.onSaveGraphicImage,
         onCopyGraphicImage: widget.onCopyGraphicImage,
         imageEncoder: widget.debugGraphicImageEncoder,
@@ -3210,10 +3268,12 @@ class _TerminalViewportState extends State<TerminalViewport>
     ValueChanged<TerminalBlock> onToggleBlock,
   ) {
     final label = block.folded
-        ? 'Unfold terminal block'
-        : 'Fold terminal block';
+        ? widget.strings.unfoldTerminalBlock
+        : widget.strings.foldTerminalBlock;
     return Tooltip(
-      message: block.folded ? 'Unfold block' : 'Fold block',
+      message: block.folded
+          ? widget.strings.unfoldBlock
+          : widget.strings.foldBlock,
       child: Semantics(
         button: true,
         excludeSemantics: true,
@@ -3286,7 +3346,8 @@ class _TerminalViewportState extends State<TerminalViewport>
               if (showLabel)
                 Expanded(
                   child: Semantics(
-                    label: 'Rendered terminal document: $documentLabel',
+                    label:
+                        '${widget.strings.renderedTerminalDocument}: $documentLabel',
                     excludeSemantics: true,
                     child: Padding(
                       padding: const EdgeInsets.only(left: 8, right: 4),
@@ -3319,11 +3380,11 @@ class _TerminalViewportState extends State<TerminalViewport>
                   width: buttonSize,
                   height: buttonSize,
                   child: Tooltip(
-                    message: 'Close rendered document',
+                    message: widget.strings.closeRenderedDocument,
                     child: Semantics(
                       button: true,
                       excludeSemantics: true,
-                      label: 'Close terminal text document',
+                      label: widget.strings.closeTerminalTextDocument,
                       onTap: () => onDismissBlockRender(block),
                       child: IconButton(
                         key: terminalBlockRenderCloseKey(block.id),
@@ -4119,6 +4180,7 @@ class _TerminalGraphicOverlay extends StatefulWidget {
     required this.displayHeight,
     required this.sourceXOffset,
     required this.sourceYOffset,
+    required this.strings,
     this.onSaveGraphicImage,
     this.onCopyGraphicImage,
     this.imageEncoder,
@@ -4133,6 +4195,7 @@ class _TerminalGraphicOverlay extends StatefulWidget {
   final double displayHeight;
   final double sourceXOffset;
   final double sourceYOffset;
+  final TerminalViewportStrings strings;
   final TerminalGraphicImageCallback? onSaveGraphicImage;
   final TerminalGraphicImageCallback? onCopyGraphicImage;
   final TerminalGraphicImageEncoder? imageEncoder;
@@ -4259,7 +4322,8 @@ class _TerminalGraphicOverlayState extends State<_TerminalGraphicOverlay> {
         context: context,
         useSafeArea: false,
         barrierColor: Colors.black.withValues(alpha: 0.92),
-        builder: (context) => _TerminalGraphicPreview(image: image),
+        builder: (context) =>
+            _TerminalGraphicPreview(image: image, strings: widget.strings),
       );
     } finally {
       image.dispose();
@@ -4285,23 +4349,23 @@ class _TerminalGraphicOverlayState extends State<_TerminalGraphicOverlay> {
           key: terminalGraphicSaveImageMenuItemKey,
           value: _TerminalGraphicMenuAction.saveAs,
           enabled: widget.onSaveGraphicImage != null,
-          child: const Text('Save Image As…'),
+          child: Text(widget.strings.saveImageAs),
         ),
         PopupMenuItem<_TerminalGraphicMenuAction>(
           key: terminalGraphicCopyImageMenuItemKey,
           value: _TerminalGraphicMenuAction.copy,
           enabled: widget.onCopyGraphicImage != null,
-          child: const Text('Copy Image'),
+          child: Text(widget.strings.copyImage),
         ),
-        const PopupMenuItem<_TerminalGraphicMenuAction>(
+        PopupMenuItem<_TerminalGraphicMenuAction>(
           key: terminalGraphicOpenImageMenuItemKey,
           value: _TerminalGraphicMenuAction.open,
-          child: Text('Open Image'),
+          child: Text(widget.strings.openImage),
         ),
-        const PopupMenuItem<_TerminalGraphicMenuAction>(
+        PopupMenuItem<_TerminalGraphicMenuAction>(
           key: terminalGraphicInspectMenuItemKey,
           value: _TerminalGraphicMenuAction.inspect,
-          child: Text('Inspect'),
+          child: Text(widget.strings.inspect),
         ),
       ],
     );
@@ -4377,25 +4441,25 @@ class _TerminalGraphicOverlayState extends State<_TerminalGraphicOverlay> {
         useRootNavigator: true,
         builder: (context) => AlertDialog(
           key: terminalGraphicInspectorKey,
-          title: const Text('Image Information'),
+          title: Text(widget.strings.imageInformation),
           content: SelectionArea(
             child: Text(
-              'Protocol: ${placement.protocol}\n'
-              'Source size: ${image.width} × ${image.height} px\n'
-              'Display size: ${placement.widthPx} × ${placement.heightPx} px\n'
-              'Visible area: ${placement.visibleWidthPx} × '
+              '${widget.strings.protocol}: ${placement.protocol}\n'
+              '${widget.strings.sourceSize}: ${image.width} × ${image.height} px\n'
+              '${widget.strings.displaySize}: ${placement.widthPx} × ${placement.heightPx} px\n'
+              '${widget.strings.visibleArea}: ${placement.visibleWidthPx} × '
               '${placement.visibleHeightPx} px\n'
-              'Cell position: ${placement.row}, ${placement.col}\n'
-              'Render ID: ${placement.renderId}\n'
-              'Placement ID: ${placement.placementId}\n'
-              'Asset: ${placement.assetKey.id}:${placement.assetKey.version}',
+              '${widget.strings.cellPosition}: ${placement.row}, ${placement.col}\n'
+              '${widget.strings.renderId}: ${placement.renderId}\n'
+              '${widget.strings.placementId}: ${placement.placementId}\n'
+              '${widget.strings.asset}: ${placement.assetKey.id}:${placement.assetKey.version}',
             ),
           ),
           actions: <Widget>[
             TextButton(
               key: terminalGraphicInspectorCloseKey,
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Close'),
+              child: Text(widget.strings.close),
             ),
           ],
         ),
@@ -4466,7 +4530,7 @@ class _TerminalGraphicOverlayState extends State<_TerminalGraphicOverlay> {
       key: widget.overlayKey,
       child: Semantics(
         button: true,
-        label: 'Open terminal image preview',
+        label: widget.strings.openTerminalImagePreview,
         onTap: _openPreview,
         child: FocusableActionDetector(
           mouseCursor: SystemMouseCursors.click,
@@ -4527,9 +4591,10 @@ Future<Uint8List?> _encodeTerminalGraphicImageAsPng(ui.Image image) async {
 }
 
 class _TerminalGraphicPreview extends StatelessWidget {
-  const _TerminalGraphicPreview({required this.image});
+  const _TerminalGraphicPreview({required this.image, required this.strings});
 
   final ui.Image image;
+  final TerminalViewportStrings strings;
 
   @override
   Widget build(BuildContext context) {
@@ -4545,7 +4610,7 @@ class _TerminalGraphicPreview extends StatelessWidget {
             Positioned.fill(
               child: Semantics(
                 image: true,
-                label: 'Terminal image preview',
+                label: strings.terminalImagePreview,
                 child: InteractiveViewer(
                   minScale: 0.5,
                   maxScale: 8,
@@ -4571,7 +4636,7 @@ class _TerminalGraphicPreview extends StatelessWidget {
               right: 8,
               child: IconButton(
                 key: terminalGraphicPreviewCloseKey,
-                tooltip: 'Close image preview',
+                tooltip: strings.closeImagePreview,
                 onPressed: () => Navigator.of(context).pop(),
                 icon: const Icon(Icons.close_rounded),
                 style: IconButton.styleFrom(

@@ -108,7 +108,7 @@ class _SavedRecordingsShelf extends StatelessWidget {
     return Semantics(
       container: true,
       explicitChildNodes: true,
-      label: 'Saved terminal recordings',
+      label: context.l10n.savedTerminalRecordings,
       child: DecoratedBox(
         key: const Key('saved-recordings-shelf'),
         decoration: BoxDecoration(
@@ -125,7 +125,7 @@ class _SavedRecordingsShelf extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      'Saved Recordings',
+                      context.l10n.savedRecordings,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         color: palette.textPrimary,
                         fontWeight: FontWeight.w700,
@@ -140,23 +140,23 @@ class _SavedRecordingsShelf extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(horizontal: 9),
                     ),
                     icon: const Icon(Icons.file_download_outlined, size: 16),
-                    label: const Text('Import…'),
+                    label: Text(context.l10n.importEllipsis),
                   ),
                   Semantics(
-                    label: 'Refresh recordings',
+                    label: context.l10n.refreshRecordings,
                     button: true,
                     child: IconButton(
-                      tooltip: 'Refresh recordings',
+                      tooltip: context.l10n.refreshRecordings,
                       onPressed: loading ? null : onRefresh,
                       icon: const Icon(Icons.refresh_rounded, size: 18),
                     ),
                   ),
                   Semantics(
-                    label: 'Close Saved Recordings',
+                    label: context.l10n.closeSavedRecordings,
                     button: true,
                     child: IconButton(
                       key: const Key('saved-recordings-shelf-close'),
-                      tooltip: 'Close Saved Recordings',
+                      tooltip: context.l10n.closeSavedRecordings,
                       onPressed: onClose,
                       icon: const Icon(Icons.close_rounded, size: 18),
                     ),
@@ -173,7 +173,7 @@ class _SavedRecordingsShelf extends StatelessWidget {
                       key: const Key('recording-library-search'),
                       onChanged: onSearchChanged,
                       decoration: InputDecoration(
-                        hintText: 'Search recordings',
+                        hintText: context.l10n.searchRecordings,
                         prefixIcon: const Icon(Icons.search_rounded, size: 18),
                         isDense: true,
                         filled: true,
@@ -190,21 +190,21 @@ class _SavedRecordingsShelf extends StatelessWidget {
                   const SizedBox(width: 7),
                   Semantics(
                     label: playableOnly
-                        ? 'Filter: Playable only'
-                        : 'Filter: All recordings',
+                        ? context.l10n.filterPlayableOnly
+                        : context.l10n.filterAllRecordings,
                     button: true,
                     child: PopupMenuButton<bool>(
-                      tooltip: 'Filter recordings',
+                      tooltip: context.l10n.filterRecordings,
                       initialValue: playableOnly,
                       onSelected: onPlayableOnlyChanged,
-                      itemBuilder: (context) => const [
+                      itemBuilder: (context) => [
                         PopupMenuItem(
                           value: false,
-                          child: Text('All recordings'),
+                          child: Text(context.l10n.allRecordings),
                         ),
                         PopupMenuItem(
                           value: true,
-                          child: Text('Playable only'),
+                          child: Text(context.l10n.playableOnly),
                         ),
                       ],
                       icon: Icon(
@@ -224,24 +224,26 @@ class _SavedRecordingsShelf extends StatelessWidget {
                 children: [
                   const Spacer(),
                   Semantics(
-                    label: 'Sort: ${_recordingSortLabel(sort)}',
+                    label: context.l10n.recordingSortValue(
+                      _recordingSortLabel(context, sort),
+                    ),
                     button: true,
                     child: PopupMenuButton<_RecordingLibrarySort>(
-                      tooltip: 'Recording sort order',
+                      tooltip: context.l10n.recordingSortOrder,
                       initialValue: sort,
                       onSelected: onSortChanged,
-                      itemBuilder: (context) => const [
+                      itemBuilder: (context) => [
                         PopupMenuItem(
                           value: _RecordingLibrarySort.newest,
-                          child: Text('Newest'),
+                          child: Text(context.l10n.newest),
                         ),
                         PopupMenuItem(
                           value: _RecordingLibrarySort.oldest,
-                          child: Text('Oldest'),
+                          child: Text(context.l10n.oldest),
                         ),
                         PopupMenuItem(
                           value: _RecordingLibrarySort.name,
-                          child: Text('Name'),
+                          child: Text(context.l10n.name),
                         ),
                       ],
                       child: Padding(
@@ -250,7 +252,7 @@ class _SavedRecordingsShelf extends StatelessWidget {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
-                              _recordingSortLabel(sort),
+                              _recordingSortLabel(context, sort),
                               style: Theme.of(context).textTheme.labelMedium
                                   ?.copyWith(color: palette.textMuted),
                             ),
@@ -294,7 +296,7 @@ class _SavedRecordingsShelf extends StatelessWidget {
                       itemBuilder: (context, index) {
                         return _RecordingGroup(
                           palette: palette,
-                          title: 'All Recordings',
+                          title: context.l10n.allRecordings,
                           entries: grouped,
                           selectedPath: selectedPath,
                           selectionLoading: selectionLoading,
@@ -328,8 +330,12 @@ class _SavedRecordingsShelf extends StatelessWidget {
                         Expanded(
                           child: Text(
                             selectedPath == null
-                                ? 'Recordings may contain sensitive terminal output.'
-                                : 'This recording may contain sensitive output.',
+                                ? context
+                                      .l10n
+                                      .recordingsMayContainSensitiveOutput
+                                : context
+                                      .l10n
+                                      .recordingMayContainSensitiveOutput,
                             style: Theme.of(context).textTheme.bodySmall
                                 ?.copyWith(color: palette.textSubtle),
                           ),
@@ -340,7 +346,7 @@ class _SavedRecordingsShelf extends StatelessWidget {
                     Row(
                       children: [
                         Text(
-                          '${entries.length} ${entries.length == 1 ? 'recording' : 'recordings'}',
+                          context.l10n.recordingCount(entries.length),
                           style: Theme.of(context).textTheme.labelSmall
                               ?.copyWith(color: palette.textSubtle),
                         ),
@@ -422,7 +428,9 @@ class _RecordingLibraryEmptyState extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             Text(
-              hasSearch ? 'No matching recordings' : 'No saved recordings',
+              hasSearch
+                  ? context.l10n.noMatchingRecordings
+                  : context.l10n.noSavedRecordings,
               style: Theme.of(context).textTheme.titleSmall?.copyWith(
                 color: palette.textMuted,
                 fontWeight: FontWeight.w600,
@@ -433,7 +441,7 @@ class _RecordingLibraryEmptyState extends StatelessWidget {
               OutlinedButton.icon(
                 onPressed: onImport,
                 icon: const Icon(Icons.file_download_outlined, size: 16),
-                label: const Text('Import…'),
+                label: Text(context.l10n.importEllipsis),
               ),
             ],
           ],
@@ -544,8 +552,9 @@ class _RecordingLibraryRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final date = entry.createdAtUtc.toLocal();
+    final materialL10n = MaterialLocalizations.of(context);
     final subtitle = [
-      '${_twoDigits(date.month)}/${_twoDigits(date.day)} ${_twoDigits(date.hour)}:${_twoDigits(date.minute)}',
+      '${materialL10n.formatShortDate(date)} ${materialL10n.formatTimeOfDay(TimeOfDay.fromDateTime(date), alwaysUse24HourFormat: true)}',
       _formatRecordingDuration(entry.duration),
       _formatRecordingBytes(entry.fileSizeBytes),
     ].join('  ·  ');
@@ -622,10 +631,10 @@ class _RecordingLibraryRow extends StatelessWidget {
                   ),
                 ),
                 Semantics(
-                  label: 'Actions for ${entry.displayName}',
+                  label: context.l10n.actionsForNamedItem(entry.displayName),
                   button: true,
                   child: PopupMenuButton<_RecordingLibraryAction>(
-                    tooltip: 'Recording actions',
+                    tooltip: context.l10n.recordingActions,
                     icon: Icon(
                       Icons.more_horiz_rounded,
                       size: 18,
@@ -643,23 +652,23 @@ class _RecordingLibraryRow extends StatelessWidget {
                           onDelete();
                       }
                     },
-                    itemBuilder: (context) => const [
+                    itemBuilder: (context) => [
                       PopupMenuItem(
                         value: _RecordingLibraryAction.rename,
-                        child: Text('Rename…'),
+                        child: Text(context.l10n.renameEllipsis),
                       ),
                       PopupMenuItem(
                         value: _RecordingLibraryAction.reveal,
-                        child: Text('Reveal in Finder'),
+                        child: Text(context.l10n.revealInFinder),
                       ),
                       PopupMenuItem(
                         value: _RecordingLibraryAction.export,
-                        child: Text('Export…'),
+                        child: Text(context.l10n.exportEllipsis),
                       ),
-                      PopupMenuDivider(),
+                      const PopupMenuDivider(),
                       PopupMenuItem(
                         value: _RecordingLibraryAction.delete,
-                        child: Text('Move to Trash'),
+                        child: Text(context.l10n.moveToTrash),
                       ),
                     ],
                   ),
@@ -770,6 +779,8 @@ final class _RecordingReplayDriver implements terminal.TerminalReplayDriver {
   }
 }
 
+enum _RecordingReplayErrorKind { start, seek }
+
 class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
   terminal.TerminalRuntimeController? _runtime;
   terminal.TerminalReplayController? _replayController;
@@ -777,7 +788,8 @@ class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
   SelectionController? _selectionController;
   TerminalInputController? _inputController;
   FocusNode? _focusNode;
-  String? _error;
+  _RecordingReplayErrorKind? _errorKind;
+  String? _errorDetails;
   String _searchQuery = '';
   late final RecordingReplaySearchIndex _searchIndex;
   List<RecordingReplaySearchHit> _searchHits =
@@ -846,7 +858,8 @@ class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
       _inputController = inputController;
       replayRuntime.runtime.refreshSession(replayRuntime.sessionId);
     } on Object catch (error) {
-      _error = 'Could not start replay: $error';
+      _errorKind = _RecordingReplayErrorKind.start;
+      _errorDetails = error.toString();
     }
   }
 
@@ -917,9 +930,13 @@ class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
 
   void _synchronizeReplayUiState() {
     final replayState = _replayController?.state;
-    _error = replayState?.error == null
-        ? null
-        : 'Could not seek recording: ${replayState!.error}';
+    if (replayState?.error case final String error) {
+      _errorKind = _RecordingReplayErrorKind.seek;
+      _errorDetails = error;
+    } else {
+      _errorKind = null;
+      _errorDetails = null;
+    }
     _searchMatches = _searchMatchesFor(_searchQuery);
     _activeSearchMatchIndex = _searchMatches.isEmpty
         ? 0
@@ -1031,6 +1048,13 @@ class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
     final sessionId = _sessionId;
     final replayController = _replayController;
     final viewportController = _viewportController;
+    final errorMessage = switch ((_errorKind, _errorDetails)) {
+      (_RecordingReplayErrorKind.start, final String details) =>
+        context.l10n.couldNotStartReplay(details),
+      (_RecordingReplayErrorKind.seek, final String details) =>
+        context.l10n.couldNotSeekRecording(details),
+      _ => null,
+    };
     final seekEnabled = replayController != null;
     final hasCommandMetadata = widget.recording.events.any(
       (event) =>
@@ -1040,10 +1064,10 @@ class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
     final inputDisclosure =
         widget.recording.metadata.inputPolicy ==
             terminal.TerminalRecordingInputPolicy.record
-        ? 'Input included'
+        ? context.l10n.inputIncluded
         : hasCommandMetadata
-        ? 'Keystrokes redacted · command metadata included'
-        : 'Keystrokes redacted';
+        ? context.l10n.keystrokesRedactedCommandMetadataIncluded
+        : context.l10n.keystrokesRedacted;
     final recordedViewportSize = _recordedViewportSizeFor(viewportController);
     final timelineTimeMap =
         replayController?.timeMap ??
@@ -1051,10 +1075,12 @@ class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
     final timelineMarkers = _recordingTimelineMarkers(
       widget.recording,
       timelineTimeMap,
+      context.l10n,
     );
     final timelineModel = _buildReplayTimelineModel(
       points: _recordingSemanticPoints(widget.recording, timelineTimeMap),
       duration: timelineTimeMap.presentationDuration,
+      activityLabel: context.l10n.activity,
     );
 
     Widget replayDock() {
@@ -1070,9 +1096,10 @@ class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
       return _RecordingReplayDock(
         palette: palette,
         sourceLabel: widget.entry.displayName,
-        detailLabel:
-            '${widget.entry.sessionId ?? 'Recorded session'} · '
-            '$inputDisclosure',
+        detailLabel: context.l10n.recordingDetail(
+          widget.entry.sessionId ?? context.l10n.recordedSession,
+          inputDisclosure,
+        ),
         position: replayState?.presentationPosition ?? Duration.zero,
         duration: duration,
         sourcePosition: replayState?.sourcePosition ?? Duration.zero,
@@ -1145,7 +1172,7 @@ class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
               children: [
                 Positioned.fill(
                   child:
-                      _error != null ||
+                      errorMessage != null ||
                           runtime == null ||
                           sessionId == null ||
                           viewportController == null ||
@@ -1155,7 +1182,7 @@ class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
                           child: Padding(
                             padding: const EdgeInsets.all(24),
                             child: Text(
-                              _error ?? 'Preparing replay…',
+                              errorMessage ?? context.l10n.preparingReplay,
                               textAlign: TextAlign.center,
                               style: TextStyle(color: palette.textMuted),
                             ),
@@ -1213,7 +1240,7 @@ class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
         identifier: 'recording-replay-layout',
         container: true,
         explicitChildNodes: true,
-        label: 'Replay recording layout for ${widget.entry.displayName}',
+        label: context.l10n.replayRecordingLayout(widget.entry.displayName),
         child: FocusTraversalGroup(
           policy: OrderedTraversalPolicy(),
           child: replayLayout,
@@ -1290,7 +1317,10 @@ class _RecordingReplayDock extends StatelessWidget {
   Widget build(BuildContext context) {
     final metadata = Row(
       children: [
-        _ReplaySourceMark(palette: palette, sourceLabel: 'Recording'),
+        _ReplaySourceMark(
+          palette: palette,
+          sourceLabel: context.l10n.recording,
+        ),
         const SizedBox(width: 10),
         Expanded(
           child: Column(
@@ -1341,26 +1371,26 @@ class _RecordingReplayDock extends StatelessWidget {
       children: [
         _InstantReplayControlButton(
           key: const Key('recording-replay-fit-recorded-size'),
-          tooltip: 'Fit recorded size',
+          tooltip: context.l10n.fitRecordedSize,
           onPressed: onFit,
           icon: Icons.fit_screen_rounded,
           palette: palette,
         ),
         _InstantReplayControlButton(
-          tooltip: 'Copy visible',
+          tooltip: context.l10n.copyVisible,
           onPressed: onCopyVisible,
           icon: Icons.copy_rounded,
           palette: palette,
         ),
         _InstantReplayControlButton(
-          tooltip: 'Copy selection',
+          tooltip: context.l10n.copySelection,
           onPressed: onCopySelection,
           icon: Icons.select_all_rounded,
           palette: palette,
         ),
         _InstantReplayControlButton(
           key: const Key('recording-replay-close'),
-          tooltip: 'Close replay',
+          tooltip: context.l10n.closeReplay,
           onPressed: onClose,
           icon: Icons.close_rounded,
           palette: palette,
@@ -1368,7 +1398,7 @@ class _RecordingReplayDock extends StatelessWidget {
       ],
     );
     final keyboardActions = _InstantReplayControlButton(
-      tooltip: 'Close replay',
+      tooltip: context.l10n.closeReplay,
       onPressed: onClose,
       icon: Icons.close_rounded,
       palette: palette,
@@ -1394,7 +1424,7 @@ class _RecordingReplayDock extends StatelessWidget {
       enabled: true,
       searchSummary: searchMatchCount == 0
           ? null
-          : '$searchMatchCount ${searchMatchCount == 1 ? 'match' : 'matches'} across replay',
+          : context.l10n.matchesAcrossReplay(searchMatchCount),
       onSearchChanged: onSearchChanged,
       onSearchPrevious: onSearchPrevious,
       onSearchNext: onSearchNext,
@@ -1404,7 +1434,7 @@ class _RecordingReplayDock extends StatelessWidget {
       identifier: 'recording-replay-controls',
       container: true,
       explicitChildNodes: true,
-      label: 'Replay controls for recording',
+      label: context.l10n.replayControlsForRecording,
       child: _ReplayDockLayout(
         timeline: timeline,
         metadata: metadata,
@@ -1421,6 +1451,7 @@ class _RecordingReplayDock extends StatelessWidget {
 List<_ReplayTimelineMarker> _recordingTimelineMarkers(
   terminal.TerminalRecording recording,
   terminal.TerminalReplayTimeMap timeMap,
+  AppLocalizations l10n,
 ) {
   const maximumVisibleEventMarkers = 96;
   const minimumIdleGap = Duration(seconds: 2);
@@ -1453,7 +1484,7 @@ List<_ReplayTimelineMarker> _recordingTimelineMarkers(
                 .inMicroseconds
                 .toDouble(),
             kind: _ReplayTimelineMarkerKind.idle,
-            tooltip: 'Idle interval',
+            tooltip: l10n.idleInterval,
           ),
         );
       }
@@ -1476,10 +1507,11 @@ List<_ReplayTimelineMarker> _recordingTimelineMarkers(
           _ => _ReplayTimelineMarkerKind.output,
         },
         tooltip: switch (event.kind) {
-          terminal.TerminalRecordingEventKind.userInput => 'Input event',
-          terminal.TerminalRecordingEventKind.resize => 'Terminal resized',
-          terminal.TerminalRecordingEventKind.sessionExited => 'Session exited',
-          _ => 'Output event',
+          terminal.TerminalRecordingEventKind.userInput => l10n.inputEvent,
+          terminal.TerminalRecordingEventKind.resize => l10n.terminalResized,
+          terminal.TerminalRecordingEventKind.sessionExited =>
+            l10n.sessionExited,
+          _ => l10n.outputEvent,
         },
       ),
     );
@@ -1580,11 +1612,12 @@ List<Duration> _recordingPlaybackAnchors(terminal.TerminalRecording recording) {
 
 String _twoDigits(int value) => value.toString().padLeft(2, '0');
 
-String _recordingSortLabel(_RecordingLibrarySort value) => switch (value) {
-  _RecordingLibrarySort.newest => 'Newest',
-  _RecordingLibrarySort.oldest => 'Oldest',
-  _RecordingLibrarySort.name => 'Name',
-};
+String _recordingSortLabel(BuildContext context, _RecordingLibrarySort value) =>
+    switch (value) {
+      _RecordingLibrarySort.newest => context.l10n.newest,
+      _RecordingLibrarySort.oldest => context.l10n.oldest,
+      _RecordingLibrarySort.name => context.l10n.name,
+    };
 
 String _formatRecordingDuration(Duration value) {
   final totalSeconds = math.max(0, value.inSeconds);

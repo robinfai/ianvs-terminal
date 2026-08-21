@@ -24,8 +24,11 @@ class IanvsTerminalApp extends ConsumerWidget {
     };
 
     return MaterialApp(
-      title: 'Ianvs Terminal',
+      onGenerateTitle: (context) => context.l10n.appTitle,
       debugShowCheckedModeBanner: false,
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      localeListResolutionCallback: resolveAppLocale,
       themeMode: themeMode,
       theme: buildIanvsTerminalTheme(
         Brightness.light,

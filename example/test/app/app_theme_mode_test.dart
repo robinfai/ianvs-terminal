@@ -3,6 +3,7 @@ import 'package:app/features/config/local_terminal_config_models.dart';
 import 'package:app/features/preferences/app_preferences_models.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/sessions/session_controller.dart';
+import 'package:app/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -40,6 +41,46 @@ Future<void> _pumpApp(
 }
 
 void main() {
+  test('system locale resolution supports regional Chinese locales', () {
+    expect(
+      resolveAppLocale(const <Locale>[
+        Locale.fromSubtags(
+          languageCode: 'zh',
+          scriptCode: 'Hans',
+          countryCode: 'CN',
+        ),
+      ], AppLocalizations.supportedLocales),
+      const Locale('zh'),
+    );
+    expect(
+      resolveAppLocale(const <Locale>[
+        Locale('fr', 'FR'),
+      ], AppLocalizations.supportedLocales),
+      const Locale('en'),
+    );
+  });
+
+  testWidgets('ianvs terminal app follows the system Chinese locale', (
+    tester,
+  ) async {
+    tester.binding.platformDispatcher.localesTestValue = const <Locale>[
+      Locale.fromSubtags(
+        languageCode: 'zh',
+        scriptCode: 'Hans',
+        countryCode: 'CN',
+      ),
+    ];
+    addTearDown(tester.binding.platformDispatcher.clearLocalesTestValue);
+
+    await _pumpApp(tester);
+
+    expect(find.text('Ianvs 终端'), findsOneWidget);
+    expect(
+      Localizations.localeOf(tester.element(find.text('Ianvs 终端'))),
+      const Locale('zh'),
+    );
+  });
+
   testWidgets('ianvs terminal app consumes the persisted dark theme mode', (
     tester,
   ) async {

@@ -68,6 +68,7 @@ import 'shell_shortcut_bridge.dart';
 import 'window_bridge.dart';
 
 part 'shell_screen_chrome.dart';
+part 'shell_screen_chrome_empty_states.dart';
 part 'shell_screen_command_menu.dart';
 part 'shell_screen_completion.dart';
 part 'shell_screen_instant_replay.dart';
@@ -524,7 +525,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           content: Text(message),
           duration: const Duration(seconds: 4),
           action: SnackBarAction(
-            label: 'Reveal',
+            label: context.l10n.reveal,
             onPressed: () => unawaited(_revealShellPath(path)),
           ),
         ),
@@ -532,18 +533,20 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   }
 
   Future<void> _revealShellPath(String path) async {
+    final l10n = context.l10n;
     try {
       if (!await WindowBridge.revealInFinder(path)) {
-        _showShellSnackBar('Could not reveal export on this platform');
+        _showShellSnackBar(l10n.couldNotRevealExport);
       }
     } on Object catch (error) {
-      _showShellSnackBar('Could not reveal export: $error');
+      _showShellSnackBar(l10n.couldNotRevealExportDetails(error.toString()));
     }
   }
 
   Future<void> _revealZmodemRecovery(
     terminal.TerminalSessionZmodemEvent event,
   ) async {
+    final l10n = context.l10n;
     final recoveryKey = '${event.sessionId}:${event.transferId}';
     final runtime = ref.read(terminalRuntimeControllerProvider);
     final resolution = runtime.resolveZmodemRecovery(event);
@@ -552,12 +555,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         _mutateState(() {
           _zmodemRecoveries.remove(recoveryKey);
         });
-        _showShellSnackBar('Preserved ZMODEM file is no longer available');
+        _showShellSnackBar(l10n.zmodemRecoveryUnavailable);
         return;
       case terminal.TerminalZmodemRecoveryResolutionStatus.requestFailed:
-        _showShellSnackBar(
-          'Could not resolve the preserved ZMODEM file; try again',
-        );
+        _showShellSnackBar(l10n.zmodemRecoveryResolveFailed);
         return;
       case terminal.TerminalZmodemRecoveryResolutionStatus.available:
         break;
@@ -567,7 +568,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       final revealed = await WindowBridge.revealInFinder(path);
       if (!revealed) {
         if (mounted) {
-          _showShellSnackBar('Could not reveal preserved ZMODEM file');
+          _showShellSnackBar(l10n.couldNotRevealPreservedZmodem);
         }
         return;
       }
@@ -580,7 +581,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       }
       if (disposition ==
           terminal.TerminalZmodemRecoveryDisposition.requestFailed) {
-        _showShellSnackBar('Could not release the ZMODEM recovery token');
+        _showShellSnackBar(l10n.couldNotReleaseZmodemRecovery);
         return;
       }
       _mutateState(() {
@@ -588,7 +589,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       });
     } on Object {
       if (mounted) {
-        _showShellSnackBar('Could not reveal preserved ZMODEM file');
+        _showShellSnackBar(l10n.couldNotRevealPreservedZmodem);
       }
     }
   }
@@ -599,7 +600,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         .dismissZmodemRecovery(event);
     if (disposition ==
         terminal.TerminalZmodemRecoveryDisposition.requestFailed) {
-      _showShellSnackBar('Could not dismiss the ZMODEM recovery notice');
+      _showShellSnackBar(context.l10n.couldNotDismissZmodemRecovery);
       return;
     }
     _mutateState(() {
@@ -610,27 +611,24 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   Future<void> _confirmDiscardZmodemRecovery(
     terminal.TerminalSessionZmodemEvent event,
   ) async {
-    final filename =
-        event.recoverablePartialName ?? 'the preserved ZMODEM file';
+    final l10n = context.l10n;
+    final filename = event.recoverablePartialName ?? l10n.preservedZmodemFile;
     final confirmed = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Permanently discard file?'),
-        content: Text(
-          '$filename is the only recovery copy retained by Ianvs Terminal. '
-          'Discarding it permanently deletes the file and cannot be undone.',
-        ),
+        title: Text(dialogContext.l10n.permanentlyDiscardFileQuestion),
+        content: Text(dialogContext.l10n.zmodemDiscardWarning(filename)),
         actions: [
           TextButton(
             key: const Key('shell-zmodem-recovery-discard-cancel'),
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
+            child: Text(dialogContext.l10n.cancel),
           ),
           FilledButton(
             key: const Key('shell-zmodem-recovery-discard-confirm'),
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Discard file'),
+            child: Text(dialogContext.l10n.discardFile),
           ),
         ],
       ),

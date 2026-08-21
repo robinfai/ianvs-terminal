@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
 
+import '../../l10n/l10n.dart';
 import 'selection_controller.dart';
 import 'terminal_input_controller.dart';
 
@@ -159,6 +160,32 @@ class TerminalViewport extends StatelessWidget {
       onScaleStart: onScaleStart,
       onScaleUpdate: onScaleUpdate,
       onScaleEnd: onScaleEnd,
+      strings: terminal.TerminalViewportStrings(
+        saveImageAs: context.l10n.saveImageAs,
+        copyImage: context.l10n.copyImage,
+        openImage: context.l10n.openImage,
+        inspect: context.l10n.inspect,
+        imageInformation: context.l10n.imageInformation,
+        protocol: context.l10n.protocol,
+        sourceSize: context.l10n.sourceSize,
+        displaySize: context.l10n.displaySize,
+        visibleArea: context.l10n.visibleArea,
+        cellPosition: context.l10n.cellPosition,
+        renderId: context.l10n.renderId,
+        placementId: context.l10n.placementId,
+        asset: context.l10n.asset,
+        close: context.l10n.close,
+        unfoldTerminalBlock: context.l10n.unfoldTerminalBlock,
+        foldTerminalBlock: context.l10n.foldTerminalBlock,
+        unfoldBlock: context.l10n.unfoldBlock,
+        foldBlock: context.l10n.foldBlock,
+        renderedTerminalDocument: context.l10n.renderedTerminalDocument,
+        closeRenderedDocument: context.l10n.closeRenderedDocument,
+        closeTerminalTextDocument: context.l10n.closeTerminalTextDocument,
+        openTerminalImagePreview: context.l10n.openTerminalImagePreview,
+        terminalImagePreview: context.l10n.terminalImagePreview,
+        closeImagePreview: context.l10n.closeImagePreview,
+      ),
     );
   }
 }

@@ -203,13 +203,15 @@ class _DefaultsAndAppearanceDialogState
     }
     final value = _remoteDataApiUrlController.text.trim();
     if (value.isEmpty) {
-      return 'Enter the remote API base URL.';
+      return context.l10n.enterRemoteApiBaseUrl;
     }
     try {
       DataApiConfiguration.remote(value);
       return null;
     } on FormatException catch (error) {
-      return error.message;
+      return error.message.contains('requires HTTPS')
+          ? context.l10n.remoteApiRequiresHttps
+          : context.l10n.remoteApiBaseUrlWithoutCredentials;
     }
   }
 
@@ -257,7 +259,7 @@ class _DefaultsAndAppearanceDialogState
       normalizeDataApiUsername(_remoteDataApiUsernameController.text);
       return null;
     } on FormatException {
-      return 'Use 3–64 lowercase letters, numbers, . _ or -.';
+      return context.l10n.usernameValidation;
     }
   }
 
@@ -269,7 +271,7 @@ class _DefaultsAndAppearanceDialogState
       validateDataApiPassword(_remoteDataApiPasswordController.text);
       return null;
     } on FormatException {
-      return 'Use 12–72 UTF-8 bytes.';
+      return context.l10n.passwordValidation;
     }
   }
 
@@ -407,12 +409,12 @@ class _DefaultsAndAppearanceDialogState
       explicitChildNodes: true,
       child: AppDialogScaffold(
         key: const Key('defaults-dialog'),
-        title: 'Defaults & appearance',
+        title: context.l10n.defaultsAppearance,
         subtitle: compactKeyboardLayout
             ? null
-            : 'Pick the default profile for new tabs and choose how the shell follows the app theme.',
+            : context.l10n.defaultsAppearanceSubtitle,
         onClose: () => Navigator.of(context).pop(),
-        closeTooltip: 'Close defaults',
+        closeTooltip: context.l10n.closeDefaults,
         insetPadding: EdgeInsets.all(dialogInset),
         constraints: const BoxConstraints(maxWidth: 720),
         width: dialogWidth,
@@ -487,7 +489,7 @@ class _DefaultsAndAppearanceDialogState
                         },
                 ),
                 SizedBox(height: theme.spacing.xl),
-                const AppSectionHeader(title: 'Default profile'),
+                AppSectionHeader(title: context.l10n.defaultProfile),
                 SizedBox(height: theme.spacing.sm),
                 AppPanel(
                   tone: AppPanelTone.panel,
@@ -519,11 +521,14 @@ class _DefaultsAndAppearanceDialogState
                                   'default-profile-option-fallback',
                                 ),
                                 value: null,
-                                title: const Text('Use automatic fallback'),
+                                title: Text(context.l10n.useAutomaticFallback),
                                 subtitle: Text(
                                   effectiveProfile == null
-                                      ? 'No profile is available for new tabs.'
-                                      : 'New tabs use ${effectiveProfile.name} automatically until you choose a fixed default.',
+                                      ? context.l10n.noProfileForNewTabs
+                                      : context.l10n
+                                            .newTabsUseProfileAutomatically(
+                                              effectiveProfile.name,
+                                            ),
                                 ),
                               ),
                             ),
@@ -561,8 +566,14 @@ class _DefaultsAndAppearanceDialogState
                         ),
                         child: Text(
                           isUsingFallback
-                              ? 'Automatic fallback • ${effectiveProfile?.name ?? 'No profile available'}'
-                              : 'Configured default • ${effectiveProfile?.name ?? 'Unknown profile'}',
+                              ? context.l10n.automaticFallbackProfile(
+                                  effectiveProfile?.name ??
+                                      context.l10n.noProfileAvailable,
+                                )
+                              : context.l10n.configuredDefaultProfile(
+                                  effectiveProfile?.name ??
+                                      context.l10n.unknownProfile,
+                                ),
                           style: Theme.of(context).textTheme.bodySmall
                               ?.copyWith(
                                 color: theme.textMuted,
@@ -575,14 +586,16 @@ class _DefaultsAndAppearanceDialogState
                 ),
                 SizedBox(height: theme.spacing.xl),
                 AppSectionHeader(
-                  title: 'Terminal preset',
+                  title: context.l10n.terminalPreset,
                   description: effectiveProfile == null
-                      ? 'Create a profile before choosing terminal colors.'
-                      : 'Apply a curated terminal color palette to ${effectiveProfile.name}.',
+                      ? context.l10n.createProfileBeforeColors
+                      : context.l10n.applyPaletteToProfile(
+                          effectiveProfile.name,
+                        ),
                 ),
                 SizedBox(height: theme.spacing.sm),
                 Semantics(
-                  label: 'Filter terminal presets',
+                  label: context.l10n.filterTerminalPresets,
                   container: true,
                   explicitChildNodes: true,
                   child: TextField(
@@ -590,10 +603,10 @@ class _DefaultsAndAppearanceDialogState
                     textInputAction: TextInputAction.search,
                     onTapOutside: (_) =>
                         FocusManager.instance.primaryFocus?.unfocus(),
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       isDense: true,
-                      prefixIcon: Icon(Icons.search_rounded),
-                      labelText: 'Filter terminal presets',
+                      prefixIcon: const Icon(Icons.search_rounded),
+                      labelText: context.l10n.filterTerminalPresets,
                     ),
                     onChanged: (value) {
                       setState(() {
@@ -623,10 +636,12 @@ class _DefaultsAndAppearanceDialogState
                           _TerminalPresetChoice(
                             key: const Key('defaults-terminal-preset-current'),
                             width: cardWidth,
-                            label: 'Keep current',
+                            label: context.l10n.keepCurrent,
                             subtitle: selectedPreset == null
-                                ? 'Custom colors'
-                                : 'Currently ${selectedPreset.name}',
+                                ? context.l10n.customColors
+                                : context.l10n.currentlyPreset(
+                                    selectedPreset.name,
+                                  ),
                             selected: _selectedTerminalPresetId == null,
                             enabled: effectiveProfile != null,
                             previewColors: effectiveProfile == null
@@ -663,7 +678,9 @@ class _DefaultsAndAppearanceDialogState
                               tone: AppPanelTone.elevated,
                               padding: EdgeInsets.all(theme.spacing.md),
                               child: Text(
-                                'No terminal presets match "$_terminalPresetFilter".',
+                                context.l10n.noTerminalPresetsMatch(
+                                  _terminalPresetFilter,
+                                ),
                                 style: Theme.of(context).textTheme.bodySmall
                                     ?.copyWith(color: theme.textSubtle),
                               ),
@@ -674,10 +691,9 @@ class _DefaultsAndAppearanceDialogState
                   },
                 ),
                 SizedBox(height: theme.spacing.xxl),
-                const AppSectionHeader(
-                  title: 'Startup',
-                  description:
-                      'Choose whether the terminal should rebuild your last tab and pane arrangement.',
+                AppSectionHeader(
+                  title: context.l10n.startup,
+                  description: context.l10n.startupLayoutDescription,
                 ),
                 SizedBox(height: theme.spacing.sm),
                 AppPanel(
@@ -692,14 +708,14 @@ class _DefaultsAndAppearanceDialogState
                       key: const Key('default-restore-layout'),
                       contentPadding: EdgeInsets.zero,
                       title: Text(
-                        'Restore tabs and panes on launch',
+                        context.l10n.restoreTabsAndPanes,
                         style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                           color: theme.textPrimary,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                       subtitle: Text(
-                        'Starts new shell processes and restores their folders. Running processes are not resumed.',
+                        context.l10n.restoreTabsAndPanesDescription,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: theme.textSubtle,
                         ),
@@ -723,7 +739,7 @@ class _DefaultsAndAppearanceDialogState
                   },
                 ),
                 SizedBox(height: theme.spacing.xxl),
-                const AppSectionHeader(title: 'Appearance'),
+                AppSectionHeader(title: context.l10n.appearance),
                 SizedBox(height: theme.spacing.sm),
                 _SettingsRadioPanel<TerminalThemeMode>(
                   panelKey: const Key('defaults-appearance-options'),
@@ -741,16 +757,17 @@ class _DefaultsAndAppearanceDialogState
                       _SettingsRadioOptionData<TerminalThemeMode>(
                         tileKey: Key('default-theme-option-${themeMode.name}'),
                         value: themeMode,
-                        title: themeModeLabel(themeMode),
-                        subtitle: _themeModeDescription(themeMode),
+                        title: context.l10n.themeModeName(themeMode.name),
+                        subtitle: context.l10n.themeModeDescription(
+                          themeMode.name,
+                        ),
                       ),
                   ],
                 ),
                 SizedBox(height: theme.spacing.xxl),
-                const AppSectionHeader(
-                  title: 'OSC 52 clipboard',
-                  description:
-                      'Choose how terminal escape sequences may access the system clipboard.',
+                AppSectionHeader(
+                  title: context.l10n.osc52Clipboard,
+                  description: context.l10n.osc52ClipboardDescription,
                 ),
                 SizedBox(height: theme.spacing.sm),
                 _SettingsRadioPanel<LocalTerminalOsc52Policy>(
@@ -769,16 +786,17 @@ class _DefaultsAndAppearanceDialogState
                       _SettingsRadioOptionData<LocalTerminalOsc52Policy>(
                         tileKey: Key('default-osc52-policy-${policy.name}'),
                         value: policy,
-                        title: osc52PolicyLabel(policy),
-                        subtitle: osc52PolicyDescription(policy),
+                        title: context.l10n.osc52PolicyName(policy.name),
+                        subtitle: context.l10n.osc52PolicyDescription(
+                          policy.name,
+                        ),
                       ),
                   ],
                 ),
                 SizedBox(height: theme.spacing.xxl),
-                const AppSectionHeader(
-                  title: 'Terminal URL requests',
-                  description:
-                      'Choose whether OSC 1337 OpenURL requests may ask for permission. URLs are never opened automatically.',
+                AppSectionHeader(
+                  title: context.l10n.terminalUrlRequests,
+                  description: context.l10n.terminalUrlRequestsDescription,
                 ),
                 SizedBox(height: theme.spacing.sm),
                 _SettingsRadioPanel<LocalTerminalOpenUrlPolicy>(
@@ -799,16 +817,18 @@ class _DefaultsAndAppearanceDialogState
                           'default-osc1337-open-url-policy-${policy.name}',
                         ),
                         value: policy,
-                        title: openUrlPolicyLabel(policy),
-                        subtitle: openUrlPolicyDescription(policy),
+                        title: context.l10n.openUrlPolicyName(policy.name),
+                        subtitle: context.l10n.openUrlPolicyDescription(
+                          policy.name,
+                        ),
                       ),
                   ],
                 ),
                 SizedBox(height: theme.spacing.xxl),
-                const AppSectionHeader(
-                  title: 'Terminal attention requests',
+                AppSectionHeader(
+                  title: context.l10n.terminalAttentionRequests,
                   description:
-                      'Choose whether OSC 1337 RequestAttention may use a bounded Dock alert or a cursor-local visual effect. Requests never activate or focus the app.',
+                      context.l10n.terminalAttentionRequestsDescription,
                 ),
                 SizedBox(height: theme.spacing.sm),
                 _SettingsRadioPanel<LocalTerminalRequestAttentionPolicy>(
@@ -832,16 +852,18 @@ class _DefaultsAndAppearanceDialogState
                           'default-osc1337-request-attention-policy-${policy.name}',
                         ),
                         value: policy,
-                        title: requestAttentionPolicyLabel(policy),
-                        subtitle: requestAttentionPolicyDescription(policy),
+                        title: context.l10n.requestAttentionPolicyName(
+                          policy.name,
+                        ),
+                        subtitle: context.l10n
+                            .requestAttentionPolicyDescription(policy.name),
                       ),
                   ],
                 ),
                 SizedBox(height: theme.spacing.xxl),
-                const AppSectionHeader(
-                  title: 'Terminal variable reports',
-                  description:
-                      'OSC 1337 ReportVariable requests are denied the first time. Remembered decisions apply only to the named session.* or user.* variable.',
+                AppSectionHeader(
+                  title: context.l10n.terminalVariableReports,
+                  description: context.l10n.terminalVariableReportsDescription,
                 ),
                 SizedBox(height: theme.spacing.sm),
                 AppPanel(
@@ -853,8 +875,12 @@ class _DefaultsAndAppearanceDialogState
                     children: [
                       Text(
                         _selectedReportVariableDecisions.isEmpty
-                            ? 'No remembered decisions'
-                            : '${_selectedReportVariableDecisions.length} remembered · $allowedReportVariables allowed · $deniedReportVariables denied',
+                            ? context.l10n.noRememberedDecisions
+                            : context.l10n.rememberedDecisionSummary(
+                                _selectedReportVariableDecisions.length,
+                                allowedReportVariables,
+                                deniedReportVariables,
+                              ),
                         key: const Key(
                           'default-osc1337-report-variable-decision-summary',
                         ),
@@ -865,7 +891,7 @@ class _DefaultsAndAppearanceDialogState
                       ),
                       SizedBox(height: theme.spacing.xs),
                       Text(
-                        'Forgetting decisions restores the safe first-request denial and lets the app ask again later.',
+                        context.l10n.forgettingDecisionsHelp,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: theme.textSubtle,
                         ),
@@ -913,8 +939,8 @@ class _DefaultsAndAppearanceDialogState
                                       entry.value ==
                                               LocalTerminalReportVariablePolicy
                                                   .allow
-                                          ? 'Allow'
-                                          : 'Deny',
+                                          ? context.l10n.allow
+                                          : context.l10n.deny,
                                       key: ValueKey<String>(
                                         'default-osc1337-report-variable-policy-${entry.key}',
                                       ),
@@ -928,8 +954,9 @@ class _DefaultsAndAppearanceDialogState
                                       key: ValueKey<String>(
                                         'default-osc1337-report-variable-forget-${entry.key}',
                                       ),
-                                      tooltip:
-                                          'Forget decision for ${entry.key}',
+                                      tooltip: context.l10n.forgetDecisionFor(
+                                        entry.key,
+                                      ),
                                       visualDensity: VisualDensity.compact,
                                       onPressed: () {
                                         setState(() {
@@ -959,7 +986,7 @@ class _DefaultsAndAppearanceDialogState
                         tone: AppActionTone.secondary,
                         size: AppActionSize.compact,
                         icon: Icons.restart_alt_rounded,
-                        label: 'Forget all decisions',
+                        label: context.l10n.forgetAllDecisions,
                         onPressed: _selectedReportVariableDecisions.isEmpty
                             ? null
                             : () {
@@ -977,10 +1004,10 @@ class _DefaultsAndAppearanceDialogState
                 ),
                 SizedBox(height: theme.spacing.xxl),
                 AppSectionHeader(
-                  title: 'Data service',
+                  title: context.l10n.dataService,
                   description: widget.localDataApiAvailable
-                      ? 'Choose whether the app starts a local data service or connects to a remote one.'
-                      : 'Use one-time SSH connections without a data service, or connect a remote service to save profiles and sync them.',
+                      ? context.l10n.dataServiceDescriptionLocalAvailable
+                      : context.l10n.dataServiceDescriptionRemoteOnly,
                 ),
                 SizedBox(height: theme.spacing.sm),
                 AppPanel(
@@ -992,15 +1019,17 @@ class _DefaultsAndAppearanceDialogState
                     children: [
                       Semantics(
                         key: const Key('data-api-active-deployment'),
-                        label:
-                            'Active data service: '
-                            '${_sourceDataApiDeployment.name}',
+                        label: context.l10n.activeDataService(
+                          _sourceDataApiDeployment.name,
+                        ),
                         child: Text(
-                          'Active now: ${switch (_sourceDataApiDeployment) {
-                            DataApiDeployment.disabled => widget.localSessionsEnabled ? 'Local terminal' : 'No data service',
-                            DataApiDeployment.local => 'Bundled local service',
-                            DataApiDeployment.remote => 'Remote service',
-                          }}',
+                          context.l10n.activeNow(
+                            _dataServiceName(
+                              context.l10n,
+                              _sourceDataApiDeployment,
+                              localSessionsEnabled: widget.localSessionsEnabled,
+                            ),
+                          ),
                           style: Theme.of(context).textTheme.bodySmall
                               ?.copyWith(color: theme.textSubtle),
                         ),
@@ -1023,25 +1052,22 @@ class _DefaultsAndAppearanceDialogState
                               value: DataApiDeployment.disabled,
                               title: Text(
                                 widget.localSessionsEnabled
-                                    ? 'Local terminal'
-                                    : 'No data service',
+                                    ? context.l10n.localTerminal
+                                    : context.l10n.noDataService,
                               ),
                               subtitle: Text(
                                 widget.localSessionsEnabled
-                                    ? 'No API process. Use local shells and '
-                                          'hosts from ~/.ssh/config only.'
-                                    : 'No API process. Create one-time SSH '
-                                          'connections without saving them.',
+                                    ? context.l10n.localTerminalNoApiDescription
+                                    : context.l10n.noDataServiceDescription,
                               ),
                             ),
                             if (widget.localDataApiAvailable)
-                              const AppCompactRadioTile<DataApiDeployment>(
-                                tileKey: Key('data-api-local'),
+                              AppCompactRadioTile<DataApiDeployment>(
+                                tileKey: const Key('data-api-local'),
                                 value: DataApiDeployment.local,
-                                title: Text('Bundled local service'),
+                                title: Text(context.l10n.bundledLocalService),
                                 subtitle: Text(
-                                  'Offline API persistence and custom SSH '
-                                  'profiles on this Mac.',
+                                  context.l10n.bundledLocalServiceDescription,
                                 ),
                               ),
                             if (_migratesRemoteDataToLocal)
@@ -1050,32 +1076,32 @@ class _DefaultsAndAppearanceDialogState
                                   top: theme.spacing.sm,
                                   bottom: theme.spacing.sm,
                                 ),
-                                child: const AppPanel(
-                                  key: Key(
+                                child: AppPanel(
+                                  key: const Key(
                                     'data-api-remote-to-local-migration',
                                   ),
                                   tone: AppPanelTone.chrome,
                                   child: ListTile(
-                                    leading: Icon(
+                                    leading: const Icon(
                                       Icons.cloud_download_outlined,
                                     ),
-                                    title: Text('Migrate remote API data'),
+                                    title: Text(
+                                      context.l10n.migrateRemoteApiData,
+                                    ),
                                     subtitle: Text(
-                                      'The app starts a temporary bundled API '
-                                      'and merges remote resources before '
-                                      'switching. Remote data is retained if '
-                                      'startup, export, or merge fails.',
+                                      context
+                                          .l10n
+                                          .migrateRemoteApiDataDescription,
                                     ),
                                   ),
                                 ),
                               ),
-                            const AppCompactRadioTile<DataApiDeployment>(
-                              tileKey: Key('data-api-remote'),
+                            AppCompactRadioTile<DataApiDeployment>(
+                              tileKey: const Key('data-api-remote'),
                               value: DataApiDeployment.remote,
-                              title: Text('Remote service'),
+                              title: Text(context.l10n.remoteService),
                               subtitle: Text(
-                                'Custom SSH profiles, persistent settings, '
-                                'and cross-device sync over HTTPS.',
+                                context.l10n.remoteServiceDescription,
                               ),
                             ),
                           ],
@@ -1085,16 +1111,16 @@ class _DefaultsAndAppearanceDialogState
                           DataApiDeployment.remote) ...[
                         SizedBox(height: theme.spacing.sm),
                         if (_migratesLocalDataToRemote) ...[
-                          const AppPanel(
-                            key: Key('data-api-local-to-remote-migration'),
+                          AppPanel(
+                            key: const Key(
+                              'data-api-local-to-remote-migration',
+                            ),
                             tone: AppPanelTone.chrome,
                             child: ListTile(
-                              leading: Icon(Icons.cloud_upload_outlined),
-                              title: Text('Migrate local API data'),
+                              leading: const Icon(Icons.cloud_upload_outlined),
+                              title: Text(context.l10n.migrateLocalApiData),
                               subtitle: Text(
-                                'The app exports and merges local resources '
-                                'before switching. Local data is retained if '
-                                'authentication, export, or merge fails.',
+                                context.l10n.migrateLocalApiDataDescription,
                               ),
                             ),
                           ),
@@ -1108,8 +1134,8 @@ class _DefaultsAndAppearanceDialogState
                             size: AppActionSize.compact,
                             icon: Icons.login_rounded,
                             label: _remoteReconnectRequested
-                                ? 'Reconnect requested'
-                                : 'Reconnect / sign in',
+                                ? context.l10n.reconnectRequested
+                                : context.l10n.reconnectSignIn,
                             onPressed: _remoteReconnectRequested
                                 ? null
                                 : () {
@@ -1137,7 +1163,7 @@ class _DefaultsAndAppearanceDialogState
                           autocorrect: false,
                           enableSuggestions: false,
                           decoration: InputDecoration(
-                            labelText: 'Remote API base URL',
+                            labelText: context.l10n.remoteApiBaseUrl,
                             hintText: defaultRemoteDataApiBaseUrl,
                             errorText: _remoteDataApiUrlError,
                             errorMaxLines: 2,
@@ -1162,7 +1188,7 @@ class _DefaultsAndAppearanceDialogState
                           enableSuggestions: false,
                           autofillHints: const <String>[AutofillHints.username],
                           decoration: InputDecoration(
-                            labelText: 'Username',
+                            labelText: context.l10n.username,
                             errorText: _remoteUsernameError,
                             errorMaxLines: 2,
                           ),
@@ -1187,8 +1213,8 @@ class _DefaultsAndAppearanceDialogState
                           enableSuggestions: false,
                           autofillHints: const <String>[AutofillHints.password],
                           decoration: InputDecoration(
-                            labelText: 'Password',
-                            helperText: 'Used only for this login request.',
+                            labelText: context.l10n.password,
+                            helperText: context.l10n.loginPasswordHelp,
                             errorText: _remotePasswordError,
                             errorMaxLines: 2,
                           ),
@@ -1198,17 +1224,15 @@ class _DefaultsAndAppearanceDialogState
                         SizedBox(height: theme.spacing.sm),
                         Text(
                           usesAutomaticallySynchronizedAppleKeychain
-                              ? 'Encryption uses the one Ianvs master key '
-                                    'managed automatically by iCloud Keychain.'
-                              : 'Encryption uses the one Ianvs master key '
-                                    'stored on this device. Export or import '
-                                    'it in Master key management when moving '
-                                    'to another platform.',
+                              ? context.l10n.appleMasterKeyEncryptionDescription
+                              : context
+                                    .l10n
+                                    .deviceMasterKeyEncryptionDescription,
                         ),
                       ],
                       SizedBox(height: theme.spacing.sm),
                       Text(
-                        'The selection is stored in the app configuration and takes effect after restart.',
+                        context.l10n.dataServiceRestartNotice,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: theme.textSubtle,
                         ),
@@ -1221,10 +1245,9 @@ class _DefaultsAndAppearanceDialogState
                   MasterKeyManagementPanel(repository: repository),
                   SizedBox(height: theme.spacing.xxl),
                 ],
-                const AppSectionHeader(
-                  title: 'Terminal canvas inset',
-                  description:
-                      'Adjust the empty space between the shell frame and terminal text.',
+                AppSectionHeader(
+                  title: context.l10n.terminalCanvasInset,
+                  description: context.l10n.terminalCanvasInsetDescription,
                 ),
                 SizedBox(height: theme.spacing.sm),
                 AppPanel(
@@ -1238,7 +1261,7 @@ class _DefaultsAndAppearanceDialogState
                         children: [
                           Expanded(
                             child: Text(
-                              'Viewport padding',
+                              context.l10n.viewportPadding,
                               style: Theme.of(context).textTheme.bodyMedium
                                   ?.copyWith(
                                     color: theme.textPrimary,
@@ -1260,9 +1283,10 @@ class _DefaultsAndAppearanceDialogState
                       Semantics(
                         key: const Key('default-terminal-viewport-padding'),
                         container: true,
-                        label: 'Viewport padding',
-                        value:
-                            '${_selectedTerminalViewportPadding.round()} pixels',
+                        label: context.l10n.viewportPadding,
+                        value: context.l10n.pixelCount(
+                          _selectedTerminalViewportPadding.round(),
+                        ),
                         liveRegion: true,
                         child: Row(
                           children: [
@@ -1273,7 +1297,7 @@ class _DefaultsAndAppearanceDialogState
                               tone: AppActionTone.secondary,
                               size: AppActionSize.compact,
                               icon: Icons.remove_rounded,
-                              tooltip: 'Decrease viewport padding',
+                              tooltip: context.l10n.decreaseViewportPadding,
                               onPressed:
                                   _selectedTerminalViewportPadding <=
                                       TerminalAppAppearance
@@ -1295,7 +1319,14 @@ class _DefaultsAndAppearanceDialogState
                             ),
                             Expanded(
                               child: Text(
-                                'Range ${TerminalAppAppearance.minTerminalViewportPadding.round()}–${TerminalAppAppearance.maxTerminalViewportPadding.round()} px',
+                                context.l10n.viewportPaddingRange(
+                                  TerminalAppAppearance
+                                      .minTerminalViewportPadding
+                                      .round(),
+                                  TerminalAppAppearance
+                                      .maxTerminalViewportPadding
+                                      .round(),
+                                ),
                                 textAlign: TextAlign.center,
                                 style: Theme.of(context).textTheme.labelMedium
                                     ?.copyWith(
@@ -1311,7 +1342,7 @@ class _DefaultsAndAppearanceDialogState
                               tone: AppActionTone.secondary,
                               size: AppActionSize.compact,
                               icon: Icons.add_rounded,
-                              tooltip: 'Increase viewport padding',
+                              tooltip: context.l10n.increaseViewportPadding,
                               onPressed:
                                   _selectedTerminalViewportPadding >=
                                       TerminalAppAppearance
@@ -1335,7 +1366,7 @@ class _DefaultsAndAppearanceDialogState
                         ),
                       ),
                       Text(
-                        'Lower values keep the prompt close to the edges; higher values create a larger terminal gutter.',
+                        context.l10n.viewportPaddingDescription,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: theme.textSubtle,
                         ),
@@ -1359,7 +1390,7 @@ class _DefaultsAndAppearanceDialogState
                       AppActionButton(
                         tone: AppActionTone.secondary,
                         size: AppActionSize.compact,
-                        label: 'Reset default',
+                        label: context.l10n.resetDefault,
                         onPressed: _selectedProfileId == null
                             ? null
                             : () {
@@ -1379,7 +1410,7 @@ class _DefaultsAndAppearanceDialogState
                       AppActionButton(
                         tone: AppActionTone.secondary,
                         size: AppActionSize.compact,
-                        label: 'Reset theme',
+                        label: context.l10n.resetTheme,
                         onPressed:
                             _selectedThemeMode == TerminalThemeMode.system &&
                                 _selectedTerminalViewportPadding ==
@@ -1405,16 +1436,16 @@ class _DefaultsAndAppearanceDialogState
                       AppActionButton(
                         tone: AppActionTone.secondary,
                         size: AppActionSize.compact,
-                        label: 'Cancel',
+                        label: context.l10n.cancel,
                         onPressed: () => Navigator.of(context).pop(),
                       ),
                       AppActionButton(
                         buttonKey: const Key('defaults-save'),
                         label: _migratesLocalDataToRemote
-                            ? 'Migrate to remote API'
+                            ? context.l10n.migrateToRemoteApi
                             : _migratesRemoteDataToLocal
-                            ? 'Migrate to local API'
-                            : 'Save changes',
+                            ? context.l10n.migrateToLocalApi
+                            : context.l10n.saveChanges,
                         onPressed:
                             LocalTerminalKeyBindingResolver.conflicts(
                                   LocalTerminalKeyBindingResolver.resolve(
@@ -1531,7 +1562,7 @@ class _ProfilesNotice extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Detailed terminal settings live in Profiles.',
+                    context.l10n.detailedSettingsInProfiles,
                     style: textTheme.bodyMedium?.copyWith(
                       color: theme.textPrimary,
                       fontWeight: FontWeight.w700,
@@ -1539,7 +1570,7 @@ class _ProfilesNotice extends StatelessWidget {
                   ),
                   SizedBox(height: theme.spacing.xs),
                   Text(
-                    'Edit font, colors, cursor, scrollback, and startup arguments from the Profiles editor.',
+                    context.l10n.editTerminalDetailsInProfiles,
                     style: textTheme.bodySmall?.copyWith(
                       color: theme.textSubtle,
                     ),
@@ -1551,7 +1582,9 @@ class _ProfilesNotice extends StatelessWidget {
                       tone: AppActionTone.secondary,
                       size: AppActionSize.compact,
                       icon: Icons.tune_rounded,
-                      label: 'Edit ${effectiveProfile!.name} in Profiles',
+                      label: context.l10n.editProfileInProfiles(
+                        effectiveProfile!.name,
+                      ),
                       onPressed: onOpenProfiles,
                     ),
                   ],
@@ -1646,19 +1679,24 @@ class _SettingsRadioPanel<T> extends StatelessWidget {
   }
 }
 
+String _dataServiceName(
+  AppLocalizations l10n,
+  DataApiDeployment deployment, {
+  required bool localSessionsEnabled,
+}) {
+  return switch (deployment) {
+    DataApiDeployment.disabled =>
+      localSessionsEnabled ? l10n.localTerminal : l10n.noDataService,
+    DataApiDeployment.local => l10n.bundledLocalService,
+    DataApiDeployment.remote => l10n.remoteService,
+  };
+}
+
 String themeModeLabel(TerminalThemeMode mode) {
   return switch (mode) {
     TerminalThemeMode.system => 'System',
     TerminalThemeMode.light => 'Light',
     TerminalThemeMode.dark => 'Dark',
-  };
-}
-
-String _themeModeDescription(TerminalThemeMode mode) {
-  return switch (mode) {
-    TerminalThemeMode.system => 'Follow the current device appearance.',
-    TerminalThemeMode.light => 'Keep the shell app in light mode.',
-    TerminalThemeMode.dark => 'Keep the shell app in dark mode.',
   };
 }
 

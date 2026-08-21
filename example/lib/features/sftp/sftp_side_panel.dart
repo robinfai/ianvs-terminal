@@ -326,7 +326,7 @@ class SftpSupportingPaneLayout extends StatelessWidget {
             Positioned.fill(
               child: Semantics(
                 button: true,
-                label: 'Close SFTP panel',
+                label: context.l10n.closeSftpPanel,
                 child: GestureDetector(
                   key: const Key('sftp-right-panel-scrim'),
                   behavior: HitTestBehavior.opaque,
@@ -566,30 +566,30 @@ class _SftpSidePanelState extends State<SftpSidePanel> {
         Offset.zero & overlay.size,
       ),
       items: <PopupMenuEntry<_SftpEntryMenuAction>>[
-        const PopupMenuItem<_SftpEntryMenuAction>(
-          key: Key('sftp-context-copy-full-path'),
+        PopupMenuItem<_SftpEntryMenuAction>(
+          key: const Key('sftp-context-copy-full-path'),
           value: _SftpEntryMenuAction.copyFullPath,
-          child: Text('Copy full path'),
+          child: Text(context.l10n.copyFullPath),
         ),
         if (entry.isFile)
           PopupMenuItem<_SftpEntryMenuAction>(
             key: const Key('sftp-context-edit-locally'),
             value: _SftpEntryMenuAction.editLocally,
             enabled: _fileDataSource != null && !isBusy,
-            child: const Text('Edit locally'),
+            child: Text(context.l10n.editLocally),
           ),
         const PopupMenuDivider(),
         PopupMenuItem<_SftpEntryMenuAction>(
           key: const Key('sftp-context-create-directory'),
           value: _SftpEntryMenuAction.createDirectory,
           enabled: _fileDataSource != null,
-          child: const Text('Create directory'),
+          child: Text(context.l10n.createDirectory),
         ),
         PopupMenuItem<_SftpEntryMenuAction>(
           key: const Key('sftp-context-delete'),
           value: _SftpEntryMenuAction.delete,
           enabled: _fileDataSource != null && !isBusy,
-          child: const Text('Delete'),
+          child: Text(context.l10n.delete),
         ),
       ],
     );
@@ -600,7 +600,7 @@ class _SftpSidePanelState extends State<SftpSidePanel> {
       case _SftpEntryMenuAction.copyFullPath:
         await Clipboard.setData(ClipboardData(text: remotePath));
         if (mounted) {
-          _showMessage('Copied $remotePath');
+          _showMessage(context.l10n.copiedPath(remotePath));
         }
       case _SftpEntryMenuAction.editLocally:
         await _editLocally(entry);
@@ -634,12 +634,12 @@ class _SftpSidePanelState extends State<SftpSidePanel> {
         ),
       );
       if (mounted) {
-        _showMessage('Created $name');
+        _showMessage(context.l10n.createdNamedItem(name));
         _refresh();
       }
     } on Object {
       if (mounted) {
-        _showMessage('Could not create $name.');
+        _showMessage(context.l10n.couldNotCreateNamedItem(name));
       }
     }
   }
@@ -653,12 +653,12 @@ class _SftpSidePanelState extends State<SftpSidePanel> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              title: const Text('Create directory'),
+              title: Text(context.l10n.createDirectory),
               content: TextField(
                 key: const Key('sftp-create-directory-name'),
                 autofocus: true,
                 decoration: InputDecoration(
-                  labelText: 'Name',
+                  labelText: context.l10n.name,
                   errorText: validationMessage,
                 ),
                 onSubmitted: (value) {
@@ -674,7 +674,7 @@ class _SftpSidePanelState extends State<SftpSidePanel> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(dialogContext).pop(),
-                  child: const Text('Cancel'),
+                  child: Text(context.l10n.cancel),
                 ),
                 FilledButton(
                   key: const Key('sftp-create-directory-confirm'),
@@ -686,7 +686,7 @@ class _SftpSidePanelState extends State<SftpSidePanel> {
                     }
                     Navigator.of(dialogContext).pop(name.trim());
                   },
-                  child: const Text('Create'),
+                  child: Text(context.l10n.create),
                 ),
               ],
             );
@@ -705,21 +705,21 @@ class _SftpSidePanelState extends State<SftpSidePanel> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text('Delete ${entry.name}?'),
+        title: Text(dialogContext.l10n.deleteNamedItemQuestion(entry.name)),
         content: Text(
           entry.isDirectory
-              ? 'The directory must be empty before it can be deleted.'
-              : 'This remote file will be deleted permanently.',
+              ? dialogContext.l10n.directoryMustBeEmpty
+              : dialogContext.l10n.remoteFileDeletedPermanently,
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
+            child: Text(dialogContext.l10n.cancel),
           ),
           FilledButton(
             key: const Key('sftp-delete-confirm'),
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Delete'),
+            child: Text(dialogContext.l10n.delete),
           ),
         ],
       ),
@@ -741,12 +741,12 @@ class _SftpSidePanelState extends State<SftpSidePanel> {
         ),
       );
       if (mounted) {
-        _showMessage('Deleted ${entry.name}');
+        _showMessage(context.l10n.deletedNamedItem(entry.name));
         _refresh();
       }
     } on Object {
       if (mounted) {
-        _showMessage('Could not delete ${entry.name}.');
+        _showMessage(context.l10n.couldNotDeleteNamedItem(entry.name));
       }
     }
   }
@@ -773,7 +773,7 @@ class _SftpSidePanelState extends State<SftpSidePanel> {
             key: const Key('sftp-right-panel'),
             identifier: 'sftp-right-panel',
             container: true,
-            label: 'SFTP panel for ${widget.target.displayAddress}',
+            label: context.l10n.sftpPanelFor(widget.target.displayAddress),
             explicitChildNodes: true,
             child: Material(
               color: palette.panel,
@@ -883,7 +883,7 @@ class _SftpPanelHeader extends StatelessWidget {
               ),
             ),
             Tooltip(
-              message: 'Close SFTP panel',
+              message: context.l10n.closeSftpPanel,
               child: IconButton(
                 key: const Key('sftp-right-panel-close'),
                 onPressed: onClose,
@@ -920,7 +920,7 @@ class _SftpPathToolbar extends StatelessWidget {
         child: Row(
           children: [
             Tooltip(
-              message: 'Remote root',
+              message: context.l10n.remoteRoot,
               child: IconButton(
                 key: const Key('sftp-go-root'),
                 onPressed: onGoHome,
@@ -928,7 +928,7 @@ class _SftpPathToolbar extends StatelessWidget {
               ),
             ),
             Tooltip(
-              message: 'Parent directory',
+              message: context.l10n.parentDirectory,
               child: IconButton(
                 key: const Key('sftp-go-up'),
                 onPressed: onGoUp,
@@ -951,7 +951,7 @@ class _SftpPathToolbar extends StatelessWidget {
               ),
             ),
             Tooltip(
-              message: 'Refresh remote directory',
+              message: context.l10n.refreshRemoteDirectory,
               child: IconButton(
                 key: const Key('sftp-refresh'),
                 onPressed: onRefresh,
@@ -973,7 +973,7 @@ class _SftpLoadingState extends StatelessWidget {
     final palette = context.appTheme;
     return Center(
       child: Semantics(
-        label: 'Loading remote directory',
+        label: context.l10n.loadingRemoteDirectory,
         child: SizedBox.square(
           dimension: 24,
           child: CircularProgressIndicator(
@@ -997,7 +997,7 @@ class _SftpErrorState extends StatelessWidget {
     final palette = context.appTheme;
     final message = error is SftpDirectoryUnavailableException
         ? (error as SftpDirectoryUnavailableException).message
-        : 'Unable to load the remote directory.';
+        : context.l10n.unableLoadRemoteDirectory;
     return Center(
       child: SingleChildScrollView(
         padding: EdgeInsets.symmetric(horizontal: palette.spacing.xxl),
@@ -1007,7 +1007,7 @@ class _SftpErrorState extends StatelessWidget {
             Icon(Icons.cloud_off_outlined, size: 30, color: palette.textSubtle),
             SizedBox(height: palette.spacing.lg),
             Text(
-              'Remote files unavailable',
+              context.l10n.remoteFilesUnavailable,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.titleSmall?.copyWith(
                 color: palette.textPrimary,
@@ -1027,7 +1027,7 @@ class _SftpErrorState extends StatelessWidget {
               key: const Key('sftp-retry'),
               onPressed: onRetry,
               icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Retry'),
+              label: Text(context.l10n.retry),
             ),
           ],
         ),
@@ -1066,7 +1066,7 @@ class _SftpDirectoryList extends StatelessWidget {
         return left.name.toLowerCase().compareTo(right.name.toLowerCase());
       });
     if (entries.isEmpty) {
-      return const Center(child: Text('This remote directory is empty.'));
+      return Center(child: Text(context.l10n.remoteDirectoryEmpty));
     }
     return Scrollbar(
       child: ListView.separated(
@@ -1124,7 +1124,10 @@ class _SftpDirectoryRow extends StatelessWidget {
     ].join('  ');
     return Semantics(
       button: true,
-      label: '${entry.isDirectory ? 'Folder' : 'File'} ${entry.name}',
+      label: context.l10n.remoteEntrySemantics(
+        entry.isDirectory ? context.l10n.folder : context.l10n.file,
+        entry.name,
+      ),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onSecondaryTapDown: (details) =>

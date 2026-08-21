@@ -6,7 +6,6 @@ const double _iosShellChromeTitleHeight = 44;
 const double _iosShellChromeTabRailHeight = 52;
 const double _shellChromeHorizontalInset = 12;
 const double _compactMobileChromeBreakpoint = 600;
-const String _shellApplicationTitle = 'Ianvs Terminal';
 
 class _ShellChromeBar extends StatelessWidget {
   const _ShellChromeBar({
@@ -151,7 +150,7 @@ class _ShellChromeBar extends StatelessWidget {
                         if (usesCompactMobileChrome && !referenceDemoMode) ...[
                           _buildChromeIconButton(
                             key: const Key('shell-chrome-menu'),
-                            tooltip: 'Open command palette',
+                            tooltip: context.l10n.openCommandPalette,
                             onPressed: onShowCommandMenu,
                             iconSize: 16,
                             hoverBackgroundColor: chromeTone.hoverBackground,
@@ -282,7 +281,7 @@ class _ShellWindowTitleBar extends StatelessWidget {
                   padding: EdgeInsets.symmetric(horizontal: titleSafeInset),
                   child: Center(
                     child: Text(
-                      _shellApplicationTitle,
+                      context.l10n.appTitle,
                       key: const Key('shell-chrome-window-title'),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -303,7 +302,7 @@ class _ShellWindowTitleBar extends StatelessWidget {
                 right: 12,
                 child: _buildChromeIconButton(
                   key: const Key('shell-chrome-menu'),
-                  tooltip: 'Open command palette',
+                  tooltip: context.l10n.openCommandPalette,
                   onPressed: onShowCommandMenu,
                   iconSize: 16,
                   hoverBackgroundColor: tone.hoverBackground,
@@ -362,7 +361,7 @@ class _ShellConfigurationWarningsBanner extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Some terminal profile values were ignored and reset to safe defaults.',
+                        context.l10n.configurationWarningsSummary,
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: palette.textPrimary,
                           fontWeight: FontWeight.w700,
@@ -383,7 +382,7 @@ class _ShellConfigurationWarningsBanner extends StatelessWidget {
                 ),
                 _buildCompactActionButton(
                   key: const Key('shell-configuration-warnings-dismiss'),
-                  tooltip: 'Dismiss configuration warnings',
+                  tooltip: context.l10n.dismissConfigurationWarnings,
                   onPressed: onDismiss,
                   icon: Icon(Icons.close_rounded, color: palette.textSubtle),
                 ),
@@ -395,10 +394,13 @@ class _ShellConfigurationWarningsBanner extends StatelessWidget {
                 FilledButton.tonal(
                   key: const Key('shell-configuration-warnings-review'),
                   onPressed: () => unawaited(onReviewProfiles()),
-                  child: const Text('Review Profiles'),
+                  child: Text(context.l10n.reviewProfiles),
                 ),
                 const SizedBox(width: 6),
-                TextButton(onPressed: onDismiss, child: const Text('Dismiss')),
+                TextButton(
+                  onPressed: onDismiss,
+                  child: Text(context.l10n.dismiss),
+                ),
               ],
             ),
           ],
@@ -424,7 +426,7 @@ class _ShellRuntimeErrorBanner extends StatelessWidget {
     return Semantics(
       container: true,
       liveRegion: true,
-      label: 'Terminal runtime error.',
+      label: context.l10n.terminalRuntimeError,
       child: DecoratedBox(
         key: const Key('shell-runtime-error'),
         decoration: BoxDecoration(
@@ -447,7 +449,7 @@ class _ShellRuntimeErrorBanner extends StatelessWidget {
               ),
               _buildCompactActionButton(
                 key: const Key('shell-runtime-error-dismiss'),
-                tooltip: 'Dismiss runtime error',
+                tooltip: context.l10n.dismissRuntimeError,
                 onPressed: onDismiss,
                 icon: Icon(Icons.close_rounded, color: palette.textSubtle),
               ),
@@ -476,10 +478,11 @@ class _ShellZmodemRecoveryBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return Semantics(
       container: true,
       liveRegion: true,
-      label: 'ZMODEM file preserved. $filename from $sourceLabel.',
+      label: l10n.zmodemPreservedSemantics(filename, sourceLabel),
       child: DecoratedBox(
         key: const Key('shell-zmodem-recovery'),
         decoration: BoxDecoration(
@@ -494,7 +497,7 @@ class _ShellZmodemRecoveryBanner extends StatelessWidget {
               const SizedBox(width: 9),
               Expanded(
                 child: Text(
-                  'ZMODEM publish failed. Complete file preserved as $filename from $sourceLabel.',
+                  l10n.zmodemPublishFailedPreserved(filename, sourceLabel),
                   key: const Key('shell-zmodem-recovery-message'),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
@@ -506,17 +509,17 @@ class _ShellZmodemRecoveryBanner extends StatelessWidget {
               TextButton(
                 key: const Key('shell-zmodem-recovery-reveal'),
                 onPressed: onReveal,
-                child: const Text('Reveal'),
+                child: Text(l10n.reveal),
               ),
               Tooltip(
-                message: 'Permanently delete preserved ZMODEM file',
+                message: l10n.permanentlyDeletePreservedZmodem,
                 child: Semantics(
                   button: true,
-                  label: 'Permanently delete preserved ZMODEM file',
+                  label: l10n.permanentlyDeletePreservedZmodem,
                   child: TextButton(
                     key: const Key('shell-zmodem-recovery-dismiss'),
                     onPressed: onDiscard,
-                    child: const Text('Discard file…'),
+                    child: Text(l10n.discardFileEllipsis),
                   ),
                 ),
               ),
@@ -543,6 +546,7 @@ class _ShellZmodemTransferBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     final progress = transfer.progress;
     final announcePhase =
         transfer.event.kind != terminal.TerminalZmodemEventKind.progress;
@@ -595,10 +599,10 @@ class _ShellZmodemTransferBanner extends StatelessWidget {
                     const SizedBox(height: 6),
                     Semantics(
                       container: true,
-                      label: 'ZMODEM progress',
+                      label: l10n.zmodemProgress,
                       value: progress == null
-                          ? 'indeterminate'
-                          : '${(progress * 100).floor()} percent',
+                          ? l10n.indeterminate
+                          : l10n.percentValue((progress * 100).floor()),
                       liveRegion: false,
                       child: ExcludeSemantics(
                         child: LinearProgressIndicator(
@@ -619,7 +623,7 @@ class _ShellZmodemTransferBanner extends StatelessWidget {
                   key: const Key('shell-zmodem-transfer-retry'),
                   onPressed: onRetry,
                   icon: const Icon(Icons.refresh_rounded, size: 18),
-                  label: const Text('Retry'),
+                  label: Text(l10n.retry),
                 ),
                 const SizedBox(width: 4),
               ],
@@ -627,7 +631,9 @@ class _ShellZmodemTransferBanner extends StatelessWidget {
                 key: const Key('shell-zmodem-transfer-cancel'),
                 onPressed: onCancel,
                 icon: const Icon(Icons.close_rounded, size: 18),
-                label: Text(transfer.cancelling ? 'Cancelling…' : 'Cancel'),
+                label: Text(
+                  transfer.cancelling ? l10n.cancelling : l10n.cancel,
+                ),
               ),
             ],
           ),
@@ -702,7 +708,7 @@ class _ReferenceDemoTab extends StatelessWidget {
     final title = _shellTabDisplayTitle(tab);
     return Semantics(
       identifier: _shellTabSemanticsIdentifier(tab),
-      label: _shellTabSemanticsLabel(tab, shortcutIndex),
+      label: _shellTabSemanticsLabel(context.l10n, tab, shortcutIndex),
       selected: isActive,
       button: true,
       child: TextButton(
@@ -1554,7 +1560,7 @@ class _ShellNewTabButton extends StatelessWidget {
       child: Center(
         child: _buildChromeIconButton(
           key: const Key('shell-chrome-new-tab'),
-          tooltip: 'New tab',
+          tooltip: context.l10n.newTab,
           onPressed: onPressed,
           iconSize: 16,
           hoverBackgroundColor: tone.hoverBackground,
@@ -1785,6 +1791,7 @@ class _ShellTabOverflowMenuState extends State<_ShellTabOverflowMenu> {
     );
     final hasHiddenBadges = hiddenBadgeTargets.isNotEmpty;
     final hiddenPaneSignalTargets = _shellHiddenTabPaneSignalTargets(
+      context.l10n,
       widget.tabs,
       activeSessionId: widget.activeSessionId,
     );
@@ -1801,12 +1808,14 @@ class _ShellTabOverflowMenuState extends State<_ShellTabOverflowMenu> {
         ? chromeTone.hoverBackground
         : Colors.transparent;
     final overflowTooltip = _hiddenTabsOverflowButtonTooltip(
+      context.l10n,
       hiddenTabCount: widget.tabs.length,
       badgePaneCount: hiddenBadgeTargets.length,
       paneSignalCount: hiddenPaneSignalTargets.length,
       newOutputTabCount: hiddenOutputTabs.length,
     );
     final overflowSemanticsLabel = _hiddenTabsOverflowButtonSemanticsLabel(
+      context.l10n,
       hiddenTabCount: widget.tabs.length,
       badgePaneCount: hiddenBadgeTargets.length,
       paneSignalCount: hiddenPaneSignalTargets.length,
@@ -1870,6 +1879,7 @@ class _ShellTabOverflowMenuState extends State<_ShellTabOverflowMenu> {
                               key: const Key('shell-tab-overflow-badge'),
                               palette: widget.palette,
                               tooltip: _hiddenTabsBadgeTooltip(
+                                context.l10n,
                                 hiddenBadgeTargets,
                                 activeSessionId: widget.activeSessionId,
                               ),
@@ -1891,6 +1901,7 @@ class _ShellTabOverflowMenuState extends State<_ShellTabOverflowMenu> {
                               key: const Key('shell-tab-overflow-pane-signal'),
                               palette: widget.palette,
                               tooltip: _hiddenTabsPaneSignalTooltip(
+                                context.l10n,
                                 hiddenPaneSignalTargets,
                                 activeSessionId: widget.activeSessionId,
                               ),
@@ -2081,7 +2092,7 @@ class _ShellTabOverflowRowState extends State<_ShellTabOverflowRow> {
   Widget build(BuildContext context) {
     final title = _shellTabDisplayTitle(widget.tab);
     final badgeInfos = _shellTabBadgeInfos(widget.tab);
-    final paneSignalInfos = _shellTabPaneSignalInfos(widget.tab);
+    final paneSignalInfos = _shellTabPaneSignalInfos(context.l10n, widget.tab);
     final paneSignalInfo = paneSignalInfos.isEmpty
         ? null
         : paneSignalInfos.first;
@@ -2156,7 +2167,7 @@ class _ShellTabOverflowRowState extends State<_ShellTabOverflowRow> {
               else ...[
                 const SizedBox(width: 5),
                 Tooltip(
-                  message: 'Profile tab color',
+                  message: context.l10n.profileTabColor,
                   child: DecoratedBox(
                     key: Key(
                       'shell-tab-overflow-color-${widget.tab.sessionId}',
@@ -2177,7 +2188,7 @@ class _ShellTabOverflowRowState extends State<_ShellTabOverflowRow> {
               ],
               if (indicatorColor != null) ...[
                 Tooltip(
-                  message: 'OSC 21337 session status indicator',
+                  message: context.l10n.osc21337StatusIndicator,
                   child: DecoratedBox(
                     key: Key(
                       'shell-tab-overflow-status-indicator-${widget.tab.sessionId}',
@@ -2224,6 +2235,7 @@ class _ShellTabOverflowRowState extends State<_ShellTabOverflowRow> {
                 ),
               ],
               ..._shellTabBadgeChips(
+                l10n: context.l10n,
                 keyPrefix: 'shell-tab-overflow-badge-${widget.tab.sessionId}',
                 tab: widget.tab,
                 badges: badgeInfos,
@@ -2528,12 +2540,14 @@ class _ShellTabPaneSignalChip extends StatelessWidget {
     final primary = signals.first;
     final notificationTargets = _shellTabNotificationTargets(tab);
     final tooltip = _shellTabPaneSignalTooltip(
+      context.l10n,
       tab,
       primary,
       signals,
       primaryNeedsFocus: primaryNeedsFocus,
     );
     final semanticsLabel = _shellTabPaneSignalSemanticsLabel(
+      context.l10n,
       tab,
       primary,
       signals,
@@ -2542,7 +2556,7 @@ class _ShellTabPaneSignalChip extends StatelessWidget {
     final chip = _ShellTabBadgeChip(
       key: notificationTargets.isEmpty ? itemKey : null,
       palette: palette,
-      text: _shellTabPaneSignalLabel(signals),
+      text: _shellTabPaneSignalLabel(context.l10n, signals),
       tooltip: tooltip,
       semanticsLabel: semanticsLabel,
       semanticsButton: notificationTargets.isNotEmpty,
@@ -2584,8 +2598,11 @@ class _ShellTabPaneSignalChip extends StatelessWidget {
         surfaceTintColor: Colors.transparent,
         shape: menuShape,
         onSelected: onNotificationInteraction,
-        itemBuilder: (context) =>
-            _shellTabNotificationMenuEntries(notificationTargets, palette),
+        itemBuilder: (context) => _shellTabNotificationMenuEntries(
+          notificationTargets,
+          palette,
+          context.l10n,
+        ),
         child: chip,
       ),
     );
@@ -2596,6 +2613,7 @@ List<PopupMenuEntry<_ShellNotificationInteraction>>
 _shellTabNotificationMenuEntries(
   List<_ShellTabNotificationTarget> targets,
   AppThemeTokens palette,
+  AppLocalizations l10n,
 ) {
   final visibleTargets = targets.take(6).toList(growable: false);
   return <PopupMenuEntry<_ShellNotificationInteraction>>[
@@ -2634,9 +2652,9 @@ _shellTabNotificationMenuEntries(
           child: _ShellTabNotificationMenuText(
             title:
                 visibleTargets[index].notification.buttons[buttonIndex].isEmpty
-                ? 'Button ${buttonIndex + 1}'
+                ? l10n.notificationButton(buttonIndex + 1)
                 : visibleTargets[index].notification.buttons[buttonIndex],
-            subtitle: 'Notification action ${buttonIndex + 1}',
+            subtitle: l10n.notificationAction(buttonIndex + 1),
             palette: palette,
           ),
         ),
@@ -2650,10 +2668,10 @@ _shellTabNotificationMenuEntries(
           ),
           height: 40,
           child: _ShellTabNotificationMenuText(
-            title: 'Dismiss',
+            title: l10n.dismiss,
             subtitle: visibleTargets[index].notification.reportClose
-                ? 'Close and report to the terminal process'
-                : 'Remove this notification',
+                ? l10n.closeAndReportToTerminal
+                : l10n.removeNotification,
             palette: palette,
           ),
         ),
@@ -2704,6 +2722,7 @@ class _ShellTabNotificationMenuText extends StatelessWidget {
 }
 
 List<Widget> _shellTabBadgeChips({
+  required AppLocalizations l10n,
   required String keyPrefix,
   required TerminalTab tab,
   required List<_ShellTabBadgeInfo> badges,
@@ -2732,12 +2751,14 @@ List<Widget> _shellTabBadgeChips({
         palette: palette,
         text: _shellTabBadgeLabel(badge.text, badgeCount: 1),
         tooltip: _shellTabBadgeTooltip(
+          l10n,
           tab,
           badge,
           badges,
           badgeNeedsFocus: badgeNeedsFocus(badge),
         ),
         semanticsLabel: _shellTabBadgeSemanticsLabel(
+          l10n,
           tab,
           badge,
           badges,
@@ -2763,11 +2784,13 @@ List<Widget> _shellTabBadgeChips({
         palette: palette,
         text: '+${hiddenBadges.length}',
         tooltip: _shellTabBadgeOverflowTooltip(
+          l10n,
           tab,
           hiddenBadges,
           badgeNeedsFocus,
         ),
         semanticsLabel: _shellTabBadgeOverflowSemanticsLabel(
+          l10n,
           tab,
           hiddenBadges,
           badgeNeedsFocus,
@@ -2842,11 +2865,11 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
     );
     return Semantics(
       key: Key('shell-tab-close-${widget.tab.sessionId}'),
-      label: 'Close $title tab',
+      label: context.l10n.closeNamedTab(title),
       button: true,
       excludeSemantics: true,
       child: Tooltip(
-        message: 'Close $title',
+        message: context.l10n.closeNamed(title),
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: () {
@@ -2883,7 +2906,7 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
         defaultTargetPlatform == TargetPlatform.iOS;
     final closeVisible = usesPersistentTouchClose ? widget.isActive : _hovered;
     final badgeInfos = _shellTabBadgeInfos(widget.tab);
-    final paneSignalInfos = _shellTabPaneSignalInfos(widget.tab);
+    final paneSignalInfos = _shellTabPaneSignalInfos(context.l10n, widget.tab);
     final paneSignalInfo = paneSignalInfos.isEmpty
         ? null
         : paneSignalInfos.first;
@@ -2920,6 +2943,7 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
                 Semantics(
                   identifier: _shellTabSemanticsIdentifier(widget.tab),
                   label: _shellTabSemanticsLabel(
+                    context.l10n,
                     widget.tab,
                     widget.shortcutIndex,
                     hasNewOutput: widget.hasNewOutput,
@@ -2989,7 +3013,7 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
                                 if (indicatorColor != null) ...[
                                   Tooltip(
                                     message:
-                                        'OSC 21337 session status indicator',
+                                        context.l10n.osc21337StatusIndicator,
                                     child: DecoratedBox(
                                       key: Key(
                                         'shell-tab-status-indicator-${widget.tab.sessionId}',
@@ -3038,6 +3062,7 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
                                   ),
                                 ],
                                 ..._shellTabBadgeChips(
+                                  l10n: context.l10n,
                                   keyPrefix:
                                       'shell-tab-badge-${widget.tab.sessionId}',
                                   tab: widget.tab,
@@ -3129,7 +3154,7 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
                     right: widget.compact ? 10 : 14,
                     child: IgnorePointer(
                       child: Tooltip(
-                        message: 'Profile tab color',
+                        message: context.l10n.profileTabColor,
                         child: DecoratedBox(
                           key: Key('shell-tab-color-${widget.tab.sessionId}'),
                           decoration: BoxDecoration(
@@ -3179,25 +3204,26 @@ String _shellTabSemanticsIdentifier(TerminalTab tab) {
 }
 
 String _shellTabSemanticsLabel(
+  AppLocalizations l10n,
   TerminalTab tab,
   int? shortcutIndex, {
   bool hasNewOutput = false,
 }) {
-  final parts = <String>['${_shellTabDisplayTitle(tab)} tab'];
+  final parts = <String>[l10n.terminalTabSemantics(_shellTabDisplayTitle(tab))];
   final tabStatus = tab.activePane.tabStatus;
   final statusText = _normalizedShellTabStatusText(tabStatus.status);
   if (statusText != null) {
     parts.add(
       tab.effectivePanes.length < 2
-          ? 'status $statusText'
-          : 'status $statusText from active pane',
+          ? l10n.terminalStatus(statusText)
+          : l10n.terminalStatusFromActivePane(statusText),
     );
   }
   if (tabStatus.indicator != null) {
     parts.add(
       tab.effectivePanes.length < 2
-          ? 'status indicator active'
-          : 'status indicator active on active pane',
+          ? l10n.statusIndicatorActive
+          : l10n.statusIndicatorActiveOnActivePane,
     );
   }
   final badges = _shellTabBadgeInfos(tab);
@@ -3205,42 +3231,53 @@ String _shellTabSemanticsLabel(
   final additionalBadgeCount = badges.length - 1;
   if (badge != null) {
     if (tab.effectivePanes.length < 2) {
-      parts.add('badge ${badge.text}');
+      parts.add(l10n.badgeSemanticsValue(badge.text));
     } else {
       parts.add(
-        'badge ${badge.text} from ${badge.isActivePane ? 'active' : 'inactive'} pane',
+        l10n.terminalBadgeFromPane(
+          badge.text,
+          (badge.isActivePane ? l10n.activePane : l10n.inactivePane)
+              .toLowerCase(),
+        ),
       );
       if (additionalBadgeCount > 0) {
-        parts.add(
-          'plus $additionalBadgeCount other pane badge${additionalBadgeCount == 1 ? '' : 's'}',
-        );
+        parts.add(l10n.plusOtherPaneBadges(additionalBadgeCount));
       }
     }
   }
 
-  final signals = _shellTabPaneSignalInfos(tab);
+  final signals = _shellTabPaneSignalInfos(l10n, tab);
   if (signals.isNotEmpty) {
     final primary = signals.first;
     final signalScope = tab.effectivePanes.length < 2
         ? ''
-        : ' from ${primary.isActivePane ? 'active' : 'inactive'} pane';
-    parts.add('${primary.title.toLowerCase()}: ${primary.summary}$signalScope');
+        : l10n.signalFromPane(
+            (primary.isActivePane ? l10n.activePane : l10n.inactivePane)
+                .toLowerCase(),
+          );
+    parts.add(
+      l10n.terminalSignalSummary(
+        primary.title(l10n).toLowerCase(),
+        primary.summary,
+        signalScope,
+      ),
+    );
     final additionalSignalCount = signals.length - 1;
     if (additionalSignalCount > 0) {
-      parts.add(
-        'plus $additionalSignalCount other pane signal${additionalSignalCount == 1 ? '' : 's'}',
-      );
+      parts.add(l10n.plusOtherPaneSignals(additionalSignalCount));
     }
   }
 
   if (hasNewOutput) {
     parts.add(
-      tab.effectivePanes.length < 2 ? 'new output' : 'new output in split pane',
+      tab.effectivePanes.length < 2
+          ? l10n.newOutputLower
+          : l10n.newOutputInSplitPaneLower,
     );
   }
 
   if (shortcutIndex != null) {
-    parts.add('Command $shortcutIndex');
+    parts.add(l10n.commandShortcut(shortcutIndex));
   }
   return parts.join(', ');
 }
@@ -3322,7 +3359,7 @@ class _ShellTabStatusLabel extends StatelessWidget {
       fallbackColor,
     );
     return Tooltip(
-      message: 'OSC 21337 status: $text',
+      message: context.l10n.osc21337Status(text),
       child: ConstrainedBox(
         constraints: BoxConstraints(maxWidth: maxWidth),
         child: DecoratedBox(
@@ -3397,50 +3434,53 @@ String _shellTabBadgeLabel(String text, {required int badgeCount}) {
 }
 
 String _shellTabBadgeTooltip(
+  AppLocalizations l10n,
   TerminalTab tab,
   _ShellTabBadgeInfo badge,
   List<_ShellTabBadgeInfo> badges, {
   required bool badgeNeedsFocus,
 }) {
   if (tab.effectivePanes.length < 2) {
-    return 'OSC 1337 badge: ${badge.text}';
+    return l10n.osc1337BadgeValue(badge.text);
   }
   final otherBadges = badges
       .where((candidate) => candidate.sessionId != badge.sessionId)
       .toList(growable: false);
   return [
-    'OSC 1337 badge: ${badge.text}',
-    _shellTabBadgePaneContext(badge),
+    l10n.osc1337BadgeValue(badge.text),
+    _shellTabBadgePaneContext(l10n, badge),
     if (otherBadges.isNotEmpty) ...[
-      'Other pane badges:',
+      l10n.otherPaneBadges,
       for (final otherBadge in otherBadges)
-        '${_shellTabBadgePaneContext(otherBadge)}: ${otherBadge.text}',
+        '${_shellTabBadgePaneContext(l10n, otherBadge)}: ${otherBadge.text}',
     ],
-    if (badgeNeedsFocus) 'Click to focus this pane.',
+    if (badgeNeedsFocus) l10n.clickToFocusPane,
   ].join('\n');
 }
 
 String _shellTabBadgeSemanticsLabel(
+  AppLocalizations l10n,
   TerminalTab tab,
   _ShellTabBadgeInfo badge,
   List<_ShellTabBadgeInfo> badges, {
   required bool badgeNeedsFocus,
 }) {
   if (tab.effectivePanes.length < 2) {
-    return 'Terminal badge: ${badge.text}';
+    return l10n.terminalBadgeValue(badge.text);
   }
   final otherBadgeCount = badges
       .where((candidate) => candidate.sessionId != badge.sessionId)
       .length;
   final otherBadgeLabel = otherBadgeCount == 0
       ? ''
-      : '; $otherBadgeCount other pane badge${otherBadgeCount == 1 ? '' : 's'}';
-  return 'Terminal badge: ${badge.text}; '
-      '${_shellTabBadgePaneContext(badge)}$otherBadgeLabel; '
-      '${badgeNeedsFocus ? 'click to focus this pane' : 'pane already focused'}';
+      : '; ${l10n.otherPaneBadgeCount(otherBadgeCount)}';
+  return '${l10n.terminalBadgeValue(badge.text)}; '
+      '${_shellTabBadgePaneContext(l10n, badge)}$otherBadgeLabel; '
+      '${badgeNeedsFocus ? l10n.clickFocusPaneSemantics : l10n.paneAlreadyFocusedSemantics}';
 }
 
 String _shellTabBadgeOverflowTooltip(
+  AppLocalizations l10n,
   TerminalTab tab,
   List<_ShellTabBadgeInfo> hiddenBadges,
   bool Function(_ShellTabBadgeInfo badge) badgeNeedsFocus,
@@ -3448,27 +3488,28 @@ String _shellTabBadgeOverflowTooltip(
   if (hiddenBadges.length == 1) {
     final badge = hiddenBadges.single;
     return [
-      'Additional OSC 1337 badge: ${badge.text}',
-      _shellTabBadgePaneContext(badge),
+      l10n.additionalOsc1337Badge(badge.text),
+      _shellTabBadgePaneContext(l10n, badge),
       if (badgeNeedsFocus(badge))
-        'Click to focus this pane.'
+        l10n.clickToFocusPane
       else
-        'Pane already focused.',
+        l10n.paneAlreadyFocused,
     ].join('\n');
   }
   final firstHiddenNeedsFocus = badgeNeedsFocus(hiddenBadges.first);
   return [
-    'Additional OSC 1337 badges in this split tab.',
+    l10n.additionalOsc1337BadgesSplitTab,
     for (final badge in hiddenBadges)
-      '${_shellTabBadgePaneContext(badge)}: ${badge.text}',
+      '${_shellTabBadgePaneContext(l10n, badge)}: ${badge.text}',
     if (firstHiddenNeedsFocus)
-      'Click to focus the first remaining badge pane.'
+      l10n.clickFocusFirstRemainingBadgePane
     else
-      'First remaining badge pane is already focused.',
+      l10n.firstRemainingBadgePaneFocused,
   ].join('\n');
 }
 
 String _shellTabBadgeOverflowSemanticsLabel(
+  AppLocalizations l10n,
   TerminalTab tab,
   List<_ShellTabBadgeInfo> hiddenBadges,
   bool Function(_ShellTabBadgeInfo badge) badgeNeedsFocus,
@@ -3476,23 +3517,31 @@ String _shellTabBadgeOverflowSemanticsLabel(
   if (hiddenBadges.length == 1) {
     final badge = hiddenBadges.single;
     final action = badgeNeedsFocus(badge)
-        ? 'click to focus this pane'
-        : 'pane already focused';
-    return 'Terminal badge: ${badge.text}; ${_shellTabBadgePaneContext(badge)}; $action';
+        ? l10n.clickFocusPaneSemantics
+        : l10n.paneAlreadyFocusedSemantics;
+    return '${l10n.terminalBadgeValue(badge.text)}; '
+        '${_shellTabBadgePaneContext(l10n, badge)}; $action';
   }
   final action = badgeNeedsFocus(hiddenBadges.first)
-      ? 'click to focus the first remaining badge pane'
-      : 'first remaining badge pane is already focused';
-  return 'Terminal badges: ${hiddenBadges.length} additional pane badges in ${_shellTabDisplayTitle(tab)}; $action';
+      ? l10n.clickFocusFirstRemainingBadgePaneSemantics
+      : l10n.firstRemainingBadgePaneFocusedSemantics;
+  return l10n.terminalBadgesAdditional(
+    hiddenBadges.length,
+    _shellTabDisplayTitle(tab),
+    action,
+  );
 }
 
-String _shellTabBadgePaneContext(_ShellTabBadgeInfo badge) {
-  final paneState = badge.isActivePane ? 'active pane' : 'inactive pane';
+String _shellTabBadgePaneContext(
+  AppLocalizations l10n,
+  _ShellTabBadgeInfo badge,
+) {
+  final paneState = (badge.isActivePane ? l10n.activePane : l10n.inactivePane)
+      .toLowerCase();
   final title = badge.paneTitle.trim();
-  if (title.isEmpty) {
-    return 'Pane: ${badge.sessionId} · $paneState';
-  }
-  return 'Pane: $title (${badge.sessionId}) · $paneState';
+  return title.isEmpty
+      ? l10n.paneContextUntitled(badge.sessionId, paneState)
+      : l10n.paneContextTitled(title, badge.sessionId, paneState);
 }
 
 class _ShellTabBadgeInfo {
@@ -3565,17 +3614,18 @@ class _ShellTabPaneSignalInfo {
   final String detail;
   final String summary;
 
-  String get label {
+  String label(AppLocalizations l10n) {
     return switch (kind) {
-      _ShellTabPaneSignalKind.progress => 'PROG',
-      _ShellTabPaneSignalKind.notification => 'NOTE',
+      _ShellTabPaneSignalKind.progress => l10n.terminalProgressAbbreviation,
+      _ShellTabPaneSignalKind.notification =>
+        l10n.terminalNotificationAbbreviation,
     };
   }
 
-  String get title {
+  String title(AppLocalizations l10n) {
     return switch (kind) {
-      _ShellTabPaneSignalKind.progress => 'Terminal progress',
-      _ShellTabPaneSignalKind.notification => 'Terminal notification',
+      _ShellTabPaneSignalKind.progress => l10n.terminalProgress,
+      _ShellTabPaneSignalKind.notification => l10n.terminalNotification,
     };
   }
 }
@@ -3616,7 +3666,10 @@ bool _shellPaneProgressIsComplete(TerminalPaneProgressState progress) {
   return progress.action == 'complete' || progress.state == 'complete';
 }
 
-List<_ShellTabPaneSignalInfo> _shellTabPaneSignalInfos(TerminalTab tab) {
+List<_ShellTabPaneSignalInfo> _shellTabPaneSignalInfos(
+  AppLocalizations l10n,
+  TerminalTab tab,
+) {
   final activePane = tab.activePane;
   final signals = <_ShellTabPaneSignalInfo>[];
 
@@ -3631,11 +3684,11 @@ List<_ShellTabPaneSignalInfo> _shellTabPaneSignalInfos(TerminalTab tab) {
           paneTitle: pane.title,
           isActivePane: isActivePane,
           detail: progressItems.length == 1
-              ? _shellTabProgressDetail(primaryProgress)
+              ? _shellTabProgressDetail(l10n, primaryProgress)
               : [
-                  'Terminal progress in this pane.',
+                  l10n.terminalProgressInPane,
                   for (final progress in progressItems)
-                    '${progress.displayLabel}: ${_shellTabProgressDetail(progress)}',
+                    '${progress.displayLabel}: ${_shellTabProgressDetail(l10n, progress)}',
                 ].join('\n'),
           summary: primaryProgress.displayLabel,
         ),
@@ -3652,7 +3705,7 @@ List<_ShellTabPaneSignalInfo> _shellTabPaneSignalInfos(TerminalTab tab) {
           sessionId: pane.sessionId,
           paneTitle: pane.title,
           isActivePane: isActivePane,
-          detail: _shellTabNotificationDetail(notification),
+          detail: _shellTabNotificationDetail(l10n, notification),
           summary:
               '${notification.title}${notification.count > 1 ? ' x${notification.count}' : ''}',
         ),
@@ -3704,15 +3757,18 @@ String _shellTabNotificationMenuSubtitle(_ShellTabNotificationTarget target) {
   ].join(' · ');
 }
 
-String _shellTabPaneSignalLabel(List<_ShellTabPaneSignalInfo> signals) {
-  if (signals.isEmpty) {
-    return 'PANE';
-  }
-  final suffix = signals.length > 1 ? ' +${signals.length - 1}' : '';
-  return '${signals.first.label}$suffix';
+String _shellTabPaneSignalLabel(
+  AppLocalizations l10n,
+  List<_ShellTabPaneSignalInfo> signals,
+) {
+  final label = signals.isEmpty
+      ? l10n.paneSignalAbbreviation
+      : signals.first.label(l10n);
+  return '$label${signals.length > 1 ? ' +${signals.length - 1}' : ''}';
 }
 
 String _shellTabPaneSignalTooltip(
+  AppLocalizations l10n,
   TerminalTab tab,
   _ShellTabPaneSignalInfo primary,
   List<_ShellTabPaneSignalInfo> signals, {
@@ -3726,31 +3782,32 @@ String _shellTabPaneSignalTooltip(
   );
   if (tab.effectivePanes.length < 2 && otherSignals.isEmpty) {
     return [
-      primary.title,
+      primary.title(l10n),
       primary.detail,
-      if (hasNotifications) 'Click to inspect recent notifications.',
+      if (hasNotifications) l10n.clickInspectRecentNotifications,
     ].join('\n');
   }
   return [
-    '${primary.title} in a split pane.',
-    _shellTabPaneSignalContext(primary),
+    l10n.signalInSplitPane(primary.title(l10n)),
+    _shellTabPaneSignalContext(l10n, primary),
     primary.detail,
     if (otherSignals.isNotEmpty) ...[
-      'Other pane signals:',
+      l10n.otherPaneSignals,
       for (final otherSignal in otherSignals)
-        '${_shellTabPaneSignalContext(otherSignal)}: '
-            '${otherSignal.label} ${otherSignal.summary}',
+        '${_shellTabPaneSignalContext(l10n, otherSignal)}: '
+            '${otherSignal.label(l10n)} ${otherSignal.summary}',
     ],
     if (hasNotifications)
-      'Click to inspect recent notifications.'
+      l10n.clickInspectRecentNotifications
     else if (primaryNeedsFocus)
       otherSignals.isEmpty
-          ? 'Click to focus this pane.'
-          : 'Click to focus the first pane with a signal.',
+          ? l10n.clickToFocusPane
+          : l10n.clickFocusFirstPaneWithSignal,
   ].join('\n');
 }
 
 String _shellTabPaneSignalSemanticsLabel(
+  AppLocalizations l10n,
   TerminalTab tab,
   _ShellTabPaneSignalInfo primary,
   List<_ShellTabPaneSignalInfo> signals, {
@@ -3760,58 +3817,68 @@ String _shellTabPaneSignalSemanticsLabel(
     (signal) => signal.kind == _ShellTabPaneSignalKind.notification,
   );
   if (tab.effectivePanes.length < 2) {
-    return '${primary.title}: ${primary.summary}; '
+    return '${primary.title(l10n)}: ${primary.summary}; '
         '${hasNotifications
-            ? 'click to inspect notification actions'
+            ? l10n.clickInspectNotificationActionsSemantics
             : primaryNeedsFocus
-            ? 'click to focus this pane'
-            : 'pane already focused'}';
+            ? l10n.clickFocusPaneSemantics
+            : l10n.paneAlreadyFocusedSemantics}';
   }
   final otherSignalCount = signals.length - 1;
   final otherSignalLabel = otherSignalCount <= 0
       ? ''
-      : '; $otherSignalCount other pane signal${otherSignalCount == 1 ? '' : 's'}';
-  return '${primary.title}: ${primary.summary}; '
-      '${_shellTabPaneSignalContext(primary)}$otherSignalLabel; '
+      : '; ${l10n.otherPaneSignalCount(otherSignalCount)}';
+  return '${primary.title(l10n)}: ${primary.summary}; '
+      '${_shellTabPaneSignalContext(l10n, primary)}$otherSignalLabel; '
       '${hasNotifications
-          ? 'click to inspect notification actions'
+          ? l10n.clickInspectNotificationActionsSemantics
           : primaryNeedsFocus
-          ? 'click to focus this pane'
-          : 'pane already focused'}';
+          ? l10n.clickFocusPaneSemantics
+          : l10n.paneAlreadyFocusedSemantics}';
 }
 
-String _shellTabPaneSignalContext(_ShellTabPaneSignalInfo signal) {
-  final paneState = signal.isActivePane ? 'active pane' : 'inactive pane';
+String _shellTabPaneSignalContext(
+  AppLocalizations l10n,
+  _ShellTabPaneSignalInfo signal,
+) {
+  final paneState = (signal.isActivePane ? l10n.activePane : l10n.inactivePane)
+      .toLowerCase();
   final title = signal.paneTitle.trim();
-  if (title.isEmpty) {
-    return 'Pane: ${signal.sessionId} · $paneState';
-  }
-  return 'Pane: $title (${signal.sessionId}) · $paneState';
+  return title.isEmpty
+      ? l10n.paneContextUntitled(signal.sessionId, paneState)
+      : l10n.paneContextTitled(title, signal.sessionId, paneState);
 }
 
-String _shellTabProgressDetail(TerminalPaneProgressState progress) {
+String _shellTabProgressDetail(
+  AppLocalizations l10n,
+  TerminalPaneProgressState progress,
+) {
   return [
-    'Terminal progress reported by ${progress.source}.',
+    l10n.terminalProgressReportedBy(progress.source),
     if (progress.label?.trim().isNotEmpty == true)
-      'Label: ${progress.label!.trim()}',
-    if (progress.percent != null) 'Percent: ${progress.percent}%',
+      l10n.labelValue(progress.label!.trim()),
+    if (progress.percent != null) l10n.progressPercentValue(progress.percent!),
     if (progress.state?.trim().isNotEmpty == true)
-      'State: ${progress.state!.trim()}',
-    if (progress.id?.trim().isNotEmpty == true) 'ID: ${progress.id!.trim()}',
+      l10n.stateValue(progress.state!.trim()),
+    if (progress.id?.trim().isNotEmpty == true)
+      l10n.idValue(progress.id!.trim()),
   ].join('\n');
 }
 
-String _shellTabNotificationDetail(TerminalPaneNotificationState notification) {
+String _shellTabNotificationDetail(
+  AppLocalizations l10n,
+  TerminalPaneNotificationState notification,
+) {
   return [
-    'Terminal notification reported by ${notification.source}.',
-    'Title: ${notification.title}',
+    l10n.terminalNotificationReportedBy(notification.source),
+    l10n.titleValue(notification.title),
     if (notification.message.trim().isNotEmpty)
-      'Message: ${notification.message.trim()}',
+      l10n.messageValue(notification.message.trim()),
     if (notification.remoteHost?.trim().isNotEmpty == true)
-      'Remote host: ${notification.remoteHost!.trim()}',
+      l10n.remoteHostValue(notification.remoteHost!.trim()),
     if (notification.remoteUser?.trim().isNotEmpty == true)
-      'Remote user: ${notification.remoteUser!.trim()}',
-    if (notification.count > 1) 'Count: ${notification.count}',
+      l10n.remoteUserValue(notification.remoteUser!.trim()),
+    if (notification.count > 1) l10n.countValue(notification.count),
   ].join('\n');
 }
 
@@ -3833,6 +3900,7 @@ List<_ShellHiddenTabBadgeTarget> _shellHiddenTabBadgeTargets(
 }
 
 String _hiddenTabsBadgeTooltip(
+  AppLocalizations l10n,
   List<_ShellHiddenTabBadgeTarget> targets, {
   required String? activeSessionId,
 }) {
@@ -3840,25 +3908,28 @@ String _hiddenTabsBadgeTooltip(
     final target = targets.single;
     final needsFocus = target.badge.sessionId != activeSessionId;
     return [
-      'OSC 1337 badge in a hidden tab.',
-      'Tab: ${_shellTabDisplayTitle(target.tab)} (${target.tab.sessionId})',
-      'OSC 1337 badge: ${target.badge.text}',
-      _shellTabBadgePaneContext(target.badge),
-      if (needsFocus) 'Click to focus this pane.' else 'Pane already focused.',
+      l10n.osc1337BadgeInHiddenTab,
+      l10n.tabSessionDetails(
+        _shellTabDisplayTitle(target.tab),
+        target.tab.sessionId,
+      ),
+      l10n.osc1337BadgeValue(target.badge.text),
+      _shellTabBadgePaneContext(l10n, target.badge),
+      if (needsFocus) l10n.clickToFocusPane else l10n.paneAlreadyFocused,
     ].join('\n');
   }
   final hasFocusableTarget = targets.any(
     (target) => target.badge.sessionId != activeSessionId,
   );
   return [
-    'OSC 1337 badges in ${targets.length} hidden panes.',
+    l10n.osc1337BadgesInHiddenPanes(targets.length),
     for (final target in targets)
       '${_shellTabDisplayTitle(target.tab)} (${target.tab.sessionId}) - '
-          '${_shellTabBadgePaneContext(target.badge)}: ${target.badge.text}',
+          '${_shellTabBadgePaneContext(l10n, target.badge)}: ${target.badge.text}',
     if (hasFocusableTarget)
-      'Click to focus the first badge pane.'
+      l10n.clickFocusFirstBadgePane
     else
-      'Pane already focused.',
+      l10n.paneAlreadyFocused,
   ].join('\n');
 }
 
@@ -3870,12 +3941,13 @@ class _ShellHiddenTabBadgeTarget {
 }
 
 List<_ShellHiddenTabPaneSignalTarget> _shellHiddenTabPaneSignalTargets(
+  AppLocalizations l10n,
   Iterable<TerminalTab> tabs, {
   required String? activeSessionId,
 }) {
   final targets = <_ShellHiddenTabPaneSignalTarget>[];
   for (final tab in tabs) {
-    for (final signal in _shellTabPaneSignalInfos(tab)) {
+    for (final signal in _shellTabPaneSignalInfos(l10n, tab)) {
       targets.add(_ShellHiddenTabPaneSignalTarget(tab: tab, signal: signal));
     }
   }
@@ -3887,6 +3959,7 @@ List<_ShellHiddenTabPaneSignalTarget> _shellHiddenTabPaneSignalTargets(
 }
 
 String _hiddenTabsPaneSignalTooltip(
+  AppLocalizations l10n,
   List<_ShellHiddenTabPaneSignalTarget> targets, {
   required String? activeSessionId,
 }) {
@@ -3894,30 +3967,34 @@ String _hiddenTabsPaneSignalTooltip(
     final target = targets.single;
     final needsFocus = target.signal.sessionId != activeSessionId;
     return [
-      '${target.signal.title} in a hidden tab.',
-      'Tab: ${_shellTabDisplayTitle(target.tab)} (${target.tab.sessionId})',
-      _shellTabPaneSignalContext(target.signal),
+      l10n.signalInHiddenTab(target.signal.title(l10n)),
+      l10n.tabSessionDetails(
+        _shellTabDisplayTitle(target.tab),
+        target.tab.sessionId,
+      ),
+      _shellTabPaneSignalContext(l10n, target.signal),
       target.signal.detail,
-      if (needsFocus) 'Click to focus this pane.' else 'Pane already focused.',
+      if (needsFocus) l10n.clickToFocusPane else l10n.paneAlreadyFocused,
     ].join('\n');
   }
   final hasFocusableTarget = targets.any(
     (target) => target.signal.sessionId != activeSessionId,
   );
   return [
-    'Pane signals in ${targets.length} hidden panes.',
+    l10n.paneSignalsInHiddenPanes(targets.length),
     for (final target in targets)
       '${_shellTabDisplayTitle(target.tab)} (${target.tab.sessionId}) - '
-          '${_shellTabPaneSignalContext(target.signal)}: '
-          '${target.signal.label} ${target.signal.summary}',
+          '${_shellTabPaneSignalContext(l10n, target.signal)}: '
+          '${target.signal.label(l10n)} ${target.signal.summary}',
     if (hasFocusableTarget)
-      'Click to focus the first pane with a signal.'
+      l10n.clickFocusFirstPaneWithSignal
     else
-      'Pane already focused.',
+      l10n.paneAlreadyFocused,
   ].join('\n');
 }
 
-String _hiddenTabsOverflowButtonTooltip({
+String _hiddenTabsOverflowButtonTooltip(
+  AppLocalizations l10n, {
   required int hiddenTabCount,
   required int badgePaneCount,
   required int paneSignalCount,
@@ -3926,49 +4003,29 @@ String _hiddenTabsOverflowButtonTooltip({
   final hasSignals =
       badgePaneCount > 0 || paneSignalCount > 0 || newOutputTabCount > 0;
   return [
-    if (hiddenTabCount == 1)
-      'Show 1 hidden tab'
-    else
-      'Show $hiddenTabCount hidden tabs',
-    if (badgePaneCount > 0)
-      badgePaneCount == 1
-          ? 'Hidden OSC 1337 badge: 1 pane'
-          : 'Hidden OSC 1337 badges: $badgePaneCount panes',
-    if (paneSignalCount > 0)
-      paneSignalCount == 1
-          ? 'Hidden pane signal: 1 pane'
-          : 'Hidden pane signals: $paneSignalCount panes',
+    l10n.showHiddenTabs(hiddenTabCount),
+    if (badgePaneCount > 0) l10n.hiddenOsc1337BadgePanesTooltip(badgePaneCount),
+    if (paneSignalCount > 0) l10n.hiddenPaneSignalsTooltip(paneSignalCount),
     if (newOutputTabCount > 0)
-      newOutputTabCount == 1
-          ? 'Hidden new output: 1 tab'
-          : 'Hidden new output: $newOutputTabCount tabs',
-    if (hasSignals) 'Signal markers can focus their source panes.',
+      l10n.hiddenNewOutputTabsTooltip(newOutputTabCount),
+    if (hasSignals) l10n.signalMarkersFocusSources,
   ].join('\n');
 }
 
-String _hiddenTabsOverflowButtonSemanticsLabel({
+String _hiddenTabsOverflowButtonSemanticsLabel(
+  AppLocalizations l10n, {
   required int hiddenTabCount,
   required int badgePaneCount,
   required int paneSignalCount,
   required int newOutputTabCount,
 }) {
   return [
-    if (hiddenTabCount == 1)
-      'Show 1 hidden tab'
-    else
-      'Show $hiddenTabCount hidden tabs',
+    l10n.showHiddenTabs(hiddenTabCount),
     if (badgePaneCount > 0)
-      badgePaneCount == 1
-          ? '1 hidden OSC 1337 badge pane'
-          : '$badgePaneCount hidden OSC 1337 badge panes',
-    if (paneSignalCount > 0)
-      paneSignalCount == 1
-          ? '1 hidden pane signal'
-          : '$paneSignalCount hidden pane signals',
+      l10n.hiddenOsc1337BadgePanesSemantics(badgePaneCount),
+    if (paneSignalCount > 0) l10n.hiddenPaneSignalsSemantics(paneSignalCount),
     if (newOutputTabCount > 0)
-      newOutputTabCount == 1
-          ? '1 hidden tab with new output'
-          : '$newOutputTabCount hidden tabs with new output',
+      l10n.hiddenNewOutputTabsSemantics(newOutputTabCount),
   ].join(', ');
 }
 
@@ -3996,110 +4053,4 @@ class _ShellHiddenTabPaneSignalTarget {
 
   final TerminalTab tab;
   final _ShellTabPaneSignalInfo signal;
-}
-
-class _ShellStartupSurface extends StatelessWidget {
-  const _ShellStartupSurface({
-    super.key,
-    required this.palette,
-    required this.errorMessage,
-    required this.onRetry,
-    required this.onOpenSettings,
-  });
-
-  final AppThemeTokens palette;
-  final String? errorMessage;
-  final VoidCallback? onRetry;
-  final VoidCallback onOpenSettings;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: palette.terminalSurface,
-        border: Border(top: BorderSide(color: palette.terminalFrame)),
-      ),
-      child: errorMessage == null
-          ? const SizedBox.expand()
-          : Semantics(
-              container: true,
-              liveRegion: true,
-              child: Center(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: AppEmptyState(
-                    key: const Key('shell-startup-error'),
-                    title: 'Terminal could not start',
-                    message:
-                        'Review the startup error, then try loading the layout again.',
-                    supportingText: errorMessage,
-                    action: Wrap(
-                      alignment: WrapAlignment.center,
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        AppActionButton(
-                          buttonKey: const Key('shell-startup-settings'),
-                          tone: AppActionTone.secondary,
-                          icon: Icons.settings_rounded,
-                          label: 'Data service settings',
-                          onPressed: onOpenSettings,
-                        ),
-                        AppActionButton(
-                          buttonKey: const Key('shell-startup-retry'),
-                          icon: Icons.refresh,
-                          label: 'Retry',
-                          onPressed: onRetry,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-    );
-  }
-}
-
-class _ShellEmptyState extends StatelessWidget {
-  const _ShellEmptyState({
-    super.key,
-    required this.palette,
-    required this.title,
-    required this.message,
-    required this.defaultSummary,
-    required this.onNewTab,
-  });
-
-  final AppThemeTokens palette;
-  final String title;
-  final String message;
-  final String defaultSummary;
-  final VoidCallback? onNewTab;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: palette.terminalSurface,
-        border: Border(top: BorderSide(color: palette.terminalFrame)),
-      ),
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: AppEmptyState(
-            title: title,
-            message: message,
-            supportingText: defaultSummary,
-            action: AppActionButton(
-              buttonKey: const Key('shell-empty-new-tab'),
-              icon: Icons.add_box_outlined,
-              label: 'New Tab',
-              onPressed: onNewTab,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }

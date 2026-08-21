@@ -339,19 +339,16 @@ extension _ShellScreenStateInstantReplay on _ShellScreenState {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Clear recent replay history?'),
-        content: const Text(
-          'Recent activity frames for this pane will be removed from Replay. '
-          'This action cannot be undone.',
-        ),
+        title: Text(dialogContext.l10n.clearRecentReplayHistoryQuestion),
+        content: Text(dialogContext.l10n.clearRecentReplayHistoryWarning),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel'),
+            child: Text(dialogContext.l10n.cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Clear history'),
+            child: Text(dialogContext.l10n.clearHistory),
           ),
         ],
       ),

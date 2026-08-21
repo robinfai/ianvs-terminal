@@ -22,7 +22,7 @@ class ColorPickerPalette extends StatelessWidget {
       fallback: 2.4,
     );
     return Semantics(
-      label: 'Color palette',
+      label: context.l10n.colorPalette,
       child: AspectRatio(
         aspectRatio: effectiveAspectRatio,
         child: ClipRRect(
@@ -81,7 +81,7 @@ class HueSlider extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = context.appTheme;
     return Semantics(
-      label: 'Hue slider',
+      label: context.l10n.hueSlider,
       child: SizedBox(
         height: 16,
         child: ClipRRect(

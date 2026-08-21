@@ -381,10 +381,9 @@ class _InstantReplayLayoutState extends State<_InstantReplayLayout> {
       return null;
     }
     if (_searchResultCount == 0) {
-      return 'No matches in replay history.';
+      return context.l10n.noMatchesInReplayHistory;
     }
-    final matchLabel = _searchResultCount == 1 ? 'match' : 'matches';
-    return '$_searchResultCount unique $matchLabel in replay';
+    return context.l10n.uniqueReplayMatchCount(_searchResultCount);
   }
 
   List<_ReplaySemanticPoint> _instantReplaySemanticPoints() {
@@ -427,7 +426,9 @@ class _InstantReplayLayoutState extends State<_InstantReplayLayout> {
         markers.add(
           _InstantReplayIdleGapMarker(
             value: _timelineValueForDuration(markerElapsed),
-            tooltip: 'Idle gap: ${_formatReplayInterval(actualGap)}',
+            tooltip: context.l10n.idleGapValue(
+              _formatReplayInterval(actualGap),
+            ),
           ),
         );
       }
@@ -530,8 +531,11 @@ class _InstantReplayLayoutState extends State<_InstantReplayLayout> {
       final liveFrame = _activeFrame;
       final replayState = _replayController.state;
       final frameLabel = liveFrame == null
-          ? 'No replay frames'
-          : 'Recorded at ${liveFrame.snapshot.viewportCols}x${liveFrame.snapshot.viewportRows}';
+          ? context.l10n.noReplayFrames
+          : context.l10n.recordedAtDimensions(
+              liveFrame.snapshot.viewportCols,
+              liveFrame.snapshot.viewportRows,
+            );
       final hasMultipleFrames = widget.layout.frames.length > 1;
       final canPlay = liveFrame != null && hasMultipleFrames;
       return _InstantReplayLayoutControls(
@@ -605,7 +609,7 @@ class _InstantReplayLayoutState extends State<_InstantReplayLayout> {
         child: activeFrame == null
             ? Center(
                 child: Text(
-                  'No replay frames captured yet.',
+                  context.l10n.noReplayFramesCapturedYet,
                   style: Theme.of(
                     context,
                   ).textTheme.bodyMedium?.copyWith(color: palette.textSubtle),
@@ -665,7 +669,7 @@ class _InstantReplayLayoutState extends State<_InstantReplayLayout> {
         identifier: 'instant-replay-layout',
         container: true,
         explicitChildNodes: true,
-        label: 'Replay recent activity layout',
+        label: context.l10n.replayRecentActivityLayout,
         child: FocusTraversalGroup(
           policy: OrderedTraversalPolicy(),
           child: ColoredBox(
@@ -802,7 +806,7 @@ class _InstantReplayLayoutControls extends StatelessWidget {
       palette: palette,
     );
     final keyboardActions = _InstantReplayControlButton(
-      tooltip: 'Close replay',
+      tooltip: context.l10n.closeReplay,
       onPressed: onExit,
       icon: Icons.close_rounded,
       palette: palette,
@@ -810,7 +814,9 @@ class _InstantReplayLayoutControls extends StatelessWidget {
     final header = _InstantReplayControlHeader(
       sourceLabel: sourceLabel,
       frameDetail: frameDetail,
-      retentionPolicyLabel: _retentionPolicyLabel(retentionFrameLimit),
+      retentionPolicyLabel: retentionFrameLimit <= 0
+          ? context.l10n.retentionDisabled
+          : context.l10n.retainsLatestFrames(retentionFrameLimit),
       palette: palette,
     );
     final timeline = _ReplaySemanticTimeline(
@@ -828,13 +834,14 @@ class _InstantReplayLayoutControls extends StatelessWidget {
       model: _buildReplayTimelineModel(
         points: semanticPoints,
         duration: duration,
+        activityLabel: context.l10n.activity,
       ),
       markers: [
         for (final value in changeMarkerValues)
           _ReplayTimelineMarker(
             value: value,
             kind: _ReplayTimelineMarkerKind.output,
-            tooltip: 'Terminal changed',
+            tooltip: context.l10n.terminalChanged,
           ),
         for (final marker in idleGapMarkers)
           _ReplayTimelineMarker(
@@ -858,7 +865,7 @@ class _InstantReplayLayoutControls extends StatelessWidget {
       identifier: 'instant-replay-controls',
       container: true,
       explicitChildNodes: true,
-      label: 'Replay controls for recent activity',
+      label: context.l10n.replayControlsRecentActivity,
       child: _ReplayDockLayout(
         timeline: timeline,
         metadata: header,
@@ -874,13 +881,6 @@ class _InstantReplayLayoutControls extends StatelessWidget {
   static String _frameTimeLabel(DateTime timestamp) {
     String twoDigits(int value) => value.toString().padLeft(2, '0');
     return '${twoDigits(timestamp.hour)}:${twoDigits(timestamp.minute)}:${twoDigits(timestamp.second)}';
-  }
-
-  static String _retentionPolicyLabel(int frameLimit) {
-    if (frameLimit <= 0) {
-      return 'Retention disabled';
-    }
-    return 'Retains latest $frameLimit frame${frameLimit == 1 ? '' : 's'}';
   }
 }
 
@@ -901,7 +901,10 @@ class _InstantReplayControlHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        _ReplaySourceMark(palette: palette, sourceLabel: 'Recent activity'),
+        _ReplaySourceMark(
+          palette: palette,
+          sourceLabel: context.l10n.recentActivity,
+        ),
         const SizedBox(width: 10),
         Expanded(
           child: Column(
@@ -968,7 +971,7 @@ class _InstantReplayPlaybackControls extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         _InstantReplayControlButton(
-          tooltip: 'Step back in replay',
+          tooltip: context.l10n.stepBackInReplay,
           onPressed: onStepBack,
           icon: Icons.skip_previous_rounded,
           palette: palette,
@@ -976,7 +979,9 @@ class _InstantReplayPlaybackControls extends StatelessWidget {
         const SizedBox(width: 4),
         _InstantReplayControlButton(
           key: toggleKey,
-          tooltip: isPlaying ? 'Pause replay' : 'Play replay',
+          tooltip: isPlaying
+              ? context.l10n.pauseReplay
+              : context.l10n.playReplay,
           onPressed: onTogglePlay,
           icon: isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
           active: isPlaying,
@@ -984,7 +989,7 @@ class _InstantReplayPlaybackControls extends StatelessWidget {
         ),
         const SizedBox(width: 4),
         _InstantReplayControlButton(
-          tooltip: 'Step forward in replay',
+          tooltip: context.l10n.stepForwardInReplay,
           onPressed: onStepForward,
           icon: Icons.skip_next_rounded,
           palette: palette,
@@ -1029,10 +1034,10 @@ class _ReplaySpeedControl extends StatelessWidget {
         ? speed.toInt().toString()
         : speed.toString();
     return Semantics(
-      label: 'Playback speed $speedLabel times',
+      label: context.l10n.playbackSpeedValue(speedLabel),
       button: true,
       child: PopupMenuButton<double>(
-        tooltip: 'Playback speed',
+        tooltip: context.l10n.playbackSpeed,
         onSelected: onSpeedChanged,
         itemBuilder: (context) => [
           for (final item in _replayPlaybackSpeeds)
@@ -1084,23 +1089,23 @@ class _ReplayTimeModeControl extends StatelessWidget {
   Widget build(BuildContext context) {
     final controlExtent = _instantReplayControlExtent(context);
     final label = switch (mode) {
-      terminal.TerminalReplayTimeMode.realTime => 'Real',
-      terminal.TerminalReplayTimeMode.smart => 'Smart',
+      terminal.TerminalReplayTimeMode.realTime => context.l10n.realTimeShort,
+      terminal.TerminalReplayTimeMode.smart => context.l10n.smartTimeShort,
     };
     return Semantics(
-      label: '$label replay timing',
+      label: context.l10n.replayTimingValue(label),
       button: true,
       child: PopupMenuButton<terminal.TerminalReplayTimeMode>(
-        tooltip: 'Replay timing',
+        tooltip: context.l10n.replayTiming,
         onSelected: onChanged,
-        itemBuilder: (context) => const [
+        itemBuilder: (context) => [
           PopupMenuItem(
             value: terminal.TerminalReplayTimeMode.smart,
-            child: Text('Smart · skip long idle gaps'),
+            child: Text(context.l10n.smartReplayTimingDescription),
           ),
           PopupMenuItem(
             value: terminal.TerminalReplayTimeMode.realTime,
-            child: Text('Real time · preserve all gaps'),
+            child: Text(context.l10n.realReplayTimingDescription),
           ),
         ],
         child: Container(
@@ -1151,9 +1156,9 @@ class _InstantReplayActionControls extends StatelessWidget {
   final bool includeClose;
   final AppThemeTokens palette;
 
-  Widget get closeButton {
+  Widget closeButton(BuildContext context) {
     return _InstantReplayControlButton(
-      tooltip: 'Close replay',
+      tooltip: context.l10n.closeReplay,
       onPressed: onExit,
       icon: Icons.close_rounded,
       palette: palette,
@@ -1170,21 +1175,21 @@ class _InstantReplayActionControls extends StatelessWidget {
       children: [
         _InstantReplayControlButton(
           key: const Key('instant-replay-fit-recorded-size'),
-          tooltip: 'Fit recorded size',
+          tooltip: context.l10n.fitRecordedSize,
           onPressed: onFitRecordedSize,
           icon: Icons.fit_screen_rounded,
           palette: palette,
         ),
         _InstantReplayControlButton(
           key: const Key('instant-replay-copy-visible'),
-          tooltip: 'Copy visible',
+          tooltip: context.l10n.copyVisible,
           onPressed: onCopyVisible,
           icon: Icons.copy_rounded,
           palette: palette,
         ),
         _InstantReplayControlButton(
           key: const Key('instant-replay-copy-selection'),
-          tooltip: 'Copy selection',
+          tooltip: context.l10n.copySelection,
           onPressed: onCopySelection == null
               ? null
               : () => unawaited(onCopySelection!()),
@@ -1193,12 +1198,12 @@ class _InstantReplayActionControls extends StatelessWidget {
         ),
         _InstantReplayControlButton(
           key: const Key('instant-replay-clear'),
-          tooltip: 'Clear history',
+          tooltip: context.l10n.clearHistory,
           onPressed: frameCount == 0 ? null : onClear,
           icon: Icons.delete_outline_rounded,
           palette: palette,
         ),
-        if (includeClose) closeButton,
+        if (includeClose) closeButton(context),
       ],
     );
   }
@@ -1262,7 +1267,7 @@ class _InstantReplaySearchControls extends StatelessWidget {
         cursorColor: palette.accent,
         decoration: InputDecoration(
           prefixIcon: const Icon(Icons.search_rounded, size: 19),
-          hintText: 'Search replay',
+          hintText: context.l10n.searchReplay,
           isDense: true,
           filled: true,
           fillColor: palette.canvas.withValues(alpha: 0.28),
@@ -1302,7 +1307,7 @@ class _InstantReplaySearchControls extends StatelessWidget {
         const SizedBox(width: 6),
         _InstantReplayControlButton(
           key: previousKey,
-          tooltip: 'Previous search match',
+          tooltip: context.l10n.previousSearchMatch,
           onPressed: onSearchPrevious,
           icon: Icons.keyboard_arrow_up_rounded,
           palette: palette,
@@ -1310,7 +1315,7 @@ class _InstantReplaySearchControls extends StatelessWidget {
         const SizedBox(width: 4),
         _InstantReplayControlButton(
           key: nextKey,
-          tooltip: 'Next search match',
+          tooltip: context.l10n.nextSearchMatch,
           onPressed: onSearchNext,
           icon: Icons.keyboard_arrow_down_rounded,
           active: onSearchNext != null,

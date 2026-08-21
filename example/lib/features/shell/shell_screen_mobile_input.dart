@@ -137,7 +137,7 @@ class _IosTerminalInputBar extends StatelessWidget {
     final textColor = palette.textPrimary;
     return Semantics(
       container: true,
-      label: 'Terminal keyboard shortcuts',
+      label: context.l10n.terminalKeyboardShortcuts,
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: palette.panel,
@@ -150,14 +150,14 @@ class _IosTerminalInputBar extends StatelessWidget {
               _IosTerminalBarButton(
                 key: const Key('ios-terminal-font-decrease'),
                 label: 'A−',
-                semanticLabel: 'Decrease terminal text size',
+                semanticLabel: context.l10n.decreaseTerminalTextSize,
                 palette: palette,
                 onPressed: onDecreaseFont,
               ),
               _IosTerminalBarButton(
                 key: const Key('ios-terminal-font-reset'),
                 label: '${(fontScale * 100).round()}%',
-                semanticLabel: 'Reset terminal text size',
+                semanticLabel: context.l10n.resetTerminalTextSize,
                 palette: palette,
                 minWidth: 52,
                 onPressed: onResetFont,
@@ -165,7 +165,7 @@ class _IosTerminalInputBar extends StatelessWidget {
               _IosTerminalBarButton(
                 key: const Key('ios-terminal-font-increase'),
                 label: 'A+',
-                semanticLabel: 'Increase terminal text size',
+                semanticLabel: context.l10n.increaseTerminalTextSize,
                 palette: palette,
                 onPressed: onIncreaseFont,
               ),
@@ -188,7 +188,7 @@ class _IosTerminalInputBar extends StatelessWidget {
                     return _IosTerminalBarButton(
                       key: Key('ios-terminal-key-${spec.semanticLabel}'),
                       label: spec.label,
-                      semanticLabel: 'Insert ${spec.semanticLabel}',
+                      semanticLabel: context.l10n.insertTerminalKey(spec.label),
                       palette: palette,
                       onPressed: () {
                         onSendBytes(spec.bytes);
@@ -210,10 +210,10 @@ class _IosTerminalInputBar extends StatelessWidget {
                 ),
                 Semantics(
                   button: true,
-                  label: 'Dismiss keyboard',
+                  label: context.l10n.dismissKeyboard,
                   child: IconButton(
                     key: const Key('ios-terminal-dismiss-keyboard'),
-                    tooltip: 'Dismiss keyboard',
+                    tooltip: context.l10n.dismissKeyboard,
                     onPressed: onDismissKeyboard,
                     color: textColor,
                     icon: const Icon(Icons.keyboard_hide_rounded, size: 20),

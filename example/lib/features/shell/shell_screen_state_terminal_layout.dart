@@ -97,7 +97,7 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
         insertionIndex: tabInsertionIndex,
       );
       if (moved) {
-        _scheduleLayoutCue('Moved to a new tab');
+        _scheduleLayoutCue(context.l10n.movedToNewTab);
       }
     } else if (paneTarget != null) {
       moved = sessionController.moveSessionToPane(
@@ -456,8 +456,10 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                     palette: palette,
                     sessionId: sessionId,
                     title: pane.title,
-                    subtitle:
-                        'Pane ${paneIndex + 1}/${activeTab.effectivePanes.length}',
+                    subtitle: context.l10n.panePosition(
+                      paneIndex + 1,
+                      activeTab.effectivePanes.length,
+                    ),
                     isActive: isActive,
                     isZoomed: _zoomedPaneSessionId == sessionId,
                     canZoom: activeTab.effectivePanes.length > 1,
@@ -478,8 +480,10 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                     onDragEnded: (data) =>
                         _finishSessionDrag(sessionController, data),
                     splitRightTooltip: splitRightBlockedReason == null
-                        ? 'Split right'
-                        : 'Split right unavailable: $splitRightBlockedReason',
+                        ? context.l10n.splitRight
+                        : context.l10n.splitRightUnavailableReason(
+                            splitRightBlockedReason,
+                          ),
                     onSplitRight:
                         defaultProfile == null ||
                             splitRightBlockedReason != null
@@ -491,8 +495,10 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                             TerminalSplitAxis.horizontal,
                           ),
                     splitDownTooltip: splitDownBlockedReason == null
-                        ? 'Split down'
-                        : 'Split down unavailable: $splitDownBlockedReason',
+                        ? context.l10n.splitDown
+                        : context.l10n.splitDownUnavailableReason(
+                            splitDownBlockedReason,
+                          ),
                     onSplitDown:
                         defaultProfile == null || splitDownBlockedReason != null
                         ? null
@@ -879,7 +885,9 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                                   .left,
                               child: IgnorePointer(
                                 child: _ShellLayoutCue(
-                                  title: 'Copy mode',
+                                  title: context.l10n.terminalActionName(
+                                    'copy_mode',
+                                  ),
                                   palette: palette,
                                 ),
                               ),
@@ -1091,13 +1099,14 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
   String _terminalPaneContextLine(String sessionId) {
     final state = ref.read(sessionControllerProvider);
     final pane = _paneForSession(state, sessionId);
-    final paneState = state.activeSessionId == sessionId
-        ? 'active pane'
-        : 'inactive pane';
-    if (pane == null) {
-      return 'Pane: $sessionId · $paneState';
-    }
-    return 'Pane: ${pane.title} ($sessionId) · $paneState';
+    final paneState =
+        (state.activeSessionId == sessionId
+                ? context.l10n.activePane
+                : context.l10n.inactivePane)
+            .toLowerCase();
+    return pane == null
+        ? context.l10n.paneContextUntitled(sessionId, paneState)
+        : context.l10n.paneContextTitled(pane.title, sessionId, paneState);
   }
 
   Future<void> _openTerminalLinkTarget(
@@ -1115,6 +1124,7 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
       chooseLocation: (name) =>
           WindowBridge.chooseFileDownloadLocation(suggestedName: name),
       write: ref.read(shellFileDownloadWriterProvider),
+      l10n: context.l10n,
     );
     if (message != null) _showShellSnackBar(message);
   }
@@ -1122,13 +1132,16 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
   Future<void> _copyTerminalGraphicImage(
     terminal.TerminalGraphicImage image,
   ) async {
-    _showShellSnackBar(await copyTerminalGraphicImage(image));
+    _showShellSnackBar(
+      await copyTerminalGraphicImage(image, l10n: context.l10n),
+    );
   }
 
   Future<void> _handleTerminalLinkContextMenu(
     String sessionId,
     terminal.TerminalLinkTarget target,
   ) async {
+    final l10n = context.l10n;
     if (!mounted) {
       return;
     }
@@ -1144,22 +1157,22 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
       context: context,
       position: position,
       items: [
-        const PopupMenuItem(
+        PopupMenuItem(
           value: _TerminalLinkMenuAction.open,
-          child: Text('Open link'),
+          child: Text(context.l10n.openLink),
         ),
-        const PopupMenuItem(
+        PopupMenuItem(
           value: _TerminalLinkMenuAction.copy,
-          child: Text('Copy link'),
+          child: Text(context.l10n.copyLink),
         ),
         PopupMenuItem(
           value: _TerminalLinkMenuAction.copyText,
           enabled: target.visibleText?.trim().isNotEmpty ?? false,
-          child: const Text('Copy link text'),
+          child: Text(context.l10n.copyLinkText),
         ),
-        const PopupMenuItem(
+        PopupMenuItem(
           value: _TerminalLinkMenuAction.inspect,
-          child: Text('Show target'),
+          child: Text(context.l10n.showTarget),
         ),
       ],
     );
@@ -1171,14 +1184,14 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
         await _openTerminalLink(target.uri, sourceSessionId: sessionId);
       case _TerminalLinkMenuAction.copy:
         await ClipboardBridge.copy(target.uri);
-        _showShellSnackBar('Copied link target');
+        _showShellSnackBar(l10n.copiedLinkTarget);
       case _TerminalLinkMenuAction.copyText:
         final text = target.visibleText?.trim();
         if (text == null || text.isEmpty) {
           return;
         }
         await ClipboardBridge.copy(text);
-        _showShellSnackBar('Copied link text');
+        _showShellSnackBar(l10n.copiedLinkText);
       case _TerminalLinkMenuAction.inspect:
         _showShellSnackBar(_terminalLinkInspectionMessage(target));
     }
@@ -1189,6 +1202,7 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
     String? sourceSessionId,
     bool filePermissionGranted = false,
   }) async {
+    final l10n = context.l10n;
     final normalized = url.trim();
     final uri = Uri.tryParse(normalized);
     final scheme = uri?.scheme.toLowerCase();
@@ -1199,7 +1213,9 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
         (scheme == 'file' &&
             (uri.host.isNotEmpty || uri.path.isEmpty || uri.path == '/'))) {
       _showShellSnackBar(
-        'Blocked link scheme: ${scheme == null || scheme.isEmpty ? 'unknown' : scheme}',
+        l10n.blockedLinkScheme(
+          scheme == null || scheme.isEmpty ? l10n.unknown : scheme,
+        ),
       );
       return;
     }
@@ -1209,7 +1225,7 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
           normalized,
           sourceSessionId: sourceSessionId,
         )) {
-      _showShellSnackBar('Blocked file link');
+      _showShellSnackBar(l10n.blockedFileLink);
       return;
     }
     try {
@@ -1218,8 +1234,8 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
       final message = error.message?.trim();
       _showShellSnackBar(
         message == null || message.isEmpty
-            ? 'Could not open link'
-            : 'Could not open link: $message',
+            ? l10n.couldNotOpenLink
+            : l10n.couldNotOpenLinkDetails(message),
       );
     }
   }
@@ -1239,11 +1255,12 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text('Open local file link?'),
+          title: Text(context.l10n.openLocalFileLinkQuestion),
           content: SelectableText(
             [
-              'The terminal is asking to open a local file URL.',
-              if (sourceContext != null) 'Source: $sourceContext',
+              context.l10n.terminalRequestsLocalFile,
+              if (sourceContext != null)
+                context.l10n.sourceValue(sourceContext),
               '',
               url,
             ].join('\n'),
@@ -1251,11 +1268,11 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Deny'),
+              child: Text(context.l10n.deny),
             ),
             FilledButton(
               onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Open'),
+              child: Text(context.l10n.open),
             ),
           ],
         );
@@ -1269,9 +1286,9 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
     if (target.hasMismatchedVisibleText &&
         visibleText != null &&
         visibleText.isNotEmpty) {
-      return 'Link text "$visibleText" opens ${target.uri}';
+      return context.l10n.linkTextOpensTarget(visibleText, target.uri);
     }
-    return 'Link target: ${target.uri}';
+    return context.l10n.linkTargetValue(target.uri);
   }
 
   List<_TerminalPaneHeaderIndicator> _paneHeaderIndicatorsFor(
@@ -1282,7 +1299,7 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
     final indicators = <_TerminalPaneHeaderIndicator>[];
     final contextLine = _terminalPaneContextLine(pane.sessionId);
     final focusLine = _sessionNeedsFocus(pane.sessionId)
-        ? 'Click to focus this pane.'
+        ? context.l10n.clickToFocusPane
         : null;
     void addModeIndicator({
       required String kind,
@@ -1309,10 +1326,11 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
           label: 'REMOTE ${_shortStatusValue(hostname!, max: 14)}',
           tooltip: [
             contextLine,
-            'Remote context reported by shell integration.',
-            'Host: $hostname',
-            if (username != null && username.isNotEmpty) 'User: $username',
-            'Local file actions stay disabled for remote paths.',
+            context.l10n.remoteContextReported,
+            context.l10n.hostValue(hostname),
+            if (username != null && username.isNotEmpty)
+              context.l10n.userValue(username),
+            context.l10n.localFileActionsDisabledRemote,
             ?focusLine,
           ].join('\n'),
           icon: Icons.cloud_outlined,
@@ -1335,7 +1353,7 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                 ].join('\n')
               : [
                   contextLine,
-                  'Terminal progress in this pane.',
+                  context.l10n.terminalProgressInPane,
                   for (final progress in progressItems)
                     '${progress.displayLabel}: ${_progressStatusTooltip(progress)}',
                   ?focusLine,
@@ -1373,7 +1391,7 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
           label: 'BADGE ${_shortStatusValue(badge, max: 12)}',
           tooltip: [
             contextLine,
-            'OSC 1337 badge: $badge',
+            context.l10n.osc1337BadgeValue(badge),
             ?focusLine,
           ].join('\n'),
           icon: Icons.badge_outlined,
@@ -1384,49 +1402,49 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
     if (modes.alternateScreen) {
       addModeIndicator(
         kind: 'alt',
-        label: 'ALT',
-        tooltip: 'Alternate screen buffer is active.',
+        label: context.l10n.terminalModeAlt,
+        tooltip: context.l10n.alternateScreenActive,
         icon: Icons.fullscreen_rounded,
       );
     }
     if (modes.mouseMode != 'off') {
       addModeIndicator(
         kind: 'mouse',
-        label: 'MOUSE',
-        tooltip:
-            'Mouse reporting is active: ${_mouseModeStatusLabel(modes.mouseMode)}, ${_mouseEncodingStatusLabel(modes.mouseEncoding)}.',
+        label: context.l10n.terminalModeMouse,
+        tooltip: context.l10n.mouseReportingActive(
+          _mouseModeStatusLabel(modes.mouseMode),
+          _mouseEncodingStatusLabel(modes.mouseEncoding),
+        ),
         icon: Icons.mouse_outlined,
       );
     }
     if (modes.mimePaste) {
       addModeIndicator(
         kind: 'mime-paste',
-        label: 'MIME PASTE',
-        tooltip:
-            'OSC 5522 paste events are active and take precedence over bracketed paste.',
+        label: context.l10n.terminalModeMimePaste,
+        tooltip: context.l10n.mimePasteActive,
         icon: Icons.content_paste_go_rounded,
       );
     } else if (modes.bracketedPaste) {
       addModeIndicator(
         kind: 'paste',
-        label: 'PASTE',
-        tooltip: 'Bracketed paste mode is active.',
+        label: context.l10n.terminalModePaste,
+        tooltip: context.l10n.bracketedPasteActive,
         icon: Icons.content_paste_rounded,
       );
     }
     if (modes.focusTracking) {
       addModeIndicator(
         kind: 'focus',
-        label: 'FOCUS',
-        tooltip:
-            'Focus reporting is active. The application receives focus-in and focus-out events.',
+        label: context.l10n.terminalModeFocus,
+        tooltip: context.l10n.focusReportingActive,
         icon: Icons.center_focus_strong_rounded,
       );
     }
     if (modes.kittyKeyboardFlags != 0) {
       addModeIndicator(
         kind: 'kitty-keyboard',
-        label: 'KEYS',
+        label: context.l10n.terminalModeKeys,
         tooltip: _kittyKeyboardStatusTooltip(modes.kittyKeyboardFlags),
         icon: Icons.keyboard_alt_outlined,
       );
@@ -1434,18 +1452,16 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
     if (modes.synchronizedOutput) {
       addModeIndicator(
         kind: 'sync',
-        label: 'SYNC',
-        tooltip:
-            'Synchronized output mode is active. Intermediate updates are held until the application flushes.',
+        label: context.l10n.terminalModeSync,
+        tooltip: context.l10n.synchronizedOutputActive,
         icon: Icons.sync_rounded,
       );
     }
     if (readOnly) {
       addModeIndicator(
         kind: 'read-only',
-        label: 'READ ONLY',
-        tooltip:
-            'Read-only mode is enabled for this pane. Input and paste sends are blocked.',
+        label: context.l10n.terminalModeReadOnly,
+        tooltip: context.l10n.readOnlyPaneActive,
         icon: Icons.lock_outline_rounded,
       );
     }
@@ -1497,7 +1513,7 @@ class _TerminalAttentionBurstState extends State<_TerminalAttentionBurst>
       child: Semantics(
         container: true,
         liveRegion: true,
-        label: 'Terminal requested attention',
+        label: context.l10n.terminalRequestedAttention,
         child: RepaintBoundary(
           child: controller == null
               ? CustomPaint(
@@ -1678,7 +1694,7 @@ class _ShellPaneDragStartRegion extends StatelessWidget {
       ),
     };
     return Semantics(
-      label: 'Drag ${data.title} to split or move it to the tab bar',
+      label: context.l10n.dragPaneToSplit(data.title),
       button: true,
       child: MouseRegion(cursor: SystemMouseCursors.grab, child: draggable),
     );
@@ -1721,7 +1737,7 @@ class _TerminalPaneDropOverlay extends StatelessWidget {
     ).withValues(alpha: 0.96);
     return Semantics(
       liveRegion: true,
-      label: 'Drop to ${target.label.toLowerCase()}',
+      label: context.l10n.dropToTarget(target.label.toLowerCase()),
       child: Stack(
         children: [
           Positioned.fill(
@@ -1902,7 +1918,9 @@ class _TerminalPaneHeader extends StatelessWidget {
                 if (showZoomAction)
                   _TerminalPaneHeaderAction(
                     buttonKey: Key('shell-pane-action-zoom-$sessionId'),
-                    tooltip: isZoomed ? 'Unzoom pane' : 'Zoom pane',
+                    tooltip: isZoomed
+                        ? context.l10n.unzoomPane
+                        : context.l10n.zoomPane,
                     icon: isZoomed
                         ? Icons.close_fullscreen_rounded
                         : Icons.open_in_full_rounded,
@@ -1913,7 +1931,7 @@ class _TerminalPaneHeader extends StatelessWidget {
                 if (showCloseAction)
                   _TerminalPaneHeaderAction(
                     buttonKey: Key('shell-pane-action-close-$sessionId'),
-                    tooltip: 'Close pane',
+                    tooltip: context.l10n.terminalActionName('close_pane'),
                     icon: Icons.close_rounded,
                     palette: palette,
                     onPressed: onClose,
@@ -1926,7 +1944,9 @@ class _TerminalPaneHeader extends StatelessWidget {
                       Icons.terminal_rounded,
                       size: 14,
                       color: metadataColor,
-                      semanticLabel: isActive ? 'Active pane' : 'Inactive pane',
+                      semanticLabel: isActive
+                          ? context.l10n.activePane
+                          : context.l10n.inactivePane,
                     ),
                     const SizedBox(width: 6),
                   ],

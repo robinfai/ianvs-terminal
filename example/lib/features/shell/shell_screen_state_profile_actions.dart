@@ -99,6 +99,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
     NewSessionSelection result, {
     required String? activeSessionIdBeforeOpen,
   }) async {
+    final l10n = context.l10n;
     if (result.saveProfile) {
       try {
         if (!_customSshProfilesEnabled) {
@@ -106,9 +107,11 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
         }
         await sessionController.saveProfile(result.profile);
         _showShellSnackBar(
-          '${result.openSession ? 'Saved' : 'Imported'} SSH profile '
-          '“${result.profile.name}” to '
-          '${_activeProfilePersistenceLabel()}.',
+          l10n.sshProfileStored(
+            result.openSession ? 'saved' : 'imported',
+            result.profile.name,
+            _activeProfilePersistenceLabel(),
+          ),
         );
       } on Object catch (error) {
         final connectOnce = await _showProfileSaveFailure(
@@ -160,6 +163,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
     SessionController sessionController,
     SessionState sessionState,
   ) async {
+    final l10n = context.l10n;
     if (_isDefaultsOpen) {
       return;
     }
@@ -374,11 +378,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
         if (dataApiConfigurationRepository == null) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'Data service configuration is unavailable in this build.',
-                ),
-              ),
+              SnackBar(content: Text(l10n.dataServiceConfigurationUnavailable)),
             );
           }
         } else {
@@ -392,9 +392,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
                     _ => null,
                   };
               if (remoteLogin == null || connector == null) {
-                throw StateError(
-                  'Remote authentication is unavailable in this build.',
-                );
+                throw StateError(l10n.remoteAuthenticationUnavailable);
               }
               DataApiMigrationSummary? migrationSummary;
               if (selection.migrateLocalDataToRemote) {
@@ -408,9 +406,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
                 if (migrationConnector == null ||
                     sourceRuntime == null ||
                     !sourceRuntime.isLocal) {
-                  throw StateError(
-                    'The active bundled local API is unavailable for migration.',
-                  );
+                  throw StateError(l10n.localApiMigrationUnavailable);
                 }
                 migrationSummary = await migrationConnector
                     .migrateLocalAndSaveRemote(
@@ -425,11 +421,12 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
                   SnackBar(
                     key: const Key('data-api-migration-complete'),
                     content: Text(
-                      'Migrated ${migrationSummary.resourceCount} local '
-                      'resource(s): ${migrationSummary.created} created, '
-                      '${migrationSummary.updated} updated, '
-                      '${migrationSummary.skipped} already current. Restart '
-                      'the app to use the remote API.',
+                      l10n.migrationToRemoteSummary(
+                        migrationSummary.resourceCount,
+                        migrationSummary.created,
+                        migrationSummary.updated,
+                        migrationSummary.skipped,
+                      ),
                     ),
                   ),
                 );
@@ -449,9 +446,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
                   sourceRuntime == null ||
                   sourceRuntime.deployment != DataApiDeployment.remote ||
                   startLocalRuntime == null) {
-                throw StateError(
-                  'Remote-to-local migration is unavailable in this build.',
-                );
+                throw StateError(l10n.remoteToLocalMigrationUnavailable);
               }
               final migrationSummary =
                   await withTemporaryDataApiRuntime<DataApiMigrationSummary>(
@@ -467,11 +462,12 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
                   SnackBar(
                     key: const Key('data-api-migration-complete'),
                     content: Text(
-                      'Migrated ${migrationSummary.resourceCount} remote '
-                      'resource(s): ${migrationSummary.created} created, '
-                      '${migrationSummary.updated} updated, '
-                      '${migrationSummary.skipped} already current. Restart '
-                      'the app to use the bundled local API.',
+                      l10n.migrationToLocalSummary(
+                        migrationSummary.resourceCount,
+                        migrationSummary.created,
+                        migrationSummary.updated,
+                        migrationSummary.skipped,
+                      ),
                     ),
                   ),
                 );
@@ -483,11 +479,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
             }
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text(
-                    'Data service configuration saved. Restart the app to apply it.',
-                  ),
-                ),
+                SnackBar(content: Text(l10n.dataServiceConfigurationSaved)),
               );
             }
           } on DataApiRemoteRevocationPendingWarning catch (warning) {
@@ -513,7 +505,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(
-                    'Unable to save the data service configuration: $error',
+                    l10n.unableToSaveDataServiceConfiguration(error.toString()),
                   ),
                 ),
               );
@@ -539,6 +531,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
     SessionController sessionController,
     SessionState sessionState,
   ) async {
+    final l10n = context.l10n;
     if (_isProfilesOpen) {
       return;
     }
@@ -624,19 +617,19 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
         final confirmed = await showDialog<bool>(
           context: context,
           builder: (dialogContext) => AlertDialog(
-            title: const Text('Delete profile?'),
+            title: Text(dialogContext.l10n.deleteProfileQuestion),
             content: Text(
-              'Delete “${profile.name}”? Open terminal tabs will keep their current session settings.',
+              dialogContext.l10n.deleteProfileWarning(profile.name),
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(dialogContext).pop(false),
-                child: const Text('Cancel'),
+                child: Text(dialogContext.l10n.cancel),
               ),
               AppActionButton(
                 buttonKey: const Key('confirm-delete-profile'),
                 tone: AppActionTone.danger,
-                label: 'Delete',
+                label: dialogContext.l10n.delete,
                 onPressed: () => Navigator.of(dialogContext).pop(true),
               ),
             ],
@@ -647,7 +640,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
             await sessionController.deleteProfile(profile.id);
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Deleted profile “${profile.name}”.')),
+                SnackBar(content: Text(l10n.deletedProfile(profile.name))),
               );
             }
           } on Object catch (error) {
@@ -655,10 +648,11 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
               profileName: profile.name,
               error: error,
               allowConnectOnce: false,
-              title: 'Profile was not deleted',
-              summary:
-                  '“${profile.name}” is still stored in '
-                  '${_activeProfilePersistenceLabel()}.',
+              title: l10n.profileWasNotDeleted,
+              summary: l10n.profileStillStored(
+                profile.name,
+                _activeProfilePersistenceLabel(),
+              ),
             );
           }
         }
@@ -685,7 +679,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
             : await showDialog<TerminalProfile>(
                 context: context,
                 builder: (dialogContext) => ProfileEditorDialog(
-                  title: 'New profile',
+                  title: dialogContext.l10n.newProfile,
                   initialValue: template,
                   saveWhenPristine: true,
                 ),
@@ -726,8 +720,8 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
     final profile = defaultTerminalProfile().copyWith(
       id: id,
       name: connectionType == NewProfileConnectionType.sshSession
-          ? 'New SSH Profile'
-          : 'New Profile',
+          ? context.l10n.newSshProfile
+          : context.l10n.newProfileDefaultName,
     );
     if (connectionType == NewProfileConnectionType.localShell) {
       return profile;
@@ -745,12 +739,11 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
     TerminalProfile profile, {
     Set<ProfileSecretField> clearSecrets = const {},
   }) async {
+    final l10n = context.l10n;
+    final destination = _activeProfilePersistenceLabel();
     try {
       await sessionController.saveProfile(profile, clearSecrets: clearSecrets);
-      _showShellSnackBar(
-        'Saved profile “${profile.name}” to '
-        '${_activeProfilePersistenceLabel()}.',
-      );
+      _showShellSnackBar(l10n.savedProfileTo(profile.name, destination));
       return true;
     } on Object catch (error) {
       await _showProfileSaveFailure(
@@ -763,18 +756,19 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
   }
 
   String _activeProfilePersistenceLabel() {
-    return switch (ref.read(dataApiRuntimeProvider)?.deployment) {
-      DataApiDeployment.remote => 'Remote service',
-      DataApiDeployment.local => 'Bundled local service',
-      DataApiDeployment.disabled || null => 'profile storage',
+    final deployment = switch (ref.read(dataApiRuntimeProvider)?.deployment) {
+      DataApiDeployment.remote => 'remote',
+      DataApiDeployment.local => 'local',
+      DataApiDeployment.disabled || null => 'disabled',
     };
+    return context.l10n.profileStorageDestination(deployment);
   }
 
   Future<bool> _showProfileSaveFailure({
     required String profileName,
     required Object error,
     required bool allowConnectOnce,
-    String title = 'Profile was not saved',
+    String? title,
     String? summary,
   }) async {
     if (!mounted) {
@@ -786,27 +780,26 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
           barrierDismissible: false,
           builder: (dialogContext) => AlertDialog(
             key: const Key('profile-save-failure-dialog'),
-            title: Text(title),
+            title: Text(title ?? dialogContext.l10n.profileWasNotSaved),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   summary ??
-                      '“$profileName” was not written to $destination. '
-                          'It will not appear on your other devices.',
+                      dialogContext.l10n.profileNotWritten(
+                        profileName,
+                        destination,
+                      ),
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  _profileSaveFailureMessage(error),
+                  _profileSaveFailureMessage(error, dialogContext.l10n),
                   key: const Key('profile-save-failure-message'),
                 ),
                 if (allowConnectOnce) ...[
                   const SizedBox(height: 12),
-                  const Text(
-                    'You can cancel and try saving again, or explicitly '
-                    'continue with a one-time connection.',
-                  ),
+                  Text(dialogContext.l10n.profileSaveFailureConnectOnceHelp),
                 ],
               ],
             ),
@@ -814,13 +807,17 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
               TextButton(
                 key: const Key('profile-save-failure-cancel'),
                 onPressed: () => Navigator.of(dialogContext).pop(false),
-                child: Text(allowConnectOnce ? 'Cancel connection' : 'OK'),
+                child: Text(
+                  allowConnectOnce
+                      ? dialogContext.l10n.cancelConnection
+                      : dialogContext.l10n.ok,
+                ),
               ),
               if (allowConnectOnce)
                 FilledButton(
                   key: const Key('profile-save-failure-connect-once'),
                   onPressed: () => Navigator.of(dialogContext).pop(true),
-                  child: const Text('Connect once without saving'),
+                  child: Text(dialogContext.l10n.connectOnceWithoutSaving),
                 ),
             ],
           ),
@@ -828,25 +825,19 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
         false;
   }
 
-  String _profileSaveFailureMessage(Object error) {
+  String _profileSaveFailureMessage(Object error, AppLocalizations l10n) {
     return switch (error) {
-      DataApiRevisionConflictException() =>
-        'Profiles changed on another device while this save was in progress. '
-            'Reload the profiles and try again.',
+      DataApiRevisionConflictException() => l10n.profilesChangedElsewhere,
       DataApiAuthenticationRequiredException() =>
-        'The Remote service session is no longer authenticated. Open Data '
-            'service settings, sign in again, and retry the save.',
-      DataApiTimeoutException() =>
-        'The Remote service did not respond in time. Check the network '
-            'connection and try again.',
+        l10n.remoteServiceAuthenticationExpired,
+      DataApiTimeoutException() => l10n.remoteServiceTimeout,
       DataApiRequestException(:final statusCode, :final code, :final message) =>
-        'Remote service rejected the save ($statusCode/$code): $message',
+        l10n.remoteServiceRejectedSave(statusCode, code, message),
       DataApiProtocolException(:final message) =>
-        'The Remote service returned an invalid response: $message',
+        l10n.remoteServiceInvalidResponse(message),
       CustomSshProfileConfigurationUnavailableException() =>
-        'Persistent SSH profiles require a connected bundled local or Remote '
-            'service. Open Data service settings and connect one first.',
-      _ => 'Save failed: $error',
+        l10n.persistentSshProfilesRequireService,
+      _ => l10n.saveFailed(error.toString()),
     };
   }
 
@@ -877,9 +868,12 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          'Imported ${result.profiles.length} dynamic profile${result.profiles.length == 1 ? '' : 's'}'
-          '${result.replacementCount == 0 ? '' : ' (${result.addedCount} new, ${result.replacementCount} replaced)'}'
-          '${result.warningCount == 0 ? '' : ' with ${result.warningCount} warning${result.warningCount == 1 ? '' : 's'}'}',
+          context.l10n.dynamicProfilesImported(
+            result.profiles.length,
+            result.addedCount,
+            result.replacementCount,
+            result.warningCount,
+          ),
         ),
       ),
     );

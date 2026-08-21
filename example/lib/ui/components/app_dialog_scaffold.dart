@@ -2,6 +2,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
+import '../../l10n/l10n.dart';
 import '../foundation/app_theme_tokens.dart';
 import 'app_action_button.dart';
 import 'app_panel.dart';
@@ -14,7 +15,7 @@ class AppDialogScaffold extends StatelessWidget {
     this.subtitle,
     this.footer,
     this.onClose,
-    this.closeTooltip = 'Close dialog',
+    this.closeTooltip,
     this.insetPadding,
     this.constraints,
     this.width,
@@ -33,7 +34,7 @@ class AppDialogScaffold extends StatelessWidget {
   final Widget body;
   final Widget? footer;
   final VoidCallback? onClose;
-  final String closeTooltip;
+  final String? closeTooltip;
   final EdgeInsets? insetPadding;
   final BoxConstraints? constraints;
   final double? width;
@@ -91,7 +92,7 @@ class AppDialogScaffold extends StatelessWidget {
           ),
           if (onClose != null)
             AppActionButton(
-              tooltip: closeTooltip,
+              tooltip: closeTooltip ?? context.l10n.closeDialog,
               tone: AppActionTone.ghost,
               size: AppActionSize.dense,
               onPressed: onClose,
@@ -176,7 +177,7 @@ class AppDialogScaffold extends StatelessWidget {
       role: ui.SemanticsRole.dialog,
       container: true,
       explicitChildNodes: true,
-      label: '$title dialog',
+      label: context.l10n.dialogSemantics(title),
       child: FocusTraversalGroup(
         policy: OrderedTraversalPolicy(),
         child: positionedPanel,

@@ -1,7 +1,5 @@
 part of 'shell_screen.dart';
 
-const String _activityNotificationBody = 'New terminal output is available.';
-
 extension _ShellScreenStateEvents on _ShellScreenState {
   bool get _shellModalInputBlocked =>
       _isCommandMenuOpen ||
@@ -180,7 +178,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     }
     if (_hostActionsConfig.osc1337OpenUrl ==
         LocalTerminalOpenUrlPolicy.disabled) {
-      _showShellSnackBar('OSC 1337 Open URL blocked by policy');
+      _showShellSnackBar(context.l10n.osc1337OpenUrlBlockedByPolicy);
       return;
     }
     final now = _clock();
@@ -391,16 +389,17 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         barrierDismissible: false,
         builder: (dialogContext) {
           final destination = scheme == 'file'
-              ? 'Local file'
-              : '${scheme.toUpperCase()} host: ${uri.host}';
+              ? dialogContext.l10n.localFile
+              : dialogContext.l10n.protocolHost(scheme.toUpperCase(), uri.host);
           return AlertDialog(
             key: const Key('osc1337-open-url-dialog'),
-            title: const Text('Open terminal-requested URL?'),
+            title: Text(dialogContext.l10n.openTerminalRequestedUrlQuestion),
             content: SelectableText(
               [
-                'The active terminal requested permission to open this URL. Terminal output can be untrusted.',
-                if (sourceContext != null) 'Source: $sourceContext',
-                'Destination: $destination',
+                dialogContext.l10n.terminalRequestedUrlWarning,
+                if (sourceContext != null)
+                  dialogContext.l10n.sourceValue(sourceContext),
+                dialogContext.l10n.destinationValue(destination),
                 '',
                 url,
               ].join('\n'),
@@ -409,12 +408,12 @@ extension _ShellScreenStateEvents on _ShellScreenState {
               TextButton(
                 key: const Key('osc1337-open-url-deny'),
                 onPressed: () => Navigator.of(dialogContext).pop(false),
-                child: const Text('Deny'),
+                child: Text(dialogContext.l10n.deny),
               ),
               FilledButton(
                 key: const Key('osc1337-open-url-approve'),
                 onPressed: () => Navigator.of(dialogContext).pop(true),
-                child: const Text('Open'),
+                child: Text(dialogContext.l10n.open),
               ),
             ],
           );
@@ -427,14 +426,12 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       return;
     }
     if (approved != true) {
-      _showShellSnackBar('OSC 1337 Open URL blocked');
+      _showShellSnackBar(context.l10n.osc1337OpenUrlBlocked);
       return;
     }
     if (ref.read(sessionControllerProvider).activeSessionId !=
         event.sessionId) {
-      _showShellSnackBar(
-        'OSC 1337 Open URL blocked: source is no longer active',
-      );
+      _showShellSnackBar(context.l10n.osc1337OpenUrlSourceInactive);
       return;
     }
     await _openTerminalLink(
@@ -459,31 +456,27 @@ extension _ShellScreenStateEvents on _ShellScreenState {
           final appTheme = dialogContext.appTheme;
           return AlertDialog(
             key: const Key('osc1337-report-variable-dialog'),
-            title: const Text('Allow future variable reports?'),
+            title: Text(dialogContext.l10n.allowFutureVariableReportsQuestion),
             content: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 440),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'The current request was denied and received an empty response. Choose whether future terminal programs may read this variable.',
-                  ),
+                  Text(dialogContext.l10n.variableReportDeniedHelp),
                   if (sourceContext != null) ...[
                     SizedBox(height: appTheme.spacing.md),
-                    Text('Source: $sourceContext'),
+                    Text(dialogContext.l10n.sourceValue(sourceContext)),
                   ],
                   SizedBox(height: appTheme.spacing.md),
-                  const Text('Variable'),
+                  Text(dialogContext.l10n.variable),
                   SizedBox(height: appTheme.spacing.xs),
                   SelectableText(
                     name,
                     key: const Key('osc1337-report-variable-name'),
                   ),
                   SizedBox(height: appTheme.spacing.md),
-                  const Text(
-                    'Ianvs only reports session-owned title, dimensions, shell context, and user.* values. It never reads host environment variables or files for this request.',
-                  ),
+                  Text(dialogContext.l10n.variableReportPrivacyHelp),
                 ],
               ),
             ),
@@ -491,14 +484,14 @@ extension _ShellScreenStateEvents on _ShellScreenState {
               TextButton(
                 key: const Key('osc1337-report-variable-not-now'),
                 onPressed: () => Navigator.of(dialogContext).pop(),
-                child: const Text('Not Now'),
+                child: Text(dialogContext.l10n.notNow),
               ),
               TextButton(
                 key: const Key('osc1337-report-variable-allow'),
                 onPressed: () => Navigator.of(
                   dialogContext,
                 ).pop(LocalTerminalReportVariablePolicy.allow),
-                child: const Text('Always Allow'),
+                child: Text(dialogContext.l10n.alwaysAllow),
               ),
               FilledButton(
                 key: const Key('osc1337-report-variable-deny'),
@@ -506,7 +499,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
                 onPressed: () => Navigator.of(
                   dialogContext,
                 ).pop(LocalTerminalReportVariablePolicy.deny),
-                child: const Text('Always Deny'),
+                child: Text(dialogContext.l10n.alwaysDeny),
               ),
             ],
           );
@@ -520,9 +513,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     }
     if (ref.read(sessionControllerProvider).activeSessionId !=
         event.sessionId) {
-      _showShellSnackBar(
-        'Variable-reporting decision not saved: source is no longer active',
-      );
+      _showShellSnackBar(context.l10n.variableDecisionSourceInactive);
       return;
     }
     await ref
@@ -545,8 +536,8 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     });
     _showShellSnackBar(
       decision == LocalTerminalReportVariablePolicy.allow
-          ? 'Future reports of $name are allowed'
-          : 'Future reports of $name are denied',
+          ? context.l10n.futureVariableReportsAllowed(name)
+          : context.l10n.futureVariableReportsDenied(name),
     );
   }
 
@@ -567,13 +558,16 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       SnackBar(
         key: Key('osc1337-file-download-$downloadId'),
         content: Text(
-          'Received ${event.filename} (${_osc1337FileSizeLabel(event.size!)})',
+          context.l10n.receivedFile(
+            event.filename!,
+            _osc1337FileSizeLabel(event.size!),
+          ),
         ),
         duration: const Duration(seconds: 30),
         showCloseIcon: true,
         action: SnackBarAction(
           key: Key('osc1337-file-download-save-$downloadId'),
-          label: 'Save',
+          label: context.l10n.save,
           onPressed: () {
             actionClaimed = true;
             unawaited(_saveOsc1337FileDownload(event));
@@ -593,6 +587,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
   Future<void> _saveOsc1337FileDownload(
     terminal.TerminalSessionFileDownloadEvent event,
   ) async {
+    final l10n = context.l10n;
     final runtime = ref.read(terminalRuntimeControllerProvider);
     if (!mounted ||
         ref.read(sessionControllerProvider).activeSessionId !=
@@ -608,30 +603,30 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       );
     } on Object {
       runtime.discardFileDownload(event);
-      _showShellSnackBar('Could not open the save dialog');
+      _showShellSnackBar(l10n.couldNotOpenSaveDialog);
       return;
     }
     if (path == null) {
       runtime.discardFileDownload(event);
       if (mounted) {
-        _showShellSnackBar('Received file discarded');
+        _showShellSnackBar(l10n.receivedFileDiscarded);
       }
       return;
     }
 
     final bytes = runtime.takeFileDownload(event);
     if (bytes == null || bytes.length != event.size) {
-      _showShellSnackBar('Received file is no longer available');
+      _showShellSnackBar(l10n.receivedFileUnavailable);
       return;
     }
     try {
       await ref.read(shellFileDownloadWriterProvider)(path, bytes);
     } on Object {
-      _showShellSnackBar('Could not save ${event.filename}');
+      _showShellSnackBar(l10n.couldNotSaveFile(event.filename!));
       return;
     }
     if (mounted) {
-      _showShellSnackBar('Saved ${event.filename}');
+      _showShellSnackBar(l10n.savedFile(event.filename!));
     }
   }
 
@@ -645,7 +640,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     }
     final reason = event.reason.runes.take(120).toList(growable: false);
     _showShellSnackBar(
-      'File download rejected: ${String.fromCharCodes(reason)}',
+      context.l10n.fileDownloadRejected(String.fromCharCodes(reason)),
     );
   }
 
@@ -657,7 +652,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
             event.sessionId) {
       return;
     }
-    _showShellSnackBar('File upload request blocked');
+    _showShellSnackBar(context.l10n.fileUploadRequestBlocked);
   }
 
   void _handleZmodemDeferredWriteFailure(
@@ -668,10 +663,11 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     }
     final unconfirmedChunks = diagnostic.unconfirmedChunks;
     final unconfirmedBytes = diagnostic.unconfirmedBytes;
-    final message =
-        'ZMODEM transport failed in session ${diagnostic.sessionId}: '
-        '$unconfirmedBytes bytes in $unconfirmedChunks queued writes were not '
-        'confirmed. The terminal connection was closed.';
+    final message = context.l10n.zmodemTransportFailed(
+      diagnostic.sessionId,
+      unconfirmedBytes,
+      unconfirmedChunks,
+    );
     _mutateState(() {
       _zmodemTransportFailureSessionIds.add(diagnostic.sessionId);
     });
@@ -699,7 +695,10 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       return;
     }
     _sendShellNotification(
-      title: '$title in ${_sessionTitleForNotification(sessionId)}',
+      title: context.l10n.notificationInSession(
+        title,
+        _sessionTitleForNotification(sessionId),
+      ),
       body: body,
       identifier: 'ianvs-terminal.zmodem.$sessionId',
     );
@@ -743,9 +742,8 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       if (hasPreservedReceive) {
         _signalInactiveZmodem(
           event.sessionId,
-          title: 'ZMODEM file preserved',
-          body:
-              'ZMODEM publish failed. A complete file was preserved; focus the pane to reveal or dismiss it.',
+          title: context.l10n.zmodemFilePreserved,
+          body: context.l10n.zmodemFilePreservedBody,
         );
         return;
       }
@@ -754,18 +752,20 @@ extension _ShellScreenStateEvents on _ShellScreenState {
           _zmodemTransportFailureSessionIds.contains(event.sessionId)
               ? null
               : event.direction == terminal.TerminalZmodemDirection.receive
-              ? 'ZMODEM receive completed'
-              : 'ZMODEM send completed',
+              ? context.l10n.zmodemReceiveCompleted
+              : context.l10n.zmodemSendCompleted,
         terminal.TerminalZmodemEventKind.cancelled =>
           _zmodemTransportFailureSessionIds.contains(event.sessionId)
               ? null
-              : 'ZMODEM transfer cancelled',
+              : context.l10n.zmodemTransferCancelled,
         terminal.TerminalZmodemEventKind.failed
             when event.reason == 'publish_failed' &&
                 event.stagingPreserved == true =>
-          'ZMODEM publish failed; preserved file is unavailable to reveal',
+          context.l10n.zmodemPreservedUnavailable,
         terminal.TerminalZmodemEventKind.failed =>
-          'ZMODEM transfer failed: ${event.reason ?? 'protocol error'}',
+          context.l10n.zmodemTransferFailed(
+            event.reason ?? context.l10n.protocolError,
+          ),
         _ => null,
       };
       if (message != null) {
@@ -776,7 +776,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
           _pendingZmodemTerminalMessages[event.sessionId] = message;
           _signalInactiveZmodem(
             event.sessionId,
-            title: 'ZMODEM transfer update',
+            title: context.l10n.zmodemTransferUpdate,
             body: message,
           );
         }
@@ -822,9 +822,8 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     if (event.isReconciliationRequired && activeSessionId != event.sessionId) {
       _signalInactiveZmodem(
         event.sessionId,
-        title: 'ZMODEM transfer needs attention',
-        body:
-            'Transfer state was lost after an event gap. Focus the pane to retry cancellation.',
+        title: context.l10n.zmodemTransferNeedsAttention,
+        body: context.l10n.zmodemStateLost,
       );
       return;
     }
@@ -832,8 +831,8 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         activeSessionId == event.sessionId) {
       _showShellSnackBar(
         event.filename == null
-            ? 'Remote skipped a ZMODEM file; continuing the batch'
-            : 'Remote skipped ${event.filename}; continuing the batch',
+            ? context.l10n.remoteSkippedZmodemFile
+            : context.l10n.remoteSkippedNamedFile(event.filename!),
       );
     }
 
@@ -853,27 +852,27 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     if (!runtime.supportsRuntimeFeature(requiredFeature) ||
         !WindowBridge.supportsZmodemFileDialogs) {
       final message = !runtime.supportsRuntimeFeature(requiredFeature)
-          ? 'This terminal runtime does not support this ZMODEM direction.'
-          : 'ZMODEM file selection is unavailable on this platform.';
+          ? context.l10n.zmodemDirectionUnsupported
+          : context.l10n.zmodemFileSelectionUnavailable;
       final cancelled = runtime.cancelZmodem(event);
       if (!cancelled) {
         _setZmodemRecoverableError(
           event,
-          '$message Retry cancellation.',
+          '$message ${context.l10n.retryCancellation}',
           _ShellZmodemRecoveryAction.cancel,
         );
       } else if (activeSessionId == event.sessionId) {
-        _showShellSnackBar('$message The transfer was cancelled.');
+        _showShellSnackBar('$message ${context.l10n.transferWasCancelled}');
       }
       if (activeSessionId != event.sessionId) {
         _signalInactiveZmodem(
           event.sessionId,
           title: cancelled
-              ? 'ZMODEM request cancelled'
-              : 'ZMODEM request needs attention',
+              ? context.l10n.zmodemRequestCancelled
+              : context.l10n.zmodemRequestNeedsAttention,
           body: cancelled
-              ? '$message The inactive transfer was cancelled.'
-              : '$message Focus the pane to retry cancellation.',
+              ? '$message ${context.l10n.inactiveTransferWasCancelled}'
+              : '$message ${context.l10n.focusPaneRetryCancellation}',
         );
       }
       return;
@@ -883,18 +882,22 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       if (!cancelled) {
         _setZmodemRecoverableError(
           event,
-          'Could not cancel after the session changed. Retry or cancel again.',
+          context.l10n.couldNotCancelAfterSessionChanged,
           _ShellZmodemRecoveryAction.cancel,
         );
       }
       _signalInactiveZmodem(
         event.sessionId,
         title: cancelled
-            ? 'ZMODEM request cancelled'
-            : 'ZMODEM request needs attention',
+            ? context.l10n.zmodemRequestCancelled
+            : context.l10n.zmodemRequestNeedsAttention,
         body: cancelled
-            ? 'A remote ${needsSendAuthorization ? 'send' : 'receive'} request was cancelled because its pane is inactive.'
-            : 'A remote ${needsSendAuthorization ? 'send' : 'receive'} request could not be cancelled. Focus the pane to retry.',
+            ? context.l10n.remoteZmodemRequestCancelled(
+                needsSendAuthorization ? 'send' : 'receive',
+              )
+            : context.l10n.remoteZmodemRequestCancelFailed(
+                needsSendAuthorization ? 'send' : 'receive',
+              ),
       );
       return;
     }
@@ -920,8 +923,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     if (pickerRequest == null) {
       _setZmodemRecoverableError(
         event,
-        'A previous ZMODEM file picker is still open. Close it, then retry '
-        'this transfer.',
+        context.l10n.zmodemPickerAlreadyOpen,
         _ShellZmodemRecoveryAction.authorization,
       );
       return;
@@ -946,22 +948,21 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     if (pickerError != null) {
       if (pickerError is MissingPluginException ||
           pickerError is UnsupportedError) {
-        const message =
-            'ZMODEM destination selection is unavailable on this platform.';
+        final message = context.l10n.zmodemDestinationSelectionUnavailable;
         if (!runtime.cancelZmodem(event)) {
           _setZmodemRecoverableError(
             event,
-            '$message Retry cancellation.',
+            '$message ${context.l10n.retryCancellation}',
             _ShellZmodemRecoveryAction.cancel,
           );
         } else {
-          _showShellSnackBar('$message The transfer was cancelled.');
+          _showShellSnackBar('$message ${context.l10n.transferWasCancelled}');
         }
         return;
       }
       _setZmodemRecoverableError(
         event,
-        'Could not open the destination picker. Retry or cancel the transfer.',
+        context.l10n.couldNotOpenDestinationPicker,
         _ShellZmodemRecoveryAction.authorization,
       );
       return;
@@ -969,8 +970,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     if (ref.read(sessionControllerProvider).activeSessionId !=
         event.sessionId) {
       if (!runtime.cancelZmodem(event)) {
-        const message =
-            'The session changed and cancellation failed. Retry cancellation.';
+        final message = context.l10n.sessionChangedCancellationFailed;
         _setZmodemRecoverableError(
           event,
           message,
@@ -978,7 +978,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         );
         _signalInactiveZmodem(
           event.sessionId,
-          title: 'ZMODEM transfer needs attention',
+          title: context.l10n.zmodemTransferNeedsAttention,
           body: message,
         );
       }
@@ -987,7 +987,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     if (destination == null) {
       _setZmodemRecoverableError(
         event,
-        'Destination selection cancelled. Retry or cancel the transfer.',
+        context.l10n.destinationSelectionCancelled,
         _ShellZmodemRecoveryAction.authorization,
       );
       return;
@@ -995,7 +995,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     if (!runtime.acceptZmodemReceive(event, destination: destination)) {
       _setZmodemRecoverableError(
         event,
-        'Could not authorize this destination. Retry or cancel the transfer.',
+        context.l10n.couldNotAuthorizeDestination,
         _ShellZmodemRecoveryAction.authorization,
       );
       return;
@@ -1015,8 +1015,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     if (pickerRequest == null) {
       _setZmodemRecoverableError(
         event,
-        'A previous ZMODEM file picker is still open. Close it, then retry '
-        'this transfer.',
+        context.l10n.zmodemPickerAlreadyOpen,
         _ShellZmodemRecoveryAction.authorization,
       );
       return;
@@ -1041,22 +1040,21 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     if (pickerError != null) {
       if (pickerError is MissingPluginException ||
           pickerError is UnsupportedError) {
-        const message =
-            'ZMODEM file selection is unavailable on this platform.';
+        final message = context.l10n.zmodemFileSelectionUnavailable;
         if (!runtime.cancelZmodem(event)) {
           _setZmodemRecoverableError(
             event,
-            '$message Retry cancellation.',
+            '$message ${context.l10n.retryCancellation}',
             _ShellZmodemRecoveryAction.cancel,
           );
         } else {
-          _showShellSnackBar('$message The transfer was cancelled.');
+          _showShellSnackBar('$message ${context.l10n.transferWasCancelled}');
         }
         return;
       }
       _setZmodemRecoverableError(
         event,
-        'Could not open the file picker. Retry or cancel the transfer.',
+        context.l10n.couldNotOpenFilePicker,
         _ShellZmodemRecoveryAction.authorization,
       );
       return;
@@ -1064,8 +1062,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     if (ref.read(sessionControllerProvider).activeSessionId !=
         event.sessionId) {
       if (!runtime.cancelZmodem(event)) {
-        const message =
-            'The session changed and cancellation failed. Retry cancellation.';
+        final message = context.l10n.sessionChangedCancellationFailed;
         _setZmodemRecoverableError(
           event,
           message,
@@ -1073,7 +1070,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         );
         _signalInactiveZmodem(
           event.sessionId,
-          title: 'ZMODEM transfer needs attention',
+          title: context.l10n.zmodemTransferNeedsAttention,
           body: message,
         );
       }
@@ -1082,7 +1079,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     if (files == null) {
       _setZmodemRecoverableError(
         event,
-        'File selection cancelled. Retry or cancel the transfer.',
+        context.l10n.fileSelectionCancelled,
         _ShellZmodemRecoveryAction.authorization,
       );
       return;
@@ -1090,7 +1087,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     if (files.length > 256) {
       _setZmodemRecoverableError(
         event,
-        'You can send at most 256 files. Select fewer files and retry.',
+        context.l10n.zmodemFileLimit,
         _ShellZmodemRecoveryAction.authorization,
       );
       return;
@@ -1098,7 +1095,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     if (!runtime.acceptZmodemSend(event, files: files)) {
       _setZmodemRecoverableError(
         event,
-        'Could not authorize these files. Retry or cancel the transfer.',
+        context.l10n.couldNotAuthorizeFiles,
         _ShellZmodemRecoveryAction.authorization,
       );
       return;
@@ -1157,8 +1154,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
   void _showZmodemPickerResultIgnored(
     terminal.TerminalSessionZmodemEvent event,
   ) {
-    const message =
-        'ZMODEM transfer already ended; the picker result was not used.';
+    final message = context.l10n.zmodemPickerResultIgnored;
     final current = _zmodemTransfers[event.sessionId];
     final recoveryAction = current?.recoveryAction;
     if (current != null && recoveryAction != null) {
@@ -1210,7 +1206,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     } else {
       _setZmodemRecoverableError(
         transfer.event,
-        'Could not cancel the ZMODEM transfer. Retry cancellation.',
+        context.l10n.couldNotCancelZmodem,
         _ShellZmodemRecoveryAction.cancel,
       );
     }
@@ -1395,13 +1391,13 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     final protocolName = _oscProtocolDisplayName(request.protocol);
     final promptTitle = switch (request.operation) {
       terminal.TerminalClipboardOperation.copy =>
-        'Allow $protocolName clipboard copy?',
+        context.l10n.allowClipboardCopyQuestion(protocolName),
       terminal.TerminalClipboardOperation.pasteRequest =>
-        'Allow $protocolName paste read?',
+        context.l10n.allowPasteReadQuestion(protocolName),
       terminal.TerminalClipboardOperation.mimeWrite =>
-        'Allow ${_oscProtocolDisplayName(request.protocol)} clipboard write?',
+        context.l10n.allowClipboardWriteQuestion(protocolName),
       terminal.TerminalClipboardOperation.mimeRead =>
-        'Allow ${_oscProtocolDisplayName(request.protocol)} clipboard read?',
+        context.l10n.allowClipboardReadQuestion(protocolName),
     };
     final result = await showDialog<terminal.TerminalClipboardAuthorization>(
       context: context,
@@ -1414,20 +1410,20 @@ extension _ShellScreenStateEvents on _ShellScreenState {
               onPressed: () => Navigator.of(
                 context,
               ).pop(terminal.TerminalClipboardAuthorization.denied),
-              child: const Text('Deny'),
+              child: Text(context.l10n.deny),
             ),
             if (request.canRememberPassword)
               TextButton(
                 onPressed: () => Navigator.of(
                   context,
                 ).pop(terminal.TerminalClipboardAuthorization.allowSession),
-                child: const Text('Always allow'),
+                child: Text(context.l10n.alwaysAllowLower),
               ),
             FilledButton(
               onPressed: () => Navigator.of(
                 context,
               ).pop(terminal.TerminalClipboardAuthorization.allowOnce),
-              child: const Text('Allow'),
+              child: Text(context.l10n.allow),
             ),
           ],
         );
@@ -1444,37 +1440,43 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     final colorScheme = Theme.of(context).colorScheme;
     final details = <Widget>[
       _Osc52PromptDetail(
-        label: 'Session',
+        label: context.l10n.session,
         value: _osc52SessionDetailValue(request.sessionId),
       ),
-      _Osc52PromptDetail(label: 'Selection', value: request.selection ?? 'c'),
+      _Osc52PromptDetail(
+        label: context.l10n.selection,
+        value: request.selection ?? 'c',
+      ),
       if (request.mimeTypes.isNotEmpty)
         _Osc52PromptDetail(
-          label: 'MIME types',
+          label: context.l10n.mimeTypes,
           value: request.mimeTypes.join(', '),
         ),
       if (request.applicationName != null)
         _Osc52PromptDetail(
-          label: 'Application',
+          label: context.l10n.application,
           value: request.applicationName!,
         ),
       if (request.characterCount != null || request.byteCount != null)
         _Osc52PromptDetail(
-          label: 'Size',
+          label: context.l10n.size,
           value: [
             if (request.characterCount != null)
-              '${request.characterCount} characters',
-            if (request.byteCount != null) '${request.byteCount} bytes',
+              context.l10n.characterCount(request.characterCount!),
+            if (request.byteCount != null)
+              context.l10n.byteCount(request.byteCount!),
           ].join(' / '),
         ),
     ];
     final preview = request.textPreview;
     final previewText = preview == null
-        ? 'Preview unavailable'
+        ? context.l10n.previewUnavailable
         : preview.isEmpty
-        ? 'Clipboard is empty'
+        ? context.l10n.clipboardEmpty
         : _visibleOsc52Preview(preview) +
-              (request.textPreviewTruncated ? '\n... preview truncated' : '');
+              (request.textPreviewTruncated
+                  ? '\n... ${context.l10n.previewTruncated}'
+                  : '');
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 440),
       child: Column(
@@ -1483,20 +1485,20 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         children: [
           Text(
             isPasteRequest
-                ? 'The terminal is requesting clipboard contents and will send them back to the session if allowed.'
-                : 'The terminal wants to write the following text to your clipboard.',
+                ? context.l10n.terminalRequestsClipboardRead
+                : context.l10n.terminalRequestsClipboardWrite,
           ),
           if (request.canRememberPassword) ...[
             const SizedBox(height: 8),
             Text(
-              '“Always allow” permits future OSC 5522 clipboard reads and writes that use this exact application name and password, only for the current terminal session.',
+              context.l10n.alwaysAllowClipboardHelp,
               style: textTheme.bodySmall,
             ),
           ],
           const SizedBox(height: 12),
           Wrap(spacing: 8, runSpacing: 8, children: details),
           const SizedBox(height: 12),
-          Text('Preview', style: textTheme.labelLarge),
+          Text(context.l10n.preview, style: textTheme.labelLarge),
           const SizedBox(height: 6),
           ConstrainedBox(
             constraints: const BoxConstraints(maxHeight: 132),
@@ -1518,7 +1520,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
           ),
           const SizedBox(height: 10),
           Text(
-            'Only allow this for trusted sessions.',
+            context.l10n.trustedSessionsOnly,
             style: textTheme.bodySmall?.copyWith(
               color: colorScheme.onSurfaceVariant,
             ),
@@ -1576,16 +1578,21 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     final state = ref.read(sessionControllerProvider);
     final resolvedSessionId = sessionId ?? state.activeSessionId;
     if (resolvedSessionId == null) {
-      return 'current';
+      return context.l10n.current;
     }
     final pane = _paneForSession(state, resolvedSessionId);
-    final paneState = state.activeSessionId == resolvedSessionId
-        ? 'active pane'
-        : 'inactive pane';
-    if (pane == null) {
-      return '$resolvedSessionId · $paneState';
-    }
-    return '${pane.title} ($resolvedSessionId) · $paneState';
+    final paneState =
+        (state.activeSessionId == resolvedSessionId
+                ? context.l10n.activePane
+                : context.l10n.inactivePane)
+            .toLowerCase();
+    return pane == null
+        ? context.l10n.paneContextUntitled(resolvedSessionId, paneState)
+        : context.l10n.paneContextTitled(
+            pane.title,
+            resolvedSessionId,
+            paneState,
+          );
   }
 
   String _osc52SnackBarMessageFor(
@@ -1598,62 +1605,68 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         terminal.TerminalClipboardOperation.copy,
         terminal.TerminalClipboardDecision.allowed,
       ) =>
-        '$protocolName copied ${count ?? 0} characters to the clipboard',
+        context.l10n.oscClipboardCopied(protocolName, count ?? 0),
       (
         terminal.TerminalClipboardOperation.copy,
         terminal.TerminalClipboardDecision.blocked,
       ) =>
-        '$protocolName clipboard copy blocked by policy',
+        context.l10n.oscClipboardCopyBlocked(protocolName),
       (
         terminal.TerminalClipboardOperation.copy,
         terminal.TerminalClipboardDecision.invalidPayload,
       ) =>
-        '$protocolName clipboard copy ignored: invalid payload',
+        context.l10n.oscClipboardCopyInvalid(protocolName),
       (
         terminal.TerminalClipboardOperation.pasteRequest,
         terminal.TerminalClipboardDecision.allowed,
       ) =>
-        '$protocolName paste read replied with ${count ?? 0} characters',
+        context.l10n.oscPasteReadReplied(protocolName, count ?? 0),
       (
         terminal.TerminalClipboardOperation.pasteRequest,
         terminal.TerminalClipboardDecision.blocked,
       ) =>
-        '$protocolName paste read blocked by policy',
+        context.l10n.oscPasteReadBlocked(protocolName),
       (
         terminal.TerminalClipboardOperation.pasteRequest,
         terminal.TerminalClipboardDecision.invalidPayload,
       ) =>
-        '$protocolName paste read ignored: invalid payload',
+        context.l10n.oscPasteReadInvalid(protocolName),
       (
         terminal.TerminalClipboardOperation.mimeWrite,
         terminal.TerminalClipboardDecision.allowed,
       ) =>
-        'OSC 5522 wrote ${event.mimeTypes.length} MIME types (${event.byteCount ?? 0} bytes)',
+        context.l10n.oscMimeWriteSucceeded(
+          event.mimeTypes.length,
+          event.byteCount ?? 0,
+        ),
       (
         terminal.TerminalClipboardOperation.mimeWrite,
         terminal.TerminalClipboardDecision.blocked,
       ) =>
-        'OSC 5522 MIME clipboard write blocked by policy',
+        context.l10n.oscMimeWriteBlocked,
       (
         terminal.TerminalClipboardOperation.mimeWrite,
         terminal.TerminalClipboardDecision.invalidPayload,
       ) =>
-        'OSC 5522 MIME clipboard write failed',
+        context.l10n.oscMimeWriteFailed,
       (
         terminal.TerminalClipboardOperation.mimeRead,
         terminal.TerminalClipboardDecision.allowed,
       ) =>
-        'OSC 5522 replied with ${event.mimeTypes.length} MIME types (${event.byteCount ?? 0} bytes)',
+        context.l10n.oscMimeReadSucceeded(
+          event.mimeTypes.length,
+          event.byteCount ?? 0,
+        ),
       (
         terminal.TerminalClipboardOperation.mimeRead,
         terminal.TerminalClipboardDecision.blocked,
       ) =>
-        'OSC 5522 MIME clipboard read blocked by policy',
+        context.l10n.oscMimeReadBlocked,
       (
         terminal.TerminalClipboardOperation.mimeRead,
         terminal.TerminalClipboardDecision.invalidPayload,
       ) =>
-        'OSC 5522 MIME clipboard read failed',
+        context.l10n.oscMimeReadFailed,
     };
     if (!_osc52StatusShouldOfferPaneFocus(event)) {
       return message;
@@ -1675,7 +1688,9 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     }
     final title = event.title.trim();
     final message = event.message.trim();
-    final visibleTitle = title.isEmpty ? 'Terminal notification' : title;
+    final visibleTitle = title.isEmpty
+        ? context.l10n.terminalNotification
+        : title;
     final visibleMessage = message.isEmpty ? visibleTitle : message;
     if (!_activityNotificationsEnabled ||
         !_notificationSessionIsInactive(event.sessionId) ||
@@ -1686,8 +1701,15 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     final remoteContext = _oscNotificationRemoteContext(event.sessionId);
     _sendShellNotification(
       title: remoteContext == null
-          ? '$visibleTitle in ${_sessionTitleForNotification(event.sessionId)}'
-          : '$visibleTitle on $remoteContext in ${_sessionTitleForNotification(event.sessionId)}',
+          ? context.l10n.notificationInSession(
+              visibleTitle,
+              _sessionTitleForNotification(event.sessionId),
+            )
+          : context.l10n.notificationOnRemoteInSession(
+              visibleTitle,
+              remoteContext,
+              _sessionTitleForNotification(event.sessionId),
+            ),
       body: visibleMessage,
       identifier:
           systemIdentifier ??
@@ -1763,8 +1785,11 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     if (_activityNotificationAllowed(sessionId)) {
       _activityNotificationTrailingTimers.remove(sessionId)?.cancel();
       _sendShellNotification(
-        title: 'Activity in ${_sessionTitleForNotification(sessionId)}',
-        body: _activityNotificationBody,
+        title: context.l10n.notificationInSession(
+          context.l10n.activity,
+          _sessionTitleForNotification(sessionId),
+        ),
+        body: context.l10n.newTerminalOutputAvailable,
         identifier: 'ianvs-terminal.activity.$sessionId',
       );
       return;
@@ -1786,8 +1811,11 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         }
         _lastActivityNotificationAt[sessionId] = DateTime.now();
         _sendShellNotification(
-          title: 'Activity in ${_sessionTitleForNotification(sessionId)}',
-          body: _activityNotificationBody,
+          title: context.l10n.notificationInSession(
+            context.l10n.activity,
+            _sessionTitleForNotification(sessionId),
+          ),
+          body: context.l10n.newTerminalOutputAvailable,
           identifier: 'ianvs-terminal.activity.$sessionId',
         );
       },
@@ -1836,9 +1864,11 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       null => _sessionTitleForNotification(sessionId),
     };
     _sendShellNotification(
-      title: 'Session ended',
-      body:
-          '$sessionTitle exited${exitCode == null ? '' : ' with code $exitCode'}.',
+      title: context.l10n.sessionEnded,
+      body: context.l10n.sessionExitedBody(
+        sessionTitle,
+        exitCode?.toString() ?? 'none',
+      ),
       identifier:
           'ianvs-terminal.exit.$sessionId.${DateTime.now().microsecondsSinceEpoch}',
     );
@@ -1852,9 +1882,11 @@ extension _ShellScreenStateEvents on _ShellScreenState {
   }) {
     final trimmedTitle = title.trim();
     if (paneCount < 2) {
-      return trimmedTitle.isEmpty ? 'Session $sessionId' : trimmedTitle;
+      return trimmedTitle.isEmpty
+          ? context.l10n.sessionNamed(sessionId)
+          : trimmedTitle;
     }
-    final paneLabel = 'pane ${paneIndex + 1}';
+    final paneLabel = context.l10n.paneNamed(paneIndex + 1);
     return trimmedTitle.isEmpty
         ? '$paneLabel ($sessionId)'
         : '$trimmedTitle $paneLabel ($sessionId)';
@@ -1865,8 +1897,11 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       return;
     }
     _sendShellNotification(
-      title: 'Bell in ${_sessionTitleForNotification(sessionId)}',
-      body: 'The terminal requested attention.',
+      title: context.l10n.notificationInSession(
+        context.l10n.bell,
+        _sessionTitleForNotification(sessionId),
+      ),
+      body: context.l10n.terminalRequestedAttentionBody,
       identifier: 'ianvs-terminal.bell.$sessionId',
     );
   }
@@ -1881,7 +1916,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     final exitCode = event.exitCode;
     _sendShellNotification(
       title: _commandFinishedNotificationTitle(event.sessionId),
-      body: exitCode == null ? null : 'Exit code $exitCode',
+      body: exitCode == null ? null : context.l10n.exitCode(exitCode),
       identifier:
           'ianvs-terminal.command.${event.sessionId}.${DateTime.now().microsecondsSinceEpoch}',
     );
@@ -1890,12 +1925,17 @@ extension _ShellScreenStateEvents on _ShellScreenState {
   String _commandFinishedNotificationTitle(String sessionId) {
     final remoteContext = _oscNotificationRemoteContext(sessionId);
     if (remoteContext != null) {
-      return 'Command finished on $remoteContext in ${_sessionTitleForNotification(sessionId)}';
+      return context.l10n.commandFinishedOnRemoteInSession(
+        remoteContext,
+        _sessionTitleForNotification(sessionId),
+      );
     }
     if (!_sessionIsInMultiPaneTab(sessionId)) {
-      return 'Command finished';
+      return context.l10n.commandFinished;
     }
-    return 'Command finished in ${_sessionTitleForNotification(sessionId)}';
+    return context.l10n.commandFinishedInSession(
+      _sessionTitleForNotification(sessionId),
+    );
   }
 
   Future<void> _loadNotificationPreferences() async {
@@ -1926,7 +1966,9 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       });
     } on Object catch (error) {
       if (mounted) {
-        _showShellSnackBar('Terminal settings could not be loaded: $error');
+        _showShellSnackBar(
+          context.l10n.terminalSettingsCouldNotLoad(error.toString()),
+        );
       }
     }
   }
@@ -2026,9 +2068,10 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       return;
     }
     final details = <String>[
-      'Hotkey window unavailable',
-      if (status != null) 'shortcut: ${status.shortcut}',
-      if (status?.errorCode != null) 'error: ${status!.errorCode}',
+      context.l10n.hotkeyWindowUnavailable,
+      if (status != null) context.l10n.shortcutValue(status.shortcut),
+      if (status?.errorCode != null)
+        context.l10n.errorValue(status!.errorCode!.toString()),
       if (error?.message != null && error!.message!.trim().isNotEmpty)
         error.message!.trim(),
     ].join(' - ');

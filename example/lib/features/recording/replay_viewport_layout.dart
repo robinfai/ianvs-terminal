@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../l10n/l10n.dart';
+
 /// Draws a crisp, theme-adaptive boundary around a recorded viewport.
 ///
 /// The frame is painted over the content, so it does not change the recorded
@@ -375,8 +377,7 @@ class _ReplayFloatingStageState extends State<ReplayFloatingStage> {
                                 right: 0,
                                 height: _dragStripHeight,
                                 child: Semantics(
-                                  label:
-                                      'Drag replay controls. Double tap to reset position.',
+                                  label: context.l10n.dragReplayControls,
                                   button: true,
                                   child: MouseRegion(
                                     cursor: motion.dragging
