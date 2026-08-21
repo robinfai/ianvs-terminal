@@ -12,6 +12,8 @@ class AppDialogScaffold extends StatelessWidget {
     super.key,
     required this.title,
     required this.body,
+    this.leading,
+    this.actions = const [],
     this.subtitle,
     this.footer,
     this.onClose,
@@ -27,11 +29,14 @@ class AppDialogScaffold extends StatelessWidget {
     this.titleTextStyle,
     this.subtitleTextStyle,
     this.centerInViewport = true,
+    this.borderRadius,
   });
 
   final String title;
   final String? subtitle;
   final Widget body;
+  final Widget? leading;
+  final List<Widget> actions;
   final Widget? footer;
   final VoidCallback? onClose;
   final String? closeTooltip;
@@ -46,6 +51,7 @@ class AppDialogScaffold extends StatelessWidget {
   final TextStyle? titleTextStyle;
   final TextStyle? subtitleTextStyle;
   final bool centerInViewport;
+  final BorderRadius? borderRadius;
 
   @override
   Widget build(BuildContext context) {
@@ -62,6 +68,7 @@ class AppDialogScaffold extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (leading != null) ...[leading!, SizedBox(width: theme.spacing.sm)],
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -90,6 +97,12 @@ class AppDialogScaffold extends StatelessWidget {
               ],
             ),
           ),
+          for (var index = 0; index < actions.length; index++) ...[
+            if (index > 0) SizedBox(width: theme.spacing.xs),
+            actions[index],
+          ],
+          if (actions.isNotEmpty && onClose != null)
+            SizedBox(width: theme.spacing.xs),
           if (onClose != null)
             AppActionButton(
               tooltip: closeTooltip ?? context.l10n.closeDialog,
@@ -149,7 +162,7 @@ class AppDialogScaffold extends StatelessWidget {
         child: AppPanel(
           tone: AppPanelTone.elevated,
           shadow: true,
-          borderRadius: BorderRadius.circular(theme.radius.xl),
+          borderRadius: borderRadius ?? BorderRadius.circular(theme.radius.xl),
           child: contents,
         ),
       ),

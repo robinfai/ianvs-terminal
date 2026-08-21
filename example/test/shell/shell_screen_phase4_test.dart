@@ -4956,8 +4956,11 @@ void main() {
     await _openCommandMenu(tester);
     await tester.tap(find.text('Defaults & appearance'));
     await tester.pumpAndSettle();
+    final shortcutEntry = find.byKey(const Key('defaults-shortcuts-entry'));
+    await tester.ensureVisible(shortcutEntry);
+    await tester.tap(shortcutEntry);
+    await tester.pumpAndSettle();
     final filter = find.byKey(const Key('shortcut-editor-filter'));
-    await tester.ensureVisible(filter);
     await tester.enterText(filter, 'new tab');
     await tester.pump();
     final editNewTab = find.byKey(const Key('shortcut-edit-newTab'));
@@ -4975,6 +4978,8 @@ void main() {
     await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft, platform: 'macos');
     await tester.pump();
     await tester.tap(find.byKey(const Key('shortcut-capture-apply')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('defaults-shortcuts-done')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('defaults-save')));
     await tester.pumpAndSettle();
@@ -5030,11 +5035,15 @@ void main() {
     await _openCommandMenu(tester);
     await tester.tap(find.text('Defaults & appearance'));
     await tester.pumpAndSettle();
-    final restoreAll = find.byKey(const Key('shortcut-editor-restore-all'));
-    await tester.ensureVisible(restoreAll);
+    final shortcutEntry = find.byKey(const Key('defaults-shortcuts-entry'));
+    await tester.ensureVisible(shortcutEntry);
+    await tester.tap(shortcutEntry);
     await tester.pumpAndSettle();
+    final restoreAll = find.byKey(const Key('shortcut-editor-restore-all'));
     await tester.tap(restoreAll);
     await tester.pump();
+    await tester.tap(find.byKey(const Key('defaults-shortcuts-done')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('defaults-save')));
     await tester.pumpAndSettle();
 

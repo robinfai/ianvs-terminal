@@ -165,12 +165,16 @@ void main() {
     );
 
     await tester.scrollUntilVisible(
-      find.byKey(const Key('shortcut-editor-restore-all')),
+      find.byKey(const Key('defaults-shortcuts-entry')),
       400,
       scrollable: find.byType(Scrollable).first,
     );
+    await tester.tap(find.byKey(const Key('defaults-shortcuts-entry')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('shortcut-editor-restore-all')));
     await tester.pump();
+    await tester.tap(find.byKey(const Key('defaults-shortcuts-done')));
+    await tester.pumpAndSettle();
 
     expect(
       tester
@@ -178,6 +182,89 @@ void main() {
           .onPressed,
       isNotNull,
     );
+  });
+
+  testWidgets('desktop shortcut editor replaces the settings body in place', (
+    tester,
+  ) async {
+    await _pumpDefaultsDialog(tester, surfaceSize: const Size(1000, 820));
+
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('default-theme-option-dark')),
+      400,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.byKey(const Key('default-theme-option-dark')));
+    await tester.pump();
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('defaults-shortcuts-entry')),
+      400,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.byKey(const Key('defaults-shortcuts-entry')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('defaults-appearance-scroll')), findsNothing);
+    expect(find.byKey(const Key('shortcut-editor-list')), findsOneWidget);
+    expect(find.byType(ListView), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('shortcut-editor-list-panel')),
+        matching: find.byType(Scrollbar),
+      ),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('defaults-shortcuts-done')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    await tester.tap(find.byKey(const Key('defaults-shortcuts-done')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('default-theme-option-dark')), findsOneWidget);
+    expect(
+      tester
+          .widget<FilledButton>(find.byKey(const Key('defaults-save')))
+          .onPressed,
+      isNotNull,
+    );
+  });
+
+  testWidgets('mobile shortcut editor is a full-screen single-scroll page', (
+    tester,
+  ) async {
+    await _pumpDefaultsDialog(tester, surfaceSize: const Size(390, 844));
+
+    final dialogSize = tester.getSize(find.byKey(const Key('defaults-dialog')));
+    expect(dialogSize, const Size(390, 844));
+    expect(find.byKey(const Key('defaults-mobile-back')), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('defaults-shortcuts-entry')),
+      400,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.byKey(const Key('defaults-shortcuts-entry')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('defaults-appearance-scroll')), findsNothing);
+    expect(
+      find.byKey(const Key('shortcut-editor-mobile-menu')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('defaults-shortcuts-done')), findsNothing);
+    expect(find.byKey(const Key('shortcut-editor-list')), findsOneWidget);
+    expect(find.byType(ListView), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('shortcut-editor-list-panel')),
+        matching: find.byType(Scrollbar),
+      ),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+
+    await tester.tap(find.byKey(const Key('defaults-shortcuts-back')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('defaults-shortcuts-entry')), findsOneWidget);
   });
 
   testWidgets('remains usable at narrow width and large text scale', (
@@ -218,8 +305,10 @@ Future<void> _pumpEditor(
   Size surfaceSize = const Size(900, 720),
   TextScaler textScaler = TextScaler.noScaling,
 }) async {
-  await tester.binding.setSurfaceSize(surfaceSize);
-  addTearDown(() => tester.binding.setSurfaceSize(null));
+  tester.view.devicePixelRatio = 1;
+  tester.view.physicalSize = surfaceSize;
+  addTearDown(tester.view.resetDevicePixelRatio);
+  addTearDown(tester.view.resetPhysicalSize);
   await tester.pumpWidget(
     MaterialApp(
       theme: buildIanvsTerminalTheme(Brightness.dark),
@@ -235,6 +324,37 @@ Future<void> _pumpEditor(
               ),
             ),
           ),
+        ),
+      ),
+    ),
+  );
+  await tester.pump();
+}
+
+Future<void> _pumpDefaultsDialog(
+  WidgetTester tester, {
+  required Size surfaceSize,
+}) async {
+  tester.view.devicePixelRatio = 1;
+  tester.view.physicalSize = surfaceSize;
+  addTearDown(tester.view.resetDevicePixelRatio);
+  addTearDown(tester.view.resetPhysicalSize);
+  await tester.pumpWidget(
+    MaterialApp(
+      theme: buildIanvsTerminalTheme(Brightness.dark),
+      home: const Scaffold(
+        body: DefaultsAndAppearanceDialog(
+          profiles: [],
+          configuredDefaultProfileId: null,
+          effectiveDefaultProfileId: null,
+          themeMode: TerminalThemeMode.system,
+          terminalViewportPadding:
+              TerminalAppAppearance.defaultTerminalViewportPadding,
+          restoreLayout: false,
+          osc52Policy: LocalTerminalOsc52Policy.ask,
+          openUrlPolicy: LocalTerminalOpenUrlPolicy.ask,
+          requestAttentionPolicy: LocalTerminalRequestAttentionPolicy.disabled,
+          reportVariableDecisions: {},
         ),
       ),
     ),

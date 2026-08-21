@@ -209,13 +209,8 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
     }
 
     final activeSessionIdBeforeOpen = sessionState.activeSessionId;
-    final defaultsRoute = DialogRoute<DefaultsAndAppearanceSelection>(
-      context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.34),
-      barrierDismissible: true,
-      barrierLabel: 'Close defaults',
-      requestFocus: true,
-      builder: (dialogContext) => DefaultsAndAppearanceDialog(
+    Widget buildDefaults(BuildContext dialogContext) {
+      return DefaultsAndAppearanceDialog(
         profiles: sessionState.profiles,
         configuredDefaultProfileId: sessionState.configuredDefaultProfileId,
         effectiveDefaultProfileId: sessionState.defaultProfileId,
@@ -237,8 +232,24 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
         localDataApiAvailable: defaultTargetPlatform == TargetPlatform.macOS,
         localSessionsEnabled: _localSessionsEnabled,
         masterKeyRepository: ref.read(portableMasterKeyRepositoryProvider),
-      ),
-    );
+      );
+    }
+
+    final compactDefaultsLayout = MediaQuery.sizeOf(context).width < 600;
+    final ModalRoute<DefaultsAndAppearanceSelection> defaultsRoute =
+        compactDefaultsLayout
+        ? MaterialPageRoute<DefaultsAndAppearanceSelection>(
+            fullscreenDialog: true,
+            builder: buildDefaults,
+          )
+        : DialogRoute<DefaultsAndAppearanceSelection>(
+            context: context,
+            barrierColor: Colors.black.withValues(alpha: 0.34),
+            barrierDismissible: true,
+            barrierLabel: 'Close defaults',
+            requestFocus: true,
+            builder: buildDefaults,
+          );
     final selection = await Navigator.of(
       context,
       rootNavigator: true,

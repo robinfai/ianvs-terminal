@@ -1346,6 +1346,36 @@ abstract class AppLocalizations {
   /// **'Select a shortcut to record a new key combination. Changes apply immediately after saving.'**
   String get keyboardShortcutsDescription;
 
+  /// Description for the navigation entry that opens keyboard shortcut settings
+  ///
+  /// In en, this message translates to:
+  /// **'Customize key combinations for terminal actions.'**
+  String get keyboardShortcutsNavigationDescription;
+
+  /// Action that opens keyboard shortcut management
+  ///
+  /// In en, this message translates to:
+  /// **'Manage shortcuts'**
+  String get manageShortcuts;
+
+  /// Tooltip for returning from shortcut management to Defaults and appearance
+  ///
+  /// In en, this message translates to:
+  /// **'Back to Defaults & appearance'**
+  String get backToDefaultsAppearance;
+
+  /// Tooltip for the compact shortcut management overflow menu
+  ///
+  /// In en, this message translates to:
+  /// **'More shortcut actions'**
+  String get moreShortcutActions;
+
+  /// Action that finishes a nested settings task
+  ///
+  /// In en, this message translates to:
+  /// **'Done'**
+  String get done;
+
   /// Accessibility label for shortcut action filtering
   ///
   /// In en, this message translates to:

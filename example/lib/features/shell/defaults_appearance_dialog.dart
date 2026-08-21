@@ -117,6 +117,7 @@ class _DefaultsAndAppearanceDialogState
   bool _remoteDataApiUrlEdited = false;
   bool _remoteDataApiUsernameEdited = false;
   bool _remoteDataApiPasswordEdited = false;
+  bool _showShortcutEditor = false;
   String _terminalPresetFilter = '';
 
   @override
@@ -340,6 +341,13 @@ class _DefaultsAndAppearanceDialogState
     return '${preset.name} ${preset.tone.label}'.toLowerCase().contains(filter);
   }
 
+  void _setShortcutEditorVisible(bool visible) {
+    FocusManager.instance.primaryFocus?.unfocus();
+    setState(() {
+      _showShortcutEditor = visible;
+    });
+  }
+
   bool _hasChanges(TerminalProfile? effectiveProfile) {
     final selectedDataApiConfiguration = _selectedDataApiConfiguration;
     return widget.dataApiConfigurationRecoveryRequired ||
@@ -371,10 +379,16 @@ class _DefaultsAndAppearanceDialogState
     final compactKeyboardLayout =
         keyboardVisible &&
         (compactLayout || mediaSize.height < mediaSize.width);
-    final dialogInset = compactLayout ? theme.spacing.md : theme.spacing.xxl;
-    final dialogWidth = (mediaSize.width - dialogInset * 2).clamp(0.0, 720.0);
-    final dialogHeight = (mediaSize.height - keyboardInset - dialogInset * 2)
-        .clamp(0.0, 720.0);
+    final dialogInset = compactLayout ? 0.0 : theme.spacing.xxl;
+    final dialogWidth = compactLayout
+        ? mediaSize.width
+        : (mediaSize.width - dialogInset * 2).clamp(0.0, 960.0);
+    final dialogHeight = compactLayout
+        ? mediaSize.height - keyboardInset
+        : (mediaSize.height - keyboardInset - dialogInset * 2).clamp(
+            0.0,
+            760.0,
+          );
     final effectiveProfile = _effectiveProfileFor(
       configuredProfileId: _selectedProfileId,
       effectiveProfileId: widget.effectiveDefaultProfileId,
@@ -402,6 +416,9 @@ class _DefaultsAndAppearanceDialogState
     final reportVariableDecisionEntries =
         _selectedReportVariableDecisions.entries.toList(growable: false)
           ..sort((left, right) => left.key.compareTo(right.key));
+    final shortcutHasCustomizations =
+        _selectedKeybindings.disabledDefaultActions.isNotEmpty ||
+        _selectedKeybindings.overrides.isNotEmpty;
 
     return Semantics(
       identifier: 'defaults-dialog',
@@ -409,17 +426,73 @@ class _DefaultsAndAppearanceDialogState
       explicitChildNodes: true,
       child: AppDialogScaffold(
         key: const Key('defaults-dialog'),
-        title: context.l10n.defaultsAppearance,
-        subtitle: compactKeyboardLayout
+        title: _showShortcutEditor
+            ? context.l10n.keyboardShortcuts
+            : context.l10n.defaultsAppearance,
+        subtitle: compactLayout || compactKeyboardLayout
             ? null
+            : _showShortcutEditor
+            ? context.l10n.keyboardShortcutsDescription
             : context.l10n.defaultsAppearanceSubtitle,
-        onClose: () => Navigator.of(context).pop(),
+        leading: _showShortcutEditor
+            ? AppActionButton(
+                buttonKey: const Key('defaults-shortcuts-back'),
+                tooltip: context.l10n.backToDefaultsAppearance,
+                tone: AppActionTone.ghost,
+                size: AppActionSize.dense,
+                icon: Icons.arrow_back_rounded,
+                onPressed: () => _setShortcutEditorVisible(false),
+              )
+            : compactLayout
+            ? AppActionButton(
+                buttonKey: const Key('defaults-mobile-back'),
+                tooltip: context.l10n.closeDefaults,
+                tone: AppActionTone.ghost,
+                size: AppActionSize.dense,
+                icon: Icons.arrow_back_rounded,
+                onPressed: () => Navigator.of(context).pop(),
+              )
+            : null,
+        actions: _showShortcutEditor && compactLayout
+            ? [
+                PopupMenuButton<bool>(
+                  key: const Key('shortcut-editor-mobile-menu'),
+                  tooltip: context.l10n.moreShortcutActions,
+                  icon: const Icon(Icons.more_vert_rounded),
+                  onSelected: (_) {
+                    setState(() {
+                      _selectedKeybindings =
+                          const LocalTerminalKeybindingsConfig();
+                    });
+                  },
+                  itemBuilder: (context) => [
+                    PopupMenuItem<bool>(
+                      key: const Key('shortcut-editor-restore-all'),
+                      value: true,
+                      enabled: shortcutHasCustomizations,
+                      child: Row(
+                        children: [
+                          const Icon(Icons.restart_alt_rounded, size: 20),
+                          SizedBox(width: theme.spacing.sm),
+                          Text(context.l10n.restoreAllDefaults),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ]
+            : const [],
+        onClose: compactLayout ? null : () => Navigator.of(context).pop(),
         closeTooltip: context.l10n.closeDefaults,
         insetPadding: EdgeInsets.all(dialogInset),
-        constraints: const BoxConstraints(maxWidth: 720),
+        constraints: compactLayout
+            ? const BoxConstraints()
+            : const BoxConstraints(maxWidth: 960),
         width: dialogWidth,
         height: dialogHeight,
         expandBody: true,
+        centerInViewport: !compactLayout,
+        borderRadius: compactLayout ? BorderRadius.zero : null,
         titleTextStyle: Theme.of(context).textTheme.titleLarge?.copyWith(
           color: theme.textPrimary,
           fontWeight: FontWeight.w800,
@@ -429,29 +502,37 @@ class _DefaultsAndAppearanceDialogState
           context,
         ).textTheme.bodyMedium?.copyWith(color: theme.textSubtle),
         headerPadding: EdgeInsets.fromLTRB(
-          compactLayout ? theme.spacing.lg : theme.spacing.xxl,
+          compactLayout ? theme.spacing.md : theme.spacing.xxl,
           compactKeyboardLayout ? theme.spacing.sm : theme.spacing.xl,
           compactLayout ? theme.spacing.md : theme.spacing.xxl,
           compactKeyboardLayout ? theme.spacing.sm : theme.spacing.md,
         ),
         bodyPadding: EdgeInsets.fromLTRB(
-          compactLayout ? theme.spacing.lg : theme.spacing.xxl,
-          compactKeyboardLayout ? theme.spacing.sm : theme.spacing.xl,
-          compactLayout ? theme.spacing.sm : theme.spacing.md,
-          compactKeyboardLayout ? theme.spacing.sm : theme.spacing.xl,
+          compactLayout ? theme.spacing.md : theme.spacing.xxl,
+          compactKeyboardLayout ? theme.spacing.sm : theme.spacing.md,
+          compactLayout ? theme.spacing.md : theme.spacing.xxl,
+          compactKeyboardLayout ? theme.spacing.sm : theme.spacing.md,
         ),
         footerPadding: EdgeInsets.fromLTRB(
-          theme.spacing.xxl,
+          compactLayout ? theme.spacing.md : theme.spacing.xxl,
           theme.spacing.md,
-          theme.spacing.xxl,
+          compactLayout ? theme.spacing.md : theme.spacing.xxl,
           theme.spacing.md,
         ),
-        body: Scrollbar(
-          controller: _scrollController,
-          thumbVisibility: true,
-          radius: Radius.circular(theme.radius.sm),
-          thickness: theme.spacing.xs,
-          child: SingleChildScrollView(
+        body: _showShortcutEditor
+            ? ShortcutEditorPanel(
+                config: _selectedKeybindings,
+                expandList: true,
+                showHeader: false,
+                showRestoreAction: !compactLayout,
+                onChanged: (value) {
+                  setState(() {
+                    _selectedKeybindings = value;
+                  });
+                },
+              )
+            : SingleChildScrollView(
+            key: const Key('defaults-appearance-scroll'),
             controller: _scrollController,
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             padding: EdgeInsets.only(right: theme.spacing.md),
@@ -730,15 +811,6 @@ class _DefaultsAndAppearanceDialogState
                   ),
                 ),
                 SizedBox(height: theme.spacing.xxl),
-                ShortcutEditorPanel(
-                  config: _selectedKeybindings,
-                  onChanged: (value) {
-                    setState(() {
-                      _selectedKeybindings = value;
-                    });
-                  },
-                ),
-                SizedBox(height: theme.spacing.xxl),
                 AppSectionHeader(title: context.l10n.appearance),
                 SizedBox(height: theme.spacing.sm),
                 _SettingsRadioPanel<TerminalThemeMode>(
@@ -761,8 +833,15 @@ class _DefaultsAndAppearanceDialogState
                         subtitle: context.l10n.themeModeDescription(
                           themeMode.name,
                         ),
-                      ),
+                    ),
                   ],
+                ),
+                SizedBox(height: theme.spacing.xxl),
+                AppSectionHeader(title: context.l10n.keyboardShortcuts),
+                SizedBox(height: theme.spacing.sm),
+                _ShortcutSettingsEntry(
+                  compact: compactLayout,
+                  onPressed: () => _setShortcutEditorVisible(true),
                 ),
                 SizedBox(height: theme.spacing.xxl),
                 AppSectionHeader(
@@ -1377,9 +1456,18 @@ class _DefaultsAndAppearanceDialogState
               ],
             ),
           ),
-        ),
-        footer: compactKeyboardLayout
+        footer: compactKeyboardLayout ||
+                (_showShortcutEditor && compactLayout)
             ? null
+            : _showShortcutEditor
+            ? Align(
+                alignment: Alignment.centerRight,
+                child: AppActionButton(
+                  buttonKey: const Key('defaults-shortcuts-done'),
+                  label: context.l10n.done,
+                  onPressed: () => _setShortcutEditorVisible(false),
+                ),
+              )
             : LayoutBuilder(
                 builder: (context, constraints) {
                   final resetActions = Wrap(
@@ -1515,6 +1603,94 @@ class _DefaultsAndAppearanceDialogState
                   );
                 },
               ),
+      ),
+    );
+  }
+}
+
+class _ShortcutSettingsEntry extends StatelessWidget {
+  const _ShortcutSettingsEntry({
+    required this.compact,
+    required this.onPressed,
+  });
+
+  final bool compact;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.appTheme;
+    final textTheme = Theme.of(context).textTheme;
+    final radius = BorderRadius.circular(theme.radius.md);
+    return AppPanel(
+      tone: AppPanelTone.panel,
+      borderRadius: radius,
+      child: Semantics(
+        button: true,
+        label: context.l10n.manageShortcuts,
+        hint: context.l10n.keyboardShortcutsNavigationDescription,
+        child: InkWell(
+          key: const Key('defaults-shortcuts-entry'),
+          borderRadius: radius,
+          onTap: onPressed,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: compact ? 64 : 72),
+            child: Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: theme.spacing.md,
+                vertical: theme.spacing.sm,
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.keyboard_rounded,
+                    size: 20,
+                    color: theme.textMuted,
+                  ),
+                  SizedBox(width: theme.spacing.md),
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          context.l10n.keyboardShortcuts,
+                          style: textTheme.bodyMedium?.copyWith(
+                            color: theme.textPrimary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        SizedBox(height: theme.spacing.xs),
+                        Text(
+                          context.l10n.keyboardShortcutsNavigationDescription,
+                          maxLines: compact ? 2 : 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: textTheme.bodySmall?.copyWith(
+                            color: theme.textSubtle,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(width: theme.spacing.md),
+                  if (!compact)
+                    Text(
+                      context.l10n.manageShortcuts,
+                      style: textTheme.labelLarge?.copyWith(
+                        color: theme.textPrimary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  SizedBox(width: theme.spacing.xs),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    color: theme.textMuted,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

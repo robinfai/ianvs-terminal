@@ -957,6 +957,26 @@
   "@keyboardShortcutsDescription": {
     "description": "Keyboard shortcut settings explanation"
   },
+  "keyboardShortcutsNavigationDescription": "Customize key combinations for terminal actions.",
+  "@keyboardShortcutsNavigationDescription": {
+    "description": "Description for the navigation entry that opens keyboard shortcut settings"
+  },
+  "manageShortcuts": "Manage shortcuts",
+  "@manageShortcuts": {
+    "description": "Action that opens keyboard shortcut management"
+  },
+  "backToDefaultsAppearance": "Back to Defaults & appearance",
+  "@backToDefaultsAppearance": {
+    "description": "Tooltip for returning from shortcut management to Defaults and appearance"
+  },
+  "moreShortcutActions": "More shortcut actions",
+  "@moreShortcutActions": {
+    "description": "Tooltip for the compact shortcut management overflow menu"
+  },
+  "done": "Done",
+  "@done": {
+    "description": "Action that finishes a nested settings task"
+  },
   "filterShortcutActions": "Filter shortcut actions",
   "@filterShortcutActions": {
     "description": "Accessibility label for shortcut action filtering"

@@ -127,10 +127,16 @@ class ShortcutEditorPanel extends StatefulWidget {
     super.key,
     required this.config,
     required this.onChanged,
+    this.expandList = false,
+    this.showHeader = true,
+    this.showRestoreAction = true,
   });
 
   final LocalTerminalKeybindingsConfig config;
   final ValueChanged<LocalTerminalKeybindingsConfig> onChanged;
+  final bool expandList;
+  final bool showHeader;
+  final bool showRestoreAction;
 
   @override
   State<ShortcutEditorPanel> createState() => _ShortcutEditorPanelState();
@@ -138,11 +144,13 @@ class ShortcutEditorPanel extends StatefulWidget {
 
 class _ShortcutEditorPanelState extends State<ShortcutEditorPanel> {
   final TextEditingController _filterController = TextEditingController();
+  final ScrollController _listScrollController = ScrollController();
   TerminalActionCategory? _category;
 
   @override
   void dispose() {
     _filterController.dispose();
+    _listScrollController.dispose();
     super.dispose();
   }
 
@@ -287,131 +295,148 @@ class _ShortcutEditorPanelState extends State<ShortcutEditorPanel> {
         widget.config.disabledDefaultActions.isNotEmpty ||
         widget.config.overrides.isNotEmpty;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
+    final toolbar = LayoutBuilder(
+      builder: (context, constraints) {
+        final search = Semantics(
+          label: context.l10n.filterShortcutActions,
+          container: true,
+          explicitChildNodes: true,
+          child: TextField(
+            key: const Key('shortcut-editor-filter'),
+            controller: _filterController,
+            textInputAction: TextInputAction.search,
+            decoration: InputDecoration(
+              isDense: true,
+              prefixIcon: const Icon(Icons.search_rounded),
+              labelText: context.l10n.filterActions,
+            ),
+            onChanged: (_) => setState(() {}),
+          ),
+        );
+        final category = AppDropdownFormField<TerminalActionCategory?>(
+          key: const Key('shortcut-editor-category'),
+          initialValue: _category,
+          isExpanded: true,
+          decoration: InputDecoration(
+            isDense: true,
+            labelText: context.l10n.category,
+          ),
+          items: [
+            DropdownMenuItem<TerminalActionCategory?>(
+              value: null,
+              child: Text(context.l10n.allActions),
+            ),
+            for (final value in TerminalActionCategory.values)
+              DropdownMenuItem<TerminalActionCategory?>(
+                value: value,
+                child: Text(
+                  LocalTerminalShortcutFormatter.categoryLabel(
+                    context.l10n,
+                    value,
+                  ),
+                ),
+              ),
+          ],
+          onChanged: (value) => setState(() => _category = value),
+        );
+        final restore = AppActionButton(
+          buttonKey: const Key('shortcut-editor-restore-all'),
+          tone: AppActionTone.secondary,
+          size: AppActionSize.compact,
+          icon: Icons.restart_alt_rounded,
+          label: context.l10n.restoreAllDefaults,
+          onPressed: hasCustomizations
+              ? () => widget.onChanged(const LocalTerminalKeybindingsConfig())
+              : null,
+        );
+        if (constraints.maxWidth < 560) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              search,
+              SizedBox(height: theme.spacing.sm),
+              category,
+              if (widget.showRestoreAction) ...[
+                SizedBox(height: theme.spacing.sm),
+                Align(alignment: Alignment.centerLeft, child: restore),
+              ],
+            ],
+          );
+        }
+        return Row(
+          children: [
+            Expanded(flex: 3, child: search),
+            SizedBox(width: theme.spacing.sm),
+            Expanded(flex: 2, child: category),
+            if (widget.showRestoreAction) ...[
+              SizedBox(width: theme.spacing.sm),
+              restore,
+            ],
+          ],
+        );
+      },
+    );
+
+    final list = AppPanel(
+      key: const Key('shortcut-editor-list-panel'),
+      tone: AppPanelTone.panel,
+      child: visibleActions.isEmpty
+          ? AppEmptyState(
+              title: context.l10n.noMatchingActions,
+              message: context.l10n.tryAnotherActionOrCategory,
+            )
+          : ListView.separated(
+              key: const Key('shortcut-editor-list'),
+              controller: _listScrollController,
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              itemCount: visibleActions.length,
+              separatorBuilder: (_, _) =>
+                  Divider(height: 1, color: theme.border),
+              itemBuilder: (context, index) {
+                final descriptor = visibleActions[index];
+                return _ShortcutActionRow(
+                  descriptor: descriptor,
+                  config: widget.config,
+                  customized: _isCustomized(descriptor.id),
+                  conflicted: conflictingActionIds.contains(descriptor.id),
+                  onEdit: () => _editBinding(descriptor),
+                  onDisable: () => _disableBinding(descriptor.id),
+                  onRestore: () => _restoreBinding(descriptor.id),
+                );
+              },
+            ),
+    );
+
+    final fixedContent = <Widget>[
+      if (widget.showHeader) ...[
         AppSectionHeader(
           title: context.l10n.keyboardShortcuts,
           description: context.l10n.keyboardShortcutsDescription,
         ),
         SizedBox(height: theme.spacing.sm),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final search = Semantics(
-              label: context.l10n.filterShortcutActions,
-              container: true,
-              explicitChildNodes: true,
-              child: TextField(
-                key: const Key('shortcut-editor-filter'),
-                controller: _filterController,
-                textInputAction: TextInputAction.search,
-                decoration: InputDecoration(
-                  isDense: true,
-                  prefixIcon: const Icon(Icons.search_rounded),
-                  labelText: context.l10n.filterActions,
-                ),
-                onChanged: (_) => setState(() {}),
-              ),
-            );
-            final category = AppDropdownFormField<TerminalActionCategory?>(
-              key: const Key('shortcut-editor-category'),
-              initialValue: _category,
-              isExpanded: true,
-              decoration: InputDecoration(
-                isDense: true,
-                labelText: context.l10n.category,
-              ),
-              items: [
-                DropdownMenuItem<TerminalActionCategory?>(
-                  value: null,
-                  child: Text(context.l10n.allActions),
-                ),
-                for (final value in TerminalActionCategory.values)
-                  DropdownMenuItem<TerminalActionCategory?>(
-                    value: value,
-                    child: Text(
-                      LocalTerminalShortcutFormatter.categoryLabel(
-                        context.l10n,
-                        value,
-                      ),
-                    ),
-                  ),
-              ],
-              onChanged: (value) => setState(() => _category = value),
-            );
-            final restore = AppActionButton(
-              buttonKey: const Key('shortcut-editor-restore-all'),
-              tone: AppActionTone.secondary,
-              size: AppActionSize.compact,
-              icon: Icons.restart_alt_rounded,
-              label: context.l10n.restoreAllDefaults,
-              onPressed: hasCustomizations
-                  ? () =>
-                        widget.onChanged(const LocalTerminalKeybindingsConfig())
-                  : null,
-            );
-            if (constraints.maxWidth < 560) {
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  search,
-                  SizedBox(height: theme.spacing.sm),
-                  category,
-                  SizedBox(height: theme.spacing.sm),
-                  Align(alignment: Alignment.centerLeft, child: restore),
-                ],
-              );
-            }
-            return Row(
-              children: [
-                Expanded(flex: 3, child: search),
-                SizedBox(width: theme.spacing.sm),
-                Expanded(flex: 2, child: category),
-                SizedBox(width: theme.spacing.sm),
-                restore,
-              ],
-            );
-          },
-        ),
-        if (conflicts.isNotEmpty) ...[
-          SizedBox(height: theme.spacing.sm),
-          _ShortcutConflictSummary(conflicts: conflicts),
-        ],
+      ],
+      toolbar,
+      if (conflicts.isNotEmpty) ...[
         SizedBox(height: theme.spacing.sm),
-        AppPanel(
-          key: const Key('shortcut-editor-list-panel'),
-          tone: AppPanelTone.panel,
-          child: SizedBox(
-            height: 360,
-            child: visibleActions.isEmpty
-                ? AppEmptyState(
-                    title: context.l10n.noMatchingActions,
-                    message: context.l10n.tryAnotherActionOrCategory,
-                  )
-                : Scrollbar(
-                    child: ListView.separated(
-                      key: const Key('shortcut-editor-list'),
-                      itemCount: visibleActions.length,
-                      separatorBuilder: (_, _) =>
-                          Divider(height: 1, color: theme.border),
-                      itemBuilder: (context, index) {
-                        final descriptor = visibleActions[index];
-                        return _ShortcutActionRow(
-                          descriptor: descriptor,
-                          config: widget.config,
-                          customized: _isCustomized(descriptor.id),
-                          conflicted: conflictingActionIds.contains(
-                            descriptor.id,
-                          ),
-                          onEdit: () => _editBinding(descriptor),
-                          onDisable: () => _disableBinding(descriptor.id),
-                          onRestore: () => _restoreBinding(descriptor.id),
-                        );
-                      },
-                    ),
-                  ),
-          ),
-        ),
+        _ShortcutConflictSummary(conflicts: conflicts),
+      ],
+      SizedBox(height: theme.spacing.sm),
+    ];
+
+    if (widget.expandList) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ...fixedContent,
+          Expanded(child: list),
+        ],
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ...fixedContent,
+        SizedBox(height: 360, child: list),
       ],
     );
   }

@@ -738,6 +738,21 @@ class AppLocalizationsZh extends AppLocalizations {
   String get keyboardShortcutsDescription => '选择一个快捷键以录入新的组合键。保存后更改会立即生效。';
 
   @override
+  String get keyboardShortcutsNavigationDescription => '自定义终端操作的组合键。';
+
+  @override
+  String get manageShortcuts => '管理快捷键';
+
+  @override
+  String get backToDefaultsAppearance => '返回默认设置与外观';
+
+  @override
+  String get moreShortcutActions => '更多快捷键操作';
+
+  @override
+  String get done => '完成';
+
+  @override
   String get filterShortcutActions => '筛选快捷键操作';
 
   @override

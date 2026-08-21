@@ -783,6 +783,22 @@ class AppLocalizationsEn extends AppLocalizations {
       'Select a shortcut to record a new key combination. Changes apply immediately after saving.';
 
   @override
+  String get keyboardShortcutsNavigationDescription =>
+      'Customize key combinations for terminal actions.';
+
+  @override
+  String get manageShortcuts => 'Manage shortcuts';
+
+  @override
+  String get backToDefaultsAppearance => 'Back to Defaults & appearance';
+
+  @override
+  String get moreShortcutActions => 'More shortcut actions';
+
+  @override
+  String get done => 'Done';
+
+  @override
   String get filterShortcutActions => 'Filter shortcut actions';
 
   @override
