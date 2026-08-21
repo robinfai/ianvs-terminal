@@ -91,12 +91,14 @@ class NewSessionLauncher extends StatefulWidget {
     required this.importOpenSshProfiles,
     this.customSshProfilesEnabled = true,
     this.localSessionsEnabled = true,
+    this.initialConnectionType = terminal.TerminalConnectionType.local,
   });
 
   final List<TerminalProfile> profiles;
   final Future<SshProfileImportSnapshot> Function() importOpenSshProfiles;
   final bool customSshProfilesEnabled;
   final bool localSessionsEnabled;
+  final terminal.TerminalConnectionType initialConnectionType;
 
   @override
   State<NewSessionLauncher> createState() => _NewSessionLauncherState();
@@ -110,9 +112,9 @@ class _NewSessionLauncherState extends State<NewSessionLauncher> {
   void initState() {
     super.initState();
     _type = widget.localSessionsEnabled
-        ? terminal.TerminalConnectionType.local
+        ? widget.initialConnectionType
         : terminal.TerminalConnectionType.ssh;
-    if (!widget.localSessionsEnabled) {
+    if (_type == terminal.TerminalConnectionType.ssh) {
       _importedProfiles = widget.importOpenSshProfiles();
     }
   }

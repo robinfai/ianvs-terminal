@@ -391,6 +391,7 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
     bindNativePasteMenuItems()
     bindNativeSettingsMenuItem()
     bindNativeTerminalFolderMenuItem()
+    bindNativeTerminalSessionMenuItems()
     hotkeyWindowController = HotkeyWindowController(window: self)
     hotkeyWindowController?.register()
     windowBridgeChannel?.setMethodCallHandler { [weak self] call, result in
@@ -805,6 +806,20 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
     windowBridgeChannel?.invokeMethod("nativeOpenTerminalAtFolder", arguments: nil)
   }
 
+  @objc func openLocalTerminal(_ sender: Any?) {
+    windowBridgeChannel?.invokeMethod(
+      "nativeAppAction",
+      arguments: ["action": "newLocalTerminal"]
+    )
+  }
+
+  @objc func openSshSession(_ sender: Any?) {
+    windowBridgeChannel?.invokeMethod(
+      "nativeAppAction",
+      arguments: ["action": "newSshSession"]
+    )
+  }
+
   @objc func openSettings(_ sender: Any?) {
     windowBridgeChannel?.invokeMethod(
       "nativeAppAction",
@@ -911,6 +926,60 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
     newTabAtFolderItem.action = #selector(openTerminalAtFolder(_:))
     newTabAtFolderItem.keyEquivalent = "o"
     newTabAtFolderItem.keyEquivalentModifierMask = [.command]
+  }
+
+  func bindNativeTerminalSessionMenuItems(in providedMenu: NSMenu? = NSApp.mainMenu) {
+    guard let mainMenu = providedMenu else {
+      return
+    }
+    let fileMenuItem: NSMenuItem
+    let fileMenu: NSMenu
+    if let existing = mainMenu.items.first(where: { $0.title == "File" }) {
+      fileMenuItem = existing
+      fileMenu = existing.submenu ?? NSMenu(title: "File")
+      fileMenuItem.submenu = fileMenu
+    } else {
+      fileMenuItem = NSMenuItem(title: "File", action: nil, keyEquivalent: "")
+      fileMenu = NSMenu(title: "File")
+      fileMenuItem.submenu = fileMenu
+      mainMenu.insertItem(fileMenuItem, at: min(1, mainMenu.items.count))
+    }
+
+    let localTitles = Set(["New Local Terminal", "New Local Terminal…"])
+    let localItem: NSMenuItem
+    if let existing = fileMenu.items.first(where: { localTitles.contains($0.title) }) {
+      localItem = existing
+    } else {
+      localItem = NSMenuItem(
+        title: "New Local Terminal…",
+        action: #selector(openLocalTerminal(_:)),
+        keyEquivalent: "t"
+      )
+      fileMenu.insertItem(localItem, at: 0)
+    }
+    localItem.title = "New Local Terminal…"
+    localItem.target = self
+    localItem.action = #selector(openLocalTerminal(_:))
+    localItem.keyEquivalent = "t"
+    localItem.keyEquivalentModifierMask = [.command]
+
+    let sshTitles = Set(["New SSH Session", "New SSH Session…"])
+    let sshItem: NSMenuItem
+    if let existing = fileMenu.items.first(where: { sshTitles.contains($0.title) }) {
+      sshItem = existing
+    } else {
+      sshItem = NSMenuItem(
+        title: "New SSH Session…",
+        action: #selector(openSshSession(_:)),
+        keyEquivalent: "t"
+      )
+      fileMenu.insertItem(sshItem, at: min(1, fileMenu.items.count))
+    }
+    sshItem.title = "New SSH Session…"
+    sshItem.target = self
+    sshItem.action = #selector(openSshSession(_:))
+    sshItem.keyEquivalent = "t"
+    sshItem.keyEquivalentModifierMask = [.command, .shift]
   }
 
   private func configureOsc72DropTarget(

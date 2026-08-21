@@ -8,6 +8,7 @@ import 'package:app/features/sessions/session_state.dart';
 import 'package:app/features/shell/instant_replay_store.dart';
 import 'package:app/features/shell/paste_history_repository.dart';
 import 'package:app/features/shell/shell_screen.dart';
+import 'package:app/features/ssh/ssh_profile_import_service.dart';
 import 'package:app/features/terminal/terminal.dart' as terminal;
 import 'package:app/features/terminal/terminal_viewport.dart';
 import 'package:app/ui/app_ui.dart';
@@ -67,6 +68,18 @@ class _SshEventfulPtyBackend extends _EventfulPtyBackend
   @override
   String createSessionV1(String sessionConfigV1Json) {
     return createSession(sessionConfigV1Json);
+  }
+}
+
+final class _EmptySshProfileImportService implements SshProfileImportService {
+  const _EmptySshProfileImportService();
+
+  @override
+  Future<SshProfileImportSnapshot> load({String? configPath}) async {
+    return const SshProfileImportSnapshot(
+      profiles: <TerminalProfile>[],
+      sourcePath: '~/.ssh/config',
+    );
   }
 }
 
@@ -161,6 +174,7 @@ Future<void> _pumpShellScreen(
   PasteHistoryRepository? pasteHistoryRepository,
   InstantReplayStore? instantReplayStore,
   ShellNotificationSender? notificationSender,
+  SshProfileImportService? sshProfileImportService,
   bool showHiddenRedesignEntryPointsForTesting = false,
   bool settle = true,
   TargetPlatform? platform,
@@ -189,6 +203,10 @@ Future<void> _pumpShellScreen(
         ),
         if (notificationSender != null)
           shellNotificationSenderProvider.overrideWithValue(notificationSender),
+        if (sshProfileImportService != null)
+          sshProfileImportServiceProvider.overrideWithValue(
+            sshProfileImportService,
+          ),
         if (showHiddenRedesignEntryPointsForTesting)
           shellHiddenRedesignEntryPointsProvider.overrideWithValue(true),
       ],
@@ -336,7 +354,9 @@ Future<void> _openTabCountWithShortcut(
   assert(tabCount >= 1, 'At least one tab must be open.');
   for (var index = 1; index < tabCount; index += 1) {
     await _sendMetaShortcut(tester, LogicalKeyboardKey.keyT);
-    await _chooseDefaultLocalSession(tester);
+    if (find.byKey(const Key('new-session-launcher')).evaluate().isNotEmpty) {
+      await _chooseDefaultLocalSession(tester);
+    }
   }
 }
 
@@ -3574,15 +3594,25 @@ void main() {
   );
 
   testWidgets(
-    'command-t opens another tab without opening the command menu',
+    'command-t directly opens the only local profile even when SSH exists',
     (tester) async {
       final fakeBindings = FakePtyBackend();
+      final sshProfile = defaultTerminalProfile().copyWith(
+        id: 'saved-ssh',
+        name: 'Saved SSH',
+        connection: const terminal.TerminalConnectionConfig.ssh(
+          host: 'ssh.example.test',
+          user: 'operator',
+        ),
+      );
 
       await _pumpShellScreen(
         tester,
         bindings: fakeBindings,
         repository: MemoryProfileRepository(
-          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+          TerminalProfilesDocument(
+            profiles: [defaultTerminalProfile(), sshProfile],
+          ),
         ),
       );
 
@@ -3600,11 +3630,39 @@ void main() {
         platform: 'macos',
       );
       await tester.pump();
-      await _chooseDefaultLocalSession(tester);
-
       expect(find.text('Command palette'), findsNothing);
+      expect(find.byKey(const Key('new-session-launcher')), findsNothing);
       expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
       expect(fakeBindings.writes, isEmpty);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets(
+    'command-t keeps the local profile chooser when more than one exists',
+    (tester) async {
+      final secondaryProfile = defaultTerminalProfile().copyWith(
+        id: 'secondary-local',
+        name: 'Secondary local',
+      );
+      await _pumpShellScreen(
+        tester,
+        bindings: FakePtyBackend(),
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(
+            profiles: [defaultTerminalProfile(), secondaryProfile],
+          ),
+        ),
+      );
+
+      await _sendMetaShortcut(tester, LogicalKeyboardKey.keyT);
+
+      expect(find.byKey(const Key('new-session-launcher')), findsOneWidget);
+      expect(
+        find.byKey(const Key('new-local-session-secondary-local')),
+        findsOneWidget,
+      );
+      expect(find.bySemanticsIdentifier('shell-tab-2'), findsNothing);
     },
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
@@ -3677,7 +3735,6 @@ void main() {
       expect(fakeBindings.writes, isEmpty);
 
       await _sendMetaShortcut(tester, LogicalKeyboardKey.keyT);
-      await _chooseDefaultLocalSession(tester);
       expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
       _expectSelectedTab(tester, '2');
       expect(fakeBindings.writes, isEmpty);
@@ -3762,8 +3819,6 @@ void main() {
         platform: 'macos',
       );
       await tester.pump();
-      await _chooseDefaultLocalSession(tester);
-
       expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
       expect(find.bySemanticsIdentifier('shell-tab-3'), findsNothing);
       expect(fakeBindings.writes, isEmpty);
@@ -4181,7 +4236,6 @@ void main() {
     );
 
     await _sendMetaShortcut(tester, LogicalKeyboardKey.keyT);
-    await _chooseDefaultLocalSession(tester);
     expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
     _expectSelectedTab(tester, '2');
 
@@ -6605,6 +6659,60 @@ void main() {
       findsOneWidget,
     );
     semantics.dispose();
+  });
+
+  testWidgets(
+    'command-shift-t opens the SSH session launcher',
+    (tester) async {
+      await _pumpShellScreen(
+        tester,
+        bindings: FakePtyBackend(),
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+        sshProfileImportService: const _EmptySshProfileImportService(),
+      );
+
+      await _sendMetaShiftShortcut(tester, LogicalKeyboardKey.keyT);
+
+      expect(find.byKey(const Key('new-session-launcher')), findsOneWidget);
+      expect(find.byKey(const Key('new-local-session-default')), findsNothing);
+      expect(find.byKey(const Key('new-custom-ssh-session')), findsOneWidget);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets('native terminal menu actions choose the requested type', (
+    tester,
+  ) async {
+    await _pumpShellScreen(
+      tester,
+      bindings: FakePtyBackend(),
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+      sshProfileImportService: const _EmptySshProfileImportService(),
+    );
+
+    await _invokeNativeWindowBridge(
+      tester,
+      const MethodCall('nativeAppAction', <String, Object?>{
+        'action': 'newLocalTerminal',
+      }),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('new-session-launcher')), findsNothing);
+    expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
+
+    await _invokeNativeWindowBridge(
+      tester,
+      const MethodCall('nativeAppAction', <String, Object?>{
+        'action': 'newSshSession',
+      }),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('new-local-session-default')), findsNothing);
+    expect(find.byKey(const Key('new-custom-ssh-session')), findsOneWidget);
   });
 
   testWidgets('closing the last tab can recover from the empty state', (

@@ -285,6 +285,33 @@ class RunnerTests: XCTestCase {
     )
   }
 
+  func testTerminalSessionFileMenuUsesRequestedShortcutsAndIsIdempotent() throws {
+    let window = MainFlutterWindow()
+    let mainMenu = NSMenu(title: "Main Menu")
+    mainMenu.addItem(NSMenuItem(title: "Ianvs Terminal", action: nil, keyEquivalent: ""))
+
+    window.bindNativeTerminalSessionMenuItems(in: mainMenu)
+    window.bindNativeTerminalSessionMenuItems(in: mainMenu)
+
+    let fileMenu = try XCTUnwrap(mainMenu.items.first { $0.title == "File" }?.submenu)
+    let localItems = fileMenu.items.filter { $0.title == "New Local Terminal…" }
+    let sshItems = fileMenu.items.filter { $0.title == "New SSH Session…" }
+    let localItem = try XCTUnwrap(localItems.first)
+    let sshItem = try XCTUnwrap(sshItems.first)
+
+    XCTAssertEqual(localItems.count, 1)
+    XCTAssertEqual(localItem.keyEquivalent, "t")
+    XCTAssertEqual(localItem.keyEquivalentModifierMask, [.command])
+    XCTAssertTrue(localItem.target === window)
+    XCTAssertEqual(localItem.action, #selector(MainFlutterWindow.openLocalTerminal(_:)))
+
+    XCTAssertEqual(sshItems.count, 1)
+    XCTAssertEqual(sshItem.keyEquivalent, "t")
+    XCTAssertEqual(sshItem.keyEquivalentModifierMask, [.command, .shift])
+    XCTAssertTrue(sshItem.target === window)
+    XCTAssertEqual(sshItem.action, #selector(MainFlutterWindow.openSshSession(_:)))
+  }
+
   func testMainWindowFrameUsesStableAutosaveName() {
     XCTAssertEqual(
       MainFlutterWindow.mainWindowFrameAutosaveName,

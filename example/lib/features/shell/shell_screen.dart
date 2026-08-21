@@ -795,7 +795,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                 'No terminal session option is available.',
               );
             }
-            unawaited(_openNewSessionLauncher(sessionController, sessionState));
+            unawaited(
+              _openLocalTerminalAction(sessionController, sessionState),
+            );
             return const ShellActionBindingResult.completed();
           },
           closeTab: (_) {
@@ -1083,7 +1085,19 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           if (!canOpenNewSession) {
             return KeyEventResult.handled;
           }
-          unawaited(_openNewSessionLauncher(sessionController, sessionState));
+          unawaited(_openLocalTerminalAction(sessionController, sessionState));
+          return KeyEventResult.handled;
+        case TerminalActionId.newSshSession:
+          if (!canOpenNewSession) {
+            return KeyEventResult.handled;
+          }
+          unawaited(
+            _openNewSessionLauncher(
+              sessionController,
+              sessionState,
+              initialConnectionType: terminal.TerminalConnectionType.ssh,
+            ),
+          );
           return KeyEventResult.handled;
         case TerminalActionId.splitRight:
           if (defaultProfile == null || activeSessionId == null) {

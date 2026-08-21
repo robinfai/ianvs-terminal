@@ -9,10 +9,35 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
   bool _canOpenNewSessionLauncher(SessionState sessionState) =>
       !_localSessionsEnabled || sessionState.profiles.isNotEmpty;
 
-  Future<void> _openNewSessionLauncher(
+  Future<void> _openLocalTerminalAction(
     SessionController sessionController,
     SessionState sessionState,
   ) async {
+    if (_isProfilesOpen) {
+      return;
+    }
+    if (_localSessionsEnabled) {
+      final localProfiles = sessionState.profiles
+          .where((profile) => !profile.isSsh)
+          .toList(growable: false);
+      if (localProfiles.length == 1) {
+        _createSession(
+          sessionController,
+          localProfiles.single,
+          returningToLayout: sessionState.activeSessionId == null,
+        );
+        return;
+      }
+    }
+    await _openNewSessionLauncher(sessionController, sessionState);
+  }
+
+  Future<void> _openNewSessionLauncher(
+    SessionController sessionController,
+    SessionState sessionState, {
+    terminal.TerminalConnectionType initialConnectionType =
+        terminal.TerminalConnectionType.local,
+  }) async {
     if (_isProfilesOpen) {
       return;
     }
@@ -32,6 +57,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
         profiles: ref.read(sessionControllerProvider).profiles,
         localSessionsEnabled: _localSessionsEnabled,
         customSshProfilesEnabled: _customSshProfilesEnabled,
+        initialConnectionType: initialConnectionType,
         importOpenSshProfiles: () =>
             ref.read(sshProfileImportServiceProvider).load(),
       ),
@@ -148,6 +174,27 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
 
   Future<void> _handleNativeAppMenuAction(NativeAppMenuAction action) {
     switch (action) {
+      case NativeAppMenuAction.newLocalTerminal:
+        final sessionState = ref.read(sessionControllerProvider);
+        if (_canOpenNewSessionLauncher(sessionState)) {
+          unawaited(
+            _openLocalTerminalAction(
+              ref.read(sessionControllerProvider.notifier),
+              sessionState,
+            ),
+          );
+        }
+      case NativeAppMenuAction.newSshSession:
+        final sessionState = ref.read(sessionControllerProvider);
+        if (_canOpenNewSessionLauncher(sessionState)) {
+          unawaited(
+            _openNewSessionLauncher(
+              ref.read(sessionControllerProvider.notifier),
+              sessionState,
+              initialConnectionType: terminal.TerminalConnectionType.ssh,
+            ),
+          );
+        }
       case NativeAppMenuAction.settings:
         unawaited(
           _openDefaultsAndAppearance(

@@ -45,6 +45,7 @@ void main() {
       const shortcutIds = <TerminalActionId>{
         TerminalActionId.openLauncher,
         TerminalActionId.newTab,
+        TerminalActionId.newSshSession,
         TerminalActionId.splitRight,
         TerminalActionId.splitDown,
         TerminalActionId.autocomplete,
@@ -118,6 +119,7 @@ void main() {
         ShellActionRegistry.releaseActionIds,
         containsAll(<TerminalActionId>{
           TerminalActionId.newTab,
+          TerminalActionId.newSshSession,
           TerminalActionId.openTerminalAtFolder,
           TerminalActionId.openRecording,
           TerminalActionId.openSftpPanel,

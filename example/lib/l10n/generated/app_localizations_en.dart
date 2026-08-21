@@ -2410,6 +2410,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String terminalActionName(String action) {
     String _temp0 = intl.Intl.selectLogic(action, {
       'new_tab': 'New tab',
+      'new_ssh_session': 'New SSH session',
       'new_tab_at_folder': 'New tab at folder',
       'open_recording_for_replay': 'Open recording for replay',
       'duplicate_current_cwd': 'Duplicate current directory',

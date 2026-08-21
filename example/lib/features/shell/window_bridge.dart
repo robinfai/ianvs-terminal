@@ -4,11 +4,15 @@ import 'package:flutter/services.dart';
 enum NativeUserAttentionType { critical, informational }
 
 enum NativeAppMenuAction {
+  newLocalTerminal,
+  newSshSession,
   settings;
 
   static NativeAppMenuAction fromPlatform(Object? arguments) {
     final action = arguments is Map ? arguments['action'] : null;
     return switch (action) {
+      'newLocalTerminal' => NativeAppMenuAction.newLocalTerminal,
+      'newSshSession' => NativeAppMenuAction.newSshSession,
       'settings' => NativeAppMenuAction.settings,
       _ => throw PlatformException(
         code: 'unknown_native_app_action',

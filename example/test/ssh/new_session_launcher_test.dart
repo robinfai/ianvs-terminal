@@ -251,6 +251,27 @@ void main() {
     expect(find.byKey(const Key('new-custom-ssh-session')), findsOneWidget);
   });
 
+  testWidgets('launcher can start on the SSH session type', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1000, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final saved = _sshProfile('saved', 'Saved host', 'saved.example.test');
+
+    await _pumpLauncher(
+      tester,
+      profiles: <TerminalProfile>[defaultTerminalProfile(), saved],
+      imported: const SshProfileImportSnapshot(
+        profiles: [],
+        sourcePath: '~/.ssh/config',
+      ),
+      initialConnectionType: terminal.TerminalConnectionType.ssh,
+      onClosed: (_) {},
+    );
+
+    expect(find.byKey(const Key('new-local-session-default')), findsNothing);
+    expect(find.byKey(const Key('new-ssh-session-saved')), findsOneWidget);
+    expect(find.byKey(const Key('new-custom-ssh-session')), findsOneWidget);
+  });
+
   testWidgets('SSH-only launcher stays above the iPhone keyboard', (
     tester,
   ) async {
@@ -1379,6 +1400,8 @@ Future<void> _pumpLauncher(
   double textScale = 1,
   bool customSshProfilesEnabled = true,
   bool localSessionsEnabled = true,
+  terminal.TerminalConnectionType initialConnectionType =
+      terminal.TerminalConnectionType.local,
   ThemeData? theme,
 }) async {
   final resolvedTheme = theme ?? buildIanvsTerminalTheme(Brightness.dark);
@@ -1409,6 +1432,7 @@ Future<void> _pumpLauncher(
                       profiles: profiles,
                       customSshProfilesEnabled: customSshProfilesEnabled,
                       localSessionsEnabled: localSessionsEnabled,
+                      initialConnectionType: initialConnectionType,
                       importOpenSshProfiles: () async => imported,
                     ),
                   ),

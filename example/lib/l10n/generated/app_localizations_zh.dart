@@ -2288,6 +2288,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String terminalActionName(String action) {
     String _temp0 = intl.Intl.selectLogic(action, {
       'new_tab': '新建标签页',
+      'new_ssh_session': '新建 SSH 会话',
       'new_tab_at_folder': '在文件夹中新建标签页',
       'open_recording_for_replay': '打开录制进行回放',
       'duplicate_current_cwd': '复制当前目录会话',

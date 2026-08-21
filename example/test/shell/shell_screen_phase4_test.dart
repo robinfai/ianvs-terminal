@@ -5060,7 +5060,6 @@ void main() {
     await _sendMetaShortcut(tester, LogicalKeyboardKey.keyN);
     expect(container.read(sessionControllerProvider).tabs, hasLength(1));
     await _sendMetaShortcut(tester, LogicalKeyboardKey.keyT);
-    await _chooseDefaultLocalSession(tester);
     expect(container.read(sessionControllerProvider).tabs, hasLength(2));
     debugDefaultTargetPlatformOverride = null;
   });

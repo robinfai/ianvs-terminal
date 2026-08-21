@@ -34,6 +34,34 @@ void main() {
       expect(action, TerminalActionId.newTab);
     });
 
+    test('maps mac command-shift-t to new SSH session', () {
+      final action = ShellShortcutBridge.resolve(
+        key: LogicalKeyboardKey.keyT,
+        usesMetaShortcuts: true,
+        isMetaPressed: true,
+        isControlPressed: false,
+        isShiftPressed: true,
+        isAltPressed: false,
+        scope: TerminalKeyBindingScope.focusedApp,
+      );
+
+      expect(action, TerminalActionId.newSshSession);
+    });
+
+    test('maps non-mac control-shift-t to new SSH session', () {
+      final action = ShellShortcutBridge.resolve(
+        key: LogicalKeyboardKey.keyT,
+        usesMetaShortcuts: false,
+        isMetaPressed: false,
+        isControlPressed: true,
+        isShiftPressed: true,
+        isAltPressed: false,
+        scope: TerminalKeyBindingScope.focusedApp,
+      );
+
+      expect(action, TerminalActionId.newSshSession);
+    });
+
     test('maps mac terminal-focused search shortcut to search action', () {
       final action = ShellShortcutBridge.resolve(
         key: LogicalKeyboardKey.keyF,
