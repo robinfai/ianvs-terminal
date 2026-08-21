@@ -30,6 +30,14 @@ class TerminalInputController extends terminal.TerminalInputController {
   bool get isReadOnly => readOnly?.call() ?? false;
 
   @override
+  Future<void> pasteClipboard() async {
+    if (isReadOnly) {
+      return;
+    }
+    await super.pasteClipboard();
+  }
+
+  @override
   void sendText(String text) {
     if (isReadOnly) {
       return;

@@ -76,6 +76,275 @@ void main() {
   );
 
   testWidgets(
+    'iPhone tap preserves the selection inside and clears it outside',
+    (tester) async {
+      final harness = _MobileViewportHarness(clipboardText: 'mobile paste');
+      addTearDown(harness.dispose);
+      harness.selectionController.setSelection(
+        const TerminalSelection(
+          startRow: 100,
+          startCol: 6,
+          endRow: 100,
+          endCol: 10,
+        ),
+      );
+      await tester.pumpWidget(harness.widget());
+      await tester.pump();
+
+      final renderObject = tester.renderObject<RenderTerminalViewport>(
+        _terminalSurface(),
+      );
+      final cellSize = renderObject.debugCellSize;
+
+      await tester.tapAt(
+        renderObject.localToGlobal(
+          Offset(cellSize.width * 7.5, cellSize.height * 0.5),
+        ),
+      );
+      await tester.pump();
+
+      expect(harness.selectionController.selection, isNotNull);
+
+      await tester.tapAt(
+        renderObject.localToGlobal(
+          Offset(cellSize.width * 1.5, cellSize.height * 0.5),
+        ),
+      );
+      await tester.pump();
+
+      expect(harness.selectionController.selection, isNull);
+      expect(harness.pasteCallbackCount, 0);
+      expect(harness.inputSink.inputs, isEmpty);
+    },
+    variant: const TargetPlatformVariant(<TargetPlatform>{TargetPlatform.iOS}),
+  );
+
+  testWidgets(
+    'iPhone blank tap clears an outside selection before it pastes',
+    (tester) async {
+      final harness = _MobileViewportHarness(clipboardText: 'mobile paste');
+      addTearDown(harness.dispose);
+      harness.selectionController.setSelection(
+        const TerminalSelection(
+          startRow: 100,
+          startCol: 6,
+          endRow: 100,
+          endCol: 10,
+        ),
+      );
+      await tester.pumpWidget(harness.widget());
+      await tester.pump();
+
+      final renderObject = tester.renderObject<RenderTerminalViewport>(
+        _terminalSurface(),
+      );
+      final blankPosition = renderObject.localToGlobal(
+        Offset(
+          renderObject.debugCellSize.width * 20.5,
+          renderObject.debugCellSize.height * 0.5,
+        ),
+      );
+
+      await tester.tapAt(blankPosition);
+      await tester.pump();
+
+      expect(harness.selectionController.selection, isNull);
+      expect(harness.pasteCallbackCount, 0);
+      expect(harness.inputSink.inputs, isEmpty);
+
+      await tester.tapAt(blankPosition);
+      await tester.pump();
+
+      expect(harness.pasteCallbackCount, 1);
+      expect(harness.inputSink.inputs, hasLength(1));
+      expect(harness.inputSink.inputs.single, 'mobile paste'.codeUnits);
+    },
+    variant: const TargetPlatformVariant(<TargetPlatform>{TargetPlatform.iOS}),
+  );
+
+  testWidgets(
+    'iPhone software keyboard can delete repeatedly after a blank-tap paste',
+    (tester) async {
+      final harness = _MobileViewportHarness(clipboardText: 'mobile paste');
+      addTearDown(harness.dispose);
+      await tester.pumpWidget(harness.widget());
+      await tester.pump();
+
+      final renderObject = tester.renderObject<RenderTerminalViewport>(
+        _terminalSurface(),
+      );
+      final blankPosition = renderObject.localToGlobal(
+        Offset(
+          renderObject.debugCellSize.width * 20.5,
+          renderObject.debugCellSize.height * 0.5,
+        ),
+      );
+
+      await tester.tapAt(blankPosition);
+      await tester.pump();
+
+      tester.testTextInput.updateEditingValue(TextEditingValue.empty);
+      await tester.pump();
+      tester.testTextInput.updateEditingValue(TextEditingValue.empty);
+      await tester.pump();
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: 'x',
+          selection: TextSelection.collapsed(offset: 1),
+        ),
+      );
+      await tester.pump();
+
+      expect(
+        harness.inputSink.inputs.map((bytes) => bytes.toList()),
+        <List<int>>[
+          'mobile paste'.codeUnits,
+          const <int>[0x7f],
+          const <int>[0x7f],
+          'x'.codeUnits,
+        ],
+      );
+    },
+    variant: const TargetPlatformVariant(<TargetPlatform>{TargetPlatform.iOS}),
+  );
+
+  testWidgets(
+    'iPhone paste backspace proxy stays outside IME composition',
+    (tester) async {
+      final harness = _MobileViewportHarness(clipboardText: 'mobile paste');
+      addTearDown(harness.dispose);
+      await tester.pumpWidget(harness.widget());
+      await tester.pump();
+
+      final renderObject = tester.renderObject<RenderTerminalViewport>(
+        _terminalSurface(),
+      );
+      await tester.tapAt(
+        renderObject.localToGlobal(
+          Offset(
+            renderObject.debugCellSize.width * 20.5,
+            renderObject.debugCellSize.height * 0.5,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final proxyText = tester.testTextInput.editingState!['text'] as String;
+      expect(proxyText, isNotEmpty);
+      tester.testTextInput.updateEditingValue(
+        TextEditingValue(
+          text: '${proxyText}n',
+          selection: TextSelection.collapsed(offset: proxyText.length + 1),
+          composing: TextRange(
+            start: proxyText.length,
+            end: proxyText.length + 1,
+          ),
+        ),
+      );
+      await tester.pump();
+      tester.testTextInput.updateEditingValue(
+        TextEditingValue(
+          text: proxyText,
+          selection: TextSelection.collapsed(offset: proxyText.length),
+        ),
+      );
+      await tester.pump();
+
+      expect(harness.inputSink.inputs, hasLength(1));
+
+      tester.testTextInput.updateEditingValue(TextEditingValue.empty);
+      await tester.pump();
+
+      expect(
+        harness.inputSink.inputs.map((bytes) => bytes.toList()),
+        <List<int>>[
+          'mobile paste'.codeUnits,
+          const <int>[0x7f],
+        ],
+      );
+    },
+    variant: const TargetPlatformVariant(<TargetPlatform>{TargetPlatform.iOS}),
+  );
+
+  testWidgets(
+    'iPhone character tap does not paste clipboard text',
+    (tester) async {
+      final harness = _MobileViewportHarness(clipboardText: 'mobile paste');
+      addTearDown(harness.dispose);
+      await tester.pumpWidget(harness.widget());
+      await tester.pump();
+
+      final renderObject = tester.renderObject<RenderTerminalViewport>(
+        _terminalSurface(),
+      );
+      final characterPosition = renderObject.localToGlobal(
+        Offset(
+          renderObject.debugCellSize.width * 1.5,
+          renderObject.debugCellSize.height * 0.5,
+        ),
+      );
+
+      await tester.tapAt(characterPosition);
+      await tester.pump();
+
+      expect(harness.pasteCallbackCount, 0);
+      expect(harness.inputSink.inputs, isEmpty);
+    },
+    variant: const TargetPlatformVariant(<TargetPlatform>{TargetPlatform.iOS}),
+  );
+
+  testWidgets(
+    'iPhone drag near a selection endpoint adjusts instead of scrolling',
+    (tester) async {
+      final harness = _MobileViewportHarness();
+      addTearDown(harness.dispose);
+      harness.selectionController.setSelection(
+        const TerminalSelection(
+          startRow: 100,
+          startCol: 6,
+          endRow: 100,
+          endCol: 10,
+        ),
+      );
+      await tester.pumpWidget(harness.widget());
+      await tester.pump();
+
+      final renderObject = tester.renderObject<RenderTerminalViewport>(
+        _terminalSurface(),
+      );
+      final cellSize = renderObject.debugCellSize;
+      final gesture = await tester.startGesture(
+        renderObject.localToGlobal(
+          Offset(cellSize.width * 10, cellSize.height * 0.5),
+        ),
+        kind: PointerDeviceKind.touch,
+      );
+      await gesture.moveTo(
+        renderObject.localToGlobal(
+          Offset(cellSize.width * 16, cellSize.height * 0.5),
+        ),
+      );
+      await tester.pump();
+      await gesture.up();
+      await tester.pump();
+
+      final selection = harness.selectionController.selection;
+      expect(selection, isNotNull);
+      expect(selection!.startRow, 100);
+      expect(selection.startCol, 6);
+      expect(selection.endRow, 100);
+      expect(selection.endCol, 16);
+      expect(
+        harness.selectionController.textForFrame(harness.controller.frame),
+        'beta gamma',
+      );
+      expect(harness.scrollDeltas, isEmpty);
+      expect(harness.inputSink.inputs, isEmpty);
+    },
+    variant: const TargetPlatformVariant(<TargetPlatform>{TargetPlatform.iOS}),
+  );
+
+  testWidgets(
     'iPhone long-press selection auto-scrolls at the top edge row',
     (tester) async {
       final harness = _MobileViewportHarness(
@@ -211,6 +480,7 @@ final class _MobileViewportHarness {
     this.modes = TerminalFrameModes.empty,
     int initialScrollbackOffset = 0,
     this.applyScrolls = false,
+    this.clipboardText = '',
   }) : controller = TerminalViewportController(),
        selectionController = SelectionController(),
        inputSink = _RecordingInputSink(),
@@ -224,7 +494,7 @@ final class _MobileViewportHarness {
       readFrame: () => controller.frame,
       readSelection: () => selectionController.textForFrame(controller.frame),
       copySelection: (text) async => copiedText.add(text),
-      readClipboard: () async => '',
+      readClipboard: () async => clipboardText,
     );
   }
 
@@ -267,10 +537,12 @@ final class _MobileViewportHarness {
   final SelectionController selectionController;
   final TerminalFrameModes modes;
   final bool applyScrolls;
+  final String clipboardText;
   final _RecordingInputSink inputSink;
   late final TerminalInputController inputController;
   final List<int> scrollDeltas = <int>[];
   final List<String> copiedText = <String>[];
+  int pasteCallbackCount = 0;
   int _scrollbackOffset;
 
   void _handleScrollLines(int delta) {
@@ -297,6 +569,10 @@ final class _MobileViewportHarness {
               controller: controller,
               selectionController: selectionController,
               inputController: inputController,
+              onPasteClipboard: () async {
+                pasteCallbackCount += 1;
+                await inputController.pasteClipboard();
+              },
               onScrollLines: _handleScrollLines,
               onScrollToOffset: (_) {},
             ),

@@ -32,6 +32,8 @@ class TerminalInputController {
 
   Future<void> copySelection() => _copySelection();
 
+  Future<void> pasteClipboard() => _pasteClipboard();
+
   void sendText(String text) {
     if (text.isEmpty) {
       return;

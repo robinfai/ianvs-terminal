@@ -60,6 +60,7 @@ class TerminalViewport extends StatelessWidget {
     this.onOpenLinkTarget,
     this.onLinkHoverChanged,
     this.onLinkContextMenu,
+    this.onPasteClipboard,
     this.searchMatches = const [],
     this.activeSearchMatchIndex = -1,
     this.searchHighlightStyle,
@@ -99,6 +100,7 @@ class TerminalViewport extends StatelessWidget {
   final ValueChanged<terminal.TerminalLinkTarget>? onOpenLinkTarget;
   final ValueChanged<terminal.TerminalLinkTarget?>? onLinkHoverChanged;
   final ValueChanged<terminal.TerminalLinkTarget>? onLinkContextMenu;
+  final Future<void> Function()? onPasteClipboard;
   final List<terminal.TerminalSearchMatch> searchMatches;
   final int activeSearchMatchIndex;
   final terminal.TerminalSearchHighlightStyle? searchHighlightStyle;
@@ -141,6 +143,7 @@ class TerminalViewport extends StatelessWidget {
       onOpenLinkTarget: onOpenLinkTarget,
       onLinkHoverChanged: onLinkHoverChanged,
       onLinkContextMenu: onLinkContextMenu,
+      onPasteClipboard: onPasteClipboard,
       searchMatches: searchMatches,
       activeSearchMatchIndex: activeSearchMatchIndex,
       searchHighlightStyle: searchHighlightStyle,

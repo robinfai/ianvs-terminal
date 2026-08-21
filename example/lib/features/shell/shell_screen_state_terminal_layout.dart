@@ -594,6 +594,8 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                               controller: viewportController,
                               selectionController: selectionController,
                               inputController: inputController,
+                              onPasteClipboard: () =>
+                                  _pasteToSession(sessionId),
                               contentPadding: terminalViewportPadding,
                               onMeasuredCellSizeChanged: (cellSize) {
                                 if (!mounted) {

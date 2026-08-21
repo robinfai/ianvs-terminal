@@ -50,6 +50,7 @@ Key terminalBlockRenderCloseKey(String id) =>
 Key terminalInlineButtonKey(int id) => Key('terminal-inline-button-$id');
 const double _terminalTimestampOverlayWidth = 66;
 const Size terminalFallbackCellSize = Size(9, 18);
+const double _mobileSelectionHandleRadius = 24;
 final RegExp _visibleUrlPattern = RegExp(r'(?:https?|file)://[^\s<>()"]+');
 final RegExp _smartEmailPattern = RegExp(
   r'[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}',
@@ -234,6 +235,7 @@ class TerminalViewport extends StatefulWidget {
     this.onOpenLinkTarget,
     this.onLinkHoverChanged,
     this.onLinkContextMenu,
+    this.onPasteClipboard,
     this.searchMatches = const [],
     this.activeSearchMatchIndex = -1,
     this.searchHighlightStyle,
@@ -279,6 +281,7 @@ class TerminalViewport extends StatefulWidget {
   final ValueChanged<TerminalLinkTarget>? onOpenLinkTarget;
   final ValueChanged<TerminalLinkTarget?>? onLinkHoverChanged;
   final ValueChanged<TerminalLinkTarget>? onLinkContextMenu;
+  final Future<void> Function()? onPasteClipboard;
   final List<TerminalSearchMatch> searchMatches;
   final int activeSearchMatchIndex;
   final TerminalSearchHighlightStyle? searchHighlightStyle;
@@ -315,6 +318,10 @@ typedef _GraphicGeometryKey = ({
 class _TerminalViewportState extends State<TerminalViewport>
     with TextInputClient {
   static const int _maxLockedItermGraphicScales = 256;
+  // The iOS input client is hidden, so this character is never rendered or
+  // forwarded. It only gives the software keyboard something to delete after
+  // terminal input was sent outside updateEditingValue (for example, paste).
+  static const String _mobileBackspaceProxyText = ' ';
   static const Duration _selectionAutoScrollInterval = Duration(
     milliseconds: 50,
   );
@@ -351,6 +358,8 @@ class _TerminalViewportState extends State<TerminalViewport>
   bool _blockTogglePointerActive = false;
   bool _pinchGestureActive = false;
   bool _touchScrollGestureActive = false;
+  bool _mobileSelectionAdjustmentActive = false;
+  bool _suppressNextMobileTap = false;
   _LocalSelectionMode _localSelectionMode = _LocalSelectionMode.cell;
   _TerminalWordRange? _wordSelectionAnchor;
   TextInputConnection? _textInputConnection;
@@ -366,6 +375,8 @@ class _TerminalViewportState extends State<TerminalViewport>
   String? _submittedMobileTextPendingReset;
   int _pendingMobileRawBackspaces = 0;
   bool _mobileRawBackspaceResetScheduled = false;
+  bool _mobileBackspaceProxyEnabled = false;
+  bool _mobileBackspaceProxyArmed = false;
   final TerminalGraphicsSync _graphicsSync = TerminalGraphicsSync();
   final Map<_GraphicGeometryKey, double> _lockedItermGraphicScales =
       <_GraphicGeometryKey, double>{};
@@ -605,6 +616,8 @@ class _TerminalViewportState extends State<TerminalViewport>
     _submittedMobileTextPendingReset = null;
     _pendingMobileRawBackspaces = 0;
     _mobileRawBackspaceResetScheduled = false;
+    _mobileBackspaceProxyEnabled = false;
+    _mobileBackspaceProxyArmed = false;
   }
 
   void _clearTextInputState() {
@@ -1089,6 +1102,9 @@ class _TerminalViewportState extends State<TerminalViewport>
     }
     if (_isMobileTouchEvent(event)) {
       _cancelPendingLinkOpen();
+      if (_isPrimarySelectionButton(event.buttons)) {
+        _beginMobileSelectionAdjustment(event.position);
+      }
       return;
     }
     if (!_terminalMouseEnabled) {
@@ -1185,6 +1201,16 @@ class _TerminalViewportState extends State<TerminalViewport>
       return;
     }
     if (_isMobileTouchEvent(event)) {
+      if (!_mobileSelectionAdjustmentActive ||
+          !_isPrimarySelectionButton(event.buttons)) {
+        return;
+      }
+      _selectionPointerGlobalPosition = event.position;
+      _selectionMovedSincePointerDown =
+          _selectionMovedSincePointerDown ||
+          _didSelectionMoveBeyond(event.position, 1);
+      _updateSelectionFromPointer(event.position);
+      _syncSelectionAutoScroll();
       return;
     }
     if (!_terminalMouseEnabled) {
@@ -1243,6 +1269,22 @@ class _TerminalViewportState extends State<TerminalViewport>
       return;
     }
     if (_isMobileTouchEvent(event)) {
+      if (!_mobileSelectionAdjustmentActive) {
+        return;
+      }
+      _selectionPointerGlobalPosition = event.position;
+      _selectionMovedSincePointerDown =
+          _selectionMovedSincePointerDown ||
+          _didSelectionMoveBeyond(event.position, 1);
+      _updateSelectionFromPointer(event.position);
+      final suppressTap = _selectionMovedSincePointerDown;
+      _finishMobileSelectionAdjustment();
+      if (suppressTap) {
+        _suppressNextMobileTap = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _suppressNextMobileTap = false;
+        });
+      }
       return;
     }
     if (!_terminalMouseEnabled) {
@@ -1292,6 +1334,7 @@ class _TerminalViewportState extends State<TerminalViewport>
     _stopScrollMomentum();
     if (_isMobileTouchEvent(event)) {
       _touchScrollGestureActive = false;
+      _mobileSelectionAdjustmentActive = false;
       _isLocalSelectionActive = false;
       _selectionPointerGlobalPosition = null;
       _selectionPointerDownGlobalPosition = null;
@@ -1344,6 +1387,9 @@ class _TerminalViewportState extends State<TerminalViewport>
 
   void _handleScaleUpdate(ScaleUpdateDetails details) {
     if (details.pointerCount < 2) {
+      if (_mobileSelectionAdjustmentActive) {
+        return;
+      }
       if (!_usesMobileTextInput || _pinchGestureActive) {
         return;
       }
@@ -1358,6 +1404,7 @@ class _TerminalViewportState extends State<TerminalViewport>
     if (!_pinchGestureActive) {
       _pinchGestureActive = true;
       _touchScrollGestureActive = false;
+      _mobileSelectionAdjustmentActive = false;
       _stopScrollMomentum();
       _isLocalSelectionActive = false;
       _selectionPointerGlobalPosition = null;
@@ -1392,9 +1439,43 @@ class _TerminalViewportState extends State<TerminalViewport>
   }
 
   void _handleTerminalTapUp(TapUpDetails details) {
-    if (_usesMobileTextInput) {
-      _openLinkAt(details.globalPosition);
+    if (!_usesMobileTextInput) {
+      return;
     }
+    if (_suppressNextMobileTap) {
+      _suppressNextMobileTap = false;
+      return;
+    }
+    final globalPosition = details.globalPosition;
+    if (_scrollbarContainsGlobalPosition(globalPosition) ||
+        !_surfaceContainsGlobalPosition(globalPosition)) {
+      return;
+    }
+    if (widget.selectionController.selection != null) {
+      if (!_mobileSelectionContains(globalPosition)) {
+        widget.selectionController.clear();
+      }
+      return;
+    }
+    if (_mobilePositionHasCharacter(globalPosition)) {
+      _openLinkAt(globalPosition);
+      return;
+    }
+    unawaited(_pasteClipboardFromMobileTap());
+  }
+
+  Future<void> _pasteClipboardFromMobileTap() async {
+    final pasteClipboard = widget.onPasteClipboard;
+    if (pasteClipboard == null) {
+      await widget.inputController.pasteClipboard();
+    } else {
+      await pasteClipboard();
+    }
+    if (!mounted) {
+      return;
+    }
+    _mobileBackspaceProxyEnabled = true;
+    _armMobileBackspaceProxy();
   }
 
   void _handleTerminalLongPressStart(LongPressStartDetails details) {
@@ -1403,6 +1484,7 @@ class _TerminalViewportState extends State<TerminalViewport>
         !_surfaceContainsGlobalPosition(details.globalPosition)) {
       return;
     }
+    _mobileSelectionAdjustmentActive = false;
     final cell = _selectionCellForGlobalPosition(details.globalPosition);
     if (cell == null) {
       return;
@@ -1589,11 +1671,152 @@ class _TerminalViewportState extends State<TerminalViewport>
   }
 
   bool _didSelectionMoveBeyondTapSlop(Offset globalPosition) {
+    return _didSelectionMoveBeyond(globalPosition, kTouchSlop);
+  }
+
+  bool _didSelectionMoveBeyond(Offset globalPosition, double distance) {
     final start = _selectionPointerDownGlobalPosition;
     if (start == null) {
       return false;
     }
-    return (globalPosition - start).distance > kTouchSlop;
+    return (globalPosition - start).distance > distance;
+  }
+
+  bool _beginMobileSelectionAdjustment(Offset globalPosition) {
+    if (_mobileSelectionAdjustmentActive) {
+      return true;
+    }
+    if (_scrollbarContainsGlobalPosition(globalPosition) ||
+        !_surfaceContainsGlobalPosition(globalPosition)) {
+      return false;
+    }
+    final selection = widget.selectionController.selection;
+    final renderObject = _renderViewport;
+    if (selection == null || renderObject == null) {
+      return false;
+    }
+    final startPosition = _mobileSelectionEndpointPosition(
+      renderObject,
+      sourceRow: selection.startRow,
+      column: selection.startCol,
+    );
+    final endPosition = _mobileSelectionEndpointPosition(
+      renderObject,
+      sourceRow: selection.endRow,
+      column: selection.endCol,
+    );
+    final startDistance = startPosition == null
+        ? double.infinity
+        : (globalPosition - startPosition).distance;
+    final endDistance = endPosition == null
+        ? double.infinity
+        : (globalPosition - endPosition).distance;
+    if (math.min(startDistance, endDistance) > _mobileSelectionHandleRadius) {
+      return false;
+    }
+
+    final movesStart = startDistance <= endDistance;
+    final fixedRow = movesStart ? selection.endRow : selection.startRow;
+    final fixedCol = movesStart ? selection.endCol : selection.startCol;
+    final movingRow = movesStart ? selection.startRow : selection.endRow;
+    final movingCol = movesStart ? selection.startCol : selection.endCol;
+    widget.selectionController.setSelection(
+      TerminalSelection(
+        startRow: fixedRow,
+        startCol: fixedCol,
+        endRow: movingRow,
+        endCol: movingCol,
+      ),
+      mode: widget.selectionController.isBlockSelection
+          ? SelectionMode.block
+          : SelectionMode.linear,
+    );
+    _isLocalSelectionActive = true;
+    _mobileSelectionAdjustmentActive = true;
+    _selectionPointerGlobalPosition = globalPosition;
+    _selectionPointerDownGlobalPosition = globalPosition;
+    _selectionMovedSincePointerDown = false;
+    _localSelectionMode = _LocalSelectionMode.cell;
+    _wordSelectionAnchor = null;
+    _syncSelectionAutoScroll();
+    return true;
+  }
+
+  Offset? _mobileSelectionEndpointPosition(
+    RenderTerminalViewport renderObject, {
+    required int sourceRow,
+    required int column,
+  }) {
+    final viewportRow = widget.controller.frame.viewportRowForSourceRow(
+      sourceRow,
+    );
+    if (viewportRow == null) {
+      return null;
+    }
+    final cellSize = renderObject.debugCellSize;
+    final clampedColumn = column.clamp(0, widget.controller.frame.viewportCols);
+    return renderObject.localToGlobal(
+      Offset(
+        clampedColumn * cellSize.width,
+        (viewportRow + 0.5) * cellSize.height,
+      ),
+    );
+  }
+
+  bool _mobileSelectionContains(Offset globalPosition) {
+    final frame = widget.controller.frame;
+    final selection = widget.selectionController.selectionForFrame(frame);
+    final cell = _cellForGlobalPosition(globalPosition);
+    if (selection == null || cell == null) {
+      return false;
+    }
+    if (cell.row < selection.startRow || cell.row > selection.endRow) {
+      return false;
+    }
+    final row = frame.rows.where((row) => row.index == cell.row).firstOrNull;
+    if (row == null) {
+      return false;
+    }
+    final rowCellCount = TerminalTextCells.fromText(row.text).cellCount;
+    final selectedStart = widget.selectionController.isBlockSelection
+        ? selection.startCol
+        : cell.row == selection.startRow
+        ? selection.startCol
+        : 0;
+    final selectedEnd = widget.selectionController.isBlockSelection
+        ? selection.endCol
+        : cell.row == selection.endRow
+        ? selection.endCol
+        : rowCellCount;
+    return cell.col >= selectedStart &&
+        cell.col < math.min(selectedEnd, rowCellCount);
+  }
+
+  bool _mobilePositionHasCharacter(Offset globalPosition) {
+    final cell = _cellForGlobalPosition(globalPosition);
+    if (cell == null) {
+      return false;
+    }
+    final row = widget.controller.frame.rows
+        .where((row) => row.index == cell.row)
+        .firstOrNull;
+    if (row == null) {
+      return false;
+    }
+    final cells = TerminalTextCells.fromText(row.text);
+    return cell.col < cells.cellCount &&
+        cells.sliceColumns(cell.col, cell.col + 1).trim().isNotEmpty;
+  }
+
+  void _finishMobileSelectionAdjustment() {
+    _mobileSelectionAdjustmentActive = false;
+    _isLocalSelectionActive = false;
+    _selectionPointerGlobalPosition = null;
+    _selectionPointerDownGlobalPosition = null;
+    _selectionMovedSincePointerDown = false;
+    _wordSelectionAnchor = null;
+    _localSelectionMode = _LocalSelectionMode.cell;
+    _stopSelectionAutoScroll();
   }
 
   void _recordPrimaryTapUp(PointerUpEvent event) {
@@ -3149,18 +3372,36 @@ class _TerminalViewportState extends State<TerminalViewport>
         );
       }
     }
-    final previousValue = _textInputValue;
+    final rawPreviousValue = _textInputValue;
+    final previousHasMobileBackspaceProxy =
+        _usesMobileTextInput &&
+        _mobileBackspaceProxyArmed &&
+        rawPreviousValue.text.startsWith(_mobileBackspaceProxyText);
+    final resolvedHasMobileBackspaceProxy =
+        previousHasMobileBackspaceProxy &&
+        resolvedValue.text.startsWith(_mobileBackspaceProxyText);
+    final previousValue = previousHasMobileBackspaceProxy
+        ? _withoutMobileBackspaceProxy(rawPreviousValue)
+        : rawPreviousValue;
+    final logicalResolvedValue = resolvedHasMobileBackspaceProxy
+        ? _withoutMobileBackspaceProxy(resolvedValue)
+        : resolvedValue;
+    final removedMobileBackspaceProxy =
+        previousHasMobileBackspaceProxy &&
+        previousValue.text.isEmpty &&
+        resolvedValue.text.isEmpty;
     final hadActiveComposition = _hasActiveImeComposition(previousValue);
-    final hasActiveComposition = _hasActiveImeComposition(resolvedValue);
+    final hasActiveComposition = _hasActiveImeComposition(logicalResolvedValue);
     final clearedActiveComposition =
         hadActiveComposition &&
         !hasActiveComposition &&
         previousValue.text.isNotEmpty &&
-        resolvedValue.text.isEmpty;
+        logicalResolvedValue.text.isEmpty;
     final shouldSuppressBackspaceAfterImeClear =
         clearedActiveComposition && !_deferredImeBackspaceHandled;
     _updateTextInputState(() {
       _textInputValue = resolvedValue;
+      _mobileBackspaceProxyArmed = resolvedHasMobileBackspaceProxy;
       if (hasActiveComposition) {
         _hadImeComposition = true;
         _deferredImeBackspaceHandled = false;
@@ -3175,12 +3416,14 @@ class _TerminalViewportState extends State<TerminalViewport>
     if (_usesMobileTextInput && !hadActiveComposition) {
       final change = _editingReplacementBetween(
         previousValue.text,
-        resolvedValue.text,
+        logicalResolvedValue.text,
       );
-      _sendMobileBackspaces(change.removedRuneCount);
+      _sendMobileBackspaces(
+        removedMobileBackspaceProxy ? 1 : change.removedRuneCount,
+      );
     }
     final text = _committedTextFromEditingValue(
-      resolvedValue,
+      logicalResolvedValue,
       previousValue: previousValue,
       hadActiveComposition: hadActiveComposition,
     );
@@ -3243,6 +3486,46 @@ class _TerminalViewportState extends State<TerminalViewport>
     return text;
   }
 
+  TextEditingValue _withoutMobileBackspaceProxy(TextEditingValue value) {
+    final text = value.text.substring(_mobileBackspaceProxyText.length);
+    final selection = value.selection;
+    final composing = value.composing;
+    return TextEditingValue(
+      text: text,
+      selection: selection.isValid
+          ? TextSelection(
+              baseOffset: _mobileProxyAdjustedOffset(
+                selection.baseOffset,
+                text.length,
+              ),
+              extentOffset: _mobileProxyAdjustedOffset(
+                selection.extentOffset,
+                text.length,
+              ),
+              affinity: selection.affinity,
+              isDirectional: selection.isDirectional,
+            )
+          : selection,
+      composing: composing.isValid
+          ? TextRange(
+              start: _mobileProxyAdjustedOffset(composing.start, text.length),
+              end: _mobileProxyAdjustedOffset(composing.end, text.length),
+            )
+          : composing,
+    );
+  }
+
+  int _mobileProxyAdjustedOffset(int offset, int textLength) {
+    final adjusted = offset - _mobileBackspaceProxyText.length;
+    if (adjusted <= 0) {
+      return 0;
+    }
+    if (adjusted >= textLength) {
+      return textLength;
+    }
+    return adjusted;
+  }
+
   ({String insertedText, int removedRuneCount}) _editingReplacementBetween(
     String previousText,
     String text,
@@ -3282,12 +3565,35 @@ class _TerminalViewportState extends State<TerminalViewport>
     final suppressed = math.min(count, _pendingMobileRawBackspaces);
     _pendingMobileRawBackspaces -= suppressed;
     final remaining = count - suppressed;
-    if (remaining == 0) {
+    if (remaining > 0) {
+      widget.inputController.sendText(
+        String.fromCharCodes(List<int>.filled(remaining, 0x7f)),
+      );
+    }
+    _armMobileBackspaceProxy();
+  }
+
+  void _armMobileBackspaceProxy() {
+    if (!_usesMobileTextInput ||
+        !_mobileBackspaceProxyEnabled ||
+        _textInputValue.text.isNotEmpty ||
+        _hasActiveImeComposition(_textInputValue)) {
       return;
     }
-    widget.inputController.sendText(
-      String.fromCharCodes(List<int>.filled(remaining, 0x7f)),
+    const value = TextEditingValue(
+      text: _mobileBackspaceProxyText,
+      selection: TextSelection.collapsed(
+        offset: _mobileBackspaceProxyText.length,
+      ),
     );
+    _updateTextInputState(() {
+      _textInputValue = value;
+      _mobileBackspaceProxyArmed = true;
+    });
+    final connection = _textInputConnection;
+    if (connection != null && connection.attached) {
+      connection.setEditingState(value);
+    }
   }
 
   void _resetCommittedTextTracking() {

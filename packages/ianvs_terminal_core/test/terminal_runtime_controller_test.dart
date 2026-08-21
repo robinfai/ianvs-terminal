@@ -13572,6 +13572,7 @@ void main() {
           launch: TerminalLaunchConfig(program: '/bin/sh'),
         ),
       );
+
       await runtime.downloadSftpFile(sessionId, '/srv/app/main.dart', '/tmp/a');
       await runtime.uploadSftpFile(sessionId, '/tmp/a', '/srv/app/main.dart');
       await runtime.createSftpDirectory(sessionId, '/srv/app/new-dir');
@@ -13580,6 +13581,7 @@ void main() {
         '/srv/app/old-dir',
         isDirectory: true,
       );
+
       final starts = backend.jsonRequests.where(
         (request) => request['kind'] == 'ssh.sftp.operation_start',
       );
