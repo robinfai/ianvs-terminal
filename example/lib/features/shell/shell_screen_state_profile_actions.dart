@@ -262,6 +262,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
         configuredDefaultProfileId: sessionState.configuredDefaultProfileId,
         effectiveDefaultProfileId: sessionState.defaultProfileId,
         themeMode: sessionState.themeMode,
+        languageMode: sessionState.languageMode,
         terminalViewportPadding: sessionState.terminalViewportPadding,
         restoreLayout: _notificationLocalConfig.layout.restoreLayout,
         osc52Policy: _clipboardConfig.osc52,
@@ -333,6 +334,9 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
       }
       if (selection.themeMode != stateBeforeSave.themeMode) {
         await sessionController.setThemeMode(selection.themeMode);
+      }
+      if (selection.languageMode != stateBeforeSave.languageMode) {
+        await sessionController.setLanguageMode(selection.languageMode);
       }
       if (selection.terminalViewportPadding !=
           stateBeforeSave.terminalViewportPadding) {

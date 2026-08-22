@@ -652,6 +652,34 @@ class AppLocalizationsZh extends AppLocalizations {
       '会启动新的 Shell 进程并恢复其文件夹；不会恢复仍在运行的进程。';
 
   @override
+  String get language => '语言';
+
+  @override
+  String get languageDescription => '选择应用界面使用的语言。';
+
+  @override
+  String languageModeName(String mode) {
+    String _temp0 = intl.Intl.selectLogic(mode, {
+      'system': '跟随系统',
+      'english': 'English',
+      'simplifiedChinese': '简体中文',
+      'other': '$mode',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String languageModeDescription(String mode) {
+    String _temp0 = intl.Intl.selectLogic(mode, {
+      'system': '使用当前设备的首选语言。',
+      'english': '始终使用 English 显示应用。',
+      'simplifiedChinese': '始终使用简体中文显示应用。',
+      'other': '$mode',
+    });
+    return '$_temp0';
+  }
+
+  @override
   String get appearance => '外观';
 
   @override

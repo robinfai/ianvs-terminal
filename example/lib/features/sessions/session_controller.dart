@@ -877,6 +877,7 @@ class SessionController extends Notifier<SessionState> {
           .where((warning) => runtimeProfileIds.contains(warning.profileId))
           .toList(growable: false),
       themeMode: _appPreferences.appearance.themeMode,
+      languageMode: _appPreferences.appearance.languageMode,
       terminalViewportPadding:
           _appPreferences.appearance.terminalViewportPadding,
       isReady: true,
@@ -5214,6 +5215,21 @@ class SessionController extends Notifier<SessionState> {
 
   Future<void> resetThemeMode() async {
     await setThemeMode(TerminalThemeMode.system);
+  }
+
+  Future<void> setLanguageMode(TerminalLanguageMode languageMode) async {
+    _appPreferences = _appPreferences.copyWith(
+      appearance: _appPreferences.appearance.copyWith(
+        languageMode: languageMode,
+      ),
+    );
+    await _savePreferences(
+      localConfigUpdater: (config) =>
+          config.copyWith(appearance: _appPreferences.appearance),
+    );
+    state = state.copyWith(
+      languageMode: _appPreferences.appearance.languageMode,
+    );
   }
 
   Future<void> setTerminalViewportPadding(double padding) async {

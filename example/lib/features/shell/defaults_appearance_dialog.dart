@@ -18,6 +18,7 @@ class DefaultsAndAppearanceSelection {
   const DefaultsAndAppearanceSelection({
     required this.configuredDefaultProfileId,
     required this.themeMode,
+    required this.languageMode,
     required this.terminalViewportPadding,
     required this.restoreLayout,
     required this.osc52Policy,
@@ -35,6 +36,7 @@ class DefaultsAndAppearanceSelection {
 
   final String? configuredDefaultProfileId;
   final TerminalThemeMode themeMode;
+  final TerminalLanguageMode languageMode;
   final double terminalViewportPadding;
   final bool restoreLayout;
   final LocalTerminalOsc52Policy osc52Policy;
@@ -116,6 +118,7 @@ class DefaultsAndAppearanceDialog extends StatefulWidget {
     required this.configuredDefaultProfileId,
     required this.effectiveDefaultProfileId,
     required this.themeMode,
+    this.languageMode = TerminalLanguageMode.system,
     required this.terminalViewportPadding,
     required this.restoreLayout,
     required this.osc52Policy,
@@ -135,6 +138,7 @@ class DefaultsAndAppearanceDialog extends StatefulWidget {
   final String? configuredDefaultProfileId;
   final String? effectiveDefaultProfileId;
   final TerminalThemeMode themeMode;
+  final TerminalLanguageMode languageMode;
   final double terminalViewportPadding;
   final bool restoreLayout;
   final LocalTerminalOsc52Policy osc52Policy;
@@ -163,6 +167,7 @@ class _DefaultsAndAppearanceDialogState
   late String? _selectedProfileId;
   late String? _selectedTerminalPresetId;
   late TerminalThemeMode _selectedThemeMode;
+  late TerminalLanguageMode _selectedLanguageMode;
   late double _selectedTerminalViewportPadding;
   late bool _selectedRestoreLayout;
   late LocalTerminalOsc52Policy _selectedOsc52Policy;
@@ -188,6 +193,7 @@ class _DefaultsAndAppearanceDialogState
     super.initState();
     _selectedProfileId = widget.configuredDefaultProfileId;
     _selectedThemeMode = widget.themeMode;
+    _selectedLanguageMode = widget.languageMode;
     _selectedTerminalViewportPadding = widget.terminalViewportPadding;
     _selectedRestoreLayout = widget.restoreLayout;
     _selectedOsc52Policy = widget.osc52Policy;
@@ -431,6 +437,7 @@ class _DefaultsAndAppearanceDialogState
     return widget.dataApiConfigurationRecoveryRequired ||
         _selectedProfileId != widget.configuredDefaultProfileId ||
         _selectedThemeMode != widget.themeMode ||
+        _selectedLanguageMode != widget.languageMode ||
         _selectedTerminalViewportPadding != widget.terminalViewportPadding ||
         _selectedRestoreLayout != widget.restoreLayout ||
         _selectedOsc52Policy != widget.osc52Policy ||
@@ -672,6 +679,7 @@ class _DefaultsAndAppearanceDialogState
                                     configuredDefaultProfileId:
                                         _selectedProfileId,
                                     themeMode: _selectedThemeMode,
+                                    languageMode: _selectedLanguageMode,
                                     terminalViewportPadding:
                                         _selectedTerminalViewportPadding,
                                     restoreLayout: _selectedRestoreLayout,
@@ -792,6 +800,37 @@ class _DefaultsAndAppearanceDialogState
                             ),
                           ],
                         ),
+                      ),
+                      SizedBox(height: theme.spacing.xl),
+                      AppSectionHeader(
+                        title: context.l10n.language,
+                        description: context.l10n.languageDescription,
+                      ),
+                      SizedBox(height: theme.spacing.sm),
+                      _SettingsRadioPanel<TerminalLanguageMode>(
+                        panelKey: const Key('defaults-language-options'),
+                        groupValue: _selectedLanguageMode,
+                        onChanged: (value) {
+                          if (value == null) {
+                            return;
+                          }
+                          setState(() {
+                            _selectedLanguageMode = value;
+                          });
+                        },
+                        options: [
+                          for (final mode in TerminalLanguageMode.values)
+                            _SettingsRadioOptionData<TerminalLanguageMode>(
+                              tileKey: Key(
+                                'default-language-option-${mode.name}',
+                              ),
+                              value: mode,
+                              title: context.l10n.languageModeName(mode.name),
+                              subtitle: context.l10n.languageModeDescription(
+                                mode.name,
+                              ),
+                            ),
+                        ],
                       ),
                       SizedBox(height: theme.spacing.xl),
                       const _DefaultsSectionMarker(_DefaultsSection.appearance),
@@ -1839,6 +1878,7 @@ class _DefaultsAndAppearanceDialogState
                                     configuredDefaultProfileId:
                                         _selectedProfileId,
                                     themeMode: _selectedThemeMode,
+                                    languageMode: _selectedLanguageMode,
                                     terminalViewportPadding:
                                         _selectedTerminalViewportPadding,
                                     restoreLayout: _selectedRestoreLayout,

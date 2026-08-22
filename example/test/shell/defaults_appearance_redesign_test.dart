@@ -30,6 +30,16 @@ void main() {
       findsNothing,
     );
     expect(find.byKey(const Key('shortcut-editor-list')), findsNothing);
+    expect(find.byKey(const Key('defaults-language-options')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('default-language-option-english')));
+    await tester.pump();
+    expect(
+      tester
+          .widget<FilledButton>(find.byKey(const Key('defaults-save')))
+          .onPressed,
+      isNotNull,
+    );
 
     await tester.tap(find.byKey(const Key('defaults-section-security')));
     await tester.pumpAndSettle();
@@ -47,6 +57,7 @@ void main() {
       find.byKey(const Key('defaults-terminal-preset-filter')),
       findsNothing,
     );
+    expect(find.byKey(const Key('defaults-language-options')), findsNothing);
     expect(
       find.byKey(const Key('defaults-osc52-policy-dropdown')),
       findsOneWidget,
@@ -130,6 +141,59 @@ void main() {
     );
     expect(find.byKey(const Key('shortcut-editor-list')), findsNothing);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('language selection is returned when defaults are saved', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    DefaultsAndAppearanceSelection? selection;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildIanvsTerminalTheme(
+          Brightness.light,
+          platform: TargetPlatform.macOS,
+        ),
+        home: Builder(
+          builder: (context) => TextButton(
+            key: const Key('open-defaults'),
+            onPressed: () async {
+              selection = await showDialog<DefaultsAndAppearanceSelection>(
+                context: context,
+                builder: (_) => const DefaultsAndAppearanceDialog(
+                  profiles: [],
+                  configuredDefaultProfileId: null,
+                  effectiveDefaultProfileId: null,
+                  themeMode: TerminalThemeMode.system,
+                  terminalViewportPadding:
+                      TerminalAppAppearance.defaultTerminalViewportPadding,
+                  restoreLayout: false,
+                  osc52Policy: LocalTerminalOsc52Policy.profile,
+                  openUrlPolicy: LocalTerminalOpenUrlPolicy.ask,
+                  requestAttentionPolicy:
+                      LocalTerminalRequestAttentionPolicy.disabled,
+                  reportVariableDecisions: {},
+                ),
+              );
+            },
+            child: const Text('Open'),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const Key('open-defaults')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('default-language-option-english')));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('defaults-save')));
+    await tester.pumpAndSettle();
+
+    expect(selection?.languageMode, TerminalLanguageMode.english);
   });
 
   testWidgets('compact defaults dialog keeps the touch-friendly radio layout', (

@@ -14,6 +14,7 @@ void main() {
         LocalTerminalConfigDocument.currentSchemaVersion,
       );
       expect(config.appearance.themeMode, TerminalThemeMode.system);
+      expect(config.appearance.languageMode, TerminalLanguageMode.system);
       expect(
         config.appearance.terminalViewportPadding,
         TerminalAppAppearance.defaultTerminalViewportPadding,
@@ -116,6 +117,18 @@ void main() {
       expect(override.scope, TerminalKeyBindingScope.focusedApp);
       expect(override.key, 'KeyN');
       expect(override.meta, isTrue);
+    });
+
+    test('application language mode roundtrips through local config', () {
+      const config = LocalTerminalConfigDocument(
+        appearance: TerminalAppAppearance(
+          languageMode: TerminalLanguageMode.english,
+        ),
+      );
+
+      final decoded = LocalTerminalConfigDocument.decode(config.encode());
+
+      expect(decoded.appearance.languageMode, TerminalLanguageMode.english);
     });
 
     test('keybinding json trims keys and rejects blank keys', () {

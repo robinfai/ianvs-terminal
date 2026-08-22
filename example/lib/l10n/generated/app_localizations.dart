@@ -1220,6 +1220,30 @@ abstract class AppLocalizations {
   /// **'Starts new shell processes and restores their folders. Running processes are not resumed.'**
   String get restoreTabsAndPanesDescription;
 
+  /// Application language settings section title
+  ///
+  /// In en, this message translates to:
+  /// **'Language'**
+  String get language;
+
+  /// Application language settings description
+  ///
+  /// In en, this message translates to:
+  /// **'Choose the language used by the application interface.'**
+  String get languageDescription;
+
+  /// Application language mode name
+  ///
+  /// In en, this message translates to:
+  /// **'{mode, select, system{Follow system} english{English} simplifiedChinese{简体中文} other{{mode}}}'**
+  String languageModeName(String mode);
+
+  /// Application language mode description
+  ///
+  /// In en, this message translates to:
+  /// **'{mode, select, system{Use the preferred language from this device.} english{Always display the app in English.} simplifiedChinese{始终使用简体中文显示应用。} other{{mode}}}'**
+  String languageModeDescription(String mode);
+
   /// Appearance settings section title
   ///
   /// In en, this message translates to:

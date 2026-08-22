@@ -845,6 +845,32 @@
   "@restoreTabsAndPanesDescription": {
     "description": "Startup layout restoration explanation"
   },
+  "language": "Language",
+  "@language": {
+    "description": "Application language settings section title"
+  },
+  "languageDescription": "Choose the language used by the application interface.",
+  "@languageDescription": {
+    "description": "Application language settings description"
+  },
+  "languageModeName": "{mode, select, system{Follow system} english{English} simplifiedChinese{简体中文} other{{mode}}}",
+  "@languageModeName": {
+    "description": "Application language mode name",
+    "placeholders": {
+      "mode": {
+        "type": "String"
+      }
+    }
+  },
+  "languageModeDescription": "{mode, select, system{Use the preferred language from this device.} english{Always display the app in English.} simplifiedChinese{始终使用简体中文显示应用。} other{{mode}}}",
+  "@languageModeDescription": {
+    "description": "Application language mode description",
+    "placeholders": {
+      "mode": {
+        "type": "String"
+      }
+    }
+  },
   "appearance": "Appearance",
   "@appearance": {
     "description": "Appearance settings section title"

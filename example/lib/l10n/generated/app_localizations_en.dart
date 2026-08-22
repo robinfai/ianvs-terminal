@@ -693,6 +693,35 @@ class AppLocalizationsEn extends AppLocalizations {
       'Starts new shell processes and restores their folders. Running processes are not resumed.';
 
   @override
+  String get language => 'Language';
+
+  @override
+  String get languageDescription =>
+      'Choose the language used by the application interface.';
+
+  @override
+  String languageModeName(String mode) {
+    String _temp0 = intl.Intl.selectLogic(mode, {
+      'system': 'Follow system',
+      'english': 'English',
+      'simplifiedChinese': '简体中文',
+      'other': '$mode',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String languageModeDescription(String mode) {
+    String _temp0 = intl.Intl.selectLogic(mode, {
+      'system': 'Use the preferred language from this device.',
+      'english': 'Always display the app in English.',
+      'simplifiedChinese': '始终使用简体中文显示应用。',
+      'other': '$mode',
+    });
+    return '$_temp0';
+  }
+
+  @override
   String get appearance => 'Appearance';
 
   @override

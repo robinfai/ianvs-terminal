@@ -888,6 +888,7 @@ class SessionState {
     required String? configuredDefaultProfileId,
     required List<TerminalProfileLoadWarning> configurationWarnings,
     required TerminalThemeMode themeMode,
+    required TerminalLanguageMode languageMode,
     required double terminalViewportPadding,
     required bool isReady,
     Set<String> recordingSessionIds = const <String>{},
@@ -903,6 +904,7 @@ class SessionState {
       configuredDefaultProfileId: configuredDefaultProfileId,
       configurationWarnings: List.unmodifiable(configurationWarnings),
       themeMode: themeMode,
+      languageMode: languageMode,
       terminalViewportPadding: terminalViewportPadding,
       isReady: isReady,
       recordingSessionIds: Set.unmodifiable(recordingSessionIds),
@@ -922,6 +924,7 @@ class SessionState {
     required this.configuredDefaultProfileId,
     required this.configurationWarnings,
     required this.themeMode,
+    required this.languageMode,
     required this.terminalViewportPadding,
     required this.isReady,
     required this.recordingSessionIds,
@@ -937,6 +940,7 @@ class SessionState {
   final String? configuredDefaultProfileId;
   final List<TerminalProfileLoadWarning> configurationWarnings;
   final TerminalThemeMode themeMode;
+  final TerminalLanguageMode languageMode;
   final double terminalViewportPadding;
   final bool isReady;
   final Set<String> recordingSessionIds;
@@ -953,6 +957,7 @@ class SessionState {
       configuredDefaultProfileId: null,
       configurationWarnings: <TerminalProfileLoadWarning>[],
       themeMode: TerminalThemeMode.system,
+      languageMode: TerminalLanguageMode.system,
       terminalViewportPadding:
           TerminalAppAppearance.defaultTerminalViewportPadding,
       isReady: false,
@@ -970,6 +975,7 @@ class SessionState {
     Object? configuredDefaultProfileId = _sessionStateNoChange,
     List<TerminalProfileLoadWarning>? configurationWarnings,
     TerminalThemeMode? themeMode,
+    TerminalLanguageMode? languageMode,
     double? terminalViewportPadding,
     bool? isReady,
     Set<String>? recordingSessionIds,
@@ -994,6 +1000,7 @@ class SessionState {
           ? this.configurationWarnings
           : List.unmodifiable(configurationWarnings),
       themeMode: themeMode ?? this.themeMode,
+      languageMode: languageMode ?? this.languageMode,
       terminalViewportPadding:
           TerminalAppAppearance.normalizeTerminalViewportPadding(
             terminalViewportPadding ?? this.terminalViewportPadding,

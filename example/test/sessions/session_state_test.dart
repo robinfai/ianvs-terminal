@@ -31,6 +31,7 @@ void main() {
         configuredDefaultProfileId: profile.id,
         configurationWarnings: warnings,
         themeMode: TerminalThemeMode.system,
+        languageMode: TerminalLanguageMode.system,
         terminalViewportPadding:
             TerminalAppAppearance.defaultTerminalViewportPadding,
         isReady: true,

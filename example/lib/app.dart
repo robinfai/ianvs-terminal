@@ -22,12 +22,20 @@ class IanvsTerminalApp extends ConsumerWidget {
       TerminalThemeMode.light => ThemeMode.light,
       TerminalThemeMode.dark => ThemeMode.dark,
     };
+    final locale = switch (ref.watch(
+      sessionControllerProvider.select((state) => state.languageMode),
+    )) {
+      TerminalLanguageMode.system => null,
+      TerminalLanguageMode.english => const Locale('en'),
+      TerminalLanguageMode.simplifiedChinese => const Locale('zh'),
+    };
 
     return MaterialApp(
       onGenerateTitle: (context) => context.l10n.appTitle,
       debugShowCheckedModeBanner: false,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
+      locale: locale,
       localeListResolutionCallback: resolveAppLocale,
       themeMode: themeMode,
       theme: buildIanvsTerminalTheme(

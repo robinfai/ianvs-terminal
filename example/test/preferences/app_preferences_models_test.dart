@@ -49,6 +49,24 @@ void main() {
     );
   });
 
+  test('app appearance language mode defaults and roundtrips through json', () {
+    expect(
+      const TerminalAppAppearance().languageMode,
+      TerminalLanguageMode.system,
+    );
+
+    const appearance = TerminalAppAppearance(
+      languageMode: TerminalLanguageMode.simplifiedChinese,
+    );
+    final decoded = TerminalAppAppearance.fromJson(appearance.toJson());
+
+    expect(decoded.languageMode, TerminalLanguageMode.simplifiedChinese);
+    expect(
+      TerminalAppAppearance.fromJson(const {'languageMode': 'en'}).languageMode,
+      TerminalLanguageMode.english,
+    );
+  });
+
   test('app appearance toJson normalizes invalid direct padding', () {
     const appearance = TerminalAppAppearance(
       terminalViewportPadding: double.infinity,

@@ -207,6 +207,7 @@ SessionState _state({
     configuredDefaultProfileId: profiles.first.id,
     configurationWarnings: const <TerminalProfileLoadWarning>[],
     themeMode: TerminalThemeMode.system,
+    languageMode: TerminalLanguageMode.system,
     terminalViewportPadding:
         TerminalAppAppearance.defaultTerminalViewportPadding,
     isReady: true,

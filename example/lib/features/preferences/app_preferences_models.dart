@@ -15,6 +15,24 @@ enum TerminalThemeMode {
   }
 }
 
+enum TerminalLanguageMode {
+  system,
+  english,
+  simplifiedChinese;
+
+  static TerminalLanguageMode fromJsonValue(Object? value) {
+    final normalized = value is String ? value.trim().toLowerCase() : null;
+    return switch (normalized) {
+      'english' || 'en' => TerminalLanguageMode.english,
+      'simplifiedchinese' ||
+      'simplified_chinese' ||
+      'zh' ||
+      'zh-cn' => TerminalLanguageMode.simplifiedChinese,
+      _ => TerminalLanguageMode.system,
+    };
+  }
+}
+
 class TerminalAppDefaults {
   const TerminalAppDefaults({this.defaultProfileId});
 
@@ -44,6 +62,7 @@ class TerminalAppDefaults {
 class TerminalAppAppearance {
   const TerminalAppAppearance({
     this.themeMode = TerminalThemeMode.system,
+    this.languageMode = TerminalLanguageMode.system,
     this.terminalViewportPadding = defaultTerminalViewportPadding,
   });
 
@@ -52,14 +71,17 @@ class TerminalAppAppearance {
   static const double maxTerminalViewportPadding = 48;
 
   final TerminalThemeMode themeMode;
+  final TerminalLanguageMode languageMode;
   final double terminalViewportPadding;
 
   TerminalAppAppearance copyWith({
     TerminalThemeMode? themeMode,
+    TerminalLanguageMode? languageMode,
     double? terminalViewportPadding,
   }) {
     return TerminalAppAppearance(
       themeMode: themeMode ?? this.themeMode,
+      languageMode: languageMode ?? this.languageMode,
       terminalViewportPadding: normalizeTerminalViewportPadding(
         terminalViewportPadding ?? this.terminalViewportPadding,
       ),
@@ -69,6 +91,7 @@ class TerminalAppAppearance {
   Map<String, Object?> toJson() {
     return {
       'themeMode': themeMode.name,
+      'languageMode': languageMode.name,
       'terminalViewportPadding': normalizeTerminalViewportPadding(
         terminalViewportPadding,
       ),
@@ -78,6 +101,7 @@ class TerminalAppAppearance {
   static TerminalAppAppearance fromJson(Map<Object?, Object?>? json) {
     return TerminalAppAppearance(
       themeMode: TerminalThemeMode.fromJsonValue(json?['themeMode']),
+      languageMode: TerminalLanguageMode.fromJsonValue(json?['languageMode']),
       terminalViewportPadding: normalizeTerminalViewportPadding(
         json?['terminalViewportPadding'],
       ),
