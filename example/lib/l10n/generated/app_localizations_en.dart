@@ -2741,6 +2741,27 @@ class AppLocalizationsEn extends AppLocalizations {
       'Choose how terminal escape sequences may access the system clipboard.';
 
   @override
+  String get securityPermissions => 'Security & permissions';
+
+  @override
+  String get securityPermissionsDescription =>
+      'Control how terminal sessions interact with the app and remote system while balancing safety and convenience.';
+
+  @override
+  String get sessionInteractionsPermissions =>
+      'Session interactions & permissions';
+
+  @override
+  String get sessionInteractionsPermissionsDescription =>
+      'Manage requests initiated by terminal applications or remote systems and understand their security impact.';
+
+  @override
+  String get securityImpact => 'Security impact';
+
+  @override
+  String get manageDecisions => 'Manage decisions';
+
+  @override
   String get terminalUrlRequests => 'Terminal URL requests';
 
   @override

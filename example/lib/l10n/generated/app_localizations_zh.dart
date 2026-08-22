@@ -2606,6 +2606,25 @@ class AppLocalizationsZh extends AppLocalizations {
   String get osc52ClipboardDescription => '选择终端转义序列访问系统剪贴板的方式。';
 
   @override
+  String get securityPermissions => '安全与权限';
+
+  @override
+  String get securityPermissionsDescription => '控制终端会话与应用及远程系统的交互行为，平衡安全与便捷。';
+
+  @override
+  String get sessionInteractionsPermissions => '会话交互与权限';
+
+  @override
+  String get sessionInteractionsPermissionsDescription =>
+      '管理终端应用或远程系统发起的请求及其可能的安全风险。';
+
+  @override
+  String get securityImpact => '安全影响';
+
+  @override
+  String get manageDecisions => '管理决定';
+
+  @override
   String get terminalUrlRequests => '终端 URL 请求';
 
   @override

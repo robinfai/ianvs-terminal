@@ -4379,6 +4379,42 @@ abstract class AppLocalizations {
   /// **'Choose how terminal escape sequences may access the system clipboard.'**
   String get osc52ClipboardDescription;
 
+  /// No description provided for @securityPermissions.
+  ///
+  /// In en, this message translates to:
+  /// **'Security & permissions'**
+  String get securityPermissions;
+
+  /// No description provided for @securityPermissionsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Control how terminal sessions interact with the app and remote system while balancing safety and convenience.'**
+  String get securityPermissionsDescription;
+
+  /// No description provided for @sessionInteractionsPermissions.
+  ///
+  /// In en, this message translates to:
+  /// **'Session interactions & permissions'**
+  String get sessionInteractionsPermissions;
+
+  /// No description provided for @sessionInteractionsPermissionsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage requests initiated by terminal applications or remote systems and understand their security impact.'**
+  String get sessionInteractionsPermissionsDescription;
+
+  /// No description provided for @securityImpact.
+  ///
+  /// In en, this message translates to:
+  /// **'Security impact'**
+  String get securityImpact;
+
+  /// No description provided for @manageDecisions.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage decisions'**
+  String get manageDecisions;
+
   /// No description provided for @terminalUrlRequests.
   ///
   /// In en, this message translates to:

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
@@ -49,6 +51,10 @@ class DefaultsAndAppearanceSelection {
   final TerminalProfile? updatedProfile;
   final bool openProfiles;
 }
+
+enum _DefaultsSection { general, appearance, shortcuts, security, data }
+
+enum _TerminalPermissionKind { osc52, openUrl, requestAttention }
 
 class DefaultsAndAppearanceDialog extends StatefulWidget {
   const DefaultsAndAppearanceDialog({
@@ -118,7 +124,16 @@ class _DefaultsAndAppearanceDialogState
   bool _remoteDataApiUsernameEdited = false;
   bool _remoteDataApiPasswordEdited = false;
   bool _showShortcutEditor = false;
+  bool _showReportVariableManagement = false;
   String _terminalPresetFilter = '';
+  _DefaultsSection _selectedSection = _DefaultsSection.general;
+  _TerminalPermissionKind _selectedPermissionDetail =
+      _TerminalPermissionKind.openUrl;
+  final GlobalKey _generalSectionKey = GlobalKey();
+  final GlobalKey _appearanceSectionKey = GlobalKey();
+  final GlobalKey _shortcutsSectionKey = GlobalKey();
+  final GlobalKey _securitySectionKey = GlobalKey();
+  final GlobalKey _dataSectionKey = GlobalKey();
 
   @override
   void initState() {
@@ -348,6 +363,38 @@ class _DefaultsAndAppearanceDialogState
     });
   }
 
+  void _selectSection(_DefaultsSection section) {
+    FocusManager.instance.primaryFocus?.unfocus();
+    setState(() {
+      _selectedSection = section;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      final sectionContext = switch (section) {
+        _DefaultsSection.general => _generalSectionKey.currentContext,
+        _DefaultsSection.appearance => _appearanceSectionKey.currentContext,
+        _DefaultsSection.shortcuts => _shortcutsSectionKey.currentContext,
+        _DefaultsSection.security => _securitySectionKey.currentContext,
+        _DefaultsSection.data => _dataSectionKey.currentContext,
+      };
+      if (sectionContext == null) {
+        return;
+      }
+      unawaited(
+        Scrollable.ensureVisible(
+          sectionContext,
+          alignment: 0,
+          duration: MediaQuery.disableAnimationsOf(context)
+              ? Duration.zero
+              : const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+        ),
+      );
+    });
+  }
+
   bool _hasChanges(TerminalProfile? effectiveProfile) {
     final selectedDataApiConfiguration = _selectedDataApiConfiguration;
     return widget.dataApiConfigurationRecoveryRequired ||
@@ -383,6 +430,7 @@ class _DefaultsAndAppearanceDialogState
     final dialogWidth = compactLayout
         ? mediaSize.width
         : (mediaSize.width - dialogInset * 2).clamp(0.0, 960.0);
+    final showSectionNavigation = !compactLayout && dialogWidth >= 900;
     final dialogHeight = compactLayout
         ? mediaSize.height - keyboardInset
         : (mediaSize.height - keyboardInset - dialogInset * 2).clamp(
@@ -506,12 +554,14 @@ class _DefaultsAndAppearanceDialogState
           compactLayout ? theme.spacing.md : theme.spacing.xxl,
           compactKeyboardLayout ? theme.spacing.sm : theme.spacing.md,
         ),
-        bodyPadding: EdgeInsets.fromLTRB(
-          compactLayout ? theme.spacing.md : theme.spacing.xxl,
-          compactKeyboardLayout ? theme.spacing.sm : theme.spacing.md,
-          compactLayout ? theme.spacing.md : theme.spacing.xxl,
-          compactKeyboardLayout ? theme.spacing.sm : theme.spacing.md,
-        ),
+        bodyPadding: showSectionNavigation && !_showShortcutEditor
+            ? EdgeInsets.zero
+            : EdgeInsets.fromLTRB(
+                compactLayout ? theme.spacing.md : theme.spacing.xxl,
+                compactKeyboardLayout ? theme.spacing.sm : theme.spacing.md,
+                compactLayout ? theme.spacing.md : theme.spacing.xxl,
+                compactKeyboardLayout ? theme.spacing.sm : theme.spacing.md,
+              ),
         footerPadding: EdgeInsets.fromLTRB(
           compactLayout ? theme.spacing.md : theme.spacing.xxl,
           theme.spacing.md,
@@ -530,933 +580,1107 @@ class _DefaultsAndAppearanceDialogState
                   });
                 },
               )
-            : SingleChildScrollView(
-            key: const Key('defaults-appearance-scroll'),
-            controller: _scrollController,
-            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-            padding: EdgeInsets.only(right: theme.spacing.md),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _ProfilesNotice(
-                  effectiveProfile: effectiveProfile,
-                  onOpenProfiles: effectiveProfile == null
-                      ? null
-                      : () {
-                          Navigator.of(context).pop(
-                            DefaultsAndAppearanceSelection(
-                              configuredDefaultProfileId: _selectedProfileId,
-                              themeMode: _selectedThemeMode,
-                              terminalViewportPadding:
-                                  _selectedTerminalViewportPadding,
-                              restoreLayout: _selectedRestoreLayout,
-                              osc52Policy: _selectedOsc52Policy,
-                              openUrlPolicy: _selectedOpenUrlPolicy,
-                              requestAttentionPolicy:
-                                  _selectedRequestAttentionPolicy,
-                              reportVariableDecisions:
-                                  _selectedReportVariableDecisions,
-                              keybindings: _selectedKeybindings,
-                              dataApiConfiguration:
-                                  selectedDataApiConfiguration ??
-                                  widget.dataApiConfiguration,
-                              dataApiRemoteLogin: null,
-                              updatedProfile: null,
-                              openProfiles: true,
-                            ),
-                          );
-                        },
-                ),
-                SizedBox(height: theme.spacing.xl),
-                AppSectionHeader(title: context.l10n.defaultProfile),
-                SizedBox(height: theme.spacing.sm),
-                AppPanel(
-                  tone: AppPanelTone.panel,
+            : _DefaultsBodyLayout(
+                showNavigation: showSectionNavigation,
+                selectedSection: _selectedSection,
+                onSectionSelected: _selectSection,
+                child: SingleChildScrollView(
+                  key: const Key('defaults-appearance-scroll'),
+                  controller: _scrollController,
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  padding: showSectionNavigation
+                      ? EdgeInsets.fromLTRB(
+                          theme.spacing.xxl,
+                          theme.spacing.xl,
+                          theme.spacing.xxl,
+                          theme.spacing.xl,
+                        )
+                      : EdgeInsets.only(right: theme.spacing.md),
                   child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      RadioGroup<String?>(
-                        groupValue: _selectedProfileId,
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedProfileId = value;
-                            _selectedTerminalPresetId = _matchingPresetIdFor(
-                              _effectiveProfileFor(
-                                configuredProfileId: value,
-                                effectiveProfileId:
-                                    widget.effectiveDefaultProfileId,
-                              ),
-                            );
-                          });
-                        },
+                      SizedBox(key: _generalSectionKey),
+                      _ProfilesNotice(
+                        effectiveProfile: effectiveProfile,
+                        onOpenProfiles: effectiveProfile == null
+                            ? null
+                            : () {
+                                Navigator.of(context).pop(
+                                  DefaultsAndAppearanceSelection(
+                                    configuredDefaultProfileId:
+                                        _selectedProfileId,
+                                    themeMode: _selectedThemeMode,
+                                    terminalViewportPadding:
+                                        _selectedTerminalViewportPadding,
+                                    restoreLayout: _selectedRestoreLayout,
+                                    osc52Policy: _selectedOsc52Policy,
+                                    openUrlPolicy: _selectedOpenUrlPolicy,
+                                    requestAttentionPolicy:
+                                        _selectedRequestAttentionPolicy,
+                                    reportVariableDecisions:
+                                        _selectedReportVariableDecisions,
+                                    keybindings: _selectedKeybindings,
+                                    dataApiConfiguration:
+                                        selectedDataApiConfiguration ??
+                                        widget.dataApiConfiguration,
+                                    dataApiRemoteLogin: null,
+                                    updatedProfile: null,
+                                    openProfiles: true,
+                                  ),
+                                );
+                              },
+                      ),
+                      SizedBox(height: theme.spacing.xl),
+                      AppSectionHeader(title: context.l10n.defaultProfile),
+                      SizedBox(height: theme.spacing.sm),
+                      AppPanel(
+                        tone: AppPanelTone.panel,
                         child: Column(
                           children: [
-                            Padding(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: theme.spacing.md,
-                                vertical: theme.spacing.xs,
-                              ),
-                              child: AppCompactRadioTile<String?>(
-                                tileKey: const Key(
-                                  'default-profile-option-fallback',
-                                ),
-                                value: null,
-                                title: Text(context.l10n.useAutomaticFallback),
-                                subtitle: Text(
-                                  effectiveProfile == null
-                                      ? context.l10n.noProfileForNewTabs
-                                      : context.l10n
-                                            .newTabsUseProfileAutomatically(
-                                              effectiveProfile.name,
-                                            ),
-                                ),
+                            RadioGroup<String?>(
+                              groupValue: _selectedProfileId,
+                              onChanged: (value) {
+                                setState(() {
+                                  _selectedProfileId = value;
+                                  _selectedTerminalPresetId =
+                                      _matchingPresetIdFor(
+                                        _effectiveProfileFor(
+                                          configuredProfileId: value,
+                                          effectiveProfileId:
+                                              widget.effectiveDefaultProfileId,
+                                        ),
+                                      );
+                                });
+                              },
+                              child: Column(
+                                children: [
+                                  Padding(
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: theme.spacing.md,
+                                      vertical: theme.spacing.xs,
+                                    ),
+                                    child: AppCompactRadioTile<String?>(
+                                      tileKey: const Key(
+                                        'default-profile-option-fallback',
+                                      ),
+                                      value: null,
+                                      title: Text(
+                                        context.l10n.useAutomaticFallback,
+                                      ),
+                                      subtitle: Text(
+                                        effectiveProfile == null
+                                            ? context.l10n.noProfileForNewTabs
+                                            : context.l10n
+                                                  .newTabsUseProfileAutomatically(
+                                                    effectiveProfile.name,
+                                                  ),
+                                      ),
+                                    ),
+                                  ),
+                                  for (final profile in widget.profiles)
+                                    Padding(
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: theme.spacing.md,
+                                        vertical: theme.spacing.xs,
+                                      ),
+                                      child: AppCompactRadioTile<String?>(
+                                        tileKey: Key(
+                                          'default-profile-option-${profile.id}',
+                                        ),
+                                        value: profile.id,
+                                        title: Text(profile.name),
+                                        subtitle: Text(profile.shell),
+                                      ),
+                                    ),
+                                ],
                               ),
                             ),
-                            for (final profile in widget.profiles)
-                              Padding(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: theme.spacing.md,
-                                  vertical: theme.spacing.xs,
-                                ),
-                                child: AppCompactRadioTile<String?>(
-                                  tileKey: Key(
-                                    'default-profile-option-${profile.id}',
-                                  ),
-                                  value: profile.id,
-                                  title: Text(profile.name),
-                                  subtitle: Text(profile.shell),
+                            const Divider(height: 1),
+                            Container(
+                              key: const Key(
+                                'defaults-current-profile-summary',
+                              ),
+                              width: double.infinity,
+                              padding: EdgeInsets.symmetric(
+                                horizontal: theme.spacing.lg,
+                                vertical: theme.spacing.sm + theme.spacing.xs,
+                              ),
+                              decoration: BoxDecoration(
+                                color: theme.selected.withValues(alpha: 0.24),
+                                borderRadius: BorderRadius.vertical(
+                                  bottom: Radius.circular(theme.radius.md),
                                 ),
                               ),
+                              child: Text(
+                                isUsingFallback
+                                    ? context.l10n.automaticFallbackProfile(
+                                        effectiveProfile?.name ??
+                                            context.l10n.noProfileAvailable,
+                                      )
+                                    : context.l10n.configuredDefaultProfile(
+                                        effectiveProfile?.name ??
+                                            context.l10n.unknownProfile,
+                                      ),
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(
+                                      color: theme.textMuted,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                              ),
+                            ),
                           ],
                         ),
                       ),
-                      const Divider(height: 1),
-                      Container(
-                        key: const Key('defaults-current-profile-summary'),
-                        width: double.infinity,
-                        padding: EdgeInsets.symmetric(
-                          horizontal: theme.spacing.lg,
-                          vertical: theme.spacing.sm + theme.spacing.xs,
-                        ),
-                        decoration: BoxDecoration(
-                          color: theme.selected.withValues(alpha: 0.24),
-                          borderRadius: BorderRadius.vertical(
-                            bottom: Radius.circular(theme.radius.md),
-                          ),
-                        ),
-                        child: Text(
-                          isUsingFallback
-                              ? context.l10n.automaticFallbackProfile(
-                                  effectiveProfile?.name ??
-                                      context.l10n.noProfileAvailable,
-                                )
-                              : context.l10n.configuredDefaultProfile(
-                                  effectiveProfile?.name ??
-                                      context.l10n.unknownProfile,
-                                ),
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                color: theme.textMuted,
-                                fontWeight: FontWeight.w600,
+                      SizedBox(height: theme.spacing.xl),
+                      SizedBox(key: _appearanceSectionKey),
+                      AppSectionHeader(
+                        title: context.l10n.terminalPreset,
+                        description: effectiveProfile == null
+                            ? context.l10n.createProfileBeforeColors
+                            : context.l10n.applyPaletteToProfile(
+                                effectiveProfile.name,
                               ),
+                      ),
+                      SizedBox(height: theme.spacing.sm),
+                      Semantics(
+                        label: context.l10n.filterTerminalPresets,
+                        container: true,
+                        explicitChildNodes: true,
+                        child: TextField(
+                          key: const Key('defaults-terminal-preset-filter'),
+                          textInputAction: TextInputAction.search,
+                          onTapOutside: (_) =>
+                              FocusManager.instance.primaryFocus?.unfocus(),
+                          decoration: InputDecoration(
+                            isDense: true,
+                            prefixIcon: const Icon(Icons.search_rounded),
+                            labelText: context.l10n.filterTerminalPresets,
+                          ),
+                          onChanged: (value) {
+                            setState(() {
+                              _terminalPresetFilter = value;
+                            });
+                          },
                         ),
                       ),
-                    ],
-                  ),
-                ),
-                SizedBox(height: theme.spacing.xl),
-                AppSectionHeader(
-                  title: context.l10n.terminalPreset,
-                  description: effectiveProfile == null
-                      ? context.l10n.createProfileBeforeColors
-                      : context.l10n.applyPaletteToProfile(
-                          effectiveProfile.name,
-                        ),
-                ),
-                SizedBox(height: theme.spacing.sm),
-                Semantics(
-                  label: context.l10n.filterTerminalPresets,
-                  container: true,
-                  explicitChildNodes: true,
-                  child: TextField(
-                    key: const Key('defaults-terminal-preset-filter'),
-                    textInputAction: TextInputAction.search,
-                    onTapOutside: (_) =>
-                        FocusManager.instance.primaryFocus?.unfocus(),
-                    decoration: InputDecoration(
-                      isDense: true,
-                      prefixIcon: const Icon(Icons.search_rounded),
-                      labelText: context.l10n.filterTerminalPresets,
-                    ),
-                    onChanged: (value) {
-                      setState(() {
-                        _terminalPresetFilter = value;
-                      });
-                    },
-                  ),
-                ),
-                SizedBox(height: theme.spacing.sm),
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final columnCount = constraints.maxWidth >= 560
-                        ? 3
-                        : constraints.maxWidth >= 340
-                        ? 2
-                        : 1;
-                    final cardWidth =
-                        (constraints.maxWidth -
-                            theme.spacing.sm * (columnCount - 1)) /
-                        columnCount;
-                    return Wrap(
-                      key: const Key('defaults-terminal-preset-grid'),
-                      spacing: theme.spacing.sm,
-                      runSpacing: theme.spacing.sm,
-                      children: [
-                        if (showCurrentPreset)
-                          _TerminalPresetChoice(
-                            key: const Key('defaults-terminal-preset-current'),
-                            width: cardWidth,
-                            label: context.l10n.keepCurrent,
-                            subtitle: selectedPreset == null
-                                ? context.l10n.customColors
-                                : context.l10n.currentlyPreset(
-                                    selectedPreset.name,
+                      SizedBox(height: theme.spacing.sm),
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          final columnCount = constraints.maxWidth >= 560
+                              ? 3
+                              : constraints.maxWidth >= 340
+                              ? 2
+                              : 1;
+                          final cardWidth =
+                              (constraints.maxWidth -
+                                  theme.spacing.sm * (columnCount - 1)) /
+                              columnCount;
+                          return Wrap(
+                            key: const Key('defaults-terminal-preset-grid'),
+                            spacing: theme.spacing.sm,
+                            runSpacing: theme.spacing.sm,
+                            children: [
+                              if (showCurrentPreset)
+                                _TerminalPresetChoice(
+                                  key: const Key(
+                                    'defaults-terminal-preset-current',
                                   ),
-                            selected: _selectedTerminalPresetId == null,
-                            enabled: effectiveProfile != null,
-                            previewColors: effectiveProfile == null
-                                ? const <String>[]
-                                : _previewColorsForPalette(
-                                    effectiveProfile.appearance.colors,
-                                  ),
-                            onPressed: () {
-                              setState(() {
-                                _selectedTerminalPresetId = null;
-                              });
-                            },
-                          ),
-                        for (final preset in visibleTerminalPresets)
-                          _TerminalPresetChoice(
-                            key: Key('defaults-terminal-preset-${preset.id}'),
-                            width: cardWidth,
-                            label: preset.name,
-                            subtitle: preset.tone.label,
-                            selected: _selectedTerminalPresetId == preset.id,
-                            enabled: effectiveProfile != null,
-                            previewColors: preset.previewColors,
-                            onPressed: () {
-                              setState(() {
-                                _selectedTerminalPresetId = preset.id;
-                              });
-                            },
-                          ),
-                        if (!showCurrentPreset &&
-                            visibleTerminalPresets.isEmpty)
-                          SizedBox(
-                            width: constraints.maxWidth,
-                            child: AppPanel(
-                              tone: AppPanelTone.elevated,
-                              padding: EdgeInsets.all(theme.spacing.md),
-                              child: Text(
-                                context.l10n.noTerminalPresetsMatch(
-                                  _terminalPresetFilter,
-                                ),
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(color: theme.textSubtle),
-                              ),
-                            ),
-                          ),
-                      ],
-                    );
-                  },
-                ),
-                SizedBox(height: theme.spacing.xxl),
-                AppSectionHeader(
-                  title: context.l10n.startup,
-                  description: context.l10n.startupLayoutDescription,
-                ),
-                SizedBox(height: theme.spacing.sm),
-                AppPanel(
-                  key: const Key('defaults-layout-restore-panel'),
-                  tone: AppPanelTone.panel,
-                  padding: EdgeInsets.symmetric(
-                    horizontal: theme.spacing.lg,
-                    vertical: theme.spacing.sm,
-                  ),
-                  child: MergeSemantics(
-                    child: SwitchListTile(
-                      key: const Key('default-restore-layout'),
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(
-                        context.l10n.restoreTabsAndPanes,
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: theme.textPrimary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      subtitle: Text(
-                        context.l10n.restoreTabsAndPanesDescription,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: theme.textSubtle,
-                        ),
-                      ),
-                      value: _selectedRestoreLayout,
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedRestoreLayout = value;
-                        });
-                      },
-                    ),
-                  ),
-                ),
-                SizedBox(height: theme.spacing.xxl),
-                AppSectionHeader(title: context.l10n.appearance),
-                SizedBox(height: theme.spacing.sm),
-                _SettingsRadioPanel<TerminalThemeMode>(
-                  panelKey: const Key('defaults-appearance-options'),
-                  groupValue: _selectedThemeMode,
-                  onChanged: (value) {
-                    if (value == null) {
-                      return;
-                    }
-                    setState(() {
-                      _selectedThemeMode = value;
-                    });
-                  },
-                  options: [
-                    for (final themeMode in TerminalThemeMode.values)
-                      _SettingsRadioOptionData<TerminalThemeMode>(
-                        tileKey: Key('default-theme-option-${themeMode.name}'),
-                        value: themeMode,
-                        title: context.l10n.themeModeName(themeMode.name),
-                        subtitle: context.l10n.themeModeDescription(
-                          themeMode.name,
-                        ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: theme.spacing.xxl),
-                AppSectionHeader(title: context.l10n.keyboardShortcuts),
-                SizedBox(height: theme.spacing.sm),
-                _ShortcutSettingsEntry(
-                  compact: compactLayout,
-                  onPressed: () => _setShortcutEditorVisible(true),
-                ),
-                SizedBox(height: theme.spacing.xxl),
-                AppSectionHeader(
-                  title: context.l10n.osc52Clipboard,
-                  description: context.l10n.osc52ClipboardDescription,
-                ),
-                SizedBox(height: theme.spacing.sm),
-                _SettingsRadioPanel<LocalTerminalOsc52Policy>(
-                  panelKey: const Key('defaults-osc52-options'),
-                  groupValue: _selectedOsc52Policy,
-                  onChanged: (value) {
-                    if (value == null) {
-                      return;
-                    }
-                    setState(() {
-                      _selectedOsc52Policy = value;
-                    });
-                  },
-                  options: [
-                    for (final policy in LocalTerminalOsc52Policy.values)
-                      _SettingsRadioOptionData<LocalTerminalOsc52Policy>(
-                        tileKey: Key('default-osc52-policy-${policy.name}'),
-                        value: policy,
-                        title: context.l10n.osc52PolicyName(policy.name),
-                        subtitle: context.l10n.osc52PolicyDescription(
-                          policy.name,
-                        ),
-                      ),
-                  ],
-                ),
-                SizedBox(height: theme.spacing.xxl),
-                AppSectionHeader(
-                  title: context.l10n.terminalUrlRequests,
-                  description: context.l10n.terminalUrlRequestsDescription,
-                ),
-                SizedBox(height: theme.spacing.sm),
-                _SettingsRadioPanel<LocalTerminalOpenUrlPolicy>(
-                  panelKey: const Key('defaults-open-url-options'),
-                  groupValue: _selectedOpenUrlPolicy,
-                  onChanged: (value) {
-                    if (value == null) {
-                      return;
-                    }
-                    setState(() {
-                      _selectedOpenUrlPolicy = value;
-                    });
-                  },
-                  options: [
-                    for (final policy in LocalTerminalOpenUrlPolicy.values)
-                      _SettingsRadioOptionData<LocalTerminalOpenUrlPolicy>(
-                        tileKey: Key(
-                          'default-osc1337-open-url-policy-${policy.name}',
-                        ),
-                        value: policy,
-                        title: context.l10n.openUrlPolicyName(policy.name),
-                        subtitle: context.l10n.openUrlPolicyDescription(
-                          policy.name,
-                        ),
-                      ),
-                  ],
-                ),
-                SizedBox(height: theme.spacing.xxl),
-                AppSectionHeader(
-                  title: context.l10n.terminalAttentionRequests,
-                  description:
-                      context.l10n.terminalAttentionRequestsDescription,
-                ),
-                SizedBox(height: theme.spacing.sm),
-                _SettingsRadioPanel<LocalTerminalRequestAttentionPolicy>(
-                  panelKey: const Key('defaults-request-attention-options'),
-                  groupValue: _selectedRequestAttentionPolicy,
-                  onChanged: (value) {
-                    if (value == null) {
-                      return;
-                    }
-                    setState(() {
-                      _selectedRequestAttentionPolicy = value;
-                    });
-                  },
-                  options: [
-                    for (final policy
-                        in LocalTerminalRequestAttentionPolicy.values)
-                      _SettingsRadioOptionData<
-                        LocalTerminalRequestAttentionPolicy
-                      >(
-                        tileKey: Key(
-                          'default-osc1337-request-attention-policy-${policy.name}',
-                        ),
-                        value: policy,
-                        title: context.l10n.requestAttentionPolicyName(
-                          policy.name,
-                        ),
-                        subtitle: context.l10n
-                            .requestAttentionPolicyDescription(policy.name),
-                      ),
-                  ],
-                ),
-                SizedBox(height: theme.spacing.xxl),
-                AppSectionHeader(
-                  title: context.l10n.terminalVariableReports,
-                  description: context.l10n.terminalVariableReportsDescription,
-                ),
-                SizedBox(height: theme.spacing.sm),
-                AppPanel(
-                  key: const Key('defaults-report-variable-panel'),
-                  tone: AppPanelTone.panel,
-                  padding: EdgeInsets.all(theme.spacing.xl),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _selectedReportVariableDecisions.isEmpty
-                            ? context.l10n.noRememberedDecisions
-                            : context.l10n.rememberedDecisionSummary(
-                                _selectedReportVariableDecisions.length,
-                                allowedReportVariables,
-                                deniedReportVariables,
-                              ),
-                        key: const Key(
-                          'default-osc1337-report-variable-decision-summary',
-                        ),
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: theme.textPrimary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      SizedBox(height: theme.spacing.xs),
-                      Text(
-                        context.l10n.forgettingDecisionsHelp,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: theme.textSubtle,
-                        ),
-                      ),
-                      if (reportVariableDecisionEntries.isNotEmpty) ...[
-                        SizedBox(height: theme.spacing.md),
-                        for (final entry in reportVariableDecisionEntries)
-                          Padding(
-                            padding: EdgeInsets.only(bottom: theme.spacing.xs),
-                            child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                color: theme.overlay.withValues(alpha: 0.34),
-                                borderRadius: BorderRadius.circular(
-                                  theme.radius.md,
-                                ),
-                                border: Border.all(color: theme.border),
-                              ),
-                              child: Padding(
-                                padding: EdgeInsets.fromLTRB(
-                                  theme.spacing.md,
-                                  theme.spacing.xs,
-                                  theme.spacing.xs,
-                                  theme.spacing.xs,
-                                ),
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        entry.key,
-                                        key: ValueKey<String>(
-                                          'default-osc1337-report-variable-name-${entry.key}',
+                                  width: cardWidth,
+                                  label: context.l10n.keepCurrent,
+                                  subtitle: selectedPreset == null
+                                      ? context.l10n.customColors
+                                      : context.l10n.currentlyPreset(
+                                          selectedPreset.name,
                                         ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall
-                                            ?.copyWith(
-                                              color: theme.textPrimary,
-                                            ),
-                                      ),
-                                    ),
-                                    SizedBox(width: theme.spacing.sm),
-                                    Text(
-                                      entry.value ==
-                                              LocalTerminalReportVariablePolicy
-                                                  .allow
-                                          ? context.l10n.allow
-                                          : context.l10n.deny,
-                                      key: ValueKey<String>(
-                                        'default-osc1337-report-variable-policy-${entry.key}',
+                                  selected: _selectedTerminalPresetId == null,
+                                  enabled: effectiveProfile != null,
+                                  previewColors: effectiveProfile == null
+                                      ? const <String>[]
+                                      : _previewColorsForPalette(
+                                          effectiveProfile.appearance.colors,
+                                        ),
+                                  onPressed: () {
+                                    setState(() {
+                                      _selectedTerminalPresetId = null;
+                                    });
+                                  },
+                                ),
+                              for (final preset in visibleTerminalPresets)
+                                _TerminalPresetChoice(
+                                  key: Key(
+                                    'defaults-terminal-preset-${preset.id}',
+                                  ),
+                                  width: cardWidth,
+                                  label: preset.name,
+                                  subtitle: preset.tone.label,
+                                  selected:
+                                      _selectedTerminalPresetId == preset.id,
+                                  enabled: effectiveProfile != null,
+                                  previewColors: preset.previewColors,
+                                  onPressed: () {
+                                    setState(() {
+                                      _selectedTerminalPresetId = preset.id;
+                                    });
+                                  },
+                                ),
+                              if (!showCurrentPreset &&
+                                  visibleTerminalPresets.isEmpty)
+                                SizedBox(
+                                  width: constraints.maxWidth,
+                                  child: AppPanel(
+                                    tone: AppPanelTone.elevated,
+                                    padding: EdgeInsets.all(theme.spacing.md),
+                                    child: Text(
+                                      context.l10n.noTerminalPresetsMatch(
+                                        _terminalPresetFilter,
                                       ),
                                       style: Theme.of(context)
                                           .textTheme
-                                          .labelSmall
+                                          .bodySmall
                                           ?.copyWith(color: theme.textSubtle),
                                     ),
-                                    SizedBox(width: theme.spacing.xs),
-                                    IconButton(
-                                      key: ValueKey<String>(
-                                        'default-osc1337-report-variable-forget-${entry.key}',
-                                      ),
-                                      tooltip: context.l10n.forgetDecisionFor(
-                                        entry.key,
-                                      ),
-                                      visualDensity: VisualDensity.compact,
-                                      onPressed: () {
-                                        setState(() {
-                                          final next =
-                                              <
-                                                  String,
-                                                  LocalTerminalReportVariablePolicy
-                                                >{..._selectedReportVariableDecisions}
-                                                ..remove(entry.key);
-                                          _selectedReportVariableDecisions =
-                                              Map.unmodifiable(next);
-                                        });
-                                      },
-                                      icon: const Icon(Icons.close_rounded),
-                                    ),
-                                  ],
+                                  ),
                                 ),
-                              ),
-                            ),
-                          ),
-                      ],
-                      SizedBox(height: theme.spacing.sm),
-                      AppActionButton(
-                        buttonKey: const Key(
-                          'default-osc1337-report-variable-forget-all',
-                        ),
-                        tone: AppActionTone.secondary,
-                        size: AppActionSize.compact,
-                        icon: Icons.restart_alt_rounded,
-                        label: context.l10n.forgetAllDecisions,
-                        onPressed: _selectedReportVariableDecisions.isEmpty
-                            ? null
-                            : () {
-                                setState(() {
-                                  _selectedReportVariableDecisions =
-                                      const <
-                                        String,
-                                        LocalTerminalReportVariablePolicy
-                                      >{};
-                                });
-                              },
-                      ),
-                    ],
-                  ),
-                ),
-                SizedBox(height: theme.spacing.xxl),
-                AppSectionHeader(
-                  title: context.l10n.dataService,
-                  description: widget.localDataApiAvailable
-                      ? context.l10n.dataServiceDescriptionLocalAvailable
-                      : context.l10n.dataServiceDescriptionRemoteOnly,
-                ),
-                SizedBox(height: theme.spacing.sm),
-                AppPanel(
-                  key: const Key('defaults-data-api-panel'),
-                  tone: AppPanelTone.panel,
-                  padding: EdgeInsets.all(theme.spacing.lg),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Semantics(
-                        key: const Key('data-api-active-deployment'),
-                        label: context.l10n.activeDataService(
-                          _sourceDataApiDeployment.name,
-                        ),
-                        child: Text(
-                          context.l10n.activeNow(
-                            _dataServiceName(
-                              context.l10n,
-                              _sourceDataApiDeployment,
-                              localSessionsEnabled: widget.localSessionsEnabled,
-                            ),
-                          ),
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: theme.textSubtle),
-                        ),
-                      ),
-                      SizedBox(height: theme.spacing.xs),
-                      RadioGroup<DataApiDeployment>(
-                        groupValue: _selectedDataApiDeployment,
-                        onChanged: (deployment) {
-                          if (deployment == null) {
-                            return;
-                          }
-                          setState(() {
-                            _selectedDataApiDeployment = deployment;
-                          });
+                            ],
+                          );
                         },
-                        child: Column(
-                          children: [
-                            AppCompactRadioTile<DataApiDeployment>(
-                              tileKey: const Key('data-api-disabled'),
-                              value: DataApiDeployment.disabled,
-                              title: Text(
-                                widget.localSessionsEnabled
-                                    ? context.l10n.localTerminal
-                                    : context.l10n.noDataService,
-                              ),
-                              subtitle: Text(
-                                widget.localSessionsEnabled
-                                    ? context.l10n.localTerminalNoApiDescription
-                                    : context.l10n.noDataServiceDescription,
-                              ),
-                            ),
-                            if (widget.localDataApiAvailable)
-                              AppCompactRadioTile<DataApiDeployment>(
-                                tileKey: const Key('data-api-local'),
-                                value: DataApiDeployment.local,
-                                title: Text(context.l10n.bundledLocalService),
-                                subtitle: Text(
-                                  context.l10n.bundledLocalServiceDescription,
-                                ),
-                              ),
-                            if (_migratesRemoteDataToLocal)
-                              Padding(
-                                padding: EdgeInsets.only(
-                                  top: theme.spacing.sm,
-                                  bottom: theme.spacing.sm,
-                                ),
-                                child: AppPanel(
-                                  key: const Key(
-                                    'data-api-remote-to-local-migration',
-                                  ),
-                                  tone: AppPanelTone.chrome,
-                                  child: ListTile(
-                                    leading: const Icon(
-                                      Icons.cloud_download_outlined,
-                                    ),
-                                    title: Text(
-                                      context.l10n.migrateRemoteApiData,
-                                    ),
-                                    subtitle: Text(
-                                      context
-                                          .l10n
-                                          .migrateRemoteApiDataDescription,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            AppCompactRadioTile<DataApiDeployment>(
-                              tileKey: const Key('data-api-remote'),
-                              value: DataApiDeployment.remote,
-                              title: Text(context.l10n.remoteService),
-                              subtitle: Text(
-                                context.l10n.remoteServiceDescription,
-                              ),
-                            ),
-                          ],
-                        ),
                       ),
-                      if (_selectedDataApiDeployment ==
-                          DataApiDeployment.remote) ...[
-                        SizedBox(height: theme.spacing.sm),
-                        if (_migratesLocalDataToRemote) ...[
-                          AppPanel(
-                            key: const Key(
-                              'data-api-local-to-remote-migration',
-                            ),
-                            tone: AppPanelTone.chrome,
-                            child: ListTile(
-                              leading: const Icon(Icons.cloud_upload_outlined),
-                              title: Text(context.l10n.migrateLocalApiData),
-                              subtitle: Text(
-                                context.l10n.migrateLocalApiDataDescription,
-                              ),
-                            ),
-                          ),
-                          SizedBox(height: theme.spacing.sm),
-                        ],
-                        if (_selectedDataApiConfiguration ==
-                            widget.dataApiConfiguration)
-                          AppActionButton(
-                            buttonKey: const Key('data-api-remote-reconnect'),
-                            tone: AppActionTone.secondary,
-                            size: AppActionSize.compact,
-                            icon: Icons.login_rounded,
-                            label: _remoteReconnectRequested
-                                ? context.l10n.reconnectRequested
-                                : context.l10n.reconnectSignIn,
-                            onPressed: _remoteReconnectRequested
-                                ? null
-                                : () {
-                                    setState(() {
-                                      _remoteReconnectRequested = true;
-                                    });
-                                  },
-                          ),
-                        if (_selectedDataApiConfiguration ==
-                            widget.dataApiConfiguration)
-                          SizedBox(height: theme.spacing.sm),
-                        TextField(
-                          key: const Key('data-api-remote-url'),
-                          controller: _remoteDataApiUrlController,
-                          onChanged: (_) {
-                            if (!_remoteDataApiUrlEdited) {
-                              setState(() => _remoteDataApiUrlEdited = true);
-                            }
-                          },
-                          scrollPadding: EdgeInsets.only(
-                            bottom: theme.spacing.xxl * 2,
-                          ),
-                          keyboardType: TextInputType.url,
-                          textInputAction: TextInputAction.next,
-                          autocorrect: false,
-                          enableSuggestions: false,
-                          decoration: InputDecoration(
-                            labelText: context.l10n.remoteApiBaseUrl,
-                            hintText: defaultRemoteDataApiBaseUrl,
-                            errorText: _remoteDataApiUrlError,
-                            errorMaxLines: 2,
-                          ),
-                        ),
-                        SizedBox(height: theme.spacing.sm),
-                        TextField(
-                          key: const Key('data-api-remote-username'),
-                          controller: _remoteDataApiUsernameController,
-                          onChanged: (_) {
-                            if (!_remoteDataApiUsernameEdited) {
-                              setState(
-                                () => _remoteDataApiUsernameEdited = true,
-                              );
-                            }
-                          },
-                          scrollPadding: EdgeInsets.only(
-                            bottom: theme.spacing.xxl * 2,
-                          ),
-                          textInputAction: TextInputAction.next,
-                          autocorrect: false,
-                          enableSuggestions: false,
-                          autofillHints: const <String>[AutofillHints.username],
-                          decoration: InputDecoration(
-                            labelText: context.l10n.username,
-                            errorText: _remoteUsernameError,
-                            errorMaxLines: 2,
-                          ),
-                        ),
-                        SizedBox(height: theme.spacing.sm),
-                        TextField(
-                          key: const Key('data-api-remote-password'),
-                          controller: _remoteDataApiPasswordController,
-                          onChanged: (_) {
-                            if (!_remoteDataApiPasswordEdited) {
-                              setState(
-                                () => _remoteDataApiPasswordEdited = true,
-                              );
-                            }
-                          },
-                          scrollPadding: EdgeInsets.only(
-                            bottom: theme.spacing.xxl * 2,
-                          ),
-                          textInputAction: TextInputAction.done,
-                          obscureText: true,
-                          autocorrect: false,
-                          enableSuggestions: false,
-                          autofillHints: const <String>[AutofillHints.password],
-                          decoration: InputDecoration(
-                            labelText: context.l10n.password,
-                            helperText: context.l10n.loginPasswordHelp,
-                            errorText: _remotePasswordError,
-                            errorMaxLines: 2,
-                          ),
-                          onSubmitted: (_) =>
-                              FocusManager.instance.primaryFocus?.unfocus(),
-                        ),
-                        SizedBox(height: theme.spacing.sm),
-                        Text(
-                          usesAutomaticallySynchronizedAppleKeychain
-                              ? context.l10n.appleMasterKeyEncryptionDescription
-                              : context
-                                    .l10n
-                                    .deviceMasterKeyEncryptionDescription,
-                        ),
-                      ],
+                      SizedBox(height: theme.spacing.xxl),
+                      AppSectionHeader(
+                        title: context.l10n.startup,
+                        description: context.l10n.startupLayoutDescription,
+                      ),
                       SizedBox(height: theme.spacing.sm),
-                      Text(
-                        context.l10n.dataServiceRestartNotice,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: theme.textSubtle,
+                      AppPanel(
+                        key: const Key('defaults-layout-restore-panel'),
+                        tone: AppPanelTone.panel,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: theme.spacing.lg,
+                          vertical: theme.spacing.sm,
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-                SizedBox(height: theme.spacing.xxl),
-                if (widget.masterKeyRepository case final repository?) ...[
-                  MasterKeyManagementPanel(repository: repository),
-                  SizedBox(height: theme.spacing.xxl),
-                ],
-                AppSectionHeader(
-                  title: context.l10n.terminalCanvasInset,
-                  description: context.l10n.terminalCanvasInsetDescription,
-                ),
-                SizedBox(height: theme.spacing.sm),
-                AppPanel(
-                  key: const Key('defaults-canvas-inset-panel'),
-                  tone: AppPanelTone.panel,
-                  padding: EdgeInsets.all(theme.spacing.xl),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              context.l10n.viewportPadding,
-                              style: Theme.of(context).textTheme.bodyMedium
+                        child: MergeSemantics(
+                          child: SwitchListTile(
+                            key: const Key('default-restore-layout'),
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(
+                              context.l10n.restoreTabsAndPanes,
+                              style: Theme.of(context).textTheme.bodyLarge
                                   ?.copyWith(
                                     color: theme.textPrimary,
                                     fontWeight: FontWeight.w600,
                                   ),
                             ),
+                            subtitle: Text(
+                              context.l10n.restoreTabsAndPanesDescription,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(color: theme.textSubtle),
+                            ),
+                            value: _selectedRestoreLayout,
+                            onChanged: (value) {
+                              setState(() {
+                                _selectedRestoreLayout = value;
+                              });
+                            },
                           ),
-                          Text(
-                            '${_selectedTerminalViewportPadding.round()} px',
-                            style: Theme.of(context).textTheme.labelLarge
-                                ?.copyWith(
-                                  color: theme.textMuted,
-                                  fontWeight: FontWeight.w600,
-                                  fontFamily: 'monospace',
-                                ),
-                          ),
+                        ),
+                      ),
+                      SizedBox(height: theme.spacing.xxl),
+                      AppSectionHeader(title: context.l10n.appearance),
+                      SizedBox(height: theme.spacing.sm),
+                      _SettingsRadioPanel<TerminalThemeMode>(
+                        panelKey: const Key('defaults-appearance-options'),
+                        groupValue: _selectedThemeMode,
+                        onChanged: (value) {
+                          if (value == null) {
+                            return;
+                          }
+                          setState(() {
+                            _selectedThemeMode = value;
+                          });
+                        },
+                        options: [
+                          for (final themeMode in TerminalThemeMode.values)
+                            _SettingsRadioOptionData<TerminalThemeMode>(
+                              tileKey: Key(
+                                'default-theme-option-${themeMode.name}',
+                              ),
+                              value: themeMode,
+                              title: context.l10n.themeModeName(themeMode.name),
+                              subtitle: context.l10n.themeModeDescription(
+                                themeMode.name,
+                              ),
+                            ),
                         ],
                       ),
-                      Semantics(
-                        key: const Key('default-terminal-viewport-padding'),
-                        container: true,
-                        label: context.l10n.viewportPadding,
-                        value: context.l10n.pixelCount(
-                          _selectedTerminalViewportPadding.round(),
+                      SizedBox(height: theme.spacing.xxl),
+                      SizedBox(key: _shortcutsSectionKey),
+                      AppSectionHeader(title: context.l10n.keyboardShortcuts),
+                      SizedBox(height: theme.spacing.sm),
+                      _ShortcutSettingsEntry(
+                        compact: compactLayout,
+                        onPressed: () => _setShortcutEditorVisible(true),
+                      ),
+                      SizedBox(height: theme.spacing.xxl),
+                      SizedBox(key: _securitySectionKey),
+                      if (showSectionNavigation) ...[
+                        _DefaultsSectionIntro(
+                          title: context.l10n.securityPermissions,
+                          description:
+                              context.l10n.securityPermissionsDescription,
                         ),
-                        liveRegion: true,
-                        child: Row(
-                          children: [
-                            AppActionButton(
-                              buttonKey: const Key(
-                                'default-terminal-viewport-padding-decrease',
-                              ),
-                              tone: AppActionTone.secondary,
-                              size: AppActionSize.compact,
-                              icon: Icons.remove_rounded,
-                              tooltip: context.l10n.decreaseViewportPadding,
-                              onPressed:
-                                  _selectedTerminalViewportPadding <=
-                                      TerminalAppAppearance
-                                          .minTerminalViewportPadding
-                                  ? null
-                                  : () {
-                                      setState(() {
-                                        _selectedTerminalViewportPadding =
-                                            (_selectedTerminalViewportPadding -
-                                                    1)
-                                                .clamp(
-                                                  TerminalAppAppearance
-                                                      .minTerminalViewportPadding,
-                                                  TerminalAppAppearance
-                                                      .maxTerminalViewportPadding,
-                                                );
-                                      });
-                                    },
-                            ),
-                            Expanded(
-                              child: Text(
-                                context.l10n.viewportPaddingRange(
-                                  TerminalAppAppearance
-                                      .minTerminalViewportPadding
-                                      .round(),
-                                  TerminalAppAppearance
-                                      .maxTerminalViewportPadding
-                                      .round(),
+                        SizedBox(height: theme.spacing.xl),
+                        AppSectionHeader(
+                          title: context.l10n.sessionInteractionsPermissions,
+                          description: context
+                              .l10n
+                              .sessionInteractionsPermissionsDescription,
+                        ),
+                        SizedBox(height: theme.spacing.sm),
+                        _TerminalPermissionsPanel(
+                          osc52Policy: _selectedOsc52Policy,
+                          openUrlPolicy: _selectedOpenUrlPolicy,
+                          requestAttentionPolicy:
+                              _selectedRequestAttentionPolicy,
+                          selectedDetail: _selectedPermissionDetail,
+                          reportVariableDecisionCount:
+                              _selectedReportVariableDecisions.length,
+                          allowedReportVariableCount: allowedReportVariables,
+                          deniedReportVariableCount: deniedReportVariables,
+                          reportVariableManagementOpen:
+                              _showReportVariableManagement,
+                          onOsc52Changed: (value) {
+                            setState(() {
+                              _selectedOsc52Policy = value;
+                              _selectedPermissionDetail =
+                                  _TerminalPermissionKind.osc52;
+                            });
+                          },
+                          onOpenUrlChanged: (value) {
+                            setState(() {
+                              _selectedOpenUrlPolicy = value;
+                              _selectedPermissionDetail =
+                                  _TerminalPermissionKind.openUrl;
+                            });
+                          },
+                          onRequestAttentionChanged: (value) {
+                            setState(() {
+                              _selectedRequestAttentionPolicy = value;
+                              _selectedPermissionDetail =
+                                  _TerminalPermissionKind.requestAttention;
+                            });
+                          },
+                          onDetailSelected: (value) {
+                            if (_selectedPermissionDetail == value) {
+                              return;
+                            }
+                            setState(() {
+                              _selectedPermissionDetail = value;
+                            });
+                          },
+                          onManageReportVariables: () {
+                            setState(() {
+                              _showReportVariableManagement =
+                                  !_showReportVariableManagement;
+                            });
+                          },
+                        ),
+                      ] else ...[
+                        AppSectionHeader(
+                          title: context.l10n.osc52Clipboard,
+                          description: context.l10n.osc52ClipboardDescription,
+                        ),
+                        SizedBox(height: theme.spacing.sm),
+                        _SettingsRadioPanel<LocalTerminalOsc52Policy>(
+                          panelKey: const Key('defaults-osc52-options'),
+                          groupValue: _selectedOsc52Policy,
+                          onChanged: (value) {
+                            if (value == null) {
+                              return;
+                            }
+                            setState(() {
+                              _selectedOsc52Policy = value;
+                            });
+                          },
+                          options: [
+                            for (final policy
+                                in LocalTerminalOsc52Policy.values)
+                              _SettingsRadioOptionData<
+                                LocalTerminalOsc52Policy
+                              >(
+                                tileKey: Key(
+                                  'default-osc52-policy-${policy.name}',
                                 ),
-                                textAlign: TextAlign.center,
-                                style: Theme.of(context).textTheme.labelMedium
+                                value: policy,
+                                title: context.l10n.osc52PolicyName(
+                                  policy.name,
+                                ),
+                                subtitle: context.l10n.osc52PolicyDescription(
+                                  policy.name,
+                                ),
+                              ),
+                          ],
+                        ),
+                        SizedBox(height: theme.spacing.xxl),
+                        AppSectionHeader(
+                          title: context.l10n.terminalUrlRequests,
+                          description:
+                              context.l10n.terminalUrlRequestsDescription,
+                        ),
+                        SizedBox(height: theme.spacing.sm),
+                        _SettingsRadioPanel<LocalTerminalOpenUrlPolicy>(
+                          panelKey: const Key('defaults-open-url-options'),
+                          groupValue: _selectedOpenUrlPolicy,
+                          onChanged: (value) {
+                            if (value == null) {
+                              return;
+                            }
+                            setState(() {
+                              _selectedOpenUrlPolicy = value;
+                            });
+                          },
+                          options: [
+                            for (final policy
+                                in LocalTerminalOpenUrlPolicy.values)
+                              _SettingsRadioOptionData<
+                                LocalTerminalOpenUrlPolicy
+                              >(
+                                tileKey: Key(
+                                  'default-osc1337-open-url-policy-${policy.name}',
+                                ),
+                                value: policy,
+                                title: context.l10n.openUrlPolicyName(
+                                  policy.name,
+                                ),
+                                subtitle: context.l10n.openUrlPolicyDescription(
+                                  policy.name,
+                                ),
+                              ),
+                          ],
+                        ),
+                        SizedBox(height: theme.spacing.xxl),
+                        AppSectionHeader(
+                          title: context.l10n.terminalAttentionRequests,
+                          description:
+                              context.l10n.terminalAttentionRequestsDescription,
+                        ),
+                        SizedBox(height: theme.spacing.sm),
+                        _SettingsRadioPanel<
+                          LocalTerminalRequestAttentionPolicy
+                        >(
+                          panelKey: const Key(
+                            'defaults-request-attention-options',
+                          ),
+                          groupValue: _selectedRequestAttentionPolicy,
+                          onChanged: (value) {
+                            if (value == null) {
+                              return;
+                            }
+                            setState(() {
+                              _selectedRequestAttentionPolicy = value;
+                            });
+                          },
+                          options: [
+                            for (final policy
+                                in LocalTerminalRequestAttentionPolicy.values)
+                              _SettingsRadioOptionData<
+                                LocalTerminalRequestAttentionPolicy
+                              >(
+                                tileKey: Key(
+                                  'default-osc1337-request-attention-policy-${policy.name}',
+                                ),
+                                value: policy,
+                                title: context.l10n.requestAttentionPolicyName(
+                                  policy.name,
+                                ),
+                                subtitle: context.l10n
+                                    .requestAttentionPolicyDescription(
+                                      policy.name,
+                                    ),
+                              ),
+                          ],
+                        ),
+                        SizedBox(height: theme.spacing.xxl),
+                        AppSectionHeader(
+                          title: context.l10n.terminalVariableReports,
+                          description:
+                              context.l10n.terminalVariableReportsDescription,
+                        ),
+                        SizedBox(height: theme.spacing.sm),
+                      ],
+                      if (showSectionNavigation &&
+                          _showReportVariableManagement)
+                        SizedBox(height: theme.spacing.sm),
+                      if (!showSectionNavigation ||
+                          _showReportVariableManagement)
+                        AppPanel(
+                          key: showSectionNavigation
+                              ? const Key('defaults-report-variable-management')
+                              : const Key('defaults-report-variable-panel'),
+                          tone: AppPanelTone.panel,
+                          padding: EdgeInsets.all(theme.spacing.xl),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _selectedReportVariableDecisions.isEmpty
+                                    ? context.l10n.noRememberedDecisions
+                                    : context.l10n.rememberedDecisionSummary(
+                                        _selectedReportVariableDecisions.length,
+                                        allowedReportVariables,
+                                        deniedReportVariables,
+                                      ),
+                                key: showSectionNavigation
+                                    ? const Key(
+                                        'default-osc1337-report-variable-management-summary',
+                                      )
+                                    : const Key(
+                                        'default-osc1337-report-variable-decision-summary',
+                                      ),
+                                style: Theme.of(context).textTheme.bodyMedium
                                     ?.copyWith(
-                                      color: theme.textSubtle,
+                                      color: theme.textPrimary,
                                       fontWeight: FontWeight.w600,
                                     ),
                               ),
-                            ),
-                            AppActionButton(
-                              buttonKey: const Key(
-                                'default-terminal-viewport-padding-increase',
+                              SizedBox(height: theme.spacing.xs),
+                              Text(
+                                context.l10n.forgettingDecisionsHelp,
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(color: theme.textSubtle),
                               ),
-                              tone: AppActionTone.secondary,
-                              size: AppActionSize.compact,
-                              icon: Icons.add_rounded,
-                              tooltip: context.l10n.increaseViewportPadding,
-                              onPressed:
-                                  _selectedTerminalViewportPadding >=
-                                      TerminalAppAppearance
-                                          .maxTerminalViewportPadding
-                                  ? null
-                                  : () {
-                                      setState(() {
-                                        _selectedTerminalViewportPadding =
-                                            (_selectedTerminalViewportPadding +
-                                                    1)
-                                                .clamp(
-                                                  TerminalAppAppearance
-                                                      .minTerminalViewportPadding,
-                                                  TerminalAppAppearance
-                                                      .maxTerminalViewportPadding,
-                                                );
-                                      });
-                                    },
+                              if (reportVariableDecisionEntries.isNotEmpty) ...[
+                                SizedBox(height: theme.spacing.md),
+                                for (final entry
+                                    in reportVariableDecisionEntries)
+                                  Padding(
+                                    padding: EdgeInsets.only(
+                                      bottom: theme.spacing.xs,
+                                    ),
+                                    child: DecoratedBox(
+                                      decoration: BoxDecoration(
+                                        color: theme.overlay.withValues(
+                                          alpha: 0.34,
+                                        ),
+                                        borderRadius: BorderRadius.circular(
+                                          theme.radius.md,
+                                        ),
+                                        border: Border.all(color: theme.border),
+                                      ),
+                                      child: Padding(
+                                        padding: EdgeInsets.fromLTRB(
+                                          theme.spacing.md,
+                                          theme.spacing.xs,
+                                          theme.spacing.xs,
+                                          theme.spacing.xs,
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Expanded(
+                                              child: Text(
+                                                entry.key,
+                                                key: ValueKey<String>(
+                                                  'default-osc1337-report-variable-name-${entry.key}',
+                                                ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .bodySmall
+                                                    ?.copyWith(
+                                                      color: theme.textPrimary,
+                                                    ),
+                                              ),
+                                            ),
+                                            SizedBox(width: theme.spacing.sm),
+                                            Text(
+                                              entry.value ==
+                                                      LocalTerminalReportVariablePolicy
+                                                          .allow
+                                                  ? context.l10n.allow
+                                                  : context.l10n.deny,
+                                              key: ValueKey<String>(
+                                                'default-osc1337-report-variable-policy-${entry.key}',
+                                              ),
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .labelSmall
+                                                  ?.copyWith(
+                                                    color: theme.textSubtle,
+                                                  ),
+                                            ),
+                                            SizedBox(width: theme.spacing.xs),
+                                            IconButton(
+                                              key: ValueKey<String>(
+                                                'default-osc1337-report-variable-forget-${entry.key}',
+                                              ),
+                                              tooltip: context.l10n
+                                                  .forgetDecisionFor(entry.key),
+                                              visualDensity:
+                                                  VisualDensity.compact,
+                                              onPressed: () {
+                                                setState(() {
+                                                  final next =
+                                                      <
+                                                          String,
+                                                          LocalTerminalReportVariablePolicy
+                                                        >{
+                                                          ..._selectedReportVariableDecisions,
+                                                        }
+                                                        ..remove(entry.key);
+                                                  _selectedReportVariableDecisions =
+                                                      Map.unmodifiable(next);
+                                                });
+                                              },
+                                              icon: const Icon(
+                                                Icons.close_rounded,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                              SizedBox(height: theme.spacing.sm),
+                              AppActionButton(
+                                buttonKey: const Key(
+                                  'default-osc1337-report-variable-forget-all',
+                                ),
+                                tone: AppActionTone.secondary,
+                                size: AppActionSize.compact,
+                                icon: Icons.restart_alt_rounded,
+                                label: context.l10n.forgetAllDecisions,
+                                onPressed:
+                                    _selectedReportVariableDecisions.isEmpty
+                                    ? null
+                                    : () {
+                                        setState(() {
+                                          _selectedReportVariableDecisions =
+                                              const <
+                                                String,
+                                                LocalTerminalReportVariablePolicy
+                                              >{};
+                                        });
+                                      },
+                              ),
+                            ],
+                          ),
+                        ),
+                      SizedBox(height: theme.spacing.xxl),
+                      SizedBox(key: _dataSectionKey),
+                      AppSectionHeader(
+                        title: context.l10n.dataService,
+                        description: widget.localDataApiAvailable
+                            ? context.l10n.dataServiceDescriptionLocalAvailable
+                            : context.l10n.dataServiceDescriptionRemoteOnly,
+                      ),
+                      SizedBox(height: theme.spacing.sm),
+                      AppPanel(
+                        key: const Key('defaults-data-api-panel'),
+                        tone: AppPanelTone.panel,
+                        padding: EdgeInsets.all(theme.spacing.lg),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Semantics(
+                              key: const Key('data-api-active-deployment'),
+                              label: context.l10n.activeDataService(
+                                _sourceDataApiDeployment.name,
+                              ),
+                              child: Text(
+                                context.l10n.activeNow(
+                                  _dataServiceName(
+                                    context.l10n,
+                                    _sourceDataApiDeployment,
+                                    localSessionsEnabled:
+                                        widget.localSessionsEnabled,
+                                  ),
+                                ),
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(color: theme.textSubtle),
+                              ),
+                            ),
+                            SizedBox(height: theme.spacing.xs),
+                            RadioGroup<DataApiDeployment>(
+                              groupValue: _selectedDataApiDeployment,
+                              onChanged: (deployment) {
+                                if (deployment == null) {
+                                  return;
+                                }
+                                setState(() {
+                                  _selectedDataApiDeployment = deployment;
+                                });
+                              },
+                              child: Column(
+                                children: [
+                                  AppCompactRadioTile<DataApiDeployment>(
+                                    tileKey: const Key('data-api-disabled'),
+                                    value: DataApiDeployment.disabled,
+                                    title: Text(
+                                      widget.localSessionsEnabled
+                                          ? context.l10n.localTerminal
+                                          : context.l10n.noDataService,
+                                    ),
+                                    subtitle: Text(
+                                      widget.localSessionsEnabled
+                                          ? context
+                                                .l10n
+                                                .localTerminalNoApiDescription
+                                          : context
+                                                .l10n
+                                                .noDataServiceDescription,
+                                    ),
+                                  ),
+                                  if (widget.localDataApiAvailable)
+                                    AppCompactRadioTile<DataApiDeployment>(
+                                      tileKey: const Key('data-api-local'),
+                                      value: DataApiDeployment.local,
+                                      title: Text(
+                                        context.l10n.bundledLocalService,
+                                      ),
+                                      subtitle: Text(
+                                        context
+                                            .l10n
+                                            .bundledLocalServiceDescription,
+                                      ),
+                                    ),
+                                  if (_migratesRemoteDataToLocal)
+                                    Padding(
+                                      padding: EdgeInsets.only(
+                                        top: theme.spacing.sm,
+                                        bottom: theme.spacing.sm,
+                                      ),
+                                      child: AppPanel(
+                                        key: const Key(
+                                          'data-api-remote-to-local-migration',
+                                        ),
+                                        tone: AppPanelTone.chrome,
+                                        child: ListTile(
+                                          leading: const Icon(
+                                            Icons.cloud_download_outlined,
+                                          ),
+                                          title: Text(
+                                            context.l10n.migrateRemoteApiData,
+                                          ),
+                                          subtitle: Text(
+                                            context
+                                                .l10n
+                                                .migrateRemoteApiDataDescription,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  AppCompactRadioTile<DataApiDeployment>(
+                                    tileKey: const Key('data-api-remote'),
+                                    value: DataApiDeployment.remote,
+                                    title: Text(context.l10n.remoteService),
+                                    subtitle: Text(
+                                      context.l10n.remoteServiceDescription,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (_selectedDataApiDeployment ==
+                                DataApiDeployment.remote) ...[
+                              SizedBox(height: theme.spacing.sm),
+                              if (_migratesLocalDataToRemote) ...[
+                                AppPanel(
+                                  key: const Key(
+                                    'data-api-local-to-remote-migration',
+                                  ),
+                                  tone: AppPanelTone.chrome,
+                                  child: ListTile(
+                                    leading: const Icon(
+                                      Icons.cloud_upload_outlined,
+                                    ),
+                                    title: Text(
+                                      context.l10n.migrateLocalApiData,
+                                    ),
+                                    subtitle: Text(
+                                      context
+                                          .l10n
+                                          .migrateLocalApiDataDescription,
+                                    ),
+                                  ),
+                                ),
+                                SizedBox(height: theme.spacing.sm),
+                              ],
+                              if (_selectedDataApiConfiguration ==
+                                  widget.dataApiConfiguration)
+                                AppActionButton(
+                                  buttonKey: const Key(
+                                    'data-api-remote-reconnect',
+                                  ),
+                                  tone: AppActionTone.secondary,
+                                  size: AppActionSize.compact,
+                                  icon: Icons.login_rounded,
+                                  label: _remoteReconnectRequested
+                                      ? context.l10n.reconnectRequested
+                                      : context.l10n.reconnectSignIn,
+                                  onPressed: _remoteReconnectRequested
+                                      ? null
+                                      : () {
+                                          setState(() {
+                                            _remoteReconnectRequested = true;
+                                          });
+                                        },
+                                ),
+                              if (_selectedDataApiConfiguration ==
+                                  widget.dataApiConfiguration)
+                                SizedBox(height: theme.spacing.sm),
+                              TextField(
+                                key: const Key('data-api-remote-url'),
+                                controller: _remoteDataApiUrlController,
+                                onChanged: (_) {
+                                  if (!_remoteDataApiUrlEdited) {
+                                    setState(
+                                      () => _remoteDataApiUrlEdited = true,
+                                    );
+                                  }
+                                },
+                                scrollPadding: EdgeInsets.only(
+                                  bottom: theme.spacing.xxl * 2,
+                                ),
+                                keyboardType: TextInputType.url,
+                                textInputAction: TextInputAction.next,
+                                autocorrect: false,
+                                enableSuggestions: false,
+                                decoration: InputDecoration(
+                                  labelText: context.l10n.remoteApiBaseUrl,
+                                  hintText: defaultRemoteDataApiBaseUrl,
+                                  errorText: _remoteDataApiUrlError,
+                                  errorMaxLines: 2,
+                                ),
+                              ),
+                              SizedBox(height: theme.spacing.sm),
+                              TextField(
+                                key: const Key('data-api-remote-username'),
+                                controller: _remoteDataApiUsernameController,
+                                onChanged: (_) {
+                                  if (!_remoteDataApiUsernameEdited) {
+                                    setState(
+                                      () => _remoteDataApiUsernameEdited = true,
+                                    );
+                                  }
+                                },
+                                scrollPadding: EdgeInsets.only(
+                                  bottom: theme.spacing.xxl * 2,
+                                ),
+                                textInputAction: TextInputAction.next,
+                                autocorrect: false,
+                                enableSuggestions: false,
+                                autofillHints: const <String>[
+                                  AutofillHints.username,
+                                ],
+                                decoration: InputDecoration(
+                                  labelText: context.l10n.username,
+                                  errorText: _remoteUsernameError,
+                                  errorMaxLines: 2,
+                                ),
+                              ),
+                              SizedBox(height: theme.spacing.sm),
+                              TextField(
+                                key: const Key('data-api-remote-password'),
+                                controller: _remoteDataApiPasswordController,
+                                onChanged: (_) {
+                                  if (!_remoteDataApiPasswordEdited) {
+                                    setState(
+                                      () => _remoteDataApiPasswordEdited = true,
+                                    );
+                                  }
+                                },
+                                scrollPadding: EdgeInsets.only(
+                                  bottom: theme.spacing.xxl * 2,
+                                ),
+                                textInputAction: TextInputAction.done,
+                                obscureText: true,
+                                autocorrect: false,
+                                enableSuggestions: false,
+                                autofillHints: const <String>[
+                                  AutofillHints.password,
+                                ],
+                                decoration: InputDecoration(
+                                  labelText: context.l10n.password,
+                                  helperText: context.l10n.loginPasswordHelp,
+                                  errorText: _remotePasswordError,
+                                  errorMaxLines: 2,
+                                ),
+                                onSubmitted: (_) => FocusManager
+                                    .instance
+                                    .primaryFocus
+                                    ?.unfocus(),
+                              ),
+                              SizedBox(height: theme.spacing.sm),
+                              Text(
+                                usesAutomaticallySynchronizedAppleKeychain
+                                    ? context
+                                          .l10n
+                                          .appleMasterKeyEncryptionDescription
+                                    : context
+                                          .l10n
+                                          .deviceMasterKeyEncryptionDescription,
+                              ),
+                            ],
+                            SizedBox(height: theme.spacing.sm),
+                            Text(
+                              context.l10n.dataServiceRestartNotice,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(color: theme.textSubtle),
                             ),
                           ],
                         ),
                       ),
-                      Text(
-                        context.l10n.viewportPaddingDescription,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: theme.textSubtle,
+                      SizedBox(height: theme.spacing.xxl),
+                      if (widget.masterKeyRepository
+                          case final repository?) ...[
+                        MasterKeyManagementPanel(repository: repository),
+                        SizedBox(height: theme.spacing.xxl),
+                      ],
+                      AppSectionHeader(
+                        title: context.l10n.terminalCanvasInset,
+                        description:
+                            context.l10n.terminalCanvasInsetDescription,
+                      ),
+                      SizedBox(height: theme.spacing.sm),
+                      AppPanel(
+                        key: const Key('defaults-canvas-inset-panel'),
+                        tone: AppPanelTone.panel,
+                        padding: EdgeInsets.all(theme.spacing.xl),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    context.l10n.viewportPadding,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(
+                                          color: theme.textPrimary,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                  ),
+                                ),
+                                Text(
+                                  '${_selectedTerminalViewportPadding.round()} px',
+                                  style: Theme.of(context).textTheme.labelLarge
+                                      ?.copyWith(
+                                        color: theme.textMuted,
+                                        fontWeight: FontWeight.w600,
+                                        fontFamily: 'monospace',
+                                      ),
+                                ),
+                              ],
+                            ),
+                            Semantics(
+                              key: const Key(
+                                'default-terminal-viewport-padding',
+                              ),
+                              container: true,
+                              label: context.l10n.viewportPadding,
+                              value: context.l10n.pixelCount(
+                                _selectedTerminalViewportPadding.round(),
+                              ),
+                              liveRegion: true,
+                              child: Row(
+                                children: [
+                                  AppActionButton(
+                                    buttonKey: const Key(
+                                      'default-terminal-viewport-padding-decrease',
+                                    ),
+                                    tone: AppActionTone.secondary,
+                                    size: AppActionSize.compact,
+                                    icon: Icons.remove_rounded,
+                                    tooltip:
+                                        context.l10n.decreaseViewportPadding,
+                                    onPressed:
+                                        _selectedTerminalViewportPadding <=
+                                            TerminalAppAppearance
+                                                .minTerminalViewportPadding
+                                        ? null
+                                        : () {
+                                            setState(() {
+                                              _selectedTerminalViewportPadding =
+                                                  (_selectedTerminalViewportPadding -
+                                                          1)
+                                                      .clamp(
+                                                        TerminalAppAppearance
+                                                            .minTerminalViewportPadding,
+                                                        TerminalAppAppearance
+                                                            .maxTerminalViewportPadding,
+                                                      );
+                                            });
+                                          },
+                                  ),
+                                  Expanded(
+                                    child: Text(
+                                      context.l10n.viewportPaddingRange(
+                                        TerminalAppAppearance
+                                            .minTerminalViewportPadding
+                                            .round(),
+                                        TerminalAppAppearance
+                                            .maxTerminalViewportPadding
+                                            .round(),
+                                      ),
+                                      textAlign: TextAlign.center,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .labelMedium
+                                          ?.copyWith(
+                                            color: theme.textSubtle,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                    ),
+                                  ),
+                                  AppActionButton(
+                                    buttonKey: const Key(
+                                      'default-terminal-viewport-padding-increase',
+                                    ),
+                                    tone: AppActionTone.secondary,
+                                    size: AppActionSize.compact,
+                                    icon: Icons.add_rounded,
+                                    tooltip:
+                                        context.l10n.increaseViewportPadding,
+                                    onPressed:
+                                        _selectedTerminalViewportPadding >=
+                                            TerminalAppAppearance
+                                                .maxTerminalViewportPadding
+                                        ? null
+                                        : () {
+                                            setState(() {
+                                              _selectedTerminalViewportPadding =
+                                                  (_selectedTerminalViewportPadding +
+                                                          1)
+                                                      .clamp(
+                                                        TerminalAppAppearance
+                                                            .minTerminalViewportPadding,
+                                                        TerminalAppAppearance
+                                                            .maxTerminalViewportPadding,
+                                                      );
+                                            });
+                                          },
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Text(
+                              context.l10n.viewportPaddingDescription,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(color: theme.textSubtle),
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
                 ),
-              ],
-            ),
-          ),
-        footer: compactKeyboardLayout ||
-                (_showShortcutEditor && compactLayout)
+              ),
+        footer: compactKeyboardLayout || (_showShortcutEditor && compactLayout)
             ? null
             : _showShortcutEditor
             ? Align(
@@ -1607,6 +1831,629 @@ class _DefaultsAndAppearanceDialogState
   }
 }
 
+class _DefaultsBodyLayout extends StatelessWidget {
+  const _DefaultsBodyLayout({
+    required this.showNavigation,
+    required this.selectedSection,
+    required this.onSectionSelected,
+    required this.child,
+  });
+
+  final bool showNavigation;
+  final _DefaultsSection selectedSection;
+  final ValueChanged<_DefaultsSection> onSectionSelected;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!showNavigation) {
+      return child;
+    }
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(
+          width: 196,
+          child: _DefaultsSectionNavigation(
+            selectedSection: selectedSection,
+            onSectionSelected: onSectionSelected,
+          ),
+        ),
+        const VerticalDivider(width: 1),
+        Expanded(child: child),
+      ],
+    );
+  }
+}
+
+class _DefaultsSectionNavigation extends StatelessWidget {
+  const _DefaultsSectionNavigation({
+    required this.selectedSection,
+    required this.onSectionSelected,
+  });
+
+  final _DefaultsSection selectedSection;
+  final ValueChanged<_DefaultsSection> onSectionSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.appTheme;
+    final items =
+        <({_DefaultsSection section, IconData icon, String label, Key key})>[
+          (
+            section: _DefaultsSection.general,
+            icon: Icons.tune_rounded,
+            label: context.l10n.general,
+            key: const Key('defaults-section-general'),
+          ),
+          (
+            section: _DefaultsSection.appearance,
+            icon: Icons.palette_outlined,
+            label: context.l10n.appearance,
+            key: const Key('defaults-section-appearance'),
+          ),
+          (
+            section: _DefaultsSection.shortcuts,
+            icon: Icons.keyboard_outlined,
+            label: context.l10n.keyboardShortcuts,
+            key: const Key('defaults-section-shortcuts'),
+          ),
+          (
+            section: _DefaultsSection.security,
+            icon: Icons.shield_outlined,
+            label: context.l10n.securityPermissions,
+            key: const Key('defaults-section-security'),
+          ),
+          (
+            section: _DefaultsSection.data,
+            icon: Icons.storage_rounded,
+            label: context.l10n.dataService,
+            key: const Key('defaults-section-data'),
+          ),
+        ];
+    return ColoredBox(
+      color: theme.chrome.withValues(alpha: 0.42),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          theme.spacing.lg,
+          theme.spacing.xl,
+          theme.spacing.lg,
+          theme.spacing.xl,
+        ),
+        child: FocusTraversalGroup(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (final item in items) ...[
+                _DefaultsSectionNavigationItem(
+                  key: item.key,
+                  icon: item.icon,
+                  label: item.label,
+                  selected: item.section == selectedSection,
+                  onPressed: () => onSectionSelected(item.section),
+                ),
+                SizedBox(height: theme.spacing.xs),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DefaultsSectionNavigationItem extends StatelessWidget {
+  const _DefaultsSectionNavigationItem({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.appTheme;
+    final radius = BorderRadius.circular(theme.radius.md);
+    final foreground = selected ? theme.accent : theme.textMuted;
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: Material(
+        color: selected
+            ? theme.selected.withValues(alpha: 0.68)
+            : theme.selected.withValues(alpha: 0),
+        borderRadius: radius,
+        child: InkWell(
+          borderRadius: radius,
+          onTap: onPressed,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 44),
+            child: Row(
+              children: [
+                AnimatedContainer(
+                  duration: MediaQuery.disableAnimationsOf(context)
+                      ? Duration.zero
+                      : const Duration(milliseconds: 120),
+                  width: 3,
+                  height: selected ? 30 : 0,
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? theme.accent
+                        : theme.accent.withValues(alpha: 0),
+                    borderRadius: BorderRadius.circular(theme.radius.sm),
+                  ),
+                ),
+                SizedBox(width: theme.spacing.md),
+                Icon(icon, size: 20, color: foreground),
+                SizedBox(width: theme.spacing.md),
+                Expanded(
+                  child: Text(
+                    label,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: selected ? theme.accent : theme.textPrimary,
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                    ),
+                  ),
+                ),
+                SizedBox(width: theme.spacing.sm),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DefaultsSectionIntro extends StatelessWidget {
+  const _DefaultsSectionIntro({required this.title, required this.description});
+
+  final String title;
+  final String description;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.appTheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            color: theme.textPrimary,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        SizedBox(height: theme.spacing.xs),
+        Text(
+          description,
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(color: theme.textSubtle),
+        ),
+        SizedBox(height: theme.spacing.xl),
+        const Divider(height: 1),
+      ],
+    );
+  }
+}
+
+class _TerminalPermissionsPanel extends StatelessWidget {
+  const _TerminalPermissionsPanel({
+    required this.osc52Policy,
+    required this.openUrlPolicy,
+    required this.requestAttentionPolicy,
+    required this.selectedDetail,
+    required this.reportVariableDecisionCount,
+    required this.allowedReportVariableCount,
+    required this.deniedReportVariableCount,
+    required this.reportVariableManagementOpen,
+    required this.onOsc52Changed,
+    required this.onOpenUrlChanged,
+    required this.onRequestAttentionChanged,
+    required this.onDetailSelected,
+    required this.onManageReportVariables,
+  });
+
+  final LocalTerminalOsc52Policy osc52Policy;
+  final LocalTerminalOpenUrlPolicy openUrlPolicy;
+  final LocalTerminalRequestAttentionPolicy requestAttentionPolicy;
+  final _TerminalPermissionKind selectedDetail;
+  final int reportVariableDecisionCount;
+  final int allowedReportVariableCount;
+  final int deniedReportVariableCount;
+  final bool reportVariableManagementOpen;
+  final ValueChanged<LocalTerminalOsc52Policy> onOsc52Changed;
+  final ValueChanged<LocalTerminalOpenUrlPolicy> onOpenUrlChanged;
+  final ValueChanged<LocalTerminalRequestAttentionPolicy>
+  onRequestAttentionChanged;
+  final ValueChanged<_TerminalPermissionKind> onDetailSelected;
+  final VoidCallback onManageReportVariables;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.appTheme;
+    final reportSummary = reportVariableDecisionCount == 0
+        ? context.l10n.noRememberedDecisions
+        : context.l10n.rememberedDecisionSummary(
+            reportVariableDecisionCount,
+            allowedReportVariableCount,
+            deniedReportVariableCount,
+          );
+    return AppPanel(
+      key: const Key('defaults-terminal-permissions-panel'),
+      tone: AppPanelTone.panel,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(theme.radius.md),
+        child: Column(
+          children: [
+            _PermissionPolicyRow<LocalTerminalOsc52Policy>(
+              panelKey: const Key('defaults-osc52-options'),
+              dropdownKey: const Key('defaults-osc52-policy-dropdown'),
+              icon: Icons.content_paste_outlined,
+              title: context.l10n.osc52Clipboard,
+              description: context.l10n.osc52ClipboardDescription,
+              protocol: 'OSC 52',
+              value: osc52Policy,
+              values: LocalTerminalOsc52Policy.values,
+              labelFor: (value) => context.l10n.osc52PolicyName(value.name),
+              optionKeyFor: (value) =>
+                  Key('default-osc52-policy-${value.name}'),
+              onChanged: onOsc52Changed,
+              onFocused: () => onDetailSelected(_TerminalPermissionKind.osc52),
+            ),
+            if (selectedDetail == _TerminalPermissionKind.osc52)
+              _PermissionDetail(
+                description: context.l10n.osc52PolicyDescription(
+                  osc52Policy.name,
+                ),
+              ),
+            const Divider(height: 1),
+            _PermissionPolicyRow<LocalTerminalOpenUrlPolicy>(
+              panelKey: const Key('defaults-open-url-options'),
+              dropdownKey: const Key('defaults-open-url-policy-dropdown'),
+              icon: Icons.link_rounded,
+              title: context.l10n.terminalUrlRequests,
+              description: context.l10n.terminalUrlRequestsDescription,
+              protocol: 'OSC 1337 OpenURL',
+              value: openUrlPolicy,
+              values: LocalTerminalOpenUrlPolicy.values,
+              labelFor: (value) => context.l10n.openUrlPolicyName(value.name),
+              optionKeyFor: (value) =>
+                  Key('default-osc1337-open-url-policy-${value.name}'),
+              onChanged: onOpenUrlChanged,
+              onFocused: () =>
+                  onDetailSelected(_TerminalPermissionKind.openUrl),
+            ),
+            if (selectedDetail == _TerminalPermissionKind.openUrl)
+              _PermissionDetail(
+                description: context.l10n.openUrlPolicyDescription(
+                  openUrlPolicy.name,
+                ),
+              ),
+            const Divider(height: 1),
+            _PermissionPolicyRow<LocalTerminalRequestAttentionPolicy>(
+              panelKey: const Key('defaults-request-attention-options'),
+              dropdownKey: const Key(
+                'defaults-request-attention-policy-dropdown',
+              ),
+              icon: Icons.notifications_none_rounded,
+              title: context.l10n.terminalAttentionRequests,
+              description: context.l10n.terminalAttentionRequestsDescription,
+              protocol: 'OSC 1337 RequestAttention',
+              value: requestAttentionPolicy,
+              values: LocalTerminalRequestAttentionPolicy.values,
+              labelFor: (value) =>
+                  context.l10n.requestAttentionPolicyName(value.name),
+              optionKeyFor: (value) =>
+                  Key('default-osc1337-request-attention-policy-${value.name}'),
+              onChanged: onRequestAttentionChanged,
+              onFocused: () =>
+                  onDetailSelected(_TerminalPermissionKind.requestAttention),
+            ),
+            if (selectedDetail == _TerminalPermissionKind.requestAttention)
+              _PermissionDetail(
+                description: context.l10n.requestAttentionPolicyDescription(
+                  requestAttentionPolicy.name,
+                ),
+              ),
+            const Divider(height: 1),
+            KeyedSubtree(
+              key: const Key('defaults-report-variable-panel'),
+              child: _ReportVariablesRow(
+                summary: reportSummary,
+                expanded: reportVariableManagementOpen,
+                onPressed: onManageReportVariables,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PermissionPolicyRow<T extends Enum> extends StatelessWidget {
+  const _PermissionPolicyRow({
+    required this.panelKey,
+    required this.dropdownKey,
+    required this.icon,
+    required this.title,
+    required this.description,
+    required this.protocol,
+    required this.value,
+    required this.values,
+    required this.labelFor,
+    required this.optionKeyFor,
+    required this.onChanged,
+    required this.onFocused,
+  });
+
+  final Key panelKey;
+  final Key dropdownKey;
+  final IconData icon;
+  final String title;
+  final String description;
+  final String protocol;
+  final T value;
+  final List<T> values;
+  final String Function(T value) labelFor;
+  final Key Function(T value) optionKeyFor;
+  final ValueChanged<T> onChanged;
+  final VoidCallback onFocused;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.appTheme;
+    final text = Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: EdgeInsets.only(top: theme.spacing.xs),
+          child: Icon(icon, size: 22, color: theme.textMuted),
+        ),
+        SizedBox(width: theme.spacing.xl),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: theme.textPrimary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              SizedBox(height: theme.spacing.xs),
+              Text(
+                description,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: theme.textSubtle),
+              ),
+              SizedBox(height: theme.spacing.xs),
+              Text(
+                '${context.l10n.protocol}: $protocol',
+                style: Theme.of(
+                  context,
+                ).textTheme.labelMedium?.copyWith(color: theme.textSubtle),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+    final dropdown = Semantics(
+      label: '$title, ${labelFor(value)}',
+      child: Focus(
+        onFocusChange: (focused) {
+          if (focused) {
+            onFocused();
+          }
+        },
+        child: SizedBox(
+          width: 174,
+          child: KeyedSubtree(
+            key: dropdownKey,
+            child: AppDropdownFormField<T>(
+              key: ValueKey<T>(value),
+              initialValue: value,
+              isExpanded: true,
+              decoration: const InputDecoration(),
+              items: [
+                for (final option in values)
+                  DropdownMenuItem<T>(
+                    key: optionKeyFor(option),
+                    value: option,
+                    child: Text(
+                      labelFor(option),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+              ],
+              onChanged: (next) {
+                if (next != null) {
+                  onChanged(next);
+                }
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    return KeyedSubtree(
+      key: panelKey,
+      child: Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: theme.spacing.xl,
+          vertical: theme.spacing.lg,
+        ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            if (constraints.maxWidth < 560) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  text,
+                  SizedBox(height: theme.spacing.md),
+                  Align(alignment: Alignment.centerRight, child: dropdown),
+                ],
+              );
+            }
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(child: text),
+                SizedBox(width: theme.spacing.xl),
+                dropdown,
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _PermissionDetail extends StatelessWidget {
+  const _PermissionDetail({required this.description});
+
+  final String description;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.appTheme;
+    return Container(
+      width: double.infinity,
+      margin: EdgeInsets.fromLTRB(
+        theme.spacing.xl,
+        0,
+        theme.spacing.xl,
+        theme.spacing.lg,
+      ),
+      padding: EdgeInsets.symmetric(
+        horizontal: theme.spacing.xl,
+        vertical: theme.spacing.md,
+      ),
+      decoration: BoxDecoration(
+        color: theme.selected.withValues(alpha: 0.34),
+        borderRadius: BorderRadius.circular(theme.radius.md),
+        border: Border.all(color: theme.accent.withValues(alpha: 0.20)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.info_outline_rounded, size: 20, color: theme.accent),
+          SizedBox(width: theme.spacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  context.l10n.securityImpact,
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: theme.textPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                SizedBox(height: theme.spacing.xs),
+                Text(
+                  description,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: theme.textMuted),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReportVariablesRow extends StatelessWidget {
+  const _ReportVariablesRow({
+    required this.summary,
+    required this.expanded,
+    required this.onPressed,
+  });
+
+  final String summary;
+  final bool expanded;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.appTheme;
+    return Padding(
+      padding: EdgeInsets.symmetric(
+        horizontal: theme.spacing.xl,
+        vertical: theme.spacing.lg,
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.terminal_rounded, size: 22, color: theme.textMuted),
+          SizedBox(width: theme.spacing.xl),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'OSC 1337 ReportVariable',
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: theme.textPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                SizedBox(height: theme.spacing.xs),
+                Text(
+                  context.l10n.terminalVariableReportsDescription,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: theme.textSubtle),
+                ),
+                SizedBox(height: theme.spacing.xs),
+                Text(
+                  summary,
+                  key: const Key(
+                    'default-osc1337-report-variable-decision-summary',
+                  ),
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: theme.textMuted,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(width: theme.spacing.xl),
+          AppActionButton(
+            buttonKey: const Key('defaults-manage-report-variables'),
+            tone: AppActionTone.secondary,
+            size: AppActionSize.compact,
+            icon: expanded ? Icons.expand_less_rounded : Icons.tune_rounded,
+            label: context.l10n.manageDecisions,
+            onPressed: onPressed,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ShortcutSettingsEntry extends StatelessWidget {
   const _ShortcutSettingsEntry({
     required this.compact,
@@ -1681,10 +2528,7 @@ class _ShortcutSettingsEntry extends StatelessWidget {
                       ),
                     ),
                   SizedBox(width: theme.spacing.xs),
-                  Icon(
-                    Icons.chevron_right_rounded,
-                    color: theme.textMuted,
-                  ),
+                  Icon(Icons.chevron_right_rounded, color: theme.textMuted),
                 ],
               ),
             ),

@@ -94,3 +94,57 @@ layout, density, hierarchy, controls, and semantic timeline.
   found in the corrected reproduction.
 
 final result: passed
+
+---
+
+# 默认设置与外观：设计验收记录
+
+## 验收对象
+
+- 视觉源：`/Users/robinfai/.codex/generated_images/01a02578-c512-7530-aacc-a44037835a76/exec-03b2496d-7675-4172-a6a7-813bd2e2fbda.png`
+- 实现截图：`design-qa-assets/defaults-appearance-redesign/native-light-security.png`
+- 深色验证：`design-qa-assets/defaults-appearance-redesign/native-dark-security.png`
+- 完整对照：`design-qa-assets/defaults-appearance-redesign/comparison-full.png`（左：视觉源；右：实现）
+- 聚焦对照：`design-qa-assets/defaults-appearance-redesign/comparison-security-focus.png`（左：视觉源；右：实现）
+
+## 环境与状态
+
+- 平台：macOS 原生 Flutter 应用，debug 构建
+- 应用截图：1128 × 740 px，设备像素比由宿主显示器决定
+- 对话框可视区域：约 960 × 700 px
+- 视觉源：1409 × 1117 px
+- 语言：简体中文
+- 主题：浅色（同时复验深色；验收后已恢复用户原来的深色设置）
+- 分区：安全与权限
+- 策略状态：OSC 52「按 Profile」、OpenURL「每次询问」、RequestAttention「拒绝」
+- ReportVariable：0 项已记住的决定
+
+视觉源与当前显示器尺寸不同，因此完整对照按同一显示高度等比缩放，没有拉伸；聚焦对照单独裁出主权限区域，避免背景和窗口尺寸干扰判断。
+
+## 对照结论
+
+| 优先级 | 结果 | 说明 |
+| --- | --- | --- |
+| P0 | 无 | 页面可打开、可滚动、可关闭；没有崩溃、溢出或内容不可达。 |
+| P1 | 无 | 桌面侧栏、选中态、权限策略下拉、OpenURL 风险说明、ReportVariable 管理入口和固定操作栏均已实现。 |
+| P2 | 无 | 标题层级、卡片边界、图标、分隔线、选中蓝色和整体信息密度与视觉源保持一致；中文长文案没有遮挡主要操作。 |
+| P3 | 有 | 当前宿主显示器高度较小，实际截图比视觉源更紧凑，并在首屏露出下一节“数据服务”；这是约束下的自适应表现，不影响核心任务。 |
+
+## 交互与可访问性验证
+
+- 五个侧栏入口均可用，并通过滚动定位到对应分区。
+- 三个权限策略均使用键盘可操作的下拉控件；OpenURL 菜单实机打开验证通过。
+- 当前分区和策略控件具有语义标签，选中态不仅依赖颜色。
+- 固定底栏保留“重置默认值”“重置主题”“取消”“保存更改”，修改后保存按钮启用。
+- 390 × 844 紧凑布局继续使用触控友好的原单选卡片，不强塞桌面侧栏。
+- 浅色、深色渲染均通过；临时验收设置已恢复。
+
+## 迭代记录
+
+1. 将长表单重组为桌面侧栏 + 单一滚动内容，保留所有原有表单项和保存语义。
+2. 将三组终端协议单选卡片压缩为可扫描的权限行，并给当前策略增加上下文说明。
+3. 将 ReportVariable 合并为摘要行和按需展开管理，减少常态页面高度。
+4. 补齐中文/英文文案、响应式分支和键盘交互测试。
+5. 在原生 macOS 应用中复验浅色、深色、侧栏跳转和下拉菜单，并生成完整与聚焦对照图。
+
+final result: passed
