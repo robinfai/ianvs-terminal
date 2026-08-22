@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
@@ -55,6 +53,61 @@ class DefaultsAndAppearanceSelection {
 enum _DefaultsSection { general, appearance, shortcuts, security, data }
 
 enum _TerminalPermissionKind { osc52, openUrl, requestAttention }
+
+List<Widget> _visibleDefaultsSectionChildren({
+  required bool showAll,
+  required _DefaultsSection selectedSection,
+  required List<Widget> children,
+}) {
+  final visibleChildren = <Widget>[];
+  var currentSection = _DefaultsSection.general;
+  for (final child in children) {
+    if (child is _DefaultsSectionMarker) {
+      currentSection = child.section;
+    } else if (showAll || currentSection == selectedSection) {
+      visibleChildren.add(child);
+    }
+  }
+  return visibleChildren;
+}
+
+class _DefaultsSectionMarker extends StatelessWidget {
+  const _DefaultsSectionMarker(this.section);
+
+  final _DefaultsSection section;
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
+}
+
+class _DefaultsSectionColumn extends StatelessWidget {
+  const _DefaultsSectionColumn({
+    required this.showAll,
+    required this.selectedSection,
+    required this.children,
+    this.mainAxisSize = MainAxisSize.max,
+    this.crossAxisAlignment = CrossAxisAlignment.center,
+  });
+
+  final bool showAll;
+  final _DefaultsSection selectedSection;
+  final List<Widget> children;
+  final MainAxisSize mainAxisSize;
+  final CrossAxisAlignment crossAxisAlignment;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: mainAxisSize,
+      crossAxisAlignment: crossAxisAlignment,
+      children: _visibleDefaultsSectionChildren(
+        showAll: showAll,
+        selectedSection: selectedSection,
+        children: children,
+      ),
+    );
+  }
+}
 
 class DefaultsAndAppearanceDialog extends StatefulWidget {
   const DefaultsAndAppearanceDialog({
@@ -129,11 +182,6 @@ class _DefaultsAndAppearanceDialogState
   _DefaultsSection _selectedSection = _DefaultsSection.general;
   _TerminalPermissionKind _selectedPermissionDetail =
       _TerminalPermissionKind.openUrl;
-  final GlobalKey _generalSectionKey = GlobalKey();
-  final GlobalKey _appearanceSectionKey = GlobalKey();
-  final GlobalKey _shortcutsSectionKey = GlobalKey();
-  final GlobalKey _securitySectionKey = GlobalKey();
-  final GlobalKey _dataSectionKey = GlobalKey();
 
   @override
   void initState() {
@@ -364,34 +412,17 @@ class _DefaultsAndAppearanceDialogState
   }
 
   void _selectSection(_DefaultsSection section) {
+    if (_selectedSection == section) {
+      return;
+    }
     FocusManager.instance.primaryFocus?.unfocus();
     setState(() {
       _selectedSection = section;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
-        return;
+      if (mounted && _scrollController.hasClients) {
+        _scrollController.jumpTo(0);
       }
-      final sectionContext = switch (section) {
-        _DefaultsSection.general => _generalSectionKey.currentContext,
-        _DefaultsSection.appearance => _appearanceSectionKey.currentContext,
-        _DefaultsSection.shortcuts => _shortcutsSectionKey.currentContext,
-        _DefaultsSection.security => _securitySectionKey.currentContext,
-        _DefaultsSection.data => _dataSectionKey.currentContext,
-      };
-      if (sectionContext == null) {
-        return;
-      }
-      unawaited(
-        Scrollable.ensureVisible(
-          sectionContext,
-          alignment: 0,
-          duration: MediaQuery.disableAnimationsOf(context)
-              ? Duration.zero
-              : const Duration(milliseconds: 220),
-          curve: Curves.easeOutCubic,
-        ),
-      );
     });
   }
 
@@ -430,7 +461,9 @@ class _DefaultsAndAppearanceDialogState
     final dialogWidth = compactLayout
         ? mediaSize.width
         : (mediaSize.width - dialogInset * 2).clamp(0.0, 960.0);
-    final showSectionNavigation = !compactLayout && dialogWidth >= 900;
+    final showSectionNavigation = !compactLayout && dialogWidth >= 720;
+    final showStandaloneShortcutEditor =
+        _showShortcutEditor && !showSectionNavigation;
     final dialogHeight = compactLayout
         ? mediaSize.height - keyboardInset
         : (mediaSize.height - keyboardInset - dialogInset * 2).clamp(
@@ -474,15 +507,15 @@ class _DefaultsAndAppearanceDialogState
       explicitChildNodes: true,
       child: AppDialogScaffold(
         key: const Key('defaults-dialog'),
-        title: _showShortcutEditor
+        title: showStandaloneShortcutEditor
             ? context.l10n.keyboardShortcuts
             : context.l10n.defaultsAppearance,
         subtitle: compactLayout || compactKeyboardLayout
             ? null
-            : _showShortcutEditor
+            : showStandaloneShortcutEditor
             ? context.l10n.keyboardShortcutsDescription
             : context.l10n.defaultsAppearanceSubtitle,
-        leading: _showShortcutEditor
+        leading: showStandaloneShortcutEditor
             ? AppActionButton(
                 buttonKey: const Key('defaults-shortcuts-back'),
                 tooltip: context.l10n.backToDefaultsAppearance,
@@ -501,7 +534,7 @@ class _DefaultsAndAppearanceDialogState
                 onPressed: () => Navigator.of(context).pop(),
               )
             : null,
-        actions: _showShortcutEditor && compactLayout
+        actions: showStandaloneShortcutEditor && compactLayout
             ? [
                 PopupMenuButton<bool>(
                   key: const Key('shortcut-editor-mobile-menu'),
@@ -554,7 +587,7 @@ class _DefaultsAndAppearanceDialogState
           compactLayout ? theme.spacing.md : theme.spacing.xxl,
           compactKeyboardLayout ? theme.spacing.sm : theme.spacing.md,
         ),
-        bodyPadding: showSectionNavigation && !_showShortcutEditor
+        bodyPadding: showSectionNavigation && !showStandaloneShortcutEditor
             ? EdgeInsets.zero
             : EdgeInsets.fromLTRB(
                 compactLayout ? theme.spacing.md : theme.spacing.xxl,
@@ -568,7 +601,7 @@ class _DefaultsAndAppearanceDialogState
           compactLayout ? theme.spacing.md : theme.spacing.xxl,
           theme.spacing.md,
         ),
-        body: _showShortcutEditor
+        body: showStandaloneShortcutEditor
             ? ShortcutEditorPanel(
                 config: _selectedKeybindings,
                 expandList: true,
@@ -579,6 +612,31 @@ class _DefaultsAndAppearanceDialogState
                     _selectedKeybindings = value;
                   });
                 },
+              )
+            : showSectionNavigation &&
+                  _selectedSection == _DefaultsSection.shortcuts
+            ? _DefaultsBodyLayout(
+                showNavigation: showSectionNavigation,
+                selectedSection: _selectedSection,
+                onSectionSelected: _selectSection,
+                child: Padding(
+                  key: const Key('defaults-shortcuts-tab-panel'),
+                  padding: EdgeInsets.fromLTRB(
+                    theme.spacing.xxl,
+                    theme.spacing.xl,
+                    theme.spacing.xxl,
+                    theme.spacing.xl,
+                  ),
+                  child: ShortcutEditorPanel(
+                    config: _selectedKeybindings,
+                    expandList: true,
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedKeybindings = value;
+                      });
+                    },
+                  ),
+                ),
               )
             : _DefaultsBodyLayout(
                 showNavigation: showSectionNavigation,
@@ -597,11 +655,13 @@ class _DefaultsAndAppearanceDialogState
                           theme.spacing.xl,
                         )
                       : EdgeInsets.only(right: theme.spacing.md),
-                  child: Column(
+                  child: _DefaultsSectionColumn(
+                    showAll: !showSectionNavigation,
+                    selectedSection: _selectedSection,
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      SizedBox(key: _generalSectionKey),
+                      const _DefaultsSectionMarker(_DefaultsSection.general),
                       _ProfilesNotice(
                         effectiveProfile: effectiveProfile,
                         onOpenProfiles: effectiveProfile == null
@@ -734,7 +794,7 @@ class _DefaultsAndAppearanceDialogState
                         ),
                       ),
                       SizedBox(height: theme.spacing.xl),
-                      SizedBox(key: _appearanceSectionKey),
+                      const _DefaultsSectionMarker(_DefaultsSection.appearance),
                       AppSectionHeader(
                         title: context.l10n.terminalPreset,
                         description: effectiveProfile == null
@@ -915,15 +975,17 @@ class _DefaultsAndAppearanceDialogState
                         ],
                       ),
                       SizedBox(height: theme.spacing.xxl),
-                      SizedBox(key: _shortcutsSectionKey),
-                      AppSectionHeader(title: context.l10n.keyboardShortcuts),
-                      SizedBox(height: theme.spacing.sm),
-                      _ShortcutSettingsEntry(
-                        compact: compactLayout,
-                        onPressed: () => _setShortcutEditorVisible(true),
-                      ),
-                      SizedBox(height: theme.spacing.xxl),
-                      SizedBox(key: _securitySectionKey),
+                      const _DefaultsSectionMarker(_DefaultsSection.shortcuts),
+                      if (!showSectionNavigation) ...[
+                        AppSectionHeader(title: context.l10n.keyboardShortcuts),
+                        SizedBox(height: theme.spacing.sm),
+                        _ShortcutSettingsEntry(
+                          compact: compactLayout,
+                          onPressed: () => _setShortcutEditorVisible(true),
+                        ),
+                        SizedBox(height: theme.spacing.xxl),
+                      ],
+                      const _DefaultsSectionMarker(_DefaultsSection.security),
                       if (showSectionNavigation) ...[
                         _DefaultsSectionIntro(
                           title: context.l10n.securityPermissions,
@@ -1269,7 +1331,7 @@ class _DefaultsAndAppearanceDialogState
                           ),
                         ),
                       SizedBox(height: theme.spacing.xxl),
-                      SizedBox(key: _dataSectionKey),
+                      const _DefaultsSectionMarker(_DefaultsSection.data),
                       AppSectionHeader(
                         title: context.l10n.dataService,
                         description: widget.localDataApiAvailable
@@ -1539,6 +1601,7 @@ class _DefaultsAndAppearanceDialogState
                         MasterKeyManagementPanel(repository: repository),
                         SizedBox(height: theme.spacing.xxl),
                       ],
+                      const _DefaultsSectionMarker(_DefaultsSection.appearance),
                       AppSectionHeader(
                         title: context.l10n.terminalCanvasInset,
                         description:
@@ -1680,9 +1743,11 @@ class _DefaultsAndAppearanceDialogState
                   ),
                 ),
               ),
-        footer: compactKeyboardLayout || (_showShortcutEditor && compactLayout)
+        footer:
+            compactKeyboardLayout ||
+                (showStandaloneShortcutEditor && compactLayout)
             ? null
-            : _showShortcutEditor
+            : showStandaloneShortcutEditor
             ? Align(
                 alignment: Alignment.centerRight,
                 child: AppActionButton(

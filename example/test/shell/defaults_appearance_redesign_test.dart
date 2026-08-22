@@ -21,6 +21,15 @@ void main() {
     ]) {
       expect(find.byKey(key), findsOneWidget);
     }
+    expect(
+      find.byKey(const Key('defaults-current-profile-summary')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('defaults-terminal-permissions-panel')),
+      findsNothing,
+    );
+    expect(find.byKey(const Key('shortcut-editor-list')), findsNothing);
 
     await tester.tap(find.byKey(const Key('defaults-section-security')));
     await tester.pumpAndSettle();
@@ -29,6 +38,14 @@ void main() {
     expect(
       find.byKey(const Key('defaults-terminal-permissions-panel')),
       findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('defaults-current-profile-summary')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const Key('defaults-terminal-preset-filter')),
+      findsNothing,
     );
     expect(
       find.byKey(const Key('defaults-osc52-policy-dropdown')),
@@ -74,6 +91,44 @@ void main() {
       find.byKey(const Key('defaults-report-variable-management')),
       findsOneWidget,
     );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('wide defaults dialog renders shortcuts as a persistent tab', (
+    tester,
+  ) async {
+    await _pumpDefaultsDialog(tester, surfaceSize: const Size(800, 700));
+
+    await tester.tap(find.byKey(const Key('defaults-section-shortcuts')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('defaults-shortcuts-tab-panel')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('shortcut-editor-filter')), findsOneWidget);
+    expect(find.byKey(const Key('shortcut-editor-list')), findsOneWidget);
+    expect(find.byKey(const Key('defaults-shortcuts-entry')), findsNothing);
+    expect(find.byKey(const Key('defaults-shortcuts-back')), findsNothing);
+    expect(find.byKey(const Key('defaults-shortcuts-done')), findsNothing);
+    expect(find.byKey(const Key('defaults-save')), findsOneWidget);
+    expect(
+      find.byKey(const Key('defaults-terminal-permissions-panel')),
+      findsNothing,
+    );
+
+    await tester.tap(find.byKey(const Key('defaults-section-appearance')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('defaults-terminal-preset-filter')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('defaults-canvas-inset-panel')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('shortcut-editor-list')), findsNothing);
     expect(tester.takeException(), isNull);
   });
 

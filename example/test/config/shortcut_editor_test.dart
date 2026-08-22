@@ -135,8 +135,10 @@ void main() {
         ),
       },
     );
-    await tester.binding.setSurfaceSize(const Size(1000, 820));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
     await tester.pumpWidget(
       MaterialApp(
         theme: buildIanvsTerminalTheme(Brightness.dark),
@@ -168,17 +170,10 @@ void main() {
       isNull,
     );
 
-    await tester.scrollUntilVisible(
-      find.byKey(const Key('defaults-shortcuts-entry')),
-      400,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await tester.tap(find.byKey(const Key('defaults-shortcuts-entry')));
+    await tester.tap(find.byKey(const Key('defaults-section-shortcuts')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('shortcut-editor-restore-all')));
     await tester.pump();
-    await tester.tap(find.byKey(const Key('defaults-shortcuts-done')));
-    await tester.pumpAndSettle();
 
     expect(
       tester
@@ -188,27 +183,23 @@ void main() {
     );
   });
 
-  testWidgets('desktop shortcut editor replaces the settings body in place', (
+  testWidgets('desktop shortcut editor lives inside the shortcuts tab', (
     tester,
   ) async {
     await _pumpDefaultsDialog(tester, surfaceSize: const Size(1000, 820));
 
-    await tester.scrollUntilVisible(
-      find.byKey(const Key('default-theme-option-dark')),
-      400,
-      scrollable: find.byType(Scrollable).first,
-    );
+    await tester.tap(find.byKey(const Key('defaults-section-appearance')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('default-theme-option-dark')));
     await tester.pump();
-    await tester.scrollUntilVisible(
-      find.byKey(const Key('defaults-shortcuts-entry')),
-      400,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await tester.tap(find.byKey(const Key('defaults-shortcuts-entry')));
+    await tester.tap(find.byKey(const Key('defaults-section-shortcuts')));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('defaults-appearance-scroll')), findsNothing);
+    expect(
+      find.byKey(const Key('defaults-shortcuts-tab-panel')),
+      findsOneWidget,
+    );
     expect(find.byKey(const Key('shortcut-editor-list')), findsOneWidget);
     expect(find.byType(ListView), findsOneWidget);
     expect(
@@ -218,10 +209,13 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(find.byKey(const Key('defaults-shortcuts-done')), findsOneWidget);
+    expect(find.byKey(const Key('defaults-shortcuts-done')), findsNothing);
+    expect(find.byKey(const Key('defaults-shortcuts-back')), findsNothing);
+    expect(find.byKey(const Key('defaults-save')), findsOneWidget);
+    expect(find.byKey(const Key('defaults-section-general')), findsOneWidget);
     expect(tester.takeException(), isNull);
 
-    await tester.tap(find.byKey(const Key('defaults-shortcuts-done')));
+    await tester.tap(find.byKey(const Key('defaults-section-appearance')));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('default-theme-option-dark')), findsOneWidget);
