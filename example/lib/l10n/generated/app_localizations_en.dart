@@ -58,6 +58,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get preparingTerminalRuntime => 'Preparing terminal runtime…';
 
   @override
+  String loadingTerminalSession(String profile) {
+    return 'Loading $profile…';
+  }
+
+  @override
   String startupStage(String stage) {
     return 'Stage: $stage';
   }

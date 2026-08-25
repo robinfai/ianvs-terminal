@@ -1073,7 +1073,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets('new tab keeps current terminal visible until its first frame', (
+  testWidgets('new tab shows loading content until its first frame', (
     tester,
   ) async {
     final fakeBindings = _DelayedNewTabPtyBackend();
@@ -1088,19 +1088,30 @@ void main() {
 
     expect(find.byKey(const Key('shell-pane-1')), findsOneWidget);
 
-    await _openCommandMenu(tester);
-    await tester.tap(find.text('New tab'));
-    await _chooseDefaultLocalSession(tester);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    container
+        .read(sessionControllerProvider.notifier)
+        .createSession(defaultTerminalProfile());
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
 
     expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
     _expectSelectedTab(tester, '2');
-    expect(find.byKey(const Key('shell-pane-1')), findsOneWidget);
+    expect(find.byKey(const Key('shell-pane-1')), findsNothing);
     expect(find.byKey(const Key('shell-pane-2')), findsNothing);
+    expect(
+      find.bySemanticsIdentifier('shell-session-loading-2'),
+      findsOneWidget,
+    );
+    expect(find.text('Loading Local Shell…'), findsOneWidget);
 
     fakeBindings.releaseNewTabFrame = true;
     await tester.pump(const Duration(milliseconds: 40));
     await tester.pumpAndSettle();
 
+    expect(find.bySemanticsIdentifier('shell-session-loading-2'), findsNothing);
     expect(find.byKey(const Key('shell-pane-2')), findsOneWidget);
   });
 
@@ -1118,19 +1129,29 @@ void main() {
       ),
     );
 
-    await _openCommandMenu(tester);
-    await tester.tap(find.text('New tab'));
-    await _chooseDefaultLocalSession(tester);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    container
+        .read(sessionControllerProvider.notifier)
+        .createSession(defaultTerminalProfile());
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
 
     expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
     _expectSelectedTab(tester, '2');
-    expect(find.byKey(const Key('shell-pane-1')), findsOneWidget);
+    expect(find.byKey(const Key('shell-pane-1')), findsNothing);
     expect(find.byKey(const Key('shell-pane-2')), findsNothing);
+    expect(
+      find.bySemanticsIdentifier('shell-session-loading-2'),
+      findsOneWidget,
+    );
 
     fakeBindings.releaseNewTabFrame = true;
     await tester.pump(const Duration(milliseconds: 40));
     await tester.pumpAndSettle();
 
+    expect(find.bySemanticsIdentifier('shell-session-loading-2'), findsNothing);
     expect(find.byKey(const Key('shell-pane-2')), findsOneWidget);
   });
 

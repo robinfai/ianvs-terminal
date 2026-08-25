@@ -188,6 +188,12 @@ abstract class AppLocalizations {
   /// **'Preparing terminal runtime…'**
   String get preparingTerminalRuntime;
 
+  /// Status shown in a new terminal tab while its first renderable frame loads
+  ///
+  /// In en, this message translates to:
+  /// **'Loading {profile}…'**
+  String loadingTerminalSession(String profile);
+
   /// Startup failure stage label
   ///
   /// In en, this message translates to:

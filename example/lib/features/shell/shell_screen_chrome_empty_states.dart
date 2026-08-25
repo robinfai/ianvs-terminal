@@ -91,6 +91,60 @@ class _ShellStartupSurface extends StatelessWidget {
   }
 }
 
+class _ShellSessionLoadingSurface extends StatelessWidget {
+  const _ShellSessionLoadingSurface({
+    super.key,
+    required this.sessionId,
+    required this.profileName,
+    required this.palette,
+  });
+
+  final String sessionId;
+  final String profileName;
+  final AppThemeTokens palette;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = context.l10n.loadingTerminalSession(profileName);
+    return Semantics(
+      identifier: 'shell-session-loading-$sessionId',
+      container: true,
+      liveRegion: true,
+      label: label,
+      child: ExcludeSemantics(
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: palette.terminalSurface,
+            border: Border(top: BorderSide(color: palette.terminalFrame)),
+          ),
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox.square(
+                  dimension: 24,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    color: palette.accent,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  label,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: palette.textSubtle,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ShellEmptyState extends StatelessWidget {
   const _ShellEmptyState({
     super.key,

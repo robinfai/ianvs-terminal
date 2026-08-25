@@ -58,6 +58,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get preparingTerminalRuntime => '正在准备终端运行时…';
 
   @override
+  String loadingTerminalSession(String profile) {
+    return '正在加载 $profile…';
+  }
+
+  @override
   String startupStage(String stage) {
     return '阶段：$stage';
   }

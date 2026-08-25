@@ -786,11 +786,6 @@ extension _ShellScreenStateSessions on _ShellScreenState {
       _lastRenderableSessionId = activeSessionId;
       return activeSessionId;
     }
-    if (retainedSessionId != null &&
-        retainedTab != null &&
-        _sessionHasRenderableContent(sessionController, retainedSessionId)) {
-      return retainedSessionId;
-    }
     return null;
   }
 

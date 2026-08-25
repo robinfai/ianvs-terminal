@@ -1360,18 +1360,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                             onClear: _confirmClearInstantReplayHistory,
                             onExit: _closeInstantReplayLayout,
                           )
-                        : !sessionState.isReady ||
-                              (activeSessionId != null &&
-                                  displayedSessionId == null)
+                        : !sessionState.isReady
                         ? _ShellStartupSurface(
                             key: const Key('shell-startup-state'),
                             palette: palette,
-                            errorMessage: sessionState.isReady
-                                ? null
-                                : sessionState.lastError,
-                            onRetry:
-                                !sessionState.isReady &&
-                                    sessionState.lastError != null
+                            errorMessage: sessionState.lastError,
+                            onRetry: sessionState.lastError != null
                                 ? sessionController.retryBootstrap
                                 : null,
                             onOpenSettings: () => _openDefaultsAndAppearance(
@@ -1395,6 +1389,14 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                     _confirmRemoteFallbackToLocal(),
                                   ),
                             remoteFallbackSwitching: _remoteFallbackSwitching,
+                          )
+                        : activeSessionId != null && displayedSessionId == null
+                        ? _ShellSessionLoadingSurface(
+                            key: Key('shell-session-loading-$activeSessionId'),
+                            sessionId: activeSessionId,
+                            profileName:
+                                displayedProfile?.name ?? context.l10n.terminal,
+                            palette: palette,
                           )
                         : activeSessionId == null || activeTab == null
                         ? launchPolicy.isSshOnly

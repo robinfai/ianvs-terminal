@@ -70,6 +70,15 @@
   "@preparingTerminalRuntime": {
     "description": "Status shown while the terminal runtime is initialized"
   },
+  "loadingTerminalSession": "Loading {profile}…",
+  "@loadingTerminalSession": {
+    "description": "Status shown in a new terminal tab while its first renderable frame loads",
+    "placeholders": {
+      "profile": {
+        "type": "String"
+      }
+    }
+  },
   "startupStage": "Stage: {stage}",
   "@startupStage": {
     "description": "Startup failure stage label",

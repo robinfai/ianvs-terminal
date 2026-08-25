@@ -15,6 +15,7 @@
   "closeDialog": "关闭对话框",
   "startingAppAttempt": "正在启动 Ianvs 终端，第 {attempt} 次尝试",
   "preparingTerminalRuntime": "正在准备终端运行时…",
+  "loadingTerminalSession": "正在加载 {profile}…",
   "startupStage": "阶段：{stage}",
   "retryStartup": "重试启动",
   "dataServiceSettings": "数据服务设置",
