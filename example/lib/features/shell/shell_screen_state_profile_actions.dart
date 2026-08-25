@@ -117,33 +117,17 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
     if (_isProfilesOpen) {
       return;
     }
-    final activeSessionId = sessionState.activeSessionId;
-    final activePane = activeSessionId == null
-        ? null
-        : _paneForSession(sessionState, activeSessionId);
-    final activeProfile = activePane == null
-        ? null
-        : _profileForPane(activePane, sessionState.profiles);
-    if (activeProfile != null) {
+    final defaultProfile = _effectiveDefaultProfileFor(
+      sessionState.profiles,
+      sessionState.defaultProfileId,
+    );
+    if (defaultProfile != null) {
       _createSession(
         sessionController,
-        activeProfile,
-        returningToLayout: false,
+        defaultProfile,
+        returningToLayout: sessionState.activeSessionId == null,
       );
       return;
-    }
-    if (_localSessionsEnabled) {
-      final localProfiles = sessionState.profiles
-          .where((profile) => !profile.isSsh)
-          .toList(growable: false);
-      if (localProfiles.length == 1) {
-        _createSession(
-          sessionController,
-          localProfiles.single,
-          returningToLayout: sessionState.activeSessionId == null,
-        );
-        return;
-      }
     }
     await _openNewSessionLauncher(sessionController, sessionState);
   }

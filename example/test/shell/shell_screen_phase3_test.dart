@@ -383,7 +383,16 @@ void main() {
         TerminalProfilesDocument(
           profiles: [
             defaultTerminalProfile(),
-            TerminalProfile(id: 'ssh', name: 'SSH', shell: '/usr/bin/ssh'),
+            TerminalProfile(
+              id: 'ssh',
+              name: 'SSH',
+              shell: '/bin/zsh',
+              connection: const terminal.TerminalConnectionConfig.ssh(
+                host: 'ssh.example.test',
+                user: 'operator',
+                port: 2222,
+              ),
+            ),
           ],
         ),
       );
@@ -421,11 +430,23 @@ void main() {
         isNull,
       );
 
-      await tester.ensureVisible(
-        find.byKey(const Key('default-profile-option-ssh')),
+      final sshProfileOption = find.byKey(
+        const Key('default-profile-option-ssh'),
       );
+      await tester.ensureVisible(sshProfileOption);
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('default-profile-option-ssh')));
+      expect(
+        find.descendant(
+          of: sshProfileOption,
+          matching: find.text('SSH • operator@ssh.example.test:2222'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: sshProfileOption, matching: find.text('/bin/zsh')),
+        findsNothing,
+      );
+      await tester.tap(sshProfileOption);
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('defaults-section-appearance')));
       await tester.pumpAndSettle();

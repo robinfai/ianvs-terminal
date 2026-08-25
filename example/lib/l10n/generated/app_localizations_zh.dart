@@ -221,7 +221,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get newTabTitleCase => '新建标签页';
 
   @override
-  String get newTabDescription => '置顶操作 • 打开当前标签页的 Profile。';
+  String get newTabDescription => '置顶操作 • 打开默认 Profile。';
 
   @override
   String get toolbelt => '工具带';

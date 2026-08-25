@@ -230,8 +230,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get newTabTitleCase => 'New Tab';
 
   @override
-  String get newTabDescription =>
-      'Top action • Open the current tab\'s profile.';
+  String get newTabDescription => 'Top action • Open the default profile.';
 
   @override
   String get toolbelt => 'Toolbelt';

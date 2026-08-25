@@ -3778,7 +3778,7 @@ void main() {
   );
 
   testWidgets(
-    'command-t reopens the current local profile at its live directory',
+    'command-t opens the default local profile at the active live directory',
     (tester) async {
       final fakeBindings = FakePtyBackend();
       final sshProfile = defaultTerminalProfile().copyWith(
@@ -3842,32 +3842,56 @@ void main() {
   );
 
   testWidgets(
-    'command-t uses the current profile when more than one local profile exists',
+    'command-t opens the selected default instead of the current profile',
     (tester) async {
-      final secondaryProfile = defaultTerminalProfile().copyWith(
-        id: 'secondary-local',
-        name: 'Secondary local',
+      final fakeBindings = _SshEventfulPtyBackend();
+      final sshProfile = defaultTerminalProfile().copyWith(
+        id: 'selected-ssh',
+        name: 'Selected SSH',
+        connection: const terminal.TerminalConnectionConfig.ssh(
+          host: 'default.example.test',
+          user: 'operator',
+        ),
       );
       await _pumpShellScreen(
         tester,
-        bindings: FakePtyBackend(),
+        bindings: fakeBindings,
         repository: MemoryProfileRepository(
           TerminalProfilesDocument(
-            profiles: [defaultTerminalProfile(), secondaryProfile],
+            profiles: [defaultTerminalProfile(), sshProfile],
           ),
         ),
       );
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      expect(
+        container.read(sessionControllerProvider).tabs.single.profileId,
+        'default',
+      );
+      await container
+          .read(sessionControllerProvider.notifier)
+          .setDefaultProfile(sshProfile.id);
+      await tester.pump();
 
       await _sendMetaShortcut(tester, LogicalKeyboardKey.keyT);
 
       expect(find.byKey(const Key('new-session-launcher')), findsNothing);
       expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
+      final state = container.read(sessionControllerProvider);
+      expect(state.defaultProfileId, sshProfile.id);
+      expect(state.tabs.last.profileId, sshProfile.id);
+      final wire = terminal.TerminalSessionConfigV1.fromJsonString(
+        jsonEncode(fakeBindings.lastCreatedSessionPayload),
+      );
+      expect(wire.config.connection.host, 'default.example.test');
     },
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
   testWidgets(
-    'command-t reopens the current SSH profile with shell integration enabled',
+    'command-t opens the default SSH profile with shell integration enabled',
     (tester) async {
       final fakeBindings = _SshEventfulPtyBackend();
       final sshProfile = defaultTerminalProfile().copyWith(

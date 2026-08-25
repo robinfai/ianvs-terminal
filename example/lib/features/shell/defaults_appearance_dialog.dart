@@ -830,7 +830,9 @@ class _DefaultsAndAppearanceDialogState
                                         ),
                                         value: profile.id,
                                         title: Text(profile.name),
-                                        subtitle: Text(profile.shell),
+                                        subtitle: Text(
+                                          _defaultProfileSubtitle(profile),
+                                        ),
                                       ),
                                     ),
                                 ],
@@ -3401,6 +3403,17 @@ class _DataServiceStatusBanner extends StatelessWidget {
       ),
     );
   }
+}
+
+String _defaultProfileSubtitle(TerminalProfile profile) {
+  if (!profile.isSsh) {
+    return profile.shell;
+  }
+  final connection = profile.connection;
+  final host = connection.host.contains(':')
+      ? '[${connection.host}]'
+      : connection.host;
+  return 'SSH • ${connection.user}@$host:${connection.port}';
 }
 
 String _dataServiceName(

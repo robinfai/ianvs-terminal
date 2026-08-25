@@ -270,7 +270,7 @@
   "@newTab": {
     "description": "Action that opens a new terminal tab"
   },
-  "newTabDescription": "Top action • Open the current tab''s profile.",
+  "newTabDescription": "Top action • Open the default profile.",
   "@newTabDescription": {
     "description": "Command palette new-tab description"
   },

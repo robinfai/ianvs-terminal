@@ -62,7 +62,7 @@
   "searchTerminalOutputDescription": "置顶操作 • 在当前面板中打开终端搜索。",
   "newTab": "新建标签页",
   "newTabTitleCase": "新建标签页",
-  "newTabDescription": "置顶操作 • 打开当前标签页的 Profile。",
+  "newTabDescription": "置顶操作 • 打开默认 Profile。",
   "toolbelt": "工具带",
   "toolbeltDescription": "置顶操作 • 打开当前面板的终端工具。",
   "defaultsAppearance": "默认设置与外观",

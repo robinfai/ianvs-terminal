@@ -473,7 +473,7 @@ abstract class AppLocalizations {
   /// Command palette new-tab description
   ///
   /// In en, this message translates to:
-  /// **'Top action • Open the current tab\'\'s profile.'**
+  /// **'Top action • Open the default profile.'**
   String get newTabDescription;
 
   /// Terminal toolbelt title
