@@ -4,12 +4,15 @@ import '../persistence/versioned_document.dart';
 import 'local_terminal_config_models.dart';
 import 'local_terminal_config_repository.dart';
 
-final class DataApiTerminalConfigRepository extends TerminalConfigRepository {
+final class DataApiTerminalConfigRepository extends TerminalConfigRepository
+    implements TerminalConfigRecoveryRepository {
   DataApiTerminalConfigRepository({required DataApiResourceClient client})
     : _client = client;
 
   static const resourceKind = 'config';
   static const resourceId = 'local-terminal';
+  static const recoveryResourceKind = 'recovery';
+  static const recoveryDocumentFormat = 'ianvs-terminal-config-recovery-v1';
   static const _maximumUpdateAttempts = 3;
 
   final DataApiResourceClient _client;
@@ -102,6 +105,106 @@ final class DataApiTerminalConfigRepository extends TerminalConfigRepository {
     return operation;
   }
 
+  @override
+  Future<VersionedDocument<LocalTerminalConfigDocument>>
+  repairNonCanonicalCurrentDocument() {
+    final operation = _updateQueue.then((_) async {
+      final existing = await _client.getResource(
+        kind: resourceKind,
+        id: resourceId,
+      );
+      if (existing == null) {
+        throw StateError('There is no terminal config document to repair.');
+      }
+      final validated = requireDataApiResourceIdentity(
+        existing,
+        kind: resourceKind,
+        id: resourceId,
+      );
+      if (validated.hasSensitive || validated.sensitive != null) {
+        throw const FormatException(
+          'Terminal config must not contain a sensitive payload.',
+        );
+      }
+      final data = dataApiObject(
+        validated.data,
+        documentName: 'Terminal config',
+      );
+      final decoded = LocalTerminalConfigDocument.fromJson(data);
+      final canonical = decoded.toJson();
+      if (dataApiJsonEquivalent(canonical, data)) {
+        throw StateError('The terminal config document is already canonical.');
+      }
+
+      final backupId = recoveryResourceIdForRevision(validated.revision);
+      final backupData = <String, Object?>{
+        'format': recoveryDocumentFormat,
+        'resourceKind': resourceKind,
+        'resourceId': resourceId,
+        'resourceRevision': validated.revision,
+        'sourceId': validated.sourceId,
+        'sourceRevision': validated.sourceRevision,
+        'sourceUpdatedAt': validated.sourceUpdatedAt.toIso8601String(),
+        'data': deepCopyDataApiObject(data),
+      };
+      final existingBackup = await _client.getResource(
+        kind: recoveryResourceKind,
+        id: backupId,
+      );
+      if (existingBackup == null) {
+        final savedBackup = await _client.putResource(
+          kind: recoveryResourceKind,
+          id: backupId,
+          data: backupData,
+          expectedRevision: 0,
+        );
+        requireDataApiResourceIdentity(
+          savedBackup,
+          kind: recoveryResourceKind,
+          id: backupId,
+        );
+      } else {
+        final validatedBackup = requireDataApiResourceIdentity(
+          existingBackup,
+          kind: recoveryResourceKind,
+          id: backupId,
+        );
+        if (validatedBackup.hasSensitive ||
+            validatedBackup.sensitive != null ||
+            !dataApiJsonEquivalent(validatedBackup.data, backupData)) {
+          throw const FormatException(
+            'The terminal config recovery backup does not match the original '
+            'document.',
+          );
+        }
+      }
+
+      final saved = await _client.putResource(
+        kind: resourceKind,
+        id: resourceId,
+        data: canonical,
+        expectedRevision: validated.revision,
+      );
+      requireDataApiResourceIdentity(saved, kind: resourceKind, id: resourceId);
+      return VersionedDocument<LocalTerminalConfigDocument>(
+        value: decoded,
+        revision: saved.revision,
+      );
+    });
+    _updateQueue = operation.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace _) {},
+    );
+    return operation;
+  }
+
+  static String recoveryResourceIdForRevision(int revision) {
+    if (revision <= 0) {
+      throw RangeError.value(revision, 'revision', 'must be positive');
+    }
+    return 'terminal-config-local-terminal-r$revision';
+  }
+
   LocalTerminalConfigDocument _decode(DataApiResource resource) {
     final validated = requireDataApiResourceIdentity(
       resource,
@@ -116,9 +219,7 @@ final class DataApiTerminalConfigRepository extends TerminalConfigRepository {
     final data = dataApiObject(validated.data, documentName: 'Terminal config');
     final decoded = LocalTerminalConfigDocument.fromJson(data);
     if (!dataApiJsonEquivalent(decoded.toJson(), data)) {
-      throw const FormatException(
-        'Terminal config is not a canonical current-schema document.',
-      );
+      throw const NonCanonicalCurrentTerminalConfigException();
     }
     return decoded;
   }

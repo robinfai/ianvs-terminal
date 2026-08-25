@@ -294,7 +294,7 @@ class RunnerTests: XCTestCase {
     window.bindNativeTerminalSessionMenuItems(in: mainMenu)
 
     let fileMenu = try XCTUnwrap(mainMenu.items.first { $0.title == "File" }?.submenu)
-    let localItems = fileMenu.items.filter { $0.title == "New Local Terminal…" }
+    let localItems = fileMenu.items.filter { $0.title == "New Tab" }
     let sshItems = fileMenu.items.filter { $0.title == "New SSH Session…" }
     let localItem = try XCTUnwrap(localItems.first)
     let sshItem = try XCTUnwrap(sshItems.first)
@@ -303,7 +303,7 @@ class RunnerTests: XCTestCase {
     XCTAssertEqual(localItem.keyEquivalent, "t")
     XCTAssertEqual(localItem.keyEquivalentModifierMask, [.command])
     XCTAssertTrue(localItem.target === window)
-    XCTAssertEqual(localItem.action, #selector(MainFlutterWindow.openLocalTerminal(_:)))
+    XCTAssertEqual(localItem.action, #selector(MainFlutterWindow.openNewTab(_:)))
 
     XCTAssertEqual(sshItems.count, 1)
     XCTAssertEqual(sshItem.keyEquivalent, "t")

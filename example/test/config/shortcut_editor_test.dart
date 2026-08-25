@@ -110,7 +110,7 @@ void main() {
     expect(
       find.descendant(
         of: find.byKey(const Key('shortcut-edit-newTab')),
-        matching: find.text('Add shortcut'),
+        matching: find.text('Unassigned'),
       ),
       findsOneWidget,
     );
@@ -190,6 +190,9 @@ void main() {
 
     await tester.tap(find.byKey(const Key('defaults-section-appearance')));
     await tester.pumpAndSettle();
+    await tester.ensureVisible(
+      find.byKey(const Key('default-theme-option-dark')),
+    );
     await tester.tap(find.byKey(const Key('default-theme-option-dark')));
     await tester.pump();
     await tester.tap(find.byKey(const Key('defaults-section-shortcuts')));
@@ -201,6 +204,25 @@ void main() {
       findsOneWidget,
     );
     expect(find.byKey(const Key('shortcut-editor-list')), findsOneWidget);
+    expect(
+      find.byKey(const Key('shortcut-editor-action-column')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('shortcut-editor-value-column')),
+      findsOneWidget,
+    );
+    final header = find.byKey(const Key('shortcut-editor-list-header'));
+    final listPanel = find.byKey(const Key('shortcut-editor-list-panel'));
+    expect(tester.getSize(header).height, 36);
+    expect(tester.getSize(header).width, tester.getSize(listPanel).width);
+    expect(
+      tester
+          .widget<Text>(find.byKey(const Key('shortcut-editor-action-column')))
+          .style
+          ?.fontSize,
+      Theme.of(tester.element(header)).textTheme.labelMedium?.fontSize,
+    );
     expect(find.byType(ListView), findsOneWidget);
     expect(
       find.descendant(

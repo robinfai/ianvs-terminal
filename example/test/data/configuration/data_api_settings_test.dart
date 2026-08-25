@@ -3,6 +3,8 @@ import 'package:app/features/config/local_terminal_config_models.dart';
 import 'package:app/features/preferences/app_preferences_models.dart';
 import 'package:app/features/shell/defaults_appearance_dialog.dart';
 import 'package:app/ui/foundation/app_theme.dart';
+import 'package:app/ui/foundation/app_theme_tokens.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -42,6 +44,15 @@ Future<void> _pumpIosDefaultsDialog(WidgetTester tester) async {
     ),
   );
   await tester.tap(find.text('Open defaults'));
+  await tester.pumpAndSettle();
+}
+
+Future<void> _selectDataSectionWhenTabbed(WidgetTester tester) async {
+  final dataSection = find.byKey(const Key('defaults-section-data'));
+  if (dataSection.evaluate().isEmpty) {
+    return;
+  }
+  await tester.tap(dataSection);
   await tester.pumpAndSettle();
 }
 
@@ -123,6 +134,7 @@ void main() {
       addTearDown(tester.view.reset);
 
       await _pumpIosDefaultsDialog(tester);
+      await _selectDataSectionWhenTabbed(tester);
       final remote = find.byKey(const Key('data-api-remote'));
       await tester.scrollUntilVisible(
         remote,
@@ -206,6 +218,7 @@ void main() {
       ),
     );
     await tester.pump();
+    await _selectDataSectionWhenTabbed(tester);
 
     await tester.scrollUntilVisible(
       find.byKey(const Key('defaults-data-api-panel')),
@@ -213,7 +226,7 @@ void main() {
       scrollable: find.byType(Scrollable).first,
     );
 
-    expect(find.text('Active now: No data service'), findsOneWidget);
+    expect(find.text('Currently running: No data service'), findsOneWidget);
     expect(find.text('No data service'), findsOneWidget);
     expect(find.textContaining('one-time SSH connections'), findsWidgets);
     expect(find.byKey(const Key('data-api-local')), findsNothing);
@@ -248,6 +261,7 @@ void main() {
       ),
     );
     await tester.pump();
+    await _selectDataSectionWhenTabbed(tester);
 
     await tester.scrollUntilVisible(
       find.byKey(const Key('defaults-data-api-panel')),
@@ -346,11 +360,34 @@ void main() {
       ),
     );
     await tester.pump();
+    await _selectDataSectionWhenTabbed(tester);
     await tester.scrollUntilVisible(
       find.byKey(const Key('defaults-data-api-panel')),
       500,
       scrollable: find.byType(Scrollable).first,
     );
+
+    final localSurface = find.byKey(const Key('data-api-local-surface'));
+    final initialSurface = tester.widget<AnimatedContainer>(localSurface);
+    final initialDecoration = initialSurface.decoration! as BoxDecoration;
+    expect(initialDecoration.color, Colors.transparent);
+
+    final pointer = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await pointer.addPointer(location: Offset.zero);
+    await pointer.moveTo(tester.getCenter(localSurface));
+    await tester.pumpAndSettle();
+
+    final hoveredSurface = tester.widget<AnimatedContainer>(localSurface);
+    final hoveredDecoration = hoveredSurface.decoration! as BoxDecoration;
+    expect(hoveredDecoration.color, isNot(Colors.transparent));
+    expect(
+      (hoveredDecoration.border! as Border).top.color,
+      Theme.of(
+        tester.element(localSurface),
+      ).extension<AppThemeTokens>()!.borderStrong,
+    );
+    await pointer.removePointer();
+    await tester.pumpAndSettle();
 
     await tester.tap(find.byKey(const Key('data-api-remote-reconnect')));
     await tester.pump();
@@ -365,6 +402,18 @@ void main() {
           .onPressed,
       isNull,
     );
+    final expectedFieldSize = Theme.of(
+      tester.element(find.byKey(const Key('data-api-remote-url'))),
+    ).textTheme.bodyMedium?.fontSize;
+    for (final key in <Key>[
+      const Key('data-api-remote-url'),
+      const Key('data-api-remote-username'),
+      const Key('data-api-remote-password'),
+    ]) {
+      final field = tester.widget<TextField>(find.byKey(key));
+      expect(field.style?.fontSize, expectedFieldSize);
+      expect(field.decoration?.constraints?.minHeight, 36);
+    }
     await tester.enterText(
       find.byKey(const Key('data-api-remote-username')),
       'alice',
@@ -412,6 +461,7 @@ void main() {
         ),
       );
       await tester.pump();
+      await _selectDataSectionWhenTabbed(tester);
       await tester.scrollUntilVisible(
         find.byKey(const Key('defaults-data-api-panel')),
         500,
@@ -472,6 +522,7 @@ void main() {
         ),
       );
       await tester.pump();
+      await _selectDataSectionWhenTabbed(tester);
       await tester.scrollUntilVisible(
         find.byKey(const Key('defaults-data-api-panel')),
         500,
@@ -502,7 +553,7 @@ void main() {
         tester
             .getSemantics(find.byKey(const Key('data-api-active-deployment')))
             .label,
-        contains('Active data service: local'),
+        contains('Active data service: Bundled local service'),
       );
     },
   );
@@ -538,6 +589,7 @@ void main() {
         ),
       );
       await tester.pump();
+      await _selectDataSectionWhenTabbed(tester);
       await tester.scrollUntilVisible(
         find.byKey(const Key('defaults-data-api-panel')),
         500,

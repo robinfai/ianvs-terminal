@@ -2,6 +2,15 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show FileSystemException;
 
+import 'package:app/data/configuration/data_api_configuration.dart';
+import 'package:app/data/configuration/data_api_configuration_providers.dart';
+import 'package:app/data/configuration/data_api_configuration_repository.dart';
+import 'package:app/data/services/data_api_migration_service.dart';
+import 'package:app/data/services/data_api_remote_fallback.dart';
+import 'package:app/data/services/data_api_runtime.dart';
+import 'package:app/features/config/data_api_terminal_config_repository.dart';
+import 'package:app/features/config/local_terminal_config_models.dart';
+import 'package:app/features/config/local_terminal_config_repository.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/sessions/session_state.dart';
@@ -19,6 +28,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_pty/ianvs_pty.dart';
 
+import 'data/support/memory_data_api_resource_client.dart';
 import 'support/fake_pty_backend.dart';
 import 'support/memory_app_preferences_repository.dart';
 import 'support/memory_local_terminal_config_repository.dart';
@@ -167,6 +177,41 @@ class _FailingOnceProfileRepository extends MemoryProfileRepository {
   }
 }
 
+final class _WidgetMemoryDataApiConfiguration
+    implements DataApiConfigurationRepository {
+  _WidgetMemoryDataApiConfiguration(this.configuration);
+
+  DataApiConfiguration configuration;
+
+  @override
+  Future<DataApiConfiguration> load() async => configuration;
+
+  @override
+  Future<void> save(DataApiConfiguration configuration) async {
+    this.configuration = configuration;
+  }
+}
+
+final class _WidgetMemoryRemoteFallbackSnapshotStore
+    implements DataApiRemoteFallbackSnapshotStore {
+  _WidgetMemoryRemoteFallbackSnapshotStore(this.snapshot);
+
+  DataApiRemoteFallbackSnapshot? snapshot;
+
+  @override
+  Future<void> clear() async {
+    snapshot = null;
+  }
+
+  @override
+  Future<DataApiRemoteFallbackSnapshot?> load() async => snapshot;
+
+  @override
+  Future<void> save(DataApiRemoteFallbackSnapshot snapshot) async {
+    this.snapshot = snapshot;
+  }
+}
+
 Future<void> _pumpShellScreen(
   WidgetTester tester, {
   required PtySessionBackend bindings,
@@ -175,6 +220,9 @@ Future<void> _pumpShellScreen(
   InstantReplayStore? instantReplayStore,
   ShellNotificationSender? notificationSender,
   SshProfileImportService? sshProfileImportService,
+  TerminalConfigRepository? terminalConfigRepository,
+  DataApiRemoteFallbackController? remoteFallbackController,
+  DataApiDeployment? activeDataApiDeployment,
   bool showHiddenRedesignEntryPointsForTesting = false,
   bool settle = true,
   TargetPlatform? platform,
@@ -193,7 +241,7 @@ Future<void> _pumpShellScreen(
           MemoryAppPreferencesRepository(null),
         ),
         localTerminalConfigRepositoryProvider.overrideWithValue(
-          MemoryLocalTerminalConfigRepository(null),
+          terminalConfigRepository ?? MemoryLocalTerminalConfigRepository(null),
         ),
         localTerminalLayoutRepositoryProvider.overrideWithValue(
           noIoLocalTerminalLayoutRepository(),
@@ -209,11 +257,15 @@ Future<void> _pumpShellScreen(
           ),
         if (showHiddenRedesignEntryPointsForTesting)
           shellHiddenRedesignEntryPointsProvider.overrideWithValue(true),
+        if (remoteFallbackController != null)
+          dataApiRemoteFallbackControllerProvider.overrideWithValue(
+            remoteFallbackController,
+          ),
       ],
       child: MaterialApp(
         theme: buildIanvsTerminalTheme(Brightness.light, platform: platform),
         darkTheme: buildIanvsTerminalTheme(Brightness.dark, platform: platform),
-        home: const ShellScreen(),
+        home: ShellScreen(activeDataApiDeployment: activeDataApiDeployment),
       ),
     ),
   );
@@ -230,7 +282,9 @@ Future<void> _openCommandMenu(WidgetTester tester) async {
 
 Future<void> _chooseDefaultLocalSession(WidgetTester tester) async {
   await tester.pumpAndSettle();
-  expect(find.byKey(const Key('new-session-launcher')), findsOneWidget);
+  if (find.byKey(const Key('new-session-launcher')).evaluate().isEmpty) {
+    return;
+  }
   await tester.tap(find.byKey(const Key('new-local-session-default')));
   await tester.pumpAndSettle();
 }
@@ -525,6 +579,136 @@ void main() {
     expect(find.byType(TerminalViewport), findsOneWidget);
     expect(repository.loadAttempts, 2);
   });
+
+  testWidgets(
+    'remote startup failure can explicitly switch to the last local snapshot',
+    (tester) async {
+      final remoteBaseUri = Uri.parse('https://sync.example.com/');
+      final configurationRepository = _WidgetMemoryDataApiConfiguration(
+        DataApiConfiguration.remote(remoteBaseUri.toString()),
+      );
+      final snapshotStore = _WidgetMemoryRemoteFallbackSnapshotStore(
+        DataApiRemoteFallbackSnapshot(
+          remoteBaseUri: remoteBaseUri,
+          capturedAt: DateTime.utc(2026, 8, 24, 12),
+          summary: const DataApiMigrationSummary(
+            created: 2,
+            updated: 1,
+            skipped: 0,
+            resourceCount: 3,
+          ),
+        ),
+      );
+      final fallbackController = DataApiRemoteFallbackController(
+        remoteRuntime: DataApiRuntime.remote(
+          baseUri: remoteBaseUri,
+          remoteAccessToken: 'remote-token',
+          encryptionKey: 'master-key-material',
+        ),
+        startLocalRuntime: () => throw UnimplementedError(),
+        configurationRepository: configurationRepository,
+        snapshotStore: snapshotStore,
+      );
+
+      await _pumpShellScreen(
+        tester,
+        bindings: FakePtyBackend(),
+        repository: _FailingOnceProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+        remoteFallbackController: fallbackController,
+        activeDataApiDeployment: DataApiDeployment.remote,
+        settle: false,
+      );
+      await _pumpUntilCondition(
+        tester,
+        condition: () => find
+            .byKey(const Key('shell-startup-use-local-snapshot'))
+            .evaluate()
+            .isNotEmpty,
+        description: 'remote fallback action',
+      );
+
+      await tester.tap(
+        find.byKey(const Key('shell-startup-use-local-snapshot')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('remote-fallback-confirmation')),
+        findsOneWidget,
+      );
+      expect(find.text('Use the last remote snapshot?'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('remote-fallback-confirm')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('remote-fallback-complete')), findsOneWidget);
+      expect(
+        configurationRepository.configuration.deployment,
+        DataApiDeployment.local,
+      );
+      expect(snapshotStore.snapshot, isNull);
+    },
+  );
+
+  testWidgets(
+    'shell startup can explicitly repair a noncanonical current config',
+    (tester) async {
+      final client = MemoryDataApiResourceClient();
+      client.resources['config/local-terminal'] = dataApiTestResource(
+        id: DataApiTerminalConfigRepository.resourceId,
+        kind: DataApiTerminalConfigRepository.resourceKind,
+        data: const <String, Object?>{'schemaVersion': 1},
+        sensitive: null,
+        hasSensitive: false,
+        revision: 3,
+      );
+
+      await _pumpShellScreen(
+        tester,
+        bindings: FakePtyBackend(),
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+        terminalConfigRepository: DataApiTerminalConfigRepository(
+          client: client,
+        ),
+        settle: false,
+      );
+      await _pumpUntilCondition(
+        tester,
+        condition: () => find
+            .byKey(const Key('shell-startup-repair-settings'))
+            .evaluate()
+            .isNotEmpty,
+        description: 'terminal config repair action',
+      );
+
+      expect(find.byKey(const Key('shell-startup-error')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('shell-startup-repair-settings')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('terminal-config-repair-dialog')),
+        findsOneWidget,
+      );
+      expect(find.text('Repair terminal settings?'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('terminal-config-repair-confirm')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('shell-startup-error')), findsNothing);
+      expect(find.byType(TerminalViewport), findsOneWidget);
+      expect(
+        client.resources['config/local-terminal']!.data,
+        const LocalTerminalConfigDocument().toJson(),
+      );
+      final backupId =
+          DataApiTerminalConfigRepository.recoveryResourceIdForRevision(3);
+      expect(client.resources['recovery/$backupId'], isNotNull);
+    },
+  );
 
   testWidgets('shell screen keeps line timestamp overlays hidden by default', (
     tester,
@@ -3594,7 +3778,7 @@ void main() {
   );
 
   testWidgets(
-    'command-t directly opens the only local profile even when SSH exists',
+    'command-t reopens the current local profile at its live directory',
     (tester) async {
       final fakeBindings = FakePtyBackend();
       final sshProfile = defaultTerminalProfile().copyWith(
@@ -3617,6 +3801,19 @@ void main() {
       );
 
       expect(find.bySemanticsIdentifier('shell-tab-1'), findsOneWidget);
+      fakeBindings.enqueueEvent(
+        1,
+        const PtyEvent(
+          kind: 'shell_hook',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'hook': 'precmd.pwd',
+            'pwd': '/tmp/current-project',
+            'shell': 'zsh',
+          },
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
 
       await tester.sendKeyDownEvent(
         LogicalKeyboardKey.metaLeft,
@@ -3633,13 +3830,19 @@ void main() {
       expect(find.text('Command palette'), findsNothing);
       expect(find.byKey(const Key('new-session-launcher')), findsNothing);
       expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
+      expect(fakeBindings.lastCreatedSessionPayload!['launch'], {
+        'program': defaultTerminalProfile().shell,
+        'args': defaultTerminalProfile().args,
+        'env': {'TERM': 'xterm-256color', 'COLORTERM': 'truecolor'},
+        'cwd': '/tmp/current-project',
+      });
       expect(fakeBindings.writes, isEmpty);
     },
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
   testWidgets(
-    'command-t keeps the local profile chooser when more than one exists',
+    'command-t uses the current profile when more than one local profile exists',
     (tester) async {
       final secondaryProfile = defaultTerminalProfile().copyWith(
         id: 'secondary-local',
@@ -3657,12 +3860,85 @@ void main() {
 
       await _sendMetaShortcut(tester, LogicalKeyboardKey.keyT);
 
-      expect(find.byKey(const Key('new-session-launcher')), findsOneWidget);
-      expect(
-        find.byKey(const Key('new-local-session-secondary-local')),
-        findsOneWidget,
+      expect(find.byKey(const Key('new-session-launcher')), findsNothing);
+      expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets(
+    'command-t reopens the current SSH profile with shell integration enabled',
+    (tester) async {
+      final fakeBindings = _SshEventfulPtyBackend();
+      final sshProfile = defaultTerminalProfile().copyWith(
+        id: 'current-ssh',
+        name: 'Current SSH',
+        connection: const terminal.TerminalConnectionConfig.ssh(
+          host: 'ssh.example.test',
+          user: 'operator',
+        ),
       );
-      expect(find.bySemanticsIdentifier('shell-tab-2'), findsNothing);
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [sshProfile]),
+        ),
+      );
+
+      await _sendMetaShortcut(tester, LogicalKeyboardKey.keyT);
+
+      expect(find.byKey(const Key('new-session-launcher')), findsNothing);
+      expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
+      final wire = terminal.TerminalSessionConfigV1.fromJsonString(
+        jsonEncode(fakeBindings.lastCreatedSessionPayload),
+      );
+      expect(wire.config.connection.host, 'ssh.example.test');
+      expect(wire.config.shellIntegration.enabled, isTrue);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets(
+    'command-t falls back to the local profile when no tab is open',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      final sshProfile = defaultTerminalProfile().copyWith(
+        id: 'fallback-ssh',
+        name: 'Fallback SSH',
+        connection: const terminal.TerminalConnectionConfig.ssh(
+          host: 'ssh.example.test',
+          user: 'operator',
+        ),
+      );
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(
+            profiles: [defaultTerminalProfile(), sshProfile],
+          ),
+        ),
+      );
+
+      await _sendMetaShortcut(tester, LogicalKeyboardKey.keyW);
+      expect(find.byKey(const Key('shell-empty-state')), findsOneWidget);
+
+      await _invokeNativeWindowBridge(
+        tester,
+        const MethodCall('nativeAppAction', <String, Object?>{
+          'action': 'newTab',
+        }),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('new-session-launcher')), findsNothing);
+      expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
+      final config = terminal.TerminalSessionConfig.fromJson(
+        fakeBindings.lastCreatedSessionPayload!,
+      );
+      expect(config.connection.isSsh, isFalse);
     },
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
@@ -6697,7 +6973,7 @@ void main() {
     await _invokeNativeWindowBridge(
       tester,
       const MethodCall('nativeAppAction', <String, Object?>{
-        'action': 'newLocalTerminal',
+        'action': 'newTab',
       }),
     );
     await tester.pumpAndSettle();

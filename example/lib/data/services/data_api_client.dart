@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import '../configuration/data_api_configuration.dart';
 import 'data_api_auth_contract.dart';
 import 'data_api_runtime.dart';
 import 'data_api_sensitive_cipher.dart';
@@ -349,6 +350,7 @@ final class DataApiClient
     required String? encryptionKey,
     DataApiHttpClientFactory? httpClientFactory,
     DataApiSensitiveCipher? sensitiveCipher,
+    Uri? handshakeFallbackBaseUri,
     this.connectionTimeout = const Duration(seconds: 5),
     this.requestTimeout = const Duration(seconds: 15),
     this.maximumResponseBytes = maximumJsonResponseBytes,
@@ -357,7 +359,11 @@ final class DataApiClient
        _accessToken = _nonEmpty(accessToken),
        _encryptionKey = _nonEmpty(encryptionKey),
        _sensitiveCipher = sensitiveCipher ?? DataApiSensitiveCipher(),
-       _httpClientFactory = httpClientFactory ?? HttpClient.new {
+       _httpClientFactory = httpClientFactory ?? HttpClient.new,
+       _handshakeFallbackBaseUri = _resolveHandshakeFallbackBaseUri(
+         baseUri,
+         handshakeFallbackBaseUri,
+       ) {
     if (connectionTimeout <= Duration.zero ||
         requestTimeout <= Duration.zero ||
         maximumResponseBytes <= 0 ||
@@ -385,6 +391,7 @@ final class DataApiClient
   final String? _encryptionKey;
   final DataApiSensitiveCipher _sensitiveCipher;
   final DataApiHttpClientFactory _httpClientFactory;
+  final Uri? _handshakeFallbackBaseUri;
   final Duration connectionTimeout;
   final Duration requestTimeout;
   final int maximumResponseBytes;
@@ -873,6 +880,53 @@ final class DataApiClient
     if (requireAuthentication && accessToken == null) {
       throw const DataApiAuthenticationRequiredException();
     }
+    try {
+      return await _requestOnce(
+        method,
+        uri,
+        accessToken: accessToken,
+        jsonBody: jsonBody,
+        acceptedStatusCodes: acceptedStatusCodes,
+      );
+    } on HandshakeException {
+      final fallbackUri = _handshakeFallbackUri(uri);
+      if (fallbackUri == null) {
+        rethrow;
+      }
+      // A TLS handshake failure occurs before an HTTP request can be sent, so
+      // retrying even a mutating request cannot duplicate a server operation.
+      return _requestOnce(
+        method,
+        fallbackUri,
+        accessToken: accessToken,
+        jsonBody: jsonBody,
+        acceptedStatusCodes: acceptedStatusCodes,
+      );
+    }
+  }
+
+  Uri? _handshakeFallbackUri(Uri uri) {
+    final fallbackBaseUri = _handshakeFallbackBaseUri;
+    if (fallbackBaseUri == null ||
+        uri.scheme != baseUri.scheme ||
+        uri.host != baseUri.host ||
+        uri.port != baseUri.port ||
+        !uri.path.startsWith(baseUri.path)) {
+      return null;
+    }
+    final relativePath = uri.path.substring(baseUri.path.length);
+    return fallbackBaseUri
+        .resolve(relativePath)
+        .replace(query: uri.hasQuery ? uri.query : null);
+  }
+
+  Future<({int statusCode, Object? body})> _requestOnce(
+    String method,
+    Uri uri, {
+    required String? accessToken,
+    required Object? jsonBody,
+    required Set<int>? acceptedStatusCodes,
+  }) async {
     final client = _httpClientFactory();
     client.connectionTimeout = connectionTimeout;
     try {
@@ -1049,6 +1103,37 @@ String? _nonEmpty(String? value) {
 }
 
 String? _stringValue(Object? value) => value is String ? value : null;
+
+Uri? _resolveHandshakeFallbackBaseUri(
+  Uri primaryBaseUri,
+  Uri? configuredFallbackBaseUri,
+) {
+  final normalizedPrimary = _normalizeBaseUri(primaryBaseUri);
+  final candidate =
+      configuredFallbackBaseUri ??
+      (normalizedPrimary.toString() == defaultRemoteDataApiBaseUrl
+          ? Uri.parse(fallbackRemoteDataApiTransportBaseUrl)
+          : null);
+  if (candidate == null) {
+    return null;
+  }
+  final normalizedFallback = _normalizeBaseUri(candidate);
+  if (!isSecureDataApiRemoteOrigin(normalizedFallback)) {
+    throw FormatException(
+      'The Data API handshake fallback must use HTTPS, except for a '
+      'loopback development endpoint.',
+      candidate,
+    );
+  }
+  if (normalizedFallback == normalizedPrimary) {
+    throw ArgumentError.value(
+      candidate,
+      'handshakeFallbackBaseUri',
+      'The handshake fallback must differ from the primary Data API URL.',
+    );
+  }
+  return normalizedFallback;
+}
 
 Uri _normalizeBaseUri(Uri value) {
   if (!value.hasScheme ||

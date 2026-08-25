@@ -75,6 +75,53 @@ void main() {
     },
   );
 
+  test(
+    'retries a TLS handshake failure against the configured fallback origin',
+    () async {
+      final fallbackServer = await HttpServer.bind(
+        InternetAddress.loopbackIPv4,
+        0,
+      );
+      addTearDown(() => fallbackServer.close(force: true));
+      late Uri requestUri;
+      late String? authorization;
+      fallbackServer.listen((request) async {
+        requestUri = request.uri;
+        authorization = request.headers.value(HttpHeaders.authorizationHeader);
+        request.response
+          ..statusCode = HttpStatus.ok
+          ..headers.contentType = ContentType.json
+          ..write(
+            jsonEncode(<String, Object?>{
+              'user': <String, Object?>{'id': 'owner-a', 'username': 'alice'},
+            }),
+          );
+        await request.response.close();
+      });
+      var clientFactoryCalls = 0;
+      final client = DataApiClient(
+        baseUri: Uri.parse('https://primary.example/api/'),
+        handshakeFallbackBaseUri: Uri.parse(
+          'http://127.0.0.1:${fallbackServer.port}/api/',
+        ),
+        accessToken: 'access-token',
+        encryptionKey: null,
+        httpClientFactory: () {
+          clientFactoryCalls += 1;
+          return clientFactoryCalls == 1
+              ? _HandshakeFailingHttpClient()
+              : HttpClient();
+        },
+      );
+
+      await client.validateSession();
+
+      expect(clientFactoryCalls, 2);
+      expect(requestUri.path, '/api/v1/me');
+      expect(authorization, 'Bearer access-token');
+    },
+  );
+
   test('maps 404 to a missing resource', () async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(() => server.close(force: true));
@@ -945,6 +992,24 @@ void main() {
       );
     },
   );
+}
+
+final class _HandshakeFailingHttpClient implements HttpClient {
+  @override
+  Duration? connectionTimeout;
+
+  @override
+  Future<HttpClientRequest> openUrl(String method, Uri url) {
+    return Future<HttpClientRequest>.error(
+      const HandshakeException('primary TLS handshake failed'),
+    );
+  }
+
+  @override
+  void close({bool force = false}) {}
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 Map<String, Object?> _validResourceJson({

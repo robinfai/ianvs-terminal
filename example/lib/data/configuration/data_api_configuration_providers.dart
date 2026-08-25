@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../services/data_api_remote_fallback.dart';
 import '../services/data_api_runtime.dart';
 import '../services/portable_master_key.dart';
 import 'data_api_configuration.dart';
@@ -35,6 +36,40 @@ final portableMasterKeyRepositoryProvider =
 /// The migration caller owns and closes the returned runtime after the copy.
 final dataApiLocalMigrationRuntimeStarterProvider =
     Provider<DataApiLocalMigrationRuntimeStarter?>((ref) => null);
+
+/// Durable checkpoint for the last remote resource set mirrored into the
+/// bundled local API. Production supplies a file-backed implementation.
+final dataApiRemoteFallbackSnapshotStoreProvider =
+    Provider<DataApiRemoteFallbackSnapshotStore?>((ref) => null);
+
+/// Coordinates background remote mirroring and explicit offline fallback.
+final dataApiRemoteFallbackControllerProvider =
+    Provider<DataApiRemoteFallbackController?>((ref) {
+      final runtime = ref.watch(dataApiRuntimeProvider);
+      final startLocalRuntime = ref.watch(
+        dataApiLocalMigrationRuntimeStarterProvider,
+      );
+      final configurationRepository = ref.watch(
+        dataApiConfigurationRepositoryProvider,
+      );
+      final snapshotStore = ref.watch(
+        dataApiRemoteFallbackSnapshotStoreProvider,
+      );
+      if (runtime == null ||
+          runtime.deployment != DataApiDeployment.remote ||
+          !runtime.canAccessResources ||
+          startLocalRuntime == null ||
+          configurationRepository == null ||
+          snapshotStore == null) {
+        return null;
+      }
+      return DataApiRemoteFallbackController(
+        remoteRuntime: runtime,
+        startLocalRuntime: startLocalRuntime,
+        configurationRepository: configurationRepository,
+        snapshotStore: snapshotStore,
+      );
+    });
 
 /// Startup may have failed before a repository could expose its own recovery
 /// flag (for example, an application-support I/O error). Propagating this

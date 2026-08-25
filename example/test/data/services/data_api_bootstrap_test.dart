@@ -6,9 +6,11 @@ import 'package:app/data/configuration/data_api_configuration_repository.dart';
 import 'package:app/data/services/data_api_bootstrap.dart';
 import 'package:app/data/services/data_api_client.dart';
 import 'package:app/data/services/data_api_local_credentials.dart';
+import 'package:app/data/services/data_api_remote_fallback.dart';
 import 'package:app/data/services/data_api_remote_session_store.dart';
 import 'package:app/data/services/data_api_runtime.dart';
 import 'package:app/data/services/local_data_api_sidecar.dart';
+import 'package:app/data/services/portable_master_key.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -190,6 +192,63 @@ void main() {
 
         await runtime?.close();
         expect(sidecar.closeCalls, 1);
+      } finally {
+        await appSupportDirectory.delete(recursive: true);
+      }
+    },
+  );
+
+  test(
+    'active remote fallback starts the isolated mirror with the portable master key',
+    () async {
+      final appSupportDirectory = await Directory.systemTemp.createTemp(
+        'ianvs-bootstrap-remote-fallback-',
+      );
+      final dataApiDirectory = Directory(
+        '${appSupportDirectory.path}${Platform.pathSeparator}data-api',
+      );
+      await dataApiDirectory.create(recursive: true);
+      await FileDataApiRemoteFallbackLocalMirror.activeMarkerFor(
+        appSupportDirectory,
+      ).writeAsString('version=1\n');
+      final mirrorDatabase = FileDataApiRemoteFallbackLocalMirror.databaseFor(
+        appSupportDirectory,
+      );
+      await mirrorDatabase.writeAsString('remote-mirror');
+      final masterKey = PortableMasterKey.fromSecret(
+        _LocalCredentialsProvider.dataEncryptionKey,
+      );
+      final sidecar = _LocalSidecarHandle();
+      File? launchedDatabase;
+      final bootstrap = DataApiBootstrap(
+        configurationRepository: _MemoryConfigurationRepository(
+          const DataApiConfiguration.local(),
+        ),
+        masterKeyRepository: PortableMasterKeyRepository(
+          storage: _MemoryPortableMasterKeyStorage(masterKey.portableValue),
+        ),
+        localCredentialsProvider: _ThrowingLocalCredentialsProvider(),
+        localSidecarLauncher:
+            ({
+              required binary,
+              required database,
+              required localAccessToken,
+            }) async {
+              launchedDatabase = database;
+              return sidecar;
+            },
+        localApiInitializer: _CapturingLocalInitializer(),
+        isMacOS: true,
+      );
+
+      try {
+        final runtime = await bootstrap.start(
+          appSupportDirectory: appSupportDirectory,
+        );
+
+        expect(launchedDatabase?.path, mirrorDatabase.path);
+        expect(runtime?.encryptionKey, masterKey.secret);
+        await runtime?.close();
       } finally {
         await appSupportDirectory.delete(recursive: true);
       }
@@ -457,6 +516,31 @@ final class _LocalCredentialsProvider
       bearerToken: bearerToken,
       dataEncryptionKey: dataEncryptionKey,
     );
+  }
+}
+
+final class _ThrowingLocalCredentialsProvider
+    implements DataApiLocalCredentialsProvider {
+  @override
+  Future<DataApiLocalCredentials> createForStart(
+    Directory appSupportDirectory,
+  ) {
+    throw StateError('the legacy local credential must not be read');
+  }
+}
+
+final class _MemoryPortableMasterKeyStorage
+    implements PortableMasterKeyStorage {
+  _MemoryPortableMasterKeyStorage(this.value);
+
+  String? value;
+
+  @override
+  Future<String?> read() async => value;
+
+  @override
+  Future<void> write(String portableValue) async {
+    value = portableValue;
   }
 }
 

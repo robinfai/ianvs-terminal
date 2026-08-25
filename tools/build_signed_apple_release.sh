@@ -20,6 +20,7 @@ cd "$EXAMPLE_DIR"
 if [[ "$PLATFORM" == "macos" ]]; then
   MACOS_BUNDLE_ID="${IANVS_MACOS_BUNDLE_ID:-}"
   if [[ -z "$MACOS_BUNDLE_ID" ]]; then
+    echo "Building an ad-hoc macOS app without iCloud Keychain synchronization."
     "$FLUTTER_COMMAND" build macos --release "$@"
     "$ROOT_DIR/tools/sign_local_macos_release.sh" \
       "$EXAMPLE_DIR/build/macos/Build/Products/Release/Ianvs Terminal.app"

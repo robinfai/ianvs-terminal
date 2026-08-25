@@ -7,12 +7,18 @@ class _ShellStartupSurface extends StatelessWidget {
     required this.errorMessage,
     required this.onRetry,
     required this.onOpenSettings,
+    this.onRepairSettings,
+    this.onUseLocalSnapshot,
+    this.remoteFallbackSwitching = false,
   });
 
   final AppThemeTokens palette;
   final String? errorMessage;
   final VoidCallback? onRetry;
   final VoidCallback onOpenSettings;
+  final VoidCallback? onRepairSettings;
+  final VoidCallback? onUseLocalSnapshot;
+  final bool remoteFallbackSwitching;
 
   @override
   Widget build(BuildContext context) {
@@ -46,6 +52,29 @@ class _ShellStartupSurface extends StatelessWidget {
                           label: context.l10n.dataServiceSettings,
                           onPressed: onOpenSettings,
                         ),
+                        if (onRepairSettings != null)
+                          AppActionButton(
+                            buttonKey: const Key(
+                              'shell-startup-repair-settings',
+                            ),
+                            tone: AppActionTone.secondary,
+                            icon: Icons.build_circle_outlined,
+                            label: context.l10n.repairTerminalSettings,
+                            onPressed: onRepairSettings,
+                          ),
+                        if (onUseLocalSnapshot != null ||
+                            remoteFallbackSwitching)
+                          AppActionButton(
+                            buttonKey: const Key(
+                              'shell-startup-use-local-snapshot',
+                            ),
+                            tone: AppActionTone.secondary,
+                            icon: Icons.cloud_off_rounded,
+                            label: remoteFallbackSwitching
+                                ? context.l10n.switchingToLocalSnapshot
+                                : context.l10n.useLastRemoteSnapshot,
+                            onPressed: onUseLocalSnapshot,
+                          ),
                         AppActionButton(
                           buttonKey: const Key('shell-startup-retry'),
                           icon: Icons.refresh,

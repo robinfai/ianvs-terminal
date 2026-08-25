@@ -523,7 +523,10 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
 }
 
 const _commandMenuActionSearchEntries = <MapEntry<String, TerminalActionId>>[
-  MapEntry('new tab open default shell profile', TerminalActionId.newTab),
+  MapEntry(
+    'new tab open current profile terminal shell',
+    TerminalActionId.newTab,
+  ),
   MapEntry(
     'open recording in replay saved ndjson file',
     TerminalActionId.openRecording,

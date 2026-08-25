@@ -82,7 +82,7 @@ help: ## Show the available commands.
 		'           IPHONE_SIMULATOR=<simulator-udid>' \
 		'           IPHONE_SIMULATOR_CREDENTIALS=<owner-only-json>' \
 		'           IPHONE_BUNDLE_ID=<development-bundle-id>' \
-		'           MACOS_BUNDLE_ID=<development-bundle-id>'
+		'           MACOS_BUNDLE_ID=<development-bundle-id> (empty: ad-hoc, no iCloud Keychain)'
 
 bootstrap: ## Resolve workspace dependencies.
 	cd "$(ROOT_DIR)" && $(DART) pub get

@@ -223,6 +223,9 @@ final class AppRuntimeGraph {
     required this.recordingRepository,
     required this.shutdownCoordinator,
     this.localMigrationRuntimeStarter,
+    this.remoteFallbackSnapshotRuntimeStarter,
+    this.remoteFallbackSnapshotCommitter,
+    this.remoteFallbackSnapshotActivator,
   }) {
     if (dataApiRuntime case final runtime?) {
       shutdownCoordinator.registerTask(
@@ -245,6 +248,10 @@ final class AppRuntimeGraph {
   final LocalSessionRecordingRepository recordingRepository;
   final AppShutdownCoordinator shutdownCoordinator;
   final DataApiLocalMigrationRuntimeStarter? localMigrationRuntimeStarter;
+  final DataApiLocalMigrationRuntimeStarter?
+  remoteFallbackSnapshotRuntimeStarter;
+  final Future<void> Function()? remoteFallbackSnapshotCommitter;
+  final Future<void> Function()? remoteFallbackSnapshotActivator;
 
   Future<void>? _boundedCloseFuture;
   Future<void>? _settledCloseFuture;

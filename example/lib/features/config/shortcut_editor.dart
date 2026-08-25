@@ -307,6 +307,8 @@ class _ShortcutEditorPanelState extends State<ShortcutEditorPanel> {
             textInputAction: TextInputAction.search,
             decoration: InputDecoration(
               isDense: true,
+              filled: true,
+              fillColor: theme.panel,
               prefixIcon: const Icon(Icons.search_rounded),
               labelText: context.l10n.filterActions,
             ),
@@ -319,6 +321,8 @@ class _ShortcutEditorPanelState extends State<ShortcutEditorPanel> {
           isExpanded: true,
           decoration: InputDecoration(
             isDense: true,
+            filled: true,
+            fillColor: theme.panel,
             labelText: context.l10n.category,
           ),
           items: [
@@ -341,10 +345,10 @@ class _ShortcutEditorPanelState extends State<ShortcutEditorPanel> {
         );
         final restore = AppActionButton(
           buttonKey: const Key('shortcut-editor-restore-all'),
-          tone: AppActionTone.secondary,
+          tone: AppActionTone.ghost,
           size: AppActionSize.compact,
           icon: Icons.restart_alt_rounded,
-          label: context.l10n.restoreAllDefaults,
+          tooltip: context.l10n.restoreAllDefaults,
           onPressed: hasCustomizations
               ? () => widget.onChanged(const LocalTerminalKeybindingsConfig())
               : null,
@@ -380,31 +384,45 @@ class _ShortcutEditorPanelState extends State<ShortcutEditorPanel> {
     final list = AppPanel(
       key: const Key('shortcut-editor-list-panel'),
       tone: AppPanelTone.panel,
-      child: visibleActions.isEmpty
-          ? AppEmptyState(
-              title: context.l10n.noMatchingActions,
-              message: context.l10n.tryAnotherActionOrCategory,
-            )
-          : ListView.separated(
-              key: const Key('shortcut-editor-list'),
-              controller: _listScrollController,
-              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-              itemCount: visibleActions.length,
-              separatorBuilder: (_, _) =>
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(theme.radius.md),
+        child: visibleActions.isEmpty
+            ? AppEmptyState(
+                title: context.l10n.noMatchingActions,
+                message: context.l10n.tryAnotherActionOrCategory,
+              )
+            : Column(
+                children: [
+                  const _ShortcutListHeader(),
                   Divider(height: 1, color: theme.border),
-              itemBuilder: (context, index) {
-                final descriptor = visibleActions[index];
-                return _ShortcutActionRow(
-                  descriptor: descriptor,
-                  config: widget.config,
-                  customized: _isCustomized(descriptor.id),
-                  conflicted: conflictingActionIds.contains(descriptor.id),
-                  onEdit: () => _editBinding(descriptor),
-                  onDisable: () => _disableBinding(descriptor.id),
-                  onRestore: () => _restoreBinding(descriptor.id),
-                );
-              },
-            ),
+                  Expanded(
+                    child: ListView.separated(
+                      key: const Key('shortcut-editor-list'),
+                      controller: _listScrollController,
+                      keyboardDismissBehavior:
+                          ScrollViewKeyboardDismissBehavior.onDrag,
+                      itemCount: visibleActions.length,
+                      separatorBuilder: (_, _) =>
+                          Divider(height: 1, color: theme.border),
+                      itemBuilder: (context, index) {
+                        final descriptor = visibleActions[index];
+                        return _ShortcutActionRow(
+                          descriptor: descriptor,
+                          config: widget.config,
+                          customized: _isCustomized(descriptor.id),
+                          conflicted: conflictingActionIds.contains(
+                            descriptor.id,
+                          ),
+                          onEdit: () => _editBinding(descriptor),
+                          onDisable: () => _disableBinding(descriptor.id),
+                          onRestore: () => _restoreBinding(descriptor.id),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+      ),
     );
 
     final fixedContent = <Widget>[
@@ -527,6 +545,58 @@ class _ShortcutConflictSummary extends StatelessWidget {
   }
 }
 
+class _ShortcutListHeader extends StatelessWidget {
+  const _ShortcutListHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.appTheme;
+    final style = Theme.of(context).textTheme.labelMedium?.copyWith(
+      color: theme.textSubtle,
+      fontWeight: FontWeight.w700,
+    );
+    final controlsWidth = 132 + (theme.controls.dense + theme.spacing.xs) * 2;
+    return ColoredBox(
+      key: const Key('shortcut-editor-list-header'),
+      color: theme.chrome.withValues(alpha: 0.72),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(minHeight: theme.controls.regular),
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: theme.spacing.md),
+          child: Row(
+            children: [
+              SizedBox(width: 18 + theme.spacing.sm),
+              Expanded(
+                child: Text(
+                  context.l10n.shortcutActionColumn,
+                  key: const Key('shortcut-editor-action-column'),
+                  style: style,
+                ),
+              ),
+              SizedBox(width: theme.spacing.md),
+              SizedBox(
+                width: controlsWidth,
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: SizedBox(
+                    width: 132,
+                    child: Text(
+                      context.l10n.shortcutValueColumn,
+                      key: const Key('shortcut-editor-value-column'),
+                      textAlign: TextAlign.center,
+                      style: style,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ShortcutActionRow extends StatelessWidget {
   const _ShortcutActionRow({
     required this.descriptor,
@@ -607,7 +677,19 @@ class _ShortcutActionRow extends StatelessWidget {
                       ),
                       SizedBox(height: theme.spacing.xs),
                       Text(
-                        '${LocalTerminalShortcutFormatter.categoryLabel(context.l10n, descriptor.category)} · $stateLabel${binding == null ? '' : ' · ${LocalTerminalShortcutFormatter.scopeLabel(context.l10n, binding.scope)}'}',
+                        <String>[
+                          LocalTerminalShortcutFormatter.categoryLabel(
+                            context.l10n,
+                            descriptor.category,
+                          ),
+                          if (conflicted || customized || binding == null)
+                            stateLabel,
+                          if (binding != null)
+                            LocalTerminalShortcutFormatter.scopeLabel(
+                              context.l10n,
+                              binding.scope,
+                            ),
+                        ].join(' · '),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -619,45 +701,68 @@ class _ShortcutActionRow extends StatelessWidget {
                 ),
               ],
             );
-            final controls = Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                AppActionButton(
-                  buttonKey: Key('shortcut-edit-${descriptor.id.name}'),
-                  tone: conflicted
-                      ? AppActionTone.danger
-                      : AppActionTone.secondary,
-                  size: AppActionSize.compact,
-                  icon: Icons.keyboard_rounded,
-                  label: binding == null
-                      ? context.l10n.addShortcut
-                      : LocalTerminalShortcutFormatter.bindingLabel(binding),
-                  tooltip: context.l10n.editShortcutFor(actionLabel),
-                  onPressed: onEdit,
-                ),
-                if (binding != null) ...[
+            final controlsWidth =
+                132 + (theme.controls.dense + theme.spacing.xs) * 2;
+            final controls = SizedBox(
+              width: controlsWidth,
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 132,
+                    child: AppActionButton(
+                      buttonKey: Key('shortcut-edit-${descriptor.id.name}'),
+                      tone: conflicted
+                          ? AppActionTone.danger
+                          : AppActionTone.secondary,
+                      size: AppActionSize.compact,
+                      icon: Icons.keyboard_rounded,
+                      label: binding == null
+                          ? context.l10n.shortcutUnassigned
+                          : LocalTerminalShortcutFormatter.bindingLabel(
+                              binding,
+                            ),
+                      tooltip: context.l10n.editShortcutFor(actionLabel),
+                      onPressed: onEdit,
+                    ),
+                  ),
                   SizedBox(width: theme.spacing.xs),
-                  AppActionButton(
-                    buttonKey: Key('shortcut-disable-${descriptor.id.name}'),
-                    tone: AppActionTone.ghost,
-                    size: AppActionSize.compact,
-                    icon: Icons.link_off_rounded,
-                    tooltip: context.l10n.disableShortcutFor(actionLabel),
-                    onPressed: onDisable,
+                  SizedBox(
+                    width: theme.controls.dense,
+                    child: binding == null
+                        ? null
+                        : AppActionButton(
+                            buttonKey: Key(
+                              'shortcut-disable-${descriptor.id.name}',
+                            ),
+                            tone: AppActionTone.ghost,
+                            size: AppActionSize.compact,
+                            icon: Icons.link_off_rounded,
+                            tooltip: context.l10n.disableShortcutFor(
+                              actionLabel,
+                            ),
+                            onPressed: onDisable,
+                          ),
+                  ),
+                  SizedBox(width: theme.spacing.xs),
+                  SizedBox(
+                    width: theme.controls.dense,
+                    child: customized
+                        ? AppActionButton(
+                            buttonKey: Key(
+                              'shortcut-restore-${descriptor.id.name}',
+                            ),
+                            tone: AppActionTone.ghost,
+                            size: AppActionSize.compact,
+                            icon: Icons.restart_alt_rounded,
+                            tooltip: context.l10n.restoreShortcutFor(
+                              actionLabel,
+                            ),
+                            onPressed: onRestore,
+                          )
+                        : null,
                   ),
                 ],
-                if (customized) ...[
-                  SizedBox(width: theme.spacing.xs),
-                  AppActionButton(
-                    buttonKey: Key('shortcut-restore-${descriptor.id.name}'),
-                    tone: AppActionTone.ghost,
-                    size: AppActionSize.compact,
-                    icon: Icons.restart_alt_rounded,
-                    tooltip: context.l10n.restoreShortcutFor(actionLabel),
-                    onPressed: onRestore,
-                  ),
-                ],
-              ],
+              ),
             );
             if (constraints.maxWidth < 500) {
               return Column(

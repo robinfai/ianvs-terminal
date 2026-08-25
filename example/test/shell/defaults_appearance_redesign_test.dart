@@ -23,7 +23,7 @@ void main() {
     }
     expect(
       find.byKey(const Key('defaults-current-profile-summary')),
-      findsOneWidget,
+      findsNothing,
     );
     expect(
       find.byKey(const Key('defaults-terminal-permissions-panel')),

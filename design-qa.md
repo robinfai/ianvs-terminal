@@ -188,3 +188,73 @@ final result: passed
 5. 在原生 macOS 应用中复验浅色、深色、侧栏跳转和下拉菜单，并生成完整与聚焦对照图。
 
 final result: passed
+
+---
+
+# Settings tabs — design QA handoff
+
+## Scope
+
+This QA covers the five left-navigation tabs in the macOS “默认设置与外观”
+dialog: 常规、外观、键盘快捷键、安全与权限、数据服务. The work iterated from
+the same captured product state through three ImageGen-guided design rounds and
+three Flutter implementation passes.
+
+## Reference and implementation
+
+- Baseline audit: `docs/design/settings-tabs/round-0-baseline/audit.md`
+- Round 1: `round-1-imagegen`, `round-1-implementation`, `round-1-comparison`
+- Round 2: `round-2-imagegen`, `round-2-implementation`, `round-2-comparison`
+- Round 3: `round-3-imagegen`, `round-3-implementation`, `round-3-comparison`
+- Reproducible final captures: `docs/design/settings-tabs/current/`
+
+All visual comparisons use a 1440 × 1024 logical-pixel viewport at 1× density,
+light theme, Simplified Chinese, and the same representative settings values.
+Each comparison image places the annotated target and implementation result in
+one input so visible differences can be judged directly.
+
+## Final UX decisions
+
+1. **Consistent page framing:** every tab owns a title, purpose statement, and
+   predictable content start position.
+2. **Lower surface competition:** tinted surfaces communicate status or
+   consequence; ordinary choices use quieter containers.
+3. **Scannable shortcuts:** filter and restore controls sit above stable action
+   and binding columns, with explicit unassigned values.
+4. **Stable security decisions:** the permission list no longer moves when a
+   selection changes; the detail panel explains current policy, risk, behavior,
+   and recommendation.
+5. **Comparable data modes:** current running state is explicit and each mode
+   uses the same API/storage/sync dimensions at wide widths, with concise copy
+   at compact widths.
+
+## Accessibility and responsiveness
+
+- Theme colors and component states come from `ColorScheme` and existing theme
+  tokens rather than hard-coded widget colors.
+- Recommended, selected, running, and risk states include text or icon cues and
+  do not rely on color alone.
+- Persistent actions retain tooltips and semantic labels.
+- Compact layouts remove the desktop left navigation and fall back to concise
+  descriptions rather than compressing comparison columns.
+- Final release QA should still include manual VoiceOver, full keyboard focus,
+  and high text-scale checks on a macOS build.
+
+## Verification
+
+- Static analysis: `dart analyze` completed with no issues.
+- Combined settings, shortcut, Data configuration/recovery, golden capture,
+  and Shell settings-entry suite: 45 passed.
+- Visual capture test reproduces all five final tab screenshots.
+- The full repository suite currently reports 1,740 passed, 1 skipped, and 12
+  failures outside the reviewed settings flow. The initial Data recovery
+  failures were fixed by opening the Data tab directly from the startup-error
+  settings action. Remaining failures include the Data environment architecture
+  guard, replay viewport drag, Shell architecture line budget, and a phase-1
+  launcher scenario; they are not claimed as resolved by this design pass.
+
+## Outcome
+
+No P0, P1, or P2 visual issue remains in the reviewed states. The final
+same-input comparisons show no clipped content, broken alignment, incorrect
+selection, or test-only missing glyphs at the target viewport.

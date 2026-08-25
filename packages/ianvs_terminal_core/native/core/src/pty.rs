@@ -126,6 +126,15 @@ impl ShellIntegrationPlanStatus {
         }
     }
 
+    fn remote_auto() -> Self {
+        Self {
+            status: "enabled".to_string(),
+            reason: "remote_auto_detection".to_string(),
+            kind: Some("auto".to_string()),
+            error: None,
+        }
+    }
+
     fn degraded(reason: &str, kind: Option<ShellIntegrationKind>, error: Option<String>) -> Self {
         Self {
             status: "degraded".to_string(),
@@ -206,7 +215,19 @@ pub fn spawn_terminal_transport(
     match profile.connection.connection_type {
         TerminalConnectionType::Local => spawn_pty(profile, rows, cols),
         TerminalConnectionType::Ssh => {
-            let runtime = crate::ssh::spawn_ssh(profile.connection.clone(), rows, cols)?;
+            let shell_integration = if !profile.shell_integration.enabled {
+                ShellIntegrationPlanStatus::disabled("disabled_by_profile")
+            } else if profile.terminal.emulation != TerminalEmulation::Xterm256 {
+                ShellIntegrationPlanStatus::degraded("unsupported_emulation", None, None)
+            } else {
+                ShellIntegrationPlanStatus::remote_auto()
+            };
+            let runtime = crate::ssh::spawn_ssh_with_shell_integration(
+                profile.connection.clone(),
+                rows,
+                cols,
+                shell_integration.status == "enabled",
+            )?;
             Ok(PtyRuntime {
                 master: runtime.master,
                 reader: runtime.reader,
@@ -214,7 +235,7 @@ pub fn spawn_terminal_transport(
                 writer: runtime.writer,
                 child: runtime.child,
                 child_pid: None,
-                shell_integration: ShellIntegrationPlanStatus::disabled("remote_ssh"),
+                shell_integration,
                 shell_integration_proxy: None,
                 ssh_auth: Some(runtime.auth),
                 ssh_sftp: Some(runtime.sftp),
@@ -574,29 +595,49 @@ fn write_shell_integration_proxy_files(
 }
 
 fn write_zsh_proxy_files(dir: &Path) -> std::io::Result<()> {
-    fs::write(dir.join(".zshenv"), zsh_source_proxy(".zshenv"))?;
-    fs::write(dir.join(".zprofile"), zsh_source_proxy(".zprofile"))?;
-    fs::write(
-        dir.join(".zshrc"),
-        format!(
-            "{ZSH_PROXY_COMMON}\n{ZSH_HOOK_INSTALLER}\n__ianvs_restore_proxy_derived_histfile >/dev/null 2>&1 || true\n__ianvs_source_original_zdotfile \".zshrc\"\n__ianvs_install_shell_hooks >/dev/null 2>&1 || true\n__ianvs_suspend_startup_prompt_sp >/dev/null 2>&1 || true\n__ianvs_restore_zdotdir >/dev/null 2>&1 || true\n"
-        ),
-    )?;
-    fs::write(
-        dir.join(".zlogin"),
-        format!(
-            "{ZSH_PROXY_COMMON}\n__ianvs_source_original_zdotfile \".zlogin\"\n__ianvs_restore_zdotdir >/dev/null 2>&1 || true\n"
-        ),
-    )?;
-    fs::write(
-        dir.join(".zlogout"),
-        format!("{ZSH_PROXY_COMMON}\n__ianvs_source_original_zdotfile \".zlogout\"\n"),
-    )?;
+    for (name, contents) in zsh_shell_integration_files() {
+        fs::write(dir.join(name), contents)?;
+    }
     Ok(())
 }
 
 fn zsh_source_proxy(file_name: &str) -> String {
     format!("{ZSH_PROXY_COMMON}\n__ianvs_source_original_zdotfile \"{file_name}\"\n")
+}
+
+pub(crate) fn zsh_shell_integration_files() -> Vec<(&'static str, String)> {
+    vec![
+        (".zshenv", zsh_source_proxy(".zshenv")),
+        (".zprofile", zsh_source_proxy(".zprofile")),
+        (
+            ".zshrc",
+            format!(
+                "{ZSH_PROXY_COMMON}\n{ZSH_HOOK_INSTALLER}\n__ianvs_restore_proxy_derived_histfile >/dev/null 2>&1 || true\n__ianvs_source_original_zdotfile \".zshrc\"\n__ianvs_install_shell_hooks >/dev/null 2>&1 || true\n__ianvs_suspend_startup_prompt_sp >/dev/null 2>&1 || true\n__ianvs_restore_zdotdir >/dev/null 2>&1 || true\n"
+            ),
+        ),
+        (
+            ".zlogin",
+            format!(
+                "{ZSH_PROXY_COMMON}\n__ianvs_source_original_zdotfile \".zlogin\"\n__ianvs_restore_zdotdir >/dev/null 2>&1 || true\n"
+            ),
+        ),
+        (
+            ".zlogout",
+            format!("{ZSH_PROXY_COMMON}\n__ianvs_source_original_zdotfile \".zlogout\"\n"),
+        ),
+    ]
+}
+
+pub(crate) fn remote_bash_shell_integration_source() -> String {
+    format!("{BASH_REMOTE_LOGIN_STARTUP}\n{BASH_RCFILE}")
+}
+
+pub(crate) fn fish_shell_integration_source() -> &'static str {
+    FISH_INIT
+}
+
+pub(crate) fn sh_shell_integration_source() -> &'static str {
+    SH_INIT
 }
 
 const ZSH_PROXY_COMMON: &str = r#"
@@ -764,6 +805,7 @@ __ianvs_install_shell_hooks() {
 
 const BASH_RCFILE: &str = r#"
 __ianvs_source_original_bashrc() {
+  [[ "${IANVS_SKIP_ORIGINAL_BASHRC:-0}" != "1" ]] || return 0
   local __ianvs_home="${HOME:-}"
   [[ -n "$__ianvs_home" ]] || return 0
   local __ianvs_path="$__ianvs_home/.bashrc"
@@ -871,6 +913,26 @@ __ianvs_source_original_bashrc || true
 __ianvs_install_shell_hooks >/dev/null 2>&1 || true
 "#;
 
+const BASH_REMOTE_LOGIN_STARTUP: &str = r#"
+__ianvs_source_login_startup() {
+  if [[ -r /etc/profile ]]; then
+    . /etc/profile || true
+  fi
+  local __ianvs_login_file
+  for __ianvs_login_file in \
+    "${HOME:-}/.bash_profile" \
+    "${HOME:-}/.bash_login" \
+    "${HOME:-}/.profile"; do
+    [[ -r "$__ianvs_login_file" ]] || continue
+    . "$__ianvs_login_file" || true
+    break
+  done
+}
+
+__ianvs_source_login_startup
+unset -f __ianvs_source_login_startup
+"#;
+
 const FISH_INIT: &str = r#"
 if test -n "$IANVS_SHELL_INTEGRATION"; and not set -q __IANVS_SHELL_INTEGRATION_LOADED
   command -sq od; or return 0
@@ -926,6 +988,35 @@ if test -n "$IANVS_SHELL_INTEGRATION"; and not set -q __IANVS_SHELL_INTEGRATION_
     __ianvs_emit_shell_hook "{\"hook\":\"precmd.pwd\",\"pwd\":\"$__ianvs_pwd\",\"shell\":\"fish\"}"
   end
 end
+"#;
+
+const SH_INIT: &str = r#"
+if [ "${IANVS_ORIGINAL_ENV_WAS_SET:-0}" = "1" ] &&
+   [ -n "${IANVS_ORIGINAL_ENV:-}" ] &&
+   [ -r "${IANVS_ORIGINAL_ENV}" ] &&
+   [ "${IANVS_ORIGINAL_ENV}" != "${ENV:-}" ]; then
+  . "${IANVS_ORIGINAL_ENV}" || true
+fi
+
+if [ -n "${IANVS_SHELL_INTEGRATION:-}" ] && [ -z "${__IANVS_SHELL_INTEGRATION_LOADED:-}" ]; then
+  __IANVS_SHELL_INTEGRATION_LOADED=1
+
+  __ianvs_emit_cwd() {
+    [ -n "${PWD:-}" ] || return 0
+    printf '\033]7;file://%s%s\033\\' "${HOSTNAME:-localhost}" "$PWD" 2>/dev/null || true
+  }
+
+  case $- in
+    *i*) PS1='$(__ianvs_emit_cwd)'"${PS1:-$ }" ;;
+  esac
+fi
+
+if [ "${IANVS_ORIGINAL_ENV_WAS_SET:-0}" = "1" ]; then
+  ENV="${IANVS_ORIGINAL_ENV:-}"
+  export ENV
+else
+  unset ENV
+fi
 "#;
 
 #[cfg(test)]

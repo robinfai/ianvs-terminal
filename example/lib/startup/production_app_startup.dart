@@ -10,6 +10,7 @@ import '../data/configuration/data_api_configuration.dart';
 import '../data/configuration/data_api_configuration_repository.dart';
 import '../data/services/data_api_bootstrap.dart';
 import '../data/services/data_api_migration_service.dart';
+import '../data/services/data_api_remote_fallback.dart';
 import '../data/services/data_api_remote_session_store.dart';
 import '../data/services/data_api_remote_session_vault.dart';
 import '../data/services/data_api_runtime.dart';
@@ -189,6 +190,34 @@ AppStartupCoordinator createProductionAppStartupCoordinator({
                   configurationSnapshot.configuration.deployment !=
                   DataApiDeployment.disabled,
             );
+            final remoteEncryptionKey =
+                dataApiRuntime?.deployment == DataApiDeployment.remote
+                ? dataApiRuntime?.encryptionKey
+                : null;
+            final remoteFallbackMirror =
+                targetPlatform == TargetPlatform.macOS &&
+                    remoteEncryptionKey != null
+                ? FileDataApiRemoteFallbackLocalMirror(
+                    dataApiDirectory: Directory(
+                      '${paths.appSupportDirectory.path}'
+                      '${Platform.pathSeparator}data-api',
+                    ),
+                    startDatabaseRuntime: (database) {
+                      return DataApiBootstrap(
+                        configurationRepository: configurationAccess.repository,
+                        remoteSessionStore:
+                            configurationAccess.remoteSessionStore,
+                        masterKeyRepository:
+                            configurationAccess.masterKeyRepository,
+                        isMacOS: true,
+                      ).startRemoteFallbackMirrorRuntime(
+                        appSupportDirectory: paths.appSupportDirectory,
+                        database: database,
+                        encryptionKey: remoteEncryptionKey,
+                      );
+                    },
+                  )
+                : null;
             return AppRuntimeGraph(
               generation: generation,
               paths: paths,
@@ -220,6 +249,11 @@ AppStartupCoordinator createProductionAppStartupCoordinator({
                       return runtime;
                     }
                   : null,
+              remoteFallbackSnapshotRuntimeStarter:
+                  remoteFallbackMirror?.startStagingRuntime,
+              remoteFallbackSnapshotCommitter:
+                  remoteFallbackMirror?.commitStaging,
+              remoteFallbackSnapshotActivator: remoteFallbackMirror?.activate,
             );
           },
     ),

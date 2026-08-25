@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show MissingPluginException;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/configuration/data_api_configuration_providers.dart';
 import '../../platform/app_shutdown_coordinator.dart';
 import '../config/local_terminal_config_bootstrap.dart';
 import '../config/local_terminal_config_loader.dart';
@@ -509,6 +510,7 @@ class SessionController extends Notifier<SessionState> {
   String? _lastLayoutSnapshot;
   Future<void> _layoutSaveChain = Future<void>.value();
   bool _isShuttingDown = false;
+  bool _terminalConfigRepairAvailable = false;
 
   TerminalAppPreferencesDocument get _appPreferences =>
       _appPreferencesDocument.value;
@@ -547,6 +549,8 @@ class SessionController extends Notifier<SessionState> {
   }
 
   bool get isShuttingDown => _isShuttingDown;
+
+  bool get terminalConfigRepairAvailable => _terminalConfigRepairAvailable;
 
   @visibleForTesting
   bool get hasRuntimeEventSubscriptionForTesting =>
@@ -631,6 +635,27 @@ class SessionController extends Notifier<SessionState> {
     await _bootstrapFuture!;
   }
 
+  Future<void> repairTerminalConfigAndRetry() async {
+    if (_isShuttingDown || state.isReady || !_terminalConfigRepairAvailable) {
+      return;
+    }
+    final repository = ref.read(localTerminalConfigRepositoryProvider);
+    if (repository is! TerminalConfigRecoveryRepository) {
+      throw StateError(
+        'The active terminal config repository does not support recovery.',
+      );
+    }
+    final recoveryRepository = repository as TerminalConfigRecoveryRepository;
+    _terminalConfigRepairAvailable = false;
+    try {
+      await recoveryRepository.repairNonCanonicalCurrentDocument();
+    } on Object {
+      _terminalConfigRepairAvailable = true;
+      rethrow;
+    }
+    await retryBootstrap();
+  }
+
   void _scheduleBootstrap() {
     if (_bootstrapFuture != null) {
       return;
@@ -652,10 +677,13 @@ class SessionController extends Notifier<SessionState> {
     final outcome = await _bootstrapRunner.run(
       isMounted: () => _bootstrapWorkAllowed,
       onStarted: () {
+        _terminalConfigRepairAvailable = false;
         state = state.copyWith(isReady: false, lastError: null);
       },
       operation: _bootstrap,
       onFailed: (error, _) {
+        _terminalConfigRepairAvailable =
+            error is NonCanonicalCurrentTerminalConfigException;
         state = state.copyWith(
           isReady: false,
           lastError: 'Terminal startup failed: $error',
@@ -892,6 +920,25 @@ class SessionController extends Notifier<SessionState> {
       _setWindowTitle(activePane.title);
     }
     _enableLayoutPersistence();
+    _refreshRemoteFallbackSnapshot();
+  }
+
+  void _refreshRemoteFallbackSnapshot() {
+    final controller = ref.read(dataApiRemoteFallbackControllerProvider);
+    if (controller == null) {
+      return;
+    }
+    unawaited(() async {
+      try {
+        await controller.refreshSnapshot();
+      } on Object catch (error, stackTrace) {
+        // A failed refresh must not affect the live remote session or replace
+        // the prior last-known-good checkpoint.
+        debugPrint(
+          'Remote fallback snapshot refresh failed: $error\n$stackTrace',
+        );
+      }
+    }());
   }
 
   LocalTerminalLayoutRestoreResult _restoreTerminalLayout(
@@ -1223,13 +1270,7 @@ class SessionController extends Notifier<SessionState> {
     Map<String, String> environmentOverrides,
   ) {
     if (profile.isSsh) {
-      return profile.copyWith(
-        sessionConfig: profile.sessionConfig.copyWith(
-          shellIntegration: profile.sessionConfig.shellIntegration.copyWith(
-            enabled: false,
-          ),
-        ),
-      );
+      return profile;
     }
     final launchProfile = profile.copyWith(
       env: <String, String>{

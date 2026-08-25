@@ -56,6 +56,8 @@ enum _DefaultsSection { general, appearance, shortcuts, security, data }
 
 enum _TerminalPermissionKind { osc52, openUrl, requestAttention }
 
+enum _PermissionRisk { low, medium, high }
+
 List<Widget> _visibleDefaultsSectionChildren({
   required bool showAll,
   required _DefaultsSection selectedSection,
@@ -132,6 +134,7 @@ class DefaultsAndAppearanceDialog extends StatefulWidget {
     this.localDataApiAvailable = false,
     this.localSessionsEnabled = true,
     this.masterKeyRepository,
+    this.openDataServiceInitially = false,
   });
 
   final List<TerminalProfile> profiles;
@@ -152,6 +155,7 @@ class DefaultsAndAppearanceDialog extends StatefulWidget {
   final bool localDataApiAvailable;
   final bool localSessionsEnabled;
   final PortableMasterKeyRepository? masterKeyRepository;
+  final bool openDataServiceInitially;
 
   @override
   State<DefaultsAndAppearanceDialog> createState() =>
@@ -184,7 +188,7 @@ class _DefaultsAndAppearanceDialogState
   bool _showShortcutEditor = false;
   bool _showReportVariableManagement = false;
   String _terminalPresetFilter = '';
-  _DefaultsSection _selectedSection = _DefaultsSection.general;
+  late _DefaultsSection _selectedSection;
   _TerminalPermissionKind _selectedPermissionDetail =
       _TerminalPermissionKind.openUrl;
 
@@ -192,6 +196,9 @@ class _DefaultsAndAppearanceDialogState
   void initState() {
     super.initState();
     _selectedProfileId = widget.configuredDefaultProfileId;
+    _selectedSection = widget.openDataServiceInitially
+        ? _DefaultsSection.data
+        : _DefaultsSection.general;
     _selectedThemeMode = widget.themeMode;
     _selectedLanguageMode = widget.languageMode;
     _selectedTerminalViewportPadding = widget.terminalViewportPadding;
@@ -345,6 +352,35 @@ class _DefaultsAndAppearanceDialogState
     }
   }
 
+  InputDecoration _dataServiceInputDecoration({
+    required String labelText,
+    String? hintText,
+    String? helperText,
+    String? errorText,
+  }) {
+    final theme = context.appTheme;
+    final textTheme = Theme.of(context).textTheme;
+    return InputDecoration(
+      isDense: true,
+      labelText: labelText,
+      hintText: hintText,
+      helperText: helperText,
+      errorText: errorText,
+      errorMaxLines: 2,
+      constraints: BoxConstraints(minHeight: theme.controls.regular),
+      contentPadding: EdgeInsets.symmetric(
+        horizontal: theme.spacing.md,
+        vertical: theme.spacing.sm,
+      ),
+      labelStyle: textTheme.labelMedium?.copyWith(color: theme.textMuted),
+      floatingLabelStyle: textTheme.labelMedium?.copyWith(
+        color: theme.focusRing,
+        fontWeight: FontWeight.w600,
+      ),
+      helperStyle: textTheme.bodySmall?.copyWith(color: theme.textSubtle),
+    );
+  }
+
   TerminalProfile? _effectiveProfileFor({
     required String? configuredProfileId,
     required String? effectiveProfileId,
@@ -457,6 +493,9 @@ class _DefaultsAndAppearanceDialogState
   @override
   Widget build(BuildContext context) {
     final theme = context.appTheme;
+    final dataServiceFieldTextStyle = Theme.of(
+      context,
+    ).textTheme.bodyMedium?.copyWith(color: theme.textPrimary);
     final mediaSize = MediaQuery.sizeOf(context);
     final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
     final keyboardVisible = keyboardInset > 0;
@@ -464,19 +503,32 @@ class _DefaultsAndAppearanceDialogState
     final compactKeyboardLayout =
         keyboardVisible &&
         (compactLayout || mediaSize.height < mediaSize.width);
+    final desktopPlatform = switch (Theme.of(context).platform) {
+      TargetPlatform.macOS ||
+      TargetPlatform.windows ||
+      TargetPlatform.linux => true,
+      TargetPlatform.android ||
+      TargetPlatform.iOS ||
+      TargetPlatform.fuchsia => false,
+    };
     final dialogInset = compactLayout ? 0.0 : theme.spacing.xxl;
     final dialogWidth = compactLayout
         ? mediaSize.width
         : (mediaSize.width - dialogInset * 2).clamp(0.0, 960.0);
-    final showSectionNavigation = !compactLayout && dialogWidth >= 720;
-    final showStandaloneShortcutEditor =
-        _showShortcutEditor && !showSectionNavigation;
     final dialogHeight = compactLayout
         ? mediaSize.height - keyboardInset
         : (mediaSize.height - keyboardInset - dialogInset * 2).clamp(
             0.0,
             760.0,
           );
+    final showSectionNavigation =
+        desktopPlatform &&
+        !compactLayout &&
+        !keyboardVisible &&
+        dialogWidth >= 720 &&
+        dialogHeight >= 480;
+    final showStandaloneShortcutEditor =
+        _showShortcutEditor && !showSectionNavigation;
     final effectiveProfile = _effectiveProfileFor(
       configuredProfileId: _selectedProfileId,
       effectiveProfileId: widget.effectiveDefaultProfileId,
@@ -484,7 +536,6 @@ class _DefaultsAndAppearanceDialogState
     final hasChanges = _hasChanges(effectiveProfile);
     final selectedDataApiConfiguration = _selectedDataApiConfiguration;
     final remoteLoginRequest = _remoteLoginRequest;
-    final isUsingFallback = _selectedProfileId == null;
     final selectedPreset = _selectedPreset;
     final terminalPresetFilter = _terminalPresetFilter.trim().toLowerCase();
     final showCurrentPreset =
@@ -634,14 +685,27 @@ class _DefaultsAndAppearanceDialogState
                     theme.spacing.xxl,
                     theme.spacing.xl,
                   ),
-                  child: ShortcutEditorPanel(
-                    config: _selectedKeybindings,
-                    expandList: true,
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedKeybindings = value;
-                      });
-                    },
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _DefaultsSectionIntro(
+                        title: context.l10n.keyboardShortcuts,
+                        description: context.l10n.keyboardShortcutsDescription,
+                      ),
+                      SizedBox(height: theme.spacing.xl),
+                      Expanded(
+                        child: ShortcutEditorPanel(
+                          config: _selectedKeybindings,
+                          expandList: true,
+                          showHeader: false,
+                          onChanged: (value) {
+                            setState(() {
+                              _selectedKeybindings = value;
+                            });
+                          },
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               )
@@ -669,6 +733,13 @@ class _DefaultsAndAppearanceDialogState
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const _DefaultsSectionMarker(_DefaultsSection.general),
+                      if (showSectionNavigation) ...[
+                        _DefaultsSectionIntro(
+                          title: context.l10n.general,
+                          description: context.l10n.generalSettingsDescription,
+                        ),
+                        SizedBox(height: theme.spacing.xl),
+                      ],
                       _ProfilesNotice(
                         effectiveProfile: effectiveProfile,
                         onOpenProfiles: effectiveProfile == null
@@ -765,39 +836,6 @@ class _DefaultsAndAppearanceDialogState
                                 ],
                               ),
                             ),
-                            const Divider(height: 1),
-                            Container(
-                              key: const Key(
-                                'defaults-current-profile-summary',
-                              ),
-                              width: double.infinity,
-                              padding: EdgeInsets.symmetric(
-                                horizontal: theme.spacing.lg,
-                                vertical: theme.spacing.sm + theme.spacing.xs,
-                              ),
-                              decoration: BoxDecoration(
-                                color: theme.selected.withValues(alpha: 0.24),
-                                borderRadius: BorderRadius.vertical(
-                                  bottom: Radius.circular(theme.radius.md),
-                                ),
-                              ),
-                              child: Text(
-                                isUsingFallback
-                                    ? context.l10n.automaticFallbackProfile(
-                                        effectiveProfile?.name ??
-                                            context.l10n.noProfileAvailable,
-                                      )
-                                    : context.l10n.configuredDefaultProfile(
-                                        effectiveProfile?.name ??
-                                            context.l10n.unknownProfile,
-                                      ),
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(
-                                      color: theme.textMuted,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                              ),
-                            ),
                           ],
                         ),
                       ),
@@ -834,6 +872,14 @@ class _DefaultsAndAppearanceDialogState
                       ),
                       SizedBox(height: theme.spacing.xl),
                       const _DefaultsSectionMarker(_DefaultsSection.appearance),
+                      if (showSectionNavigation) ...[
+                        _DefaultsSectionIntro(
+                          title: context.l10n.appearance,
+                          description:
+                              context.l10n.appearanceSettingsDescription,
+                        ),
+                        SizedBox(height: theme.spacing.lg),
+                      ],
                       AppSectionHeader(
                         title: context.l10n.terminalPreset,
                         description: effectiveProfile == null
@@ -854,6 +900,8 @@ class _DefaultsAndAppearanceDialogState
                               FocusManager.instance.primaryFocus?.unfocus(),
                           decoration: InputDecoration(
                             isDense: true,
+                            filled: true,
+                            fillColor: theme.panel,
                             prefixIcon: const Icon(Icons.search_rounded),
                             labelText: context.l10n.filterTerminalPresets,
                           ),
@@ -874,12 +922,12 @@ class _DefaultsAndAppearanceDialogState
                               : 1;
                           final cardWidth =
                               (constraints.maxWidth -
-                                  theme.spacing.sm * (columnCount - 1)) /
+                                  theme.spacing.lg * (columnCount - 1)) /
                               columnCount;
                           return Wrap(
                             key: const Key('defaults-terminal-preset-grid'),
-                            spacing: theme.spacing.sm,
-                            runSpacing: theme.spacing.sm,
+                            spacing: theme.spacing.lg,
+                            runSpacing: theme.spacing.lg,
                             children: [
                               if (showCurrentPreset)
                                 _TerminalPresetChoice(
@@ -946,7 +994,7 @@ class _DefaultsAndAppearanceDialogState
                           );
                         },
                       ),
-                      SizedBox(height: theme.spacing.xxl),
+                      SizedBox(height: theme.spacing.lg),
                       AppSectionHeader(
                         title: context.l10n.startup,
                         description: context.l10n.startupLayoutDescription,
@@ -985,7 +1033,7 @@ class _DefaultsAndAppearanceDialogState
                           ),
                         ),
                       ),
-                      SizedBox(height: theme.spacing.xxl),
+                      SizedBox(height: theme.spacing.lg),
                       AppSectionHeader(title: context.l10n.appearance),
                       SizedBox(height: theme.spacing.sm),
                       _SettingsRadioPanel<TerminalThemeMode>(
@@ -1371,11 +1419,29 @@ class _DefaultsAndAppearanceDialogState
                         ),
                       SizedBox(height: theme.spacing.xxl),
                       const _DefaultsSectionMarker(_DefaultsSection.data),
-                      AppSectionHeader(
-                        title: context.l10n.dataService,
-                        description: widget.localDataApiAvailable
-                            ? context.l10n.dataServiceDescriptionLocalAvailable
-                            : context.l10n.dataServiceDescriptionRemoteOnly,
+                      if (showSectionNavigation) ...[
+                        _DefaultsSectionIntro(
+                          title: context.l10n.dataService,
+                          description: widget.localDataApiAvailable
+                              ? context
+                                    .l10n
+                                    .dataServiceDescriptionLocalAvailable
+                              : context.l10n.dataServiceDescriptionRemoteOnly,
+                        ),
+                        SizedBox(height: theme.spacing.xl),
+                      ] else
+                        AppSectionHeader(
+                          title: context.l10n.dataService,
+                          description: widget.localDataApiAvailable
+                              ? context
+                                    .l10n
+                                    .dataServiceDescriptionLocalAvailable
+                              : context.l10n.dataServiceDescriptionRemoteOnly,
+                        ),
+                      SizedBox(height: theme.spacing.sm),
+                      _DataServiceStatusBanner(
+                        deployment: _sourceDataApiDeployment,
+                        localSessionsEnabled: widget.localSessionsEnabled,
                       ),
                       SizedBox(height: theme.spacing.sm),
                       AppPanel(
@@ -1385,25 +1451,6 @@ class _DefaultsAndAppearanceDialogState
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Semantics(
-                              key: const Key('data-api-active-deployment'),
-                              label: context.l10n.activeDataService(
-                                _sourceDataApiDeployment.name,
-                              ),
-                              child: Text(
-                                context.l10n.activeNow(
-                                  _dataServiceName(
-                                    context.l10n,
-                                    _sourceDataApiDeployment,
-                                    localSessionsEnabled:
-                                        widget.localSessionsEnabled,
-                                  ),
-                                ),
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(color: theme.textSubtle),
-                              ),
-                            ),
-                            SizedBox(height: theme.spacing.xs),
                             RadioGroup<DataApiDeployment>(
                               groupValue: _selectedDataApiDeployment,
                               onChanged: (deployment) {
@@ -1416,36 +1463,44 @@ class _DefaultsAndAppearanceDialogState
                               },
                               child: Column(
                                 children: [
-                                  AppCompactRadioTile<DataApiDeployment>(
+                                  if (showSectionNavigation) ...[
+                                    const _DataServiceComparisonHeader(),
+                                    SizedBox(height: theme.spacing.xs),
+                                  ],
+                                  _DataServiceModeChoice(
                                     tileKey: const Key('data-api-disabled'),
                                     value: DataApiDeployment.disabled,
-                                    title: Text(
-                                      widget.localSessionsEnabled
-                                          ? context.l10n.localTerminal
-                                          : context.l10n.noDataService,
-                                    ),
-                                    subtitle: Text(
-                                      widget.localSessionsEnabled
-                                          ? context
-                                                .l10n
-                                                .localTerminalNoApiDescription
-                                          : context
-                                                .l10n
-                                                .noDataServiceDescription,
-                                    ),
+                                    title: widget.localSessionsEnabled
+                                        ? context.l10n.localTerminal
+                                        : context.l10n.noDataService,
+                                    description: widget.localSessionsEnabled
+                                        ? context
+                                              .l10n
+                                              .localTerminalNoApiDescription
+                                        : context.l10n.noDataServiceDescription,
+                                    selected:
+                                        _selectedDataApiDeployment ==
+                                        DataApiDeployment.disabled,
+                                    active:
+                                        _sourceDataApiDeployment ==
+                                        DataApiDeployment.disabled,
+                                    showComparison: showSectionNavigation,
                                   ),
                                   if (widget.localDataApiAvailable)
-                                    AppCompactRadioTile<DataApiDeployment>(
+                                    _DataServiceModeChoice(
                                       tileKey: const Key('data-api-local'),
                                       value: DataApiDeployment.local,
-                                      title: Text(
-                                        context.l10n.bundledLocalService,
-                                      ),
-                                      subtitle: Text(
-                                        context
-                                            .l10n
-                                            .bundledLocalServiceDescription,
-                                      ),
+                                      title: context.l10n.bundledLocalService,
+                                      description: context
+                                          .l10n
+                                          .bundledLocalServiceDescription,
+                                      selected:
+                                          _selectedDataApiDeployment ==
+                                          DataApiDeployment.local,
+                                      active:
+                                          _sourceDataApiDeployment ==
+                                          DataApiDeployment.local,
+                                      showComparison: showSectionNavigation,
                                     ),
                                   if (_migratesRemoteDataToLocal)
                                     Padding(
@@ -1473,13 +1528,19 @@ class _DefaultsAndAppearanceDialogState
                                         ),
                                       ),
                                     ),
-                                  AppCompactRadioTile<DataApiDeployment>(
+                                  _DataServiceModeChoice(
                                     tileKey: const Key('data-api-remote'),
                                     value: DataApiDeployment.remote,
-                                    title: Text(context.l10n.remoteService),
-                                    subtitle: Text(
-                                      context.l10n.remoteServiceDescription,
-                                    ),
+                                    title: context.l10n.remoteService,
+                                    description:
+                                        context.l10n.remoteServiceDescription,
+                                    selected:
+                                        _selectedDataApiDeployment ==
+                                        DataApiDeployment.remote,
+                                    active:
+                                        _sourceDataApiDeployment ==
+                                        DataApiDeployment.remote,
+                                    showComparison: showSectionNavigation,
                                   ),
                                 ],
                               ),
@@ -1535,6 +1596,7 @@ class _DefaultsAndAppearanceDialogState
                               TextField(
                                 key: const Key('data-api-remote-url'),
                                 controller: _remoteDataApiUrlController,
+                                style: dataServiceFieldTextStyle,
                                 onChanged: (_) {
                                   if (!_remoteDataApiUrlEdited) {
                                     setState(
@@ -1549,17 +1611,17 @@ class _DefaultsAndAppearanceDialogState
                                 textInputAction: TextInputAction.next,
                                 autocorrect: false,
                                 enableSuggestions: false,
-                                decoration: InputDecoration(
+                                decoration: _dataServiceInputDecoration(
                                   labelText: context.l10n.remoteApiBaseUrl,
                                   hintText: defaultRemoteDataApiBaseUrl,
                                   errorText: _remoteDataApiUrlError,
-                                  errorMaxLines: 2,
                                 ),
                               ),
                               SizedBox(height: theme.spacing.sm),
                               TextField(
                                 key: const Key('data-api-remote-username'),
                                 controller: _remoteDataApiUsernameController,
+                                style: dataServiceFieldTextStyle,
                                 onChanged: (_) {
                                   if (!_remoteDataApiUsernameEdited) {
                                     setState(
@@ -1576,16 +1638,16 @@ class _DefaultsAndAppearanceDialogState
                                 autofillHints: const <String>[
                                   AutofillHints.username,
                                 ],
-                                decoration: InputDecoration(
+                                decoration: _dataServiceInputDecoration(
                                   labelText: context.l10n.username,
                                   errorText: _remoteUsernameError,
-                                  errorMaxLines: 2,
                                 ),
                               ),
                               SizedBox(height: theme.spacing.sm),
                               TextField(
                                 key: const Key('data-api-remote-password'),
                                 controller: _remoteDataApiPasswordController,
+                                style: dataServiceFieldTextStyle,
                                 onChanged: (_) {
                                   if (!_remoteDataApiPasswordEdited) {
                                     setState(
@@ -1603,11 +1665,10 @@ class _DefaultsAndAppearanceDialogState
                                 autofillHints: const <String>[
                                   AutofillHints.password,
                                 ],
-                                decoration: InputDecoration(
+                                decoration: _dataServiceInputDecoration(
                                   labelText: context.l10n.password,
                                   helperText: context.l10n.loginPasswordHelp,
                                   errorText: _remotePasswordError,
-                                  errorMaxLines: 2,
                                 ),
                                 onSubmitted: (_) => FocusManager
                                     .instance
@@ -1680,96 +1741,72 @@ class _DefaultsAndAppearanceDialogState
                               ],
                             ),
                             Semantics(
-                              key: const Key(
-                                'default-terminal-viewport-padding',
-                              ),
                               container: true,
                               label: context.l10n.viewportPadding,
                               value: context.l10n.pixelCount(
                                 _selectedTerminalViewportPadding.round(),
                               ),
                               liveRegion: true,
-                              child: Row(
-                                children: [
-                                  AppActionButton(
-                                    buttonKey: const Key(
-                                      'default-terminal-viewport-padding-decrease',
-                                    ),
-                                    tone: AppActionTone.secondary,
-                                    size: AppActionSize.compact,
-                                    icon: Icons.remove_rounded,
-                                    tooltip:
-                                        context.l10n.decreaseViewportPadding,
-                                    onPressed:
-                                        _selectedTerminalViewportPadding <=
-                                            TerminalAppAppearance
-                                                .minTerminalViewportPadding
-                                        ? null
-                                        : () {
-                                            setState(() {
-                                              _selectedTerminalViewportPadding =
-                                                  (_selectedTerminalViewportPadding -
-                                                          1)
-                                                      .clamp(
-                                                        TerminalAppAppearance
-                                                            .minTerminalViewportPadding,
-                                                        TerminalAppAppearance
-                                                            .maxTerminalViewportPadding,
-                                                      );
-                                            });
-                                          },
+                              child: SliderTheme(
+                                data: SliderTheme.of(context).copyWith(
+                                  activeTrackColor: theme.accent,
+                                  inactiveTrackColor: theme.border,
+                                  thumbColor: theme.accent,
+                                  overlayColor: theme.focusRing.withValues(
+                                    alpha: 0.14,
                                   ),
-                                  Expanded(
-                                    child: Text(
-                                      context.l10n.viewportPaddingRange(
-                                        TerminalAppAppearance
-                                            .minTerminalViewportPadding
-                                            .round(),
-                                        TerminalAppAppearance
-                                            .maxTerminalViewportPadding
-                                            .round(),
-                                      ),
-                                      textAlign: TextAlign.center,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .labelMedium
-                                          ?.copyWith(
-                                            color: theme.textSubtle,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                    ),
+                                  valueIndicatorColor: theme.panelElevated,
+                                  valueIndicatorTextStyle: Theme.of(context)
+                                      .textTheme
+                                      .labelMedium
+                                      ?.copyWith(color: theme.textPrimary),
+                                ),
+                                child: Slider(
+                                  key: const Key(
+                                    'default-terminal-viewport-padding',
                                   ),
-                                  AppActionButton(
-                                    buttonKey: const Key(
-                                      'default-terminal-viewport-padding-increase',
-                                    ),
-                                    tone: AppActionTone.secondary,
-                                    size: AppActionSize.compact,
-                                    icon: Icons.add_rounded,
-                                    tooltip:
-                                        context.l10n.increaseViewportPadding,
-                                    onPressed:
-                                        _selectedTerminalViewportPadding >=
-                                            TerminalAppAppearance
-                                                .maxTerminalViewportPadding
-                                        ? null
-                                        : () {
-                                            setState(() {
-                                              _selectedTerminalViewportPadding =
-                                                  (_selectedTerminalViewportPadding +
-                                                          1)
-                                                      .clamp(
-                                                        TerminalAppAppearance
-                                                            .minTerminalViewportPadding,
-                                                        TerminalAppAppearance
-                                                            .maxTerminalViewportPadding,
-                                                      );
-                                            });
-                                          },
+                                  value: _selectedTerminalViewportPadding,
+                                  min: TerminalAppAppearance
+                                      .minTerminalViewportPadding,
+                                  max: TerminalAppAppearance
+                                      .maxTerminalViewportPadding,
+                                  divisions:
+                                      (TerminalAppAppearance
+                                                  .maxTerminalViewportPadding -
+                                              TerminalAppAppearance
+                                                  .minTerminalViewportPadding)
+                                          .round(),
+                                  label: context.l10n.pixelCount(
+                                    _selectedTerminalViewportPadding.round(),
                                   ),
-                                ],
+                                  semanticFormatterCallback: (value) =>
+                                      context.l10n.pixelCount(value.round()),
+                                  onChanged: (value) {
+                                    setState(() {
+                                      _selectedTerminalViewportPadding = value;
+                                    });
+                                  },
+                                ),
                               ),
                             ),
+                            Center(
+                              child: Text(
+                                context.l10n.viewportPaddingRange(
+                                  TerminalAppAppearance
+                                      .minTerminalViewportPadding
+                                      .round(),
+                                  TerminalAppAppearance
+                                      .maxTerminalViewportPadding
+                                      .round(),
+                                ),
+                                style: Theme.of(context).textTheme.labelMedium
+                                    ?.copyWith(
+                                      color: theme.textSubtle,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                              ),
+                            ),
+                            SizedBox(height: theme.spacing.sm),
                             Text(
                               context.l10n.viewportPaddingDescription,
                               style: Theme.of(context).textTheme.bodySmall
@@ -1849,8 +1886,8 @@ class _DefaultsAndAppearanceDialogState
                     runSpacing: theme.spacing.sm,
                     children: [
                       AppActionButton(
+                        buttonKey: const Key('defaults-cancel'),
                         tone: AppActionTone.secondary,
-                        size: AppActionSize.compact,
                         label: context.l10n.cancel,
                         onPressed: () => Navigator.of(context).pop(),
                       ),
@@ -2193,8 +2230,53 @@ class _TerminalPermissionsPanel extends StatelessWidget {
             allowedReportVariableCount,
             deniedReportVariableCount,
           );
-    return AppPanel(
-      key: const Key('defaults-terminal-permissions-panel'),
+    final detail = switch (selectedDetail) {
+      _TerminalPermissionKind.osc52 => (
+        title: context.l10n.osc52Clipboard,
+        protocol: 'OSC 52',
+        policy: context.l10n.osc52PolicyName(osc52Policy.name),
+        recommended: osc52Policy == LocalTerminalOsc52Policy.profile,
+        risk: switch (osc52Policy) {
+          LocalTerminalOsc52Policy.disabled ||
+          LocalTerminalOsc52Policy.ask => _PermissionRisk.low,
+          LocalTerminalOsc52Policy.profile => _PermissionRisk.medium,
+          LocalTerminalOsc52Policy.allow => _PermissionRisk.high,
+        },
+        description: context.l10n.osc52PolicyDescription(osc52Policy.name),
+        recommendation: context.l10n.permissionRecommendation('osc52'),
+      ),
+      _TerminalPermissionKind.openUrl => (
+        title: context.l10n.terminalUrlRequests,
+        protocol: 'OSC 1337 OpenURL',
+        policy: context.l10n.openUrlPolicyName(openUrlPolicy.name),
+        recommended: openUrlPolicy == LocalTerminalOpenUrlPolicy.ask,
+        risk: switch (openUrlPolicy) {
+          LocalTerminalOpenUrlPolicy.disabled => _PermissionRisk.low,
+          LocalTerminalOpenUrlPolicy.ask => _PermissionRisk.medium,
+        },
+        description: context.l10n.openUrlPolicyDescription(openUrlPolicy.name),
+        recommendation: context.l10n.permissionRecommendation('openUrl'),
+      ),
+      _TerminalPermissionKind.requestAttention => (
+        title: context.l10n.terminalAttentionRequests,
+        protocol: 'OSC 1337 RequestAttention',
+        policy: context.l10n.requestAttentionPolicyName(
+          requestAttentionPolicy.name,
+        ),
+        recommended:
+            requestAttentionPolicy ==
+            LocalTerminalRequestAttentionPolicy.disabled,
+        risk: switch (requestAttentionPolicy) {
+          LocalTerminalRequestAttentionPolicy.disabled => _PermissionRisk.low,
+          LocalTerminalRequestAttentionPolicy.allow => _PermissionRisk.medium,
+        },
+        description: context.l10n.requestAttentionPolicyDescription(
+          requestAttentionPolicy.name,
+        ),
+        recommendation: context.l10n.permissionRecommendation('attention'),
+      ),
+    };
+    final policyList = AppPanel(
       tone: AppPanelTone.panel,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(theme.radius.md),
@@ -2207,6 +2289,7 @@ class _TerminalPermissionsPanel extends StatelessWidget {
               title: context.l10n.osc52Clipboard,
               description: context.l10n.osc52ClipboardDescription,
               protocol: 'OSC 52',
+              selected: selectedDetail == _TerminalPermissionKind.osc52,
               value: osc52Policy,
               values: LocalTerminalOsc52Policy.values,
               labelFor: (value) => context.l10n.osc52PolicyName(value.name),
@@ -2215,12 +2298,6 @@ class _TerminalPermissionsPanel extends StatelessWidget {
               onChanged: onOsc52Changed,
               onFocused: () => onDetailSelected(_TerminalPermissionKind.osc52),
             ),
-            if (selectedDetail == _TerminalPermissionKind.osc52)
-              _PermissionDetail(
-                description: context.l10n.osc52PolicyDescription(
-                  osc52Policy.name,
-                ),
-              ),
             const Divider(height: 1),
             _PermissionPolicyRow<LocalTerminalOpenUrlPolicy>(
               panelKey: const Key('defaults-open-url-options'),
@@ -2229,6 +2306,7 @@ class _TerminalPermissionsPanel extends StatelessWidget {
               title: context.l10n.terminalUrlRequests,
               description: context.l10n.terminalUrlRequestsDescription,
               protocol: 'OSC 1337 OpenURL',
+              selected: selectedDetail == _TerminalPermissionKind.openUrl,
               value: openUrlPolicy,
               values: LocalTerminalOpenUrlPolicy.values,
               labelFor: (value) => context.l10n.openUrlPolicyName(value.name),
@@ -2238,12 +2316,6 @@ class _TerminalPermissionsPanel extends StatelessWidget {
               onFocused: () =>
                   onDetailSelected(_TerminalPermissionKind.openUrl),
             ),
-            if (selectedDetail == _TerminalPermissionKind.openUrl)
-              _PermissionDetail(
-                description: context.l10n.openUrlPolicyDescription(
-                  openUrlPolicy.name,
-                ),
-              ),
             const Divider(height: 1),
             _PermissionPolicyRow<LocalTerminalRequestAttentionPolicy>(
               panelKey: const Key('defaults-request-attention-options'),
@@ -2254,6 +2326,8 @@ class _TerminalPermissionsPanel extends StatelessWidget {
               title: context.l10n.terminalAttentionRequests,
               description: context.l10n.terminalAttentionRequestsDescription,
               protocol: 'OSC 1337 RequestAttention',
+              selected:
+                  selectedDetail == _TerminalPermissionKind.requestAttention,
               value: requestAttentionPolicy,
               values: LocalTerminalRequestAttentionPolicy.values,
               labelFor: (value) =>
@@ -2264,12 +2338,6 @@ class _TerminalPermissionsPanel extends StatelessWidget {
               onFocused: () =>
                   onDetailSelected(_TerminalPermissionKind.requestAttention),
             ),
-            if (selectedDetail == _TerminalPermissionKind.requestAttention)
-              _PermissionDetail(
-                description: context.l10n.requestAttentionPolicyDescription(
-                  requestAttentionPolicy.name,
-                ),
-              ),
             const Divider(height: 1),
             KeyedSubtree(
               key: const Key('defaults-report-variable-panel'),
@@ -2283,6 +2351,40 @@ class _TerminalPermissionsPanel extends StatelessWidget {
         ),
       ),
     );
+    final detailPanel = _PermissionDetail(
+      title: detail.title,
+      protocol: detail.protocol,
+      policy: detail.policy,
+      recommended: detail.recommended,
+      risk: detail.risk,
+      description: detail.description,
+      recommendation: detail.recommendation,
+    );
+    return KeyedSubtree(
+      key: const Key('defaults-terminal-permissions-panel'),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth < 680) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                policyList,
+                SizedBox(height: theme.spacing.sm),
+                detailPanel,
+              ],
+            );
+          }
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(flex: 3, child: policyList),
+              SizedBox(width: theme.spacing.sm),
+              Expanded(flex: 2, child: detailPanel),
+            ],
+          );
+        },
+      ),
+    );
   }
 }
 
@@ -2294,6 +2396,7 @@ class _PermissionPolicyRow<T extends Enum> extends StatelessWidget {
     required this.title,
     required this.description,
     required this.protocol,
+    required this.selected,
     required this.value,
     required this.values,
     required this.labelFor,
@@ -2308,6 +2411,7 @@ class _PermissionPolicyRow<T extends Enum> extends StatelessWidget {
   final String title;
   final String description;
   final String protocol;
+  final bool selected;
   final T value;
   final List<T> values;
   final String Function(T value) labelFor;
@@ -2367,14 +2471,14 @@ class _PermissionPolicyRow<T extends Enum> extends StatelessWidget {
           }
         },
         child: SizedBox(
-          width: 174,
+          width: 136,
           child: KeyedSubtree(
             key: dropdownKey,
             child: AppDropdownFormField<T>(
               key: ValueKey<T>(value),
               initialValue: value,
               isExpanded: true,
-              decoration: const InputDecoration(),
+              decoration: InputDecoration(filled: true, fillColor: theme.panel),
               items: [
                 for (final option in values)
                   DropdownMenuItem<T>(
@@ -2398,32 +2502,49 @@ class _PermissionPolicyRow<T extends Enum> extends StatelessWidget {
     );
     return KeyedSubtree(
       key: panelKey,
-      child: Padding(
-        padding: EdgeInsets.symmetric(
-          horizontal: theme.spacing.xl,
-          vertical: theme.spacing.lg,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
+        decoration: BoxDecoration(
+          color: selected
+              ? theme.selected.withValues(alpha: 0.18)
+              : Colors.transparent,
+          border: Border(
+            left: BorderSide(
+              color: selected ? theme.accent : Colors.transparent,
+              width: 3,
+            ),
+          ),
         ),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            if (constraints.maxWidth < 560) {
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  text,
-                  SizedBox(height: theme.spacing.md),
-                  Align(alignment: Alignment.centerRight, child: dropdown),
-                ],
-              );
-            }
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Expanded(child: text),
-                SizedBox(width: theme.spacing.xl),
-                dropdown,
-              ],
-            );
-          },
+        child: InkWell(
+          onTap: onFocused,
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: theme.spacing.lg,
+              vertical: theme.spacing.lg,
+            ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                if (constraints.maxWidth < 320) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      text,
+                      SizedBox(height: theme.spacing.md),
+                      Align(alignment: Alignment.centerRight, child: dropdown),
+                    ],
+                  );
+                }
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(child: text),
+                    SizedBox(width: theme.spacing.md),
+                    dropdown,
+                  ],
+                );
+              },
+            ),
+          ),
         ),
       ),
     );
@@ -2431,58 +2552,197 @@ class _PermissionPolicyRow<T extends Enum> extends StatelessWidget {
 }
 
 class _PermissionDetail extends StatelessWidget {
-  const _PermissionDetail({required this.description});
+  const _PermissionDetail({
+    required this.title,
+    required this.protocol,
+    required this.policy,
+    required this.recommended,
+    required this.risk,
+    required this.description,
+    required this.recommendation,
+  });
 
+  final String title;
+  final String protocol;
+  final String policy;
+  final bool recommended;
+  final _PermissionRisk risk;
   final String description;
+  final String recommendation;
 
   @override
   Widget build(BuildContext context) {
     final theme = context.appTheme;
-    return Container(
-      width: double.infinity,
-      margin: EdgeInsets.fromLTRB(
-        theme.spacing.xl,
-        0,
-        theme.spacing.xl,
-        theme.spacing.lg,
-      ),
+    final riskColor = switch (risk) {
+      _PermissionRisk.low => theme.success,
+      _PermissionRisk.medium => theme.warning,
+      _PermissionRisk.high => theme.danger,
+    };
+    return AppPanel(
+      key: const Key('defaults-permission-detail'),
+      tone: AppPanelTone.selected,
+      border: Border.all(color: theme.focusRing.withValues(alpha: 0.24)),
       padding: EdgeInsets.symmetric(
-        horizontal: theme.spacing.xl,
-        vertical: theme.spacing.md,
+        horizontal: theme.spacing.lg,
+        vertical: theme.spacing.lg,
       ),
-      decoration: BoxDecoration(
-        color: theme.selected.withValues(alpha: 0.34),
-        borderRadius: BorderRadius.circular(theme.radius.md),
-        border: Border.all(color: theme.accent.withValues(alpha: 0.20)),
-      ),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.info_outline_rounded, size: 20, color: theme.accent),
-          SizedBox(width: theme.spacing.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
+          Row(
+            children: [
+              Icon(Icons.info_outline_rounded, size: 18, color: theme.accent),
+              SizedBox(width: theme.spacing.sm),
+              Expanded(
+                child: Text(
                   context.l10n.securityImpact,
                   style: Theme.of(context).textTheme.labelLarge?.copyWith(
                     color: theme.textPrimary,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                SizedBox(height: theme.spacing.xs),
-                Text(
-                  description,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(color: theme.textMuted),
-                ),
-              ],
+              ),
+            ],
+          ),
+          SizedBox(height: theme.spacing.lg),
+          Text(
+            title,
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              color: theme.textPrimary,
+              fontWeight: FontWeight.w700,
             ),
+          ),
+          SizedBox(height: theme.spacing.xs),
+          Text(
+            protocol,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: theme.textMuted,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          SizedBox(height: theme.spacing.lg),
+          const Divider(height: 1),
+          SizedBox(height: theme.spacing.lg),
+          _PermissionDetailField(
+            label: context.l10n.currentPolicy,
+            value: policy,
+            icon: Icons.verified_user_outlined,
+            valueColor: theme.textPrimary,
+            badge: recommended ? context.l10n.recommendedSetting : null,
+          ),
+          SizedBox(height: theme.spacing.lg),
+          _PermissionDetailField(
+            label: context.l10n.riskLevel,
+            value: context.l10n.riskLevelName(risk.name),
+            icon: switch (risk) {
+              _PermissionRisk.low => Icons.shield_outlined,
+              _PermissionRisk.medium => Icons.warning_amber_rounded,
+              _PermissionRisk.high => Icons.error_outline_rounded,
+            },
+            valueColor: riskColor,
+            iconColor: riskColor,
+          ),
+          SizedBox(height: theme.spacing.lg),
+          _PermissionDetailField(
+            label: context.l10n.behaviorBoundary,
+            value: description,
+            icon: Icons.rule_outlined,
+            valueColor: theme.textMuted,
+          ),
+          SizedBox(height: theme.spacing.lg),
+          _PermissionDetailField(
+            label: context.l10n.recommendation,
+            value: recommendation,
+            icon: Icons.recommend_outlined,
+            valueColor: theme.textMuted,
           ),
         ],
       ),
+    );
+  }
+}
+
+class _PermissionDetailField extends StatelessWidget {
+  const _PermissionDetailField({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.valueColor,
+    this.iconColor,
+    this.badge,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color valueColor;
+  final Color? iconColor;
+  final String? badge;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.appTheme;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: EdgeInsets.only(top: theme.spacing.xs),
+          child: Icon(icon, size: 14, color: iconColor ?? theme.textSubtle),
+        ),
+        SizedBox(width: theme.spacing.sm),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: theme.textSubtle,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              SizedBox(height: theme.spacing.xs),
+              Wrap(
+                spacing: theme.spacing.sm,
+                runSpacing: theme.spacing.xs,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Text(
+                    value,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: valueColor),
+                  ),
+                  if (badge != null)
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: theme.selected.withValues(alpha: 0.44),
+                        borderRadius: BorderRadius.circular(theme.radius.sm),
+                        border: Border.all(
+                          color: theme.focusRing.withValues(alpha: 0.42),
+                        ),
+                      ),
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: theme.spacing.sm,
+                          vertical: theme.spacing.xs / 2,
+                        ),
+                        child: Text(
+                          badge!,
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(
+                                color: theme.accent,
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -2657,66 +2917,86 @@ class _ProfilesNotice extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = context.appTheme;
     final textTheme = Theme.of(context).textTheme;
-    return DecoratedBox(
+    return AppPanel(
       key: const Key('defaults-profiles-notice'),
-      decoration: BoxDecoration(
-        color: Color.alphaBlend(
-          theme.selected.withValues(alpha: 0.20),
-          theme.panelElevated,
-        ),
-        borderRadius: BorderRadius.circular(theme.radius.lg),
-        border: Border.all(color: theme.focusRing.withValues(alpha: 0.20)),
+      tone: AppPanelTone.panel,
+      border: Border.all(color: theme.focusRing.withValues(alpha: 0.20)),
+      padding: EdgeInsets.symmetric(
+        horizontal: theme.spacing.lg,
+        vertical: theme.spacing.md,
       ),
-      child: Padding(
-        padding: EdgeInsets.all(theme.spacing.xl),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: EdgeInsets.only(top: theme.spacing.xs),
-              child: Icon(
-                Icons.info_outline_rounded,
-                size: theme.controls.dense - theme.spacing.lg,
-                color: theme.focusRing,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final summary = Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: EdgeInsets.only(top: theme.spacing.xs),
+                child: Icon(
+                  Icons.info_outline_rounded,
+                  size: 18,
+                  color: theme.focusRing,
+                ),
               ),
-            ),
-            SizedBox(width: theme.spacing.md),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    context.l10n.detailedSettingsInProfiles,
-                    style: textTheme.bodyMedium?.copyWith(
-                      color: theme.textPrimary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  SizedBox(height: theme.spacing.xs),
-                  Text(
-                    context.l10n.editTerminalDetailsInProfiles,
-                    style: textTheme.bodySmall?.copyWith(
-                      color: theme.textSubtle,
-                    ),
-                  ),
-                  if (effectiveProfile != null) ...[
-                    SizedBox(height: theme.spacing.md),
-                    AppActionButton(
-                      buttonKey: const Key('defaults-open-profiles'),
-                      tone: AppActionTone.secondary,
-                      size: AppActionSize.compact,
-                      icon: Icons.tune_rounded,
-                      label: context.l10n.editProfileInProfiles(
-                        effectiveProfile!.name,
+              SizedBox(width: theme.spacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      context.l10n.detailedSettingsInProfiles,
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: theme.textPrimary,
+                        fontWeight: FontWeight.w600,
                       ),
-                      onPressed: onOpenProfiles,
+                    ),
+                    SizedBox(height: theme.spacing.xs),
+                    Text(
+                      context.l10n.editTerminalDetailsInProfiles,
+                      maxLines: constraints.maxWidth >= 620 ? 1 : 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: textTheme.bodySmall?.copyWith(
+                        color: theme.textSubtle,
+                      ),
                     ),
                   ],
-                ],
+                ),
               ),
+            ],
+          );
+          final profile = effectiveProfile;
+          if (profile == null) {
+            return summary;
+          }
+          final action = Tooltip(
+            message: context.l10n.editProfileInProfiles(profile.name),
+            child: AppActionButton(
+              buttonKey: const Key('defaults-open-profiles'),
+              tone: AppActionTone.secondary,
+              size: AppActionSize.compact,
+              icon: Icons.tune_rounded,
+              label: context.l10n.editProfile,
+              onPressed: onOpenProfiles,
             ),
-          ],
-        ),
+          );
+          if (constraints.maxWidth < 620) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                summary,
+                SizedBox(height: theme.spacing.md),
+                Align(alignment: Alignment.centerLeft, child: action),
+              ],
+            );
+          }
+          return Row(
+            children: [
+              Expanded(child: summary),
+              SizedBox(width: theme.spacing.lg),
+              action,
+            ],
+          );
+        },
       ),
     );
   }
@@ -2770,12 +3050,22 @@ class _SettingsRadioPanel<T> extends StatelessWidget {
                   AnimatedContainer(
                     duration: const Duration(milliseconds: 120),
                     curve: Curves.easeOutCubic,
-                    color: options[index].value == groupValue
-                        ? theme.selected.withValues(alpha: 0.56)
-                        : null,
+                    decoration: BoxDecoration(
+                      color: options[index].value == groupValue
+                          ? theme.selected.withValues(alpha: 0.20)
+                          : Colors.transparent,
+                      border: Border(
+                        left: BorderSide(
+                          color: options[index].value == groupValue
+                              ? theme.accent
+                              : Colors.transparent,
+                          width: 3,
+                        ),
+                      ),
+                    ),
                     padding: EdgeInsets.symmetric(
                       horizontal: theme.spacing.md,
-                      vertical: theme.spacing.xs,
+                      vertical: 0,
                     ),
                     child: Material(
                       type: MaterialType.transparency,
@@ -2803,6 +3093,316 @@ class _SettingsRadioPanel<T> extends StatelessWidget {
   }
 }
 
+class _DataServiceComparisonHeader extends StatelessWidget {
+  const _DataServiceComparisonHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.appTheme;
+    final labelStyle = Theme.of(context).textTheme.labelMedium?.copyWith(
+      color: theme.textSubtle,
+      fontWeight: FontWeight.w700,
+    );
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        theme.controls.regular + theme.spacing.sm,
+        theme.spacing.xs,
+        theme.spacing.md,
+        theme.spacing.xs,
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 132,
+            child: Text(context.l10n.dataServiceMode, style: labelStyle),
+          ),
+          Expanded(child: Text(context.l10n.apiService, style: labelStyle)),
+          Expanded(
+            child: Text(
+              context.l10n.configurationAndStorage,
+              style: labelStyle,
+            ),
+          ),
+          Expanded(
+            child: Text(context.l10n.crossDeviceSync, style: labelStyle),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DataServiceModeChoice extends StatefulWidget {
+  const _DataServiceModeChoice({
+    required this.tileKey,
+    required this.value,
+    required this.title,
+    required this.description,
+    required this.selected,
+    required this.active,
+    required this.showComparison,
+  });
+
+  final Key tileKey;
+  final DataApiDeployment value;
+  final String title;
+  final String description;
+  final bool selected;
+  final bool active;
+  final bool showComparison;
+
+  @override
+  State<_DataServiceModeChoice> createState() => _DataServiceModeChoiceState();
+}
+
+class _DataServiceModeChoiceState extends State<_DataServiceModeChoice> {
+  bool _hovered = false;
+  bool _focused = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.appTheme;
+    final selected = widget.selected;
+    final highlighted = _hovered || _focused;
+    final titleWidget = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          widget.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: theme.textPrimary,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        if (selected) ...[
+          SizedBox(height: theme.spacing.xs),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.check_circle_outline_rounded,
+                size: 11,
+                color: theme.accent,
+              ),
+              SizedBox(width: theme.spacing.xs),
+              Text(
+                context.l10n.selected,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: theme.accent,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ] else if (widget.active) ...[
+          SizedBox(height: theme.spacing.xs),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.circle, size: 8, color: theme.success),
+              SizedBox(width: theme.spacing.xs),
+              Text(
+                context.l10n.running,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: theme.success,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+    final content = widget.showComparison
+        ? Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(width: 132, child: titleWidget),
+              Expanded(
+                child: _DataServiceMetric(
+                  value: context.l10n.dataModeApiSummary(widget.value.name),
+                ),
+              ),
+              Expanded(
+                child: _DataServiceMetric(
+                  value: context.l10n.dataModeStorageSummary(widget.value.name),
+                ),
+              ),
+              Expanded(
+                child: _DataServiceMetric(
+                  value: context.l10n.dataModeSyncSummary(widget.value.name),
+                ),
+              ),
+            ],
+          )
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              titleWidget,
+              SizedBox(height: theme.spacing.xs),
+              Text(
+                widget.description,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: theme.textSubtle),
+              ),
+            ],
+          );
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: Focus(
+        onFocusChange: (value) => setState(() => _focused = value),
+        child: AnimatedContainer(
+          key: Key('data-api-${widget.value.name}-surface'),
+          duration: const Duration(milliseconds: 120),
+          curve: Curves.easeOutCubic,
+          margin: EdgeInsets.symmetric(vertical: theme.spacing.xs / 2),
+          padding: EdgeInsets.symmetric(horizontal: theme.spacing.sm),
+          decoration: BoxDecoration(
+            color: selected
+                ? theme.selected.withValues(alpha: highlighted ? 0.26 : 0.18)
+                : highlighted
+                ? theme.selected.withValues(alpha: 0.12)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(theme.radius.md),
+            border: Border.all(
+              color: selected
+                  ? theme.focusRing
+                  : highlighted
+                  ? theme.borderStrong
+                  : theme.border,
+              width: selected ? 1.5 : 1,
+            ),
+          ),
+          child: Theme(
+            data: Theme.of(context).copyWith(
+              hoverColor: Colors.transparent,
+              focusColor: Colors.transparent,
+              highlightColor: Colors.transparent,
+            ),
+            child: Material(
+              type: MaterialType.transparency,
+              child: AppCompactRadioTile<DataApiDeployment>(
+                tileKey: widget.tileKey,
+                value: widget.value,
+                title: content,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DataServiceMetric extends StatelessWidget {
+  const _DataServiceMetric({required this.value});
+
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.appTheme;
+    return Padding(
+      padding: EdgeInsets.only(right: theme.spacing.sm),
+      child: Text(
+        value,
+        style: Theme.of(
+          context,
+        ).textTheme.bodySmall?.copyWith(color: theme.textMuted),
+      ),
+    );
+  }
+}
+
+class _DataServiceStatusBanner extends StatelessWidget {
+  const _DataServiceStatusBanner({
+    required this.deployment,
+    required this.localSessionsEnabled,
+  });
+
+  final DataApiDeployment deployment;
+  final bool localSessionsEnabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.appTheme;
+    final serviceName = _dataServiceName(
+      context.l10n,
+      deployment,
+      localSessionsEnabled: localSessionsEnabled,
+    );
+    final icon = switch (deployment) {
+      DataApiDeployment.disabled => Icons.computer_rounded,
+      DataApiDeployment.local => Icons.dns_rounded,
+      DataApiDeployment.remote => Icons.cloud_outlined,
+    };
+    return Semantics(
+      key: const Key('data-api-active-deployment'),
+      container: true,
+      label: context.l10n.activeDataService(serviceName),
+      child: AppPanel(
+        tone: AppPanelTone.selected,
+        border: Border.all(color: theme.focusRing.withValues(alpha: 0.24)),
+        padding: EdgeInsets.symmetric(
+          horizontal: theme.spacing.lg,
+          vertical: theme.spacing.md,
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 22, color: theme.accent),
+            SizedBox(width: theme.spacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    context.l10n.currentlyRunning(serviceName),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: theme.textPrimary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  SizedBox(height: theme.spacing.xs),
+                  Text(
+                    _dataServiceDescription(
+                      context.l10n,
+                      deployment,
+                      localSessionsEnabled: localSessionsEnabled,
+                    ),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: theme.textSubtle),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(width: theme.spacing.md),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.circle, size: 9, color: theme.success),
+                SizedBox(width: theme.spacing.xs),
+                Text(
+                  context.l10n.running,
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: theme.success,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 String _dataServiceName(
   AppLocalizations l10n,
   DataApiDeployment deployment, {
@@ -2813,6 +3413,21 @@ String _dataServiceName(
       localSessionsEnabled ? l10n.localTerminal : l10n.noDataService,
     DataApiDeployment.local => l10n.bundledLocalService,
     DataApiDeployment.remote => l10n.remoteService,
+  };
+}
+
+String _dataServiceDescription(
+  AppLocalizations l10n,
+  DataApiDeployment deployment, {
+  required bool localSessionsEnabled,
+}) {
+  return switch (deployment) {
+    DataApiDeployment.disabled =>
+      localSessionsEnabled
+          ? l10n.localTerminalNoApiDescription
+          : l10n.noDataServiceDescription,
+    DataApiDeployment.local => l10n.bundledLocalServiceDescription,
+    DataApiDeployment.remote => l10n.remoteServiceDescription,
   };
 }
 
@@ -2922,20 +3537,18 @@ class _TerminalPresetChoice extends StatelessWidget {
     return Semantics(
       button: true,
       selected: selected,
-      label: 'terminal-preset-$label',
+      label: selected ? context.l10n.selectedTerminalPreset(label) : label,
       child: InkWell(
         onTap: enabled ? onPressed : null,
         borderRadius: BorderRadius.circular(theme.radius.md),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 120),
           width: width,
-          constraints: BoxConstraints(
-            minHeight: theme.controls.regular * 2 + theme.spacing.lg,
-          ),
-          padding: EdgeInsets.all(theme.spacing.lg),
+          constraints: const BoxConstraints(minHeight: 68),
+          padding: EdgeInsets.all(theme.spacing.md),
           decoration: BoxDecoration(
             color: selected
-                ? theme.selected.withValues(alpha: 0.46)
+                ? theme.selected.withValues(alpha: 0.20)
                 : theme.overlay.withValues(alpha: enabled ? 0.52 : 0.24),
             borderRadius: BorderRadius.circular(theme.radius.md),
             border: Border.all(
@@ -3014,7 +3627,7 @@ class _TerminalPresetSwatch extends StatelessWidget {
         borderRadius: BorderRadius.circular(theme.radius.sm / 2),
         border: Border.all(color: theme.borderStrong.withValues(alpha: 0.56)),
       ),
-      child: const SizedBox(height: 12),
+      child: const SizedBox(height: 16),
     );
   }
 }

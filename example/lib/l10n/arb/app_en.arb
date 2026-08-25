@@ -270,7 +270,7 @@
   "@newTab": {
     "description": "Action that opens a new terminal tab"
   },
-  "newTabDescription": "Top action • Open the default shell profile.",
+  "newTabDescription": "Top action • Open the current tab''s profile.",
   "@newTabDescription": {
     "description": "Command palette new-tab description"
   },
@@ -485,6 +485,73 @@
   "terminalCouldNotStartHelp": "Review the startup error, then try loading the layout again.",
   "@terminalCouldNotStartHelp": {
     "description": "Terminal startup error recovery guidance"
+  },
+  "useLastRemoteSnapshot": "Use local snapshot",
+  "@useLastRemoteSnapshot": {
+    "description": "Action that manually falls back to the bundled local API using the last successfully mirrored remote data"
+  },
+  "switchingToLocalSnapshot": "Switching to local…",
+  "@switchingToLocalSnapshot": {
+    "description": "Progress label while committing a manual remote-to-local fallback"
+  },
+  "remoteFallbackTitle": "Use the last remote snapshot?",
+  "@remoteFallbackTitle": {
+    "description": "Confirmation title for offline remote-to-local fallback"
+  },
+  "remoteFallbackDescription": "The remote service is unavailable. Ianvs Terminal can switch to the bundled local API using {resourceCount} resources last synchronized at {capturedAt}. Remote data is not deleted, and the change takes effect after restart.",
+  "@remoteFallbackDescription": {
+    "description": "Confirmation details for offline remote-to-local fallback",
+    "placeholders": {
+      "capturedAt": {"type": "String"},
+      "resourceCount": {"type": "int"}
+    }
+  },
+  "switchToLocalApi": "Switch to local API",
+  "@switchToLocalApi": {
+    "description": "Confirmation action for offline remote-to-local fallback"
+  },
+  "remoteFallbackCompleteTitle": "Local fallback is ready",
+  "@remoteFallbackCompleteTitle": {
+    "description": "Title shown after the local fallback configuration is committed"
+  },
+  "remoteFallbackCompleteDescription": "The bundled local API will use the remote data synchronized at {capturedAt}. Restart Ianvs Terminal to apply the change.",
+  "@remoteFallbackCompleteDescription": {
+    "description": "Completion details for offline remote-to-local fallback",
+    "placeholders": {
+      "capturedAt": {"type": "String"}
+    }
+  },
+  "remoteFallbackFailed": "Could not switch to the local snapshot: {error}",
+  "@remoteFallbackFailed": {
+    "description": "Error shown when offline remote-to-local fallback fails",
+    "placeholders": {
+      "error": {"type": "String"}
+    }
+  },
+  "repairTerminalSettings": "Repair settings",
+  "@repairTerminalSettings": {
+    "description": "Action that offers to repair a noncanonical terminal settings document"
+  },
+  "repairTerminalSettingsTitle": "Repair terminal settings?",
+  "@repairTerminalSettingsTitle": {
+    "description": "Confirmation title for repairing a noncanonical terminal settings document"
+  },
+  "repairTerminalSettingsDescription": "Ianvs Terminal will preserve the original remote document as a recovery copy, fill in the required current-format fields, and retry startup. Profiles and session data are not changed.",
+  "@repairTerminalSettingsDescription": {
+    "description": "Explanation shown before repairing a noncanonical terminal settings document"
+  },
+  "repairAndRetry": "Repair and retry",
+  "@repairAndRetry": {
+    "description": "Confirmation action that repairs terminal settings and retries startup"
+  },
+  "terminalSettingsRepairFailed": "Could not repair terminal settings: {error}",
+  "@terminalSettingsRepairFailed": {
+    "description": "Message shown when terminal settings recovery fails",
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
   },
   "shellLayoutIdle": "Shell layout is idle",
   "@shellLayoutIdle": {
@@ -812,6 +879,8 @@
     "description": "Label for custom terminal colors"
   },
   "currentlyPreset": "Currently {preset}",
+  "selectedTerminalPreset": "{preset}, selected",
+  "@selectedTerminalPreset": {"placeholders": {"preset": {"type": "String"}}},
   "@currentlyPreset": {
     "description": "Current terminal preset summary",
     "placeholders": {
@@ -871,6 +940,8 @@
       }
     }
   },
+  "generalSettingsDescription": "Choose the default profile for new tabs and the language used by the app.",
+  "appearanceSettingsDescription": "Customize terminal colors, startup behavior, and the app theme.",
   "appearance": "Appearance",
   "@appearance": {
     "description": "Appearance settings section title"
@@ -1876,6 +1947,8 @@
   "shortcutDisabled": "Disabled",
   "shortcutCustom": "Custom",
   "shortcutUnassigned": "Unassigned",
+  "shortcutActionColumn": "Action",
+  "shortcutValueColumn": "Shortcut",
   "shortcutDefault": "Default",
   "shortcutActionSemantics": "{action}, {state}, {shortcut}",
   "@shortcutActionSemantics": {"placeholders": {"action": {"type": "String"}, "state": {"type": "String"}, "shortcut": {"type": "String"}}},
@@ -1937,6 +2010,13 @@
   "sessionInteractionsPermissions": "Session interactions & permissions",
   "sessionInteractionsPermissionsDescription": "Manage requests initiated by terminal applications or remote systems and understand their security impact.",
   "securityImpact": "Security impact",
+  "currentPolicy": "Current policy",
+  "riskLevel": "Risk level",
+  "riskLevelName": "{level, select, low{Low} medium{Medium} high{High} other{{level}}}",
+  "behaviorBoundary": "Behavior boundary",
+  "recommendation": "Why this is recommended",
+  "recommendedSetting": "Recommended",
+  "permissionRecommendation": "{permission, select, osc52{Per-profile control balances clipboard convenience with protection for sensitive content.} openUrl{Per-request confirmation prevents remote content from opening external links without explicit consent.} attention{Deny nonessential alerts to avoid interruption; allow bounded attention only when needed.} other{Keeping an explicit user confirmation helps control interactions initiated by terminal content.}}",
   "manageDecisions": "Manage decisions",
   "terminalUrlRequests": "Terminal URL requests",
   "terminalUrlRequestsDescription": "Choose whether OSC 1337 OpenURL requests may ask for permission. URLs are never opened automatically.",
@@ -1958,6 +2038,17 @@
   "dataServiceDescriptionRemoteOnly": "Use one-time SSH connections without a data service, or connect a remote service to save profiles and sync them.",
   "activeDataService": "Active data service: {service}",
   "activeNow": "Active now: {service}",
+  "currentlyRunning": "Currently running: {service}",
+  "@currentlyRunning": {"placeholders": {"service": {"type": "String"}}},
+  "running": "Running",
+  "selected": "Selected",
+  "dataServiceMode": "Mode",
+  "apiService": "API service",
+  "configurationAndStorage": "Configuration & storage",
+  "crossDeviceSync": "Cross-device sync",
+  "dataModeApiSummary": "{deployment, select, disabled{No API process} local{Start the local API service} remote{Connect to a remote API} other{{deployment}}}",
+  "dataModeStorageSummary": "{deployment, select, disabled{Use local shell configuration} local{Persist offline on this Mac} remote{Store with the remote service} other{{deployment}}}",
+  "dataModeSyncSummary": "{deployment, select, disabled{No sync} local{No sync} remote{Sync devices after sign-in} other{{deployment}}}",
   "@activeDataService": {"placeholders": {"service": {"type": "String"}}},
   "@activeNow": {"placeholders": {"service": {"type": "String"}}},
   "localTerminal": "Local terminal",

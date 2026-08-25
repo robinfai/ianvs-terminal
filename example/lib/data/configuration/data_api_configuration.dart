@@ -3,6 +3,8 @@ import 'dart:io';
 const defaultRemoteDataApiBaseUrl = 'https://api.terminal.ianvs.work/';
 const legacyRemoteDataApiBaseUrl =
     'https://ianvs-api.43.132.135.30.nip.io:57321/';
+const fallbackRemoteDataApiTransportBaseUrl =
+    'https://ianvs-api.43.132.135.30.sslip.io:57321/';
 
 enum DataApiDeployment { disabled, local, remote }
 

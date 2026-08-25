@@ -615,6 +615,66 @@ void main() {
       },
     );
 
+    test(
+      'explicit terminal config repair preserves evidence and canonicalizes',
+      () async {
+        final client = MemoryDataApiResourceClient();
+        const original = <String, Object?>{'schemaVersion': 1};
+        client.resources['config/local-terminal'] = dataApiTestResource(
+          id: DataApiTerminalConfigRepository.resourceId,
+          kind: DataApiTerminalConfigRepository.resourceKind,
+          data: original,
+          sensitive: null,
+          hasSensitive: false,
+          revision: 3,
+        );
+        final repository = DataApiTerminalConfigRepository(client: client);
+
+        final repaired = await repository.repairNonCanonicalCurrentDocument();
+
+        expect(
+          repaired.value.toJson(),
+          const LocalTerminalConfigDocument().toJson(),
+        );
+        expect(repaired.revision, 4);
+        expect(
+          client.resources['config/local-terminal']!.data,
+          const LocalTerminalConfigDocument().toJson(),
+        );
+        final backupId =
+            DataApiTerminalConfigRepository.recoveryResourceIdForRevision(3);
+        final backup = client.resources['recovery/$backupId'];
+        expect(backup, isNotNull);
+        expect(
+          (backup!.data! as Map<String, Object?>)['format'],
+          DataApiTerminalConfigRepository.recoveryDocumentFormat,
+        );
+        expect((backup.data! as Map<String, Object?>)['data'], original);
+        expect(client.putCount, 2);
+      },
+    );
+
+    test('explicit terminal config repair rejects noncurrent data', () async {
+      final client = MemoryDataApiResourceClient();
+      client.resources['config/local-terminal'] = dataApiTestResource(
+        id: DataApiTerminalConfigRepository.resourceId,
+        kind: DataApiTerminalConfigRepository.resourceKind,
+        data: const <String, Object?>{'schemaVersion': 0},
+        sensitive: null,
+        hasSensitive: false,
+        revision: 3,
+      );
+      final repository = DataApiTerminalConfigRepository(client: client);
+
+      await expectLater(
+        repository.repairNonCanonicalCurrentDocument(),
+        throwsA(isA<UnsupportedLocalTerminalConfigSchemaVersion>()),
+      );
+
+      expect(client.putCount, 0);
+      expect(client.resources, hasLength(1));
+    });
+
     test('paste history rejects duplicate entries without PUT', () async {
       final client = MemoryDataApiResourceClient();
       final duplicate = <String, Object?>{

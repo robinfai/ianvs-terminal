@@ -3,8 +3,10 @@ import 'dart:io';
 
 import '../configuration/data_api_configuration.dart';
 import '../configuration/data_api_configuration_repository.dart';
+import 'data_api_auth_contract.dart';
 import 'data_api_client.dart';
 import 'data_api_local_credentials.dart';
+import 'data_api_remote_fallback.dart';
 import 'data_api_remote_session_store.dart';
 import 'data_api_runtime.dart';
 import 'local_data_api_sidecar.dart';
@@ -189,6 +191,8 @@ class DataApiBootstrap {
     Duration sidecarCloseTimeout = const Duration(seconds: 12),
     bool? isMacOS,
   }) : _configurationRepository = configurationRepository,
+       _masterKeyRepository =
+           masterKeyRepository ?? PortableMasterKeyRepository(),
        _localCredentialsProvider =
            localCredentialsProvider ??
            KeychainDataApiLocalCredentialsProvider(
@@ -207,6 +211,7 @@ class DataApiBootstrap {
        _isMacOS = isMacOS ?? Platform.isMacOS;
 
   final DataApiConfigurationRepository? _configurationRepository;
+  final PortableMasterKeyRepository _masterKeyRepository;
   final DataApiLocalCredentialsProvider _localCredentialsProvider;
   final DataApiRemoteSessionSlotStore? _remoteSessionStore;
   final LocalDataApiRuntimeStarter? _localRuntimeStarter;
@@ -271,17 +276,70 @@ class DataApiBootstrap {
   Future<DataApiRuntime> _startLocalRuntime(
     Directory appSupportDirectory,
   ) async {
-    final credentials = await _localCredentialsProvider.createForStart(
-      appSupportDirectory,
+    final fallbackActive =
+        await FileDataApiRemoteFallbackLocalMirror.activeMarkerFor(
+          appSupportDirectory,
+        ).exists();
+    final credentials = fallbackActive
+        ? await _remoteFallbackLocalCredentials(appSupportDirectory)
+        : await _localCredentialsProvider.createForStart(appSupportDirectory);
+    final database = fallbackActive
+        ? FileDataApiRemoteFallbackLocalMirror.databaseFor(appSupportDirectory)
+        : File(
+            '${appSupportDirectory.path}${Platform.pathSeparator}'
+            'data-api${Platform.pathSeparator}ianvs.db',
+          );
+    return _startLocalRuntimeWithCredentials(
+      database: database,
+      credentials: credentials,
     );
+  }
+
+  Future<DataApiRuntime> startRemoteFallbackMirrorRuntime({
+    required Directory appSupportDirectory,
+    required File database,
+    required String encryptionKey,
+  }) async {
+    if (!_isMacOS) {
+      throw UnsupportedError(
+        'The bundled local data API is only available on macOS.',
+      );
+    }
+    final validatedEncryptionKey = validateDataApiEncryptionKey(encryptionKey);
+    final credentials = await KeychainDataApiLocalCredentialsProvider(
+      dataEncryptionKeyStore: _FixedDataApiLocalDataEncryptionKeyStore(
+        validatedEncryptionKey,
+      ),
+    ).createForStart(appSupportDirectory);
+    return _startLocalRuntimeWithCredentials(
+      database: database,
+      credentials: credentials,
+    );
+  }
+
+  Future<DataApiLocalCredentials> _remoteFallbackLocalCredentials(
+    Directory appSupportDirectory,
+  ) async {
+    final masterKey = await _masterKeyRepository.read();
+    if (masterKey == null) {
+      throw const PortableMasterKeyUnavailableException();
+    }
+    return KeychainDataApiLocalCredentialsProvider(
+      dataEncryptionKeyStore: _FixedDataApiLocalDataEncryptionKeyStore(
+        masterKey.secret,
+      ),
+    ).createForStart(appSupportDirectory);
+  }
+
+  Future<DataApiRuntime> _startLocalRuntimeWithCredentials({
+    required File database,
+    required DataApiLocalCredentials credentials,
+  }) async {
     final localAccessToken = credentials.bearerToken;
     final encryptionKey = credentials.dataEncryptionKey;
     final sidecar = await _localSidecarLauncher(
       binary: _resolveLocalApiBinary(),
-      database: File(
-        '${appSupportDirectory.path}${Platform.pathSeparator}'
-        'data-api${Platform.pathSeparator}ianvs.db',
-      ),
+      database: database,
       localAccessToken: localAccessToken,
     );
     try {
@@ -318,6 +376,16 @@ class DataApiBootstrap {
       '${contentsDirectory.path}${Platform.pathSeparator}Resources${Platform.pathSeparator}ianvs-api',
     );
   }
+}
+
+final class _FixedDataApiLocalDataEncryptionKeyStore
+    implements DataApiLocalDataEncryptionKeyStore {
+  const _FixedDataApiLocalDataEncryptionKeyStore(this.encryptionKey);
+
+  final String encryptionKey;
+
+  @override
+  Future<String> readOrCreate() async => encryptionKey;
 }
 
 final class DataApiLocalInitializationCleanupException

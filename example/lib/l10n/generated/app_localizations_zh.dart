@@ -221,7 +221,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get newTabTitleCase => '新建标签页';
 
   @override
-  String get newTabDescription => '置顶操作 • 打开默认 Shell Profile。';
+  String get newTabDescription => '置顶操作 • 打开当前标签页的 Profile。';
 
   @override
   String get toolbelt => '工具带';
@@ -391,6 +391,54 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get terminalCouldNotStartHelp => '请检查启动错误，然后尝试重新加载布局。';
+
+  @override
+  String get useLastRemoteSnapshot => '使用本地快照';
+
+  @override
+  String get switchingToLocalSnapshot => '正在切换到本地…';
+
+  @override
+  String get remoteFallbackTitle => '使用最后一次远程快照？';
+
+  @override
+  String remoteFallbackDescription(String capturedAt, int resourceCount) {
+    return '远程服务当前不可用。Ianvs 终端可以切换到内置本地 API，使用 $capturedAt 最后同步的 $resourceCount 项资源。远程数据不会被删除，重启应用后生效。';
+  }
+
+  @override
+  String get switchToLocalApi => '切换到本地 API';
+
+  @override
+  String get remoteFallbackCompleteTitle => '本地降级已就绪';
+
+  @override
+  String remoteFallbackCompleteDescription(String capturedAt) {
+    return '内置本地 API 将使用 $capturedAt 同步的远程数据。请重启 Ianvs 终端以应用更改。';
+  }
+
+  @override
+  String remoteFallbackFailed(String error) {
+    return '无法切换到本地快照：$error';
+  }
+
+  @override
+  String get repairTerminalSettings => '修复设置';
+
+  @override
+  String get repairTerminalSettingsTitle => '修复终端设置？';
+
+  @override
+  String get repairTerminalSettingsDescription =>
+      'Ianvs 终端会先将原始远端文档保存为恢复副本，再补齐当前格式要求的字段并重试启动。Profile 和会话数据不会更改。';
+
+  @override
+  String get repairAndRetry => '修复并重试';
+
+  @override
+  String terminalSettingsRepairFailed(String error) {
+    return '无法修复终端设置：$error';
+  }
 
   @override
   String get shellLayoutIdle => 'Shell 布局当前空闲';
@@ -634,6 +682,11 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String selectedTerminalPreset(String preset) {
+    return '$preset，已选择';
+  }
+
+  @override
   String noTerminalPresetsMatch(String query) {
     return '没有与“$query”匹配的终端预设。';
   }
@@ -678,6 +731,12 @@ class AppLocalizationsZh extends AppLocalizations {
     });
     return '$_temp0';
   }
+
+  @override
+  String get generalSettingsDescription => '选择新标签页的默认 Profile 和应用界面语言。';
+
+  @override
+  String get appearanceSettingsDescription => '自定义终端配色、启动行为和应用主题。';
 
   @override
   String get appearance => '外观';
@@ -2434,6 +2493,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get shortcutUnassigned => '未分配';
 
   @override
+  String get shortcutActionColumn => '操作';
+
+  @override
+  String get shortcutValueColumn => '快捷键';
+
+  @override
   String get shortcutDefault => '默认';
 
   @override
@@ -2650,6 +2715,43 @@ class AppLocalizationsZh extends AppLocalizations {
   String get securityImpact => '安全影响';
 
   @override
+  String get currentPolicy => '当前策略';
+
+  @override
+  String get riskLevel => '风险等级';
+
+  @override
+  String riskLevelName(String level) {
+    String _temp0 = intl.Intl.selectLogic(level, {
+      'low': '低',
+      'medium': '中',
+      'high': '高',
+      'other': '$level',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get behaviorBoundary => '行为边界';
+
+  @override
+  String get recommendation => '推荐理由';
+
+  @override
+  String get recommendedSetting => '推荐设置';
+
+  @override
+  String permissionRecommendation(String permission) {
+    String _temp0 = intl.Intl.selectLogic(permission, {
+      'osc52': '按 Profile 控制可在剪贴板便利性和敏感内容保护之间取得平衡。',
+      'openUrl': '逐次确认可阻止远程内容在未明确同意时打开外部链接。',
+      'attention': '拒绝非必要提醒可避免干扰；需要时可选择受限提醒。',
+      'other': '保留明确的用户确认有助于控制终端发起的交互。',
+    });
+    return '$_temp0';
+  }
+
+  @override
   String get manageDecisions => '管理决定';
 
   @override
@@ -2716,6 +2818,62 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String activeNow(String service) {
     return '当前活动：$service';
+  }
+
+  @override
+  String currentlyRunning(String service) {
+    return '当前运行：$service';
+  }
+
+  @override
+  String get running => '运行中';
+
+  @override
+  String get selected => '已选择';
+
+  @override
+  String get dataServiceMode => '模式';
+
+  @override
+  String get apiService => 'API 服务';
+
+  @override
+  String get configurationAndStorage => '配置与数据存储';
+
+  @override
+  String get crossDeviceSync => '跨设备同步';
+
+  @override
+  String dataModeApiSummary(String deployment) {
+    String _temp0 = intl.Intl.selectLogic(deployment, {
+      'disabled': '不启动 API 进程',
+      'local': '启动本地 API 服务',
+      'remote': '连接远程 API 服务',
+      'other': '$deployment',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String dataModeStorageSummary(String deployment) {
+    String _temp0 = intl.Intl.selectLogic(deployment, {
+      'disabled': '使用本地 Shell 配置',
+      'local': '此 Mac 上离线持久保存',
+      'remote': '由远程服务统一保存',
+      'other': '$deployment',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String dataModeSyncSummary(String deployment) {
+    String _temp0 = intl.Intl.selectLogic(deployment, {
+      'disabled': '不同步',
+      'local': '不同步',
+      'remote': '登录后跨设备同步',
+      'other': '$deployment',
+    });
+    return '$_temp0';
   }
 
   @override

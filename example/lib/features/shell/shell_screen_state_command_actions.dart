@@ -208,7 +208,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
               l10n.noTerminalSessionOptionAvailable,
             );
           }
-          unawaited(_openNewSessionLauncher(sessionController, currentState));
+          unawaited(_openNewTabAction(sessionController, currentState));
           return const ShellActionBindingResult.completed();
         },
         closeTab: (_) {
@@ -1075,7 +1075,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         if (!_canOpenNewSessionLauncher(currentState)) {
           return;
         }
-        await _openNewSessionLauncher(sessionController, currentState);
+        await _openNewTabAction(sessionController, currentState);
         return;
       case TerminalActionId.toolbelt:
         FocusManager.instance.primaryFocus?.unfocus();

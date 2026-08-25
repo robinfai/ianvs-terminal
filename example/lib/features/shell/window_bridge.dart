@@ -4,14 +4,14 @@ import 'package:flutter/services.dart';
 enum NativeUserAttentionType { critical, informational }
 
 enum NativeAppMenuAction {
-  newLocalTerminal,
+  newTab,
   newSshSession,
   settings;
 
   static NativeAppMenuAction fromPlatform(Object? arguments) {
     final action = arguments is Map ? arguments['action'] : null;
     return switch (action) {
-      'newLocalTerminal' => NativeAppMenuAction.newLocalTerminal,
+      'newTab' || 'newLocalTerminal' => NativeAppMenuAction.newTab,
       'newSshSession' => NativeAppMenuAction.newSshSession,
       'settings' => NativeAppMenuAction.settings,
       _ => throw PlatformException(

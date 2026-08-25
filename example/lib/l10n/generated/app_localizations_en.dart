@@ -231,7 +231,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get newTabDescription =>
-      'Top action • Open the default shell profile.';
+      'Top action • Open the current tab\'s profile.';
 
   @override
   String get toolbelt => 'Toolbelt';
@@ -415,6 +415,54 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get terminalCouldNotStartHelp =>
       'Review the startup error, then try loading the layout again.';
+
+  @override
+  String get useLastRemoteSnapshot => 'Use local snapshot';
+
+  @override
+  String get switchingToLocalSnapshot => 'Switching to local…';
+
+  @override
+  String get remoteFallbackTitle => 'Use the last remote snapshot?';
+
+  @override
+  String remoteFallbackDescription(String capturedAt, int resourceCount) {
+    return 'The remote service is unavailable. Ianvs Terminal can switch to the bundled local API using $resourceCount resources last synchronized at $capturedAt. Remote data is not deleted, and the change takes effect after restart.';
+  }
+
+  @override
+  String get switchToLocalApi => 'Switch to local API';
+
+  @override
+  String get remoteFallbackCompleteTitle => 'Local fallback is ready';
+
+  @override
+  String remoteFallbackCompleteDescription(String capturedAt) {
+    return 'The bundled local API will use the remote data synchronized at $capturedAt. Restart Ianvs Terminal to apply the change.';
+  }
+
+  @override
+  String remoteFallbackFailed(String error) {
+    return 'Could not switch to the local snapshot: $error';
+  }
+
+  @override
+  String get repairTerminalSettings => 'Repair settings';
+
+  @override
+  String get repairTerminalSettingsTitle => 'Repair terminal settings?';
+
+  @override
+  String get repairTerminalSettingsDescription =>
+      'Ianvs Terminal will preserve the original remote document as a recovery copy, fill in the required current-format fields, and retry startup. Profiles and session data are not changed.';
+
+  @override
+  String get repairAndRetry => 'Repair and retry';
+
+  @override
+  String terminalSettingsRepairFailed(String error) {
+    return 'Could not repair terminal settings: $error';
+  }
 
   @override
   String get shellLayoutIdle => 'Shell layout is idle';
@@ -674,6 +722,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String selectedTerminalPreset(String preset) {
+    return '$preset, selected';
+  }
+
+  @override
   String noTerminalPresetsMatch(String query) {
     return 'No terminal presets match “$query”.';
   }
@@ -720,6 +773,14 @@ class AppLocalizationsEn extends AppLocalizations {
     });
     return '$_temp0';
   }
+
+  @override
+  String get generalSettingsDescription =>
+      'Choose the default profile for new tabs and the language used by the app.';
+
+  @override
+  String get appearanceSettingsDescription =>
+      'Customize terminal colors, startup behavior, and the app theme.';
 
   @override
   String get appearance => 'Appearance';
@@ -2557,6 +2618,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get shortcutUnassigned => 'Unassigned';
 
   @override
+  String get shortcutActionColumn => 'Action';
+
+  @override
+  String get shortcutValueColumn => 'Shortcut';
+
+  @override
   String get shortcutDefault => 'Default';
 
   @override
@@ -2788,6 +2855,47 @@ class AppLocalizationsEn extends AppLocalizations {
   String get securityImpact => 'Security impact';
 
   @override
+  String get currentPolicy => 'Current policy';
+
+  @override
+  String get riskLevel => 'Risk level';
+
+  @override
+  String riskLevelName(String level) {
+    String _temp0 = intl.Intl.selectLogic(level, {
+      'low': 'Low',
+      'medium': 'Medium',
+      'high': 'High',
+      'other': '$level',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get behaviorBoundary => 'Behavior boundary';
+
+  @override
+  String get recommendation => 'Why this is recommended';
+
+  @override
+  String get recommendedSetting => 'Recommended';
+
+  @override
+  String permissionRecommendation(String permission) {
+    String _temp0 = intl.Intl.selectLogic(permission, {
+      'osc52':
+          'Per-profile control balances clipboard convenience with protection for sensitive content.',
+      'openUrl':
+          'Per-request confirmation prevents remote content from opening external links without explicit consent.',
+      'attention':
+          'Deny nonessential alerts to avoid interruption; allow bounded attention only when needed.',
+      'other':
+          'Keeping an explicit user confirmation helps control interactions initiated by terminal content.',
+    });
+    return '$_temp0';
+  }
+
+  @override
   String get manageDecisions => 'Manage decisions';
 
   @override
@@ -2856,6 +2964,62 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String activeNow(String service) {
     return 'Active now: $service';
+  }
+
+  @override
+  String currentlyRunning(String service) {
+    return 'Currently running: $service';
+  }
+
+  @override
+  String get running => 'Running';
+
+  @override
+  String get selected => 'Selected';
+
+  @override
+  String get dataServiceMode => 'Mode';
+
+  @override
+  String get apiService => 'API service';
+
+  @override
+  String get configurationAndStorage => 'Configuration & storage';
+
+  @override
+  String get crossDeviceSync => 'Cross-device sync';
+
+  @override
+  String dataModeApiSummary(String deployment) {
+    String _temp0 = intl.Intl.selectLogic(deployment, {
+      'disabled': 'No API process',
+      'local': 'Start the local API service',
+      'remote': 'Connect to a remote API',
+      'other': '$deployment',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String dataModeStorageSummary(String deployment) {
+    String _temp0 = intl.Intl.selectLogic(deployment, {
+      'disabled': 'Use local shell configuration',
+      'local': 'Persist offline on this Mac',
+      'remote': 'Store with the remote service',
+      'other': '$deployment',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String dataModeSyncSummary(String deployment) {
+    String _temp0 = intl.Intl.selectLogic(deployment, {
+      'disabled': 'No sync',
+      'local': 'No sync',
+      'remote': 'Sync devices after sign-in',
+      'other': '$deployment',
+    });
+    return '$_temp0';
   }
 
   @override

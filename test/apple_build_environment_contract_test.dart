@@ -119,6 +119,12 @@ echo 'subject=C=US,O=Ianvs,OU=RIGHT12345,CN=Apple Development'
     expect(makefile, contains('MACOS_BUNDLE_ID ?= dev.ianvs.terminal.dev'));
     expect(makefile, contains(r'IANVS_IOS_BUNDLE_ID="$(IPHONE_BUNDLE_ID)"'));
     expect(makefile, contains(r'IANVS_MACOS_BUNDLE_ID="$(MACOS_BUNDLE_ID)"'));
+    expect(
+      appleBuilder,
+      contains(
+        'Building an ad-hoc macOS app without iCloud Keychain synchronization.',
+      ),
+    );
     expect(appleBuilder, contains('/usr/bin/env -i'));
     expect(appleBuilder, contains('-allowProvisioningUpdates'));
     expect(appleBuilder, contains('embedded.provisionprofile'));

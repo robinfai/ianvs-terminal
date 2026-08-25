@@ -134,6 +134,20 @@ cd ..
   "example/build/macos/Build/Products/Release/Ianvs Terminal.app"
 ```
 
+`make build-macos` 默认生成具备同步 Keychain 权限的 profile-signed 构建，
+因此需要在 Xcode 中登录 Apple Developer 账号，并安装匹配
+`dev.ianvs.terminal.dev` 的 Apple Development 证书和 provisioning profile。
+
+只验证本地终端、不使用远程数据服务和跨设备主密钥同步时，可以显式选择
+ad-hoc 模式：
+
+```bash
+make build-macos MACOS_BUNDLE_ID=
+```
+
+该模式不要求 Xcode 账号，但不具备 iCloud Keychain entitlement；应用中的
+自动主密钥同步和依赖它的远程数据服务恢复不可用。
+
 该脚本只在检测到 ad-hoc app 时加入本地 library-validation 例外，同时保留
 hardened runtime 并执行深度验签。若 app 已有证书签名，脚本不会重签。
 `Runner/Release.entitlements` 不包含这个本地例外，因此分发签名的 Release

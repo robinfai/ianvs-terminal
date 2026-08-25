@@ -5988,6 +5988,46 @@ void main() {
     );
   });
 
+  test('SSH profiles keep shell integration enabled by default', () async {
+    final coreClient = FakePtyBackend();
+    final bindings = _SshEventfulPtyBackend(coreClient);
+    final profile = TerminalProfile(
+      id: 'remote-shell',
+      name: 'Remote shell',
+      shell: '/bin/zsh',
+      connection: const terminal.TerminalConnectionConfig.ssh(
+        host: 'ssh.example.test',
+        user: 'operator',
+      ),
+    );
+    final container = ProviderContainer(
+      overrides: [
+        ptySessionBackendProvider.overrideWithValue(bindings),
+        profileRepositoryProvider.overrideWithValue(
+          _TestProfileRepository(TerminalProfilesDocument(profiles: [profile])),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
+        ),
+        localTerminalConfigRepositoryProvider.overrideWithValue(
+          _TestLocalTerminalConfigRepository(null),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    container.read(sessionControllerProvider.notifier);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    final snapshot = container
+        .read(sessionControllerProvider)
+        .tabs
+        .single
+        .profileSnapshot!;
+    expect(snapshot.isSsh, isTrue);
+    expect(snapshot.sessionConfig.shellIntegration.enabled, isTrue);
+  });
+
   test(
     'setDefaultProfile persists to local config when it supplied bootstrap',
     () async {

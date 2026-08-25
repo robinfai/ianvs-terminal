@@ -1,11 +1,15 @@
+import 'dart:io';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'app.dart';
+import 'data/configuration/data_api_configuration.dart';
 import 'data/configuration/data_api_configuration_providers.dart';
 import 'data/configuration/data_api_configuration_repository.dart';
 import 'data/services/data_api_lifecycle.dart';
+import 'data/services/data_api_remote_fallback.dart';
 import 'data/services/data_api_runtime.dart';
 import 'data/services/portable_master_key.dart';
 import 'features/profiles/profile_repository.dart';
@@ -33,6 +37,7 @@ Widget buildIanvsTerminalRoot({
   bool dataApiPersistenceUnavailable = false,
   DataApiStartupWarning? dataApiStartupWarning,
   DataApiConfigurationRepository? dataApiConfigurationRepository,
+  DataApiRemoteFallbackSnapshotStore? dataApiRemoteFallbackSnapshotStore,
   PortableMasterKeyRepository? masterKeyRepository,
   bool dataApiConfigurationRecoveryRequired = false,
   DirectoryResolver? profileExportDirectoryResolver,
@@ -49,6 +54,37 @@ Widget buildIanvsTerminalRoot({
       dataApiConfigurationRepository;
   final effectiveMasterKeyRepository =
       runtimeGraph?.masterKeyRepository ?? masterKeyRepository;
+  final effectiveRemoteFallbackSnapshotRuntimeStarter =
+      runtimeGraph?.remoteFallbackSnapshotRuntimeStarter;
+  final effectiveRemoteFallbackSnapshotStore =
+      dataApiRemoteFallbackSnapshotStore ??
+      (effectiveRemoteFallbackSnapshotRuntimeStarter != null
+          ? FileDataApiRemoteFallbackSnapshotStore(
+              file: File(
+                '${runtimeGraph!.paths.appSupportDirectory.path}'
+                '${Platform.pathSeparator}data-api'
+                '${Platform.pathSeparator}'
+                '${FileDataApiRemoteFallbackSnapshotStore.fileName}',
+              ),
+            )
+          : null);
+  final effectiveLocalMigrationRuntimeStarter =
+      runtimeGraph?.localMigrationRuntimeStarter;
+  final effectiveRemoteFallbackController =
+      effectiveDataApiRuntime?.deployment == DataApiDeployment.remote &&
+          effectiveDataApiRuntime?.canAccessResources == true &&
+          effectiveRemoteFallbackSnapshotRuntimeStarter != null &&
+          effectiveDataApiConfigurationRepository != null &&
+          effectiveRemoteFallbackSnapshotStore != null
+      ? DataApiRemoteFallbackController(
+          remoteRuntime: effectiveDataApiRuntime!,
+          startLocalRuntime: effectiveRemoteFallbackSnapshotRuntimeStarter,
+          configurationRepository: effectiveDataApiConfigurationRepository,
+          snapshotStore: effectiveRemoteFallbackSnapshotStore,
+          commitSnapshot: runtimeGraph?.remoteFallbackSnapshotCommitter,
+          activateLocalSnapshot: runtimeGraph?.remoteFallbackSnapshotActivator,
+        )
+      : null;
   final effectivePtySessionBackend =
       runtimeGraph?.ptySessionBackend ?? ptySessionBackend;
   final shutdownCoordinator =
@@ -102,9 +138,17 @@ Widget buildIanvsTerminalRoot({
         portableMasterKeyRepositoryProvider.overrideWithValue(
           effectiveMasterKeyRepository,
         ),
-      if (runtimeGraph?.localMigrationRuntimeStarter != null)
+      if (effectiveLocalMigrationRuntimeStarter != null)
         dataApiLocalMigrationRuntimeStarterProvider.overrideWithValue(
-          runtimeGraph!.localMigrationRuntimeStarter,
+          effectiveLocalMigrationRuntimeStarter,
+        ),
+      if (effectiveRemoteFallbackSnapshotStore != null)
+        dataApiRemoteFallbackSnapshotStoreProvider.overrideWithValue(
+          effectiveRemoteFallbackSnapshotStore,
+        ),
+      if (effectiveRemoteFallbackController != null)
+        dataApiRemoteFallbackControllerProvider.overrideWithValue(
+          effectiveRemoteFallbackController,
         ),
       dataApiConfigurationRecoveryRequiredProvider.overrideWithValue(
         dataApiConfigurationRecoveryRequired,

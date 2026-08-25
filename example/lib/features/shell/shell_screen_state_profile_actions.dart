@@ -9,11 +9,127 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
   bool _canOpenNewSessionLauncher(SessionState sessionState) =>
       !_localSessionsEnabled || sessionState.profiles.isNotEmpty;
 
-  Future<void> _openLocalTerminalAction(
+  Future<void> _loadRemoteFallbackSnapshot() async {
+    if (_remoteFallbackSnapshotLoadStarted) {
+      return;
+    }
+    _remoteFallbackSnapshotLoadStarted = true;
+    final controller = ref.read(dataApiRemoteFallbackControllerProvider);
+    if (controller == null) {
+      return;
+    }
+    try {
+      final snapshot = await controller.loadSnapshot();
+      if (!mounted) {
+        return;
+      }
+      _mutateState(() => _remoteFallbackSnapshot = snapshot);
+    } on Object {
+      // A missing or damaged checkpoint must never turn an unrelated startup
+      // failure into an automatic local-data switch.
+    }
+  }
+
+  String _remoteFallbackCapturedAt(DataApiRemoteFallbackSnapshot snapshot) {
+    final value = snapshot.capturedAt.toLocal();
+    final material = MaterialLocalizations.of(context);
+    return '${material.formatFullDate(value)} '
+        '${material.formatTimeOfDay(TimeOfDay.fromDateTime(value))}';
+  }
+
+  Future<void> _confirmRemoteFallbackToLocal() async {
+    final snapshot = _remoteFallbackSnapshot;
+    final controller = ref.read(dataApiRemoteFallbackControllerProvider);
+    if (snapshot == null || controller == null || _remoteFallbackSwitching) {
+      return;
+    }
+    final capturedAt = _remoteFallbackCapturedAt(snapshot);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        key: const Key('remote-fallback-confirmation'),
+        title: Text(dialogContext.l10n.remoteFallbackTitle),
+        content: Text(
+          dialogContext.l10n.remoteFallbackDescription(
+            capturedAt,
+            snapshot.summary.resourceCount,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(dialogContext.l10n.cancel),
+          ),
+          AppActionButton(
+            buttonKey: const Key('remote-fallback-confirm'),
+            icon: Icons.cloud_off_rounded,
+            label: dialogContext.l10n.switchToLocalApi,
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) {
+      return;
+    }
+    _mutateState(() => _remoteFallbackSwitching = true);
+    try {
+      final result = await controller.fallbackToLocal();
+      if (!mounted) {
+        return;
+      }
+      _mutateState(() {
+        _remoteFallbackSwitching = false;
+        _remoteFallbackSnapshot = null;
+      });
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          key: const Key('remote-fallback-complete'),
+          title: Text(dialogContext.l10n.remoteFallbackCompleteTitle),
+          content: Text(
+            dialogContext.l10n.remoteFallbackCompleteDescription(
+              _remoteFallbackCapturedAt(result.snapshot),
+            ),
+          ),
+          actions: [
+            AppActionButton(
+              buttonKey: const Key('remote-fallback-complete-ok'),
+              label: dialogContext.l10n.ok,
+              onPressed: () => Navigator.of(dialogContext).pop(),
+            ),
+          ],
+        ),
+      );
+    } on Object catch (error) {
+      if (!mounted) {
+        return;
+      }
+      _mutateState(() => _remoteFallbackSwitching = false);
+      _showShellSnackBar(context.l10n.remoteFallbackFailed(error.toString()));
+    }
+  }
+
+  Future<void> _openNewTabAction(
     SessionController sessionController,
     SessionState sessionState,
   ) async {
     if (_isProfilesOpen) {
+      return;
+    }
+    final activeSessionId = sessionState.activeSessionId;
+    final activePane = activeSessionId == null
+        ? null
+        : _paneForSession(sessionState, activeSessionId);
+    final activeProfile = activePane == null
+        ? null
+        : _profileForPane(activePane, sessionState.profiles);
+    if (activeProfile != null) {
+      _createSession(
+        sessionController,
+        activeProfile,
+        returningToLayout: false,
+      );
       return;
     }
     if (_localSessionsEnabled) {
@@ -174,11 +290,11 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
 
   Future<void> _handleNativeAppMenuAction(NativeAppMenuAction action) {
     switch (action) {
-      case NativeAppMenuAction.newLocalTerminal:
+      case NativeAppMenuAction.newTab:
         final sessionState = ref.read(sessionControllerProvider);
         if (_canOpenNewSessionLauncher(sessionState)) {
           unawaited(
-            _openLocalTerminalAction(
+            _openNewTabAction(
               ref.read(sessionControllerProvider.notifier),
               sessionState,
             ),
@@ -206,10 +322,50 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
     return Future<void>.value();
   }
 
+  Future<void> _confirmRepairTerminalConfig(
+    SessionController sessionController,
+  ) async {
+    final l10n = context.l10n;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        key: const Key('terminal-config-repair-dialog'),
+        title: Text(l10n.repairTerminalSettingsTitle),
+        content: Text(l10n.repairTerminalSettingsDescription),
+        actions: [
+          TextButton(
+            key: const Key('terminal-config-repair-cancel'),
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(l10n.cancel),
+          ),
+          FilledButton(
+            key: const Key('terminal-config-repair-confirm'),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(l10n.repairAndRetry),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) {
+      return;
+    }
+    try {
+      await sessionController.repairTerminalConfigAndRetry();
+    } on Object catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.terminalSettingsRepairFailed('$error'))),
+      );
+    }
+  }
+
   Future<void> _openDefaultsAndAppearance(
     SessionController sessionController,
-    SessionState sessionState,
-  ) async {
+    SessionState sessionState, {
+    bool openDataServiceInitially = false,
+  }) async {
     final l10n = context.l10n;
     if (_isDefaultsOpen) {
       return;
@@ -280,6 +436,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
         localDataApiAvailable: defaultTargetPlatform == TargetPlatform.macOS,
         localSessionsEnabled: _localSessionsEnabled,
         masterKeyRepository: ref.read(portableMasterKeyRepositoryProvider),
+        openDataServiceInitially: openDataServiceInitially,
       );
     }
 

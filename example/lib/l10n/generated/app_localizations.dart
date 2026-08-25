@@ -473,7 +473,7 @@ abstract class AppLocalizations {
   /// Command palette new-tab description
   ///
   /// In en, this message translates to:
-  /// **'Top action • Open the default shell profile.'**
+  /// **'Top action • Open the current tab\'\'s profile.'**
   String get newTabDescription;
 
   /// Terminal toolbelt title
@@ -763,6 +763,84 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Review the startup error, then try loading the layout again.'**
   String get terminalCouldNotStartHelp;
+
+  /// Action that manually falls back to the bundled local API using the last successfully mirrored remote data
+  ///
+  /// In en, this message translates to:
+  /// **'Use local snapshot'**
+  String get useLastRemoteSnapshot;
+
+  /// Progress label while committing a manual remote-to-local fallback
+  ///
+  /// In en, this message translates to:
+  /// **'Switching to local…'**
+  String get switchingToLocalSnapshot;
+
+  /// Confirmation title for offline remote-to-local fallback
+  ///
+  /// In en, this message translates to:
+  /// **'Use the last remote snapshot?'**
+  String get remoteFallbackTitle;
+
+  /// Confirmation details for offline remote-to-local fallback
+  ///
+  /// In en, this message translates to:
+  /// **'The remote service is unavailable. Ianvs Terminal can switch to the bundled local API using {resourceCount} resources last synchronized at {capturedAt}. Remote data is not deleted, and the change takes effect after restart.'**
+  String remoteFallbackDescription(String capturedAt, int resourceCount);
+
+  /// Confirmation action for offline remote-to-local fallback
+  ///
+  /// In en, this message translates to:
+  /// **'Switch to local API'**
+  String get switchToLocalApi;
+
+  /// Title shown after the local fallback configuration is committed
+  ///
+  /// In en, this message translates to:
+  /// **'Local fallback is ready'**
+  String get remoteFallbackCompleteTitle;
+
+  /// Completion details for offline remote-to-local fallback
+  ///
+  /// In en, this message translates to:
+  /// **'The bundled local API will use the remote data synchronized at {capturedAt}. Restart Ianvs Terminal to apply the change.'**
+  String remoteFallbackCompleteDescription(String capturedAt);
+
+  /// Error shown when offline remote-to-local fallback fails
+  ///
+  /// In en, this message translates to:
+  /// **'Could not switch to the local snapshot: {error}'**
+  String remoteFallbackFailed(String error);
+
+  /// Action that offers to repair a noncanonical terminal settings document
+  ///
+  /// In en, this message translates to:
+  /// **'Repair settings'**
+  String get repairTerminalSettings;
+
+  /// Confirmation title for repairing a noncanonical terminal settings document
+  ///
+  /// In en, this message translates to:
+  /// **'Repair terminal settings?'**
+  String get repairTerminalSettingsTitle;
+
+  /// Explanation shown before repairing a noncanonical terminal settings document
+  ///
+  /// In en, this message translates to:
+  /// **'Ianvs Terminal will preserve the original remote document as a recovery copy, fill in the required current-format fields, and retry startup. Profiles and session data are not changed.'**
+  String get repairTerminalSettingsDescription;
+
+  /// Confirmation action that repairs terminal settings and retries startup
+  ///
+  /// In en, this message translates to:
+  /// **'Repair and retry'**
+  String get repairAndRetry;
+
+  /// Message shown when terminal settings recovery fails
+  ///
+  /// In en, this message translates to:
+  /// **'Could not repair terminal settings: {error}'**
+  String terminalSettingsRepairFailed(String error);
 
   /// Empty-state title after the final shell session closes
   ///
@@ -1190,6 +1268,12 @@ abstract class AppLocalizations {
   /// **'Currently {preset}'**
   String currentlyPreset(String preset);
 
+  /// No description provided for @selectedTerminalPreset.
+  ///
+  /// In en, this message translates to:
+  /// **'{preset}, selected'**
+  String selectedTerminalPreset(String preset);
+
   /// Empty state for terminal preset search
   ///
   /// In en, this message translates to:
@@ -1243,6 +1327,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{mode, select, system{Use the preferred language from this device.} english{Always display the app in English.} simplifiedChinese{始终使用简体中文显示应用。} other{{mode}}}'**
   String languageModeDescription(String mode);
+
+  /// No description provided for @generalSettingsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose the default profile for new tabs and the language used by the app.'**
+  String get generalSettingsDescription;
+
+  /// No description provided for @appearanceSettingsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Customize terminal colors, startup behavior, and the app theme.'**
+  String get appearanceSettingsDescription;
 
   /// Appearance settings section title
   ///
@@ -4116,6 +4212,18 @@ abstract class AppLocalizations {
   /// **'Unassigned'**
   String get shortcutUnassigned;
 
+  /// No description provided for @shortcutActionColumn.
+  ///
+  /// In en, this message translates to:
+  /// **'Action'**
+  String get shortcutActionColumn;
+
+  /// No description provided for @shortcutValueColumn.
+  ///
+  /// In en, this message translates to:
+  /// **'Shortcut'**
+  String get shortcutValueColumn;
+
   /// No description provided for @shortcutDefault.
   ///
   /// In en, this message translates to:
@@ -4433,6 +4541,48 @@ abstract class AppLocalizations {
   /// **'Security impact'**
   String get securityImpact;
 
+  /// No description provided for @currentPolicy.
+  ///
+  /// In en, this message translates to:
+  /// **'Current policy'**
+  String get currentPolicy;
+
+  /// No description provided for @riskLevel.
+  ///
+  /// In en, this message translates to:
+  /// **'Risk level'**
+  String get riskLevel;
+
+  /// No description provided for @riskLevelName.
+  ///
+  /// In en, this message translates to:
+  /// **'{level, select, low{Low} medium{Medium} high{High} other{{level}}}'**
+  String riskLevelName(String level);
+
+  /// No description provided for @behaviorBoundary.
+  ///
+  /// In en, this message translates to:
+  /// **'Behavior boundary'**
+  String get behaviorBoundary;
+
+  /// No description provided for @recommendation.
+  ///
+  /// In en, this message translates to:
+  /// **'Why this is recommended'**
+  String get recommendation;
+
+  /// No description provided for @recommendedSetting.
+  ///
+  /// In en, this message translates to:
+  /// **'Recommended'**
+  String get recommendedSetting;
+
+  /// No description provided for @permissionRecommendation.
+  ///
+  /// In en, this message translates to:
+  /// **'{permission, select, osc52{Per-profile control balances clipboard convenience with protection for sensitive content.} openUrl{Per-request confirmation prevents remote content from opening external links without explicit consent.} attention{Deny nonessential alerts to avoid interruption; allow bounded attention only when needed.} other{Keeping an explicit user confirmation helps control interactions initiated by terminal content.}}'**
+  String permissionRecommendation(String permission);
+
   /// No description provided for @manageDecisions.
   ///
   /// In en, this message translates to:
@@ -4546,6 +4696,66 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Active now: {service}'**
   String activeNow(String service);
+
+  /// No description provided for @currentlyRunning.
+  ///
+  /// In en, this message translates to:
+  /// **'Currently running: {service}'**
+  String currentlyRunning(String service);
+
+  /// No description provided for @running.
+  ///
+  /// In en, this message translates to:
+  /// **'Running'**
+  String get running;
+
+  /// No description provided for @selected.
+  ///
+  /// In en, this message translates to:
+  /// **'Selected'**
+  String get selected;
+
+  /// No description provided for @dataServiceMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Mode'**
+  String get dataServiceMode;
+
+  /// No description provided for @apiService.
+  ///
+  /// In en, this message translates to:
+  /// **'API service'**
+  String get apiService;
+
+  /// No description provided for @configurationAndStorage.
+  ///
+  /// In en, this message translates to:
+  /// **'Configuration & storage'**
+  String get configurationAndStorage;
+
+  /// No description provided for @crossDeviceSync.
+  ///
+  /// In en, this message translates to:
+  /// **'Cross-device sync'**
+  String get crossDeviceSync;
+
+  /// No description provided for @dataModeApiSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'{deployment, select, disabled{No API process} local{Start the local API service} remote{Connect to a remote API} other{{deployment}}}'**
+  String dataModeApiSummary(String deployment);
+
+  /// No description provided for @dataModeStorageSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'{deployment, select, disabled{Use local shell configuration} local{Persist offline on this Mac} remote{Store with the remote service} other{{deployment}}}'**
+  String dataModeStorageSummary(String deployment);
+
+  /// No description provided for @dataModeSyncSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'{deployment, select, disabled{No sync} local{No sync} remote{Sync devices after sign-in} other{{deployment}}}'**
+  String dataModeSyncSummary(String deployment);
 
   /// No description provided for @localTerminal.
   ///

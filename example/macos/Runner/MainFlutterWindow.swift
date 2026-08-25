@@ -806,10 +806,10 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
     windowBridgeChannel?.invokeMethod("nativeOpenTerminalAtFolder", arguments: nil)
   }
 
-  @objc func openLocalTerminal(_ sender: Any?) {
+  @objc func openNewTab(_ sender: Any?) {
     windowBridgeChannel?.invokeMethod(
       "nativeAppAction",
-      arguments: ["action": "newLocalTerminal"]
+      arguments: ["action": "newTab"]
     )
   }
 
@@ -945,21 +945,21 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
       mainMenu.insertItem(fileMenuItem, at: min(1, mainMenu.items.count))
     }
 
-    let localTitles = Set(["New Local Terminal", "New Local Terminal…"])
+    let localTitles = Set(["New Tab", "New Local Terminal", "New Local Terminal…"])
     let localItem: NSMenuItem
     if let existing = fileMenu.items.first(where: { localTitles.contains($0.title) }) {
       localItem = existing
     } else {
       localItem = NSMenuItem(
-        title: "New Local Terminal…",
-        action: #selector(openLocalTerminal(_:)),
+        title: "New Tab",
+        action: #selector(openNewTab(_:)),
         keyEquivalent: "t"
       )
       fileMenu.insertItem(localItem, at: 0)
     }
-    localItem.title = "New Local Terminal…"
+    localItem.title = "New Tab"
     localItem.target = self
-    localItem.action = #selector(openLocalTerminal(_:))
+    localItem.action = #selector(openNewTab(_:))
     localItem.keyEquivalent = "t"
     localItem.keyEquivalentModifierMask = [.command]
 

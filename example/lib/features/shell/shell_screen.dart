@@ -18,6 +18,7 @@ import '../../data/configuration/data_api_configuration_providers.dart';
 import '../../data/configuration/data_api_configuration_repository.dart';
 import '../../data/services/data_api_client.dart';
 import '../../data/services/data_api_migration_service.dart';
+import '../../data/services/data_api_remote_fallback.dart';
 import '../../data/services/data_api_runtime.dart';
 import '../../platform/clipboard_bridge.dart';
 import '../../platform/terminal_graphic_image_actions.dart';
@@ -264,6 +265,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   bool _isCommandMenuOpen = false;
   bool _isDefaultsOpen = false;
   bool _isProfilesOpen = false;
+  bool _remoteFallbackSnapshotLoadStarted = false;
+  bool _remoteFallbackSwitching = false;
+  DataApiRemoteFallbackSnapshot? _remoteFallbackSnapshot;
   bool _dataApiStartupWarningDismissed = false;
   bool _isSearchOpen = false;
   bool _isAutocompleteOpen = false;
@@ -488,6 +492,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   void _handleSessionStateChanged(SessionState? _, SessionState next) {
     _syncPresentationState(next);
     _publishAcceptanceSnapshot(next);
+    if (!next.isReady && next.lastError != null) {
+      unawaited(_loadRemoteFallbackSnapshot());
+    }
     final activeSessionId = next.activeSessionId;
     final pendingMessage = activeSessionId == null
         ? null
@@ -795,9 +802,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                 'No terminal session option is available.',
               );
             }
-            unawaited(
-              _openLocalTerminalAction(sessionController, sessionState),
-            );
+            unawaited(_openNewTabAction(sessionController, sessionState));
             return const ShellActionBindingResult.completed();
           },
           closeTab: (_) {
@@ -1085,7 +1090,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           if (!canOpenNewSession) {
             return KeyEventResult.handled;
           }
-          unawaited(_openLocalTerminalAction(sessionController, sessionState));
+          unawaited(_openNewTabAction(sessionController, sessionState));
           return KeyEventResult.handled;
         case TerminalActionId.newSshSession:
           if (!canOpenNewSession) {
@@ -1372,7 +1377,24 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                             onOpenSettings: () => _openDefaultsAndAppearance(
                               sessionController,
                               sessionState,
+                              openDataServiceInitially: true,
                             ),
+                            onRepairSettings:
+                                sessionController.terminalConfigRepairAvailable
+                                ? () => unawaited(
+                                    _confirmRepairTerminalConfig(
+                                      sessionController,
+                                    ),
+                                  )
+                                : null,
+                            onUseLocalSnapshot:
+                                _remoteFallbackSnapshot == null ||
+                                    _remoteFallbackSwitching
+                                ? null
+                                : () => unawaited(
+                                    _confirmRemoteFallbackToLocal(),
+                                  ),
+                            remoteFallbackSwitching: _remoteFallbackSwitching,
                           )
                         : activeSessionId == null || activeTab == null
                         ? launchPolicy.isSshOnly

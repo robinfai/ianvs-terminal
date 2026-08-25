@@ -66,6 +66,11 @@ const MAX_ACTIVE_FORWARD_RELAYS: usize = 64;
 const MAX_PENDING_X11_CONNECTIONS: usize = 32;
 const MAX_X11_SETUP_BYTES: usize = 4 * 1024;
 const X11_AUTH_PROTOCOL: &[u8] = b"MIT-MAGIC-COOKIE-1";
+const SSH_SHELL_PROBE_TIMEOUT: Duration = Duration::from_secs(5);
+const SSH_SHELL_CLEANUP_TIMEOUT: Duration = Duration::from_secs(2);
+const MAX_SSH_SHELL_PROBE_BYTES: usize = 4096;
+const REMOTE_SHELL_MARKER: &str = "__IANVS_REMOTE_SHELL__";
+const REMOTE_CAPABILITY_MARKER: &str = "__IANVS_REMOTE_CAPABILITIES__1";
 
 pub struct SshRuntime {
     pub master: Box<dyn MasterPty + Send>,
@@ -1262,6 +1267,15 @@ pub fn spawn_ssh(
     rows: u16,
     cols: u16,
 ) -> Result<SshRuntime> {
+    spawn_ssh_with_shell_integration(connection, rows, cols, false)
+}
+
+pub(crate) fn spawn_ssh_with_shell_integration(
+    connection: TerminalProfileConnection,
+    rows: u16,
+    cols: u16,
+    shell_integration_enabled: bool,
+) -> Result<SshRuntime> {
     let auth = SshAuthClient::default();
     let cancellation = SshCancellation::default();
     let (command_sender, command_receiver) = mpsc::unbounded_channel();
@@ -1303,6 +1317,7 @@ pub fn spawn_ssh(
                     runtime.block_on(run_ssh_session(
                         connection,
                         initial_size,
+                        shell_integration_enabled,
                         command_receiver,
                         output_sender.clone(),
                         thread_auth,
@@ -1343,6 +1358,266 @@ struct PreparedSshSession {
     forward_receiver: mpsc::Receiver<AcceptedLocalForward>,
     forward_listeners: ForwardListenerTasks,
     channel: Channel<client::Msg>,
+    shell_integration: Option<RemoteShellIntegration>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum RemoteShellKind {
+    Sh,
+    Bash,
+    Zsh,
+    Fish,
+    Other,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+struct RemoteShellProbe {
+    program: String,
+    kind: RemoteShellKind,
+    capabilities_available: bool,
+}
+
+#[derive(Debug)]
+struct RemoteShellIntegration {
+    directory: String,
+    files: Vec<String>,
+    launch_command: String,
+}
+
+async fn prepare_remote_shell_integration(
+    session: &client::Handle<SshClientHandler>,
+    cancellation: &SshCancellation,
+) -> Result<Option<RemoteShellIntegration>> {
+    let Some(probe) = probe_remote_shell(session, cancellation).await? else {
+        return Ok(None);
+    };
+    if probe.kind == RemoteShellKind::Other || !probe.capabilities_available {
+        return Ok(None);
+    }
+
+    let token = random_sftp_transfer_token()?;
+    let directory = format!("/tmp/ianvs-terminal-shell-{token}");
+    let files = remote_shell_integration_files(probe.kind);
+    let sftp = open_sftp_session(session)
+        .await
+        .context("could not open SFTP for remote shell integration")?;
+    sftp.create_dir(&directory)
+        .await
+        .context("could not create the remote shell integration directory")?;
+
+    let mut uploaded_paths = Vec::with_capacity(files.len());
+    let upload_result: Result<()> = async {
+        for (name, contents) in files {
+            let path = format!("{directory}/{name}");
+            let mut remote = sftp
+                .create(&path)
+                .await
+                .with_context(|| format!("could not create remote shell hook {name}"))?;
+            uploaded_paths.push(path);
+            remote
+                .write_all(contents.as_bytes())
+                .await
+                .with_context(|| format!("could not write remote shell hook {name}"))?;
+            remote
+                .flush()
+                .await
+                .with_context(|| format!("could not flush remote shell hook {name}"))?;
+            remote
+                .close()
+                .await
+                .with_context(|| format!("could not close remote shell hook {name}"))?;
+        }
+        Ok(())
+    }
+    .await;
+    if let Err(error) = upload_result {
+        for path in uploaded_paths.iter().rev() {
+            let _ = sftp.remove_file(path).await;
+        }
+        let _ = sftp.remove_dir(&directory).await;
+        return Err(error);
+    }
+
+    Ok(Some(RemoteShellIntegration {
+        launch_command: remote_shell_launch_command(probe.kind, &probe.program, &directory),
+        directory,
+        files: uploaded_paths,
+    }))
+}
+
+async fn probe_remote_shell(
+    session: &client::Handle<SshClientHandler>,
+    cancellation: &SshCancellation,
+) -> Result<Option<RemoteShellProbe>> {
+    let output = run_remote_probe(
+        session,
+        r#"printf '__IANVS_REMOTE_SHELL__%s\n' "$SHELL""#,
+        cancellation,
+    )
+    .await?;
+    let Some(program) = parse_remote_shell_program(&output) else {
+        return Ok(None);
+    };
+    let kind = remote_shell_kind(&program);
+    let Some(capability_command) = remote_shell_capability_command(kind, &program) else {
+        return Ok(Some(RemoteShellProbe {
+            program,
+            kind,
+            capabilities_available: false,
+        }));
+    };
+    let capability_output = run_remote_probe(session, &capability_command, cancellation)
+        .await
+        .unwrap_or_default();
+    Ok(Some(RemoteShellProbe {
+        program,
+        kind,
+        capabilities_available: capability_output
+            .lines()
+            .any(|line| line.trim() == REMOTE_CAPABILITY_MARKER),
+    }))
+}
+
+async fn run_remote_probe(
+    session: &client::Handle<SshClientHandler>,
+    command: &str,
+    cancellation: &SshCancellation,
+) -> Result<String> {
+    let probe = async {
+        let channel = session
+            .channel_open_session()
+            .await
+            .context("could not open remote shell probe channel")?;
+        channel
+            .exec(true, command)
+            .await
+            .context("remote shell probe was rejected")?;
+        let mut stream = channel
+            .into_stream()
+            .take((MAX_SSH_SHELL_PROBE_BYTES + 1) as u64);
+        let mut output = Vec::new();
+        stream
+            .read_to_end(&mut output)
+            .await
+            .context("could not read remote shell probe output")?;
+        if output.len() > MAX_SSH_SHELL_PROBE_BYTES {
+            bail!("remote shell probe output exceeded its byte limit");
+        }
+        String::from_utf8(output).context("remote shell probe output was not UTF-8")
+    };
+    tokio::select! {
+        biased;
+        _ = cancellation.cancelled() => bail!("remote shell probe was cancelled"),
+        result = tokio::time::timeout(SSH_SHELL_PROBE_TIMEOUT, probe) => {
+            result.context("remote shell probe timed out")?
+        }
+    }
+}
+
+fn parse_remote_shell_program(output: &str) -> Option<String> {
+    let program = output
+        .lines()
+        .filter_map(|line| line.trim().strip_prefix(REMOTE_SHELL_MARKER))
+        .map(str::trim)
+        .find(|value| !value.is_empty())?;
+    if program.len() > 1024
+        || !program.bytes().all(|byte| {
+            byte.is_ascii_alphanumeric() || matches!(byte, b'/' | b'_' | b'.' | b'+' | b'-')
+        })
+    {
+        return None;
+    }
+    Some(program.to_string())
+}
+
+fn remote_shell_kind(program: &str) -> RemoteShellKind {
+    let name = program
+        .rsplit('/')
+        .next()
+        .unwrap_or(program)
+        .trim_start_matches('-');
+    match name {
+        "bash" => RemoteShellKind::Bash,
+        "zsh" => RemoteShellKind::Zsh,
+        "fish" => RemoteShellKind::Fish,
+        "sh" | "dash" | "ash" | "ksh" | "mksh" => RemoteShellKind::Sh,
+        _ => RemoteShellKind::Other,
+    }
+}
+
+fn remote_shell_capability_command(kind: RemoteShellKind, program: &str) -> Option<String> {
+    let program = shell_quote(program);
+    match kind {
+        RemoteShellKind::Zsh => Some(format!(
+            "command -v od >/dev/null 2>&1 && command -v tr >/dev/null 2>&1 && {program} -fc 'autoload -Uz add-zsh-hook' >/dev/null 2>&1 && printf '{REMOTE_CAPABILITY_MARKER}\\n'"
+        )),
+        RemoteShellKind::Bash => Some(format!(
+            "command -v od >/dev/null 2>&1 && command -v tr >/dev/null 2>&1 && {program} --noprofile --norc -c ':' >/dev/null 2>&1 && printf '{REMOTE_CAPABILITY_MARKER}\\n'"
+        )),
+        RemoteShellKind::Fish => Some(format!(
+            "command -sq od; and command -sq tr; and {program} --init-command ':' -c ':' >/dev/null 2>&1; and printf '{REMOTE_CAPABILITY_MARKER}\\n'"
+        )),
+        RemoteShellKind::Sh => Some(format!(
+            "command -v printf >/dev/null 2>&1 && {program} -c ':' >/dev/null 2>&1 && printf '{REMOTE_CAPABILITY_MARKER}\\n'"
+        )),
+        RemoteShellKind::Other => None,
+    }
+}
+
+fn remote_shell_integration_files(kind: RemoteShellKind) -> Vec<(&'static str, String)> {
+    match kind {
+        RemoteShellKind::Zsh => crate::pty::zsh_shell_integration_files(),
+        RemoteShellKind::Bash => vec![(
+            ".bashrc",
+            crate::pty::remote_bash_shell_integration_source(),
+        )],
+        RemoteShellKind::Fish => vec![(
+            "init.fish",
+            crate::pty::fish_shell_integration_source().to_string(),
+        )],
+        RemoteShellKind::Sh => vec![(
+            "init.sh",
+            crate::pty::sh_shell_integration_source().to_string(),
+        )],
+        RemoteShellKind::Other => Vec::new(),
+    }
+}
+
+fn remote_shell_launch_command(kind: RemoteShellKind, program: &str, directory: &str) -> String {
+    let program = shell_quote(program);
+    let directory = shell_quote(directory);
+    match kind {
+        RemoteShellKind::Zsh => format!(
+            "if [ \"${{ZDOTDIR+x}}\" = x ]; then export IANVS_ORIGINAL_ZDOTDIR_WAS_SET=1 IANVS_ORIGINAL_ZDOTDIR=\"$ZDOTDIR\"; else export IANVS_ORIGINAL_ZDOTDIR_WAS_SET=0 IANVS_ORIGINAL_ZDOTDIR=; fi; export IANVS_SHELL_INTEGRATION=1 ZDOTDIR={directory}; exec {program} -l"
+        ),
+        RemoteShellKind::Bash => format!(
+            "export IANVS_SHELL_INTEGRATION=1 IANVS_SKIP_ORIGINAL_BASHRC=1; exec {program} --rcfile {directory}/.bashrc -i"
+        ),
+        RemoteShellKind::Fish => format!(
+            "set -gx IANVS_SHELL_INTEGRATION 1; set -gx IANVS_FISH_INIT {directory}/init.fish; exec {program} -l --init-command 'source \"$IANVS_FISH_INIT\"'"
+        ),
+        RemoteShellKind::Sh => format!(
+            "if [ \"${{ENV+x}}\" = x ]; then export IANVS_ORIGINAL_ENV_WAS_SET=1 IANVS_ORIGINAL_ENV=\"$ENV\"; else export IANVS_ORIGINAL_ENV_WAS_SET=0 IANVS_ORIGINAL_ENV=; fi; export IANVS_SHELL_INTEGRATION=1 ENV={directory}/init.sh; exec {program} -l -i"
+        ),
+        RemoteShellKind::Other => format!("exec {program} -l"),
+    }
+}
+
+fn shell_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "'\"'\"'"))
+}
+
+async fn cleanup_remote_shell_integration(
+    session: &client::Handle<SshClientHandler>,
+    integration: &RemoteShellIntegration,
+) {
+    let Ok(sftp) = open_sftp_session(session).await else {
+        return;
+    };
+    for path in integration.files.iter().rev() {
+        let _ = sftp.remove_file(path).await;
+    }
+    let _ = sftp.remove_dir(&integration.directory).await;
 }
 
 async fn teardown_ssh_network(
@@ -1368,6 +1643,7 @@ async fn teardown_ssh_network(
 async fn prepare_ssh_session(
     connection: &TerminalProfileConnection,
     initial_size: PtySize,
+    shell_integration_enabled: bool,
     auth: &SshAuthClient,
     cancellation: &SshCancellation,
     forward_runtime: &ForwardRuntime,
@@ -1393,6 +1669,15 @@ async fn prepare_ssh_session(
     let forward_listeners =
         start_local_forward_listeners(connection, forward_sender, forward_runtime.clone()).await?;
     request_remote_forwards(&session, connection).await?;
+
+    let shell_integration = if shell_integration_enabled {
+        prepare_remote_shell_integration(&session, cancellation)
+            .await
+            .ok()
+            .flatten()
+    } else {
+        None
+    };
 
     let channel = session.channel_open_session().await?;
     if connection.agent_forwarding {
@@ -1423,7 +1708,17 @@ async fn prepare_ssh_session(
             &[],
         )
         .await?;
-    channel.request_shell(true).await?;
+    if let Some(integration) = &shell_integration {
+        if channel
+            .exec(true, integration.launch_command.clone())
+            .await
+            .is_err()
+        {
+            channel.request_shell(true).await?;
+        }
+    } else {
+        channel.request_shell(true).await?;
+    }
 
     Ok(PreparedSshSession {
         session,
@@ -1431,6 +1726,7 @@ async fn prepare_ssh_session(
         forward_receiver,
         forward_listeners,
         channel,
+        shell_integration,
     })
 }
 
@@ -1479,6 +1775,7 @@ where
 async fn run_ssh_session(
     connection: TerminalProfileConnection,
     initial_size: PtySize,
+    shell_integration_enabled: bool,
     mut commands: mpsc::UnboundedReceiver<SshCommand>,
     output: std_mpsc::Sender<Vec<u8>>,
     auth: SshAuthClient,
@@ -1490,6 +1787,7 @@ async fn run_ssh_session(
         prepare_ssh_session(
             &connection,
             initial_size,
+            shell_integration_enabled,
             &auth,
             &cancellation,
             &forward_runtime,
@@ -1513,6 +1811,7 @@ async fn run_ssh_session(
         mut forward_receiver,
         forward_listeners,
         mut channel,
+        shell_integration,
     } = prepared;
     let _ = output.send(
         format!(
@@ -1693,6 +1992,13 @@ async fn run_ssh_session(
     .await;
     forward_listeners.abort_all();
     auth.cancel_all();
+    if let Some(integration) = &shell_integration {
+        let _ = tokio::time::timeout(
+            SSH_SHELL_CLEANUP_TIMEOUT,
+            cleanup_remote_shell_integration(&session, integration),
+        )
+        .await;
+    }
     shutdown_ssh_resources(&cancellation, &forward_runtime).await;
     teardown_ssh_network(channel, session, jump_sessions).await;
     session_result?;
@@ -3458,6 +3764,94 @@ mod tests {
     use super::*;
     use russh::client::Handler as _;
     use russh_sftp::protocol::{Attrs, Data, Handle, OpenFlags, Status};
+
+    #[test]
+    fn remote_shell_probe_parses_supported_shells_and_rejects_commands() {
+        for (program, kind) in [
+            ("/bin/sh", RemoteShellKind::Sh),
+            ("/usr/bin/dash", RemoteShellKind::Sh),
+            ("/bin/bash", RemoteShellKind::Bash),
+            ("/opt/homebrew/bin/zsh", RemoteShellKind::Zsh),
+            ("/usr/local/bin/fish", RemoteShellKind::Fish),
+            ("/usr/bin/nu", RemoteShellKind::Other),
+        ] {
+            let output = format!("login noise\n{REMOTE_SHELL_MARKER}{program}\n");
+            let parsed = parse_remote_shell_program(&output).expect("shell program");
+            assert_eq!(parsed, program);
+            assert_eq!(remote_shell_kind(&parsed), kind);
+        }
+
+        assert!(parse_remote_shell_program("no marker").is_none());
+        assert!(
+            parse_remote_shell_program(&format!(
+                "{REMOTE_SHELL_MARKER}/bin/zsh; touch /tmp/not-allowed\n"
+            ))
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn remote_shell_capability_probes_are_shell_specific() {
+        let zsh =
+            remote_shell_capability_command(RemoteShellKind::Zsh, "/bin/zsh").expect("zsh probe");
+        let bash = remote_shell_capability_command(RemoteShellKind::Bash, "/bin/bash")
+            .expect("bash probe");
+        let fish = remote_shell_capability_command(RemoteShellKind::Fish, "/bin/fish")
+            .expect("fish probe");
+        let sh = remote_shell_capability_command(RemoteShellKind::Sh, "/bin/sh").expect("sh probe");
+
+        assert!(zsh.contains("autoload -Uz add-zsh-hook"));
+        assert!(zsh.contains("command -v od"));
+        assert!(bash.contains("--noprofile --norc"));
+        assert!(bash.contains("command -v tr"));
+        assert!(fish.contains("command -sq od"));
+        assert!(fish.contains("--init-command"));
+        assert!(sh.contains("command -v printf"));
+        assert!(!sh.contains("command -v od"));
+        assert!(remote_shell_capability_command(RemoteShellKind::Other, "/bin/nu").is_none());
+    }
+
+    #[test]
+    fn remote_shell_launch_plans_use_native_startup_mechanisms() {
+        let directory = "/tmp/ianvs-terminal-shell-test";
+        let zsh = remote_shell_launch_command(RemoteShellKind::Zsh, "/bin/zsh", directory);
+        let bash = remote_shell_launch_command(RemoteShellKind::Bash, "/bin/bash", directory);
+        let fish = remote_shell_launch_command(RemoteShellKind::Fish, "/bin/fish", directory);
+        let sh = remote_shell_launch_command(RemoteShellKind::Sh, "/bin/sh", directory);
+        let other = remote_shell_launch_command(RemoteShellKind::Other, "/bin/nu", directory);
+
+        assert!(zsh.contains("ZDOTDIR='/tmp/ianvs-terminal-shell-test'"));
+        assert!(zsh.contains("IANVS_ORIGINAL_ZDOTDIR"));
+        assert!(bash.contains("--rcfile '/tmp/ianvs-terminal-shell-test'/.bashrc -i"));
+        assert!(fish.contains("--init-command"));
+        assert!(fish.contains("IANVS_FISH_INIT"));
+        assert!(sh.contains("ENV='/tmp/ianvs-terminal-shell-test'/init.sh"));
+        assert!(sh.contains("IANVS_ORIGINAL_ENV"));
+        assert_eq!(other, "exec '/bin/nu' -l");
+    }
+
+    #[test]
+    fn remote_shell_hook_files_cover_full_and_basic_fallbacks() {
+        let zsh = remote_shell_integration_files(RemoteShellKind::Zsh);
+        assert_eq!(zsh.len(), 5);
+        assert!(zsh.iter().any(|(name, _)| *name == ".zshrc"));
+
+        let bash = remote_shell_integration_files(RemoteShellKind::Bash);
+        assert!(bash[0].1.contains("PROMPT_COMMAND"));
+        assert!(bash[0].1.contains("command_finished"));
+        assert!(bash[0].1.contains("/etc/profile"));
+        assert!(bash[0].1.contains(".bash_profile"));
+
+        let fish = remote_shell_integration_files(RemoteShellKind::Fish);
+        assert!(fish[0].1.contains("fish_preexec"));
+        assert!(fish[0].1.contains("fish_prompt"));
+
+        let sh = remote_shell_integration_files(RemoteShellKind::Sh);
+        assert!(sh[0].1.contains("PS1="));
+        assert!(sh[0].1.contains("file://"));
+
+        assert!(remote_shell_integration_files(RemoteShellKind::Other).is_empty());
+    }
 
     struct InMemorySftpServer {
         files: Arc<Mutex<HashMap<String, Vec<u8>>>>,

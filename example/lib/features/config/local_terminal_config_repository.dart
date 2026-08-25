@@ -36,6 +36,23 @@ abstract class TerminalConfigRepository {
   });
 }
 
+/// Explicit recovery capability for a current-schema document whose stored
+/// JSON is incomplete but can still be decoded without guessing old schemas.
+///
+/// Implementations must preserve the original evidence before replacing it.
+/// Ordinary [TerminalConfigRepository.load] calls remain fail-closed.
+abstract interface class TerminalConfigRecoveryRepository {
+  Future<VersionedDocument<LocalTerminalConfigDocument>>
+  repairNonCanonicalCurrentDocument();
+}
+
+final class NonCanonicalCurrentTerminalConfigException extends FormatException {
+  const NonCanonicalCurrentTerminalConfigException() : super(errorMessage);
+
+  static const errorMessage =
+      'Terminal config is not a canonical current-schema document.';
+}
+
 class LocalTerminalConfigRepository extends TerminalConfigRepository {
   LocalTerminalConfigRepository({
     LocalTerminalConfigDirectoryResolver? directoryResolver,

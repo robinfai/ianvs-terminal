@@ -466,8 +466,33 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     if (returningToLayout) {
       _scheduleReturningCue();
     }
-    sessionController.createSession(profile);
+    sessionController.createSession(_profileWithActiveLocalDirectory(profile));
     _focusSession(ref.read(sessionControllerProvider).activeSessionId);
+  }
+
+  TerminalProfile _profileWithActiveLocalDirectory(TerminalProfile profile) {
+    if (profile.isSsh) {
+      return profile;
+    }
+    final sessionState = ref.read(sessionControllerProvider);
+    final activeSessionId = sessionState.activeSessionId;
+    final activePane = activeSessionId == null
+        ? null
+        : _paneForSession(sessionState, activeSessionId);
+    if (activePane == null) {
+      return profile;
+    }
+    final activeProfile = _profileForPane(activePane, sessionState.profiles);
+    final currentDirectory = activePane.shellIntegration.currentDirectory
+        ?.trim();
+    if (activeProfile == null ||
+        activeProfile.isSsh ||
+        currentDirectory == null ||
+        currentDirectory.isEmpty ||
+        _shellHostIsRemote(activePane.shellIntegration.hostname)) {
+      return profile;
+    }
+    return profile.copyWith(cwd: currentDirectory);
   }
 
   void _activateSession(

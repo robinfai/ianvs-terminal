@@ -297,7 +297,7 @@ void main() {
         ),
         findsOneWidget,
       );
-      expect(find.text('Automatic fallback • Local Shell'), findsWidgets);
+      expect(find.text('Automatic fallback • Local Shell'), findsNothing);
       expect(
         find.text('Detailed terminal settings live in Profiles.'),
         findsOneWidget,
@@ -312,22 +312,48 @@ void main() {
       expect(find.byKey(const Key('defaults-profiles-notice')), findsOneWidget);
       expect(
         find.byKey(const Key('defaults-current-profile-summary')),
-        findsOneWidget,
+        findsNothing,
       );
+      await tester.tap(find.byKey(const Key('defaults-section-appearance')));
+      await tester.pumpAndSettle();
       expect(
         find.byKey(const Key('defaults-terminal-preset-grid')),
         findsOneWidget,
       );
+      final currentPresetRect = tester.getRect(
+        find.byKey(const Key('defaults-terminal-preset-current')),
+      );
+      final graphitePresetRect = tester.getRect(
+        find.byKey(const Key('defaults-terminal-preset-graphite-night')),
+      );
+      final emberPresetRect = tester.getRect(
+        find.byKey(const Key('defaults-terminal-preset-ember-dusk')),
+      );
+      expect(
+        graphitePresetRect.left - currentPresetRect.right,
+        closeTo(10, 0.01),
+      );
+      expect(emberPresetRect.top - currentPresetRect.bottom, closeTo(10, 0.01));
       for (final panelKey in <Key>[
         const Key('defaults-appearance-options'),
-        const Key('defaults-osc52-options'),
-        const Key('defaults-open-url-options'),
-        const Key('defaults-request-attention-options'),
-        const Key('defaults-report-variable-panel'),
         const Key('defaults-canvas-inset-panel'),
       ]) {
         expect(find.byKey(panelKey), findsOneWidget);
       }
+
+      await tester.tap(find.byKey(const Key('defaults-section-security')));
+      await tester.pumpAndSettle();
+      for (final panelKey in <Key>[
+        const Key('defaults-osc52-options'),
+        const Key('defaults-open-url-options'),
+        const Key('defaults-request-attention-options'),
+        const Key('defaults-report-variable-panel'),
+      ]) {
+        expect(find.byKey(panelKey), findsOneWidget);
+      }
+
+      await tester.tap(find.byKey(const Key('defaults-section-appearance')));
+      await tester.pumpAndSettle();
 
       final dialogSize = tester.getSize(
         find.byKey(const Key('defaults-dialog')),
@@ -378,24 +404,16 @@ void main() {
       final defaultsVersion = shellAcceptanceProbe.current.snapshotVersion;
       expect(find.byKey(const Key('defaults-dialog')), findsOneWidget);
       expect(find.text('Use automatic fallback'), findsOneWidget);
-      expect(
-        find.byKey(const Key('default-theme-option-dark')),
-        findsOneWidget,
-      );
       final fallbackProfileOption = tester.widget<RadioListTile<String?>>(
         find.byKey(const Key('default-profile-option-fallback')),
       );
       expect(fallbackProfileOption.contentPadding, EdgeInsets.zero);
-      final darkThemeOption = tester.widget<RadioListTile<TerminalThemeMode>>(
-        find.byKey(const Key('default-theme-option-dark')),
-      );
-      expect(darkThemeOption.contentPadding, EdgeInsets.zero);
-      expect(
-        find.byKey(const Key('default-terminal-viewport-padding')),
-        findsOneWidget,
-      );
       expect(find.byKey(const Key('defaults-save')), findsOneWidget);
       expect(tester.getSize(find.byKey(const Key('defaults-save'))).height, 36);
+      expect(
+        tester.getSize(find.byKey(const Key('defaults-cancel'))).height,
+        tester.getSize(find.byKey(const Key('defaults-save'))).height,
+      );
       expect(
         tester
             .widget<FilledButton>(find.byKey(const Key('defaults-save')))
@@ -409,6 +427,16 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('default-profile-option-ssh')));
       await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('defaults-section-appearance')));
+      await tester.pumpAndSettle();
+      final darkThemeOption = tester.widget<RadioListTile<TerminalThemeMode>>(
+        find.byKey(const Key('default-theme-option-dark')),
+      );
+      expect(darkThemeOption.contentPadding, EdgeInsets.zero);
+      expect(
+        find.byKey(const Key('default-terminal-viewport-padding')),
+        findsOneWidget,
+      );
       await tester.ensureVisible(
         find.byKey(const Key('default-theme-option-dark')),
       );
@@ -423,13 +451,20 @@ void main() {
       await tester.ensureVisible(
         find.byKey(const Key('default-terminal-viewport-padding')),
       );
-      final increasePaddingButton = tester.widget<IconButton>(
-        find.byKey(const Key('default-terminal-viewport-padding-increase')),
+      final paddingSlider = tester.widget<Slider>(
+        find.byKey(const Key('default-terminal-viewport-padding')),
       );
-      for (var index = 0; index < 10; index += 1) {
-        increasePaddingButton.onPressed!();
-      }
-      await tester.pumpAndSettle();
+      expect(paddingSlider.divisions, 48);
+      paddingSlider.onChanged!(18);
+      await tester.pump();
+      expect(
+        tester
+            .widget<Slider>(
+              find.byKey(const Key('default-terminal-viewport-padding')),
+            )
+            .value,
+        18,
+      );
       await tester.ensureVisible(find.text('Save changes'));
       await tester.tap(find.text('Save changes'));
       await tester.pumpAndSettle();
@@ -785,6 +820,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Defaults & appearance'));
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('defaults-section-appearance')));
+    await tester.pumpAndSettle();
     await tester.ensureVisible(find.byKey(const Key('defaults-save')));
     await tester.ensureVisible(
       find.byKey(const Key('default-theme-option-dark')),
@@ -824,6 +861,8 @@ void main() {
       await tester.tap(find.byKey(const Key('shell-chrome-menu')));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Defaults & appearance'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('defaults-section-appearance')));
       await tester.pumpAndSettle();
 
       final filterFinder = find.byKey(
