@@ -27,3 +27,6 @@ recommendation-state, responsive-copy, and micro-alignment findings.
 
 The final implementation is also copied to `current/`. A consolidated QA
 handoff is available at the repository root in `design-qa.md`.
+
+`final-imagegen/` is the final acceptance pass over those reproducible goldens.
+No executable P1/P2 finding remains across the five settings tabs.

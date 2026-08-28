@@ -178,11 +178,9 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('shell-top-new-tab')));
     await tester.pumpAndSettle();
-    expect(find.byKey(const Key('new-session-launcher')), findsOneWidget);
-    await tester.tap(find.byKey(const Key('new-local-session-default')));
-    await tester.pumpAndSettle();
 
     expect(find.text('Command palette'), findsNothing);
+    expect(find.byKey(const Key('new-session-launcher')), findsNothing);
     expect(find.bySemanticsIdentifier('shell-tab-1'), findsOneWidget);
     expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
     expect(find.byType(TerminalViewport), findsOneWidget);

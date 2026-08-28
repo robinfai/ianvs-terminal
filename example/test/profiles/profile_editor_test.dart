@@ -103,19 +103,19 @@ void main() {
       }
       expect(
         tester.getSize(_findByKey(const Key('profile-editor-save'))).height,
-        36,
+        40,
       );
       final shellFieldHeight = tester
           .getSize(_findByKey(const Key('profile-editor-shell')))
           .height;
       expect(
         tester.getSize(_findByKey(const Key('profile-editor-name'))).height,
-        greaterThanOrEqualTo(64),
+        greaterThanOrEqualTo(44),
       );
-      expect(shellFieldHeight, greaterThanOrEqualTo(64));
+      expect(shellFieldHeight, greaterThanOrEqualTo(44));
       expect(
         tester.getSize(_findByKey(const Key('profile-editor-add-arg'))).height,
-        32,
+        34,
       );
 
       await tester.enterText(
@@ -401,10 +401,14 @@ void main() {
         _findByKey(const Key('profile-editor-option-drag-blockSelection')),
       );
       await tester.pump();
-      final blockSelectionTile = tester.widget<RadioListTile<Object?>>(
-        _findByKey(const Key('profile-editor-option-drag-blockSelection')),
+      final optionDragControl = tester
+          .widget<SegmentedButton<TerminalOptionDragMode>>(
+            _findByKey(const Key('profile-editor-option-drag-mode')),
+          );
+      expect(
+        optionDragControl.selected,
+        contains(TerminalOptionDragMode.blockSelection),
       );
-      expect(blockSelectionTile.contentPadding, EdgeInsets.zero);
 
       await _ensureVisible(
         tester,

@@ -50,7 +50,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
     final maxMenuHeight =
         (MediaQuery.sizeOf(context).height -
                 MediaQuery.viewInsetsOf(context).bottom -
-                24)
+                40)
             .clamp(0.0, 520.0);
     final launcherShortcutLabel = widget.launcherShortcutLabel;
     final newTabShortcutLabel = widget.newTabShortcutLabel;
@@ -810,8 +810,10 @@ class _ShellCommandTile extends StatelessWidget {
           );
     return ListTile(
       dense: true,
-      visualDensity: const VisualDensity(horizontal: -3, vertical: -3),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+      visualDensity: const VisualDensity(horizontal: -2, vertical: -1),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 10),
+      minTileHeight: 48,
+      minVerticalPadding: 8,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(palette.radius.lg),
       ),

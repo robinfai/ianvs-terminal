@@ -1406,6 +1406,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get arguments => '参数';
 
   @override
+  String get addArgument => '添加参数';
+
+  @override
+  String get noLaunchArguments => '暂无启动参数';
+
+  @override
   String get terminal => '终端';
 
   @override
@@ -1415,7 +1421,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get emulation => '仿真';
 
   @override
+  String get terminalEmulationHelp => '选择向应用程序报告的终端仿真类型。';
+
+  @override
   String get scrollbackLines => '回滚行数';
+
+  @override
+  String get scrollbackLinesHelp => '保留在回滚缓冲区中的最大行数。';
+
+  @override
+  String get linesUnit => '行';
 
   @override
   String get profileAppearanceDescription => '控制排版、颜色和光标行为。';
@@ -1428,6 +1443,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get fallbackFonts => '备用字体';
+
+  @override
+  String get addFallbackFont => '添加备用字体';
+
+  @override
+  String get noFallbackFonts => '暂无备用字体';
 
   @override
   String get fontSize => '字体大小';
@@ -1472,6 +1493,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get optionDragMode => 'Option 拖动模式';
 
   @override
+  String get normalSelection => '普通选择';
+
+  @override
+  String get blockSelection => '块选择';
+
+  @override
   String get automation => '自动化';
 
   @override
@@ -1506,6 +1533,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get shellIntegrationDescription => '启用提示符标记、徽章、命令导航和 Shell 感知操作。';
+
+  @override
+  String get enabledStatus => '已启用';
+
+  @override
+  String get disabledStatus => '已停用';
 
   @override
   String get toolbeltTerminalTools => '终端工具带';

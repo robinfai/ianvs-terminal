@@ -492,6 +492,10 @@ class _DefaultsAndAppearanceDialogState
 
   @override
   Widget build(BuildContext context) {
+    return AppConfigurationTheme(child: Builder(builder: _buildThemedDialog));
+  }
+
+  Widget _buildThemedDialog(BuildContext context) {
     final theme = context.appTheme;
     final dataServiceFieldTextStyle = Theme.of(
       context,
@@ -1835,7 +1839,7 @@ class _DefaultsAndAppearanceDialogState
                 ),
               )
             : LayoutBuilder(
-                builder: (context, constraints) {
+                builder: (context, _) {
                   final resetActions = Wrap(
                     key: const Key('defaults-footer-reset-actions'),
                     spacing: theme.spacing.sm,
@@ -1945,28 +1949,12 @@ class _DefaultsAndAppearanceDialogState
                       ),
                     ],
                   );
-                  if (constraints.maxWidth < 800) {
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: resetActions,
-                        ),
-                        SizedBox(height: theme.spacing.md),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: confirmationActions,
-                        ),
-                      ],
-                    );
-                  }
-                  return Row(
-                    children: [
-                      resetActions,
-                      const Spacer(),
-                      confirmationActions,
-                    ],
+                  return OverflowBar(
+                    alignment: MainAxisAlignment.spaceBetween,
+                    overflowAlignment: OverflowBarAlignment.end,
+                    spacing: theme.spacing.md,
+                    overflowSpacing: theme.spacing.md,
+                    children: [resetActions, confirmationActions],
                   );
                 },
               ),
@@ -2056,7 +2044,7 @@ class _DefaultsSectionNavigation extends StatelessWidget {
           ),
         ];
     return ColoredBox(
-      color: theme.chrome.withValues(alpha: 0.42),
+      color: theme.chrome,
       child: Padding(
         padding: EdgeInsets.fromLTRB(
           theme.spacing.lg,
@@ -2109,9 +2097,7 @@ class _DefaultsSectionNavigationItem extends StatelessWidget {
       button: true,
       selected: selected,
       child: Material(
-        color: selected
-            ? theme.selected.withValues(alpha: 0.68)
-            : theme.selected.withValues(alpha: 0),
+        color: selected ? theme.selected : Colors.transparent,
         borderRadius: radius,
         child: InkWell(
           borderRadius: radius,
@@ -2141,7 +2127,7 @@ class _DefaultsSectionNavigationItem extends StatelessWidget {
                     label,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                       color: selected ? theme.accent : theme.textPrimary,
                       fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
                     ),
@@ -2507,9 +2493,7 @@ class _PermissionPolicyRow<T extends Enum> extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 120),
         decoration: BoxDecoration(
-          color: selected
-              ? theme.selected.withValues(alpha: 0.18)
-              : Colors.transparent,
+          color: selected ? theme.selected : Colors.transparent,
           border: Border(
             left: BorderSide(
               color: selected ? theme.accent : Colors.transparent,
@@ -3054,7 +3038,7 @@ class _SettingsRadioPanel<T> extends StatelessWidget {
                     curve: Curves.easeOutCubic,
                     decoration: BoxDecoration(
                       color: options[index].value == groupValue
-                          ? theme.selected.withValues(alpha: 0.20)
+                          ? theme.selected
                           : Colors.transparent,
                       border: Border(
                         left: BorderSide(
@@ -3266,7 +3250,7 @@ class _DataServiceModeChoiceState extends State<_DataServiceModeChoice> {
           padding: EdgeInsets.symmetric(horizontal: theme.spacing.sm),
           decoration: BoxDecoration(
             color: selected
-                ? theme.selected.withValues(alpha: highlighted ? 0.26 : 0.18)
+                ? theme.selected
                 : highlighted
                 ? theme.selected.withValues(alpha: 0.12)
                 : Colors.transparent,
@@ -3561,7 +3545,7 @@ class _TerminalPresetChoice extends StatelessWidget {
           padding: EdgeInsets.all(theme.spacing.md),
           decoration: BoxDecoration(
             color: selected
-                ? theme.selected.withValues(alpha: 0.20)
+                ? theme.selected
                 : theme.overlay.withValues(alpha: enabled ? 0.52 : 0.24),
             borderRadius: BorderRadius.circular(theme.radius.md),
             border: Border.all(

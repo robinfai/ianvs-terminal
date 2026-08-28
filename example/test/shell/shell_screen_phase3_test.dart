@@ -329,11 +329,17 @@ void main() {
       final emberPresetRect = tester.getRect(
         find.byKey(const Key('defaults-terminal-preset-ember-dusk')),
       );
+      final presetSpacing = Theme.of(
+        tester.element(find.byKey(const Key('defaults-terminal-preset-grid'))),
+      ).extension<AppThemeTokens>()!.spacing.lg;
       expect(
         graphitePresetRect.left - currentPresetRect.right,
-        closeTo(10, 0.01),
+        closeTo(presetSpacing, 0.01),
       );
-      expect(emberPresetRect.top - currentPresetRect.bottom, closeTo(10, 0.01));
+      expect(
+        emberPresetRect.top - currentPresetRect.bottom,
+        closeTo(presetSpacing, 0.01),
+      );
       for (final panelKey in <Key>[
         const Key('defaults-appearance-options'),
         const Key('defaults-canvas-inset-panel'),
@@ -418,7 +424,7 @@ void main() {
       );
       expect(fallbackProfileOption.contentPadding, EdgeInsets.zero);
       expect(find.byKey(const Key('defaults-save')), findsOneWidget);
-      expect(tester.getSize(find.byKey(const Key('defaults-save'))).height, 36);
+      expect(tester.getSize(find.byKey(const Key('defaults-save'))).height, 40);
       expect(
         tester.getSize(find.byKey(const Key('defaults-cancel'))).height,
         tester.getSize(find.byKey(const Key('defaults-save'))).height,

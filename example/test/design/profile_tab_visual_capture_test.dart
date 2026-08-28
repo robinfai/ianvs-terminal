@@ -30,20 +30,29 @@ Future<void> _loadVisualFonts() async {
   await Future.wait([text.load(), materialIcons.load()]);
 }
 
-Future<void> _pumpProfileEditor(WidgetTester tester) async {
+Future<void> _pumpProfileEditor(
+  WidgetTester tester, {
+  Size surfaceSize = _surfaceSize,
+  Brightness brightness = Brightness.light,
+  TextScaler textScaler = TextScaler.noScaling,
+}) async {
   tester.view.devicePixelRatio = 1;
-  tester.view.physicalSize = _surfaceSize;
+  tester.view.physicalSize = surfaceSize;
   addTearDown(tester.view.resetDevicePixelRatio);
   addTearDown(tester.view.resetPhysicalSize);
 
   final baseTheme = buildIanvsTerminalTheme(
-    Brightness.light,
+    brightness,
     platform: TargetPlatform.macOS,
   );
   const captureFont = 'ProfileCaptureSans';
   final inputDecorationTheme = baseTheme.inputDecorationTheme;
   await tester.pumpWidget(
     MaterialApp(
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(textScaler: textScaler),
+        child: child!,
+      ),
       locale: const Locale('zh'),
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
@@ -82,8 +91,17 @@ Future<void> _captureTab(
   WidgetTester tester, {
   required String tabKey,
   required String goldenName,
+  Size surfaceSize = _surfaceSize,
+  Brightness brightness = Brightness.light,
+  TextScaler textScaler = TextScaler.noScaling,
+  String? goldenPath,
 }) async {
-  await _pumpProfileEditor(tester);
+  await _pumpProfileEditor(
+    tester,
+    surfaceSize: surfaceSize,
+    brightness: brightness,
+    textScaler: textScaler,
+  );
   if (tabKey != 'general') {
     await tester.tap(
       find.byKey(Key('profile-editor-nav-$tabKey'), skipOffstage: false),
@@ -93,7 +111,7 @@ Future<void> _captureTab(
   await expectLater(
     find.byKey(const Key('profile-editor-dialog')),
     matchesGoldenFile(
-      '../../../docs/design/profile-tabs/current/$goldenName.png',
+      goldenPath ?? '../../../docs/design/profile-tabs/current/$goldenName.png',
     ),
   );
 }
@@ -140,5 +158,28 @@ void main() {
 
   testWidgets('captures Advanced profile tab', (tester) async {
     await _captureTab(tester, tabKey: 'advanced', goldenName: '07-advanced');
+  });
+
+  testWidgets('captures dark Appearance profile tab', (tester) async {
+    await _captureTab(
+      tester,
+      tabKey: 'appearance',
+      goldenName: 'profile-dark-appearance',
+      brightness: Brightness.dark,
+      goldenPath:
+          '../../../docs/design/config-refresh/adaptive/profile-dark-appearance.png',
+    );
+  });
+
+  testWidgets('captures compact scaled Startup profile layout', (tester) async {
+    await _captureTab(
+      tester,
+      tabKey: 'startup',
+      goldenName: 'profile-compact-scaled',
+      surfaceSize: const Size(620, 900),
+      textScaler: const TextScaler.linear(1.25),
+      goldenPath:
+          '../../../docs/design/config-refresh/adaptive/profile-compact-scaled.png',
+    );
   });
 }

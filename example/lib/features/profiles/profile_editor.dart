@@ -691,6 +691,17 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     });
   }
 
+  void _moveEnv(int from, int to) {
+    if (to < 0 || to >= _envControllers.length) {
+      return;
+    }
+    setState(() {
+      _didEdit = true;
+      final entry = _envControllers.removeAt(from);
+      _envControllers.insert(to, entry);
+    });
+  }
+
   void _addFallback([String initialValue = '']) {
     setState(() {
       _didEdit = true;
@@ -1730,6 +1741,10 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
 
   @override
   Widget build(BuildContext context) {
+    return AppConfigurationTheme(child: Builder(builder: _buildThemedDialog));
+  }
+
+  Widget _buildThemedDialog(BuildContext context) {
     final theme = context.appTheme;
     final screenSize = MediaQuery.sizeOf(context);
     final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
@@ -1779,7 +1794,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
           bodyPadding: EdgeInsets.zero,
           footerPadding: EdgeInsets.symmetric(
             horizontal: theme.spacing.xxl,
-            vertical: theme.spacing.xl,
+            vertical: theme.spacing.xxl,
           ),
           body: Form(
             key: _formKey,
@@ -1798,8 +1813,10 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                 final scrollableSections = Scrollbar(
                   controller: _scrollController,
                   thumbVisibility: true,
+                  trackVisibility: true,
+                  interactive: true,
                   radius: Radius.circular(theme.radius.sm),
-                  thickness: theme.spacing.xs,
+                  thickness: theme.spacing.sm,
                   child: SingleChildScrollView(
                     key: const Key('profile-editor-scroll-view'),
                     controller: _scrollController,
@@ -1824,8 +1841,9 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                 title: context.l10n.general,
                                 description:
                                     context.l10n.generalProfileDescription,
-                                contained: true,
                                 children: [
+                                  Divider(height: 1, color: theme.border),
+                                  SizedBox(height: theme.spacing.xxl),
                                   _ProfileLabeledControl(
                                     label: context.l10n.name,
                                     child: TextFormField(
@@ -1873,7 +1891,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                     'profile-editor-group-command',
                                   ),
                                   title: context.l10n.command,
-                                  tone: AppPanelTone.elevated,
+                                  tone: AppPanelTone.panel,
                                   children: [
                                     _ProfileLabeledControl(
                                       label: context.l10n.shellProgram,
@@ -1907,15 +1925,16 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                     'profile-editor-group-launch-data',
                                   ),
                                   title: context.l10n.argumentsAndEnvironment,
-                                  tone: AppPanelTone.elevated,
+                                  tone: AppPanelTone.panel,
                                   children: [
                                     _buildStringListEditor(
                                       title: context.l10n.arguments,
                                       addKey: const Key(
                                         'profile-editor-add-arg',
                                       ),
-                                      addLabel: 'Add arg',
-                                      emptyLabel: 'No launch arguments',
+                                      addLabel: context.l10n.addArgument,
+                                      emptyLabel:
+                                          context.l10n.noLaunchArguments,
                                       controllers: _argControllers,
                                       fieldKeyPrefix: 'profile-editor-arg',
                                       compactRows: true,
@@ -1928,7 +1947,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                       onMoveDown: (index) =>
                                           _moveArg(index, index + 1),
                                     ),
-                                    const SizedBox(height: 16),
+                                    SizedBox(height: theme.spacing.xxl),
                                     _buildEnvEditor(),
                                   ],
                                 ),
@@ -1953,98 +1972,89 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                     key: const Key(
                                       'profile-editor-group-terminal',
                                     ),
-                                    title: context.l10n.emulation,
-                                    tone: AppPanelTone.elevated,
+                                    tone: AppPanelTone.panel,
                                     children: [
-                                      ConstrainedBox(
-                                        constraints: const BoxConstraints(
-                                          maxWidth: 560,
-                                        ),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.stretch,
-                                          children: [
-                                            _ProfileLabeledControl(
-                                              label: context.l10n.emulation,
-                                              child:
-                                                  AppDropdownFormField<
-                                                    TerminalEmulation
-                                                  >(
-                                                    key: const Key(
-                                                      'profile-editor-emulation',
-                                                    ),
-                                                    initialValue:
-                                                        _terminalEmulation,
-                                                    isExpanded: true,
-                                                    iconSize: 18,
-                                                    itemHeight:
-                                                        _dropdownItemHeight,
-                                                    menuMaxHeight: 240,
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          theme.radius.md,
-                                                        ),
-                                                    decoration:
-                                                        _profileFieldDecoration(),
-                                                    items: TerminalEmulation
-                                                        .values
-                                                        .map(
-                                                          (value) =>
-                                                              DropdownMenuItem<
-                                                                TerminalEmulation
-                                                              >(
-                                                                value: value,
-                                                                child: Text(
-                                                                  terminalEmulationLabel(
-                                                                    value,
-                                                                  ),
-                                                                ),
-                                                              ),
-                                                        )
-                                                        .toList(),
-                                                    onChanged: (value) {
-                                                      if (value == null) {
-                                                        return;
-                                                      }
-                                                      setState(() {
-                                                        _didEdit = true;
-                                                        _terminalEmulation =
-                                                            value;
-                                                      });
-                                                    },
-                                                  ),
-                                            ),
-                                            SizedBox(height: theme.spacing.xxl),
-                                            _ProfileLabeledControl(
-                                              label:
-                                                  context.l10n.scrollbackLines,
-                                              child: TextFormField(
-                                                key: const Key(
-                                                  'profile-editor-scrollback',
-                                                ),
-                                                controller:
-                                                    _scrollbackController,
-                                                focusNode: _scrollbackFocusNode,
-                                                decoration:
-                                                    _profileFieldDecoration(),
-                                                keyboardType:
-                                                    TextInputType.number,
-                                                inputFormatters: [
-                                                  FilteringTextInputFormatter
-                                                      .digitsOnly,
-                                                ],
-                                                validator: (value) =>
-                                                    _positiveIntegerError(
-                                                      value ?? '',
-                                                      context
-                                                          .l10n
-                                                          .scrollbackLines,
-                                                      maximum:
-                                                          maxTerminalScrollbackLines,
-                                                    ),
+                                      _ProfileSettingsGridRow(
+                                        label: context.l10n.emulation,
+                                        helperText:
+                                            context.l10n.terminalEmulationHelp,
+                                        child:
+                                            AppDropdownFormField<
+                                              TerminalEmulation
+                                            >(
+                                              key: const Key(
+                                                'profile-editor-emulation',
                                               ),
+                                              initialValue: _terminalEmulation,
+                                              isExpanded: true,
+                                              iconSize: 18,
+                                              itemHeight: _dropdownItemHeight,
+                                              menuMaxHeight: 240,
+                                              borderRadius:
+                                                  BorderRadius.circular(
+                                                    theme.radius.md,
+                                                  ),
+                                              decoration:
+                                                  _profileFieldDecoration(),
+                                              items: TerminalEmulation.values
+                                                  .map(
+                                                    (value) =>
+                                                        DropdownMenuItem<
+                                                          TerminalEmulation
+                                                        >(
+                                                          value: value,
+                                                          child: Text(
+                                                            terminalEmulationLabel(
+                                                              value,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                  )
+                                                  .toList(),
+                                              onChanged: (value) {
+                                                if (value == null) {
+                                                  return;
+                                                }
+                                                setState(() {
+                                                  _didEdit = true;
+                                                  _terminalEmulation = value;
+                                                });
+                                              },
                                             ),
+                                      ),
+                                      Padding(
+                                        padding: EdgeInsets.symmetric(
+                                          vertical: theme.spacing.xl,
+                                        ),
+                                        child: Divider(
+                                          height: 1,
+                                          color: theme.border,
+                                        ),
+                                      ),
+                                      _ProfileSettingsGridRow(
+                                        label: context.l10n.scrollbackLines,
+                                        helperText:
+                                            context.l10n.scrollbackLinesHelp,
+                                        trailingText: context.l10n.linesUnit,
+                                        child: TextFormField(
+                                          key: const Key(
+                                            'profile-editor-scrollback',
+                                          ),
+                                          controller: _scrollbackController,
+                                          focusNode: _scrollbackFocusNode,
+                                          decoration: _profileFieldDecoration(),
+                                          keyboardType: TextInputType.number,
+                                          inputFormatters: [
+                                            FilteringTextInputFormatter
+                                                .digitsOnly,
                                           ],
+                                          validator: (value) =>
+                                              _positiveIntegerError(
+                                                value ?? '',
+                                                context.l10n.scrollbackLines,
+                                                maximum:
+                                                    maxTerminalScrollbackLines,
+                                              ),
                                         ),
                                       ),
                                     ],
@@ -2071,7 +2081,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                     'profile-editor-group-typography',
                                   ),
                                   title: context.l10n.typography,
-                                  tone: AppPanelTone.elevated,
+                                  tone: AppPanelTone.panel,
                                   children: [
                                     _ProfileLabeledControl(
                                       label: context.l10n.fontFamily,
@@ -2095,11 +2105,12 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                       addKey: const Key(
                                         'profile-editor-add-fallback',
                                       ),
-                                      addLabel: 'Add fallback',
-                                      emptyLabel: 'No fallback fonts',
+                                      addLabel: context.l10n.addFallbackFont,
+                                      emptyLabel: context.l10n.noFallbackFonts,
                                       controllers: _fallbackControllers,
                                       fieldKeyPrefix: 'profile-editor-fallback',
                                       compactRows: true,
+                                      maxListHeight: 240,
                                       maxEntries:
                                           maxTerminalFontFallbackFamilies,
                                       limitEntryLabel: 'fallback fonts',
@@ -2158,7 +2169,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                 _ProfileFormGroup(
                                   key: const Key('profile-editor-group-colors'),
                                   title: context.l10n.colors,
-                                  tone: AppPanelTone.elevated,
+                                  tone: AppPanelTone.panel,
                                   children: [
                                     _buildThemePresetSection(),
                                     const SizedBox(height: 16),
@@ -2187,7 +2198,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                 _ProfileFormGroup(
                                   key: const Key('profile-editor-group-cursor'),
                                   title: context.l10n.cursor,
-                                  tone: AppPanelTone.elevated,
+                                  tone: AppPanelTone.panel,
                                   children: [
                                     _ProfileLabeledControl(
                                       label: context.l10n.cursorShape,
@@ -2269,46 +2280,56 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                 description:
                                     context.l10n.keysProfileDescription,
                                 children: [
-                                  _ProfileFormGroup(
+                                  KeyedSubtree(
                                     key: const Key(
                                       'profile-editor-group-selection',
                                     ),
-                                    title: context.l10n.selection,
-                                    children: [
-                                      ToggleSettingRow(
-                                        key: const Key(
-                                          'profile-editor-copy-on-select',
-                                        ),
-                                        label: context.l10n.copyOnSelect,
-                                        value: _copyOnSelect,
-                                        onChanged: (value) {
-                                          setState(() {
-                                            _didEdit = true;
-                                            _copyOnSelect = value;
-                                          });
-                                        },
-                                      ),
-                                      Padding(
-                                        padding: EdgeInsets.symmetric(
-                                          vertical: theme.spacing.lg,
-                                        ),
-                                        child: Divider(
-                                          height: 1,
-                                          color: theme.border,
-                                        ),
-                                      ),
-                                      Text(
-                                        context.l10n.optionDragMode,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .titleSmall
-                                            ?.copyWith(
-                                              fontWeight: FontWeight.w600,
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        Divider(height: 1, color: theme.border),
+                                        Padding(
+                                          padding: EdgeInsets.symmetric(
+                                            vertical: theme.spacing.xl,
+                                          ),
+                                          child: ConstrainedBox(
+                                            constraints: const BoxConstraints(
+                                              minHeight: 48,
                                             ),
-                                      ),
-                                      SizedBox(height: theme.spacing.md),
-                                      _buildOptionDragModeField(),
-                                    ],
+                                            child: ToggleSettingRow(
+                                              key: const Key(
+                                                'profile-editor-copy-on-select',
+                                              ),
+                                              label: context.l10n.copyOnSelect,
+                                              value: _copyOnSelect,
+                                              onChanged: (value) {
+                                                setState(() {
+                                                  _didEdit = true;
+                                                  _copyOnSelect = value;
+                                                });
+                                              },
+                                            ),
+                                          ),
+                                        ),
+                                        Divider(height: 1, color: theme.border),
+                                        Padding(
+                                          padding: EdgeInsets.symmetric(
+                                            vertical: theme.spacing.xl,
+                                          ),
+                                          child: _ProfileSettingsGridRow(
+                                            label: context.l10n.optionDragMode,
+                                            child: ConstrainedBox(
+                                              constraints: const BoxConstraints(
+                                                minHeight: 48,
+                                              ),
+                                              child:
+                                                  _buildOptionDragModeField(),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ],
                               ),
@@ -2329,40 +2350,37 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                               children: [
                                 _ProfileFormGroup(
                                   key: const Key(
-                                    'profile-editor-group-automation-rules',
+                                    'profile-editor-group-triggers',
                                   ),
-                                  title: context.l10n.rules,
+                                  title: context.l10n.triggers,
                                   children: [
                                     _ProfileRuleEditor(
                                       fieldKey: const Key(
                                         'profile-editor-triggers',
                                       ),
-                                      label: context.l10n.triggers,
+                                      label: context.l10n.rules,
                                       helperText: context.l10n.triggerExamples,
                                       controller: _triggersController,
                                       focusNode: _triggersFocusNode,
                                       validator: (value) =>
                                           _triggerLinesError(value ?? ''),
                                     ),
-                                    Padding(
-                                      padding: EdgeInsets.symmetric(
-                                        vertical: theme.spacing.xl,
-                                      ),
-                                      child: Divider(
-                                        height: 1,
-                                        color: theme.border,
-                                      ),
-                                    ),
+                                  ],
+                                ),
+                                _ProfileFormGroup(
+                                  key: const Key(
+                                    'profile-editor-group-switching',
+                                  ),
+                                  title: context.l10n.automaticProfileSwitching,
+                                  description: context
+                                      .l10n
+                                      .automaticProfileSwitchingHelp,
+                                  children: [
                                     _ProfileRuleEditor(
                                       fieldKey: const Key(
                                         'profile-editor-switch-rules',
                                       ),
-                                      label: context
-                                          .l10n
-                                          .automaticProfileSwitching,
-                                      helperText: context
-                                          .l10n
-                                          .automaticProfileSwitchingHelp,
+                                      label: context.l10n.rules,
                                       controller: _switchRulesController,
                                       focusNode: _switchRulesFocusNode,
                                       validator: (value) =>
@@ -2391,8 +2409,8 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                   ),
                                   title: context.l10n.integration,
                                   children: [
-                                    ToggleSettingRow(
-                                      key: const Key(
+                                    _ProfileIntegrationSetting(
+                                      settingKey: const Key(
                                         'profile-editor-shell-integration',
                                       ),
                                       label: context.l10n.shellIntegration,
@@ -2424,7 +2442,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                     children: [
                       DecoratedBox(
                         decoration: BoxDecoration(
-                          color: theme.chrome.withValues(alpha: 0.34),
+                          color: theme.chrome,
                           border: Border(
                             right: BorderSide(color: theme.border),
                           ),
@@ -2496,6 +2514,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     required List<TextEditingController> controllers,
     required String fieldKeyPrefix,
     bool compactRows = false,
+    double? maxListHeight,
     required int maxEntries,
     required String limitEntryLabel,
     required VoidCallback onAdd,
@@ -2568,7 +2587,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
             child: SizedBox(
               width: double.infinity,
               child: AppPanel(
-                tone: AppPanelTone.terminal,
+                tone: AppPanelTone.chrome,
                 padding: EdgeInsets.zero,
                 borderRadius: BorderRadius.circular(theme.radius.md),
                 border: Border.all(
@@ -2576,7 +2595,16 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(theme.radius.md),
-                  child: Column(children: rows),
+                  child: maxListHeight == null
+                      ? Column(children: rows)
+                      : _ProfileBoundedEditorList(
+                          height: math.min(
+                            maxListHeight,
+                            controllers.length * 48.0 +
+                                math.max(controllers.length - 1, 0),
+                          ),
+                          children: rows,
+                        ),
                 ),
               ),
             ),
@@ -2680,7 +2708,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
       hintText: hintText,
       isDense: false,
       filled: true,
-      fillColor: theme.terminalSurface.withValues(alpha: 0.92),
+      fillColor: theme.chrome,
       floatingLabelBehavior: FloatingLabelBehavior.never,
       border: outline,
       enabledBorder: outline,
@@ -2693,10 +2721,10 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
       focusedErrorBorder: outline.copyWith(
         borderSide: BorderSide(color: theme.danger, width: 1.6),
       ),
-      constraints: const BoxConstraints(minHeight: 64),
+      constraints: BoxConstraints(minHeight: context.adaptiveControlHeight(44)),
       contentPadding: EdgeInsets.symmetric(
         horizontal: theme.spacing.xl,
-        vertical: theme.spacing.xl,
+        vertical: theme.spacing.lg,
       ),
     );
   }
@@ -2774,7 +2802,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
             child: SizedBox(
               width: double.infinity,
               child: AppPanel(
-                tone: AppPanelTone.terminal,
+                tone: AppPanelTone.chrome,
                 padding: EdgeInsets.zero,
                 borderRadius: BorderRadius.circular(theme.radius.md),
                 border: Border.all(
@@ -2783,11 +2811,11 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                 child: Column(
                   children: [
                     Padding(
-                      padding: EdgeInsets.fromLTRB(
-                        theme.spacing.md,
-                        theme.spacing.sm,
-                        theme.spacing.sm,
-                        theme.spacing.xs,
+                      padding: EdgeInsets.only(
+                        left: theme.spacing.md,
+                        top: theme.spacing.sm,
+                        right: theme.spacing.sm,
+                        bottom: theme.spacing.xs,
                       ),
                       child: Row(
                         children: [
@@ -2807,7 +2835,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                             ),
                           ),
                           SizedBox(
-                            width: theme.controls.dense + theme.spacing.sm,
+                            width: theme.controls.dense * 3 + theme.spacing.sm,
                           ),
                         ],
                       ),
@@ -2861,6 +2889,28 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                               ),
                             ),
                             SizedBox(width: theme.spacing.sm),
+                            Container(
+                              width: 1,
+                              height: 24,
+                              color: theme.border,
+                            ),
+                            SizedBox(width: theme.spacing.sm),
+                            _buildListActionButton(
+                              buttonKey: Key('profile-editor-env-$index-up'),
+                              tooltip: context.l10n.moveUp,
+                              onPressed: index == 0
+                                  ? null
+                                  : () => _moveEnv(index, index - 1),
+                              icon: Icons.arrow_upward,
+                            ),
+                            _buildListActionButton(
+                              buttonKey: Key('profile-editor-env-$index-down'),
+                              tooltip: context.l10n.moveDown,
+                              onPressed: index == _envControllers.length - 1
+                                  ? null
+                                  : () => _moveEnv(index, index + 1),
+                              icon: Icons.arrow_downward,
+                            ),
                             _buildListActionButton(
                               buttonKey: Key(
                                 'profile-editor-env-remove-$index',
@@ -3024,65 +3074,48 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
   }
 
   Widget _buildOptionDragModeField() {
-    final theme = context.appTheme;
     const modes = TerminalOptionDragMode.values;
     if (modes.length == 1) {
       return Text(
-        terminalOptionDragModeLabel(modes.single),
+        _localizedOptionDragModeLabel(modes.single),
         style: Theme.of(
           context,
         ).textTheme.bodyMedium?.copyWith(color: context.appTheme.textSubtle),
       );
     }
 
-    return RadioGroup<TerminalOptionDragMode>(
-      groupValue: _optionDragMode,
-      onChanged: (value) {
-        if (value == null) {
+    return SegmentedButton<TerminalOptionDragMode>(
+      key: const Key('profile-editor-option-drag-mode'),
+      segments: [
+        for (final mode in modes)
+          ButtonSegment<TerminalOptionDragMode>(
+            value: mode,
+            label: Text(
+              _localizedOptionDragModeLabel(mode),
+              key: Key('profile-editor-option-drag-${mode.name}'),
+            ),
+          ),
+      ],
+      selected: {_optionDragMode},
+      showSelectedIcon: true,
+      expandedInsets: EdgeInsets.zero,
+      onSelectionChanged: (selection) {
+        if (selection.isEmpty) {
           return;
         }
         setState(() {
           _didEdit = true;
-          _optionDragMode = value;
+          _optionDragMode = selection.single;
         });
       },
-      child: Column(
-        children: [
-          for (final (index, mode) in modes.indexed) ...[
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              curve: Curves.easeOutCubic,
-              constraints: const BoxConstraints(minHeight: 48),
-              padding: EdgeInsets.symmetric(
-                horizontal: theme.spacing.lg,
-                vertical: theme.spacing.xs,
-              ),
-              decoration: BoxDecoration(
-                color: _optionDragMode == mode
-                    ? theme.selected.withValues(alpha: 0.48)
-                    : theme.chrome,
-                borderRadius: BorderRadius.circular(theme.radius.lg),
-                border: Border.all(
-                  color: _optionDragMode == mode
-                      ? theme.focusRing
-                      : theme.border,
-                  width: _optionDragMode == mode ? 1.5 : 1,
-                ),
-              ),
-              child: Material(
-                color: Colors.transparent,
-                child: AppCompactRadioTile<TerminalOptionDragMode>(
-                  tileKey: Key('profile-editor-option-drag-${mode.name}'),
-                  value: mode,
-                  title: Text(terminalOptionDragModeLabel(mode)),
-                ),
-              ),
-            ),
-            if (index != modes.length - 1) SizedBox(height: theme.spacing.sm),
-          ],
-        ],
-      ),
     );
+  }
+
+  String _localizedOptionDragModeLabel(TerminalOptionDragMode mode) {
+    return switch (mode) {
+      TerminalOptionDragMode.normalSelection => context.l10n.normalSelection,
+      TerminalOptionDragMode.blockSelection => context.l10n.blockSelection,
+    };
   }
 
   Future<void> _pickColor(
@@ -3127,13 +3160,15 @@ class _EnvEntryControllers {
 class _ProfileFormGroup extends StatelessWidget {
   const _ProfileFormGroup({
     super.key,
-    required this.title,
-    this.tone = AppPanelTone.overlay,
+    this.title,
+    this.tone = AppPanelTone.panel,
+    this.description,
     required this.children,
   });
 
-  final String title;
+  final String? title;
   final AppPanelTone tone;
+  final String? description;
   final List<Widget> children;
 
   @override
@@ -3147,22 +3182,33 @@ class _ProfileFormGroup extends StatelessWidget {
         width: double.infinity,
         child: AppPanel(
           tone: tone,
-          padding: EdgeInsets.all(theme.spacing.xxl + theme.spacing.xs),
+          padding: EdgeInsets.all(theme.spacing.xxl),
           borderRadius: BorderRadius.circular(theme.radius.xl),
           border: Border.all(color: theme.border),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                title,
-                style: textTheme.titleMedium?.copyWith(
-                  color: theme.textPrimary,
-                  fontWeight: FontWeight.w700,
+              if (title != null) ...[
+                Text(
+                  title!,
+                  style: textTheme.titleSmall?.copyWith(
+                    color: theme.textPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-              ),
-              SizedBox(height: theme.spacing.xl),
-              Divider(height: 1, color: theme.border),
-              SizedBox(height: theme.spacing.xxl),
+                if (description != null) ...[
+                  SizedBox(height: theme.spacing.xs),
+                  Text(
+                    description!,
+                    style: textTheme.bodySmall?.copyWith(
+                      color: theme.textSubtle,
+                    ),
+                  ),
+                ],
+                SizedBox(height: theme.spacing.lg),
+                Divider(height: 1, color: theme.border),
+                SizedBox(height: theme.spacing.xl),
+              ],
               ...children,
             ],
           ),
@@ -3198,10 +3244,10 @@ class _ProfileLabeledControl extends StatelessWidget {
             fontWeight: FontWeight.w600,
           ),
         ),
-        SizedBox(height: theme.spacing.xl),
+        SizedBox(height: theme.spacing.md),
         Semantics(label: label, child: child),
         if (helperText != null) ...[
-          SizedBox(height: theme.spacing.md),
+          SizedBox(height: theme.spacing.sm),
           Text(
             helperText!,
             style: textTheme.bodySmall?.copyWith(color: theme.textSubtle),
@@ -3250,11 +3296,206 @@ class _ProfileResponsiveFieldPair extends StatelessWidget {
   }
 }
 
+class _ProfileSettingsGridRow extends StatelessWidget {
+  const _ProfileSettingsGridRow({
+    required this.label,
+    this.helperText,
+    this.trailingText,
+    required this.child,
+  });
+
+  final String label;
+  final String? helperText;
+  final String? trailingText;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.appTheme;
+    final textTheme = Theme.of(context).textTheme;
+    final control = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(child: child),
+            if (trailingText != null) ...[
+              SizedBox(width: theme.spacing.lg),
+              Text(
+                trailingText!,
+                style: textTheme.bodyMedium?.copyWith(
+                  color: theme.textMuted,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ],
+        ),
+        if (helperText != null) ...[
+          SizedBox(height: theme.spacing.md),
+          Text(
+            helperText!,
+            style: textTheme.bodySmall?.copyWith(color: theme.textSubtle),
+          ),
+        ],
+      ],
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 520) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                label,
+                style: textTheme.titleSmall?.copyWith(
+                  color: theme.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              SizedBox(height: theme.spacing.md),
+              control,
+            ],
+          );
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 168,
+              child: Padding(
+                padding: EdgeInsets.only(top: theme.spacing.lg),
+                child: Text(
+                  label,
+                  style: textTheme.titleSmall?.copyWith(
+                    color: theme.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+            SizedBox(width: theme.spacing.xxl),
+            Expanded(child: control),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _ProfileIntegrationSetting extends StatelessWidget {
+  const _ProfileIntegrationSetting({
+    required this.settingKey,
+    required this.label,
+    required this.description,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final Key settingKey;
+  final String label;
+  final String description;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.appTheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ToggleSettingRow(
+          key: settingKey,
+          label: label,
+          description: description,
+          value: value,
+          onChanged: onChanged,
+        ),
+        SizedBox(height: theme.spacing.sm),
+        Semantics(
+          label: value
+              ? context.l10n.enabledStatus
+              : context.l10n.disabledStatus,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                value ? Icons.check_circle : Icons.remove_circle_outline,
+                size: 16,
+                color: value ? theme.success : theme.textSubtle,
+              ),
+              SizedBox(width: theme.spacing.sm),
+              Text(
+                value
+                    ? context.l10n.enabledStatus
+                    : context.l10n.disabledStatus,
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: value ? theme.success : theme.textSubtle,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ProfileBoundedEditorList extends StatefulWidget {
+  const _ProfileBoundedEditorList({
+    required this.height,
+    required this.children,
+  });
+
+  final double height;
+  final List<Widget> children;
+
+  @override
+  State<_ProfileBoundedEditorList> createState() =>
+      _ProfileBoundedEditorListState();
+}
+
+class _ProfileBoundedEditorListState extends State<_ProfileBoundedEditorList> {
+  final ScrollController _controller = ScrollController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final showScrollbar = widget.children.length * 24 > widget.height;
+    return SizedBox(
+      height: widget.height,
+      child: Scrollbar(
+        controller: _controller,
+        thumbVisibility: showScrollbar,
+        trackVisibility: showScrollbar,
+        interactive: true,
+        thickness: context.appTheme.spacing.sm,
+        radius: Radius.circular(context.appTheme.radius.sm),
+        child: ListView(
+          controller: _controller,
+          padding: EdgeInsets.zero,
+          physics: const ClampingScrollPhysics(),
+          children: widget.children,
+        ),
+      ),
+    );
+  }
+}
+
 class _ProfileRuleEditor extends StatelessWidget {
   const _ProfileRuleEditor({
     required this.fieldKey,
     required this.label,
-    required this.helperText,
+    this.helperText,
     required this.controller,
     required this.focusNode,
     required this.validator,
@@ -3262,7 +3503,7 @@ class _ProfileRuleEditor extends StatelessWidget {
 
   final Key fieldKey;
   final String label;
-  final String helperText;
+  final String? helperText;
   final TextEditingController controller;
   final FocusNode focusNode;
   final FormFieldValidator<String> validator;
@@ -3271,6 +3512,10 @@ class _ProfileRuleEditor extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = context.appTheme;
     final textTheme = Theme.of(context).textTheme;
+    final outline = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(theme.radius.md),
+      borderSide: BorderSide(color: theme.borderStrong),
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -3290,23 +3535,40 @@ class _ProfileRuleEditor extends StatelessWidget {
             key: fieldKey,
             controller: controller,
             focusNode: focusNode,
-            minLines: 4,
-            maxLines: 6,
+            minLines: 5,
+            maxLines: 5,
             autocorrect: false,
             enableSuggestions: false,
             keyboardType: TextInputType.multiline,
             textInputAction: TextInputAction.newline,
             style: textTheme.bodyMedium?.copyWith(fontFamily: 'monospace'),
-            decoration: const InputDecoration(),
+            decoration: InputDecoration(
+              filled: true,
+              fillColor: theme.chrome,
+              border: outline,
+              enabledBorder: outline,
+              focusedBorder: outline.copyWith(
+                borderSide: BorderSide(color: theme.focusRing, width: 1.6),
+              ),
+              errorBorder: outline.copyWith(
+                borderSide: BorderSide(color: theme.danger),
+              ),
+              focusedErrorBorder: outline.copyWith(
+                borderSide: BorderSide(color: theme.danger, width: 1.6),
+              ),
+              contentPadding: EdgeInsets.all(theme.spacing.xl),
+            ),
             validator: validator,
             onTapOutside: (_) => focusNode.unfocus(),
           ),
         ),
-        SizedBox(height: theme.spacing.sm),
-        Text(
-          helperText,
-          style: textTheme.bodySmall?.copyWith(color: theme.textSubtle),
-        ),
+        if (helperText != null) ...[
+          SizedBox(height: theme.spacing.sm),
+          Text(
+            helperText!,
+            style: textTheme.bodySmall?.copyWith(color: theme.textSubtle),
+          ),
+        ],
       ],
     );
   }
@@ -3338,13 +3600,9 @@ class _ProfileEditorSectionNavItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = context.appTheme;
     final sectionLabel = context.l10n.profileSectionName(spec.section.name);
-    final foreground = selected ? theme.textPrimary : theme.textMuted;
-    final background = selected
-        ? theme.selected.withValues(alpha: 0.86)
-        : theme.chrome.withValues(alpha: 0);
-    final borderColor = selected
-        ? theme.focusRing.withValues(alpha: 0.72)
-        : Colors.transparent;
+    final foreground = selected ? theme.accent : theme.textMuted;
+    final background = selected ? theme.selected : Colors.transparent;
+    final indicatorColor = selected ? theme.accent : Colors.transparent;
     final content = Row(
       mainAxisSize: vertical ? MainAxisSize.max : MainAxisSize.min,
       children: [
@@ -3353,7 +3611,7 @@ class _ProfileEditorSectionNavItem extends StatelessWidget {
             width: 3,
             height: 26,
             decoration: BoxDecoration(
-              color: borderColor,
+              color: indicatorColor,
               borderRadius: BorderRadius.circular(theme.radius.sm),
             ),
           ),
@@ -3366,7 +3624,7 @@ class _ProfileEditorSectionNavItem extends StatelessWidget {
             sectionLabel,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
               color: foreground,
               fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
             ),
@@ -3438,7 +3696,7 @@ class _ProfileEditorSectionNavItem extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: background,
                     borderRadius: BorderRadius.circular(theme.radius.lg),
-                    border: Border.all(color: borderColor),
+                    border: Border.all(color: Colors.transparent),
                   ),
                   child: content,
                 ),
@@ -3489,9 +3747,7 @@ class _FollowAppThemeColorChoice extends StatelessWidget {
               vertical: theme.spacing.md,
             ),
             decoration: BoxDecoration(
-              color: selected
-                  ? theme.selected.withValues(alpha: 0.52)
-                  : theme.chrome,
+              color: selected ? theme.selected : theme.chrome,
               borderRadius: BorderRadius.circular(theme.radius.lg),
               border: Border.all(
                 color: selected ? theme.focusRing : theme.border,

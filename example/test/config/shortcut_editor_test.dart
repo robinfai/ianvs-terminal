@@ -214,7 +214,7 @@ void main() {
     );
     final header = find.byKey(const Key('shortcut-editor-list-header'));
     final listPanel = find.byKey(const Key('shortcut-editor-list-panel'));
-    expect(tester.getSize(header).height, 36);
+    expect(tester.getSize(header).height, 40);
     expect(tester.getSize(header).width, tester.getSize(listPanel).width);
     expect(
       tester

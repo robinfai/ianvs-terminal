@@ -33,21 +33,30 @@ Future<void> _loadVisualFonts() async {
   await Future.wait([text.load(), materialIcons.load()]);
 }
 
-Future<void> _pumpSettings(WidgetTester tester) async {
+Future<void> _pumpSettings(
+  WidgetTester tester, {
+  Size surfaceSize = _surfaceSize,
+  Brightness brightness = Brightness.light,
+  TextScaler textScaler = TextScaler.noScaling,
+}) async {
   tester.view.devicePixelRatio = 1;
-  tester.view.physicalSize = _surfaceSize;
+  tester.view.physicalSize = surfaceSize;
   addTearDown(tester.view.resetDevicePixelRatio);
   addTearDown(tester.view.resetPhysicalSize);
 
   final profile = defaultTerminalProfile();
   final baseTheme = buildIanvsTerminalTheme(
-    Brightness.light,
+    brightness,
     platform: TargetPlatform.macOS,
   );
   const captureFont = 'SettingsCaptureSans';
   final inputDecorationTheme = baseTheme.inputDecorationTheme;
   await tester.pumpWidget(
     MaterialApp(
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(textScaler: textScaler),
+        child: child!,
+      ),
       locale: const Locale('zh'),
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
@@ -101,8 +110,17 @@ Future<void> _captureTab(
   WidgetTester tester, {
   required String tabKey,
   required String goldenName,
+  Size surfaceSize = _surfaceSize,
+  Brightness brightness = Brightness.light,
+  TextScaler textScaler = TextScaler.noScaling,
+  String? goldenPath,
 }) async {
-  await _pumpSettings(tester);
+  await _pumpSettings(
+    tester,
+    surfaceSize: surfaceSize,
+    brightness: brightness,
+    textScaler: textScaler,
+  );
   if (tabKey != 'general') {
     await tester.tap(find.byKey(Key('defaults-section-$tabKey')));
     await tester.pumpAndSettle();
@@ -110,7 +128,8 @@ Future<void> _captureTab(
   await expectLater(
     find.byKey(const Key('defaults-dialog')),
     matchesGoldenFile(
-      '../../../docs/design/settings-tabs/current/$goldenName.png',
+      goldenPath ??
+          '../../../docs/design/settings-tabs/current/$goldenName.png',
     ),
   );
 }
@@ -145,5 +164,28 @@ void main() {
 
   testWidgets('captures Data service settings tab', (tester) async {
     await _captureTab(tester, tabKey: 'data', goldenName: '05-data');
+  });
+
+  testWidgets('captures dark Appearance settings tab', (tester) async {
+    await _captureTab(
+      tester,
+      tabKey: 'appearance',
+      goldenName: 'settings-dark-appearance',
+      brightness: Brightness.dark,
+      goldenPath:
+          '../../../docs/design/config-refresh/adaptive/settings-dark-appearance.png',
+    );
+  });
+
+  testWidgets('captures compact scaled settings layout', (tester) async {
+    await _captureTab(
+      tester,
+      tabKey: 'general',
+      goldenName: 'settings-compact-scaled',
+      surfaceSize: const Size(540, 900),
+      textScaler: const TextScaler.linear(1.25),
+      goldenPath:
+          '../../../docs/design/config-refresh/adaptive/settings-compact-scaled.png',
+    );
   });
 }

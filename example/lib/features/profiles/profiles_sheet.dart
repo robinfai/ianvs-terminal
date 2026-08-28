@@ -395,7 +395,7 @@ class _ProfileEntrySubtitle extends StatelessWidget {
     final palette = context.appTheme;
     final summaryStyle = Theme.of(
       context,
-    ).textTheme.bodySmall?.copyWith(color: palette.textSubtle);
+    ).textTheme.bodySmall?.copyWith(color: palette.textMuted);
     if (tags.isEmpty) {
       return Text(summary, style: summaryStyle);
     }

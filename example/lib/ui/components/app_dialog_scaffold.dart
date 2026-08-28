@@ -59,14 +59,14 @@ class AppDialogScaffold extends StatelessWidget {
     final header = Padding(
       padding:
           headerPadding ??
-          EdgeInsets.fromLTRB(
-            theme.spacing.lg,
-            theme.spacing.md,
-            theme.spacing.lg,
-            theme.spacing.sm,
+          EdgeInsets.only(
+            left: theme.spacing.lg,
+            top: theme.spacing.md,
+            right: theme.spacing.lg,
+            bottom: theme.spacing.sm,
           ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           if (leading != null) ...[leading!, SizedBox(width: theme.spacing.sm)],
           Expanded(
@@ -118,11 +118,11 @@ class AppDialogScaffold extends StatelessWidget {
     final paddedBody = Padding(
       padding:
           bodyPadding ??
-          EdgeInsets.fromLTRB(
-            theme.spacing.xl,
-            theme.spacing.md,
-            theme.spacing.xl,
-            theme.spacing.md,
+          EdgeInsets.only(
+            left: theme.spacing.xl,
+            top: theme.spacing.md,
+            right: theme.spacing.xl,
+            bottom: theme.spacing.md,
           ),
       child: body,
     );
@@ -132,11 +132,11 @@ class AppDialogScaffold extends StatelessWidget {
         : Padding(
             padding:
                 footerPadding ??
-                EdgeInsets.fromLTRB(
-                  theme.spacing.xl,
-                  theme.spacing.md,
-                  theme.spacing.xl,
-                  theme.spacing.md,
+                EdgeInsets.only(
+                  left: theme.spacing.xl,
+                  top: theme.spacing.md,
+                  right: theme.spacing.xl,
+                  bottom: theme.spacing.md,
                 ),
             child: footer,
           );
@@ -147,7 +147,10 @@ class AppDialogScaffold extends StatelessWidget {
         header,
         const Divider(height: 1),
         if (expandBody) Expanded(child: paddedBody) else paddedBody,
-        if (paddedFooter != null) ...[const Divider(height: 1), paddedFooter],
+        if (paddedFooter != null) ...[
+          Divider(height: 1, color: theme.borderStrong),
+          paddedFooter,
+        ],
       ],
     );
 

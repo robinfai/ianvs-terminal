@@ -2462,6 +2462,18 @@ abstract class AppLocalizations {
   /// **'Arguments'**
   String get arguments;
 
+  /// No description provided for @addArgument.
+  ///
+  /// In en, this message translates to:
+  /// **'Add argument'**
+  String get addArgument;
+
+  /// No description provided for @noLaunchArguments.
+  ///
+  /// In en, this message translates to:
+  /// **'No launch arguments'**
+  String get noLaunchArguments;
+
   /// No description provided for @terminal.
   ///
   /// In en, this message translates to:
@@ -2480,11 +2492,29 @@ abstract class AppLocalizations {
   /// **'Emulation'**
   String get emulation;
 
+  /// No description provided for @terminalEmulationHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Select the terminal emulation reported to applications.'**
+  String get terminalEmulationHelp;
+
   /// No description provided for @scrollbackLines.
   ///
   /// In en, this message translates to:
   /// **'Scrollback lines'**
   String get scrollbackLines;
+
+  /// No description provided for @scrollbackLinesHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Maximum number of lines retained in the scrollback buffer.'**
+  String get scrollbackLinesHelp;
+
+  /// No description provided for @linesUnit.
+  ///
+  /// In en, this message translates to:
+  /// **'lines'**
+  String get linesUnit;
 
   /// No description provided for @profileAppearanceDescription.
   ///
@@ -2509,6 +2539,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Fallback fonts'**
   String get fallbackFonts;
+
+  /// No description provided for @addFallbackFont.
+  ///
+  /// In en, this message translates to:
+  /// **'Add fallback'**
+  String get addFallbackFont;
+
+  /// No description provided for @noFallbackFonts.
+  ///
+  /// In en, this message translates to:
+  /// **'No fallback fonts'**
+  String get noFallbackFonts;
 
   /// No description provided for @fontSize.
   ///
@@ -2594,6 +2636,18 @@ abstract class AppLocalizations {
   /// **'Option-drag mode'**
   String get optionDragMode;
 
+  /// No description provided for @normalSelection.
+  ///
+  /// In en, this message translates to:
+  /// **'Normal selection'**
+  String get normalSelection;
+
+  /// No description provided for @blockSelection.
+  ///
+  /// In en, this message translates to:
+  /// **'Block selection'**
+  String get blockSelection;
+
   /// No description provided for @automation.
   ///
   /// In en, this message translates to:
@@ -2665,6 +2719,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Enable prompt marks, badges, command navigation, and shell-aware actions.'**
   String get shellIntegrationDescription;
+
+  /// No description provided for @enabledStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Enabled'**
+  String get enabledStatus;
+
+  /// No description provided for @disabledStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Disabled'**
+  String get disabledStatus;
 
   /// No description provided for @toolbeltTerminalTools.
   ///

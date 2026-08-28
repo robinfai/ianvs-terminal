@@ -1481,6 +1481,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get arguments => 'Arguments';
 
   @override
+  String get addArgument => 'Add argument';
+
+  @override
+  String get noLaunchArguments => 'No launch arguments';
+
+  @override
   String get terminal => 'Terminal';
 
   @override
@@ -1491,7 +1497,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get emulation => 'Emulation';
 
   @override
+  String get terminalEmulationHelp =>
+      'Select the terminal emulation reported to applications.';
+
+  @override
   String get scrollbackLines => 'Scrollback lines';
+
+  @override
+  String get scrollbackLinesHelp =>
+      'Maximum number of lines retained in the scrollback buffer.';
+
+  @override
+  String get linesUnit => 'lines';
 
   @override
   String get profileAppearanceDescription =>
@@ -1505,6 +1522,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get fallbackFonts => 'Fallback fonts';
+
+  @override
+  String get addFallbackFont => 'Add fallback';
+
+  @override
+  String get noFallbackFonts => 'No fallback fonts';
 
   @override
   String get fontSize => 'Font size';
@@ -1550,6 +1573,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get optionDragMode => 'Option-drag mode';
 
   @override
+  String get normalSelection => 'Normal selection';
+
+  @override
+  String get blockSelection => 'Block selection';
+
+  @override
   String get automation => 'Automation';
 
   @override
@@ -1589,6 +1618,12 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get shellIntegrationDescription =>
       'Enable prompt marks, badges, command navigation, and shell-aware actions.';
+
+  @override
+  String get enabledStatus => 'Enabled';
+
+  @override
+  String get disabledStatus => 'Disabled';
 
   @override
   String get toolbeltTerminalTools => 'Toolbelt terminal tools';

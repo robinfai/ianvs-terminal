@@ -850,6 +850,9 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                     child: Scrollbar(
                       controller: _scrollController,
                       thumbVisibility: true,
+                      trackVisibility: true,
+                      thickness: 5,
+                      radius: const Radius.circular(3),
                       child: SingleChildScrollView(
                         key: const Key('ssh-profile-form-scroll'),
                         controller: _scrollController,
