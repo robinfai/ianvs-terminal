@@ -107,56 +107,84 @@ void main() {
     expect(tester.getRect(find.byKey(contentKey)).size, const Size(400, 200));
   });
 
-  testWidgets('floating replay dock moves from its handle and can reset', (
-    tester,
-  ) async {
-    const dockKey = Key('floating-dock');
-    const handleKey = Key('dock-handle');
-    Size? availableSize;
-    final dragStates = <bool>[];
+  testWidgets(
+    'floating replay dock stays interactive after repeated moves and can reset',
+    (tester) async {
+      const dockKey = Key('floating-dock');
+      const handleKey = Key('dock-handle');
+      const actionKey = Key('dock-action');
+      Size? availableSize;
+      final dragStates = <bool>[];
+      var actionCount = 0;
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Center(
-          child: SizedBox(
-            width: 800,
-            height: 600,
-            child: ReplayFloatingStage(
-              recordedViewportSize: const Size(800, 600),
-              dragHandleColor: Colors.white,
-              floatingDockKey: dockKey,
-              dragHandleKey: handleKey,
-              onAvailableSizeChanged: (value) {
-                availableSize = value;
-              },
-              onDockDragStateChanged: dragStates.add,
-              viewport: const ColoredBox(color: Colors.black),
-              dock: const SizedBox(
-                height: 100,
-                child: ColoredBox(color: Colors.blue),
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Center(
+            child: SizedBox(
+              width: 800,
+              height: 600,
+              child: ReplayFloatingStage(
+                recordedViewportSize: const Size(800, 600),
+                dragHandleColor: Colors.white,
+                floatingDockKey: dockKey,
+                dragHandleKey: handleKey,
+                onAvailableSizeChanged: (value) {
+                  availableSize = value;
+                },
+                onDockDragStateChanged: dragStates.add,
+                viewport: const ColoredBox(color: Colors.black),
+                dock: SizedBox(
+                  height: 100,
+                  child: ColoredBox(
+                    color: Colors.blue,
+                    child: Center(
+                      child: TextButton(
+                        key: actionKey,
+                        onPressed: () {
+                          actionCount += 1;
+                        },
+                        child: const Text('Action'),
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
+      );
+      await tester.pumpAndSettle();
 
-    expect(availableSize, const Size(800, 600));
-    final initialTop = tester.getTopLeft(find.byKey(dockKey)).dy;
+      expect(availableSize, const Size(800, 600));
+      final initialTop = tester.getTopLeft(find.byKey(dockKey)).dy;
 
-    await tester.drag(find.byKey(handleKey), const Offset(0, -140));
-    await tester.pumpAndSettle();
+      await tester.drag(find.byKey(handleKey), const Offset(0, -140));
+      await tester.pumpAndSettle();
 
-    final movedTop = tester.getTopLeft(find.byKey(dockKey)).dy;
-    expect(movedTop, lessThan(initialTop - 100));
-    expect(dragStates, <bool>[true, false]);
+      final movedTop = tester.getTopLeft(find.byKey(dockKey)).dy;
+      expect(movedTop, lessThan(initialTop - 100));
+      expect(dragStates, <bool>[true, false]);
 
-    await tester.tap(find.byKey(handleKey));
-    await tester.pump(const Duration(milliseconds: 50));
-    await tester.tap(find.byKey(handleKey));
-    await tester.pumpAndSettle();
+      await tester.tap(find.byKey(actionKey));
+      await tester.pump();
 
-    expect(tester.getTopLeft(find.byKey(dockKey)).dy, closeTo(initialTop, 1));
-  });
+      expect(actionCount, 1);
+
+      await tester.drag(find.byKey(handleKey), const Offset(0, -80));
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.getTopLeft(find.byKey(dockKey)).dy,
+        lessThan(movedTop - 40),
+      );
+      expect(dragStates, <bool>[true, false, true, false]);
+
+      await tester.tap(find.byKey(handleKey));
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.tap(find.byKey(handleKey));
+      await tester.pumpAndSettle();
+
+      expect(tester.getTopLeft(find.byKey(dockKey)).dy, closeTo(initialTop, 1));
+    },
+  );
 }

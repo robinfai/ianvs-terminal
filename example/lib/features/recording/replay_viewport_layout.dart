@@ -323,7 +323,6 @@ class _ReplayFloatingStageState extends State<ReplayFloatingStage> {
           stageSize.width - widget.margin * 2,
         );
         final dockWidth = math.min(widget.maxDockWidth, availableDockWidth);
-        final baseGeometry = _geometryFor(stageSize, dockWidth, Offset.zero);
         _measureDock();
 
         return ClipRect(
@@ -338,97 +337,85 @@ class _ReplayFloatingStageState extends State<ReplayFloatingStage> {
                   child: widget.viewport,
                 ),
               ),
-              Positioned(
-                left: baseGeometry.baseLeft,
-                top: baseGeometry.baseTop,
-                width: dockWidth,
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxHeight: math.max(
-                      0,
-                      stageSize.height - widget.margin * 2,
-                    ),
-                  ),
-                  child: ValueListenableBuilder<_ReplayDockMotion>(
-                    valueListenable: _dockMotion,
-                    child: RepaintBoundary(child: widget.dock),
-                    builder: (context, motion, dock) {
-                      final geometry = _geometryFor(
-                        stageSize,
-                        dockWidth,
-                        motion.offset,
-                      );
-                      return Transform.translate(
-                        offset: Offset(
-                          geometry.left - geometry.baseLeft,
-                          geometry.top - geometry.baseTop,
+              ValueListenableBuilder<_ReplayDockMotion>(
+                valueListenable: _dockMotion,
+                child: RepaintBoundary(child: widget.dock),
+                builder: (context, motion, dock) {
+                  final geometry = _geometryFor(
+                    stageSize,
+                    dockWidth,
+                    motion.offset,
+                  );
+                  return Positioned(
+                    left: geometry.left,
+                    top: geometry.top,
+                    width: dockWidth,
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxHeight: math.max(
+                          0,
+                          stageSize.height - widget.margin * 2,
                         ),
-                        transformHitTests: true,
-                        child: KeyedSubtree(
-                          key: widget.floatingDockKey,
-                          child: Stack(
-                            key: _dockMeasureKey,
-                            clipBehavior: Clip.none,
-                            children: [
-                              dock!,
-                              Positioned(
-                                top: 0,
-                                left: 0,
-                                right: 0,
-                                height: _dragStripHeight,
-                                child: Semantics(
-                                  label: context.l10n.dragReplayControls,
-                                  button: true,
-                                  child: MouseRegion(
-                                    cursor: motion.dragging
-                                        ? SystemMouseCursors.grabbing
-                                        : SystemMouseCursors.grab,
-                                    child: GestureDetector(
-                                      key: widget.dragHandleKey,
-                                      behavior: HitTestBehavior.translucent,
-                                      onDoubleTap: _resetDock,
-                                      onPanStart: (_) {
-                                        _setDockMotion(
-                                          _ReplayDockMotion(
-                                            offset: motion.offset,
-                                            dragging: true,
-                                          ),
-                                        );
-                                      },
-                                      onPanUpdate: (details) => _moveDock(
-                                        details,
-                                        stageSize,
-                                        dockWidth,
-                                      ),
-                                      onPanEnd: (_) => _finishMovingDock(
-                                        stageSize,
-                                        dockWidth,
-                                      ),
-                                      onPanCancel: () => _finishMovingDock(
-                                        stageSize,
-                                        dockWidth,
-                                      ),
-                                      child: Align(
-                                        alignment: Alignment.topCenter,
-                                        child: Padding(
-                                          padding: const EdgeInsets.only(
-                                            top: 7,
-                                          ),
-                                          child: DecoratedBox(
-                                            decoration: BoxDecoration(
-                                              color: widget.dragHandleColor
-                                                  .withValues(
-                                                    alpha: motion.dragging
-                                                        ? 0.78
-                                                        : 0.52,
-                                                  ),
-                                              borderRadius:
-                                                  BorderRadius.circular(99),
+                      ),
+                      child: KeyedSubtree(
+                        key: widget.floatingDockKey,
+                        child: Stack(
+                          key: _dockMeasureKey,
+                          clipBehavior: Clip.none,
+                          children: [
+                            dock!,
+                            Positioned(
+                              top: 0,
+                              left: 0,
+                              right: 0,
+                              height: _dragStripHeight,
+                              child: Semantics(
+                                label: context.l10n.dragReplayControls,
+                                button: true,
+                                child: MouseRegion(
+                                  cursor: motion.dragging
+                                      ? SystemMouseCursors.grabbing
+                                      : SystemMouseCursors.grab,
+                                  child: GestureDetector(
+                                    key: widget.dragHandleKey,
+                                    behavior: HitTestBehavior.translucent,
+                                    onDoubleTap: _resetDock,
+                                    onPanStart: (_) {
+                                      _setDockMotion(
+                                        _ReplayDockMotion(
+                                          offset: motion.offset,
+                                          dragging: true,
+                                        ),
+                                      );
+                                    },
+                                    onPanUpdate: (details) => _moveDock(
+                                      details,
+                                      stageSize,
+                                      dockWidth,
+                                    ),
+                                    onPanEnd: (_) =>
+                                        _finishMovingDock(stageSize, dockWidth),
+                                    onPanCancel: () =>
+                                        _finishMovingDock(stageSize, dockWidth),
+                                    child: Align(
+                                      alignment: Alignment.topCenter,
+                                      child: Padding(
+                                        padding: const EdgeInsets.only(top: 7),
+                                        child: DecoratedBox(
+                                          decoration: BoxDecoration(
+                                            color: widget.dragHandleColor
+                                                .withValues(
+                                                  alpha: motion.dragging
+                                                      ? 0.78
+                                                      : 0.52,
+                                                ),
+                                            borderRadius: BorderRadius.circular(
+                                              99,
                                             ),
-                                            child: const SizedBox(
-                                              width: 38,
-                                              height: 4,
-                                            ),
+                                          ),
+                                          child: const SizedBox(
+                                            width: 38,
+                                            height: 4,
                                           ),
                                         ),
                                       ),
@@ -436,13 +423,13 @@ class _ReplayFloatingStageState extends State<ReplayFloatingStage> {
                                   ),
                                 ),
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
-                      );
-                    },
-                  ),
-                ),
+                      ),
+                    ),
+                  );
+                },
               ),
             ],
           ),
