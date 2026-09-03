@@ -2096,6 +2096,7 @@ class _ShellTabOverflowRowState extends State<_ShellTabOverflowRow> {
     final paneSignalInfo = paneSignalInfos.isEmpty
         ? null
         : paneSignalInfos.first;
+    final runtimeError = _shellTabRuntimeError(widget.tab);
     final canActivateBadgePane = widget.tab.effectivePanes.length > 1;
     final tabStatus = widget.tab.activePane.tabStatus;
     final indicatorColor = terminalViewportColorFromHex(tabStatus.indicator);
@@ -2204,6 +2205,15 @@ class _ShellTabOverflowRowState extends State<_ShellTabOverflowRow> {
                     ),
                     child: const SizedBox.square(dimension: 8),
                   ),
+                ),
+                const SizedBox(width: 6),
+              ],
+              if (runtimeError != null) ...[
+                _ShellTabRuntimeErrorIcon(
+                  key: Key('shell-tab-overflow-error-${widget.tab.sessionId}'),
+                  palette: widget.palette,
+                  error: runtimeError,
+                  size: 14,
                 ),
                 const SizedBox(width: 6),
               ],
@@ -2429,6 +2439,35 @@ class _ShellTabNewOutputDot extends StatelessWidget {
         behavior: HitTestBehavior.opaque,
         onTap: onPressed,
         child: tooltipMarker,
+      ),
+    );
+  }
+}
+
+class _ShellTabRuntimeErrorIcon extends StatelessWidget {
+  const _ShellTabRuntimeErrorIcon({
+    super.key,
+    required this.palette,
+    required this.error,
+    this.size = 13,
+  });
+
+  final AppThemeTokens palette;
+  final TerminalPaneRuntimeErrorState error;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final message = context.l10n.terminalTabError(error.message);
+    return Tooltip(
+      message: message,
+      child: Semantics(
+        label: message,
+        child: Icon(
+          Icons.error_outline_rounded,
+          size: size,
+          color: palette.danger,
+        ),
       ),
     );
   }
@@ -2910,6 +2949,7 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
     final paneSignalInfo = paneSignalInfos.isEmpty
         ? null
         : paneSignalInfos.first;
+    final runtimeError = _shellTabRuntimeError(widget.tab);
     final canActivateBadgePane = widget.tab.effectivePanes.length > 1;
     final tabStatus = widget.tab.activePane.tabStatus;
     final indicatorColor = terminalViewportColorFromHex(tabStatus.indicator);
@@ -3031,6 +3071,16 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
                                         dimension: 8,
                                       ),
                                     ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                ],
+                                if (runtimeError != null) ...[
+                                  _ShellTabRuntimeErrorIcon(
+                                    key: Key(
+                                      'shell-tab-error-${widget.tab.sessionId}',
+                                    ),
+                                    palette: widget.palette,
+                                    error: runtimeError,
                                   ),
                                   const SizedBox(width: 6),
                                 ],
@@ -3226,6 +3276,10 @@ String _shellTabSemanticsLabel(
           : l10n.statusIndicatorActiveOnActivePane,
     );
   }
+  final runtimeError = _shellTabRuntimeError(tab);
+  if (runtimeError != null) {
+    parts.add(l10n.terminalTabError(runtimeError.message));
+  }
   final badges = _shellTabBadgeInfos(tab);
   final badge = badges.isEmpty ? null : badges.first;
   final additionalBadgeCount = badges.length - 1;
@@ -3280,6 +3334,19 @@ String _shellTabSemanticsLabel(
     parts.add(l10n.commandShortcut(shortcutIndex));
   }
   return parts.join(', ');
+}
+
+TerminalPaneRuntimeErrorState? _shellTabRuntimeError(TerminalTab tab) {
+  final activeError = tab.activePane.runtimeError;
+  if (activeError != null) {
+    return activeError;
+  }
+  for (final pane in tab.effectivePanes) {
+    if (pane.runtimeError != null) {
+      return pane.runtimeError;
+    }
+  }
+  return null;
 }
 
 String _shellTabDisplayTitle(TerminalTab tab) {

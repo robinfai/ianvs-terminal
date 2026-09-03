@@ -1074,7 +1074,7 @@ void main() {
     },
   );
 
-  test('backend write failures surface in session state', () async {
+  test('backend write failures attach diagnostics to their session', () async {
     final coreClient = FakePtyBackend();
     final container = ProviderContainer(
       overrides: [
@@ -1104,9 +1104,11 @@ void main() {
     await Future<void>.delayed(Duration.zero);
 
     final state = container.read(sessionControllerProvider);
-    expect(state.lastError, contains('writeInput'));
-    expect(state.lastError, contains(sessionId));
-    expect(state.lastError, contains('writeInput failed'));
+    final runtimeError = state.tabs.single.paneFor(sessionId)?.runtimeError;
+    expect(state.lastError, isNull);
+    expect(runtimeError?.operation, 'writeInput');
+    expect(runtimeError?.message, contains(sessionId));
+    expect(runtimeError?.message, contains('writeInput failed'));
     expect(coreClient.writes, isEmpty);
   });
 

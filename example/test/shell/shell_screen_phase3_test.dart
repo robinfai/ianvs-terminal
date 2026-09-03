@@ -99,6 +99,59 @@ class _MemoryLayoutRepository extends LocalTerminalLayoutRepository {
 
 void main() {
   testWidgets(
+    'session backend failures use a transient notice and persistent tab error',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      await _pumpShellScreen(
+        tester,
+        fakeBindings: fakeBindings,
+        profileRepository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+        preferencesRepository: MemoryAppPreferencesRepository(null),
+      );
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final sessionId = container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+
+      fakeBindings.failingOperations.add('writeInput');
+      container
+          .read(terminalRuntimeControllerProvider)
+          .sendInput(sessionId, Uint8List.fromList(const <int>[0x41]));
+      await tester.pump();
+
+      expect(
+        find.text('Input could not be sent. The terminal may be disconnected.'),
+        findsOneWidget,
+      );
+      expect(find.byKey(Key('shell-tab-error-$sessionId')), findsOneWidget);
+      expect(
+        find.byTooltip(
+          RegExp('^Terminal error: Terminal backend writeInput failed'),
+        ),
+        findsOneWidget,
+      );
+      final semantics = tester.ensureSemantics();
+      expect(
+        find.bySemanticsLabel(
+          RegExp('Terminal error: Terminal backend writeInput failed'),
+        ),
+        findsWidgets,
+      );
+      semantics.dispose();
+      expect(container.read(sessionControllerProvider).lastError, isNull);
+
+      await tester.pump(const Duration(seconds: 4));
+
+      expect(find.byKey(const Key('shell-runtime-error')), findsNothing);
+      expect(find.byKey(Key('shell-tab-error-$sessionId')), findsOneWidget);
+    },
+  );
+
+  testWidgets(
     'defaults remain hidden from the shell layout until the user opens tools',
     (tester) async {
       final profileRepository = MemoryProfileRepository(

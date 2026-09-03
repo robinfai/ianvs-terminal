@@ -414,6 +414,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String get dismissRuntimeError => 'Dismiss runtime error';
 
   @override
+  String get terminalInputCouldNotBeSent =>
+      'Input could not be sent. The terminal may be disconnected.';
+
+  @override
+  String get terminalOperationFailed =>
+      'A terminal operation failed. Check the tab error for details.';
+
+  @override
+  String terminalTabError(String message) {
+    return 'Terminal error: $message';
+  }
+
+  @override
   String get terminalCouldNotStart => 'Terminal could not start';
 
   @override

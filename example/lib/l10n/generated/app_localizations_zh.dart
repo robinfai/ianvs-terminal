@@ -392,6 +392,17 @@ class AppLocalizationsZh extends AppLocalizations {
   String get dismissRuntimeError => '关闭运行时错误';
 
   @override
+  String get terminalInputCouldNotBeSent => '无法向终端发送输入，连接可能已断开。';
+
+  @override
+  String get terminalOperationFailed => '终端操作失败，请查看标签页错误详情。';
+
+  @override
+  String terminalTabError(String message) {
+    return '终端错误：$message';
+  }
+
+  @override
   String get terminalCouldNotStart => '终端无法启动';
 
   @override

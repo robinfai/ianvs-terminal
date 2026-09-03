@@ -3462,10 +3462,22 @@ class SessionController extends Notifier<SessionState> {
     final sessionId =
         _boundedShellMetadata(event.sessionId, 80) ?? event.sessionId;
     final detail = _boundedShellMetadata(event.error.toString(), 240);
-    state = state.copyWith(
-      lastError:
-          'Terminal backend $operation failed for session $sessionId'
-          '${detail == null ? '' : ': $detail'}',
+    final message =
+        'Terminal backend $operation failed for session $sessionId'
+        '${detail == null ? '' : ': $detail'}';
+    final pane = _paneForSession(event.sessionId);
+    if (pane == null) {
+      state = state.copyWith(lastError: message);
+      return;
+    }
+    _replaceSessionPane(
+      event.sessionId,
+      pane.copyWith(
+        runtimeError: TerminalPaneRuntimeErrorState(
+          operation: operation,
+          message: message,
+        ),
+      ),
     );
   }
 

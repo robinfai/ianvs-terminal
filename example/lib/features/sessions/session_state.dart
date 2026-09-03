@@ -19,6 +19,7 @@ class TerminalPane {
     this.progress,
     this.namedProgress = const <String, TerminalPaneProgressState>{},
     this.recentNotifications = const <TerminalPaneNotificationState>[],
+    this.runtimeError,
   });
 
   final String sessionId;
@@ -34,6 +35,7 @@ class TerminalPane {
   final TerminalPaneProgressState? progress;
   final Map<String, TerminalPaneProgressState> namedProgress;
   final List<TerminalPaneNotificationState> recentNotifications;
+  final TerminalPaneRuntimeErrorState? runtimeError;
 
   TerminalPane copyWith({
     String? title,
@@ -48,6 +50,7 @@ class TerminalPane {
     Object? progress = _terminalPaneNoChange,
     Map<String, TerminalPaneProgressState>? namedProgress,
     List<TerminalPaneNotificationState>? recentNotifications,
+    Object? runtimeError = _terminalPaneNoChange,
   }) {
     return TerminalPane(
       sessionId: sessionId,
@@ -73,11 +76,24 @@ class TerminalPane {
           : progress as TerminalPaneProgressState?,
       namedProgress: namedProgress ?? this.namedProgress,
       recentNotifications: recentNotifications ?? this.recentNotifications,
+      runtimeError: identical(runtimeError, _terminalPaneNoChange)
+          ? this.runtimeError
+          : runtimeError as TerminalPaneRuntimeErrorState?,
     );
   }
 }
 
 const Object _terminalPaneNoChange = Object();
+
+class TerminalPaneRuntimeErrorState {
+  const TerminalPaneRuntimeErrorState({
+    required this.operation,
+    required this.message,
+  });
+
+  final String operation;
+  final String message;
+}
 
 class TerminalPaneTabStatusState {
   const TerminalPaneTabStatusState({
@@ -564,6 +580,7 @@ class TerminalTab {
     this.progress,
     this.namedProgress = const <String, TerminalPaneProgressState>{},
     this.recentNotifications = const <TerminalPaneNotificationState>[],
+    this.runtimeError,
   });
 
   final String sessionId;
@@ -583,6 +600,7 @@ class TerminalTab {
   final TerminalPaneProgressState? progress;
   final Map<String, TerminalPaneProgressState> namedProgress;
   final List<TerminalPaneNotificationState> recentNotifications;
+  final TerminalPaneRuntimeErrorState? runtimeError;
 
   TerminalPane get rootPane {
     return TerminalPane(
@@ -599,6 +617,7 @@ class TerminalTab {
       progress: progress,
       namedProgress: namedProgress,
       recentNotifications: recentNotifications,
+      runtimeError: runtimeError,
     );
   }
 
@@ -659,6 +678,7 @@ class TerminalTab {
         progress: replacement.progress,
         namedProgress: replacement.namedProgress,
         recentNotifications: replacement.recentNotifications,
+        runtimeError: replacement.runtimeError,
       );
     }
     final nextLayout = effectivePaneLayout.replacePane(replacement);
@@ -682,6 +702,9 @@ class TerminalTab {
       recentNotifications: replacingRootPane
           ? replacement.recentNotifications
           : null,
+      runtimeError: replacingRootPane
+          ? replacement.runtimeError
+          : _terminalTabNoChange,
       panes: nextLayout.panes,
       paneLayout: nextLayout,
     );
@@ -704,6 +727,7 @@ class TerminalTab {
     Object? progress = _terminalTabNoChange,
     Map<String, TerminalPaneProgressState>? namedProgress,
     List<TerminalPaneNotificationState>? recentNotifications,
+    Object? runtimeError = _terminalTabNoChange,
   }) {
     final nextSplitAxis = splitAxis ?? this.splitAxis;
     final nextPaneLayout = identical(paneLayout, _terminalTabNoChange)
@@ -743,6 +767,9 @@ class TerminalTab {
           : progress as TerminalPaneProgressState?,
       namedProgress: namedProgress ?? this.namedProgress,
       recentNotifications: recentNotifications ?? this.recentNotifications,
+      runtimeError: identical(runtimeError, _terminalTabNoChange)
+          ? this.runtimeError
+          : runtimeError as TerminalPaneRuntimeErrorState?,
     );
   }
 }

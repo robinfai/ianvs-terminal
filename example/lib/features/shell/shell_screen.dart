@@ -190,6 +190,7 @@ class ShellScreen extends ConsumerStatefulWidget {
 
 class _ShellScreenState extends ConsumerState<ShellScreen> {
   static const _layoutCueDuration = Duration(milliseconds: 1400);
+  static const _runtimeErrorNoticeDuration = Duration(seconds: 4);
   static const _viewportResizeDebounce = Duration(milliseconds: 240);
   static const _terminalOverlayPadding = EdgeInsets.fromLTRB(12, 10, 14, 12);
   static const int _pasteHistoryLimit = maxPasteHistoryEntries;
@@ -261,6 +262,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   late final ShellClock _clock;
   late final AppLifecycleListener _appLifecycleListener;
   Timer? _layoutCueTimer;
+  Timer? _runtimeErrorNoticeTimer;
+  ({String sessionId, TerminalPaneRuntimeErrorState error})?
+  _runtimeErrorNotice;
   final Map<String, Timer> _viewportResizeTimers = {};
   bool _isCommandMenuOpen = false;
   bool _isDefaultsOpen = false;
@@ -450,6 +454,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     _osc52PromptController?.clearAuthorizationHandler();
     _terminalUiEffectAttachment?.detach();
     _layoutCueTimer?.cancel();
+    _runtimeErrorNoticeTimer?.cancel();
     for (final timer in _viewportResizeTimers.values) {
       timer.cancel();
     }
@@ -489,9 +494,23 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     _publishAcceptanceSnapshot();
   }
 
-  void _handleSessionStateChanged(SessionState? _, SessionState next) {
+  void _handleSessionStateChanged(SessionState? previous, SessionState next) {
     _syncPresentationState(next);
     _publishAcceptanceSnapshot(next);
+    final newRuntimeError = _newRuntimeError(previous, next);
+    if (newRuntimeError != null) {
+      _runtimeErrorNoticeTimer?.cancel();
+      _runtimeErrorNotice = newRuntimeError;
+      _runtimeErrorNoticeTimer = Timer(_runtimeErrorNoticeDuration, () {
+        if (!mounted || _runtimeErrorNotice != newRuntimeError) {
+          return;
+        }
+        _mutateState(() {
+          _runtimeErrorNotice = null;
+          _runtimeErrorNoticeTimer = null;
+        });
+      });
+    }
     if (!next.isReady && next.lastError != null) {
       unawaited(_loadRemoteFallbackSnapshot());
     }
@@ -508,6 +527,45 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         }
       });
     }
+  }
+
+  ({String sessionId, TerminalPaneRuntimeErrorState error})? _newRuntimeError(
+    SessionState? previous,
+    SessionState next,
+  ) {
+    for (final tab in next.tabs) {
+      for (final pane in tab.effectivePanes) {
+        final error = pane.runtimeError;
+        if (error == null) {
+          continue;
+        }
+        final previousPane = previous?.tabs
+            .where((candidate) => candidate.containsSession(pane.sessionId))
+            .firstOrNull
+            ?.paneFor(pane.sessionId);
+        if (!identical(previousPane?.runtimeError, error)) {
+          return (sessionId: pane.sessionId, error: error);
+        }
+      }
+    }
+    return null;
+  }
+
+  void _dismissRuntimeErrorNotice() {
+    if (_runtimeErrorNotice == null) {
+      return;
+    }
+    _runtimeErrorNoticeTimer?.cancel();
+    _mutateState(() {
+      _runtimeErrorNotice = null;
+      _runtimeErrorNoticeTimer = null;
+    });
+  }
+
+  String _runtimeErrorNoticeMessage(TerminalPaneRuntimeErrorState error) {
+    return error.operation == 'writeInput'
+        ? context.l10n.terminalInputCouldNotBeSent
+        : context.l10n.terminalOperationFailed;
   }
 
   void _showShellSnackBar(String message) {
@@ -1292,6 +1350,16 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                   palette: palette,
                   message: sessionState.lastError!,
                   onDismiss: sessionController.dismissLastError,
+                ),
+              if (sessionState.isReady &&
+                  sessionState.lastError == null &&
+                  _runtimeErrorNotice != null)
+                _ShellRuntimeErrorBanner(
+                  palette: palette,
+                  message: _runtimeErrorNoticeMessage(
+                    _runtimeErrorNotice!.error,
+                  ),
+                  onDismiss: _dismissRuntimeErrorNotice,
                 ),
               if (zmodemTransfer != null)
                 _ShellZmodemTransferBanner(

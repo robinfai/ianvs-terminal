@@ -758,6 +758,24 @@ abstract class AppLocalizations {
   /// **'Dismiss runtime error'**
   String get dismissRuntimeError;
 
+  /// Brief transient notice shown when terminal input fails
+  ///
+  /// In en, this message translates to:
+  /// **'Input could not be sent. The terminal may be disconnected.'**
+  String get terminalInputCouldNotBeSent;
+
+  /// Brief transient notice shown for a session-scoped terminal backend failure
+  ///
+  /// In en, this message translates to:
+  /// **'A terminal operation failed. Check the tab error for details.'**
+  String get terminalOperationFailed;
+
+  /// Tooltip and accessibility label for a terminal tab error
+  ///
+  /// In en, this message translates to:
+  /// **'Terminal error: {message}'**
+  String terminalTabError(String message);
+
   /// Terminal startup error title inside the main shell
   ///
   /// In en, this message translates to:
