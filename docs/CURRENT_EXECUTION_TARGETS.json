@@ -136,7 +136,7 @@
         "path": "example/lib/features/shell/shell_screen_chrome.dart",
         "contains": [
           "shell-chrome-menu",
-          "Open command palette"
+          "context.l10n.openCommandPalette"
         ],
           "not_contains": [
             "Recent Workspaces",
@@ -152,7 +152,7 @@
         "contains": [
           "shell-toggle-session-recording",
           "TerminalActionId.toggleSessionRecording",
-          "Start recording for Replay"
+          "context.l10n.startRecordingForReplay"
         ]
       },
         {

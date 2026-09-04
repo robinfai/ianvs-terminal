@@ -196,26 +196,33 @@ void main() {
         },
       );
 
-      await File(localPath).writeAsString('save A', flush: true);
+      await File(localPath).writeAsString('save A generation', flush: true);
       await firstStarted.future;
-      await File(localPath).writeAsString('save B', flush: true);
+      await File(
+        localPath,
+      ).writeAsString('save B newer generation', flush: true);
       await Future<void>.delayed(const Duration(milliseconds: 40));
       releaseFirst.complete();
       await _waitUntil(() => uploads.length == 2);
 
-      expect(uploads, <String>['save A', 'save B']);
+      expect(uploads, <String>['save A generation', 'save B newer generation']);
     });
 
     test('dispose preserves a newer save during a slow upload', () async {
       final root = await Directory.systemTemp.createTemp(
         'ianvs-sftp-dispose-generation-test-',
       );
-      final platform = _TestSftpFileActionPlatform(root);
+      final watch = StreamController<FileSystemEvent>();
+      final platform = _TestSftpFileActionPlatform(
+        root,
+        watchStream: watch.stream,
+      );
       final actions = SftpFileActions(
         platform: platform,
         settleDelay: const Duration(milliseconds: 10),
       );
       addTearDown(() async {
+        await watch.close();
         if (await root.exists()) {
           await root.delete(recursive: true);
         }
@@ -231,20 +238,24 @@ void main() {
         upload: (path) async {
           uploadStarted.complete();
           await releaseUpload.future;
-          expect(await File(path).readAsString(), 'save A');
+          expect(await File(path).readAsString(), 'save A generation');
           uploadFinished.complete();
         },
       );
 
-      await File(localPath).writeAsString('save A', flush: true);
+      await File(localPath).writeAsString('save A generation', flush: true);
+      watch.add(FileSystemModifyEvent(localPath, false, true));
       await uploadStarted.future;
-      await File(localPath).writeAsString('save B', flush: true);
-      await Future<void>.delayed(const Duration(milliseconds: 40));
+      await File(
+        localPath,
+      ).writeAsString('save B newer generation', flush: true);
+      watch.add(FileSystemModifyEvent(localPath, false, true));
+      await Future<void>.delayed(Duration.zero);
       actions.dispose();
       releaseUpload.complete();
       await uploadFinished.future;
 
-      expect(File(localPath).readAsStringSync(), 'save B');
+      expect(File(localPath).readAsStringSync(), 'save B newer generation');
     });
 
     test('dispose immediately after a save preserves the local edit', () async {

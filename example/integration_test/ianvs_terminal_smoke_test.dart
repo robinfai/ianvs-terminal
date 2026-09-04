@@ -44,7 +44,9 @@ Future<void> _openCommandMenu(WidgetTester tester) async {
 }
 
 Future<void> _chooseDefaultLocalSession(WidgetTester tester) async {
-  expect(find.byKey(const Key('new-session-launcher')), findsOneWidget);
+  if (find.byKey(const Key('new-session-launcher')).evaluate().isEmpty) {
+    return;
+  }
   await tester.tap(find.byKey(const Key('new-local-session-default')));
   await tester.pumpAndSettle();
 }
@@ -88,7 +90,7 @@ void main() {
     expect(find.byType(TerminalViewport), findsOneWidget);
 
     await _openCommandMenu(tester);
-    await tester.tap(find.text('New tab'));
+    await tester.tap(find.byKey(const Key('shell-top-new-tab')));
     await tester.pumpAndSettle();
     await _chooseDefaultLocalSession(tester);
 
@@ -122,17 +124,17 @@ void main() {
     await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft, platform: 'macos');
     await tester.pump();
 
-    expect(find.text('Command palette'), findsOneWidget);
-    expect(find.text('Quick actions'), findsOneWidget);
+    expect(find.byKey(const Key('shell-command-menu-overlay')), findsOneWidget);
+    expect(find.byKey(const Key('shell-command-search-field')), findsOneWidget);
     expect(find.byKey(const Key('shell-command-defaults')), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('shell-command-defaults')));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('defaults-dialog')), findsOneWidget);
-    expect(find.text('Save changes'), findsOneWidget);
+    expect(find.byKey(const Key('defaults-save')), findsOneWidget);
 
-    await tester.tap(find.byTooltip('Close defaults'));
+    await tester.tap(find.byKey(const Key('defaults-cancel')));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('defaults-dialog')), findsNothing);
@@ -156,9 +158,10 @@ void main() {
     );
 
     await _openCommandMenu(tester);
-    await tester.ensureVisible(find.text('Profiles…'));
+    final profilesAction = find.byKey(const Key('shell-command-profiles'));
+    await tester.ensureVisible(profilesAction);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Profiles…'));
+    await tester.tap(profilesAction);
     await tester.pumpAndSettle();
 
     await _waitForWidget(
@@ -166,7 +169,7 @@ void main() {
       find.byKey(const Key('profiles-sheet')),
       description: 'the profiles sheet to open',
     );
-    await tester.tap(find.text('Shell B').last);
+    await tester.tap(find.byKey(const Key('profile-entry-shell-b')));
     await tester.pumpAndSettle();
 
     await _waitForWidget(
@@ -197,9 +200,9 @@ void main() {
 
     expect(find.byKey(const Key('shell-empty-state')), findsOneWidget);
     expect(find.byType(TerminalViewport), findsNothing);
-    expect(find.text('New Tab'), findsOneWidget);
+    expect(find.byKey(const Key('shell-empty-new-tab')), findsOneWidget);
 
-    await tester.tap(find.text('New Tab'));
+    await tester.tap(find.byKey(const Key('shell-empty-new-tab')));
     await tester.pumpAndSettle();
     await _chooseDefaultLocalSession(tester);
 

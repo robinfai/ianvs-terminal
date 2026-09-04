@@ -771,9 +771,11 @@ void main() {
       expect(harness.backend.closedSessionIds, isEmpty);
       expect(repository.abandonAttempts, 0);
       expect(manifests.single.existsSync(), isTrue);
+      final stateAfterExit = harness.container.read(sessionControllerProvider);
+      expect(stateAfterExit.lastError, contains('native ownership retained'));
       expect(
-        harness.container.read(sessionControllerProvider).lastError,
-        contains('beforeSessionCloseOnExitSignal'),
+        stateAfterExit.tabs.single.paneFor(sessionId)!.runtimeError?.operation,
+        'beforeSessionCloseOnExitSignal',
       );
     });
   }
@@ -1537,7 +1539,13 @@ void main() {
       runtime.refreshSession(sessionId);
       await _waitFor(
         () =>
-            harness.container.read(sessionControllerProvider).lastError != null,
+            harness.container
+                .read(sessionControllerProvider)
+                .tabs
+                .single
+                .paneFor(sessionId)
+                ?.runtimeError !=
+            null,
         description: 'visible persistent pre-close failure',
       );
 
@@ -1555,8 +1563,14 @@ void main() {
         isTrue,
       );
       expect(
-        harness.container.read(sessionControllerProvider).lastError,
-        contains('beforeSessionCloseOnExitSignal'),
+        harness.container
+            .read(sessionControllerProvider)
+            .tabs
+            .single
+            .paneFor(sessionId)!
+            .runtimeError
+            ?.operation,
+        'beforeSessionCloseOnExitSignal',
       );
       final manifests = harness.directory
           .listSync(recursive: true)

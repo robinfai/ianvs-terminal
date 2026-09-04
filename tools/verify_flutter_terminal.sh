@@ -123,7 +123,8 @@ if grep -RFn -- "Set as default" "$ROOT_DIR/example/lib"; then
   exit 1
 fi
 
-grep -RFn -- "Defaults & appearance" "$ROOT_DIR/example/lib/features/shell" >/dev/null
+grep -F -- "title: context.l10n.defaultsAppearance" \
+  "$ROOT_DIR/example/lib/features/shell/shell_screen_command_menu.dart" >/dev/null
 
 if grep -RFnw -- "AppPreferencesRepository" "$ROOT_DIR/example/lib" | \
   grep -Ev "features/preferences/app_preferences_repository.dart|features/sessions/session_bootstrap.dart|features/sessions/session_controller.dart|features/config/local_terminal_config_loader.dart|persistence_repository_composition.dart"; then

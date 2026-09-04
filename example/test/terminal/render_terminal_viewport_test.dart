@@ -1508,7 +1508,7 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 16));
     await tester.sendEventToBinding(
-      trackpad.panZoomUpdate(center, pan: const Offset(0, -24)),
+      trackpad.panZoomUpdate(center, pan: const Offset(0, -48)),
     );
     await tester.pump();
 
@@ -1589,7 +1589,7 @@ void main() {
       );
       await tester.pump(const Duration(milliseconds: 16));
       await tester.sendEventToBinding(
-        trackpad.panZoomUpdate(center, pan: const Offset(0, 24)),
+        trackpad.panZoomUpdate(center, pan: const Offset(0, 48)),
       );
       await tester.pump();
 
@@ -2554,7 +2554,7 @@ void main() {
   });
 
   testWidgets(
-    'terminal viewport does not auto-scroll while the pointer stays inside the viewport',
+    'terminal viewport does not auto-scroll away from the inside edge zones',
     (tester) async {
       final bindings = FakePtyBackend();
       final selectionController = SelectionController();
@@ -2604,14 +2604,19 @@ void main() {
       await tester.pump();
 
       await gesture.moveTo(
-        renderObject.localToGlobal(Offset(cellSize.width * 2, 4)),
+        renderObject.localToGlobal(
+          Offset(cellSize.width * 2, cellSize.height * 1.5),
+        ),
       );
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 160));
 
       await gesture.moveTo(
         renderObject.localToGlobal(
-          Offset(cellSize.width * 2, renderObject.size.height - 4),
+          Offset(
+            cellSize.width * 2,
+            cellSize.height * (controller.frame.viewportRows - 1.5),
+          ),
         ),
       );
       await tester.pump();

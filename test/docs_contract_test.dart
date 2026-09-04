@@ -234,6 +234,12 @@ void main() {
       isNot(contains(RegExp(r'(^|[|;&()\s])rg(?=\s)', multiLine: true))),
     );
     expect(script, contains('persistence_repository_composition.dart'));
+    expect(
+      script,
+      contains('title: context.l10n.defaultsAppearance'),
+      reason: 'the settings entry gate must follow the localized source',
+    );
+    expect(script, isNot(contains('grep -RFn -- "Defaults & appearance"')));
   });
 
   test('terminal verification scopes the vendored Clippy allowance', () {

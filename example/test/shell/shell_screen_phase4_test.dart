@@ -265,7 +265,9 @@ Future<void> _sendMetaShortcut(
 }
 
 Future<void> _chooseDefaultLocalSession(WidgetTester tester) async {
-  expect(find.byKey(const Key('new-session-launcher')), findsOneWidget);
+  if (find.byKey(const Key('new-session-launcher')).evaluate().isEmpty) {
+    return;
+  }
   await tester.tap(find.byKey(const Key('new-local-session-default')));
   await tester.pumpAndSettle();
 }
@@ -4483,10 +4485,18 @@ void main() {
         closed.add(identifier);
       },
     );
-    await _tapCommandMenuAction(tester, const Key('shell-top-new-tab'));
-    await _chooseDefaultLocalSession(tester);
     final container = ProviderScope.containerOf(
       tester.element(find.byType(ShellScreen)),
+    );
+    final tabCountBefore = container
+        .read(sessionControllerProvider)
+        .tabs
+        .length;
+    await _tapCommandMenuAction(tester, const Key('shell-top-new-tab'));
+    await _chooseDefaultLocalSession(tester);
+    expect(
+      container.read(sessionControllerProvider).tabs,
+      hasLength(tabCountBefore + 1),
     );
 
     for (final event in <PtyEvent>[
@@ -5592,6 +5602,8 @@ void main() {
       await _pumpShellScreen(tester, fakeBindings: fakeBindings);
       await _openCommandMenu(tester);
       await tester.tap(find.text('Defaults & appearance'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('defaults-section-appearance')));
       await tester.pumpAndSettle();
 
       final field = find.byKey(const Key('defaults-terminal-preset-filter'));

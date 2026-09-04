@@ -5646,8 +5646,8 @@ fn session_frame_diff_exports_sixel_scrollback_placements_when_scrolled_back() {
         .expect("expected Sixel scrollback placement");
     assert_eq!(
         placement["row"].as_u64(),
-        Some(2),
-        "the 3-cell-tall Sixel should reappear at the retained scrollback row where its bottom edge entered history: {top_frame}"
+        Some(0),
+        "the 3-cell-tall Sixel should reappear at its original retained scrollback top row: {top_frame}"
     );
     assert_eq!(placement["col"].as_u64(), Some(0));
     assert_eq!(placement["width_px"].as_u64(), Some(2));
@@ -14667,7 +14667,7 @@ fn parser_terminal_iterm_do_not_move_cursor_keeps_text_position() {
 }
 
 #[test]
-fn parser_terminal_resize_refreshes_percent_graphic_cell_span() {
+fn parser_terminal_resize_preserves_percent_graphic_pixel_geometry() {
     let mut terminal = ParserTerminal::new(80, 24);
     let image = format!(
         "\x1b]1337;File=inline=1;width=50%;height=50%;preserveAspectRatio=0;doNotMoveCursor=1:{RED_PIXEL_PNG_BASE64}\x1b\\"
@@ -14683,13 +14683,13 @@ fn parser_terminal_resize_refreshes_percent_graphic_cell_span() {
 
     assert_eq!(
         terminal.all_graphics()[0].display_cell_span,
-        Some((12, 6)),
-        "resize should recompute aspect-preserving percent-sized thumbnails against the new viewport"
+        Some((24, 12)),
+        "viewport resize should preserve the thumbnail's resolved pixel geometry instead of applying its percentage request again"
     );
 }
 
 #[test]
-fn parser_terminal_resize_refreshes_scrollback_percent_graphic_cell_span() {
+fn parser_terminal_resize_preserves_scrollback_percent_graphic_pixel_geometry() {
     let mut terminal = ParserTerminal::with_scrollback(80, 24, 40);
     let image = format!(
         "\x1b[1;1H\x1b]1337;File=inline=1;width=50%;height=50%;preserveAspectRatio=0;doNotMoveCursor=1:{RED_PIXEL_PNG_BASE64}\x1b\\"
@@ -14720,8 +14720,8 @@ fn parser_terminal_resize_refreshes_scrollback_percent_graphic_cell_span() {
 
     assert_eq!(
         terminal.all_scrollback_graphics()[0].display_cell_span,
-        Some((12, 6)),
-        "resize should recompute aspect-preserving thumbnails retained in scrollback"
+        Some((24, 12)),
+        "viewport resize should preserve resolved thumbnail geometry retained in scrollback"
     );
 }
 

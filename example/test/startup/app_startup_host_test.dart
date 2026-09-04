@@ -243,7 +243,10 @@ void main() {
       expect(
         tester
             .widget<EditableText>(
-              find.descendant(of: password, matching: find.byType(EditableText)),
+              find.descendant(
+                of: password,
+                matching: find.byType(EditableText),
+              ),
             )
             .focusNode
             .hasFocus,

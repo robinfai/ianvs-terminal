@@ -99,10 +99,18 @@ void read() {
   final escaped = Platform.environment['IANVS_SECRET'];
 }
 ''';
+    const sshImportSource = '''
+import 'dart:io';
+void read() {
+  final allowed = Platform.environment['HOME'];
+  final escaped = Platform.environment['IANVS_SECRET'];
+}
+''';
     final violations = <String>[];
     for (final fixture in <(String, String)>[
       ('lib/features/profiles/profile_models.dart', profileSource),
       ('lib/features/sessions/session_controller.dart', sessionSource),
+      ('lib/features/ssh/ssh_profile_import_service.dart', sshImportSource),
     ]) {
       final result = parseString(
         path: fixture.$1,
@@ -113,7 +121,7 @@ void read() {
       result.unit.accept(_ForbiddenEnvironmentVisitor(fixture.$1, violations));
     }
 
-    expect(violations, hasLength(2));
+    expect(violations, hasLength(3));
     expect(
       violations,
       contains(contains('features/profiles/profile_models.dart')),
@@ -121,6 +129,10 @@ void read() {
     expect(
       violations,
       contains(contains('features/sessions/session_controller.dart')),
+    );
+    expect(
+      violations,
+      contains(contains('features/ssh/ssh_profile_import_service.dart')),
     );
   });
 }
@@ -265,16 +277,23 @@ bool _isAllowedNonDataEnvironmentUse(String path, AstNode node) {
     return false;
   }
 
-  if (!path.endsWith('features/sessions/session_controller.dart') ||
-      node.toSource() != 'Platform.environment') {
+  if (node.toSource() != 'Platform.environment') {
     return false;
   }
   final access = node.parent;
-  return access is IndexExpression &&
-      access.target == node &&
-      access.index is StringLiteral &&
-      (access.index as StringLiteral).stringValue ==
-          'IANVS_TERMINAL_GRAPHICS_TRACE';
+  if (access is! IndexExpression ||
+      access.target != node ||
+      access.index is! StringLiteral) {
+    return false;
+  }
+  final key = (access.index as StringLiteral).stringValue;
+  if (path.endsWith('features/sessions/session_controller.dart')) {
+    return key == 'IANVS_TERMINAL_GRAPHICS_TRACE';
+  }
+  if (path.endsWith('features/ssh/ssh_profile_import_service.dart')) {
+    return key == 'HOME';
+  }
+  return false;
 }
 
 /// Returns the exact static receiver and first literal argument for a

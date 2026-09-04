@@ -91,6 +91,10 @@ Future<void> sendMetaShortcut(
 }
 
 Future<void> openNewShellTab(WidgetTester tester) async {
+  final container = ProviderScope.containerOf(
+    tester.element(find.byType(ShellScreen)),
+  );
+  final tabCountBefore = container.read(sessionControllerProvider).tabs.length;
   final newTabButton = find.byKey(const Key('shell-chrome-new-tab'));
   if (newTabButton.evaluate().isNotEmpty) {
     await tester.tap(newTabButton);
@@ -99,9 +103,15 @@ Future<void> openNewShellTab(WidgetTester tester) async {
     await sendMetaShortcut(tester, LogicalKeyboardKey.keyT);
   }
 
-  expect(find.byKey(const Key('new-session-launcher')), findsOneWidget);
-  await tester.tap(find.byKey(const Key('new-local-session-default')));
-  await tester.pumpAndSettle();
+  final launcher = find.byKey(const Key('new-session-launcher'));
+  if (launcher.evaluate().isNotEmpty) {
+    await tester.tap(find.byKey(const Key('new-local-session-default')));
+    await tester.pumpAndSettle();
+  }
+  expect(
+    container.read(sessionControllerProvider).tabs,
+    hasLength(tabCountBefore + 1),
+  );
 }
 
 void main() {
