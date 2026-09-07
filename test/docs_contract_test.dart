@@ -290,7 +290,7 @@ void main() {
     final processControl = '$script\n$runner';
 
     expect(script, contains('IANVS_RELEASE_REFRESH_GATE_TIMEOUT_SECONDS'));
-    expect(script, contains('Contents/MacOS/Ianvs Terminal'));
+    expect(script, contains('Contents/MacOS/Trail'));
     expect(
       processControl,
       anyOf(contains('os.setsid()'), contains('start_new_session=True')),

@@ -14,15 +14,14 @@ DART ?= dart
 GO ?= go
 PNPM ?= pnpm
 
-APP_NAME ?= Ianvs Terminal
+APP_NAME ?= Trail
 IPHONE_DEVICE ?=
 IPHONE_SIMULATOR ?=
 IPHONE_SIMULATOR_CREDENTIALS ?= $(HOME)/Library/Application Support/dev.ianvs.terminal/acceptance/ssh-cloud-simulator.json
-# Apple reserves the production identifier for release builds. Local
-# profile-signed installs use the App ID already owned by the development team;
-# both platforms still share the production-named Keychain access group.
-IPHONE_BUNDLE_ID ?= dev.ianvs.terminal.dev
-MACOS_BUNDLE_ID ?= dev.ianvs.terminal.dev
+# Release installs use the Trail identity by default. Override these values
+# when a separate provisioning identity is required.
+IPHONE_BUNDLE_ID ?= work.ianvs.trail
+MACOS_BUNDLE_ID ?= work.ianvs.trail
 RELEASE_DIR := $(EXAMPLE_DIR)/build/macos/Build/Products/Release
 APP_BUNDLE := $(RELEASE_DIR)/$(APP_NAME).app
 INSTALL_DIR ?= /Applications

@@ -78,29 +78,29 @@ echo 'subject=C=US,O=Ianvs,OU=RIGHT12345,CN=Apple Development'
     final makefile = File('Makefile').readAsStringSync();
 
     expect(
-      'PRODUCT_BUNDLE_IDENTIFIER = dev.ianvs.terminal;'.allMatches(iosProject),
+      'PRODUCT_BUNDLE_IDENTIFIER = work.ianvs.trail;'.allMatches(iosProject),
       hasLength(3),
     );
     expect(
       iosProject,
-      isNot(contains('PRODUCT_BUNDLE_IDENTIFIER = dev.ianvs.terminal.dev;')),
+      isNot(contains('PRODUCT_BUNDLE_IDENTIFIER = work.ianvs.trail.dev;')),
     );
     expect('DEVELOPMENT_TEAM = "";'.allMatches(iosProject), hasLength(3));
     expect(
       RegExp('DEVELOPMENT_TEAM = (?!"";)[A-Z0-9]+;').hasMatch(iosProject),
       isFalse,
     );
-    expect(appInfo, contains('PRODUCT_BUNDLE_IDENTIFIER = dev.ianvs.terminal'));
+    expect(appInfo, contains('PRODUCT_BUNDLE_IDENTIFIER = work.ianvs.trail'));
     expect(macosProject, isNot(contains('DEVELOPMENT_TEAM =')));
-    expect(macosProject, isNot(contains('dev.ianvs.terminal.dev')));
+    expect(
+      macosProject,
+      isNot(contains('PRODUCT_BUNDLE_IDENTIFIER = work.ianvs.trail.dev;')),
+    );
     for (final entitlements in <String>[
       iosReleaseEntitlements,
       iosDebugProfileEntitlements,
     ]) {
-      expect(
-        entitlements,
-        contains(r'$(AppIdentifierPrefix)dev.ianvs.terminal'),
-      );
+      expect(entitlements, contains(r'$(AppIdentifierPrefix)work.ianvs.trail'));
       expect(
         entitlements,
         isNot(contains(r'$(PRODUCT_BUNDLE_IDENTIFIER)')),
@@ -115,8 +115,8 @@ echo 'subject=C=US,O=Ianvs,OU=RIGHT12345,CN=Apple Development'
       appleBuilder,
       contains(r'PRODUCT_BUNDLE_IDENTIFIER = $IOS_BUNDLE_ID'),
     );
-    expect(makefile, contains('IPHONE_BUNDLE_ID ?= dev.ianvs.terminal.dev'));
-    expect(makefile, contains('MACOS_BUNDLE_ID ?= dev.ianvs.terminal.dev'));
+    expect(makefile, contains('IPHONE_BUNDLE_ID ?= work.ianvs.trail'));
+    expect(makefile, contains('MACOS_BUNDLE_ID ?= work.ianvs.trail'));
     expect(makefile, contains(r'IANVS_IOS_BUNDLE_ID="$(IPHONE_BUNDLE_ID)"'));
     expect(makefile, contains(r'IANVS_MACOS_BUNDLE_ID="$(MACOS_BUNDLE_ID)"'));
     expect(
