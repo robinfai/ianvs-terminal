@@ -178,7 +178,7 @@ class AppDelegate: FlutterAppDelegate {
 
   static func confirmApplicationTermination() -> Bool {
     let alert = NSAlert()
-    alert.messageText = "Quit Ianvs Terminal?"
+    alert.messageText = "Quit Trail?"
     alert.informativeText = "Active shell sessions will be closed."
     alert.alertStyle = .warning
     let cancelButton = alert.addButton(withTitle: "Cancel")
@@ -192,14 +192,14 @@ class AppDelegate: FlutterAppDelegate {
     reason: DartShutdownSafety.UnsafeReason
   ) -> Bool {
     let alert = NSAlert()
-    alert.messageText = "Ianvs Terminal Is Still Finishing Up"
+    alert.messageText = "Trail Is Still Finishing Up"
     alert.informativeText =
       switch reason {
       case .dartTimedOut:
         "Session recordings or other runtime resources are still being saved. "
           + "Keep the app open and try Quit again. Quitting now may lose data."
       case .channelUnavailable, .invalidResponse, .dartRejectedTermination:
-        "Ianvs Terminal could not confirm that session recordings and runtime "
+        "Trail could not confirm that session recordings and runtime "
           + "resources are safe. Keep the app open and try Quit again. "
           + "Quitting now may lose data."
       }

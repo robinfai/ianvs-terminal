@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:yaml/yaml.dart';
 
 void main() {
-  test('macOS project metadata tracks the Ianvs Terminal app identity', () {
+  test('macOS project metadata tracks the Trail app identity', () {
     final exampleRoot = _exampleRoot();
     final appInfo = File(
       '${exampleRoot.path}/macos/Runner/Configs/AppInfo.xcconfig',
@@ -17,43 +17,43 @@ void main() {
     );
 
     final appInfoText = appInfo.readAsStringSync();
-    expect(appInfoText, contains('PRODUCT_NAME = Ianvs Terminal'));
+    expect(appInfoText, contains('PRODUCT_NAME = Trail'));
     expect(
       appInfoText,
-      contains('PRODUCT_BUNDLE_IDENTIFIER = dev.ianvs.terminal'),
+      contains('PRODUCT_BUNDLE_IDENTIFIER = work.ianvs.trail'),
     );
-    expect(appInfoText, contains('Ianvs Terminal contributors'));
+    expect(appInfoText, contains('Trail contributors'));
     expect(appInfoText, isNot(contains('com.example')));
 
     final projectText = project.readAsStringSync();
-    expect(projectText, contains('/* Ianvs Terminal Dev.app */'));
+    expect(projectText, contains('/* Trail Development.app */'));
     expect(
       projectText,
       contains(
-        r'TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Ianvs Terminal Dev.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Ianvs Terminal Dev";',
+        r'TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Trail Development.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Trail Development";',
       ),
     );
     expect(
       projectText,
-      contains('PRODUCT_BUNDLE_IDENTIFIER = dev.ianvs.terminal.RunnerTests;'),
+      contains('PRODUCT_BUNDLE_IDENTIFIER = work.ianvs.trail.RunnerTests;'),
     );
     expect(projectText, isNot(contains('DEVELOPMENT_TEAM =')));
     expect(projectText, isNot(contains('/* app.app */')));
     expect(projectText, isNot(contains('com.example.app')));
 
     final schemeText = scheme.readAsStringSync();
-    expect(schemeText, contains('BuildableName = "Ianvs Terminal Dev.app"'));
+    expect(schemeText, contains('BuildableName = "Trail Development.app"'));
     expect(schemeText, isNot(contains('BuildableName = "app.app"')));
   });
 
-  test('example package metadata describes the Ianvs Terminal app', () {
+  test('example package metadata describes the Trail app', () {
     final exampleRoot = _exampleRoot();
     final pubspecText = File(
       '${exampleRoot.path}/pubspec.yaml',
     ).readAsStringSync();
 
     expect(pubspecText, contains('description:'));
-    expect(pubspecText, contains('Ianvs Terminal'));
+    expect(pubspecText, contains('Trail'));
     expect(pubspecText, isNot(contains('A new Flutter project.')));
   });
 
@@ -275,7 +275,7 @@ void main() {
       verifier,
       contains(
         'Certificate-signed Release app must expose the '
-        'dev.ianvs.terminal Keychain group',
+        'work.ianvs.trail Keychain group',
       ),
     );
     expect(
@@ -615,7 +615,7 @@ if [[ "$1" == "-d" && "$2" == "--verbose=4" ]]; then
       echo 'CodeDirectory flags=0x2(adhoc)' >&2
     fi
     echo 'Signature=adhoc' >&2
-    echo 'Identifier=dev.ianvs.terminal' >&2
+    echo 'Identifier=work.ianvs.trail' >&2
   else
     if [[ "$FAKE_RUNTIME_FLAG" == "true" ]]; then
       echo 'CodeDirectory flags=0x10000(runtime)' >&2
@@ -625,7 +625,7 @@ if [[ "$1" == "-d" && "$2" == "--verbose=4" ]]; then
     echo 'Signature=Developer ID Application' >&2
     echo "Authority=$FAKE_AUTHORITY" >&2
     echo 'TeamIdentifier=IANVSFIXTURE' >&2
-    echo 'Identifier=dev.ianvs.terminal' >&2
+    echo 'Identifier=work.ianvs.trail' >&2
   fi
 elif [[ "$1" == "-d" && "$2" == "--entitlements" ]]; then
   cat "$FAKE_ENTITLEMENTS_FILE"

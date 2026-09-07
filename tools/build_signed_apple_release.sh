@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 EXAMPLE_DIR="$ROOT_DIR/example"
-PRODUCTION_IDENTIFIER="dev.ianvs.terminal"
+PRODUCTION_IDENTIFIER="work.ianvs.trail"
 PLATFORM="${1:-}"
 FLUTTER_COMMAND="${2:-flutter}"
 shift $(( $# >= 2 ? 2 : $# ))
@@ -23,7 +23,7 @@ if [[ "$PLATFORM" == "macos" ]]; then
     echo "Building an ad-hoc macOS app without iCloud Keychain synchronization."
     "$FLUTTER_COMMAND" build macos --release "$@"
     "$ROOT_DIR/tools/sign_local_macos_release.sh" \
-      "$EXAMPLE_DIR/build/macos/Build/Products/Release/Ianvs Terminal.app"
+      "$EXAMPLE_DIR/build/macos/Build/Products/Release/Trail.app"
     exit 0
   fi
   if [[ ! "$MACOS_BUNDLE_ID" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*[A-Za-z0-9]$ ]]; then
@@ -91,7 +91,7 @@ if [[ "$PLATFORM" == "macos" ]]; then
       build
   )
 
-  MACOS_APP="$EXAMPLE_DIR/build/macos/Build/Products/Release/Ianvs Terminal.app"
+  MACOS_APP="$EXAMPLE_DIR/build/macos/Build/Products/Release/Trail.app"
   [[ -f "$MACOS_APP/Contents/embedded.provisionprofile" ]] || {
     echo "macOS development build is missing its provisioning profile" >&2
     exit 1

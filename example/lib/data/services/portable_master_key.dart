@@ -102,7 +102,7 @@ abstract interface class PortableMasterKeyStorage {
   Future<void> write(String portableValue);
 }
 
-/// The only production platform-vault item owned by Ianvs Terminal.
+/// The only production platform-vault item owned by Trail.
 final class FlutterSecurePortableMasterKeyStorage
     implements PortableMasterKeyStorage {
   const FlutterSecurePortableMasterKeyStorage({
@@ -149,7 +149,7 @@ final class PortableMasterKeyUnavailableException implements Exception {
   @override
   String toString() {
     return 'The Ianvs master key has not arrived from iCloud Keychain yet. '
-        'Open Ianvs Terminal on macOS, keep both devices online, and retry.';
+        'Open Trail on macOS, keep both devices online, and retry.';
   }
 }
 

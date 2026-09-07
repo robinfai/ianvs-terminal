@@ -2,8 +2,8 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-APP_PATH="${1:-$ROOT_DIR/example/build/macos/Build/Products/Release/Ianvs Terminal.app}"
-EXPECTED_IDENTIFIER="${IANVS_APP_BUNDLE_ID:-dev.ianvs.terminal}"
+APP_PATH="${1:-$ROOT_DIR/example/build/macos/Build/Products/Release/Trail.app}"
+EXPECTED_IDENTIFIER="${IANVS_APP_BUNDLE_ID:-work.ianvs.trail}"
 LOCAL_ENTITLEMENTS="$ROOT_DIR/example/macos/Runner/LocalRelease.entitlements"
 ENTITLEMENT_VALIDATOR="$ROOT_DIR/tools/validate_local_release_entitlements.py"
 

@@ -1377,7 +1377,7 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
         DispatchQueue.main.async {
           result(
             self.notificationAuthorizationFailedError(
-              message: "Notifications are disabled for Ianvs Terminal in System Settings."
+              message: "Notifications are disabled for Trail in System Settings."
             )
           )
         }

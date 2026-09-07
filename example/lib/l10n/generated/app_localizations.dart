@@ -101,7 +101,7 @@ abstract class AppLocalizations {
   /// Application title
   ///
   /// In en, this message translates to:
-  /// **'Ianvs Terminal'**
+  /// **'Trail'**
   String get appTitle;
 
   /// Generic cancel action
@@ -179,7 +179,7 @@ abstract class AppLocalizations {
   /// Accessibility label shown while the application starts
   ///
   /// In en, this message translates to:
-  /// **'Starting Ianvs Terminal, attempt {attempt}'**
+  /// **'Starting Trail, attempt {attempt}'**
   String startingAppAttempt(int attempt);
 
   /// Status shown while the terminal runtime is initialized
@@ -323,7 +323,7 @@ abstract class AppLocalizations {
   /// Explanation that iOS requires a remote HTTP API
   ///
   /// In en, this message translates to:
-  /// **'A remote HTTP API connection is required before Ianvs Terminal can be used on iOS.'**
+  /// **'A remote HTTP API connection is required before Trail can be used on iOS.'**
   String get remoteApiRequiredOnIos;
 
   /// Help text for opening existing encrypted data with a master key
@@ -359,7 +359,7 @@ abstract class AppLocalizations {
   /// Startup failure heading
   ///
   /// In en, this message translates to:
-  /// **'Ianvs Terminal could not start'**
+  /// **'Trail could not start'**
   String get appCouldNotStart;
 
   /// Localized name of an application startup stage
@@ -809,7 +809,7 @@ abstract class AppLocalizations {
   /// Confirmation details for offline remote-to-local fallback
   ///
   /// In en, this message translates to:
-  /// **'The remote service is unavailable. Ianvs Terminal can switch to the bundled local API using {resourceCount} resources last synchronized at {capturedAt}. Remote data is not deleted, and the change takes effect after restart.'**
+  /// **'The remote service is unavailable. Trail can switch to the bundled local API using {resourceCount} resources last synchronized at {capturedAt}. Remote data is not deleted, and the change takes effect after restart.'**
   String remoteFallbackDescription(String capturedAt, int resourceCount);
 
   /// Confirmation action for offline remote-to-local fallback
@@ -827,7 +827,7 @@ abstract class AppLocalizations {
   /// Completion details for offline remote-to-local fallback
   ///
   /// In en, this message translates to:
-  /// **'The bundled local API will use the remote data synchronized at {capturedAt}. Restart Ianvs Terminal to apply the change.'**
+  /// **'The bundled local API will use the remote data synchronized at {capturedAt}. Restart Trail to apply the change.'**
   String remoteFallbackCompleteDescription(String capturedAt);
 
   /// Error shown when offline remote-to-local fallback fails
@@ -851,7 +851,7 @@ abstract class AppLocalizations {
   /// Explanation shown before repairing a noncanonical terminal settings document
   ///
   /// In en, this message translates to:
-  /// **'Ianvs Terminal will preserve the original remote document as a recovery copy, fill in the required current-format fields, and retry startup. Profiles and session data are not changed.'**
+  /// **'Trail will preserve the original remote document as a recovery copy, fill in the required current-format fields, and retry startup. Profiles and session data are not changed.'**
   String get repairTerminalSettingsDescription;
 
   /// Confirmation action that repairs terminal settings and retries startup
@@ -1703,7 +1703,7 @@ abstract class AppLocalizations {
   /// Apple master key storage explanation
   ///
   /// In en, this message translates to:
-  /// **'Ianvs Terminal stores the master key in iCloud Keychain and requests synchronization automatically. No manual key entry is required.'**
+  /// **'Trail stores the master key in iCloud Keychain and requests synchronization automatically. No manual key entry is required.'**
   String get appleMasterKeyStorageDescription;
 
   /// Action that copies the master key for transfer
@@ -6518,7 +6518,7 @@ abstract class AppLocalizations {
   /// No description provided for @zmodemDiscardWarning.
   ///
   /// In en, this message translates to:
-  /// **'{filename} is the only recovery copy retained by Ianvs Terminal. Discarding it permanently deletes the file and cannot be undone.'**
+  /// **'{filename} is the only recovery copy retained by Trail. Discarding it permanently deletes the file and cannot be undone.'**
   String zmodemDiscardWarning(String filename);
 
   /// No description provided for @discardFile.

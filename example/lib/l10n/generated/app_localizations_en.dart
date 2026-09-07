@@ -9,7 +9,7 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
-  String get appTitle => 'Ianvs Terminal';
+  String get appTitle => 'Trail';
 
   @override
   String get cancel => 'Cancel';
@@ -51,7 +51,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String startingAppAttempt(int attempt) {
-    return 'Starting Ianvs Terminal, attempt $attempt';
+    return 'Starting Trail, attempt $attempt';
   }
 
   @override
@@ -139,7 +139,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get remoteApiRequiredOnIos =>
-      'A remote HTTP API connection is required before Ianvs Terminal can be used on iOS.';
+      'A remote HTTP API connection is required before Trail can be used on iOS.';
 
   @override
   String get masterKeyOpenExistingHelp =>
@@ -158,7 +158,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get useLocalTerminalOnly => 'Use local terminal only';
 
   @override
-  String get appCouldNotStart => 'Ianvs Terminal could not start';
+  String get appCouldNotStart => 'Trail could not start';
 
   @override
   String startupStageName(String stage) {
@@ -444,7 +444,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String remoteFallbackDescription(String capturedAt, int resourceCount) {
-    return 'The remote service is unavailable. Ianvs Terminal can switch to the bundled local API using $resourceCount resources last synchronized at $capturedAt. Remote data is not deleted, and the change takes effect after restart.';
+    return 'The remote service is unavailable. Trail can switch to the bundled local API using $resourceCount resources last synchronized at $capturedAt. Remote data is not deleted, and the change takes effect after restart.';
   }
 
   @override
@@ -455,7 +455,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String remoteFallbackCompleteDescription(String capturedAt) {
-    return 'The bundled local API will use the remote data synchronized at $capturedAt. Restart Ianvs Terminal to apply the change.';
+    return 'The bundled local API will use the remote data synchronized at $capturedAt. Restart Trail to apply the change.';
   }
 
   @override
@@ -471,7 +471,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get repairTerminalSettingsDescription =>
-      'Ianvs Terminal will preserve the original remote document as a recovery copy, fill in the required current-format fields, and retry startup. Profiles and session data are not changed.';
+      'Trail will preserve the original remote document as a recovery copy, fill in the required current-format fields, and retry startup. Profiles and session data are not changed.';
 
   @override
   String get repairAndRetry => 'Repair and retry';
@@ -1020,7 +1020,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get appleMasterKeyStorageDescription =>
-      'Ianvs Terminal stores the master key in iCloud Keychain and requests synchronization automatically. No manual key entry is required.';
+      'Trail stores the master key in iCloud Keychain and requests synchronization automatically. No manual key entry is required.';
 
   @override
   String get copyForAnotherDevice => 'Copy for another device';
@@ -4222,7 +4222,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String zmodemDiscardWarning(String filename) {
-    return '$filename is the only recovery copy retained by Ianvs Terminal. Discarding it permanently deletes the file and cannot be undone.';
+    return '$filename is the only recovery copy retained by Trail. Discarding it permanently deletes the file and cannot be undone.';
   }
 
   @override

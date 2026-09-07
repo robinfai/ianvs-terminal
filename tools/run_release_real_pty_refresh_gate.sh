@@ -3,8 +3,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 EXAMPLE_DIR="$ROOT_DIR/example"
-APP_PATH="$EXAMPLE_DIR/build/macos/Build/Products/Release/Ianvs Terminal.app"
-APP_EXECUTABLE="$APP_PATH/Contents/MacOS/Ianvs Terminal"
+APP_PATH="$EXAMPLE_DIR/build/macos/Build/Products/Release/Trail.app"
+APP_EXECUTABLE="$APP_PATH/Contents/MacOS/Trail"
 TIMEOUT_SECONDS="${IANVS_RELEASE_REFRESH_GATE_TIMEOUT_SECONDS:-180}"
 LOG_DIR="$(mktemp -d "${TMPDIR:-/tmp}/ianvs-release-refresh-gate.XXXXXX")"
 STDOUT_LOG="$LOG_DIR/stdout.log"

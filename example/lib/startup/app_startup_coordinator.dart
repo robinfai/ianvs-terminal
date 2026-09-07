@@ -568,7 +568,7 @@ final class AppStartupCoordinator extends ChangeNotifier {
         FlutterErrorDetails(
           exception: failure.error,
           stack: failure.stackTrace,
-          library: 'Ianvs Terminal startup shutdown',
+          library: 'Trail startup shutdown',
           context: ErrorDescription(
             'while closing the typed application runtime',
           ),
@@ -583,7 +583,7 @@ final class AppStartupCoordinator extends ChangeNotifier {
             'Typed application runtime shutdown exceeded its bounded timeout.',
             _closeCoordinator.timeout,
           ),
-          library: 'Ianvs Terminal startup shutdown',
+          library: 'Trail startup shutdown',
         ),
       );
     }

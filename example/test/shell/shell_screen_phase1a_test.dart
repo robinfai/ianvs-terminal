@@ -86,7 +86,7 @@ void main() {
       tester
           .widget<Text>(find.byKey(const Key('shell-chrome-window-title')))
           .data,
-      'Ianvs Terminal',
+      'Trail',
     );
     expect(
       tester.getCenter(find.byKey(const Key('shell-chrome-window-title'))).dx,

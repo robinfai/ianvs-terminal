@@ -232,7 +232,7 @@ class RunnerTests: XCTestCase {
   func testTerminalFolderFileMenuIsStandardAndIdempotent() throws {
     let window = MainFlutterWindow()
     let mainMenu = NSMenu(title: "Main Menu")
-    mainMenu.addItem(NSMenuItem(title: "Ianvs Terminal", action: nil, keyEquivalent: ""))
+    mainMenu.addItem(NSMenuItem(title: "Trail", action: nil, keyEquivalent: ""))
 
     window.bindNativeTerminalFolderMenuItem(in: mainMenu)
     window.bindNativeTerminalFolderMenuItem(in: mainMenu)
@@ -255,13 +255,13 @@ class RunnerTests: XCTestCase {
     let window = MainFlutterWindow()
     let mainMenu = NSMenu(title: "Main Menu")
     let appMenuItem = NSMenuItem(
-      title: "Ianvs Terminal",
+      title: "Trail",
       action: nil,
       keyEquivalent: ""
     )
-    let appMenu = NSMenu(title: "Ianvs Terminal")
+    let appMenu = NSMenu(title: "Trail")
     appMenu.addItem(
-      NSMenuItem(title: "About Ianvs Terminal", action: nil, keyEquivalent: "")
+      NSMenuItem(title: "About Trail", action: nil, keyEquivalent: "")
     )
     appMenu.addItem(
       NSMenuItem(title: "Preferences…", action: nil, keyEquivalent: ",")
@@ -288,7 +288,7 @@ class RunnerTests: XCTestCase {
   func testTerminalSessionFileMenuUsesRequestedShortcutsAndIsIdempotent() throws {
     let window = MainFlutterWindow()
     let mainMenu = NSMenu(title: "Main Menu")
-    mainMenu.addItem(NSMenuItem(title: "Ianvs Terminal", action: nil, keyEquivalent: ""))
+    mainMenu.addItem(NSMenuItem(title: "Trail", action: nil, keyEquivalent: ""))
 
     window.bindNativeTerminalSessionMenuItems(in: mainMenu)
     window.bindNativeTerminalSessionMenuItems(in: mainMenu)
@@ -375,13 +375,13 @@ class RunnerTests: XCTestCase {
     let window = MainFlutterWindow()
 
     let error = window.notificationAuthorizationFailedError(
-      message: "Notifications are disabled for Ianvs Terminal in System Settings."
+      message: "Notifications are disabled for Trail in System Settings."
     )
 
     XCTAssertEqual(error.code, "notification_authorization_failed")
     XCTAssertEqual(
       error.message,
-      "Notifications are disabled for Ianvs Terminal in System Settings."
+      "Notifications are disabled for Trail in System Settings."
     )
     XCTAssertNil(error.details)
   }

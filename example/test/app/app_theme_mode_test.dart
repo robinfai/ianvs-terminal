@@ -75,9 +75,9 @@ void main() {
 
     await _pumpApp(tester);
 
-    expect(find.text('Ianvs 终端'), findsOneWidget);
+    expect(find.text('Trail'), findsOneWidget);
     expect(
-      Localizations.localeOf(tester.element(find.text('Ianvs 终端'))),
+      Localizations.localeOf(tester.element(find.text('Trail'))),
       const Locale('zh'),
     );
   });
@@ -99,9 +99,9 @@ void main() {
       ),
     );
 
-    expect(find.text('Ianvs Terminal'), findsOneWidget);
+    expect(find.text('Trail'), findsOneWidget);
     expect(
-      Localizations.localeOf(tester.element(find.text('Ianvs Terminal'))),
+      Localizations.localeOf(tester.element(find.text('Trail'))),
       const Locale('en'),
     );
   });
@@ -122,7 +122,7 @@ void main() {
         .setLanguageMode(TerminalLanguageMode.simplifiedChinese);
     await tester.pumpAndSettle();
 
-    expect(find.text('Ianvs 终端'), findsOneWidget);
+    expect(find.text('Trail'), findsOneWidget);
     expect(
       repository.savedDocuments.last.appearance.languageMode,
       TerminalLanguageMode.simplifiedChinese,

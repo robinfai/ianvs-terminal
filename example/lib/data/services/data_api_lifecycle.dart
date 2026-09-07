@@ -82,7 +82,7 @@ class _DataApiLifecycleBoundaryState extends State<DataApiLifecycleBoundary> {
         FlutterErrorDetails(
           exception: failure.error,
           stack: failure.stackTrace,
-          library: 'Ianvs Terminal shutdown',
+          library: 'Trail shutdown',
           context: ErrorDescription(
             'while running shutdown task "${failure.taskName}"',
           ),
@@ -96,7 +96,7 @@ class _DataApiLifecycleBoundaryState extends State<DataApiLifecycleBoundary> {
             'Application shutdown exceeded its bounded timeout.',
             widget.shutdownCoordinator.timeout,
           ),
-          library: 'Ianvs Terminal shutdown',
+          library: 'Trail shutdown',
         ),
       );
     }

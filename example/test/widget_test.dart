@@ -1693,7 +1693,7 @@ void main() {
         tester
             .widget<Text>(find.byKey(const Key('shell-chrome-window-title')))
             .data,
-        'Ianvs Terminal',
+        'Trail',
       );
 
       await tester.tap(find.byKey(const Key('shell-pane-1')));
@@ -1710,7 +1710,7 @@ void main() {
         tester
             .widget<Text>(find.byKey(const Key('shell-chrome-window-title')))
             .data,
-        'Ianvs Terminal',
+        'Trail',
       );
       expect(fakeBindings.writes, isEmpty);
     },
@@ -1799,7 +1799,7 @@ void main() {
         tester
             .widget<Text>(find.byKey(const Key('shell-chrome-window-title')))
             .data,
-        'Ianvs Terminal',
+        'Trail',
       );
       expect(find.byKey(const Key('shell-status-badge')), findsNothing);
       expect(find.text('DEPLOY'), findsOneWidget);
@@ -4884,7 +4884,7 @@ void main() {
 
       expect(
         find.text(
-          'macOS notifications are blocked for Ianvs Terminal. Enable them in System Settings > Notifications.',
+          'macOS notifications are blocked for Trail. Enable them in System Settings > Notifications.',
         ),
         findsOneWidget,
       );
@@ -4908,7 +4908,7 @@ void main() {
 
       expect(
         find.text(
-          'macOS notifications are blocked for Ianvs Terminal. Enable them in System Settings > Notifications.',
+          'macOS notifications are blocked for Trail. Enable them in System Settings > Notifications.',
         ),
         findsOneWidget,
       );

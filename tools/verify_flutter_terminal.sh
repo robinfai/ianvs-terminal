@@ -162,7 +162,7 @@ fi
   cd "$EXAMPLE_DIR"
   verify_release_bundle() (
     release_app="$1"
-    release_executable="$release_app/Contents/MacOS/Ianvs Terminal"
+    release_executable="$release_app/Contents/MacOS/Trail"
     release_core="$release_app/Contents/Frameworks/ianvs_core.framework/ianvs_core"
 
     for arch in $(lipo -archs "$release_executable"); do
@@ -211,9 +211,9 @@ fi
             -o - "$release_entitlements" 2>/dev/null || true
         )"
         case "$keychain_group" in
-          *dev.ianvs.terminal) ;;
+          *work.ianvs.trail) ;;
           *)
-            echo "Certificate-signed Release app must expose the dev.ianvs.terminal Keychain group." >&2
+            echo "Certificate-signed Release app must expose the work.ianvs.trail Keychain group." >&2
             exit 1
             ;;
         esac
@@ -235,10 +235,10 @@ fi
   flutter test -d macos \
     integration_test/macos_keychain_profile_secret_test.dart
   flutter build macos --debug
-  debug_app="$EXAMPLE_DIR/build/macos/Build/Products/Debug/Ianvs Terminal Dev.app"
+  debug_app="$EXAMPLE_DIR/build/macos/Build/Products/Debug/Trail Development.app"
   codesign --verify --deep --strict "$debug_app"
   flutter build macos --release
-  release_app="$EXAMPLE_DIR/build/macos/Build/Products/Release/Ianvs Terminal.app"
+  release_app="$EXAMPLE_DIR/build/macos/Build/Products/Release/Trail.app"
   verify_release_bundle "$release_app"
   # Rebuild once more to exercise CodeAsset incremental packaging and prove
   # that a Release rebuild still seals the bundled dylib cleanly.

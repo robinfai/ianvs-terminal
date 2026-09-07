@@ -1,6 +1,6 @@
 {
   "@@locale": "en",
-  "appTitle": "Ianvs Terminal",
+  "appTitle": "Trail",
   "@appTitle": {
     "description": "Application title"
   },
@@ -57,7 +57,7 @@
   "@closeDialog": {
     "description": "Tooltip for closing a dialog"
   },
-  "startingAppAttempt": "Starting Ianvs Terminal, attempt {attempt}",
+  "startingAppAttempt": "Starting Trail, attempt {attempt}",
   "@startingAppAttempt": {
     "description": "Accessibility label shown while the application starts",
     "placeholders": {
@@ -168,7 +168,7 @@
   "@dataModeLocalOrRemote": {
     "description": "Data-mode choices when the bundled API is unavailable"
   },
-  "remoteApiRequiredOnIos": "A remote HTTP API connection is required before Ianvs Terminal can be used on iOS.",
+  "remoteApiRequiredOnIos": "A remote HTTP API connection is required before Trail can be used on iOS.",
   "@remoteApiRequiredOnIos": {
     "description": "Explanation that iOS requires a remote HTTP API"
   },
@@ -192,7 +192,7 @@
   "@useLocalTerminalOnly": {
     "description": "Action that uses only local terminal features"
   },
-  "appCouldNotStart": "Ianvs Terminal could not start",
+  "appCouldNotStart": "Trail could not start",
   "@appCouldNotStart": {
     "description": "Startup failure heading"
   },
@@ -524,7 +524,7 @@
   "@remoteFallbackTitle": {
     "description": "Confirmation title for offline remote-to-local fallback"
   },
-  "remoteFallbackDescription": "The remote service is unavailable. Ianvs Terminal can switch to the bundled local API using {resourceCount} resources last synchronized at {capturedAt}. Remote data is not deleted, and the change takes effect after restart.",
+  "remoteFallbackDescription": "The remote service is unavailable. Trail can switch to the bundled local API using {resourceCount} resources last synchronized at {capturedAt}. Remote data is not deleted, and the change takes effect after restart.",
   "@remoteFallbackDescription": {
     "description": "Confirmation details for offline remote-to-local fallback",
     "placeholders": {
@@ -540,7 +540,7 @@
   "@remoteFallbackCompleteTitle": {
     "description": "Title shown after the local fallback configuration is committed"
   },
-  "remoteFallbackCompleteDescription": "The bundled local API will use the remote data synchronized at {capturedAt}. Restart Ianvs Terminal to apply the change.",
+  "remoteFallbackCompleteDescription": "The bundled local API will use the remote data synchronized at {capturedAt}. Restart Trail to apply the change.",
   "@remoteFallbackCompleteDescription": {
     "description": "Completion details for offline remote-to-local fallback",
     "placeholders": {
@@ -562,7 +562,7 @@
   "@repairTerminalSettingsTitle": {
     "description": "Confirmation title for repairing a noncanonical terminal settings document"
   },
-  "repairTerminalSettingsDescription": "Ianvs Terminal will preserve the original remote document as a recovery copy, fill in the required current-format fields, and retry startup. Profiles and session data are not changed.",
+  "repairTerminalSettingsDescription": "Trail will preserve the original remote document as a recovery copy, fill in the required current-format fields, and retry startup. Profiles and session data are not changed.",
   "@repairTerminalSettingsDescription": {
     "description": "Explanation shown before repairing a noncanonical terminal settings document"
   },
@@ -1245,7 +1245,7 @@
   "@portableMasterKeyDescription": {
     "description": "Portable master key summary"
   },
-  "appleMasterKeyStorageDescription": "Ianvs Terminal stores the master key in iCloud Keychain and requests synchronization automatically. No manual key entry is required.",
+  "appleMasterKeyStorageDescription": "Trail stores the master key in iCloud Keychain and requests synchronization automatically. No manual key entry is required.",
   "@appleMasterKeyStorageDescription": {
     "description": "Apple master key storage explanation"
   },
@@ -2426,7 +2426,7 @@
   "couldNotDismissZmodemRecovery": "Could not dismiss the ZMODEM recovery notice",
   "preservedZmodemFile": "the preserved ZMODEM file",
   "permanentlyDiscardFileQuestion": "Permanently discard file?",
-  "zmodemDiscardWarning": "{filename} is the only recovery copy retained by Ianvs Terminal. Discarding it permanently deletes the file and cannot be undone.",
+  "zmodemDiscardWarning": "{filename} is the only recovery copy retained by Trail. Discarding it permanently deletes the file and cannot be undone.",
   "@zmodemDiscardWarning": {"placeholders": {"filename": {"type": "String"}}},
   "discardFile": "Discard file",
   "zmodemPreservedSemantics": "ZMODEM file preserved. {filename} from {source}.",

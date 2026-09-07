@@ -9,7 +9,7 @@ class AppLocalizationsZh extends AppLocalizations {
   AppLocalizationsZh([String locale = 'zh']) : super(locale);
 
   @override
-  String get appTitle => 'Ianvs 终端';
+  String get appTitle => 'Trail';
 
   @override
   String get cancel => '取消';
@@ -51,7 +51,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String startingAppAttempt(int attempt) {
-    return '正在启动 Ianvs 终端，第 $attempt 次尝试';
+    return '正在启动 Trail，第 $attempt 次尝试';
   }
 
   @override
@@ -132,7 +132,7 @@ class AppLocalizationsZh extends AppLocalizations {
       '你可以在不使用数据服务的情况下进行一次性 SSH 连接，或连接远程 API 来保存并同步 Profile。';
 
   @override
-  String get remoteApiRequiredOnIos => '在 iOS 上使用 Ianvs 终端前，必须先连接远程 HTTP API。';
+  String get remoteApiRequiredOnIos => '在 iOS 上使用 Trail前，必须先连接远程 HTTP API。';
 
   @override
   String get masterKeyOpenExistingHelp => '粘贴导出的 ianvs-key-v1 密钥，以打开现有加密数据。';
@@ -150,7 +150,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get useLocalTerminalOnly => '仅使用本地终端';
 
   @override
-  String get appCouldNotStart => 'Ianvs 终端无法启动';
+  String get appCouldNotStart => 'Trail无法启动';
 
   @override
   String startupStageName(String stage) {
@@ -419,7 +419,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String remoteFallbackDescription(String capturedAt, int resourceCount) {
-    return '远程服务当前不可用。Ianvs 终端可以切换到内置本地 API，使用 $capturedAt 最后同步的 $resourceCount 项资源。远程数据不会被删除，重启应用后生效。';
+    return '远程服务当前不可用。Trail可以切换到内置本地 API，使用 $capturedAt 最后同步的 $resourceCount 项资源。远程数据不会被删除，重启应用后生效。';
   }
 
   @override
@@ -430,7 +430,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String remoteFallbackCompleteDescription(String capturedAt) {
-    return '内置本地 API 将使用 $capturedAt 同步的远程数据。请重启 Ianvs 终端以应用更改。';
+    return '内置本地 API 将使用 $capturedAt 同步的远程数据。请重启 Trail以应用更改。';
   }
 
   @override
@@ -446,7 +446,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get repairTerminalSettingsDescription =>
-      'Ianvs 终端会先将原始远端文档保存为恢复副本，再补齐当前格式要求的字段并重试启动。Profile 和会话数据不会更改。';
+      'Trail会先将原始远端文档保存为恢复副本，再补齐当前格式要求的字段并重试启动。Profile 和会话数据不会更改。';
 
   @override
   String get repairAndRetry => '修复并重试';
@@ -964,7 +964,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get appleMasterKeyStorageDescription =>
-      'Ianvs 终端会将主密钥存储在 iCloud 钥匙串中并自动请求同步，无需手动输入密钥。';
+      'Trail会将主密钥存储在 iCloud 钥匙串中并自动请求同步，无需手动输入密钥。';
 
   @override
   String get copyForAnotherDevice => '复制到其他设备';
@@ -3964,7 +3964,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String zmodemDiscardWarning(String filename) {
-    return '$filename 是 Ianvs Terminal 保留的唯一恢复副本。永久丢弃后文件将被删除，且无法撤销。';
+    return '$filename 是 Trail 保留的唯一恢复副本。永久丢弃后文件将被删除，且无法撤销。';
   }
 
   @override

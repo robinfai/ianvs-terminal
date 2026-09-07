@@ -46,9 +46,9 @@ extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
       }
       final message = switch (error.code) {
         'notification_authorization_failed' =>
-          'macOS notifications are blocked for Ianvs Terminal. Enable them in System Settings > Notifications.',
+          'macOS notifications are blocked for Trail. Enable them in System Settings > Notifications.',
         'notification_delivery_failed' =>
-          'Ianvs Terminal could not deliver a macOS notification right now.',
+          'Trail could not deliver a macOS notification right now.',
         _ => null,
       };
       if (message == null) {
