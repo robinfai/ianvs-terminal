@@ -2005,7 +2005,7 @@
   "idleGap": "Idle gap",
   "shellSemantics": "Shell semantics",
   "activityFallbackNoShellHook": "Activity fallback · no shell hook",
-  "terminalActionName": "{action, select, new_tab{New tab} new_ssh_session{New SSH session} new_tab_at_folder{New tab at folder} open_recording_for_replay{Open recording for replay} duplicate_current_cwd{Duplicate current directory} reopen_closed_tab{Reopen closed tab} open_launcher{Open launcher} open_command_menu{Open command menu} open_sftp_panel{Open SFTP panel} split_right{Split right} split_down{Split down} focus_next_pane{Focus next pane} focus_previous_pane{Focus previous pane} resize_pane{Resize pane} swap_pane{Swap pane} zoom_pane{Zoom pane} close_pane{Close pane} reopen_closed_pane{Reopen closed pane} close_active_tab{Close active tab} open_defaults{Open defaults} activate_tab{Activate tab} copy{Copy} copy_command_output{Copy command output} paste{Paste} toggle_read_only{Toggle read-only} toggle_replay_recording{Toggle replay recording} clear_buffer{Clear buffer} replay_recent_activity{Replay recent activity} search_scrollback{Search scrollback} next_search_match{Next search match} previous_search_match{Previous search match} clear_search{Clear search} defaults{Defaults} profiles{Profiles} request_quit_confirmation{Request quit confirmation} previous_prompt{Previous prompt} next_prompt{Next prompt} export_scrollback{Export scrollback} export_diagnostics{Export diagnostics} other{{action}}}",
+  "terminalActionName": "{action, select, new_tab{New tab} new_ssh_session{New SSH session} new_tab_at_folder{New tab at folder} open_recording_for_replay{Replay} duplicate_current_cwd{Duplicate current directory} reopen_closed_tab{Reopen closed tab} open_launcher{Open launcher} open_command_menu{Open command menu} open_sftp_panel{Open SFTP panel} split_right{Split right} split_down{Split down} focus_next_pane{Focus next pane} focus_previous_pane{Focus previous pane} resize_pane{Resize pane} swap_pane{Swap pane} zoom_pane{Zoom pane} close_pane{Close pane} reopen_closed_pane{Reopen closed pane} close_active_tab{Close active tab} open_defaults{Open defaults} activate_tab{Activate tab} copy{Copy} copy_command_output{Copy command output} paste{Paste} toggle_read_only{Toggle read-only} toggle_replay_recording{Toggle replay recording} clear_buffer{Clear buffer} replay_recent_activity{Replay recent activity} search_scrollback{Search scrollback} next_search_match{Next search match} previous_search_match{Previous search match} clear_search{Clear search} defaults{Defaults} profiles{Profiles} request_quit_confirmation{Request quit confirmation} previous_prompt{Previous prompt} next_prompt{Next prompt} export_scrollback{Export scrollback} export_diagnostics{Export diagnostics} other{{action}}}",
   "@terminalActionName": {
     "placeholders": {
       "action": {
@@ -3780,5 +3780,14 @@
   "syncLocalFirstDescription": "Changes save locally first. Independent changes merge automatically; conflicting values never overwrite either side without your choice.",
   "syncKeepLocal": "Keep local conflicting values",
   "syncUseRemote": "Use API conflicting values",
-  "syncNow": "Sync now"
+  "syncNow": "Sync now",
+  "replayHubTitle": "Replay",
+  "replayHubDescription": "Review recent screen history, saved recordings, or open a recording file.",
+  "replayRecentTitle": "Recent screen history",
+  "replayRecentExplanation": "Review recent output from the current session. This temporary history is cleared when the app exits.",
+  "replayRecentNeedsSession": "Open a terminal session to review its recent screen history.",
+  "replaySavedExplanation": "Start a recording to keep it on this device. After you stop and save, it stays available when you reopen the app.",
+  "replayOpenFile": "Open recording file",
+  "replayLibraryEmpty": "No saved recordings yet. Start and stop a recording, or open a recording file.",
+  "replayRecordingUnavailable": "This recording cannot be read."
 }

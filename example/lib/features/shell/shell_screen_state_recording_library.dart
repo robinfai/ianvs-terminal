@@ -1,18 +1,75 @@
 part of 'shell_screen.dart';
 
 extension _ShellScreenRecordingLibraryState on _ShellScreenState {
-  Future<void> _openRecordingFromPicker() async {
-    if (_recordingSelectionLoading) {
-      return;
-    }
-    final sourcePath = await _chooseRecordingFile();
-    if (!mounted || sourcePath == null) {
-      return;
-    }
-    await _openRecordingAtPath(sourcePath);
+  Future<void> _openRecordingLibrary() async {
+    if (_recordingShelfOpen) return;
+    _recordingReturnFocus = FocusManager.instance.primaryFocus;
+    _recordingReturnFocus?.unfocus();
+    _mutateState(() {
+      _invalidateRecordingOpen();
+      _recordingShelfOpen = true;
+    });
+    await _loadRecordingLibrary();
   }
 
-  Future<String?> _chooseRecordingFile() async {
+  void _invalidateRecordingOpen() {
+    _recordingOpenGeneration++;
+    _recordingSelectionLoading = false;
+  }
+
+  bool _isCurrentRecordingOpen(int generation) =>
+      mounted && generation == _recordingOpenGeneration;
+
+  int _beginRecordingOpen() {
+    _mutateState(() {
+      _recordingOpenGeneration++;
+      _recordingSelectionLoading = true;
+      _recordingLibraryError = null;
+    });
+    return _recordingOpenGeneration;
+  }
+
+  void _finishRecordingOpen(int generation) {
+    if (_isCurrentRecordingOpen(generation)) {
+      _mutateState(() => _recordingSelectionLoading = false);
+    }
+  }
+
+  void _closeRecordingLibrary() {
+    final returnFocus = _recordingReturnFocus;
+    _recordingReturnFocus = null;
+    _mutateState(() {
+      _invalidateRecordingOpen();
+      _recordingShelfOpen = false;
+    });
+    final generation = _recordingOpenGeneration;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_isCurrentRecordingOpen(generation) || _recordingShelfOpen) return;
+      if (returnFocus?.context != null && returnFocus!.canRequestFocus) {
+        returnFocus.requestFocus();
+      } else if (_selectedRecording == null &&
+          _instantReplayLayoutSession == null) {
+        final sessionId = ref.read(sessionControllerProvider).activeSessionId;
+        if (sessionId != null) _focusNodeFor(sessionId).requestFocus();
+      }
+    });
+  }
+
+  Future<void> _openRecordingFromPicker() async {
+    if (_recordingSelectionLoading) return;
+    final generation = _beginRecordingOpen();
+    try {
+      final sourcePath = await _chooseRecordingFile(generation);
+      if (!_isCurrentRecordingOpen(generation) || sourcePath == null) return;
+      await _loadRecordingAtPath(sourcePath, generation);
+    } on Object catch (error) {
+      _recordingOpenFailed(error, generation);
+    } finally {
+      _finishRecordingOpen(generation);
+    }
+  }
+
+  Future<String?> _chooseRecordingFile(int generation) async {
     String? initialDirectory;
     try {
       initialDirectory =
@@ -22,56 +79,61 @@ extension _ShellScreenRecordingLibraryState on _ShellScreenState {
               .absolute
               .path;
     } on Object {
-      // The native picker remains usable if the preferred directory cannot
-      // be resolved or created.
+      // A file can still be opened when the library directory is unavailable.
     }
-    if (!mounted) {
-      return null;
-    }
+    if (!_isCurrentRecordingOpen(generation)) return null;
     return ref.read(shellRecordingFilePickerProvider)(
       initialDirectory: initialDirectory,
     );
   }
 
   Future<bool> _openRecordingAtPath(String sourcePath) async {
-    if (_recordingSelectionLoading) {
-      return false;
-    }
-    _mutateState(() {
-      _recordingSelectionLoading = true;
-      _recordingLibraryError = null;
-    });
+    if (_recordingSelectionLoading) return false;
+    final generation = _beginRecordingOpen();
     try {
-      final opened = await ref
-          .read(localSessionRecordingRepositoryProvider)
-          .openRecording(sourcePath);
-      if (!mounted) {
-        return false;
-      }
-      _mutateState(() {
-        _instantReplayLayoutSession = null;
-        _selectedRecordingEntry = opened.entry;
-        _selectedRecording = opened.recording;
-      });
-      return true;
+      return await _loadRecordingAtPath(sourcePath, generation);
     } on Object catch (error) {
-      if (mounted) {
-        _showShellSnackBar(
-          context.l10n.couldNotOpenRecording(error.toString()),
-        );
-      }
+      _recordingOpenFailed(error, generation);
       return false;
     } finally {
-      if (mounted) {
-        _mutateState(() {
-          _recordingSelectionLoading = false;
-        });
-      }
+      _finishRecordingOpen(generation);
     }
   }
 
+  Future<bool> _loadRecordingAtPath(String sourcePath, int generation) async {
+    final opened = await ref
+        .read(localSessionRecordingRepositoryProvider)
+        .openRecording(sourcePath);
+    if (!_isCurrentRecordingOpen(generation)) return false;
+    _showSelectedRecording(opened.entry, opened.recording);
+    return true;
+  }
+
+  void _recordingOpenFailed(Object error, int generation) {
+    if (!_isCurrentRecordingOpen(generation)) return;
+    final message = context.l10n.couldNotOpenRecording(error.toString());
+    _mutateState(() => _recordingLibraryError = message);
+    _showShellSnackBar(message);
+  }
+
+  void _showSelectedRecording(
+    LocalSessionRecordingEntry entry,
+    terminal.TerminalRecording recording,
+  ) {
+    _mutateState(() {
+      _recordingShelfOpen = false;
+      _recordingReturnFocus = null;
+      _instantReplayLayoutSession = null;
+      _selectedRecordingEntry = entry;
+      _selectedRecording = recording;
+      _recordingPlaybackGeneration++;
+    });
+  }
+
   Future<void> _loadRecordingLibrary() async {
+    if (!mounted) return;
     if (_recordingLibraryLoading) {
+      _recordingLibraryReloadRequested = true;
       return;
     }
     _mutateState(() {
@@ -85,16 +147,7 @@ extension _ShellScreenRecordingLibraryState on _ShellScreenState {
       if (!mounted) {
         return;
       }
-      final selectedPath = _selectedRecordingEntry?.path;
-      _mutateState(() {
-        _recordingEntries = entries;
-        if (selectedPath != null) {
-          _selectedRecordingEntry = _entryAtPath(entries, selectedPath);
-          if (_selectedRecordingEntry == null) {
-            _selectedRecording = null;
-          }
-        }
-      });
+      _mutateState(() => _recordingEntries = entries);
     } on Object catch (error) {
       if (mounted) {
         _mutateState(() {
@@ -108,208 +161,37 @@ extension _ShellScreenRecordingLibraryState on _ShellScreenState {
         _mutateState(() {
           _recordingLibraryLoading = false;
         });
+        if (_recordingLibraryReloadRequested) {
+          _recordingLibraryReloadRequested = false;
+          unawaited(_loadRecordingLibrary());
+        }
       }
     }
   }
 
   Future<void> _selectRecording(LocalSessionRecordingEntry entry) async {
-    if (!entry.isReadable || _recordingSelectionLoading) {
-      return;
-    }
-    _mutateState(() {
-      _recordingSelectionLoading = true;
-      _recordingLibraryError = null;
-    });
+    if (!entry.isReadable || _recordingSelectionLoading) return;
+    final generation = _beginRecordingOpen();
     try {
       final recording = await ref
           .read(localSessionRecordingRepositoryProvider)
           .load(entry.path);
-      if (!mounted) {
-        return;
+      if (_isCurrentRecordingOpen(generation)) {
+        _showSelectedRecording(entry, recording);
       }
-      _mutateState(() {
-        _selectedRecordingEntry = entry;
-        _selectedRecording = recording;
-      });
     } on Object catch (error) {
-      if (mounted) {
-        _mutateState(() {
-          _recordingLibraryError = context.l10n.couldNotOpenRecording(
-            error.toString(),
-          );
-        });
-      }
+      _recordingOpenFailed(error, generation);
     } finally {
-      if (mounted) {
-        _mutateState(() {
-          _recordingSelectionLoading = false;
-        });
-      }
+      _finishRecordingOpen(generation);
     }
   }
 
   void _closeRecordingReplay() {
     _mutateState(() {
+      _invalidateRecordingOpen();
       _selectedRecordingEntry = null;
       _selectedRecording = null;
     });
+    _focusSession(ref.read(sessionControllerProvider).activeSessionId);
   }
-
-  Future<void> _importRecording() async {
-    final l10n = context.l10n;
-    final sourcePath = await _chooseRecordingFile();
-    if (!mounted || sourcePath == null) {
-      return;
-    }
-    try {
-      final entry = await ref
-          .read(localSessionRecordingRepositoryProvider)
-          .importRecording(sourcePath: sourcePath);
-      await _loadRecordingLibrary();
-      if (mounted) {
-        await _selectRecording(entry);
-        _showShellSnackBar(l10n.recordingImported);
-      }
-    } on Object catch (error) {
-      _showShellSnackBar(l10n.couldNotImportRecording(error.toString()));
-    }
-  }
-
-  Future<void> _renameRecording(LocalSessionRecordingEntry entry) async {
-    final l10n = context.l10n;
-    final controller = TextEditingController(text: entry.displayName);
-    final nextName = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(dialogContext.l10n.renameRecording),
-        content: TextField(
-          key: const Key('recording-rename-field'),
-          controller: controller,
-          autofocus: true,
-          maxLength: 120,
-          decoration: InputDecoration(
-            labelText: dialogContext.l10n.recordingName,
-          ),
-          onSubmitted: (value) => Navigator.of(dialogContext).pop(value),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: Text(dialogContext.l10n.cancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(controller.text),
-            child: Text(dialogContext.l10n.rename),
-          ),
-        ],
-      ),
-    );
-    controller.dispose();
-    if (!mounted || nextName == null) {
-      return;
-    }
-    try {
-      await ref
-          .read(localSessionRecordingRepositoryProvider)
-          .renameRecording(entry.path, nextName);
-      await _loadRecordingLibrary();
-    } on Object catch (error) {
-      _showShellSnackBar(l10n.couldNotRenameRecording(error.toString()));
-    }
-  }
-
-  Future<void> _revealRecording(LocalSessionRecordingEntry entry) async {
-    final l10n = context.l10n;
-    try {
-      await ref.read(shellRecordingRevealProvider)(entry.path);
-    } on Object catch (error) {
-      _showShellSnackBar(l10n.couldNotRevealRecording(error.toString()));
-    }
-  }
-
-  Future<void> _exportRecording(LocalSessionRecordingEntry entry) async {
-    final l10n = context.l10n;
-    final suggestedName = '${_recordingFileName(entry.displayName)}.ndjson';
-    final destination = await ref.read(shellRecordingExportPickerProvider)(
-      suggestedName,
-    );
-    if (!mounted || destination == null) {
-      return;
-    }
-    try {
-      await ref
-          .read(localSessionRecordingRepositoryProvider)
-          .exportRecording(entry.path, destination);
-      _showShellSnackBar(l10n.recordingExported);
-    } on Object catch (error) {
-      _showShellSnackBar(l10n.couldNotExportRecording(error.toString()));
-    }
-  }
-
-  Future<void> _deleteRecording(LocalSessionRecordingEntry entry) async {
-    final l10n = context.l10n;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(dialogContext.l10n.moveRecordingToTrashQuestion),
-        content: Text(
-          dialogContext.l10n.recordingRemovedFromSaved(entry.displayName),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text(dialogContext.l10n.cancel),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: context.appTheme.danger,
-            ),
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: Text(dialogContext.l10n.moveToTrash),
-          ),
-        ],
-      ),
-    );
-    if (!mounted || confirmed != true) {
-      return;
-    }
-    try {
-      final repository = ref.read(localSessionRecordingRepositoryProvider);
-      final moved = await repository.moveRecordingToTrash(
-        entry.path,
-        ref.read(shellRecordingTrashProvider),
-      );
-      if (!moved) {
-        throw const FileSystemException('The file could not be moved to Trash');
-      }
-      await repository.forgetRecording(entry.path);
-      if (_selectedRecordingEntry?.path == entry.path) {
-        _closeRecordingReplay();
-      }
-      await _loadRecordingLibrary();
-      _showShellSnackBar(l10n.recordingMovedToTrash);
-    } on Object catch (error) {
-      _showShellSnackBar(l10n.couldNotRemoveRecording(error.toString()));
-    }
-  }
-
-  LocalSessionRecordingEntry? _entryAtPath(
-    List<LocalSessionRecordingEntry> entries,
-    String path,
-  ) {
-    for (final entry in entries) {
-      if (entry.path == path) {
-        return entry;
-      }
-    }
-    return null;
-  }
-}
-
-String _recordingFileName(String value) {
-  final normalized = value
-      .trim()
-      .replaceAll(RegExp('[^A-Za-z0-9._ -]+'), '-')
-      .replaceAll(RegExp(r'\s+'), '-');
-  return normalized.isEmpty ? 'terminal-recording' : normalized;
 }

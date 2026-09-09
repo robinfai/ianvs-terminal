@@ -985,6 +985,95 @@ void main() {
       expect(exported.metadata.sessionId, 'runtime-import');
     });
 
+    test('a new repository lists and opens completed recordings without '
+        'promoting unfinished or failed files', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'ianvs terminal-recording-library-restart',
+      );
+      addTearDown(() => directory.delete(recursive: true));
+      final firstProcess = LocalSessionRecordingRepository(
+        directoryResolver: () async => directory,
+      );
+      final older = _recording(
+        'restart-older',
+        createdAtUtc: DateTime.utc(2026, 7, 21, 5),
+      );
+      final olderDestination = await firstProcess.reserve(
+        runtimeSessionId: older.metadata.sessionId,
+        createdAtUtc: older.metadata.createdAtUtc,
+      );
+      await firstProcess.save(
+        olderDestination,
+        older,
+        displayName: 'Older completed recording',
+      );
+      final newest = _recording(
+        'restart-newest',
+        createdAtUtc: DateTime.utc(2026, 7, 21, 7),
+      );
+      final newestDestination = await firstProcess.reserve(
+        runtimeSessionId: newest.metadata.sessionId,
+        createdAtUtc: newest.metadata.createdAtUtc,
+      );
+      await firstProcess.save(
+        newestDestination,
+        newest,
+        displayName: 'Newest completed recording',
+      );
+
+      await firstProcess.reserve(
+        runtimeSessionId: 'restart-unfinished',
+        createdAtUtc: DateTime.utc(2026, 7, 21, 8),
+      );
+      final root = newestDestination.file.parent;
+      await File(
+        '${root.path}/unfinished.ndjson.tmp.interrupted',
+      ).writeAsString(const TerminalRecordingCodec().encode(newest));
+      final failed = File('${root.path}/failed.ndjson');
+      await failed.writeAsString('{not-a-recording}\n', flush: true);
+
+      final secondProcess = LocalSessionRecordingRepository(
+        directoryResolver: () async => directory,
+      );
+      final entries = await secondProcess.listRecordings();
+      final completed = entries
+          .where((entry) => entry.error == null)
+          .toList(growable: false);
+
+      expect(completed, hasLength(2));
+      expect(completed.map((entry) => entry.sessionId), <String?>[
+        'restart-newest',
+        'restart-older',
+      ]);
+      expect(completed.first.displayName, 'Newest completed recording');
+      expect(
+        entries
+            .where((entry) => entry.path == failed.absolute.path)
+            .single
+            .error,
+        isNotEmpty,
+      );
+      expect(
+        entries.any((entry) => entry.displayName.contains('unfinished')),
+        isFalse,
+      );
+
+      final opened = await secondProcess.openRecording(completed.first.path);
+
+      expect(opened.entry.sessionId, 'restart-newest');
+      expect(opened.recording.metadata.sessionId, 'restart-newest');
+      expect(opened.recording.events, hasLength(2));
+      expect(opened.recording.events.last.bytes, <int>[
+        114,
+        101,
+        97,
+        100,
+        121,
+        13,
+        10,
+      ]);
+    });
+
     test('quarantines a corrupt metadata index and rebuilds it', () async {
       final directory = await Directory.systemTemp.createTemp(
         'ianvs terminal-recording-index-quarantine',
@@ -3818,11 +3907,11 @@ Map<String, Map<String, Object?>> _recordingTreeSnapshot(Directory root) {
   return snapshot;
 }
 
-TerminalRecording _recording(String sessionId) {
+TerminalRecording _recording(String sessionId, {DateTime? createdAtUtc}) {
   return TerminalRecording(
     metadata: TerminalRecordingMetadata(
       sessionId: sessionId,
-      createdAtUtc: DateTime.utc(2026, 7, 21, 6),
+      createdAtUtc: createdAtUtc ?? DateTime.utc(2026, 7, 21, 6),
       inputPolicy: TerminalRecordingInputPolicy.redact,
     ),
     events: <TerminalRecordingEvent>[

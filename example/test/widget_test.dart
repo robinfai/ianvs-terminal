@@ -2591,7 +2591,8 @@ void main() {
       instantReplayStore.record(sessionId, frame('second replay frame'));
       await tester.tap(find.byType(TerminalViewport));
       await tester.pump();
-      await _openCommandMenu(tester);
+      await tester.tap(find.byKey(const Key('shell-toolbar-replay')));
+      await tester.pumpAndSettle();
       final replayAction = find.byKey(
         const Key('shell-replay-recent-activity'),
       );

@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:app/features/config/local_terminal_config_models.dart';
 import 'package:app/features/config/local_terminal_config_repository.dart';
@@ -9,7 +11,9 @@ import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/recording/local_session_recording_repository.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/shell/shell_screen.dart';
+import 'package:app/ui/foundation/app_theme.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -95,6 +99,20 @@ class _ReplayShellBackend extends FakePtyBackend
   }
 }
 
+// Exercise real local files/indexes without spawning worker isolates inside
+// the widget fake clock. Background codec workers have repository coverage.
+class _PersistentWidgetRecordingRepository
+    extends LocalSessionRecordingRepository
+    with NoIoLocalSessionRecordingRecovery {
+  _PersistentWidgetRecordingRepository({required super.directoryResolver})
+    : super(
+        encoder: (recording) async =>
+            const TerminalRecordingCodec().encode(recording),
+        decoder: (source) async =>
+            const TerminalRecordingCodec().decode(source),
+      );
+}
+
 class _RecordingLibraryConfigRepository extends LocalTerminalConfigRepository {
   @override
   Future<LocalTerminalConfigDocument?> load() async {
@@ -163,8 +181,61 @@ class _WidgetRecordingLibraryRepository extends LocalSessionRecordingRepository
   }
 }
 
+class _EmptyRecordingLibraryRepository
+    extends _WidgetRecordingLibraryRepository {
+  _EmptyRecordingLibraryRepository({
+    required super.directory,
+    required super.recording,
+  });
+
+  @override
+  Future<List<LocalSessionRecordingEntry>> listRecordings() async => const [];
+}
+
+class _FailingRecordingLibraryRepository
+    extends _WidgetRecordingLibraryRepository {
+  _FailingRecordingLibraryRepository({
+    required super.directory,
+    required super.recording,
+  });
+
+  @override
+  Future<List<LocalSessionRecordingEntry>> listRecordings() async {
+    throw const FileSystemException('recording index unavailable');
+  }
+}
+
+class _MutableRecordingLibraryRepository
+    extends _WidgetRecordingLibraryRepository {
+  _MutableRecordingLibraryRepository({
+    required super.directory,
+    required super.recording,
+  }) : currentRecording = recording;
+
+  TerminalRecording currentRecording;
+
+  @override
+  Future<TerminalRecording> load(String recordingPath) async =>
+      currentRecording;
+}
+
 void main() {
-  testWidgets('open recording loads one file directly into replay', (
+  setUpAll(() async {
+    if (!const bool.fromEnvironment('TRAIL_REPLAY_CAPTURE')) return;
+    final flutterRoot = Platform.environment['FLUTTER_ROOT']!;
+    Future<ByteData> font(String path) async =>
+        ByteData.sublistView(await File(path).readAsBytes());
+    await (FontLoader(
+      'ReplayCaptureSans',
+    )..addFont(font('/System/Library/Fonts/STHeiti Medium.ttc'))).load();
+    await (FontLoader('MaterialIcons')..addFont(
+          font(
+            '$flutterRoot/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf',
+          ),
+        ))
+        .load();
+  });
+  testWidgets('recording panel opens a saved recording and a picked file', (
     tester,
   ) async {
     final directory = Directory.systemTemp.createTempSync(
@@ -328,11 +399,42 @@ void main() {
     await tester.pumpAndSettle();
     await tester.enterText(
       find.byKey(const Key('shell-command-search-field')),
-      'open recording',
+      'replay',
     );
     await tester.pumpAndSettle();
-    expect(find.text('Open recording in Replay…'), findsOneWidget);
+    expect(find.byKey(const Key('shell-open-recording')), findsOneWidget);
+    await tester.ensureVisible(find.byKey(const Key('shell-open-recording')));
     await tester.tap(find.byKey(const Key('shell-open-recording')));
+    await _pumpUntil(
+      tester,
+      () =>
+          find.byKey(const Key('saved-recordings-shelf')).evaluate().isNotEmpty,
+      phase: 'recording panel',
+    );
+    expect(pickerInitialDirectory, isNull);
+    expect(find.text('Replay'), findsWidgets);
+    expect(find.text('Recent screen history'), findsOneWidget);
+    expect(find.text('Saved Recordings'), findsOneWidget);
+    expect(find.text('Open recording file'), findsOneWidget);
+    expect(
+      find.byKey(const Key('shell-replay-recent-activity')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('recording-library-open-file')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('recording-library-close')), findsOneWidget);
+    expect(find.byKey(const Key('recording-library-refresh')), findsOneWidget);
+    expect(
+      find.byKey(const Key('recording-library-toggle-recording')),
+      findsOneWidget,
+    );
+    final recordingEntryKey = ValueKey<String>(
+      'recording-entry-${repository.entry.path}',
+    );
+    expect(find.byKey(recordingEntryKey), findsOneWidget);
+    await tester.tap(find.byKey(recordingEntryKey));
     await _pumpUntil(
       tester,
       () => find
@@ -342,7 +444,6 @@ void main() {
       phase: 'recording replay layout',
     );
     final expectedRecordingDirectory = directory.absolute;
-    expect(pickerInitialDirectory, expectedRecordingDirectory.path);
     expect(expectedRecordingDirectory.existsSync(), isTrue);
     expect(find.byKey(const Key('saved-recordings-shelf')), findsNothing);
     expect(find.text('vttest regression'), findsOneWidget);
@@ -486,7 +587,471 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('recording-replay-layout')), findsNothing);
     expect(find.byKey(const Key('shell-chrome-bar')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('shell-toolbar-replay')));
+    await _pumpUntil(
+      tester,
+      () =>
+          find.byKey(const Key('saved-recordings-shelf')).evaluate().isNotEmpty,
+      phase: 'recording panel reopened',
+    );
+    await tester.tap(find.byKey(const Key('recording-library-open-file')));
+    await _pumpUntil(
+      tester,
+      () => find
+          .byKey(const Key('recording-replay-layout'))
+          .evaluate()
+          .isNotEmpty,
+      phase: 'picked recording replay layout',
+    );
+    expect(pickerInitialDirectory, expectedRecordingDirectory.path);
+    expect(find.byKey(const Key('saved-recordings-shelf')), findsNothing);
   });
+
+  testWidgets('compact recording panel shows an empty local library', (
+    tester,
+  ) async {
+    final fixture = (await tester.runAsync(
+      () => _recordingLibraryFixture('compact-empty'),
+    ))!;
+    addTearDown(() => tester.runAsync(fixture.close));
+    final repository = _EmptyRecordingLibraryRepository(
+      directory: fixture.directory,
+      recording: fixture.recording,
+    );
+    await _pumpRecordingLibraryShell(
+      tester,
+      repository: repository,
+      size: const Size(390, 844),
+      textScaler: const TextScaler.linear(1.5),
+    );
+
+    await tester.tap(find.byKey(const Key('shell-toolbar-replay')));
+    await _pumpUntil(
+      tester,
+      () => find
+          .byKey(const Key('saved-recordings-shelf-compact'))
+          .evaluate()
+          .isNotEmpty,
+      phase: 'compact recording panel',
+    );
+
+    expect(find.byKey(const Key('recording-library-empty')), findsOneWidget);
+    expect(find.byKey(const Key('recording-library-error')), findsNothing);
+    expect(
+      find.byKey(const Key('recording-library-open-file')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+    await _capturePanelIfEnabled(tester, 'compact-scaled');
+  });
+
+  testWidgets('recording panel exposes a recoverable library error', (
+    tester,
+  ) async {
+    final fixture = (await tester.runAsync(
+      () => _recordingLibraryFixture('load-error'),
+    ))!;
+    addTearDown(() => tester.runAsync(fixture.close));
+    final repository = _FailingRecordingLibraryRepository(
+      directory: fixture.directory,
+      recording: fixture.recording,
+    );
+    await _pumpRecordingLibraryShell(
+      tester,
+      repository: repository,
+      themeMode: ThemeMode.dark,
+    );
+
+    await tester.tap(find.byKey(const Key('shell-toolbar-replay')));
+    await _pumpUntil(
+      tester,
+      () => find
+          .byKey(const Key('recording-library-error'))
+          .evaluate()
+          .isNotEmpty,
+      phase: 'recording library error',
+    );
+
+    expect(find.byKey(const Key('recording-library-refresh')), findsOneWidget);
+    expect(
+      find.byKey(const Key('recording-library-open-file')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets(
+    'saved recording survives app rebuild and supports search and copy',
+    (tester) async {
+      final fixture = (await tester.runAsync(
+        () => _recordingLibraryFixture('persisted-rebuild'),
+      ))!;
+      addTearDown(() => tester.runAsync(fixture.close));
+      final seeded = (await tester.runAsync(() async {
+        final repository = _PersistentWidgetRecordingRepository(
+          directoryResolver: () async => fixture.directory,
+        );
+        final destination = await repository.reserve(
+          runtimeSessionId: fixture.recording.metadata.sessionId,
+          createdAtUtc: fixture.recording.metadata.createdAtUtc,
+        );
+        final path = await repository.save(
+          destination,
+          fixture.recording,
+          displayName: 'Persisted recording',
+        );
+        return (repository, path);
+      }))!;
+      final firstRepository = seeded.$1;
+      final recordingPath = seeded.$2;
+
+      await _pumpRecordingLibraryShell(
+        tester,
+        repository: firstRepository,
+        themeMode: ThemeMode.dark,
+      );
+      await tester.tap(find.byKey(const Key('shell-toolbar-replay')));
+      await _pumpUntil(
+        tester,
+        () => find
+            .byKey(ValueKey<String>('recording-entry-$recordingPath'))
+            .evaluate()
+            .isNotEmpty,
+        phase: 'newly saved recording entry',
+      );
+      await _capturePanelIfEnabled(tester, 'desktop-dark');
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+      final rebuiltRepository = _PersistentWidgetRecordingRepository(
+        directoryResolver: () async => fixture.directory,
+      );
+      await _pumpRecordingLibraryShell(tester, repository: rebuiltRepository);
+      await tester.tap(find.byKey(const Key('shell-toolbar-replay')));
+      final rebuiltEntry = find.byKey(
+        ValueKey<String>('recording-entry-$recordingPath'),
+      );
+      await _pumpUntil(
+        tester,
+        () => rebuiltEntry.evaluate().isNotEmpty,
+        phase: 'persisted recording after app rebuild',
+      );
+      await tester.tap(rebuiltEntry);
+      await _pumpUntil(
+        tester,
+        () => find
+            .byKey(const Key('recording-replay-layout'))
+            .evaluate()
+            .isNotEmpty,
+        phase: 'persisted recording replay',
+      );
+      expect(find.byKey(const Key('saved-recordings-shelf')), findsNothing);
+
+      await tester.enterText(
+        find.byKey(const Key('recording-replay-search')),
+        'vttest',
+      );
+      await tester.pump();
+      expect(find.text('1 match across replay'), findsOneWidget);
+
+      String? copiedText;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'Clipboard.setData') {
+            copiedText =
+                (call.arguments as Map<Object?, Object?>)['text'] as String?;
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+      await tester.tap(find.byTooltip('Copy visible'));
+      await tester.pump();
+      expect(copiedText, contains(r'$ vttest --replay'));
+    },
+  );
+
+  testWidgets('closing the panel cancels a pending picked recording', (
+    tester,
+  ) async {
+    final fixture = (await tester.runAsync(
+      () => _recordingLibraryFixture('cancel-picker'),
+    ))!;
+    addTearDown(() => tester.runAsync(fixture.close));
+    final repository = _WidgetRecordingLibraryRepository(
+      directory: fixture.directory,
+      recording: fixture.recording,
+    );
+    final pickerResult = Completer<String?>();
+    await _pumpRecordingLibraryShell(
+      tester,
+      repository: repository,
+      picker: ({initialDirectory}) => pickerResult.future,
+    );
+
+    await tester.tap(find.byKey(const Key('shell-toolbar-replay')));
+    await _pumpUntil(
+      tester,
+      () => find
+          .byKey(const Key('recording-library-open-file'))
+          .evaluate()
+          .isNotEmpty,
+      phase: 'recording picker action',
+    );
+    await tester.tap(find.byKey(const Key('recording-library-open-file')));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('recording-library-close')));
+    await tester.pump();
+    pickerResult.complete(repository.entry.path);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('saved-recordings-shelf')), findsNothing);
+    expect(find.byKey(const Key('recording-replay-layout')), findsNothing);
+  });
+
+  testWidgets('reselecting the same path rebuilds replay with new content', (
+    tester,
+  ) async {
+    final fixture = (await tester.runAsync(
+      () => _recordingLibraryFixture('same-path-replacement'),
+    ))!;
+    addTearDown(() => tester.runAsync(fixture.close));
+    final repository = _MutableRecordingLibraryRepository(
+      directory: fixture.directory,
+      recording: const TerminalRecordingCodec().decode(
+        _recordingFixture('recorded-session', output: 'first marker'),
+      ),
+    );
+    await _pumpRecordingLibraryShell(tester, repository: repository);
+
+    await _openFirstSavedRecording(tester, repository.entry.path);
+    await tester.enterText(
+      find.byKey(const Key('recording-replay-search')),
+      'first marker',
+    );
+    await tester.pump();
+    expect(find.text('1 match across replay'), findsOneWidget);
+
+    repository.currentRecording = const TerminalRecordingCodec().decode(
+      _recordingFixture('recorded-session', output: 'second marker'),
+    );
+    await _openFirstSavedRecording(tester, repository.entry.path);
+    await tester.enterText(
+      find.byKey(const Key('recording-replay-search')),
+      'second marker',
+    );
+    await tester.pump();
+
+    expect(find.text('1 match across replay'), findsOneWidget);
+  });
+
+  testWidgets('Escape from the panel restores replay search focus', (
+    tester,
+  ) async {
+    final fixture = (await tester.runAsync(
+      () => _recordingLibraryFixture('restore-replay-focus'),
+    ))!;
+    addTearDown(() => tester.runAsync(fixture.close));
+    final repository = _WidgetRecordingLibraryRepository(
+      directory: fixture.directory,
+      recording: fixture.recording,
+    );
+    await _pumpRecordingLibraryShell(tester, repository: repository);
+    await _openFirstSavedRecording(tester, repository.entry.path);
+
+    await tester.enterText(
+      find.byKey(const Key('recording-replay-search')),
+      'vttest',
+    );
+    await tester.pump();
+    final replaySearchFocus = FocusManager.instance.primaryFocus;
+    expect(replaySearchFocus, isNotNull);
+    await tester.tap(find.byKey(const Key('shell-toolbar-replay')));
+    await _pumpUntil(
+      tester,
+      () =>
+          find.byKey(const Key('saved-recordings-shelf')).evaluate().isNotEmpty,
+      phase: 'panel over recording replay',
+    );
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('saved-recordings-shelf')), findsNothing);
+    expect(FocusManager.instance.primaryFocus, same(replaySearchFocus));
+    final search = tester.widget<EditableText>(
+      find.descendant(
+        of: find.byKey(const Key('recording-replay-search')),
+        matching: find.byType(EditableText),
+      ),
+    );
+    expect(search.controller.text, 'vttest');
+    expect(find.text('1 match across replay'), findsOneWidget);
+  });
+}
+
+Future<void> _pumpRecordingLibraryShell(
+  WidgetTester tester, {
+  required LocalSessionRecordingRepository repository,
+  Size size = const Size(1100, 900),
+  PtySessionBackend? backend,
+  ThemeMode themeMode = ThemeMode.light,
+  TextScaler textScaler = TextScaler.noScaling,
+  ShellRecordingFilePicker? picker,
+}) async {
+  await tester.binding.setSurfaceSize(size);
+  addTearDown(() => tester.binding.setSurfaceSize(null));
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        ptySessionBackendProvider.overrideWithValue(
+          backend ?? _ReplayShellBackend(),
+        ),
+        profileRepositoryProvider.overrideWithValue(
+          MemoryProfileRepository(
+            TerminalProfilesDocument(
+              profiles: <TerminalProfile>[defaultTerminalProfile()],
+            ),
+          ),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          MemoryAppPreferencesRepository(null),
+        ),
+        pasteHistoryRepositoryProvider.overrideWithValue(
+          MemoryPasteHistoryRepository(),
+        ),
+        localTerminalConfigRepositoryProvider.overrideWithValue(
+          _RecordingLibraryConfigRepository(),
+        ),
+        localTerminalLayoutRepositoryProvider.overrideWithValue(
+          _RecordingLibraryLayoutRepository(),
+        ),
+        localSessionRecordingRepositoryProvider.overrideWithValue(repository),
+        if (picker != null)
+          shellRecordingFilePickerProvider.overrideWithValue(picker),
+      ],
+      child: MaterialApp(
+        theme: _captureTheme(Brightness.light),
+        darkTheme: _captureTheme(Brightness.dark),
+        themeMode: themeMode,
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(textScaler: textScaler),
+          child: RepaintBoundary(
+            key: const Key('replay-capture-root'),
+            child: child,
+          ),
+        ),
+        home: const ShellScreen(),
+      ),
+    ),
+  );
+  await _pumpUntil(
+    tester,
+    () => find.byKey(const Key('shell-toolbar-replay')).evaluate().isNotEmpty,
+    phase: 'replay toolbar control',
+  );
+}
+
+Future<void> _openFirstSavedRecording(
+  WidgetTester tester,
+  String recordingPath,
+) async {
+  await tester.tap(find.byKey(const Key('shell-toolbar-replay')));
+  final entry = find.byKey(ValueKey<String>('recording-entry-$recordingPath'));
+  await _pumpUntil(
+    tester,
+    () => entry.evaluate().isNotEmpty,
+    phase: 'saved recording entry',
+  );
+  await tester.tap(entry);
+  await _pumpUntil(
+    tester,
+    () =>
+        find.byKey(const Key('recording-replay-layout')).evaluate().isNotEmpty,
+    phase: 'saved recording replay',
+  );
+  await tester.pumpAndSettle();
+}
+
+ThemeData _captureTheme(Brightness brightness) {
+  final theme = buildIanvsTerminalTheme(
+    brightness,
+    platform: TargetPlatform.macOS,
+  );
+  if (!const bool.fromEnvironment('TRAIL_REPLAY_CAPTURE')) return theme;
+  return theme.copyWith(
+    textTheme: theme.textTheme.apply(fontFamily: 'ReplayCaptureSans'),
+    primaryTextTheme: theme.primaryTextTheme.apply(
+      fontFamily: 'ReplayCaptureSans',
+    ),
+    filledButtonTheme: FilledButtonThemeData(
+      style: theme.filledButtonTheme.style?.copyWith(
+        textStyle: WidgetStatePropertyAll(
+          theme.textTheme.labelLarge!.copyWith(fontFamily: 'ReplayCaptureSans'),
+        ),
+      ),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: theme.outlinedButtonTheme.style?.copyWith(
+        textStyle: WidgetStatePropertyAll(
+          theme.textTheme.labelLarge!.copyWith(fontFamily: 'ReplayCaptureSans'),
+        ),
+      ),
+    ),
+    textButtonTheme: TextButtonThemeData(
+      style: theme.textButtonTheme.style?.copyWith(
+        textStyle: WidgetStatePropertyAll(
+          theme.textTheme.labelLarge!.copyWith(fontFamily: 'ReplayCaptureSans'),
+        ),
+      ),
+    ),
+  );
+}
+
+Future<void> _capturePanelIfEnabled(WidgetTester tester, String label) async {
+  if (!const bool.fromEnvironment('TRAIL_REPLAY_CAPTURE')) return;
+  await tester.pump();
+  final boundary = tester.renderObject<RenderRepaintBoundary>(
+    find.byKey(const Key('replay-capture-root')),
+  );
+  await tester.runAsync(() async {
+    final image = await boundary.toImage(pixelRatio: 1.0);
+    final data = await image.toByteData(format: ui.ImageByteFormat.png);
+    image.dispose();
+    await File(
+      '/tmp/trail-replay-$label.png',
+    ).writeAsBytes(data!.buffer.asUint8List(), flush: true);
+  });
+}
+
+Future<
+  ({
+    Directory directory,
+    TerminalRecording recording,
+    Future<void> Function() close,
+  })
+>
+_recordingLibraryFixture(String label) async {
+  final directory = await Directory.systemTemp.createTemp(
+    'ianvs-recording-library-$label-',
+  );
+  final recording = const TerminalRecordingCodec().decode(
+    _recordingFixture('recorded-session'),
+  );
+  return (
+    directory: directory,
+    recording: recording,
+    close: () async {
+      if (await directory.exists()) {
+        await directory.delete(recursive: true);
+      }
+    },
+  );
 }
 
 Future<void> _pumpUntil(
@@ -496,6 +1061,9 @@ Future<void> _pumpUntil(
 }) async {
   for (var attempt = 0; attempt < 120; attempt += 1) {
     await tester.pump(const Duration(milliseconds: 20));
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 10)),
+    );
     if (predicate()) {
       return;
     }
@@ -509,7 +1077,10 @@ Future<void> _pumpUntil(
   );
 }
 
-String _recordingFixture(String sessionId) {
+String _recordingFixture(
+  String sessionId, {
+  String output = r'$ vttest --replay',
+}) {
   return <Map<String, Object?>>[
     <String, Object?>{
       'record_type': 'metadata',
@@ -539,7 +1110,7 @@ String _recordingFixture(String sessionId) {
       'monotonic_offset_micros': 400000,
       'event_kind': 'pty_output',
       'payload': <String, Object?>{
-        'bytes_base64': base64Encode(utf8.encode(r'$ vttest --replay')),
+        'bytes_base64': base64Encode(utf8.encode(output)),
       },
     },
   ].map(jsonEncode).join('\n');

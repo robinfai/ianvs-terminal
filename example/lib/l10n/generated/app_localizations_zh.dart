@@ -2042,7 +2042,7 @@ class AppLocalizationsZh extends AppLocalizations {
       'new_tab': '新建标签页',
       'new_ssh_session': '新建 SSH 会话',
       'new_tab_at_folder': '在文件夹中新建标签页',
-      'open_recording_for_replay': '打开录制进行回放',
+      'open_recording_for_replay': '回看',
       'duplicate_current_cwd': '复制当前目录会话',
       'reopen_closed_tab': '重新打开关闭的标签页',
       'open_launcher': '打开启动器',
@@ -4288,4 +4288,31 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get syncNow => '立即同步';
+
+  @override
+  String get replayHubTitle => '回看';
+
+  @override
+  String get replayHubDescription => '查看最近画面、已保存录制，或打开录制文件。';
+
+  @override
+  String get replayRecentTitle => '最近画面';
+
+  @override
+  String get replayRecentExplanation => '回看当前会话最近的输出。这些临时画面会在退出应用后清除。';
+
+  @override
+  String get replayRecentNeedsSession => '打开一个终端会话，即可回看它的最近画面。';
+
+  @override
+  String get replaySavedExplanation => '主动开始录制，停止保存后即可在此打开。录制保存在本机，重启应用后仍可找到。';
+
+  @override
+  String get replayOpenFile => '打开录制文件';
+
+  @override
+  String get replayLibraryEmpty => '还没有已保存录制。开始并停止一次录制，或打开已有录制文件。';
+
+  @override
+  String get replayRecordingUnavailable => '此录制暂时无法读取。';
 }

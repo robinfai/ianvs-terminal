@@ -334,9 +334,11 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   bool _recordingSelectionLoading = false;
   String? _recordingLibraryError;
   List<LocalSessionRecordingEntry> _recordingEntries = const [];
-  String _recordingSearchQuery = '';
-  _RecordingLibrarySort _recordingLibrarySort = _RecordingLibrarySort.newest;
-  bool _recordingLibraryPlayableOnly = false;
+  bool _recordingShelfOpen = false;
+  int _recordingOpenGeneration = 0;
+  int _recordingPlaybackGeneration = 0;
+  FocusNode? _recordingReturnFocus;
+  bool _recordingLibraryReloadRequested = false;
   LocalSessionRecordingEntry? _selectedRecordingEntry;
   terminal.TerminalRecording? _selectedRecording;
 
@@ -1157,6 +1159,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
             children: [
               _ShellChromeBar(
                 palette: palette,
+                onOpenReplay: referenceDemoMode
+                    ? null
+                    : () => unawaited(_openRecordingLibrary()),
                 onOpenSettings:
                     referenceDemoMode ||
                         Theme.of(context).platform != TargetPlatform.macOS
@@ -1281,7 +1286,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
               Expanded(
                 child: _RecordingLibraryLayout(
                   palette: palette,
-                  shelfOpen: false,
+                  shelfOpen: _recordingShelfOpen,
+                  onClose: _closeRecordingLibrary,
                   layout: AnimatedSwitcher(
                     duration: animationsEnabled
                         ? const Duration(milliseconds: 160)
@@ -1292,7 +1298,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                         _selectedRecordingEntry != null &&
                             _selectedRecording != null
                         ? _RecordingReplayLayout(
-                            key: ValueKey(_selectedRecordingEntry!.path),
+                            key: ValueKey((
+                              _selectedRecordingEntry!.path,
+                              _recordingPlaybackGeneration,
+                            )),
                             palette: palette,
                             entry: _selectedRecordingEntry!,
                             recording: _selectedRecording!,
@@ -1423,40 +1432,41 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     palette: palette,
                     entries: _recordingEntries,
                     selectedPath: _selectedRecordingEntry?.path,
-                    searchQuery: _recordingSearchQuery,
-                    sort: _recordingLibrarySort,
-                    playableOnly: _recordingLibraryPlayableOnly,
                     loading: _recordingLibraryLoading,
                     selectionLoading: _recordingSelectionLoading,
                     error: _recordingLibraryError,
-                    onSearchChanged: (value) {
-                      _mutateState(() {
-                        _recordingSearchQuery = value;
-                      });
-                    },
-                    onSortChanged: (value) {
-                      _mutateState(() {
-                        _recordingLibrarySort = value;
-                      });
-                    },
-                    onPlayableOnlyChanged: (value) {
-                      _mutateState(() {
-                        _recordingLibraryPlayableOnly = value;
-                      });
-                    },
                     onRefresh: () => unawaited(_loadRecordingLibrary()),
-                    onImport: () => unawaited(_importRecording()),
+                    onOpenFile: () => unawaited(_openRecordingFromPicker()),
+                    onRecent: activeSessionId == null
+                        ? null
+                        : () => unawaited(_openInstantReplay(sessionState)),
+                    onToggleRecording:
+                        activeSessionId == null ||
+                            sessionState.recordingBusySessionIds.contains(
+                              activeSessionId,
+                            )
+                        ? null
+                        : () => unawaited(
+                            _toggleActiveSessionRecording(
+                              sessionController,
+                              activeSessionId,
+                            ),
+                          ),
+                    recording: sessionState.recordingSessionIds.contains(
+                      activeSessionId,
+                    ),
+                    pendingSave: sessionState.recordingPendingSaveSessionIds
+                        .contains(activeSessionId),
                     onSelect: (entry) => unawaited(_selectRecording(entry)),
-                    onRename: (entry) => unawaited(_renameRecording(entry)),
-                    onReveal: (entry) => unawaited(_revealRecording(entry)),
-                    onExport: (entry) => unawaited(_exportRecording(entry)),
-                    onDelete: (entry) => unawaited(_deleteRecording(entry)),
-                    onClose: () {},
+                    onClose: _closeRecordingLibrary,
                   ),
                 ),
               ),
               if (!referenceDemoMode &&
                   defaultTargetPlatform == TargetPlatform.iOS &&
+                  !_recordingShelfOpen &&
+                  _selectedRecording == null &&
+                  instantReplaySession == null &&
                   activeSessionId != null)
                 _IosTerminalInputBar(
                   key: const Key('ios-terminal-input-bar'),

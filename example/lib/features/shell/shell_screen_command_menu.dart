@@ -4,7 +4,6 @@ class _ShellCommandMenu extends StatefulWidget {
   const _ShellCommandMenu({
     required this.launcherShortcutLabel,
     required this.newTabShortcutLabel,
-    required this.instantReplayShortcutLabel,
     required this.searchShortcutLabel,
     required this.clearBufferShortcutLabel,
     required this.hasDefaultProfile,
@@ -19,7 +18,6 @@ class _ShellCommandMenu extends StatefulWidget {
 
   final String launcherShortcutLabel;
   final String newTabShortcutLabel;
-  final String instantReplayShortcutLabel;
   final String searchShortcutLabel;
   final String clearBufferShortcutLabel;
   final bool hasDefaultProfile;
@@ -48,7 +46,6 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
             .clamp(0.0, 520.0);
     final launcherShortcutLabel = widget.launcherShortcutLabel;
     final newTabShortcutLabel = widget.newTabShortcutLabel;
-    final instantReplayShortcutLabel = widget.instantReplayShortcutLabel;
     final searchShortcutLabel = widget.searchShortcutLabel;
     final clearBufferShortcutLabel = widget.clearBufferShortcutLabel;
     final hasDefaultProfile = widget.hasDefaultProfile;
@@ -362,19 +359,6 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                       ),
                       sectionLabel(context.l10n.replay),
                       commandTile(
-                        key: const Key('shell-replay-recent-activity'),
-                        actionId: TerminalActionId.instantReplay,
-                        icon: Icons.replay_rounded,
-                        title: context.l10n.replayRecentActivity,
-                        subtitle: context.l10n.replayRecentActivityDescription,
-                        shortcutLabel: instantReplayShortcutLabel,
-                        enabled: hasActiveSession,
-                        disabledReason: activeSessionRequired,
-                        onTap: () => Navigator.of(
-                          context,
-                        ).pop(TerminalActionId.instantReplay),
-                      ),
-                      commandTile(
                         key: const Key('shell-toggle-session-recording'),
                         actionId: TerminalActionId.toggleSessionRecording,
                         icon: isActiveSessionRecording
@@ -401,8 +385,8 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                         key: const Key('shell-open-recording'),
                         actionId: TerminalActionId.openRecording,
                         icon: Icons.video_file_outlined,
-                        title: context.l10n.openRecordingInReplay,
-                        subtitle: context.l10n.openRecordingInReplayDescription,
+                        title: context.l10n.replayHubTitle,
+                        subtitle: context.l10n.replayHubDescription,
                         enabled: true,
                         onTap: () => Navigator.of(
                           context,

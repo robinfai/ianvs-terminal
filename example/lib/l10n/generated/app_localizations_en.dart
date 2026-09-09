@@ -2139,7 +2139,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'new_tab': 'New tab',
       'new_ssh_session': 'New SSH session',
       'new_tab_at_folder': 'New tab at folder',
-      'open_recording_for_replay': 'Open recording for replay',
+      'open_recording_for_replay': 'Replay',
       'duplicate_current_cwd': 'Duplicate current directory',
       'reopen_closed_tab': 'Reopen closed tab',
       'open_launcher': 'Open launcher',
@@ -4591,4 +4591,36 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get syncNow => 'Sync now';
+
+  @override
+  String get replayHubTitle => 'Replay';
+
+  @override
+  String get replayHubDescription =>
+      'Review recent screen history, saved recordings, or open a recording file.';
+
+  @override
+  String get replayRecentTitle => 'Recent screen history';
+
+  @override
+  String get replayRecentExplanation =>
+      'Review recent output from the current session. This temporary history is cleared when the app exits.';
+
+  @override
+  String get replayRecentNeedsSession =>
+      'Open a terminal session to review its recent screen history.';
+
+  @override
+  String get replaySavedExplanation =>
+      'Start a recording to keep it on this device. After you stop and save, it stays available when you reopen the app.';
+
+  @override
+  String get replayOpenFile => 'Open recording file';
+
+  @override
+  String get replayLibraryEmpty =>
+      'No saved recordings yet. Start and stop a recording, or open a recording file.';
+
+  @override
+  String get replayRecordingUnavailable => 'This recording cannot be read.';
 }

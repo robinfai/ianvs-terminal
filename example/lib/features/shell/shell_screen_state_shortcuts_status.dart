@@ -61,6 +61,7 @@ extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
       return 'sftp';
     }
 
+    if (_recordingShelfOpen) return 'recordings';
     if (_selectedRecording != null || _instantReplayLayoutSession != null) {
       return 'replay';
     }
@@ -167,10 +168,6 @@ extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
 
   String _newTabShortcutLabel() {
     return _shortcutLabelFor(TerminalActionId.newTab);
-  }
-
-  String _instantReplayShortcutLabel() {
-    return _shortcutLabelFor(TerminalActionId.instantReplay);
   }
 
   String _searchShortcutLabel() {

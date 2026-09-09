@@ -1083,7 +1083,7 @@ class _ReplayLegendItem extends StatelessWidget {
   }
 }
 
-class _ReplayDockLayout extends StatelessWidget {
+class _ReplayDockLayout extends StatefulWidget {
   const _ReplayDockLayout({
     required this.timeline,
     required this.metadata,
@@ -1103,7 +1103,22 @@ class _ReplayDockLayout extends StatelessWidget {
   final AppThemeTokens palette;
 
   @override
+  State<_ReplayDockLayout> createState() => _ReplayDockLayoutState();
+}
+
+class _ReplayDockLayoutState extends State<_ReplayDockLayout> {
+  // Keep text, selection and focus when the dock moves between width layouts.
+  final GlobalKey _searchKey = GlobalKey();
+
+  @override
   Widget build(BuildContext context) {
+    final palette = widget.palette;
+    final timeline = widget.timeline;
+    final metadata = widget.metadata;
+    final transport = widget.transport;
+    final search = KeyedSubtree(key: _searchKey, child: widget.search);
+    final actions = widget.actions;
+    final keyboardActions = widget.keyboardActions;
     final highContrast = MediaQuery.highContrastOf(context);
     return ClipRRect(
       borderRadius: BorderRadius.circular(palette.radius.lg),

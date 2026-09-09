@@ -272,12 +272,16 @@ extension _ShellScreenStateInstantReplay on _ShellScreenState {
     if (activeSessionIdBeforeOpen == null) {
       return;
     }
+    _mutateState(_invalidateRecordingOpen);
+    final generation = _recordingOpenGeneration;
     await _seedInstantReplayFrame(activeSessionIdBeforeOpen);
     final store = ref.read(instantReplayStoreProvider);
-    if (!mounted) {
+    if (!_isCurrentRecordingOpen(generation)) {
       return;
     }
     _mutateState(() {
+      _recordingShelfOpen = false;
+      _recordingReturnFocus = null;
       _selectedRecordingEntry = null;
       _selectedRecording = null;
       _instantReplayLayoutSession = _InstantReplayLayoutSession(
@@ -321,6 +325,7 @@ extension _ShellScreenStateInstantReplay on _ShellScreenState {
   void _closeInstantReplayLayout() {
     final sourceSessionId = _instantReplayLayoutSession?.sourceSessionId;
     _mutateState(() {
+      _invalidateRecordingOpen();
       _instantReplayLayoutSession = null;
     });
     if (sourceSessionId == null) {

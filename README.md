@@ -43,6 +43,8 @@ flutter run -d macos
 
 数据 API 不读取进程环境变量或 `dart-define`。API 配置为可选项：macOS 与 iOS 都能直接在本地创建、保存、编辑和重连 SSH 主机，密码与私钥加密保存。连接 API 后仍先保存本地，再进行双向合并与同步；断网不影响保存。不同主机或不同字段的修改自动合并，相同字段的并发修改在设置中明确选择后才覆盖冲突值。关闭或切换 API 不删除本地数据。macOS 的本地 API 与远端 API 都作为可选同步目标；布局和录制文件始终保留在本机。后续通过 **Defaults & appearance → API sync (optional)** 管理连接、查看状态和立即同步。远程基础 URL 不允许携带用户名、密码、query 或 fragment，公网服务必须使用 HTTPS（仅回环开发地址可使用 HTTP）。非敏感连接设置保存在应用支持目录的 `data-api/configuration.json`，凭据仅保存在平台凭据保险库中。合并检查点按 API 地址和账号隔离并加密保存。
 
+工具栏的 **回看（Replay）** 统一提供最近画面、已保存录制和打开录制文件。主动录制停止保存后会出现在列表中，重启应用仍可找到；打开后可继续搜索和复制输出。最近画面是退出后清除的临时缓存，已保存录制留在本机。
+
 ```bash
 cd native/core
 cargo fmt --check

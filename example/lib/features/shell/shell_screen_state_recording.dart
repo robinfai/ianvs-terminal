@@ -17,6 +17,7 @@ extension _ShellScreenStateRecording on _ShellScreenState {
       final path = await sessionController.stopSessionRecording(sessionId);
       if (path != null) {
         _showRecordingSavedSnackBar(path);
+        await _loadRecordingLibrary();
       }
       return;
     }

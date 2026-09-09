@@ -35,6 +35,7 @@ class _ShellChromeBar extends StatelessWidget {
     required this.onSessionDragCancelled,
     required this.onShowTabContextMenu,
     required this.onShowCommandMenu,
+    this.onOpenReplay,
     this.onOpenSettings,
     this.onSearch,
   });
@@ -68,6 +69,7 @@ class _ShellChromeBar extends StatelessWidget {
   final ValueChanged<_ShellSessionDragData> onSessionDragCancelled;
   final void Function(TerminalTab tab, Offset position) onShowTabContextMenu;
   final VoidCallback onShowCommandMenu;
+  final VoidCallback? onOpenReplay;
   final VoidCallback? onOpenSettings;
   final VoidCallback? onSearch;
 
@@ -120,6 +122,7 @@ class _ShellChromeBar extends StatelessWidget {
               if (!usesCompactMobileChrome)
                 _ShellWindowTitleBar(
                   height: titleHeight,
+                  onOpenReplay: onOpenReplay,
                   onOpenSettings: onOpenSettings,
                   onSearch: onSearch,
                   palette: palette,
@@ -221,6 +224,19 @@ class _ShellChromeBar extends StatelessWidget {
                           ),
                         ),
                         if (usesCompactMobileChrome && !referenceDemoMode) ...[
+                          if (onOpenReplay != null)
+                            TextFieldTapRegion(
+                              child: _buildChromeIconButton(
+                                key: const Key('shell-toolbar-replay'),
+                                iconSize: 20,
+                                tooltip: context.l10n.replayHubTitle,
+                                onPressed: onOpenReplay,
+                                icon: Icon(
+                                  Icons.history_rounded,
+                                  color: chromeTone.mutedText,
+                                ),
+                              ),
+                            ),
                           const SizedBox(width: 4),
                           _ShellNewTabButton(
                             palette: palette,
@@ -249,6 +265,7 @@ class _ShellWindowTitleBar extends StatelessWidget {
     required this.tone,
     required this.backgroundColor,
     required this.onShowCommandMenu,
+    this.onOpenReplay,
     this.onOpenSettings,
     this.onSearch,
   });
@@ -258,6 +275,7 @@ class _ShellWindowTitleBar extends StatelessWidget {
   final _ShellTabTone tone;
   final Color backgroundColor;
   final VoidCallback? onShowCommandMenu;
+  final VoidCallback? onOpenReplay;
   final VoidCallback? onOpenSettings;
   final VoidCallback? onSearch;
 
@@ -271,7 +289,9 @@ class _ShellWindowTitleBar extends StatelessWidget {
         ? 16.0
         : isIos
         ? 64.0
-        : 120.0;
+        : onOpenReplay == null
+        ? 120.0
+        : 156.0;
     final titleSafeInset = math.max(titleLeadingInset, trailingInset);
 
     return SizedBox(
@@ -315,6 +335,20 @@ class _ShellWindowTitleBar extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    if (onOpenReplay != null)
+                      TextFieldTapRegion(
+                        child: _buildChromeIconButton(
+                          key: const Key('shell-toolbar-replay'),
+                          iconSize: 16,
+                          tooltip: context.l10n.replayHubTitle,
+                          onPressed: onOpenReplay,
+                          hoverBackgroundColor: tone.hoverBackground,
+                          icon: Icon(
+                            Icons.history_rounded,
+                            color: tone.mutedText,
+                          ),
+                        ),
+                      ),
                     if (onSearch != null)
                       _buildChromeIconButton(
                         key: const Key('shell-toolbar-search'),

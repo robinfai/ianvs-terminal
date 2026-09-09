@@ -72,7 +72,6 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
       return _ShellCommandMenu(
         launcherShortcutLabel: _launcherShortcutLabel(),
         newTabShortcutLabel: _newTabShortcutLabel(),
-        instantReplayShortcutLabel: _instantReplayShortcutLabel(),
         searchShortcutLabel: _searchShortcutLabel(),
         clearBufferShortcutLabel: _clearBufferShortcutLabel(),
         hasDefaultProfile: _canOpenNewSessionLauncher(sessionState),
@@ -687,7 +686,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
     }
     switch (action) {
       case TerminalActionId.openRecording:
-        await _openRecordingFromPicker();
+        await _openRecordingLibrary();
         return;
       case TerminalActionId.openTerminalAtFolder:
         await _openTerminalAtFolderFromPicker();

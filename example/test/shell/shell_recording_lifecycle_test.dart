@@ -285,6 +285,26 @@ class _WidgetRecordingRepository extends LocalSessionRecordingRepository
     );
   }
 
+  @override
+  Future<List<LocalSessionRecordingEntry>> listRecordings() async {
+    if (!_destination.existsSync()) return const [];
+    final recording = const TerminalRecordingCodec().decode(
+      _destination.readAsStringSync(),
+    );
+    return [
+      LocalSessionRecordingEntry(
+        path: _destination.path,
+        displayName: 'recording',
+        createdAtUtc: recording.metadata.createdAtUtc,
+        duration: recording.events.last.monotonicOffset,
+        fileSizeBytes: _destination.lengthSync(),
+        sessionId: recording.metadata.sessionId,
+        schemaVersion: recording.metadata.schemaVersion,
+        inputPolicy: recording.metadata.inputPolicy,
+      ),
+    ];
+  }
+
   void _updateManifest(
     TerminalRecordingFinalizeJob job, {
     required String phase,
@@ -434,9 +454,18 @@ void main() {
         () => find.text('Start recording for Replay').evaluate().isNotEmpty,
         phase: 'command palette open for recording start',
       );
-      expect(find.text('Replay'), findsOneWidget);
-      expect(find.text('Replay recent activity'), findsOneWidget);
-      expect(find.text('Open recording in Replay…'), findsOneWidget);
+      expect(find.byKey(const Key('shell-open-recording')), findsOneWidget);
+      expect(
+        find.byKey(const Key('shell-replay-recent-activity')),
+        findsNothing,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('shell-open-recording')),
+          matching: find.text('Replay'),
+        ),
+        findsOneWidget,
+      );
       await tester.enterText(
         find.byKey(const Key('shell-command-search-field')),
         'recording',
@@ -462,23 +491,19 @@ void main() {
       expect(recordingBackend.recordingStartCount, 1);
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byKey(const Key('shell-chrome-menu')));
+      await tester.tap(find.byKey(const Key('shell-toolbar-replay')));
       await _pumpUntil(
         tester,
-        () => find.text('Stop & save recording').evaluate().isNotEmpty,
-        phase: 'command palette open',
+        () => find
+            .byKey(const Key('recording-library-toggle-recording'))
+            .evaluate()
+            .isNotEmpty,
+        phase: 'stop recording from Replay panel',
       );
-      await tester.enterText(
-        find.byKey(const Key('shell-command-search-field')),
-        'recording',
-      );
-      await tester.pump(const Duration(milliseconds: 200));
-      expect(find.text('Stop & save recording'), findsOneWidget);
       final recordingAction = find.byKey(
-        const Key('shell-toggle-session-recording'),
+        const Key('recording-library-toggle-recording'),
       );
       await tester.ensureVisible(recordingAction);
-      await tester.pump();
       await tester.tap(recordingAction);
       await _pumpUntil(
         tester,
@@ -521,10 +546,19 @@ void main() {
       expect(recordingBackend.recordingPrepareCount, 1);
       expect(recordingRepository.nativeFinalizeCount, 1);
       expect(find.textContaining('Recording saved ·'), findsOneWidget);
-      expect(find.text('Replay'), findsOneWidget);
+      expect(find.byKey(const Key('recording-saved-replay')), findsOneWidget);
       expect(find.text(directory.path), findsNothing);
       expect(find.text('Reveal'), findsOneWidget);
 
+      final savedEntry = find.byKey(
+        ValueKey('recording-entry-${recordingFiles.single.path}'),
+      );
+      await _pumpUntil(
+        tester,
+        () => savedEntry.evaluate().isNotEmpty,
+        phase: 'saved recording appears in open panel',
+      );
+      await tester.tap(find.byKey(const Key('recording-library-close')));
       await tester.pump(const Duration(milliseconds: 300));
       tester
           .widget<TextButton>(find.byKey(const Key('recording-saved-replay')))

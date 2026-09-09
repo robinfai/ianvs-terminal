@@ -36,6 +36,10 @@ switch or remember a project container.
   history data is preserved without collection or automatic transfer.
 - Disabling or changing an API preserves local data and old checkpoints. No
   supported-schema migration deletes a source database or credential archive.
+- Replay provides recent screen history, a newest-first list of saved recordings,
+  and a file picker. Stopping and saving a recording refreshes the local list;
+  a fresh app instance rediscovers completed files for playback, search and copy.
+  Recent screen history is temporary and is separate from saved recordings.
 - `ianvs_recordings/` stores recordings in one flat, current-format library.
   Unsupported recording and repository metadata schemas fail closed; the app
   does not migrate, discover, or rewrite older recording layouts.

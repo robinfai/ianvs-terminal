@@ -1,683 +1,331 @@
 part of 'shell_screen.dart';
 
-enum _RecordingLibraryAction { rename, reveal, export, delete }
-
-enum _RecordingLibrarySort { newest, oldest, name }
-
 class _RecordingLibraryLayout extends StatelessWidget {
   const _RecordingLibraryLayout({
     required this.palette,
     required this.shelfOpen,
     required this.layout,
     required this.shelf,
+    required this.onClose,
   });
 
   final AppThemeTokens palette;
   final bool shelfOpen;
   final Widget layout;
   final Widget shelf;
+  final VoidCallback onClose;
 
   @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final compact = constraints.maxWidth < 960;
-        if (!shelfOpen) {
-          return layout;
-        }
-        if (compact) {
-          return Stack(
-            children: [
-              Positioned.fill(child: layout),
-              Positioned.fill(
-                child: ColoredBox(
-                  color: palette.inactiveScrim.withValues(alpha: 0.58),
-                ),
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final compact = constraints.maxWidth < 960;
+      return Stack(
+        children: [
+          Positioned.fill(
+            right: shelfOpen && !compact ? 372 : 0,
+            child: ExcludeFocus(excluding: shelfOpen, child: layout),
+          ),
+          if (shelfOpen && compact)
+            Positioned.fill(
+              child: ModalBarrier(
+                color: palette.inactiveScrim.withValues(alpha: 0.58),
+                onDismiss: onClose,
+                semanticsLabel: MaterialLocalizations.of(
+                  context,
+                ).modalBarrierDismissLabel,
               ),
-              Align(
-                alignment: Alignment.centerRight,
-                child: SizedBox(
-                  key: const Key('saved-recordings-shelf-compact'),
-                  width: math.min(400, constraints.maxWidth),
+            ),
+          if (shelfOpen)
+            Positioned(
+              top: 0,
+              bottom: 0,
+              right: 0,
+              width: compact ? math.min(400, constraints.maxWidth) : 372,
+              child: BlockSemantics(
+                blocking: compact,
+                child: KeyedSubtree(
+                  key: compact
+                      ? const Key('saved-recordings-shelf-compact')
+                      : null,
                   child: shelf,
                 ),
               ),
-            ],
-          );
-        }
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(child: layout),
-            SizedBox(width: 372, child: shelf),
-          ],
-        );
-      },
-    );
-  }
+            ),
+        ],
+      );
+    },
+  );
 }
 
+/// A small entry point into existing replay capabilities. Recordings stay in
+/// the local library; opening this surface does not start recording a session.
 class _SavedRecordingsShelf extends StatelessWidget {
   const _SavedRecordingsShelf({
     required this.palette,
     required this.entries,
     required this.selectedPath,
-    required this.searchQuery,
-    required this.sort,
-    required this.playableOnly,
     required this.loading,
     required this.selectionLoading,
     required this.error,
-    required this.onSearchChanged,
-    required this.onSortChanged,
-    required this.onPlayableOnlyChanged,
     required this.onRefresh,
-    required this.onImport,
+    required this.onOpenFile,
+    required this.onRecent,
+    required this.onToggleRecording,
+    required this.recording,
+    required this.pendingSave,
     required this.onSelect,
-    required this.onRename,
-    required this.onReveal,
-    required this.onExport,
-    required this.onDelete,
     required this.onClose,
   });
 
   final AppThemeTokens palette;
   final List<LocalSessionRecordingEntry> entries;
   final String? selectedPath;
-  final String searchQuery;
-  final _RecordingLibrarySort sort;
-  final bool playableOnly;
   final bool loading;
   final bool selectionLoading;
   final String? error;
-  final ValueChanged<String> onSearchChanged;
-  final ValueChanged<_RecordingLibrarySort> onSortChanged;
-  final ValueChanged<bool> onPlayableOnlyChanged;
   final VoidCallback onRefresh;
-  final VoidCallback onImport;
+  final VoidCallback onOpenFile;
+  final VoidCallback? onRecent;
+  final VoidCallback? onToggleRecording;
+  final bool recording;
+  final bool pendingSave;
   final ValueChanged<LocalSessionRecordingEntry> onSelect;
-  final ValueChanged<LocalSessionRecordingEntry> onRename;
-  final ValueChanged<LocalSessionRecordingEntry> onReveal;
-  final ValueChanged<LocalSessionRecordingEntry> onExport;
-  final ValueChanged<LocalSessionRecordingEntry> onDelete;
   final VoidCallback onClose;
 
   @override
-  Widget build(BuildContext context) {
-    final grouped = _groupedEntries();
-    return Semantics(
-      container: true,
-      explicitChildNodes: true,
-      label: context.l10n.savedTerminalRecordings,
-      child: DecoratedBox(
-        key: const Key('saved-recordings-shelf'),
-        decoration: BoxDecoration(
-          color: palette.chrome,
-          border: Border(left: BorderSide(color: palette.border)),
-          boxShadow: palette.elevation.floating,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 13, 8, 10),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      context.l10n.savedRecordings,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: palette.textPrimary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                  OutlinedButton.icon(
-                    key: const Key('recording-library-import'),
-                    onPressed: onImport,
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size(82, 30),
-                      padding: const EdgeInsets.symmetric(horizontal: 9),
-                    ),
-                    icon: const Icon(Icons.file_download_outlined, size: 16),
-                    label: Text(context.l10n.importEllipsis),
-                  ),
-                  Semantics(
-                    label: context.l10n.refreshRecordings,
-                    button: true,
-                    child: IconButton(
-                      tooltip: context.l10n.refreshRecordings,
-                      onPressed: loading ? null : onRefresh,
-                      icon: const Icon(Icons.refresh_rounded, size: 18),
-                    ),
-                  ),
-                  Semantics(
-                    label: context.l10n.closeSavedRecordings,
-                    button: true,
-                    child: IconButton(
-                      key: const Key('saved-recordings-shelf-close'),
-                      tooltip: context.l10n.closeSavedRecordings,
-                      onPressed: onClose,
-                      icon: const Icon(Icons.close_rounded, size: 18),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      key: const Key('recording-library-search'),
-                      onChanged: onSearchChanged,
-                      decoration: InputDecoration(
-                        hintText: context.l10n.searchRecordings,
-                        prefixIcon: const Icon(Icons.search_rounded, size: 18),
-                        isDense: true,
-                        filled: true,
-                        fillColor: palette.panel,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(
-                            palette.radius.md,
-                          ),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 7),
-                  Semantics(
-                    label: playableOnly
-                        ? context.l10n.filterPlayableOnly
-                        : context.l10n.filterAllRecordings,
-                    button: true,
-                    child: PopupMenuButton<bool>(
-                      tooltip: context.l10n.filterRecordings,
-                      initialValue: playableOnly,
-                      onSelected: onPlayableOnlyChanged,
-                      itemBuilder: (context) => [
-                        PopupMenuItem(
-                          value: false,
-                          child: Text(context.l10n.allRecordings),
-                        ),
-                        PopupMenuItem(
-                          value: true,
-                          child: Text(context.l10n.playableOnly),
-                        ),
-                      ],
-                      icon: Icon(
-                        Icons.filter_list_rounded,
-                        color: playableOnly
-                            ? palette.accent
-                            : palette.textSubtle,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 8, 8),
-              child: Row(
-                children: [
-                  const Spacer(),
-                  Semantics(
-                    label: context.l10n.recordingSortValue(
-                      _recordingSortLabel(context, sort),
-                    ),
-                    button: true,
-                    child: PopupMenuButton<_RecordingLibrarySort>(
-                      tooltip: context.l10n.recordingSortOrder,
-                      initialValue: sort,
-                      onSelected: onSortChanged,
-                      itemBuilder: (context) => [
-                        PopupMenuItem(
-                          value: _RecordingLibrarySort.newest,
-                          child: Text(context.l10n.newest),
-                        ),
-                        PopupMenuItem(
-                          value: _RecordingLibrarySort.oldest,
-                          child: Text(context.l10n.oldest),
-                        ),
-                        PopupMenuItem(
-                          value: _RecordingLibrarySort.name,
-                          child: Text(context.l10n.name),
-                        ),
-                      ],
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 6),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              _recordingSortLabel(context, sort),
-                              style: Theme.of(context).textTheme.labelMedium
-                                  ?.copyWith(color: palette.textMuted),
-                            ),
-                            const SizedBox(width: 3),
-                            Icon(
-                              Icons.arrow_drop_down_rounded,
-                              size: 17,
-                              color: palette.textSubtle,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (loading) const LinearProgressIndicator(minHeight: 2),
-            if (error case final String message)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 8, 14, 4),
-                child: Text(
-                  message,
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(color: palette.danger),
-                ),
-              ),
-            Expanded(
-              child: grouped.isEmpty && !loading
-                  ? _RecordingLibraryEmptyState(
-                      palette: palette,
-                      hasSearch: searchQuery.trim().isNotEmpty,
-                      onImport: onImport,
-                    )
-                  : ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(8, 4, 8, 12),
-                      itemCount: 1,
-                      itemBuilder: (context, index) {
-                        return _RecordingGroup(
-                          palette: palette,
-                          title: context.l10n.allRecordings,
-                          entries: grouped,
-                          selectedPath: selectedPath,
-                          selectionLoading: selectionLoading,
-                          onSelect: onSelect,
-                          onRename: onRename,
-                          onReveal: onReveal,
-                          onExport: onExport,
-                          onDelete: onDelete,
-                        );
-                      },
-                    ),
-            ),
-            DecoratedBox(
-              decoration: BoxDecoration(
-                color: palette.panel.withValues(alpha: 0.58),
-                border: Border(top: BorderSide(color: palette.border)),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.shield_outlined,
-                          size: 15,
-                          color: palette.textSubtle,
-                        ),
-                        const SizedBox(width: 7),
-                        Expanded(
-                          child: Text(
-                            selectedPath == null
-                                ? context
-                                      .l10n
-                                      .recordingsMayContainSensitiveOutput
-                                : context
-                                      .l10n
-                                      .recordingMayContainSensitiveOutput,
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(color: palette.textSubtle),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Text(
-                          context.l10n.recordingCount(entries.length),
-                          style: Theme.of(context).textTheme.labelSmall
-                              ?.copyWith(color: palette.textSubtle),
-                        ),
-                        const Spacer(),
-                        Text(
-                          _formatRecordingBytes(
-                            entries.fold<int>(
-                              0,
-                              (sum, entry) => sum + entry.fileSizeBytes,
-                            ),
-                          ),
-                          style: Theme.of(context).textTheme.labelSmall
-                              ?.copyWith(color: palette.textSubtle),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  List<LocalSessionRecordingEntry> _groupedEntries() {
-    final needle = searchQuery.trim().toLowerCase();
-    final filtered = entries
-        .where((entry) {
-          if (playableOnly && !entry.isReadable) {
-            return false;
-          }
-          return needle.isEmpty ||
-              entry.displayName.toLowerCase().contains(needle) ||
-              (entry.sessionId?.toLowerCase().contains(needle) ?? false);
-        })
-        .toList(growable: false);
-    filtered.sort(
-      (left, right) => switch (sort) {
-        _RecordingLibrarySort.newest => right.createdAtUtc.compareTo(
-          left.createdAtUtc,
-        ),
-        _RecordingLibrarySort.oldest => left.createdAtUtc.compareTo(
-          right.createdAtUtc,
-        ),
-        _RecordingLibrarySort.name => left.displayName.toLowerCase().compareTo(
-          right.displayName.toLowerCase(),
+  Widget build(BuildContext context) => Shortcuts(
+    shortcuts: const {
+      SingleActivator(LogicalKeyboardKey.escape): DismissIntent(),
+    },
+    child: Actions(
+      actions: {
+        DismissIntent: CallbackAction<DismissIntent>(
+          onInvoke: (_) {
+            onClose();
+            return null;
+          },
         ),
       },
+      child: FocusScope(
+        child: Semantics(
+          container: true,
+          explicitChildNodes: true,
+          label: context.l10n.replayHubTitle,
+          child: Material(
+            key: const Key('saved-recordings-shelf'),
+            color: palette.chrome,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                border: Border(left: BorderSide(color: palette.border)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _header(context),
+                  Expanded(child: _contents(context)),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+
+  Widget _header(BuildContext context) => Padding(
+    padding: EdgeInsets.fromLTRB(
+      palette.spacing.lg,
+      palette.spacing.sm,
+      palette.spacing.sm,
+      palette.spacing.sm,
+    ),
+    child: Row(
+      children: [
+        Expanded(
+          child: Text(
+            context.l10n.replayHubTitle,
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+        ),
+        IconButton(
+          key: const Key('recording-library-close'),
+          autofocus: true,
+          tooltip: context.l10n.close,
+          onPressed: onClose,
+          icon: const Icon(Icons.close_rounded),
+        ),
+      ],
+    ),
+  );
+
+  Widget _contents(BuildContext context) {
+    final ordered = [...entries]
+      ..sort((a, b) {
+        final date = b.createdAtUtc.compareTo(a.createdAtUtc);
+        return date == 0 ? a.path.compareTo(b.path) : date;
+      });
+    return CustomScrollView(
+      key: const Key('recording-library-scroll'),
+      slivers: [
+        SliverPadding(
+          padding: EdgeInsets.symmetric(horizontal: palette.spacing.lg),
+          sliver: SliverToBoxAdapter(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _recent(context),
+                SizedBox(height: palette.spacing.lg),
+                const Divider(),
+                SizedBox(height: palette.spacing.sm),
+                _savedControls(context),
+                SizedBox(height: palette.spacing.md),
+                _status(context, empty: ordered.isEmpty),
+              ],
+            ),
+          ),
+        ),
+        SliverList.builder(
+          itemCount: ordered.length,
+          itemBuilder: (context, index) => _entry(context, ordered[index]),
+        ),
+        SliverToBoxAdapter(child: SizedBox(height: palette.spacing.lg)),
+      ],
     );
-    return filtered;
   }
-}
 
-class _RecordingLibraryEmptyState extends StatelessWidget {
-  const _RecordingLibraryEmptyState({
-    required this.palette,
-    required this.hasSearch,
-    required this.onImport,
-  });
+  Widget _recent(BuildContext context) {
+    final l10n = context.l10n;
+    final textTheme = Theme.of(context).textTheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(l10n.replayRecentTitle, style: textTheme.titleSmall),
+        SizedBox(height: palette.spacing.xs),
+        Text(l10n.replayRecentExplanation, style: textTheme.bodySmall),
+        SizedBox(height: palette.spacing.sm),
+        OutlinedButton.icon(
+          key: const Key('shell-replay-recent-activity'),
+          onPressed: selectionLoading ? null : onRecent,
+          icon: const Icon(Icons.history_rounded),
+          label: Text(l10n.replayRecentActivity),
+        ),
+        if (onRecent == null)
+          Text(l10n.replayRecentNeedsSession, style: textTheme.bodySmall),
+      ],
+    );
+  }
 
-  final AppThemeTokens palette;
-  final bool hasSearch;
-  final VoidCallback onImport;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(28),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+  Widget _savedControls(BuildContext context) {
+    final l10n = context.l10n;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
           children: [
-            Icon(
-              hasSearch ? Icons.search_off_rounded : Icons.movie_outlined,
-              size: 32,
-              color: palette.textSubtle,
-            ),
-            const SizedBox(height: 10),
-            Text(
-              hasSearch
-                  ? context.l10n.noMatchingRecordings
-                  : context.l10n.noSavedRecordings,
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                color: palette.textMuted,
-                fontWeight: FontWeight.w600,
+            Expanded(
+              child: Text(
+                l10n.savedRecordings,
+                style: Theme.of(context).textTheme.titleSmall,
               ),
             ),
-            if (!hasSearch) ...[
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: onImport,
-                icon: const Icon(Icons.file_download_outlined, size: 16),
-                label: Text(context.l10n.importEllipsis),
-              ),
-            ],
+            IconButton(
+              key: const Key('recording-library-refresh'),
+              tooltip: l10n.refreshRecordings,
+              onPressed: loading || selectionLoading ? null : onRefresh,
+              icon: const Icon(Icons.refresh_rounded),
+            ),
           ],
         ),
-      ),
+        Text(
+          l10n.replaySavedExplanation,
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        SizedBox(height: palette.spacing.sm),
+        if (onRecent != null) _recordingButton(context),
+        OutlinedButton.icon(
+          key: const Key('recording-library-open-file'),
+          onPressed: selectionLoading ? null : onOpenFile,
+          icon: const Icon(Icons.folder_open_rounded),
+          label: Text(l10n.replayOpenFile),
+        ),
+      ],
     );
   }
-}
 
-class _RecordingGroup extends StatelessWidget {
-  const _RecordingGroup({
-    required this.palette,
-    required this.title,
-    required this.entries,
-    required this.selectedPath,
-    required this.selectionLoading,
-    required this.onSelect,
-    required this.onRename,
-    required this.onReveal,
-    required this.onExport,
-    required this.onDelete,
-  });
+  Widget _recordingButton(BuildContext context) => FilledButton.tonalIcon(
+    key: const Key('recording-library-toggle-recording'),
+    onPressed: selectionLoading ? null : onToggleRecording,
+    icon: Icon(
+      recording
+          ? Icons.stop_circle_outlined
+          : pendingSave
+          ? Icons.save_outlined
+          : Icons.fiber_manual_record_outlined,
+    ),
+    label: Text(
+      recording
+          ? context.l10n.stopAndSaveRecording
+          : pendingSave
+          ? context.l10n.retrySavingRecording
+          : context.l10n.startRecordingForReplay,
+    ),
+  );
 
-  final AppThemeTokens palette;
-  final String title;
-  final List<LocalSessionRecordingEntry> entries;
-  final String? selectedPath;
-  final bool selectionLoading;
-  final ValueChanged<LocalSessionRecordingEntry> onSelect;
-  final ValueChanged<LocalSessionRecordingEntry> onRename;
-  final ValueChanged<LocalSessionRecordingEntry> onReveal;
-  final ValueChanged<LocalSessionRecordingEntry> onExport;
-  final ValueChanged<LocalSessionRecordingEntry> onDelete;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(8, 8, 8, 6),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    title.toUpperCase(),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: palette.textSubtle,
-                      letterSpacing: 0.7,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                Text(
-                  '${entries.length}',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.labelSmall?.copyWith(color: palette.textSubtle),
-                ),
-              ],
-            ),
-          ),
-          for (final entry in entries)
-            _RecordingLibraryRow(
-              palette: palette,
-              entry: entry,
-              selected: entry.path == selectedPath,
-              busy: selectionLoading && entry.path == selectedPath,
-              onSelect: () => onSelect(entry),
-              onRename: () => onRename(entry),
-              onReveal: () => onReveal(entry),
-              onExport: () => onExport(entry),
-              onDelete: () => onDelete(entry),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _RecordingLibraryRow extends StatelessWidget {
-  const _RecordingLibraryRow({
-    required this.palette,
-    required this.entry,
-    required this.selected,
-    required this.busy,
-    required this.onSelect,
-    required this.onRename,
-    required this.onReveal,
-    required this.onExport,
-    required this.onDelete,
-  });
-
-  final AppThemeTokens palette;
-  final LocalSessionRecordingEntry entry;
-  final bool selected;
-  final bool busy;
-  final VoidCallback onSelect;
-  final VoidCallback onRename;
-  final VoidCallback onReveal;
-  final VoidCallback onExport;
-  final VoidCallback onDelete;
-
-  @override
-  Widget build(BuildContext context) {
-    final date = entry.createdAtUtc.toLocal();
-    final materialL10n = MaterialLocalizations.of(context);
-    final subtitle = [
-      '${materialL10n.formatShortDate(date)} ${materialL10n.formatTimeOfDay(TimeOfDay.fromDateTime(date), alwaysUse24HourFormat: true)}',
-      _formatRecordingDuration(entry.duration),
-      _formatRecordingBytes(entry.fileSizeBytes),
-    ].join('  ·  ');
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Material(
-        color: selected ? palette.selected : Colors.transparent,
-        borderRadius: BorderRadius.circular(palette.radius.md),
-        child: InkWell(
-          key: Key('recording-library-row-${entry.path}'),
-          borderRadius: BorderRadius.circular(palette.radius.md),
-          onTap: entry.isReadable ? onSelect : null,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(10, 9, 3, 9),
-            child: Row(
-              children: [
-                Container(
-                  width: 31,
-                  height: 31,
-                  decoration: BoxDecoration(
-                    color: entry.isReadable
-                        ? palette.accent.withValues(alpha: 0.12)
-                        : palette.dangerContainer,
-                    borderRadius: BorderRadius.circular(palette.radius.md),
-                  ),
-                  alignment: Alignment.center,
-                  child: busy
-                      ? SizedBox.square(
-                          dimension: 14,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 1.5,
-                            color: palette.accent,
-                          ),
-                        )
-                      : Icon(
-                          entry.isReadable
-                              ? Icons.play_arrow_rounded
-                              : Icons.error_outline_rounded,
-                          size: 18,
-                          color: entry.isReadable
-                              ? palette.accent
-                              : palette.danger,
-                        ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        entry.displayName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: palette.textPrimary,
-                          fontWeight: selected
-                              ? FontWeight.w600
-                              : FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        entry.error ?? subtitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: entry.error == null
-                              ? palette.textSubtle
-                              : palette.danger,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Semantics(
-                  label: context.l10n.actionsForNamedItem(entry.displayName),
-                  button: true,
-                  child: PopupMenuButton<_RecordingLibraryAction>(
-                    tooltip: context.l10n.recordingActions,
-                    icon: Icon(
-                      Icons.more_horiz_rounded,
-                      size: 18,
-                      color: palette.textSubtle,
-                    ),
-                    onSelected: (action) {
-                      switch (action) {
-                        case _RecordingLibraryAction.rename:
-                          onRename();
-                        case _RecordingLibraryAction.reveal:
-                          onReveal();
-                        case _RecordingLibraryAction.export:
-                          onExport();
-                        case _RecordingLibraryAction.delete:
-                          onDelete();
-                      }
-                    },
-                    itemBuilder: (context) => [
-                      PopupMenuItem(
-                        value: _RecordingLibraryAction.rename,
-                        child: Text(context.l10n.renameEllipsis),
-                      ),
-                      PopupMenuItem(
-                        value: _RecordingLibraryAction.reveal,
-                        child: Text(context.l10n.revealInFinder),
-                      ),
-                      PopupMenuItem(
-                        value: _RecordingLibraryAction.export,
-                        child: Text(context.l10n.exportEllipsis),
-                      ),
-                      const PopupMenuDivider(),
-                      PopupMenuItem(
-                        value: _RecordingLibraryAction.delete,
-                        child: Text(context.l10n.moveToTrash),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+  Widget _status(BuildContext context, {required bool empty}) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      if (loading || selectionLoading) const LinearProgressIndicator(),
+      if (error != null)
+        Padding(
+          padding: EdgeInsets.symmetric(vertical: palette.spacing.sm),
+          child: Semantics(
+            liveRegion: true,
+            child: Text(
+              error!,
+              key: const Key('recording-library-error'),
+              style: TextStyle(color: palette.danger),
             ),
           ),
         ),
+      if (!loading && error == null && empty)
+        Padding(
+          padding: EdgeInsets.symmetric(vertical: palette.spacing.lg),
+          child: Text(
+            context.l10n.replayLibraryEmpty,
+            key: const Key('recording-library-empty'),
+          ),
+        ),
+    ],
+  );
+
+  Widget _entry(BuildContext context, LocalSessionRecordingEntry entry) {
+    final date = entry.createdAtUtc.toLocal();
+    final material = MaterialLocalizations.of(context);
+    final details = entry.isReadable
+        ? '${material.formatCompactDate(date)} · ${material.formatTimeOfDay(TimeOfDay.fromDateTime(date))} · ${_formatRecordingDuration(entry.duration)}'
+        : context.l10n.replayRecordingUnavailable;
+    return ListTile(
+      key: ValueKey('recording-entry-${entry.path}'),
+      selected: selectedPath == entry.path,
+      enabled: entry.isReadable && !selectionLoading,
+      leading: Icon(
+        entry.isReadable
+            ? Icons.play_circle_outline_rounded
+            : Icons.error_outline_rounded,
       ),
+      title: Text(
+        entry.displayName,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ),
+      subtitle: Text(details),
+      contentPadding: EdgeInsets.symmetric(
+        horizontal: palette.spacing.lg,
+        vertical: palette.spacing.xs,
+      ),
+      onTap: entry.isReadable && !selectionLoading
+          ? () => onSelect(entry)
+          : null,
     );
   }
 }
@@ -1612,13 +1260,6 @@ List<Duration> _recordingPlaybackAnchors(terminal.TerminalRecording recording) {
 
 String _twoDigits(int value) => value.toString().padLeft(2, '0');
 
-String _recordingSortLabel(BuildContext context, _RecordingLibrarySort value) =>
-    switch (value) {
-      _RecordingLibrarySort.newest => context.l10n.newest,
-      _RecordingLibrarySort.oldest => context.l10n.oldest,
-      _RecordingLibrarySort.name => context.l10n.name,
-    };
-
 String _formatRecordingDuration(Duration value) {
   final totalSeconds = math.max(0, value.inSeconds);
   final hours = totalSeconds ~/ 3600;
@@ -1628,14 +1269,4 @@ String _formatRecordingDuration(Duration value) {
     return '$hours:${_twoDigits(minutes)}:${_twoDigits(seconds)}';
   }
   return '${_twoDigits(minutes)}:${_twoDigits(seconds)}';
-}
-
-String _formatRecordingBytes(int bytes) {
-  if (bytes < 1024) {
-    return '$bytes B';
-  }
-  if (bytes < 1024 * 1024) {
-    return '${(bytes / 1024).toStringAsFixed(1)} KB';
-  }
-  return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
 }

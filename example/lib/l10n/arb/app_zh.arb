@@ -578,7 +578,7 @@
   "idleGap": "空闲间隔",
   "shellSemantics": "Shell 语义",
   "activityFallbackNoShellHook": "活动回退 · 无 Shell 钩子",
-  "terminalActionName": "{action, select, new_tab{新建标签页} new_ssh_session{新建 SSH 会话} new_tab_at_folder{在文件夹中新建标签页} open_recording_for_replay{打开录制进行回放} duplicate_current_cwd{复制当前目录会话} reopen_closed_tab{重新打开关闭的标签页} open_launcher{打开启动器} open_command_menu{打开命令菜单} open_sftp_panel{打开 SFTP 面板} split_right{向右拆分} split_down{向下拆分} focus_next_pane{聚焦下一个窗格} focus_previous_pane{聚焦上一个窗格} resize_pane{调整窗格大小} swap_pane{交换窗格} zoom_pane{缩放窗格} close_pane{关闭窗格} reopen_closed_pane{重新打开关闭的窗格} close_active_tab{关闭活动标签页} open_defaults{打开默认设置} activate_tab{激活标签页} copy{复制} copy_command_output{复制命令输出} paste{粘贴} toggle_read_only{切换只读模式} toggle_replay_recording{切换回放录制} clear_buffer{清除缓冲区} replay_recent_activity{回放近期活动} search_scrollback{搜索回滚内容} next_search_match{下一个搜索匹配项} previous_search_match{上一个搜索匹配项} clear_search{清除搜索} defaults{默认设置} profiles{Profile} request_quit_confirmation{请求退出确认} previous_prompt{上一个提示符} next_prompt{下一个提示符} export_scrollback{导出回滚内容} export_diagnostics{导出诊断} other{{action}}}",
+  "terminalActionName": "{action, select, new_tab{新建标签页} new_ssh_session{新建 SSH 会话} new_tab_at_folder{在文件夹中新建标签页} open_recording_for_replay{回看} duplicate_current_cwd{复制当前目录会话} reopen_closed_tab{重新打开关闭的标签页} open_launcher{打开启动器} open_command_menu{打开命令菜单} open_sftp_panel{打开 SFTP 面板} split_right{向右拆分} split_down{向下拆分} focus_next_pane{聚焦下一个窗格} focus_previous_pane{聚焦上一个窗格} resize_pane{调整窗格大小} swap_pane{交换窗格} zoom_pane{缩放窗格} close_pane{关闭窗格} reopen_closed_pane{重新打开关闭的窗格} close_active_tab{关闭活动标签页} open_defaults{打开默认设置} activate_tab{激活标签页} copy{复制} copy_command_output{复制命令输出} paste{粘贴} toggle_read_only{切换只读模式} toggle_replay_recording{切换回放录制} clear_buffer{清除缓冲区} replay_recent_activity{回放近期活动} search_scrollback{搜索回滚内容} next_search_match{下一个搜索匹配项} previous_search_match{上一个搜索匹配项} clear_search{清除搜索} defaults{默认设置} profiles{Profile} request_quit_confirmation{请求退出确认} previous_prompt{上一个提示符} next_prompt{下一个提示符} export_scrollback{导出回滚内容} export_diagnostics{导出诊断} other{{action}}}",
   "appCategory": "应用",
   "sessionCategory": "会话",
   "replayCategory": "回放",
@@ -1158,5 +1158,14 @@
   "syncLocalFirstDescription": "修改先保存到本机。独立修改自动合并；冲突值在选择前不会覆盖任一端。",
   "syncKeepLocal": "保留本机冲突值",
   "syncUseRemote": "采用 API 冲突值",
-  "syncNow": "立即同步"
+  "syncNow": "立即同步",
+  "replayHubTitle": "回看",
+  "replayHubDescription": "查看最近画面、已保存录制，或打开录制文件。",
+  "replayRecentTitle": "最近画面",
+  "replayRecentExplanation": "回看当前会话最近的输出。这些临时画面会在退出应用后清除。",
+  "replayRecentNeedsSession": "打开一个终端会话，即可回看它的最近画面。",
+  "replaySavedExplanation": "主动开始录制，停止保存后即可在此打开。录制保存在本机，重启应用后仍可找到。",
+  "replayOpenFile": "打开录制文件",
+  "replayLibraryEmpty": "还没有已保存录制。开始并停止一次录制，或打开已有录制文件。",
+  "replayRecordingUnavailable": "此录制暂时无法读取。"
 }
