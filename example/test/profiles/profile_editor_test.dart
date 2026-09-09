@@ -68,6 +68,18 @@ void main() {
 
       expect(
         tester
+            .widget<ExpansionTile>(
+              find.byKey(
+                const Key('profile-editor-fallback-fonts-expansion'),
+                skipOffstage: false,
+              ),
+            )
+            .initiallyExpanded,
+        isFalse,
+      );
+
+      expect(
+        tester
             .widget<TextFormField>(_findByKey(const Key('profile-editor-name')))
             .controller!
             .text,
@@ -89,6 +101,7 @@ void main() {
             .text,
         '/bin/bash',
       );
+      await _expandCustomColors(tester);
       expect(find.text('Colors', skipOffstage: false), findsOneWidget);
       expect(find.text('Special', skipOffstage: false), findsOneWidget);
       expect(find.text('ANSI normal', skipOffstage: false), findsOneWidget);
@@ -103,16 +116,16 @@ void main() {
       }
       expect(
         tester.getSize(_findByKey(const Key('profile-editor-save'))).height,
-        32,
+        28,
       );
       final shellFieldHeight = tester
           .getSize(_findByKey(const Key('profile-editor-shell')))
           .height;
       expect(
         tester.getSize(_findByKey(const Key('profile-editor-name'))).height,
-        greaterThanOrEqualTo(44),
+        greaterThanOrEqualTo(28),
       );
-      expect(shellFieldHeight, greaterThanOrEqualTo(44));
+      expect(shellFieldHeight, greaterThanOrEqualTo(28));
       expect(
         tester.getSize(_findByKey(const Key('profile-editor-add-arg'))).height,
         28,
@@ -219,6 +232,7 @@ void main() {
         _findByKey(const Key('profile-editor-font-family')),
         'JetBrainsMono Nerd Font Mono',
       );
+      await _expandFallbackFonts(tester);
       await _ensureVisible(
         tester,
         _findByKey(const Key('profile-editor-fallback-1-remove')),
@@ -227,7 +241,7 @@ void main() {
         tester
             .getSize(_findByKey(const Key('profile-editor-fallback-1-remove')))
             .height,
-        28,
+        24,
       );
       await tester.tap(
         _findByKey(const Key('profile-editor-fallback-1-remove')),
@@ -581,6 +595,7 @@ void main() {
 
       await tester.tap(_findByKey(const Key('profile-editor-nav-appearance')));
       await tester.pumpAndSettle();
+      await _expandCustomColors(tester);
       await _ensureVisible(
         tester,
         _findByKey(const Key('profile-editor-color-foreground')),
@@ -1228,6 +1243,17 @@ void main() {
         findsOneWidget,
       );
       expect(
+        tester
+            .widget<ExpansionTile>(
+              find.byKey(
+                const Key('profile-editor-fallback-fonts-expansion'),
+                skipOffstage: false,
+              ),
+            )
+            .initiallyExpanded,
+        isTrue,
+      );
+      expect(
         find.text(
           'Use $maxTerminalFontFallbackFamilies fallback fonts or fewer.',
           skipOffstage: false,
@@ -1308,18 +1334,45 @@ void main() {
     );
     await _ensureVisible(
       tester,
+      _findByKey(const Key('profile-editor-custom-colors-expansion')),
+    );
+    await tester.tap(
+      _findByKey(const Key('profile-editor-custom-colors-expansion')),
+    );
+    await tester.pumpAndSettle();
+    await _ensureVisible(
+      tester,
       _findByKey(const Key('profile-editor-color-foreground')),
     );
     await tester.enterText(
       _findByKey(const Key('profile-editor-color-foreground')),
       'red',
     );
+    await _ensureVisible(
+      tester,
+      _findByKey(const Key('profile-editor-custom-colors-expansion')),
+    );
+    await tester.tap(
+      _findByKey(const Key('profile-editor-custom-colors-expansion')),
+    );
+    await tester.pumpAndSettle();
 
     await _ensureVisible(tester, _findByKey(const Key('profile-editor-save')));
     await tester.tap(_findByKey(const Key('profile-editor-save')));
     await tester.pumpAndSettle();
 
     expect(savedProfile, isNull);
+    expect(
+      tester
+          .widget<ExpansionTile>(
+            find.byKey(
+              const Key('profile-editor-custom-colors-expansion'),
+              skipOffstage: false,
+            ),
+          )
+          .initiallyExpanded,
+      isTrue,
+    );
     expect(find.text('Name is required', skipOffstage: false), findsOneWidget);
     expect(find.text('Shell is required', skipOffstage: false), findsOneWidget);
     expect(
@@ -1480,6 +1533,7 @@ void main() {
         onSaved: (value) => savedProfile = value,
       );
 
+      await _expandCustomColors(tester);
       await _ensureVisible(
         tester,
         _findByKey(const Key('profile-editor-swatch-foreground')),
@@ -1586,8 +1640,10 @@ void main() {
     );
 
     await tester.tap(
-      _findByKey(const Key('profile-editor-theme-preset-graphite-night')),
+      _findByKey(const Key('profile-editor-theme-preset-dropdown')),
     );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Graphite Night').last);
     await tester.pumpAndSettle();
     expect(
       _findByKey(const Key('profile-editor-theme-preset-selected-follow-app')),
@@ -1595,13 +1651,16 @@ void main() {
     );
 
     await tester.tap(
-      _findByKey(const Key('profile-editor-theme-preset-follow-app')),
+      _findByKey(const Key('profile-editor-theme-preset-dropdown')),
     );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Follow application theme colors').last);
     await tester.pumpAndSettle();
     expect(
       _findByKey(const Key('profile-editor-theme-preset-selected-follow-app')),
       findsOneWidget,
     );
+    await _expandCustomColors(tester);
     for (final fieldKey in _allColorFieldKeys) {
       expect(
         tester
@@ -1635,19 +1694,20 @@ void main() {
         _findByKey(const Key('profile-editor-theme-presets')),
       );
       expect(find.text('Theme presets'), findsOneWidget);
-      expect(find.text('Dark').evaluate().length, greaterThanOrEqualTo(3));
-      expect(find.text('Light').evaluate().length, greaterThanOrEqualTo(2));
-      expect(find.text('Graphite Night'), findsOneWidget);
-      expect(find.text('Moss Night'), findsOneWidget);
-      expect(find.text('Ember Dusk'), findsOneWidget);
-      expect(find.text('Paper Slate'), findsOneWidget);
-      expect(find.text('Sage Mist'), findsOneWidget);
-
       await tester.tap(
-        _findByKey(const Key('profile-editor-theme-preset-paper-slate')),
+        _findByKey(const Key('profile-editor-theme-preset-dropdown')),
       );
       await tester.pumpAndSettle();
+      expect(find.text('Graphite Night'), findsAtLeastNWidgets(1));
+      expect(find.text('Moss Night'), findsAtLeastNWidgets(1));
+      expect(find.text('Ember Dusk'), findsAtLeastNWidgets(1));
+      expect(find.text('Paper Slate'), findsAtLeastNWidgets(1));
+      expect(find.text('Sage Mist'), findsAtLeastNWidgets(1));
 
+      await tester.tap(find.text('Paper Slate').last);
+      await tester.pumpAndSettle();
+
+      await _expandCustomColors(tester);
       _expectColorFieldText(
         tester,
         'profile-editor-color-foreground',
@@ -1728,8 +1788,10 @@ void main() {
         _findByKey(const Key('profile-editor-theme-presets')),
       );
       await tester.tap(
-        _findByKey(const Key('profile-editor-theme-preset-graphite-night')),
+        _findByKey(const Key('profile-editor-theme-preset-dropdown')),
       );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Graphite Night').last);
       await tester.pumpAndSettle();
 
       expect(
@@ -1739,6 +1801,7 @@ void main() {
         findsOneWidget,
       );
 
+      await _expandCustomColors(tester);
       await tester.enterText(
         _findByKey(const Key('profile-editor-color-cursor')),
         '#123456',
@@ -1803,10 +1866,13 @@ void main() {
         _findByKey(const Key('profile-editor-theme-presets')),
       );
       await tester.tap(
-        _findByKey(const Key('profile-editor-theme-preset-sage-mist')),
+        _findByKey(const Key('profile-editor-theme-preset-dropdown')),
       );
       await tester.pumpAndSettle();
+      await tester.tap(find.text('Sage Mist').last);
+      await tester.pumpAndSettle();
 
+      await _expandCustomColors(tester);
       await _ensureVisible(
         tester,
         _findByKey(const Key('profile-editor-reset-foreground')),
@@ -1943,6 +2009,41 @@ Future<void> _pumpEditorHarness(
 }
 
 Finder _findByKey(Key key) => find.byKey(key, skipOffstage: false);
+
+Future<void> _expandFallbackFonts(WidgetTester tester) async {
+  if (find
+      .byKey(const Key('profile-editor-add-fallback'))
+      .evaluate()
+      .isNotEmpty) {
+    return;
+  }
+  final expansion = _findByKey(
+    const Key('profile-editor-fallback-fonts-expansion'),
+  );
+  await _ensureVisible(tester, expansion);
+  await tester.tap(expansion);
+  await tester.pumpAndSettle();
+  expect(find.byKey(const Key('profile-editor-add-fallback')), findsOneWidget);
+}
+
+Future<void> _expandCustomColors(WidgetTester tester) async {
+  if (find
+      .byKey(const Key('profile-editor-swatch-foreground'))
+      .evaluate()
+      .isNotEmpty) {
+    return;
+  }
+  final expansion = _findByKey(
+    const Key('profile-editor-custom-colors-expansion'),
+  );
+  await _ensureVisible(tester, expansion);
+  await tester.tap(expansion);
+  await tester.pumpAndSettle();
+  expect(
+    find.byKey(const Key('profile-editor-swatch-foreground')),
+    findsOneWidget,
+  );
+}
 
 Future<void> _ensureVisible(WidgetTester tester, Finder finder) async {
   final targetElements = finder.evaluate().toList();

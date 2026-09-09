@@ -4315,4 +4315,19 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get replayRecordingUnavailable => '此录制暂时无法读取。';
+
+  @override
+  String get configurationNewSessions => '新会话';
+
+  @override
+  String get configurationProfileDetails => '字体、颜色和启动参数在 Profile 中配置。';
+
+  @override
+  String get configurationLanguage => '界面语言';
+
+  @override
+  String get configurationFontMetrics => '字号与行高';
+
+  @override
+  String get configurationNewSessionHint => '更改仅应用于新会话。';
 }

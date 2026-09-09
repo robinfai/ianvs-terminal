@@ -2,6 +2,7 @@ import 'package:app/data/configuration/data_api_configuration.dart';
 import 'package:app/features/config/local_terminal_config_models.dart';
 import 'package:app/features/preferences/app_preferences_models.dart';
 import 'package:app/features/shell/defaults_appearance_dialog.dart';
+import 'package:app/ui/components/app_configuration_field.dart';
 import 'package:app/ui/foundation/app_theme.dart';
 import 'package:app/ui/foundation/app_theme_tokens.dart';
 import 'package:flutter/gestures.dart';
@@ -154,6 +155,18 @@ void main() {
       expect(usernameField.textInputAction, TextInputAction.next);
       expect(passwordField.textInputAction, TextInputAction.done);
       expect(passwordField.onSubmitted, isNotNull);
+      for (final field in [urlField, usernameField, passwordField]) {
+        expect(field.decoration?.labelText, isNull);
+      }
+      for (final finder in [url, username, password]) {
+        expect(
+          find.ancestor(
+            of: finder,
+            matching: find.byType(AppConfigurationField),
+          ),
+          findsOneWidget,
+        );
+      }
       expect(urlField.decoration?.errorMaxLines, 2);
       expect(usernameField.decoration?.errorMaxLines, 2);
       expect(passwordField.decoration?.errorMaxLines, 2);
@@ -391,6 +404,10 @@ void main() {
     await pointer.removePointer();
     await tester.pumpAndSettle();
 
+    await tester.ensureVisible(
+      find.byKey(const Key('data-api-remote-reconnect')),
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('data-api-remote-reconnect')));
     await tester.pump();
     expect(find.textContaining('one Ianvs master key'), findsOneWidget);
@@ -414,7 +431,7 @@ void main() {
     ]) {
       final field = tester.widget<TextField>(find.byKey(key));
       expect(field.style?.fontSize, expectedFieldSize);
-      expect(field.decoration?.constraints?.minHeight, 36);
+      expect(field.decoration?.constraints?.minHeight, 28);
     }
     await tester.enterText(
       find.byKey(const Key('data-api-remote-username')),

@@ -4623,4 +4623,20 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get replayRecordingUnavailable => 'This recording cannot be read.';
+
+  @override
+  String get configurationNewSessions => 'New sessions';
+
+  @override
+  String get configurationProfileDetails =>
+      'Fonts, colors and startup options are configured in the Profile.';
+
+  @override
+  String get configurationLanguage => 'Interface language';
+
+  @override
+  String get configurationFontMetrics => 'Font size and line height';
+
+  @override
+  String get configurationNewSessionHint => 'Changes apply to new sessions.';
 }

@@ -247,7 +247,7 @@ void main() {
     );
     final header = find.byKey(const Key('shortcut-editor-list-header'));
     final listPanel = find.byKey(const Key('shortcut-editor-list-panel'));
-    expect(tester.getSize(header).height, 32);
+    expect(tester.getSize(header).height, 28);
     expect(tester.getSize(header).width, tester.getSize(listPanel).width);
     expect(
       tester
@@ -320,6 +320,33 @@ void main() {
     expect(find.byKey(const Key('defaults-shortcuts-entry')), findsOneWidget);
   });
 
+  testWidgets('keeps filters and restore on one row at medium width', (
+    tester,
+  ) async {
+    await _pumpEditor(
+      tester,
+      surfaceSize: const Size(530, 600),
+      config: const LocalTerminalKeybindingsConfig(
+        disabledDefaultActions: {TerminalActionId.newTab},
+      ),
+    );
+
+    final search = tester.getRect(
+      find.byKey(const Key('shortcut-editor-filter')),
+    );
+    final category = tester.getRect(
+      find.byKey(const Key('shortcut-editor-category')),
+    );
+    final restore = tester.getRect(
+      find.byKey(const Key('shortcut-editor-restore-all')),
+    );
+    expect(search.right, lessThan(category.left));
+    expect(category.right, lessThan(restore.left));
+    expect(search.bottom, closeTo(category.bottom, 1));
+    expect(category.bottom, closeTo(restore.bottom, 1));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('remains usable at narrow width and large text scale', (
     tester,
   ) async {
@@ -346,6 +373,18 @@ void main() {
     await tester.pump();
 
     expect(find.byKey(const Key('shortcut-edit-newTab')), findsOneWidget);
+    final search = tester.getRect(
+      find.byKey(const Key('shortcut-editor-filter')),
+    );
+    final category = tester.getRect(
+      find.byKey(const Key('shortcut-editor-category')),
+    );
+    final restore = tester.getRect(
+      find.byKey(const Key('shortcut-editor-restore-all')),
+    );
+    expect(search.bottom, lessThan(category.top));
+    expect(category.right, lessThan(restore.left));
+    expect(category.bottom, closeTo(restore.bottom, 1));
     expect(tester.takeException(), isNull);
   });
 }

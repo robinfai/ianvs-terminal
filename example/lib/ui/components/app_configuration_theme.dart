@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../foundation/app_theme_tokens.dart';
 
-/// A deliberately quieter, roomier theme scope for configuration surfaces.
+/// A quiet, platform-sized theme scope for configuration surfaces.
 ///
 /// Settings and profile editors share this scope so their navigation, forms,
 /// panels, and fixed actions use one visual rhythm without changing the denser
@@ -21,21 +21,29 @@ class AppConfigurationTheme extends StatelessWidget {
     xxl: 24,
   );
 
-  static const _radius = AppThemeRadius(sm: 6, md: 8, lg: 10, xl: 14);
-  static const _controls = AppThemeControls(
-    dense: 28,
-    compact: 34,
-    regular: 40,
+  // macOS form content uses a compact 20-point outer margin.
+  static const _macSpacing = AppThemeSpacing(
+    xs: 4,
+    sm: 6,
+    md: 8,
+    lg: 12,
+    xl: 16,
+    xxl: 20,
   );
 
+  static const _radius = AppThemeRadius(sm: 4, md: 6, lg: 8, xl: 12);
   @override
   Widget build(BuildContext context) {
     final baseTheme = Theme.of(context);
     final baseTokens = context.appTheme;
-    final isMac = baseTheme.platform == TargetPlatform.macOS;
-    final controls = isMac
-        ? const AppThemeControls(dense: 28, compact: 28, regular: 32)
-        : _controls;
+    final isMacOS = baseTheme.platform == TargetPlatform.macOS;
+    final touch =
+        baseTheme.materialTapTargetSize == MaterialTapTargetSize.padded;
+    final controls = touch
+        ? const AppThemeControls(dense: 48, compact: 48, regular: 48)
+        : isMacOS
+        ? const AppThemeControls(dense: 24, compact: 28, regular: 28)
+        : const AppThemeControls(dense: 28, compact: 34, regular: 38);
     final dark = baseTheme.brightness == Brightness.dark;
     final panel = baseTokens.panel;
 
@@ -67,20 +75,24 @@ class AppConfigurationTheme extends StatelessWidget {
       border: border,
       borderStrong: borderStrong,
       selected: selected,
-      spacing: _spacing,
-      radius: isMac ? baseTokens.radius : _radius,
+      spacing: isMacOS ? _macSpacing : _spacing,
+      radius: _radius,
       controls: controls,
       elevation: AppThemeElevation(
         floating: [
           BoxShadow(
-            color: baseTokens.textPrimary.withValues(alpha: dark ? 0.34 : 0.12),
+            color: baseTheme.colorScheme.shadow.withValues(
+              alpha: dark ? 0.34 : 0.12,
+            ),
             blurRadius: 26,
             offset: const Offset(0, 12),
           ),
         ],
         dialog: [
           BoxShadow(
-            color: baseTokens.textPrimary.withValues(alpha: dark ? 0.42 : 0.15),
+            color: baseTheme.colorScheme.shadow.withValues(
+              alpha: dark ? 0.42 : 0.15,
+            ),
             blurRadius: 34,
             offset: const Offset(0, 18),
           ),
@@ -96,8 +108,76 @@ class AppConfigurationTheme extends StatelessWidget {
         borderRadius: BorderRadius.circular(tokens.radius.md),
       ),
     );
+    final textTheme = baseTheme.textTheme.copyWith(
+      titleLarge: baseTheme.textTheme.titleLarge?.copyWith(
+        fontSize: isMacOS ? 17 : 22,
+        height: isMacOS ? 22 / 17 : null,
+        fontWeight: FontWeight.w600,
+        letterSpacing: isMacOS ? 0 : null,
+      ),
+      titleMedium: baseTheme.textTheme.titleMedium?.copyWith(
+        fontSize: isMacOS
+            ? 13
+            : touch
+            ? 17
+            : 15,
+        height: isMacOS ? 16 / 13 : null,
+        fontWeight: FontWeight.w600,
+        letterSpacing: isMacOS ? 0 : null,
+      ),
+      titleSmall: baseTheme.textTheme.titleSmall?.copyWith(
+        fontSize: isMacOS
+            ? 13
+            : touch
+            ? 15
+            : 14,
+        height: isMacOS ? 16 / 13 : null,
+        fontWeight: isMacOS ? null : FontWeight.w600,
+        letterSpacing: isMacOS ? 0 : null,
+      ),
+      bodyLarge: baseTheme.textTheme.bodyLarge?.copyWith(
+        fontSize: isMacOS
+            ? 13
+            : touch
+            ? 17
+            : 14,
+        height: isMacOS ? 16 / 13 : null,
+        letterSpacing: isMacOS ? 0 : null,
+      ),
+      bodyMedium: baseTheme.textTheme.bodyMedium?.copyWith(
+        fontSize: isMacOS
+            ? 13
+            : touch
+            ? 15
+            : 14,
+        height: isMacOS ? 16 / 13 : null,
+        letterSpacing: isMacOS ? 0 : null,
+      ),
+      bodySmall: baseTheme.textTheme.bodySmall?.copyWith(
+        fontSize: isMacOS
+            ? 12
+            : touch
+            ? 13
+            : 12,
+        height: isMacOS ? 15 / 12 : null,
+        letterSpacing: isMacOS ? 0 : null,
+      ),
+      labelLarge: baseTheme.textTheme.labelLarge?.copyWith(
+        fontSize: isMacOS
+            ? 13
+            : touch
+            ? 15
+            : 14,
+        height: isMacOS ? 16 / 13 : null,
+        letterSpacing: isMacOS ? 0 : null,
+      ),
+    );
     return Theme(
       data: baseTheme.copyWith(
+        textTheme: textTheme,
+        iconTheme: isMacOS
+            ? baseTheme.iconTheme.copyWith(size: 16)
+            : baseTheme.iconTheme,
         scaffoldBackgroundColor: tokens.canvas,
         dividerColor: tokens.border,
         focusColor: tokens.focusRing.withValues(alpha: 0.20),
@@ -118,7 +198,7 @@ class AppConfigurationTheme extends StatelessWidget {
         ),
         inputDecorationTheme: baseTheme.inputDecorationTheme.copyWith(
           filled: true,
-          fillColor: tokens.chrome,
+          fillColor: tokens.panel,
           border: outline,
           enabledBorder: outline,
           focusedBorder: outline.copyWith(
@@ -131,9 +211,21 @@ class AppConfigurationTheme extends StatelessWidget {
             borderSide: BorderSide(color: tokens.danger, width: 1.6),
           ),
           constraints: BoxConstraints(minHeight: tokens.controls.regular),
+          prefixIconConstraints: BoxConstraints(
+            minWidth: tokens.controls.regular,
+            minHeight: tokens.controls.regular,
+          ),
+          suffixIconConstraints: BoxConstraints(
+            minWidth: tokens.controls.regular,
+            minHeight: tokens.controls.regular,
+          ),
           contentPadding: EdgeInsets.symmetric(
-            horizontal: tokens.spacing.lg,
-            vertical: tokens.spacing.sm,
+            horizontal: 12,
+            vertical: isMacOS
+                ? 5
+                : touch
+                ? 12
+                : 9,
           ),
         ),
         filledButtonTheme: FilledButtonThemeData(
@@ -142,6 +234,7 @@ class AppConfigurationTheme extends StatelessWidget {
             minimumSize: WidgetStatePropertyAll(
               Size(0, tokens.controls.regular),
             ),
+            textStyle: WidgetStatePropertyAll(textTheme.labelLarge),
           ),
         ),
         outlinedButtonTheme: OutlinedButtonThemeData(
@@ -151,10 +244,14 @@ class AppConfigurationTheme extends StatelessWidget {
             minimumSize: WidgetStatePropertyAll(
               Size(0, tokens.controls.regular),
             ),
+            textStyle: WidgetStatePropertyAll(textTheme.labelLarge),
           ),
         ),
         textButtonTheme: TextButtonThemeData(
-          style: baseTheme.textButtonTheme.style?.copyWith(shape: buttonShape),
+          style: baseTheme.textButtonTheme.style?.copyWith(
+            shape: buttonShape,
+            textStyle: WidgetStatePropertyAll(textTheme.labelLarge),
+          ),
         ),
         listTileTheme: baseTheme.listTileTheme.copyWith(
           shape: RoundedRectangleBorder(

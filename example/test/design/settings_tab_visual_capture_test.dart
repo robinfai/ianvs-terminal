@@ -11,6 +11,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'configuration_capture_binding.dart';
+
 const _surfaceSize = Size(1440, 1024);
 
 Future<ByteData> _readFont(String path) async {
@@ -22,7 +24,9 @@ Future<void> _loadVisualFonts() async {
   final flutterRoot =
       Platform.environment['FLUTTER_ROOT'] ??
       File(Platform.resolvedExecutable).parent.parent.parent.parent.parent.path;
-  final text = FontLoader('SettingsCaptureSans')
+  final latin = FontLoader('SettingsCaptureSans')
+    ..addFont(_readFont('/System/Library/Fonts/SFNS.ttf'));
+  final cjk = FontLoader('SettingsCaptureCjk')
     ..addFont(_readFont('/System/Library/Fonts/STHeiti Medium.ttc'));
   final materialIcons = FontLoader('MaterialIcons')
     ..addFont(
@@ -30,7 +34,7 @@ Future<void> _loadVisualFonts() async {
         '$flutterRoot/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf',
       ),
     );
-  await Future.wait([text.load(), materialIcons.load()]);
+  await Future.wait([latin.load(), cjk.load(), materialIcons.load()]);
 }
 
 Future<void> _pumpSettings(
@@ -38,6 +42,8 @@ Future<void> _pumpSettings(
   Size surfaceSize = _surfaceSize,
   Brightness brightness = Brightness.light,
   TextScaler textScaler = TextScaler.noScaling,
+  DataApiConfiguration dataApiConfiguration =
+      const DataApiConfiguration.disabled(),
 }) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = surfaceSize;
@@ -50,9 +56,11 @@ Future<void> _pumpSettings(
     platform: TargetPlatform.macOS,
   );
   const captureFont = 'SettingsCaptureSans';
+  const captureFallback = <String>['SettingsCaptureCjk'];
   final inputDecorationTheme = baseTheme.inputDecorationTheme;
   await tester.pumpWidget(
     MaterialApp(
+      debugShowCheckedModeBanner: false,
       builder: (context, child) => MediaQuery(
         data: MediaQuery.of(context).copyWith(textScaler: textScaler),
         child: child!,
@@ -61,25 +69,34 @@ Future<void> _pumpSettings(
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       theme: baseTheme.copyWith(
-        textTheme: baseTheme.textTheme.apply(fontFamily: captureFont),
+        textTheme: baseTheme.textTheme.apply(
+          fontFamily: captureFont,
+          fontFamilyFallback: captureFallback,
+        ),
         primaryTextTheme: baseTheme.primaryTextTheme.apply(
           fontFamily: captureFont,
+          fontFamilyFallback: captureFallback,
         ),
         inputDecorationTheme: inputDecorationTheme.copyWith(
           labelStyle: inputDecorationTheme.labelStyle?.copyWith(
             fontFamily: captureFont,
+            fontFamilyFallback: captureFallback,
           ),
           floatingLabelStyle: inputDecorationTheme.floatingLabelStyle?.copyWith(
             fontFamily: captureFont,
+            fontFamilyFallback: captureFallback,
           ),
           helperStyle: inputDecorationTheme.helperStyle?.copyWith(
             fontFamily: captureFont,
+            fontFamilyFallback: captureFallback,
           ),
           hintStyle: inputDecorationTheme.hintStyle?.copyWith(
             fontFamily: captureFont,
+            fontFamilyFallback: captureFallback,
           ),
           errorStyle: inputDecorationTheme.errorStyle?.copyWith(
             fontFamily: captureFont,
+            fontFamilyFallback: captureFallback,
           ),
         ),
       ),
@@ -97,7 +114,7 @@ Future<void> _pumpSettings(
           openUrlPolicy: LocalTerminalOpenUrlPolicy.ask,
           requestAttentionPolicy: LocalTerminalRequestAttentionPolicy.disabled,
           reportVariableDecisions: const {},
-          dataApiConfiguration: const DataApiConfiguration.disabled(),
+          dataApiConfiguration: dataApiConfiguration,
           localDataApiAvailable: true,
         ),
       ),
@@ -135,12 +152,68 @@ Future<void> _captureTab(
 }
 
 void main() {
+  ConfigurationCaptureBinding();
   if (!Platform.isMacOS) {
     test('settings tab visual captures require macOS fonts', () {}, skip: true);
     return;
   }
 
   setUpAll(_loadVisualFonts);
+
+  const reviewPath =
+      '../../../docs/design/configuration-forms-20260909/interaction-review/after';
+  for (final brightness in [Brightness.light, Brightness.dark]) {
+    testWidgets('captures compact desktop shortcut menu ${brightness.name}', (
+      tester,
+    ) async {
+      await _pumpSettings(
+        tester,
+        surfaceSize: const Size(800, 600),
+        brightness: brightness,
+      );
+      await tester.tap(find.byKey(const Key('defaults-section-shortcuts')));
+      await tester.pumpAndSettle();
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('$reviewPath/shortcuts-${brightness.name}.png'),
+      );
+      await tester.tap(find.byKey(const Key('shortcut-editor-category')));
+      await tester.pumpAndSettle();
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('$reviewPath/category-menu-${brightness.name}.png'),
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+    });
+  }
+
+  testWidgets('captures profile menu with descriptive rows', (tester) async {
+    await _pumpSettings(tester, surfaceSize: const Size(800, 600));
+    await tester.tap(find.byKey(const Key('defaults-profile-select')));
+    await tester.pumpAndSettle();
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile('$reviewPath/profile-menu.png'),
+    );
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('captures remote settings with external labels', (tester) async {
+    await _pumpSettings(
+      tester,
+      dataApiConfiguration: DataApiConfiguration.remote(
+        'https://api.example.com/',
+      ),
+    );
+    await tester.tap(find.byKey(const Key('defaults-section-data')));
+    await tester.pumpAndSettle();
+    await expectLater(
+      find.byType(MaterialApp),
+      matchesGoldenFile('$reviewPath/data-remote.png'),
+    );
+  });
 
   testWidgets('captures General settings tab', (tester) async {
     await _captureTab(tester, tabKey: 'general', goldenName: '01-general');

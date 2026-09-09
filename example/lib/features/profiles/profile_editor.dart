@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../ui/app_ui.dart';
+import '../terminal/terminal_viewport_colors.dart';
 import 'profile_models.dart';
 import 'utils/hex_color_utils.dart';
 import 'widgets/color_picker_palette.dart';
@@ -390,8 +391,6 @@ class ProfileEditorDialog extends StatefulWidget {
 }
 
 class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
-  static const double _dropdownItemHeight = 48;
-
   final _formKey = GlobalKey<FormState>();
   final List<TextEditingController> _argControllers = [];
   final List<_EnvEntryControllers> _envControllers = [];
@@ -458,6 +457,8 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
   bool _didAttemptSave = false;
   bool _didEdit = false;
   bool _allowClose = false;
+  late bool _fallbackFontsExpanded;
+  bool _customColorsExpanded = false;
   String _sectionSearchQuery = '';
   _ProfileEditorSection _activeSection = _ProfileEditorSection.general;
 
@@ -526,6 +527,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     for (final fallback in profile.appearance.font.fallback) {
       _fallbackControllers.add(_trackedController(text: fallback));
     }
+    _fallbackFontsExpanded = false;
 
     _terminalEmulation = profile.terminalEmulation;
     _shellIntegrationEnabled = profile.sessionConfig.shellIntegration.enabled;
@@ -1176,6 +1178,25 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
 
   Future<void> _focusFirstInvalidField() async {
     final focusNode = _firstInvalidFocusNode();
+    final fallbackFontsInvalid =
+        _stringListLimitError(
+          controllers: _fallbackControllers,
+          maxEntries: maxTerminalFontFallbackFamilies,
+          entryLabel: 'fallback fonts',
+        ) !=
+        null;
+    final customColorsInvalid = _allColorFieldSpecs.any(
+      (spec) =>
+          _validateOptionalHexColor(_colorControllerForSpec(spec).text) != null,
+    );
+    if ((fallbackFontsInvalid && !_fallbackFontsExpanded) ||
+        (customColorsInvalid && !_customColorsExpanded)) {
+      setState(() {
+        if (fallbackFontsInvalid) _fallbackFontsExpanded = true;
+        if (customColorsInvalid) _customColorsExpanded = true;
+      });
+      await WidgetsBinding.instance.endOfFrame;
+    }
     final section = focusNode == null
         ? _firstInvalidSection()
         : _sectionForFocusNode(focusNode);
@@ -1577,7 +1598,10 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     });
   }
 
-  Widget _buildSectionNavigation({required bool vertical}) {
+  Widget _buildSectionNavigation(
+    BuildContext context, {
+    required bool vertical,
+  }) {
     final theme = context.appTheme;
     final matchingSections = _matchingSectionSpecs();
     final dirtySectionCount = _dirtySectionCount();
@@ -1748,10 +1772,10 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     final theme = context.appTheme;
     final screenSize = MediaQuery.sizeOf(context);
     final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
-    final dialogWidth = math.min(screenSize.width - 32, 960.0);
+    final dialogWidth = math.min(screenSize.width - 32, 940.0);
     final dialogHeight = math.max(
       0.0,
-      math.min(screenSize.height - keyboardInset - 32, 720.0),
+      math.min(screenSize.height - keyboardInset - 32, 700.0),
     );
 
     return PopScope<TerminalProfile?>(
@@ -1770,31 +1794,32 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
         child: AppDialogScaffold(
           key: const Key('profile-editor-dialog'),
           title: widget.title ?? context.l10n.editProfile,
-          subtitle: context.l10n.profileChangesNewSessionsOnly,
+          subtitle: _nameController.text.trim().isEmpty
+              ? null
+              : _nameController.text.trim(),
           onClose: () => unawaited(_closeWithResult(null)),
           closeTooltip: context.l10n.closeProfileEditor,
           insetPadding: EdgeInsets.all(theme.spacing.md),
-          constraints: const BoxConstraints(maxWidth: 960),
+          constraints: const BoxConstraints(maxWidth: 940),
           width: dialogWidth,
           height: dialogHeight,
           expandBody: true,
-          titleTextStyle: Theme.of(context).textTheme.titleLarge?.copyWith(
-            color: theme.textPrimary,
-            fontWeight: FontWeight.w700,
-          ),
+          titleTextStyle: Theme.of(
+            context,
+          ).textTheme.titleLarge?.copyWith(color: theme.textPrimary),
           subtitleTextStyle: Theme.of(
             context,
           ).textTheme.bodyMedium?.copyWith(color: theme.textSubtle),
           headerPadding: EdgeInsets.only(
             left: theme.spacing.xxl,
-            top: theme.spacing.xxl,
+            top: theme.spacing.lg,
             right: theme.spacing.xxl,
-            bottom: theme.spacing.xl,
+            bottom: theme.spacing.lg,
           ),
           bodyPadding: EdgeInsets.zero,
           footerPadding: EdgeInsets.symmetric(
             horizontal: theme.spacing.xxl,
-            vertical: theme.spacing.xxl,
+            vertical: theme.spacing.lg,
           ),
           body: Form(
             key: _formKey,
@@ -1804,10 +1829,9 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final showSideNavigation = constraints.maxWidth >= 680;
-                final sideNavigationWidth = constraints.maxWidth >= 860
-                    ? 220.0
-                    : 184.0;
+                const sideNavigationWidth = 190.0;
                 final sectionNavigation = _buildSectionNavigation(
+                  context,
                   vertical: showSideNavigation,
                 );
                 final scrollableSections = Scrollbar(
@@ -1821,9 +1845,9 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                     key: const Key('profile-editor-scroll-view'),
                     controller: _scrollController,
                     padding: EdgeInsets.only(
-                      left: theme.spacing.xxl + theme.spacing.md,
+                      left: theme.spacing.xxl,
                       top: theme.spacing.xxl,
-                      right: theme.spacing.xxl + theme.spacing.md,
+                      right: theme.spacing.xxl,
                       bottom: theme.spacing.xxl,
                     ),
                     child: Column(
@@ -1891,7 +1915,6 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                     'profile-editor-group-command',
                                   ),
                                   title: context.l10n.command,
-                                  tone: AppPanelTone.panel,
                                   children: [
                                     _ProfileLabeledControl(
                                       label: context.l10n.shellProgram,
@@ -1925,9 +1948,9 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                     'profile-editor-group-launch-data',
                                   ),
                                   title: context.l10n.argumentsAndEnvironment,
-                                  tone: AppPanelTone.panel,
                                   children: [
                                     _buildStringListEditor(
+                                      context,
                                       title: context.l10n.arguments,
                                       addKey: const Key(
                                         'profile-editor-add-arg',
@@ -1948,7 +1971,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                           _moveArg(index, index + 1),
                                     ),
                                     SizedBox(height: theme.spacing.xxl),
-                                    _buildEnvEditor(),
+                                    _buildEnvEditor(context),
                                   ],
                                 ),
                               ],
@@ -1972,7 +1995,6 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                     key: const Key(
                                       'profile-editor-group-terminal',
                                     ),
-                                    tone: AppPanelTone.panel,
                                     children: [
                                       _ProfileSettingsGridRow(
                                         label: context.l10n.emulation,
@@ -1988,7 +2010,6 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                               initialValue: _terminalEmulation,
                                               isExpanded: true,
                                               iconSize: 18,
-                                              itemHeight: _dropdownItemHeight,
                                               menuMaxHeight: 240,
                                               borderRadius:
                                                   BorderRadius.circular(
@@ -2081,7 +2102,6 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                     'profile-editor-group-typography',
                                   ),
                                   title: context.l10n.typography,
-                                  tone: AppPanelTone.panel,
                                   children: [
                                     _ProfileLabeledControl(
                                       label: context.l10n.fontFamily,
@@ -2099,106 +2119,146 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                             ),
                                       ),
                                     ),
-                                    SizedBox(height: theme.spacing.xxl),
-                                    _buildStringListEditor(
-                                      title: context.l10n.fallbackFonts,
-                                      addKey: const Key(
-                                        'profile-editor-add-fallback',
-                                      ),
-                                      addLabel: context.l10n.addFallbackFont,
-                                      emptyLabel: context.l10n.noFallbackFonts,
-                                      controllers: _fallbackControllers,
-                                      fieldKeyPrefix: 'profile-editor-fallback',
-                                      compactRows: true,
-                                      maxListHeight: 240,
-                                      maxEntries:
-                                          maxTerminalFontFallbackFamilies,
-                                      limitEntryLabel: 'fallback fonts',
-                                      onAdd: _addFallback,
-                                      onRemove: _removeFallback,
-                                      onMoveUp: (index) =>
-                                          _moveFallback(index, index - 1),
-                                      onMoveDown: (index) =>
-                                          _moveFallback(index, index + 1),
-                                    ),
-                                    SizedBox(height: theme.spacing.xxl),
-                                    _ProfileResponsiveFieldPair(
-                                      first: _ProfileLabeledControl(
-                                        label: context.l10n.fontSize,
-                                        child: TextFormField(
-                                          key: const Key(
-                                            'profile-editor-font-size',
+                                    SizedBox(height: theme.spacing.md),
+                                    _ProfileSettingsGridRow(
+                                      label:
+                                          context.l10n.configurationFontMetrics,
+                                      child: Align(
+                                        alignment: Alignment.centerLeft,
+                                        child: ConstrainedBox(
+                                          constraints: const BoxConstraints(
+                                            maxWidth: 360,
                                           ),
-                                          controller: _fontSizeController,
-                                          focusNode: _fontSizeFocusNode,
-                                          decoration: _profileFieldDecoration(),
-                                          keyboardType:
-                                              const TextInputType.numberWithOptions(
-                                                decimal: true,
+                                          child: Row(
+                                            children: [
+                                              Expanded(
+                                                child: Semantics(
+                                                  label: context.l10n.fontSize,
+                                                  textField: true,
+                                                  child: TextFormField(
+                                                    key: const Key(
+                                                      'profile-editor-font-size',
+                                                    ),
+                                                    controller:
+                                                        _fontSizeController,
+                                                    focusNode:
+                                                        _fontSizeFocusNode,
+                                                    decoration:
+                                                        _profileFieldDecoration()
+                                                            .copyWith(
+                                                              suffixText: 'px',
+                                                            ),
+                                                    keyboardType:
+                                                        const TextInputType.numberWithOptions(
+                                                          decimal: true,
+                                                        ),
+                                                    validator: (value) =>
+                                                        _positiveDoubleError(
+                                                          value ?? '',
+                                                          context.l10n.fontSize,
+                                                        ),
+                                                  ),
+                                                ),
                                               ),
-                                          validator: (value) =>
-                                              _positiveDoubleError(
-                                                value ?? '',
-                                                context.l10n.fontSize,
+                                              SizedBox(width: theme.spacing.xl),
+                                              Expanded(
+                                                child: Semantics(
+                                                  label:
+                                                      context.l10n.lineHeight,
+                                                  textField: true,
+                                                  child: TextFormField(
+                                                    key: const Key(
+                                                      'profile-editor-font-line-height',
+                                                    ),
+                                                    controller:
+                                                        _lineHeightController,
+                                                    focusNode:
+                                                        _lineHeightFocusNode,
+                                                    decoration:
+                                                        _profileFieldDecoration()
+                                                            .copyWith(
+                                                              suffixText: '×',
+                                                            ),
+                                                    keyboardType:
+                                                        const TextInputType.numberWithOptions(
+                                                          decimal: true,
+                                                        ),
+                                                    validator: (value) =>
+                                                        _positiveDoubleError(
+                                                          value ?? '',
+                                                          context
+                                                              .l10n
+                                                              .lineHeight,
+                                                        ),
+                                                  ),
+                                                ),
                                               ),
+                                            ],
+                                          ),
                                         ),
                                       ),
-                                      second: _ProfileLabeledControl(
-                                        label: context.l10n.lineHeight,
-                                        child: TextFormField(
-                                          key: const Key(
-                                            'profile-editor-font-line-height',
-                                          ),
-                                          controller: _lineHeightController,
-                                          focusNode: _lineHeightFocusNode,
-                                          decoration: _profileFieldDecoration(),
-                                          keyboardType:
-                                              const TextInputType.numberWithOptions(
-                                                decimal: true,
-                                              ),
-                                          validator: (value) =>
-                                              _positiveDoubleError(
-                                                value ?? '',
-                                                context.l10n.lineHeight,
-                                              ),
+                                    ),
+                                    KeyedSubtree(
+                                      key: ValueKey<(String, bool)>((
+                                        'fallback-fonts',
+                                        _fallbackFontsExpanded,
+                                      )),
+                                      child: ExpansionTile(
+                                        key: const Key(
+                                          'profile-editor-fallback-fonts-expansion',
                                         ),
+                                        initiallyExpanded:
+                                            _fallbackFontsExpanded,
+                                        onExpansionChanged: (expanded) =>
+                                            setState(
+                                              () => _fallbackFontsExpanded =
+                                                  expanded,
+                                            ),
+                                        tilePadding: EdgeInsets.zero,
+                                        minTileHeight: theme.controls.regular,
+                                        dense: true,
+                                        controlAffinity:
+                                            ListTileControlAffinity.leading,
+                                        childrenPadding: EdgeInsets.only(
+                                          bottom: theme.spacing.md,
+                                        ),
+                                        title: Text(context.l10n.fallbackFonts),
+                                        children: [
+                                          _buildStringListEditor(
+                                            context,
+                                            title: context.l10n.fallbackFonts,
+                                            showTitle: false,
+                                            addKey: const Key(
+                                              'profile-editor-add-fallback',
+                                            ),
+                                            addLabel:
+                                                context.l10n.addFallbackFont,
+                                            emptyLabel:
+                                                context.l10n.noFallbackFonts,
+                                            controllers: _fallbackControllers,
+                                            fieldKeyPrefix:
+                                                'profile-editor-fallback',
+                                            compactRows: true,
+                                            maxListHeight: 240,
+                                            maxEntries:
+                                                maxTerminalFontFallbackFamilies,
+                                            limitEntryLabel: 'fallback fonts',
+                                            onAdd: _addFallback,
+                                            onRemove: _removeFallback,
+                                            onMoveUp: (index) =>
+                                                _moveFallback(index, index - 1),
+                                            onMoveDown: (index) =>
+                                                _moveFallback(index, index + 1),
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                  ],
-                                ),
-                                _ProfileFormGroup(
-                                  key: const Key('profile-editor-group-colors'),
-                                  title: context.l10n.colors,
-                                  tone: AppPanelTone.panel,
-                                  children: [
-                                    _buildThemePresetSection(),
-                                    const SizedBox(height: 16),
-                                    _buildColorGroupSection(
-                                      title: context.l10n.specialColors,
-                                      description:
-                                          'Foreground, background, cursor, selection, and tab.',
-                                      specs: _specialColorFieldSpecs,
-                                    ),
-                                    const SizedBox(height: 16),
-                                    _buildColorGroupSection(
-                                      title: context.l10n.ansiNormal,
-                                      description:
-                                          'Standard ANSI 0-7 terminal colors.',
-                                      specs: _normalAnsiColorFieldSpecs,
-                                    ),
-                                    const SizedBox(height: 16),
-                                    _buildColorGroupSection(
-                                      title: context.l10n.ansiBright,
-                                      description:
-                                          'Bright ANSI 8-15 terminal colors.',
-                                      specs: _brightAnsiColorFieldSpecs,
-                                    ),
+                                    SizedBox(height: theme.spacing.md),
                                   ],
                                 ),
                                 _ProfileFormGroup(
                                   key: const Key('profile-editor-group-cursor'),
                                   title: context.l10n.cursor,
-                                  tone: AppPanelTone.panel,
                                   children: [
                                     _ProfileLabeledControl(
                                       label: context.l10n.cursorShape,
@@ -2212,7 +2272,6 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                             initialValue: _cursorShape,
                                             isExpanded: true,
                                             iconSize: 18,
-                                            itemHeight: _dropdownItemHeight,
                                             menuMaxHeight: 240,
                                             borderRadius: BorderRadius.circular(
                                               theme.radius.md,
@@ -2245,19 +2304,84 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                             },
                                           ),
                                     ),
-                                    SizedBox(height: theme.spacing.xl),
-                                    ToggleSettingRow(
-                                      key: const Key(
-                                        'profile-editor-cursor-blink',
-                                      ),
+                                    SizedBox(height: theme.spacing.md),
+                                    _ProfileSettingsGridRow(
                                       label: context.l10n.blinkCursor,
-                                      value: _cursorBlink,
-                                      onChanged: (value) {
-                                        setState(() {
-                                          _didEdit = true;
-                                          _cursorBlink = value;
-                                        });
-                                      },
+                                      child: Align(
+                                        alignment: Alignment.centerLeft,
+                                        child: Switch(
+                                          key: const Key(
+                                            'profile-editor-cursor-blink',
+                                          ),
+                                          value: _cursorBlink,
+                                          onChanged: (value) {
+                                            setState(() {
+                                              _didEdit = true;
+                                              _cursorBlink = value;
+                                            });
+                                          },
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                _ProfileFormGroup(
+                                  key: const Key('profile-editor-group-colors'),
+                                  title: context.l10n.colors,
+                                  children: [
+                                    _buildThemePresetSection(context),
+                                    SizedBox(height: theme.spacing.md),
+                                    KeyedSubtree(
+                                      key: ValueKey<(String, bool)>((
+                                        'custom-colors',
+                                        _customColorsExpanded,
+                                      )),
+                                      child: ExpansionTile(
+                                        key: const Key(
+                                          'profile-editor-custom-colors-expansion',
+                                        ),
+                                        initiallyExpanded:
+                                            _customColorsExpanded,
+                                        onExpansionChanged: (expanded) =>
+                                            setState(
+                                              () => _customColorsExpanded =
+                                                  expanded,
+                                            ),
+                                        tilePadding: EdgeInsets.zero,
+                                        minTileHeight: theme.controls.regular,
+                                        dense: true,
+                                        controlAffinity:
+                                            ListTileControlAffinity.leading,
+                                        childrenPadding: EdgeInsets.only(
+                                          bottom: theme.spacing.md,
+                                        ),
+                                        title: Text(context.l10n.customColors),
+                                        children: [
+                                          _buildColorGroupSection(
+                                            context,
+                                            title: context.l10n.specialColors,
+                                            description:
+                                                'Foreground, background, cursor, selection, and tab.',
+                                            specs: _specialColorFieldSpecs,
+                                          ),
+                                          const SizedBox(height: 16),
+                                          _buildColorGroupSection(
+                                            context,
+                                            title: context.l10n.ansiNormal,
+                                            description:
+                                                'Standard ANSI 0-7 terminal colors.',
+                                            specs: _normalAnsiColorFieldSpecs,
+                                          ),
+                                          const SizedBox(height: 16),
+                                          _buildColorGroupSection(
+                                            context,
+                                            title: context.l10n.ansiBright,
+                                            description:
+                                                'Bright ANSI 8-15 terminal colors.',
+                                            specs: _brightAnsiColorFieldSpecs,
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -2323,8 +2447,9 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                               constraints: const BoxConstraints(
                                                 minHeight: 48,
                                               ),
-                                              child:
-                                                  _buildOptionDragModeField(),
+                                              child: _buildOptionDragModeField(
+                                                context,
+                                              ),
                                             ),
                                           ),
                                         ),
@@ -2481,8 +2606,16 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
             ),
           ),
           footer: Row(
-            mainAxisAlignment: MainAxisAlignment.end,
             children: [
+              Expanded(
+                child: Text(
+                  context.l10n.configurationNewSessionHint,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: theme.textSubtle),
+                ),
+              ),
+              SizedBox(width: theme.spacing.lg),
               AppActionButton(
                 buttonKey: const Key('profile-editor-cancel'),
                 tone: AppActionTone.secondary,
@@ -2494,8 +2627,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                 buttonKey: const Key('profile-editor-save'),
                 icon: Icons.save_outlined,
                 label: context.l10n.save,
-                onPressed:
-                    _hasColorErrors || (!_didEdit && !widget.saveWhenPristine)
+                onPressed: (!_didEdit && !widget.saveWhenPristine)
                     ? null
                     : () => unawaited(_save()),
               ),
@@ -2506,8 +2638,10 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     );
   }
 
-  Widget _buildStringListEditor({
+  Widget _buildStringListEditor(
+    BuildContext context, {
     required String title,
+    bool showTitle = true,
     required Key addKey,
     required String addLabel,
     required String emptyLabel,
@@ -2528,6 +2662,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     for (var index = 0; index < controllers.length; index += 1) {
       rows.add(
         _buildStringListRow(
+          context,
           title: title,
           controller: controllers[index],
           allControllers: controllers,
@@ -2552,14 +2687,17 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
       children: [
         Row(
           children: [
-            Expanded(
-              child: Text(
-                title,
-                style: Theme.of(
-                  context,
-                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
-              ),
-            ),
+            if (showTitle)
+              Expanded(
+                child: Text(
+                  title,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                ),
+              )
+            else
+              const Spacer(),
             AppActionButton(
               buttonKey: addKey,
               tone: AppActionTone.ghost,
@@ -2615,7 +2753,8 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     );
   }
 
-  Widget _buildStringListRow({
+  Widget _buildStringListRow(
+    BuildContext context, {
     required String title,
     required TextEditingController controller,
     required List<TextEditingController> allControllers,
@@ -2643,7 +2782,10 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
               key: Key('$fieldKeyPrefix-$index'),
               controller: controller,
               decoration: compact
-                  ? _integratedRowDecoration(hintText: '$title ${index + 1}')
+                  ? _integratedRowDecoration(
+                      context,
+                      hintText: '$title ${index + 1}',
+                    )
                   : InputDecoration(labelText: '$title ${index + 1}'),
               validator: (_) => index == 0
                   ? _stringListLimitError(
@@ -2699,37 +2841,16 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
   }
 
   InputDecoration _profileFieldDecoration({String? hintText}) {
-    final theme = context.appTheme;
-    final outline = OutlineInputBorder(
-      borderRadius: BorderRadius.circular(theme.radius.lg),
-      borderSide: BorderSide(color: theme.borderStrong.withValues(alpha: 0.72)),
-    );
     return InputDecoration(
       hintText: hintText,
-      isDense: false,
-      filled: true,
-      fillColor: theme.chrome,
       floatingLabelBehavior: FloatingLabelBehavior.never,
-      border: outline,
-      enabledBorder: outline,
-      focusedBorder: outline.copyWith(
-        borderSide: BorderSide(color: theme.focusRing, width: 1.6),
-      ),
-      errorBorder: outline.copyWith(
-        borderSide: BorderSide(color: theme.danger),
-      ),
-      focusedErrorBorder: outline.copyWith(
-        borderSide: BorderSide(color: theme.danger, width: 1.6),
-      ),
-      constraints: BoxConstraints(minHeight: context.adaptiveControlHeight(44)),
-      contentPadding: EdgeInsets.symmetric(
-        horizontal: theme.spacing.xl,
-        vertical: theme.spacing.lg,
-      ),
     );
   }
 
-  InputDecoration _integratedRowDecoration({required String hintText}) {
+  InputDecoration _integratedRowDecoration(
+    BuildContext context, {
+    required String hintText,
+  }) {
     final theme = context.appTheme;
     final focusBorder = OutlineInputBorder(
       borderRadius: BorderRadius.circular(theme.radius.md),
@@ -2759,7 +2880,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     );
   }
 
-  Widget _buildEnvEditor() {
+  Widget _buildEnvEditor(BuildContext context) {
     final theme = context.appTheme;
     final canAdd = _envControllers.length < maxTerminalEnvironmentEntries;
     return Column(
@@ -2864,6 +2985,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                   focusNode:
                                       _envControllers[index].keyFocusNode,
                                   decoration: _integratedRowDecoration(
+                                    context,
                                     hintText: context.l10n.variableName,
                                   ),
                                   onChanged: (_) => setState(() {}),
@@ -2883,6 +3005,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                   controller:
                                       _envControllers[index].valueController,
                                   decoration: _integratedRowDecoration(
+                                    context,
                                     hintText: context.l10n.value,
                                   ),
                                 ),
@@ -2950,7 +3073,8 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     );
   }
 
-  Widget _buildColorGroupSection({
+  Widget _buildColorGroupSection(
+    BuildContext context, {
     required String title,
     required String description,
     required List<_ColorFieldSpec> specs,
@@ -2980,13 +3104,13 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
               padding: EdgeInsets.symmetric(vertical: theme.spacing.xs),
               child: Divider(height: 1, color: theme.border),
             ),
-          _buildColorField(specs[index]),
+          _buildColorField(context, specs[index]),
         ],
       ],
     );
   }
 
-  Widget _buildColorField(_ColorFieldSpec spec) {
+  Widget _buildColorField(BuildContext context, _ColorFieldSpec spec) {
     final controller = _colorControllerForSpec(spec);
     return ColorSettingRow(
       label: context.l10n.profileColorName('${spec.group}_${spec.slot}'),
@@ -2999,81 +3123,111 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
       errorText: _colorErrors[spec.fieldKey],
       onChanged: (value) => _handleColorChanged(spec.fieldKey, value),
       onBlurNormalize: () => _normalizeColorField(spec.fieldKey, controller),
-      onPick: () => unawaited(_pickColor(spec.fieldKey, controller)),
+      onPick: () => unawaited(_pickColor(context, spec.fieldKey, controller)),
       onReset: () => _resetColorField(spec.fieldKey, controller),
     );
   }
 
-  Widget _buildThemePresetSection() {
+  Widget _buildThemePresetSection(BuildContext context) {
     final theme = context.appTheme;
-    final colorScheme = Theme.of(context).colorScheme;
     final selectedPreset = _selectedThemePreset;
+    final selectedId = _usesAppThemeColors
+        ? 'follow-app'
+        : selectedPreset?.id ?? 'custom';
+    final normal = _paletteFromControllerValues().resolveWith().normal;
+    final previewColors = [
+      for (final hex in [
+        normal.black,
+        normal.red,
+        normal.green,
+        normal.yellow,
+        normal.blue,
+        normal.magenta,
+        normal.cyan,
+        normal.white,
+      ])
+        terminalViewportColorFromHex(hex)!,
+    ];
 
     return Column(
       key: const Key('profile-editor-theme-presets'),
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          context.l10n.themePresets,
-          style: Theme.of(
-            context,
-          ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
-        ),
-        SizedBox(height: theme.spacing.xs + 1),
-        Text(
-          context.l10n.themePresetsDescription,
-          style: Theme.of(
-            context,
-          ).textTheme.bodySmall?.copyWith(color: theme.textSubtle),
-        ),
-        SizedBox(height: theme.spacing.sm + 1),
-        _FollowAppThemeColorChoice(
-          key: const Key('profile-editor-theme-preset-follow-app'),
-          selected: _usesAppThemeColors,
-          previewColors: [
-            colorScheme.surfaceContainerLowest,
-            colorScheme.onSurface,
-            colorScheme.primary,
-            colorScheme.secondary,
-            colorScheme.tertiary,
-            colorScheme.onSurfaceVariant,
-          ],
-          onPressed: _followAppThemeColors,
+        KeyedSubtree(
+          key: Key('profile-editor-theme-preset-selected-$selectedId'),
+          child: _ProfileSettingsGridRow(
+            label: context.l10n.themePresets,
+            child: AppDropdownFormField<String>(
+              key: const Key('profile-editor-theme-preset-dropdown'),
+              initialValue: selectedId,
+              isExpanded: true,
+              iconSize: 18,
+              decoration: _profileFieldDecoration(),
+              items: [
+                if (selectedId == 'custom')
+                  DropdownMenuItem(
+                    key: const Key('profile-editor-theme-preset-custom'),
+                    value: 'custom',
+                    child: Text(context.l10n.customColors),
+                  ),
+                DropdownMenuItem(
+                  key: const Key('profile-editor-theme-preset-follow-app'),
+                  value: 'follow-app',
+                  child: Text(context.l10n.followApplicationThemeColors),
+                ),
+                for (final preset in terminalThemePresets)
+                  DropdownMenuItem(
+                    key: Key('profile-editor-theme-preset-${preset.id}'),
+                    value: preset.id,
+                    child: Text(preset.name),
+                  ),
+              ],
+              onChanged: (value) {
+                if (value == 'follow-app') {
+                  _followAppThemeColors();
+                  return;
+                }
+                final preset = terminalThemePresets
+                    .where((candidate) => candidate.id == value)
+                    .firstOrNull;
+                if (preset != null) _applyThemePreset(preset);
+              },
+            ),
+          ),
         ),
         SizedBox(height: theme.spacing.sm),
         LayoutBuilder(
-          builder: (context, constraints) {
-            final columnCount = constraints.maxWidth >= 640
-                ? 3
-                : constraints.maxWidth >= 420
-                ? 2
-                : 1;
-            final cardWidth =
-                (constraints.maxWidth - theme.spacing.sm * (columnCount - 1)) /
-                columnCount;
-            return Wrap(
-              spacing: theme.spacing.sm,
+          builder: (context, constraints) => Padding(
+            padding: EdgeInsets.only(
+              left:
+                  constraints.maxWidth < 520 ||
+                      MediaQuery.textScalerOf(context).scale(14) / 14 > 1.3
+                  ? 0
+                  : 132,
+            ),
+            child: Wrap(
+              spacing: theme.spacing.md,
               runSpacing: theme.spacing.sm,
               children: [
-                for (final preset in terminalThemePresets)
-                  SizedBox(
-                    width: cardWidth,
-                    child: _TerminalThemePresetButton(
-                      key: Key('profile-editor-theme-preset-${preset.id}'),
-                      preset: preset,
-                      selected: selectedPreset?.id == preset.id,
-                      onPressed: () => _applyThemePreset(preset),
+                for (final color in previewColors)
+                  Container(
+                    width: 22,
+                    height: 22,
+                    decoration: BoxDecoration(
+                      color: color,
+                      borderRadius: BorderRadius.circular(theme.radius.sm),
+                      border: Border.all(color: theme.border),
                     ),
                   ),
               ],
-            );
-          },
+            ),
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildOptionDragModeField() {
+  Widget _buildOptionDragModeField(BuildContext context) {
     const modes = TerminalOptionDragMode.values;
     if (modes.length == 1) {
       return Text(
@@ -3119,6 +3273,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
   }
 
   Future<void> _pickColor(
+    BuildContext context,
     String fieldKey,
     TextEditingController controller,
   ) async {
@@ -3161,13 +3316,11 @@ class _ProfileFormGroup extends StatelessWidget {
   const _ProfileFormGroup({
     super.key,
     this.title,
-    this.tone = AppPanelTone.panel,
     this.description,
     required this.children,
   });
 
   final String? title;
-  final AppPanelTone tone;
   final String? description;
   final List<Widget> children;
 
@@ -3177,41 +3330,32 @@ class _ProfileFormGroup extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
 
     return Padding(
-      padding: EdgeInsets.only(bottom: theme.spacing.xl),
+      padding: EdgeInsets.only(bottom: theme.spacing.lg),
       child: SizedBox(
         width: double.infinity,
-        child: AppPanel(
-          tone: tone,
-          padding: EdgeInsets.all(theme.spacing.xxl),
-          borderRadius: BorderRadius.circular(theme.radius.xl),
-          border: Border.all(color: theme.border),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (title != null) ...[
-                Text(
-                  title!,
-                  style: textTheme.titleSmall?.copyWith(
-                    color: theme.textPrimary,
-                    fontWeight: FontWeight.w700,
-                  ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (title != null) ...[
+              Text(
+                title!,
+                style: textTheme.titleMedium?.copyWith(
+                  color: theme.textPrimary,
                 ),
-                if (description != null) ...[
-                  SizedBox(height: theme.spacing.xs),
-                  Text(
-                    description!,
-                    style: textTheme.bodySmall?.copyWith(
-                      color: theme.textSubtle,
-                    ),
-                  ),
-                ],
-                SizedBox(height: theme.spacing.lg),
-                Divider(height: 1, color: theme.border),
-                SizedBox(height: theme.spacing.xl),
+              ),
+              if (description != null) ...[
+                SizedBox(height: theme.spacing.xs),
+                Text(
+                  description!,
+                  style: textTheme.bodySmall?.copyWith(color: theme.textSubtle),
+                ),
               ],
-              ...children,
+              SizedBox(height: theme.spacing.lg),
+              Divider(height: 1, color: theme.border),
+              SizedBox(height: theme.spacing.xl),
             ],
-          ),
+            ...children,
+          ],
         ),
       ),
     );
@@ -3224,76 +3368,13 @@ class _ProfileLabeledControl extends StatelessWidget {
     this.helperText,
     required this.child,
   });
-
   final String label;
   final String? helperText;
   final Widget child;
 
   @override
-  Widget build(BuildContext context) {
-    final theme = context.appTheme;
-    final textTheme = Theme.of(context).textTheme;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: textTheme.bodyMedium?.copyWith(
-            color: theme.textMuted,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        SizedBox(height: theme.spacing.md),
-        Semantics(label: label, child: child),
-        if (helperText != null) ...[
-          SizedBox(height: theme.spacing.sm),
-          Text(
-            helperText!,
-            style: textTheme.bodySmall?.copyWith(color: theme.textSubtle),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-class _ProfileResponsiveFieldPair extends StatelessWidget {
-  const _ProfileResponsiveFieldPair({
-    required this.first,
-    required this.second,
-  });
-
-  final Widget first;
-  final Widget second;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = context.appTheme;
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth < 520) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              first,
-              SizedBox(height: theme.spacing.xxl),
-              second,
-            ],
-          );
-        }
-
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(child: first),
-            SizedBox(width: theme.spacing.xxl),
-            Expanded(child: second),
-          ],
-        );
-      },
-    );
-  }
+  Widget build(BuildContext context) =>
+      AppConfigurationField(label: label, helper: helperText, child: child);
 }
 
 class _ProfileSettingsGridRow extends StatelessWidget {
@@ -3303,87 +3384,25 @@ class _ProfileSettingsGridRow extends StatelessWidget {
     this.trailingText,
     required this.child,
   });
-
   final String label;
   final String? helperText;
   final String? trailingText;
   final Widget child;
 
   @override
-  Widget build(BuildContext context) {
-    final theme = context.appTheme;
-    final textTheme = Theme.of(context).textTheme;
-    final control = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget build(BuildContext context) => AppConfigurationField(
+    label: label,
+    helper: helperText,
+    child: Row(
       children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Expanded(child: child),
-            if (trailingText != null) ...[
-              SizedBox(width: theme.spacing.lg),
-              Text(
-                trailingText!,
-                style: textTheme.bodyMedium?.copyWith(
-                  color: theme.textMuted,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ],
-        ),
-        if (helperText != null) ...[
-          SizedBox(height: theme.spacing.md),
-          Text(
-            helperText!,
-            style: textTheme.bodySmall?.copyWith(color: theme.textSubtle),
-          ),
+        Expanded(child: child),
+        if (trailingText != null) ...[
+          SizedBox(width: context.appTheme.spacing.lg),
+          Text(trailingText!, style: Theme.of(context).textTheme.bodyMedium),
         ],
       ],
-    );
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth < 520) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                label,
-                style: textTheme.titleSmall?.copyWith(
-                  color: theme.textPrimary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              SizedBox(height: theme.spacing.md),
-              control,
-            ],
-          );
-        }
-
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              width: 168,
-              child: Padding(
-                padding: EdgeInsets.only(top: theme.spacing.lg),
-                child: Text(
-                  label,
-                  style: textTheme.titleSmall?.copyWith(
-                    color: theme.textPrimary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
-            SizedBox(width: theme.spacing.xxl),
-            Expanded(child: control),
-          ],
-        );
-      },
-    );
-  }
+    ),
+  );
 }
 
 class _ProfileIntegrationSetting extends StatelessWidget {
@@ -3609,7 +3628,7 @@ class _ProfileEditorSectionNavItem extends StatelessWidget {
         if (vertical) ...[
           Container(
             width: 3,
-            height: 26,
+            height: 20,
             decoration: BoxDecoration(
               color: indicatorColor,
               borderRadius: BorderRadius.circular(theme.radius.sm),
@@ -3684,7 +3703,7 @@ class _ProfileEditorSectionNavItem extends StatelessWidget {
                       : const Duration(milliseconds: 150),
                   curve: Curves.easeOutCubic,
                   constraints: BoxConstraints(
-                    minHeight: context.adaptiveControlHeight(44),
+                    minHeight: context.adaptiveControlHeight(32),
                     minWidth: vertical ? 0 : 118,
                   ),
                   padding: EdgeInsets.symmetric(
@@ -3714,231 +3733,6 @@ class _ColorPickerResult {
 
   final bool applied;
   final String? hexValue;
-}
-
-class _FollowAppThemeColorChoice extends StatelessWidget {
-  const _FollowAppThemeColorChoice({
-    super.key,
-    required this.selected,
-    required this.previewColors,
-    required this.onPressed,
-  });
-
-  final bool selected;
-  final List<Color> previewColors;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = context.appTheme;
-    return Semantics(
-      button: true,
-      selected: selected,
-      label: context.l10n.followApplicationThemeColors,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(theme.radius.lg),
-          onTap: onPressed,
-          child: Ink(
-            width: double.infinity,
-            padding: EdgeInsets.symmetric(
-              horizontal: theme.spacing.lg,
-              vertical: theme.spacing.md,
-            ),
-            decoration: BoxDecoration(
-              color: selected ? theme.selected : theme.chrome,
-              borderRadius: BorderRadius.circular(theme.radius.lg),
-              border: Border.all(
-                color: selected ? theme.focusRing : theme.border,
-                width: selected ? 1.5 : 1,
-              ),
-            ),
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final showPreview = constraints.maxWidth >= 520;
-                return Row(
-                  children: [
-                    Icon(
-                      Icons.brightness_auto_rounded,
-                      size: 20,
-                      color: selected ? theme.focus : theme.textMuted,
-                    ),
-                    SizedBox(width: theme.spacing.md),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            context.l10n.followAppTheme,
-                            style: Theme.of(context).textTheme.labelLarge
-                                ?.copyWith(
-                                  color: theme.textPrimary,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                          ),
-                          SizedBox(height: theme.spacing.xs),
-                          Text(
-                            context.l10n.followAppThemeDescription,
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(color: theme.textSubtle),
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (showPreview) ...[
-                      SizedBox(width: theme.spacing.md),
-                      Wrap(
-                        spacing: theme.spacing.xs,
-                        children: [
-                          for (final color in previewColors)
-                            Container(
-                              width: 14,
-                              height: 14,
-                              decoration: BoxDecoration(
-                                color: color,
-                                borderRadius: BorderRadius.circular(
-                                  theme.radius.sm,
-                                ),
-                                border: Border.all(color: theme.borderStrong),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ],
-                    if (selected) ...[
-                      SizedBox(width: theme.spacing.md),
-                      Icon(
-                        Icons.check_circle_rounded,
-                        key: const Key(
-                          'profile-editor-theme-preset-selected-follow-app',
-                        ),
-                        size: 18,
-                        color: theme.focus,
-                      ),
-                    ],
-                  ],
-                );
-              },
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _TerminalThemePresetButton extends StatelessWidget {
-  const _TerminalThemePresetButton({
-    super.key,
-    required this.preset,
-    required this.selected,
-    required this.onPressed,
-  });
-
-  final TerminalThemePreset preset;
-  final bool selected;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = context.appTheme;
-    final titleStyle = Theme.of(context).textTheme.labelLarge?.copyWith(
-      color: theme.textPrimary,
-      fontWeight: FontWeight.w600,
-    );
-    final toneColor = selected ? theme.textPrimary : theme.textMuted;
-
-    return Semantics(
-      button: true,
-      selected: selected,
-      label: 'Apply ${preset.name} theme preset',
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(theme.radius.lg),
-          onTap: onPressed,
-          child: Ink(
-            width: double.infinity,
-            padding: EdgeInsets.all(theme.spacing.md),
-            decoration: BoxDecoration(
-              color: selected ? theme.panelElevated : theme.chrome,
-              borderRadius: BorderRadius.circular(theme.radius.lg),
-              border: Border.all(
-                color: selected ? theme.focusRing : theme.border,
-                width: selected ? 1.5 : 1,
-              ),
-              boxShadow: const [],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        preset.name,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: titleStyle,
-                      ),
-                    ),
-                    if (selected)
-                      Icon(
-                        Icons.check_circle_rounded,
-                        key: Key(
-                          'profile-editor-theme-preset-selected-${preset.id}',
-                        ),
-                        size: 16,
-                        color: theme.focus,
-                      ),
-                  ],
-                ),
-                SizedBox(height: theme.spacing.xs),
-                Text(
-                  preset.tone.label,
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: toneColor,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                SizedBox(height: theme.spacing.sm),
-                Wrap(
-                  spacing: theme.spacing.xs + 1,
-                  runSpacing: theme.spacing.xs + 1,
-                  children: [
-                    for (final colorValue in preset.previewColors)
-                      _ThemePresetColorSwatch(colorValue: colorValue),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ThemePresetColorSwatch extends StatelessWidget {
-  const _ThemePresetColorSwatch({required this.colorValue});
-
-  final String colorValue;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = context.appTheme;
-    return Container(
-      width: 18,
-      height: 18,
-      decoration: BoxDecoration(
-        color: parseOptionalHexColor(colorValue),
-        borderRadius: BorderRadius.circular(theme.radius.sm),
-        border: Border.all(color: theme.border),
-      ),
-    );
-  }
 }
 
 class _ColorPickerDialog extends StatefulWidget {
@@ -4167,7 +3961,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
                       Expanded(child: previewCard),
                       SizedBox(width: theme.spacing.md),
                       SizedBox(
-                        width: 156,
+                        width: 132,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [

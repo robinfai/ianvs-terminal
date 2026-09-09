@@ -7123,6 +7123,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This recording cannot be read.'**
   String get replayRecordingUnavailable;
+
+  /// No description provided for @configurationNewSessions.
+  ///
+  /// In en, this message translates to:
+  /// **'New sessions'**
+  String get configurationNewSessions;
+
+  /// No description provided for @configurationProfileDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'Fonts, colors and startup options are configured in the Profile.'**
+  String get configurationProfileDetails;
+
+  /// No description provided for @configurationLanguage.
+  ///
+  /// In en, this message translates to:
+  /// **'Interface language'**
+  String get configurationLanguage;
+
+  /// No description provided for @configurationFontMetrics.
+  ///
+  /// In en, this message translates to:
+  /// **'Font size and line height'**
+  String get configurationFontMetrics;
+
+  /// No description provided for @configurationNewSessionHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Changes apply to new sessions.'**
+  String get configurationNewSessionHint;
 }
 
 class _AppLocalizationsDelegate

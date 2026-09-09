@@ -539,11 +539,16 @@ void main() {
         reason: 'SSH input heights must match: $heights',
       );
     }
-    expect(heights.first, closeTo(36, 0.01));
+    expect(heights.first, closeTo(28, 0.01));
+    expect(
+      tester.getSize(find.byKey(const Key('ssh-private-keys'))).height,
+      closeTo(heights.first, 0.01),
+      reason: 'Private key actions must not inflate the input container',
+    );
     for (final height in paintedContainerHeights) {
       expect(
         height,
-        closeTo(36, 0.01),
+        closeTo(28, 0.01),
         reason:
             'SSH painted input containers must match: '
             '$paintedContainerHeights',
@@ -576,12 +581,35 @@ void main() {
     for (final height in advancedContainerHeights) {
       expect(
         height,
-        closeTo(36, 0.01),
+        closeTo(28, 0.01),
         reason:
             'Advanced SSH painted input containers must match: '
             '$advancedContainerHeights',
       );
     }
+    for (final key in advancedSingleLineFieldKeys) {
+      final decorator = tester.widget<InputDecorator>(
+        find.descendant(
+          of: find.byKey(key),
+          matching: find.byType(InputDecorator),
+        ),
+      );
+      expect(decorator.decoration.labelText, isNull);
+      expect(
+        find.ancestor(
+          of: find.byKey(key),
+          matching: find.byType(AppConfigurationField),
+        ),
+        findsOneWidget,
+      );
+    }
+    expect(
+      find.ancestor(
+        of: find.byKey(const Key('ssh-host-key-policy')),
+        matching: find.byType(AppConfigurationField),
+      ),
+      findsOneWidget,
+    );
     expect(
       find.descendant(
         of: find.byKey(const Key('ssh-private-keys')),
@@ -589,6 +617,12 @@ void main() {
       ),
       findsNothing,
     );
+    final hostRect = tester.getRect(find.byKey(const Key('ssh-host')));
+    final userRect = tester.getRect(find.byKey(const Key('ssh-user')));
+    final portRect = tester.getRect(find.byKey(const Key('ssh-port')));
+    expect(hostRect.bottom, lessThan(userRect.top));
+    expect(portRect.top, closeTo(userRect.top, 1));
+    expect(portRect.left, greaterThan(userRect.right));
     expect(tester.takeException(), isNull);
   });
 
@@ -784,7 +818,7 @@ void main() {
     },
   );
 
-  testWidgets('keeps the secure-save choice above the action row', (
+  testWidgets('keeps the secure-save choice left of the desktop actions', (
     tester,
   ) async {
     await tester.binding.setSurfaceSize(const Size(1000, 768));
@@ -806,7 +840,13 @@ void main() {
 
     final saveRect = tester.getRect(find.byKey(const Key('ssh-save-profile')));
     final connectRect = tester.getRect(find.byKey(const Key('ssh-connect')));
-    expect(saveRect.bottom, lessThan(connectRect.top));
+    expect(saveRect.right, lessThan(connectRect.left));
+    expect(saveRect.center.dy, closeTo(connectRect.center.dy, 24));
+    final saveChoice = find.byKey(const Key('ssh-save-profile'));
+    expect(tester.widget<CheckboxListTile>(saveChoice).value, isTrue);
+    await tester.tap(saveChoice);
+    await tester.pump();
+    expect(tester.widget<CheckboxListTile>(saveChoice).value, isFalse);
     expect(tester.takeException(), isNull);
   });
 
@@ -1086,6 +1126,9 @@ void main() {
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.byKey(const Key('ssh-connect-timeout')));
     await tester.enterText(find.byKey(const Key('ssh-connect-timeout')), '0');
+    await tester.ensureVisible(
+      find.text('Host verification and advanced options'),
+    );
     await tester.tap(find.text('Host verification and advanced options'));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.byKey(const Key('ssh-connect')));

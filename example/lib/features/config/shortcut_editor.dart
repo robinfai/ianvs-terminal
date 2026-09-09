@@ -307,41 +307,50 @@ class _ShortcutEditorPanelState extends State<ShortcutEditorPanel> {
             textInputAction: TextInputAction.search,
             decoration: InputDecoration(
               isDense: true,
-              filled: true,
-              fillColor: theme.panel,
               prefixIcon: const Icon(Icons.search_rounded),
-              labelText: context.l10n.filterActions,
+              hintText: context.l10n.filterActions,
             ),
             onChanged: (_) => setState(() {}),
           ),
         );
-        final category = AppDropdownFormField<TerminalActionCategory?>(
-          key: const Key('shortcut-editor-category'),
-          initialValue: _category,
-          isExpanded: true,
-          decoration: InputDecoration(
-            isDense: true,
-            filled: true,
-            fillColor: theme.panel,
-            labelText: context.l10n.category,
-          ),
-          items: [
-            DropdownMenuItem<TerminalActionCategory?>(
-              value: null,
-              child: Text(context.l10n.allActions),
-            ),
-            for (final value in TerminalActionCategory.values)
-              DropdownMenuItem<TerminalActionCategory?>(
-                value: value,
-                child: Text(
-                  LocalTerminalShortcutFormatter.categoryLabel(
-                    context.l10n,
-                    value,
-                  ),
-                ),
+        final category = Semantics(
+          label: context.l10n.category,
+          container: true,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                context.l10n.category,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: theme.textSubtle),
               ),
-          ],
-          onChanged: (value) => setState(() => _category = value),
+              SizedBox(height: theme.spacing.xs),
+              AppDropdownFormField<TerminalActionCategory?>(
+                key: const Key('shortcut-editor-category'),
+                initialValue: _category,
+                isExpanded: true,
+                decoration: const InputDecoration(isDense: true),
+                items: [
+                  DropdownMenuItem<TerminalActionCategory?>(
+                    value: null,
+                    child: Text(context.l10n.allActions),
+                  ),
+                  for (final value in TerminalActionCategory.values)
+                    DropdownMenuItem<TerminalActionCategory?>(
+                      value: value,
+                      child: Text(
+                        LocalTerminalShortcutFormatter.categoryLabel(
+                          context.l10n,
+                          value,
+                        ),
+                      ),
+                    ),
+                ],
+                onChanged: (value) => setState(() => _category = value),
+              ),
+            ],
+          ),
         );
         final restore = AppActionButton(
           buttonKey: const Key('shortcut-editor-restore-all'),
@@ -353,27 +362,34 @@ class _ShortcutEditorPanelState extends State<ShortcutEditorPanel> {
               ? () => widget.onChanged(const LocalTerminalKeybindingsConfig())
               : null,
         );
-        if (constraints.maxWidth < 560) {
+        final largeText = MediaQuery.textScalerOf(context).scale(13) / 13 > 1.3;
+        if (constraints.maxWidth < 480 || largeText) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               search,
-              SizedBox(height: theme.spacing.sm),
-              category,
-              if (widget.showRestoreAction) ...[
-                SizedBox(height: theme.spacing.sm),
-                Align(alignment: Alignment.centerLeft, child: restore),
-              ],
+              SizedBox(height: theme.spacing.lg),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(child: category),
+                  if (widget.showRestoreAction) ...[
+                    SizedBox(width: theme.spacing.lg),
+                    restore,
+                  ],
+                ],
+              ),
             ],
           );
         }
         return Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Expanded(flex: 3, child: search),
-            SizedBox(width: theme.spacing.sm),
-            Expanded(flex: 2, child: category),
+            Expanded(flex: 5, child: search),
+            SizedBox(width: theme.spacing.lg),
+            Expanded(flex: 3, child: category),
             if (widget.showRestoreAction) ...[
-              SizedBox(width: theme.spacing.sm),
+              SizedBox(width: theme.spacing.lg),
               restore,
             ],
           ],
@@ -438,7 +454,7 @@ class _ShortcutEditorPanelState extends State<ShortcutEditorPanel> {
         SizedBox(height: theme.spacing.sm),
         _ShortcutConflictSummary(conflicts: conflicts),
       ],
-      SizedBox(height: theme.spacing.sm),
+      SizedBox(height: theme.spacing.xl),
     ];
 
     if (widget.expandList) {
@@ -902,38 +918,49 @@ class _ShortcutCaptureDialogState extends State<_ShortcutCaptureDialog> {
                 ),
               ),
               SizedBox(height: theme.spacing.md),
-              AppDropdownFormField<TerminalKeyBindingScope>(
-                key: const Key('shortcut-capture-scope'),
-                initialValue: _scope,
-                decoration: InputDecoration(
-                  isDense: true,
-                  labelText: context.l10n.activeWhen,
-                ),
-                items: [
-                  for (final scope in editableTerminalShortcutScopes)
-                    DropdownMenuItem(
-                      value: scope,
-                      child: Text(
-                        LocalTerminalShortcutFormatter.scopeLabel(
-                          context.l10n,
-                          scope,
-                        ),
-                      ),
+              Semantics(
+                label: context.l10n.activeWhen,
+                container: true,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      context.l10n.activeWhen,
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(color: theme.textSubtle),
                     ),
-                ],
-                onChanged: (scope) {
-                  if (scope == null) {
-                    return;
-                  }
-                  setState(() {
-                    _scope = scope;
-                    if (_candidate != null) {
-                      _candidate = _bindingWithScope(_candidate!, scope);
-                    }
-                  });
-                },
+                    SizedBox(height: theme.spacing.xs),
+                    AppDropdownFormField<TerminalKeyBindingScope>(
+                      key: const Key('shortcut-capture-scope'),
+                      initialValue: _scope,
+                      decoration: const InputDecoration(isDense: true),
+                      items: [
+                        for (final scope in editableTerminalShortcutScopes)
+                          DropdownMenuItem(
+                            value: scope,
+                            child: Text(
+                              LocalTerminalShortcutFormatter.scopeLabel(
+                                context.l10n,
+                                scope,
+                              ),
+                            ),
+                          ),
+                      ],
+                      onChanged: (scope) {
+                        if (scope == null) return;
+                        setState(() {
+                          _scope = scope;
+                          if (_candidate != null) {
+                            _candidate = _bindingWithScope(_candidate!, scope);
+                          }
+                        });
+                      },
+                    ),
+                  ],
+                ),
               ),
-              SizedBox(height: theme.spacing.md),
+              SizedBox(height: theme.spacing.lg),
               Semantics(
                 liveRegion: true,
                 label: _candidate == null

@@ -15,8 +15,6 @@ typedef SshPrivateKeyPicker = Future<SshPrivateKeySelection?> Function();
 InputDecoration _iconlessSshInputDecoration(
   BuildContext context, {
   String? hintText,
-  String? labelText,
-  String? helperText,
   Widget? suffixIcon,
 }) {
   final palette = context.appTheme;
@@ -25,8 +23,6 @@ InputDecoration _iconlessSshInputDecoration(
   // height as real icons without changing the normal text inset.
   return InputDecoration(
     hintText: hintText,
-    labelText: labelText,
-    helperText: helperText,
     prefixIcon: const SizedBox.shrink(),
     prefixIconConstraints: BoxConstraints(
       minWidth: palette.spacing.xs,
@@ -788,6 +784,10 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
 
   @override
   Widget build(BuildContext context) {
+    return AppConfigurationTheme(child: Builder(builder: _buildThemedDialog));
+  }
+
+  Widget _buildThemedDialog(BuildContext context) {
     final palette = context.appTheme;
     final mediaSize = MediaQuery.sizeOf(context);
     final width = mediaSize.width;
@@ -801,22 +801,23 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
         MediaQuery.textScalerOf(context).scale(16) / 16 >= 1.3;
     final scrollsSaveChoice = compactKeyboardLayout || largeTextLayout;
     final contentPadding = compactKeyboardLayout
-        ? palette.spacing.sm
-        : palette.spacing.xl;
+        ? EdgeInsets.all(palette.spacing.sm)
+        : const EdgeInsets.all(20);
     final showsPassword =
         _auth == terminal.TerminalSshAuthMethod.auto ||
         _auth == terminal.TerminalSshAuthMethod.password;
     final showsPrivateKeys =
         _auth == terminal.TerminalSshAuthMethod.auto ||
         _auth == terminal.TerminalSshAuthMethod.publicKey;
+    final compactPrivateKeyAction = largeTextLayout || width < 520;
     return Dialog(
       insetPadding: EdgeInsets.all(width < 640 ? 12 : 32),
       child: SizedBox(
         width: dialogWidth,
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxHeight: 760),
+          constraints: const BoxConstraints(maxHeight: 700),
           child: Padding(
-            padding: EdgeInsets.all(contentPadding),
+            padding: contentPadding,
             child: Form(
               key: _formKey,
               onChanged: () => setState(() {}),
@@ -830,17 +831,37 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   if (!compactKeyboardLayout) ...[
-                    Text(
-                      context.l10n.sshConnection,
-                      style: Theme.of(context).textTheme.headlineSmall,
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                context.l10n.sshConnection,
+                                style: Theme.of(context).textTheme.titleLarge,
+                              ),
+                              SizedBox(height: palette.spacing.xs),
+                              Text(
+                                _name.text.trim().isEmpty
+                                    ? context.l10n.connectOnceOrSaveProfile
+                                    : _name.text.trim(),
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(color: palette.textSubtle),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: context.l10n.cancel,
+                          onPressed: () => Navigator.of(context).pop(),
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                      ],
                     ),
-                    SizedBox(height: palette.spacing.xs),
-                    Text(
-                      context.l10n.connectOnceOrSaveProfile,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: palette.textSubtle,
-                      ),
-                    ),
+                    SizedBox(height: palette.spacing.lg),
+                    const Divider(height: 1),
                   ],
                   SizedBox(
                     height: compactKeyboardLayout ? 0 : palette.spacing.xl,
@@ -865,15 +886,11 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            AppSectionHeader(
-                              title: context.l10n.connection,
-                              description:
-                                  context.l10n.connectionSectionDescription,
-                            ),
+                            AppSectionHeader(title: context.l10n.connection),
                             SizedBox(height: palette.spacing.lg),
-                            AppFieldRow(
+                            AppConfigurationField(
                               label: context.l10n.sessionName,
-                              control: Semantics(
+                              child: Semantics(
                                 label: context.l10n.sessionName,
                                 textField: true,
                                 child: TextFormField(
@@ -894,9 +911,9 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                             LayoutBuilder(
                               builder: (context, constraints) {
                                 final stacked = constraints.maxWidth < 560;
-                                Widget hostField() => AppFieldRow(
+                                Widget hostField() => AppConfigurationField(
                                   label: context.l10n.host,
-                                  control: Semantics(
+                                  child: Semantics(
                                     label: context.l10n.host,
                                     textField: true,
                                     child: TextFormField(
@@ -913,40 +930,34 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                     ),
                                   ),
                                 );
-                                Widget userField() => AppFieldRow(
+                                Widget userControl() => Semantics(
                                   label: context.l10n.user,
-                                  control: Semantics(
-                                    label: context.l10n.user,
-                                    textField: true,
-                                    child: TextFormField(
-                                      key: const Key('ssh-user'),
-                                      controller: _user,
-                                      focusNode: _userFocus,
-                                      decoration: _iconlessSshInputDecoration(
-                                        context,
-                                        hintText: context.l10n.remoteUser,
-                                      ),
-                                      validator: _required,
+                                  textField: true,
+                                  child: TextFormField(
+                                    key: const Key('ssh-user'),
+                                    controller: _user,
+                                    focusNode: _userFocus,
+                                    decoration: _iconlessSshInputDecoration(
+                                      context,
+                                      hintText: context.l10n.remoteUser,
                                     ),
+                                    validator: _required,
                                   ),
                                 );
-                                Widget portField() => AppFieldRow(
+                                Widget portControl() => Semantics(
                                   label: context.l10n.port,
-                                  control: Semantics(
-                                    label: context.l10n.port,
-                                    textField: true,
-                                    child: TextFormField(
-                                      key: const Key('ssh-port'),
-                                      controller: _port,
-                                      focusNode: _portFocus,
-                                      keyboardType: TextInputType.number,
-                                      decoration: _iconlessSshInputDecoration(
-                                        context,
-                                        hintText: '22',
-                                      ),
-                                      validator: (value) =>
-                                          _boundedInteger(value, 1, 65535),
+                                  textField: true,
+                                  child: TextFormField(
+                                    key: const Key('ssh-port'),
+                                    controller: _port,
+                                    focusNode: _portFocus,
+                                    keyboardType: TextInputType.number,
+                                    decoration: _iconlessSshInputDecoration(
+                                      context,
+                                      hintText: '22',
                                     ),
+                                    validator: (value) =>
+                                        _boundedInteger(value, 1, 65535),
                                   ),
                                 );
                                 if (stacked) {
@@ -954,20 +965,42 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                     children: [
                                       hostField(),
                                       SizedBox(height: palette.spacing.md),
-                                      userField(),
+                                      AppConfigurationField(
+                                        label: context.l10n.user,
+                                        child: userControl(),
+                                      ),
                                       SizedBox(height: palette.spacing.md),
-                                      portField(),
+                                      AppConfigurationField(
+                                        label: context.l10n.port,
+                                        child: portControl(),
+                                      ),
                                     ],
                                   );
                                 }
-                                return Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                return Column(
                                   children: [
-                                    Expanded(flex: 3, child: hostField()),
-                                    SizedBox(width: palette.spacing.md),
-                                    Expanded(flex: 2, child: userField()),
-                                    SizedBox(width: palette.spacing.md),
-                                    SizedBox(width: 112, child: portField()),
+                                    hostField(),
+                                    SizedBox(height: palette.spacing.md),
+                                    AppConfigurationField(
+                                      label: context.l10n.user,
+                                      child: Row(
+                                        children: [
+                                          Expanded(child: userControl()),
+                                          const SizedBox(width: 20),
+                                          Text(
+                                            context.l10n.port,
+                                            style: Theme.of(
+                                              context,
+                                            ).textTheme.bodyMedium,
+                                          ),
+                                          const SizedBox(width: 20),
+                                          SizedBox(
+                                            width: 110,
+                                            child: portControl(),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
                                   ],
                                 );
                               },
@@ -975,13 +1008,11 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                             SizedBox(height: palette.spacing.xl),
                             AppSectionHeader(
                               title: context.l10n.authentication,
-                              description:
-                                  context.l10n.authenticationDescription,
                             ),
                             SizedBox(height: palette.spacing.lg),
-                            AppFieldRow(
+                            AppConfigurationField(
                               label: context.l10n.method,
-                              control: Semantics(
+                              child: Semantics(
                                 label: context.l10n.authenticationMethod,
                                 button: true,
                                 child:
@@ -1036,17 +1067,17 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                             ),
                             if (showsPassword) ...[
                               SizedBox(height: palette.spacing.lg),
-                              AppFieldRow(
+                              AppConfigurationField(
                                 label:
                                     _auth ==
                                         terminal.TerminalSshAuthMethod.password
                                     ? context.l10n.password
                                     : context.l10n.passwordFallback,
-                                hint:
+                                helper:
                                     _auth == terminal.TerminalSshAuthMethod.auto
                                     ? context.l10n.passwordFallbackHelp
                                     : null,
-                                control: Semantics(
+                                child: Semantics(
                                   label: context.l10n.password,
                                   textField: true,
                                   obscured: _obscurePassword,
@@ -1061,15 +1092,44 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                       prefixIcon: const Icon(
                                         Icons.password_rounded,
                                       ),
-                                      suffixIcon: _SecretVisibilityButton(
-                                        key: const Key(
-                                          'ssh-password-visibility',
-                                        ),
-                                        obscured: _obscurePassword,
-                                        label: context.l10n.password,
-                                        onPressed: () => setState(() {
-                                          _obscurePassword = !_obscurePassword;
-                                        }),
+                                      suffixIcon: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          _SecretVisibilityButton(
+                                            key: const Key(
+                                              'ssh-password-visibility',
+                                            ),
+                                            obscured: _obscurePassword,
+                                            label: context.l10n.password,
+                                            onPressed: () => setState(() {
+                                              _obscurePassword =
+                                                  !_obscurePassword;
+                                            }),
+                                          ),
+                                          IconButton(
+                                            key: const Key(
+                                              'ssh-clear-password',
+                                            ),
+                                            tooltip: context
+                                                .l10n
+                                                .forgetSavedPassword,
+                                            padding: EdgeInsets.zero,
+                                            constraints: BoxConstraints(
+                                              minWidth:
+                                                  palette.controls.regular,
+                                              minHeight:
+                                                  palette.controls.regular,
+                                            ),
+                                            iconSize: 18,
+                                            onPressed: () => setState(() {
+                                              _password.clear();
+                                              _clearPassword = true;
+                                            }),
+                                            icon: const Icon(
+                                              Icons.delete_outline_rounded,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                     validator:
@@ -1082,27 +1142,13 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                   ),
                                 ),
                               ),
-                              Align(
-                                alignment: Alignment.centerRight,
-                                child: TextButton.icon(
-                                  key: const Key('ssh-clear-password'),
-                                  onPressed: () => setState(() {
-                                    _password.clear();
-                                    _clearPassword = true;
-                                  }),
-                                  icon: const Icon(
-                                    Icons.delete_outline_rounded,
-                                  ),
-                                  label: Text(context.l10n.forgetSavedPassword),
-                                ),
-                              ),
                             ],
                             if (showsPrivateKeys) ...[
                               SizedBox(height: palette.spacing.lg),
-                              AppFieldRow(
+                              AppConfigurationField(
                                 label: context.l10n.privateKey,
-                                hint: context.l10n.privateKeyDescription,
-                                control: FormField<List<String>>(
+                                helper: context.l10n.privateKeyDescription,
+                                child: FormField<List<String>>(
                                   key: _privateKeyFieldKey,
                                   initialValue: _privateKeyValues,
                                   validator: (value) =>
@@ -1119,6 +1165,12 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                     child: InputDecorator(
                                       key: const Key('ssh-private-keys'),
                                       decoration: InputDecoration(
+                                        // The row's actions already provide
+                                        // the adaptive control height.
+                                        contentPadding:
+                                            const EdgeInsets.symmetric(
+                                              horizontal: 12,
+                                            ),
                                         prefixIcon: const Icon(
                                           Icons.key_rounded,
                                         ),
@@ -1145,56 +1197,110 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                             ),
                                           ),
                                           SizedBox(width: palette.spacing.sm),
-                                          TextButton.icon(
-                                            key: const Key(
-                                              'ssh-select-private-key',
-                                            ),
-                                            focusNode: _privateKeysFocus,
-                                            onPressed: _selectingPrivateKey
-                                                ? null
-                                                : _pickPrivateKey,
-                                            icon: _selectingPrivateKey
-                                                ? const SizedBox.square(
-                                                    dimension: 16,
-                                                    child:
-                                                        CircularProgressIndicator(
-                                                          strokeWidth: 2,
-                                                        ),
-                                                  )
-                                                : const Icon(
-                                                    Icons.folder_open_rounded,
-                                                  ),
-                                            label: Text(
-                                              _privateKeyValues.isEmpty
+                                          if (compactPrivateKeyAction)
+                                            IconButton(
+                                              key: const Key(
+                                                'ssh-select-private-key',
+                                              ),
+                                              focusNode: _privateKeysFocus,
+                                              tooltip: _privateKeyValues.isEmpty
                                                   ? context.l10n.select
                                                   : context.l10n.replace,
+                                              padding: EdgeInsets.zero,
+                                              constraints: BoxConstraints(
+                                                minWidth:
+                                                    palette.controls.regular,
+                                                minHeight:
+                                                    palette.controls.regular,
+                                              ),
+                                              iconSize: 18,
+                                              onPressed: _selectingPrivateKey
+                                                  ? null
+                                                  : _pickPrivateKey,
+                                              icon: _selectingPrivateKey
+                                                  ? const SizedBox.square(
+                                                      dimension: 16,
+                                                      child:
+                                                          CircularProgressIndicator(
+                                                            strokeWidth: 2,
+                                                          ),
+                                                    )
+                                                  : const Icon(
+                                                      Icons.folder_open_rounded,
+                                                    ),
+                                            )
+                                          else
+                                            TextButton.icon(
+                                              key: const Key(
+                                                'ssh-select-private-key',
+                                              ),
+                                              focusNode: _privateKeysFocus,
+                                              style: TextButton.styleFrom(
+                                                minimumSize: Size(
+                                                  0,
+                                                  palette.controls.regular,
+                                                ),
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 8,
+                                                    ),
+                                                iconSize: 18,
+                                                tapTargetSize:
+                                                    MaterialTapTargetSize
+                                                        .shrinkWrap,
+                                              ),
+                                              onPressed: _selectingPrivateKey
+                                                  ? null
+                                                  : _pickPrivateKey,
+                                              icon: _selectingPrivateKey
+                                                  ? const SizedBox.square(
+                                                      dimension: 16,
+                                                      child:
+                                                          CircularProgressIndicator(
+                                                            strokeWidth: 2,
+                                                          ),
+                                                    )
+                                                  : const Icon(
+                                                      Icons.folder_open_rounded,
+                                                    ),
+                                              label: Text(
+                                                _privateKeyValues.isEmpty
+                                                    ? context.l10n.select
+                                                    : context.l10n.replace,
+                                              ),
                                             ),
-                                          ),
+                                          if (_privateKeyValues.isNotEmpty)
+                                            IconButton(
+                                              key: const Key(
+                                                'ssh-clear-private-key',
+                                              ),
+                                              tooltip: context
+                                                  .l10n
+                                                  .forgetSavedPrivateKey,
+                                              padding: EdgeInsets.zero,
+                                              constraints: BoxConstraints(
+                                                minWidth:
+                                                    palette.controls.regular,
+                                                minHeight:
+                                                    palette.controls.regular,
+                                              ),
+                                              iconSize: 18,
+                                              onPressed: _forgetPrivateKey,
+                                              icon: const Icon(
+                                                Icons.delete_outline_rounded,
+                                              ),
+                                            ),
                                         ],
                                       ),
                                     ),
                                   ),
                                 ),
                               ),
-                              if (_privateKeyValues.isNotEmpty)
-                                Align(
-                                  alignment: Alignment.centerRight,
-                                  child: TextButton.icon(
-                                    key: const Key('ssh-clear-private-key'),
-                                    onPressed: _forgetPrivateKey,
-                                    icon: const Icon(
-                                      Icons.delete_outline_rounded,
-                                    ),
-                                    label: Text(
-                                      context.l10n.forgetSavedPrivateKey,
-                                    ),
-                                  ),
-                                ),
                               SizedBox(height: palette.spacing.lg),
-                              AppFieldRow(
+                              AppConfigurationField(
                                 label: context.l10n.privateKeyPassphrase,
-                                hint: context.l10n.privateKeyPassphraseHelp,
-                                control: Semantics(
+                                helper: context.l10n.privateKeyPassphraseHelp,
+                                child: Semantics(
                                   label: context.l10n.privateKeyPassphrase,
                                   textField: true,
                                   obscured: _obscurePrivateKeyPassphrase,
@@ -1206,35 +1312,49 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                     autocorrect: false,
                                     decoration: _iconlessSshInputDecoration(
                                       context,
-                                      suffixIcon: _SecretVisibilityButton(
-                                        key: const Key(
-                                          'ssh-key-passphrase-visibility',
-                                        ),
-                                        obscured: _obscurePrivateKeyPassphrase,
-                                        label:
-                                            context.l10n.privateKeyPassphrase,
-                                        onPressed: () => setState(() {
-                                          _obscurePrivateKeyPassphrase =
-                                              !_obscurePrivateKeyPassphrase;
-                                        }),
+                                      suffixIcon: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          _SecretVisibilityButton(
+                                            key: const Key(
+                                              'ssh-key-passphrase-visibility',
+                                            ),
+                                            obscured:
+                                                _obscurePrivateKeyPassphrase,
+                                            label: context
+                                                .l10n
+                                                .privateKeyPassphrase,
+                                            onPressed: () => setState(() {
+                                              _obscurePrivateKeyPassphrase =
+                                                  !_obscurePrivateKeyPassphrase;
+                                            }),
+                                          ),
+                                          IconButton(
+                                            key: const Key(
+                                              'ssh-clear-key-passphrase',
+                                            ),
+                                            tooltip: context
+                                                .l10n
+                                                .forgetSavedKeyPassphrase,
+                                            padding: EdgeInsets.zero,
+                                            constraints: BoxConstraints(
+                                              minWidth:
+                                                  palette.controls.regular,
+                                              minHeight:
+                                                  palette.controls.regular,
+                                            ),
+                                            iconSize: 18,
+                                            onPressed: () => setState(() {
+                                              _privateKeyPassphrase.clear();
+                                              _clearPrivateKeyPassphrase = true;
+                                            }),
+                                            icon: const Icon(
+                                              Icons.delete_outline_rounded,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                  ),
-                                ),
-                              ),
-                              Align(
-                                alignment: Alignment.centerRight,
-                                child: TextButton.icon(
-                                  key: const Key('ssh-clear-key-passphrase'),
-                                  onPressed: () => setState(() {
-                                    _privateKeyPassphrase.clear();
-                                    _clearPrivateKeyPassphrase = true;
-                                  }),
-                                  icon: const Icon(
-                                    Icons.delete_outline_rounded,
-                                  ),
-                                  label: Text(
-                                    context.l10n.forgetSavedKeyPassphrase,
                                   ),
                                 ),
                               ),
@@ -1282,58 +1402,64 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                               tilePadding: EdgeInsets.zero,
                               childrenPadding: EdgeInsets.zero,
                               children: [
-                                AppDropdownFormField<
-                                  terminal.TerminalSshHostKeyPolicy
-                                >(
-                                  key: const Key('ssh-host-key-policy'),
-                                  isExpanded: true,
-                                  initialValue: _hostKeyPolicy,
-                                  decoration: _iconlessSshInputDecoration(
-                                    context,
-                                    labelText: context.l10n.hostKeyPolicy,
-                                  ),
-                                  items: [
-                                    DropdownMenuItem(
-                                      value: terminal
-                                          .TerminalSshHostKeyPolicy
-                                          .acceptNew,
-                                      child: Text(
-                                        context.l10n.acceptNewHostsRecommended,
+                                AppConfigurationField(
+                                  label: context.l10n.hostKeyPolicy,
+                                  child:
+                                      AppDropdownFormField<
+                                        terminal.TerminalSshHostKeyPolicy
+                                      >(
+                                        key: const Key('ssh-host-key-policy'),
+                                        isExpanded: true,
+                                        initialValue: _hostKeyPolicy,
+                                        decoration: _iconlessSshInputDecoration(
+                                          context,
+                                        ),
+                                        items: [
+                                          DropdownMenuItem(
+                                            value: terminal
+                                                .TerminalSshHostKeyPolicy
+                                                .acceptNew,
+                                            child: Text(
+                                              context
+                                                  .l10n
+                                                  .acceptNewHostsRecommended,
+                                            ),
+                                          ),
+                                          DropdownMenuItem(
+                                            value: terminal
+                                                .TerminalSshHostKeyPolicy
+                                                .strict,
+                                            child: Text(
+                                              context.l10n.askBeforeTrusting,
+                                            ),
+                                          ),
+                                          DropdownMenuItem(
+                                            value: terminal
+                                                .TerminalSshHostKeyPolicy
+                                                .insecure,
+                                            child: Text(
+                                              context.l10n.doNotVerifyUnsafe,
+                                            ),
+                                          ),
+                                        ],
+                                        onChanged: (value) => setState(() {
+                                          _hostKeyPolicy =
+                                              value ??
+                                              terminal
+                                                  .TerminalSshHostKeyPolicy
+                                                  .acceptNew;
+                                        }),
                                       ),
-                                    ),
-                                    DropdownMenuItem(
-                                      value: terminal
-                                          .TerminalSshHostKeyPolicy
-                                          .strict,
-                                      child: Text(
-                                        context.l10n.askBeforeTrusting,
-                                      ),
-                                    ),
-                                    DropdownMenuItem(
-                                      value: terminal
-                                          .TerminalSshHostKeyPolicy
-                                          .insecure,
-                                      child: Text(
-                                        context.l10n.doNotVerifyUnsafe,
-                                      ),
-                                    ),
-                                  ],
-                                  onChanged: (value) => setState(() {
-                                    _hostKeyPolicy =
-                                        value ??
-                                        terminal
-                                            .TerminalSshHostKeyPolicy
-                                            .acceptNew;
-                                  }),
                                 ),
                                 SizedBox(height: palette.spacing.md),
-                                TextFormField(
-                                  key: const Key('ssh-known-hosts-file'),
-                                  controller: _knownHostsFile,
-                                  decoration: _iconlessSshInputDecoration(
-                                    context,
-                                    labelText:
-                                        context.l10n.knownHostsFileOptional,
+                                AppConfigurationField(
+                                  label: context.l10n.knownHostsFileOptional,
+                                  child: TextFormField(
+                                    key: const Key('ssh-known-hosts-file'),
+                                    controller: _knownHostsFile,
+                                    decoration: _iconlessSshInputDecoration(
+                                      context,
+                                    ),
                                   ),
                                 ),
                                 SizedBox(height: palette.spacing.md),
@@ -1347,57 +1473,62 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                   validator: _boundedInteger,
                                 ),
                                 SizedBox(height: palette.spacing.md),
-                                TextFormField(
-                                  key: const Key('ssh-proxy-command'),
-                                  controller: _proxyCommand,
-                                  decoration: _iconlessSshInputDecoration(
-                                    context,
-                                    labelText:
-                                        context.l10n.proxyCommandOptional,
+                                AppConfigurationField(
+                                  label: context.l10n.proxyCommandOptional,
+                                  child: TextFormField(
+                                    key: const Key('ssh-proxy-command'),
+                                    controller: _proxyCommand,
+                                    decoration: _iconlessSshInputDecoration(
+                                      context,
+                                    ),
                                   ),
                                 ),
                                 SizedBox(height: palette.spacing.md),
-                                TextFormField(
-                                  key: const Key('ssh-proxy-jump'),
-                                  controller: _proxyJump,
-                                  focusNode: _proxyJumpFocus,
-                                  decoration: _iconlessSshInputDecoration(
-                                    context,
-                                    labelText: context.l10n.proxyJumpOptional,
-                                    helperText: context.l10n.proxyJumpHelp,
+                                AppConfigurationField(
+                                  label: context.l10n.proxyJumpOptional,
+                                  helper: context.l10n.proxyJumpHelp,
+                                  child: TextFormField(
+                                    key: const Key('ssh-proxy-jump'),
+                                    controller: _proxyJump,
+                                    focusNode: _proxyJumpFocus,
+                                    decoration: _iconlessSshInputDecoration(
+                                      context,
+                                    ),
+                                    validator: (value) {
+                                      if ((value ?? '').trim().isEmpty) {
+                                        return null;
+                                      }
+                                      try {
+                                        parseSshProxyJumpProfiles(value ?? '');
+                                        return null;
+                                      } on FormatException catch (error) {
+                                        return error.message;
+                                      }
+                                    },
                                   ),
-                                  validator: (value) {
-                                    if ((value ?? '').trim().isEmpty) {
-                                      return null;
-                                    }
-                                    try {
-                                      parseSshProxyJumpProfiles(value ?? '');
-                                      return null;
-                                    } on FormatException catch (error) {
-                                      return error.message;
-                                    }
-                                  },
                                 ),
                                 SizedBox(height: palette.spacing.md),
-                                TextFormField(
-                                  key: const Key('ssh-port-forwards'),
-                                  controller: _portForwards,
-                                  focusNode: _portForwardsFocus,
-                                  minLines: 2,
-                                  maxLines: 5,
-                                  decoration: _iconlessSshInputDecoration(
-                                    context,
-                                    labelText: context.l10n.portForwards,
-                                    helperText: context.l10n.portForwardsHelp,
+                                AppConfigurationField(
+                                  label: context.l10n.portForwards,
+                                  helper: context.l10n.portForwardsHelp,
+                                  child: TextFormField(
+                                    key: const Key('ssh-port-forwards'),
+                                    controller: _portForwards,
+                                    focusNode: _portForwardsFocus,
+                                    minLines: 2,
+                                    maxLines: 5,
+                                    decoration: _iconlessSshInputDecoration(
+                                      context,
+                                    ),
+                                    validator: (value) {
+                                      try {
+                                        parseSshPortForwards(value ?? '');
+                                        return null;
+                                      } on FormatException catch (error) {
+                                        return error.message;
+                                      }
+                                    },
                                   ),
-                                  validator: (value) {
-                                    try {
-                                      parseSshPortForwards(value ?? '');
-                                      return null;
-                                    } on FormatException catch (error) {
-                                      return error.message;
-                                    }
-                                  },
                                 ),
                                 SwitchListTile(
                                   key: const Key('ssh-agent-forwarding'),
@@ -1409,13 +1540,14 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                       setState(() => _agentForwarding = value),
                                 ),
                                 if (_agentForwarding)
-                                  TextFormField(
-                                    key: const Key('ssh-agent-socket'),
-                                    controller: _agentSocket,
-                                    decoration: _iconlessSshInputDecoration(
-                                      context,
-                                      labelText:
-                                          context.l10n.agentSocketOptional,
+                                  AppConfigurationField(
+                                    label: context.l10n.agentSocketOptional,
+                                    child: TextFormField(
+                                      key: const Key('ssh-agent-socket'),
+                                      controller: _agentSocket,
+                                      decoration: _iconlessSshInputDecoration(
+                                        context,
+                                      ),
                                     ),
                                   ),
                                 SwitchListTile(
@@ -1430,84 +1562,98 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                       setState(() => _x11Forwarding = value),
                                 ),
                                 if (_x11Forwarding) ...[
-                                  TextFormField(
-                                    key: const Key('ssh-x11-target'),
-                                    controller: _x11Target,
-                                    focusNode: _x11TargetFocus,
-                                    decoration: _iconlessSshInputDecoration(
-                                      context,
-                                      labelText: context.l10n.localX11Target,
+                                  AppConfigurationField(
+                                    label: context.l10n.localX11Target,
+                                    child: TextFormField(
+                                      key: const Key('ssh-x11-target'),
+                                      controller: _x11Target,
+                                      focusNode: _x11TargetFocus,
+                                      decoration: _iconlessSshInputDecoration(
+                                        context,
+                                      ),
+                                      validator: (value) {
+                                        if (!_x11Forwarding) {
+                                          return null;
+                                        }
+                                        if ((value ?? '').trim().isEmpty) {
+                                          return null;
+                                        }
+                                        try {
+                                          parseSshForwardEndpoint(value ?? '');
+                                          return null;
+                                        } on FormatException catch (error) {
+                                          return error.message;
+                                        }
+                                      },
                                     ),
-                                    validator: (value) {
-                                      if (!_x11Forwarding) {
-                                        return null;
-                                      }
-                                      if ((value ?? '').trim().isEmpty) {
-                                        return null;
-                                      }
-                                      try {
-                                        parseSshForwardEndpoint(value ?? '');
-                                        return null;
-                                      } on FormatException catch (error) {
-                                        return error.message;
-                                      }
-                                    },
                                   ),
                                   SizedBox(height: palette.spacing.md),
-                                  TextFormField(
-                                    key: const Key('ssh-x11-cookie'),
-                                    controller: _x11Cookie,
-                                    focusNode: _x11CookieFocus,
-                                    obscureText: _obscureX11Cookie,
-                                    enableSuggestions: false,
-                                    autocorrect: false,
-                                    decoration: _iconlessSshInputDecoration(
-                                      context,
-                                      labelText:
-                                          context.l10n.x11AuthenticationCookie,
-                                      helperText:
-                                          context.l10n.x11CookieRequired,
-                                      suffixIcon: _SecretVisibilityButton(
-                                        key: const Key(
-                                          'ssh-x11-cookie-visibility',
+                                  AppConfigurationField(
+                                    label: context.l10n.x11AuthenticationCookie,
+                                    helper: context.l10n.x11CookieRequired,
+                                    child: TextFormField(
+                                      key: const Key('ssh-x11-cookie'),
+                                      controller: _x11Cookie,
+                                      focusNode: _x11CookieFocus,
+                                      obscureText: _obscureX11Cookie,
+                                      enableSuggestions: false,
+                                      autocorrect: false,
+                                      decoration: _iconlessSshInputDecoration(
+                                        context,
+                                        suffixIcon: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            _SecretVisibilityButton(
+                                              key: const Key(
+                                                'ssh-x11-cookie-visibility',
+                                              ),
+                                              obscured: _obscureX11Cookie,
+                                              label: context
+                                                  .l10n
+                                                  .x11AuthenticationCookie,
+                                              onPressed: () => setState(() {
+                                                _obscureX11Cookie =
+                                                    !_obscureX11Cookie;
+                                              }),
+                                            ),
+                                            IconButton(
+                                              key: const Key(
+                                                'ssh-clear-x11-cookie',
+                                              ),
+                                              tooltip: context
+                                                  .l10n
+                                                  .forgetSavedX11Cookie,
+                                              padding: EdgeInsets.zero,
+                                              constraints: BoxConstraints(
+                                                minWidth:
+                                                    palette.controls.regular,
+                                                minHeight:
+                                                    palette.controls.regular,
+                                              ),
+                                              iconSize: 18,
+                                              onPressed: () => setState(() {
+                                                _x11Cookie.clear();
+                                                _clearX11AuthCookie = true;
+                                              }),
+                                              icon: const Icon(
+                                                Icons.delete_outline_rounded,
+                                              ),
+                                            ),
+                                          ],
                                         ),
-                                        obscured: _obscureX11Cookie,
-                                        label: context
-                                            .l10n
-                                            .x11AuthenticationCookie,
-                                        onPressed: () => setState(() {
-                                          _obscureX11Cookie =
-                                              !_obscureX11Cookie;
-                                        }),
                                       ),
-                                    ),
-                                    validator: (value) {
-                                      if (!_x11Forwarding) {
+                                      validator: (value) {
+                                        if (!_x11Forwarding) {
+                                          return null;
+                                        }
+                                        final cookie = (value ?? '').trim();
+                                        if (!RegExp(
+                                          r'^[0-9A-Fa-f]{32}$',
+                                        ).hasMatch(cookie)) {
+                                          return 'Enter exactly 32 hexadecimal characters';
+                                        }
                                         return null;
-                                      }
-                                      final cookie = (value ?? '').trim();
-                                      if (!RegExp(
-                                        r'^[0-9A-Fa-f]{32}$',
-                                      ).hasMatch(cookie)) {
-                                        return 'Enter exactly 32 hexadecimal characters';
-                                      }
-                                      return null;
-                                    },
-                                  ),
-                                  Align(
-                                    alignment: Alignment.centerRight,
-                                    child: TextButton.icon(
-                                      key: const Key('ssh-clear-x11-cookie'),
-                                      onPressed: () => setState(() {
-                                        _x11Cookie.clear();
-                                        _clearX11AuthCookie = true;
-                                      }),
-                                      icon: const Icon(
-                                        Icons.delete_outline_rounded,
-                                      ),
-                                      label: Text(
-                                        context.l10n.forgetSavedX11Cookie,
-                                      ),
+                                      },
                                     ),
                                   ),
                                 ],
@@ -1520,6 +1666,8 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                               CheckboxListTile(
                                 key: const Key('ssh-save-profile'),
                                 contentPadding: EdgeInsets.zero,
+                                controlAffinity:
+                                    ListTileControlAffinity.leading,
                                 value: _saveProfile,
                                 title: Text(context.l10n.saveThisSshSession),
                                 subtitle: Text(
@@ -1541,55 +1689,82 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                       ),
                     ),
                   ),
-                  if (widget.allowSaveChoice && !scrollsSaveChoice) ...[
-                    SizedBox(height: palette.spacing.md),
-                    CheckboxListTile(
-                      key: const Key('ssh-save-profile'),
-                      contentPadding: EdgeInsets.zero,
-                      value: _saveProfile,
-                      title: Text(context.l10n.saveThisSshSession),
-                      subtitle: Text(
-                        widget.saveProfileAvailable
-                            ? context.l10n.secretsEncryptedDescription
-                            : context.l10n.remoteServiceRequiredToSaveProfile,
-                      ),
-                      onChanged: widget.saveProfileAvailable
-                          ? (value) =>
-                                setState(() => _saveProfile = value ?? true)
-                          : null,
-                    ),
-                  ],
                   SizedBox(
                     height: compactKeyboardLayout
                         ? palette.spacing.sm
                         : palette.spacing.lg,
                   ),
-                  OverflowBar(
-                    alignment: MainAxisAlignment.end,
-                    overflowAlignment: OverflowBarAlignment.end,
-                    spacing: palette.spacing.sm,
-                    overflowSpacing: palette.spacing.sm,
-                    children: [
-                      TextButton(
-                        onPressed: () => Navigator.of(context).pop(),
-                        child: Text(context.l10n.cancel),
-                      ),
-                      FilledButton.icon(
-                        key: const Key('ssh-connect'),
-                        onPressed:
-                            widget.allowSaveChoice ||
-                                widget.saveWhenPristine ||
-                                _hasChanges
-                            ? _submit
-                            : null,
-                        icon: const Icon(Icons.login_rounded),
-                        label: Text(
-                          widget.allowSaveChoice
-                              ? context.l10n.connect
-                              : context.l10n.save,
+                  const Divider(height: 1),
+                  SizedBox(height: palette.spacing.md),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final actions = Wrap(
+                        alignment: WrapAlignment.end,
+                        spacing: palette.spacing.sm,
+                        runSpacing: palette.spacing.sm,
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            child: Text(context.l10n.cancel),
+                          ),
+                          FilledButton.icon(
+                            key: const Key('ssh-connect'),
+                            onPressed:
+                                widget.allowSaveChoice ||
+                                    widget.saveWhenPristine ||
+                                    _hasChanges
+                                ? _submit
+                                : null,
+                            icon: const Icon(Icons.login_rounded),
+                            label: Text(
+                              widget.allowSaveChoice
+                                  ? context.l10n.connect
+                                  : context.l10n.save,
+                            ),
+                          ),
+                        ],
+                      );
+                      final saveChoice = CheckboxListTile(
+                        key: const Key('ssh-save-profile'),
+                        contentPadding: EdgeInsets.zero,
+                        controlAffinity: ListTileControlAffinity.leading,
+                        value: _saveProfile,
+                        title: Text(context.l10n.saveThisSshSession),
+                        subtitle: Text(
+                          widget.saveProfileAvailable
+                              ? context.l10n.secretsEncryptedDescription
+                              : context.l10n.remoteServiceRequiredToSaveProfile,
                         ),
-                      ),
-                    ],
+                        onChanged: widget.saveProfileAvailable
+                            ? (value) =>
+                                  setState(() => _saveProfile = value ?? true)
+                            : null,
+                      );
+                      if (widget.allowSaveChoice &&
+                          !scrollsSaveChoice &&
+                          constraints.maxWidth >= 620) {
+                        return Row(
+                          children: [
+                            Expanded(child: saveChoice),
+                            SizedBox(width: palette.spacing.lg),
+                            SizedBox(width: 220, child: actions),
+                          ],
+                        );
+                      }
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (widget.allowSaveChoice && !scrollsSaveChoice) ...[
+                            saveChoice,
+                            SizedBox(height: palette.spacing.sm),
+                          ],
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: actions,
+                          ),
+                        ],
+                      );
+                    },
                   ),
                 ],
               ),
@@ -1929,38 +2104,38 @@ class _SshConnectionTimingFields extends StatelessWidget {
   Widget build(BuildContext context) {
     final gap = context.appTheme.spacing.md;
     final fields = <Widget>[
-      TextFormField(
-        key: const Key('ssh-connect-timeout'),
-        controller: connectTimeout,
-        focusNode: connectTimeoutFocus,
-        keyboardType: TextInputType.number,
-        decoration: _iconlessSshInputDecoration(
-          context,
-          labelText: context.l10n.connectTimeoutSeconds,
+      AppConfigurationField(
+        label: context.l10n.connectTimeoutSeconds,
+        child: TextFormField(
+          key: const Key('ssh-connect-timeout'),
+          controller: connectTimeout,
+          focusNode: connectTimeoutFocus,
+          keyboardType: TextInputType.number,
+          decoration: _iconlessSshInputDecoration(context),
+          validator: (value) => validator(value, 1, 120),
         ),
-        validator: (value) => validator(value, 1, 120),
       ),
-      TextFormField(
-        key: const Key('ssh-keepalive-seconds'),
-        controller: keepalive,
-        focusNode: keepaliveFocus,
-        keyboardType: TextInputType.number,
-        decoration: _iconlessSshInputDecoration(
-          context,
-          labelText: context.l10n.keepaliveSeconds,
+      AppConfigurationField(
+        label: context.l10n.keepaliveSeconds,
+        child: TextFormField(
+          key: const Key('ssh-keepalive-seconds'),
+          controller: keepalive,
+          focusNode: keepaliveFocus,
+          keyboardType: TextInputType.number,
+          decoration: _iconlessSshInputDecoration(context),
+          validator: (value) => validator(value, 0, 86400),
         ),
-        validator: (value) => validator(value, 0, 86400),
       ),
-      TextFormField(
-        key: const Key('ssh-keepalive-count'),
-        controller: keepaliveCount,
-        focusNode: keepaliveCountFocus,
-        keyboardType: TextInputType.number,
-        decoration: _iconlessSshInputDecoration(
-          context,
-          labelText: context.l10n.keepaliveRetries,
+      AppConfigurationField(
+        label: context.l10n.keepaliveRetries,
+        child: TextFormField(
+          key: const Key('ssh-keepalive-count'),
+          controller: keepaliveCount,
+          focusNode: keepaliveCountFocus,
+          keyboardType: TextInputType.number,
+          decoration: _iconlessSshInputDecoration(context),
+          validator: (value) => validator(value, 1, 100),
         ),
-        validator: (value) => validator(value, 1, 100),
       ),
     ];
     return LayoutBuilder(
@@ -2002,9 +2177,16 @@ class _SecretVisibilityButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final controlSize = context.appTheme.controls.regular;
     return IconButton(
       tooltip: obscured ? 'Show $label' : 'Hide $label',
       onPressed: onPressed,
+      padding: EdgeInsets.zero,
+      constraints: BoxConstraints(
+        minWidth: controlSize,
+        minHeight: controlSize,
+      ),
+      iconSize: 18,
       icon: Icon(
         obscured ? Icons.visibility_outlined : Icons.visibility_off_outlined,
       ),

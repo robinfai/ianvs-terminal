@@ -197,7 +197,12 @@ class _DefaultsAndAppearanceDialogState
   @override
   void initState() {
     super.initState();
-    _selectedProfileId = widget.configuredDefaultProfileId;
+    final configuredProfileId = widget.configuredDefaultProfileId;
+    _selectedProfileId =
+        configuredProfileId != null &&
+            widget.profiles.any((profile) => profile.id == configuredProfileId)
+        ? configuredProfileId
+        : null;
     _selectedSection = widget.openDataServiceInitially
         ? _DefaultsSection.data
         : _DefaultsSection.general;
@@ -344,19 +349,16 @@ class _DefaultsAndAppearanceDialogState
     }
   }
 
-  InputDecoration _dataServiceInputDecoration({
-    required String labelText,
+  InputDecoration _dataServiceInputDecoration(
+    BuildContext context, {
     String? hintText,
-    String? helperText,
     String? errorText,
   }) {
     final theme = context.appTheme;
     final textTheme = Theme.of(context).textTheme;
     return InputDecoration(
       isDense: true,
-      labelText: labelText,
       hintText: hintText,
-      helperText: helperText,
       errorText: errorText,
       errorMaxLines: 2,
       constraints: BoxConstraints(minHeight: theme.controls.regular),
@@ -510,12 +512,12 @@ class _DefaultsAndAppearanceDialogState
     final dialogInset = compactLayout ? 0.0 : theme.spacing.xxl;
     final dialogWidth = compactLayout
         ? mediaSize.width
-        : (mediaSize.width - dialogInset * 2).clamp(0.0, 960.0);
+        : (mediaSize.width - dialogInset * 2).clamp(0.0, 940.0);
     final dialogHeight = compactLayout
         ? mediaSize.height - keyboardInset
         : (mediaSize.height - keyboardInset - dialogInset * 2).clamp(
             0.0,
-            760.0,
+            700.0,
           );
     final showSectionNavigation =
         desktopPlatform &&
@@ -568,7 +570,7 @@ class _DefaultsAndAppearanceDialogState
             ? null
             : showStandaloneShortcutEditor
             ? context.l10n.keyboardShortcutsDescription
-            : context.l10n.defaultsAppearanceSubtitle,
+            : null,
         leading: showStandaloneShortcutEditor
             ? AppActionButton(
                 buttonKey: const Key('defaults-shortcuts-back'),
@@ -622,24 +624,23 @@ class _DefaultsAndAppearanceDialogState
         insetPadding: EdgeInsets.all(dialogInset),
         constraints: compactLayout
             ? const BoxConstraints()
-            : const BoxConstraints(maxWidth: 960),
+            : const BoxConstraints(maxWidth: 940),
         width: dialogWidth,
         height: dialogHeight,
         expandBody: true,
         centerInViewport: !compactLayout,
         borderRadius: compactLayout ? BorderRadius.zero : null,
-        titleTextStyle: Theme.of(context).textTheme.titleLarge?.copyWith(
-          color: theme.textPrimary,
-          fontWeight: FontWeight.w700,
-        ),
+        titleTextStyle: Theme.of(
+          context,
+        ).textTheme.titleLarge?.copyWith(color: theme.textPrimary),
         subtitleTextStyle: Theme.of(
           context,
         ).textTheme.bodyMedium?.copyWith(color: theme.textSubtle),
         headerPadding: EdgeInsets.fromLTRB(
           compactLayout ? theme.spacing.md : theme.spacing.xxl,
-          compactKeyboardLayout ? theme.spacing.sm : theme.spacing.xl,
+          compactKeyboardLayout ? theme.spacing.sm : theme.spacing.lg,
           compactLayout ? theme.spacing.md : theme.spacing.xxl,
-          compactKeyboardLayout ? theme.spacing.sm : theme.spacing.md,
+          compactKeyboardLayout ? theme.spacing.sm : theme.spacing.lg,
         ),
         bodyPadding: showSectionNavigation && !showStandaloneShortcutEditor
             ? EdgeInsets.zero
@@ -715,12 +716,7 @@ class _DefaultsAndAppearanceDialogState
                   keyboardDismissBehavior:
                       ScrollViewKeyboardDismissBehavior.onDrag,
                   padding: showSectionNavigation
-                      ? EdgeInsets.fromLTRB(
-                          theme.spacing.xxl,
-                          theme.spacing.xl,
-                          theme.spacing.xxl,
-                          theme.spacing.xl,
-                        )
+                      ? EdgeInsets.all(theme.spacing.xxl)
                       : EdgeInsets.only(right: theme.spacing.md),
                   child: _DefaultsSectionColumn(
                     showAll: !showSectionNavigation,
@@ -736,6 +732,89 @@ class _DefaultsAndAppearanceDialogState
                         ),
                         SizedBox(height: theme.spacing.xl),
                       ],
+                      AppSectionHeader(
+                        title: context.l10n.configurationNewSessions,
+                      ),
+                      SizedBox(height: theme.spacing.lg),
+                      AppConfigurationField(
+                        label: context.l10n.defaultProfile,
+                        helper: effectiveProfile == null
+                            ? context.l10n.noProfileForNewTabs
+                            : _selectedProfileId == null
+                            ? context.l10n.newTabsUseProfileAutomatically(
+                                effectiveProfile.name,
+                              )
+                            : _defaultProfileSubtitle(effectiveProfile),
+                        child: AppDropdownFormField<String>(
+                          key: const Key('defaults-profile-select'),
+                          initialValue: _selectedProfileId,
+                          hint: Text(context.l10n.useAutomaticFallback),
+                          isExpanded: true,
+                          itemHeight: null,
+                          decoration: const InputDecoration(),
+                          selectedItemBuilder: (context) => [
+                            Text(context.l10n.useAutomaticFallback),
+                            for (final profile in widget.profiles)
+                              Text(
+                                profile.name,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                          ],
+                          items: [
+                            DropdownMenuItem<String>(
+                              key: const Key('default-profile-option-fallback'),
+                              value: null,
+                              child: Text(context.l10n.useAutomaticFallback),
+                            ),
+                            for (final profile in widget.profiles)
+                              DropdownMenuItem<String>(
+                                key: Key(
+                                  'default-profile-option-${profile.id}',
+                                ),
+                                value: profile.id,
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 6,
+                                  ),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        profile.name,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      Text(
+                                        _defaultProfileSubtitle(profile),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(color: theme.textSubtle),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                          ],
+                          onChanged: (value) {
+                            setState(() {
+                              _selectedProfileId = value;
+                              _selectedTerminalPresetId = _matchingPresetIdFor(
+                                _effectiveProfileFor(
+                                  configuredProfileId: value,
+                                  effectiveProfileId:
+                                      widget.effectiveDefaultProfileId,
+                                ),
+                              );
+                            });
+                          },
+                        ),
+                      ),
+                      SizedBox(height: theme.spacing.xxl),
                       _ProfilesNotice(
                         effectiveProfile: effectiveProfile,
                         onOpenProfiles: effectiveProfile == null
@@ -767,108 +846,41 @@ class _DefaultsAndAppearanceDialogState
                                 );
                               },
                       ),
-                      SizedBox(height: theme.spacing.xl),
-                      AppSectionHeader(title: context.l10n.defaultProfile),
-                      SizedBox(height: theme.spacing.sm),
-                      AppPanel(
-                        tone: AppPanelTone.panel,
-                        child: Column(
-                          children: [
-                            RadioGroup<String?>(
-                              groupValue: _selectedProfileId,
-                              onChanged: (value) {
-                                setState(() {
-                                  _selectedProfileId = value;
-                                  _selectedTerminalPresetId =
-                                      _matchingPresetIdFor(
-                                        _effectiveProfileFor(
-                                          configuredProfileId: value,
-                                          effectiveProfileId:
-                                              widget.effectiveDefaultProfileId,
-                                        ),
-                                      );
-                                });
-                              },
-                              child: Column(
-                                children: [
-                                  Padding(
-                                    padding: EdgeInsets.symmetric(
-                                      horizontal: theme.spacing.md,
-                                      vertical: theme.spacing.xs,
-                                    ),
-                                    child: AppCompactRadioTile<String?>(
-                                      tileKey: const Key(
-                                        'default-profile-option-fallback',
-                                      ),
-                                      value: null,
-                                      title: Text(
-                                        context.l10n.useAutomaticFallback,
-                                      ),
-                                      subtitle: Text(
-                                        effectiveProfile == null
-                                            ? context.l10n.noProfileForNewTabs
-                                            : context.l10n
-                                                  .newTabsUseProfileAutomatically(
-                                                    effectiveProfile.name,
-                                                  ),
-                                      ),
-                                    ),
-                                  ),
-                                  for (final profile in widget.profiles)
-                                    Padding(
-                                      padding: EdgeInsets.symmetric(
-                                        horizontal: theme.spacing.md,
-                                        vertical: theme.spacing.xs,
-                                      ),
-                                      child: AppCompactRadioTile<String?>(
-                                        tileKey: Key(
-                                          'default-profile-option-${profile.id}',
-                                        ),
-                                        value: profile.id,
-                                        title: Text(profile.name),
-                                        subtitle: Text(
-                                          _defaultProfileSubtitle(profile),
-                                        ),
-                                      ),
-                                    ),
-                                ],
+
+                      SizedBox(height: theme.spacing.xxl),
+                      const Divider(height: 1),
+                      SizedBox(height: theme.spacing.xxl),
+                      AppSectionHeader(title: context.l10n.language),
+                      SizedBox(height: theme.spacing.lg),
+                      AppConfigurationField(
+                        label: context.l10n.configurationLanguage,
+                        helper: context.l10n.languageModeDescription(
+                          _selectedLanguageMode.name,
+                        ),
+                        child: AppDropdownFormField<TerminalLanguageMode>(
+                          key: const Key('defaults-language-options'),
+                          initialValue: _selectedLanguageMode,
+                          isExpanded: true,
+                          items: [
+                            for (final mode in TerminalLanguageMode.values)
+                              DropdownMenuItem<TerminalLanguageMode>(
+                                key: Key(
+                                  'default-language-option-${mode.name}',
+                                ),
+                                value: mode,
+                                child: Text(
+                                  context.l10n.languageModeName(mode.name),
+                                ),
                               ),
-                            ),
                           ],
+                          onChanged: (value) {
+                            if (value != null) {
+                              setState(() => _selectedLanguageMode = value);
+                            }
+                          },
                         ),
                       ),
-                      SizedBox(height: theme.spacing.xl),
-                      AppSectionHeader(
-                        title: context.l10n.language,
-                        description: context.l10n.languageDescription,
-                      ),
-                      SizedBox(height: theme.spacing.sm),
-                      _SettingsRadioPanel<TerminalLanguageMode>(
-                        panelKey: const Key('defaults-language-options'),
-                        groupValue: _selectedLanguageMode,
-                        onChanged: (value) {
-                          if (value == null) {
-                            return;
-                          }
-                          setState(() {
-                            _selectedLanguageMode = value;
-                          });
-                        },
-                        options: [
-                          for (final mode in TerminalLanguageMode.values)
-                            _SettingsRadioOptionData<TerminalLanguageMode>(
-                              tileKey: Key(
-                                'default-language-option-${mode.name}',
-                              ),
-                              value: mode,
-                              title: context.l10n.languageModeName(mode.name),
-                              subtitle: context.l10n.languageModeDescription(
-                                mode.name,
-                              ),
-                            ),
-                        ],
-                      ),
-                      SizedBox(height: theme.spacing.xl),
+                      SizedBox(height: theme.spacing.xxl),
                       const _DefaultsSectionMarker(_DefaultsSection.appearance),
                       if (showSectionNavigation) ...[
                         _DefaultsSectionIntro(
@@ -1544,87 +1556,98 @@ class _DefaultsAndAppearanceDialogState
                               if (_selectedDataApiConfiguration ==
                                   widget.dataApiConfiguration)
                                 SizedBox(height: theme.spacing.sm),
-                              TextField(
-                                key: const Key('data-api-remote-url'),
-                                controller: _remoteDataApiUrlController,
-                                style: dataServiceFieldTextStyle,
-                                onChanged: (_) {
-                                  if (!_remoteDataApiUrlEdited) {
-                                    setState(
-                                      () => _remoteDataApiUrlEdited = true,
-                                    );
-                                  }
-                                },
-                                scrollPadding: EdgeInsets.only(
-                                  bottom: theme.spacing.xxl * 2,
-                                ),
-                                keyboardType: TextInputType.url,
-                                textInputAction: TextInputAction.next,
-                                autocorrect: false,
-                                enableSuggestions: false,
-                                decoration: _dataServiceInputDecoration(
-                                  labelText: context.l10n.remoteApiBaseUrl,
-                                  hintText: defaultRemoteDataApiBaseUrl,
-                                  errorText: _remoteDataApiUrlError,
-                                ),
-                              ),
-                              SizedBox(height: theme.spacing.sm),
-                              TextField(
-                                key: const Key('data-api-remote-username'),
-                                controller: _remoteDataApiUsernameController,
-                                style: dataServiceFieldTextStyle,
-                                onChanged: (_) {
-                                  if (!_remoteDataApiUsernameEdited) {
-                                    setState(
-                                      () => _remoteDataApiUsernameEdited = true,
-                                    );
-                                  }
-                                },
-                                scrollPadding: EdgeInsets.only(
-                                  bottom: theme.spacing.xxl * 2,
-                                ),
-                                textInputAction: TextInputAction.next,
-                                autocorrect: false,
-                                enableSuggestions: false,
-                                autofillHints: const <String>[
-                                  AutofillHints.username,
-                                ],
-                                decoration: _dataServiceInputDecoration(
-                                  labelText: context.l10n.username,
-                                  errorText: _remoteUsernameError,
+                              AppConfigurationField(
+                                label: context.l10n.remoteApiBaseUrl,
+                                child: TextField(
+                                  key: const Key('data-api-remote-url'),
+                                  controller: _remoteDataApiUrlController,
+                                  style: dataServiceFieldTextStyle,
+                                  onChanged: (_) {
+                                    if (!_remoteDataApiUrlEdited) {
+                                      setState(
+                                        () => _remoteDataApiUrlEdited = true,
+                                      );
+                                    }
+                                  },
+                                  scrollPadding: EdgeInsets.only(
+                                    bottom: theme.spacing.xxl * 2,
+                                  ),
+                                  keyboardType: TextInputType.url,
+                                  textInputAction: TextInputAction.next,
+                                  autocorrect: false,
+                                  enableSuggestions: false,
+                                  decoration: _dataServiceInputDecoration(
+                                    context,
+                                    hintText: defaultRemoteDataApiBaseUrl,
+                                    errorText: _remoteDataApiUrlError,
+                                  ),
                                 ),
                               ),
-                              SizedBox(height: theme.spacing.sm),
-                              TextField(
-                                key: const Key('data-api-remote-password'),
-                                controller: _remoteDataApiPasswordController,
-                                style: dataServiceFieldTextStyle,
-                                onChanged: (_) {
-                                  if (!_remoteDataApiPasswordEdited) {
-                                    setState(
-                                      () => _remoteDataApiPasswordEdited = true,
-                                    );
-                                  }
-                                },
-                                scrollPadding: EdgeInsets.only(
-                                  bottom: theme.spacing.xxl * 2,
+                              SizedBox(height: theme.spacing.lg),
+                              AppConfigurationField(
+                                label: context.l10n.username,
+                                child: TextField(
+                                  key: const Key('data-api-remote-username'),
+                                  controller: _remoteDataApiUsernameController,
+                                  style: dataServiceFieldTextStyle,
+                                  onChanged: (_) {
+                                    if (!_remoteDataApiUsernameEdited) {
+                                      setState(
+                                        () =>
+                                            _remoteDataApiUsernameEdited = true,
+                                      );
+                                    }
+                                  },
+                                  scrollPadding: EdgeInsets.only(
+                                    bottom: theme.spacing.xxl * 2,
+                                  ),
+                                  textInputAction: TextInputAction.next,
+                                  autocorrect: false,
+                                  enableSuggestions: false,
+                                  autofillHints: const <String>[
+                                    AutofillHints.username,
+                                  ],
+                                  decoration: _dataServiceInputDecoration(
+                                    context,
+                                    errorText: _remoteUsernameError,
+                                  ),
                                 ),
-                                textInputAction: TextInputAction.done,
-                                obscureText: true,
-                                autocorrect: false,
-                                enableSuggestions: false,
-                                autofillHints: const <String>[
-                                  AutofillHints.password,
-                                ],
-                                decoration: _dataServiceInputDecoration(
-                                  labelText: context.l10n.password,
-                                  helperText: context.l10n.loginPasswordHelp,
-                                  errorText: _remotePasswordError,
+                              ),
+                              SizedBox(height: theme.spacing.lg),
+                              AppConfigurationField(
+                                label: context.l10n.password,
+                                helper: context.l10n.loginPasswordHelp,
+                                child: TextField(
+                                  key: const Key('data-api-remote-password'),
+                                  controller: _remoteDataApiPasswordController,
+                                  style: dataServiceFieldTextStyle,
+                                  onChanged: (_) {
+                                    if (!_remoteDataApiPasswordEdited) {
+                                      setState(
+                                        () =>
+                                            _remoteDataApiPasswordEdited = true,
+                                      );
+                                    }
+                                  },
+                                  scrollPadding: EdgeInsets.only(
+                                    bottom: theme.spacing.xxl * 2,
+                                  ),
+                                  textInputAction: TextInputAction.done,
+                                  obscureText: true,
+                                  autocorrect: false,
+                                  enableSuggestions: false,
+                                  autofillHints: const <String>[
+                                    AutofillHints.password,
+                                  ],
+                                  decoration: _dataServiceInputDecoration(
+                                    context,
+                                    errorText: _remotePasswordError,
+                                  ),
+                                  onSubmitted: (_) => FocusManager
+                                      .instance
+                                      .primaryFocus
+                                      ?.unfocus(),
                                 ),
-                                onSubmitted: (_) => FocusManager
-                                    .instance
-                                    .primaryFocus
-                                    ?.unfocus(),
                               ),
                               SizedBox(height: theme.spacing.sm),
                               Text(
@@ -1929,7 +1952,7 @@ class _DefaultsBodyLayout extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SizedBox(
-          width: 180,
+          width: 190,
           child: _DefaultsSectionNavigation(
             selectedSection: selectedSection,
             onSectionSelected: onSectionSelected,
@@ -2083,14 +2106,12 @@ class _DefaultsSectionNavigationItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = context.appTheme;
     final radius = BorderRadius.circular(theme.radius.md);
-    final foreground = selected
-        ? Theme.of(context).colorScheme.onPrimary
-        : theme.textPrimary;
+    final foreground = selected ? theme.accent : theme.textPrimary;
     return Semantics(
       button: true,
       selected: selected,
       child: Material(
-        color: selected ? theme.accent : Colors.transparent,
+        color: selected ? theme.selected : Colors.transparent,
         borderRadius: radius,
         child: InkWell(
           borderRadius: radius,
@@ -2098,7 +2119,7 @@ class _DefaultsSectionNavigationItem extends StatelessWidget {
           focusNode: focusNode,
           onTap: onPressed,
           child: ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: 36),
+            constraints: const BoxConstraints(minHeight: 32),
             child: Row(
               children: [
                 SizedBox(width: theme.spacing.md),
@@ -2139,10 +2160,9 @@ class _DefaultsSectionIntro extends StatelessWidget {
       children: [
         Text(
           title,
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            color: theme.textPrimary,
-            fontWeight: FontWeight.w700,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleLarge?.copyWith(color: theme.textPrimary),
         ),
         SizedBox(height: theme.spacing.xs),
         Text(
@@ -2478,7 +2498,7 @@ class _PermissionPolicyRow<T extends Enum> extends StatelessWidget {
           color: selected ? theme.selected : Colors.transparent,
           border: Border(
             left: BorderSide(
-              color: selected ? theme.accent : Colors.transparent,
+              color: selected ? theme.selected : Colors.transparent,
               width: 3,
             ),
           ),
@@ -2884,88 +2904,45 @@ class _ProfilesNotice extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = context.appTheme;
-    final textTheme = Theme.of(context).textTheme;
-    return AppPanel(
+    final summary = Text(
+      context.l10n.configurationProfileDetails,
+      style: Theme.of(
+        context,
+      ).textTheme.bodySmall?.copyWith(color: theme.textSubtle),
+    );
+    final profile = effectiveProfile;
+    final action = profile == null
+        ? null
+        : AppActionButton(
+            buttonKey: const Key('defaults-open-profiles'),
+            tooltip: context.l10n.editProfileInProfiles(profile.name),
+            tone: AppActionTone.ghost,
+            size: AppActionSize.compact,
+            label: context.l10n.editProfile,
+            onPressed: onOpenProfiles,
+          );
+    return LayoutBuilder(
       key: const Key('defaults-profiles-notice'),
-      tone: AppPanelTone.panel,
-      border: Border.all(color: theme.focusRing.withValues(alpha: 0.20)),
-      padding: EdgeInsets.symmetric(
-        horizontal: theme.spacing.lg,
-        vertical: theme.spacing.md,
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final summary = Row(
+      builder: (context, constraints) {
+        if (action == null) return summary;
+        if (constraints.maxWidth < 520) {
+          return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Padding(
-                padding: EdgeInsets.only(top: theme.spacing.xs),
-                child: Icon(
-                  Icons.info_outline_rounded,
-                  size: 18,
-                  color: theme.focusRing,
-                ),
-              ),
-              SizedBox(width: theme.spacing.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      context.l10n.detailedSettingsInProfiles,
-                      style: textTheme.bodyMedium?.copyWith(
-                        color: theme.textPrimary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    SizedBox(height: theme.spacing.xs),
-                    Text(
-                      context.l10n.editTerminalDetailsInProfiles,
-                      maxLines: constraints.maxWidth >= 620 ? 1 : 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: textTheme.bodySmall?.copyWith(
-                        color: theme.textSubtle,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          );
-          final profile = effectiveProfile;
-          if (profile == null) {
-            return summary;
-          }
-          final action = Tooltip(
-            message: context.l10n.editProfileInProfiles(profile.name),
-            child: AppActionButton(
-              buttonKey: const Key('defaults-open-profiles'),
-              tone: AppActionTone.secondary,
-              size: AppActionSize.compact,
-              icon: Icons.tune_rounded,
-              label: context.l10n.editProfile,
-              onPressed: onOpenProfiles,
-            ),
-          );
-          if (constraints.maxWidth < 620) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                summary,
-                SizedBox(height: theme.spacing.md),
-                Align(alignment: Alignment.centerLeft, child: action),
-              ],
-            );
-          }
-          return Row(
-            children: [
-              Expanded(child: summary),
-              SizedBox(width: theme.spacing.lg),
+              summary,
+              SizedBox(height: theme.spacing.sm),
               action,
             ],
           );
-        },
-      ),
+        }
+        return Row(
+          children: [
+            Expanded(child: summary),
+            SizedBox(width: theme.spacing.lg),
+            action,
+          ],
+        );
+      },
     );
   }
 }

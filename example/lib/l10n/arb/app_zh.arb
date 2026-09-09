@@ -1167,5 +1167,10 @@
   "replaySavedExplanation": "主动开始录制，停止保存后即可在此打开。录制保存在本机，重启应用后仍可找到。",
   "replayOpenFile": "打开录制文件",
   "replayLibraryEmpty": "还没有已保存录制。开始并停止一次录制，或打开已有录制文件。",
-  "replayRecordingUnavailable": "此录制暂时无法读取。"
+  "replayRecordingUnavailable": "此录制暂时无法读取。",
+  "configurationNewSessions": "新会话",
+  "configurationProfileDetails": "字体、颜色和启动参数在 Profile 中配置。",
+  "configurationLanguage": "界面语言",
+  "configurationFontMetrics": "字号与行高",
+  "configurationNewSessionHint": "更改仅应用于新会话。"
 }

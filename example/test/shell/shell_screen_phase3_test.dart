@@ -352,12 +352,8 @@ void main() {
       );
       expect(find.text('Automatic fallback • Local Shell'), findsNothing);
       expect(
-        find.text('Detailed terminal settings live in Profiles.'),
-        findsOneWidget,
-      );
-      expect(
         find.text(
-          'Edit font, colors, cursor, scrollback, and startup arguments from the Profiles editor.',
+          'Fonts, colors and startup options are configured in the Profile.',
         ),
         findsOneWidget,
       );
@@ -472,12 +468,12 @@ void main() {
       final defaultsVersion = shellAcceptanceProbe.current.snapshotVersion;
       expect(find.byKey(const Key('defaults-dialog')), findsOneWidget);
       expect(find.text('Use automatic fallback'), findsOneWidget);
-      final fallbackProfileOption = tester.widget<RadioListTile<String?>>(
-        find.byKey(const Key('default-profile-option-fallback')),
+      final profileSelector = tester.widget<AppDropdownFormField<String>>(
+        find.byKey(const Key('defaults-profile-select')),
       );
-      expect(fallbackProfileOption.contentPadding, EdgeInsets.zero);
+      expect(profileSelector.initialValue, isNull);
       expect(find.byKey(const Key('defaults-save')), findsOneWidget);
-      expect(tester.getSize(find.byKey(const Key('defaults-save'))).height, 32);
+      expect(tester.getSize(find.byKey(const Key('defaults-save'))).height, 28);
       expect(
         tester.getSize(find.byKey(const Key('defaults-cancel'))).height,
         tester.getSize(find.byKey(const Key('defaults-save'))).height,
@@ -489,6 +485,8 @@ void main() {
         isNull,
       );
 
+      await tester.tap(find.byKey(const Key('defaults-profile-select')));
+      await tester.pumpAndSettle();
       final sshProfileOption = find.byKey(
         const Key('default-profile-option-ssh'),
       );
@@ -505,7 +503,9 @@ void main() {
         find.descendant(of: sshProfileOption, matching: find.text('/bin/zsh')),
         findsNothing,
       );
-      await tester.tap(sshProfileOption);
+      await tester.tap(
+        find.descendant(of: sshProfileOption, matching: find.text('SSH')),
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('defaults-section-appearance')));
       await tester.pumpAndSettle();
@@ -796,6 +796,13 @@ void main() {
       '4096',
     );
     await tester.tap(find.byKey(const Key('profile-editor-nav-appearance')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(
+      find.byKey(const Key('profile-editor-custom-colors-expansion')),
+    );
+    await tester.tap(
+      find.byKey(const Key('profile-editor-custom-colors-expansion')),
+    );
     await tester.pumpAndSettle();
     await tester.ensureVisible(
       find.byKey(const Key('profile-editor-color-foreground')),

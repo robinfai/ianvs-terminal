@@ -3789,5 +3789,10 @@
   "replaySavedExplanation": "Start a recording to keep it on this device. After you stop and save, it stays available when you reopen the app.",
   "replayOpenFile": "Open recording file",
   "replayLibraryEmpty": "No saved recordings yet. Start and stop a recording, or open a recording file.",
-  "replayRecordingUnavailable": "This recording cannot be read."
+  "replayRecordingUnavailable": "This recording cannot be read.",
+  "configurationNewSessions": "New sessions",
+  "configurationProfileDetails": "Fonts, colors and startup options are configured in the Profile.",
+  "configurationLanguage": "Interface language",
+  "configurationFontMetrics": "Font size and line height",
+  "configurationNewSessionHint": "Changes apply to new sessions."
 }

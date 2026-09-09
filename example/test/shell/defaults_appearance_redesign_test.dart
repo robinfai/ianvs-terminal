@@ -1,10 +1,13 @@
 import 'package:app/features/config/local_terminal_config_models.dart';
 import 'package:app/features/preferences/app_preferences_models.dart';
+import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/shell/defaults_appearance_dialog.dart';
+import 'package:app/ui/components/app_dropdown_form_field.dart';
 import 'package:app/ui/foundation/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
 
 void main() {
   testWidgets('wide defaults dialog navigates to compact permission controls', (
@@ -32,7 +35,12 @@ void main() {
     expect(find.byKey(const Key('shortcut-editor-list')), findsNothing);
     expect(find.byKey(const Key('defaults-language-options')), findsOneWidget);
 
-    await tester.tap(find.byKey(const Key('default-language-option-english')));
+    await tester.tap(find.byKey(const Key('defaults-language-options')));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const Key('default-language-option-english')).last,
+    );
+    await tester.pumpAndSettle();
     await tester.pump();
     expect(
       tester
@@ -192,12 +200,111 @@ void main() {
 
     await tester.tap(find.byKey(const Key('open-defaults')));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('default-language-option-english')));
+    await tester.tap(find.byKey(const Key('defaults-language-options')));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const Key('default-language-option-english')).last,
+    );
+    await tester.pumpAndSettle();
     await tester.pump();
     await tester.tap(find.byKey(const Key('defaults-save')));
     await tester.pumpAndSettle();
 
     expect(selection?.languageMode, TerminalLanguageMode.english);
+  });
+
+  testWidgets('stale configured profile saves automatic fallback', (
+    tester,
+  ) async {
+    final profile = defaultTerminalProfile();
+    DefaultsAndAppearanceSelection? selection;
+    await _pumpDefaultsDialogLauncher(
+      tester,
+      profiles: [profile],
+      configuredDefaultProfileId: 'deleted-profile',
+      effectiveDefaultProfileId: profile.id,
+      onSelection: (value) => selection = value,
+    );
+
+    expect(
+      tester
+          .widget<AppDropdownFormField<String>>(
+            find.byKey(const Key('defaults-profile-select')),
+          )
+          .initialValue,
+      isNull,
+    );
+    expect(
+      find.text(
+        'New tabs use ${profile.name} automatically until you choose a fixed default.',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      tester
+          .widget<FilledButton>(find.byKey(const Key('defaults-save')))
+          .onPressed,
+      isNotNull,
+    );
+    await tester.tap(find.byKey(const Key('defaults-save')));
+    await tester.pumpAndSettle();
+
+    expect(selection?.configuredDefaultProfileId, isNull);
+  });
+
+  testWidgets('fixed profile can be changed back to automatic fallback', (
+    tester,
+  ) async {
+    final profile = defaultTerminalProfile();
+    DefaultsAndAppearanceSelection? selection;
+    await _pumpDefaultsDialogLauncher(
+      tester,
+      profiles: [profile],
+      configuredDefaultProfileId: profile.id,
+      effectiveDefaultProfileId: profile.id,
+      onSelection: (value) => selection = value,
+    );
+
+    await tester.tap(find.byKey(const Key('defaults-profile-select')));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const Key('default-profile-option-fallback')).last,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('defaults-save')));
+    await tester.pumpAndSettle();
+
+    expect(selection?.configuredDefaultProfileId, isNull);
+  });
+
+  testWidgets('long SSH option fits compact enlarged text', (tester) async {
+    final profile = TerminalProfile(
+      id: 'long-ssh',
+      name:
+          'Production bastion with a deliberately long descriptive profile name',
+      shell: '/bin/zsh',
+      connection: const terminal.TerminalConnectionConfig.ssh(
+        host: 'an-extremely-long-bastion-hostname-for-production.example.test',
+        user: 'deployment-operator-with-a-long-name',
+        port: 2222,
+      ),
+    );
+    await _pumpDefaultsDialog(
+      tester,
+      surfaceSize: const Size(390, 844),
+      textScale: 1.5,
+      profiles: [profile],
+      effectiveDefaultProfileId: profile.id,
+    );
+
+    await tester.tap(find.byKey(const Key('defaults-profile-select')));
+    await tester.pumpAndSettle();
+    final option = find.byKey(const Key('default-profile-option-long-ssh'));
+    expect(option, findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.tap(option.last);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
   });
 
   for (final brightness in Brightness.values) {
@@ -259,6 +366,9 @@ Future<void> _pumpDefaultsDialog(
   required Size surfaceSize,
   Brightness brightness = Brightness.light,
   double textScale = 1,
+  List<TerminalProfile> profiles = const [],
+  String? configuredDefaultProfileId,
+  String? effectiveDefaultProfileId,
 }) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = surfaceSize;
@@ -276,11 +386,11 @@ Future<void> _pumpDefaultsDialog(
         ).copyWith(textScaler: TextScaler.linear(textScale)),
         child: child!,
       ),
-      home: const Scaffold(
+      home: Scaffold(
         body: DefaultsAndAppearanceDialog(
-          profiles: [],
-          configuredDefaultProfileId: null,
-          effectiveDefaultProfileId: null,
+          profiles: profiles,
+          configuredDefaultProfileId: configuredDefaultProfileId,
+          effectiveDefaultProfileId: effectiveDefaultProfileId,
           themeMode: TerminalThemeMode.system,
           terminalViewportPadding:
               TerminalAppAppearance.defaultTerminalViewportPadding,
@@ -288,10 +398,60 @@ Future<void> _pumpDefaultsDialog(
           osc52Policy: LocalTerminalOsc52Policy.profile,
           openUrlPolicy: LocalTerminalOpenUrlPolicy.ask,
           requestAttentionPolicy: LocalTerminalRequestAttentionPolicy.disabled,
-          reportVariableDecisions: {},
+          reportVariableDecisions: const {},
         ),
       ),
     ),
   );
+  await tester.pumpAndSettle();
+}
+
+Future<void> _pumpDefaultsDialogLauncher(
+  WidgetTester tester, {
+  required List<TerminalProfile> profiles,
+  required String? configuredDefaultProfileId,
+  required String? effectiveDefaultProfileId,
+  required ValueChanged<DefaultsAndAppearanceSelection?> onSelection,
+}) async {
+  tester.view.devicePixelRatio = 1;
+  tester.view.physicalSize = const Size(1200, 900);
+  addTearDown(tester.view.resetDevicePixelRatio);
+  addTearDown(tester.view.resetPhysicalSize);
+  await tester.pumpWidget(
+    MaterialApp(
+      theme: buildIanvsTerminalTheme(
+        Brightness.light,
+        platform: TargetPlatform.macOS,
+      ),
+      home: Builder(
+        builder: (context) => TextButton(
+          key: const Key('open-defaults-profile-test'),
+          onPressed: () async {
+            onSelection(
+              await showDialog<DefaultsAndAppearanceSelection>(
+                context: context,
+                builder: (_) => DefaultsAndAppearanceDialog(
+                  profiles: profiles,
+                  configuredDefaultProfileId: configuredDefaultProfileId,
+                  effectiveDefaultProfileId: effectiveDefaultProfileId,
+                  themeMode: TerminalThemeMode.system,
+                  terminalViewportPadding:
+                      TerminalAppAppearance.defaultTerminalViewportPadding,
+                  restoreLayout: false,
+                  osc52Policy: LocalTerminalOsc52Policy.profile,
+                  openUrlPolicy: LocalTerminalOpenUrlPolicy.ask,
+                  requestAttentionPolicy:
+                      LocalTerminalRequestAttentionPolicy.disabled,
+                  reportVariableDecisions: const {},
+                ),
+              ),
+            );
+          },
+          child: const Text('Open'),
+        ),
+      ),
+    ),
+  );
+  await tester.tap(find.byKey(const Key('open-defaults-profile-test')));
   await tester.pumpAndSettle();
 }
