@@ -324,18 +324,6 @@ final instantReplayStoreProvider = Provider<InstantReplayStore>((ref) {
   );
 });
 
-final passwordManagerStoreProvider = Provider<PasswordManagerStore>((ref) {
-  return PasswordManagerStore();
-});
-
-@visibleForTesting
-final shellHiddenRedesignEntryPointsProvider = Provider<bool>((ref) => false);
-
-final RegExp _passwordPromptPattern = RegExp(
-  r'(?:password|passphrase)(?:\s+for\s+[^:]+)?\s*:\s*$',
-  caseSensitive: false,
-);
-
 typedef ShellNotificationSender =
     Future<void> Function({
       required String title,
@@ -357,36 +345,6 @@ final shellNotificationCloserProvider = Provider<ShellNotificationCloser>((
 ) {
   return WindowBridge.closeNotification;
 });
-
-sealed class _PasteHistorySheetResult {
-  const _PasteHistorySheetResult();
-}
-
-final class _PasteHistoryPickResult extends _PasteHistorySheetResult {
-  const _PasteHistoryPickResult(this.entry);
-
-  final PasteHistoryEntry entry;
-}
-
-sealed class _AdvancedPasteSheetResult {
-  const _AdvancedPasteSheetResult();
-}
-
-final class _AdvancedPasteSendResult extends _AdvancedPasteSheetResult {
-  const _AdvancedPasteSendResult(this.text);
-
-  final String text;
-}
-
-sealed class _PasswordManagerSheetResult {
-  const _PasswordManagerSheetResult();
-}
-
-final class _PasswordManagerSendResult extends _PasswordManagerSheetResult {
-  const _PasswordManagerSendResult(this.entry);
-
-  final PasswordManagerEntry entry;
-}
 
 final class _InstantReplayLayoutSession {
   const _InstantReplayLayoutSession({
@@ -512,13 +470,6 @@ final class _ScopedSearchResult {
   final String? errorText;
 }
 
-class _GlobalSearchResult {
-  const _GlobalSearchResult({required this.session, required this.match});
-
-  final _SearchableSession session;
-  final terminal.TerminalSearchMatch match;
-}
-
 class _TerminalAnnotation {
   const _TerminalAnnotation({
     required this.id,
@@ -573,22 +524,6 @@ class _TerminalAnnotation {
   }
 }
 
-class _CapturedOutputEntry {
-  const _CapturedOutputEntry({
-    required this.id,
-    required this.sessionId,
-    required this.pattern,
-    required this.text,
-    required this.rowIndex,
-  });
-
-  final String id;
-  final String sessionId;
-  final String pattern;
-  final String text;
-  final int rowIndex;
-}
-
 class _LogicalTerminalRow {
   const _LogicalTerminalRow({
     required this.startRow,
@@ -599,42 +534,4 @@ class _LogicalTerminalRow {
   final terminal.TerminalRow startRow;
   final terminal.TerminalRow endRow;
   final String text;
-}
-
-class _CoprocessStartRequest {
-  const _CoprocessStartRequest({
-    required this.command,
-    required this.pattern,
-    required this.response,
-  });
-
-  final String command;
-  final String pattern;
-  final String response;
-}
-
-class _ShellCoprocess {
-  const _ShellCoprocess({
-    required this.command,
-    required this.pattern,
-    required this.response,
-    this.inputLineCount = 0,
-    this.lastInput,
-  });
-
-  final String command;
-  final String pattern;
-  final String response;
-  final int inputLineCount;
-  final String? lastInput;
-
-  _ShellCoprocess copyWith({int? inputLineCount, String? lastInput}) {
-    return _ShellCoprocess(
-      command: command,
-      pattern: pattern,
-      response: response,
-      inputLineCount: inputLineCount ?? this.inputLineCount,
-      lastInput: lastInput ?? this.lastInput,
-    );
-  }
 }

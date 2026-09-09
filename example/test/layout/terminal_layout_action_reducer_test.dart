@@ -125,7 +125,7 @@ void main() {
       const layout = TerminalLayout();
       final reduced = TerminalLayoutActionReducer.reduce(
         layout: layout,
-        actionId: TerminalActionId.openThemePicker,
+        actionId: TerminalActionId.openDefaults,
         context: _context(),
       );
 

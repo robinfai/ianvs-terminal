@@ -126,28 +126,6 @@ class WindowBridge {
     }
   }
 
-  static Future<void> toggleHotkeyWindow() async {
-    try {
-      await _channel.invokeMethod<void>('toggleHotkeyWindow');
-    } on MissingPluginException {
-      return;
-    }
-  }
-
-  static Future<HotkeyWindowStatus?> hotkeyStatus() async {
-    try {
-      final status = await _channel.invokeMapMethod<String, Object?>(
-        'hotkeyStatus',
-      );
-      if (status == null) {
-        return null;
-      }
-      return HotkeyWindowStatus.fromMap(status);
-    } on MissingPluginException {
-      return null;
-    }
-  }
-
   static Future<WindowMetrics?> metrics() async {
     try {
       final metrics = await _channel.invokeMapMethod<String, Object?>(
@@ -607,36 +585,6 @@ enum NativeFindAction {
   }
 }
 
-class HotkeyWindowStatus {
-  const HotkeyWindowStatus({
-    required this.registered,
-    required this.shortcut,
-    this.errorCode,
-  });
-
-  final bool registered;
-  final String shortcut;
-  final int? errorCode;
-
-  factory HotkeyWindowStatus.fromMap(Map<String, Object?> map) {
-    return HotkeyWindowStatus(
-      registered: map['registered'] == true,
-      shortcut: _stringFromPlatformValue(map['shortcut']) ?? '⌥⌘Space',
-      errorCode: _intFromPlatformValue(map['errorCode']),
-    );
-  }
-}
-
-String? _stringFromPlatformValue(Object? value) {
-  if (value is String) {
-    final trimmed = value.trim();
-    if (trimmed.isNotEmpty) {
-      return trimmed;
-    }
-  }
-  return null;
-}
-
 Size? _sizeFromPlatformValues(Object? widthValue, Object? heightValue) {
   final width = _positiveFiniteDoubleFromPlatformValue(widthValue);
   final height = _positiveFiniteDoubleFromPlatformValue(heightValue);
@@ -649,16 +597,6 @@ Size? _sizeFromPlatformValues(Object? widthValue, Object? heightValue) {
 double? _positiveFiniteDoubleFromPlatformValue(Object? value) {
   if (value is num && value.isFinite && value > 0) {
     return value.toDouble();
-  }
-  return null;
-}
-
-int? _intFromPlatformValue(Object? value) {
-  if (value is num && value.isFinite) {
-    final parsed = value.toInt();
-    if (value == parsed) {
-      return parsed;
-    }
   }
   return null;
 }

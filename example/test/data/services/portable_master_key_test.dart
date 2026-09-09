@@ -7,6 +7,48 @@ import 'package:flutter_secure_storage_platform_interface/flutter_secure_storage
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('development never invokes a production legacy loader', () async {
+    final repository = PortableMasterKeyRepository(
+      storage: _MemoryMasterKeyStorage(),
+      allowLegacyMigration: false,
+    );
+    var called = false;
+    await repository.readOrCreate(
+      legacyLoader: () async {
+        called = true;
+        return 'production';
+      },
+    );
+    expect(called, isFalse);
+  });
+
+  test(
+    'development Keychain uses its own non-synchronizing namespace',
+    () async {
+      final previous = FlutterSecureStoragePlatform.instance;
+      final recorder = _RecordingSecureStoragePlatform();
+      FlutterSecureStoragePlatform.instance = recorder;
+      debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+      addTearDown(() {
+        FlutterSecureStoragePlatform.instance = previous;
+        debugDefaultTargetPlatformOverride = null;
+      });
+      await const FlutterSecurePortableMasterKeyStorage.development().write(
+        'test',
+      );
+      expect(recorder.writes.single['synchronizable'], 'false');
+      expect(recorder.writes.single['usesDataProtectionKeychain'], 'false');
+      expect(
+        recorder.writes.single['accountName'],
+        FlutterSecurePortableMasterKeyStorage.developmentAccountName,
+      );
+      expect(
+        recorder.keys.single,
+        FlutterSecurePortableMasterKeyStorage.developmentStorageKey,
+      );
+    },
+  );
+
   test('portable representation preserves the exact Data API secret', () {
     final key = PortableMasterKey.fromSecret('  密钥 with spaces  ');
 
@@ -184,6 +226,7 @@ void main() {
 
 final class _RecordingSecureStoragePlatform
     extends FlutterSecureStoragePlatform {
+  final List<String> keys = [];
   final List<Map<String, String>> writes = <Map<String, String>>[];
 
   @override
@@ -192,6 +235,7 @@ final class _RecordingSecureStoragePlatform
     required String value,
     required Map<String, String> options,
   }) async {
+    keys.add(key);
     writes.add(Map<String, String>.from(options));
   }
 

@@ -1,23 +1,18 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../data/configuration/data_api_configuration_providers.dart';
-
-/// Whether a persistent Data API (bundled local or remote) is available.
-///
-/// OpenSSH config discovery is intentionally independent from this capability:
-/// local-only macOS sessions may still connect to hosts declared in
-/// `~/.ssh/config`. This gate covers only user-managed SSH profile documents.
+/// User-managed SSH profiles are persisted locally on every supported platform.
+/// A Data API may additionally synchronize them, but it is not a prerequisite
+/// for creating, editing, or opening a saved profile.
 final customSshProfileConfigurationEnabledProvider = Provider<bool>(
-  (ref) => ref.watch(dataApiPersistenceEnabledProvider),
+  (ref) => true,
 );
 
+/// Defensive error for callers that explicitly override SSH profile support.
+/// Production enables local SSH profile persistence independently of Data API.
 final class CustomSshProfileConfigurationUnavailableException
     implements Exception {
   const CustomSshProfileConfigurationUnavailableException();
 
   @override
-  String toString() {
-    return 'Custom SSH profiles require the bundled local API or a configured '
-        'remote HTTP API.';
-  }
+  String toString() => 'Custom SSH profile configuration is unavailable.';
 }

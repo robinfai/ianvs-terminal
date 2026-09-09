@@ -24,10 +24,6 @@ void main() {
         isTrue,
       );
       expect(
-        items.any((item) => item.actionId == TerminalActionId.openThemePicker),
-        isFalse,
-      );
-      expect(
         items.any((item) => item.actionId == TerminalActionId.openRecording),
         isTrue,
       );

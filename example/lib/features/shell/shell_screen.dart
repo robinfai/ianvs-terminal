@@ -17,20 +17,17 @@ import '../../data/configuration/data_api_configuration.dart';
 import '../../data/configuration/data_api_configuration_providers.dart';
 import '../../data/configuration/data_api_configuration_repository.dart';
 import '../../data/services/data_api_client.dart';
-import '../../data/services/data_api_migration_service.dart';
 import '../../data/services/data_api_remote_fallback.dart';
 import '../../data/services/data_api_runtime.dart';
+import '../../data/sync/local_first_sync.dart';
 import '../../platform/clipboard_bridge.dart';
 import '../../platform/terminal_graphic_image_actions.dart';
 import '../../ui/app_ui.dart';
 import '../config/local_terminal_config_bootstrap.dart';
 import '../config/local_terminal_config_models.dart';
 import '../config/shortcut_editor.dart';
-import '../persistence/versioned_document.dart';
 import '../policies/local_terminal_paste_decision.dart';
 import '../policies/local_terminal_policy_models.dart';
-import '../preferences/app_preferences_models.dart';
-import '../profiles/dynamic_profiles_sheet.dart';
 import '../profiles/profile_editor.dart';
 import '../profiles/profile_models.dart';
 import '../profiles/profiles_sheet.dart';
@@ -54,12 +51,10 @@ import '../terminal/terminal_viewport_colors.dart';
 import '../visual/local_terminal_diagnostics_exporter.dart';
 import '../visual/local_terminal_scrollback_exporter.dart';
 import '../visual/local_terminal_visual_models.dart';
-import 'advanced_paste_transformer.dart';
 import 'defaults_appearance_dialog.dart';
 import 'instant_replay_store.dart';
 import 'local_terminal_shell_ui_wiring_exports.dart';
 import 'osc72_drag_drop_controller.dart';
-import 'password_manager_store.dart';
 import 'paste_history_repository.dart';
 import 'reference_demo.dart';
 import 'shell_acceptance.dart';
@@ -71,7 +66,6 @@ import 'window_bridge.dart';
 part 'shell_screen_chrome.dart';
 part 'shell_screen_chrome_empty_states.dart';
 part 'shell_screen_command_menu.dart';
-part 'shell_screen_completion.dart';
 part 'shell_screen_instant_replay.dart';
 part 'shell_screen_mobile_input.dart';
 part 'shell_screen_models.dart';
@@ -80,16 +74,14 @@ part 'shell_screen_replay_timeline.dart';
 part 'shell_screen_search.dart';
 part 'shell_screen_shared_buttons.dart';
 part 'shell_screen_sheets.dart';
-part 'shell_screen_shell_integration.dart';
 part 'shell_screen_sftp.dart';
 part 'shell_screen_ssh_empty_state.dart';
 part 'shell_screen_state_clipboard.dart';
 part 'shell_screen_state_command_actions.dart';
-part 'shell_screen_state_coprocesses.dart';
+part 'shell_screen_state_triggers.dart';
 part 'shell_screen_state_events.dart';
 part 'shell_screen_state_folders.dart';
 part 'shell_screen_state_instant_replay.dart';
-part 'shell_screen_state_integrations.dart';
 part 'shell_screen_state_profile_actions.dart';
 part 'shell_screen_state_recording.dart';
 part 'shell_screen_state_recording_library.dart';
@@ -97,7 +89,6 @@ part 'shell_screen_state_search_completion.dart';
 part 'shell_screen_state_sessions.dart';
 part 'shell_screen_state_shortcuts_status.dart';
 part 'shell_screen_state_terminal_layout.dart';
-part 'shell_screen_toolbelt.dart';
 
 typedef ShellFileDownloadWriter =
     Future<void> Function(String path, List<int> bytes);
@@ -193,11 +184,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   static const _runtimeErrorNoticeDuration = Duration(seconds: 4);
   static const _viewportResizeDebounce = Duration(milliseconds: 240);
   static const _terminalOverlayPadding = EdgeInsets.fromLTRB(12, 10, 14, 12);
-  static const int _pasteHistoryLimit = maxPasteHistoryEntries;
+
   static const _annotationLimit = 80;
   static const _protocolAnnotationTextRefreshLimit = 16;
-  static const _capturedOutputLimit = 80;
-  static const _coprocessInputHistoryLimit = 512;
+
   static const _minimumHorizontalPaneCols = 24;
   static const _minimumVerticalPaneRows = 8;
   static const _paneGrowRatioStep = 0.08;
@@ -250,13 +240,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   final Map<String, int> _terminalFrameSequenceBySession = {};
   final Map<String, String> _instantReplayRemoteCommands = <String, String>{};
   final Map<String, String> _searchRefreshFrameSignatures = {};
-  final TextEditingController _autoComposerController = TextEditingController();
-  final FocusNode _autoComposerFocusNode = FocusNode();
+
   final Set<String> _sessionsSeenForActivityNotifications = {};
   final Set<String> _sessionsSeenForNewOutputBadges = {};
   final Set<String> _sessionsWithNewOutput = {};
   TerminalEventSinkAttachment? _terminalUiEffectAttachment;
-  late final LocalTerminalShellUiWiringSnapshot _completionDiagnosticsSnapshot;
+
   late final Osc72DragDropController _osc72DragDropController;
   late final ShellUserAttentionBridge _userAttentionBridge;
   late final ShellClock _clock;
@@ -274,10 +263,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   DataApiRemoteFallbackSnapshot? _remoteFallbackSnapshot;
   bool _dataApiStartupWarningDismissed = false;
   bool _isSearchOpen = false;
-  bool _isAutocompleteOpen = false;
-  bool _isAutoComposerOpen = false;
-  bool _isCopyModeOpen = false;
-  bool _isToolbeltOpen = false;
+
   bool _isSftpPanelOpen = false;
   String? _sftpPanelSessionId;
   bool _activeTerminalHasFocus = false;
@@ -294,8 +280,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   bool _commandFinishedNotificationsEnabled = true;
   bool _bellNotificationsEnabled = true;
   bool _activityNotificationsEnabled = true;
-  LocalTerminalConfigBootstrapSource _notificationConfigSource =
-      LocalTerminalConfigBootstrapSource.defaults;
+
   LocalTerminalConfigDocument _notificationLocalConfig =
       const LocalTerminalConfigDocument();
   LocalTerminalKeybindingsConfig _keybindingsConfig =
@@ -320,8 +305,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   LocalTerminalBracketedPastePolicy _bracketedPastePolicy =
       LocalTerminalBracketedPastePolicy.auto;
   LocalTerminalPastePolicy _pastePolicy = const LocalTerminalPastePolicy();
-  LocalTerminalPasteHistoryPolicy _pasteHistoryPolicy =
-      const LocalTerminalPasteHistoryPolicy();
+
   bool _notificationsBlockedBySystem = false;
   final Set<String> _notificationFailureCodesShown = <String>{};
   int _lastObservedTabCount = 0;
@@ -341,19 +325,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   String? _lastSearchScopeSessionSignature;
   terminal.TerminalLinkTarget? _hoveredTerminalLink;
   String? _hoveredTerminalLinkSessionId;
-  String? _copyModeSessionId;
+
   SessionOsc52PromptController? _osc52PromptController;
-  String? _autocompleteSessionId;
-  String _autocompletePrefix = '';
-  List<String> _autocompleteSuggestions = const [];
-  int _activeAutocompleteIndex = 0;
-  String? _autoComposerSessionId;
-  List<String> _autoComposerSuggestions = const [];
-  int _activeAutoComposerIndex = 0;
-  List<PasteHistoryEntry> _pasteHistoryEntries = const [];
-  VersionedDocument<PasteHistoryDocument?>? _pasteHistoryDocument;
-  Future<VersionedDocument<PasteHistoryDocument?>>? _pasteHistoryLoadFuture;
-  Future<void> _pasteHistoryWriteChain = Future<void>.value();
+
   _InstantReplayLayoutSession? _instantReplayLayoutSession;
   List<_TerminalAnnotation> _annotations = const [];
   bool _recordingLibraryLoading = false;
@@ -365,18 +339,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   bool _recordingLibraryPlayableOnly = false;
   LocalSessionRecordingEntry? _selectedRecordingEntry;
   terminal.TerminalRecording? _selectedRecording;
-  final GlobalKey<_AnnotationsSheetState> _annotationSheetKey = GlobalKey();
-  List<_CapturedOutputEntry> _capturedOutputEntries = const [];
-  final GlobalKey<_CapturedOutputSheetState> _capturedOutputSheetKey =
-      GlobalKey();
-  String? _capturedOutputSheetSessionId;
-  Map<String, _ShellCoprocess> _coprocesses = const {};
-  bool _pasteHistoryPersistToDisk = false;
-  bool _pasteHistoryLoaded = false;
+
   int _nextAnnotationId = 0;
-  bool _annotationSheetOpen = false;
-  String? _annotationSheetSessionId;
-  int _nextCapturedOutputId = 0;
+
   final Map<String, _ShellZmodemTransferState> _zmodemTransfers =
       <String, _ShellZmodemTransferState>{};
   final Map<String, terminal.TerminalSessionZmodemEvent> _zmodemRecoveries =
@@ -389,12 +354,6 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   final _sshHostKeyPromptPresenter = SshHostKeyPromptPresenter();
   _ShellZmodemPickerRequest? _zmodemPickerRequest;
   int _zmodemPickerRequestSeed = 0;
-  final Map<String, Set<String>> _coprocessInputKeysBySession =
-      <String, Set<String>>{};
-  int? _copyModeAnchorRow;
-  int? _copyModeAnchorCol;
-  int? _copyModeExtentRow;
-  int? _copyModeExtentCol;
 
   @override
   void initState() {
@@ -428,8 +387,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       onFind: _handleNativeFindMenu,
       onOsc72DragEvent: _handleNativeOsc72DragEvent,
     );
-    _completionDiagnosticsSnapshot =
-        LocalTerminalShellUiWiringSnapshot.verified(capturedAt: DateTime.now());
+
     _osc52PromptController = ref.read(sessionOsc52PromptControllerProvider);
     _osc52PromptController?.setAuthorizationHandler(_confirmOsc52Access);
     if (runtime != null) {
@@ -442,7 +400,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       _handleSessionStateChanged,
       fireImmediately: true,
     );
-    unawaited(Future<void>.microtask(_loadPasteHistory));
+
     unawaited(Future<void>.microtask(_loadNotificationPreferences));
   }
 
@@ -484,8 +442,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       focusNode.dispose();
     }
     _searchFocusNode.dispose();
-    _autoComposerController.dispose();
-    _autoComposerFocusNode.dispose();
+
     super.dispose();
   }
 
@@ -705,6 +662,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<int>(
+      localFirstSyncProvider.select((sync) => sync?.pulledGeneration ?? 0),
+      (_, _) => unawaited(_loadNotificationPreferences()),
+    );
     final sessionState = ref.watch(sessionControllerProvider);
     final sessionController = ref.read(sessionControllerProvider.notifier);
     final activeSessionId = sessionState.activeSessionId;
@@ -741,8 +702,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     final activePane = activeSessionId == null
         ? null
         : activeTab?.paneFor(activeSessionId);
-    final activeShellIntegration =
-        activePane?.shellIntegration ?? TerminalShellIntegrationSnapshot.empty;
+
     final displayedPane = displayedSessionId == null
         ? activePane
         : displayedTab?.paneFor(displayedSessionId) ?? activePane;
@@ -794,21 +754,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         return KeyEventResult.ignored;
       }
       if (_shellModalInputBlocked) return KeyEventResult.handled;
-      final copyModeResult = _handleCopyModeKey(
-        event,
-        sessionController,
-        activeSessionId,
-      );
-      if (copyModeResult != null) {
-        return copyModeResult;
-      }
-      if (_isAutoComposerOpen) {
-        if (event.logicalKey == LogicalKeyboardKey.escape) {
-          _closeAutoComposer();
-          return KeyEventResult.handled;
-        }
-        return KeyEventResult.ignored;
-      }
+
       final shortcut = _shortcutActionFor(event);
       if (shortcut == null) {
         return KeyEventResult.ignored;
@@ -843,14 +789,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           'searchScrollback',
           'previousPrompt',
           'nextPrompt',
-          'autocomplete',
-          'copyMode',
+
           'paste',
-          'pasteHistory',
+
           'instantReplay',
           'clearBuffer',
           'toggleCommandPalette',
-          'toggleHotkeyWindow',
           'openDefaults',
         },
         callbacks: ShellActionProductionCallbacks(
@@ -1032,32 +976,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
             _navigateShellPrompt(activeSessionId, direction: 1);
             return const ShellActionBindingResult.completed();
           },
-          autocomplete: (_) {
-            if (activeSessionId == null) {
-              return const ShellActionBindingResult.skipped(
-                'Autocomplete requires an active session.',
-              );
-            }
-            _openAutocomplete();
-            return const ShellActionBindingResult.completed();
-          },
-          copyMode: (_) {
-            if (activeSessionId == null) {
-              return const ShellActionBindingResult.skipped(
-                'Copy mode requires an active session.',
-              );
-            }
-            final selectionController = _selectionControllers.putIfAbsent(
-              activeSessionId,
-              SelectionController.new,
-            );
-            _enterCopyMode(
-              sessionController,
-              activeSessionId,
-              selectionController,
-            );
-            return const ShellActionBindingResult.completed();
-          },
+
           paste: (_) async {
             if (activeSessionId == null) {
               return const ShellActionBindingResult.skipped(
@@ -1067,15 +986,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
             await _pasteToSession(activeSessionId);
             return const ShellActionBindingResult.completed();
           },
-          pasteHistory: (_) async {
-            if (activeSessionId == null) {
-              return const ShellActionBindingResult.skipped(
-                'Paste history requires an active session.',
-              );
-            }
-            await _openPasteHistory(sessionState);
-            return const ShellActionBindingResult.completed();
-          },
+
           instantReplay: (_) async {
             if (activeSessionId == null) {
               return const ShellActionBindingResult.skipped(
@@ -1111,14 +1022,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
             unawaited(_openCommandMenu(sessionController, sessionState));
             return const ShellActionBindingResult.completed();
           },
-          toggleHotkeyWindow: (_) async {
-            final toggled = await _toggleHotkeyWindowWithFeedback();
-            return toggled
-                ? const ShellActionBindingResult.completed()
-                : const ShellActionBindingResult.skipped(
-                    'Hotkey window is unavailable.',
-                  );
-          },
+
           openDefaults: (_) async {
             await _openDefaultsAndAppearance(sessionController, sessionState);
             return const ShellActionBindingResult.completed();
@@ -1139,8 +1043,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         case TerminalActionId.openCommandMenu:
           unawaited(_openCommandMenu(sessionController, sessionState));
           return KeyEventResult.handled;
-        case TerminalActionId.toolbelt:
-          return KeyEventResult.handled;
+
         case TerminalActionId.openSftpPanel:
           _openSftpPanel(sessionState, activeSessionId);
           return KeyEventResult.handled;
@@ -1182,32 +1085,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
             TerminalSplitAxis.vertical,
           );
           return KeyEventResult.handled;
-        case TerminalActionId.autocomplete:
-          if (activeSessionId == null) {
-            return KeyEventResult.handled;
-          }
-          _openAutocomplete();
-          return KeyEventResult.handled;
-        case TerminalActionId.copyMode:
-          if (activeSessionId == null) {
-            return KeyEventResult.handled;
-          }
-          final selectionController = _selectionControllers.putIfAbsent(
-            activeSessionId,
-            SelectionController.new,
-          );
-          _enterCopyMode(
-            sessionController,
-            activeSessionId,
-            selectionController,
-          );
-          return KeyEventResult.handled;
-        case TerminalActionId.pasteHistory:
-          if (activeSessionId == null) {
-            return KeyEventResult.handled;
-          }
-          unawaited(_openPasteHistory(sessionState));
-          return KeyEventResult.handled;
+
         case TerminalActionId.instantReplay:
           if (activeSessionId == null) {
             return KeyEventResult.handled;
@@ -1279,6 +1157,22 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
             children: [
               _ShellChromeBar(
                 palette: palette,
+                onOpenSettings:
+                    referenceDemoMode ||
+                        Theme.of(context).platform != TargetPlatform.macOS
+                    ? null
+                    : () => unawaited(
+                        _openDefaultsAndAppearance(
+                          sessionController,
+                          sessionState,
+                        ),
+                      ),
+                onSearch:
+                    !referenceDemoMode &&
+                        Theme.of(context).platform == TargetPlatform.macOS &&
+                        activeSessionId != null
+                    ? _openSearch
+                    : null,
                 terminalBackgroundColor: shellChromeBackground,
                 tabStripKey: _sessionDropTabStripKey,
                 paneDropInsertionIndex: _sessionTabDropInsertionIndex,
@@ -1520,107 +1414,6 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                       onHostKeyEvent: handleShellShortcut,
                                     ),
                                   ),
-                                  if (_isToolbeltOpen)
-                                    _ShellToolbelt(
-                                      capturedOutputEntries:
-                                          _capturedOutputForSession(
-                                            activeSessionId,
-                                          ),
-                                      pasteHistoryEntries: _pasteHistoryEntries,
-                                      shellIntegration: activeShellIntegration,
-                                      promptMarkCount:
-                                          _effectivePromptMarksForSession(
-                                            activeSessionId,
-                                            sessionState: sessionState,
-                                          ).length,
-                                      tmuxControlModeActive:
-                                          _tmuxControlModeActive(
-                                            activeSessionId,
-                                          ),
-                                      coprocessActive: _coprocesses.containsKey(
-                                        activeSessionId,
-                                      ),
-                                      annotationCount: _annotationsForSession(
-                                        activeSessionId,
-                                      ).length,
-                                      completionDiagnosticsSnapshot:
-                                          _completionDiagnosticsSnapshot,
-                                      palette: palette,
-                                      onClose: _closeToolbelt,
-                                      onOpenCapturedOutput: () =>
-                                          _openToolbeltChild(
-                                            () => _openCapturedOutput(
-                                              activeSessionId,
-                                            ),
-                                          ),
-                                      onOpenPasteHistory: () =>
-                                          _openToolbeltChild(
-                                            () =>
-                                                _openPasteHistory(sessionState),
-                                          ),
-                                      onOpenShellIntegrationUtilities: () =>
-                                          _openToolbeltChild(
-                                            () =>
-                                                _openShellIntegrationUtilities(
-                                                  sessionState,
-                                                  activeSessionId,
-                                                ),
-                                          ),
-                                      onInsertCommand: (command) {
-                                        _closeToolbelt();
-                                        _sendPlainTextToSession(
-                                          activeSessionId,
-                                          command,
-                                        );
-                                      },
-                                      onChangeDirectory: (directory) {
-                                        _closeToolbelt();
-                                        _sendPlainTextToSession(
-                                          activeSessionId,
-                                          'cd ${_shellQuotedPath(directory)}',
-                                        );
-                                      },
-                                      onOpenTmuxIntegration: () =>
-                                          _openToolbeltChild(
-                                            () => _openTmuxIntegration(
-                                              activeSessionId,
-                                            ),
-                                          ),
-                                      onOpenCoprocess: () => _openToolbeltChild(
-                                        () => _openCoprocess(activeSessionId),
-                                      ),
-                                      onOpenAnnotations: () {
-                                        final selectionController =
-                                            _selectionControllers.putIfAbsent(
-                                              activeSessionId,
-                                              SelectionController.new,
-                                            );
-                                        _openToolbeltChild(
-                                          () => _openAnnotations(
-                                            sessionController,
-                                            activeSessionId,
-                                            selectionController,
-                                          ),
-                                        );
-                                      },
-                                      onOpenInstantReplay: () =>
-                                          _openToolbeltChild(
-                                            () => _openInstantReplay(
-                                              sessionState,
-                                            ),
-                                          ),
-                                      onOpenPasswordManager: () =>
-                                          _openToolbeltChild(
-                                            () => _openPasswordManager(
-                                              sessionController,
-                                              activeSessionId,
-                                            ),
-                                          ),
-                                      showHiddenRedesignEntryPointsForTesting:
-                                          ref.watch(
-                                            shellHiddenRedesignEntryPointsProvider,
-                                          ),
-                                    ),
                                 ],
                               ),
                             ),

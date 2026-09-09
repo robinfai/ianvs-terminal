@@ -1,103 +1,6 @@
 part of 'shell_screen.dart';
 
-extension _ShellScreenStateCoprocesses on _ShellScreenState {
-  void _feedCoprocess(
-    String sessionId,
-    terminal.TerminalFrameDiff frame, {
-    required int frameSequence,
-  }) {
-    final currentCoprocess = _coprocesses[sessionId];
-    if (currentCoprocess == null) {
-      return;
-    }
-    var nextCoprocess = currentCoprocess;
-    final seenKeys = _coprocessInputKeysBySession.putIfAbsent(
-      sessionId,
-      () => <String>{},
-    );
-    String? pendingResponse;
-    for (final logicalRow in _logicalRows(frame.rows)) {
-      final input = logicalRow.text.trimRight();
-      if (input.trim().isEmpty) {
-        continue;
-      }
-      final inputKey = [
-        _frameDedupeScope(frame, frameSequence),
-        logicalRow.endRow.index,
-        input,
-      ].join('\u0000');
-      if (!seenKeys.add(inputKey)) {
-        continue;
-      }
-      _trimCoprocessInputHistory(seenKeys);
-      nextCoprocess = nextCoprocess.copyWith(
-        inputLineCount: nextCoprocess.inputLineCount + 1,
-        lastInput: input,
-      );
-      if (pendingResponse == null &&
-          _coprocessPatternMatches(nextCoprocess.pattern, input)) {
-        pendingResponse = nextCoprocess.response;
-      }
-    }
-    if (nextCoprocess != currentCoprocess && mounted) {
-      _mutateState(() {
-        _coprocesses = <String, _ShellCoprocess>{
-          ..._coprocesses,
-          sessionId: nextCoprocess,
-        };
-      });
-    }
-    if (pendingResponse != null) {
-      _sendPlainTextToSession(sessionId, pendingResponse);
-    }
-  }
-
-  void _trimCoprocessInputHistory(Set<String> seenKeys) {
-    while (seenKeys.length > _ShellScreenState._coprocessInputHistoryLimit) {
-      seenKeys.remove(seenKeys.first);
-    }
-  }
-
-  bool _coprocessPatternMatches(String pattern, String input) {
-    final trimmedPattern = pattern.trim();
-    if (trimmedPattern.isEmpty) {
-      return false;
-    }
-    try {
-      return RegExp(trimmedPattern, caseSensitive: false).hasMatch(input);
-    } on FormatException {
-      return input.toLowerCase().contains(trimmedPattern.toLowerCase());
-    }
-  }
-
-  void _startCoprocess(String sessionId, _CoprocessStartRequest request) {
-    _coprocessInputKeysBySession[sessionId] = <String>{};
-    _mutateState(() {
-      _coprocesses = <String, _ShellCoprocess>{
-        ..._coprocesses,
-        sessionId: _ShellCoprocess(
-          command: request.command,
-          pattern: request.pattern,
-          response: request.response,
-        ),
-      };
-    });
-  }
-
-  void _stopCoprocess(String sessionId) {
-    if (!_coprocesses.containsKey(sessionId)) {
-      _coprocessInputKeysBySession.remove(sessionId);
-      return;
-    }
-    _coprocessInputKeysBySession.remove(sessionId);
-    _mutateState(() {
-      _coprocesses = <String, _ShellCoprocess>{
-        for (final entry in _coprocesses.entries)
-          if (entry.key != sessionId) entry.key: entry.value,
-      };
-    });
-  }
-
+extension _ShellScreenStateTriggers on _ShellScreenState {
   void _runProfileTriggers(
     String sessionId,
     terminal.TerminalFrameDiff frame, {
@@ -133,34 +36,9 @@ extension _ShellScreenStateCoprocesses on _ShellScreenState {
           continue;
         }
         _trimTriggerMatchHistory(seenMatches);
-        _recordCapturedOutput(sessionId, trigger, logicalRow);
         _runProfileTrigger(sessionId, trigger, text);
       }
     }
-  }
-
-  void _recordCapturedOutput(
-    String sessionId,
-    TerminalProfileTrigger trigger,
-    _LogicalTerminalRow logicalRow,
-  ) {
-    final text = logicalRow.text.trimRight();
-    if (text.trim().isEmpty) {
-      return;
-    }
-    final entry = _CapturedOutputEntry(
-      id: 'capture-${_nextCapturedOutputId++}',
-      sessionId: sessionId,
-      pattern: trigger.pattern,
-      text: text,
-      rowIndex: logicalRow.endRow.index,
-    );
-    _mutateState(() {
-      _capturedOutputEntries = <_CapturedOutputEntry>[
-        entry,
-        ..._capturedOutputEntries,
-      ].take(_ShellScreenState._capturedOutputLimit).toList(growable: false);
-    });
   }
 
   TerminalProfile? _profileForSession(String sessionId) {

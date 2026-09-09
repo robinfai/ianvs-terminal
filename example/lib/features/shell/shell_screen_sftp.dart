@@ -66,7 +66,6 @@ extension _ShellScreenStateSftp on _ShellScreenState {
       return;
     }
     _mutateState(() {
-      _isToolbeltOpen = false;
       _isSftpPanelOpen = true;
       _sftpPanelSessionId = target.sessionId;
     });

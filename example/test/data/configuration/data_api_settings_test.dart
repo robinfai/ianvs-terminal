@@ -190,7 +190,9 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.iOS),
   );
 
-  testWidgets('iOS disabled mode is described as one-time SSH', (tester) async {
+  testWidgets('iOS disabled mode keeps local data without API sync', (
+    tester,
+  ) async {
     await tester.binding.setSurfaceSize(const Size(1000, 820));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(
@@ -228,7 +230,7 @@ void main() {
 
     expect(find.text('Currently running: No data service'), findsOneWidget);
     expect(find.text('No data service'), findsOneWidget);
-    expect(find.textContaining('one-time SSH connections'), findsWidgets);
+    expect(find.text('Keep using local data without API sync.'), findsWidgets);
     expect(find.byKey(const Key('data-api-local')), findsNothing);
   });
 
@@ -326,7 +328,7 @@ void main() {
           .onPressed,
       isNotNull,
     );
-    expect(find.textContaining('takes effect after restart'), findsOneWidget);
+    expect(find.text('Sync with the API after sign-in'), findsOneWidget);
   });
 
   testWidgets('configured remote can explicitly reconnect with the same URL', (
@@ -432,185 +434,180 @@ void main() {
     );
   });
 
-  testWidgets(
-    'switching bundled local API to remote is an explicit migration action',
-    (tester) async {
-      await tester.binding.setSurfaceSize(const Size(1000, 820));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: buildIanvsTerminalTheme(Brightness.dark),
-          home: const Scaffold(
-            body: DefaultsAndAppearanceDialog(
-              profiles: [],
-              configuredDefaultProfileId: null,
-              effectiveDefaultProfileId: null,
-              themeMode: TerminalThemeMode.system,
-              terminalViewportPadding:
-                  TerminalAppAppearance.defaultTerminalViewportPadding,
-              restoreLayout: false,
-              osc52Policy: LocalTerminalOsc52Policy.ask,
-              openUrlPolicy: LocalTerminalOpenUrlPolicy.ask,
-              requestAttentionPolicy:
-                  LocalTerminalRequestAttentionPolicy.disabled,
-              reportVariableDecisions: {},
-              dataApiConfiguration: DataApiConfiguration.local(),
-              localDataApiAvailable: true,
-            ),
+  testWidgets('enabling remote sync from local does not require migration', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1000, 820));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildIanvsTerminalTheme(Brightness.dark),
+        home: const Scaffold(
+          body: DefaultsAndAppearanceDialog(
+            profiles: [],
+            configuredDefaultProfileId: null,
+            effectiveDefaultProfileId: null,
+            themeMode: TerminalThemeMode.system,
+            terminalViewportPadding:
+                TerminalAppAppearance.defaultTerminalViewportPadding,
+            restoreLayout: false,
+            osc52Policy: LocalTerminalOsc52Policy.ask,
+            openUrlPolicy: LocalTerminalOpenUrlPolicy.ask,
+            requestAttentionPolicy:
+                LocalTerminalRequestAttentionPolicy.disabled,
+            reportVariableDecisions: {},
+            dataApiConfiguration: DataApiConfiguration.local(),
+            localDataApiAvailable: true,
           ),
         ),
-      );
-      await tester.pump();
-      await _selectDataSectionWhenTabbed(tester);
-      await tester.scrollUntilVisible(
-        find.byKey(const Key('defaults-data-api-panel')),
-        500,
-        scrollable: find.byType(Scrollable).first,
-      );
+      ),
+    );
+    await tester.pump();
+    await _selectDataSectionWhenTabbed(tester);
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('defaults-data-api-panel')),
+      500,
+      scrollable: find.byType(Scrollable).first,
+    );
 
-      await tester.tap(find.byKey(const Key('data-api-remote')));
-      await tester.pump();
+    await tester.tap(find.byKey(const Key('data-api-remote')));
+    await tester.pump();
 
-      expect(
-        find.byKey(const Key('data-api-local-to-remote-migration')),
-        findsOneWidget,
-      );
-      expect(find.text('Migrate to remote API'), findsOneWidget);
+    expect(
+      find.byKey(const Key('data-api-local-to-remote-migration')),
+      findsNothing,
+    );
+    expect(find.text('Save changes'), findsOneWidget);
 
-      await tester.enterText(
-        find.byKey(const Key('data-api-remote-url')),
-        'https://sync.example.com/',
-      );
-      await tester.pump();
+    await tester.enterText(
+      find.byKey(const Key('data-api-remote-url')),
+      'https://sync.example.com/',
+    );
+    await tester.pump();
 
-      expect(
-        find.byKey(const Key('data-api-local-to-remote-migration')),
-        findsOneWidget,
-      );
-      expect(find.text('Migrate to remote API'), findsOneWidget);
-      expect(find.textContaining('Local data is retained'), findsOneWidget);
-    },
-  );
+    expect(
+      find.byKey(const Key('data-api-local-to-remote-migration')),
+      findsNothing,
+    );
+    expect(find.text('Save changes'), findsOneWidget);
+  });
 
-  testWidgets(
-    'active local runtime keeps remote selection on the migration path',
-    (tester) async {
-      await tester.binding.setSurfaceSize(const Size(1000, 820));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: buildIanvsTerminalTheme(Brightness.dark),
-          home: const Scaffold(
-            body: DefaultsAndAppearanceDialog(
-              profiles: [],
-              configuredDefaultProfileId: null,
-              effectiveDefaultProfileId: null,
-              themeMode: TerminalThemeMode.system,
-              terminalViewportPadding:
-                  TerminalAppAppearance.defaultTerminalViewportPadding,
-              restoreLayout: false,
-              osc52Policy: LocalTerminalOsc52Policy.ask,
-              openUrlPolicy: LocalTerminalOpenUrlPolicy.ask,
-              requestAttentionPolicy:
-                  LocalTerminalRequestAttentionPolicy.disabled,
-              reportVariableDecisions: {},
-              dataApiConfiguration: DataApiConfiguration.disabled(),
-              activeDataApiDeployment: DataApiDeployment.local,
-              localDataApiAvailable: true,
-            ),
+  testWidgets('active local runtime allows remote sync without migration', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1000, 820));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildIanvsTerminalTheme(Brightness.dark),
+        home: const Scaffold(
+          body: DefaultsAndAppearanceDialog(
+            profiles: [],
+            configuredDefaultProfileId: null,
+            effectiveDefaultProfileId: null,
+            themeMode: TerminalThemeMode.system,
+            terminalViewportPadding:
+                TerminalAppAppearance.defaultTerminalViewportPadding,
+            restoreLayout: false,
+            osc52Policy: LocalTerminalOsc52Policy.ask,
+            openUrlPolicy: LocalTerminalOpenUrlPolicy.ask,
+            requestAttentionPolicy:
+                LocalTerminalRequestAttentionPolicy.disabled,
+            reportVariableDecisions: {},
+            dataApiConfiguration: DataApiConfiguration.disabled(),
+            activeDataApiDeployment: DataApiDeployment.local,
+            localDataApiAvailable: true,
           ),
         ),
-      );
-      await tester.pump();
-      await _selectDataSectionWhenTabbed(tester);
-      await tester.scrollUntilVisible(
-        find.byKey(const Key('defaults-data-api-panel')),
-        500,
-        scrollable: find.byType(Scrollable).first,
-      );
+      ),
+    );
+    await tester.pump();
+    await _selectDataSectionWhenTabbed(tester);
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('defaults-data-api-panel')),
+      500,
+      scrollable: find.byType(Scrollable).first,
+    );
 
-      await tester.tap(find.byKey(const Key('data-api-remote')));
-      await tester.pump();
+    await tester.tap(find.byKey(const Key('data-api-remote')));
+    await tester.pump();
 
-      expect(
-        find.byKey(const Key('data-api-local-to-remote-migration')),
-        findsOneWidget,
-      );
-      expect(find.text('Migrate to remote API'), findsOneWidget);
+    expect(
+      find.byKey(const Key('data-api-local-to-remote-migration')),
+      findsNothing,
+    );
+    expect(find.text('Save changes'), findsOneWidget);
 
-      await tester.enterText(
-        find.byKey(const Key('data-api-remote-url')),
-        'https://sync.example.com/',
-      );
-      await tester.pump();
+    await tester.enterText(
+      find.byKey(const Key('data-api-remote-url')),
+      'https://sync.example.com/',
+    );
+    await tester.pump();
 
-      expect(
-        find.byKey(const Key('data-api-local-to-remote-migration')),
-        findsOneWidget,
-      );
-      expect(find.text('Migrate to remote API'), findsOneWidget);
-      expect(
-        tester
-            .getSemantics(find.byKey(const Key('data-api-active-deployment')))
-            .label,
-        contains('Active data service: Bundled local service'),
-      );
-    },
-  );
+    expect(
+      find.byKey(const Key('data-api-local-to-remote-migration')),
+      findsNothing,
+    );
+    expect(find.text('Save changes'), findsOneWidget);
+    expect(
+      tester
+          .getSemantics(find.byKey(const Key('data-api-active-deployment')))
+          .label,
+      contains('Sync connection: Bundled local service'),
+    );
+  });
 
-  testWidgets(
-    'switching remote API to bundled local is an explicit migration action',
-    (tester) async {
-      await tester.binding.setSurfaceSize(const Size(1000, 820));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: buildIanvsTerminalTheme(Brightness.dark),
-          home: Scaffold(
-            body: DefaultsAndAppearanceDialog(
-              profiles: const [],
-              configuredDefaultProfileId: null,
-              effectiveDefaultProfileId: null,
-              themeMode: TerminalThemeMode.system,
-              terminalViewportPadding:
-                  TerminalAppAppearance.defaultTerminalViewportPadding,
-              restoreLayout: false,
-              osc52Policy: LocalTerminalOsc52Policy.ask,
-              openUrlPolicy: LocalTerminalOpenUrlPolicy.ask,
-              requestAttentionPolicy:
-                  LocalTerminalRequestAttentionPolicy.disabled,
-              reportVariableDecisions: const {},
-              dataApiConfiguration: DataApiConfiguration.remote(
-                'https://sync.example.com/',
-              ),
-              localDataApiAvailable: true,
+  testWidgets('disabling remote sync does not require reverse migration', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1000, 820));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildIanvsTerminalTheme(Brightness.dark),
+        home: Scaffold(
+          body: DefaultsAndAppearanceDialog(
+            profiles: const [],
+            configuredDefaultProfileId: null,
+            effectiveDefaultProfileId: null,
+            themeMode: TerminalThemeMode.system,
+            terminalViewportPadding:
+                TerminalAppAppearance.defaultTerminalViewportPadding,
+            restoreLayout: false,
+            osc52Policy: LocalTerminalOsc52Policy.ask,
+            openUrlPolicy: LocalTerminalOpenUrlPolicy.ask,
+            requestAttentionPolicy:
+                LocalTerminalRequestAttentionPolicy.disabled,
+            reportVariableDecisions: const {},
+            dataApiConfiguration: DataApiConfiguration.remote(
+              'https://sync.example.com/',
             ),
+            localDataApiAvailable: true,
           ),
         ),
-      );
-      await tester.pump();
-      await _selectDataSectionWhenTabbed(tester);
-      await tester.scrollUntilVisible(
-        find.byKey(const Key('defaults-data-api-panel')),
-        500,
-        scrollable: find.byType(Scrollable).first,
-      );
+      ),
+    );
+    await tester.pump();
+    await _selectDataSectionWhenTabbed(tester);
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('defaults-data-api-panel')),
+      500,
+      scrollable: find.byType(Scrollable).first,
+    );
 
-      await tester.tap(find.byKey(const Key('data-api-local')));
-      await tester.pump();
+    await tester.tap(find.byKey(const Key('data-api-local')));
+    await tester.pump();
 
-      expect(
-        find.byKey(const Key('data-api-remote-to-local-migration')),
-        findsOneWidget,
-      );
-      expect(find.text('Migrate to local API'), findsOneWidget);
-      expect(find.textContaining('Remote data is retained'), findsOneWidget);
-      expect(
-        tester
-            .widget<FilledButton>(find.byKey(const Key('defaults-save')))
-            .onPressed,
-        isNotNull,
-      );
-    },
-  );
+    expect(
+      find.byKey(const Key('data-api-remote-to-local-migration')),
+      findsNothing,
+    );
+    expect(find.text('Save changes'), findsOneWidget);
+    expect(
+      tester
+          .widget<FilledButton>(find.byKey(const Key('defaults-save')))
+          .onPressed,
+      isNotNull,
+    );
+  });
 }

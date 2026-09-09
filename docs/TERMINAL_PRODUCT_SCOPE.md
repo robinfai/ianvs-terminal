@@ -23,12 +23,19 @@ switch or remember a project container.
 
 ## Persistence contracts
 
-- The Go/GORM data API is the target durable store for Profile, Terminal
-  Layout/Relaunch Spec, and configuration resources. Local mode uses SQLite;
-  remote mode supports SQLite or MySQL with the same ORM model.
-- Disabled mode uses the current local persistence adapters explicitly. There
-  is no product-time importer for older app-support JSON documents, and the app
-  neither discovers nor deletes unsupported historical data.
+- Profile, SSH credentials and configuration always use the same device-local
+  repositories. SSH secrets are encrypted at rest. Saving and reconnecting do
+  not require a configured or reachable API, including on iOS.
+- The Go/GORM API is an optional sync destination (bundled SQLite or remote
+  SQLite/MySQL). Initial connection and later retries use three-way merge against
+  an encrypted, destination-scoped checkpoint. Independent edits merge; same-field
+  conflicts pause that document until explicitly resolved. API configuration
+  never selects a different local data set or overwrites one by migration.
+- Layout/Relaunch Spec and recording files remain device-local. Retired paste
+  history is excluded from active synchronization. Existing local and remote
+  history data is preserved without collection or automatic transfer.
+- Disabling or changing an API preserves local data and old checkpoints. No
+  supported-schema migration deletes a source database or credential archive.
 - `ianvs_recordings/` stores recordings in one flat, current-format library.
   Unsupported recording and repository metadata schemas fail closed; the app
   does not migrate, discover, or rewrite older recording layouts.
@@ -45,7 +52,7 @@ The current product does not define:
 
 - Project Workspace identity, Recent Workspace or project switching;
 - project explorer, Git context, IDE project model or project task model;
-- plugin marketplace/runtime, cloud sync or collaboration;
+- plugin marketplace/runtime, managed cloud services or collaboration;
 - remote-domain or multi-host Workspace abstractions.
 
 SSH is implemented as a **Profile and Session extension**. Local shells and SSH
@@ -54,9 +61,21 @@ project container.
 
 ## Diagnostics boundary
 
-User-facing diagnostics export remains supported. Internal completion/wiring
-diagnostics are compiled into the Toolbelt only in debug builds and are not a
-release product panel.
+User-facing diagnostics export remains supported. The Toolbelt and its debug-only
+completion/wiring panel are retired. Internal diagnostic models may support tests
+and diagnostics export, but do not create a second product surface.
+
+## Retired action boundary
+
+The action registry contains the 39 supported actions. The 23 previously hidden
+actions have been retired from dispatch, menus, shortcut resolution and dedicated
+UI. Debug builds use the same boundary. Shared terminal protocols and ordinary
+clipboard, search, profile, theme and notification infrastructure remain where
+needed by supported behavior. Unknown legacy shortcut entries round-trip without
+becoming executable; retirement does not delete user data.
+
+See [the retirement record](reviews/trail_feature_retirement_20260907.md) for the
+per-action disposition and retained compatibility boundaries.
 
 ## Historical terminology
 

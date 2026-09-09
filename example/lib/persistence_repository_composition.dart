@@ -1,21 +1,18 @@
 import 'data/services/data_api_client.dart';
 import 'data/services/data_api_runtime.dart';
 import 'data/services/portable_master_key.dart';
-import 'features/config/data_api_terminal_config_repository.dart';
+import 'data/sync/local_first_sync.dart';
+import 'data/sync/sync_repositories.dart';
 import 'features/config/local_terminal_config_repository.dart';
 import 'features/layout/local_terminal_layout_repository.dart';
 import 'features/preferences/app_preferences_repository.dart';
-import 'features/preferences/data_api_app_preferences_repository.dart';
-import 'features/profiles/data_api_profile_repository.dart';
 import 'features/profiles/profile_repository.dart';
 import 'features/profiles/profile_secret_cipher.dart';
-import 'features/shell/data_api_paste_history_repository.dart';
 import 'features/shell/paste_history_repository.dart';
 
-/// The only production decision point between historical JSON persistence and
-/// the Data API. A configured runtime selects API adapters for syncable data;
-/// terminal layout remains device-local. Missing remote credentials fail
-/// closed in [DataApiClient] and never fall back for API-backed repositories.
+/// Every mode uses the same encrypted local profile store. An API is an
+/// optional synchronization destination; a transport failure never swaps or
+/// locks the application's repository graph.
 final class PersistenceRepositoryComposition {
   const PersistenceRepositoryComposition._({
     required this.profiles,
@@ -23,8 +20,8 @@ final class PersistenceRepositoryComposition {
     required this.terminalConfig,
     required this.terminalLayout,
     required this.pasteHistory,
-    required this.usesDataApi,
-    required this.persistenceUnavailable,
+    required this.sync,
+    required this.configureSyncRuntime,
   });
 
   factory PersistenceRepositoryComposition.forRuntime(
@@ -34,66 +31,93 @@ final class PersistenceRepositoryComposition {
     bool dataApiPersistenceRequired = false,
     bool dataApiPersistenceUnavailable = false,
   }) {
-    final terminalLayout = LocalTerminalLayoutRepository(
+    const legacyProfileKeyStore = FlutterSecureProfileSecretKeyStore();
+    ProfileSecretCipher localCipher() => ProfileSecretCipher(
+      keyStore: PortableMasterProfileSecretKeyStore(
+        masterKeyRepository: masterKeyRepository,
+        legacyStore: legacyProfileKeyStore,
+      ),
+      legacyKeyStore: masterKeyRepository?.allowLegacyMigration == false
+          ? null
+          : legacyProfileKeyStore,
+    );
+    final localProfiles = ProfileRepository(
       directoryResolver: profileExportDirectoryResolver,
+      secretCipher: localCipher(),
     );
-    if (dataApiPersistenceUnavailable || runtime == null) {
-      if (dataApiPersistenceUnavailable || dataApiPersistenceRequired) {
-        const client = _UnavailableDataApiResourceClient();
-        return PersistenceRepositoryComposition._(
-          profiles: DataApiProfileRepository(
-            client: client,
-            exportDirectoryResolver: profileExportDirectoryResolver,
-          ),
-          preferences: DataApiAppPreferencesRepository(client: client),
-          terminalConfig: DataApiTerminalConfigRepository(client: client),
-          terminalLayout: terminalLayout,
-          pasteHistory: DataApiPasteHistoryRepository(client: client),
-          usesDataApi: true,
-          persistenceUnavailable: true,
-        );
-      }
-      const legacyProfileKeyStore = FlutterSecureProfileSecretKeyStore();
-      return PersistenceRepositoryComposition._(
-        profiles: LocalTerminalOnlyProfileRepository(
-          delegate: ProfileRepository(
-            directoryResolver: profileExportDirectoryResolver,
-            secretCipher: ProfileSecretCipher(
-              keyStore: PortableMasterProfileSecretKeyStore(
-                masterKeyRepository: masterKeyRepository,
-                legacyStore: legacyProfileKeyStore,
-              ),
-              legacyKeyStore: legacyProfileKeyStore,
-            ),
-          ),
-        ),
-        preferences: AppPreferencesRepository(
-          directoryResolver: profileExportDirectoryResolver,
-        ),
-        terminalConfig: LocalTerminalConfigRepository(
-          directoryResolver: profileExportDirectoryResolver,
-        ),
-        terminalLayout: terminalLayout,
-        pasteHistory: PasteHistoryRepository(
-          directoryResolver: profileExportDirectoryResolver,
-        ),
-        usesDataApi: false,
-        persistenceUnavailable: false,
-      );
-    }
-    final client = DataApiClient.fromRuntime(runtime);
-    final profiles = DataApiProfileRepository(
-      client: client,
-      exportDirectoryResolver: profileExportDirectoryResolver,
+    final bindings = SyncRepositoryBindings(
+      profiles: localProfiles,
+      preferences: AppPreferencesRepository(
+        directoryResolver: profileExportDirectoryResolver,
+      ),
+      terminalConfig: LocalTerminalConfigRepository(
+        directoryResolver: profileExportDirectoryResolver,
+      ),
+      pasteHistory: PasteHistoryRepository(
+        directoryResolver: profileExportDirectoryResolver,
+      ),
     );
+    final enabled =
+        runtime != null &&
+        runtime.canAccessResources &&
+        !dataApiPersistenceUnavailable;
+    final sync = LocalFirstSyncCoordinator(
+      documents: bindings.bindings,
+      closeTransport: runtime?.close,
+      enabledButUnavailable:
+          !enabled &&
+          (dataApiPersistenceRequired ||
+              dataApiPersistenceUnavailable ||
+              runtime != null),
+      client: enabled
+          ? DataApiClient(
+              baseUri: runtime.baseUri,
+              accessToken: runtime.resourceAccessToken,
+              encryptionKey: runtime.encryptionKey,
+              connectionTimeout: const Duration(seconds: 2),
+              requestTimeout: const Duration(seconds: 4),
+            )
+          : null,
+      checkpoints: enabled
+          ? FileSyncCheckpointStore(
+              directory: profileExportDirectoryResolver,
+              destination: runtime.syncIdentity,
+              cipher: localCipher(),
+            )
+          : null,
+    );
+    final repositories = bindings.wrap(sync);
     return PersistenceRepositoryComposition._(
-      profiles: profiles,
-      preferences: DataApiAppPreferencesRepository(client: client),
-      terminalConfig: DataApiTerminalConfigRepository(client: client),
-      terminalLayout: terminalLayout,
-      pasteHistory: DataApiPasteHistoryRepository(client: client),
-      usesDataApi: true,
-      persistenceUnavailable: false,
+      profiles: repositories.profiles,
+      preferences: repositories.preferences,
+      terminalConfig: repositories.terminalConfig,
+      terminalLayout: LocalTerminalLayoutRepository(
+        directoryResolver: profileExportDirectoryResolver,
+      ),
+      pasteHistory: repositories.pasteHistory,
+      sync: sync,
+      configureSyncRuntime: (nextRuntime) async {
+        final active = nextRuntime != null && nextRuntime.canAccessResources;
+        await sync.setTransport(
+          nextClient: active
+              ? DataApiClient(
+                  baseUri: nextRuntime.baseUri,
+                  accessToken: nextRuntime.resourceAccessToken,
+                  encryptionKey: nextRuntime.encryptionKey,
+                  connectionTimeout: const Duration(seconds: 2),
+                  requestTimeout: const Duration(seconds: 4),
+                )
+              : null,
+          nextCheckpoints: active
+              ? FileSyncCheckpointStore(
+                  directory: profileExportDirectoryResolver,
+                  destination: nextRuntime.syncIdentity,
+                  cipher: localCipher(),
+                )
+              : null,
+          nextClose: nextRuntime?.close,
+        );
+      },
     );
   }
 
@@ -102,67 +126,17 @@ final class PersistenceRepositoryComposition {
   final TerminalConfigRepository terminalConfig;
   final TerminalLayoutRepository terminalLayout;
   final PasteHistoryRepositoryPort pasteHistory;
-  final bool usesDataApi;
-  final bool persistenceUnavailable;
+  final LocalFirstSyncCoordinator sync;
+  bool get usesDataApi =>
+      sync.client != null && sync.phase != LocalFirstSyncPhase.disabled;
+  final Future<void> Function(DataApiRuntime?) configureSyncRuntime;
+  bool get persistenceUnavailable => false;
 }
 
+/// Retained for callers decoding historical startup failures.
 final class DataApiPersistenceUnavailableException implements Exception {
   const DataApiPersistenceUnavailableException();
-
   @override
-  String toString() {
-    return 'The configured Data API is unavailable. Reconnect or disable the '
-        'data service in settings; local persistence was not used as a fallback.';
-  }
-}
-
-final class _UnavailableDataApiResourceClient implements DataApiResourceClient {
-  const _UnavailableDataApiResourceClient();
-
-  @override
-  bool get canAccessResources => false;
-
-  Never _unavailable() {
-    throw const DataApiPersistenceUnavailableException();
-  }
-
-  @override
-  Future<bool> deleteResource({
-    required String kind,
-    required String id,
-    int? expectedRevision,
-  }) async => _unavailable();
-
-  @override
-  Future<DataApiResource?> getResource({
-    required String kind,
-    required String id,
-    bool includeSensitive = false,
-  }) async => _unavailable();
-
-  @override
-  Future<DataApiResourcePage> listResourcePage({
-    String? kind,
-    bool includeSensitive = false,
-    int limit = DataApiClient.maximumPageSize,
-    String? cursor,
-  }) async => _unavailable();
-
-  @override
-  Future<DataApiMigrationMergeReport> mergeResources({
-    required String sourceId,
-    required List<DataApiMigrationResource> resources,
-    DataApiMigrationConflictPolicy conflictPolicy =
-        DataApiMigrationConflictPolicy.preserveDestination,
-  }) async => _unavailable();
-
-  @override
-  Future<DataApiResource> putResource({
-    required String kind,
-    required String id,
-    required Object? data,
-    Object? sensitive,
-    bool clearSensitive = false,
-    int? expectedRevision,
-  }) async => _unavailable();
+  String toString() =>
+      'API synchronization is unavailable; local data is still available.';
 }

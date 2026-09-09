@@ -56,9 +56,7 @@ enum ShellProductivityBindingFailureCode {
 enum ShellProductivityProductionOperation {
   nextPrompt,
   previousPrompt,
-  selectCommandOutput,
   copyCommandOutput,
-  openRecentDirectory,
   searchScrollback,
   nextSearchMatch,
   previousSearchMatch,
@@ -74,9 +72,7 @@ class ShellProductivityProductionCallbacks {
   const ShellProductivityProductionCallbacks({
     this.nextPrompt,
     this.previousPrompt,
-    this.selectCommandOutput,
     this.copyCommandOutput,
-    this.openRecentDirectory,
     this.searchScrollback,
     this.nextSearchMatch,
     this.previousSearchMatch,
@@ -90,9 +86,7 @@ class ShellProductivityProductionCallbacks {
 
   final ShellProductivityProductionCallback? nextPrompt;
   final ShellProductivityProductionCallback? previousPrompt;
-  final ShellProductivityProductionCallback? selectCommandOutput;
   final ShellProductivityProductionCallback? copyCommandOutput;
-  final ShellProductivityProductionCallback? openRecentDirectory;
   final ShellProductivityProductionCallback? searchScrollback;
   final ShellProductivityProductionCallback? nextSearchMatch;
   final ShellProductivityProductionCallback? previousSearchMatch;
@@ -123,16 +117,8 @@ class ShellProductivityProductionCallbacks {
     add(ShellProductivityProductionOperation.nextPrompt, nextPrompt);
     add(ShellProductivityProductionOperation.previousPrompt, previousPrompt);
     add(
-      ShellProductivityProductionOperation.selectCommandOutput,
-      selectCommandOutput,
-    );
-    add(
       ShellProductivityProductionOperation.copyCommandOutput,
       copyCommandOutput,
-    );
-    add(
-      ShellProductivityProductionOperation.openRecentDirectory,
-      openRecentDirectory,
     );
     add(
       ShellProductivityProductionOperation.searchScrollback,

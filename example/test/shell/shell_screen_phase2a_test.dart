@@ -11,7 +11,6 @@ import 'package:flutter_test/flutter_test.dart';
 import '../support/fake_pty_backend.dart';
 import '../support/memory_app_preferences_repository.dart';
 import '../support/memory_local_terminal_config_repository.dart';
-import '../support/memory_paste_history_repository.dart';
 import '../support/memory_profile_repository.dart';
 import '../support/no_io_local_session_recording_repository.dart';
 import '../support/no_io_local_terminal_layout_repository.dart';
@@ -27,9 +26,6 @@ Future<void> pumpShellScreen(
         shellAcceptanceProbeProvider.overrideWithValue(shellAcceptanceProbe),
         ptySessionBackendProvider.overrideWithValue(fakeBindings),
         profileRepositoryProvider.overrideWithValue(repository),
-        pasteHistoryRepositoryProvider.overrideWithValue(
-          MemoryPasteHistoryRepository(),
-        ),
         appPreferencesRepositoryProvider.overrideWithValue(
           MemoryAppPreferencesRepository(null),
         ),
@@ -128,25 +124,28 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('shell-top-new-tab')), findsOneWidget);
-    expect(find.byKey(const Key('shell-global-search')), findsOneWidget);
+    expect(
+      find.byKey(const Key('shell-search-scrollback-top')),
+      findsOneWidget,
+    );
 
     await tester.enterText(
       find.byKey(const Key('shell-command-search-field')),
-      'global search',
+      'terminal output',
     );
     await tester.pump();
 
-    expect(find.text('Global search'), findsOneWidget);
+    expect(find.text('Search terminal output'), findsOneWidget);
     expect(find.byKey(const Key('shell-top-new-tab')), findsNothing);
     expect(find.text('Defaults & appearance'), findsNothing);
 
     await tester.enterText(
       find.byKey(const Key('shell-command-search-field')),
-      'search global',
+      'search output',
     );
     await tester.pump();
 
-    expect(find.text('Global search'), findsOneWidget);
+    expect(find.text('Search terminal output'), findsOneWidget);
     expect(find.byKey(const Key('shell-top-new-tab')), findsNothing);
     expect(find.text('Defaults & appearance'), findsNothing);
 
@@ -157,7 +156,10 @@ void main() {
     await tester.pump();
 
     expect(find.byKey(const Key('shell-top-new-tab')), findsOneWidget);
-    expect(find.byKey(const Key('shell-global-search')), findsOneWidget);
+    expect(
+      find.byKey(const Key('shell-search-scrollback-top')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('shell screen command menu can create another tab', (

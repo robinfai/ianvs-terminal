@@ -49,35 +49,5 @@ void main() {
         'cmd',
       );
     });
-
-    test('recent directory action returns the first available directory', () {
-      final result = ShellProductivityActionReducer.reduce(
-        state: const ShellProductivityState(recentDirectories: ['/repo']),
-        actionId: TerminalActionId.openRecentDirectory,
-        context: const ShellProductivityActionContext(),
-      );
-
-      expect(result, isA<ShellProductivityRecentDirectoryResult>());
-      expect(
-        (result as ShellProductivityRecentDirectoryResult).directory,
-        '/repo',
-      );
-    });
-
-    test('recent directory action skips blank entries', () {
-      final result = ShellProductivityActionReducer.reduce(
-        state: const ShellProductivityState(
-          recentDirectories: ['', '  ', ' /repo '],
-        ),
-        actionId: TerminalActionId.openRecentDirectory,
-        context: const ShellProductivityActionContext(),
-      );
-
-      expect(result, isA<ShellProductivityRecentDirectoryResult>());
-      expect(
-        (result as ShellProductivityRecentDirectoryResult).directory,
-        '/repo',
-      );
-    });
   });
 }

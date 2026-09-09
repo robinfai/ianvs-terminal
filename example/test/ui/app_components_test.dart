@@ -350,7 +350,7 @@ void main() {
     expect(find.text('Used by new sessions'), findsOneWidget);
     expect(find.text('Leave empty to inherit'), findsOneWidget);
     expect(find.byType(TextField), findsOneWidget);
-    expect(tester.widget<Text>(find.text('Font family')).style?.fontSize, 11.5);
+    expect(tester.widget<Text>(find.text('Font family')).style?.fontSize, 13);
     expect(
       tester
           .widget<Text>(find.text('Used by new sessions'))

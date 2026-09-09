@@ -5207,6 +5207,40 @@ class SessionController extends Notifier<SessionState> {
     );
   }
 
+  /// Refresh saved configuration after a sync pull without replacing running
+  /// sessions or applying new credentials to an existing SSH connection.
+  Future<void> refreshSyncedConfiguration() async {
+    await _bootstrapFuture;
+    if (!_bootstrapWorkAllowed || !state.isReady) return;
+    try {
+      final preparation = await ref
+          .read(sessionBootstrapServiceProvider)
+          .prepare();
+      if (!_bootstrapWorkAllowed) return;
+      _profileDocument = preparation.profileDocument;
+      _configBootstrapSource = preparation.configSource;
+      _localConfigVersioned = preparation.localConfigDocument;
+      _preferencesLoadedFromDisk = preparation.preferencesLoadedFromDisk;
+      _appPreferencesDocument = preparation.appPreferencesDocument;
+      final profiles = ref
+          .read(terminalSessionLaunchPolicyProvider)
+          .visibleProfiles(preparation.profiles);
+      state = state.copyWith(
+        profiles: profiles,
+        defaultProfileId: _effectiveDefaultProfileIdFor(profiles),
+        configuredDefaultProfileId: _configuredDefaultProfileIdForUi(),
+        configurationWarnings: preparation.configurationWarnings,
+        themeMode: _appPreferences.appearance.themeMode,
+        languageMode: _appPreferences.appearance.languageMode,
+        terminalViewportPadding:
+            _appPreferences.appearance.terminalViewportPadding,
+      );
+    } on Object {
+      // A failed refresh must not interrupt an active terminal. The durable
+      // repositories remain authoritative and the next pull can retry.
+    }
+  }
+
   void dismissConfigurationWarnings() {
     if (state.configurationWarnings.isEmpty) {
       return;

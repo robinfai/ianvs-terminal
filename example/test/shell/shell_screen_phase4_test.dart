@@ -22,7 +22,6 @@ import 'package:ianvs_pty/ianvs_pty.dart';
 
 import '../support/fake_pty_backend.dart';
 import '../support/memory_app_preferences_repository.dart';
-import '../support/memory_paste_history_repository.dart';
 import '../support/memory_profile_repository.dart';
 import '../support/no_io_local_session_recording_repository.dart';
 import '../support/no_io_local_terminal_layout_repository.dart';
@@ -56,9 +55,6 @@ Future<void> _pumpShellScreen(
           MemoryProfileRepository(
             TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
           ),
-        ),
-        pasteHistoryRepositoryProvider.overrideWithValue(
-          MemoryPasteHistoryRepository(),
         ),
         appPreferencesRepositoryProvider.overrideWithValue(
           preferencesRepository ?? MemoryAppPreferencesRepository(preferences),
@@ -188,19 +184,6 @@ class _MemoryLocalTerminalConfigRepository
   Future<void> save(LocalTerminalConfigDocument document) async {
     savedDocuments.add(document);
     _document = document;
-  }
-}
-
-class _RecordingAppPreferencesRepository
-    extends MemoryAppPreferencesRepository {
-  _RecordingAppPreferencesRepository(super.document);
-
-  final List<TerminalAppPreferencesDocument> savedDocuments = [];
-
-  @override
-  Future<void> save(TerminalAppPreferencesDocument document) async {
-    savedDocuments.add(document);
-    await super.save(document);
   }
 }
 
@@ -4789,120 +4772,6 @@ void main() {
     },
   );
 
-  testWidgets('notification toggles read and write local config when present', (
-    tester,
-  ) async {
-    final fakeBindings = FakePtyBackend();
-    final legacyPreferencesRepository = _RecordingAppPreferencesRepository(
-      const TerminalAppPreferencesDocument(
-        notifications: TerminalAppNotifications(
-          commandFinished: true,
-          bell: true,
-          activity: true,
-        ),
-      ),
-    );
-    final localConfigRepository = _MemoryLocalTerminalConfigRepository(
-      const LocalTerminalConfigDocument(
-        layout: LocalTerminalLayoutConfig(restoreLayout: true),
-        notifications: LocalTerminalNotificationsConfig(
-          enabled: true,
-          commandFinished: false,
-          bell: true,
-          activity: true,
-        ),
-      ),
-    );
-
-    await _pumpShellScreen(
-      tester,
-      fakeBindings: fakeBindings,
-      preferencesRepository: legacyPreferencesRepository,
-      localConfigRepository: localConfigRepository,
-    );
-
-    await _openCommandMenu(tester);
-    await tester.ensureVisible(
-      find.byKey(const Key('shell-toggle-command-finished-notify')),
-    );
-    await tester.pumpAndSettle();
-
-    expect(find.text('Enable command-finished notifications'), findsOneWidget);
-
-    await tester.tap(
-      find.byKey(const Key('shell-toggle-command-finished-notify')),
-    );
-    await tester.pumpAndSettle();
-
-    expect(
-      find.text('Command-finished notifications enabled and saved.'),
-      findsOneWidget,
-    );
-    expect(legacyPreferencesRepository.savedDocuments, isEmpty);
-    expect(localConfigRepository.savedDocuments, hasLength(1));
-    final savedConfig = localConfigRepository.savedDocuments.single;
-    expect(savedConfig.layout.restoreLayout, isTrue);
-    expect(savedConfig.notifications.enabled, isTrue);
-    expect(savedConfig.notifications.commandFinished, isTrue);
-    expect(savedConfig.notifications.bell, isTrue);
-    expect(savedConfig.notifications.activity, isTrue);
-  });
-
-  testWidgets('notification save merges the latest local config document', (
-    tester,
-  ) async {
-    final fakeBindings = FakePtyBackend();
-    final localConfigRepository = _MemoryLocalTerminalConfigRepository(
-      const LocalTerminalConfigDocument(
-        defaultProfileId: 'initial',
-        notifications: LocalTerminalNotificationsConfig(
-          enabled: true,
-          commandFinished: false,
-          bell: false,
-          activity: true,
-        ),
-      ),
-    );
-
-    await _pumpShellScreen(
-      tester,
-      fakeBindings: fakeBindings,
-      localConfigRepository: localConfigRepository,
-    );
-    await localConfigRepository.save(
-      const LocalTerminalConfigDocument(
-        defaultProfileId: 'external',
-        paste: LocalTerminalPasteConfig(
-          bracketedPaste: LocalTerminalBracketedPastePolicy.force,
-          confirmLargePaste: false,
-        ),
-        notifications: LocalTerminalNotificationsConfig(
-          enabled: true,
-          commandFinished: false,
-          bell: false,
-          activity: true,
-        ),
-      ),
-    );
-    localConfigRepository.savedDocuments.clear();
-
-    await _tapCommandMenuAction(
-      tester,
-      const Key('shell-toggle-command-finished-notify'),
-    );
-
-    expect(localConfigRepository.savedDocuments, hasLength(1));
-    final savedConfig = localConfigRepository.savedDocuments.single;
-    expect(savedConfig.defaultProfileId, 'external');
-    expect(
-      savedConfig.paste.bracketedPaste,
-      LocalTerminalBracketedPastePolicy.force,
-    );
-    expect(savedConfig.paste.confirmLargePaste, isFalse);
-    expect(savedConfig.notifications.commandFinished, isTrue);
-    expect(savedConfig.notifications.bell, isFalse);
-  });
-
   testWidgets('shell shortcuts honor local config keybinding overrides', (
     tester,
   ) async {
@@ -5298,28 +5167,6 @@ void main() {
       expect(fakeBindings.writes.single, utf8.encode(clipboardText));
     },
   );
-
-  testWidgets('command menu hides advanced paste', (tester) async {
-    final fakeBindings = FakePtyBackend();
-
-    await _pumpShellScreen(
-      tester,
-      fakeBindings: fakeBindings,
-      localConfigRepository: _MemoryLocalTerminalConfigRepository(
-        const LocalTerminalConfigDocument(
-          paste: LocalTerminalPasteConfig(
-            bracketedPaste: LocalTerminalBracketedPastePolicy.force,
-          ),
-        ),
-      ),
-    );
-
-    await _openCommandMenu(tester);
-
-    expect(find.byKey(const Key('shell-advanced-paste')), findsNothing);
-    expect(find.text('Advanced paste'), findsNothing);
-    expect(fakeBindings.writes, isEmpty);
-  });
 
   testWidgets(
     'command-v uses paste confirmation before sending multiline text',
@@ -5886,54 +5733,6 @@ void main() {
     );
     expect(semantics.label, contains('plus 1 other pane signal'));
     expect(semantics.label, contains('new output in split pane'));
-  });
-
-  testWidgets('command menu hides hotkey window registration failures', (
-    tester,
-  ) async {
-    final windowBridgeCalls = <MethodCall>[];
-    const channel = MethodChannel('app/window_bridge');
-    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
-      call,
-    ) async {
-      windowBridgeCalls.add(call);
-      if (call.method == 'hotkeyStatus') {
-        return <String, Object?>{
-          'registered': false,
-          'shortcut': 'Option+Command+Space',
-          'errorCode': -9876,
-        };
-      }
-      return null;
-    });
-    addTearDown(
-      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-        channel,
-        null,
-      ),
-    );
-
-    await _pumpShellScreen(tester, fakeBindings: FakePtyBackend());
-
-    await tester.tap(find.byKey(const Key('shell-chrome-menu')));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 250));
-
-    expect(find.text('Hotkey window'), findsNothing);
-    expect(find.textContaining('Hotkey window is unavailable.'), findsNothing);
-    expect(
-      find.textContaining('Shortcut: Option+Command+Space.'),
-      findsNothing,
-    );
-    expect(find.textContaining('Error: -9876.'), findsNothing);
-    expect(
-      windowBridgeCalls.map((call) => call.method),
-      isNot(contains('hotkeyStatus')),
-    );
-    expect(
-      windowBridgeCalls.map((call) => call.method),
-      isNot(contains('toggleHotkeyWindow')),
-    );
   });
 
   testWidgets(

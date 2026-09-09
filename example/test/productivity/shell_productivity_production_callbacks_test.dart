@@ -100,9 +100,7 @@ void main() {
 const List<ShellProductivityProductionOperation> _coreProductivityOperations = [
   ShellProductivityProductionOperation.nextPrompt,
   ShellProductivityProductionOperation.previousPrompt,
-  ShellProductivityProductionOperation.selectCommandOutput,
   ShellProductivityProductionOperation.copyCommandOutput,
-  ShellProductivityProductionOperation.openRecentDirectory,
   ShellProductivityProductionOperation.searchScrollback,
   ShellProductivityProductionOperation.nextSearchMatch,
   ShellProductivityProductionOperation.previousSearchMatch,
@@ -115,9 +113,7 @@ ShellProductivityProductionCallbacks _coreProductivityCallbacks() {
   return const ShellProductivityProductionCallbacks(
     nextPrompt: _complete,
     previousPrompt: _complete,
-    selectCommandOutput: _complete,
     copyCommandOutput: _complete,
-    openRecentDirectory: _complete,
     searchScrollback: _complete,
     nextSearchMatch: _complete,
     previousSearchMatch: _complete,

@@ -54,18 +54,13 @@ enum LocalTerminalPolicyBindingFailureCode {
 enum LocalTerminalPolicyProductionOperation {
   copy,
   paste,
-  pasteHistory,
   pasteAsBracketed,
   confirmLargePaste,
   confirmMultilinePaste,
   recordPasteHistory,
   osc52Copy,
-  emitBellNotification,
-  emitCommandFinishedNotification,
-  emitActivityNotification,
   emitSilenceNotification,
   emitPromptReadyNotification,
-  toggleHotkeyWindow,
   applyHotkeyWindowConfig,
   recordHotkeyWindowFailure,
 }
@@ -74,36 +69,26 @@ class LocalTerminalPolicyProductionCallbacks {
   const LocalTerminalPolicyProductionCallbacks({
     this.copy,
     this.paste,
-    this.pasteHistory,
     this.pasteAsBracketed,
     this.confirmLargePaste,
     this.confirmMultilinePaste,
     this.recordPasteHistory,
     this.osc52Copy,
-    this.emitBellNotification,
-    this.emitCommandFinishedNotification,
-    this.emitActivityNotification,
     this.emitSilenceNotification,
     this.emitPromptReadyNotification,
-    this.toggleHotkeyWindow,
     this.applyHotkeyWindowConfig,
     this.recordHotkeyWindowFailure,
   });
 
   final LocalTerminalPolicyProductionCallback? copy;
   final LocalTerminalPolicyProductionCallback? paste;
-  final LocalTerminalPolicyProductionCallback? pasteHistory;
   final LocalTerminalPolicyProductionCallback? pasteAsBracketed;
   final LocalTerminalPolicyProductionCallback? confirmLargePaste;
   final LocalTerminalPolicyProductionCallback? confirmMultilinePaste;
   final LocalTerminalPolicyProductionCallback? recordPasteHistory;
   final LocalTerminalPolicyProductionCallback? osc52Copy;
-  final LocalTerminalPolicyProductionCallback? emitBellNotification;
-  final LocalTerminalPolicyProductionCallback? emitCommandFinishedNotification;
-  final LocalTerminalPolicyProductionCallback? emitActivityNotification;
   final LocalTerminalPolicyProductionCallback? emitSilenceNotification;
   final LocalTerminalPolicyProductionCallback? emitPromptReadyNotification;
-  final LocalTerminalPolicyProductionCallback? toggleHotkeyWindow;
   final LocalTerminalPolicyProductionCallback? applyHotkeyWindowConfig;
   final LocalTerminalPolicyProductionCallback? recordHotkeyWindowFailure;
 
@@ -129,7 +114,6 @@ class LocalTerminalPolicyProductionCallbacks {
 
     add(LocalTerminalPolicyProductionOperation.copy, copy);
     add(LocalTerminalPolicyProductionOperation.paste, paste);
-    add(LocalTerminalPolicyProductionOperation.pasteHistory, pasteHistory);
     add(
       LocalTerminalPolicyProductionOperation.pasteAsBracketed,
       pasteAsBracketed,
@@ -148,28 +132,12 @@ class LocalTerminalPolicyProductionCallbacks {
     );
     add(LocalTerminalPolicyProductionOperation.osc52Copy, osc52Copy);
     add(
-      LocalTerminalPolicyProductionOperation.emitBellNotification,
-      emitBellNotification,
-    );
-    add(
-      LocalTerminalPolicyProductionOperation.emitCommandFinishedNotification,
-      emitCommandFinishedNotification,
-    );
-    add(
-      LocalTerminalPolicyProductionOperation.emitActivityNotification,
-      emitActivityNotification,
-    );
-    add(
       LocalTerminalPolicyProductionOperation.emitSilenceNotification,
       emitSilenceNotification,
     );
     add(
       LocalTerminalPolicyProductionOperation.emitPromptReadyNotification,
       emitPromptReadyNotification,
-    );
-    add(
-      LocalTerminalPolicyProductionOperation.toggleHotkeyWindow,
-      toggleHotkeyWindow,
     );
     add(
       LocalTerminalPolicyProductionOperation.applyHotkeyWindowConfig,

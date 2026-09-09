@@ -48,7 +48,7 @@ class LocalTerminalRealWiringBacklogEvidence {
           const LocalTerminalRealWiringTaskEvidence.implementedButUnverified(
             task: LocalTerminalRealWiringTask.shellProductivityProductionWiring,
             evidence: [
-              'Search, prompt navigation, command output selection/copy, recent directory, paste history, instant replay, autocomplete, and auto composer have production dispatch coverage.',
+              'Search, prompt navigation, command output copy, paste, and instant replay have production dispatch coverage.',
               'Productivity production tasks T-208, T-210, T-211, T-217, and T-232 are represented in wiring.',
             ],
           ),
@@ -96,7 +96,7 @@ class LocalTerminalRealWiringBacklogEvidence {
       productivityWiring: const LocalTerminalRealWiringTaskEvidence.verified(
         task: LocalTerminalRealWiringTask.shellProductivityProductionWiring,
         evidence: [
-          'Search, prompt navigation, command output selection/copy, recent directory, paste history, instant replay, autocomplete, and auto composer have production dispatch coverage.',
+          'Search, prompt navigation, command output copy, paste, and instant replay have production dispatch coverage.',
           'Productivity behavior passed broader and manual paste/focus evidence.',
         ],
       ),

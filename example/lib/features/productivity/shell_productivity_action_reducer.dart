@@ -24,13 +24,6 @@ class ShellProductivityCommandOutputResult
   final ShellCommandOutputRange? range;
 }
 
-class ShellProductivityRecentDirectoryResult
-    extends ShellProductivityActionResult {
-  const ShellProductivityRecentDirectoryResult(this.directory);
-
-  final String? directory;
-}
-
 class ShellProductivitySearchResult extends ShellProductivityActionResult {
   const ShellProductivitySearchResult(this.search);
 
@@ -69,16 +62,10 @@ class ShellProductivityActionReducer {
       TerminalActionId.nextPrompt => ShellProductivityPromptResult(
         state.nextPrompt(context.currentRow),
       ),
-      TerminalActionId.selectCommandOutput ||
       TerminalActionId.copyCommandOutput =>
         ShellProductivityCommandOutputResult(state.lastCommandOutputRange()),
-      TerminalActionId.openRecentDirectory =>
-        ShellProductivityRecentDirectoryResult(state.firstRecentDirectory),
       TerminalActionId.clearBuffer => const ShellProductivityNoopResult(),
       TerminalActionId.search => ShellProductivitySearchResult(context.search),
-      TerminalActionId.globalSearch => ShellProductivitySearchResult(
-        context.search.clear(),
-      ),
       _ => const ShellProductivityNoopResult(),
     };
   }

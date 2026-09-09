@@ -1,5 +1,4 @@
 import Cocoa
-import Carbon.HIToolbox
 import FlutterMacOS
 import UserNotifications
 
@@ -34,150 +33,6 @@ enum DartShutdownSafety: Equatable {
   }
 }
 
-private final class HotkeyWindowController {
-  static let shortcutLabel = "⌥⌘Space"
-
-  private static let hotkeySignature = fourCharCode("FLTM")
-  private static let hotkeyId = UInt32(1)
-  private static let keyCode = UInt32(kVK_Space)
-  private static let keyModifiers = UInt32(cmdKey | optionKey)
-
-  private weak var window: NSWindow?
-  private var hotkeyRef: EventHotKeyRef?
-  private var eventHandlerRef: EventHandlerRef?
-  private(set) var registrationError: OSStatus?
-
-  var isRegistered: Bool {
-    hotkeyRef != nil
-  }
-
-  init(window: NSWindow) {
-    self.window = window
-  }
-
-  deinit {
-    unregister()
-  }
-
-  func register() {
-    guard hotkeyRef == nil else {
-      return
-    }
-
-    var eventType = EventTypeSpec(
-      eventClass: OSType(kEventClassKeyboard),
-      eventKind: UInt32(kEventHotKeyPressed)
-    )
-    let handlerStatus = InstallEventHandler(
-      GetApplicationEventTarget(),
-      { _, event, userData in
-        guard let userData else {
-          return noErr
-        }
-        let controller = Unmanaged<HotkeyWindowController>
-          .fromOpaque(userData)
-          .takeUnretainedValue()
-        controller.handleHotkeyEvent(event)
-        return noErr
-      },
-      1,
-      &eventType,
-      UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque()),
-      &eventHandlerRef
-    )
-    guard handlerStatus == noErr else {
-      registrationError = handlerStatus
-      return
-    }
-
-    let hotkeyId = EventHotKeyID(
-      signature: Self.hotkeySignature,
-      id: Self.hotkeyId
-    )
-    let hotkeyStatus = RegisterEventHotKey(
-      Self.keyCode,
-      Self.keyModifiers,
-      hotkeyId,
-      GetApplicationEventTarget(),
-      0,
-      &hotkeyRef
-    )
-    if hotkeyStatus != noErr {
-      registrationError = hotkeyStatus
-      if let eventHandlerRef {
-        RemoveEventHandler(eventHandlerRef)
-      }
-      eventHandlerRef = nil
-      hotkeyRef = nil
-      return
-    }
-
-    registrationError = nil
-  }
-
-  func unregister() {
-    if let hotkeyRef {
-      UnregisterEventHotKey(hotkeyRef)
-    }
-    if let eventHandlerRef {
-      RemoveEventHandler(eventHandlerRef)
-    }
-    hotkeyRef = nil
-    eventHandlerRef = nil
-  }
-
-  func toggleWindow() {
-    DispatchQueue.main.async { [weak self] in
-      guard let self, let window = self.window else {
-        return
-      }
-
-      if window.isMiniaturized {
-        window.deminiaturize(nil)
-      }
-
-      if window.isVisible && NSApp.isActive {
-        AppDelegate.suppressNextLastWindowTerminate = true
-        window.orderOut(nil)
-        return
-      }
-
-      NSApp.activate(ignoringOtherApps: true)
-      window.makeKeyAndOrderFront(nil)
-    }
-  }
-
-  private func handleHotkeyEvent(_ event: EventRef?) {
-    var hotkeyId = EventHotKeyID()
-    guard
-      let event,
-      GetEventParameter(
-        event,
-        EventParamName(kEventParamDirectObject),
-        EventParamType(typeEventHotKeyID),
-        nil,
-        MemoryLayout<EventHotKeyID>.size,
-        nil,
-        &hotkeyId
-      ) == noErr,
-      hotkeyId.signature == Self.hotkeySignature,
-      hotkeyId.id == Self.hotkeyId
-    else {
-      return
-    }
-
-    toggleWindow()
-  }
-}
-
-private func fourCharCode(_ value: String) -> OSType {
-  var result: OSType = 0
-  for scalar in value.unicodeScalars.prefix(4) {
-    result = (result << 8) + OSType(scalar.value)
-  }
-  return result
-}
-
 class MainFlutterWindow: NSWindow, NSWindowDelegate {
   private struct Osc72DropTarget {
     let sessionId: String
@@ -190,14 +45,14 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
   }
 
   private static let chromeBarHeight: CGFloat = 44
-  private static let trailingWindowControlWidth: CGFloat = 56
+  // Keep the search, settings and command controls out of the drag region.
+  private static let trailingWindowControlWidth: CGFloat = 120
   private static let maxOsc72DropBytes = 64 * 1024 * 1024
   private static let mimePasteboardTypePrefix = "dev.ianvs.terminal.mime."
   static let mainWindowFrameAutosaveName = "IanvsTerminalMainWindow"
 
   private var windowBridgeChannel: FlutterMethodChannel?
   private var shutdownChannel: FlutterMethodChannel?
-  private var hotkeyWindowController: HotkeyWindowController?
   private var trafficLightCenteringWorkItem: DispatchWorkItem?
   private var notificationExpiryWorkItems: [String: DispatchWorkItem] = [:]
   private var attentionRequestIds: Set<Int> = []
@@ -364,6 +219,8 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
     isMovable = true
     isMovableByWindowBackground = false
     styleMask.insert(.fullSizeContentView)
+    contentMinSize = NSSize(width: 640, height: 400)
+    collectionBehavior.insert(.fullScreenPrimary)
 
     let restored = setFrameUsingName(autosaveName)
     setFrameAutosaveName(autosaveName)
@@ -392,8 +249,6 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
     bindNativeSettingsMenuItem()
     bindNativeTerminalFolderMenuItem()
     bindNativeTerminalSessionMenuItems()
-    hotkeyWindowController = HotkeyWindowController(window: self)
-    hotkeyWindowController?.register()
     windowBridgeChannel?.setMethodCallHandler { [weak self] call, result in
       guard let self else {
         result(
@@ -437,18 +292,6 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
       case "requestQuitConfirmation":
         NSApp.terminate(nil)
         result(nil)
-      case "toggleHotkeyWindow":
-        self.hotkeyWindowController?.toggleWindow()
-        result(nil)
-      case "hotkeyStatus":
-        var status: [String: Any] = [
-          "registered": self.hotkeyWindowController?.isRegistered ?? false,
-          "shortcut": HotkeyWindowController.shortcutLabel
-        ]
-        if let error = self.hotkeyWindowController?.registrationError {
-          status["errorCode"] = Int(error)
-        }
-        result(status)
       case "windowMetrics":
         var metrics: [String: Any] = [
           "frameWidth": Double(self.frame.size.width),

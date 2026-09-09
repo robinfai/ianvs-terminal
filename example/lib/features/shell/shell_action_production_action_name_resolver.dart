@@ -7,7 +7,6 @@ class ShellActionProductionActionNameResolver {
     'closeTab': TerminalActionId.closeActiveTab,
     'searchScrollback': TerminalActionId.search,
     'toggleCommandPalette': TerminalActionId.openCommandMenu,
-    'toggleHotkeyWindow': TerminalActionId.hotkeyWindow,
     'resizePaneLeft': TerminalActionId.resizePane,
     'resizePaneRight': TerminalActionId.resizePane,
     'resizePaneUp': TerminalActionId.resizePane,

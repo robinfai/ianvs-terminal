@@ -56,11 +56,8 @@ enum LocalTerminalVisualBindingFailureCode {
 }
 
 enum LocalTerminalVisualProductionOperation {
-  openThemePicker,
-  applyTheme,
   importThemePreset,
   exportThemePreset,
-  applyLayoutTemplate,
   saveLayoutTemplate,
   exportLayoutTemplate,
   exportScrollback,
@@ -76,11 +73,8 @@ enum LocalTerminalVisualProductionOperation {
 
 class LocalTerminalVisualProductionCallbacks {
   const LocalTerminalVisualProductionCallbacks({
-    this.openThemePicker,
-    this.applyTheme,
     this.importThemePreset,
     this.exportThemePreset,
-    this.applyLayoutTemplate,
     this.saveLayoutTemplate,
     this.exportLayoutTemplate,
     this.exportScrollback,
@@ -94,11 +88,8 @@ class LocalTerminalVisualProductionCallbacks {
     this.openScrollbackEditor,
   });
 
-  final LocalTerminalVisualProductionCallback? openThemePicker;
-  final LocalTerminalVisualProductionCallback? applyTheme;
   final LocalTerminalVisualProductionCallback? importThemePreset;
   final LocalTerminalVisualProductionCallback? exportThemePreset;
-  final LocalTerminalVisualProductionCallback? applyLayoutTemplate;
   final LocalTerminalVisualProductionCallback? saveLayoutTemplate;
   final LocalTerminalVisualProductionCallback? exportLayoutTemplate;
   final LocalTerminalVisualProductionCallback? exportScrollback;
@@ -132,21 +123,12 @@ class LocalTerminalVisualProductionCallbacks {
     }
 
     add(
-      LocalTerminalVisualProductionOperation.openThemePicker,
-      openThemePicker,
-    );
-    add(LocalTerminalVisualProductionOperation.applyTheme, applyTheme);
-    add(
       LocalTerminalVisualProductionOperation.importThemePreset,
       importThemePreset,
     );
     add(
       LocalTerminalVisualProductionOperation.exportThemePreset,
       exportThemePreset,
-    );
-    add(
-      LocalTerminalVisualProductionOperation.applyLayoutTemplate,
-      applyLayoutTemplate,
     );
     add(
       LocalTerminalVisualProductionOperation.saveLayoutTemplate,

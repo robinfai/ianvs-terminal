@@ -8,6 +8,7 @@ import 'package:app/features/shell/shell_screen.dart';
 import 'package:app/features/terminal/terminal_viewport.dart';
 import 'package:app/ui/app_ui.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -61,9 +62,60 @@ Future<void> pumpShellScreen(
 }
 
 void main() {
-  testWidgets('shell screen renders a hyper-first chrome around the terminal', (
-    tester,
-  ) async {
+  testWidgets(
+    'shell screen renders a macOS toolbar and document tabs around the terminal',
+    (tester) async {
+      await pumpShellScreen(
+        tester,
+        fakeBindings: FakePtyBackend(),
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      expect(find.byKey(const Key('shell-chrome-bar')), findsOneWidget);
+      expect(find.byKey(const Key('shell-tab-strip')), findsOneWidget);
+      expect(find.byKey(const Key('shell-chrome-new-tab')), findsOneWidget);
+      expect(find.byKey(const Key('shell-terminal-surface')), findsOneWidget);
+      expect(find.byKey(const Key('shell-status-bar')), findsNothing);
+      expect(
+        tester.getSize(find.byKey(const Key('shell-chrome-bar'))).height,
+        82,
+      );
+      expect(
+        find.byKey(const Key('shell-chrome-window-title')),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<Text>(find.byKey(const Key('shell-chrome-window-title')))
+            .data,
+        'Trail',
+      );
+      expect(
+        tester.getCenter(find.byKey(const Key('shell-chrome-window-title'))).dx,
+        closeTo(
+          tester
+              .getCenter(find.byKey(const Key('shell-chrome-title-surface')))
+              .dx,
+          0.5,
+        ),
+      );
+      expect(
+        find.byKey(const Key('shell-chrome-window-shortcut')),
+        findsNothing,
+      );
+      expect(find.byType(TerminalViewport), findsOneWidget);
+      expect(find.byType(FloatingActionButton), findsNothing);
+      expect(find.byType(InputChip), findsNothing);
+      expect(find.text('Shell layout'), findsNothing);
+      expect(find.text('Session tabs'), findsNothing);
+      expect(find.text('Copy'), findsNothing);
+      expect(find.text('Paste'), findsNothing);
+    },
+  );
+
+  testWidgets('toolbar opens settings and terminal search', (tester) async {
     await pumpShellScreen(
       tester,
       fakeBindings: FakePtyBackend(),
@@ -71,40 +123,16 @@ void main() {
         TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
       ),
     );
-
-    expect(find.byKey(const Key('shell-chrome-bar')), findsOneWidget);
-    expect(find.byKey(const Key('shell-tab-strip')), findsOneWidget);
-    expect(find.byKey(const Key('shell-chrome-new-tab')), findsOneWidget);
-    expect(find.byKey(const Key('shell-terminal-surface')), findsOneWidget);
-    expect(find.byKey(const Key('shell-status-bar')), findsNothing);
-    expect(
-      tester.getSize(find.byKey(const Key('shell-chrome-bar'))).height,
-      76,
-    );
-    expect(find.byKey(const Key('shell-chrome-window-title')), findsOneWidget);
-    expect(
-      tester
-          .widget<Text>(find.byKey(const Key('shell-chrome-window-title')))
-          .data,
-      'Trail',
-    );
-    expect(
-      tester.getCenter(find.byKey(const Key('shell-chrome-window-title'))).dx,
-      closeTo(
-        tester
-            .getCenter(find.byKey(const Key('shell-chrome-title-surface')))
-            .dx,
-        0.5,
-      ),
-    );
-    expect(find.byKey(const Key('shell-chrome-window-shortcut')), findsNothing);
-    expect(find.byType(TerminalViewport), findsOneWidget);
-    expect(find.byType(FloatingActionButton), findsNothing);
-    expect(find.byType(InputChip), findsNothing);
-    expect(find.text('Shell layout'), findsNothing);
-    expect(find.text('Session tabs'), findsNothing);
-    expect(find.text('Copy'), findsNothing);
-    expect(find.text('Paste'), findsNothing);
+    await tester.tap(find.byKey(const Key('shell-toolbar-settings')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('defaults-dialog')), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('defaults-dialog')), findsNothing);
+    await tester.tap(find.byKey(const Key('shell-toolbar-search')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('terminal-search-field')), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets(

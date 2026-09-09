@@ -87,7 +87,7 @@ void main() {
 
     test('dispatches visual actions when other reducers are noop', () {
       final result = ShellActionDispatcher.dispatch(
-        actionId: TerminalActionId.openThemePicker,
+        actionId: TerminalActionId.exportScrollback,
         state: const ShellActionDispatchState(),
         context: _context(),
       );
@@ -95,7 +95,7 @@ void main() {
       expect(result, isA<ShellVisualDispatchResult>());
       expect(
         (result as ShellVisualDispatchResult).result,
-        isA<LocalTerminalOpenThemePickerResult>(),
+        isA<LocalTerminalExportScrollbackResult>(),
       );
     });
 

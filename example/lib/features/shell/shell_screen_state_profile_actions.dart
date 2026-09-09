@@ -1,5 +1,7 @@
 part of 'shell_screen.dart';
 
+enum _ApiSyncConfigurationApplyResult { restartRequired, applied, unavailable }
+
 extension _ShellScreenStateProfileActions on _ShellScreenState {
   bool get _localSessionsEnabled =>
       ref.read(terminalSessionLaunchPolicyProvider).localSessionsEnabled;
@@ -8,6 +10,23 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
 
   bool _canOpenNewSessionLauncher(SessionState sessionState) =>
       !_localSessionsEnabled || sessionState.profiles.isNotEmpty;
+
+  Future<_ApiSyncConfigurationApplyResult>
+  _applySavedApiSyncConfiguration() async {
+    final apply = ref.read(applyApiSyncConfigurationProvider);
+    if (apply == null) {
+      return _ApiSyncConfigurationApplyResult.restartRequired;
+    }
+    await ref.read(localFirstSyncProvider)?.pause();
+    try {
+      await apply();
+      return _ApiSyncConfigurationApplyResult.applied;
+    } on Object {
+      // Production marks the coordinator unavailable. The configuration is
+      // already durable and local repositories remain authoritative.
+      return _ApiSyncConfigurationApplyResult.unavailable;
+    }
+  }
 
   Future<void> _loadRemoteFallbackSnapshot() async {
     if (_remoteFallbackSnapshotLoadStarted) {
@@ -412,9 +431,11 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
         keybindings: _keybindingsConfig,
         dataApiConfiguration: dataApiConfiguration,
         activeDataApiDeployment:
-            widget.activeDataApiDeployment ??
-            ref.read(dataApiRuntimeProvider)?.deployment ??
-            dataApiConfiguration.deployment,
+            ref.read(applyApiSyncConfigurationProvider) != null
+            ? dataApiConfiguration.deployment
+            : widget.activeDataApiDeployment ??
+                  ref.read(dataApiRuntimeProvider)?.deployment ??
+                  dataApiConfiguration.deployment,
         dataApiConfigurationRecoveryRequired:
             dataApiConfigurationRecoveryRequired,
         localDataApiAvailable: defaultTargetPlatform == TargetPlatform.macOS,
@@ -492,8 +513,6 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
           return;
         }
         _mutateState(() {
-          _notificationConfigSource =
-              LocalTerminalConfigBootstrapSource.localConfig;
           _notificationLocalConfig = _notificationLocalConfig.copyWith(
             layout: LocalTerminalLayoutConfig(
               restoreLayout: selection.restoreLayout,
@@ -567,8 +586,6 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
           return;
         }
         _mutateState(() {
-          _notificationConfigSource =
-              LocalTerminalConfigBootstrapSource.localConfig;
           _keybindingsConfig = selection.keybindings;
           _notificationLocalConfig = _notificationLocalConfig.copyWith(
             keybindings: selection.keybindings,
@@ -597,95 +614,29 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
               if (remoteLogin == null || connector == null) {
                 throw StateError(l10n.remoteAuthenticationUnavailable);
               }
-              DataApiMigrationSummary? migrationSummary;
-              if (selection.migrateLocalDataToRemote) {
-                final migrationConnector =
-                    switch (dataApiConfigurationRepository) {
-                      final DataApiLocalToRemoteConfigurationConnector value =>
-                        value,
-                      _ => null,
-                    };
-                final sourceRuntime = ref.read(dataApiRuntimeProvider);
-                if (migrationConnector == null ||
-                    sourceRuntime == null ||
-                    !sourceRuntime.isLocal) {
-                  throw StateError(l10n.localApiMigrationUnavailable);
-                }
-                migrationSummary = await migrationConnector
-                    .migrateLocalAndSaveRemote(
-                      remoteLogin,
-                      sourceRuntime: sourceRuntime,
-                    );
-              } else {
-                await connector.connectAndSaveRemote(remoteLogin);
-              }
-              if (mounted && migrationSummary != null) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    key: const Key('data-api-migration-complete'),
-                    content: Text(
-                      l10n.migrationToRemoteSummary(
-                        migrationSummary.resourceCount,
-                        migrationSummary.created,
-                        migrationSummary.updated,
-                        migrationSummary.skipped,
-                      ),
-                    ),
-                  ),
-                );
-              }
-            } else if (selection.migrateRemoteDataToLocal) {
-              final migrationConnector =
-                  switch (dataApiConfigurationRepository) {
-                    final DataApiRemoteToLocalConfigurationConnector value =>
-                      value,
-                    _ => null,
-                  };
-              final sourceRuntime = ref.read(dataApiRuntimeProvider);
-              final startLocalRuntime = ref.read(
-                dataApiLocalMigrationRuntimeStarterProvider,
-              );
-              if (migrationConnector == null ||
-                  sourceRuntime == null ||
-                  sourceRuntime.deployment != DataApiDeployment.remote ||
-                  startLocalRuntime == null) {
-                throw StateError(l10n.remoteToLocalMigrationUnavailable);
-              }
-              final migrationSummary =
-                  await withTemporaryDataApiRuntime<DataApiMigrationSummary>(
-                    startRuntime: startLocalRuntime,
-                    operation: (destinationRuntime) =>
-                        migrationConnector.migrateRemoteAndSaveLocal(
-                          sourceRuntime: sourceRuntime,
-                          destinationRuntime: destinationRuntime,
-                        ),
-                  );
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    key: const Key('data-api-migration-complete'),
-                    content: Text(
-                      l10n.migrationToLocalSummary(
-                        migrationSummary.resourceCount,
-                        migrationSummary.created,
-                        migrationSummary.updated,
-                        migrationSummary.skipped,
-                      ),
-                    ),
-                  ),
-                );
-              }
+              await connector.connectAndSaveRemote(remoteLogin);
             } else {
               await dataApiConfigurationRepository.save(
                 selection.dataApiConfiguration,
               );
             }
+            final applyResult = await _applySavedApiSyncConfiguration();
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(l10n.dataServiceConfigurationSaved)),
+                SnackBar(
+                  content: Text(switch (applyResult) {
+                    _ApiSyncConfigurationApplyResult.restartRequired =>
+                      l10n.dataServiceConfigurationSaved,
+                    _ApiSyncConfigurationApplyResult.applied =>
+                      l10n.dataServiceConfigurationApplied,
+                    _ApiSyncConfigurationApplyResult.unavailable =>
+                      l10n.dataServiceConfigurationSavedSyncUnavailable,
+                  }),
+                ),
               );
             }
           } on DataApiRemoteRevocationPendingWarning catch (warning) {
+            await _applySavedApiSyncConfiguration();
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
@@ -695,6 +646,9 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
               );
             }
           } on DataApiSecureSessionMutationException catch (warning) {
+            if (warning.configurationSaved) {
+              await _applySavedApiSyncConfiguration();
+            }
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
@@ -959,12 +913,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
   }
 
   String _activeProfilePersistenceLabel() {
-    final deployment = switch (ref.read(dataApiRuntimeProvider)?.deployment) {
-      DataApiDeployment.remote => 'remote',
-      DataApiDeployment.local => 'local',
-      DataApiDeployment.disabled || null => 'disabled',
-    };
-    return context.l10n.profileStorageDestination(deployment);
+    return context.l10n.localProfileStorageDestination;
   }
 
   Future<bool> _showProfileSaveFailure({
@@ -1042,44 +991,6 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
         l10n.persistentSshProfilesRequireService,
       _ => l10n.saveFailed(error.toString()),
     };
-  }
-
-  Future<void> _openDynamicProfiles(SessionController sessionController) async {
-    final animationsEnabled = ref.read(shellAnimationsEnabledProvider);
-    final result = await showModalBottomSheet<DynamicProfilesImportResult>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      sheetAnimationStyle: animationsEnabled
-          ? null
-          : AnimationStyle.noAnimation,
-      builder: (sheetContext) => DynamicProfilesSheet(
-        existingProfiles: ref.read(sessionControllerProvider).profiles,
-      ),
-    );
-    if (!mounted || result == null) {
-      return;
-    }
-    for (final profile in result.profiles) {
-      if (!await _saveProfileWithFeedback(sessionController, profile)) {
-        return;
-      }
-    }
-    if (!mounted) {
-      return;
-    }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          context.l10n.dynamicProfilesImported(
-            result.profiles.length,
-            result.addedCount,
-            result.replacementCount,
-            result.warningCount,
-          ),
-        ),
-      ),
-    );
   }
 
   ShellActionProductionRuntimeAdapter _buildScopedProductionActionAdapter({

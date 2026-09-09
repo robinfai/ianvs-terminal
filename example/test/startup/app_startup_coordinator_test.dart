@@ -3,9 +3,11 @@ import 'dart:io';
 
 import 'package:app/data/configuration/data_api_configuration.dart';
 import 'package:app/data/configuration/data_api_configuration_repository.dart';
+import 'package:app/data/services/data_api_bootstrap.dart';
 import 'package:app/data/services/data_api_remote_session_store.dart';
 import 'package:app/data/services/data_api_runtime.dart';
 import 'package:app/data/services/portable_master_key.dart';
+import 'package:app/data/sync/local_first_sync.dart';
 import 'package:app/features/recording/local_session_recording_repository.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/persistence_repository_composition.dart';
@@ -291,9 +293,47 @@ void main() {
 
         await coordinator.start();
 
-        final graph = (coordinator.state as AppStartupReady).graph;
+        final graph = _readyGraph(coordinator);
         expect(graph.dataApiRuntime, isNull);
         expect(graph.persistenceRepositories.usesDataApi, isFalse);
+      },
+    );
+
+    test(
+      'data bootstrap failure may continue with local persistence',
+      () async {
+        final harness = _StartupHarness(
+          dataBootstrapError: StateError('remote API unavailable'),
+          handleDataBootstrapFailure: (error, stackTrace) =>
+              DataApiStartupWarning(error.toString()),
+        );
+        final coordinator = AppStartupCoordinator(pipeline: harness.pipeline);
+
+        await coordinator.start();
+
+        final graph = _readyGraph(coordinator);
+        expect(graph.dataApiRuntime, isNull);
+        expect(
+          graph.dataApiStartupWarning?.message,
+          contains('remote API unavailable'),
+        );
+      },
+    );
+
+    test(
+      'data bootstrap failure stays fatal when fallback declines it',
+      () async {
+        final harness = _StartupHarness(
+          dataBootstrapError: const _UnknownTerminationFailure(),
+          handleDataBootstrapFailure: (error, stackTrace) => null,
+        );
+        final coordinator = AppStartupCoordinator(pipeline: harness.pipeline);
+
+        await coordinator.start();
+
+        final failure = coordinator.state as AppStartupRecoverableFailure;
+        expect(failure.failure.stage, AppStartupStage.dataBootstrap);
+        expect(failure.failure.error, isA<_UnknownTerminationFailure>());
       },
     );
 
@@ -384,6 +424,152 @@ void main() {
       },
     );
 
+    test(
+      'production keeps local data available when remote session recovery fails',
+      () async {
+        final directory = Directory.systemTemp.createTempSync(
+          'ianvs-startup-remote-session-fallback-',
+        );
+        addTearDown(() => directory.deleteSync(recursive: true));
+        final repository = _MemoryConfigurationRepository()
+          ..configuration = DataApiConfiguration.remote(
+            'https://sync.example.com/',
+          );
+        final settings = _MemorySettingsCapability();
+        final coordinator = createProductionAppStartupCoordinator(
+          platform: TargetPlatform.macOS,
+          appSupportDirectoryResolver: () async => directory,
+          appDocumentsDirectoryResolver: () async => directory,
+          configurationAccessFactory: (paths) async =>
+              AppStartupConfigurationAccess(
+                repository: repository,
+                remoteSessionStore: _MemoryRemoteSessionStore(),
+                masterKeyRepository: PortableMasterKeyRepository(),
+                settings: settings,
+              ),
+          secureRecovery: (access) async {
+            throw DataApiStartupDependencyException(
+              dependency: DataApiStartupDependency.remoteSession,
+              cause: StateError('Keychain temporarily unavailable'),
+            );
+          },
+          nativePtyLoader: () async => _FakePtyBackend(),
+        );
+
+        await coordinator.start();
+
+        final graph = _readyGraph(coordinator);
+        expect(graph.dataApiRuntime, isNull);
+        expect(
+          graph.dataApiStartupWarning?.message,
+          contains('API synchronization is unavailable'),
+        );
+        expect(graph.persistenceRepositories.persistenceUnavailable, isFalse);
+        expect(repository.loadCount, 0);
+      },
+    );
+
+    test(
+      'production keeps local data available when API configuration read fails',
+      () async {
+        final directory = Directory.systemTemp.createTempSync(
+          'ianvs-startup-configuration-fallback-',
+        );
+        addTearDown(() => directory.deleteSync(recursive: true));
+        final repository = _MemoryConfigurationRepository()
+          ..loadError = const DataApiConfigurationRecoveryRequiredException();
+        final coordinator = createProductionAppStartupCoordinator(
+          platform: TargetPlatform.macOS,
+          appSupportDirectoryResolver: () async => directory,
+          appDocumentsDirectoryResolver: () async => directory,
+          configurationAccessFactory: (paths) async =>
+              AppStartupConfigurationAccess(
+                repository: repository,
+                remoteSessionStore: _MemoryRemoteSessionStore(),
+                masterKeyRepository: PortableMasterKeyRepository(),
+                settings: _MemorySettingsCapability(),
+              ),
+          secureRecovery: (access) async => null,
+          nativePtyLoader: () async => _FakePtyBackend(),
+        );
+
+        await coordinator.start();
+
+        final graph = _readyGraph(coordinator);
+        expect(graph.dataApiRuntime, isNull);
+        expect(graph.dataApiStartupWarning, isNotNull);
+        expect(repository.loadCount, 1);
+        expect(repository.saveCount, 0);
+      },
+    );
+
+    test('production does not hide master-key recovery failures', () async {
+      final directory = Directory.systemTemp.createTempSync(
+        'ianvs-startup-master-key-failure-',
+      );
+      addTearDown(() => directory.deleteSync(recursive: true));
+      final coordinator = createProductionAppStartupCoordinator(
+        platform: TargetPlatform.macOS,
+        appSupportDirectoryResolver: () async => directory,
+        appDocumentsDirectoryResolver: () async => directory,
+        configurationAccessFactory: (paths) async =>
+            AppStartupConfigurationAccess(
+              repository: _MemoryConfigurationRepository(),
+              remoteSessionStore: _MemoryRemoteSessionStore(),
+              masterKeyRepository: PortableMasterKeyRepository(),
+              settings: _MemorySettingsCapability(),
+            ),
+        secureRecovery: (access) async {
+          throw const PortableMasterKeyUnavailableException();
+        },
+        nativePtyLoader: () async => _FakePtyBackend(),
+      );
+
+      await coordinator.start();
+
+      final failure = coordinator.state as AppStartupRecoverableFailure;
+      expect(failure.failure.stage, AppStartupStage.secureRecovery);
+      expect(
+        failure.failure.error,
+        isA<PortableMasterKeyUnavailableException>(),
+      );
+    });
+
+    test('live API reconfiguration failure marks sync unavailable', () async {
+      final directory = Directory.systemTemp.createTempSync(
+        'ianvs-live-sync-reconfiguration-',
+      );
+      addTearDown(() => directory.deleteSync(recursive: true));
+      final repository = _MemoryConfigurationRepository();
+      final coordinator = createProductionAppStartupCoordinator(
+        platform: TargetPlatform.macOS,
+        appSupportDirectoryResolver: () async => directory,
+        appDocumentsDirectoryResolver: () async => directory,
+        configurationAccessFactory: (paths) async =>
+            AppStartupConfigurationAccess(
+              repository: repository,
+              remoteSessionStore: _MemoryRemoteSessionStore(),
+              masterKeyRepository: PortableMasterKeyRepository(),
+              settings: _MemorySettingsCapability(),
+            ),
+        secureRecovery: (access) async => null,
+        nativePtyLoader: () async => _FakePtyBackend(),
+      );
+      await coordinator.start();
+      final graph = _readyGraph(coordinator);
+      repository.loadError = StateError('configuration reload failed');
+
+      await expectLater(
+        graph.applyApiSyncConfiguration!(),
+        throwsA(isA<StateError>()),
+      );
+
+      expect(
+        graph.persistenceRepositories.sync.phase,
+        LocalFirstSyncPhase.unavailable,
+      );
+    });
+
     test('production initial Data API policy is platform specific', () {
       const disabled = DataApiConfiguration.disabled();
       final remote = DataApiConfiguration.remote('https://sync.example.com/');
@@ -410,7 +596,7 @@ void main() {
           hasPersistedConfiguration: false,
           configuration: disabled,
         ),
-        AppStartupDataSetupRequirement.required,
+        AppStartupDataSetupRequirement.optional,
       );
       expect(
         resolveInitialDataApiSetupRequirement(
@@ -418,7 +604,7 @@ void main() {
           hasPersistedConfiguration: true,
           configuration: disabled,
         ),
-        AppStartupDataSetupRequirement.required,
+        isNull,
       );
       expect(
         resolveInitialDataApiSetupRequirement(
@@ -440,6 +626,17 @@ void main() {
   });
 }
 
+AppRuntimeGraph _readyGraph(AppStartupCoordinator coordinator) {
+  final state = coordinator.state;
+  if (state case AppStartupRecoverableFailure(:final failure)) {
+    fail(
+      'Expected ready startup, got ${failure.stage.name}: ${failure.error}\n'
+      '${failure.stackTrace}',
+    );
+  }
+  return (state as AppStartupReady).graph;
+}
+
 final class _StartupHarness {
   _StartupHarness({
     this.failingStage,
@@ -453,6 +650,8 @@ final class _StartupHarness {
     this.ptyGate,
     this.ptyStarted,
     this.rollbackTimeout = const Duration(seconds: 8),
+    this.dataBootstrapError,
+    this.handleDataBootstrapFailure,
   });
 
   AppStartupStage? failingStage;
@@ -466,6 +665,8 @@ final class _StartupHarness {
   final Future<void>? ptyGate;
   final Completer<void>? ptyStarted;
   final Duration rollbackTimeout;
+  final Object? dataBootstrapError;
+  final AppStartupDataBootstrapFailureHandler? handleDataBootstrapFailure;
   int pathResolveCount = 0;
   int bootstrapCount = 0;
   int runtimeCloseCount = 0;
@@ -532,6 +733,9 @@ final class _StartupHarness {
       bootstrapSnapshot = configurationSnapshot;
       bootstrapCount += 1;
       _fail(AppStartupStage.dataBootstrap);
+      if (dataBootstrapError case final error?) {
+        Error.throwWithStackTrace(error, StackTrace.current);
+      }
       if (configurationSnapshot.configuration.deployment ==
           DataApiDeployment.disabled) {
         return null;
@@ -554,6 +758,7 @@ final class _StartupHarness {
         },
       );
     },
+    handleDataBootstrapFailure: handleDataBootstrapFailure,
     preparePlatform: (paths) async {
       _fail(AppStartupStage.platform);
       return AppStartupPlatformPreparation(
@@ -626,6 +831,11 @@ final class _StartupHarness {
   }
 }
 
+final class _UnknownTerminationFailure
+    implements DataApiRuntimeTerminationUnknownFailure {
+  const _UnknownTerminationFailure();
+}
+
 final class _MemoryConfigurationRepository
     implements DataApiConfigurationRepository {
   _MemoryConfigurationRepository()
@@ -633,15 +843,21 @@ final class _MemoryConfigurationRepository
 
   DataApiConfiguration configuration;
   int loadCount = 0;
+  int saveCount = 0;
+  Object? loadError;
 
   @override
   Future<DataApiConfiguration> load() async {
     loadCount += 1;
+    if (loadError case final error?) {
+      Error.throwWithStackTrace(error, StackTrace.current);
+    }
     return configuration;
   }
 
   @override
   Future<void> save(DataApiConfiguration configuration) async {
+    saveCount += 1;
     this.configuration = configuration;
   }
 }

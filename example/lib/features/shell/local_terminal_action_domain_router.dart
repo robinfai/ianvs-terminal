@@ -42,9 +42,6 @@ class LocalTerminalActionDomainRouter {
       ),
       copy: _policy(LocalTerminalPolicyProductionOperation.copy),
       paste: _policy(LocalTerminalPolicyProductionOperation.paste),
-      pasteHistory: _policy(
-        LocalTerminalPolicyProductionOperation.pasteHistory,
-      ),
       copyCommandOutput: _productivity(
         ShellProductivityProductionOperation.copyCommandOutput,
       ),
@@ -66,12 +63,6 @@ class LocalTerminalActionDomainRouter {
       previousPrompt: _productivity(
         ShellProductivityProductionOperation.previousPrompt,
       ),
-      selectCommandOutput: _productivity(
-        ShellProductivityProductionOperation.selectCommandOutput,
-      ),
-      openRecentDirectory: _productivity(
-        ShellProductivityProductionOperation.openRecentDirectory,
-      ),
       clearBuffer: _productivity(
         ShellProductivityProductionOperation.clearBuffer,
       ),
@@ -79,15 +70,6 @@ class LocalTerminalActionDomainRouter {
         ShellProductivityProductionOperation.toggleReadOnly,
       ),
       toggleCommandPalette: toggleCommandPalette,
-      toggleHotkeyWindow: _policy(
-        LocalTerminalPolicyProductionOperation.toggleHotkeyWindow,
-      ),
-      openThemePicker: _visual(
-        LocalTerminalVisualProductionOperation.openThemePicker,
-      ),
-      applyLayoutTemplate: _visual(
-        LocalTerminalVisualProductionOperation.applyLayoutTemplate,
-      ),
       exportScrollback: _visual(
         LocalTerminalVisualProductionOperation.exportScrollback,
       ),
@@ -97,7 +79,6 @@ class LocalTerminalActionDomainRouter {
       resizePaneDown: _layout(TerminalLayoutProductionOperation.resizePane),
       swapPane: _layout(TerminalLayoutProductionOperation.swapPane),
       zoomPane: _layout(TerminalLayoutProductionOperation.zoomPane),
-      applyTheme: _visual(LocalTerminalVisualProductionOperation.applyTheme),
     );
   }
 

@@ -41,7 +41,7 @@ flutter test
 flutter run -d macos
 ```
 
-数据 API 不读取进程环境变量或 `dart-define`。macOS 首次启动可选择三种能力边界：跳过后进入“本地终端”模式，不启动任何 API 进程，只提供本地 shell 与 `~/.ssh/config` 主机；“本地 API”会启动应用包内的 sidecar，离线保存配置并开放自定义 SSH；“远程 API”在此基础上提供跨设备同步。iOS 仅提供 SSH 终端：首次启动可跳过数据服务并创建不保存的一次性 SSH 连接，也可连接用户自行管理的远程 HTTP API，以保存 SSH 配置并跨设备同步；远程数据服务不是建立一次性 SSH 连接的前提。远程基础 URL 不允许携带用户名、密码、query 或 fragment，公网服务必须使用 HTTPS（仅回环开发地址可使用 HTTP）。后续可通过 **Defaults & appearance → Data service** 修改模式；从本地 API 切换到远程 API 是显式导出/合并操作，成功提交远程配置前不会删除本地数据或静默切换。非敏感配置保存在应用支持目录的 `data-api/configuration.json`，凭据仅保存在平台凭据保险库中。
+数据 API 不读取进程环境变量或 `dart-define`。API 配置为可选项：macOS 与 iOS 都能直接在本地创建、保存、编辑和重连 SSH 主机，密码与私钥加密保存。连接 API 后仍先保存本地，再进行双向合并与同步；断网不影响保存。不同主机或不同字段的修改自动合并，相同字段的并发修改在设置中明确选择后才覆盖冲突值。关闭或切换 API 不删除本地数据。macOS 的本地 API 与远端 API 都作为可选同步目标；布局和录制文件始终保留在本机。后续通过 **Defaults & appearance → API sync (optional)** 管理连接、查看状态和立即同步。远程基础 URL 不允许携带用户名、密码、query 或 fragment，公网服务必须使用 HTTPS（仅回环开发地址可使用 HTTP）。非敏感连接设置保存在应用支持目录的 `data-api/configuration.json`，凭据仅保存在平台凭据保险库中。合并检查点按 API 地址和账号隔离并加密保存。
 
 ```bash
 cd native/core

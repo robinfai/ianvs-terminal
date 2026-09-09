@@ -5,23 +5,23 @@ void main() {
   test('runs registered visual production callbacks', () async {
     final wiring = LocalTerminalVisualProductionWiring(
       requiredOperations: const [
-        LocalTerminalVisualProductionOperation.applyTheme,
+        LocalTerminalVisualProductionOperation.exportScrollback,
       ],
       callbacks: LocalTerminalVisualProductionCallbacks(
-        applyTheme: (context) {
+        exportScrollback: (context) {
           expect(
             context.operation,
-            LocalTerminalVisualProductionOperation.applyTheme,
+            LocalTerminalVisualProductionOperation.exportScrollback,
           );
-          expect(context.themeId, 'solarized-dark');
+          expect(context.destinationPath, '/tmp/scrollback.txt');
           return const LocalTerminalVisualBindingResult.completed('applied');
         },
       ),
     );
 
     final result = await wiring.run(
-      LocalTerminalVisualProductionOperation.applyTheme,
-      themeId: 'solarized-dark',
+      LocalTerminalVisualProductionOperation.exportScrollback,
+      destinationPath: '/tmp/scrollback.txt',
     );
 
     expect(wiring.isReady, isTrue);
@@ -32,18 +32,18 @@ void main() {
   test('reports missing required visual production callbacks', () {
     final wiring = LocalTerminalVisualProductionWiring(
       requiredOperations: const [
-        LocalTerminalVisualProductionOperation.openThemePicker,
         LocalTerminalVisualProductionOperation.exportScrollback,
+        LocalTerminalVisualProductionOperation.exportCommandOutput,
       ],
       callbacks: LocalTerminalVisualProductionCallbacks(
-        openThemePicker: (_) =>
+        exportScrollback: (_) =>
             const LocalTerminalVisualBindingResult.completed(),
       ),
     );
 
     expect(wiring.isReady, isFalse);
     expect(wiring.missingRequiredOperations, {
-      LocalTerminalVisualProductionOperation.exportScrollback,
+      LocalTerminalVisualProductionOperation.exportCommandOutput,
     });
   });
 
@@ -54,7 +54,7 @@ void main() {
     );
 
     final result = await wiring.run(
-      LocalTerminalVisualProductionOperation.applyLayoutTemplate,
+      LocalTerminalVisualProductionOperation.importThemePreset,
     );
 
     expect(result.failed, isTrue);
@@ -106,9 +106,6 @@ void main() {
 }
 
 const List<LocalTerminalVisualProductionOperation> _coreVisualOperations = [
-  LocalTerminalVisualProductionOperation.openThemePicker,
-  LocalTerminalVisualProductionOperation.applyTheme,
-  LocalTerminalVisualProductionOperation.applyLayoutTemplate,
   LocalTerminalVisualProductionOperation.exportScrollback,
   LocalTerminalVisualProductionOperation.applyPaneVisualPolicy,
   LocalTerminalVisualProductionOperation.applySplitDividerPolicy,
@@ -116,9 +113,6 @@ const List<LocalTerminalVisualProductionOperation> _coreVisualOperations = [
 
 LocalTerminalVisualProductionCallbacks _coreVisualCallbacks() {
   return const LocalTerminalVisualProductionCallbacks(
-    openThemePicker: _complete,
-    applyTheme: _complete,
-    applyLayoutTemplate: _complete,
     exportScrollback: _complete,
     applyPaneVisualPolicy: _complete,
     applySplitDividerPolicy: _complete,

@@ -31,7 +31,7 @@ void main() {
     final wiring = LocalTerminalPolicyProductionWiring(
       requiredOperations: const [
         LocalTerminalPolicyProductionOperation.paste,
-        LocalTerminalPolicyProductionOperation.toggleHotkeyWindow,
+        LocalTerminalPolicyProductionOperation.osc52Copy,
       ],
       callbacks: LocalTerminalPolicyProductionCallbacks(
         paste: (_) => const LocalTerminalPolicyBindingResult.completed(),
@@ -40,7 +40,7 @@ void main() {
 
     expect(wiring.isReady, isFalse);
     expect(wiring.missingRequiredOperations, {
-      LocalTerminalPolicyProductionOperation.toggleHotkeyWindow,
+      LocalTerminalPolicyProductionOperation.osc52Copy,
     });
   });
 
@@ -51,7 +51,7 @@ void main() {
     );
 
     final result = await wiring.run(
-      LocalTerminalPolicyProductionOperation.emitBellNotification,
+      LocalTerminalPolicyProductionOperation.emitSilenceNotification,
     );
 
     expect(result.failed, isTrue);
@@ -99,32 +99,22 @@ void main() {
 const List<LocalTerminalPolicyProductionOperation> _corePolicyOperations = [
   LocalTerminalPolicyProductionOperation.copy,
   LocalTerminalPolicyProductionOperation.paste,
-  LocalTerminalPolicyProductionOperation.pasteHistory,
   LocalTerminalPolicyProductionOperation.pasteAsBracketed,
   LocalTerminalPolicyProductionOperation.confirmLargePaste,
   LocalTerminalPolicyProductionOperation.confirmMultilinePaste,
   LocalTerminalPolicyProductionOperation.recordPasteHistory,
   LocalTerminalPolicyProductionOperation.osc52Copy,
-  LocalTerminalPolicyProductionOperation.emitBellNotification,
-  LocalTerminalPolicyProductionOperation.emitCommandFinishedNotification,
-  LocalTerminalPolicyProductionOperation.emitActivityNotification,
-  LocalTerminalPolicyProductionOperation.toggleHotkeyWindow,
 ];
 
 LocalTerminalPolicyProductionCallbacks _corePolicyCallbacks() {
   return const LocalTerminalPolicyProductionCallbacks(
     copy: _complete,
     paste: _complete,
-    pasteHistory: _complete,
     pasteAsBracketed: _complete,
     confirmLargePaste: _complete,
     confirmMultilinePaste: _complete,
     recordPasteHistory: _complete,
     osc52Copy: _complete,
-    emitBellNotification: _complete,
-    emitCommandFinishedNotification: _complete,
-    emitActivityNotification: _complete,
-    toggleHotkeyWindow: _complete,
   );
 }
 

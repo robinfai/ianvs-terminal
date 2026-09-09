@@ -93,15 +93,15 @@ void main() {
       final pipeline = ShellActionPipeline(
         executor: ShellActionSideEffectExecutor(
           ShellActionSideEffectHandlers(
-            openThemePicker: (_) async {
-              calls.add(ShellActionSideEffectKind.openThemePicker);
+            exportScrollback: (_) async {
+              calls.add(ShellActionSideEffectKind.exportScrollback);
             },
           ),
         ),
       );
 
       final result = await pipeline.run(
-        actionId: TerminalActionId.openThemePicker,
+        actionId: TerminalActionId.exportScrollback,
         state: const ShellActionDispatchState(),
         context: _context(),
       );
@@ -109,9 +109,9 @@ void main() {
       expect(result.dispatch, isA<ShellVisualDispatchResult>());
       expect(
         (result.dispatch as ShellVisualDispatchResult).result,
-        isA<LocalTerminalOpenThemePickerResult>(),
+        isA<LocalTerminalExportScrollbackResult>(),
       );
-      expect(calls, [ShellActionSideEffectKind.openThemePicker]);
+      expect(calls, [ShellActionSideEffectKind.exportScrollback]);
     });
   });
 }

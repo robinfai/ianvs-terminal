@@ -126,24 +126,17 @@ extension _ShellScreenStateSessions on _ShellScreenState {
       _sessionsSeenForActivityNotifications.remove(sessionId);
       _sessionsSeenForNewOutputBadges.remove(sessionId);
       _sessionsWithNewOutput.remove(sessionId);
-      _coprocessInputKeysBySession.remove(sessionId);
+
       final zmodem = _zmodemTransfers.remove(sessionId);
       _zmodemTransportFailureSessionIds.remove(sessionId);
       _pendingZmodemTerminalMessages.remove(sessionId);
       if (zmodem != null) {
         _zmodemAuthorizedTransferIds.remove('$sessionId:${zmodem.transferId}');
       }
-      _coprocesses = <String, _ShellCoprocess>{
-        for (final entry in _coprocesses.entries)
-          if (entry.key != sessionId) entry.key: entry.value,
-      };
+
       _annotations = [
         for (final annotation in _annotations)
           if (annotation.sessionId != sessionId) annotation,
-      ];
-      _capturedOutputEntries = [
-        for (final entry in _capturedOutputEntries)
-          if (entry.sessionId != sessionId) entry,
       ];
       if (_zoomedPaneSessionId == sessionId) {
         _zoomedPaneSessionId = null;
@@ -155,17 +148,7 @@ extension _ShellScreenStateSessions on _ShellScreenState {
         _hoveredTerminalLink = null;
         _hoveredTerminalLinkSessionId = null;
       }
-      if (_copyModeSessionId == sessionId) {
-        _resetCopyModeState();
-      }
-      if (_autocompleteSessionId == sessionId) {
-        _resetAutocompleteState();
-      }
-      if (_autoComposerSessionId == sessionId) {
-        _resetAutoComposerState(clearText: true);
-      }
     });
-    _syncOpenAnnotationSheet();
   }
 
   void _clearPresentationStateForSessions(Iterable<String> sessionIds) {
@@ -288,10 +271,7 @@ extension _ShellScreenStateSessions on _ShellScreenState {
       _activeTerminalHasFocus = false;
       _showLayoutCue = false;
       _isSearchOpen = false;
-      _isAutocompleteOpen = false;
-      _isAutoComposerOpen = false;
-      _isCopyModeOpen = false;
-      _isToolbeltOpen = false;
+
       _isSftpPanelOpen = false;
       _sftpPanelSessionId = null;
       _searchQuery = '';
@@ -300,15 +280,7 @@ extension _ShellScreenStateSessions on _ShellScreenState {
       _searchHits = const [];
       _activeSearchIndex = 0;
       _lastSearchScopeSessionSignature = null;
-      _autocompletePrefix = '';
-      _autocompleteSessionId = null;
-      _autocompleteSuggestions = const [];
-      _activeAutocompleteIndex = 0;
-      _autoComposerSessionId = null;
-      _autoComposerController.clear();
-      _autoComposerSuggestions = const [];
-      _activeAutoComposerIndex = 0;
-      _resetCopyModeState();
+
       _layoutCueTimer?.cancel();
       _layoutCueTimer = null;
     } else {
@@ -319,27 +291,7 @@ extension _ShellScreenStateSessions on _ShellScreenState {
         _isSftpPanelOpen = false;
         _sftpPanelSessionId = null;
       }
-      final copyModeSessionId = _copyModeSessionId;
-      if (_isCopyModeOpen &&
-          (copyModeSessionId == null ||
-              copyModeSessionId != sessionState.activeSessionId)) {
-        if (copyModeSessionId != null) {
-          _selectionControllers[copyModeSessionId]?.clear();
-        }
-        _resetCopyModeState();
-      }
-      final autocompleteSessionId = _autocompleteSessionId;
-      if (_isAutocompleteOpen &&
-          (autocompleteSessionId == null ||
-              autocompleteSessionId != sessionState.activeSessionId)) {
-        _resetAutocompleteState();
-      }
-      final autoComposerSessionId = _autoComposerSessionId;
-      if (_isAutoComposerOpen &&
-          (autoComposerSessionId == null ||
-              autoComposerSessionId != sessionState.activeSessionId)) {
-        _resetAutoComposerState(clearText: true);
-      }
+
       _syncSearchResultsForSessionScope(sessionState);
     }
     _lastObservedTabCount = currentTabCount;

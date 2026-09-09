@@ -173,6 +173,12 @@ final class _MasterKeyManagementPanelState
   @override
   Widget build(BuildContext context) {
     final theme = context.appTheme;
+    if (!widget.repository.allowLegacyMigration) {
+      return AppSectionHeader(
+        title: context.l10n.masterKey,
+        description: context.l10n.developmentMasterKeyStorageDescription,
+      );
+    }
     final usesAppleKeychain = usesAutomaticallySynchronizedAppleKeychain;
     return ListenableBuilder(
       listenable: _controller,

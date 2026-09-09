@@ -98,8 +98,17 @@ final class PortableMasterDataApiLocalDataEncryptionKeyStore
   final PortableMasterKeyRepository _masterKeyRepository;
   final FlutterSecureDataApiLocalDataEncryptionKeyStore _legacyStore;
 
+  bool get allowsLegacyMigration => _masterKeyRepository.allowLegacyMigration;
+
   @override
   Future<String> readOrCreate({bool migrateLegacy = true}) async {
+    if (migrateLegacy && !_masterKeyRepository.allowLegacyMigration) {
+      final existing = await _masterKeyRepository.read();
+      if (existing == null) {
+        throw const DataApiLegacyLocalKeyMissingException();
+      }
+      return existing.secret;
+    }
     final legacy = migrateLegacy ? await _legacyStore.readExisting() : null;
     final existingMaster = migrateLegacy
         ? await _masterKeyRepository.read()
@@ -166,7 +175,9 @@ final class KeychainDataApiLocalCredentialsProvider
     );
     final migrationComplete = await migrationMarker.exists();
     final key = await store.readOrCreate(
-      migrateLegacy: !migrationComplete && await legacyDatabase.exists(),
+      migrateLegacy:
+          (!migrationComplete || !store.allowsLegacyMigration) &&
+          await legacyDatabase.exists(),
     );
     if (!migrationComplete) {
       await writeStringAtomically(migrationMarker, 'complete\n');

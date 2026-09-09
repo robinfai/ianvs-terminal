@@ -6427,7 +6427,7 @@ void main() {
     );
   });
 
-  test('custom SSH save fails closed without a Data API runtime', () async {
+  test('custom SSH saves locally without a Data API runtime', () async {
     final profileRepository = _TestProfileRepository(
       TerminalProfilesDocument(profiles: [defaultProfile]),
     );
@@ -6455,11 +6455,15 @@ void main() {
       ),
     );
 
-    await expectLater(
-      controller.saveProfile(customSshProfile),
-      throwsA(isA<CustomSshProfileConfigurationUnavailableException>()),
+    await controller.saveProfile(customSshProfile);
+    expect(
+      profileRepository.savedDocuments.last.profiles.map((p) => p.id),
+      contains('custom-ssh'),
     );
-    expect(profileRepository.savedDocuments, isEmpty);
+    expect(
+      container.read(sessionControllerProvider).profiles.map((p) => p.id),
+      contains('custom-ssh'),
+    );
   });
 
   test(

@@ -56,6 +56,44 @@ void main() {
       expect(persisted, isNot(contains('workspace')));
     });
 
+    test('loads retired shortcut IDs without rewriting the file', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'ianvs terminal-config-retired-shortcuts',
+      );
+      final file = File('${directory.path}/ianvs_config.json');
+      final raw = jsonEncode(<String, Object?>{
+        'schemaVersion': 1,
+        'keybindings': {
+          'disabledDefaultActions': ['advancedPaste', 'newTab'],
+          'overrides': {
+            'passwordManager': {
+              'binding': {'key': 'KeyP', 'meta': true},
+            },
+            'newTab': {
+              'binding': {'key': 'KeyN', 'meta': true},
+            },
+          },
+        },
+      });
+      await file.writeAsString(raw);
+      final repository = LocalTerminalConfigRepository(
+        directoryResolver: () async => directory,
+      );
+
+      final loaded = await repository.load();
+
+      expect(loaded, isNotNull);
+      expect(loaded!.keybindings.disabledDefaultActions, {
+        TerminalActionId.newTab,
+      });
+      expect(loaded.keybindings.overrides.keys, {TerminalActionId.newTab});
+      expect(await file.readAsString(), raw);
+      expect(
+        directory.listSync().any((entry) => entry.path.contains('.corrupt')),
+        isFalse,
+      );
+    });
+
     test('serializes concurrent partial document updates', () async {
       final directory = await Directory.systemTemp.createTemp(
         'ianvs terminal-config-concurrent-updates',

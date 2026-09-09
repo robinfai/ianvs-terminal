@@ -21,24 +21,11 @@ class ShellActionTestHarness {
           ShellActionSideEffectKind.updateProductivityState,
         ),
         scrollToPrompt: _record(ShellActionSideEffectKind.scrollToPrompt),
-        selectCommandOutput: _record(
-          ShellActionSideEffectKind.selectCommandOutput,
-        ),
-        openRecentDirectory: _record(
-          ShellActionSideEffectKind.openRecentDirectory,
-        ),
+        copyCommandOutput: _record(ShellActionSideEffectKind.copyCommandOutput),
         sendPaste: _record(ShellActionSideEffectKind.sendPaste),
         confirmPaste: _record(ShellActionSideEffectKind.confirmPaste),
         blockPaste: _record(ShellActionSideEffectKind.blockPaste),
-        showNotification: _record(ShellActionSideEffectKind.showNotification),
-        updateHotkeyWindowState: _record(
-          ShellActionSideEffectKind.updateHotkeyWindowState,
-        ),
-        openThemePicker: _record(ShellActionSideEffectKind.openThemePicker),
         exportScrollback: _record(ShellActionSideEffectKind.exportScrollback),
-        applyLayoutTemplate: _record(
-          ShellActionSideEffectKind.applyLayoutTemplate,
-        ),
       ),
     );
   }

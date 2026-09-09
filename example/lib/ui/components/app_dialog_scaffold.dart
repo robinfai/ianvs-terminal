@@ -1,6 +1,7 @@
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../l10n/l10n.dart';
 import '../foundation/app_theme_tokens.dart';
@@ -194,9 +195,15 @@ class AppDialogScaffold extends StatelessWidget {
       container: true,
       explicitChildNodes: true,
       label: context.l10n.dialogSemantics(title),
-      child: FocusTraversalGroup(
-        policy: OrderedTraversalPolicy(),
-        child: positionedPanel,
+      child: CallbackShortcuts(
+        bindings: {
+          const SingleActivator(LogicalKeyboardKey.escape):
+              onClose ?? () => Navigator.of(context).maybePop(),
+        },
+        child: FocusTraversalGroup(
+          policy: OrderedTraversalPolicy(),
+          child: positionedPanel,
+        ),
       ),
     );
   }

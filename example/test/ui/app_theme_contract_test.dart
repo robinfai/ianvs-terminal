@@ -69,11 +69,11 @@ void main() {
         ),
         greaterThanOrEqualTo(4.5),
       );
-      expect(lightTokens.spacing.xs, 3);
-      expect(lightTokens.spacing.sm, 5);
-      expect(lightTokens.spacing.md, 7);
-      expect(lightTokens.spacing.lg, 10);
-      expect(lightTokens.spacing.xl, 14);
+      expect(lightTokens.spacing.xs, 4);
+      expect(lightTokens.spacing.sm, 6);
+      expect(lightTokens.spacing.md, 8);
+      expect(lightTokens.spacing.lg, 12);
+      expect(lightTokens.spacing.xl, 16);
       expect(lightTokens.spacing.xxl, 20);
       expect(lightTokens.radius.sm, 4);
       expect(lightTokens.radius.md, 6);
@@ -82,7 +82,7 @@ void main() {
       expect(lightTokens.controls.dense, 28);
       expect(lightTokens.controls.compact, 32);
       expect(lightTokens.controls.regular, 36);
-      expect(lightTheme.textTheme.bodyMedium?.fontSize, 12.5);
+      expect(lightTheme.textTheme.bodyMedium?.fontSize, 13);
       expect(lightTheme.textTheme.bodySmall?.fontSize, 11);
       expect(lightTheme.textTheme.titleMedium?.fontSize, 14);
       expect(lightTheme.textTheme.bodyMedium?.fontFamily, '.AppleSystemUIFont');
@@ -93,8 +93,8 @@ void main() {
       expect(lightTheme.textTheme.labelLarge?.fontWeight, FontWeight.w500);
       final lightInputPadding =
           lightTheme.inputDecorationTheme.contentPadding! as EdgeInsets;
-      expect(lightInputPadding.top, 5);
-      expect(lightInputPadding.bottom, 5);
+      expect(lightInputPadding.top, 6);
+      expect(lightInputPadding.bottom, 6);
       expect(lightTheme.inputDecorationTheme.constraints?.minHeight, 36);
       expect(
         lightTheme.inputDecorationTheme.prefixIconConstraints,
@@ -148,7 +148,7 @@ void main() {
       expect(lightTheme.dividerTheme.thickness, 1);
       final lightListTilePadding = lightTheme.listTileTheme.contentPadding!;
       final lightListTileInsets = lightListTilePadding as EdgeInsets;
-      expect(lightListTileInsets.left, 7);
+      expect(lightListTileInsets.left, 8);
       expect(lightListTileInsets.top, 2);
       final lightListTileShape =
           lightTheme.listTileTheme.shape! as RoundedRectangleBorder;
@@ -181,7 +181,7 @@ void main() {
       );
       expect(
         darkTokens.shellChrome.surface.toARGB32(),
-        const Color(0xFF202528).toARGB32(),
+        const Color(0xFF292929).toARGB32(),
       );
       expect(
         lightTokens.shellChrome.surface.computeLuminance(),
@@ -195,7 +195,7 @@ void main() {
         darkTheme.dialogTheme.backgroundColor!.toARGB32(),
         darkTokens.panel.toARGB32(),
       );
-      expect(darkTheme.textTheme.bodyMedium?.fontSize, 12.5);
+      expect(darkTheme.textTheme.bodyMedium?.fontSize, 13);
       expect(darkTheme.textTheme.bodySmall?.fontSize, 11);
       expect(darkTheme.textTheme.bodyMedium?.fontFamily, '.AppleSystemUIFont');
       expect(

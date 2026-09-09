@@ -477,7 +477,7 @@ void main() {
       );
       expect(fallbackProfileOption.contentPadding, EdgeInsets.zero);
       expect(find.byKey(const Key('defaults-save')), findsOneWidget);
-      expect(tester.getSize(find.byKey(const Key('defaults-save'))).height, 40);
+      expect(tester.getSize(find.byKey(const Key('defaults-save'))).height, 32);
       expect(
         tester.getSize(find.byKey(const Key('defaults-cancel'))).height,
         tester.getSize(find.byKey(const Key('defaults-save'))).height,

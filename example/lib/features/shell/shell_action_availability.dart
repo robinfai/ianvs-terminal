@@ -6,7 +6,6 @@ enum ShellActionDisabledReason {
   shellIntegrationUnavailable,
   readOnly,
   missingCommandOutput,
-  missingRecentDirectory,
 }
 
 extension ShellActionDisabledReasonText on ShellActionDisabledReason {
@@ -18,8 +17,6 @@ extension ShellActionDisabledReasonText on ShellActionDisabledReason {
       ShellActionDisabledReason.readOnly => 'Read-only mode',
       ShellActionDisabledReason.missingCommandOutput =>
         'No command output available',
-      ShellActionDisabledReason.missingRecentDirectory =>
-        'No recent directory available',
     };
   }
 
@@ -33,8 +30,6 @@ extension ShellActionDisabledReasonText on ShellActionDisabledReason {
         'Disable read-only mode before sending text or paste content.',
       ShellActionDisabledReason.missingCommandOutput =>
         'Run a command with captured output before using this action.',
-      ShellActionDisabledReason.missingRecentDirectory =>
-        'Visit a local directory before opening the recent directory list.',
     };
   }
 }
@@ -75,22 +70,13 @@ class ShellActionAvailabilityResolver {
             : ShellActionAvailability.disabled(
                 ShellActionDisabledReason.shellIntegrationUnavailable,
               );
-      case TerminalActionId.selectCommandOutput:
       case TerminalActionId.copyCommandOutput:
         return productivity.canSelectCommandOutput
             ? ShellActionAvailability.enabledAction
             : ShellActionAvailability.disabled(
                 ShellActionDisabledReason.missingCommandOutput,
               );
-      case TerminalActionId.openRecentDirectory:
-        return productivity.canOpenRecentDirectory
-            ? ShellActionAvailability.enabledAction
-            : ShellActionAvailability.disabled(
-                ShellActionDisabledReason.missingRecentDirectory,
-              );
       case TerminalActionId.paste:
-      case TerminalActionId.advancedPaste:
-      case TerminalActionId.pasteHistory:
         return productivity.canPaste
             ? ShellActionAvailability.enabledAction
             : ShellActionAvailability.disabled(

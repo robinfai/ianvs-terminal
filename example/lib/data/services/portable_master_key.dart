@@ -110,26 +110,42 @@ final class FlutterSecurePortableMasterKeyStorage
       iOptions: IOSOptions(synchronizable: true),
       mOptions: MacOsOptions(synchronizable: true),
     ),
-  }) : _storage = storage;
+  }) : _storage = storage,
+       _key = storageKey;
+
+  const FlutterSecurePortableMasterKeyStorage.development()
+    : _storage = const FlutterSecureStorage(
+        mOptions: MacOsOptions(
+          accountName: developmentAccountName,
+          synchronizable: false,
+          usesDataProtectionKeychain: false,
+        ),
+      ),
+      _key = developmentStorageKey;
+
+  static const developmentAccountName = 'dev.ianvs.terminal.development';
+  static const developmentStorageKey = 'ianvs.development.master-key.v1';
 
   const FlutterSecurePortableMasterKeyStorage.legacyMacOs()
     : _storage = const FlutterSecureStorage(
         mOptions: MacOsOptions(usesDataProtectionKeychain: false),
-      );
+      ),
+      _key = storageKey;
 
   static const storageKey = 'ianvs.master-key.v1';
 
   final FlutterSecureStorage _storage;
+  final String _key;
 
   @override
-  Future<String?> read() => _storage.read(key: storageKey);
+  Future<String?> read() => _storage.read(key: _key);
 
   @override
   Future<void> write(String portableValue) {
-    return _storage.write(key: storageKey, value: portableValue);
+    return _storage.write(key: _key, value: portableValue);
   }
 
-  Future<void> delete() => _storage.delete(key: storageKey);
+  Future<void> delete() => _storage.delete(key: _key);
 }
 
 final class PortableMasterKeyConflictException implements Exception {
@@ -161,11 +177,15 @@ final class PortableMasterKeyRepository {
   PortableMasterKeyRepository({
     PortableMasterKeyStorage? storage,
     bool allowCreation = true,
+    this.allowLegacyMigration = true,
   }) : _storage = storage ?? const FlutterSecurePortableMasterKeyStorage(),
        _allowCreation = allowCreation;
 
   final PortableMasterKeyStorage _storage;
   final bool _allowCreation;
+
+  /// Development never imports secrets from the production namespace.
+  final bool allowLegacyMigration;
   Future<void> _operationTail = Future<void>.value();
   PortableMasterKey? _cached;
 
@@ -209,7 +229,9 @@ final class PortableMasterKeyRepository {
       if (!_allowCreation) {
         throw const PortableMasterKeyUnavailableException();
       }
-      final legacySecret = await legacyLoader?.call();
+      final legacySecret = allowLegacyMigration
+          ? await legacyLoader?.call()
+          : null;
       final key = legacySecret == null || legacySecret.isEmpty
           ? PortableMasterKey.generate()
           : PortableMasterKey.fromSecret(legacySecret);

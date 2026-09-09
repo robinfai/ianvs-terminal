@@ -4179,6 +4179,11 @@ impl Terminal {
         self.saved_fg = baseline_default_fg;
         self.saved_bg = baseline_default_bg;
         self.sync_grid_blank_style();
+        // The replacement grids were allocated with constructor colors before
+        // the profile baselines were restored. Refill those existing cells as
+        // well as configuring the style used for future blanks.
+        self.grid.clear();
+        self.alt_grid.clear();
         self.mark_full_repaint("reset");
 
         self.terminal_events.push(TerminalEvent::TerminalReset);

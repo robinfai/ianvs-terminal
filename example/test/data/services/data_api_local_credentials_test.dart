@@ -9,6 +9,55 @@ import 'package:flutter_secure_storage_platform_interface/flutter_secure_storage
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  for (final marked in [false, true]) {
+    test(
+      'development missing key refuses existing database (marker: $marked)',
+      () async {
+        final previous = FlutterSecureStoragePlatform.instance;
+        final values = <String, String>{
+          FlutterSecureDataApiLocalDataEncryptionKeyStore
+                  .encryptionKeyStorageKey:
+              'production-legacy',
+        };
+        FlutterSecureStoragePlatform.instance =
+            TestFlutterSecureStoragePlatform(values);
+        final directory = await Directory.systemTemp.createTemp(
+          'ianvs-dev-key-',
+        );
+        addTearDown(() async {
+          FlutterSecureStoragePlatform.instance = previous;
+          await directory.delete(recursive: true);
+        });
+        final data = await Directory('${directory.path}/data-api').create();
+        await File('${data.path}/ianvs.db').writeAsString('existing');
+        if (marked) {
+          await File(
+            '${data.path}/master-key-migration.v1.complete',
+          ).writeAsString('complete');
+        }
+        final provider = KeychainDataApiLocalCredentialsProvider(
+          dataEncryptionKeyStore:
+              PortableMasterDataApiLocalDataEncryptionKeyStore(
+                masterKeyRepository: PortableMasterKeyRepository(
+                  storage:
+                      const FlutterSecurePortableMasterKeyStorage.development(),
+                  allowLegacyMigration: false,
+                ),
+              ),
+        );
+        await expectLater(
+          provider.createForStart(directory),
+          throwsA(isA<DataApiLegacyLocalKeyMissingException>()),
+        );
+        expect(values, {
+          FlutterSecureDataApiLocalDataEncryptionKeyStore
+                  .encryptionKeyStorageKey:
+              'production-legacy',
+        });
+      },
+    );
+  }
+
   test(
     'each sidecar start gets a new Bearer and reuses the data key',
     () async {

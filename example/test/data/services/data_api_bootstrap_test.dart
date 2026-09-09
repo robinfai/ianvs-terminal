@@ -93,6 +93,7 @@ void main() {
           accessToken: 'remote-access-token',
           encryptionKey: 'remote-encryption-key',
           expiresAt: DateTime.now().add(const Duration(hours: 1)),
+          username: 'alice',
         ),
       ),
       isMacOS: false,
@@ -105,6 +106,10 @@ void main() {
     expect(runtime?.baseUri, Uri.parse('https://sync.example.com/api/'));
     expect(runtime?.resourceAccessToken, 'remote-access-token');
     expect(runtime?.encryptionKey, 'remote-encryption-key');
+    expect(
+      runtime?.syncIdentity,
+      'remote:https://sync.example.com/api/:user:alice',
+    );
   });
 
   test('remote configuration without a secure session fails closed', () async {

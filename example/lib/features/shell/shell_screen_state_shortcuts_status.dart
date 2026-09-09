@@ -1,20 +1,6 @@
 part of 'shell_screen.dart';
 
 extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
-  void _closeToolbelt() {
-    if (!_isToolbeltOpen) {
-      return;
-    }
-    _mutateState(() {
-      _isToolbeltOpen = false;
-    });
-  }
-
-  void _openToolbeltChild(Future<void> Function() open) {
-    _closeToolbelt();
-    unawaited(open());
-  }
-
   Future<void> _dispatchShellNotification({
     required String title,
     String? body,
@@ -74,9 +60,7 @@ extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
     if (_isSftpPanelOpen) {
       return 'sftp';
     }
-    if (_isToolbeltOpen) {
-      return 'toolbelt';
-    }
+
     if (_selectedRecording != null || _instantReplayLayoutSession != null) {
       return 'replay';
     }

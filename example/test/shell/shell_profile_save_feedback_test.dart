@@ -221,6 +221,7 @@ void main() {
       find.textContaining('Imported SSH profile “Imported only”'),
       findsOneWidget,
     );
+    expect(find.textContaining('this device'), findsOneWidget);
   });
 
   testWidgets(
@@ -238,7 +239,7 @@ void main() {
       expect(find.text('Profile was not saved'), findsOne);
       expect(
         find.textContaining(
-          '“Remote test host” was not written to profile storage',
+          '“Remote test host” was not written to this device',
         ),
         findsOne,
       );

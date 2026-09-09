@@ -65,48 +65,6 @@ void main() {
     expect(metrics.devicePixelRatio, isNull);
   });
 
-  test('hotkey window status tolerates malformed platform fields', () {
-    final status = HotkeyWindowStatus.fromMap(const <String, Object?>{
-      'registered': 'yes',
-      'shortcut': 42,
-      'errorCode': 'bad',
-    });
-
-    expect(status.registered, isFalse);
-    expect(status.shortcut, '⌥⌘Space');
-    expect(status.errorCode, isNull);
-  });
-
-  test('hotkey window status accepts numeric error codes', () {
-    final status = HotkeyWindowStatus.fromMap(const <String, Object?>{
-      'registered': true,
-      'shortcut': ' ⌃Space ',
-      'errorCode': 12.0,
-    });
-
-    expect(status.registered, isTrue);
-    expect(status.shortcut, '⌃Space');
-    expect(status.errorCode, 12);
-  });
-
-  test('hotkey window status rejects fractional error codes', () {
-    final status = HotkeyWindowStatus.fromMap(const <String, Object?>{
-      'registered': true,
-      'errorCode': 12.5,
-    });
-
-    expect(status.errorCode, isNull);
-  });
-
-  test('hotkey window status falls back for blank shortcuts', () {
-    final status = HotkeyWindowStatus.fromMap(const <String, Object?>{
-      'registered': true,
-      'shortcut': '   ',
-    });
-
-    expect(status.shortcut, '⌥⌘Space');
-  });
-
   test('OSC 72 native drag events validate and bound platform data', () {
     final event = NativeOsc72DragEvent.fromPlatform(<String, Object?>{
       'phase': 'drop',

@@ -316,7 +316,6 @@ extension _ShellScreenStateInstantReplay on _ShellScreenState {
       return;
     }
     await ClipboardBridge.copy(text);
-    await _recordPasteHistory(text, PasteHistoryKind.copy);
   }
 
   void _closeInstantReplayLayout() {

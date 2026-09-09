@@ -32,7 +32,7 @@ void main() {
       );
       await executor.execute(
         const ShellActionSideEffectPlan(
-          kind: ShellActionSideEffectKind.openThemePicker,
+          kind: ShellActionSideEffectKind.exportScrollback,
         ),
       );
 

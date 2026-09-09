@@ -507,32 +507,32 @@ void main() {
     },
   );
 
-  test('local API cannot switch remotely without explicit migration', () async {
-    await repository.save(const DataApiConfiguration.local());
-    final session = _remoteSession(
-      baseUri: Uri.parse('https://sync.example.com/'),
-    );
-    final guarded = AuthenticatedDataApiConfigurationRepository(
-      delegate: repository,
-      remoteSessionStore: _MemoryRemoteSessionStore(),
-      remoteAuthenticator: _RecordingRemoteAuthenticator(session: session),
-      remoteConnectionValidator: _RecordingRemoteValidator(),
-    );
+  test(
+    'local configuration can enable remote sync without migration',
+    () async {
+      await repository.save(const DataApiConfiguration.local());
+      final session = _remoteSession(
+        baseUri: Uri.parse('https://sync.example.com/'),
+      );
+      final guarded = AuthenticatedDataApiConfigurationRepository(
+        delegate: repository,
+        remoteSessionStore: _MemoryRemoteSessionStore(),
+        remoteAuthenticator: _RecordingRemoteAuthenticator(session: session),
+        remoteConnectionValidator: _RecordingRemoteValidator(),
+      );
 
-    await expectLater(
-      guarded.connectAndSaveRemote(
+      await guarded.connectAndSaveRemote(
         DataApiRemoteLoginRequest(
           baseUri: session.baseUri,
           username: 'alice',
           password: 'password-1234',
           encryptionKey: session.encryptionKey,
         ),
-      ),
-      throwsA(isA<DataApiExplicitMigrationRequiredException>()),
-    );
+      );
 
-    expect((await repository.load()).deployment, DataApiDeployment.local);
-  });
+      expect((await repository.load()).deployment, DataApiDeployment.remote);
+    },
+  );
 
   test(
     'failed local migration retains local configuration and source ownership',

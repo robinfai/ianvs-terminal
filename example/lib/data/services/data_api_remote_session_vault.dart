@@ -162,19 +162,22 @@ final class EncryptedFileDataApiRemoteSessionStore
         (field) =>
             field != 'base_url' &&
             field != 'access_token' &&
-            field != 'expires_at',
+            field != 'expires_at' &&
+            field != 'username',
       )) {
         throw const FormatException('Remote session vault slot is invalid.');
       }
       final baseUrl = value['base_url'];
       final accessToken = value['access_token'];
       final expiresAt = value['expires_at'];
+      final username = value['username'];
       final parsedExpiry = expiresAt is String
           ? DateTime.tryParse(expiresAt)
           : null;
       if (baseUrl is! String ||
           accessToken is! String ||
-          parsedExpiry == null) {
+          parsedExpiry == null ||
+          (username != null && username is! String)) {
         throw const FormatException('Remote session vault slot is invalid.');
       }
       result[entry.key] = DataApiRemoteSession(
@@ -182,6 +185,7 @@ final class EncryptedFileDataApiRemoteSessionStore
         accessToken: accessToken,
         encryptionKey: key.secret,
         expiresAt: parsedExpiry,
+        username: username as String?,
       );
     }
     return result;
@@ -200,6 +204,8 @@ final class EncryptedFileDataApiRemoteSessionStore
             'base_url': vault[slotRef]!.baseUri.toString(),
             'access_token': vault[slotRef]!.accessToken,
             'expires_at': vault[slotRef]!.expiresAt.toUtc().toIso8601String(),
+            if (vault[slotRef]!.username != null)
+              'username': vault[slotRef]!.username,
           },
       },
     });

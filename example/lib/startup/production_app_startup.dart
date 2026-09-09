@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import '../data/configuration/data_api_configuration.dart';
 import '../data/configuration/data_api_configuration_repository.dart';
 import '../data/services/data_api_bootstrap.dart';
+import '../data/services/data_api_client.dart';
 import '../data/services/data_api_migration_service.dart';
 import '../data/services/data_api_remote_fallback.dart';
 import '../data/services/data_api_remote_session_store.dart';
@@ -21,6 +22,7 @@ import '../features/recording/local_session_recording_repository.dart';
 import '../persistence_repository_composition.dart';
 import '../platform/app_shutdown_coordinator.dart';
 import '../platform/local_json_file.dart';
+import 'app_environment.dart';
 import 'app_startup_coordinator.dart';
 import 'app_startup_models.dart';
 
@@ -29,6 +31,7 @@ typedef AppStartupNativePtyLoader = Future<PtySessionBackend> Function();
 
 AppStartupCoordinator createProductionAppStartupCoordinator({
   TargetPlatform? platform,
+  AppEnvironment environment = AppEnvironment.production,
   AppStartupDirectoryResolver appSupportDirectoryResolver =
       getApplicationSupportDirectory,
   AppStartupDirectoryResolver appDocumentsDirectoryResolver =
@@ -45,6 +48,10 @@ AppStartupCoordinator createProductionAppStartupCoordinator({
         // macOS is the single creator. iOS only consumes the synchronized
         // item, so a temporarily empty iCloud read can never replace it.
         allowCreation: targetPlatform != TargetPlatform.iOS,
+        allowLegacyMigration: environment == AppEnvironment.production,
+        storage: environment == AppEnvironment.development
+            ? const FlutterSecurePortableMasterKeyStorage.development()
+            : null,
       );
   final loadNativePty =
       nativePtyLoader ??
@@ -55,7 +62,9 @@ AppStartupCoordinator createProductionAppStartupCoordinator({
     pipeline: AppStartupPipeline(
       resolvePaths: () async {
         return AppStartupPaths(
-          appSupportDirectory: await appSupportDirectoryResolver(),
+          appSupportDirectory: environment.supportDirectory(
+            await appSupportDirectoryResolver(),
+          ),
         );
       },
       createConfigurationAccess:
@@ -64,13 +73,21 @@ AppStartupCoordinator createProductionAppStartupCoordinator({
             final fileRepository = FileDataApiConfigurationRepository(
               appSupportDirectory: paths.appSupportDirectory,
             );
+            // A fresh development installation always starts its own sidecar.
+            // Never overwrite a saved choice or a corruption recovery lock.
+            if (environment == AppEnvironment.development &&
+                !await fileRepository.configurationFile.exists() &&
+                !await fileRepository.recoverySentinelFile.exists()) {
+              await fileRepository.save(const DataApiConfiguration.local());
+            }
             final legacyRemoteSessionStore =
                 FlutterSecureDataApiRemoteSessionStore();
             final remoteSessionVaultFile = File(
               '${paths.appSupportDirectory.path}${Platform.pathSeparator}'
               '${EncryptedFileDataApiRemoteSessionStore.fileName}',
             );
-            if (targetPlatform == TargetPlatform.macOS) {
+            if (targetPlatform == TargetPlatform.macOS &&
+                environment == AppEnvironment.production) {
               const legacyMasterKeyStorage =
                   FlutterSecurePortableMasterKeyStorage.legacyMacOs();
               await recoverVerifiedLegacyMacOsMasterKey(
@@ -109,6 +126,7 @@ AppStartupCoordinator createProductionAppStartupCoordinator({
               masterKeyRepository: effectiveMasterKeyRepository,
               migrationMarker: remoteSessionMigrationMarker,
               legacyMigrationEnabled:
+                  environment == AppEnvironment.production &&
                   configurationPredatesMasterKey &&
                   !remoteSessionMigrationComplete,
             );
@@ -134,12 +152,22 @@ AppStartupCoordinator createProductionAppStartupCoordinator({
       validateConfiguration: _validateConfigurationSnapshot,
       recoverSecureConfiguration:
           secureRecovery ?? _recoverProductionSecureConfiguration,
+      handleDataPreparationFailure: _recoverLocalFirstDataPreparation,
       bootstrapData: (paths, access, configurationSnapshot) {
         return _bootstrapRuntime(
           paths: paths,
           access: access,
           configuration: configurationSnapshot.configuration,
           isMacOS: targetPlatform == TargetPlatform.macOS,
+        );
+      },
+      handleDataBootstrapFailure: (error, stackTrace) {
+        if (dataApiRuntimeTerminationFailureOf(error) != null) {
+          return null;
+        }
+        return DataApiStartupWarning(
+          'The configured data service is unavailable: $error. '
+          'Local profiles remain available for this launch.',
         );
       },
       preparePlatform: (paths) async {
@@ -189,6 +217,8 @@ AppStartupCoordinator createProductionAppStartupCoordinator({
               dataApiPersistenceRequired:
                   configurationSnapshot.configuration.deployment !=
                   DataApiDeployment.disabled,
+              dataApiPersistenceUnavailable:
+                  dataApiRuntime == null && dataApiStartupWarning != null,
             );
             final remoteEncryptionKey =
                 dataApiRuntime?.deployment == DataApiDeployment.remote
@@ -254,10 +284,67 @@ AppStartupCoordinator createProductionAppStartupCoordinator({
               remoteFallbackSnapshotCommitter:
                   remoteFallbackMirror?.commitStaging,
               remoteFallbackSnapshotActivator: remoteFallbackMirror?.activate,
+              applyApiSyncConfiguration: () async {
+                try {
+                  final configuration = await configurationAccess.repository
+                      .load();
+                  final runtime = await _bootstrapRuntime(
+                    paths: paths,
+                    access: configurationAccess,
+                    configuration: configuration,
+                    isMacOS: targetPlatform == TargetPlatform.macOS,
+                  );
+                  await persistence.configureSyncRuntime(runtime);
+                } on Object {
+                  persistence.sync.markUnavailable();
+                  rethrow;
+                }
+              },
             );
           },
     ),
   );
+}
+
+Future<AppStartupDataPreparationFallback?> _recoverLocalFirstDataPreparation(
+  AppStartupStage stage,
+  Object error,
+  StackTrace stackTrace,
+  AppStartupConfigurationAccess access,
+) async {
+  if (!_isRecoverableApiPreparationFailure(stage, error)) {
+    return null;
+  }
+  final DataApiConfiguration configuration;
+  try {
+    configuration = await access.settings.loadForRecovery();
+  } on Object {
+    return null;
+  }
+  return AppStartupDataPreparationFallback(
+    configurationSnapshot: AppStartupConfigurationSnapshot(
+      configuration: configuration,
+      generation: configuration.generation,
+      digest: await _configurationDigest(configuration),
+    ),
+    warning: DataApiStartupWarning(
+      'API synchronization is unavailable: $error. Local data remains '
+      'available; open data service settings to repair the connection.',
+    ),
+  );
+}
+
+bool _isRecoverableApiPreparationFailure(AppStartupStage stage, Object error) {
+  if (stage != AppStartupStage.secureRecovery &&
+      stage != AppStartupStage.configuration) {
+    return false;
+  }
+  return error is DataApiConfigurationRecoveryRequiredException ||
+      error is DataApiStartupDependencyException ||
+      error is DataApiAuthenticationRequiredException ||
+      error is DataApiRemoteSessionFormatException ||
+      error is DataApiRemoteSessionUnsupportedVersionException ||
+      error is DataApiConfigurationSagaRecoveryRequiredException;
 }
 
 Future<DataApiStartupWarning?> _recoverProductionSecureConfiguration(
@@ -439,9 +526,8 @@ AppStartupDataSetupRequirement? resolveInitialDataApiSetupRequirement({
   return switch (platform) {
     TargetPlatform.macOS when !hasPersistedConfiguration =>
       AppStartupDataSetupRequirement.optional,
-    TargetPlatform.iOS
-        when configuration.deployment != DataApiDeployment.remote =>
-      AppStartupDataSetupRequirement.required,
+    TargetPlatform.iOS when !hasPersistedConfiguration =>
+      AppStartupDataSetupRequirement.optional,
     _ => null,
   };
 }

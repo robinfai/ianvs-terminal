@@ -1,26 +1,24 @@
 import 'dart:io';
 
-import 'package:app/data/services/data_api_client.dart';
 import 'package:app/data/services/data_api_runtime.dart';
-import 'package:app/features/config/data_api_terminal_config_repository.dart';
-import 'package:app/features/config/local_terminal_config_repository.dart';
+import 'package:app/data/services/portable_master_key.dart';
+import 'package:app/data/sync/sync_repositories.dart';
 import 'package:app/features/layout/local_terminal_layout_models.dart';
 import 'package:app/features/layout/local_terminal_layout_repository.dart';
-import 'package:app/features/profiles/data_api_profile_repository.dart';
 import 'package:app/features/profiles/profile_models.dart';
-import 'package:app/features/profiles/profile_repository.dart';
-import 'package:app/features/ssh/ssh_feature_access.dart';
 import 'package:app/features/terminal/terminal.dart' as terminal;
 import 'package:app/persistence_repository_composition.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   late Directory temporaryDirectory;
+  late _MemoryMasterKeyStorage masterKeyStorage;
 
   setUp(() async {
     temporaryDirectory = await Directory.systemTemp.createTemp(
-      'ianvs-profile-export-composition-',
+      'ianvs-persistence-composition-',
     );
+    masterKeyStorage = _MemoryMasterKeyStorage();
   });
 
   tearDown(() async {
@@ -29,161 +27,162 @@ void main() {
     }
   });
 
-  test('disabled runtime composes only local repositories', () {
-    final composition = PersistenceRepositoryComposition.forRuntime(
-      null,
+  PersistenceRepositoryComposition compose(
+    DataApiRuntime? runtime, {
+    bool dataApiPersistenceRequired = false,
+    bool dataApiPersistenceUnavailable = false,
+  }) {
+    return PersistenceRepositoryComposition.forRuntime(
+      runtime,
       profileExportDirectoryResolver: () async => temporaryDirectory,
+      masterKeyRepository: PortableMasterKeyRepository(
+        storage: masterKeyStorage,
+        allowLegacyMigration: false,
+      ),
+      dataApiPersistenceRequired: dataApiPersistenceRequired,
+      dataApiPersistenceUnavailable: dataApiPersistenceUnavailable,
     );
+  }
+
+  test('disabled runtime composes local-first repositories', () async {
+    final composition = compose(null);
 
     expect(composition.usesDataApi, isFalse);
-    expect(composition.profiles, isA<LocalTerminalOnlyProfileRepository>());
-    expect(composition.terminalConfig, isA<LocalTerminalConfigRepository>());
+    expect(composition.persistenceUnavailable, isFalse);
+    expect(composition.profiles, isA<LocalFirstProfileRepository>());
+    expect(
+      composition.terminalConfig,
+      isA<LocalFirstTerminalConfigRepository>(),
+    );
     expect(composition.terminalLayout, isA<LocalTerminalLayoutRepository>());
+
+    await composition.terminalLayout.save(const TerminalLayout());
+    expect(
+      File(
+        '${temporaryDirectory.path}/ianvs_terminal_layout.json',
+      ).existsSync(),
+      isTrue,
+    );
+    await composition.sync.close();
   });
 
   test(
-    'disabled runtime hides custom SSH profiles without deleting them',
+    'unavailable API transport still permits local reads and writes',
     () async {
-      final delegate = ProfileRepository(
-        directoryResolver: () async => temporaryDirectory,
+      final composition = compose(
+        DataApiRuntime.remote(baseUri: Uri.parse('https://sync.example.test/')),
+        dataApiPersistenceRequired: true,
+        dataApiPersistenceUnavailable: true,
       );
+      final document = TerminalProfilesDocument(
+        profiles: [
+          defaultTerminalProfile().copyWith(name: 'Local while offline'),
+        ],
+      );
+
+      await composition.profiles.save(document);
+      final loaded = await composition.profiles.load();
+
+      expect(composition.usesDataApi, isFalse);
+      expect(composition.persistenceUnavailable, isFalse);
+      expect(composition.profiles, isA<LocalFirstProfileRepository>());
+      expect(loaded.profiles.single.name, 'Local while offline');
+      await composition.sync.close();
+    },
+  );
+
+  test(
+    'API enablement and disablement reuse encrypted local SSH profile data',
+    () async {
+      final first = compose(null);
       final sshProfile = defaultTerminalProfile().copyWith(
         id: 'saved-ssh',
         name: 'Saved SSH',
         connection: const terminal.TerminalConnectionConfig.ssh(
           host: 'ssh.example.test',
           user: 'developer',
+          password: 'profile-password',
+          privateKeys: ['private-key-contents'],
+          privateKeyPassphrase: 'key-passphrase',
         ),
       );
-      await delegate.save(
-        TerminalProfilesDocument(
-          profiles: <TerminalProfile>[defaultTerminalProfile(), sshProfile],
-        ),
+      await first.profiles.save(
+        TerminalProfilesDocument(profiles: [sshProfile]),
       );
-      final composition = PersistenceRepositoryComposition.forRuntime(
-        null,
-        profileExportDirectoryResolver: () async => temporaryDirectory,
-      );
+      final storedProfiles = await File(
+        '${temporaryDirectory.path}/ianvs_profiles.json',
+      ).readAsString();
+      expect(storedProfiles, isNot(contains('profile-password')));
+      expect(storedProfiles, isNot(contains('private-key-contents')));
+      expect(storedProfiles, isNot(contains('key-passphrase')));
+      await first.sync.close();
 
-      final visible = await composition.profiles.load();
+      final apiEnabled = compose(
+        DataApiRuntime.remote(
+          baseUri: Uri.parse('https://sync.example.test/'),
+          remoteAccessToken: 'access-token',
+          encryptionKey: 'transport-encryption-key',
+          syncIdentity: 'test-account',
+        ),
+      );
+      final loadedWithApi = (await apiEnabled.profiles.load()).profiles.single;
 
-      expect(visible.profiles, hasLength(1));
-      expect(visible.profiles.single.isSsh, isFalse);
-      await composition.profiles.save(
+      expect(apiEnabled.usesDataApi, isTrue);
+      expect(apiEnabled.profiles, isA<LocalFirstProfileRepository>());
+      expect(loadedWithApi.id, 'saved-ssh');
+      expect(loadedWithApi.connection.password, 'profile-password');
+      expect(loadedWithApi.connection.privateKeys, ['private-key-contents']);
+      expect(loadedWithApi.connection.privateKeyPassphrase, 'key-passphrase');
+      await apiEnabled.profiles.save(
         TerminalProfilesDocument(
-          profiles: <TerminalProfile>[
-            visible.profiles.single.copyWith(name: 'Local terminal'),
-          ],
+          profiles: [loadedWithApi.copyWith(name: 'Edited with API enabled')],
         ),
       );
-      final preserved = await delegate.load();
-      expect(
-        preserved.profiles.where((profile) => profile.isSsh).single.id,
-        sshProfile.id,
-      );
-      await expectLater(
-        composition.profiles.save(
-          TerminalProfilesDocument(profiles: <TerminalProfile>[sshProfile]),
-        ),
-        throwsA(isA<CustomSshProfileConfigurationUnavailableException>()),
-      );
+      await apiEnabled.sync.close();
+
+      final disabledAgain = compose(null);
+      final restored = (await disabledAgain.profiles.load()).profiles.single;
+
+      expect(restored.name, 'Edited with API enabled');
+      expect(restored.connection.password, 'profile-password');
+      expect(restored.connection.privateKeys, ['private-key-contents']);
+      expect(restored.connection.privateKeyPassphrase, 'key-passphrase');
+      await disabledAgain.sync.close();
     },
   );
 
-  test(
-    'remote runtime keeps terminal layout local while API data fails closed',
-    () async {
-      final composition = PersistenceRepositoryComposition.forRuntime(
-        DataApiRuntime.remote(baseUri: Uri.parse('https://sync.example.com/')),
-        profileExportDirectoryResolver: () async => temporaryDirectory,
-      );
-
-      expect(composition.usesDataApi, isTrue);
-      expect(composition.profiles, isA<DataApiProfileRepository>());
-      expect(
-        composition.terminalConfig,
-        isA<DataApiTerminalConfigRepository>(),
-      );
-      expect(composition.terminalLayout, isA<LocalTerminalLayoutRepository>());
-      await composition.terminalLayout.save(const TerminalLayout());
-      expect(
-        File(
-          '${temporaryDirectory.path}/ianvs_terminal_layout.json',
-        ).existsSync(),
-        isTrue,
-      );
-      await expectLater(
-        composition.terminalConfig.load(),
-        throwsA(isA<DataApiAuthenticationRequiredException>()),
-      );
-    },
-  );
-
-  test('bundled local runtime exposes API-backed custom SSH persistence', () {
-    final composition = PersistenceRepositoryComposition.forRuntime(
-      DataApiRuntime.local(
-        baseUri: Uri.parse('http://127.0.0.1:42100/'),
-        localAccessToken: 'local-access-token',
-        encryptionKey: 'local-encryption-key',
-        closeLocalSidecar: () async {},
+  test('profile export remains an explicit local copy in API mode', () async {
+    final composition = compose(
+      DataApiRuntime.remote(
+        baseUri: Uri.parse('https://sync.example.test/'),
+        remoteAccessToken: 'access-token',
+        encryptionKey: 'transport-encryption-key',
       ),
-      profileExportDirectoryResolver: () async => temporaryDirectory,
     );
 
-    expect(composition.usesDataApi, isTrue);
-    expect(composition.profiles, isA<DataApiProfileRepository>());
-    expect(composition.terminalLayout, isA<LocalTerminalLayoutRepository>());
+    final exported = await composition.profiles.exportDocument(
+      const TerminalProfilesDocument(profiles: <TerminalProfile>[]),
+      basename: 'remote-backup',
+    );
+
+    expect(exported.parent.path, temporaryDirectory.path);
+    expect(
+      exported.path,
+      endsWith('remote-backup.ianvs-terminal-profiles.json'),
+    );
+    expect(await exported.exists(), isTrue);
+    await composition.sync.close();
   });
+}
 
-  test(
-    'API persistence keeps profile export as an explicit local copy',
-    () async {
-      final composition = PersistenceRepositoryComposition.forRuntime(
-        DataApiRuntime.remote(
-          baseUri: Uri.parse('https://sync.example.com/'),
-          remoteAccessToken: 'access-token',
-          encryptionKey: 'encryption-key-material',
-        ),
-        profileExportDirectoryResolver: () async => temporaryDirectory,
-      );
+final class _MemoryMasterKeyStorage implements PortableMasterKeyStorage {
+  String? value;
 
-      final exported = await composition.profiles.exportDocument(
-        const TerminalProfilesDocument(profiles: <TerminalProfile>[]),
-        basename: 'remote-backup',
-      );
+  @override
+  Future<String?> read() async => value;
 
-      expect(exported.parent.path, temporaryDirectory.path);
-      expect(
-        exported.path,
-        endsWith('remote-backup.ianvs-terminal-profiles.json'),
-      );
-      expect(await exported.exists(), isTrue);
-    },
-  );
-
-  test(
-    'migration failure locks API persistence instead of seeding defaults',
-    () async {
-      final runtime = DataApiRuntime.remote(
-        baseUri: Uri.parse('https://sync.example.com/'),
-        remoteAccessToken: 'access-token',
-        encryptionKey: 'encryption-key-material',
-      );
-      final composition = PersistenceRepositoryComposition.forRuntime(
-        runtime,
-        profileExportDirectoryResolver: () async => temporaryDirectory,
-        dataApiPersistenceRequired: true,
-        dataApiPersistenceUnavailable: true,
-      );
-
-      expect(composition.usesDataApi, isTrue);
-      expect(composition.persistenceUnavailable, isTrue);
-      expect(composition.terminalLayout, isA<LocalTerminalLayoutRepository>());
-      await composition.terminalLayout.save(const TerminalLayout());
-      await expectLater(
-        composition.profiles.load(),
-        throwsA(isA<DataApiPersistenceUnavailableException>()),
-      );
-    },
-  );
+  @override
+  Future<void> write(String portableValue) async {
+    value = portableValue;
+  }
 }

@@ -5,13 +5,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('custom SSH is disabled without a Data API runtime', () {
+  test('custom SSH stays available without a Data API runtime', () {
     final container = ProviderContainer();
     addTearDown(container.dispose);
 
     expect(
       container.read(customSshProfileConfigurationEnabledProvider),
-      isFalse,
+      isTrue,
     );
     expect(
       container.read(crossDeviceConfigurationSyncEnabledProvider),

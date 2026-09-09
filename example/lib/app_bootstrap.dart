@@ -5,13 +5,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'app.dart';
-import 'data/configuration/data_api_configuration.dart';
 import 'data/configuration/data_api_configuration_providers.dart';
 import 'data/configuration/data_api_configuration_repository.dart';
 import 'data/services/data_api_lifecycle.dart';
 import 'data/services/data_api_remote_fallback.dart';
 import 'data/services/data_api_runtime.dart';
 import 'data/services/portable_master_key.dart';
+import 'data/sync/local_first_sync.dart';
+import 'data/sync/local_first_sync_boundary.dart';
 import 'features/profiles/profile_repository.dart';
 import 'features/pty/pty.dart';
 import 'features/sessions/session_controller.dart';
@@ -70,21 +71,6 @@ Widget buildIanvsTerminalRoot({
           : null);
   final effectiveLocalMigrationRuntimeStarter =
       runtimeGraph?.localMigrationRuntimeStarter;
-  final effectiveRemoteFallbackController =
-      effectiveDataApiRuntime?.deployment == DataApiDeployment.remote &&
-          effectiveDataApiRuntime?.canAccessResources == true &&
-          effectiveRemoteFallbackSnapshotRuntimeStarter != null &&
-          effectiveDataApiConfigurationRepository != null &&
-          effectiveRemoteFallbackSnapshotStore != null
-      ? DataApiRemoteFallbackController(
-          remoteRuntime: effectiveDataApiRuntime!,
-          startLocalRuntime: effectiveRemoteFallbackSnapshotRuntimeStarter,
-          configurationRepository: effectiveDataApiConfigurationRepository,
-          snapshotStore: effectiveRemoteFallbackSnapshotStore,
-          commitSnapshot: runtimeGraph?.remoteFallbackSnapshotCommitter,
-          activateLocalSnapshot: runtimeGraph?.remoteFallbackSnapshotActivator,
-        )
-      : null;
   final effectivePtySessionBackend =
       runtimeGraph?.ptySessionBackend ?? ptySessionBackend;
   final shutdownCoordinator =
@@ -105,6 +91,13 @@ Widget buildIanvsTerminalRoot({
   return ProviderScope(
     key: providerScopeKey,
     overrides: [
+      localFirstSyncProvider.overrideWith(
+        (ref) => persistenceRepositories.sync,
+      ),
+      applyApiSyncConfigurationProvider.overrideWithValue(
+        runtimeGraph?.applyApiSyncConfiguration,
+      ),
+      dataApiRemoteFallbackControllerProvider.overrideWithValue(null),
       appShutdownCoordinatorProvider.overrideWithValue(shutdownCoordinator),
       sessionPollingEnabledProvider.overrideWithValue(enableSessionPolling),
       dataApiRuntimeProvider.overrideWithValue(effectiveDataApiRuntime),
@@ -145,10 +138,6 @@ Widget buildIanvsTerminalRoot({
       if (effectiveRemoteFallbackSnapshotStore != null)
         dataApiRemoteFallbackSnapshotStoreProvider.overrideWithValue(
           effectiveRemoteFallbackSnapshotStore,
-        ),
-      if (effectiveRemoteFallbackController != null)
-        dataApiRemoteFallbackControllerProvider.overrideWithValue(
-          effectiveRemoteFallbackController,
         ),
       dataApiConfigurationRecoveryRequiredProvider.overrideWithValue(
         dataApiConfigurationRecoveryRequired,
@@ -194,15 +183,17 @@ Widget buildIanvsTerminalRoot({
       ),
       shellAnimationsEnabledProvider.overrideWithValue(enableShellAnimations),
     ],
-    child: runtimeGraph == null
-        ? DataApiLifecycleBoundary(
-            runtime: effectiveDataApiRuntime,
-            shutdownCoordinator: shutdownCoordinator,
-            child: IanvsTerminalApp(
-              activeDataApiDeployment: activeDataApiDeployment,
-            ),
-          )
-        : IanvsTerminalApp(activeDataApiDeployment: activeDataApiDeployment),
+    child: LocalFirstSyncBoundary(
+      child: runtimeGraph == null
+          ? DataApiLifecycleBoundary(
+              runtime: effectiveDataApiRuntime,
+              shutdownCoordinator: shutdownCoordinator,
+              child: IanvsTerminalApp(
+                activeDataApiDeployment: activeDataApiDeployment,
+              ),
+            )
+          : IanvsTerminalApp(activeDataApiDeployment: activeDataApiDeployment),
+    ),
   );
 }
 

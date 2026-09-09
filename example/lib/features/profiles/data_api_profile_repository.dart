@@ -123,18 +123,19 @@ final class DataApiProfileRepository extends ProfileRepositoryPort {
           rethrow;
         }
         return VersionedDocument<TerminalProfilesDocument>(
-          value: _decode(winner),
+          value: decodeResource(winner),
           revision: winner.revision,
         );
       }
     }
     return VersionedDocument<TerminalProfilesDocument>(
-      value: _decode(resource),
+      value: decodeResource(resource),
       revision: resource.revision,
     );
   }
 
-  TerminalProfilesDocument _decode(DataApiResource resource) {
+  /// Decodes current-schema resources while accepting omitted default fields.
+  static TerminalProfilesDocument decodeResource(DataApiResource resource) {
     final validated = requireDataApiResourceIdentity(
       resource,
       kind: resourceKind,

@@ -8,7 +8,6 @@ import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/sessions/session_ports.dart';
 import 'package:app/features/sessions/session_state.dart';
-import 'package:app/features/shell/password_manager_store.dart';
 import 'package:app/features/shell/shell_screen.dart';
 import 'package:app/features/shell/window_bridge.dart';
 import 'package:app/features/terminal/render_terminal_viewport.dart';
@@ -294,15 +293,8 @@ sleep 5
       expect(find.text('Auto Composer'), findsNothing);
       expect(find.text('Password manager'), findsNothing);
 
-      await tester.ensureVisible(find.byKey(const Key('shell-top-toolbelt')));
-      await tester.tap(find.byKey(const Key('shell-top-toolbelt')));
-      await _waitFor(
-        tester,
-        description: 'toolbelt panel without hidden redesign features',
-        condition: () =>
-            find.byKey(const Key('shell-toolbelt-panel')).evaluate().isNotEmpty,
-      );
-      expect(find.byKey(const Key('toolbelt-password-manager')), findsNothing);
+      expect(find.byKey(const Key('shell-top-toolbelt')), findsNothing);
+      expect(find.byKey(const Key('shell-toolbelt-panel')), findsNothing);
     },
     skip: _skipNonRefreshPolicyGateTests,
   );
@@ -349,61 +341,7 @@ sleep 1
   );
 
   testWidgets(
-    'real PTY coprocess replies to repeated prompts',
-    (tester) async {
-      final goFile = _tempSignalFile('coprocess-repeat');
-      final profile = _scriptProfile(
-        id: 'coprocess-repeat',
-        name: 'Coprocess Repeat',
-        script: r'''
-printf 'ready\n'
-while [ ! -f "$GO_FILE" ]; do sleep 0.05; done
-printf 'Are you there?'
-IFS= read a
-printf 'first:%s\n' "$a"
-printf 'Are you there?'
-IFS= read b
-printf 'second:%s\n' "$b"
-sleep 1
-''',
-        env: {'GO_FILE': goFile.path},
-      );
-      final harness = await _pumpRealPtyApp(tester, profiles: [profile]);
-
-      await _waitForTerminalText(
-        tester,
-        harness.container,
-        description: 'coprocess real PTY pane ready',
-        matches: (text) => text.contains('ready'),
-      );
-
-      await _openToolbelt(tester);
-      await tester.ensureVisible(find.byKey(const Key('toolbelt-coprocess')));
-      await tester.tap(find.byKey(const Key('toolbelt-coprocess')));
-      await _waitFor(
-        tester,
-        description: 'coprocess sheet',
-        condition: () =>
-            find.byKey(const Key('coprocess-sheet')).evaluate().isNotEmpty,
-      );
-      await tester.tap(find.byKey(const Key('coprocess-start')));
-      await tester.pump(_pollStep);
-
-      _signal(goFile);
-
-      await _waitForTerminalText(
-        tester,
-        harness.container,
-        description: 'two coprocess responses in a real PTY',
-        matches: (text) =>
-            text.contains('first:Yes') && text.contains('second:Yes'),
-      );
-    },
-    skip: _skipNonRefreshPolicyGateTests,
-  );
-
-  testWidgets(
-    'real PTY wrapped trigger output is captured as a logical row',
+    'real PTY wrapped trigger output notifies as a logical row',
     (tester) async {
       final prefixLengthFile = _tempSignalFile('wrapped-trigger');
       final notifications = <Map<String, String?>>[];
@@ -455,35 +393,12 @@ sleep 5
               notification['body']?.contains('ERROR 42 failed') ?? false,
         ),
       );
-
-      await _openToolbelt(tester);
-      await tester.tap(find.byKey(const Key('toolbelt-tab-captured-output')));
-      await _waitFor(
-        tester,
-        description: 'captured output toolbelt panel',
-        condition: () => find
-            .byKey(const Key('toolbelt-panel-captured-output'))
-            .evaluate()
-            .isNotEmpty,
-      );
-      await tester.tap(find.byKey(const Key('toolbelt-captured-output')));
-      await _waitFor(
-        tester,
-        description: 'captured output sheet',
-        condition: () => find
-            .byKey(const Key('captured-output-sheet'))
-            .evaluate()
-            .isNotEmpty,
-      );
-
-      expect(find.byKey(const Key('captured-output-sheet')), findsOneWidget);
-      expect(find.textContaining('ERROR 42 failed'), findsWidgets);
     },
     skip: _skipNonRefreshPolicyGateTests,
   );
 
   testWidgets(
-    'real PTY OSC 1337 ClearCapturedOutput updates the open session sheet',
+    'real PTY OSC 1337 ClearCapturedOutput preserves terminal interaction',
     (tester) async {
       final goFile = _tempSignalFile('osc1337-clear-captured-output');
       final profile = _scriptProfile(
@@ -510,38 +425,7 @@ sleep 1
         description: 'OSC 1337 captured-output source row',
         matches: (text) => text.contains('CAPTURE-ME-PHASE35'),
       );
-      await _openToolbelt(tester);
-      await tester.tap(find.byKey(const Key('toolbelt-tab-captured-output')));
-      await _waitFor(
-        tester,
-        description: 'OSC 1337 captured-output panel',
-        condition: () => find
-            .byKey(const Key('toolbelt-panel-captured-output'))
-            .evaluate()
-            .isNotEmpty,
-      );
-      await tester.tap(find.byKey(const Key('toolbelt-captured-output')));
-      await _waitFor(
-        tester,
-        description: 'OSC 1337 captured-output source entry',
-        condition: () => find.text('CAPTURE-ME-PHASE35').evaluate().isNotEmpty,
-      );
-
       _signal(goFile);
-      await _waitFor(
-        tester,
-        description: 'OSC 1337 cleared open captured-output sheet',
-        condition: () =>
-            find
-                .byKey(const Key('captured-output-sheet'))
-                .evaluate()
-                .isNotEmpty &&
-            find.text('CAPTURE-ME-PHASE35').evaluate().isEmpty &&
-            find
-                .byKey(const Key('captured-output-empty-state'))
-                .evaluate()
-                .isNotEmpty,
-      );
       await _waitForTerminalText(
         tester,
         harness.container,
@@ -2435,7 +2319,7 @@ sleep 5
   );
 
   testWidgets(
-    'real PTY iTerm2 OSC 1337 annotations reach the product sheet and badge',
+    'real PTY iTerm2 OSC 1337 annotations reach the notice and badge',
     (tester) async {
       final goFile = _tempSignalFile('osc1337-annotations');
       final profile = _scriptProfile(
@@ -2463,18 +2347,13 @@ sleep 1
 
       await _waitFor(
         tester,
-        description: 'visible OSC 1337 annotation product sheet',
+        description: 'visible OSC 1337 annotation notice',
         condition: () =>
-            find.byKey(const Key('annotations-sheet')).evaluate().isNotEmpty &&
             find.text('Visible protocol note').evaluate().isNotEmpty &&
-            find.text('Hidden protocol note').evaluate().isNotEmpty &&
-            find.text('visible').evaluate().isNotEmpty &&
-            find.text('away').evaluate().isNotEmpty,
+            find.text('2 annotations').evaluate().isNotEmpty,
         onTimeout: () => 'Terminal text: ${_terminalText(harness.container)}',
       );
 
-      await tester.tap(find.byKey(const Key('annotations-close')));
-      await tester.pumpAndSettle();
       final sessionId = harness.container
           .read(sessionControllerProvider)
           .activeSessionId!;
@@ -2483,6 +2362,10 @@ sleep 1
         findsOneWidget,
       );
       expect(find.text('2 annotations'), findsOneWidget);
+      expect(find.byKey(const Key('annotations-sheet')), findsNothing);
+      await tester.tap(find.byKey(Key('terminal-annotation-badge-$sessionId')));
+      await tester.pump();
+      expect(find.textContaining('Hidden protocol note'), findsWidgets);
       expect(
         _terminalText(harness.container),
         contains('OSC1337-ANNOTATIONS-DONE'),
@@ -2870,7 +2753,6 @@ void _ignoreKnownDesktopKeyStateNoise() {
 Future<_RealPtyHarness> _pumpRealPtyApp(
   WidgetTester tester, {
   required List<TerminalProfile> profiles,
-  PasswordManagerStore? passwordStore,
   List<Map<String, String?>>? notifications,
   List<int?>? notificationExpiries,
   List<String>? closedNotifications,
@@ -2925,8 +2807,6 @@ Future<_RealPtyHarness> _pumpRealPtyApp(
       shellNotificationCloserProvider.overrideWithValue((identifier) async {
         closedNotifications?.add(identifier);
       }),
-      if (passwordStore != null)
-        passwordManagerStoreProvider.overrideWithValue(passwordStore),
     ],
   );
   addTearDown(container.dispose);
@@ -3543,18 +3423,6 @@ Future<void> _chooseDefaultLocalSession(WidgetTester tester) async {
     tester,
     description: 'new session launcher to close',
     condition: () => launcher.evaluate().isEmpty,
-  );
-}
-
-Future<void> _openToolbelt(WidgetTester tester) async {
-  await _openCommandMenu(tester);
-  await tester.ensureVisible(find.byKey(const Key('shell-top-toolbelt')));
-  await tester.tap(find.byKey(const Key('shell-top-toolbelt')));
-  await _waitFor(
-    tester,
-    description: 'toolbelt panel',
-    condition: () =>
-        find.byKey(const Key('shell-toolbelt-panel')).evaluate().isNotEmpty,
   );
 }
 

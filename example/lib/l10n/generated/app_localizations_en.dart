@@ -131,11 +131,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get dataModeLocalBundledOrRemote =>
-      'Use only local terminals, start the bundled offline API, or connect a remote API for cross-device sync.';
+      'Your data stays on this device. You can optionally connect a remote API to sync it across devices.';
 
   @override
   String get dataModeLocalOrRemote =>
-      'Continue without a data service for one-time SSH connections, or connect a remote API to save profiles and sync them.';
+      'Your data stays available locally. You can optionally connect a remote API to sync it across devices.';
 
   @override
   String get remoteApiRequiredOnIos =>
@@ -241,10 +241,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get toolbelt => 'Toolbelt';
 
   @override
-  String get toolbeltDescription =>
-      'Top action • Open terminal tools for this pane.';
-
-  @override
   String get defaultsAppearance => 'Defaults & appearance';
 
   @override
@@ -259,45 +255,12 @@ class AppLocalizationsEn extends AppLocalizations {
       'App action • Recreate the most recently closed tab.';
 
   @override
-  String get terminalColorPresets => 'Terminal color presets';
-
-  @override
-  String get terminalColorPresetsDescription =>
-      'App action • Open Defaults & appearance to choose terminal colors.';
-
-  @override
-  String commandFinishedNotifications(String enabled) {
-    String _temp0 = intl.Intl.selectLogic(enabled, {
-      'true': 'Disable command-finished notifications',
-      'other': 'Enable command-finished notifications',
-    });
-    return '$_temp0';
-  }
-
-  @override
   String get commandFinishedNotificationsDescription =>
       'App action • Toggle shell hook completion alerts.';
 
   @override
   String get commandFinishedNotificationsBlockedDescription =>
       'App action • Toggle shell hook completion alerts. macOS notifications are currently blocked in System Settings.';
-
-  @override
-  String activityMonitor(String enabled) {
-    String _temp0 = intl.Intl.selectLogic(enabled, {
-      'true': 'Disable activity monitor',
-      'other': 'Enable activity monitor',
-    });
-    return '$_temp0';
-  }
-
-  @override
-  String get activityMonitorDescription =>
-      'App action • Toggle inactive-session activity alerts.';
-
-  @override
-  String get activityMonitorBlockedDescription =>
-      'App action • Toggle inactive-session activity alerts. macOS notifications are currently blocked in System Settings.';
 
   @override
   String get profilesEllipsis => 'Profiles…';
@@ -385,9 +348,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get globalSearch => 'Global search';
-
-  @override
-  String get globalSearchDescription => 'Shell tool • Search all tabs at once.';
 
   @override
   String openCommandPaletteWith(String shortcut) {
@@ -1639,71 +1599,22 @@ class AppLocalizationsEn extends AppLocalizations {
   String get disabledStatus => 'Disabled';
 
   @override
-  String get toolbeltTerminalTools => 'Toolbelt terminal tools';
-
-  @override
-  String get closeToolbelt => 'Close toolbelt';
-
-  @override
   String get promptMarks => 'Prompt Marks';
-
-  @override
-  String promptMarkCount(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '$count marks',
-      one: '1 mark',
-    );
-    return '$_temp0';
-  }
 
   @override
   String get tmuxIntegration => 'tmux integration';
 
   @override
-  String get controlModeActive => 'Control mode active';
-
-  @override
-  String get startOrAttach => 'Start or attach';
-
-  @override
   String get coprocess => 'Coprocess';
-
-  @override
-  String get automationActive => 'Automation active';
-
-  @override
-  String get runAutomation => 'Run automation';
 
   @override
   String get annotations => 'Annotations';
 
   @override
-  String annotationCount(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '$count notes',
-      one: '1 note',
-    );
-    return '$_temp0';
-  }
-
-  @override
-  String get recentFrames => 'Recent frames';
-
-  @override
   String get passwordManager => 'Password manager';
 
   @override
-  String get promptGatedSends => 'Prompt-gated sends';
-
-  @override
   String get commands => 'Commands';
-
-  @override
-  String get directoriesShort => 'Dirs';
 
   @override
   String get output => 'Output';
@@ -1712,93 +1623,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String get paste => 'Paste';
 
   @override
-  String get commandHistory => 'Command History';
-
-  @override
-  String commandCount(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '$count commands',
-      one: '1 command',
-    );
-    return '$_temp0';
-  }
-
-  @override
   String get all => 'All';
-
-  @override
-  String get runCommandToFillHistory =>
-      'Run a command in this tab to fill command history.';
-
-  @override
-  String get insertCommand => 'Insert command';
 
   @override
   String get recentDirectories => 'Recent Directories';
 
   @override
-  String directoryCount(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '$count directories',
-      one: '1 directory',
-    );
-    return '$_temp0';
-  }
-
-  @override
-  String get changeDirectoriesToFillHistory =>
-      'Change directories to fill recent directories.';
-
-  @override
-  String get insertCdCommand => 'Insert cd command';
-
-  @override
   String get capturedOutput => 'Captured output';
-
-  @override
-  String capturedLineCount(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '$count captured lines',
-      one: '1 captured line',
-    );
-    return '$_temp0';
-  }
 
   @override
   String get open => 'Open';
 
   @override
-  String get profileAutomationCapturesOutput =>
-      'Profile triggers and coprocesses can capture output.';
-
-  @override
-  String capturedOutputLocation(String pattern, int row) {
-    return 'Pattern $pattern · Row $row';
-  }
-
-  @override
   String get pasteHistory => 'Paste history';
-
-  @override
-  String recentItemCount(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '$count recent items',
-      one: '1 recent item',
-    );
-    return '$_temp0';
-  }
-
-  @override
-  String get copiedAndPastedTextAppearsHere =>
-      'Copied and pasted text appears here.';
 
   @override
   String get copied => 'Copied';
@@ -1810,22 +1647,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get advancedPaste => 'Advanced Paste';
 
   @override
-  String get closeAdvancedPaste => 'Close advanced paste';
-
-  @override
   String get pasteText => 'Paste text';
 
   @override
   String get text => 'Text';
 
   @override
-  String get escapeSpecialCharacters => 'Escape special characters';
-
-  @override
   String get base64Encode => 'Base64 encode';
-
-  @override
-  String get appendNewline => 'Append newline';
 
   @override
   String byteCount(int count) {
@@ -1839,157 +1667,26 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get closeCapturedOutput => 'Close captured output';
-
-  @override
   String get clear => 'Clear';
 
   @override
-  String get startCapturingMatchingOutput => 'Start capturing matching output';
-
-  @override
-  String get capturedOutputEmptyBody =>
-      'Captured rows appear after a profile trigger or coprocess pattern matches terminal output.';
-
-  @override
-  String get openProfilesAndAddTrigger =>
-      'Open Profiles and add a trigger pattern.';
-
-  @override
-  String get runCommandThatPrintsPattern =>
-      'Run a command that prints the pattern.';
-
-  @override
-  String get reopenCapturedOutput =>
-      'Reopen Captured Output to review and copy matches.';
-
-  @override
-  String get copyCapturedOutput => 'Copy captured output';
-
-  @override
-  String get closeAnnotations => 'Close annotations';
-
-  @override
-  String get selectTerminalTextToAnnotate =>
-      'Select terminal text to add an annotation.';
-
-  @override
   String get note => 'Note';
-
-  @override
-  String get addAnnotation => 'Add Annotation';
-
-  @override
-  String get addFirstAnnotation => 'Add the first annotation';
-
-  @override
-  String get selectOutputBeforeAnnotating => 'Select output before annotating';
-
-  @override
-  String get annotationSelectionReadyBody =>
-      'Use the note field above to attach a note to the selected terminal output.';
 
   @override
   String get annotationSelectionRequiredBody =>
       'Annotations are created from selected terminal text in the active pane.';
 
   @override
-  String get enterNoteForSelectedOutput =>
-      'Enter a note for the selected output.';
-
-  @override
-  String get saveAnnotation => 'Save the annotation.';
-
-  @override
-  String get useAnnotationBadge =>
-      'Use the annotation badge to reopen notes later.';
-
-  @override
-  String get selectTerminalOutputInPane =>
-      'Select terminal output in the pane.';
-
-  @override
-  String get openAnnotationsAgain => 'Open Annotations again.';
-
-  @override
-  String get enterNoteAndSave => 'Enter a note and save it.';
-
-  @override
-  String get removeAnnotation => 'Remove annotation';
-
-  @override
-  String get closePasteHistory => 'Close paste history';
-
-  @override
-  String get saveHistoryToDisk => 'Save History to Disk';
-
-  @override
-  String get keepPasteHistoryAcrossLaunches =>
-      'Keep recent copied and pasted text across launches.';
-
-  @override
-  String get noPasteHistoryYet => 'No copied or pasted text yet.';
-
-  @override
-  String get closePasswordManager => 'Close password manager';
-
-  @override
-  String get passwordPromptDetected =>
-      'Password prompt detected in the active session.';
-
-  @override
-  String get openPasswordPromptFirst =>
-      'Open a password prompt before sending a password.';
-
-  @override
-  String get passwordManagerSessionSecurity =>
-      'Passwords are kept for this app session and can only be sent when the active terminal appears to be asking for one.';
-
-  @override
   String get label => 'Label';
-
-  @override
-  String get serverOrAccount => 'Server or account';
-
-  @override
-  String get passwordEntered => 'Password entered';
 
   @override
   String get add => 'Add';
 
   @override
-  String get noSavedSessionPasswords =>
-      'No saved passwords in this session. Add one above, then open a password prompt before sending.';
-
-  @override
-  String get readyToSend => 'Ready to send';
-
-  @override
-  String get waitingForPasswordPrompt => 'Waiting for password prompt';
-
-  @override
-  String get removePassword => 'Remove password';
-
-  @override
   String get send => 'Send';
 
   @override
-  String get closeCoprocess => 'Close coprocess';
-
-  @override
-  String get runCoprocess => 'Run Coprocess';
-
-  @override
-  String get onePerSession => 'one per session';
-
-  @override
   String get commandLabel => 'Command label';
-
-  @override
-  String get inputPattern => 'Input pattern';
-
-  @override
-  String get coprocessOutput => 'Coprocess output';
 
   @override
   String get run => 'Run';
@@ -2006,103 +1703,13 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String patternValue(String pattern) {
-    return 'Pattern $pattern';
-  }
-
-  @override
   String get stop => 'Stop';
-
-  @override
-  String get closeTmuxIntegration => 'Close tmux integration';
-
-  @override
-  String get controlMode => 'Control Mode';
-
-  @override
-  String get startTmuxControlMode => 'Start tmux -CC';
-
-  @override
-  String get startTmuxControlModeDescription =>
-      'Create a new tmux control-mode session.';
-
-  @override
-  String get attachTmuxControlMode => 'Attach tmux -CC';
-
-  @override
-  String get attachTmuxControlModeDescription =>
-      'Attach to an existing tmux session.';
-
-  @override
-  String get tmuxActions => 'tmux Actions';
 
   @override
   String get available => 'available';
 
   @override
   String get waiting => 'waiting';
-
-  @override
-  String get newWindow => 'New window';
-
-  @override
-  String get newWindowDescription => 'Send new-window to tmux control mode.';
-
-  @override
-  String get splitPaneRight => 'Split pane right';
-
-  @override
-  String get splitPaneRightDescription => 'Send split-window -h.';
-
-  @override
-  String get splitPaneDown => 'Split pane down';
-
-  @override
-  String get splitPaneDownDescription => 'Send split-window -v.';
-
-  @override
-  String get detachClient => 'Detach client';
-
-  @override
-  String get detachClientDescription => 'Detach while leaving tmux running.';
-
-  @override
-  String get sendTmuxCommand => 'Send tmux command';
-
-  @override
-  String get tmuxCommand => 'tmux command';
-
-  @override
-  String get controlModeDetected => 'Control mode detected';
-
-  @override
-  String get noTmuxControlModeDetected => 'No tmux control mode detected';
-
-  @override
-  String get closeShellIntegration => 'Close shell integration';
-
-  @override
-  String get runCommandAfterOpeningTab =>
-      'Run a command after opening this tab to fill command history.';
-
-  @override
-  String get insertPreviousCommand => 'Insert previous command';
-
-  @override
-  String get changeDirectoriesAfterOpeningTab =>
-      'Change directories after opening this tab to fill this list.';
-
-  @override
-  String get promptMarksAppearAfterPrompt =>
-      'Prompt marks appear after the shell draws new prompts.';
-
-  @override
-  String get commandSucceededShort => 'ok';
-
-  @override
-  String commandExitCodeShort(int code) {
-    return 'exit $code';
-  }
 
   @override
   String globalLine(int line) {
@@ -2113,9 +1720,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String scrollbackOffset(int offset) {
     return 'Offset $offset';
   }
-
-  @override
-  String get shellPromptMark => 'Shell prompt mark';
 
   @override
   String get regexError => 'Regex error';
@@ -2190,17 +1794,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get closeSearch => 'Close search';
 
   @override
-  String searchingAcrossSessions(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '$count sessions',
-      one: '1 session',
-    );
-    return 'Searching across $_temp0';
-  }
-
-  @override
   String matchCount(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
@@ -2209,14 +1802,6 @@ class AppLocalizationsEn extends AppLocalizations {
       one: '1 match',
     );
     return '$_temp0';
-  }
-
-  @override
-  String get closeGlobalSearch => 'Close global search';
-
-  @override
-  String searchResultLocation(String session, int row) {
-    return '$session · row $row';
   }
 
   @override
@@ -2559,7 +2144,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'reopen_closed_tab': 'Reopen closed tab',
       'open_launcher': 'Open launcher',
       'open_command_menu': 'Open command menu',
-      'toolbelt': 'Toolbelt',
       'open_sftp_panel': 'Open SFTP panel',
       'split_right': 'Split right',
       'split_down': 'Split down',
@@ -2574,45 +2158,23 @@ class AppLocalizationsEn extends AppLocalizations {
       'open_defaults': 'Open defaults',
       'activate_tab': 'Activate tab',
       'copy': 'Copy',
-      'copy_mode': 'Copy mode',
       'copy_command_output': 'Copy command output',
       'paste': 'Paste',
-      'advanced_paste': 'Advanced paste',
-      'paste_history': 'Paste history',
       'toggle_read_only': 'Toggle read-only',
       'toggle_replay_recording': 'Toggle replay recording',
       'clear_buffer': 'Clear buffer',
-      'shell_integration': 'Shell integration',
-      'select_command_output': 'Select command output',
-      'open_recent_directory': 'Open recent directory',
-      'tmux_integration': 'tmux integration',
-      'coprocess': 'Coprocess',
-      'annotations': 'Annotations',
-      'captured_output': 'Captured output',
-      'password_manager': 'Password manager',
       'replay_recent_activity': 'Replay recent activity',
       'search_scrollback': 'Search scrollback',
       'next_search_match': 'Next search match',
       'previous_search_match': 'Previous search match',
       'clear_search': 'Clear search',
-      'global_search': 'Global search',
-      'autocomplete': 'Autocomplete',
-      'auto_composer': 'Auto composer',
-      'hotkey_window': 'Hotkey window',
       'defaults': 'Defaults',
       'profiles': 'Profiles',
-      'dynamic_profiles': 'Dynamic profiles',
       'request_quit_confirmation': 'Request quit confirmation',
       'previous_prompt': 'Previous prompt',
       'next_prompt': 'Next prompt',
-      'toggle_command_finished_notify': 'Toggle command-finished notifications',
-      'toggle_bell_notify': 'Toggle bell notifications',
-      'toggle_activity_monitor': 'Toggle activity monitor',
       'export_scrollback': 'Export scrollback',
       'export_diagnostics': 'Export diagnostics',
-      'open_theme_picker': 'Open theme picker',
-      'apply_theme': 'Apply theme',
-      'apply_layout_template': 'Apply layout template',
       'other': '$action',
     });
     return '$_temp0';
@@ -2825,58 +2387,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get hexColorValidation => 'Use #RRGGBB or leave empty.';
 
   @override
-  String get dynamicProfilesTopLevelObject =>
-      'Top-level JSON must be an object.';
-
-  @override
-  String get dynamicProfilesNoneFound => 'No profiles found in JSON.';
-
-  @override
-  String dynamicProfilesInvalid(String error) {
-    return 'Could not read profiles: $error';
-  }
-
-  @override
-  String dynamicProfilesPreviewSummary(
-    int profiles,
-    int added,
-    int replacements,
-    int warnings,
-  ) {
-    String _temp0 = intl.Intl.pluralLogic(
-      profiles,
-      locale: localeName,
-      other: '$profiles profiles ready',
-      one: '1 profile ready',
-    );
-    String _temp1 = intl.Intl.pluralLogic(
-      replacements,
-      locale: localeName,
-      other: '$replacements replacements',
-      one: '1 replacement',
-    );
-    String _temp2 = intl.Intl.pluralLogic(
-      warnings,
-      locale: localeName,
-      other: ' • $warnings warnings',
-      one: ' • 1 warning',
-      zero: '',
-    );
-    return '$_temp0 • $added new • $_temp1$_temp2';
-  }
-
-  @override
-  String get replacesExisting => 'Replaces existing';
-
-  @override
   String get dynamicProfiles => 'Dynamic Profiles';
-
-  @override
-  String get closeDynamicProfiles => 'Close dynamic profiles';
-
-  @override
-  String get dynamicProfilesPasteHelp =>
-      'Paste an iTerm2 dynamic profile JSON document. This local build only launches local commands.';
 
   @override
   String get import => 'Import';
@@ -2998,19 +2509,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String get forgetAllDecisions => 'Forget all decisions';
 
   @override
-  String get dataService => 'Data service';
+  String get dataService => 'Data sync';
 
   @override
   String get dataServiceDescriptionLocalAvailable =>
-      'Choose whether the app starts a local data service or connects to a remote one.';
+      'Data is always saved locally. Optionally connect an API to keep supported data in sync across devices.';
 
   @override
   String get dataServiceDescriptionRemoteOnly =>
-      'Use one-time SSH connections without a data service, or connect a remote service to save profiles and sync them.';
+      'Data is always saved locally. Optionally connect a remote API to keep supported data in sync across devices.';
 
   @override
   String activeDataService(String service) {
-    return 'Active data service: $service';
+    return 'Sync connection: $service';
   }
 
   @override
@@ -3036,7 +2547,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get apiService => 'API service';
 
   @override
-  String get configurationAndStorage => 'Configuration & storage';
+  String get configurationAndStorage => 'Local data & sync';
 
   @override
   String get crossDeviceSync => 'Cross-device sync';
@@ -3055,9 +2566,9 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String dataModeStorageSummary(String deployment) {
     String _temp0 = intl.Intl.selectLogic(deployment, {
-      'disabled': 'Use local shell configuration',
-      'local': 'Persist offline on this Mac',
-      'remote': 'Store with the remote service',
+      'disabled': 'Keep data on this device',
+      'local': 'Keep data on this device',
+      'remote': 'Keep data on this device',
       'other': '$deployment',
     });
     return '$_temp0';
@@ -3066,9 +2577,9 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String dataModeSyncSummary(String deployment) {
     String _temp0 = intl.Intl.selectLogic(deployment, {
-      'disabled': 'No sync',
-      'local': 'No sync',
-      'remote': 'Sync devices after sign-in',
+      'disabled': 'Sync off',
+      'local': 'Sync off',
+      'remote': 'Sync with the API after sign-in',
       'other': '$deployment',
     });
     return '$_temp0';
@@ -3088,15 +2599,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get localTerminalNoApiDescription =>
-      'No API process. Use local shells and hosts from ~/.ssh/config only.';
+      'Keep using local data without API sync.';
 
   @override
   String get noDataServiceDescription =>
-      'No API process. Create one-time SSH connections without saving them.';
+      'Keep using local data without API sync.';
 
   @override
   String get bundledLocalServiceDescription =>
-      'Offline API persistence and custom SSH profiles on this Mac.';
+      'Keep data on this Mac without a remote sync target.';
 
   @override
   String get migrateRemoteApiData => 'Migrate remote API data';
@@ -3107,7 +2618,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get remoteServiceDescription =>
-      'Custom SSH profiles, persistent settings, and cross-device sync over HTTPS.';
+      'Keep local data available and sync supported changes over HTTPS.';
 
   @override
   String get migrateLocalApiData => 'Migrate local API data';
@@ -3138,7 +2649,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get dataServiceRestartNotice =>
-      'The selection is stored in the app configuration and takes effect after restart.';
+      'Local data remains available. Sync connection changes are applied when you save.';
 
   @override
   String get enterRemoteApiBaseUrl => 'Enter the remote API base URL.';
@@ -3435,18 +2946,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'No command output is available to copy.';
 
   @override
-  String get copyModeRequiresSession => 'Copy mode requires an active session.';
-
-  @override
   String get pasteRequiresSession => 'Paste requires an active session.';
-
-  @override
-  String get advancedPasteRequiresSession =>
-      'Advanced paste requires an active session.';
-
-  @override
-  String get pasteHistoryRequiresSession =>
-      'Paste history requires an active session.';
 
   @override
   String get replayRequiresSession =>
@@ -3484,18 +2984,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'Clear buffer is not supported by this runtime.';
 
   @override
-  String get globalSearchRequiresTab =>
-      'Global search requires at least one tab.';
-
-  @override
-  String get autocompleteRequiresSession =>
-      'Autocomplete requires an active session.';
-
-  @override
-  String get autoComposerRequiresSession =>
-      'Auto composer requires an active session.';
-
-  @override
   String get searchRequiresSession => 'Search requires an active session.';
 
   @override
@@ -3505,60 +2993,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get nextPromptRequiresSession =>
       'Next prompt requires an active session.';
-
-  @override
-  String get selectCommandOutputRequiresSession =>
-      'Select command output requires an active session.';
-
-  @override
-  String get shellIntegrationRequiresSession =>
-      'Shell integration utilities require an active session.';
-
-  @override
-  String get openRecentDirectoryRequiresSession =>
-      'Open recent directory requires an active session.';
-
-  @override
-  String get noRecentDirectoryAvailable => 'No recent directory is available.';
-
-  @override
-  String get tmuxIntegrationRequiresSession =>
-      'tmux integration requires an active session.';
-
-  @override
-  String get coprocessRequiresSession =>
-      'Coprocess requires an active session.';
-
-  @override
-  String get annotationsRequireSession =>
-      'Annotations require an active session.';
-
-  @override
-  String get capturedOutputRequiresSession =>
-      'Captured output requires an active session.';
-
-  @override
-  String get passwordManagerRequiresSession =>
-      'Password manager requires an active session.';
-
-  @override
-  String get hotkeyWindowUnavailable => 'Hotkey window is unavailable.';
-
-  @override
-  String get layoutTemplateRequiresProfileSession =>
-      'Apply layout template requires a default profile and active session.';
-
-  @override
-  String get noActiveTabForLayoutTemplates =>
-      'No active tab is available for layout templates.';
-
-  @override
-  String get twoPaneLayoutAlreadySatisfied =>
-      'Two-pane layout template is already satisfied.';
-
-  @override
-  String get layoutTemplateUnavailable =>
-      'Apply layout template is unavailable.';
 
   @override
   String get exportScrollbackRequiresSession =>
@@ -3589,50 +3023,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get exportedTerminalDiagnostics => 'Exported terminal diagnostics.';
 
   @override
-  String commandFinishedNotificationsSaved(String enabled) {
-    String _temp0 = intl.Intl.selectLogic(enabled, {
-      'true': 'enabled',
-      'other': 'disabled',
-    });
-    return 'Command-finished notifications $_temp0 and saved.';
-  }
-
-  @override
-  String bellNotificationsSaved(String enabled) {
-    String _temp0 = intl.Intl.selectLogic(enabled, {
-      'true': 'enabled',
-      'other': 'disabled',
-    });
-    return 'Bell notifications $_temp0 and saved.';
-  }
-
-  @override
-  String activityMonitorSaved(String enabled) {
-    String _temp0 = intl.Intl.selectLogic(enabled, {
-      'true': 'enabled',
-      'other': 'disabled',
-    });
-    return 'Activity monitor $_temp0 and saved.';
-  }
-
-  @override
-  String unableSaveNotifications(String error) {
-    return 'Unable to save notifications: $error';
-  }
-
-  @override
-  String get unableSaveCommandFinishedNotifications =>
-      'Unable to save command-finished notifications.';
-
-  @override
-  String get unableSaveBellNotifications =>
-      'Unable to save bell notifications.';
-
-  @override
-  String get unableSaveActivityMonitor =>
-      'Unable to save activity monitor notifications.';
-
-  @override
   String get noDefaultProfileAvailable => 'No default profile is available.';
 
   @override
@@ -3645,12 +3035,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get duplicateCurrentDirectory => 'Duplicate current directory';
-
-  @override
-  String get applyTwoPaneLayout => 'Apply two-pane layout';
-
-  @override
-  String get tabAlreadyMultiplePanes => 'This tab already has multiple panes.';
 
   @override
   String get growActivePane => 'Grow active pane';
@@ -4300,32 +3684,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get dragResizePanesVertically => 'Drag to resize panes vertically';
 
   @override
-  String get completions => 'Completions';
-
-  @override
-  String completePrefix(String prefix) {
-    return 'Complete \"$prefix\"';
-  }
-
-  @override
-  String get previousCompletion => 'Previous completion';
-
-  @override
-  String get nextCompletion => 'Next completion';
-
-  @override
-  String get closeCompletions => 'Close completions';
-
-  @override
-  String get composeCommand => 'Compose command';
-
-  @override
-  String get sendCommand => 'Send command';
-
-  @override
-  String get closeComposer => 'Close composer';
-
-  @override
   String get terminalKeyboardShortcuts => 'Terminal keyboard shortcuts';
 
   @override
@@ -4394,6 +3752,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'Data service configuration saved. Restart the app to apply it.';
 
   @override
+  String get dataServiceConfigurationApplied =>
+      'Sync settings applied. Local data remains available.';
+
+  @override
+  String get dataServiceConfigurationSavedSyncUnavailable =>
+      'Sync settings saved, but the connection is unavailable. Local data remains available.';
+
+  @override
   String unableToSaveDataServiceConfiguration(String error) {
     return 'Unable to save the data service configuration: $error';
   }
@@ -4418,6 +3784,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String profileStillStored(String name, String destination) {
     return '“$name” is still stored in $destination.';
   }
+
+  @override
+  String get localProfileStorageDestination => 'this device';
 
   @override
   String get newSshProfile => 'New SSH Profile';
@@ -4488,20 +3857,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String saveFailed(String error) {
     return 'Save failed: $error';
   }
-
-  @override
-  String dynamicProfilesImported(
-    int total,
-    int added,
-    int replaced,
-    int warnings,
-  ) {
-    return 'Imported $total dynamic profiles ($added new, $replaced replaced, $warnings warnings).';
-  }
-
-  @override
-  String get passwordSendBlockedNoPrompt =>
-      'Password send blocked: no password prompt is active.';
 
   @override
   String sshProfileStored(String action, String name, String destination) {
@@ -4759,16 +4114,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String terminalSettingsCouldNotLoad(String error) {
     return 'Terminal settings could not be loaded: $error';
-  }
-
-  @override
-  String shortcutValue(String shortcut) {
-    return 'shortcut: $shortcut';
-  }
-
-  @override
-  String errorValue(String error) {
-    return 'error: $error';
   }
 
   @override
@@ -5209,4 +4554,41 @@ class AppLocalizationsEn extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String get developmentMasterKeyStorageDescription =>
+      'The development master key stays in this Mac’s local Keychain. It does not sync to iCloud or share storage with the release app.';
+
+  @override
+  String get syncLocalOnly => 'Saved on this device. API sync is optional.';
+
+  @override
+  String get syncUpToDate => 'Sync is ready.';
+
+  @override
+  String get syncInProgress => 'Merging and syncing…';
+
+  @override
+  String get syncPending => 'Saved locally. Waiting to sync.';
+
+  @override
+  String get syncConflicts =>
+      'Both devices changed the same fields. Choose which conflicting values to keep.';
+
+  @override
+  String get syncUnavailable =>
+      'Sync could not finish. Local data is available; check the API connection and encryption key, then retry.';
+
+  @override
+  String get syncLocalFirstDescription =>
+      'Changes save locally first. Independent changes merge automatically; conflicting values never overwrite either side without your choice.';
+
+  @override
+  String get syncKeepLocal => 'Keep local conflicting values';
+
+  @override
+  String get syncUseRemote => 'Use API conflicting values';
+
+  @override
+  String get syncNow => 'Sync now';
 }

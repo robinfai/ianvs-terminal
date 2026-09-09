@@ -67,7 +67,7 @@ void main() {
   });
 
   test(
-    'encrypts SSH secrets at rest and restores them with the saved key',
+    'local repository saves encrypted SSH credentials without a Data API',
     () async {
       final directory = await Directory.systemTemp.createTemp(
         'ianvs terminal-encrypted-ssh-profile',

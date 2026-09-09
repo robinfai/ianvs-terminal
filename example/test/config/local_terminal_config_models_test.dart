@@ -93,7 +93,7 @@ void main() {
     test('keybinding overrides roundtrip through json', () {
       const config = LocalTerminalConfigDocument(
         keybindings: LocalTerminalKeybindingsConfig(
-          disabledDefaultActions: {TerminalActionId.pasteHistory},
+          disabledDefaultActions: {TerminalActionId.paste},
           overrides: {
             TerminalActionId.newTab: LocalTerminalKeyBindingOverride(
               binding: LocalTerminalKeyBinding(
@@ -112,7 +112,7 @@ void main() {
 
       expect(
         decoded.keybindings.disabledDefaultActions,
-        contains(TerminalActionId.pasteHistory),
+        contains(TerminalActionId.paste),
       );
       expect(override.scope, TerminalKeyBindingScope.focusedApp);
       expect(override.key, 'KeyN');
@@ -192,7 +192,7 @@ void main() {
     test('keybinding action ids trim whitespace and ignore case', () {
       final config = _currentConfig(const {
         'keybindings': {
-          'disabledDefaultActions': [' PASTEHISTORY ', '   '],
+          'disabledDefaultActions': [' PASTE ', '   '],
           'overrides': {
             ' NEWTAB ': {
               'binding': {'key': 'KeyN', 'meta': true},
@@ -203,11 +203,94 @@ void main() {
 
       expect(
         config.keybindings.disabledDefaultActions,
-        contains(TerminalActionId.pasteHistory),
+        contains(TerminalActionId.paste),
       );
       expect(
         config.keybindings.overrides[TerminalActionId.newTab]!.binding!.key,
         'KeyN',
+      );
+    });
+
+    test('retired keybinding IDs are ignored while all 39 active IDs load', () {
+      expect(ShellActionRegistry.releaseActionIds, hasLength(39));
+      final activeNames = ShellActionRegistry.releaseActionIds
+          .map((actionId) => actionId.name)
+          .toList(growable: false);
+      final config = _currentConfig({
+        'keybindings': {
+          'disabledDefaultActions': [
+            ...activeNames,
+            ..._retiredTerminalActionNames,
+          ],
+          'overrides': <String, Object?>{
+            for (final name in activeNames)
+              name: {
+                'binding': {'key': 'KeyX', 'meta': true},
+              },
+            for (final name in _retiredTerminalActionNames)
+              name: {
+                'binding': {'key': 'KeyR', 'meta': true},
+              },
+          },
+        },
+      });
+
+      expect(
+        config.keybindings.disabledDefaultActions,
+        ShellActionRegistry.releaseActionIds,
+      );
+      expect(
+        config.keybindings.overrides.keys.toSet(),
+        ShellActionRegistry.releaseActionIds,
+      );
+    });
+
+    test('retired keybinding tombstones survive unrelated config edits', () {
+      final decoded = _currentConfig(const {
+        'keybindings': {
+          'disabledDefaultActions': ['advancedPaste', 'newTab'],
+          'overrides': {
+            'newTab': {
+              'binding': {'key': 'KeyN', 'meta': true},
+            },
+            'passwordManager': {
+              'enabled': false,
+              'binding': {'key': 'KeyP', 'meta': true},
+            },
+          },
+        },
+      });
+
+      expect(decoded.keybindings.disabledDefaultActions, {
+        TerminalActionId.newTab,
+      });
+      expect(decoded.keybindings.overrides.keys, {TerminalActionId.newTab});
+      expect(
+        (decoded.toJson()['keybindings']!
+            as Map<String, Object?>)['disabledDefaultActions'],
+        ['advancedPaste', 'newTab'],
+      );
+
+      final edited = decoded.copyWith(
+        keybindings: decoded.keybindings.copyWith(
+          disabledDefaultActions: const <TerminalActionId>{},
+        ),
+      );
+      final serialized =
+          edited.toJson()['keybindings']! as Map<String, Object?>;
+      expect(serialized['disabledDefaultActions'], ['advancedPaste']);
+      expect(
+        serialized['overrides'],
+        containsPair('passwordManager', const {
+          'enabled': false,
+          'binding': {'key': 'KeyP', 'meta': true},
+        }),
+      );
+      expect(
+        LocalTerminalConfigDocument.decode(
+          edited.encode(),
+        ).keybindings.overrides.keys,
+        {TerminalActionId.newTab},
       );
     });
 
@@ -539,3 +622,29 @@ LocalTerminalConfigDocument _currentConfig(Map<String, Object?> json) {
     ...json,
   });
 }
+
+const _retiredTerminalActionNames = <String>[
+  'toolbelt',
+  'copyMode',
+  'advancedPaste',
+  'pasteHistory',
+  'shellIntegrationUtilities',
+  'selectCommandOutput',
+  'openRecentDirectory',
+  'tmuxIntegration',
+  'coprocess',
+  'annotations',
+  'capturedOutput',
+  'passwordManager',
+  'globalSearch',
+  'autocomplete',
+  'autoComposer',
+  'hotkeyWindow',
+  'dynamicProfiles',
+  'toggleCommandFinishedNotify',
+  'toggleBellNotify',
+  'toggleActivityMonitor',
+  'openThemePicker',
+  'applyTheme',
+  'applyLayoutTemplate',
+];

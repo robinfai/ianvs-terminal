@@ -10,7 +10,6 @@ enum TerminalActionId {
   openRecording,
   duplicateCurrentCwd,
   reopenClosedTab,
-  toolbelt,
   openSftpPanel,
   splitRight,
   splitDown,
@@ -25,45 +24,23 @@ enum TerminalActionId {
   openDefaults,
   activateTab,
   copy,
-  copyMode,
   copyCommandOutput,
   paste,
-  advancedPaste,
-  pasteHistory,
   toggleReadOnly,
   toggleSessionRecording,
   clearBuffer,
-  shellIntegrationUtilities,
-  selectCommandOutput,
-  openRecentDirectory,
-  tmuxIntegration,
-  coprocess,
-  annotations,
-  capturedOutput,
-  passwordManager,
   instantReplay,
   search,
   nextSearchMatch,
   previousSearchMatch,
   clearSearch,
-  globalSearch,
-  autocomplete,
-  autoComposer,
-  hotkeyWindow,
   defaults,
   profiles,
-  dynamicProfiles,
   requestQuitConfirmation,
   previousPrompt,
   nextPrompt,
-  toggleCommandFinishedNotify,
-  toggleBellNotify,
-  toggleActivityMonitor,
   exportScrollback,
   exportDiagnostics,
-  openThemePicker,
-  applyTheme,
-  applyLayoutTemplate,
 }
 
 enum TerminalActionCategory {
@@ -74,13 +51,6 @@ enum TerminalActionCategory {
   layout,
   navigation,
   integration,
-}
-
-enum TerminalActionReleaseVisibility {
-  product,
-  hiddenByDefault,
-  hiddenExperimental,
-  hiddenPendingRedesign,
 }
 
 enum TerminalKeyBindingScope {
@@ -148,7 +118,6 @@ class TerminalActionDescriptor {
     required this.category,
     this.enabledByDefault = true,
     this.commandPaletteVisible = true,
-    this.releaseVisibility = TerminalActionReleaseVisibility.hiddenByDefault,
     this.shortcutHint,
     this.defaultKeyBinding,
     this.terminalInputPolicy = TerminalInputPolicy.performableOnly,
@@ -161,7 +130,6 @@ class TerminalActionDescriptor {
   final TerminalActionCategory category;
   final bool enabledByDefault;
   final bool commandPaletteVisible;
-  final TerminalActionReleaseVisibility releaseVisibility;
   final String? shortcutHint;
   final TerminalKeyBinding? defaultKeyBinding;
   final TerminalInputPolicy terminalInputPolicy;
@@ -254,15 +222,6 @@ class ShellActionRegistry {
       terminalInputPolicy: TerminalInputPolicy.appFirst,
       icon: Icons.menu,
       requiresActiveSession: false,
-    ),
-    TerminalActionId.toolbelt: TerminalActionDescriptor(
-      id: TerminalActionId.toolbelt,
-      label: 'toolbelt',
-      category: TerminalActionCategory.session,
-      shortcutHint: null,
-      terminalInputPolicy: TerminalInputPolicy.appFirst,
-      icon: Icons.view_sidebar,
-      requiresActiveSession: true,
     ),
     TerminalActionId.openSftpPanel: TerminalActionDescriptor(
       id: TerminalActionId.openSftpPanel,
@@ -402,21 +361,6 @@ class ShellActionRegistry {
       icon: Icons.copy,
       requiresActiveSession: true,
     ),
-    TerminalActionId.copyMode: TerminalActionDescriptor(
-      id: TerminalActionId.copyMode,
-      label: 'copy_mode',
-      category: TerminalActionCategory.session,
-      shortcutHint: 'cmd+shift+C',
-      defaultKeyBinding: TerminalKeyBinding(
-        scope: TerminalKeyBindingScope.terminalFocused,
-        meta: true,
-        shift: true,
-        key: LogicalKeyboardKey.keyC,
-      ),
-      terminalInputPolicy: TerminalInputPolicy.performableOnly,
-      icon: Icons.select_all,
-      requiresActiveSession: true,
-    ),
     TerminalActionId.copyCommandOutput: TerminalActionDescriptor(
       id: TerminalActionId.copyCommandOutput,
       label: 'copy_command_output',
@@ -436,29 +380,6 @@ class ShellActionRegistry {
       ),
       terminalInputPolicy: TerminalInputPolicy.performableOnly,
       icon: Icons.content_paste,
-      requiresActiveSession: true,
-    ),
-    TerminalActionId.advancedPaste: TerminalActionDescriptor(
-      id: TerminalActionId.advancedPaste,
-      label: 'advanced_paste',
-      category: TerminalActionCategory.session,
-      terminalInputPolicy: TerminalInputPolicy.performableOnly,
-      icon: Icons.assignment,
-      requiresActiveSession: true,
-    ),
-    TerminalActionId.pasteHistory: TerminalActionDescriptor(
-      id: TerminalActionId.pasteHistory,
-      label: 'paste_history',
-      category: TerminalActionCategory.session,
-      shortcutHint: 'cmd+shift+H',
-      defaultKeyBinding: TerminalKeyBinding(
-        scope: TerminalKeyBindingScope.terminalFocused,
-        meta: true,
-        shift: true,
-        key: LogicalKeyboardKey.keyH,
-      ),
-      terminalInputPolicy: TerminalInputPolicy.performableOnly,
-      icon: Icons.history,
       requiresActiveSession: true,
     ),
     TerminalActionId.toggleReadOnly: TerminalActionDescriptor(
@@ -487,65 +408,6 @@ class ShellActionRegistry {
       ),
       terminalInputPolicy: TerminalInputPolicy.performableOnly,
       icon: Icons.clear_all,
-      requiresActiveSession: true,
-    ),
-    TerminalActionId.shellIntegrationUtilities: TerminalActionDescriptor(
-      id: TerminalActionId.shellIntegrationUtilities,
-      label: 'shell_integration',
-      category: TerminalActionCategory.integration,
-      icon: Icons.integration_instructions,
-      requiresActiveSession: true,
-    ),
-    TerminalActionId.selectCommandOutput: TerminalActionDescriptor(
-      id: TerminalActionId.selectCommandOutput,
-      label: 'select_command_output',
-      category: TerminalActionCategory.integration,
-      icon: Icons.fact_check,
-      requiresActiveSession: true,
-    ),
-    TerminalActionId.openRecentDirectory: TerminalActionDescriptor(
-      id: TerminalActionId.openRecentDirectory,
-      label: 'open_recent_directory',
-      category: TerminalActionCategory.integration,
-      icon: Icons.folder,
-      requiresActiveSession: true,
-    ),
-    TerminalActionId.tmuxIntegration: TerminalActionDescriptor(
-      id: TerminalActionId.tmuxIntegration,
-      label: 'tmux_integration',
-      category: TerminalActionCategory.integration,
-      icon: Icons.account_tree,
-      requiresActiveSession: true,
-    ),
-    TerminalActionId.coprocess: TerminalActionDescriptor(
-      id: TerminalActionId.coprocess,
-      label: 'coprocess',
-      category: TerminalActionCategory.integration,
-      icon: Icons.hub,
-      requiresActiveSession: true,
-    ),
-    TerminalActionId.annotations: TerminalActionDescriptor(
-      id: TerminalActionId.annotations,
-      label: 'annotations',
-      category: TerminalActionCategory.session,
-      icon: Icons.note,
-      requiresActiveSession: true,
-    ),
-    TerminalActionId.capturedOutput: TerminalActionDescriptor(
-      id: TerminalActionId.capturedOutput,
-      label: 'captured_output',
-      category: TerminalActionCategory.session,
-      icon: Icons.outbox,
-      requiresActiveSession: true,
-    ),
-    TerminalActionId.passwordManager: TerminalActionDescriptor(
-      id: TerminalActionId.passwordManager,
-      label: 'password_manager',
-      category: TerminalActionCategory.session,
-      enabledByDefault: false,
-      commandPaletteVisible: false,
-      releaseVisibility: TerminalActionReleaseVisibility.hiddenPendingRedesign,
-      icon: Icons.password,
       requiresActiveSession: true,
     ),
     TerminalActionId.instantReplay: TerminalActionDescriptor(
@@ -598,52 +460,6 @@ class ShellActionRegistry {
       icon: Icons.search_off,
       requiresActiveSession: true,
     ),
-    TerminalActionId.globalSearch: TerminalActionDescriptor(
-      id: TerminalActionId.globalSearch,
-      label: 'global_search',
-      category: TerminalActionCategory.layout,
-      icon: Icons.manage_search,
-      requiresActiveSession: true,
-    ),
-    TerminalActionId.autocomplete: TerminalActionDescriptor(
-      id: TerminalActionId.autocomplete,
-      label: 'autocomplete',
-      category: TerminalActionCategory.session,
-      shortcutHint: 'cmd+; (semicolon)',
-      defaultKeyBinding: TerminalKeyBinding(
-        scope: TerminalKeyBindingScope.terminalFocused,
-        meta: true,
-        key: LogicalKeyboardKey.semicolon,
-      ),
-      terminalInputPolicy: TerminalInputPolicy.appFirst,
-      icon: Icons.auto_fix_high,
-      requiresActiveSession: true,
-    ),
-    TerminalActionId.autoComposer: TerminalActionDescriptor(
-      id: TerminalActionId.autoComposer,
-      label: 'auto_composer',
-      category: TerminalActionCategory.session,
-      enabledByDefault: false,
-      commandPaletteVisible: false,
-      releaseVisibility: TerminalActionReleaseVisibility.hiddenExperimental,
-      icon: Icons.edit_note,
-      requiresActiveSession: true,
-    ),
-    TerminalActionId.hotkeyWindow: TerminalActionDescriptor(
-      id: TerminalActionId.hotkeyWindow,
-      label: 'hotkey_window',
-      category: TerminalActionCategory.app,
-      shortcutHint: 'alt+cmd+Space',
-      defaultKeyBinding: TerminalKeyBinding(
-        scope: TerminalKeyBindingScope.focusedApp,
-        meta: true,
-        alt: true,
-        key: LogicalKeyboardKey.space,
-      ),
-      terminalInputPolicy: TerminalInputPolicy.appFirst,
-      icon: Icons.keyboard,
-      requiresActiveSession: false,
-    ),
     TerminalActionId.defaults: TerminalActionDescriptor(
       id: TerminalActionId.defaults,
       label: 'defaults',
@@ -656,13 +472,6 @@ class ShellActionRegistry {
       label: 'profiles',
       category: TerminalActionCategory.app,
       icon: Icons.folder_open,
-      requiresActiveSession: false,
-    ),
-    TerminalActionId.dynamicProfiles: TerminalActionDescriptor(
-      id: TerminalActionId.dynamicProfiles,
-      label: 'dynamic_profiles',
-      category: TerminalActionCategory.app,
-      icon: Icons.data_object,
       requiresActiveSession: false,
     ),
     TerminalActionId.requestQuitConfirmation: TerminalActionDescriptor(
@@ -711,27 +520,6 @@ class ShellActionRegistry {
       requiresActiveSession: true,
       commandPaletteVisible: false,
     ),
-    TerminalActionId.toggleCommandFinishedNotify: TerminalActionDescriptor(
-      id: TerminalActionId.toggleCommandFinishedNotify,
-      label: 'toggle_command_finished_notify',
-      category: TerminalActionCategory.integration,
-      icon: Icons.notifications_active,
-      requiresActiveSession: true,
-    ),
-    TerminalActionId.toggleBellNotify: TerminalActionDescriptor(
-      id: TerminalActionId.toggleBellNotify,
-      label: 'toggle_bell_notify',
-      category: TerminalActionCategory.integration,
-      icon: Icons.notifications,
-      requiresActiveSession: true,
-    ),
-    TerminalActionId.toggleActivityMonitor: TerminalActionDescriptor(
-      id: TerminalActionId.toggleActivityMonitor,
-      label: 'toggle_activity_monitor',
-      category: TerminalActionCategory.integration,
-      icon: Icons.notifications,
-      requiresActiveSession: true,
-    ),
     TerminalActionId.exportScrollback: TerminalActionDescriptor(
       id: TerminalActionId.exportScrollback,
       label: 'export_scrollback',
@@ -745,27 +533,6 @@ class ShellActionRegistry {
       category: TerminalActionCategory.layout,
       icon: Icons.bug_report,
       requiresActiveSession: true,
-    ),
-    TerminalActionId.openThemePicker: TerminalActionDescriptor(
-      id: TerminalActionId.openThemePicker,
-      label: 'open_theme_picker',
-      category: TerminalActionCategory.app,
-      icon: Icons.palette,
-      requiresActiveSession: false,
-    ),
-    TerminalActionId.applyTheme: TerminalActionDescriptor(
-      id: TerminalActionId.applyTheme,
-      label: 'apply_theme',
-      category: TerminalActionCategory.app,
-      icon: Icons.format_paint,
-      requiresActiveSession: false,
-    ),
-    TerminalActionId.applyLayoutTemplate: TerminalActionDescriptor(
-      id: TerminalActionId.applyLayoutTemplate,
-      label: 'apply_layout_template',
-      category: TerminalActionCategory.layout,
-      icon: Icons.dashboard,
-      requiresActiveSession: false,
     ),
   };
 
@@ -828,16 +595,6 @@ class ShellActionRegistry {
 
   static bool hasUserEntryPoint(TerminalActionId id) {
     return actions.containsKey(id) && releaseActionIds.contains(id);
-  }
-
-  static TerminalActionReleaseVisibility releaseVisibility(
-    TerminalActionId id,
-  ) {
-    if (hasUserEntryPoint(id)) {
-      return TerminalActionReleaseVisibility.product;
-    }
-    return actions[id]?.releaseVisibility ??
-        TerminalActionReleaseVisibility.hiddenByDefault;
   }
 
   static List<TerminalKeyBindingConflict> defaultKeyBindingConflicts() {

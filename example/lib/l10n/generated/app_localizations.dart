@@ -311,13 +311,13 @@ abstract class AppLocalizations {
   /// Data-mode choices when the bundled API is available
   ///
   /// In en, this message translates to:
-  /// **'Use only local terminals, start the bundled offline API, or connect a remote API for cross-device sync.'**
+  /// **'Your data stays on this device. You can optionally connect a remote API to sync it across devices.'**
   String get dataModeLocalBundledOrRemote;
 
   /// Data-mode choices when the bundled API is unavailable
   ///
   /// In en, this message translates to:
-  /// **'Continue without a data service for one-time SSH connections, or connect a remote API to save profiles and sync them.'**
+  /// **'Your data stays available locally. You can optionally connect a remote API to sync it across devices.'**
   String get dataModeLocalOrRemote;
 
   /// Explanation that iOS requires a remote HTTP API
@@ -488,12 +488,6 @@ abstract class AppLocalizations {
   /// **'Toolbelt'**
   String get toolbelt;
 
-  /// Command palette toolbelt description
-  ///
-  /// In en, this message translates to:
-  /// **'Top action • Open terminal tools for this pane.'**
-  String get toolbeltDescription;
-
   /// Defaults and appearance settings title
   ///
   /// In en, this message translates to:
@@ -518,24 +512,6 @@ abstract class AppLocalizations {
   /// **'App action • Recreate the most recently closed tab.'**
   String get reopenClosedTabDescription;
 
-  /// Terminal color preset picker title
-  ///
-  /// In en, this message translates to:
-  /// **'Terminal color presets'**
-  String get terminalColorPresets;
-
-  /// Command palette terminal color presets description
-  ///
-  /// In en, this message translates to:
-  /// **'App action • Open Defaults & appearance to choose terminal colors.'**
-  String get terminalColorPresetsDescription;
-
-  /// Toggle title for command-finished notifications
-  ///
-  /// In en, this message translates to:
-  /// **'{enabled, select, true{Disable command-finished notifications} other{Enable command-finished notifications}}'**
-  String commandFinishedNotifications(String enabled);
-
   /// Command-finished notification toggle description
   ///
   /// In en, this message translates to:
@@ -547,24 +523,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'App action • Toggle shell hook completion alerts. macOS notifications are currently blocked in System Settings.'**
   String get commandFinishedNotificationsBlockedDescription;
-
-  /// Toggle title for the activity monitor
-  ///
-  /// In en, this message translates to:
-  /// **'{enabled, select, true{Disable activity monitor} other{Enable activity monitor}}'**
-  String activityMonitor(String enabled);
-
-  /// Activity monitor toggle description
-  ///
-  /// In en, this message translates to:
-  /// **'App action • Toggle inactive-session activity alerts.'**
-  String get activityMonitorDescription;
-
-  /// Activity monitor toggle description when system access is blocked
-  ///
-  /// In en, this message translates to:
-  /// **'App action • Toggle inactive-session activity alerts. macOS notifications are currently blocked in System Settings.'**
-  String get activityMonitorBlockedDescription;
 
   /// Action that opens profile management
   ///
@@ -709,12 +667,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Global search'**
   String get globalSearch;
-
-  /// Global-search action description
-  ///
-  /// In en, this message translates to:
-  /// **'Shell tool • Search all tabs at once.'**
-  String get globalSearchDescription;
 
   /// Command palette keyboard shortcut hint
   ///
@@ -2750,29 +2702,11 @@ abstract class AppLocalizations {
   /// **'Disabled'**
   String get disabledStatus;
 
-  /// No description provided for @toolbeltTerminalTools.
-  ///
-  /// In en, this message translates to:
-  /// **'Toolbelt terminal tools'**
-  String get toolbeltTerminalTools;
-
-  /// No description provided for @closeToolbelt.
-  ///
-  /// In en, this message translates to:
-  /// **'Close toolbelt'**
-  String get closeToolbelt;
-
   /// No description provided for @promptMarks.
   ///
   /// In en, this message translates to:
   /// **'Prompt Marks'**
   String get promptMarks;
-
-  /// No description provided for @promptMarkCount.
-  ///
-  /// In en, this message translates to:
-  /// **'{count, plural, =1{1 mark} other{{count} marks}}'**
-  String promptMarkCount(int count);
 
   /// No description provided for @tmuxIntegration.
   ///
@@ -2780,35 +2714,11 @@ abstract class AppLocalizations {
   /// **'tmux integration'**
   String get tmuxIntegration;
 
-  /// No description provided for @controlModeActive.
-  ///
-  /// In en, this message translates to:
-  /// **'Control mode active'**
-  String get controlModeActive;
-
-  /// No description provided for @startOrAttach.
-  ///
-  /// In en, this message translates to:
-  /// **'Start or attach'**
-  String get startOrAttach;
-
   /// No description provided for @coprocess.
   ///
   /// In en, this message translates to:
   /// **'Coprocess'**
   String get coprocess;
-
-  /// No description provided for @automationActive.
-  ///
-  /// In en, this message translates to:
-  /// **'Automation active'**
-  String get automationActive;
-
-  /// No description provided for @runAutomation.
-  ///
-  /// In en, this message translates to:
-  /// **'Run automation'**
-  String get runAutomation;
 
   /// No description provided for @annotations.
   ///
@@ -2816,41 +2726,17 @@ abstract class AppLocalizations {
   /// **'Annotations'**
   String get annotations;
 
-  /// No description provided for @annotationCount.
-  ///
-  /// In en, this message translates to:
-  /// **'{count, plural, =1{1 note} other{{count} notes}}'**
-  String annotationCount(int count);
-
-  /// No description provided for @recentFrames.
-  ///
-  /// In en, this message translates to:
-  /// **'Recent frames'**
-  String get recentFrames;
-
   /// No description provided for @passwordManager.
   ///
   /// In en, this message translates to:
   /// **'Password manager'**
   String get passwordManager;
 
-  /// No description provided for @promptGatedSends.
-  ///
-  /// In en, this message translates to:
-  /// **'Prompt-gated sends'**
-  String get promptGatedSends;
-
   /// No description provided for @commands.
   ///
   /// In en, this message translates to:
   /// **'Commands'**
   String get commands;
-
-  /// No description provided for @directoriesShort.
-  ///
-  /// In en, this message translates to:
-  /// **'Dirs'**
-  String get directoriesShort;
 
   /// No description provided for @output.
   ///
@@ -2864,35 +2750,11 @@ abstract class AppLocalizations {
   /// **'Paste'**
   String get paste;
 
-  /// No description provided for @commandHistory.
-  ///
-  /// In en, this message translates to:
-  /// **'Command History'**
-  String get commandHistory;
-
-  /// No description provided for @commandCount.
-  ///
-  /// In en, this message translates to:
-  /// **'{count, plural, =1{1 command} other{{count} commands}}'**
-  String commandCount(int count);
-
   /// No description provided for @all.
   ///
   /// In en, this message translates to:
   /// **'All'**
   String get all;
-
-  /// No description provided for @runCommandToFillHistory.
-  ///
-  /// In en, this message translates to:
-  /// **'Run a command in this tab to fill command history.'**
-  String get runCommandToFillHistory;
-
-  /// No description provided for @insertCommand.
-  ///
-  /// In en, this message translates to:
-  /// **'Insert command'**
-  String get insertCommand;
 
   /// No description provided for @recentDirectories.
   ///
@@ -2900,35 +2762,11 @@ abstract class AppLocalizations {
   /// **'Recent Directories'**
   String get recentDirectories;
 
-  /// No description provided for @directoryCount.
-  ///
-  /// In en, this message translates to:
-  /// **'{count, plural, =1{1 directory} other{{count} directories}}'**
-  String directoryCount(int count);
-
-  /// No description provided for @changeDirectoriesToFillHistory.
-  ///
-  /// In en, this message translates to:
-  /// **'Change directories to fill recent directories.'**
-  String get changeDirectoriesToFillHistory;
-
-  /// No description provided for @insertCdCommand.
-  ///
-  /// In en, this message translates to:
-  /// **'Insert cd command'**
-  String get insertCdCommand;
-
   /// No description provided for @capturedOutput.
   ///
   /// In en, this message translates to:
   /// **'Captured output'**
   String get capturedOutput;
-
-  /// No description provided for @capturedLineCount.
-  ///
-  /// In en, this message translates to:
-  /// **'{count, plural, =1{1 captured line} other{{count} captured lines}}'**
-  String capturedLineCount(int count);
 
   /// No description provided for @open.
   ///
@@ -2936,35 +2774,11 @@ abstract class AppLocalizations {
   /// **'Open'**
   String get open;
 
-  /// No description provided for @profileAutomationCapturesOutput.
-  ///
-  /// In en, this message translates to:
-  /// **'Profile triggers and coprocesses can capture output.'**
-  String get profileAutomationCapturesOutput;
-
-  /// No description provided for @capturedOutputLocation.
-  ///
-  /// In en, this message translates to:
-  /// **'Pattern {pattern} · Row {row}'**
-  String capturedOutputLocation(String pattern, int row);
-
   /// No description provided for @pasteHistory.
   ///
   /// In en, this message translates to:
   /// **'Paste history'**
   String get pasteHistory;
-
-  /// No description provided for @recentItemCount.
-  ///
-  /// In en, this message translates to:
-  /// **'{count, plural, =1{1 recent item} other{{count} recent items}}'**
-  String recentItemCount(int count);
-
-  /// No description provided for @copiedAndPastedTextAppearsHere.
-  ///
-  /// In en, this message translates to:
-  /// **'Copied and pasted text appears here.'**
-  String get copiedAndPastedTextAppearsHere;
 
   /// No description provided for @copied.
   ///
@@ -2984,12 +2798,6 @@ abstract class AppLocalizations {
   /// **'Advanced Paste'**
   String get advancedPaste;
 
-  /// No description provided for @closeAdvancedPaste.
-  ///
-  /// In en, this message translates to:
-  /// **'Close advanced paste'**
-  String get closeAdvancedPaste;
-
   /// No description provided for @pasteText.
   ///
   /// In en, this message translates to:
@@ -3002,23 +2810,11 @@ abstract class AppLocalizations {
   /// **'Text'**
   String get text;
 
-  /// No description provided for @escapeSpecialCharacters.
-  ///
-  /// In en, this message translates to:
-  /// **'Escape special characters'**
-  String get escapeSpecialCharacters;
-
   /// No description provided for @base64Encode.
   ///
   /// In en, this message translates to:
   /// **'Base64 encode'**
   String get base64Encode;
-
-  /// No description provided for @appendNewline.
-  ///
-  /// In en, this message translates to:
-  /// **'Append newline'**
-  String get appendNewline;
 
   /// No description provided for @byteCount.
   ///
@@ -3026,65 +2822,11 @@ abstract class AppLocalizations {
   /// **'{count, plural, =1{1 byte} other{{count} bytes}}'**
   String byteCount(int count);
 
-  /// No description provided for @closeCapturedOutput.
-  ///
-  /// In en, this message translates to:
-  /// **'Close captured output'**
-  String get closeCapturedOutput;
-
   /// No description provided for @clear.
   ///
   /// In en, this message translates to:
   /// **'Clear'**
   String get clear;
-
-  /// No description provided for @startCapturingMatchingOutput.
-  ///
-  /// In en, this message translates to:
-  /// **'Start capturing matching output'**
-  String get startCapturingMatchingOutput;
-
-  /// No description provided for @capturedOutputEmptyBody.
-  ///
-  /// In en, this message translates to:
-  /// **'Captured rows appear after a profile trigger or coprocess pattern matches terminal output.'**
-  String get capturedOutputEmptyBody;
-
-  /// No description provided for @openProfilesAndAddTrigger.
-  ///
-  /// In en, this message translates to:
-  /// **'Open Profiles and add a trigger pattern.'**
-  String get openProfilesAndAddTrigger;
-
-  /// No description provided for @runCommandThatPrintsPattern.
-  ///
-  /// In en, this message translates to:
-  /// **'Run a command that prints the pattern.'**
-  String get runCommandThatPrintsPattern;
-
-  /// No description provided for @reopenCapturedOutput.
-  ///
-  /// In en, this message translates to:
-  /// **'Reopen Captured Output to review and copy matches.'**
-  String get reopenCapturedOutput;
-
-  /// No description provided for @copyCapturedOutput.
-  ///
-  /// In en, this message translates to:
-  /// **'Copy captured output'**
-  String get copyCapturedOutput;
-
-  /// No description provided for @closeAnnotations.
-  ///
-  /// In en, this message translates to:
-  /// **'Close annotations'**
-  String get closeAnnotations;
-
-  /// No description provided for @selectTerminalTextToAnnotate.
-  ///
-  /// In en, this message translates to:
-  /// **'Select terminal text to add an annotation.'**
-  String get selectTerminalTextToAnnotate;
 
   /// No description provided for @note.
   ///
@@ -3092,125 +2834,11 @@ abstract class AppLocalizations {
   /// **'Note'**
   String get note;
 
-  /// No description provided for @addAnnotation.
-  ///
-  /// In en, this message translates to:
-  /// **'Add Annotation'**
-  String get addAnnotation;
-
-  /// No description provided for @addFirstAnnotation.
-  ///
-  /// In en, this message translates to:
-  /// **'Add the first annotation'**
-  String get addFirstAnnotation;
-
-  /// No description provided for @selectOutputBeforeAnnotating.
-  ///
-  /// In en, this message translates to:
-  /// **'Select output before annotating'**
-  String get selectOutputBeforeAnnotating;
-
-  /// No description provided for @annotationSelectionReadyBody.
-  ///
-  /// In en, this message translates to:
-  /// **'Use the note field above to attach a note to the selected terminal output.'**
-  String get annotationSelectionReadyBody;
-
   /// No description provided for @annotationSelectionRequiredBody.
   ///
   /// In en, this message translates to:
   /// **'Annotations are created from selected terminal text in the active pane.'**
   String get annotationSelectionRequiredBody;
-
-  /// No description provided for @enterNoteForSelectedOutput.
-  ///
-  /// In en, this message translates to:
-  /// **'Enter a note for the selected output.'**
-  String get enterNoteForSelectedOutput;
-
-  /// No description provided for @saveAnnotation.
-  ///
-  /// In en, this message translates to:
-  /// **'Save the annotation.'**
-  String get saveAnnotation;
-
-  /// No description provided for @useAnnotationBadge.
-  ///
-  /// In en, this message translates to:
-  /// **'Use the annotation badge to reopen notes later.'**
-  String get useAnnotationBadge;
-
-  /// No description provided for @selectTerminalOutputInPane.
-  ///
-  /// In en, this message translates to:
-  /// **'Select terminal output in the pane.'**
-  String get selectTerminalOutputInPane;
-
-  /// No description provided for @openAnnotationsAgain.
-  ///
-  /// In en, this message translates to:
-  /// **'Open Annotations again.'**
-  String get openAnnotationsAgain;
-
-  /// No description provided for @enterNoteAndSave.
-  ///
-  /// In en, this message translates to:
-  /// **'Enter a note and save it.'**
-  String get enterNoteAndSave;
-
-  /// No description provided for @removeAnnotation.
-  ///
-  /// In en, this message translates to:
-  /// **'Remove annotation'**
-  String get removeAnnotation;
-
-  /// No description provided for @closePasteHistory.
-  ///
-  /// In en, this message translates to:
-  /// **'Close paste history'**
-  String get closePasteHistory;
-
-  /// No description provided for @saveHistoryToDisk.
-  ///
-  /// In en, this message translates to:
-  /// **'Save History to Disk'**
-  String get saveHistoryToDisk;
-
-  /// No description provided for @keepPasteHistoryAcrossLaunches.
-  ///
-  /// In en, this message translates to:
-  /// **'Keep recent copied and pasted text across launches.'**
-  String get keepPasteHistoryAcrossLaunches;
-
-  /// No description provided for @noPasteHistoryYet.
-  ///
-  /// In en, this message translates to:
-  /// **'No copied or pasted text yet.'**
-  String get noPasteHistoryYet;
-
-  /// No description provided for @closePasswordManager.
-  ///
-  /// In en, this message translates to:
-  /// **'Close password manager'**
-  String get closePasswordManager;
-
-  /// No description provided for @passwordPromptDetected.
-  ///
-  /// In en, this message translates to:
-  /// **'Password prompt detected in the active session.'**
-  String get passwordPromptDetected;
-
-  /// No description provided for @openPasswordPromptFirst.
-  ///
-  /// In en, this message translates to:
-  /// **'Open a password prompt before sending a password.'**
-  String get openPasswordPromptFirst;
-
-  /// No description provided for @passwordManagerSessionSecurity.
-  ///
-  /// In en, this message translates to:
-  /// **'Passwords are kept for this app session and can only be sent when the active terminal appears to be asking for one.'**
-  String get passwordManagerSessionSecurity;
 
   /// No description provided for @label.
   ///
@@ -3218,47 +2846,11 @@ abstract class AppLocalizations {
   /// **'Label'**
   String get label;
 
-  /// No description provided for @serverOrAccount.
-  ///
-  /// In en, this message translates to:
-  /// **'Server or account'**
-  String get serverOrAccount;
-
-  /// No description provided for @passwordEntered.
-  ///
-  /// In en, this message translates to:
-  /// **'Password entered'**
-  String get passwordEntered;
-
   /// No description provided for @add.
   ///
   /// In en, this message translates to:
   /// **'Add'**
   String get add;
-
-  /// No description provided for @noSavedSessionPasswords.
-  ///
-  /// In en, this message translates to:
-  /// **'No saved passwords in this session. Add one above, then open a password prompt before sending.'**
-  String get noSavedSessionPasswords;
-
-  /// No description provided for @readyToSend.
-  ///
-  /// In en, this message translates to:
-  /// **'Ready to send'**
-  String get readyToSend;
-
-  /// No description provided for @waitingForPasswordPrompt.
-  ///
-  /// In en, this message translates to:
-  /// **'Waiting for password prompt'**
-  String get waitingForPasswordPrompt;
-
-  /// No description provided for @removePassword.
-  ///
-  /// In en, this message translates to:
-  /// **'Remove password'**
-  String get removePassword;
 
   /// No description provided for @send.
   ///
@@ -3266,41 +2858,11 @@ abstract class AppLocalizations {
   /// **'Send'**
   String get send;
 
-  /// No description provided for @closeCoprocess.
-  ///
-  /// In en, this message translates to:
-  /// **'Close coprocess'**
-  String get closeCoprocess;
-
-  /// No description provided for @runCoprocess.
-  ///
-  /// In en, this message translates to:
-  /// **'Run Coprocess'**
-  String get runCoprocess;
-
-  /// No description provided for @onePerSession.
-  ///
-  /// In en, this message translates to:
-  /// **'one per session'**
-  String get onePerSession;
-
   /// No description provided for @commandLabel.
   ///
   /// In en, this message translates to:
   /// **'Command label'**
   String get commandLabel;
-
-  /// No description provided for @inputPattern.
-  ///
-  /// In en, this message translates to:
-  /// **'Input pattern'**
-  String get inputPattern;
-
-  /// No description provided for @coprocessOutput.
-  ///
-  /// In en, this message translates to:
-  /// **'Coprocess output'**
-  String get coprocessOutput;
 
   /// No description provided for @run.
   ///
@@ -3314,59 +2876,11 @@ abstract class AppLocalizations {
   /// **'{count, plural, =1{1 line} other{{count} lines}}'**
   String lineCount(int count);
 
-  /// No description provided for @patternValue.
-  ///
-  /// In en, this message translates to:
-  /// **'Pattern {pattern}'**
-  String patternValue(String pattern);
-
   /// No description provided for @stop.
   ///
   /// In en, this message translates to:
   /// **'Stop'**
   String get stop;
-
-  /// No description provided for @closeTmuxIntegration.
-  ///
-  /// In en, this message translates to:
-  /// **'Close tmux integration'**
-  String get closeTmuxIntegration;
-
-  /// No description provided for @controlMode.
-  ///
-  /// In en, this message translates to:
-  /// **'Control Mode'**
-  String get controlMode;
-
-  /// No description provided for @startTmuxControlMode.
-  ///
-  /// In en, this message translates to:
-  /// **'Start tmux -CC'**
-  String get startTmuxControlMode;
-
-  /// No description provided for @startTmuxControlModeDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'Create a new tmux control-mode session.'**
-  String get startTmuxControlModeDescription;
-
-  /// No description provided for @attachTmuxControlMode.
-  ///
-  /// In en, this message translates to:
-  /// **'Attach tmux -CC'**
-  String get attachTmuxControlMode;
-
-  /// No description provided for @attachTmuxControlModeDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'Attach to an existing tmux session.'**
-  String get attachTmuxControlModeDescription;
-
-  /// No description provided for @tmuxActions.
-  ///
-  /// In en, this message translates to:
-  /// **'tmux Actions'**
-  String get tmuxActions;
 
   /// No description provided for @available.
   ///
@@ -3380,120 +2894,6 @@ abstract class AppLocalizations {
   /// **'waiting'**
   String get waiting;
 
-  /// No description provided for @newWindow.
-  ///
-  /// In en, this message translates to:
-  /// **'New window'**
-  String get newWindow;
-
-  /// No description provided for @newWindowDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'Send new-window to tmux control mode.'**
-  String get newWindowDescription;
-
-  /// No description provided for @splitPaneRight.
-  ///
-  /// In en, this message translates to:
-  /// **'Split pane right'**
-  String get splitPaneRight;
-
-  /// No description provided for @splitPaneRightDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'Send split-window -h.'**
-  String get splitPaneRightDescription;
-
-  /// No description provided for @splitPaneDown.
-  ///
-  /// In en, this message translates to:
-  /// **'Split pane down'**
-  String get splitPaneDown;
-
-  /// No description provided for @splitPaneDownDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'Send split-window -v.'**
-  String get splitPaneDownDescription;
-
-  /// No description provided for @detachClient.
-  ///
-  /// In en, this message translates to:
-  /// **'Detach client'**
-  String get detachClient;
-
-  /// No description provided for @detachClientDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'Detach while leaving tmux running.'**
-  String get detachClientDescription;
-
-  /// No description provided for @sendTmuxCommand.
-  ///
-  /// In en, this message translates to:
-  /// **'Send tmux command'**
-  String get sendTmuxCommand;
-
-  /// No description provided for @tmuxCommand.
-  ///
-  /// In en, this message translates to:
-  /// **'tmux command'**
-  String get tmuxCommand;
-
-  /// No description provided for @controlModeDetected.
-  ///
-  /// In en, this message translates to:
-  /// **'Control mode detected'**
-  String get controlModeDetected;
-
-  /// No description provided for @noTmuxControlModeDetected.
-  ///
-  /// In en, this message translates to:
-  /// **'No tmux control mode detected'**
-  String get noTmuxControlModeDetected;
-
-  /// No description provided for @closeShellIntegration.
-  ///
-  /// In en, this message translates to:
-  /// **'Close shell integration'**
-  String get closeShellIntegration;
-
-  /// No description provided for @runCommandAfterOpeningTab.
-  ///
-  /// In en, this message translates to:
-  /// **'Run a command after opening this tab to fill command history.'**
-  String get runCommandAfterOpeningTab;
-
-  /// No description provided for @insertPreviousCommand.
-  ///
-  /// In en, this message translates to:
-  /// **'Insert previous command'**
-  String get insertPreviousCommand;
-
-  /// No description provided for @changeDirectoriesAfterOpeningTab.
-  ///
-  /// In en, this message translates to:
-  /// **'Change directories after opening this tab to fill this list.'**
-  String get changeDirectoriesAfterOpeningTab;
-
-  /// No description provided for @promptMarksAppearAfterPrompt.
-  ///
-  /// In en, this message translates to:
-  /// **'Prompt marks appear after the shell draws new prompts.'**
-  String get promptMarksAppearAfterPrompt;
-
-  /// No description provided for @commandSucceededShort.
-  ///
-  /// In en, this message translates to:
-  /// **'ok'**
-  String get commandSucceededShort;
-
-  /// No description provided for @commandExitCodeShort.
-  ///
-  /// In en, this message translates to:
-  /// **'exit {code}'**
-  String commandExitCodeShort(int code);
-
   /// No description provided for @globalLine.
   ///
   /// In en, this message translates to:
@@ -3505,12 +2905,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Offset {offset}'**
   String scrollbackOffset(int offset);
-
-  /// No description provided for @shellPromptMark.
-  ///
-  /// In en, this message translates to:
-  /// **'Shell prompt mark'**
-  String get shellPromptMark;
 
   /// No description provided for @regexError.
   ///
@@ -3644,29 +3038,11 @@ abstract class AppLocalizations {
   /// **'Close search'**
   String get closeSearch;
 
-  /// No description provided for @searchingAcrossSessions.
-  ///
-  /// In en, this message translates to:
-  /// **'Searching across {count, plural, =1{1 session} other{{count} sessions}}'**
-  String searchingAcrossSessions(int count);
-
   /// No description provided for @matchCount.
   ///
   /// In en, this message translates to:
   /// **'{count, plural, =1{1 match} other{{count} matches}}'**
   String matchCount(int count);
-
-  /// No description provided for @closeGlobalSearch.
-  ///
-  /// In en, this message translates to:
-  /// **'Close global search'**
-  String get closeGlobalSearch;
-
-  /// No description provided for @searchResultLocation.
-  ///
-  /// In en, this message translates to:
-  /// **'{session} · row {row}'**
-  String searchResultLocation(String session, int row);
 
   /// No description provided for @noMatchesInReplayHistory.
   ///
@@ -4197,7 +3573,7 @@ abstract class AppLocalizations {
   /// No description provided for @terminalActionName.
   ///
   /// In en, this message translates to:
-  /// **'{action, select, new_tab{New tab} new_ssh_session{New SSH session} new_tab_at_folder{New tab at folder} open_recording_for_replay{Open recording for replay} duplicate_current_cwd{Duplicate current directory} reopen_closed_tab{Reopen closed tab} open_launcher{Open launcher} open_command_menu{Open command menu} toolbelt{Toolbelt} open_sftp_panel{Open SFTP panel} split_right{Split right} split_down{Split down} focus_next_pane{Focus next pane} focus_previous_pane{Focus previous pane} resize_pane{Resize pane} swap_pane{Swap pane} zoom_pane{Zoom pane} close_pane{Close pane} reopen_closed_pane{Reopen closed pane} close_active_tab{Close active tab} open_defaults{Open defaults} activate_tab{Activate tab} copy{Copy} copy_mode{Copy mode} copy_command_output{Copy command output} paste{Paste} advanced_paste{Advanced paste} paste_history{Paste history} toggle_read_only{Toggle read-only} toggle_replay_recording{Toggle replay recording} clear_buffer{Clear buffer} shell_integration{Shell integration} select_command_output{Select command output} open_recent_directory{Open recent directory} tmux_integration{tmux integration} coprocess{Coprocess} annotations{Annotations} captured_output{Captured output} password_manager{Password manager} replay_recent_activity{Replay recent activity} search_scrollback{Search scrollback} next_search_match{Next search match} previous_search_match{Previous search match} clear_search{Clear search} global_search{Global search} autocomplete{Autocomplete} auto_composer{Auto composer} hotkey_window{Hotkey window} defaults{Defaults} profiles{Profiles} dynamic_profiles{Dynamic profiles} request_quit_confirmation{Request quit confirmation} previous_prompt{Previous prompt} next_prompt{Next prompt} toggle_command_finished_notify{Toggle command-finished notifications} toggle_bell_notify{Toggle bell notifications} toggle_activity_monitor{Toggle activity monitor} export_scrollback{Export scrollback} export_diagnostics{Export diagnostics} open_theme_picker{Open theme picker} apply_theme{Apply theme} apply_layout_template{Apply layout template} other{{action}}}'**
+  /// **'{action, select, new_tab{New tab} new_ssh_session{New SSH session} new_tab_at_folder{New tab at folder} open_recording_for_replay{Open recording for replay} duplicate_current_cwd{Duplicate current directory} reopen_closed_tab{Reopen closed tab} open_launcher{Open launcher} open_command_menu{Open command menu} open_sftp_panel{Open SFTP panel} split_right{Split right} split_down{Split down} focus_next_pane{Focus next pane} focus_previous_pane{Focus previous pane} resize_pane{Resize pane} swap_pane{Swap pane} zoom_pane{Zoom pane} close_pane{Close pane} reopen_closed_pane{Reopen closed pane} close_active_tab{Close active tab} open_defaults{Open defaults} activate_tab{Activate tab} copy{Copy} copy_command_output{Copy command output} paste{Paste} toggle_read_only{Toggle read-only} toggle_replay_recording{Toggle replay recording} clear_buffer{Clear buffer} replay_recent_activity{Replay recent activity} search_scrollback{Search scrollback} next_search_match{Next search match} previous_search_match{Previous search match} clear_search{Clear search} defaults{Defaults} profiles{Profiles} request_quit_confirmation{Request quit confirmation} previous_prompt{Previous prompt} next_prompt{Next prompt} export_scrollback{Export scrollback} export_diagnostics{Export diagnostics} other{{action}}}'**
   String terminalActionName(String action);
 
   /// No description provided for @appCategory.
@@ -4530,58 +3906,11 @@ abstract class AppLocalizations {
   /// **'Use #RRGGBB or leave empty.'**
   String get hexColorValidation;
 
-  /// No description provided for @dynamicProfilesTopLevelObject.
-  ///
-  /// In en, this message translates to:
-  /// **'Top-level JSON must be an object.'**
-  String get dynamicProfilesTopLevelObject;
-
-  /// No description provided for @dynamicProfilesNoneFound.
-  ///
-  /// In en, this message translates to:
-  /// **'No profiles found in JSON.'**
-  String get dynamicProfilesNoneFound;
-
-  /// No description provided for @dynamicProfilesInvalid.
-  ///
-  /// In en, this message translates to:
-  /// **'Could not read profiles: {error}'**
-  String dynamicProfilesInvalid(String error);
-
-  /// No description provided for @dynamicProfilesPreviewSummary.
-  ///
-  /// In en, this message translates to:
-  /// **'{profiles, plural, =1{1 profile ready} other{{profiles} profiles ready}} • {added} new • {replacements, plural, =1{1 replacement} other{{replacements} replacements}}{warnings, plural, =0{} =1{ • 1 warning} other{ • {warnings} warnings}}'**
-  String dynamicProfilesPreviewSummary(
-    int profiles,
-    int added,
-    int replacements,
-    int warnings,
-  );
-
-  /// No description provided for @replacesExisting.
-  ///
-  /// In en, this message translates to:
-  /// **'Replaces existing'**
-  String get replacesExisting;
-
   /// No description provided for @dynamicProfiles.
   ///
   /// In en, this message translates to:
   /// **'Dynamic Profiles'**
   String get dynamicProfiles;
-
-  /// No description provided for @closeDynamicProfiles.
-  ///
-  /// In en, this message translates to:
-  /// **'Close dynamic profiles'**
-  String get closeDynamicProfiles;
-
-  /// No description provided for @dynamicProfilesPasteHelp.
-  ///
-  /// In en, this message translates to:
-  /// **'Paste an iTerm2 dynamic profile JSON document. This local build only launches local commands.'**
-  String get dynamicProfilesPasteHelp;
 
   /// No description provided for @import.
   ///
@@ -4760,25 +4089,25 @@ abstract class AppLocalizations {
   /// No description provided for @dataService.
   ///
   /// In en, this message translates to:
-  /// **'Data service'**
+  /// **'Data sync'**
   String get dataService;
 
   /// No description provided for @dataServiceDescriptionLocalAvailable.
   ///
   /// In en, this message translates to:
-  /// **'Choose whether the app starts a local data service or connects to a remote one.'**
+  /// **'Data is always saved locally. Optionally connect an API to keep supported data in sync across devices.'**
   String get dataServiceDescriptionLocalAvailable;
 
   /// No description provided for @dataServiceDescriptionRemoteOnly.
   ///
   /// In en, this message translates to:
-  /// **'Use one-time SSH connections without a data service, or connect a remote service to save profiles and sync them.'**
+  /// **'Data is always saved locally. Optionally connect a remote API to keep supported data in sync across devices.'**
   String get dataServiceDescriptionRemoteOnly;
 
   /// No description provided for @activeDataService.
   ///
   /// In en, this message translates to:
-  /// **'Active data service: {service}'**
+  /// **'Sync connection: {service}'**
   String activeDataService(String service);
 
   /// No description provided for @activeNow.
@@ -4820,7 +4149,7 @@ abstract class AppLocalizations {
   /// No description provided for @configurationAndStorage.
   ///
   /// In en, this message translates to:
-  /// **'Configuration & storage'**
+  /// **'Local data & sync'**
   String get configurationAndStorage;
 
   /// No description provided for @crossDeviceSync.
@@ -4838,13 +4167,13 @@ abstract class AppLocalizations {
   /// No description provided for @dataModeStorageSummary.
   ///
   /// In en, this message translates to:
-  /// **'{deployment, select, disabled{Use local shell configuration} local{Persist offline on this Mac} remote{Store with the remote service} other{{deployment}}}'**
+  /// **'{deployment, select, disabled{Keep data on this device} local{Keep data on this device} remote{Keep data on this device} other{{deployment}}}'**
   String dataModeStorageSummary(String deployment);
 
   /// No description provided for @dataModeSyncSummary.
   ///
   /// In en, this message translates to:
-  /// **'{deployment, select, disabled{No sync} local{No sync} remote{Sync devices after sign-in} other{{deployment}}}'**
+  /// **'{deployment, select, disabled{Sync off} local{Sync off} remote{Sync with the API after sign-in} other{{deployment}}}'**
   String dataModeSyncSummary(String deployment);
 
   /// No description provided for @localTerminal.
@@ -4874,19 +4203,19 @@ abstract class AppLocalizations {
   /// No description provided for @localTerminalNoApiDescription.
   ///
   /// In en, this message translates to:
-  /// **'No API process. Use local shells and hosts from ~/.ssh/config only.'**
+  /// **'Keep using local data without API sync.'**
   String get localTerminalNoApiDescription;
 
   /// No description provided for @noDataServiceDescription.
   ///
   /// In en, this message translates to:
-  /// **'No API process. Create one-time SSH connections without saving them.'**
+  /// **'Keep using local data without API sync.'**
   String get noDataServiceDescription;
 
   /// No description provided for @bundledLocalServiceDescription.
   ///
   /// In en, this message translates to:
-  /// **'Offline API persistence and custom SSH profiles on this Mac.'**
+  /// **'Keep data on this Mac without a remote sync target.'**
   String get bundledLocalServiceDescription;
 
   /// No description provided for @migrateRemoteApiData.
@@ -4904,7 +4233,7 @@ abstract class AppLocalizations {
   /// No description provided for @remoteServiceDescription.
   ///
   /// In en, this message translates to:
-  /// **'Custom SSH profiles, persistent settings, and cross-device sync over HTTPS.'**
+  /// **'Keep local data available and sync supported changes over HTTPS.'**
   String get remoteServiceDescription;
 
   /// No description provided for @migrateLocalApiData.
@@ -4958,7 +4287,7 @@ abstract class AppLocalizations {
   /// No description provided for @dataServiceRestartNotice.
   ///
   /// In en, this message translates to:
-  /// **'The selection is stored in the app configuration and takes effect after restart.'**
+  /// **'Local data remains available. Sync connection changes are applied when you save.'**
   String get dataServiceRestartNotice;
 
   /// No description provided for @enterRemoteApiBaseUrl.
@@ -5333,29 +4662,11 @@ abstract class AppLocalizations {
   /// **'No command output is available to copy.'**
   String get noCommandOutputAvailable;
 
-  /// No description provided for @copyModeRequiresSession.
-  ///
-  /// In en, this message translates to:
-  /// **'Copy mode requires an active session.'**
-  String get copyModeRequiresSession;
-
   /// No description provided for @pasteRequiresSession.
   ///
   /// In en, this message translates to:
   /// **'Paste requires an active session.'**
   String get pasteRequiresSession;
-
-  /// No description provided for @advancedPasteRequiresSession.
-  ///
-  /// In en, this message translates to:
-  /// **'Advanced paste requires an active session.'**
-  String get advancedPasteRequiresSession;
-
-  /// No description provided for @pasteHistoryRequiresSession.
-  ///
-  /// In en, this message translates to:
-  /// **'Paste history requires an active session.'**
-  String get pasteHistoryRequiresSession;
 
   /// No description provided for @replayRequiresSession.
   ///
@@ -5411,24 +4722,6 @@ abstract class AppLocalizations {
   /// **'Clear buffer is not supported by this runtime.'**
   String get clearBufferUnsupported;
 
-  /// No description provided for @globalSearchRequiresTab.
-  ///
-  /// In en, this message translates to:
-  /// **'Global search requires at least one tab.'**
-  String get globalSearchRequiresTab;
-
-  /// No description provided for @autocompleteRequiresSession.
-  ///
-  /// In en, this message translates to:
-  /// **'Autocomplete requires an active session.'**
-  String get autocompleteRequiresSession;
-
-  /// No description provided for @autoComposerRequiresSession.
-  ///
-  /// In en, this message translates to:
-  /// **'Auto composer requires an active session.'**
-  String get autoComposerRequiresSession;
-
   /// No description provided for @searchRequiresSession.
   ///
   /// In en, this message translates to:
@@ -5446,90 +4739,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Next prompt requires an active session.'**
   String get nextPromptRequiresSession;
-
-  /// No description provided for @selectCommandOutputRequiresSession.
-  ///
-  /// In en, this message translates to:
-  /// **'Select command output requires an active session.'**
-  String get selectCommandOutputRequiresSession;
-
-  /// No description provided for @shellIntegrationRequiresSession.
-  ///
-  /// In en, this message translates to:
-  /// **'Shell integration utilities require an active session.'**
-  String get shellIntegrationRequiresSession;
-
-  /// No description provided for @openRecentDirectoryRequiresSession.
-  ///
-  /// In en, this message translates to:
-  /// **'Open recent directory requires an active session.'**
-  String get openRecentDirectoryRequiresSession;
-
-  /// No description provided for @noRecentDirectoryAvailable.
-  ///
-  /// In en, this message translates to:
-  /// **'No recent directory is available.'**
-  String get noRecentDirectoryAvailable;
-
-  /// No description provided for @tmuxIntegrationRequiresSession.
-  ///
-  /// In en, this message translates to:
-  /// **'tmux integration requires an active session.'**
-  String get tmuxIntegrationRequiresSession;
-
-  /// No description provided for @coprocessRequiresSession.
-  ///
-  /// In en, this message translates to:
-  /// **'Coprocess requires an active session.'**
-  String get coprocessRequiresSession;
-
-  /// No description provided for @annotationsRequireSession.
-  ///
-  /// In en, this message translates to:
-  /// **'Annotations require an active session.'**
-  String get annotationsRequireSession;
-
-  /// No description provided for @capturedOutputRequiresSession.
-  ///
-  /// In en, this message translates to:
-  /// **'Captured output requires an active session.'**
-  String get capturedOutputRequiresSession;
-
-  /// No description provided for @passwordManagerRequiresSession.
-  ///
-  /// In en, this message translates to:
-  /// **'Password manager requires an active session.'**
-  String get passwordManagerRequiresSession;
-
-  /// No description provided for @hotkeyWindowUnavailable.
-  ///
-  /// In en, this message translates to:
-  /// **'Hotkey window is unavailable.'**
-  String get hotkeyWindowUnavailable;
-
-  /// No description provided for @layoutTemplateRequiresProfileSession.
-  ///
-  /// In en, this message translates to:
-  /// **'Apply layout template requires a default profile and active session.'**
-  String get layoutTemplateRequiresProfileSession;
-
-  /// No description provided for @noActiveTabForLayoutTemplates.
-  ///
-  /// In en, this message translates to:
-  /// **'No active tab is available for layout templates.'**
-  String get noActiveTabForLayoutTemplates;
-
-  /// No description provided for @twoPaneLayoutAlreadySatisfied.
-  ///
-  /// In en, this message translates to:
-  /// **'Two-pane layout template is already satisfied.'**
-  String get twoPaneLayoutAlreadySatisfied;
-
-  /// No description provided for @layoutTemplateUnavailable.
-  ///
-  /// In en, this message translates to:
-  /// **'Apply layout template is unavailable.'**
-  String get layoutTemplateUnavailable;
 
   /// No description provided for @exportScrollbackRequiresSession.
   ///
@@ -5579,48 +4788,6 @@ abstract class AppLocalizations {
   /// **'Exported terminal diagnostics.'**
   String get exportedTerminalDiagnostics;
 
-  /// No description provided for @commandFinishedNotificationsSaved.
-  ///
-  /// In en, this message translates to:
-  /// **'Command-finished notifications {enabled, select, true{enabled} other{disabled}} and saved.'**
-  String commandFinishedNotificationsSaved(String enabled);
-
-  /// No description provided for @bellNotificationsSaved.
-  ///
-  /// In en, this message translates to:
-  /// **'Bell notifications {enabled, select, true{enabled} other{disabled}} and saved.'**
-  String bellNotificationsSaved(String enabled);
-
-  /// No description provided for @activityMonitorSaved.
-  ///
-  /// In en, this message translates to:
-  /// **'Activity monitor {enabled, select, true{enabled} other{disabled}} and saved.'**
-  String activityMonitorSaved(String enabled);
-
-  /// No description provided for @unableSaveNotifications.
-  ///
-  /// In en, this message translates to:
-  /// **'Unable to save notifications: {error}'**
-  String unableSaveNotifications(String error);
-
-  /// No description provided for @unableSaveCommandFinishedNotifications.
-  ///
-  /// In en, this message translates to:
-  /// **'Unable to save command-finished notifications.'**
-  String get unableSaveCommandFinishedNotifications;
-
-  /// No description provided for @unableSaveBellNotifications.
-  ///
-  /// In en, this message translates to:
-  /// **'Unable to save bell notifications.'**
-  String get unableSaveBellNotifications;
-
-  /// No description provided for @unableSaveActivityMonitor.
-  ///
-  /// In en, this message translates to:
-  /// **'Unable to save activity monitor notifications.'**
-  String get unableSaveActivityMonitor;
-
   /// No description provided for @noDefaultProfileAvailable.
   ///
   /// In en, this message translates to:
@@ -5644,18 +4811,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Duplicate current directory'**
   String get duplicateCurrentDirectory;
-
-  /// No description provided for @applyTwoPaneLayout.
-  ///
-  /// In en, this message translates to:
-  /// **'Apply two-pane layout'**
-  String get applyTwoPaneLayout;
-
-  /// No description provided for @tabAlreadyMultiplePanes.
-  ///
-  /// In en, this message translates to:
-  /// **'This tab already has multiple panes.'**
-  String get tabAlreadyMultiplePanes;
 
   /// No description provided for @growActivePane.
   ///
@@ -6641,54 +5796,6 @@ abstract class AppLocalizations {
   /// **'Drag to resize panes vertically'**
   String get dragResizePanesVertically;
 
-  /// No description provided for @completions.
-  ///
-  /// In en, this message translates to:
-  /// **'Completions'**
-  String get completions;
-
-  /// No description provided for @completePrefix.
-  ///
-  /// In en, this message translates to:
-  /// **'Complete \"{prefix}\"'**
-  String completePrefix(String prefix);
-
-  /// No description provided for @previousCompletion.
-  ///
-  /// In en, this message translates to:
-  /// **'Previous completion'**
-  String get previousCompletion;
-
-  /// No description provided for @nextCompletion.
-  ///
-  /// In en, this message translates to:
-  /// **'Next completion'**
-  String get nextCompletion;
-
-  /// No description provided for @closeCompletions.
-  ///
-  /// In en, this message translates to:
-  /// **'Close completions'**
-  String get closeCompletions;
-
-  /// No description provided for @composeCommand.
-  ///
-  /// In en, this message translates to:
-  /// **'Compose command'**
-  String get composeCommand;
-
-  /// No description provided for @sendCommand.
-  ///
-  /// In en, this message translates to:
-  /// **'Send command'**
-  String get sendCommand;
-
-  /// No description provided for @closeComposer.
-  ///
-  /// In en, this message translates to:
-  /// **'Close composer'**
-  String get closeComposer;
-
   /// No description provided for @terminalKeyboardShortcuts.
   ///
   /// In en, this message translates to:
@@ -6789,6 +5896,18 @@ abstract class AppLocalizations {
   /// **'Data service configuration saved. Restart the app to apply it.'**
   String get dataServiceConfigurationSaved;
 
+  /// No description provided for @dataServiceConfigurationApplied.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync settings applied. Local data remains available.'**
+  String get dataServiceConfigurationApplied;
+
+  /// No description provided for @dataServiceConfigurationSavedSyncUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync settings saved, but the connection is unavailable. Local data remains available.'**
+  String get dataServiceConfigurationSavedSyncUnavailable;
+
   /// No description provided for @unableToSaveDataServiceConfiguration.
   ///
   /// In en, this message translates to:
@@ -6824,6 +5943,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'“{name}” is still stored in {destination}.'**
   String profileStillStored(String name, String destination);
+
+  /// No description provided for @localProfileStorageDestination.
+  ///
+  /// In en, this message translates to:
+  /// **'this device'**
+  String get localProfileStorageDestination;
 
   /// No description provided for @newSshProfile.
   ///
@@ -6920,23 +6045,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Save failed: {error}'**
   String saveFailed(String error);
-
-  /// No description provided for @dynamicProfilesImported.
-  ///
-  /// In en, this message translates to:
-  /// **'Imported {total} dynamic profiles ({added} new, {replaced} replaced, {warnings} warnings).'**
-  String dynamicProfilesImported(
-    int total,
-    int added,
-    int replaced,
-    int warnings,
-  );
-
-  /// No description provided for @passwordSendBlockedNoPrompt.
-  ///
-  /// In en, this message translates to:
-  /// **'Password send blocked: no password prompt is active.'**
-  String get passwordSendBlockedNoPrompt;
 
   /// No description provided for @sshProfileStored.
   ///
@@ -7373,18 +6481,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Terminal settings could not be loaded: {error}'**
   String terminalSettingsCouldNotLoad(String error);
-
-  /// No description provided for @shortcutValue.
-  ///
-  /// In en, this message translates to:
-  /// **'shortcut: {shortcut}'**
-  String shortcutValue(String shortcut);
-
-  /// No description provided for @errorValue.
-  ///
-  /// In en, this message translates to:
-  /// **'error: {error}'**
-  String errorValue(String error);
 
   /// No description provided for @backInShell.
   ///
@@ -7907,6 +7003,72 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{count, plural, =1{1 hidden tab with new output} other{{count} hidden tabs with new output}}'**
   String hiddenNewOutputTabsSemantics(int count);
+
+  /// No description provided for @developmentMasterKeyStorageDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'The development master key stays in this Mac’s local Keychain. It does not sync to iCloud or share storage with the release app.'**
+  String get developmentMasterKeyStorageDescription;
+
+  /// No description provided for @syncLocalOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved on this device. API sync is optional.'**
+  String get syncLocalOnly;
+
+  /// No description provided for @syncUpToDate.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync is ready.'**
+  String get syncUpToDate;
+
+  /// No description provided for @syncInProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'Merging and syncing…'**
+  String get syncInProgress;
+
+  /// No description provided for @syncPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved locally. Waiting to sync.'**
+  String get syncPending;
+
+  /// No description provided for @syncConflicts.
+  ///
+  /// In en, this message translates to:
+  /// **'Both devices changed the same fields. Choose which conflicting values to keep.'**
+  String get syncConflicts;
+
+  /// No description provided for @syncUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync could not finish. Local data is available; check the API connection and encryption key, then retry.'**
+  String get syncUnavailable;
+
+  /// No description provided for @syncLocalFirstDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Changes save locally first. Independent changes merge automatically; conflicting values never overwrite either side without your choice.'**
+  String get syncLocalFirstDescription;
+
+  /// No description provided for @syncKeepLocal.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep local conflicting values'**
+  String get syncKeepLocal;
+
+  /// No description provided for @syncUseRemote.
+  ///
+  /// In en, this message translates to:
+  /// **'Use API conflicting values'**
+  String get syncUseRemote;
+
+  /// No description provided for @syncNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync now'**
+  String get syncNow;
 }
 
 class _AppLocalizationsDelegate

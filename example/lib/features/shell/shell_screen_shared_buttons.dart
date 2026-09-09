@@ -110,33 +110,6 @@ class _DataApiStartupWarningBanner extends StatelessWidget {
   }
 }
 
-Widget _buildEntryActionButton({
-  required Key key,
-  required String tooltip,
-  required IconData icon,
-  required VoidCallback? onPressed,
-}) {
-  return Builder(
-    builder: (context) {
-      return Semantics(
-        label: tooltip,
-        button: true,
-        enabled: onPressed != null,
-        excludeSemantics: true,
-        onTap: onPressed,
-        child: IconButton(
-          key: key,
-          tooltip: tooltip,
-          onPressed: onPressed,
-          icon: ExcludeSemantics(
-            child: Icon(icon, color: context.appTheme.textMuted),
-          ),
-        ),
-      );
-    },
-  );
-}
-
 Widget _buildChromeIconButton({
   required Key key,
   required String tooltip,
@@ -240,6 +213,82 @@ class _ReplaySourceMark extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ShellTabBadgeChip extends StatelessWidget {
+  const _ShellTabBadgeChip({
+    super.key,
+    required this.palette,
+    required this.text,
+    required this.tooltip,
+    required this.semanticsLabel,
+    required this.foreground,
+    required this.background,
+    required this.border,
+    this.maxWidth = 72,
+    this.semanticsButton = false,
+    this.onPressed,
+  });
+
+  final AppThemeTokens palette;
+  final String text;
+  final String tooltip;
+  final String semanticsLabel;
+  final Color foreground;
+  final Color background;
+  final Color border;
+  final double maxWidth;
+  final bool semanticsButton;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final onPressed = this.onPressed;
+    final chip = Tooltip(
+      message: tooltip,
+      child: Semantics(
+        container: true,
+        label: semanticsLabel,
+        button: onPressed != null || semanticsButton,
+        onTap: onPressed,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: maxWidth),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: background,
+              borderRadius: BorderRadius.circular(3),
+              border: Border.all(color: border),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+              child: Text(
+                text,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: foreground,
+                  fontSize: 9.5,
+                  height: 1,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    if (onPressed == null) {
+      return chip;
+    }
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onPressed,
+        child: chip,
       ),
     );
   }

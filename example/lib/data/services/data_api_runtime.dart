@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../configuration/data_api_configuration.dart';
+import 'data_api_remote_session_store.dart';
 
 typedef DataApiRuntimeClose = Future<void> Function();
 
@@ -38,7 +39,14 @@ class DataApiRuntime {
     required this.baseUri,
     this.remoteAccessToken,
     this.encryptionKey,
+    String? syncIdentity,
   }) : deployment = DataApiDeployment.remote,
+       syncIdentity =
+           syncIdentity ??
+           legacyDataApiSyncIdentity(
+             baseUri,
+             remoteAccessToken ?? 'unavailable',
+           ),
        localAccessToken = null,
        _closeLocalSidecar = null;
 
@@ -48,6 +56,7 @@ class DataApiRuntime {
     required this.encryptionKey,
     required DataApiRuntimeClose closeLocalSidecar,
   }) : deployment = DataApiDeployment.local,
+       syncIdentity = 'bundled-local',
        remoteAccessToken = null,
        _closeLocalSidecar = closeLocalSidecar;
 
@@ -56,6 +65,7 @@ class DataApiRuntime {
   final String? localAccessToken;
   final String? remoteAccessToken;
   final String? encryptionKey;
+  final String syncIdentity;
   final DataApiRuntimeClose? _closeLocalSidecar;
 
   Future<void>? _closeFuture;

@@ -133,7 +133,7 @@ void main() {
     expect(harness.coordinator.state, isA<AppStartupReady>());
   });
 
-  testWidgets('optional setup without local API offers one-time SSH', (
+  testWidgets('optional setup without local API keeps data locally', (
     tester,
   ) async {
     final harness = _HostHarness.create(
@@ -146,7 +146,14 @@ void main() {
     await harness.coordinator.start();
     await tester.pump();
 
-    expect(find.textContaining('one-time SSH connections'), findsOneWidget);
+    expect(
+      find.textContaining('Your data stays available locally'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('optionally connect a remote API'),
+      findsOneWidget,
+    );
     expect(find.byKey(const Key('app-startup-use-local-api')), findsNothing);
     expect(find.text('Use bundled local API'), findsNothing);
     expect(find.text('Use local terminal only'), findsNothing);

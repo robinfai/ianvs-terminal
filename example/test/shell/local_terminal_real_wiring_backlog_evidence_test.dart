@@ -191,7 +191,7 @@ LocalTerminalProductionWiringBundle _readyBundle() {
         'newTab',
         'searchScrollback',
         'paste',
-        'applyTheme',
+        'exportScrollback',
       },
     ),
     actionVerification: LocalTerminalMilestoneVerificationStatus.verified,
@@ -215,10 +215,11 @@ LocalTerminalProductionWiringBundle _readyBundle() {
     ],
     policyVerification: LocalTerminalMilestoneVerificationStatus.verified,
     visualCallbacks: LocalTerminalVisualProductionCallbacks(
-      applyTheme: (_) => const LocalTerminalVisualBindingResult.completed(),
+      exportScrollback: (_) =>
+          const LocalTerminalVisualBindingResult.completed(),
     ),
     visualRequiredOperations: const [
-      LocalTerminalVisualProductionOperation.applyTheme,
+      LocalTerminalVisualProductionOperation.exportScrollback,
     ],
     visualVerification: LocalTerminalMilestoneVerificationStatus.verified,
   );

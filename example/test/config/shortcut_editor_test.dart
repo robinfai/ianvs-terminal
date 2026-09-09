@@ -72,6 +72,39 @@ void main() {
     );
   });
 
+  testWidgets('editing an active shortcut preserves retired tombstones', (
+    tester,
+  ) async {
+    final config = LocalTerminalKeybindingsConfig.fromJson(const {
+      'overrides': {
+        'passwordManager': {
+          'binding': {'key': 'KeyP', 'meta': true},
+        },
+      },
+    });
+    LocalTerminalKeybindingsConfig? latest;
+    await _pumpEditor(
+      tester,
+      config: config,
+      onChanged: (value) => latest = value,
+    );
+    await tester.enterText(
+      find.byKey(const Key('shortcut-editor-filter')),
+      'new tab',
+    );
+    await tester.pump();
+
+    await tester.tap(find.byKey(const Key('shortcut-disable-newTab')));
+    await tester.pump();
+
+    expect(
+      latest!.toJson()['overrides'],
+      containsPair('passwordManager', const {
+        'binding': {'key': 'KeyP', 'meta': true},
+      }),
+    );
+  });
+
   testWidgets('supports per-action and all-default restoration', (
     tester,
   ) async {
@@ -214,7 +247,7 @@ void main() {
     );
     final header = find.byKey(const Key('shortcut-editor-list-header'));
     final listPanel = find.byKey(const Key('shortcut-editor-list-panel'));
-    expect(tester.getSize(header).height, 40);
+    expect(tester.getSize(header).height, 32);
     expect(tester.getSize(header).width, tester.getSize(listPanel).width);
     expect(
       tester

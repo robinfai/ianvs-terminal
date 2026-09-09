@@ -441,6 +441,15 @@ class RunnerTests: XCTestCase {
         contentSize: contentSize
       )
     )
+    for x in [800.0, 830.0, 860.0] {
+      XCTAssertFalse(
+        MainFlutterWindow.shouldStartNativeWindowDrag(
+          at: NSPoint(x: x, y: 580),
+          contentSize: contentSize
+        ),
+        "Toolbar controls must receive clicks instead of dragging the window"
+      )
+    }
     XCTAssertFalse(
       MainFlutterWindow.shouldStartNativeWindowDrag(
         at: NSPoint(x: 880, y: 580),

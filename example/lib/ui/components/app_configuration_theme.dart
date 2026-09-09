@@ -32,6 +32,10 @@ class AppConfigurationTheme extends StatelessWidget {
   Widget build(BuildContext context) {
     final baseTheme = Theme.of(context);
     final baseTokens = context.appTheme;
+    final isMac = baseTheme.platform == TargetPlatform.macOS;
+    final controls = isMac
+        ? const AppThemeControls(dense: 28, compact: 28, regular: 32)
+        : _controls;
     final dark = baseTheme.brightness == Brightness.dark;
     final panel = baseTokens.panel;
 
@@ -64,8 +68,8 @@ class AppConfigurationTheme extends StatelessWidget {
       borderStrong: borderStrong,
       selected: selected,
       spacing: _spacing,
-      radius: _radius,
-      controls: _controls,
+      radius: isMac ? baseTokens.radius : _radius,
+      controls: controls,
       elevation: AppThemeElevation(
         floating: [
           BoxShadow(

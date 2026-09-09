@@ -125,11 +125,10 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get dataModeLocalBundledOrRemote =>
-      '你可以仅使用本地终端、启动内置离线 API，或连接远程 API 以跨设备同步。';
+      '数据始终保存在此设备上；你可以选择连接远程 API，在设备间同步数据。';
 
   @override
-  String get dataModeLocalOrRemote =>
-      '你可以在不使用数据服务的情况下进行一次性 SSH 连接，或连接远程 API 来保存并同步 Profile。';
+  String get dataModeLocalOrRemote => '数据始终可在本地使用；你可以选择连接远程 API，在设备间同步数据。';
 
   @override
   String get remoteApiRequiredOnIos => '在 iOS 上使用 Trail前，必须先连接远程 HTTP API。';
@@ -232,9 +231,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get toolbelt => '工具带';
 
   @override
-  String get toolbeltDescription => '置顶操作 • 打开当前面板的终端工具。';
-
-  @override
   String get defaultsAppearance => '默认设置与外观';
 
   @override
@@ -247,43 +243,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get reopenClosedTabDescription => '应用操作 • 恢复最近关闭的标签页。';
 
   @override
-  String get terminalColorPresets => '终端配色预设';
-
-  @override
-  String get terminalColorPresetsDescription => '应用操作 • 打开“默认设置与外观”以选择终端配色。';
-
-  @override
-  String commandFinishedNotifications(String enabled) {
-    String _temp0 = intl.Intl.selectLogic(enabled, {
-      'true': '停用命令完成通知',
-      'other': '启用命令完成通知',
-    });
-    return '$_temp0';
-  }
-
-  @override
   String get commandFinishedNotificationsDescription =>
       '应用操作 • 切换 Shell Hook 的完成提醒。';
 
   @override
   String get commandFinishedNotificationsBlockedDescription =>
       '应用操作 • 切换 Shell Hook 的完成提醒。macOS 通知目前在系统设置中被阻止。';
-
-  @override
-  String activityMonitor(String enabled) {
-    String _temp0 = intl.Intl.selectLogic(enabled, {
-      'true': '停用活动监视器',
-      'other': '启用活动监视器',
-    });
-    return '$_temp0';
-  }
-
-  @override
-  String get activityMonitorDescription => '应用操作 • 切换非活动会话的活动提醒。';
-
-  @override
-  String get activityMonitorBlockedDescription =>
-      '应用操作 • 切换非活动会话的活动提醒。macOS 通知目前在系统设置中被阻止。';
 
   @override
   String get profilesEllipsis => 'Profile…';
@@ -364,9 +329,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get globalSearch => '全局搜索';
-
-  @override
-  String get globalSearchDescription => 'Shell 工具 • 同时搜索所有标签页。';
 
   @override
   String openCommandPaletteWith(String shortcut) {
@@ -1552,69 +1514,22 @@ class AppLocalizationsZh extends AppLocalizations {
   String get disabledStatus => '已停用';
 
   @override
-  String get toolbeltTerminalTools => '终端工具带';
-
-  @override
-  String get closeToolbelt => '关闭工具带';
-
-  @override
   String get promptMarks => '提示符标记';
-
-  @override
-  String promptMarkCount(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '$count 个标记',
-    );
-    return '$_temp0';
-  }
 
   @override
   String get tmuxIntegration => 'tmux 集成';
 
   @override
-  String get controlModeActive => '控制模式已启用';
-
-  @override
-  String get startOrAttach => '启动或附加';
-
-  @override
   String get coprocess => '协同进程';
-
-  @override
-  String get automationActive => '自动化已启用';
-
-  @override
-  String get runAutomation => '运行自动化';
 
   @override
   String get annotations => '注释';
 
   @override
-  String annotationCount(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '$count 条注释',
-    );
-    return '$_temp0';
-  }
-
-  @override
-  String get recentFrames => '近期帧';
-
-  @override
   String get passwordManager => '密码管理器';
 
   @override
-  String get promptGatedSends => '仅在提示后发送';
-
-  @override
   String get commands => '命令';
-
-  @override
-  String get directoriesShort => '目录';
 
   @override
   String get output => '输出';
@@ -1623,85 +1538,19 @@ class AppLocalizationsZh extends AppLocalizations {
   String get paste => '粘贴';
 
   @override
-  String get commandHistory => '命令历史';
-
-  @override
-  String commandCount(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '$count 条命令',
-    );
-    return '$_temp0';
-  }
-
-  @override
   String get all => '全部';
-
-  @override
-  String get runCommandToFillHistory => '在此标签页中运行命令后，命令历史会显示在这里。';
-
-  @override
-  String get insertCommand => '插入命令';
 
   @override
   String get recentDirectories => '最近目录';
 
   @override
-  String directoryCount(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '$count 个目录',
-    );
-    return '$_temp0';
-  }
-
-  @override
-  String get changeDirectoriesToFillHistory => '切换目录后，最近目录会显示在这里。';
-
-  @override
-  String get insertCdCommand => '插入 cd 命令';
-
-  @override
   String get capturedOutput => '捕获的输出';
-
-  @override
-  String capturedLineCount(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '已捕获 $count 行',
-    );
-    return '$_temp0';
-  }
 
   @override
   String get open => '打开';
 
   @override
-  String get profileAutomationCapturesOutput => 'Profile 触发器和协同进程可捕获输出。';
-
-  @override
-  String capturedOutputLocation(String pattern, int row) {
-    return '模式 $pattern · 第 $row 行';
-  }
-
-  @override
   String get pasteHistory => '粘贴历史';
-
-  @override
-  String recentItemCount(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '$count 个最近项目',
-    );
-    return '$_temp0';
-  }
-
-  @override
-  String get copiedAndPastedTextAppearsHere => '复制和粘贴的文本会显示在这里。';
 
   @override
   String get copied => '已复制';
@@ -1713,22 +1562,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get advancedPaste => '高级粘贴';
 
   @override
-  String get closeAdvancedPaste => '关闭高级粘贴';
-
-  @override
   String get pasteText => '粘贴文本';
 
   @override
   String get text => '文本';
 
   @override
-  String get escapeSpecialCharacters => '转义特殊字符';
-
-  @override
   String get base64Encode => 'Base64 编码';
-
-  @override
-  String get appendNewline => '追加换行符';
 
   @override
   String byteCount(int count) {
@@ -1741,143 +1581,25 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get closeCapturedOutput => '关闭捕获的输出';
-
-  @override
   String get clear => '清除';
-
-  @override
-  String get startCapturingMatchingOutput => '开始捕获匹配的输出';
-
-  @override
-  String get capturedOutputEmptyBody => 'Profile 触发器或协同进程模式匹配终端输出后，捕获的行会显示在这里。';
-
-  @override
-  String get openProfilesAndAddTrigger => '打开 Profile 并添加触发模式。';
-
-  @override
-  String get runCommandThatPrintsPattern => '运行会输出该模式的命令。';
-
-  @override
-  String get reopenCapturedOutput => '重新打开“捕获的输出”，查看并复制匹配项。';
-
-  @override
-  String get copyCapturedOutput => '复制捕获的输出';
-
-  @override
-  String get closeAnnotations => '关闭注释';
-
-  @override
-  String get selectTerminalTextToAnnotate => '选择终端文本后即可添加注释。';
 
   @override
   String get note => '备注';
 
   @override
-  String get addAnnotation => '添加注释';
-
-  @override
-  String get addFirstAnnotation => '添加第一条注释';
-
-  @override
-  String get selectOutputBeforeAnnotating => '先选择输出再添加注释';
-
-  @override
-  String get annotationSelectionReadyBody => '使用上方备注字段，为选中的终端输出附加备注。';
-
-  @override
   String get annotationSelectionRequiredBody => '注释基于活动窗格中选中的终端文本创建。';
-
-  @override
-  String get enterNoteForSelectedOutput => '为选中的输出输入备注。';
-
-  @override
-  String get saveAnnotation => '保存注释。';
-
-  @override
-  String get useAnnotationBadge => '稍后可通过注释徽章重新打开备注。';
-
-  @override
-  String get selectTerminalOutputInPane => '在窗格中选择终端输出。';
-
-  @override
-  String get openAnnotationsAgain => '再次打开注释。';
-
-  @override
-  String get enterNoteAndSave => '输入备注并保存。';
-
-  @override
-  String get removeAnnotation => '移除注释';
-
-  @override
-  String get closePasteHistory => '关闭粘贴历史';
-
-  @override
-  String get saveHistoryToDisk => '将历史记录保存到磁盘';
-
-  @override
-  String get keepPasteHistoryAcrossLaunches => '在应用重启后保留最近复制和粘贴的文本。';
-
-  @override
-  String get noPasteHistoryYet => '还没有复制或粘贴的文本。';
-
-  @override
-  String get closePasswordManager => '关闭密码管理器';
-
-  @override
-  String get passwordPromptDetected => '活动会话中检测到密码提示。';
-
-  @override
-  String get openPasswordPromptFirst => '请先打开密码提示，再发送密码。';
-
-  @override
-  String get passwordManagerSessionSecurity =>
-      '密码仅保留在本次应用会话中，并且只有当活动终端看起来正在请求密码时才能发送。';
 
   @override
   String get label => '标签';
 
   @override
-  String get serverOrAccount => '服务器或账户';
-
-  @override
-  String get passwordEntered => '已输入密码';
-
-  @override
   String get add => '添加';
-
-  @override
-  String get noSavedSessionPasswords => '本次会话中没有保存的密码。请先在上方添加，再打开密码提示后发送。';
-
-  @override
-  String get readyToSend => '可以发送';
-
-  @override
-  String get waitingForPasswordPrompt => '正在等待密码提示';
-
-  @override
-  String get removePassword => '移除密码';
 
   @override
   String get send => '发送';
 
   @override
-  String get closeCoprocess => '关闭协同进程';
-
-  @override
-  String get runCoprocess => '运行协同进程';
-
-  @override
-  String get onePerSession => '每个会话一个';
-
-  @override
   String get commandLabel => '命令标签';
-
-  @override
-  String get inputPattern => '输入模式';
-
-  @override
-  String get coprocessOutput => '协同进程输出';
 
   @override
   String get run => '运行';
@@ -1893,98 +1615,13 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String patternValue(String pattern) {
-    return '模式 $pattern';
-  }
-
-  @override
   String get stop => '停止';
-
-  @override
-  String get closeTmuxIntegration => '关闭 tmux 集成';
-
-  @override
-  String get controlMode => '控制模式';
-
-  @override
-  String get startTmuxControlMode => '启动 tmux -CC';
-
-  @override
-  String get startTmuxControlModeDescription => '创建新的 tmux 控制模式会话。';
-
-  @override
-  String get attachTmuxControlMode => '附加 tmux -CC';
-
-  @override
-  String get attachTmuxControlModeDescription => '附加到现有的 tmux 会话。';
-
-  @override
-  String get tmuxActions => 'tmux 操作';
 
   @override
   String get available => '可用';
 
   @override
   String get waiting => '等待中';
-
-  @override
-  String get newWindow => '新建窗口';
-
-  @override
-  String get newWindowDescription => '向 tmux 控制模式发送 new-window。';
-
-  @override
-  String get splitPaneRight => '向右拆分窗格';
-
-  @override
-  String get splitPaneRightDescription => '发送 split-window -h。';
-
-  @override
-  String get splitPaneDown => '向下拆分窗格';
-
-  @override
-  String get splitPaneDownDescription => '发送 split-window -v。';
-
-  @override
-  String get detachClient => '分离客户端';
-
-  @override
-  String get detachClientDescription => '保持 tmux 运行并分离客户端。';
-
-  @override
-  String get sendTmuxCommand => '发送 tmux 命令';
-
-  @override
-  String get tmuxCommand => 'tmux 命令';
-
-  @override
-  String get controlModeDetected => '检测到控制模式';
-
-  @override
-  String get noTmuxControlModeDetected => '未检测到 tmux 控制模式';
-
-  @override
-  String get closeShellIntegration => '关闭 Shell 集成';
-
-  @override
-  String get runCommandAfterOpeningTab => '打开此标签页后运行命令，命令历史会显示在这里。';
-
-  @override
-  String get insertPreviousCommand => '插入上一条命令';
-
-  @override
-  String get changeDirectoriesAfterOpeningTab => '打开此标签页后切换目录，最近目录会显示在这里。';
-
-  @override
-  String get promptMarksAppearAfterPrompt => 'Shell 绘制新提示符后，提示符标记会显示在这里。';
-
-  @override
-  String get commandSucceededShort => '成功';
-
-  @override
-  String commandExitCodeShort(int code) {
-    return '退出码 $code';
-  }
 
   @override
   String globalLine(int line) {
@@ -1995,9 +1632,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String scrollbackOffset(int offset) {
     return '偏移 $offset';
   }
-
-  @override
-  String get shellPromptMark => 'Shell 提示符标记';
 
   @override
   String get regexError => '正则表达式错误';
@@ -2072,16 +1706,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get closeSearch => '关闭搜索';
 
   @override
-  String searchingAcrossSessions(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: '$count 个会话',
-    );
-    return '正在搜索 $_temp0';
-  }
-
-  @override
   String matchCount(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
@@ -2089,14 +1713,6 @@ class AppLocalizationsZh extends AppLocalizations {
       other: '$count 个匹配项',
     );
     return '$_temp0';
-  }
-
-  @override
-  String get closeGlobalSearch => '关闭全局搜索';
-
-  @override
-  String searchResultLocation(String session, int row) {
-    return '$session · 第 $row 行';
   }
 
   @override
@@ -2431,7 +2047,6 @@ class AppLocalizationsZh extends AppLocalizations {
       'reopen_closed_tab': '重新打开关闭的标签页',
       'open_launcher': '打开启动器',
       'open_command_menu': '打开命令菜单',
-      'toolbelt': '工具带',
       'open_sftp_panel': '打开 SFTP 面板',
       'split_right': '向右拆分',
       'split_down': '向下拆分',
@@ -2446,45 +2061,23 @@ class AppLocalizationsZh extends AppLocalizations {
       'open_defaults': '打开默认设置',
       'activate_tab': '激活标签页',
       'copy': '复制',
-      'copy_mode': '复制模式',
       'copy_command_output': '复制命令输出',
       'paste': '粘贴',
-      'advanced_paste': '高级粘贴',
-      'paste_history': '粘贴历史',
       'toggle_read_only': '切换只读模式',
       'toggle_replay_recording': '切换回放录制',
       'clear_buffer': '清除缓冲区',
-      'shell_integration': 'Shell 集成',
-      'select_command_output': '选择命令输出',
-      'open_recent_directory': '打开最近目录',
-      'tmux_integration': 'tmux 集成',
-      'coprocess': '协同进程',
-      'annotations': '注释',
-      'captured_output': '捕获的输出',
-      'password_manager': '密码管理器',
       'replay_recent_activity': '回放近期活动',
       'search_scrollback': '搜索回滚内容',
       'next_search_match': '下一个搜索匹配项',
       'previous_search_match': '上一个搜索匹配项',
       'clear_search': '清除搜索',
-      'global_search': '全局搜索',
-      'autocomplete': '自动补全',
-      'auto_composer': '自动编写器',
-      'hotkey_window': '快捷键窗口',
       'defaults': '默认设置',
       'profiles': 'Profile',
-      'dynamic_profiles': '动态 Profile',
       'request_quit_confirmation': '请求退出确认',
       'previous_prompt': '上一个提示符',
       'next_prompt': '下一个提示符',
-      'toggle_command_finished_notify': '切换命令完成通知',
-      'toggle_bell_notify': '切换响铃通知',
-      'toggle_activity_monitor': '切换活动监视器',
       'export_scrollback': '导出回滚内容',
       'export_diagnostics': '导出诊断',
-      'open_theme_picker': '打开主题选择器',
-      'apply_theme': '应用主题',
-      'apply_layout_template': '应用布局模板',
       'other': '$action',
     });
     return '$_temp0';
@@ -2694,49 +2287,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get hexColorValidation => '请输入 #RRGGBB，或留空。';
 
   @override
-  String get dynamicProfilesTopLevelObject => '顶层 JSON 必须是对象。';
-
-  @override
-  String get dynamicProfilesNoneFound => 'JSON 中未找到 Profile。';
-
-  @override
-  String dynamicProfilesInvalid(String error) {
-    return '无法读取 Profile：$error';
-  }
-
-  @override
-  String dynamicProfilesPreviewSummary(
-    int profiles,
-    int added,
-    int replacements,
-    int warnings,
-  ) {
-    String _temp0 = intl.Intl.pluralLogic(
-      profiles,
-      locale: localeName,
-      other: '已准备 $profiles 个 Profile',
-    );
-    String _temp1 = intl.Intl.pluralLogic(
-      warnings,
-      locale: localeName,
-      other: ' • $warnings 个警告',
-      zero: '',
-    );
-    return '$_temp0 • 新增 $added 个 • 替换 $replacements 个$_temp1';
-  }
-
-  @override
-  String get replacesExisting => '替换现有项';
-
-  @override
   String get dynamicProfiles => '动态 Profile';
-
-  @override
-  String get closeDynamicProfiles => '关闭动态 Profile';
-
-  @override
-  String get dynamicProfilesPasteHelp =>
-      '请粘贴 iTerm2 动态 Profile JSON 文档。此本地构建仅会启动本地命令。';
 
   @override
   String get import => '导入';
@@ -2850,18 +2401,19 @@ class AppLocalizationsZh extends AppLocalizations {
   String get forgetAllDecisions => '忘记所有决定';
 
   @override
-  String get dataService => '数据服务';
+  String get dataService => '数据同步';
 
   @override
-  String get dataServiceDescriptionLocalAvailable => '选择让应用启动本地数据服务，或连接远程数据服务。';
+  String get dataServiceDescriptionLocalAvailable =>
+      '数据始终保存在本地。你可以选择连接 API，在设备间同步支持的数据。';
 
   @override
   String get dataServiceDescriptionRemoteOnly =>
-      '无需数据服务即可建立一次性 SSH 连接；也可连接远程服务以保存 Profile 并同步。';
+      '数据始终保存在本地。你可以选择连接远程 API，在设备间同步支持的数据。';
 
   @override
   String activeDataService(String service) {
-    return '活动数据服务：$service';
+    return '同步连接：$service';
   }
 
   @override
@@ -2887,7 +2439,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get apiService => 'API 服务';
 
   @override
-  String get configurationAndStorage => '配置与数据存储';
+  String get configurationAndStorage => '本地数据与同步';
 
   @override
   String get crossDeviceSync => '跨设备同步';
@@ -2906,9 +2458,9 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String dataModeStorageSummary(String deployment) {
     String _temp0 = intl.Intl.selectLogic(deployment, {
-      'disabled': '使用本地 Shell 配置',
-      'local': '此 Mac 上离线持久保存',
-      'remote': '由远程服务统一保存',
+      'disabled': '数据保存在此设备',
+      'local': '数据保存在此设备',
+      'remote': '数据保存在此设备',
       'other': '$deployment',
     });
     return '$_temp0';
@@ -2917,9 +2469,9 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String dataModeSyncSummary(String deployment) {
     String _temp0 = intl.Intl.selectLogic(deployment, {
-      'disabled': '不同步',
-      'local': '不同步',
-      'remote': '登录后跨设备同步',
+      'disabled': '同步已关闭',
+      'local': '同步已关闭',
+      'remote': '登录后与 API 同步',
       'other': '$deployment',
     });
     return '$_temp0';
@@ -2938,15 +2490,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get remoteService => '远程服务';
 
   @override
-  String get localTerminalNoApiDescription =>
-      '不启动 API 进程。仅使用本地 Shell 和 ~/.ssh/config 中的主机。';
+  String get localTerminalNoApiDescription => '继续使用本地数据，不启用 API 同步。';
 
   @override
-  String get noDataServiceDescription => '不启动 API 进程。可建立不保存的一次性 SSH 连接。';
+  String get noDataServiceDescription => '继续使用本地数据，不启用 API 同步。';
 
   @override
-  String get bundledLocalServiceDescription =>
-      '在此 Mac 上离线持久保存 API 数据和自定义 SSH Profile。';
+  String get bundledLocalServiceDescription => '数据保存在此 Mac，不设置远程同步目标。';
 
   @override
   String get migrateRemoteApiData => '迁移远程 API 数据';
@@ -2956,8 +2506,7 @@ class AppLocalizationsZh extends AppLocalizations {
       '应用会启动临时内置 API，并在切换前合并远程资源。如果启动、导出或合并失败，远程数据会保留。';
 
   @override
-  String get remoteServiceDescription =>
-      '通过 HTTPS 使用自定义 SSH Profile、持久设置和跨设备同步。';
+  String get remoteServiceDescription => '本地数据保持可用，并通过 HTTPS 同步支持的更改。';
 
   @override
   String get migrateLocalApiData => '迁移本地 API 数据';
@@ -2987,7 +2536,7 @@ class AppLocalizationsZh extends AppLocalizations {
       '加密使用存储在此设备上的唯一 Ianvs 主密钥。迁移到其他平台时，请在主密钥管理中导出或导入。';
 
   @override
-  String get dataServiceRestartNotice => '此选择会保存到应用配置中，并在重启后生效。';
+  String get dataServiceRestartNotice => '本地数据会保持可用；保存后会立即应用同步连接更改。';
 
   @override
   String get enterRemoteApiBaseUrl => '请输入远程 API 基础 URL。';
@@ -3252,16 +2801,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get noCommandOutputAvailable => '没有可复制的命令输出。';
 
   @override
-  String get copyModeRequiresSession => '复制模式需要活动会话。';
-
-  @override
   String get pasteRequiresSession => '粘贴需要活动会话。';
-
-  @override
-  String get advancedPasteRequiresSession => '高级粘贴需要活动会话。';
-
-  @override
-  String get pasteHistoryRequiresSession => '粘贴历史需要活动会话。';
 
   @override
   String get replayRequiresSession => '回放近期活动需要活动会话。';
@@ -3291,15 +2831,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get clearBufferUnsupported => '此运行时不支持清除缓冲区。';
 
   @override
-  String get globalSearchRequiresTab => '全局搜索至少需要一个标签页。';
-
-  @override
-  String get autocompleteRequiresSession => '自动补全需要活动会话。';
-
-  @override
-  String get autoComposerRequiresSession => '自动编写器需要活动会话。';
-
-  @override
   String get searchRequiresSession => '搜索需要活动会话。';
 
   @override
@@ -3307,49 +2838,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get nextPromptRequiresSession => '下一个提示符需要活动会话。';
-
-  @override
-  String get selectCommandOutputRequiresSession => '选择命令输出需要活动会话。';
-
-  @override
-  String get shellIntegrationRequiresSession => 'Shell 集成工具需要活动会话。';
-
-  @override
-  String get openRecentDirectoryRequiresSession => '打开最近目录需要活动会话。';
-
-  @override
-  String get noRecentDirectoryAvailable => '没有可用的最近目录。';
-
-  @override
-  String get tmuxIntegrationRequiresSession => 'tmux 集成需要活动会话。';
-
-  @override
-  String get coprocessRequiresSession => '协同进程需要活动会话。';
-
-  @override
-  String get annotationsRequireSession => '注释需要活动会话。';
-
-  @override
-  String get capturedOutputRequiresSession => '捕获的输出需要活动会话。';
-
-  @override
-  String get passwordManagerRequiresSession => '密码管理器需要活动会话。';
-
-  @override
-  String get hotkeyWindowUnavailable => '快捷键窗口不可用。';
-
-  @override
-  String get layoutTemplateRequiresProfileSession =>
-      '应用布局模板需要默认 Profile 和活动会话。';
-
-  @override
-  String get noActiveTabForLayoutTemplates => '没有可用于布局模板的活动标签页。';
-
-  @override
-  String get twoPaneLayoutAlreadySatisfied => '当前已满足双窗格布局模板。';
-
-  @override
-  String get layoutTemplateUnavailable => '无法应用布局模板。';
 
   @override
   String get exportScrollbackRequiresSession => '导出回滚内容需要活动会话。';
@@ -3376,47 +2864,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get exportedTerminalDiagnostics => '终端诊断已导出。';
 
   @override
-  String commandFinishedNotificationsSaved(String enabled) {
-    String _temp0 = intl.Intl.selectLogic(enabled, {
-      'true': '启用',
-      'other': '停用',
-    });
-    return '命令完成通知已$_temp0并保存。';
-  }
-
-  @override
-  String bellNotificationsSaved(String enabled) {
-    String _temp0 = intl.Intl.selectLogic(enabled, {
-      'true': '启用',
-      'other': '停用',
-    });
-    return '响铃通知已$_temp0并保存。';
-  }
-
-  @override
-  String activityMonitorSaved(String enabled) {
-    String _temp0 = intl.Intl.selectLogic(enabled, {
-      'true': '启用',
-      'other': '停用',
-    });
-    return '活动监视器已$_temp0并保存。';
-  }
-
-  @override
-  String unableSaveNotifications(String error) {
-    return '无法保存通知：$error';
-  }
-
-  @override
-  String get unableSaveCommandFinishedNotifications => '无法保存命令完成通知。';
-
-  @override
-  String get unableSaveBellNotifications => '无法保存响铃通知。';
-
-  @override
-  String get unableSaveActivityMonitor => '无法保存活动监视器通知。';
-
-  @override
   String get noDefaultProfileAvailable => '没有可用的默认 Profile。';
 
   @override
@@ -3429,12 +2876,6 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get duplicateCurrentDirectory => '复制当前目录';
-
-  @override
-  String get applyTwoPaneLayout => '应用双窗格布局';
-
-  @override
-  String get tabAlreadyMultiplePanes => '此标签页已有多个窗格。';
 
   @override
   String get growActivePane => '增大活动窗格';
@@ -4040,32 +3481,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String get dragResizePanesVertically => '拖动以垂直调整窗格大小';
 
   @override
-  String get completions => '补全建议';
-
-  @override
-  String completePrefix(String prefix) {
-    return '补全“$prefix”';
-  }
-
-  @override
-  String get previousCompletion => '上一个补全建议';
-
-  @override
-  String get nextCompletion => '下一个补全建议';
-
-  @override
-  String get closeCompletions => '关闭补全建议';
-
-  @override
-  String get composeCommand => '编写命令';
-
-  @override
-  String get sendCommand => '发送命令';
-
-  @override
-  String get closeComposer => '关闭命令编辑器';
-
-  @override
   String get terminalKeyboardShortcuts => '终端键盘快捷键';
 
   @override
@@ -4127,6 +3542,13 @@ class AppLocalizationsZh extends AppLocalizations {
   String get dataServiceConfigurationSaved => '数据服务配置已保存。重启应用后生效。';
 
   @override
+  String get dataServiceConfigurationApplied => '同步设置已应用，本地数据会保持可用。';
+
+  @override
+  String get dataServiceConfigurationSavedSyncUnavailable =>
+      '同步设置已保存，但连接当前不可用。本地数据会保持可用。';
+
+  @override
   String unableToSaveDataServiceConfiguration(String error) {
     return '无法保存数据服务配置：$error';
   }
@@ -4151,6 +3573,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String profileStillStored(String name, String destination) {
     return '“$name”仍存储在$destination中。';
   }
+
+  @override
+  String get localProfileStorageDestination => '本机存储';
 
   @override
   String get newSshProfile => '新建 SSH 配置文件';
@@ -4218,19 +3643,6 @@ class AppLocalizationsZh extends AppLocalizations {
   String saveFailed(String error) {
     return '保存失败：$error';
   }
-
-  @override
-  String dynamicProfilesImported(
-    int total,
-    int added,
-    int replaced,
-    int warnings,
-  ) {
-    return '已导入 $total 个动态配置文件（新增 $added 个、替换 $replaced 个、警告 $warnings 条）。';
-  }
-
-  @override
-  String get passwordSendBlockedNoPrompt => '密码发送已阻止：当前没有活动的密码提示。';
 
   @override
   String sshProfileStored(String action, String name, String destination) {
@@ -4480,16 +3892,6 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String terminalSettingsCouldNotLoad(String error) {
     return '无法加载终端设置：$error';
-  }
-
-  @override
-  String shortcutValue(String shortcut) {
-    return '快捷键：$shortcut';
-  }
-
-  @override
-  String errorValue(String error) {
-    return '错误：$error';
   }
 
   @override
@@ -4852,4 +4254,38 @@ class AppLocalizationsZh extends AppLocalizations {
   String hiddenNewOutputTabsSemantics(int count) {
     return '$count 个有新输出的隐藏标签页';
   }
+
+  @override
+  String get developmentMasterKeyStorageDescription =>
+      '开发版主密钥仅存储在此 Mac 的本机钥匙串中，不同步到 iCloud，也不与正式版共享。';
+
+  @override
+  String get syncLocalOnly => '数据保存在本机，API 同步为可选功能。';
+
+  @override
+  String get syncUpToDate => '同步已就绪。';
+
+  @override
+  String get syncInProgress => '正在合并并同步…';
+
+  @override
+  String get syncPending => '已保存到本机，等待同步。';
+
+  @override
+  String get syncConflicts => '两端修改了相同字段，请选择保留哪一端的冲突值。';
+
+  @override
+  String get syncUnavailable => '同步未完成，本地数据仍可使用。请检查 API 连接和加密密钥后重试。';
+
+  @override
+  String get syncLocalFirstDescription => '修改先保存到本机。独立修改自动合并；冲突值在选择前不会覆盖任一端。';
+
+  @override
+  String get syncKeepLocal => '保留本机冲突值';
+
+  @override
+  String get syncUseRemote => '采用 API 冲突值';
+
+  @override
+  String get syncNow => '立即同步';
 }

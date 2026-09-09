@@ -46,6 +46,10 @@ void main() {
       (await store.readSlot('credentialSlot000001'))?.encryptionKey,
       key.secret,
     );
+    expect(
+      (await store.readSlot('credentialSlot000001'))?.syncIdentity,
+      'remote:https://sync.example.com/:user:alice',
+    );
     expect(keyStorage.writeCount, 1);
   });
 
@@ -198,6 +202,7 @@ DataApiRemoteSession _session(String encryptionKey) {
     accessToken: 'remote-access-token',
     encryptionKey: encryptionKey,
     expiresAt: DateTime.utc(2100),
+    username: 'alice',
   );
 }
 

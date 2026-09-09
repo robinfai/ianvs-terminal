@@ -47,7 +47,6 @@ void main() {
         'reopenClosedTab',
         'reopenClosedPane',
         'duplicateCurrentCwd',
-        'toolbelt',
         'splitRight',
         'splitDown',
         'closePane',
@@ -58,39 +57,18 @@ void main() {
         'zoomPane',
         'copy',
         'copyCommandOutput',
-        'copyMode',
         'paste',
-        'advancedPaste',
-        'pasteHistory',
         'instantReplay',
         'toggleReadOnly',
         'clearBuffer',
-        'globalSearch',
-        'autocomplete',
-        'autoComposer',
         'searchScrollback',
         'previousPrompt',
         'nextPrompt',
-        'selectCommandOutput',
-        'shellIntegrationUtilities',
-        'openRecentDirectory',
-        'tmuxIntegration',
-        'coprocess',
-        'annotations',
-        'capturedOutput',
-        'passwordManager',
         'toggleCommandPalette',
-        'toggleHotkeyWindow',
         'openDefaults',
         'defaults',
         'profiles',
-        'dynamicProfiles',
-        'openThemePicker',
-        'applyLayoutTemplate',
         'exportScrollback',
-        'toggleCommandFinishedNotify',
-        'toggleBellNotify',
-        'toggleActivityMonitor',
       }),
     );
     expect(
@@ -101,10 +79,6 @@ void main() {
     expect(
       actionSet.requiredActionIds,
       contains(TerminalActionId.openCommandMenu),
-    );
-    expect(
-      actionSet.requiredActionIds,
-      contains(TerminalActionId.hotkeyWindow),
     );
     expect(actionSet.requiredActionIds, contains(TerminalActionId.resizePane));
   });

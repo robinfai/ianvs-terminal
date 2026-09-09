@@ -263,6 +263,7 @@ class DataApiBootstrap {
         baseUri: remoteBaseUri,
         remoteAccessToken: session.accessToken,
         encryptionKey: session.encryptionKey,
+        syncIdentity: session.syncIdentity,
       );
     }
     if (!_isMacOS) {

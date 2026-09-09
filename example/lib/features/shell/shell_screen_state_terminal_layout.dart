@@ -406,7 +406,7 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
       readOnly: () => sessionReadOnly,
     );
     final annotations = _annotationsForSession(sessionId);
-    final activeCoprocess = _coprocesses[sessionId];
+
     final terminalViewportPadding = _terminalViewportPaddingFor(sessionState);
     final defaultProfile = _effectiveDefaultProfileFor(
       sessionState.profiles,
@@ -734,13 +734,7 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                                             .TerminalInlineButtonKind
                                             .copy &&
                                     text != null) {
-                                  unawaited(() async {
-                                    await ClipboardBridge.copy(text);
-                                    await _recordPasteHistory(
-                                      text,
-                                      PasteHistoryKind.copy,
-                                    );
-                                  }());
+                                  unawaited(ClipboardBridge.copy(text));
                                 }
                               },
                               inlineButtonEnabled: (button) {
@@ -805,96 +799,8 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                                 ),
                               ),
                             ),
-                          if (isActive &&
-                              _isAutocompleteOpen &&
-                              _autocompleteSessionId == sessionId)
-                            Positioned(
-                              top:
-                                  _ShellScreenState._terminalOverlayPadding.top,
-                              right: _ShellScreenState
-                                  ._terminalOverlayPadding
-                                  .right,
-                              child: _TerminalAutocompleteMenu(
-                                prefix: _autocompletePrefix,
-                                suggestions: _autocompleteSuggestions,
-                                activeIndex: _activeAutocompleteIndex,
-                                palette: palette,
-                                onPrevious: () =>
-                                    _moveAutocompleteSelection(-1),
-                                onNext: () => _moveAutocompleteSelection(1),
-                                onAccept: _acceptAutocomplete,
-                                onClose: _closeAutocomplete,
-                              ),
-                            ),
-                          if (isActive &&
-                              _isAutoComposerOpen &&
-                              _autoComposerSessionId == sessionId)
-                            Positioned(
-                              left: _ShellScreenState
-                                  ._terminalOverlayPadding
-                                  .left,
-                              right: _ShellScreenState
-                                  ._terminalOverlayPadding
-                                  .right,
-                              bottom: _ShellScreenState
-                                  ._terminalOverlayPadding
-                                  .bottom,
-                              child: _TerminalAutoComposer(
-                                controller: _autoComposerController,
-                                focusNode: _autoComposerFocusNode,
-                                suggestions: _autoComposerSuggestions,
-                                activeIndex: _activeAutoComposerIndex,
-                                palette: palette,
-                                onChanged: _updateAutoComposerSuggestions,
-                                onPrevious: () =>
-                                    _moveAutoComposerSuggestion(-1),
-                                onNext: () => _moveAutoComposerSuggestion(1),
-                                onAcceptSuggestion:
-                                    _acceptAutoComposerSuggestion,
-                                onSend: _sendAutoComposerCommand,
-                                onClose: _closeAutoComposer,
-                              ),
-                            ),
-                          if (isActive &&
-                              activeCoprocess != null &&
-                              !_isSearchOpen &&
-                              !_isAutocompleteOpen &&
-                              !_isAutoComposerOpen)
-                            Positioned(
-                              top:
-                                  _ShellScreenState._terminalOverlayPadding.top,
-                              right: _ShellScreenState
-                                  ._terminalOverlayPadding
-                                  .right,
-                              child: _CoprocessIndicator(
-                                key: Key(
-                                  'terminal-coprocess-indicator-$sessionId',
-                                ),
-                                command: activeCoprocess.command,
-                                palette: palette,
-                              ),
-                            ),
-                          if (isActive &&
-                              _isCopyModeOpen &&
-                              _copyModeSessionId == sessionId)
-                            Positioned(
-                              top:
-                                  _ShellScreenState._terminalOverlayPadding.top,
-                              left: _ShellScreenState
-                                  ._terminalOverlayPadding
-                                  .left,
-                              child: IgnorePointer(
-                                child: _ShellLayoutCue(
-                                  title: context.l10n.terminalActionName(
-                                    'copy_mode',
-                                  ),
-                                  palette: palette,
-                                ),
-                              ),
-                            ),
-                          if (isActive &&
-                              annotations.isNotEmpty &&
-                              !_isAutoComposerOpen)
+
+                          if (isActive && annotations.isNotEmpty)
                             Positioned(
                               left: _ShellScreenState
                                   ._terminalOverlayPadding
@@ -908,12 +814,10 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                                 ),
                                 count: annotations.length,
                                 palette: palette,
-                                onTap: () => unawaited(
-                                  _openAnnotations(
-                                    sessionController,
-                                    sessionId,
-                                    selectionController,
-                                  ),
+                                onTap: () => _showShellSnackBar(
+                                  annotations
+                                      .map((entry) => entry.note)
+                                      .join('\n'),
                                 ),
                               ),
                             ),

@@ -6,6 +6,7 @@ import 'package:app/data/configuration/data_api_configuration_repository.dart';
 import 'package:app/data/services/data_api_client.dart';
 import 'package:app/data/services/data_api_remote_session_store.dart';
 import 'package:app/data/services/data_api_runtime.dart';
+import 'package:app/data/sync/sync_repositories.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/profiles/profile_repository.dart';
 import 'package:app/features/recording/local_session_recording_repository.dart';
@@ -99,7 +100,9 @@ void main() {
       );
 
       expect(
-        find.textContaining('configured Data API is unavailable'),
+        find.textContaining(
+          'API synchronization is unavailable; local data is still available',
+        ),
         findsOneWidget,
       );
       expect(find.byKey(const Key('data-api-startup-warning')), findsOneWidget);
@@ -224,10 +227,7 @@ void main() {
         dataApiPersistenceRequired: false,
       );
       expect(restartComposition.usesDataApi, isFalse);
-      expect(
-        restartComposition.profiles,
-        isA<LocalTerminalOnlyProfileRepository>(),
-      );
+      expect(restartComposition.profiles, isA<LocalFirstProfileRepository>());
     },
   );
 

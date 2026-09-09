@@ -8,16 +8,11 @@ enum ShellActionSideEffectKind {
   updateLayout,
   updateProductivityState,
   scrollToPrompt,
-  selectCommandOutput,
-  openRecentDirectory,
+  copyCommandOutput,
   sendPaste,
   confirmPaste,
   blockPaste,
-  showNotification,
-  updateHotkeyWindowState,
-  openThemePicker,
   exportScrollback,
-  applyLayoutTemplate,
   none,
 }
 
@@ -59,12 +54,8 @@ class ShellActionSideEffectPlanner {
         payload: result.prompt,
       ),
       ShellProductivityCommandOutputResult() => ShellActionSideEffectPlan(
-        kind: ShellActionSideEffectKind.selectCommandOutput,
+        kind: ShellActionSideEffectKind.copyCommandOutput,
         payload: result.range,
-      ),
-      ShellProductivityRecentDirectoryResult() => ShellActionSideEffectPlan(
-        kind: ShellActionSideEffectKind.openRecentDirectory,
-        payload: result.directory,
       ),
       ShellProductivitySearchResult() => ShellActionSideEffectPlan(
         kind: ShellActionSideEffectKind.updateProductivityState,
@@ -81,14 +72,6 @@ class ShellActionSideEffectPlanner {
   ) {
     return switch (result) {
       LocalTerminalPasteActionResult() => _paste(result.decision),
-      LocalTerminalNotificationActionResult() => ShellActionSideEffectPlan(
-        kind: ShellActionSideEffectKind.showNotification,
-        payload: result.intent,
-      ),
-      LocalTerminalHotkeyActionResult() => ShellActionSideEffectPlan(
-        kind: ShellActionSideEffectKind.updateHotkeyWindowState,
-        payload: result.state,
-      ),
       LocalTerminalPolicyNoopResult() => const ShellActionSideEffectPlan(
         kind: ShellActionSideEffectKind.none,
       ),
@@ -119,16 +102,9 @@ class ShellActionSideEffectPlanner {
     LocalTerminalVisualActionResult result,
   ) {
     return switch (result) {
-      LocalTerminalOpenThemePickerResult() => const ShellActionSideEffectPlan(
-        kind: ShellActionSideEffectKind.openThemePicker,
-      ),
       LocalTerminalExportScrollbackResult() => ShellActionSideEffectPlan(
         kind: ShellActionSideEffectKind.exportScrollback,
         payload: result.export,
-      ),
-      LocalTerminalApplyLayoutTemplateResult() => ShellActionSideEffectPlan(
-        kind: ShellActionSideEffectKind.applyLayoutTemplate,
-        payload: result.template,
       ),
       LocalTerminalVisualNoopResult() => const ShellActionSideEffectPlan(
         kind: ShellActionSideEffectKind.none,

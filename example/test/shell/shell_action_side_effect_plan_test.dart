@@ -3,7 +3,6 @@ import 'package:app/features/policies/local_terminal_paste_decision.dart';
 import 'package:app/features/policies/local_terminal_policy_action_reducer.dart';
 import 'package:app/features/shell/shell_action_dispatcher.dart';
 import 'package:app/features/shell/shell_action_side_effect_plan.dart';
-import 'package:app/features/visual/local_terminal_visual_action_reducer.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -40,14 +39,6 @@ void main() {
 
       expect(send.kind, ShellActionSideEffectKind.sendPaste);
       expect(blocked.kind, ShellActionSideEffectKind.blockPaste);
-    });
-
-    test('maps visual result to visual side effect', () {
-      final plan = ShellActionSideEffectPlanner.plan(
-        const ShellVisualDispatchResult(LocalTerminalOpenThemePickerResult()),
-      );
-
-      expect(plan.kind, ShellActionSideEffectKind.openThemePicker);
     });
 
     test('maps unhandled dispatch to none', () {

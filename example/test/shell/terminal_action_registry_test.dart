@@ -6,30 +6,14 @@ void main() {
     test('actions used by command menu are registered', () {
       const actionMenuIds = <TerminalActionId>{
         TerminalActionId.newTab,
-        TerminalActionId.toolbelt,
         TerminalActionId.defaults,
         TerminalActionId.profiles,
-        TerminalActionId.dynamicProfiles,
         TerminalActionId.copy,
-        TerminalActionId.copyMode,
-        TerminalActionId.annotations,
-        TerminalActionId.capturedOutput,
         TerminalActionId.paste,
-        TerminalActionId.advancedPaste,
-        TerminalActionId.pasteHistory,
-        TerminalActionId.shellIntegrationUtilities,
-        TerminalActionId.selectCommandOutput,
-        TerminalActionId.tmuxIntegration,
-        TerminalActionId.coprocess,
-        TerminalActionId.passwordManager,
         TerminalActionId.instantReplay,
         TerminalActionId.search,
-        TerminalActionId.globalSearch,
-        TerminalActionId.autocomplete,
-        TerminalActionId.autoComposer,
         TerminalActionId.splitRight,
         TerminalActionId.splitDown,
-        TerminalActionId.hotkeyWindow,
       };
 
       for (final actionId in actionMenuIds) {
@@ -48,9 +32,6 @@ void main() {
         TerminalActionId.newSshSession,
         TerminalActionId.splitRight,
         TerminalActionId.splitDown,
-        TerminalActionId.autocomplete,
-        TerminalActionId.copyMode,
-        TerminalActionId.pasteHistory,
         TerminalActionId.instantReplay,
         TerminalActionId.search,
         TerminalActionId.clearBuffer,
@@ -88,33 +69,7 @@ void main() {
       expect(ShellActionRegistry.defaultKeyBindingConflicts(), isEmpty);
     });
 
-    test('redesign features stay registered without user entry points', () {
-      final composer =
-          ShellActionRegistry.actions[TerminalActionId.autoComposer]!;
-      final passwordManager =
-          ShellActionRegistry.actions[TerminalActionId.passwordManager]!;
-
-      expect(
-        composer.releaseVisibility,
-        TerminalActionReleaseVisibility.hiddenExperimental,
-      );
-      expect(
-        passwordManager.releaseVisibility,
-        TerminalActionReleaseVisibility.hiddenPendingRedesign,
-      );
-      for (final descriptor in [composer, passwordManager]) {
-        expect(descriptor.enabledByDefault, isFalse);
-        expect(descriptor.commandPaletteVisible, isFalse);
-        expect(descriptor.defaultKeyBinding, isNull);
-        expect(ShellActionRegistry.hasUserEntryPoint(descriptor.id), isFalse);
-        expect(
-          ShellActionRegistry.commandPaletteVisible(descriptor.id),
-          isFalse,
-        );
-      }
-    });
-
-    test('release actions are an explicit allowlist', () {
+    test('registry contains exactly the release action surface', () {
       expect(
         ShellActionRegistry.releaseActionIds,
         containsAll(<TerminalActionId>{
@@ -141,21 +96,17 @@ void main() {
       );
       expect(
         ShellActionRegistry.releaseActionIds,
-        isNot(
-          containsAll(<TerminalActionId>{
-            TerminalActionId.toolbelt,
-            TerminalActionId.globalSearch,
-            TerminalActionId.autocomplete,
-            TerminalActionId.pasteHistory,
-          }),
-        ),
+        TerminalActionId.values.toSet(),
+      );
+      expect(
+        ShellActionRegistry.actions.keys.toSet(),
+        TerminalActionId.values.toSet(),
       );
       for (final actionId in TerminalActionId.values) {
         expect(
-          ShellActionRegistry.releaseVisibility(actionId) ==
-              TerminalActionReleaseVisibility.product,
-          ShellActionRegistry.releaseActionIds.contains(actionId),
-          reason: '$actionId must derive visibility from the release allowlist',
+          ShellActionRegistry.hasUserEntryPoint(actionId),
+          isTrue,
+          reason: '$actionId must have a release entry point',
         );
       }
     });

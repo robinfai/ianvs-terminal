@@ -265,16 +265,16 @@ class AppThemeTokens extends ThemeExtension<AppThemeTokens> {
   );
 
   static const _darkShellChrome = AppShellChromeColors(
-    base: Color(0xFF151A1E),
-    surface: Color(0xFF202528),
-    rail: Color(0xFF171C20),
-    tabActiveBackground: Color(0xFF4A5356),
-    tabTrackBackground: Color(0xD12A2D2F),
+    base: Color(0xFF242424),
+    surface: Color(0xFF292929),
+    rail: Color(0xFF242424),
+    tabActiveBackground: Color(0xFF454545),
+    tabTrackBackground: Color(0xFF242424),
     tabHoverBackground: Color(0xFF2F3032),
     tabBorder: Color(0xFF778286),
     tabTextPrimary: Color(0xFFF3F5F6),
-    tabTextMuted: Color(0xFF8D9699),
-    tabTextSubtle: Color(0xFF7F888B),
+    tabTextMuted: Color(0xFFB8B8BD),
+    tabTextSubtle: Color(0xFFA0A0A5),
   );
 
   static const light = AppThemeTokens(
@@ -302,7 +302,7 @@ class AppThemeTokens extends ThemeExtension<AppThemeTokens> {
     dangerContainer: Color(0xFFFFE5E8),
     warningContainer: Color(0xFFFFF2D8),
     successContainer: Color(0xFFE1F8E8),
-    spacing: AppThemeSpacing(xs: 3, sm: 5, md: 7, lg: 10, xl: 14, xxl: 20),
+    spacing: AppThemeSpacing(xs: 4, sm: 6, md: 8, lg: 12, xl: 16, xxl: 20),
     radius: AppThemeRadius(sm: 4, md: 6, lg: 8, xl: 10),
     controls: AppThemeControls(dense: 28, compact: 32, regular: 36),
     shellChrome: _lightShellChrome,
@@ -349,7 +349,7 @@ class AppThemeTokens extends ThemeExtension<AppThemeTokens> {
     dangerContainer: Color(0xFF4A171A),
     warningContainer: Color(0xFF3F2E08),
     successContainer: Color(0xFF10361A),
-    spacing: AppThemeSpacing(xs: 3, sm: 5, md: 7, lg: 10, xl: 14, xxl: 20),
+    spacing: AppThemeSpacing(xs: 4, sm: 6, md: 8, lg: 12, xl: 16, xxl: 20),
     radius: AppThemeRadius(sm: 4, md: 6, lg: 8, xl: 10),
     controls: AppThemeControls(dense: 28, compact: 32, regular: 36),
     shellChrome: _darkShellChrome,

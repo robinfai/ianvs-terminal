@@ -824,6 +824,8 @@ void main() {
         profile: _sshProfile('keyboard', 'Keyboard host', 'host.example.test'),
         onClosed: (_) {},
       );
+      await tester.ensureVisible(find.byKey(const Key('ssh-password')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('ssh-password')));
       tester.view.viewInsets = FakeViewPadding(
         bottom: keyboardHeight * tester.view.devicePixelRatio,

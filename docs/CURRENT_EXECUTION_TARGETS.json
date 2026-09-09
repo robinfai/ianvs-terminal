@@ -132,29 +132,29 @@
             "activeWorkspaceIdentity"
           ]
         },
-      {
-        "path": "example/lib/features/shell/shell_screen_chrome.dart",
-        "contains": [
-          "shell-chrome-menu",
-          "context.l10n.openCommandPalette"
-        ],
+        {
+          "path": "example/lib/features/shell/shell_screen_chrome.dart",
+          "contains": [
+            "shell-chrome-menu",
+            "context.l10n.openCommandPalette"
+          ],
           "not_contains": [
             "Recent Workspaces",
             "Open Project",
             "_ShellFolderButton",
             "shell-open-terminal-at-folder",
             "_ShellRecordingsButton",
-          "shell-open-recording"
-        ]
-      },
-      {
-        "path": "example/lib/features/shell/shell_screen_command_menu.dart",
-        "contains": [
-          "shell-toggle-session-recording",
-          "TerminalActionId.toggleSessionRecording",
-          "context.l10n.startRecordingForReplay"
-        ]
-      },
+            "shell-open-recording"
+          ]
+        },
+        {
+          "path": "example/lib/features/shell/shell_screen_command_menu.dart",
+          "contains": [
+            "shell-toggle-session-recording",
+            "TerminalActionId.toggleSessionRecording",
+            "context.l10n.startRecordingForReplay"
+          ]
+        },
         {
           "path": "example/lib/features/shell/window_bridge.dart",
           "contains": [
@@ -189,10 +189,15 @@
           ]
         },
         {
-          "path": "example/lib/features/shell/shell_screen_toolbelt.dart",
+          "path": "example/lib/features/shell/shell_action_registry.dart",
           "contains": [
-            "if (kDebugMode)",
-            "LocalTerminalCompletionDiagnosticsPanel"
+            "enum TerminalActionId",
+            "releaseActionIds",
+            "exportDiagnostics"
+          ],
+          "not_contains": [
+            "TerminalActionReleaseVisibility",
+            "internalOnly"
           ]
         },
         {
@@ -352,14 +357,14 @@
           "path": "native/core/src/ffi.rs",
           "contains": [
             "ianvs_runtime_capabilities_json",
-        "ianvs_session_poll_event_envelopes_json",
-        "ianvs_session_create_v1",
-        "ianvs_replay_session_create_v1",
-        "ianvs_session_request_v1_json",
-        "ianvs_session_take_diagnostic_event_v1_json",
-        "ianvs_session_take_frame_packet_v1_protobuf",
-        "ianvs_session_graphic_asset_packet_v1_protobuf",
-        "runtime_capabilities_json"
+            "ianvs_session_poll_event_envelopes_json",
+            "ianvs_session_create_v1",
+            "ianvs_replay_session_create_v1",
+            "ianvs_session_request_v1_json",
+            "ianvs_session_take_diagnostic_event_v1_json",
+            "ianvs_session_take_frame_packet_v1_protobuf",
+            "ianvs_session_graphic_asset_packet_v1_protobuf",
+            "runtime_capabilities_json"
           ]
         },
         {
@@ -413,97 +418,97 @@
             "valid_ssh"
           ]
         },
-      {
-        "path": "native/core/src/session_request.rs",
-        "contains": [
-          "SESSION_REQUEST_SCHEMA_VERSION",
-          "ianvs-session-request-v1",
-          "ianvs-session-response-v1",
-          "MAX_SESSION_REQUEST_BYTES",
-          "SessionResponseV1"
-        ]
-      },
-      {
-        "path": "packages/ianvs_pty/lib/src/pty_session_request_v1.dart",
-        "contains": [
-          "class PtySessionRequestV1",
-          "class PtySessionResponseV1",
-          "PtySessionRequestContractException",
-          "correlation_mismatch"
-        ]
-      },
-      {
-        "path": "packages/ianvs_terminal/lib/src/runtime/terminal_session_request_transport.dart",
-        "contains": [
-          "class TerminalSessionRequestTransport",
-          "requestSessionV1Json",
-          "PtySessionResponseV1.fromJsonString"
-        ]
-      },
-      {
-        "path": "native/core/src/host_request.rs",
-        "contains": [
-          "HOST_REQUEST_CONTRACT",
-          "ianvs-host-response-v1",
-          "MAX_HOST_RESPONSE_BYTES",
-          "HostResponseV1"
-        ]
-      },
-      {
-        "path": "packages/ianvs_pty/lib/src/pty_host_request_v1.dart",
-        "contains": [
-          "class PtyHostRequestV1",
-          "class PtyHostResponseV1",
-          "PtyHostRequestContractException",
-          "correlation_mismatch"
-        ]
-      },
-    {
-      "path": "packages/ianvs_pty/lib/src/pty_diagnostic_event_v1.dart",
-      "contains": [
-        "class PtyDiagnosticEventV1",
-        "PtyRuntimeMessageClass.diagnostic",
-        "diagnostic_session_mismatch",
-        "maxEncodedBytes"
-      ]
-    },
-    {
-      "path": "packages/ianvs_terminal/lib/src/runtime/terminal_frame_packet_v1.dart",
-      "contains": [
-        "class TerminalFramePacketV1Decoder",
-        "ianvs-terminal-frame-packet-v1",
-        "frame_packet_sequence_gap",
-        "TerminalFrameKind.snapshot"
-      ]
-    },
-    {
-      "path": "packages/ianvs_pty/lib/src/pty_graphic_asset_packet_v1.dart",
-      "contains": [
-        "class PtyGraphicAssetPacketV1",
-        "ianvs-graphic-asset-packet-v1",
-        "ptyGraphicAssetPacketMaxRgbaBytes",
-        "PtyGraphicAssetPacketFormatException"
-      ]
-    },
-    {
-      "path": "packages/ianvs_terminal/test/current_only_architecture_test.dart",
-      "contains": [
-        "terminal product exposes only the current runtime contracts",
-        "PTY and C ABI bind current symbols without predecessor routes"
-      ]
-    }
+        {
+          "path": "native/core/src/session_request.rs",
+          "contains": [
+            "SESSION_REQUEST_SCHEMA_VERSION",
+            "ianvs-session-request-v1",
+            "ianvs-session-response-v1",
+            "MAX_SESSION_REQUEST_BYTES",
+            "SessionResponseV1"
+          ]
+        },
+        {
+          "path": "packages/ianvs_pty/lib/src/pty_session_request_v1.dart",
+          "contains": [
+            "class PtySessionRequestV1",
+            "class PtySessionResponseV1",
+            "PtySessionRequestContractException",
+            "correlation_mismatch"
+          ]
+        },
+        {
+          "path": "packages/ianvs_terminal/lib/src/runtime/terminal_session_request_transport.dart",
+          "contains": [
+            "class TerminalSessionRequestTransport",
+            "requestSessionV1Json",
+            "PtySessionResponseV1.fromJsonString"
+          ]
+        },
+        {
+          "path": "native/core/src/host_request.rs",
+          "contains": [
+            "HOST_REQUEST_CONTRACT",
+            "ianvs-host-response-v1",
+            "MAX_HOST_RESPONSE_BYTES",
+            "HostResponseV1"
+          ]
+        },
+        {
+          "path": "packages/ianvs_pty/lib/src/pty_host_request_v1.dart",
+          "contains": [
+            "class PtyHostRequestV1",
+            "class PtyHostResponseV1",
+            "PtyHostRequestContractException",
+            "correlation_mismatch"
+          ]
+        },
+        {
+          "path": "packages/ianvs_pty/lib/src/pty_diagnostic_event_v1.dart",
+          "contains": [
+            "class PtyDiagnosticEventV1",
+            "PtyRuntimeMessageClass.diagnostic",
+            "diagnostic_session_mismatch",
+            "maxEncodedBytes"
+          ]
+        },
+        {
+          "path": "packages/ianvs_terminal/lib/src/runtime/terminal_frame_packet_v1.dart",
+          "contains": [
+            "class TerminalFramePacketV1Decoder",
+            "ianvs-terminal-frame-packet-v1",
+            "frame_packet_sequence_gap",
+            "TerminalFrameKind.snapshot"
+          ]
+        },
+        {
+          "path": "packages/ianvs_pty/lib/src/pty_graphic_asset_packet_v1.dart",
+          "contains": [
+            "class PtyGraphicAssetPacketV1",
+            "ianvs-graphic-asset-packet-v1",
+            "ptyGraphicAssetPacketMaxRgbaBytes",
+            "PtyGraphicAssetPacketFormatException"
+          ]
+        },
+        {
+          "path": "packages/ianvs_terminal/test/current_only_architecture_test.dart",
+          "contains": [
+            "terminal product exposes only the current runtime contracts",
+            "PTY and C ABI bind current symbols without predecessor routes"
+          ]
+        }
       ],
       "verification_commands": [
         "cargo test --manifest-path native/core/Cargo.toml --test runtime_capabilities_test",
         "cargo test --manifest-path native/core/Cargo.toml --test runtime_event_envelope_test",
-    "cargo test --manifest-path native/core/Cargo.toml --test runtime_session_config_test",
-    "cargo test --manifest-path native/core/Cargo.toml --test runtime_session_request_test",
-    "cargo test --manifest-path native/core/Cargo.toml --test runtime_host_request_test",
-    "cargo test --manifest-path native/core/Cargo.toml --test runtime_diagnostic_event_test",
-    "cargo test --manifest-path native/core/Cargo.toml --test runtime_frame_packet_test",
-    "cargo test --manifest-path native/core/Cargo.toml --test runtime_graphic_asset_packet_test",
-    "cd packages/ianvs_pty && dart analyze && dart test",
-    "cd packages/ianvs_terminal && flutter test test/terminal_session_config_v1_test.dart test/terminal_runtime_controller_test.dart test/terminal_json_request_client_test.dart test/terminal_diagnostics_test.dart test/terminal_frame_packet_v1_test.dart test/terminal_live_recorder_test.dart test/terminal_replay_backend_test.dart",
+        "cargo test --manifest-path native/core/Cargo.toml --test runtime_session_config_test",
+        "cargo test --manifest-path native/core/Cargo.toml --test runtime_session_request_test",
+        "cargo test --manifest-path native/core/Cargo.toml --test runtime_host_request_test",
+        "cargo test --manifest-path native/core/Cargo.toml --test runtime_diagnostic_event_test",
+        "cargo test --manifest-path native/core/Cargo.toml --test runtime_frame_packet_test",
+        "cargo test --manifest-path native/core/Cargo.toml --test runtime_graphic_asset_packet_test",
+        "cd packages/ianvs_pty && dart analyze && dart test",
+        "cd packages/ianvs_terminal && flutter test test/terminal_session_config_v1_test.dart test/terminal_runtime_controller_test.dart test/terminal_json_request_client_test.dart test/terminal_diagnostics_test.dart test/terminal_frame_packet_v1_test.dart test/terminal_live_recorder_test.dart test/terminal_replay_backend_test.dart",
         "dart test test/docs_contract_test.dart",
         "make verify"
       ],
@@ -514,7 +519,7 @@
         "The public terminal facade exposes one ordered runtime signal stream and contextual callbacks only.",
         "The complete repository verification entrypoint passes after every cross-boundary slice."
       ],
-  "reason": "The unreleased predecessor routes from the T-318 through T-324 and T-330 migration sequence have been squashed. Those task files are historical records, not current runtime authority. The active lane now requires the single versioned current ABI and Dart contracts plus exact architecture gates."
+      "reason": "The unreleased predecessor routes from the T-318 through T-324 and T-330 migration sequence have been squashed. Those task files are historical records, not current runtime authority. The active lane now requires the single versioned current ABI and Dart contracts plus exact architecture gates."
     },
     {
       "id": "frame-pipeline-modularity",

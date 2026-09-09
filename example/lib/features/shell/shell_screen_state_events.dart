@@ -101,7 +101,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         _terminalFrameSequenceBySession[sessionId] = frameSequence;
         _recordInstantReplayFrame(sessionId, frame);
         _markNewOutputBadge(sessionId, frame);
-        _feedCoprocess(sessionId, frame, frameSequence: frameSequence);
+
         _runProfileTriggers(sessionId, frame, frameSequence: frameSequence);
         _notifyInactiveActivity(sessionId, frame);
         _refreshSearchMatchesAfterFrame(sessionId, frame);
@@ -150,9 +150,8 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         // The reusable runtime already replied using its committed cell metric.
         break;
       case terminal.TerminalSessionClearCapturedOutputEvent():
-        if (event.isValid) {
-          _clearCapturedOutput(event.sessionId);
-        }
+        // The capture shelf is retired; keep this protocol event a safe no-op.
+        break;
       case terminal.TerminalSessionReportVariableRequestEvent():
         _handleOsc1337ReportVariableRequest(event);
       case terminal.TerminalSessionOpenUrlRequestEvent():
@@ -1334,17 +1333,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       if (currentState.activeSessionId != event.sessionId) {
         return;
       }
-      final selectionController = _selectionControllers.putIfAbsent(
-        event.sessionId,
-        SelectionController.new,
-      );
-      unawaited(
-        _openAnnotations(
-          ref.read(sessionControllerProvider.notifier),
-          event.sessionId,
-          selectionController,
-        ),
-      );
+      _showShellSnackBar(message);
     });
   }
 
@@ -1945,19 +1934,13 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         return;
       }
       _mutateState(() {
-        _notificationConfigSource = configBootstrap.source;
         _notificationLocalConfig = configBootstrap.config;
         _keybindingsConfig = configBootstrap.config.keybindings;
         _clipboardConfig = configBootstrap.config.clipboard;
         _hostActionsConfig = configBootstrap.config.hostActions;
         _bracketedPastePolicy = configBootstrap.config.paste.bracketedPaste;
         _pastePolicy = _pastePolicyFromConfig(configBootstrap.config.paste);
-        _pasteHistoryPolicy = _pasteHistoryPolicyFromConfig(
-          configBootstrap.config.paste,
-        );
-        _pasteHistoryEntries = _pasteHistoryEntries
-            .take(_effectivePasteHistoryLimit)
-            .toList();
+
         _commandFinishedNotificationsEnabled =
             configBootstrap.config.notifications.commandFinished;
         _bellNotificationsEnabled = configBootstrap.config.notifications.bell;
@@ -1977,43 +1960,6 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     return ref.read(localTerminalConfigLoaderProvider).load();
   }
 
-  Future<void> _saveNotificationPreferences() async {
-    final notifications = TerminalAppNotifications(
-      commandFinished: _commandFinishedNotificationsEnabled,
-      bell: _bellNotificationsEnabled,
-      activity: _activityNotificationsEnabled,
-    );
-    final localConfig = await _loadLocalNotificationConfigForSave();
-    final nextConfig = await ref
-        .read(localTerminalConfigRepositoryProvider)
-        .update(
-          (current) => current.copyWith(
-            notifications: LocalTerminalNotificationsConfig(
-              enabled:
-                  notifications.commandFinished ||
-                  notifications.bell ||
-                  notifications.activity,
-              commandFinished: notifications.commandFinished,
-              bell: notifications.bell,
-              activity: notifications.activity,
-            ),
-          ),
-          fallback: localConfig,
-        );
-    _notificationConfigSource = LocalTerminalConfigBootstrapSource.localConfig;
-    _notificationLocalConfig = nextConfig;
-  }
-
-  Future<LocalTerminalConfigDocument>
-  _loadLocalNotificationConfigForSave() async {
-    final repository = ref.read(localTerminalConfigRepositoryProvider);
-    if (_notificationConfigSource ==
-        LocalTerminalConfigBootstrapSource.localConfig) {
-      return await repository.load() ?? _notificationLocalConfig;
-    }
-    return await repository.load() ?? _notificationLocalConfig;
-  }
-
   LocalTerminalPastePolicy _pastePolicyFromConfig(
     LocalTerminalPasteConfig config,
   ) {
@@ -2021,15 +1967,6 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       confirmLargePaste: config.confirmLargePaste,
       confirmMultilinePaste: config.confirmMultilinePaste,
       historySize: config.historySize,
-    );
-  }
-
-  LocalTerminalPasteHistoryPolicy _pasteHistoryPolicyFromConfig(
-    LocalTerminalPasteConfig config,
-  ) {
-    return LocalTerminalPasteHistoryPolicy(
-      enabled: config.historySize > 0,
-      maxEntries: config.historySize,
     );
   }
 
@@ -2043,41 +1980,6 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       LocalTerminalBracketedPastePolicy.plain =>
         terminal.TerminalFrameModes.empty,
     };
-  }
-
-  Future<bool> _toggleHotkeyWindowWithFeedback() async {
-    final status = await WindowBridge.hotkeyStatus();
-    if (status != null && !status.registered) {
-      _showHotkeyWindowFailure(status);
-      return false;
-    }
-    try {
-      await WindowBridge.toggleHotkeyWindow();
-      return true;
-    } on PlatformException catch (error) {
-      _showHotkeyWindowFailure(status, error: error);
-      return false;
-    }
-  }
-
-  void _showHotkeyWindowFailure(
-    HotkeyWindowStatus? status, {
-    PlatformException? error,
-  }) {
-    if (!mounted) {
-      return;
-    }
-    final details = <String>[
-      context.l10n.hotkeyWindowUnavailable,
-      if (status != null) context.l10n.shortcutValue(status.shortcut),
-      if (status?.errorCode != null)
-        context.l10n.errorValue(status!.errorCode!.toString()),
-      if (error?.message != null && error!.message!.trim().isNotEmpty)
-        error.message!.trim(),
-    ].join(' - ');
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(details)));
   }
 }
 

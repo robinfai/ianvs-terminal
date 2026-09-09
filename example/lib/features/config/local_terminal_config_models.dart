@@ -6,8 +6,41 @@ import '../shell/shell_action_registry.dart';
 
 const int maxLocalTerminalKeyBindingKeyLength = 64;
 const int maxLocalTerminalReportVariableDecisions = 64;
-final int _maxLocalTerminalKeyBindingEntriesToScan =
-    TerminalActionId.values.length * 4;
+
+// Keep the historical scan budget stable after retired action IDs leave the
+// runtime enum. This still bounds untrusted config input while allowing a
+// complete pre-retirement keybinding document to load.
+const int _maxLocalTerminalKeyBindingEntriesToScan = 248;
+
+// These IDs were persisted by prerelease builds. They are intentionally
+// recognized as tombstones instead of runtime actions: loading ignores them,
+// while serialization preserves their original JSON so an unrelated settings
+// edit does not silently delete user data.
+const Set<String> _retiredTerminalActionNames = {
+  'toolbelt',
+  'copymode',
+  'advancedpaste',
+  'pastehistory',
+  'shellintegrationutilities',
+  'selectcommandoutput',
+  'openrecentdirectory',
+  'tmuxintegration',
+  'coprocess',
+  'annotations',
+  'capturedoutput',
+  'passwordmanager',
+  'globalsearch',
+  'autocomplete',
+  'autocomposer',
+  'hotkeywindow',
+  'dynamicprofiles',
+  'togglecommandfinishednotify',
+  'togglebellnotify',
+  'toggleactivitymonitor',
+  'openthemepicker',
+  'applytheme',
+  'applylayouttemplate',
+};
 
 class LocalTerminalConfigDocument {
   const LocalTerminalConfigDocument({
@@ -205,10 +238,28 @@ class LocalTerminalKeybindingsConfig {
     this.disabledDefaultActions = const <TerminalActionId>{},
     this.overrides =
         const <TerminalActionId, LocalTerminalKeyBindingOverride>{},
-  });
+    List<String> persistedDisabledDefaultActions = const <String>[],
+    Map<String, Object?> tombstonedOverrides = const <String, Object?>{},
+  }) : _persistedDisabledDefaultActions = persistedDisabledDefaultActions,
+       _tombstonedOverrides = tombstonedOverrides;
 
   final Set<TerminalActionId> disabledDefaultActions;
   final Map<TerminalActionId, LocalTerminalKeyBindingOverride> overrides;
+  final List<String> _persistedDisabledDefaultActions;
+  final Map<String, Object?> _tombstonedOverrides;
+
+  LocalTerminalKeybindingsConfig copyWith({
+    Set<TerminalActionId>? disabledDefaultActions,
+    Map<TerminalActionId, LocalTerminalKeyBindingOverride>? overrides,
+  }) {
+    return LocalTerminalKeybindingsConfig(
+      disabledDefaultActions:
+          disabledDefaultActions ?? this.disabledDefaultActions,
+      overrides: overrides ?? this.overrides,
+      persistedDisabledDefaultActions: _persistedDisabledDefaultActions,
+      tombstonedOverrides: _tombstonedOverrides,
+    );
+  }
 
   @override
   bool operator ==(Object other) {
@@ -230,14 +281,35 @@ class LocalTerminalKeybindingsConfig {
 
   Map<String, Object?> toJson() {
     return {
-      'disabledDefaultActions': disabledDefaultActions
-          .map((actionId) => actionId.name)
-          .toList(growable: false),
+      'disabledDefaultActions': _serializedDisabledDefaultActions(),
       'overrides': {
+        ..._tombstonedOverrides,
         for (final entry in overrides.entries)
           entry.key.name: entry.value.toJson(),
       },
     };
+  }
+
+  List<String> _serializedDisabledDefaultActions() {
+    final serialized = <String>[];
+    final persistedActiveActions = <TerminalActionId>{};
+    for (final name in _persistedDisabledDefaultActions) {
+      if (_isRetiredActionName(name)) {
+        serialized.add(name);
+        continue;
+      }
+      final actionId = _actionId(name);
+      if (actionId != null && disabledDefaultActions.contains(actionId)) {
+        serialized.add(name);
+        persistedActiveActions.add(actionId);
+      }
+    }
+    serialized.addAll(
+      disabledDefaultActions
+          .where((actionId) => !persistedActiveActions.contains(actionId))
+          .map((actionId) => actionId.name),
+    );
+    return serialized;
   }
 
   static LocalTerminalKeybindingsConfig fromJson(Map<Object?, Object?>? json) {
@@ -245,9 +317,16 @@ class LocalTerminalKeybindingsConfig {
       return const LocalTerminalKeybindingsConfig();
     }
 
+    final retiredDisabledDefaultActions = _retiredActionIdList(
+      json['disabledDefaultActions'],
+    );
     return LocalTerminalKeybindingsConfig(
       disabledDefaultActions: _actionIdSet(json['disabledDefaultActions']),
       overrides: _actionBindingOverrides(json['overrides']),
+      persistedDisabledDefaultActions: retiredDisabledDefaultActions.isEmpty
+          ? const <String>[]
+          : _recognizedActionIdList(json['disabledDefaultActions']),
+      tombstonedOverrides: _retiredActionBindingOverrides(json['overrides']),
     );
   }
 }
@@ -691,6 +770,32 @@ Set<TerminalActionId> _actionIdSet(Object? value) {
       .toSet();
 }
 
+List<String> _retiredActionIdList(Object? value) {
+  if (value is! List) {
+    return const <String>[];
+  }
+
+  return List<String>.unmodifiable(
+    value
+        .take(_maxLocalTerminalKeyBindingEntriesToScan)
+        .where(_isRetiredActionName)
+        .whereType<String>(),
+  );
+}
+
+List<String> _recognizedActionIdList(Object? value) {
+  if (value is! List) {
+    return const <String>[];
+  }
+
+  return List<String>.unmodifiable(
+    value
+        .take(_maxLocalTerminalKeyBindingEntriesToScan)
+        .whereType<String>()
+        .where((name) => _isRetiredActionName(name) || _actionId(name) != null),
+  );
+}
+
 Map<TerminalActionId, LocalTerminalKeyBindingOverride> _actionBindingOverrides(
   Object? value,
 ) {
@@ -714,13 +819,31 @@ Map<TerminalActionId, LocalTerminalKeyBindingOverride> _actionBindingOverrides(
   return overrides;
 }
 
+Map<String, Object?> _retiredActionBindingOverrides(Object? value) {
+  final json = _objectMap(value);
+  if (json == null) {
+    return const <String, Object?>{};
+  }
+
+  final overrides = <String, Object?>{};
+  for (final entry in json.entries.take(
+    _maxLocalTerminalKeyBindingEntriesToScan,
+  )) {
+    final name = entry.key;
+    if (name is String && _isRetiredActionName(name)) {
+      overrides[name] = entry.value;
+    }
+  }
+  return Map<String, Object?>.unmodifiable(overrides);
+}
+
 TerminalActionId? _actionId(Object? value) {
   if (value is! String) {
     return null;
   }
 
   final normalized = value.trim().toLowerCase();
-  if (normalized.isEmpty) {
+  if (normalized.isEmpty || _retiredTerminalActionNames.contains(normalized)) {
     return null;
   }
   for (final actionId in TerminalActionId.values) {
@@ -729,6 +852,11 @@ TerminalActionId? _actionId(Object? value) {
     }
   }
   return null;
+}
+
+bool _isRetiredActionName(Object? value) {
+  return value is String &&
+      _retiredTerminalActionNames.contains(value.trim().toLowerCase());
 }
 
 TerminalKeyBindingScope _keyBindingScope(Object? value) {

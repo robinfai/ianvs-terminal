@@ -29,6 +29,30 @@ typedef AppStartupDataBootstrap =
       AppStartupConfigurationAccess access,
       AppStartupConfigurationSnapshot configurationSnapshot,
     );
+typedef AppStartupDataBootstrapFailureHandler =
+    DataApiStartupWarning? Function(Object error, StackTrace stackTrace);
+typedef AppStartupDataPreparationFailureHandler =
+    Future<AppStartupDataPreparationFallback?> Function(
+      AppStartupStage stage,
+      Object error,
+      StackTrace stackTrace,
+      AppStartupConfigurationAccess access,
+    );
+
+final class AppStartupDataPreparationFallback {
+  const AppStartupDataPreparationFallback({
+    required this.configurationSnapshot,
+    required this.warning,
+    this.skipDataBootstrap = true,
+    this.skipConfigurationValidation = true,
+  });
+
+  final AppStartupConfigurationSnapshot configurationSnapshot;
+  final DataApiStartupWarning warning;
+  final bool skipDataBootstrap;
+  final bool skipConfigurationValidation;
+}
+
 typedef AppStartupPlatformPreparer =
     Future<AppStartupPlatformPreparation> Function(AppStartupPaths paths);
 typedef AppStartupPtyLoader =
@@ -55,6 +79,8 @@ final class AppStartupPipeline {
     required this.preparePlatform,
     required this.loadPty,
     required this.composeGraph,
+    this.handleDataPreparationFailure,
+    this.handleDataBootstrapFailure,
     this.rollbackTimeout = const Duration(seconds: 8),
   });
 
@@ -67,6 +93,8 @@ final class AppStartupPipeline {
   final AppStartupPlatformPreparer preparePlatform;
   final AppStartupPtyLoader loadPty;
   final AppStartupGraphComposer composeGraph;
+  final AppStartupDataPreparationFailureHandler? handleDataPreparationFailure;
+  final AppStartupDataBootstrapFailureHandler? handleDataBootstrapFailure;
   final Duration rollbackTimeout;
 }
 
@@ -215,6 +243,9 @@ final class AppStartupCoordinator extends ChangeNotifier {
     AppStartupConfigurationSnapshot? configurationSnapshot;
     DataApiRuntime? dataApiRuntime;
     AppRuntimeGraph? candidateGraph;
+    DataApiStartupWarning? warning;
+    var skipDataBootstrap = false;
+    var skipConfigurationValidation = false;
     try {
       paths = await _pipeline.resolvePaths();
       if (await _stopAttemptIfShutdownRequested()) {
@@ -228,17 +259,51 @@ final class AppStartupCoordinator extends ChangeNotifier {
       }
 
       stage = AppStartupStage.secureRecovery;
-      final warning = await _pipeline.recoverSecureConfiguration(
-        configurationAccess,
-      );
+      try {
+        warning = await _pipeline.recoverSecureConfiguration(
+          configurationAccess,
+        );
+      } on Object catch (error, stackTrace) {
+        final fallback = await _pipeline.handleDataPreparationFailure?.call(
+          stage,
+          error,
+          stackTrace,
+          configurationAccess,
+        );
+        if (fallback == null) {
+          rethrow;
+        }
+        configurationSnapshot = fallback.configurationSnapshot;
+        warning = _combineDataApiStartupWarnings(warning, fallback.warning);
+        skipDataBootstrap = fallback.skipDataBootstrap;
+        skipConfigurationValidation = fallback.skipConfigurationValidation;
+      }
       if (await _stopAttemptIfShutdownRequested()) {
         return;
       }
 
       stage = AppStartupStage.configuration;
-      configurationSnapshot = await _pipeline.loadConfiguration(
-        configurationAccess,
-      );
+      if (configurationSnapshot == null) {
+        try {
+          configurationSnapshot = await _pipeline.loadConfiguration(
+            configurationAccess,
+          );
+        } on Object catch (error, stackTrace) {
+          final fallback = await _pipeline.handleDataPreparationFailure?.call(
+            stage,
+            error,
+            stackTrace,
+            configurationAccess,
+          );
+          if (fallback == null) {
+            rethrow;
+          }
+          configurationSnapshot = fallback.configurationSnapshot;
+          warning = _combineDataApiStartupWarnings(warning, fallback.warning);
+          skipDataBootstrap = fallback.skipDataBootstrap;
+          skipConfigurationValidation = fallback.skipConfigurationValidation;
+        }
+      }
       if (await _stopAttemptIfShutdownRequested()) {
         return;
       }
@@ -264,11 +329,24 @@ final class AppStartupCoordinator extends ChangeNotifier {
       }
 
       stage = AppStartupStage.dataBootstrap;
-      dataApiRuntime = await _pipeline.bootstrapData(
-        paths,
-        configurationAccess,
-        configurationSnapshot,
-      );
+      if (!skipDataBootstrap) {
+        try {
+          dataApiRuntime = await _pipeline.bootstrapData(
+            paths,
+            configurationAccess,
+            configurationSnapshot,
+          );
+        } on Object catch (error, stackTrace) {
+          final fallbackWarning = _pipeline.handleDataBootstrapFailure?.call(
+            error,
+            stackTrace,
+          );
+          if (fallbackWarning == null) {
+            rethrow;
+          }
+          warning = _combineDataApiStartupWarnings(warning, fallbackWarning);
+        }
+      }
       if (await _stopAttemptIfShutdownRequested(runtime: dataApiRuntime)) {
         dataApiRuntime = null;
         return;
@@ -305,10 +383,12 @@ final class AppStartupCoordinator extends ChangeNotifier {
       }
 
       stage = AppStartupStage.configurationValidation;
-      await _pipeline.validateConfiguration(
-        configurationAccess,
-        configurationSnapshot,
-      );
+      if (!skipConfigurationValidation) {
+        await _pipeline.validateConfiguration(
+          configurationAccess,
+          configurationSnapshot,
+        );
+      }
       // Keep validation and publication in one synchronous turn. Introducing
       // another await here would reopen a configuration TOCTOU window.
       if (_disposed) {
@@ -594,6 +674,16 @@ final class AppStartupCoordinator extends ChangeNotifier {
     unawaited(close());
     super.dispose();
   }
+}
+
+DataApiStartupWarning _combineDataApiStartupWarnings(
+  DataApiStartupWarning? first,
+  DataApiStartupWarning second,
+) {
+  if (first == null || first.message.isEmpty) {
+    return second;
+  }
+  return DataApiStartupWarning('${first.message}\n${second.message}');
 }
 
 final class _PendingRuntimeRollback {

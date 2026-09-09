@@ -1,10 +1,12 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../data/configuration/data_api_configuration.dart';
 import '../../data/configuration/data_api_configuration_repository.dart';
 import '../../data/services/data_api_auth_contract.dart';
 import '../../data/services/portable_master_key.dart';
+import '../../data/sync/api_sync_panel.dart';
 import '../../ui/app_ui.dart';
 import '../config/local_terminal_config_models.dart';
 import '../config/local_terminal_keybinding_resolver.dart';
@@ -298,16 +300,6 @@ class _DefaultsAndAppearanceDialogState
         (selected != widget.dataApiConfiguration || _remoteReconnectRequested);
   }
 
-  bool get _migratesLocalDataToRemote {
-    return _sourceDataApiDeployment == DataApiDeployment.local &&
-        _selectedDataApiDeployment == DataApiDeployment.remote;
-  }
-
-  bool get _migratesRemoteDataToLocal {
-    return _sourceDataApiDeployment == DataApiDeployment.remote &&
-        _selectedDataApiDeployment == DataApiDeployment.local;
-  }
-
   DataApiDeployment get _sourceDataApiDeployment =>
       widget.activeDataApiDeployment ?? widget.dataApiConfiguration.deployment;
 
@@ -529,8 +521,8 @@ class _DefaultsAndAppearanceDialogState
         desktopPlatform &&
         !compactLayout &&
         !keyboardVisible &&
-        dialogWidth >= 720 &&
-        dialogHeight >= 480;
+        dialogWidth >= 600 &&
+        dialogHeight >= 320;
     final showStandaloneShortcutEditor =
         _showShortcutEditor && !showSectionNavigation;
     final effectiveProfile = _effectiveProfileFor(
@@ -1444,6 +1436,7 @@ class _DefaultsAndAppearanceDialogState
                                     .dataServiceDescriptionLocalAvailable
                               : context.l10n.dataServiceDescriptionRemoteOnly,
                         ),
+                      const ApiSyncPanel(),
                       SizedBox(height: theme.spacing.sm),
                       _DataServiceStatusBanner(
                         deployment: _sourceDataApiDeployment,
@@ -1508,32 +1501,6 @@ class _DefaultsAndAppearanceDialogState
                                           DataApiDeployment.local,
                                       showComparison: showSectionNavigation,
                                     ),
-                                  if (_migratesRemoteDataToLocal)
-                                    Padding(
-                                      padding: EdgeInsets.only(
-                                        top: theme.spacing.sm,
-                                        bottom: theme.spacing.sm,
-                                      ),
-                                      child: AppPanel(
-                                        key: const Key(
-                                          'data-api-remote-to-local-migration',
-                                        ),
-                                        tone: AppPanelTone.chrome,
-                                        child: ListTile(
-                                          leading: const Icon(
-                                            Icons.cloud_download_outlined,
-                                          ),
-                                          title: Text(
-                                            context.l10n.migrateRemoteApiData,
-                                          ),
-                                          subtitle: Text(
-                                            context
-                                                .l10n
-                                                .migrateRemoteApiDataDescription,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
                                   _DataServiceModeChoice(
                                     tileKey: const Key('data-api-remote'),
                                     value: DataApiDeployment.remote,
@@ -1554,28 +1521,6 @@ class _DefaultsAndAppearanceDialogState
                             if (_selectedDataApiDeployment ==
                                 DataApiDeployment.remote) ...[
                               SizedBox(height: theme.spacing.sm),
-                              if (_migratesLocalDataToRemote) ...[
-                                AppPanel(
-                                  key: const Key(
-                                    'data-api-local-to-remote-migration',
-                                  ),
-                                  tone: AppPanelTone.chrome,
-                                  child: ListTile(
-                                    leading: const Icon(
-                                      Icons.cloud_upload_outlined,
-                                    ),
-                                    title: Text(
-                                      context.l10n.migrateLocalApiData,
-                                    ),
-                                    subtitle: Text(
-                                      context
-                                          .l10n
-                                          .migrateLocalApiDataDescription,
-                                    ),
-                                  ),
-                                ),
-                                SizedBox(height: theme.spacing.sm),
-                              ],
                               if (_selectedDataApiConfiguration ==
                                   widget.dataApiConfiguration)
                                 AppActionButton(
@@ -1683,7 +1628,14 @@ class _DefaultsAndAppearanceDialogState
                               ),
                               SizedBox(height: theme.spacing.sm),
                               Text(
-                                usesAutomaticallySynchronizedAppleKeychain
+                                widget
+                                            .masterKeyRepository
+                                            ?.allowLegacyMigration ==
+                                        false
+                                    ? context
+                                          .l10n
+                                          .developmentMasterKeyStorageDescription
+                                    : usesAutomaticallySynchronizedAppleKeychain
                                     ? context
                                           .l10n
                                           .appleMasterKeyEncryptionDescription
@@ -1899,11 +1851,7 @@ class _DefaultsAndAppearanceDialogState
                       ),
                       AppActionButton(
                         buttonKey: const Key('defaults-save'),
-                        label: _migratesLocalDataToRemote
-                            ? context.l10n.migrateToRemoteApi
-                            : _migratesRemoteDataToLocal
-                            ? context.l10n.migrateToLocalApi
-                            : context.l10n.saveChanges,
+                        label: context.l10n.saveChanges,
                         onPressed:
                             LocalTerminalKeyBindingResolver.conflicts(
                                   LocalTerminalKeyBindingResolver.resolve(
@@ -1935,10 +1883,6 @@ class _DefaultsAndAppearanceDialogState
                                     dataApiConfiguration:
                                         selectedDataApiConfiguration,
                                     dataApiRemoteLogin: remoteLoginRequest,
-                                    migrateLocalDataToRemote:
-                                        _migratesLocalDataToRemote,
-                                    migrateRemoteDataToLocal:
-                                        _migratesRemoteDataToLocal,
                                     updatedProfile: _updatedProfileForPreset(
                                       effectiveProfile,
                                     ),
@@ -1985,7 +1929,7 @@ class _DefaultsBodyLayout extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SizedBox(
-          width: 196,
+          width: 180,
           child: _DefaultsSectionNavigation(
             selectedSection: selectedSection,
             onSectionSelected: onSectionSelected,
@@ -1998,7 +1942,7 @@ class _DefaultsBodyLayout extends StatelessWidget {
   }
 }
 
-class _DefaultsSectionNavigation extends StatelessWidget {
+class _DefaultsSectionNavigation extends StatefulWidget {
   const _DefaultsSectionNavigation({
     required this.selectedSection,
     required this.onSectionSelected,
@@ -2006,6 +1950,30 @@ class _DefaultsSectionNavigation extends StatelessWidget {
 
   final _DefaultsSection selectedSection;
   final ValueChanged<_DefaultsSection> onSectionSelected;
+
+  @override
+  State<_DefaultsSectionNavigation> createState() =>
+      _DefaultsSectionNavigationState();
+}
+
+class _DefaultsSectionNavigationState
+    extends State<_DefaultsSectionNavigation> {
+  final List<FocusNode> _focusNodes = [
+    for (final _ in _DefaultsSection.values) FocusNode(),
+  ];
+
+  void _select(_DefaultsSection section) {
+    _focusNodes[section.index].requestFocus();
+    widget.onSectionSelected(section);
+  }
+
+  @override
+  void dispose() {
+    for (final node in _focusNodes) {
+      node.dispose();
+    }
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2052,21 +2020,42 @@ class _DefaultsSectionNavigation extends StatelessWidget {
           theme.spacing.lg,
           theme.spacing.xl,
         ),
-        child: FocusTraversalGroup(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              for (final item in items) ...[
-                _DefaultsSectionNavigationItem(
-                  key: item.key,
-                  icon: item.icon,
-                  label: item.label,
-                  selected: item.section == selectedSection,
-                  onPressed: () => onSectionSelected(item.section),
-                ),
-                SizedBox(height: theme.spacing.xs),
-              ],
-            ],
+        child: Focus(
+          canRequestFocus: false,
+          onKeyEvent: (node, event) {
+            if (event is! KeyDownEvent) return KeyEventResult.ignored;
+            final direction = switch (event.logicalKey) {
+              LogicalKeyboardKey.arrowDown => 1,
+              LogicalKeyboardKey.arrowUp => -1,
+              _ => 0,
+            };
+            if (direction == 0) return KeyEventResult.ignored;
+            final index = (widget.selectedSection.index + direction).clamp(
+              0,
+              _DefaultsSection.values.length - 1,
+            );
+            _select(_DefaultsSection.values[index]);
+            return KeyEventResult.handled;
+          },
+          child: SingleChildScrollView(
+            child: FocusTraversalGroup(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (final item in items) ...[
+                    _DefaultsSectionNavigationItem(
+                      key: item.key,
+                      icon: item.icon,
+                      label: item.label,
+                      selected: item.section == widget.selectedSection,
+                      focusNode: _focusNodes[item.section.index],
+                      onPressed: () => _select(item.section),
+                    ),
+                    SizedBox(height: theme.spacing.xs),
+                  ],
+                ],
+              ),
+            ),
           ),
         ),
       ),
@@ -2078,12 +2067,14 @@ class _DefaultsSectionNavigationItem extends StatelessWidget {
   const _DefaultsSectionNavigationItem({
     super.key,
     required this.icon,
+    required this.focusNode,
     required this.label,
     required this.selected,
     required this.onPressed,
   });
 
   final IconData icon;
+  final FocusNode focusNode;
   final String label;
   final bool selected;
   final VoidCallback onPressed;
@@ -2092,35 +2083,26 @@ class _DefaultsSectionNavigationItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = context.appTheme;
     final radius = BorderRadius.circular(theme.radius.md);
-    final foreground = selected ? theme.accent : theme.textMuted;
+    final foreground = selected
+        ? Theme.of(context).colorScheme.onPrimary
+        : theme.textPrimary;
     return Semantics(
       button: true,
       selected: selected,
       child: Material(
-        color: selected ? theme.selected : Colors.transparent,
+        color: selected ? theme.accent : Colors.transparent,
         borderRadius: radius,
         child: InkWell(
           borderRadius: radius,
+          autofocus: selected,
+          focusNode: focusNode,
           onTap: onPressed,
           child: ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: 44),
+            constraints: const BoxConstraints(minHeight: 36),
             child: Row(
               children: [
-                AnimatedContainer(
-                  duration: MediaQuery.disableAnimationsOf(context)
-                      ? Duration.zero
-                      : const Duration(milliseconds: 120),
-                  width: 3,
-                  height: selected ? 30 : 0,
-                  decoration: BoxDecoration(
-                    color: selected
-                        ? theme.accent
-                        : theme.accent.withValues(alpha: 0),
-                    borderRadius: BorderRadius.circular(theme.radius.sm),
-                  ),
-                ),
                 SizedBox(width: theme.spacing.md),
-                Icon(icon, size: 20, color: foreground),
+                Icon(icon, size: 18, color: foreground),
                 SizedBox(width: theme.spacing.md),
                 Expanded(
                   child: Text(
@@ -2128,8 +2110,8 @@ class _DefaultsSectionNavigationItem extends StatelessWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: selected ? theme.accent : theme.textPrimary,
-                      fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                      color: foreground,
+                      fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
                     ),
                   ),
                 ),
@@ -3173,11 +3155,13 @@ class _DataServiceModeChoiceState extends State<_DataServiceModeChoice> {
                 color: theme.accent,
               ),
               SizedBox(width: theme.spacing.xs),
-              Text(
-                context.l10n.selected,
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: theme.accent,
-                  fontWeight: FontWeight.w700,
+              Flexible(
+                child: Text(
+                  context.l10n.selected,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: theme.accent,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ],
@@ -3189,11 +3173,13 @@ class _DataServiceModeChoiceState extends State<_DataServiceModeChoice> {
             children: [
               Icon(Icons.circle, size: 8, color: theme.success),
               SizedBox(width: theme.spacing.xs),
-              Text(
-                context.l10n.running,
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: theme.success,
-                  fontWeight: FontWeight.w700,
+              Flexible(
+                child: Text(
+                  context.l10n.running,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: theme.success,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ],

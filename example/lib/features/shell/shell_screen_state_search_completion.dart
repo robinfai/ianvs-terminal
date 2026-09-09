@@ -458,100 +458,12 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
     }
   }
 
-  Future<void> _openGlobalSearch(SessionState sessionState) async {
-    final sessions = _searchableSessions(sessionState);
-    if (sessions.isEmpty) {
-      return;
-    }
-    final result = await showModalBottomSheet<_GlobalSearchResult>(
-      context: context,
-      isScrollControlled: true,
-      useSafeArea: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) =>
-          _GlobalSearchSheet(sessions: sessions, onSearch: _searchAllSessions),
-    );
-    if (!mounted || result == null) {
-      _focusSession(ref.read(sessionControllerProvider).activeSessionId);
-      return;
-    }
-    final sessionController = ref.read(sessionControllerProvider.notifier);
-    final sessionId = result.session.sessionId;
-    _activateSession(sessionController, sessionId, requestFocus: false);
-    ref
-        .read(terminalRuntimeControllerProvider)
-        .scrollViewportTo(sessionId, result.match.scrollbackOffset);
-    _focusSession(sessionId);
-  }
-
   List<_SearchableSession> _searchableSessions(SessionState sessionState) {
     return [
       for (final tab in sessionState.tabs)
         for (final pane in tab.effectivePanes)
           _SearchableSession(sessionId: pane.sessionId, title: pane.title),
     ];
-  }
-
-  List<_GlobalSearchResult> _searchAllSessions(
-    String query,
-    List<_SearchableSession> sessions,
-  ) {
-    if (query.trim().isEmpty) {
-      return const <_GlobalSearchResult>[];
-    }
-    final runtime = ref.read(terminalRuntimeControllerProvider);
-    return [
-      for (final session in sessions)
-        for (final match in runtime.searchText(session.sessionId, query))
-          _GlobalSearchResult(session: session, match: match),
-    ];
-  }
-
-  void _openAutocomplete() {
-    final sessionState = ref.read(sessionControllerProvider);
-    final activeSessionId = sessionState.activeSessionId;
-    if (activeSessionId == null) {
-      return;
-    }
-    final frame = ref
-        .read(sessionControllerProvider.notifier)
-        .viewportFor(activeSessionId)
-        .frame;
-    final prefix = _autocompletePrefixForFrame(frame);
-    final suggestions = _mergeAutocompleteSuggestions([
-      _shellCommandAutocompleteSuggestions(
-        sessionState,
-        activeSessionId,
-        prefix,
-      ),
-      _autocompleteSuggestionsForFrame(frame, prefix),
-    ]);
-    if (suggestions.isEmpty) {
-      return;
-    }
-
-    _mutateState(() {
-      _isAutocompleteOpen = true;
-      _isSearchOpen = false;
-      _autocompleteSessionId = activeSessionId;
-      _autocompletePrefix = prefix;
-      _autocompleteSuggestions = suggestions;
-      _activeAutocompleteIndex = 0;
-      _resetAutoComposerState(clearText: true);
-      _resetCopyModeState();
-    });
-  }
-
-  String _autocompletePrefixForFrame(terminal.TerminalFrameDiff frame) {
-    final row = _rowAtCursor(frame);
-    if (row == null) {
-      return '';
-    }
-    final beforeCursor = terminal.TerminalTextCells.fromText(
-      row.text,
-    ).sliceColumns(0, frame.cursor.col);
-    return RegExp(r'[A-Za-z0-9_./:-]+$').firstMatch(beforeCursor)?.group(0) ??
-        '';
   }
 
   terminal.TerminalRow? _rowAtCursor(terminal.TerminalFrameDiff frame) {
@@ -566,98 +478,6 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
     return null;
   }
 
-  List<String> _autocompleteSuggestionsForFrame(
-    terminal.TerminalFrameDiff frame,
-    String prefix,
-  ) {
-    final normalizedPrefix = prefix.toLowerCase();
-    final seen = <String>{};
-    final suggestions = <String>[];
-    final wordPattern = RegExp('[A-Za-z0-9_./:-]{2,}');
-
-    for (final row in frame.rows.reversed) {
-      final matches = wordPattern.allMatches(row.text).toList().reversed;
-      for (final match in matches) {
-        final word = match.group(0)!;
-        final normalizedWord = word.toLowerCase();
-        if (word == prefix ||
-            (normalizedPrefix.isNotEmpty &&
-                !normalizedWord.startsWith(normalizedPrefix)) ||
-            word.length <= prefix.length ||
-            !seen.add(normalizedWord)) {
-          continue;
-        }
-        suggestions.add(word);
-        if (suggestions.length >= 8) {
-          return suggestions;
-        }
-      }
-    }
-
-    return suggestions;
-  }
-
-  List<String> _shellCommandAutocompleteSuggestions(
-    SessionState sessionState,
-    String sessionId,
-    String prefix,
-  ) {
-    final pane = _paneForSession(sessionState, sessionId);
-    if (pane == null) {
-      return const <String>[];
-    }
-    final normalizedPrefix = prefix.toLowerCase();
-    final seen = <String>{};
-    final suggestions = <String>[];
-    final wordPattern = RegExp('[A-Za-z0-9_./:-]{2,}');
-    for (final command in pane.shellIntegration.recentCommands) {
-      final normalizedCommand = command.toLowerCase();
-      if (command != prefix &&
-          command.length > prefix.length &&
-          (normalizedPrefix.isEmpty ||
-              normalizedCommand.startsWith(normalizedPrefix)) &&
-          seen.add(normalizedCommand)) {
-        suggestions.add(command);
-        if (suggestions.length >= 8) {
-          return suggestions;
-        }
-      }
-      for (final match in wordPattern.allMatches(command)) {
-        final word = match.group(0)!;
-        final normalizedWord = word.toLowerCase();
-        if (word == prefix ||
-            (normalizedPrefix.isNotEmpty &&
-                !normalizedWord.startsWith(normalizedPrefix)) ||
-            word.length <= prefix.length ||
-            !seen.add(normalizedWord)) {
-          continue;
-        }
-        suggestions.add(word);
-        if (suggestions.length >= 8) {
-          return suggestions;
-        }
-      }
-    }
-    return suggestions;
-  }
-
-  List<String> _mergeAutocompleteSuggestions(List<List<String>> groups) {
-    final seen = <String>{};
-    final merged = <String>[];
-    for (final group in groups) {
-      for (final suggestion in group) {
-        if (!seen.add(suggestion.toLowerCase())) {
-          continue;
-        }
-        merged.add(suggestion);
-        if (merged.length >= 8) {
-          return merged;
-        }
-      }
-    }
-    return merged;
-  }
-
   TerminalPane? _paneForSession(SessionState sessionState, String sessionId) {
     for (final tab in sessionState.tabs) {
       final pane = tab.paneFor(sessionId);
@@ -666,35 +486,6 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
       }
     }
     return null;
-  }
-
-  void _moveAutocompleteSelection(int delta) {
-    if (_autocompleteSuggestions.isEmpty) {
-      return;
-    }
-    final nextIndex =
-        (_activeAutocompleteIndex + delta) % _autocompleteSuggestions.length;
-    _mutateState(() {
-      _activeAutocompleteIndex = nextIndex < 0
-          ? nextIndex + _autocompleteSuggestions.length
-          : nextIndex;
-    });
-  }
-
-  void _closeAutocomplete() {
-    final ownerSessionId =
-        _autocompleteSessionId ??
-        ref.read(sessionControllerProvider).activeSessionId;
-    _mutateState(_resetAutocompleteState);
-    _focusSession(ownerSessionId);
-  }
-
-  void _resetAutocompleteState() {
-    _isAutocompleteOpen = false;
-    _autocompleteSessionId = null;
-    _autocompletePrefix = '';
-    _autocompleteSuggestions = const [];
-    _activeAutocompleteIndex = 0;
   }
 
   bool _selectLastCommandOutput(
@@ -746,147 +537,6 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
     return frame.viewportCols;
   }
 
-  void _acceptAutocomplete(String suggestion) {
-    final targetSessionId =
-        _autocompleteSessionId ??
-        ref.read(sessionControllerProvider).activeSessionId;
-    if (targetSessionId == null || !_sessionExists(targetSessionId)) {
-      _closeAutocomplete();
-      return;
-    }
-    final suffix =
-        suggestion.toLowerCase().startsWith(_autocompletePrefix.toLowerCase())
-        ? suggestion.substring(_autocompletePrefix.length)
-        : suggestion;
-    if (suffix.isNotEmpty) {
-      _sendPlainTextToSession(targetSessionId, suffix);
-    }
-    _closeAutocomplete();
-  }
-
-  void _openAutoComposer() {
-    final sessionState = ref.read(sessionControllerProvider);
-    final activeSessionId = sessionState.activeSessionId;
-    if (activeSessionId == null) {
-      return;
-    }
-    _autoComposerController.clear();
-    final suggestions = _autoComposerSuggestionsForText('', sessionState);
-    _mutateState(() {
-      _isAutoComposerOpen = true;
-      _autoComposerSessionId = activeSessionId;
-      _isSearchOpen = false;
-      _resetAutocompleteState();
-      _resetCopyModeState();
-      _autoComposerSuggestions = suggestions;
-      _activeAutoComposerIndex = 0;
-    });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_isAutoComposerOpen) {
-        return;
-      }
-      _autoComposerFocusNode.requestFocus();
-    });
-  }
-
-  void _closeAutoComposer() {
-    final ownerSessionId =
-        _autoComposerSessionId ??
-        ref.read(sessionControllerProvider).activeSessionId;
-    _mutateState(_resetAutoComposerState);
-    _focusSession(ownerSessionId);
-  }
-
-  void _resetAutoComposerState({bool clearText = false}) {
-    _isAutoComposerOpen = false;
-    _autoComposerSessionId = null;
-    if (clearText) {
-      _autoComposerController.clear();
-    }
-    _autoComposerSuggestions = const [];
-    _activeAutoComposerIndex = 0;
-  }
-
-  void _updateAutoComposerSuggestions(String text) {
-    final suggestions = _autoComposerSuggestionsForText(text);
-    _mutateState(() {
-      _autoComposerSuggestions = suggestions;
-      _activeAutoComposerIndex = 0;
-    });
-  }
-
-  List<String> _autoComposerSuggestionsForText(
-    String text, [
-    SessionState? sessionState,
-  ]) {
-    final SessionState state =
-        sessionState ?? ref.read(sessionControllerProvider);
-    final targetSessionId = _autoComposerSessionId ?? state.activeSessionId;
-    if (targetSessionId == null || !_sessionExists(targetSessionId)) {
-      return const <String>[];
-    }
-    final frame = ref
-        .read(sessionControllerProvider.notifier)
-        .viewportFor(targetSessionId)
-        .frame;
-    final prefix = _autoComposerPrefixForText(text);
-    return _mergeAutocompleteSuggestions([
-      _shellCommandAutocompleteSuggestions(state, targetSessionId, prefix),
-      _autocompleteSuggestionsForFrame(frame, prefix),
-    ]);
-  }
-
-  String _autoComposerPrefixForText(String text) {
-    return RegExp(r'[A-Za-z0-9_./:-]+$').firstMatch(text)?.group(0) ?? '';
-  }
-
-  void _moveAutoComposerSuggestion(int delta) {
-    if (_autoComposerSuggestions.isEmpty) {
-      return;
-    }
-    final nextIndex =
-        (_activeAutoComposerIndex + delta) % _autoComposerSuggestions.length;
-    _mutateState(() {
-      _activeAutoComposerIndex = nextIndex < 0
-          ? nextIndex + _autoComposerSuggestions.length
-          : nextIndex;
-    });
-  }
-
-  void _acceptAutoComposerSuggestion(String suggestion) {
-    final currentText = _autoComposerController.text;
-    final prefix = _autoComposerPrefixForText(currentText);
-    final nextText = prefix.isEmpty
-        ? suggestion
-        : '${currentText.substring(0, currentText.length - prefix.length)}'
-              '$suggestion';
-    _autoComposerController.value = TextEditingValue(
-      text: nextText,
-      selection: TextSelection.collapsed(offset: nextText.length),
-    );
-    _updateAutoComposerSuggestions(nextText);
-    _autoComposerFocusNode.requestFocus();
-  }
-
-  void _sendAutoComposerCommand() {
-    final targetSessionId =
-        _autoComposerSessionId ??
-        ref.read(sessionControllerProvider).activeSessionId;
-    if (targetSessionId == null || !_sessionExists(targetSessionId)) {
-      _closeAutoComposer();
-      return;
-    }
-    final command = _autoComposerController.text.trimRight();
-    if (command.isEmpty) {
-      return;
-    }
-    if (!_sendPlainTextToSession(targetSessionId, '$command\n')) {
-      return;
-    }
-    _autoComposerController.clear();
-    _closeAutoComposer();
-  }
-
   void _navigateShellPrompt(String sessionId, {required int direction}) {
     final promptMarks = _effectivePromptMarksForSession(sessionId);
     if (promptMarks.isEmpty) {
@@ -928,19 +578,6 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
         .viewportFor(sessionId)
         .frame;
     return _effectivePromptMarksForFrame(pane.shellIntegration, frame);
-  }
-
-  TerminalShellIntegrationSnapshot _integrationWithEffectivePromptMarks(
-    String sessionId,
-    TerminalShellIntegrationSnapshot integration,
-  ) {
-    final frame = ref
-        .read(sessionControllerProvider.notifier)
-        .viewportFor(sessionId)
-        .frame;
-    return integration.copyWith(
-      promptMarks: _effectivePromptMarksForFrame(integration, frame),
-    );
   }
 
   List<TerminalShellPromptMark> _effectivePromptMarksForFrame(

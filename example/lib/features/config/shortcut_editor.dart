@@ -215,7 +215,7 @@ class _ShortcutEditorPanelState extends State<ShortcutEditorPanel> {
       actionId: LocalTerminalKeyBindingOverride(binding: binding),
     };
     widget.onChanged(
-      LocalTerminalKeybindingsConfig(
+      widget.config.copyWith(
         disabledDefaultActions: Set.unmodifiable(disabled),
         overrides: Map.unmodifiable(overrides),
       ),
@@ -230,7 +230,7 @@ class _ShortcutEditorPanelState extends State<ShortcutEditorPanel> {
       actionId: const LocalTerminalKeyBindingOverride(enabled: false),
     };
     widget.onChanged(
-      LocalTerminalKeybindingsConfig(
+      widget.config.copyWith(
         disabledDefaultActions: Set.unmodifiable(disabled),
         overrides: Map.unmodifiable(overrides),
       ),
@@ -244,7 +244,7 @@ class _ShortcutEditorPanelState extends State<ShortcutEditorPanel> {
       ...widget.config.overrides,
     }..remove(actionId);
     widget.onChanged(
-      LocalTerminalKeybindingsConfig(
+      widget.config.copyWith(
         disabledDefaultActions: Set.unmodifiable(disabled),
         overrides: Map.unmodifiable(overrides),
       ),

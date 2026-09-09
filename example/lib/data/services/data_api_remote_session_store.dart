@@ -6,6 +6,13 @@ import '../configuration/data_api_configuration.dart';
 import '../data_api_json.dart';
 import 'data_api_auth_contract.dart';
 
+String legacyDataApiSyncIdentity(Uri baseUri, String accessToken) {
+  // The checkpoint store hashes this complete identity before using it as a
+  // filename. Encoding avoids delimiters without introducing hash collisions.
+  final encoded = base64UrlEncode(utf8.encode(accessToken)).replaceAll('=', '');
+  return 'remote:$baseUri:legacy-token:$encoded';
+}
+
 /// Authenticated remote Data API material. This object must only be persisted
 /// by a [DataApiRemoteSessionSlotStore], never in the non-secret configuration
 /// JSON file.
@@ -17,6 +24,7 @@ final class DataApiRemoteSession {
     required String accessToken,
     required String encryptionKey,
     required DateTime expiresAt,
+    String? username,
   }) {
     final normalizedBaseUri = DataApiConfiguration.remote(
       baseUri.toString(),
@@ -40,6 +48,7 @@ final class DataApiRemoteSession {
       accessToken: accessToken,
       encryptionKey: normalizedEncryptionKey,
       expiresAt: expiresAt.toUtc(),
+      username: username == null ? null : normalizeDataApiUsername(username),
     );
   }
 
@@ -50,6 +59,7 @@ final class DataApiRemoteSession {
       'access_token',
       'encryption_key',
       'expires_at',
+      'username',
     };
     if (json.keys.any((key) => !allowedKeys.contains(key))) {
       throw const FormatException(
@@ -65,13 +75,15 @@ final class DataApiRemoteSession {
     final accessToken = json['access_token'];
     final encryptionKey = json['encryption_key'];
     final expiresAt = json['expires_at'];
+    final username = json['username'];
     final parsedExpiry = expiresAt is String
         ? DateTime.tryParse(expiresAt)
         : null;
     if (baseUri is! String ||
         accessToken is! String ||
         encryptionKey is! String ||
-        parsedExpiry == null) {
+        parsedExpiry == null ||
+        (username != null && username is! String)) {
       throw const FormatException('Invalid remote Data API session.');
     }
     return DataApiRemoteSession(
@@ -79,6 +91,7 @@ final class DataApiRemoteSession {
       accessToken: accessToken,
       encryptionKey: encryptionKey,
       expiresAt: parsedExpiry,
+      username: username as String?,
     );
   }
 
@@ -87,6 +100,7 @@ final class DataApiRemoteSession {
     required this.accessToken,
     required this.encryptionKey,
     required this.expiresAt,
+    required this.username,
   });
 
   static const currentVersion = 1;
@@ -95,6 +109,14 @@ final class DataApiRemoteSession {
   final String accessToken;
   final String encryptionKey;
   final DateTime expiresAt;
+  final String? username;
+
+  /// A stable account namespace for sync checkpoints. Sessions written before
+  /// username support use their token as an isolated legacy namespace; the
+  /// next successful sign-in upgrades them to the stable username namespace.
+  String get syncIdentity => username == null
+      ? legacyDataApiSyncIdentity(baseUri, accessToken)
+      : 'remote:$baseUri:user:$username';
 
   bool isUsableFor(Uri requestedBaseUri, {DateTime? now}) {
     final normalizedRequested = DataApiConfiguration.remote(
@@ -110,6 +132,7 @@ final class DataApiRemoteSession {
     'access_token': accessToken,
     'encryption_key': encryptionKey,
     'expires_at': expiresAt.toUtc().toIso8601String(),
+    if (username != null) 'username': username,
   };
 }
 

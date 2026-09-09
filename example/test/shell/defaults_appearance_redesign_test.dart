@@ -96,6 +96,10 @@ void main() {
       isNotNull,
     );
 
+    await tester.ensureVisible(
+      find.byKey(const Key('defaults-manage-report-variables')),
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('defaults-manage-report-variables')));
     await tester.pumpAndSettle();
     expect(
@@ -196,6 +200,41 @@ void main() {
     expect(selection?.languageMode, TerminalLanguageMode.english);
   });
 
+  for (final brightness in Brightness.values) {
+    testWidgets('small Mac settings stays navigable in $brightness', (
+      tester,
+    ) async {
+      await _pumpDefaultsDialog(
+        tester,
+        surfaceSize: const Size(680, 520),
+        brightness: brightness,
+        textScale: 1.5,
+      );
+      final general = find.byKey(const Key('defaults-section-general'));
+      expect(general, findsOneWidget);
+      await tester.tap(general);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('defaults-terminal-preset-filter')),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('defaults-terminal-preset-filter')),
+        findsOneWidget,
+      );
+      await tester.ensureVisible(
+        find.byKey(const Key('defaults-section-data')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('defaults-section-data')));
+      await tester.pumpAndSettle();
+    });
+  }
+
   testWidgets('compact defaults dialog keeps the touch-friendly radio layout', (
     tester,
   ) async {
@@ -218,6 +257,8 @@ void main() {
 Future<void> _pumpDefaultsDialog(
   WidgetTester tester, {
   required Size surfaceSize,
+  Brightness brightness = Brightness.light,
+  double textScale = 1,
 }) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = surfaceSize;
@@ -226,8 +267,14 @@ Future<void> _pumpDefaultsDialog(
   await tester.pumpWidget(
     MaterialApp(
       theme: buildIanvsTerminalTheme(
-        Brightness.light,
+        brightness,
         platform: TargetPlatform.macOS,
+      ),
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(
+          context,
+        ).copyWith(textScaler: TextScaler.linear(textScale)),
+        child: child!,
       ),
       home: const Scaffold(
         body: DefaultsAndAppearanceDialog(

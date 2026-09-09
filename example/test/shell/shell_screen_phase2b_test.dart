@@ -11,7 +11,6 @@ import 'package:flutter_test/flutter_test.dart';
 import '../support/fake_pty_backend.dart';
 import '../support/memory_app_preferences_repository.dart';
 import '../support/memory_local_terminal_config_repository.dart';
-import '../support/memory_paste_history_repository.dart';
 import '../support/memory_profile_repository.dart';
 import '../support/no_io_local_session_recording_repository.dart';
 import '../support/no_io_local_terminal_layout_repository.dart';
@@ -26,9 +25,6 @@ Future<void> pumpShellScreen(
       overrides: [
         ptySessionBackendProvider.overrideWithValue(fakeBindings),
         profileRepositoryProvider.overrideWithValue(repository),
-        pasteHistoryRepositoryProvider.overrideWithValue(
-          MemoryPasteHistoryRepository(),
-        ),
         appPreferencesRepositoryProvider.overrideWithValue(
           MemoryAppPreferencesRepository(null),
         ),
@@ -86,6 +82,28 @@ Future<void> sendControlShortcut(
 }
 
 void main() {
+  testWidgets('Escape dismisses command palette and restores terminal focus', (
+    tester,
+  ) async {
+    await pumpShellScreen(
+      tester,
+      fakeBindings: FakePtyBackend(),
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+    await tester.tap(find.byKey(const Key('shell-chrome-menu')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('shell-command-menu-overlay')), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('shell-command-menu-overlay')), findsNothing);
+    final viewport = tester.widget<TerminalViewport>(
+      find.byType(TerminalViewport),
+    );
+    expect(viewport.focusNode?.hasFocus, isTrue);
+  });
+
   testWidgets(
     'command-shift-p opens the hyper command menu with secondary tools',
     (tester) async {
@@ -155,7 +173,6 @@ void main() {
     );
     expect(find.byKey(const Key('shell-top-paste-clipboard')), findsNothing);
     expect(find.byKey(const Key('shell-top-new-tab')), findsOneWidget);
-    expect(find.byKey(const Key('shell-top-toolbelt')), findsOneWidget);
     expect(find.byKey(const Key('shell-split-right')), findsNothing);
     expect(find.text('Pane actions'), findsNothing);
 
@@ -187,13 +204,11 @@ void main() {
     );
     expect(find.byKey(const Key('shell-top-paste-clipboard')), findsNothing);
     expect(find.byKey(const Key('shell-top-new-tab')), findsOneWidget);
-    expect(find.byKey(const Key('shell-top-toolbelt')), findsOneWidget);
     expect(find.byKey(const Key('shell-split-right')), findsNothing);
 
     expect(find.text('Search terminal output'), findsOneWidget);
     expect(find.byKey(const Key('shell-paste-clipboard')), findsNothing);
     expect(find.byKey(const Key('shell-new-tab')), findsNothing);
-    expect(find.byKey(const Key('shell-toolbelt')), findsNothing);
   });
 
   testWidgets('command menu hides deferred and tab-context actions', (
@@ -212,24 +227,10 @@ void main() {
 
     for (final hiddenLabel in <String>[
       'Enable bell notifications',
-      'Hotkey window',
-      'Dynamic profiles',
       'Zoom active pane',
       'Focus next pane',
       'Focus previous pane',
       'Copy selection',
-      'Copy mode',
-      'Annotations',
-      'Captured output',
-      'Advanced paste',
-      'Paste history',
-      'Shell integration',
-      'Select command output',
-      'Autocomplete',
-      'Auto Composer',
-      'tmux integration',
-      'Coprocess',
-      'Password manager',
       'Reopen closed pane',
       'Split right',
       'Split down',

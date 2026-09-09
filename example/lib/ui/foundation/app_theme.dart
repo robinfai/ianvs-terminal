@@ -79,7 +79,7 @@ ThemeData buildIanvsTerminalTheme(
           fontWeight: FontWeight.w600,
         ),
         titleSmall: baseTextTheme.titleSmall?.copyWith(
-          fontSize: usesTouchControlDensity ? 15 : 12.5,
+          fontSize: usesTouchControlDensity ? 15 : 13,
           height: 1.28,
           fontWeight: FontWeight.w600,
         ),
@@ -89,7 +89,7 @@ ThemeData buildIanvsTerminalTheme(
           fontWeight: FontWeight.w400,
         ),
         bodyMedium: baseTextTheme.bodyMedium?.copyWith(
-          fontSize: usesTouchControlDensity ? 15 : 12.5,
+          fontSize: usesTouchControlDensity ? 15 : 13,
           height: 1.36,
           fontWeight: FontWeight.w400,
         ),
@@ -99,17 +99,17 @@ ThemeData buildIanvsTerminalTheme(
           fontWeight: FontWeight.w400,
         ),
         labelLarge: baseTextTheme.labelLarge?.copyWith(
-          fontSize: usesTouchControlDensity ? 15 : 11.5,
+          fontSize: usesTouchControlDensity ? 15 : 13,
           height: 1.2,
           fontWeight: FontWeight.w500,
         ),
         labelMedium: baseTextTheme.labelMedium?.copyWith(
-          fontSize: usesTouchControlDensity ? 13 : 10.5,
+          fontSize: usesTouchControlDensity ? 13 : 11,
           height: 1.2,
           fontWeight: FontWeight.w500,
         ),
         labelSmall: baseTextTheme.labelSmall?.copyWith(
-          fontSize: usesTouchControlDensity ? 11 : 9.5,
+          fontSize: usesTouchControlDensity ? 11 : 10,
           height: 1.2,
           fontWeight: FontWeight.w500,
         ),
@@ -137,6 +137,15 @@ ThemeData buildIanvsTerminalTheme(
       surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(tokens.radius.xl),
+      ),
+    ),
+    popupMenuTheme: PopupMenuThemeData(
+      color: tokens.overlay,
+      surfaceTintColor: Colors.transparent,
+      textStyle: textTheme.bodyMedium,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(tokens.radius.md),
+        side: BorderSide(color: tokens.border),
       ),
     ),
     extensions: <ThemeExtension<dynamic>>[tokens],
@@ -252,7 +261,7 @@ ThemeData buildIanvsTerminalTheme(
       padding: EdgeInsets.zero,
       thumbColor: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.selected)) {
-          return Colors.black;
+          return Colors.white;
         }
         return null;
       }),

@@ -177,9 +177,7 @@ TerminalLayoutBindingResult _completeLayout(
 const List<ShellProductivityProductionOperation> _coreProductivityOperations = [
   ShellProductivityProductionOperation.nextPrompt,
   ShellProductivityProductionOperation.previousPrompt,
-  ShellProductivityProductionOperation.selectCommandOutput,
   ShellProductivityProductionOperation.copyCommandOutput,
-  ShellProductivityProductionOperation.openRecentDirectory,
   ShellProductivityProductionOperation.searchScrollback,
   ShellProductivityProductionOperation.nextSearchMatch,
   ShellProductivityProductionOperation.previousSearchMatch,
@@ -192,9 +190,7 @@ ShellProductivityProductionCallbacks _coreProductivityCallbacks() {
   return const ShellProductivityProductionCallbacks(
     nextPrompt: _completeProductivity,
     previousPrompt: _completeProductivity,
-    selectCommandOutput: _completeProductivity,
     copyCommandOutput: _completeProductivity,
-    openRecentDirectory: _completeProductivity,
     searchScrollback: _completeProductivity,
     nextSearchMatch: _completeProductivity,
     previousSearchMatch: _completeProductivity,
@@ -213,32 +209,22 @@ ShellProductivityBindingResult _completeProductivity(
 const List<LocalTerminalPolicyProductionOperation> _corePolicyOperations = [
   LocalTerminalPolicyProductionOperation.copy,
   LocalTerminalPolicyProductionOperation.paste,
-  LocalTerminalPolicyProductionOperation.pasteHistory,
   LocalTerminalPolicyProductionOperation.pasteAsBracketed,
   LocalTerminalPolicyProductionOperation.confirmLargePaste,
   LocalTerminalPolicyProductionOperation.confirmMultilinePaste,
   LocalTerminalPolicyProductionOperation.recordPasteHistory,
   LocalTerminalPolicyProductionOperation.osc52Copy,
-  LocalTerminalPolicyProductionOperation.emitBellNotification,
-  LocalTerminalPolicyProductionOperation.emitCommandFinishedNotification,
-  LocalTerminalPolicyProductionOperation.emitActivityNotification,
-  LocalTerminalPolicyProductionOperation.toggleHotkeyWindow,
 ];
 
 LocalTerminalPolicyProductionCallbacks _corePolicyCallbacks() {
   return const LocalTerminalPolicyProductionCallbacks(
     copy: _completePolicy,
     paste: _completePolicy,
-    pasteHistory: _completePolicy,
     pasteAsBracketed: _completePolicy,
     confirmLargePaste: _completePolicy,
     confirmMultilinePaste: _completePolicy,
     recordPasteHistory: _completePolicy,
     osc52Copy: _completePolicy,
-    emitBellNotification: _completePolicy,
-    emitCommandFinishedNotification: _completePolicy,
-    emitActivityNotification: _completePolicy,
-    toggleHotkeyWindow: _completePolicy,
   );
 }
 
@@ -249,9 +235,6 @@ LocalTerminalPolicyBindingResult _completePolicy(
 }
 
 const List<LocalTerminalVisualProductionOperation> _coreVisualOperations = [
-  LocalTerminalVisualProductionOperation.openThemePicker,
-  LocalTerminalVisualProductionOperation.applyTheme,
-  LocalTerminalVisualProductionOperation.applyLayoutTemplate,
   LocalTerminalVisualProductionOperation.exportScrollback,
   LocalTerminalVisualProductionOperation.applyPaneVisualPolicy,
   LocalTerminalVisualProductionOperation.applySplitDividerPolicy,
@@ -259,9 +242,6 @@ const List<LocalTerminalVisualProductionOperation> _coreVisualOperations = [
 
 LocalTerminalVisualProductionCallbacks _coreVisualCallbacks() {
   return const LocalTerminalVisualProductionCallbacks(
-    openThemePicker: _completeVisual,
-    applyTheme: _completeVisual,
-    applyLayoutTemplate: _completeVisual,
     exportScrollback: _completeVisual,
     applyPaneVisualPolicy: _completeVisual,
     applySplitDividerPolicy: _completeVisual,

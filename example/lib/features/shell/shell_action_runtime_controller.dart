@@ -1,12 +1,9 @@
 import 'dart:io';
 
 import '../layout/local_terminal_layout_models.dart';
-import '../policies/local_terminal_notification_dispatcher.dart';
 import '../policies/local_terminal_paste_decision.dart';
 import '../policies/local_terminal_policy_action_reducer.dart';
-import '../policies/local_terminal_policy_models.dart';
 import '../productivity/shell_productivity_models.dart';
-import '../visual/local_terminal_layout_template_applier.dart';
 import '../visual/local_terminal_scrollback_exporter.dart';
 import '../visual/local_terminal_visual_models.dart';
 import 'shell_action_dispatcher.dart';
@@ -25,11 +22,8 @@ class ShellActionRuntimeState {
     this.lastPlan,
     this.lastScrollbackExportPath,
     this.lastPasteDecision,
-    this.lastNotificationIntent,
     this.lastPromptTarget,
     this.lastCommandOutputRange,
-    this.lastRecentDirectory,
-    this.themePickerRequested = false,
     this.lastExternalExecutorError,
   });
 
@@ -39,11 +33,8 @@ class ShellActionRuntimeState {
   final ShellActionSideEffectPlan? lastPlan;
   final String? lastScrollbackExportPath;
   final LocalTerminalPasteDecision? lastPasteDecision;
-  final LocalTerminalNotificationIntent? lastNotificationIntent;
   final ShellPromptMark? lastPromptTarget;
   final ShellCommandOutputRange? lastCommandOutputRange;
-  final String? lastRecentDirectory;
-  final bool themePickerRequested;
   final Object? lastExternalExecutorError;
 
   ShellActionRuntimeState copyWith({
@@ -53,11 +44,8 @@ class ShellActionRuntimeState {
     Object? lastPlan = _copyWithUnset,
     Object? lastScrollbackExportPath = _copyWithUnset,
     Object? lastPasteDecision = _copyWithUnset,
-    Object? lastNotificationIntent = _copyWithUnset,
     Object? lastPromptTarget = _copyWithUnset,
     Object? lastCommandOutputRange = _copyWithUnset,
-    Object? lastRecentDirectory = _copyWithUnset,
-    bool? themePickerRequested,
     Object? lastExternalExecutorError = _copyWithUnset,
   }) {
     return ShellActionRuntimeState(
@@ -74,19 +62,12 @@ class ShellActionRuntimeState {
       lastPasteDecision: identical(lastPasteDecision, _copyWithUnset)
           ? this.lastPasteDecision
           : lastPasteDecision as LocalTerminalPasteDecision?,
-      lastNotificationIntent: identical(lastNotificationIntent, _copyWithUnset)
-          ? this.lastNotificationIntent
-          : lastNotificationIntent as LocalTerminalNotificationIntent?,
       lastPromptTarget: identical(lastPromptTarget, _copyWithUnset)
           ? this.lastPromptTarget
           : lastPromptTarget as ShellPromptMark?,
       lastCommandOutputRange: identical(lastCommandOutputRange, _copyWithUnset)
           ? this.lastCommandOutputRange
           : lastCommandOutputRange as ShellCommandOutputRange?,
-      lastRecentDirectory: identical(lastRecentDirectory, _copyWithUnset)
-          ? this.lastRecentDirectory
-          : lastRecentDirectory as String?,
-      themePickerRequested: themePickerRequested ?? this.themePickerRequested,
       lastExternalExecutorError:
           identical(lastExternalExecutorError, _copyWithUnset)
           ? this.lastExternalExecutorError
@@ -107,7 +88,6 @@ class ShellActionRuntimeController {
   Future<ShellActionPipelineResult> run({
     required TerminalActionId actionId,
     required ShellActionDispatchContext context,
-    LocalTerminalLayoutTemplateApplyContext? layoutTemplateApplyContext,
     Directory? scrollbackExportDirectory,
     String scrollbackExportBasename = 'scrollback',
     LocalTerminalScrollbackExportPolicy scrollbackExportPolicy =
@@ -136,27 +116,9 @@ class ShellActionRuntimeController {
               _state = _state.copyWith(lastPromptTarget: payload);
             }
           },
-          selectCommandOutput: (payload) async {
+          copyCommandOutput: (payload) async {
             if (payload is ShellCommandOutputRange) {
               _state = _state.copyWith(lastCommandOutputRange: payload);
-            }
-          },
-          openRecentDirectory: (payload) async {
-            if (payload is String) {
-              _state = _state.copyWith(lastRecentDirectory: payload);
-            }
-          },
-          updateHotkeyWindowState: (payload) async {
-            if (payload is LocalTerminalHotkeyWindowState) {
-              _state = _state.copyWith(
-                policies: LocalTerminalPolicyBundle(
-                  paste: _state.policies.paste,
-                  pasteHistory: _state.policies.pasteHistory,
-                  notifications: _state.policies.notifications,
-                  hotkeyWindow: _state.policies.hotkeyWindow,
-                  hotkeyWindowState: payload,
-                ),
-              );
             }
           },
           sendPaste: (payload) async {
@@ -180,14 +142,6 @@ class ShellActionRuntimeController {
               _state = _state.copyWith(lastPasteDecision: payload);
             }
           },
-          showNotification: (payload) async {
-            if (payload is LocalTerminalNotificationIntent) {
-              _state = _state.copyWith(lastNotificationIntent: payload);
-            }
-          },
-          openThemePicker: (_) async {
-            _state = _state.copyWith(themePickerRequested: true);
-          },
           exportScrollback: (payload) async {
             if (payload is! LocalTerminalScrollbackExport ||
                 scrollbackExportDirectory == null) {
@@ -200,20 +154,6 @@ class ShellActionRuntimeController {
               policy: scrollbackExportPolicy,
             );
             _state = _state.copyWith(lastScrollbackExportPath: file.path);
-          },
-          applyLayoutTemplate: (payload) async {
-            if (payload is! LocalTerminalLayoutTemplate ||
-                layoutTemplateApplyContext == null) {
-              return;
-            }
-            final layout = LocalTerminalLayoutTemplateApplier.apply(
-              template: payload,
-              context: layoutTemplateApplyContext,
-            );
-            if (layout != null) {
-              _state = _state.copyWith(layout: layout);
-              await persistLayout?.call(layout);
-            }
           },
         ),
       ),

@@ -1,6 +1,6 @@
 part of 'shell_screen.dart';
 
-const double _shellChromeTitleHeight = 38;
+const double _shellChromeTitleHeight = 44;
 const double _shellChromeTabRailHeight = 38;
 const double _iosShellChromeTitleHeight = 44;
 const double _iosShellChromeTabRailHeight = 52;
@@ -35,6 +35,8 @@ class _ShellChromeBar extends StatelessWidget {
     required this.onSessionDragCancelled,
     required this.onShowTabContextMenu,
     required this.onShowCommandMenu,
+    this.onOpenSettings,
+    this.onSearch,
   });
 
   final AppThemeTokens palette;
@@ -66,6 +68,8 @@ class _ShellChromeBar extends StatelessWidget {
   final ValueChanged<_ShellSessionDragData> onSessionDragCancelled;
   final void Function(TerminalTab tab, Offset position) onShowTabContextMenu;
   final VoidCallback onShowCommandMenu;
+  final VoidCallback? onOpenSettings;
+  final VoidCallback? onSearch;
 
   @override
   Widget build(BuildContext context) {
@@ -116,6 +120,8 @@ class _ShellChromeBar extends StatelessWidget {
               if (!usesCompactMobileChrome)
                 _ShellWindowTitleBar(
                   height: titleHeight,
+                  onOpenSettings: onOpenSettings,
+                  onSearch: onSearch,
                   palette: palette,
                   tone: chromeTone,
                   backgroundColor: chromeSurface,
@@ -166,7 +172,9 @@ class _ShellChromeBar extends StatelessWidget {
                             key: const Key('shell-chrome-tab-track'),
                             decoration: BoxDecoration(
                               color: chromeTone.trackBackground,
-                              borderRadius: BorderRadius.circular(15),
+                              borderRadius: BorderRadius.circular(
+                                palette.radius.md,
+                              ),
                             ),
                             child: referenceDemoMode
                                 ? _ReferenceDemoTabStrip(
@@ -241,6 +249,8 @@ class _ShellWindowTitleBar extends StatelessWidget {
     required this.tone,
     required this.backgroundColor,
     required this.onShowCommandMenu,
+    this.onOpenSettings,
+    this.onSearch,
   });
 
   final double height;
@@ -248,18 +258,20 @@ class _ShellWindowTitleBar extends StatelessWidget {
   final _ShellTabTone tone;
   final Color backgroundColor;
   final VoidCallback? onShowCommandMenu;
+  final VoidCallback? onOpenSettings;
+  final VoidCallback? onSearch;
 
   @override
   Widget build(BuildContext context) {
     final isIos = defaultTargetPlatform == TargetPlatform.iOS;
     final titleLeadingInset = defaultTargetPlatform == TargetPlatform.macOS
-        ? 158.0
+        ? 90.0
         : palette.spacing.xl;
     final trailingInset = onShowCommandMenu == null
         ? 16.0
         : isIos
         ? 64.0
-        : 48.0;
+        : 120.0;
     final titleSafeInset = math.max(titleLeadingInset, trailingInset);
 
     return SizedBox(
@@ -298,15 +310,44 @@ class _ShellWindowTitleBar extends StatelessWidget {
             ),
             if (onShowCommandMenu != null)
               Positioned(
-                top: isIos ? 0 : 5,
+                top: isIos ? 0 : 8,
                 right: 12,
-                child: _buildChromeIconButton(
-                  key: const Key('shell-chrome-menu'),
-                  tooltip: context.l10n.openCommandPalette,
-                  onPressed: onShowCommandMenu,
-                  iconSize: 16,
-                  hoverBackgroundColor: tone.hoverBackground,
-                  icon: Icon(Icons.tune_rounded, color: tone.subtleText),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (onSearch != null)
+                      _buildChromeIconButton(
+                        key: const Key('shell-toolbar-search'),
+                        iconSize: 16,
+                        tooltip: context.l10n.search,
+                        onPressed: onSearch,
+                        hoverBackgroundColor: tone.hoverBackground,
+                        icon: Icon(Icons.search_rounded, color: tone.mutedText),
+                      ),
+                    if (onOpenSettings != null)
+                      _buildChromeIconButton(
+                        key: const Key('shell-toolbar-settings'),
+                        iconSize: 16,
+                        tooltip: context.l10n.defaultsAppearance,
+                        onPressed: onOpenSettings,
+                        hoverBackgroundColor: tone.hoverBackground,
+                        icon: Icon(
+                          Icons.settings_outlined,
+                          color: tone.mutedText,
+                        ),
+                      ),
+                    _buildChromeIconButton(
+                      key: const Key('shell-chrome-menu'),
+                      tooltip: context.l10n.openCommandPalette,
+                      onPressed: onShowCommandMenu,
+                      iconSize: 16,
+                      hoverBackgroundColor: tone.hoverBackground,
+                      icon: Icon(
+                        Icons.more_horiz_rounded,
+                        color: tone.mutedText,
+                      ),
+                    ),
+                  ],
                 ),
               ),
           ],
@@ -1849,7 +1890,9 @@ class _ShellTabOverflowMenuState extends State<_ShellTabOverflowMenu> {
                     height: 30,
                     decoration: BoxDecoration(
                       color: background,
-                      borderRadius: BorderRadius.circular(15),
+                      borderRadius: BorderRadius.circular(
+                        widget.palette.radius.md,
+                      ),
                       border: Border.all(
                         color: isActive || _hovered || isOpen
                             ? (activeTone?.border ?? chromeTone.border)
@@ -2473,82 +2516,6 @@ class _ShellTabRuntimeErrorIcon extends StatelessWidget {
   }
 }
 
-class _ShellTabBadgeChip extends StatelessWidget {
-  const _ShellTabBadgeChip({
-    super.key,
-    required this.palette,
-    required this.text,
-    required this.tooltip,
-    required this.semanticsLabel,
-    required this.foreground,
-    required this.background,
-    required this.border,
-    this.maxWidth = 72,
-    this.semanticsButton = false,
-    this.onPressed,
-  });
-
-  final AppThemeTokens palette;
-  final String text;
-  final String tooltip;
-  final String semanticsLabel;
-  final Color foreground;
-  final Color background;
-  final Color border;
-  final double maxWidth;
-  final bool semanticsButton;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final onPressed = this.onPressed;
-    final chip = Tooltip(
-      message: tooltip,
-      child: Semantics(
-        container: true,
-        label: semanticsLabel,
-        button: onPressed != null || semanticsButton,
-        onTap: onPressed,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: maxWidth),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: background,
-              borderRadius: BorderRadius.circular(3),
-              border: Border.all(color: border),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-              child: Text(
-                text,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: foreground,
-                  fontSize: 9.5,
-                  height: 1,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-    if (onPressed == null) {
-      return chip;
-    }
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onPressed,
-        child: chip,
-      ),
-    );
-  }
-}
-
 class _ShellTabPaneSignalChip extends StatelessWidget {
   const _ShellTabPaneSignalChip({
     required this.itemKey,
@@ -3039,7 +3006,9 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
                           ),
                           shape: WidgetStatePropertyAll(
                             RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(15),
+                              borderRadius: BorderRadius.circular(
+                                widget.palette.radius.md,
+                              ),
                             ),
                           ),
                         ),

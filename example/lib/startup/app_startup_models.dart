@@ -226,6 +226,7 @@ final class AppRuntimeGraph {
     this.remoteFallbackSnapshotRuntimeStarter,
     this.remoteFallbackSnapshotCommitter,
     this.remoteFallbackSnapshotActivator,
+    this.applyApiSyncConfiguration,
   }) {
     if (dataApiRuntime case final runtime?) {
       shutdownCoordinator.registerTask(
@@ -252,6 +253,7 @@ final class AppRuntimeGraph {
   remoteFallbackSnapshotRuntimeStarter;
   final Future<void> Function()? remoteFallbackSnapshotCommitter;
   final Future<void> Function()? remoteFallbackSnapshotActivator;
+  final Future<void> Function()? applyApiSyncConfiguration;
 
   Future<void>? _boundedCloseFuture;
   Future<void>? _settledCloseFuture;

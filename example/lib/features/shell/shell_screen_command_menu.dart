@@ -15,9 +15,6 @@ class _ShellCommandMenu extends StatefulWidget {
     required this.isActiveSessionRecording,
     required this.isActiveRecordingPendingSave,
     required this.isActiveRecordingBusy,
-    required this.notificationsBlockedBySystem,
-    required this.commandFinishedNotificationsEnabled,
-    required this.activityMonitorEnabled,
   });
 
   final String launcherShortcutLabel;
@@ -33,9 +30,6 @@ class _ShellCommandMenu extends StatefulWidget {
   final bool isActiveSessionRecording;
   final bool isActiveRecordingPendingSave;
   final bool isActiveRecordingBusy;
-  final bool notificationsBlockedBySystem;
-  final bool commandFinishedNotificationsEnabled;
-  final bool activityMonitorEnabled;
 
   @override
   State<_ShellCommandMenu> createState() => _ShellCommandMenuState();
@@ -65,10 +59,6 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
     final isActiveSessionRecording = widget.isActiveSessionRecording;
     final isActiveRecordingPendingSave = widget.isActiveRecordingPendingSave;
     final isActiveRecordingBusy = widget.isActiveRecordingBusy;
-    final notificationsBlockedBySystem = widget.notificationsBlockedBySystem;
-    final commandFinishedNotificationsEnabled =
-        widget.commandFinishedNotificationsEnabled;
-    final activityMonitorEnabled = widget.activityMonitorEnabled;
 
     Widget sectionLabel(String text) {
       return Padding(
@@ -104,7 +94,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
       String? shortcutLabel,
       VoidCallback? onTap,
     }) {
-      if (!ShellActionRegistry.commandPaletteVisible(actionId) && !kDebugMode) {
+      if (!ShellActionRegistry.commandPaletteVisible(actionId)) {
         return const SizedBox.shrink();
       }
       if (!_commandMenuActionMatchesQuery(
@@ -134,7 +124,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
       );
     }
 
-    return Material(
+    final menu = Material(
       key: const Key('shell-command-menu-overlay'),
       color: Colors.transparent,
       child: FocusTraversalGroup(
@@ -257,18 +247,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                         onTap: () =>
                             Navigator.of(context).pop(TerminalActionId.newTab),
                       ),
-                      commandTile(
-                        key: const Key('shell-top-toolbelt'),
-                        actionId: TerminalActionId.toolbelt,
-                        icon: Icons.view_sidebar_rounded,
-                        title: context.l10n.toolbelt,
-                        subtitle: context.l10n.toolbeltDescription,
-                        enabled: hasActiveSession,
-                        disabledReason: activeSessionRequired,
-                        onTap: () => Navigator.of(
-                          context,
-                        ).pop(TerminalActionId.toolbelt),
-                      ),
+
                       sectionLabel(context.l10n.appActions),
                       commandTile(
                         key: const Key('shell-command-defaults'),
@@ -293,53 +272,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                           context,
                         ).pop(TerminalActionId.reopenClosedTab),
                       ),
-                      commandTile(
-                        key: const Key('shell-theme-picker'),
-                        actionId: TerminalActionId.openThemePicker,
-                        icon: Icons.palette_rounded,
-                        title: context.l10n.terminalColorPresets,
-                        subtitle: context.l10n.terminalColorPresetsDescription,
-                        enabled: true,
-                        onTap: () => Navigator.of(
-                          context,
-                        ).pop(TerminalActionId.openThemePicker),
-                      ),
-                      commandTile(
-                        key: const Key('shell-toggle-command-finished-notify'),
-                        actionId: TerminalActionId.toggleCommandFinishedNotify,
-                        icon: Icons.notifications_active_rounded,
-                        title: context.l10n.commandFinishedNotifications(
-                          commandFinishedNotificationsEnabled.toString(),
-                        ),
-                        subtitle: notificationsBlockedBySystem
-                            ? context
-                                  .l10n
-                                  .commandFinishedNotificationsBlockedDescription
-                            : context
-                                  .l10n
-                                  .commandFinishedNotificationsDescription,
-                        subtitleMaxLines: notificationsBlockedBySystem ? 2 : 1,
-                        enabled: true,
-                        onTap: () => Navigator.of(
-                          context,
-                        ).pop(TerminalActionId.toggleCommandFinishedNotify),
-                      ),
-                      commandTile(
-                        key: const Key('shell-toggle-activity-monitor'),
-                        actionId: TerminalActionId.toggleActivityMonitor,
-                        icon: Icons.notification_important_rounded,
-                        title: context.l10n.activityMonitor(
-                          activityMonitorEnabled.toString(),
-                        ),
-                        subtitle: notificationsBlockedBySystem
-                            ? context.l10n.activityMonitorBlockedDescription
-                            : context.l10n.activityMonitorDescription,
-                        subtitleMaxLines: notificationsBlockedBySystem ? 2 : 1,
-                        enabled: true,
-                        onTap: () => Navigator.of(
-                          context,
-                        ).pop(TerminalActionId.toggleActivityMonitor),
-                      ),
+
                       commandTile(
                         key: const Key('shell-command-profiles'),
                         actionId: TerminalActionId.profiles,
@@ -476,18 +409,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                         ).pop(TerminalActionId.openRecording),
                       ),
                       sectionLabel(context.l10n.shellTools),
-                      commandTile(
-                        key: const Key('shell-global-search'),
-                        actionId: TerminalActionId.globalSearch,
-                        icon: Icons.manage_search_rounded,
-                        title: context.l10n.globalSearch,
-                        subtitle: context.l10n.globalSearchDescription,
-                        enabled: hasActiveSession,
-                        disabledReason: activeSessionRequired,
-                        onTap: () => Navigator.of(
-                          context,
-                        ).pop(TerminalActionId.globalSearch),
-                      ),
+
                       Padding(
                         padding: const EdgeInsets.fromLTRB(12, 4, 12, 2),
                         child: Row(
@@ -519,6 +441,13 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
         ),
       ),
     );
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.escape): () =>
+            Navigator.of(context).pop(),
+      },
+      child: menu,
+    );
   }
 }
 
@@ -536,10 +465,7 @@ const _commandMenuActionSearchEntries = <MapEntry<String, TerminalActionId>>[
     TerminalActionId.defaults,
   ),
   MapEntry('reopen closed tab restore tab', TerminalActionId.reopenClosedTab),
-  MapEntry(
-    'theme picker terminal color presets appearance defaults',
-    TerminalActionId.openThemePicker,
-  ),
+
   MapEntry(
     'export terminal history scrollback save output text',
     TerminalActionId.exportScrollback,
@@ -548,14 +474,7 @@ const _commandMenuActionSearchEntries = <MapEntry<String, TerminalActionId>>[
     'export diagnostics resource cpu memory evidence bundle',
     TerminalActionId.exportDiagnostics,
   ),
-  MapEntry(
-    'command finished notifications shell hook completion alerts',
-    TerminalActionId.toggleCommandFinishedNotify,
-  ),
-  MapEntry(
-    'activity monitor inactive session alerts',
-    TerminalActionId.toggleActivityMonitor,
-  ),
+
   MapEntry('profiles edit shell profiles', TerminalActionId.profiles),
   MapEntry(
     'read only readonly lock block input',
@@ -569,7 +488,7 @@ const _commandMenuActionSearchEntries = <MapEntry<String, TerminalActionId>>[
     'clear buffer terminal history screen output command k',
     TerminalActionId.clearBuffer,
   ),
-  MapEntry('toolbelt terminal tools sidebar', TerminalActionId.toolbelt),
+
   MapEntry(
     'open sftp panel remote files ssh side sheet file browser',
     TerminalActionId.openSftpPanel,
@@ -579,7 +498,6 @@ const _commandMenuActionSearchEntries = <MapEntry<String, TerminalActionId>>[
     TerminalActionId.instantReplay,
   ),
   MapEntry('search scrollback find local output', TerminalActionId.search),
-  MapEntry('global search layout all tabs', TerminalActionId.globalSearch),
 ];
 
 TerminalActionId? _commandMenuActionForQuery(String query) {

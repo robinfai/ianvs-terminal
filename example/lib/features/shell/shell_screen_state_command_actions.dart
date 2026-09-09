@@ -83,10 +83,6 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         isActiveSessionRecording: isActiveSessionRecording,
         isActiveRecordingPendingSave: isActiveRecordingPendingSave,
         isActiveRecordingBusy: isActiveRecordingBusy,
-        notificationsBlockedBySystem: _notificationsBlockedBySystem,
-        commandFinishedNotificationsEnabled:
-            _commandFinishedNotificationsEnabled,
-        activityMonitorEnabled: _activityNotificationsEnabled,
       );
     }
 
@@ -156,7 +152,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         'reopenClosedTab',
         'reopenClosedPane',
         'duplicateCurrentCwd',
-        'toolbelt',
+
         'splitRight',
         'splitDown',
         'closePane',
@@ -167,39 +163,23 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         'zoomPane',
         'copy',
         'copyCommandOutput',
-        'copyMode',
+
         'paste',
-        'advancedPaste',
-        'pasteHistory',
+
         'instantReplay',
         'toggleReadOnly',
         'clearBuffer',
-        'globalSearch',
-        'autocomplete',
-        'autoComposer',
+
         'searchScrollback',
         'previousPrompt',
         'nextPrompt',
-        'selectCommandOutput',
-        'shellIntegrationUtilities',
-        'openRecentDirectory',
-        'tmuxIntegration',
-        'coprocess',
-        'annotations',
-        'capturedOutput',
-        'passwordManager',
-        'toggleHotkeyWindow',
+
         'openDefaults',
         'defaults',
         'profiles',
-        'dynamicProfiles',
-        'openThemePicker',
-        'applyLayoutTemplate',
+
         'exportScrollback',
         'exportDiagnostics',
-        'toggleCommandFinishedNotify',
-        'toggleBellNotify',
-        'toggleActivityMonitor',
       },
       callbacks: ShellActionProductionCallbacks(
         newTab: (_) {
@@ -305,15 +285,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
           _closeSession(sessionController, currentState, currentSessionId);
           return const ShellActionBindingResult.completed();
         },
-        toolbelt: (_) {
-          FocusManager.instance.primaryFocus?.unfocus();
-          _mutateState(() {
-            _isSftpPanelOpen = false;
-            _sftpPanelSessionId = null;
-            _isToolbeltOpen = true;
-          });
-          return const ShellActionBindingResult.completed();
-        },
+
         splitRight: (_) {
           if (defaultProfile == null || currentSessionId == null) {
             return ShellActionBindingResult.skipped(
@@ -545,23 +517,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
           );
           return const ShellActionBindingResult.completed();
         },
-        copyMode: (_) {
-          if (currentSessionId == null) {
-            return ShellActionBindingResult.skipped(
-              l10n.copyModeRequiresSession,
-            );
-          }
-          final selectionController = _selectionControllers.putIfAbsent(
-            currentSessionId,
-            SelectionController.new,
-          );
-          _enterCopyMode(
-            sessionController,
-            currentSessionId,
-            selectionController,
-          );
-          return const ShellActionBindingResult.completed();
-        },
+
         paste: (_) async {
           if (currentSessionId == null) {
             return ShellActionBindingResult.skipped(l10n.pasteRequiresSession);
@@ -573,28 +529,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
           );
           return const ShellActionBindingResult.completed();
         },
-        advancedPaste: (_) async {
-          if (currentSessionId == null) {
-            return ShellActionBindingResult.skipped(
-              l10n.advancedPasteRequiresSession,
-            );
-          }
-          await _openAdvancedPaste(currentSessionId);
-          _restoreSessionFocus(
-            activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
-            activeSessionIdAfterClose: currentSessionId,
-          );
-          return const ShellActionBindingResult.completed();
-        },
-        pasteHistory: (_) async {
-          if (currentSessionId == null) {
-            return ShellActionBindingResult.skipped(
-              l10n.pasteHistoryRequiresSession,
-            );
-          }
-          await _openPasteHistory(sessionState);
-          return const ShellActionBindingResult.completed();
-        },
+
         instantReplay: (_) async {
           if (currentSessionId == null) {
             return ShellActionBindingResult.skipped(l10n.replayRequiresSession);
@@ -647,33 +582,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
             cleared ? l10n.bufferCleared : l10n.clearBufferUnsupported,
           );
         },
-        globalSearch: (_) async {
-          if (sessionState.tabs.isEmpty) {
-            return ShellActionBindingResult.skipped(
-              l10n.globalSearchRequiresTab,
-            );
-          }
-          await _openGlobalSearch(sessionState);
-          return const ShellActionBindingResult.completed();
-        },
-        autocomplete: (_) {
-          if (currentSessionId == null) {
-            return ShellActionBindingResult.skipped(
-              l10n.autocompleteRequiresSession,
-            );
-          }
-          _openAutocomplete();
-          return const ShellActionBindingResult.completed();
-        },
-        autoComposer: (_) {
-          if (currentSessionId == null) {
-            return ShellActionBindingResult.skipped(
-              l10n.autoComposerRequiresSession,
-            );
-          }
-          _openAutoComposer();
-          return const ShellActionBindingResult.completed();
-        },
+
         searchScrollback: (_) {
           if (currentSessionId == null) {
             return ShellActionBindingResult.skipped(l10n.searchRequiresSession);
@@ -699,145 +608,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
           _navigateShellPrompt(currentSessionId, direction: 1);
           return const ShellActionBindingResult.completed();
         },
-        selectCommandOutput: (_) {
-          if (currentSessionId == null) {
-            return ShellActionBindingResult.skipped(
-              l10n.selectCommandOutputRequiresSession,
-            );
-          }
-          final selectionController = _selectionControllers.putIfAbsent(
-            currentSessionId,
-            SelectionController.new,
-          );
-          final selected = _selectLastCommandOutput(
-            sessionController,
-            currentSessionId,
-            selectionController,
-          );
-          if (!selected) {
-            _restoreSessionFocus(
-              activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
-              activeSessionIdAfterClose: currentSessionId,
-            );
-          }
-          return const ShellActionBindingResult.completed();
-        },
-        shellIntegrationUtilities: (_) async {
-          if (currentSessionId == null) {
-            return ShellActionBindingResult.skipped(
-              l10n.shellIntegrationRequiresSession,
-            );
-          }
-          await _openShellIntegrationUtilities(currentState, currentSessionId);
-          _restoreSessionFocus(
-            activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
-            activeSessionIdAfterClose: currentSessionId,
-          );
-          return const ShellActionBindingResult.completed();
-        },
-        openRecentDirectory: (_) {
-          if (currentSessionId == null) {
-            return ShellActionBindingResult.skipped(
-              l10n.openRecentDirectoryRequiresSession,
-            );
-          }
-          final currentPane = _paneForSession(currentState, currentSessionId);
-          final recentDirectories =
-              currentPane?.shellIntegration.recentDirectories ?? const [];
-          if (recentDirectories.isEmpty) {
-            return ShellActionBindingResult.skipped(
-              l10n.noRecentDirectoryAvailable,
-            );
-          }
-          _sendPlainTextToSession(
-            currentSessionId,
-            'cd ${_shellQuotedPath(recentDirectories.first)}',
-          );
-          _restoreSessionFocus(
-            activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
-            activeSessionIdAfterClose: currentSessionId,
-          );
-          return const ShellActionBindingResult.completed();
-        },
-        tmuxIntegration: (_) async {
-          if (currentSessionId == null) {
-            return ShellActionBindingResult.skipped(
-              l10n.tmuxIntegrationRequiresSession,
-            );
-          }
-          await _openTmuxIntegration(currentSessionId);
-          _restoreSessionFocus(
-            activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
-            activeSessionIdAfterClose: currentSessionId,
-          );
-          return const ShellActionBindingResult.completed();
-        },
-        coprocess: (_) async {
-          if (currentSessionId == null) {
-            return ShellActionBindingResult.skipped(
-              l10n.coprocessRequiresSession,
-            );
-          }
-          await _openCoprocess(currentSessionId);
-          _restoreSessionFocus(
-            activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
-            activeSessionIdAfterClose: currentSessionId,
-          );
-          return const ShellActionBindingResult.completed();
-        },
-        annotations: (_) async {
-          if (currentSessionId == null) {
-            return ShellActionBindingResult.skipped(
-              l10n.annotationsRequireSession,
-            );
-          }
-          final selectionController = _selectionControllers.putIfAbsent(
-            currentSessionId,
-            SelectionController.new,
-          );
-          await _openAnnotations(
-            sessionController,
-            currentSessionId,
-            selectionController,
-          );
-          _restoreSessionFocus(
-            activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
-            activeSessionIdAfterClose: currentSessionId,
-          );
-          return const ShellActionBindingResult.completed();
-        },
-        capturedOutput: (_) async {
-          if (currentSessionId == null) {
-            return ShellActionBindingResult.skipped(
-              l10n.capturedOutputRequiresSession,
-            );
-          }
-          await _openCapturedOutput(currentSessionId);
-          _restoreSessionFocus(
-            activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
-            activeSessionIdAfterClose: currentSessionId,
-          );
-          return const ShellActionBindingResult.completed();
-        },
-        passwordManager: (_) async {
-          if (currentSessionId == null) {
-            return ShellActionBindingResult.skipped(
-              l10n.passwordManagerRequiresSession,
-            );
-          }
-          await _openPasswordManager(sessionController, currentSessionId);
-          _restoreSessionFocus(
-            activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
-            activeSessionIdAfterClose: currentSessionId,
-          );
-          return const ShellActionBindingResult.completed();
-        },
-        toggleHotkeyWindow: (_) async {
-          final toggled = await _toggleHotkeyWindowWithFeedback();
-          return toggled
-              ? const ShellActionBindingResult.completed()
-              : ShellActionBindingResult.skipped(l10n.hotkeyWindowUnavailable);
-        },
+
         openDefaults: (_) async {
           await _openDefaultsAndAppearance(sessionController, sessionState);
           return const ShellActionBindingResult.completed();
@@ -850,42 +621,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
           await _openProfilesSheet(sessionController, sessionState);
           return const ShellActionBindingResult.completed();
         },
-        dynamicProfiles: (_) async {
-          await _openDynamicProfiles(sessionController);
-          return const ShellActionBindingResult.completed();
-        },
-        openThemePicker: (_) async {
-          await _openDefaultsAndAppearance(sessionController, sessionState);
-          return const ShellActionBindingResult.completed();
-        },
-        applyLayoutTemplate: (_) {
-          if (defaultProfile == null || currentSessionId == null) {
-            return ShellActionBindingResult.skipped(
-              l10n.layoutTemplateRequiresProfileSession,
-            );
-          }
-          final currentTab = _tabForSession(currentState, currentSessionId);
-          if (currentTab == null) {
-            return ShellActionBindingResult.skipped(
-              l10n.noActiveTabForLayoutTemplates,
-            );
-          }
-          if (currentTab.effectivePanes.length > 1) {
-            return ShellActionBindingResult.skipped(
-              l10n.twoPaneLayoutAlreadySatisfied,
-            );
-          }
-          if (!_splitActiveSession(
-            sessionController,
-            defaultProfile,
-            TerminalSplitAxis.horizontal,
-          )) {
-            return ShellActionBindingResult.skipped(
-              l10n.layoutTemplateUnavailable,
-            );
-          }
-          return const ShellActionBindingResult.completed();
-        },
+
         exportScrollback: (_) async {
           if (currentSessionId == null) {
             return ShellActionBindingResult.skipped(
@@ -940,121 +676,6 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
             l10n.exportedTerminalDiagnostics,
           );
         },
-        toggleCommandFinishedNotify: (_) async {
-          final previous = _commandFinishedNotificationsEnabled;
-          _mutateState(() {
-            _commandFinishedNotificationsEnabled =
-                !_commandFinishedNotificationsEnabled;
-          });
-          try {
-            await _saveNotificationPreferences();
-            if (mounted) {
-              final messenger = ScaffoldMessenger.of(context)
-                ..hideCurrentSnackBar();
-              messenger.showSnackBar(
-                SnackBar(
-                  content: Text(
-                    l10n.commandFinishedNotificationsSaved(
-                      _commandFinishedNotificationsEnabled.toString(),
-                    ),
-                  ),
-                ),
-              );
-            }
-            return const ShellActionBindingResult.completed();
-          } on Object catch (error) {
-            _mutateState(() {
-              _commandFinishedNotificationsEnabled = previous;
-            });
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(l10n.unableSaveNotifications(error.toString())),
-                ),
-              );
-            }
-            return ShellActionBindingResult.failed(
-              failureCode: ShellActionBindingFailureCode.platformFailure,
-              message: l10n.unableSaveCommandFinishedNotifications,
-            );
-          }
-        },
-        toggleBellNotify: (_) async {
-          final previous = _bellNotificationsEnabled;
-          _mutateState(() {
-            _bellNotificationsEnabled = !_bellNotificationsEnabled;
-          });
-          try {
-            await _saveNotificationPreferences();
-            if (mounted) {
-              final messenger = ScaffoldMessenger.of(context)
-                ..hideCurrentSnackBar();
-              messenger.showSnackBar(
-                SnackBar(
-                  content: Text(
-                    l10n.bellNotificationsSaved(
-                      _bellNotificationsEnabled.toString(),
-                    ),
-                  ),
-                ),
-              );
-            }
-            return const ShellActionBindingResult.completed();
-          } on Object catch (error) {
-            _mutateState(() {
-              _bellNotificationsEnabled = previous;
-            });
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(l10n.unableSaveNotifications(error.toString())),
-                ),
-              );
-            }
-            return ShellActionBindingResult.failed(
-              failureCode: ShellActionBindingFailureCode.platformFailure,
-              message: l10n.unableSaveBellNotifications,
-            );
-          }
-        },
-        toggleActivityMonitor: (_) async {
-          final previous = _activityNotificationsEnabled;
-          _mutateState(() {
-            _activityNotificationsEnabled = !_activityNotificationsEnabled;
-          });
-          try {
-            await _saveNotificationPreferences();
-            if (mounted) {
-              final messenger = ScaffoldMessenger.of(context)
-                ..hideCurrentSnackBar();
-              messenger.showSnackBar(
-                SnackBar(
-                  content: Text(
-                    l10n.activityMonitorSaved(
-                      _activityNotificationsEnabled.toString(),
-                    ),
-                  ),
-                ),
-              );
-            }
-            return const ShellActionBindingResult.completed();
-          } on Object catch (error) {
-            _mutateState(() {
-              _activityNotificationsEnabled = previous;
-            });
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(l10n.unableSaveNotifications(error.toString())),
-                ),
-              );
-            }
-            return ShellActionBindingResult.failed(
-              failureCode: ShellActionBindingFailureCode.platformFailure,
-              message: l10n.unableSaveActivityMonitor,
-            );
-          }
-        },
       ),
     );
     if (action != null &&
@@ -1077,14 +698,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         }
         await _openNewTabAction(sessionController, currentState);
         return;
-      case TerminalActionId.toolbelt:
-        FocusManager.instance.primaryFocus?.unfocus();
-        _mutateState(() {
-          _isSftpPanelOpen = false;
-          _sftpPanelSessionId = null;
-          _isToolbeltOpen = true;
-        });
-        return;
+
       case TerminalActionId.openSftpPanel:
         _openSftpPanel(currentState, currentSessionId);
         return;
@@ -1126,20 +740,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
           activeSessionIdAfterClose: currentSessionId,
         );
         return;
-      case TerminalActionId.copyMode:
-        if (currentSessionId == null) {
-          return;
-        }
-        final selectionController = _selectionControllers.putIfAbsent(
-          currentSessionId,
-          SelectionController.new,
-        );
-        _enterCopyMode(
-          sessionController,
-          currentSessionId,
-          selectionController,
-        );
-        return;
+
       case TerminalActionId.paste:
         if (currentSessionId == null) {
           return;
@@ -1150,110 +751,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
           activeSessionIdAfterClose: currentSessionId,
         );
         return;
-      case TerminalActionId.advancedPaste:
-        if (currentSessionId == null) {
-          return;
-        }
-        await _openAdvancedPaste(currentSessionId);
-        _restoreSessionFocus(
-          activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
-          activeSessionIdAfterClose: currentSessionId,
-        );
-        return;
-      case TerminalActionId.pasteHistory:
-        if (currentSessionId == null) {
-          return;
-        }
-        await _openPasteHistory(sessionState);
-        return;
-      case TerminalActionId.shellIntegrationUtilities:
-        if (currentSessionId == null) {
-          return;
-        }
-        await _openShellIntegrationUtilities(currentState, currentSessionId);
-        _restoreSessionFocus(
-          activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
-          activeSessionIdAfterClose: currentSessionId,
-        );
-        return;
-      case TerminalActionId.selectCommandOutput:
-        if (currentSessionId == null) {
-          return;
-        }
-        final selectionController = _selectionControllers.putIfAbsent(
-          currentSessionId,
-          SelectionController.new,
-        );
-        if (_selectLastCommandOutput(
-          sessionController,
-          currentSessionId,
-          selectionController,
-        )) {
-          return;
-        }
-        _restoreSessionFocus(
-          activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
-          activeSessionIdAfterClose: currentSessionId,
-        );
-        return;
-      case TerminalActionId.tmuxIntegration:
-        if (currentSessionId == null) {
-          return;
-        }
-        await _openTmuxIntegration(currentSessionId);
-        _restoreSessionFocus(
-          activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
-          activeSessionIdAfterClose: currentSessionId,
-        );
-        return;
-      case TerminalActionId.coprocess:
-        if (currentSessionId == null) {
-          return;
-        }
-        await _openCoprocess(currentSessionId);
-        _restoreSessionFocus(
-          activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
-          activeSessionIdAfterClose: currentSessionId,
-        );
-        return;
-      case TerminalActionId.annotations:
-        if (currentSessionId == null) {
-          return;
-        }
-        final selectionController = _selectionControllers.putIfAbsent(
-          currentSessionId,
-          SelectionController.new,
-        );
-        await _openAnnotations(
-          sessionController,
-          currentSessionId,
-          selectionController,
-        );
-        _restoreSessionFocus(
-          activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
-          activeSessionIdAfterClose: currentSessionId,
-        );
-        return;
-      case TerminalActionId.capturedOutput:
-        if (currentSessionId == null) {
-          return;
-        }
-        await _openCapturedOutput(currentSessionId);
-        _restoreSessionFocus(
-          activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
-          activeSessionIdAfterClose: currentSessionId,
-        );
-        return;
-      case TerminalActionId.passwordManager:
-        if (currentSessionId == null) {
-          return;
-        }
-        await _openPasswordManager(sessionController, currentSessionId);
-        _restoreSessionFocus(
-          activeSessionIdBeforeOpen: activeSessionIdBeforeOpen,
-          activeSessionIdAfterClose: currentSessionId,
-        );
-        return;
+
       case TerminalActionId.instantReplay:
         if (currentSessionId == null) {
           return;
@@ -1272,36 +770,14 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         }
         _openSearch();
         return;
-      case TerminalActionId.globalSearch:
-        if (sessionState.tabs.isEmpty) {
-          return;
-        }
-        await _openGlobalSearch(sessionState);
-        return;
-      case TerminalActionId.autocomplete:
-        if (currentSessionId == null) {
-          return;
-        }
-        _openAutocomplete();
-        return;
-      case TerminalActionId.autoComposer:
-        if (currentSessionId == null) {
-          return;
-        }
-        _openAutoComposer();
-        return;
-      case TerminalActionId.hotkeyWindow:
-        await _toggleHotkeyWindowWithFeedback();
-        return;
+
       case TerminalActionId.defaults:
         await _openDefaultsAndAppearance(sessionController, sessionState);
         return;
       case TerminalActionId.profiles:
         await _openProfilesSheet(sessionController, sessionState);
         return;
-      case TerminalActionId.dynamicProfiles:
-        await _openDynamicProfiles(sessionController);
-        return;
+
       case TerminalActionId.openDefaults:
         await _openDefaultsAndAppearance(sessionController, sessionState);
         return;
@@ -1382,6 +858,11 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
     }) {
       final reason = enabled ? null : disabledReason;
       return PopupMenuItem<TerminalActionId>(
+        height: Theme.of(context).platform == TargetPlatform.macOS ? 32 : 48,
+        padding: EdgeInsets.symmetric(
+          horizontal: context.appTheme.spacing.lg,
+          vertical: context.appTheme.spacing.sm,
+        ),
         value: action,
         enabled: enabled,
         child: Column(
@@ -1447,15 +928,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
           enabled: reopenClosedPaneBlockedReason == null,
           disabledReason: reopenClosedPaneBlockedReason,
         ),
-        item(
-          action: TerminalActionId.applyLayoutTemplate,
-          icon: Icons.dashboard_customize_rounded,
-          title: context.l10n.applyTwoPaneLayout,
-          enabled: defaultProfile != null && !hasMultiplePanes,
-          disabledReason: hasMultiplePanes
-              ? context.l10n.tabAlreadyMultiplePanes
-              : null,
-        ),
+
         const PopupMenuDivider(),
         item(
           action: TerminalActionId.resizePane,
@@ -1598,20 +1071,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
           _focusSession(reopenedSessionId);
         }
         return;
-      case TerminalActionId.applyLayoutTemplate:
-        if (defaultProfile == null) {
-          return;
-        }
-        final currentTab = _tabForSession(currentState, currentSessionId);
-        if (currentTab == null || currentTab.effectivePanes.length > 1) {
-          return;
-        }
-        _splitActiveSession(
-          sessionController,
-          defaultProfile,
-          TerminalSplitAxis.horizontal,
-        );
-        return;
+
       case TerminalActionId.focusNextPane:
         final currentTab = _tabForSession(currentState, currentSessionId);
         if (currentTab != null) {

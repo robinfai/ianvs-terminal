@@ -61,8 +61,8 @@ void main() {
     test('disabled reasons expose stable user-visible diagnostics', () {
       expect(ShellActionDisabledReason.readOnly.title, 'Read-only mode');
       expect(
-        ShellActionDisabledReason.missingRecentDirectory.description,
-        contains('local directory'),
+        ShellActionDisabledReason.missingCommandOutput.description,
+        contains('captured output'),
       );
     });
   });

@@ -356,6 +356,7 @@ final class DataApiClientRemoteAuthenticator
       accessToken: login.accessToken,
       encryptionKey: request.requireEncryptionKey,
       expiresAt: login.expiresAt,
+      username: request.username,
     );
   }
 }
@@ -597,10 +598,6 @@ final class AuthenticatedDataApiConfigurationRepository
       final effectiveRequest = await _attachMasterKey(request);
       await _recoverLocked(allowUnavailableRemote: true);
       final current = await _delegate.load();
-      if (current.deployment == DataApiDeployment.local &&
-          migrationSource == null) {
-        throw const DataApiExplicitMigrationRequiredException();
-      }
       if (migrationSource != null &&
           current.deployment != DataApiDeployment.local) {
         throw StateError(
