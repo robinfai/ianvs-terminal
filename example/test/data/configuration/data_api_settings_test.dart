@@ -241,7 +241,7 @@ void main() {
       scrollable: find.byType(Scrollable).first,
     );
 
-    expect(find.text('Currently running: No data service'), findsOneWidget);
+    expect(find.text('Active mode: No data service'), findsOneWidget);
     expect(find.text('No data service'), findsOneWidget);
     expect(find.text('Keep using local data without API sync.'), findsWidgets);
     expect(find.byKey(const Key('data-api-local')), findsNothing);
@@ -344,7 +344,7 @@ void main() {
     expect(find.text('Sync with the API after sign-in'), findsOneWidget);
   });
 
-  testWidgets('configured remote can explicitly reconnect with the same URL', (
+  testWidgets('configured loopback remote is presented as a mode', (
     tester,
   ) async {
     await tester.binding.setSurfaceSize(const Size(1000, 820));
@@ -367,7 +367,7 @@ void main() {
                 LocalTerminalRequestAttentionPolicy.disabled,
             reportVariableDecisions: const {},
             dataApiConfiguration: DataApiConfiguration.remote(
-              'https://api.example.com/',
+              'http://127.0.0.1:8787/',
             ),
             localDataApiAvailable: true,
           ),
@@ -380,6 +380,28 @@ void main() {
       find.byKey(const Key('defaults-data-api-panel')),
       500,
       scrollable: find.byType(Scrollable).first,
+    );
+
+    expect(find.text('Active mode: Remote service'), findsOneWidget);
+    expect(
+      find.text(
+        'Keep local data available and sync supported changes with the '
+        'configured API.',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('data-api-active-deployment')),
+        matching: find.text('Running'),
+      ),
+      findsNothing,
+    );
+    expect(
+      tester
+          .getSemantics(find.byKey(const Key('data-api-active-deployment')))
+          .label,
+      contains('Active data mode: Remote service'),
     );
 
     final localSurface = find.byKey(const Key('data-api-local-surface'));
@@ -570,7 +592,7 @@ void main() {
       tester
           .getSemantics(find.byKey(const Key('data-api-active-deployment')))
           .label,
-      contains('Sync connection: Bundled local service'),
+      contains('Active data mode: Bundled local service'),
     );
   });
 
@@ -614,6 +636,21 @@ void main() {
 
     await tester.tap(find.byKey(const Key('data-api-local')));
     await tester.pump();
+
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('data-api-remote')),
+        matching: find.text('Current mode'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('data-api-remote')),
+        matching: find.text('Running'),
+      ),
+      findsNothing,
+    );
 
     expect(
       find.byKey(const Key('data-api-remote-to-local-migration')),

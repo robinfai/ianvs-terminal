@@ -1,0 +1,15 @@
+{
+  "base_commit": "da535233b46bf7495e66626b9741d39fc2e43d1b",
+  "source_state": "base plus final sync fixes and exact next-start cleanup retry copy",
+  "build_mode": "release",
+  "app_bundle": "Trail Sync Complete.app",
+  "bundle_id": "work.ianvs.trail.acceptance.sync.20260910.complete",
+  "data_directory": "/tmp/trail-api-sync-20260910/data",
+  "gui_started": true,
+  "sha256": {
+    "Contents/MacOS/Trail": "d8a4f97240a1852464a01bfa26cba82fb12d983695aa8abc44e28f2974267f76",
+    "Contents/Frameworks/App.framework/Versions/A/App": "aa81cee01c72c82508247caab265bd40a5b0aaa467506502c854fa48f3ac2e0f",
+    "Contents/Frameworks/ianvs_core.framework/Versions/A/ianvs_core": "3eb6965eb99a4db51cc80af5a64772952745eb9904b53bece9357321cebffbcd",
+    "Contents/Resources/ianvs-api": "daeaa6520c387dfb8fae5b41784222e549902539ad4763ac53db43b0e23a5cb5"
+  }
+}

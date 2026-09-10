@@ -2413,12 +2413,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String activeDataService(String service) {
-    return '同步连接：$service';
+    return '当前数据模式：$service';
   }
 
   @override
   String activeNow(String service) {
-    return '当前活动：$service';
+    return '当前模式：$service';
   }
 
   @override
@@ -2431,6 +2431,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get selected => '已选择';
+
+  @override
+  String get currentMode => '当前模式';
 
   @override
   String get dataServiceMode => '模式';
@@ -2506,7 +2509,7 @@ class AppLocalizationsZh extends AppLocalizations {
       '应用会启动临时内置 API，并在切换前合并远程资源。如果启动、导出或合并失败，远程数据会保留。';
 
   @override
-  String get remoteServiceDescription => '本地数据保持可用，并通过 HTTPS 同步支持的更改。';
+  String get remoteServiceDescription => '本地数据保持可用，并与已配置的 API 同步支持的更改。';
 
   @override
   String get migrateLocalApiData => '迁移本地 API 数据';
@@ -3549,6 +3552,17 @@ class AppLocalizationsZh extends AppLocalizations {
       '同步设置已保存，但连接当前不可用。本地数据会保持可用。';
 
   @override
+  String get dataServiceConfigurationSavedCleanupPending =>
+      '同步设置已保存。之前远端登录的退出清理将自动重试。';
+
+  @override
+  String get dataServiceSyncDisabledCleanupPending =>
+      '同步已关闭，本地数据仍可使用。远端退出清理将在下次启动应用时重试。';
+
+  @override
+  String get dataServiceRemoteCleanupPending => '远端退出清理暂未完成，将在下次启动应用时重试。';
+
+  @override
   String unableToSaveDataServiceConfiguration(String error) {
     return '无法保存数据服务配置：$error';
   }
@@ -4276,6 +4290,10 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get syncUnavailable => '同步未完成，本地数据仍可使用。请检查 API 连接和加密密钥后重试。';
+
+  @override
+  String get syncAuthenticationRequired =>
+      '请重新登录 API，本地数据仍可使用。请选择“重新连接 / 登录”，然后重试同步。';
 
   @override
   String get syncLocalFirstDescription => '修改先保存到本机。独立修改自动合并；冲突值在选择前不会覆盖任一端。';

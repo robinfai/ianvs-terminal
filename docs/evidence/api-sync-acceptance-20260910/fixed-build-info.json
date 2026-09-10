@@ -1,0 +1,15 @@
+{
+  "base_commit": "da535233b46bf7495e66626b9741d39fc2e43d1b",
+  "source_state": "base plus API authentication and sync failure-reporting fixes in this change",
+  "build_mode": "release",
+  "app_bundle": "Trail Sync Fixed.app",
+  "bundle_id": "work.ianvs.trail.acceptance.sync.20260910.fixed",
+  "data_directory": "/tmp/trail-api-sync-20260910/data",
+  "gui_started": true,
+  "sha256": {
+    "Contents/MacOS/Trail": "e1207f90521dc59215efd1802cdc24ae7a621e04273d00eae2835770449a2c1a",
+    "Contents/Frameworks/App.framework/Versions/A/App": "ab027742cd3e58e2ebaebb3772c15fd3e242955a6ff48d27661529451d278fc9",
+    "Contents/Frameworks/ianvs_core.framework/Versions/A/ianvs_core": "3eb6965eb99a4db51cc80af5a64772952745eb9904b53bece9357321cebffbcd",
+    "Contents/Resources/ianvs-api": "daeaa6520c387dfb8fae5b41784222e549902539ad4763ac53db43b0e23a5cb5"
+  }
+}

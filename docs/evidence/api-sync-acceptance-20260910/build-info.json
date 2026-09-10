@@ -1,0 +1,15 @@
+{
+  "base_commit": "da535233b46bf7495e66626b9741d39fc2e43d1b",
+  "build_mode": "release",
+  "app_bundle": "Trail Sync Acceptance.app",
+  "bundle_id": "work.ianvs.trail.acceptance.sync.20260910",
+  "data_directory": "/tmp/trail-api-sync-20260910/data",
+  "api_endpoint": "http://127.0.0.1:56209/",
+  "ssh_endpoint": "127.0.0.1:32770",
+  "sha256": {
+    "Contents/MacOS/Trail": "cd479e8b0fb4a1321eb0419a780db8f46ab3b3e4ecc6717444d3c41d49af341e",
+    "Contents/Frameworks/App.framework/Versions/A/App": "d526c28fe5cb3b346d93ec2d84bd50552938cf0d603c1a7a9ff94c171e5420e9",
+    "Contents/Frameworks/ianvs_core.framework/Versions/A/ianvs_core": "3eb6965eb99a4db51cc80af5a64772952745eb9904b53bece9357321cebffbcd",
+    "Contents/Resources/ianvs-api": "daeaa6520c387dfb8fae5b41784222e549902539ad4763ac53db43b0e23a5cb5"
+  }
+}

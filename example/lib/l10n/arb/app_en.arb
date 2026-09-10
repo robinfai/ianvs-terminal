@@ -2176,8 +2176,8 @@
   "dataService": "Data sync",
   "dataServiceDescriptionLocalAvailable": "Data is always saved locally. Optionally connect an API to keep supported data in sync across devices.",
   "dataServiceDescriptionRemoteOnly": "Data is always saved locally. Optionally connect a remote API to keep supported data in sync across devices.",
-  "activeDataService": "Sync connection: {service}",
-  "activeNow": "Active now: {service}",
+  "activeDataService": "Active data mode: {service}",
+  "activeNow": "Active mode: {service}",
   "currentlyRunning": "Currently running: {service}",
   "@currentlyRunning": {
     "placeholders": {
@@ -2188,6 +2188,10 @@
   },
   "running": "Running",
   "selected": "Selected",
+  "currentMode": "Current mode",
+  "@currentMode": {
+    "description": "Label for the active data mode when another mode is selected"
+  },
   "dataServiceMode": "Mode",
   "apiService": "API service",
   "configurationAndStorage": "Local data & sync",
@@ -2218,7 +2222,7 @@
   "bundledLocalServiceDescription": "Keep data on this Mac without a remote sync target.",
   "migrateRemoteApiData": "Migrate remote API data",
   "migrateRemoteApiDataDescription": "The app starts a temporary bundled API and merges remote resources before switching. Remote data is retained if startup, export, or merge fails.",
-  "remoteServiceDescription": "Keep local data available and sync supported changes over HTTPS.",
+  "remoteServiceDescription": "Keep local data available and sync supported changes with the configured API.",
   "migrateLocalApiData": "Migrate local API data",
   "migrateLocalApiDataDescription": "The app exports and merges local resources before switching. Local data is retained if authentication, export, or merge fails.",
   "reconnectRequested": "Reconnect requested",
@@ -3021,6 +3025,9 @@
   "dataServiceConfigurationSaved": "Data service configuration saved. Restart the app to apply it.",
   "dataServiceConfigurationApplied": "Sync settings applied. Local data remains available.",
   "dataServiceConfigurationSavedSyncUnavailable": "Sync settings saved, but the connection is unavailable. Local data remains available.",
+  "dataServiceConfigurationSavedCleanupPending": "Sync settings were saved. Cleanup for the previous remote sign-in will retry the next time the app starts.",
+  "dataServiceSyncDisabledCleanupPending": "Sync is off and local data remains available. Remote sign-out cleanup will retry the next time the app starts.",
+  "dataServiceRemoteCleanupPending": "Remote sign-out cleanup is pending and will retry the next time the app starts.",
   "unableToSaveDataServiceConfiguration": "Unable to save the data service configuration: {error}",
   "@unableToSaveDataServiceConfiguration": {
     "placeholders": {
@@ -3777,6 +3784,7 @@
   "syncPending": "Saved locally. Waiting to sync.",
   "syncConflicts": "Both devices changed the same fields. Choose which conflicting values to keep.",
   "syncUnavailable": "Sync could not finish. Local data is available; check the API connection and encryption key, then retry.",
+  "syncAuthenticationRequired": "Please sign in to the API again. Local data is still available. Choose Reconnect / sign in, then retry sync.",
   "syncLocalFirstDescription": "Changes save locally first. Independent changes merge automatically; conflicting values never overwrite either side without your choice.",
   "syncKeepLocal": "Keep local conflicting values",
   "syncUseRemote": "Use API conflicting values",

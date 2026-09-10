@@ -4107,13 +4107,13 @@ abstract class AppLocalizations {
   /// No description provided for @activeDataService.
   ///
   /// In en, this message translates to:
-  /// **'Sync connection: {service}'**
+  /// **'Active data mode: {service}'**
   String activeDataService(String service);
 
   /// No description provided for @activeNow.
   ///
   /// In en, this message translates to:
-  /// **'Active now: {service}'**
+  /// **'Active mode: {service}'**
   String activeNow(String service);
 
   /// No description provided for @currentlyRunning.
@@ -4133,6 +4133,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Selected'**
   String get selected;
+
+  /// Label for the active data mode when another mode is selected
+  ///
+  /// In en, this message translates to:
+  /// **'Current mode'**
+  String get currentMode;
 
   /// No description provided for @dataServiceMode.
   ///
@@ -4233,7 +4239,7 @@ abstract class AppLocalizations {
   /// No description provided for @remoteServiceDescription.
   ///
   /// In en, this message translates to:
-  /// **'Keep local data available and sync supported changes over HTTPS.'**
+  /// **'Keep local data available and sync supported changes with the configured API.'**
   String get remoteServiceDescription;
 
   /// No description provided for @migrateLocalApiData.
@@ -5908,6 +5914,24 @@ abstract class AppLocalizations {
   /// **'Sync settings saved, but the connection is unavailable. Local data remains available.'**
   String get dataServiceConfigurationSavedSyncUnavailable;
 
+  /// No description provided for @dataServiceConfigurationSavedCleanupPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync settings were saved. Cleanup for the previous remote sign-in will retry the next time the app starts.'**
+  String get dataServiceConfigurationSavedCleanupPending;
+
+  /// No description provided for @dataServiceSyncDisabledCleanupPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync is off and local data remains available. Remote sign-out cleanup will retry the next time the app starts.'**
+  String get dataServiceSyncDisabledCleanupPending;
+
+  /// No description provided for @dataServiceRemoteCleanupPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Remote sign-out cleanup is pending and will retry the next time the app starts.'**
+  String get dataServiceRemoteCleanupPending;
+
   /// No description provided for @unableToSaveDataServiceConfiguration.
   ///
   /// In en, this message translates to:
@@ -7045,6 +7069,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Sync could not finish. Local data is available; check the API connection and encryption key, then retry.'**
   String get syncUnavailable;
+
+  /// No description provided for @syncAuthenticationRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Please sign in to the API again. Local data is still available. Choose Reconnect / sign in, then retry sync.'**
+  String get syncAuthenticationRequired;
 
   /// No description provided for @syncLocalFirstDescription.
   ///

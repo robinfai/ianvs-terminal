@@ -1237,7 +1237,11 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
               if (dataApiStartupWarning != null &&
                   !_dataApiStartupWarningDismissed)
                 _DataApiStartupWarningBanner(
-                  message: dataApiStartupWarning.message,
+                  message:
+                      dataApiStartupWarning.kind ==
+                          DataApiStartupWarningKind.remoteCleanupPending
+                      ? context.l10n.dataServiceRemoteCleanupPending
+                      : dataApiStartupWarning.message,
                   palette: palette,
                   onDismiss: () {
                     setState(() {

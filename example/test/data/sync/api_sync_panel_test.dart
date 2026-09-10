@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:app/data/services/data_api_client.dart';
 import 'package:app/data/sync/api_sync_panel.dart';
 import 'package:app/data/sync/local_first_sync.dart';
 import 'package:app/l10n/generated/app_localizations.dart';
@@ -70,9 +73,10 @@ void main() {
           },
         ),
       ],
-      client: MemoryDataApiResourceClient(canAccessResources: false),
+      client: const _FailingClient(SocketException('API connection refused')),
       checkpoints: _MemoryCheckpointStore(),
     );
+    addTearDown(coordinator.close);
     await _pumpPanel(tester, coordinator);
 
     await tester.tap(find.byKey(const Key('api-sync-now')));
@@ -87,6 +91,48 @@ void main() {
       findsOneWidget,
     );
     expect(coordinator.phase, LocalFirstSyncPhase.unavailable);
+  });
+
+  testWidgets('live 401 directs the user to reconnect and sign in', (
+    tester,
+  ) async {
+    final local = <String, Object?>{'name': 'durable local edit'};
+    final coordinator = LocalFirstSyncCoordinator(
+      documents: <SyncDocumentBinding>[
+        _binding(
+          read: () => local,
+          write: (_) => fail('A 401 must not rewrite local data.'),
+        ),
+      ],
+      client: const _FailingClient(
+        DataApiRequestException(
+          statusCode: 401,
+          code: 'unauthorized',
+          message: 'a valid bearer token is required',
+        ),
+      ),
+      checkpoints: _MemoryCheckpointStore(),
+    );
+    addTearDown(coordinator.close);
+
+    await coordinator.synchronize();
+    await _pumpPanel(tester, coordinator);
+
+    expect(
+      find.text(
+        'Please sign in to the API again. Local data is still available. '
+        'Choose Reconnect / sign in, then retry sync.',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.text(
+        'Sync could not finish. Local data is available; check the API '
+        'connection and encryption key, then retry.',
+      ),
+      findsNothing,
+    );
+    expect(local, <String, Object?>{'name': 'durable local edit'});
   });
 }
 
@@ -181,4 +227,25 @@ final class _MemoryCheckpointStore implements SyncCheckpointStore {
   Future<void> write(String resource, Map<String, Object?>? value) async {
     this.value = value;
   }
+}
+
+final class _FailingClient implements DataApiResourceClient {
+  const _FailingClient(this.error);
+
+  final Exception error;
+
+  @override
+  bool get canAccessResources => true;
+
+  @override
+  Future<DataApiResource?> getResource({
+    required String kind,
+    required String id,
+    bool includeSensitive = false,
+  }) async {
+    throw error;
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

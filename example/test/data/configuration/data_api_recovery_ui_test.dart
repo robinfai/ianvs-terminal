@@ -83,8 +83,8 @@ void main() {
               guardedRepository,
             ),
             dataApiStartupWarningProvider.overrideWithValue(
-              const DataApiStartupWarning(
-                'Data service cleanup is pending. Restart to retry.',
+              DataApiStartupWarning.remoteCleanupPending(
+                const SocketException('sensitive internal endpoint'),
               ),
             ),
           ],
@@ -106,6 +106,13 @@ void main() {
         findsOneWidget,
       );
       expect(find.byKey(const Key('data-api-startup-warning')), findsOneWidget);
+      expect(
+        find.text(
+          'Remote sign-out cleanup is pending and will retry the next time the app starts.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.textContaining('sensitive internal endpoint'), findsNothing);
       await tester.tap(find.byKey(const Key('shell-startup-settings')));
       await tester.pumpAndSettle();
       await tester.scrollUntilVisible(
@@ -221,6 +228,14 @@ void main() {
         find.byKey(const Key('data-api-revocation-pending-warning')),
         findsOneWidget,
       );
+      expect(
+        find.text(
+          'Sync is off and local data remains available. Remote sign-out '
+          'cleanup will retry the next time the app starts.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.textContaining('SocketException'), findsNothing);
       final restartComposition = PersistenceRepositoryComposition.forRuntime(
         null,
         profileExportDirectoryResolver: () async => Directory.systemTemp,
@@ -392,7 +407,14 @@ void main() {
         find.byKey(const Key('data-api-revocation-pending-warning')),
         findsOneWidget,
       );
-      expect(find.textContaining('configuration was saved'), findsOneWidget);
+      expect(
+        find.text(
+          'Sync is off and local data remains available. Remote sign-out '
+          'cleanup will retry the next time the app starts.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.textContaining('credential vault unavailable'), findsNothing);
       expect(
         configurationRepository.configuration,
         const DataApiConfiguration.disabled(),

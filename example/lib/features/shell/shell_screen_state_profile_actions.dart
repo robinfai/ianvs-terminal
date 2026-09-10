@@ -635,13 +635,18 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
                 ),
               );
             }
-          } on DataApiRemoteRevocationPendingWarning catch (warning) {
+          } on DataApiRemoteRevocationPendingWarning {
             await _applySavedApiSyncConfiguration();
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   key: const Key('data-api-revocation-pending-warning'),
-                  content: Text(warning.toString()),
+                  content: Text(
+                    selection.dataApiConfiguration.deployment ==
+                            DataApiDeployment.remote
+                        ? l10n.dataServiceConfigurationSavedCleanupPending
+                        : l10n.dataServiceSyncDisabledCleanupPending,
+                  ),
                 ),
               );
             }

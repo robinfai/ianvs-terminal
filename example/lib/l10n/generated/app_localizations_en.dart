@@ -2521,12 +2521,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String activeDataService(String service) {
-    return 'Sync connection: $service';
+    return 'Active data mode: $service';
   }
 
   @override
   String activeNow(String service) {
-    return 'Active now: $service';
+    return 'Active mode: $service';
   }
 
   @override
@@ -2539,6 +2539,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get selected => 'Selected';
+
+  @override
+  String get currentMode => 'Current mode';
 
   @override
   String get dataServiceMode => 'Mode';
@@ -2618,7 +2621,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get remoteServiceDescription =>
-      'Keep local data available and sync supported changes over HTTPS.';
+      'Keep local data available and sync supported changes with the configured API.';
 
   @override
   String get migrateLocalApiData => 'Migrate local API data';
@@ -3760,6 +3763,18 @@ class AppLocalizationsEn extends AppLocalizations {
       'Sync settings saved, but the connection is unavailable. Local data remains available.';
 
   @override
+  String get dataServiceConfigurationSavedCleanupPending =>
+      'Sync settings were saved. Cleanup for the previous remote sign-in will retry the next time the app starts.';
+
+  @override
+  String get dataServiceSyncDisabledCleanupPending =>
+      'Sync is off and local data remains available. Remote sign-out cleanup will retry the next time the app starts.';
+
+  @override
+  String get dataServiceRemoteCleanupPending =>
+      'Remote sign-out cleanup is pending and will retry the next time the app starts.';
+
+  @override
   String unableToSaveDataServiceConfiguration(String error) {
     return 'Unable to save the data service configuration: $error';
   }
@@ -4578,6 +4593,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get syncUnavailable =>
       'Sync could not finish. Local data is available; check the API connection and encryption key, then retry.';
+
+  @override
+  String get syncAuthenticationRequired =>
+      'Please sign in to the API again. Local data is still available. Choose Reconnect / sign in, then retry sync.';
 
   @override
   String get syncLocalFirstDescription =>

@@ -870,6 +870,136 @@ void main() {
     },
   );
 
+  test('session validation always checks the bearer with the server', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    var validationCount = 0;
+    server.listen((request) async {
+      expect(request.uri.path, '/v1/me');
+      validationCount += 1;
+      request.response.headers.contentType = ContentType.json;
+      if (validationCount == 1) {
+        request.response
+          ..statusCode = HttpStatus.ok
+          ..write(
+            jsonEncode(<String, Object?>{
+              'user': <String, Object?>{'id': 'owner-a', 'username': 'alice'},
+            }),
+          );
+      } else {
+        request.response
+          ..statusCode = HttpStatus.unauthorized
+          ..write(
+            jsonEncode(<String, Object?>{
+              'error': <String, Object?>{
+                'code': 'unauthorized',
+                'message': 'a valid bearer token is required',
+              },
+            }),
+          );
+      }
+      await request.response.close();
+    });
+    final client = DataApiClient(
+      baseUri: Uri.parse('http://127.0.0.1:${server.port}/'),
+      accessToken: 'revoked-after-first-validation',
+      encryptionKey: 'encryption-key-material',
+    );
+
+    await client.validateSession();
+    await expectLater(
+      client.validateSession(),
+      throwsA(
+        isA<DataApiRequestException>().having(
+          (error) => error.statusCode,
+          'statusCode',
+          HttpStatus.unauthorized,
+        ),
+      ),
+    );
+
+    expect(validationCount, 2);
+  });
+
+  test('a failed owner lookup is retried by a later sensitive write', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    var ownerRequestCount = 0;
+    var putRequestCount = 0;
+    server.listen((request) async {
+      request.response.headers.contentType = ContentType.json;
+      if (request.uri.path == '/v1/me') {
+        ownerRequestCount += 1;
+        if (ownerRequestCount == 1) {
+          request.response
+            ..statusCode = HttpStatus.serviceUnavailable
+            ..write(
+              jsonEncode(<String, Object?>{
+                'error': <String, Object?>{
+                  'code': 'temporarily_unavailable',
+                  'message': 'try again',
+                },
+              }),
+            );
+        } else {
+          request.response
+            ..statusCode = HttpStatus.ok
+            ..write(
+              jsonEncode(<String, Object?>{
+                'user': <String, Object?>{'id': 'owner-a', 'username': 'alice'},
+              }),
+            );
+        }
+      } else {
+        putRequestCount += 1;
+        final body =
+            (jsonDecode(await utf8.decoder.bind(request).join()) as Map)
+                .cast<String, Object?>();
+        request.response
+          ..statusCode = HttpStatus.ok
+          ..write(
+            jsonEncode(
+              _validResourceJson(
+                id: 'work',
+                kind: 'profile',
+                data: body['data'],
+                sensitive: body['sensitive'],
+              ),
+            ),
+          );
+      }
+      await request.response.close();
+    });
+    final client = DataApiClient(
+      baseUri: Uri.parse('http://127.0.0.1:${server.port}/'),
+      accessToken: 'access-token',
+      encryptionKey: 'encryption-key-material',
+    );
+
+    Future<DataApiResource> write() => client.putResource(
+      kind: 'profile',
+      id: 'work',
+      data: const <String, Object?>{'name': 'Work'},
+      sensitive: const <String, Object?>{'password': 'secret'},
+    );
+
+    await expectLater(
+      write(),
+      throwsA(
+        isA<DataApiRequestException>().having(
+          (error) => error.statusCode,
+          'statusCode',
+          HttpStatus.serviceUnavailable,
+        ),
+      ),
+    );
+    final saved = await write();
+
+    expect(saved.sensitive, <String, Object?>{'password': 'secret'});
+    expect(ownerRequestCount, 2);
+    expect(putRequestCount, 1);
+  });
+
   test(
     'wrong key fails locally while the server only sees bearer auth',
     () async {

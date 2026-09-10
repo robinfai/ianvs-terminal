@@ -1,0 +1,42 @@
+Date: 2026-09-10
+Real HTTP acceptance: ./tools/verify_local_first_sync_http.sh
+Exit 0: real Go backend and two-client scenario passed.
+
+Complete app regression after final source changes:
+1795 passed, 1 pre-existing trace benchmark skipped.
+Only 2 expected visual baseline differences (mode copy and status badge).
+Both actual screenshots were inspected before updating just those baselines.
+Final rerun: settings visual captures + configuration settings/recovery UI +
+production startup tests: 56 passed, exit 0 (includes both visual baselines).
+No remaining test failures.
+Earlier auth-only full run: 1796 passed, 1 pre-existing skip, exit 0.
+API client / recovery / sync panel / settings focused: 41 passed, exit 0.
+Disabled mode with pending cleanup production startup regression: 30 passed.
+Complete final static analysis: No issues found, exit 0.
+Release: isolated tool/macos_acceptance.dart, 116.3 MB, exit 0.
+Ad-hoc hardened-runtime signature and strict deep verification: exit 0.
+
+GUI operations used the explicitly authorized temporary account via Computer Use.
+First union; disjoint merge; both conflict choices; real 401/relogin;
+offline save/restart/recovery; API-off save/restart and native SSH reconnect
+all completed. See README for exact observations and final UI remediation.
+Checkpoints: 3 encrypted files with unchanged identity across relogin.
+SSH fixture password absent from local Profile JSON; actual reconnect succeeded.
+
+Local logs:
+/tmp/trail-api-sync-http-acceptance.txt
+/tmp/trail-api-sync-full-app-tests.txt
+/tmp/trail-api-sync-complete-app-tests.txt
+/tmp/trail-api-sync-final-ui-regression.txt
+/tmp/trail-api-sync-final-focused-tests.txt
+/tmp/trail-api-sync-disabled-startup-tests.txt
+/tmp/trail-api-sync-complete-analysis.txt
+/tmp/trail-api-sync-complete-build.txt
+/tmp/trail-api-sync-update-goldens.txt
+
+Final exact retry-time copy: 6 UI regressions passed; Release and signing passed.
+Real window confirmed final Chinese startup cleanup message (screenshot 14).
+Final build fingerprint: complete-build-info.json.
+Additional local logs:
+/tmp/trail-api-sync-cleanup-copy-tests.txt
+/tmp/trail-api-sync-verified-build.txt

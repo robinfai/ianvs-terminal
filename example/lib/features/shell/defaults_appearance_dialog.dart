@@ -3145,21 +3145,12 @@ class _DataServiceModeChoiceState extends State<_DataServiceModeChoice> {
           ),
         ] else if (widget.active) ...[
           SizedBox(height: theme.spacing.xs),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.circle, size: 8, color: theme.success),
-              SizedBox(width: theme.spacing.xs),
-              Flexible(
-                child: Text(
-                  context.l10n.running,
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: theme.success,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
+          Text(
+            context.l10n.currentMode,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: theme.textMuted,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ],
       ],
@@ -3310,7 +3301,7 @@ class _DataServiceStatusBanner extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    context.l10n.currentlyRunning(serviceName),
+                    context.l10n.activeNow(serviceName),
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: theme.textPrimary,
                       fontWeight: FontWeight.w700,
@@ -3329,21 +3320,6 @@ class _DataServiceStatusBanner extends StatelessWidget {
                   ),
                 ],
               ),
-            ),
-            SizedBox(width: theme.spacing.md),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.circle, size: 9, color: theme.success),
-                SizedBox(width: theme.spacing.xs),
-                Text(
-                  context.l10n.running,
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: theme.success,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
             ),
           ],
         ),

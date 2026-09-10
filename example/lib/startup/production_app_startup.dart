@@ -218,7 +218,10 @@ AppStartupCoordinator createProductionAppStartupCoordinator({
                   configurationSnapshot.configuration.deployment !=
                   DataApiDeployment.disabled,
               dataApiPersistenceUnavailable:
-                  dataApiRuntime == null && dataApiStartupWarning != null,
+                  configurationSnapshot.configuration.deployment !=
+                      DataApiDeployment.disabled &&
+                  dataApiRuntime == null &&
+                  dataApiStartupWarning != null,
             );
             final remoteEncryptionKey =
                 dataApiRuntime?.deployment == DataApiDeployment.remote
@@ -357,7 +360,7 @@ Future<DataApiStartupWarning?> _recoverProductionSecureConfiguration(
     await repository.retryPendingRevocations();
     return null;
   } on DataApiRemoteRevocationPendingWarning catch (warning) {
-    return DataApiStartupWarning(warning.toString());
+    return DataApiStartupWarning.remoteCleanupPending(warning);
   }
 }
 

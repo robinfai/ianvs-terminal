@@ -425,6 +425,48 @@ void main() {
     );
 
     test(
+      'disabled sync stays disabled when retired remote cleanup is pending',
+      () async {
+        final directory = Directory.systemTemp.createTempSync(
+          'ianvs-disabled-sync-cleanup-',
+        );
+        addTearDown(() => directory.deleteSync(recursive: true));
+        final repository = _MemoryConfigurationRepository();
+        const warning = DataApiStartupWarning('Retired remote cleanup pending');
+        final coordinator = createProductionAppStartupCoordinator(
+          platform: TargetPlatform.macOS,
+          appSupportDirectoryResolver: () async => directory,
+          appDocumentsDirectoryResolver: () async => directory,
+          configurationAccessFactory: (paths) async =>
+              AppStartupConfigurationAccess(
+                repository: repository,
+                remoteSessionStore: _MemoryRemoteSessionStore(),
+                masterKeyRepository: PortableMasterKeyRepository(),
+                settings: _MemorySettingsCapability(),
+              ),
+          secureRecovery: (access) async => warning,
+          nativePtyLoader: () async => _FakePtyBackend(),
+        );
+
+        await coordinator.start();
+
+        final graph = _readyGraph(coordinator);
+        final sync = graph.persistenceRepositories.sync;
+        addTearDown(sync.close);
+        expect(
+          graph.dataApiConfiguration.deployment,
+          DataApiDeployment.disabled,
+        );
+        expect(graph.dataApiStartupWarning, same(warning));
+        expect(sync.enabledButUnavailable, isFalse);
+        sync.start();
+        await sync.synchronize();
+        expect(sync.phase, LocalFirstSyncPhase.disabled);
+        expect(sync.client, isNull);
+      },
+    );
+
+    test(
       'production keeps local data available when remote session recovery fails',
       () async {
         final directory = Directory.systemTemp.createTempSync(

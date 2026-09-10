@@ -407,7 +407,13 @@ final class DataApiClient
   bool get canAccessResources => _accessToken != null;
 
   Future<void> validateAccess() async {
-    await _authenticatedOwnerId();
+    try {
+      final ownerId = await _loadAuthenticatedOwnerId();
+      _ownerIdFuture = Future<String>.value(ownerId);
+    } on Object {
+      _ownerIdFuture = null;
+      rethrow;
+    }
   }
 
   Future<void> logout() async {
@@ -796,7 +802,20 @@ final class DataApiClient
   }
 
   Future<String> _authenticatedOwnerId() {
-    return _ownerIdFuture ??= _loadAuthenticatedOwnerId();
+    final cached = _ownerIdFuture;
+    if (cached != null) return cached;
+    late final Future<String> loading;
+    loading = _loadAuthenticatedOwnerId().then<String>(
+      (ownerId) => ownerId,
+      onError: (Object error, StackTrace stackTrace) {
+        if (identical(_ownerIdFuture, loading)) {
+          _ownerIdFuture = null;
+        }
+        Error.throwWithStackTrace(error, stackTrace);
+      },
+    );
+    _ownerIdFuture = loading;
+    return loading;
   }
 
   Future<String> _loadAuthenticatedOwnerId() async {

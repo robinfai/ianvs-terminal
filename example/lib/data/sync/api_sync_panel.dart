@@ -36,7 +36,11 @@ class _ConnectedApiSyncPanel extends ConsumerWidget {
       LocalFirstSyncPhase.syncing => l10n.syncInProgress,
       LocalFirstSyncPhase.pending => l10n.syncPending,
       LocalFirstSyncPhase.conflict => l10n.syncConflicts,
-      LocalFirstSyncPhase.unavailable => l10n.syncUnavailable,
+      LocalFirstSyncPhase.unavailable =>
+        sync?.failureReason ==
+                LocalFirstSyncFailureReason.authenticationRequired
+            ? l10n.syncAuthenticationRequired
+            : l10n.syncUnavailable,
     };
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),

@@ -106,6 +106,8 @@ enum LocalFirstSyncPhase {
   unavailable,
 }
 
+enum LocalFirstSyncFailureReason { authenticationRequired, unavailable }
+
 class LocalFirstSyncCoordinator extends ChangeNotifier {
   LocalFirstSyncCoordinator({
     required this.documents,
@@ -132,6 +134,8 @@ class LocalFirstSyncCoordinator extends ChangeNotifier {
       : _phase;
   LocalFirstSyncPhase _phase = LocalFirstSyncPhase.idle;
   final Map<String, List<String>> conflicts = {};
+  LocalFirstSyncFailureReason? get failureReason => _failureReason;
+  LocalFirstSyncFailureReason? _failureReason;
   DateTime? lastSyncedAt;
   int pulledGeneration = 0;
   Timer? _timer;
@@ -171,17 +175,25 @@ class LocalFirstSyncCoordinator extends ChangeNotifier {
     notifyListeners();
     conflicts.clear();
     var failed = false;
+    LocalFirstSyncFailureReason? syncFailureReason;
     for (final binding in documents) {
       if (_closed || _paused) break;
       try {
         await _synchronizeDocument(binding, resolution);
-      } on Object {
+      } on Object catch (error) {
         // Local data and the last acknowledged checkpoint are intact. Never
         // expose exception payloads containing credentials in the status UI.
         failed = true;
+        final reason = _failureReasonFor(error);
+        if (syncFailureReason !=
+                LocalFirstSyncFailureReason.authenticationRequired ||
+            reason == LocalFirstSyncFailureReason.authenticationRequired) {
+          syncFailureReason = reason;
+        }
       }
     }
     if (_closed || _paused) return;
+    _failureReason = failed ? syncFailureReason : null;
     _phase = conflicts.isNotEmpty
         ? LocalFirstSyncPhase.conflict
         : failed
@@ -319,6 +331,7 @@ class LocalFirstSyncCoordinator extends ChangeNotifier {
     closeTransport = nextClose;
     enabledButUnavailable = false;
     conflicts.clear();
+    _failureReason = null;
     lastSyncedAt = null;
     _paused = false;
     _phase = LocalFirstSyncPhase.idle;
@@ -330,6 +343,7 @@ class LocalFirstSyncCoordinator extends ChangeNotifier {
     _paused = true;
     enabledButUnavailable = true;
     _phase = LocalFirstSyncPhase.unavailable;
+    _failureReason = LocalFirstSyncFailureReason.unavailable;
     if (!_closed) notifyListeners();
   }
 
@@ -348,6 +362,15 @@ class LocalFirstSyncCoordinator extends ChangeNotifier {
     _debounce?.cancel();
     super.dispose();
   }
+}
+
+LocalFirstSyncFailureReason _failureReasonFor(Object error) {
+  if (error is DataApiAuthenticationRequiredException ||
+      error is DataApiRequestException &&
+          error.statusCode == HttpStatus.unauthorized) {
+    return LocalFirstSyncFailureReason.authenticationRequired;
+  }
+  return LocalFirstSyncFailureReason.unavailable;
 }
 
 final localFirstSyncProvider =

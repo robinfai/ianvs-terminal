@@ -1,0 +1,15 @@
+{
+  "base_commit": "da535233b46bf7495e66626b9741d39fc2e43d1b",
+  "source_state": "base plus all authentication, mode, disabled-startup and cleanup-message fixes in this change",
+  "build_mode": "release",
+  "app_bundle": "Trail Sync Verified.app",
+  "bundle_id": "work.ianvs.trail.acceptance.sync.20260910.verified",
+  "data_directory": "/tmp/trail-api-sync-20260910/data",
+  "gui_started": true,
+  "sha256": {
+    "Contents/MacOS/Trail": "26c99b57a0402e588154cd33c2eab7e06576ae79126374d9c17162d0f85535d2",
+    "Contents/Frameworks/App.framework/Versions/A/App": "1751099f82fe9cd7d30b164f00e7ee788dcb0835ccde2f3476a6ba22a1a81b6c",
+    "Contents/Frameworks/ianvs_core.framework/Versions/A/ianvs_core": "3eb6965eb99a4db51cc80af5a64772952745eb9904b53bece9357321cebffbcd",
+    "Contents/Resources/ianvs-api": "daeaa6520c387dfb8fae5b41784222e549902539ad4763ac53db43b0e23a5cb5"
+  }
+}

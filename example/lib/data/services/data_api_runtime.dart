@@ -83,10 +83,22 @@ class DataApiRuntime {
 
 final dataApiRuntimeProvider = Provider<DataApiRuntime?>((ref) => null);
 
+enum DataApiStartupWarningKind { generic, remoteCleanupPending }
+
 final class DataApiStartupWarning {
-  const DataApiStartupWarning(this.message);
+  const DataApiStartupWarning(this.message)
+    : kind = DataApiStartupWarningKind.generic,
+      diagnosticMessage = message;
+
+  DataApiStartupWarning.remoteCleanupPending(Object cause)
+    : message =
+          'Remote sign-out cleanup is pending and will retry the next time the app starts.',
+      kind = DataApiStartupWarningKind.remoteCleanupPending,
+      diagnosticMessage = cause.toString();
 
   final String message;
+  final DataApiStartupWarningKind kind;
+  final String diagnosticMessage;
 }
 
 final dataApiStartupWarningProvider = Provider<DataApiStartupWarning?>(
