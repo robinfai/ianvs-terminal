@@ -1,0 +1,14 @@
+{
+  "base_commit": "526f7927822250800feb18e4ba0b3f2dda7cc3d1",
+  "source_state": "base plus uncommitted sync transport retry, configuration ordering, startup warning and shutdown changes",
+  "build_command": "flutter build macos --release --no-pub",
+  "entrypoint": "example/lib/main.dart",
+  "app_bundle": "example/build/macos/Build/Products/Release/Trail.app",
+  "gui_started": false,
+  "sha256": {
+    "Contents/MacOS/Trail": "94c0c573eadf3423991b3d5266dad7002a30daac4fe1d1ba0b63f650edda87ed",
+    "Contents/Frameworks/App.framework/Versions/A/App": "9893abda2ab9daa51e5a33fa14e0f2968d8aee14c5cebdf682d8f987757d34a5",
+    "Contents/Frameworks/ianvs_core.framework/Versions/A/ianvs_core": "38830609f84cfe5cdc57cd1fab7358b6ebb87dabdb43f774dd4b1263a01cbcd3",
+    "Contents/Resources/ianvs-api": "87a4b8c6b62bbfb87cf28326dc21f8f57647756a873a13ed859b91cfc4ab78bb"
+  }
+}

@@ -228,13 +228,11 @@ final class AppRuntimeGraph {
     this.remoteFallbackSnapshotActivator,
     this.applyApiSyncConfiguration,
   }) {
-    if (dataApiRuntime case final runtime?) {
-      shutdownCoordinator.registerTask(
-        'data-api-runtime',
-        runtime.close,
-        phase: AppShutdownPhase.infrastructure,
-      );
-    }
+    shutdownCoordinator.registerTask(
+      'data-api-runtime',
+      persistenceRepositories.sync.close,
+      phase: AppShutdownPhase.infrastructure,
+    );
   }
 
   final int generation;

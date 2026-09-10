@@ -1,0 +1,48 @@
+Date: 2026-09-10
+Base commit: 526f7927 (already pushed to origin/main)
+Scope: startup dependency recovery through Sync now; configuration ordering;
+stale startup warning; ownership and shutdown of restored transports.
+
+Final source, full app tests:
+  flutter test --no-pub --reporter expanded
+  Exit 0. 1812 passed, 1 pre-existing external trace benchmark skipped.
+  Includes production startup, settings/panel, Shell UI, shutdown lifecycle
+  and existing visual baseline tests. No golden updates in this change.
+
+Final source, real HTTP acceptance:
+  ./tools/verify_local_first_sync_http.sh
+  Exit 0. Real Go backend, temporary SQLite and two-client scenario passed.
+  Includes no-transport recovery after one failed credential read, encrypted
+  checkpoint reuse, pending local edits and concurrent remote edits.
+  Existing conflict choices, offline, 401 and disable/re-enable checks passed.
+  Script cleaned its server, test account and database on exit.
+
+Final source, static analysis:
+  flutter analyze --no-pub
+  Exit 0. No issues found.
+
+Final source, production macOS Release:
+  flutter build macos --release --no-pub
+  Exit 0. Built Trail.app (116.3 MB), using the normal production entrypoint.
+  Build only; the app was not launched or published. See build-info.json.
+
+Earlier focused verification:
+  Production startup + sync panel + recovery Shell UI: 51 passed, exit 0.
+  Shutdown lifecycle initial four cases: 4 passed, exit 0.
+  Final full suite above includes the additional disposed-callback case and
+  the revised safe public retry future / failing graph shutdown assertions.
+
+Evidence limits:
+  Credential read errors were injected through the production startup
+  dependency interface, without altering actual macOS Keychain permissions.
+  HTTP acceptance used a real backend and encrypted file checkpoints.
+  No new native GUI, actual Keychain-failure or VoiceOver acceptance in this run.
+  No production application data, credentials or remote account were used.
+
+Local logs:
+/tmp/trail-sync-transport-retry-final-full-tests.txt
+/tmp/trail-sync-transport-retry-final-http-tests.txt
+/tmp/trail-sync-transport-retry-final-analysis.txt
+/tmp/trail-sync-transport-retry-final-build.txt
+/tmp/trail-sync-transport-retry-race-tests.txt
+/tmp/trail-sync-transport-retry-shutdown-tests.txt

@@ -223,6 +223,7 @@ AppStartupCoordinator createProductionAppStartupCoordinator({
                   dataApiRuntime == null &&
                   dataApiStartupWarning != null,
             );
+            Future<void> syncConfigurationQueue = Future<void>.value();
             final remoteEncryptionKey =
                 dataApiRuntime?.deployment == DataApiDeployment.remote
                 ? dataApiRuntime?.encryptionKey
@@ -287,21 +288,31 @@ AppStartupCoordinator createProductionAppStartupCoordinator({
               remoteFallbackSnapshotCommitter:
                   remoteFallbackMirror?.commitStaging,
               remoteFallbackSnapshotActivator: remoteFallbackMirror?.activate,
-              applyApiSyncConfiguration: () async {
-                try {
-                  final configuration = await configurationAccess.repository
-                      .load();
-                  final runtime = await _bootstrapRuntime(
-                    paths: paths,
-                    access: configurationAccess,
-                    configuration: configuration,
-                    isMacOS: targetPlatform == TargetPlatform.macOS,
-                  );
-                  await persistence.configureSyncRuntime(runtime);
-                } on Object {
-                  persistence.sync.markUnavailable();
-                  rethrow;
-                }
+              applyApiSyncConfiguration: () {
+                // Settings saves and retry share the same installation order.
+                // Read configuration inside the queue so a newer saved mode
+                // cannot be overwritten by an earlier credential read.
+                final operation = syncConfigurationQueue.then((_) async {
+                  try {
+                    final configuration = await configurationAccess.repository
+                        .load();
+                    final runtime = await _bootstrapRuntime(
+                      paths: paths,
+                      access: configurationAccess,
+                      configuration: configuration,
+                      isMacOS: targetPlatform == TargetPlatform.macOS,
+                    );
+                    await persistence.configureSyncRuntime(runtime);
+                  } on Object catch (error) {
+                    persistence.sync.markUnavailable(error: error);
+                    rethrow;
+                  }
+                });
+                syncConfigurationQueue = operation.then<void>(
+                  (_) {},
+                  onError: (Object _, StackTrace _) {},
+                );
+                return operation;
               },
             );
           },

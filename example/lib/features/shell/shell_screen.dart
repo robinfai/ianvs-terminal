@@ -665,6 +665,19 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<bool>(
+      localFirstSyncProvider.select(
+        (sync) => sync?.enabledButUnavailable ?? false,
+      ),
+      (wasUnavailable, isUnavailable) {
+        if (wasUnavailable == true &&
+            !isUnavailable &&
+            ref.read(dataApiStartupWarningProvider)?.kind ==
+                DataApiStartupWarningKind.generic) {
+          setState(() => _dataApiStartupWarningDismissed = true);
+        }
+      },
+    );
     ref.listen<int>(
       localFirstSyncProvider.select((sync) => sync?.pulledGeneration ?? 0),
       (_, _) => unawaited(_loadNotificationPreferences()),

@@ -1,13 +1,17 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:app/data/configuration/data_api_configuration.dart';
 import 'package:app/data/configuration/data_api_configuration_repository.dart';
 import 'package:app/data/services/data_api_bootstrap.dart';
+import 'package:app/data/services/data_api_client.dart';
 import 'package:app/data/services/data_api_remote_session_store.dart';
 import 'package:app/data/services/data_api_runtime.dart';
 import 'package:app/data/services/portable_master_key.dart';
 import 'package:app/data/sync/local_first_sync.dart';
+import 'package:app/features/profiles/profile_models.dart';
+import 'package:app/features/profiles/profile_secret_cipher.dart';
 import 'package:app/features/recording/local_session_recording_repository.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/persistence_repository_composition.dart';
@@ -612,6 +616,209 @@ void main() {
       );
     });
 
+    test(
+      'production restores a temporarily unreadable remote session in place',
+      () async {
+        final directory = Directory.systemTemp.createTempSync(
+          'ianvs-live-sync-session-recovery-',
+        );
+        addTearDown(() => directory.deleteSync(recursive: true));
+        final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+        addTearDown(() => server.close(force: true));
+        server.listen((request) async {
+          request.response
+            ..statusCode = HttpStatus.notFound
+            ..headers.contentType = ContentType.json
+            ..write(
+              jsonEncode(<String, Object?>{
+                'error': <String, String>{
+                  'code': 'not_found',
+                  'message': 'resource not found',
+                },
+              }),
+            );
+          await request.response.close();
+        });
+        final baseUri = Uri.parse('http://127.0.0.1:${server.port}/');
+        const credentialRef = 'credentialSlot000001';
+        final configuration = DataApiConfiguration.remote(baseUri.toString())
+            .withPersistenceState(
+              generation: 7,
+              remoteCredentialRef: credentialRef,
+              lastTransactionId: null,
+            );
+        final repository = _MemoryConfigurationRepository()
+          ..configuration = configuration;
+        final session = DataApiRemoteSession(
+          baseUri: baseUri,
+          accessToken: 'restored-access-token',
+          encryptionKey: 'restored-encryption-key',
+          expiresAt: DateTime.now().add(const Duration(hours: 1)),
+          username: 'alice',
+        );
+        final remoteSessionStore = _MemoryRemoteSessionStore()
+          ..readError = StateError('Keychain temporarily unavailable')
+          ..slots[credentialRef] = session;
+        final masterKeyRepository = PortableMasterKeyRepository(
+          storage: _MemoryMasterKeyStorage(),
+          allowLegacyMigration: false,
+        );
+        final coordinator = createProductionAppStartupCoordinator(
+          platform: TargetPlatform.macOS,
+          appSupportDirectoryResolver: () async => directory,
+          appDocumentsDirectoryResolver: () async => directory,
+          configurationAccessFactory: (paths) async =>
+              AppStartupConfigurationAccess(
+                repository: repository,
+                remoteSessionStore: remoteSessionStore,
+                masterKeyRepository: masterKeyRepository,
+                settings: _MemorySettingsCapability()
+                  ..recoveryConfiguration = configuration,
+              ),
+          secureRecovery: (access) async => null,
+          nativePtyLoader: () async => _FakePtyBackend(),
+        );
+
+        await coordinator.start();
+
+        final graph = _readyGraph(coordinator);
+        final localProfile = defaultTerminalProfile().copyWith(
+          name: 'Kept during credential outage',
+        );
+        await graph.persistenceRepositories.profiles.save(
+          TerminalProfilesDocument(profiles: <TerminalProfile>[localProfile]),
+        );
+        final expectedCheckpoints = FileSyncCheckpointStore(
+          directory: () async => directory,
+          destination: session.syncIdentity,
+          cipher: ProfileSecretCipher(
+            keyStore: PortableMasterProfileSecretKeyStore(
+              masterKeyRepository: masterKeyRepository,
+            ),
+          ),
+        );
+        const checkpoint = <String, Object?>{'account': 'alice'};
+        await expectedCheckpoints.write('acceptance/sentinel', checkpoint);
+        expect(
+          graph.persistenceRepositories.sync.enabledButUnavailable,
+          isTrue,
+        );
+        expect(repository.saveCount, 0);
+        expect(remoteSessionStore.writeCount, 0);
+
+        remoteSessionStore.readError = null;
+        await graph.applyApiSyncConfiguration!();
+
+        final sync = graph.persistenceRepositories.sync;
+        expect(sync.client, isNotNull);
+        expect(sync.enabledButUnavailable, isFalse);
+        expect(await sync.checkpoints!.read('acceptance/sentinel'), checkpoint);
+        await sync.synchronize();
+        expect(
+          (await graph.persistenceRepositories.profiles.load())
+              .profiles
+              .single
+              .name,
+          localProfile.name,
+        );
+        expect(repository.saveCount, 0);
+        expect(remoteSessionStore.writeCount, 0);
+
+        // A retry may be waiting on the vault when settings saves a newer mode.
+        // Queue the newer apply, then release the old credential read.
+        final readStarted = Completer<void>();
+        final readGate = Completer<void>();
+        remoteSessionStore
+          ..readStarted = readStarted
+          ..readGate = readGate;
+        sync.markUnavailable();
+        final retry = sync.retry(
+          restoreTransport: graph.applyApiSyncConfiguration,
+        );
+        await readStarted.future;
+        await repository.save(const DataApiConfiguration.disabled());
+        final disable = graph.applyApiSyncConfiguration!();
+        await Future<void>.delayed(Duration.zero);
+        readGate.complete();
+        await Future.wait([retry, disable]);
+
+        expect(sync.phase, LocalFirstSyncPhase.disabled);
+        expect(sync.client, isNull);
+        expect(sync.enabledButUnavailable, isFalse);
+        expect(repository.configuration.deployment, DataApiDeployment.disabled);
+        await coordinator.close();
+      },
+    );
+
+    for (final sessionAfterRecovery in <DataApiRemoteSession?>[
+      null,
+      DataApiRemoteSession(
+        baseUri: Uri.parse('https://sync.example.com/'),
+        accessToken: 'expired-access-token',
+        encryptionKey: 'expired-encryption-key',
+        expiresAt: DateTime.utc(2000),
+        username: 'alice',
+      ),
+    ]) {
+      test(
+        'production classifies ${sessionAfterRecovery == null ? 'missing' : 'expired'} '
+        'session recovery as authentication required',
+        () async {
+          final directory = Directory.systemTemp.createTempSync(
+            'ianvs-live-sync-authentication-recovery-',
+          );
+          addTearDown(() => directory.deleteSync(recursive: true));
+          const credentialRef = 'credentialSlot000001';
+          final configuration =
+              DataApiConfiguration.remote(
+                'https://sync.example.com/',
+              ).withPersistenceState(
+                generation: 3,
+                remoteCredentialRef: credentialRef,
+                lastTransactionId: null,
+              );
+          final repository = _MemoryConfigurationRepository()
+            ..configuration = configuration;
+          final remoteSessionStore = _MemoryRemoteSessionStore()
+            ..readError = StateError('Keychain temporarily unavailable');
+          final coordinator = createProductionAppStartupCoordinator(
+            platform: TargetPlatform.macOS,
+            appSupportDirectoryResolver: () async => directory,
+            appDocumentsDirectoryResolver: () async => directory,
+            configurationAccessFactory: (paths) async =>
+                AppStartupConfigurationAccess(
+                  repository: repository,
+                  remoteSessionStore: remoteSessionStore,
+                  masterKeyRepository: PortableMasterKeyRepository(),
+                  settings: _MemorySettingsCapability()
+                    ..recoveryConfiguration = configuration,
+                ),
+            secureRecovery: (access) async => null,
+            nativePtyLoader: () async => _FakePtyBackend(),
+          );
+          await coordinator.start();
+          final graph = _readyGraph(coordinator);
+          remoteSessionStore.readError = null;
+          if (sessionAfterRecovery != null) {
+            remoteSessionStore.slots[credentialRef] = sessionAfterRecovery;
+          }
+
+          await expectLater(
+            graph.applyApiSyncConfiguration!(),
+            throwsA(isA<DataApiAuthenticationRequiredException>()),
+          );
+
+          expect(
+            graph.persistenceRepositories.sync.failureReason,
+            LocalFirstSyncFailureReason.authenticationRequired,
+          );
+          expect(repository.saveCount, 0);
+          expect(remoteSessionStore.writeCount, 0);
+          await coordinator.close();
+        },
+      );
+    }
+
     test('production initial Data API policy is platform specific', () {
       const disabled = DataApiConfiguration.disabled();
       final remote = DataApiConfiguration.remote('https://sync.example.com/');
@@ -905,27 +1112,49 @@ final class _MemoryConfigurationRepository
 }
 
 final class _MemoryRemoteSessionStore implements DataApiRemoteSessionSlotStore {
+  final Map<String, DataApiRemoteSession> slots =
+      <String, DataApiRemoteSession>{};
+  Object? readError;
+  Completer<void>? readStarted;
+  Completer<void>? readGate;
+  int writeCount = 0;
+
   @override
   Future<void> deleteSlot(String slotRef) async {}
 
   @override
-  Future<Set<String>> listSlotRefs() async => const <String>{};
+  Future<Set<String>> listSlotRefs() async => slots.keys.toSet();
 
   @override
-  Future<DataApiRemoteSession?> readSlot(String slotRef) async => null;
+  Future<DataApiRemoteSession?> readSlot(String slotRef) async {
+    if (readError case final error?) {
+      Error.throwWithStackTrace(error, StackTrace.current);
+    }
+    if (readStarted case final started? when !started.isCompleted) {
+      started.complete();
+    }
+    await readGate?.future;
+    return slots[slotRef];
+  }
 
   @override
-  Future<void> writeSlot(String slotRef, DataApiRemoteSession session) async {}
+  Future<void> writeSlot(String slotRef, DataApiRemoteSession session) async {
+    writeCount += 1;
+    slots[slotRef] = session;
+  }
 }
 
 final class _MemorySettingsCapability
     implements AppStartupDataSettingsCapability {
+  DataApiConfiguration recoveryConfiguration =
+      const DataApiConfiguration.disabled();
+
   @override
   bool get localDataApiAvailable => true;
 
   @override
   Future<DataApiConfiguration> loadForRecovery() async {
-    return const DataApiConfiguration.disabled();
+    return recoveryConfiguration;
   }
 
   @override
@@ -936,6 +1165,16 @@ final class _MemorySettingsCapability
 
   @override
   Future<void> saveLocal() async {}
+}
+
+final class _MemoryMasterKeyStorage implements PortableMasterKeyStorage {
+  String? value;
+
+  @override
+  Future<String?> read() async => value;
+
+  @override
+  Future<void> write(String portableValue) async => value = portableValue;
 }
 
 final class _FakePtyBackend

@@ -123,15 +123,16 @@ class LocalFirstSyncCoordinator extends ChangeNotifier {
   final Duration interval;
   bool enabledButUnavailable;
   Future<void> Function()? closeTransport;
-  LocalFirstSyncPhase get phase => _paused
-      ? (enabledButUnavailable
-            ? LocalFirstSyncPhase.unavailable
-            : LocalFirstSyncPhase.disabled)
-      : client == null
-      ? (enabledButUnavailable
-            ? LocalFirstSyncPhase.unavailable
-            : LocalFirstSyncPhase.disabled)
-      : _phase;
+  LocalFirstSyncPhase get phase {
+    if (_restoringTransport != null) return LocalFirstSyncPhase.syncing;
+    if (_paused || client == null) {
+      return enabledButUnavailable
+          ? LocalFirstSyncPhase.unavailable
+          : LocalFirstSyncPhase.disabled;
+    }
+    return _phase;
+  }
+
   LocalFirstSyncPhase _phase = LocalFirstSyncPhase.idle;
   final Map<String, List<String>> conflicts = {};
   LocalFirstSyncFailureReason? get failureReason => _failureReason;
@@ -141,6 +142,10 @@ class LocalFirstSyncCoordinator extends ChangeNotifier {
   Timer? _timer;
   Timer? _debounce;
   Future<void>? _running;
+  Future<void>? _restoringTransport;
+  Future<void>? _closeFuture;
+  Object? _restorationCloseError;
+  StackTrace? _restorationCloseStackTrace;
   bool _closed = false;
   bool _paused = false;
 
@@ -159,6 +164,37 @@ class LocalFirstSyncCoordinator extends ChangeNotifier {
       const Duration(milliseconds: 400),
       () => unawaited(synchronize()),
     );
+  }
+
+  /// A startup dependency failure has no usable transport to synchronize.
+  /// Rebuild it from the saved configuration, sharing one attempt across views.
+  Future<void> retry({Future<void> Function()? restoreTransport}) {
+    if (_closed) return Future<void>.value();
+    if (_restoringTransport case final pending?) return pending;
+    if (!enabledButUnavailable || restoreTransport == null) {
+      return synchronize();
+    }
+    final completion = Completer<void>();
+    _restoringTransport = completion.future;
+    notifyListeners();
+    unawaited(() async {
+      try {
+        await restoreTransport();
+        if (!_closed) await synchronize();
+      } on Object catch (error, stackTrace) {
+        if (_closed) {
+          _restorationCloseError = error;
+          _restorationCloseStackTrace = stackTrace;
+        } else {
+          markUnavailable(error: error);
+        }
+      } finally {
+        _restoringTransport = null;
+        if (!_closed) notifyListeners();
+        if (!completion.isCompleted) completion.complete();
+      }
+    }());
+    return completion.future;
   }
 
   Future<void> synchronize({
@@ -339,20 +375,33 @@ class LocalFirstSyncCoordinator extends ChangeNotifier {
     start();
   }
 
-  void markUnavailable() {
+  void markUnavailable({Object? error}) {
     _paused = true;
     enabledButUnavailable = true;
     _phase = LocalFirstSyncPhase.unavailable;
-    _failureReason = LocalFirstSyncFailureReason.unavailable;
+    _failureReason = _failureReasonFor(error);
     if (!_closed) notifyListeners();
   }
 
-  Future<void> close() async {
+  Future<void> close() => _closeFuture ??= _close();
+
+  Future<void> _close() async {
     _closed = true;
     _timer?.cancel();
     _debounce?.cancel();
-    await _running;
-    await closeTransport?.call();
+    final restoringTransport = _restoringTransport;
+    try {
+      await _running;
+      await restoringTransport;
+    } finally {
+      await closeTransport?.call();
+    }
+    if (_restorationCloseError case final error?) {
+      Error.throwWithStackTrace(
+        error,
+        _restorationCloseStackTrace ?? StackTrace.current,
+      );
+    }
   }
 
   @override
@@ -364,7 +413,7 @@ class LocalFirstSyncCoordinator extends ChangeNotifier {
   }
 }
 
-LocalFirstSyncFailureReason _failureReasonFor(Object error) {
+LocalFirstSyncFailureReason _failureReasonFor(Object? error) {
   if (error is DataApiAuthenticationRequiredException ||
       error is DataApiRequestException &&
           error.statusCode == HttpStatus.unauthorized) {

@@ -197,14 +197,58 @@ void main() {
           'survives-http-outage',
         );
         final recovered = offline.rebuild(
-          client: secondClient,
+          client: null,
           destination: secondSession.syncIdentity(baseUri),
         );
         openedDevices.add(recovered);
         await offline.close(removeDirectory: false);
-        await recovered.sync.synchronize();
+        recovered.sync.markUnavailable();
+        await recovered.updatePublic('credentialOutage', 'pending-local-edit');
+        await first.updatePublic('peerDuringRecovery', 'remote-edit');
+        await first.sync.synchronize();
+
+        await recovered.sync.retry(
+          restoreTransport: () async {
+            throw const FileSystemException(
+              'fixture credential store unavailable',
+            );
+          },
+        );
+        expect(recovered.sync.phase, LocalFirstSyncPhase.unavailable);
+        _expectPublicValue(
+          recovered.value,
+          'credentialOutage',
+          'pending-local-edit',
+        );
+        await recovered.sync.retry(
+          restoreTransport: () => recovered.sync.setTransport(
+            nextClient: secondClient,
+            nextCheckpoints: FileSyncCheckpointStore(
+              directory: () async => recovered.directory,
+              destination: secondSession.syncIdentity(baseUri),
+              cipher: ProfileSecretCipher(keyStore: recovered.keyStore),
+            ),
+          ),
+        );
         expect(recovered.sync.phase, LocalFirstSyncPhase.idle);
         expect(recovered.sync.failureReason, isNull);
+        _expectPublicValue(
+          recovered.value,
+          'peerDuringRecovery',
+          'remote-edit',
+        );
+        _expectPublicValue(
+          recovered.value,
+          'offlineField',
+          'survives-http-outage',
+        );
+        expect(_secret(recovered.value, 'password'), _secretMarker);
+        await first.sync.synchronize();
+        _expectPublicValue(
+          first.value,
+          'credentialOutage',
+          'pending-local-edit',
+        );
 
         await first.updatePublic('after401', 'pending-through-reconnect');
         await _anonymousClient(

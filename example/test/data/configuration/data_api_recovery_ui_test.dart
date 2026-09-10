@@ -6,6 +6,7 @@ import 'package:app/data/configuration/data_api_configuration_repository.dart';
 import 'package:app/data/services/data_api_client.dart';
 import 'package:app/data/services/data_api_remote_session_store.dart';
 import 'package:app/data/services/data_api_runtime.dart';
+import 'package:app/data/sync/local_first_sync.dart';
 import 'package:app/data/sync/sync_repositories.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/profiles/profile_repository.dart';
@@ -22,9 +23,75 @@ import '../../support/fake_pty_backend.dart';
 import '../../support/memory_app_preferences_repository.dart';
 import '../../support/memory_local_terminal_config_repository.dart';
 import '../../support/memory_paste_history_repository.dart';
+import '../support/memory_data_api_resource_client.dart';
 
 void main() {
   const credentialRef = 'current-credential-slot-0001';
+
+  for (final cleanupPending in [false, true]) {
+    testWidgets(
+      'recovery clears stale startup warning, cleanup=$cleanupPending',
+      (tester) async {
+        final sync = LocalFirstSyncCoordinator(
+          documents: const [],
+          enabledButUnavailable: true,
+        );
+        final warning = cleanupPending
+            ? DataApiStartupWarning.remoteCleanupPending(StateError('pending'))
+            : const DataApiStartupWarning('Credential store was unavailable');
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              ptySessionBackendProvider.overrideWithValue(FakePtyBackend()),
+              localSessionRecordingRepositoryProvider.overrideWithValue(
+                _NoopRecordingRepository(),
+              ),
+              profileRepositoryProvider.overrideWithValue(
+                const _UnavailableProfileRepository(),
+              ),
+              appPreferencesRepositoryProvider.overrideWithValue(
+                MemoryAppPreferencesRepository(null),
+              ),
+              localTerminalConfigRepositoryProvider.overrideWithValue(
+                MemoryLocalTerminalConfigRepository(null),
+              ),
+              pasteHistoryRepositoryProvider.overrideWithValue(
+                MemoryPasteHistoryRepository(),
+              ),
+              dataApiConfigurationRepositoryProvider.overrideWithValue(
+                _MemoryConfigurationRepository(
+                  const DataApiConfiguration.disabled(),
+                ),
+              ),
+              localFirstSyncProvider.overrideWith((ref) => sync),
+              dataApiStartupWarningProvider.overrideWithValue(warning),
+            ],
+            child: MaterialApp(
+              theme: buildIanvsTerminalTheme(Brightness.dark),
+              home: const ShellScreen(),
+            ),
+          ),
+        );
+        await _pumpUntilFound(
+          tester,
+          find.byKey(const Key('shell-startup-error')),
+        );
+        expect(
+          find.byKey(const Key('data-api-startup-warning')),
+          findsOneWidget,
+        );
+
+        await sync.setTransport(nextClient: MemoryDataApiResourceClient());
+        await tester.pumpAndSettle();
+
+        expect(
+          find.byKey(const Key('data-api-startup-warning')),
+          cleanupPending ? findsOneWidget : findsNothing,
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 
   testWidgets(
     'expired remote startup can reconnect from the typed error surface',

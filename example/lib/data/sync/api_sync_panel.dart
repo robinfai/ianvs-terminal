@@ -28,6 +28,7 @@ class _ConnectedApiSyncPanel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final sync = ref.watch(localFirstSyncProvider);
+    final restoreTransport = ref.watch(applyApiSyncConfigurationProvider);
     final l10n = context.l10n;
     final phase = sync?.phase ?? LocalFirstSyncPhase.disabled;
     final status = switch (phase) {
@@ -82,9 +83,11 @@ class _ConnectedApiSyncPanel extends ConsumerWidget {
             ],
             TextButton(
               key: const Key('api-sync-now'),
-              onPressed: phase == LocalFirstSyncPhase.syncing
+              onPressed:
+                  phase == LocalFirstSyncPhase.syncing ||
+                      (sync.enabledButUnavailable && restoreTransport == null)
                   ? null
-                  : sync.synchronize,
+                  : () => sync.retry(restoreTransport: restoreTransport),
               child: Text(l10n.syncNow),
             ),
           ],

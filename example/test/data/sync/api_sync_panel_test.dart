@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:app/data/services/data_api_client.dart';
@@ -134,19 +135,191 @@ void main() {
     );
     expect(local, <String, Object?>{'name': 'durable local edit'});
   });
+
+  testWidgets('retry restores saved transport and merges pending edits', (
+    tester,
+  ) async {
+    final harness = _SyncHarness.recoverable();
+    var attempts = 0;
+    await _pumpPanel(
+      tester,
+      harness.coordinator,
+      restoreTransport: () async {
+        attempts++;
+        await harness.restoreTransport();
+      },
+    );
+
+    await tester.tap(find.byKey(const Key('api-sync-now')));
+    await tester.pumpAndSettle();
+
+    expect(attempts, 1);
+    expect(harness.local, {'name': 'local', 'tag': 'remote'});
+    expect(harness.remote.resources['profile/default']!.data, harness.local);
+    expect(harness.checkpoints.value, harness.local);
+    expect(harness.coordinator.phase, LocalFirstSyncPhase.idle);
+
+    await tester.tap(find.byKey(const Key('api-sync-now')));
+    await tester.pumpAndSettle();
+    expect(attempts, 1, reason: 'A healthy transport needs no bootstrap.');
+  });
+
+  testWidgets('restoration is shared and the retry button stays busy', (
+    tester,
+  ) async {
+    final harness = _SyncHarness.recoverable();
+    final gate = Completer<void>();
+    var attempts = 0;
+    Future<void> restore() async {
+      attempts++;
+      await gate.future;
+      await harness.restoreTransport();
+    }
+
+    await _pumpPanel(tester, harness.coordinator, restoreTransport: restore);
+    await tester.tap(find.byKey(const Key('api-sync-now')));
+    await tester.pump();
+
+    expect(harness.coordinator.phase, LocalFirstSyncPhase.syncing);
+    expect(
+      tester
+          .widget<TextButton>(find.byKey(const Key('api-sync-now')))
+          .onPressed,
+      isNull,
+    );
+    final sameAttempt = harness.coordinator.retry(restoreTransport: restore);
+    await tester.tap(find.byKey(const Key('api-sync-now')));
+    expect(attempts, 1);
+
+    await _pumpPanel(
+      tester,
+      harness.coordinator,
+      restoreTransport: restore,
+      panel: const SizedBox.shrink(),
+    );
+    await _pumpPanel(tester, harness.coordinator, restoreTransport: restore);
+    expect(
+      tester
+          .widget<TextButton>(find.byKey(const Key('api-sync-now')))
+          .onPressed,
+      isNull,
+      reason: 'Reopening settings must not start a second restoration.',
+    );
+
+    gate.complete();
+    await tester.pumpAndSettle();
+    await sameAttempt;
+    expect(harness.coordinator.phase, LocalFirstSyncPhase.idle);
+  });
+
+  testWidgets('a failed restore preserves edits and permits another attempt', (
+    tester,
+  ) async {
+    final harness = _SyncHarness.recoverable();
+    var attempts = 0;
+    await _pumpPanel(
+      tester,
+      harness.coordinator,
+      restoreTransport: () async {
+        if (++attempts == 1) {
+          throw const FileSystemException('private vault diagnostic');
+        }
+        await harness.restoreTransport();
+      },
+    );
+    await tester.tap(find.byKey(const Key('api-sync-now')));
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(harness.coordinator.phase, LocalFirstSyncPhase.unavailable);
+    expect(harness.local, {'name': 'local', 'tag': 'base'});
+    expect(harness.checkpoints.value, {'name': 'base', 'tag': 'base'});
+    expect(find.textContaining('private vault diagnostic'), findsNothing);
+
+    await tester.tap(find.byKey(const Key('api-sync-now')));
+    await tester.pumpAndSettle();
+    expect(attempts, 2);
+    expect(harness.coordinator.phase, LocalFirstSyncPhase.idle);
+    expect(harness.local, {'name': 'local', 'tag': 'remote'});
+  });
+
+  testWidgets('missing saved credentials request sign-in after retry', (
+    tester,
+  ) async {
+    final harness = _SyncHarness.recoverable();
+    await _pumpPanel(
+      tester,
+      harness.coordinator,
+      restoreTransport: () async {
+        throw const DataApiAuthenticationRequiredException();
+      },
+    );
+    await tester.tap(find.byKey(const Key('api-sync-now')));
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(
+      harness.coordinator.failureReason,
+      LocalFirstSyncFailureReason.authenticationRequired,
+    );
+    expect(
+      find.textContaining('Please sign in to the API again.'),
+      findsOneWidget,
+    );
+    expect(harness.local, {'name': 'local', 'tag': 'base'});
+    expect(harness.checkpoints.value, {'name': 'base', 'tag': 'base'});
+  });
+
+  testWidgets('disposing the app during restore releases the late transport', (
+    tester,
+  ) async {
+    final harness = _SyncHarness.recoverable();
+    final gate = Completer<void>();
+    var closed = 0;
+    await _pumpPanel(
+      tester,
+      harness.coordinator,
+      restoreTransport: () async {
+        await gate.future;
+        await harness.coordinator.setTransport(
+          nextClient: harness.remote,
+          nextCheckpoints: harness.checkpoints,
+          nextClose: () async => closed++,
+        );
+      },
+    );
+    await tester.tap(find.byKey(const Key('api-sync-now')));
+    await tester.pump();
+    await tester.pumpWidget(const SizedBox.shrink());
+
+    gate.complete();
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(closed, 1);
+    expect(harness.remote.resources['profile/default']!.data, {
+      'name': 'base',
+      'tag': 'remote',
+    });
+  });
 }
 
 Future<void> _pumpPanel(
   WidgetTester tester,
-  LocalFirstSyncCoordinator? coordinator,
-) async {
+  LocalFirstSyncCoordinator? coordinator, {
+  Future<void> Function()? restoreTransport,
+  Widget panel = const ApiSyncPanel(),
+}) async {
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [localFirstSyncProvider.overrideWith((ref) => coordinator)],
-      child: const MaterialApp(
+      overrides: [
+        localFirstSyncProvider.overrideWith((ref) => coordinator),
+        applyApiSyncConfigurationProvider.overrideWithValue(restoreTransport),
+      ],
+      child: MaterialApp(
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        home: Scaffold(body: ApiSyncPanel()),
+        home: Scaffold(body: panel),
       ),
     ),
   );
@@ -160,6 +333,7 @@ final class _SyncHarness {
     required _LocalDocument local,
     required this.remote,
     required this.coordinator,
+    required this.checkpoints,
   }) : _local = local;
 
   factory _SyncHarness.conflicting() {
@@ -186,6 +360,33 @@ final class _SyncHarness {
       local: local,
       remote: remote,
       coordinator: coordinator,
+      checkpoints: checkpoints,
+    );
+  }
+
+  factory _SyncHarness.recoverable() {
+    final local = _LocalDocument({'name': 'local', 'tag': 'base'});
+    final remote = MemoryDataApiResourceClient()
+      ..resources['profile/default'] = dataApiTestResource(
+        kind: 'profile',
+        id: 'default',
+        data: {'name': 'base', 'tag': 'remote'},
+      );
+    final checkpoints = _MemoryCheckpointStore()
+      ..value = {'name': 'base', 'tag': 'base'};
+    return _SyncHarness._(
+      local: local,
+      remote: remote,
+      checkpoints: checkpoints,
+      coordinator: LocalFirstSyncCoordinator(
+        enabledButUnavailable: true,
+        documents: [
+          _binding(
+            read: () => local.value,
+            write: (value) => local.value = value,
+          ),
+        ],
+      ),
     );
   }
 
@@ -193,6 +394,12 @@ final class _SyncHarness {
   Map<String, Object?> get local => _local.value;
   final MemoryDataApiResourceClient remote;
   final LocalFirstSyncCoordinator coordinator;
+  final _MemoryCheckpointStore checkpoints;
+
+  Future<void> restoreTransport() => coordinator.setTransport(
+    nextClient: remote,
+    nextCheckpoints: checkpoints,
+  );
 }
 
 final class _LocalDocument {
