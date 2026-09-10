@@ -3803,8 +3803,19 @@ impl TerminalSession {
         let mut state = self.state.lock();
         let state_lock_wait_micros = state_lock_started_at.elapsed().as_micros() as u64;
         let frame_extract_started_at = Instant::now();
+        let cursor_before_flush =
+            terminal_cursor_snapshot(&state.terminal, state.terminal.cursor());
         let synchronized_timeout_flushed = state.terminal.flush_synchronized_updates_if_timed_out();
         if synchronized_timeout_flushed {
+            // The timeout parses buffered output without passing through
+            // ingest_pty_output. Collect its damage here before consuming the
+            // pending signal, including rows away from the final cursor.
+            let damage = state.terminal.drain_active_screen_damage();
+            let cursor_after_flush =
+                terminal_cursor_snapshot(&state.terminal, state.terminal.cursor());
+            self.pending_frame_signal.mutate(|work| {
+                work.merge_terminal_damage(damage, cursor_before_flush, cursor_after_flush);
+            });
             had_dirty_work = true;
         }
         let graphics_animation_changed = if self.graphics_enabled

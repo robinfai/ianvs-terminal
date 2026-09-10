@@ -362,8 +362,13 @@ fn private_params_contain_2026(params: &[u8]) -> bool {
 
 fn terminal_reset_end(data: &[u8]) -> Option<usize> {
     let mut state = SyncUpdateScanState::Ground;
+    let mut utf8 = osc_stream::Utf8Tracker::default();
 
     for (index, byte) in data.iter().copied().enumerate() {
+        if utf8.consume_continuation(byte) {
+            continue;
+        }
+        utf8.start(byte);
         match state {
             SyncUpdateScanState::Ground => match byte {
                 b'\x1b' => state = SyncUpdateScanState::Escape,
@@ -436,8 +441,16 @@ fn synchronized_update_mode_end_with_state(
     mode_final: u8,
     state: &mut SyncUpdateScanState,
     csi_buffer: &mut Vec<u8>,
+    utf8: &mut osc_stream::Utf8Tracker,
 ) -> Option<usize> {
     for (index, byte) in data.iter().copied().enumerate() {
+        // C1-valued continuation bytes are text, including inside control
+        // strings. Keep this state across chunks so they cannot open or close
+        // a string and hide (or expose) a DEC 2026 boundary.
+        if utf8.consume_continuation(byte) {
+            continue;
+        }
+        utf8.start(byte);
         match *state {
             SyncUpdateScanState::Ground => match byte {
                 b'\x1b' => {
@@ -853,6 +866,8 @@ pub struct Terminal {
     pub(crate) sync_update_scan_tail: Vec<u8>,
     /// Parser state for DEC 2026 raw scanning outside control string payloads.
     pub(crate) sync_update_scan_state: SyncUpdateScanState,
+    /// UTF-8 scalar boundary tracked across DEC 2026 scan chunks.
+    pub(crate) sync_update_scan_utf8: osc_stream::Utf8Tracker,
     /// Flag to track if synchronized updates were explicitly disabled during a flush
     pub(crate) sync_update_explicitly_disabled: bool,
     /// Temporarily ignore DEC 2026 enable while flushing a stale synchronized update buffer.
@@ -1304,6 +1319,7 @@ impl Terminal {
             input_buffer_diagnostics: TerminalInputBufferDiagnostics::default(),
             sync_update_scan_tail: Vec::new(),
             sync_update_scan_state: SyncUpdateScanState::Ground,
+            sync_update_scan_utf8: osc_stream::Utf8Tracker::default(),
             sync_update_explicitly_disabled: false,
             suppress_synchronized_update_enable: false,
             sync_update_report_override: None,
@@ -2573,6 +2589,7 @@ impl Terminal {
         self.sync_update_explicitly_disabled = true;
         self.sync_update_scan_tail.clear();
         self.sync_update_scan_state = SyncUpdateScanState::Ground;
+        self.sync_update_scan_utf8 = osc_stream::Utf8Tracker::default();
         self.terminal_events.push(TerminalEvent::ModeChanged(
             "synchronized_updates".to_string(),
             false,
@@ -3735,9 +3752,11 @@ impl Terminal {
                 b'h',
                 &mut self.sync_update_scan_state,
                 &mut self.sync_update_scan_tail,
+                &mut self.sync_update_scan_utf8,
             ) {
                 self.sync_update_scan_tail.clear();
                 self.sync_update_scan_state = SyncUpdateScanState::Ground;
+                self.sync_update_scan_utf8 = osc_stream::Utf8Tracker::default();
                 let (prefix, suffix) = data.split_at(sync_enable_end);
                 self.process_unsynchronized(prefix);
                 if self.synchronized_updates {
@@ -3750,6 +3769,7 @@ impl Terminal {
         } else {
             self.sync_update_scan_tail.clear();
             self.sync_update_scan_state = SyncUpdateScanState::Ground;
+            self.sync_update_scan_utf8 = osc_stream::Utf8Tracker::default();
         }
         self.process_unsynchronized(data);
     }
@@ -3760,6 +3780,7 @@ impl Terminal {
             b'l',
             &mut self.sync_update_scan_state,
             &mut self.sync_update_scan_tail,
+            &mut self.sync_update_scan_utf8,
         );
 
         // Only the bytes through DECRST 2026 belong to this synchronized
@@ -3778,6 +3799,7 @@ impl Terminal {
         if mode_end.is_some() {
             self.sync_update_scan_tail.clear();
             self.sync_update_scan_state = SyncUpdateScanState::Ground;
+            self.sync_update_scan_utf8 = osc_stream::Utf8Tracker::default();
             self.flush_synchronized_updates();
             if !suffix.is_empty() {
                 self.process_osc_filtered(suffix);
@@ -3788,6 +3810,7 @@ impl Terminal {
             let report_state = self.synchronized_updates;
             self.sync_update_scan_tail.clear();
             self.sync_update_scan_state = SyncUpdateScanState::Ground;
+            self.sync_update_scan_utf8 = osc_stream::Utf8Tracker::default();
             self.synchronized_updates = false;
             self.sync_update_started_at = None;
             self.sync_update_explicitly_disabled = true;
@@ -3812,6 +3835,7 @@ impl Terminal {
         self.update_buffer = Vec::new();
         self.sync_update_scan_tail.clear();
         self.sync_update_scan_state = SyncUpdateScanState::Ground;
+        self.sync_update_scan_utf8 = osc_stream::Utf8Tracker::default();
         self.synchronized_updates = false;
         self.sync_update_started_at = None;
         self.sync_update_explicitly_disabled = true;

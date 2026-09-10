@@ -26,7 +26,7 @@ use super::color_control::Osc21ColorControlState;
 use super::context::TerminalContextStack;
 use super::graphics::GraphicsPassthroughState;
 use super::notification::KittyNotificationState;
-use super::osc_stream::OscStreamGate;
+use super::osc_stream::{OscStreamGate, Utf8Tracker};
 use super::pointer_shape::PointerShapeState;
 use super::sequences::csi::TitleStack;
 use super::{ITermMultipartState, NamedProgressBar, OscCapabilityPolicy, ProgressBar};
@@ -252,6 +252,8 @@ pub struct TerminalSnapshot {
     pub(crate) sync_update_scan_tail: Vec<u8>,
     /// Raw scanner state for DEC 2026 outside control string payloads
     pub(crate) sync_update_scan_state: SyncUpdateScanState,
+    /// UTF-8 boundary for the raw synchronization scanner.
+    pub(crate) sync_update_scan_utf8: Utf8Tracker,
     /// Whether synchronized updates were explicitly disabled during a flush
     pub(crate) sync_update_explicitly_disabled: bool,
     /// Focus tracking mode
@@ -715,6 +717,7 @@ impl Terminal {
             update_buffer: self.update_buffer.clone(),
             sync_update_scan_tail: self.sync_update_scan_tail.clone(),
             sync_update_scan_state: self.sync_update_scan_state,
+            sync_update_scan_utf8: self.sync_update_scan_utf8,
             sync_update_explicitly_disabled: self.sync_update_explicitly_disabled,
             focus_tracking: self.focus_tracking,
             focus_tracking_alt: self.focus_tracking_alt,
@@ -774,6 +777,7 @@ impl Terminal {
             snap.update_buffer = Vec::new();
             snap.sync_update_scan_tail.clear();
             snap.sync_update_scan_state = SyncUpdateScanState::Ground;
+            snap.sync_update_scan_utf8 = Utf8Tracker::default();
         }
 
         self.grid.restore_from_snapshot(&snap.grid);
@@ -873,6 +877,7 @@ impl Terminal {
         self.update_buffer = snap.update_buffer;
         self.sync_update_scan_tail = snap.sync_update_scan_tail;
         self.sync_update_scan_state = snap.sync_update_scan_state;
+        self.sync_update_scan_utf8 = snap.sync_update_scan_utf8;
         self.sync_update_explicitly_disabled = snap.sync_update_explicitly_disabled;
         self.suppress_synchronized_update_enable = false;
         self.sync_update_report_override = None;
@@ -1012,6 +1017,7 @@ mod tests {
             update_buffer: Vec::new(),
             sync_update_scan_tail: Vec::new(),
             sync_update_scan_state: SyncUpdateScanState::Ground,
+            sync_update_scan_utf8: Utf8Tracker::default(),
             sync_update_explicitly_disabled: false,
             focus_tracking: false,
             focus_tracking_alt: false,

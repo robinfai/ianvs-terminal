@@ -219,7 +219,7 @@ impl Classification {
 }
 
 #[derive(Clone, Copy, Debug, Default)]
-struct Utf8Tracker {
+pub(crate) struct Utf8Tracker {
     remaining: u8,
     next_min: u8,
     next_max: u8,
@@ -232,7 +232,7 @@ impl Utf8Tracker {
 
     /// Consume a required continuation byte.  `false` asks the caller to
     /// re-evaluate the byte as a new scalar/control byte.
-    fn consume_continuation(&mut self, byte: u8) -> bool {
+    pub(super) fn consume_continuation(&mut self, byte: u8) -> bool {
         if self.remaining == 0 {
             return false;
         }
@@ -246,7 +246,7 @@ impl Utf8Tracker {
         true
     }
 
-    fn start(&mut self, byte: u8) {
+    pub(super) fn start(&mut self, byte: u8) {
         *self = match byte {
             0xc2..=0xdf => Self {
                 remaining: 1,

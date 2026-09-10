@@ -3989,14 +3989,13 @@ def out(value):
     sys.stdout.write(value)
     sys.stdout.flush()
 
-out('\x1b]1337;File=inline=1;doNotMoveCursor=1:{payload}\x07READY\n')
+out('\x1b]1337;File=inline=1;doNotMoveCursor=1:{RED_PIXEL_PNG_BASE64}\x07READY\n')
 sys.stdin.readline()
 out('\x1b[H\x1b[JREDRAW\n')
 sys.stdin.readline()
 out('\x1bcRESET\n')
 time.sleep(2)
-"#,
-        payload = RED_PIXEL_PNG_BASE64
+"#
     );
     let profile = local_profile(
         "iterm-resize-redraw-guard",
