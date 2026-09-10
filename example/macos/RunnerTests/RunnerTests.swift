@@ -1,7 +1,7 @@
 import Cocoa
 import FlutterMacOS
 import XCTest
-@testable import Ianvs_Terminal_Dev
+@testable import Trail_Development
 
 private final class CloseTrackingMainFlutterWindow: MainFlutterWindow {
   private(set) var didRequestCloseConfirmation = false
@@ -283,6 +283,40 @@ class RunnerTests: XCTestCase {
       settingsItem.action,
       #selector(MainFlutterWindow.openSettings(_:))
     )
+  }
+
+  func testEditingMenuRoutesFlutterOwnedActionsThroughTheWindow() throws {
+    let window = MainFlutterWindow()
+    let mainMenu = NSMenu(title: "Main Menu")
+    let editMenuItem = NSMenuItem(title: "Edit", action: nil, keyEquivalent: "")
+    let editMenu = NSMenu(title: "Edit")
+    editMenu.addItem(NSMenuItem(title: "Paste", action: nil, keyEquivalent: "v"))
+    editMenu.addItem(
+      NSMenuItem(title: "Paste and Match Style", action: nil, keyEquivalent: "V")
+    )
+    editMenu.addItem(NSMenuItem(title: "Select All", action: nil, keyEquivalent: "a"))
+    editMenuItem.submenu = editMenu
+    mainMenu.addItem(editMenuItem)
+
+    window.bindNativeEditingMenuItems(in: mainMenu)
+    window.bindNativeEditingMenuItems(in: mainMenu)
+
+    let pasteItem = try XCTUnwrap(editMenu.items.first { $0.title == "Paste" })
+    let plainPasteItem = try XCTUnwrap(
+      editMenu.items.first { $0.title == "Paste and Match Style" }
+    )
+    let selectAllItem = try XCTUnwrap(editMenu.items.first { $0.title == "Select All" })
+    XCTAssertTrue(pasteItem.target === window)
+    XCTAssertEqual(pasteItem.action, #selector(MainFlutterWindow.paste(_:)))
+    XCTAssertTrue(plainPasteItem.target === window)
+    XCTAssertEqual(
+      plainPasteItem.action,
+      #selector(MainFlutterWindow.pasteAsPlainText(_:))
+    )
+    XCTAssertTrue(selectAllItem.target === window)
+    XCTAssertEqual(selectAllItem.action, #selector(MainFlutterWindow.selectAll(_:)))
+    XCTAssertEqual(selectAllItem.keyEquivalent, "a")
+    XCTAssertEqual(selectAllItem.keyEquivalentModifierMask, [.command])
   }
 
   func testTerminalSessionFileMenuUsesRequestedShortcutsAndIsIdempotent() throws {

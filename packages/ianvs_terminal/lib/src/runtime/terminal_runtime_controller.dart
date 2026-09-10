@@ -8,6 +8,7 @@ import 'package:ianvs_pty/ianvs_pty.dart';
 
 import '../config/terminal_config.dart';
 import '../config/terminal_session_config_v1.dart';
+import '../recording/terminal_replay_backend.dart';
 import '../terminal/selection_controller.dart';
 import '../terminal/terminal_graphics_cache.dart';
 import '../terminal/terminal_graphics_diagnostics.dart';
@@ -1659,7 +1660,9 @@ class TerminalRuntimeController implements TerminalInputSink {
         : throw UnsupportedError(
             'The native terminal runtime must provide SessionConfig v1',
           );
-    if (resolvedConfig.connection.isSsh) {
+    // Replay consumes the recorded stream through the native replay session;
+    // its source profile may be SSH, but replay never opens a live connection.
+    if (resolvedConfig.connection.isSsh && backend is! TerminalReplayBackend) {
       final capabilityBackend = backend is PtyRuntimeCapabilityBackend
           ? backend as PtyRuntimeCapabilityBackend
           : null;

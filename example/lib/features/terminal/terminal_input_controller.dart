@@ -53,6 +53,10 @@ class TerminalInputController extends terminal.TerminalInputController {
     if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
       return KeyEventResult.ignored;
     }
+    if (event.logicalKey == LogicalKeyboardKey.escape ||
+        event.logicalKey == LogicalKeyboardKey.tab) {
+      return KeyEventResult.ignored;
+    }
     if (HardwareKeyboard.instance.isMetaPressed &&
         event.logicalKey == LogicalKeyboardKey.keyC) {
       if (event is KeyRepeatEvent) {

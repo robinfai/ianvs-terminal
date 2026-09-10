@@ -328,7 +328,7 @@
         "Terminal Layout and Relaunch Spec have focused current-schema, unsupported-schema and controller coverage.",
         "Project identity, Recent Workspace and project switching are absent from the current app source.",
         "Recording persistence uses one flat current-format library and fails closed on unsupported repository metadata.",
-        "The complete macOS verification entrypoint passes on the current implementation."
+        "Current source and focused tests cover the Terminal Layout, Relaunch Spec and Recording Library contracts; complete macOS verification remains a separate acceptance gate."
       ],
       "reason": "T-331 supersedes the Project Workspace product claims from T-312 through T-317; those files are archival task history rather than format authority or migration inputs. The current product persists one current-format Terminal Layout, minimal Relaunch Specs and a separate Recording Library; folder opening launches a terminal rather than switching a project container."
     },
@@ -932,7 +932,8 @@
         {
           "path": "docs/KNOWN_ISSUES.md",
           "contains": [
-            "当前只支持 macOS",
+            "macOS 是当前主交付平台",
+            "尚未完成实体设备上的完整产品验收",
             "还没有跨平台验证"
           ]
         },

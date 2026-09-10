@@ -1367,37 +1367,39 @@ class _InstantReplayControlButton extends StatelessWidget {
         ? palette.accent.withValues(alpha: 0.68)
         : palette.borderStrong.withValues(alpha: 0.54);
 
-    return Semantics(
-      label: tooltip,
-      button: true,
-      enabled: enabled,
-      child: IconButton(
-        tooltip: tooltip,
-        onPressed: onPressed,
-        icon: Icon(icon, size: 19),
-        style: ButtonStyle(
-          fixedSize: WidgetStatePropertyAll(Size.square(controlExtent)),
-          minimumSize: WidgetStatePropertyAll(Size.square(controlExtent)),
-          maximumSize: WidgetStatePropertyAll(Size.square(controlExtent)),
-          padding: const WidgetStatePropertyAll(EdgeInsets.zero),
-          visualDensity: VisualDensity.compact,
-          backgroundColor: WidgetStateProperty.resolveWith((states) {
-            if (states.contains(WidgetState.disabled)) {
-              return palette.canvas.withValues(alpha: 0.08);
-            }
-            if (states.contains(WidgetState.hovered) && !active) {
-              return palette.accent.withValues(alpha: 0.14);
-            }
-            return background;
-          }),
-          foregroundColor: WidgetStatePropertyAll(foreground),
-          overlayColor: WidgetStatePropertyAll(
-            palette.accent.withValues(alpha: active ? 0.20 : 0.12),
-          ),
-          shape: WidgetStatePropertyAll(
-            RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(palette.radius.md),
-              side: BorderSide(color: borderColor),
+    return MergeSemantics(
+      child: Semantics(
+        label: tooltip,
+        button: true,
+        enabled: enabled,
+        child: IconButton(
+          tooltip: tooltip,
+          onPressed: onPressed,
+          icon: Icon(icon, size: 19),
+          style: ButtonStyle(
+            fixedSize: WidgetStatePropertyAll(Size.square(controlExtent)),
+            minimumSize: WidgetStatePropertyAll(Size.square(controlExtent)),
+            maximumSize: WidgetStatePropertyAll(Size.square(controlExtent)),
+            padding: const WidgetStatePropertyAll(EdgeInsets.zero),
+            visualDensity: VisualDensity.compact,
+            backgroundColor: WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.disabled)) {
+                return palette.canvas.withValues(alpha: 0.08);
+              }
+              if (states.contains(WidgetState.hovered) && !active) {
+                return palette.accent.withValues(alpha: 0.14);
+              }
+              return background;
+            }),
+            foregroundColor: WidgetStatePropertyAll(foreground),
+            overlayColor: WidgetStatePropertyAll(
+              palette.accent.withValues(alpha: active ? 0.20 : 0.12),
+            ),
+            shape: WidgetStatePropertyAll(
+              RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(palette.radius.md),
+                side: BorderSide(color: borderColor),
+              ),
             ),
           ),
         ),

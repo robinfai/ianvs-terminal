@@ -1,0 +1,20 @@
+Window: "Local Shell", App: Trail Accessibility.
+0 standard window Local Shell, Secondary Actions: Raise
+	1 container Trail Accessibility
+		2 container (settable) Trail
+			3 button (settable) 回看
+			4 button (settable) 搜索
+			5 button (settable) 默认设置与外观
+			6 button (settable) 打开命令面板
+			7 button (settable) Local Shell标签页, Command 1
+			8 button (settable) 新建标签页
+	9 close button
+	10 full screen button Help: this button also has an action to zoom the window, Secondary Actions: zoom the window
+	11 minimize button
+12 menu bar
+	13 Trail Accessibility
+	14 File
+	15 Edit
+	16 View
+	17 Window
+	18 Help

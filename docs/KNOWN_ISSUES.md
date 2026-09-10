@@ -1,10 +1,10 @@
-# ianvs terminal Known Issues
+# Trail Known Issues
 
 这份文档只记录当前已接受的限制、缺口和临时取舍。
 
 ## 当前已知边界
 
-- 当前只支持 macOS
+- macOS 是当前主交付平台；iOS 已实现 SSH 配置、保存和会话流程，但尚未完成实体设备上的完整产品验收
 - 当前支持 local shell 与基于 Rust 的 SSH session；两者共用现有 tab、pane 与 layout 模型
 - scrollback 搜索目前只支持本地纯文本搜索
 - 已支持 xterm synchronized output mode；剩余风险主要是性能回归自动化和更宽宿主环境验证
@@ -15,7 +15,7 @@
 ## 当前技术取舍
 
 - terminal viewport 先使用 Flutter Canvas，而不是 native renderer
-- Flutter 与 Rust 当前通过 JSON frame diff / event 交互
+- Flutter 与 Rust 的帧及图形传输使用 Protobuf Terminal Frame Packet v1 与 Graphic Asset Packet v1；配置、请求及事件使用各自当前版本化合同，旧 JSON frame diff 不再是当前帧传输边界
 - macOS 运行依赖把 Rust 动态库打进 app bundle
 - 为了让本地 shell MVP 可运行，当前没有启用 app sandbox
 
@@ -26,12 +26,13 @@
 - SSH 自动化目前覆盖 OpenSSH 的密码、keyboard-interactive/OTP、公私钥、两跳 ProxyJump、host-key 策略、L/R/D/agent forwarding 与安全 X11 转发；更宽的服务器版本、发行版和真实网络环境矩阵尚未验证
 - local-only terminal 手工矩阵已于 `2026-05-06` 在 `T-059` 实际执行；当时发现的真实失败项已拆到 `T-066`、`T-067`、`T-068` 并完成，`T-059` 仍作为历史矩阵入口保留
 - local-terminal P0-P5 required closure baseline 已由 canonical verification records 标记为 verified；对应入口见 `docs/LOCAL_TERMINAL_VERIFICATION_MANIFEST_2026-05.json`、`docs/LOCAL_TERMINAL_COMPLETION_AUDIT_CHECKLIST_2026-05.md` 和 `tools/local_terminal_verification_status.sh`。剩余风险主要是 advanced visual/productivity/policy follow-up、跨平台验证、性能回归自动化和更宽的宿主环境矩阵，不应再把 required closure baseline 记录为缺 evidence。
+- macOS 本地 SSH 重启重连、录制回看和配置表单已完成隔离 release 的真实 GUI 验收，见 [2026-09-09 验收证据](evidence/macos-acceptance-20260909/README.md)。这不覆盖 API 同步联机、iOS 实体设备、安装发布或完整辅助访问验收。
 
 ## 当前环境相关风险
 
-- `flutter test -d macos integration_test/ianvs_terminal_smoke_test.dart` 当前可以通过，但运行时仍会打印 `Failed to foreground app; open returned 1`。这说明 smoke 已覆盖基本启动链路，但 foreground 行为仍不够干净。
+- `flutter test -d macos integration_test/ianvs_terminal_smoke_test.dart` 的历史运行可能打印 `Failed to foreground app; open returned 1`；本轮隔离 production release GUI 验收已完成启动、重启、SSH 重连和录制发现，但该 smoke 输出仍可作为环境噪声单独跟踪。
 - 默认 verification helper 现在用 `flutter test -d macos ...` 运行 integration smoke，避免当前 host 卡在 Flutter device discovery 的 Android `adb devices` 路径；手工 ad-hoc 跑 integration smoke 时仍不要省略 `-d macos`。这属于本机验证环境风险，不是 terminal 产品回归。
-- `osascript -e 'tell application "System Events" to get UI elements enabled'` 仍返回 `false`。当前这不再阻止 `T-059` 的人工矩阵结论成立，但它仍是本地 GUI 自动化和辅助访问验证的环境风险。
+- Computer Use 可操作大部分 macOS UI，但回放及录制库的原生 AX 树仍可能停留在旧内容。2026-09-10 已修复回放图标按钮名称与点击动作分离、录制库关闭/刷新按钮缺少名称的问题，并通过真实语义节点操作回归；这不等于原生 AX 或 VoiceOver 已通过。详见 [辅助访问补充验收](evidence/macos-accessibility-20260910/README.md)。
 
 ## 当前已接受的延期风险
 

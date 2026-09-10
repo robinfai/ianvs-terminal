@@ -5484,6 +5484,46 @@ void main() {
   );
 
   testWidgets(
+    'native select all targets the focused form field',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+      await _openCommandMenu(tester);
+      await tester.tap(find.text('Defaults & appearance'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('defaults-section-appearance')));
+      await tester.pumpAndSettle();
+
+      final field = find.byKey(const Key('defaults-terminal-preset-filter'));
+      await tester.ensureVisible(field);
+      await tester.enterText(field, 'select this text');
+      final editable = find.descendant(
+        of: field,
+        matching: find.byType(EditableText),
+      );
+      final state = tester.state<EditableTextState>(editable);
+      state.userUpdateTextEditingValue(
+        state.textEditingValue.copyWith(
+          selection: const TextSelection.collapsed(offset: 4),
+        ),
+        SelectionChangedCause.keyboard,
+      );
+
+      await _invokeNativeWindowBridge(
+        tester,
+        const MethodCall('nativeSelectAll'),
+      );
+
+      expect(
+        state.textEditingValue.selection,
+        const TextSelection(baseOffset: 0, extentOffset: 16),
+      );
+      expect(fakeBindings.writes, isEmpty);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets(
     'command-v pastes into the open search field instead of the terminal',
     (tester) async {
       const clipboardText = 'needle';

@@ -6633,7 +6633,7 @@ void main() {
   );
 
   test(
-    'SSH transport failure preserves final details after its tab closes',
+    'SSH retry clears its matching failure and preserves unrelated errors',
     () async {
       final bindings = _SshEventfulPtyBackend(FakePtyBackend());
       final sshProfile = TerminalProfile(
@@ -6644,6 +6644,15 @@ void main() {
           host: 'client.example.test',
           user: 'root',
           port: 36000,
+        ),
+      );
+      final otherSshProfile = TerminalProfile(
+        id: 'ssh-other',
+        name: 'other',
+        shell: '/usr/bin/ssh',
+        connection: const terminal.TerminalConnectionConfig.ssh(
+          host: 'other.example.test',
+          user: 'guest',
         ),
       );
       final container = ProviderContainer(
@@ -6701,21 +6710,47 @@ void main() {
         condition: () => container.read(sessionControllerProvider).tabs.isEmpty,
       );
 
+      const expectedFailure =
+          'SSH connection “client” to root@client.example.test:36000 failed '
+          '(exit code 255): ProxyCommand could not connect to 127.0.0.1:2080';
       expect(
         container.read(sessionControllerProvider).lastError,
-        'SSH connection “client” to root@client.example.test:36000 failed '
-        '(exit code 255): ProxyCommand could not connect to 127.0.0.1:2080',
+        expectedFailure,
       );
 
-      controller.dismissLastError();
+      controller.createSession(otherSshProfile);
+      expect(
+        container.read(sessionControllerProvider).lastError,
+        expectedFailure,
+      );
+
+      controller.reportRuntimeError('A newer runtime failure');
       controller.createSession(sshProfile);
+      expect(
+        container.read(sessionControllerProvider).lastError,
+        'A newer runtime failure',
+      );
+      final retryFailureSessionId = container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+      bindings.enqueueExit(retryFailureSessionId, code: 255);
+      await _waitForCondition(
+        description: 'retried SSH transport failure exit polling',
+        condition: () =>
+            container.read(sessionControllerProvider).tabs.length == 1,
+      );
+      expect(container.read(sessionControllerProvider).lastError, isNotNull);
+
+      controller.createSession(sshProfile);
+      expect(container.read(sessionControllerProvider).lastError, isNull);
       final ordinaryExitSessionId = container
           .read(sessionControllerProvider)
           .activeSessionId!;
       bindings.enqueueExit(ordinaryExitSessionId, code: 1);
       await _waitForCondition(
         description: 'ordinary SSH exit polling',
-        condition: () => container.read(sessionControllerProvider).tabs.isEmpty,
+        condition: () =>
+            container.read(sessionControllerProvider).tabs.length == 1,
       );
 
       expect(container.read(sessionControllerProvider).lastError, isNull);

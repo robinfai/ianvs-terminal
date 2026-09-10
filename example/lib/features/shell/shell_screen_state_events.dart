@@ -39,6 +39,12 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     await _pasteToSession(activeSessionId);
   }
 
+  Future<void> _handleNativeSelectAllMenu() async {
+    focusedEditableTextForCurrentRoute()?.selectAll(
+      SelectionChangedCause.toolbar,
+    );
+  }
+
   Future<void> _handleNativeFindMenu(NativeFindAction action) async {
     if (!mounted) {
       return;

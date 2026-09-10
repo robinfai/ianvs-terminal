@@ -147,12 +147,17 @@ class _SavedRecordingsShelf extends StatelessWidget {
             style: Theme.of(context).textTheme.titleMedium,
           ),
         ),
-        IconButton(
-          key: const Key('recording-library-close'),
-          autofocus: true,
-          tooltip: context.l10n.close,
-          onPressed: onClose,
-          icon: const Icon(Icons.close_rounded),
+        MergeSemantics(
+          child: Semantics(
+            label: context.l10n.close,
+            child: IconButton(
+              key: const Key('recording-library-close'),
+              autofocus: true,
+              tooltip: context.l10n.close,
+              onPressed: onClose,
+              icon: const Icon(Icons.close_rounded),
+            ),
+          ),
         ),
       ],
     ),
@@ -228,11 +233,16 @@ class _SavedRecordingsShelf extends StatelessWidget {
                 style: Theme.of(context).textTheme.titleSmall,
               ),
             ),
-            IconButton(
-              key: const Key('recording-library-refresh'),
-              tooltip: l10n.refreshRecordings,
-              onPressed: loading || selectionLoading ? null : onRefresh,
-              icon: const Icon(Icons.refresh_rounded),
+            MergeSemantics(
+              child: Semantics(
+                label: l10n.refreshRecordings,
+                child: IconButton(
+                  key: const Key('recording-library-refresh'),
+                  tooltip: l10n.refreshRecordings,
+                  onPressed: loading || selectionLoading ? null : onRefresh,
+                  icon: const Icon(Icons.refresh_rounded),
+                ),
+              ),
             ),
           ],
         ),

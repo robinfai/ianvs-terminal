@@ -1,0 +1,11 @@
+{
+  "base_commit": "5a9755964bf0a46305cc99dcce798061443398e9",
+  "build_mode": "release",
+  "app_bundle": "Trail Accessibility.app",
+  "bundle_id": "work.ianvs.trail.acceptance.20260910.accessibility",
+  "sha256": {
+    "Contents/MacOS/Trail": "b0366c887e532cbf816b46191fde0ef78baba29ed6d30316f6e728f65a726655",
+    "Contents/Frameworks/App.framework/Versions/A/App": "d0ca84c3f989fb9ec4b0619508f7da8a80f3cde1ff1597a95b917bd912f62f1d",
+    "Contents/Frameworks/ianvs_core.framework/Versions/A/ianvs_core": "3eb6965eb99a4db51cc80af5a64772952745eb9904b53bece9357321cebffbcd"
+  }
+}

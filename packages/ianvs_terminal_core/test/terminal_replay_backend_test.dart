@@ -9,6 +9,64 @@ import 'package:ianvs_terminal_core/ianvs_terminal_core.dart';
 
 void main() {
   group('TerminalReplayBackend', () {
+    test('replays an SSH recording without requiring live SSH capability', () {
+      final delegate = _ReplayDriver();
+      final replayBackend = TerminalReplayBackend(
+        delegate: delegate,
+        recording: _recording(),
+        timingMode: TerminalReplayTimingMode.noDelay,
+      );
+      final runtime = TerminalRuntimeController(
+        backend: replayBackend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/definitely/not/a/child'),
+          connection: TerminalConnectionConfig.ssh(
+            host: '127.0.0.1',
+            user: 'recorded-user',
+          ),
+        ),
+      );
+
+      expect(sessionId, 'replay-1');
+      expect(delegate.calls.first, 'create:replay-1');
+    });
+
+    test('replay-capable live backends still require SSH capability', () {
+      final runtime = TerminalRuntimeController(
+        backend: _ReplayCapableLiveDriver(),
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+
+      expect(
+        () => runtime.createSession(
+          const TerminalSessionConfig(
+            launch: TerminalLaunchConfig(program: '/definitely/not/a/child'),
+            connection: TerminalConnectionConfig.ssh(
+              host: '127.0.0.1',
+              user: 'recorded-user',
+            ),
+          ),
+        ),
+        throwsA(
+          isA<UnsupportedError>().having(
+            (error) => error.message,
+            'message',
+            contains('does not advertise SSH support'),
+          ),
+        ),
+      );
+    });
+
     test('no-delay mode replays the same ordered event stream every time', () {
       final driver = _ReplayDriver();
       final backend = TerminalReplayBackend(
@@ -1114,6 +1172,15 @@ final class _NumericDiagnosticReplayDriver extends _ReplayDriver {
     versionedCreateConfigs.add(sessionConfigJson);
     calls.add('create:1');
     return '1';
+  }
+}
+
+final class _ReplayCapableLiveDriver extends _ReplayDriver
+    implements PtySessionConfigV1Backend {
+  @override
+  String createSessionV1(String sessionConfigV1Json) {
+    versionedCreateConfigs.add(sessionConfigV1Json);
+    return 'live-1';
   }
 }
 

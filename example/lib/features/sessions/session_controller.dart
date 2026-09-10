@@ -511,6 +511,7 @@ class SessionController extends Notifier<SessionState> {
   Future<void> _layoutSaveChain = Future<void>.value();
   bool _isShuttingDown = false;
   bool _terminalConfigRepairAvailable = false;
+  ({String profileId, String message})? _lastSshExitFailure;
 
   TerminalAppPreferencesDocument get _appPreferences =>
       _appPreferencesDocument.value;
@@ -1182,6 +1183,7 @@ class SessionController extends Notifier<SessionState> {
     if (sessionId == null) {
       return;
     }
+    _clearMatchingSshExitFailureForRetry(profile);
     final descriptor = _relaunchSpecForLaunch(
       profileId: profile.id,
       launchProfile: launchProfile,
@@ -1237,6 +1239,7 @@ class SessionController extends Notifier<SessionState> {
     if (sessionId == null) {
       return;
     }
+    _clearMatchingSshExitFailureForRetry(profile);
     final newPane = TerminalPane(
       sessionId: sessionId,
       title: launchProfile.name,
@@ -3376,6 +3379,7 @@ class SessionController extends Notifier<SessionState> {
       case TerminalSessionFrameEvent():
         _applyFrame(event.sessionId, event.frame);
       case TerminalSessionExitEvent():
+        final failedProfileId = _paneForSession(event.sessionId)?.profileId;
         final sshExitError = _sshExitErrorMessage(event);
         unawaited(
           _finalizeRecordingOnRuntimeExitBestEffort(
@@ -3385,6 +3389,12 @@ class SessionController extends Notifier<SessionState> {
         );
         _removeSessionState(event.sessionId, runtimeAlreadyClosed: true);
         if (sshExitError != null) {
+          if (failedProfileId != null) {
+            _lastSshExitFailure = (
+              profileId: failedProfileId,
+              message: sshExitError,
+            );
+          }
           state = state.copyWith(lastError: sshExitError);
         }
       case TerminalSessionBellEvent():
@@ -3513,6 +3523,18 @@ class SessionController extends Notifier<SessionState> {
       return '$prefix: $detail';
     }
     return '$prefix. Check the host, network, ProxyCommand, and authentication settings.';
+  }
+
+  void _clearMatchingSshExitFailureForRetry(TerminalProfile profile) {
+    final failure = _lastSshExitFailure;
+    if (!profile.isSsh ||
+        failure == null ||
+        failure.profileId != profile.id ||
+        state.lastError != failure.message) {
+      return;
+    }
+    _lastSshExitFailure = null;
+    state = state.copyWith(lastError: null);
   }
 
   TerminalProfile? _profileForPane(TerminalPane? pane) {
@@ -5252,6 +5274,7 @@ class SessionController extends Notifier<SessionState> {
     if (state.lastError == null) {
       return;
     }
+    _lastSshExitFailure = null;
     state = state.copyWith(lastError: null);
   }
 

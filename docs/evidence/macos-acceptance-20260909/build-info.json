@@ -1,0 +1,12 @@
+{
+  "base_commit": "5a9755964bf0a46305cc99dcce798061443398e9",
+  "build_mode": "release",
+  "app_bundle": "Trail Acceptance Final.app",
+  "bundle_id": "work.ianvs.trail.acceptance.20260909.final",
+  "data_directory": "/tmp/trail-macos-acceptance-20260909/data",
+  "sha256": {
+    "Contents/MacOS/Trail": "2b7909ca4605e18978cf4eeb4c6abcf3c2283c4e3a2ce85a7f17552454538b9f",
+    "Contents/Frameworks/App.framework/Versions/A/App": "44cad0b290bde3b4b2bbe7c4972d00a81ae0a0ae24013daf8db7d483fd27db1d",
+    "Contents/Frameworks/ianvs_core.framework/Versions/A/ianvs_core": "3eb6965eb99a4db51cc80af5a64772952745eb9904b53bece9357321cebffbcd"
+  }
+}

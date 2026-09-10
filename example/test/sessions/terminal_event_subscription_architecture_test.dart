@@ -1,3 +1,8 @@
+// Resolving the production dependency graph starts a cold analyzer context.
+// Allow bounded analysis time without relaxing any architecture assertions.
+@Timeout(Duration(minutes: 2))
+library;
+
 import 'dart:io';
 
 import 'package:analyzer/dart/analysis/analysis_context_collection.dart';

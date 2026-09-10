@@ -245,7 +245,7 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
       name: "app/shutdown",
       binaryMessenger: flutterViewController.engine.binaryMessenger
     )
-    bindNativePasteMenuItems()
+    bindNativeEditingMenuItems()
     bindNativeSettingsMenuItem()
     bindNativeTerminalFolderMenuItem()
     bindNativeTerminalSessionMenuItems()
@@ -645,6 +645,13 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
     windowBridgeChannel?.invokeMethod("nativePaste", arguments: nil)
   }
 
+  override func selectAll(_ sender: Any?) {
+    // The Flutter text input plugin is an NSTextView. When it is the native
+    // field editor, AppKit can satisfy the XIB's selectAll: action without
+    // updating the framework's EditableText selection.
+    windowBridgeChannel?.invokeMethod("nativeSelectAll", arguments: nil)
+  }
+
   @objc func openTerminalAtFolder(_ sender: Any?) {
     windowBridgeChannel?.invokeMethod("nativeOpenTerminalAtFolder", arguments: nil)
   }
@@ -675,8 +682,8 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
     windowBridgeChannel?.invokeMethod("nativeFind", arguments: ["tag": tag])
   }
 
-  private func bindNativePasteMenuItems() {
-    guard let mainMenu = NSApp.mainMenu else {
+  func bindNativeEditingMenuItems(in providedMenu: NSMenu? = NSApp.mainMenu) {
+    guard let mainMenu = providedMenu else {
       return
     }
     for item in mainMenu.items {
@@ -691,6 +698,9 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
         case "Paste and Match Style":
           editItem.target = self
           editItem.action = #selector(pasteAsPlainText(_:))
+        case "Select All":
+          editItem.target = self
+          editItem.action = #selector(selectAll(_:))
         default:
           continue
         }

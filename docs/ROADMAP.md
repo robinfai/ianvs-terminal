@@ -1,4 +1,4 @@
-# ianvs terminal Roadmap
+# Trail Roadmap
 
 这份文档定义当前执行顺序和长期方向。具体实现、验收记录和历史结果必须落到
 `docs/tasks/`；路线图只负责说明先后关系、进入条件和完成条件。
@@ -51,6 +51,16 @@ Open Terminal at Folder 为准。权威说明和机器可读
 T-312 到 T-317 保留为历史实现记录；其中 Project Workspace、Recent Workspace、
 Session Descriptor 录制关联等当前产品声明由 T-331 取代。
 
+2026-09-09 产品验收补充：本地 SSH 配置与凭据持久化、可选 API 配置同步、
+已保存录制的播放/检索/复制和 macOS 配置表单已进入当前产品实现。本地 SSH
+重启重连、录制播放/检索/复制和配置表单已完成隔离 release 的真实 macOS 操作
+验收，并修复发现的问题，见 [验收记录](evidence/macos-acceptance-20260909/README.md)。
+下一项优先补齐可选 API 同步的真实联机验收，覆盖初次同步、冲突处理、断网恢复
+和关闭 API 后继续使用本地 SSH。2026-09-10 已补充回放按钮语义操作回归，见
+[补充验收记录](evidence/macos-accessibility-20260910/README.md)；完整 VoiceOver
+验收安排在发布前，不作为当前主线推进的阻塞项。iOS 实体设备仍是后续验收缺口。
+下方任务编号保留其历史边界，不再把 SSH 或回放界面视为尚未实现的扩展。
+
 当前执行顺序：
 
 1. Frame Pipeline Iteration 02 已通过最终 `make verify` 关闭；golden、schema parity
@@ -70,26 +80,18 @@ Session Descriptor 录制关联等当前产品声明由 T-331 取代。
    Protocol、Frame Wire、live asset capture、remote、plugin 或 renderer。
 5. T-331 已将旧 Local/Project Workspace 基线收敛为单一 Terminal Layout：恢复仍只
    创建新 PTY，Relaunch Spec 只含 profile/command/cwd；`Open Terminal at Folder`
-   只新增 cwd 指向所选目录的 Session，不切换容器。新录制写入独立平面库，旧嵌套录制
-   仍可发现。Workspace v1-v3、project index 与旧 `workspace` config 只读迁移且不删除。
-   Project/Recent Workspace、IDE/project context、plugin/cloud/collaboration 不再是当前能力；
-   SSH 保持延期扩展，并必须基于 Profile/Session 设计。
-6. Runtime Contract 已由 T-318 增加只读、版本化 capability query，由 T-319 完成
-   Event Batch/Envelope 的 identity、sequence、timestamp 和丢失检测，再由 T-320 将
-   session create 主路径迁移到产品中立、带上限的 SessionConfig v1。T-321 再把通用
-   Dart-to-native session command 主路径迁移到有关联 identity、带上限和结构化错误的
-   Request/Response v1。T-322 再把首个真实 native-to-product 双向请求限定为 OSC 52
-   `clipboard.read_text`，加入 Host Request/Response v1、精确一次消费和旧事件/直接回复双栈。
-   T-323 再把 Frame/Session 运行指标迁移到有关联 identity、sequence 和 timestamp 的
-   Diagnostic Event v1，保留旧 debug-stat FFI，并且不改诊断导出包。
-   T-324 继续为现有 `terminal-frame-diff-v1` Protobuf 增加 session identity、sequence、
-   timestamp 和确认漂移后的 Snapshot 重同步，不改变 Frame payload 或资产通道。
-   T-330 再把 decoded RGBA 资产主路径迁移到有关联 identity、带 100 MiB 上限的原子
-   Protobuf packet，同时保留旧 meta/copy symbols 和旧动态库回退。
-   旧事件数组、Profile-shaped create symbols、旧 `{kind, ...payload}` request symbol、旧
-   Frame Protobuf/JSON 和 debug-stat symbols 仍作为可验证的升级回退；其他 Host operation、
-   asset 等 wire 的后续迁移必须
-   分别立项并先补兼容测试。
+   只新增 cwd 指向所选目录的 Session，不切换容器。新录制写入独立平面库；旧嵌套录制
+   数据保留但不进入当前库的发现或迁移路径。Workspace v1-v3、project index 与旧
+   `workspace` config 不属于当前合同，运行时不发现、迁移、删除或重新创建这些数据。
+   Project/Recent Workspace、IDE/project context、plugin、团队云与协作不在当前能力范围。
+   本地 SSH 已基于 Profile/Session 实现；API 只作为可选的配置同步目标。
+6. Runtime Contract 当前使用单一的版本化边界：Runtime Capabilities、Runtime
+   Event Batch、SessionConfig、Session Request/Response、Host Request/Response、
+   Diagnostic Event、Terminal Frame Packet v1 和 Graphic Asset Packet v1。Frame
+   Packet 的 payload schema 仍标识为 `terminal-frame-diff-v1`；Graphic Asset Packet
+   使用有界的 RGBA Protobuf packet。T-318 至 T-330 中的旧双栈、JSON/raw-Protobuf
+   回退和 predecessor symbols 是历史迁移记录，不属于当前运行路线；后续 wire
+   扩展必须分别立项并先补兼容测试。
 7. Linux / Windows 仍由 T-065 的真实目标机证据驱动；Ubuntu CI 中的 package
    验证不能替代 desktop app 验收。
 

@@ -1,0 +1,29 @@
+Date: 2026-09-09
+Command: make verify
+Observed process exit code: 0
+macOS integration: enabled
+Source log: /tmp/trail-macos-acceptance-make-verify-passed.txt
+Selected output only; inherited build environment omitted.
+
+Formatted 728 files (0 changed) in 15.97 seconds.
+No issues found!
+00:00 +39: All tests passed!
+00:05 +636 ~1: All tests passed!
+No issues found! (ran in 2.4s)
+00:06 +680 ~1: All tests passed!
+00:06 +14: All tests passed!
+00:01 +26: All tests passed!
+Skipping nightly resource benchmark because VERIFY_FLUTTER_TERMINAL_RUN_NIGHTLY_BENCH!=1
+Discovered 192 example test files.
+01:13 +1790: All tests passed!
+✓ Built build/macos/Build/Products/Debug/Trail Development.app
+00:07 +4: All tests passed!
+✓ Built build/macos/Build/Products/Debug/Trail Development.app
+01:07 +45: All tests passed!
+✓ Built build/macos/Build/Products/Debug/Trail Development.app
+00:00 +1: All tests passed!
+✓ Built build/macos/Build/Products/Debug/Trail Development.app
+✓ Built build/macos/Build/Products/Release/Trail.app (116.2MB)
+✓ Built build/macos/Build/Products/Release/Trail.app (116.2MB)
+** TEST SUCCEEDED **
+Native RunnerTests passed: 27

@@ -26,11 +26,17 @@ switch or remember a project container.
 - Profile, SSH credentials and configuration always use the same device-local
   repositories. SSH secrets are encrypted at rest. Saving and reconnecting do
   not require a configured or reachable API, including on iOS.
+- macOS is the primary delivery platform. iOS implements the SSH-oriented
+  companion flow and local persistence, while physical-device and release
+  acceptance remain separate evidence requirements.
 - The Go/GORM API is an optional sync destination (bundled SQLite or remote
   SQLite/MySQL). Initial connection and later retries use three-way merge against
   an encrypted, destination-scoped checkpoint. Independent edits merge; same-field
   conflicts pause that document until explicitly resolved. API configuration
   never selects a different local data set or overwrites one by migration.
+- This is optional configuration synchronization for the selected API endpoint;
+  it is not a managed team cloud, collaboration service, or shared terminal
+  session service.
 - Layout/Relaunch Spec and recording files remain device-local. Retired paste
   history is excluded from active synchronization. Existing local and remote
   history data is preserved without collection or automatic transfer.

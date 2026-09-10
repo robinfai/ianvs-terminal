@@ -384,6 +384,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     );
     WindowBridge.setNativeMenuHandlers(
       onPaste: _handleNativePasteMenu,
+      onSelectAll: _handleNativeSelectAllMenu,
       onOpenTerminalAtFolder: _openTerminalAtFolderFromPicker,
       onAppAction: _handleNativeAppMenuAction,
       onFind: _handleNativeFindMenu,

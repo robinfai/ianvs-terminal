@@ -53,9 +53,11 @@ document.
 3. Layout restoration launches fresh PTYs and never restores a dead runtime
    state as if it were launch intent.
 4. Environment values and recording paths never enter Relaunch Spec.
-5. SSH session creation uses the same exact SessionConfig v1 route and also
-   requires the current native SSH capability.
-6. Plugin runtime/marketplace, cloud sync, collaboration, project explorer and
+5. Live SSH session creation uses the same exact SessionConfig v1 route and also
+   requires the current native SSH capability. Replaying an SSH recording uses
+   the isolated replay backend and does not open an SSH connection.
+6. Optional API configuration sync is an existing capability. A managed team
+   cloud, collaboration, plugin runtime/marketplace, project explorer and
    Git/IDE context remain outside the active lane.
 7. Linux/Windows product claims remain blocked on real desktop-host evidence.
 

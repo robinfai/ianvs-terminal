@@ -41,12 +41,14 @@ class WindowBridge {
 
   static void setNativeMenuHandlers({
     Future<void> Function()? onPaste,
+    Future<void> Function()? onSelectAll,
     Future<void> Function()? onOpenTerminalAtFolder,
     Future<void> Function(NativeAppMenuAction action)? onAppAction,
     Future<void> Function(NativeFindAction action)? onFind,
     Future<void> Function(NativeOsc72DragEvent event)? onOsc72DragEvent,
   }) {
     if (onPaste == null &&
+        onSelectAll == null &&
         onOpenTerminalAtFolder == null &&
         onAppAction == null &&
         onFind == null &&
@@ -58,6 +60,12 @@ class WindowBridge {
       switch (call.method) {
         case 'nativePaste':
           final handler = onPaste;
+          if (handler == null) {
+            throw MissingPluginException('No handler for ${call.method}');
+          }
+          await handler();
+        case 'nativeSelectAll':
+          final handler = onSelectAll;
           if (handler == null) {
             throw MissingPluginException('No handler for ${call.method}');
           }

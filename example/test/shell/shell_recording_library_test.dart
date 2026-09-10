@@ -893,6 +893,125 @@ void main() {
     expect(search.controller.text, 'vttest');
     expect(find.text('1 match across replay'), findsOneWidget);
   });
+
+  testWidgets(
+    'compact recording replay remains accessible after closing its shelf',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      try {
+        final fixture = (await tester.runAsync(
+          () => _recordingLibraryFixture('replay-accessibility'),
+        ))!;
+        addTearDown(() => tester.runAsync(fixture.close));
+        final repository = _WidgetRecordingLibraryRepository(
+          directory: fixture.directory,
+          recording: fixture.recording,
+        );
+        await _pumpRecordingLibraryShell(
+          tester,
+          repository: repository,
+          size: const Size(800, 600),
+        );
+        await _openFirstSavedRecording(tester, repository.entry.path);
+
+        expect(
+          find.semantics.byLabel('Replay controls for recording'),
+          findsOne,
+        );
+        tester.semantics.tap(find.semantics.byLabel('Play replay'));
+        await tester.pump();
+        expect(find.semantics.byLabel('Pause replay'), findsOne);
+        tester.semantics.tap(find.semantics.byLabel('Pause replay'));
+        await tester.pump();
+        expect(find.semantics.byLabel('Play replay'), findsOne);
+        tester.semantics.tap(
+          find.semantics.byLabel(RegExp('^Playback speed 1 times')),
+        );
+        await tester.pumpAndSettle();
+        tester.semantics.tap(find.semantics.byLabel('2×'));
+        await tester.pumpAndSettle();
+        expect(
+          find.semantics.byLabel(RegExp('^Playback speed 2 times')),
+          findsOne,
+        );
+        tester.semantics.tap(
+          find.semantics.byLabel(RegExp('^Smart replay timing')),
+        );
+        await tester.pumpAndSettle();
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await tester.pumpAndSettle();
+        tester.semantics.tap(find.semantics.byLabel('Search replay'));
+        await tester.pump();
+        tester.semantics.setText(
+          find.semantics.byLabel('Search replay'),
+          'vttest',
+        );
+        await tester.pump();
+        expect(find.text('1 match across replay'), findsOneWidget);
+        tester.semantics.tap(find.semantics.byLabel('Close replay'));
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('recording-replay-layout')), findsNothing);
+        expect(find.semantics.byLabel('Replay'), findsOne);
+        tester.semantics.tap(find.semantics.byLabel('Replay'));
+        await tester.pumpAndSettle();
+        tester.semantics.tap(find.semantics.byLabel('Refresh recordings'));
+        await tester.pumpAndSettle();
+        tester.semantics.tap(find.semantics.byLabel('Close'));
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('saved-recordings-shelf')), findsNothing);
+      } finally {
+        semantics.dispose();
+      }
+    },
+  );
+
+  testWidgets(
+    'recording replay viewport releases Tab focus and closes with Escape',
+    (tester) async {
+      final fixture = (await tester.runAsync(
+        () => _recordingLibraryFixture('replay-viewport-keyboard'),
+      ))!;
+      addTearDown(() => tester.runAsync(fixture.close));
+      final repository = _WidgetRecordingLibraryRepository(
+        directory: fixture.directory,
+        recording: fixture.recording,
+      );
+      await _pumpRecordingLibraryShell(tester, repository: repository);
+      await _openFirstSavedRecording(tester, repository.entry.path);
+
+      final viewport = find.byKey(const Key('recording-replay-viewport'));
+      await tester.tap(viewport);
+      await tester.pump();
+      final viewportFocus = FocusManager.instance.primaryFocus;
+      expect(viewportFocus?.debugLabel, 'recording-replay');
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      final controlFocus = FocusManager.instance.primaryFocus;
+      expect(controlFocus, isNotNull);
+      expect(controlFocus, isNot(same(viewportFocus)));
+      final focusedWidget = controlFocus!.context!.widget;
+      expect(
+        find.ancestor(
+          of: find.byWidget(focusedWidget),
+          matching: find.byKey(const Key('recording-replay-floating-dock')),
+        ),
+        findsOneWidget,
+      );
+
+      await tester.tap(viewport);
+      await tester.pump();
+      expect(
+        FocusManager.instance.primaryFocus?.debugLabel,
+        'recording-replay',
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('recording-replay-layout')), findsNothing);
+      expect(find.byKey(const Key('shell-chrome-bar')), findsOneWidget);
+    },
+  );
 }
 
 Future<void> _pumpRecordingLibraryShell(

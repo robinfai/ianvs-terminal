@@ -600,6 +600,7 @@ Future<_RecordingHarness> _createHarness({
   List<String>? finalizeStates,
   bool deferHandoffArtifact = false,
   AppShutdownCoordinator? shutdownCoordinator,
+  bool settleShutdownBeforeTeardown = false,
 }) async {
   final directory = await Directory.systemTemp.createTemp(
     'ianvs terminal-session-recording',
@@ -622,6 +623,9 @@ Future<_RecordingHarness> _createHarness({
   final recordingRepository =
       recordingRepositoryBuilder?.call(directory) ??
       LocalSessionRecordingRepository(directoryResolver: () async => directory);
+  final effectiveShutdownCoordinator =
+      shutdownCoordinator ??
+      (settleShutdownBeforeTeardown ? AppShutdownCoordinator() : null);
   final container = ProviderContainer(
     overrides: [
       ptySessionBackendProvider.overrideWithValue(backend),
@@ -642,11 +646,17 @@ Future<_RecordingHarness> _createHarness({
       localSessionRecordingRepositoryProvider.overrideWithValue(
         recordingRepository,
       ),
-      if (shutdownCoordinator != null)
-        appShutdownCoordinatorProvider.overrideWithValue(shutdownCoordinator),
+      if (effectiveShutdownCoordinator != null)
+        appShutdownCoordinatorProvider.overrideWithValue(
+          effectiveShutdownCoordinator,
+        ),
     ],
   );
   addTearDown(() async {
+    if (settleShutdownBeforeTeardown) {
+      final settlement = await effectiveShutdownCoordinator!.settle();
+      expect(settlement.safeToTerminate, isTrue);
+    }
     container.dispose();
     if (await directory.exists()) {
       await directory.delete(recursive: true);
@@ -1354,7 +1364,7 @@ void main() {
   );
 
   test('observed process exit finalizes the active recording', () async {
-    final harness = await _createHarness();
+    final harness = await _createHarness(settleShutdownBeforeTeardown: true);
     final controller = harness.container.read(
       sessionControllerProvider.notifier,
     );
@@ -1469,7 +1479,10 @@ void main() {
   test(
     'pre-close retries one rejected prepare before exit closes the PTY',
     () async {
-      final harness = await _createHarness(prepareFailuresRemaining: 1);
+      final harness = await _createHarness(
+        prepareFailuresRemaining: 1,
+        settleShutdownBeforeTeardown: true,
+      );
       final controller = harness.container.read(
         sessionControllerProvider.notifier,
       );
