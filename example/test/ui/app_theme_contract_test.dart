@@ -34,7 +34,15 @@ void main() {
         final design = theme.extension<IanvsTokens>()!;
         expect(theme.extension<IanvsTypography>(), isNotNull);
         expect(theme.textTheme, shared.textTheme);
-        expect(theme.inputDecorationTheme, shared.inputDecorationTheme);
+        expect(
+          theme.inputDecorationTheme,
+          platform == TargetPlatform.macOS
+              ? shared.inputDecorationTheme.copyWith(
+                  hoverColor: theme.inputDecorationTheme.hoverColor,
+                  focusedBorder: theme.inputDecorationTheme.focusedBorder,
+                )
+              : shared.inputDecorationTheme,
+        );
         expect(
           theme.filledButtonTheme.style?.minimumSize?.resolve({}),
           shared.filledButtonTheme.style?.minimumSize?.resolve({}),

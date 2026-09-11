@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/l10n.dart';
+import '../../ui/components/app_action_button.dart';
+import '../../ui/foundation/app_theme_tokens.dart';
 import 'json_three_way_merge.dart';
 import 'local_first_sync.dart';
 
@@ -30,6 +32,7 @@ class _ConnectedApiSyncPanel extends ConsumerWidget {
     final sync = ref.watch(localFirstSyncProvider);
     final restoreTransport = ref.watch(applyApiSyncConfigurationProvider);
     final l10n = context.l10n;
+    final spacing = context.appTheme.spacing;
     final phase = sync?.phase ?? LocalFirstSyncPhase.disabled;
     final status = switch (phase) {
       LocalFirstSyncPhase.disabled => l10n.syncLocalOnly,
@@ -81,14 +84,17 @@ class _ConnectedApiSyncPanel extends ConsumerWidget {
                 ],
               ),
             ],
-            TextButton(
-              key: const Key('api-sync-now'),
+            SizedBox(height: spacing.md),
+            AppActionButton(
+              buttonKey: const Key('api-sync-now'),
+              tone: AppActionTone.secondary,
+              icon: Icons.sync_rounded,
+              label: l10n.syncNow,
               onPressed:
                   phase == LocalFirstSyncPhase.syncing ||
                       (sync.enabledButUnavailable && restoreTransport == null)
                   ? null
                   : () => sync.retry(restoreTransport: restoreTransport),
-              child: Text(l10n.syncNow),
             ),
           ],
         ],

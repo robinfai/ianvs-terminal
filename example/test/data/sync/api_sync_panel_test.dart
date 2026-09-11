@@ -183,7 +183,7 @@ void main() {
     expect(harness.coordinator.phase, LocalFirstSyncPhase.syncing);
     expect(
       tester
-          .widget<TextButton>(find.byKey(const Key('api-sync-now')))
+          .widget<ButtonStyleButton>(find.byKey(const Key('api-sync-now')))
           .onPressed,
       isNull,
     );
@@ -200,7 +200,7 @@ void main() {
     await _pumpPanel(tester, harness.coordinator, restoreTransport: restore);
     expect(
       tester
-          .widget<TextButton>(find.byKey(const Key('api-sync-now')))
+          .widget<ButtonStyleButton>(find.byKey(const Key('api-sync-now')))
           .onPressed,
       isNull,
       reason: 'Reopening settings must not start a second restoration.',

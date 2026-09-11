@@ -1114,14 +1114,15 @@ class _DefaultsAndAppearanceDialogState
                       AppPanel(
                         key: const Key('defaults-layout-restore-panel'),
                         tone: AppPanelTone.panel,
-                        padding: EdgeInsets.symmetric(
-                          horizontal: theme.spacing.lg,
-                          vertical: theme.spacing.sm,
-                        ),
+                        clipBehavior: Clip.antiAlias,
+                        padding: const EdgeInsets.all(1),
                         child: MergeSemantics(
                           child: SwitchListTile(
                             key: const Key('default-restore-layout'),
-                            contentPadding: EdgeInsets.zero,
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: theme.spacing.lg,
+                              vertical: theme.spacing.sm,
+                            ),
                             title: Text(
                               mobileNavigation
                                   ? context.l10n.mobileRestoreSessions
@@ -3163,7 +3164,8 @@ class _SettingsRadioPanel<T> extends StatelessWidget {
       key: panelKey,
       tone: AppPanelTone.panel,
       borderRadius: BorderRadius.circular(theme.radius.lg),
-      padding: EdgeInsets.all(theme.spacing.xs),
+      clipBehavior: Clip.antiAlias,
+      padding: const EdgeInsets.all(1),
       child: RadioGroup<T>(
         groupValue: groupValue,
         onChanged: onChanged,
@@ -3172,6 +3174,7 @@ class _SettingsRadioPanel<T> extends StatelessWidget {
             for (var index = 0; index < options.length; index++) ...[
               AppCompactRadioTile<T>(
                 tileKey: options[index].tileKey,
+                grouped: true,
                 value: options[index].value,
                 title: Text(options[index].title),
                 subtitle: Text(options[index].subtitle),

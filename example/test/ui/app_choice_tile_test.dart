@@ -22,6 +22,7 @@ void main() {
                   for (var i = 0; i < 3; i++)
                     AppCompactRadioTile<int>(
                       tileKey: Key('choice-$i'),
+                      grouped: true,
                       value: i,
                       title: Text('Option $i'),
                       subtitle: Text('Description $i'),

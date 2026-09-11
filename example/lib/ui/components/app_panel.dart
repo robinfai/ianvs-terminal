@@ -23,6 +23,7 @@ class AppPanel extends StatelessWidget {
     this.borderRadius,
     this.border,
     this.shadow = false,
+    this.clipBehavior = Clip.none,
     required this.child,
   });
 
@@ -31,6 +32,7 @@ class AppPanel extends StatelessWidget {
   final BorderRadiusGeometry? borderRadius;
   final Border? border;
   final bool shadow;
+  final Clip clipBehavior;
   final Widget child;
 
   @override
@@ -47,6 +49,8 @@ class AppPanel extends StatelessWidget {
       decoration: decoration,
       child: Material(
         type: MaterialType.transparency,
+        borderRadius: borderRadius ?? BorderRadius.circular(theme.radius.md),
+        clipBehavior: clipBehavior,
         child: padding == null
             ? child
             : Padding(padding: padding!, child: child),

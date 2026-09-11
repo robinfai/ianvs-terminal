@@ -86,5 +86,34 @@ ThemeData buildIanvsTerminalTheme(
       regular: design.controlHeight,
     ),
   );
-  return shared.copyWith(extensions: [...shared.extensions.values, terminal]);
+  final input = shared.inputDecorationTheme;
+  final outline = input.enabledBorder!;
+  final desktopInput = input.copyWith(
+    // Keep the editing surface clean while the pointer rests on a focused
+    // field; the accent outline communicates focus without a gray fill.
+    hoverColor: Colors.transparent,
+    focusedBorder: outline.copyWith(
+      borderSide: BorderSide(
+        color: Color.alphaBlend(
+          design.focus.withValues(alpha: .85),
+          design.field,
+        ),
+        width: 2,
+      ),
+    ),
+  );
+  return shared.copyWith(
+    inputDecorationTheme: touch ? input : desktopInput,
+    dropdownMenuTheme: touch
+        ? shared.dropdownMenuTheme
+        : shared.dropdownMenuTheme.copyWith(
+            inputDecorationTheme: desktopInput.copyWith(
+              suffixIconConstraints: shared
+                  .dropdownMenuTheme
+                  .inputDecorationTheme
+                  ?.suffixIconConstraints,
+            ),
+          ),
+    extensions: [...shared.extensions.values, terminal],
+  );
 }
