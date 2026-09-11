@@ -129,6 +129,7 @@ class ShortcutEditorPanel extends StatefulWidget {
     required this.onChanged,
     this.expandList = false,
     this.showHeader = true,
+    this.header,
     this.showRestoreAction = true,
   });
 
@@ -136,6 +137,7 @@ class ShortcutEditorPanel extends StatefulWidget {
   final ValueChanged<LocalTerminalKeybindingsConfig> onChanged;
   final bool expandList;
   final bool showHeader;
+  final Widget? header;
   final bool showRestoreAction;
 
   @override
@@ -460,7 +462,11 @@ class _ShortcutEditorPanelState extends State<ShortcutEditorPanel> {
     );
 
     final fixedContent = <Widget>[
-      if (widget.showHeader) ...[
+      if (widget.header != null) ...[
+        widget.header!,
+        SizedBox(height: theme.spacing.xl),
+      ],
+      if (widget.header == null && widget.showHeader) ...[
         AppSectionHeader(
           title: context.l10n.keyboardShortcuts,
           description: context.l10n.keyboardShortcutsDescription,
@@ -475,9 +481,9 @@ class _ShortcutEditorPanelState extends State<ShortcutEditorPanel> {
       SizedBox(height: theme.spacing.xl),
     ];
 
-    if (widget.expandList && context.usesTouchControlDensity) {
-      // Filters must scroll with the list when Dynamic Type or the keyboard
-      // leaves little height. A fixed toolbar can otherwise consume the viewport.
+    Widget scrollingEditor() {
+      // Filters scroll with results when text scaling or limited window height
+      // leaves too little room for a fixed toolbar and a separate list.
       return CustomScrollView(
         key: const Key('shortcut-editor-list'),
         controller: _listScrollController,
@@ -515,19 +521,29 @@ class _ShortcutEditorPanelState extends State<ShortcutEditorPanel> {
         ],
       );
     }
+
     if (widget.expandList) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ...fixedContent,
-          Expanded(child: list),
-        ],
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          if (context.usesTouchControlDensity ||
+              constraints.maxHeight < 360 ||
+              MediaQuery.textScalerOf(context).scale(13) > 17) {
+            return scrollingEditor();
+          }
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ...fixedContent,
+              Expanded(child: list),
+            ],
+          );
+        },
       );
     }
     return SingleChildScrollView(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           ...fixedContent,
           SizedBox(height: 360, child: list),

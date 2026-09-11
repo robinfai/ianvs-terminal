@@ -423,7 +423,7 @@ void main() {
         isFalse,
       );
       expect(
-        tester.getCenter(find.text('Reset default')).dx,
+        tester.getCenter(find.byKey(const Key('defaults-reset-menu'))).dx,
         lessThan(tester.getCenter(find.text('Cancel')).dx),
       );
     },
@@ -512,10 +512,10 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('defaults-section-appearance')));
       await tester.pumpAndSettle();
-      final darkThemeOption = tester.widget<RadioListTile<TerminalThemeMode>>(
-        find.byKey(const Key('default-theme-option-dark')),
+      expect(
+        find.byKey(const Key('default-theme-option-dark')).hitTestable(),
+        findsOneWidget,
       );
-      expect(darkThemeOption.contentPadding, EdgeInsets.zero);
       expect(
         find.byKey(const Key('default-terminal-viewport-padding')),
         findsOneWidget,

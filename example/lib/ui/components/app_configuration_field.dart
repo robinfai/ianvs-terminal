@@ -8,19 +8,21 @@ class AppConfigurationField extends StatelessWidget {
     required this.child,
     this.helper,
     this.labelWidth = 120,
+    this.breakpoint = 520,
   });
 
   final String label;
   final Widget child;
   final String? helper;
   final double labelWidth;
+  final double breakpoint;
 
   @override
   Widget build(BuildContext context) => IanvsFieldRow(
     label: label,
     helper: helper,
     labelWidth: labelWidth,
-    breakpoint: 520,
+    breakpoint: breakpoint,
     child: child,
   );
 }

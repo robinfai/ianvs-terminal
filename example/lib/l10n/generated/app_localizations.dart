@@ -7441,6 +7441,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The name defaults to the host address'**
   String get mobileHostAsName;
+
+  /// No description provided for @settingsUnsavedChanges.
+  ///
+  /// In en, this message translates to:
+  /// **'Unsaved changes'**
+  String get settingsUnsavedChanges;
+
+  /// No description provided for @settingsNoChanges.
+  ///
+  /// In en, this message translates to:
+  /// **'No changes'**
+  String get settingsNoChanges;
 }
 
 class _AppLocalizationsDelegate

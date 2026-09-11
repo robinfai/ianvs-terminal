@@ -10,6 +10,126 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
 
 void main() {
+  testWidgets('shortcut empty results keep the list width', (tester) async {
+    await _pumpDefaultsDialog(tester, surfaceSize: const Size(1200, 900));
+    await tester.tap(find.byKey(const Key('defaults-section-shortcuts')));
+    await tester.pumpAndSettle();
+    final list = find.byKey(const Key('shortcut-editor-list-panel'));
+    final width = tester.getSize(list).width;
+    await tester.enterText(
+      find.byKey(const Key('shortcut-editor-filter')),
+      'no-match-acceptance',
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('No matching actions'), findsOneWidget);
+    expect(tester.getSize(list).width, width);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('change status clears when a selection is reverted', (
+    tester,
+  ) async {
+    await _pumpDefaultsDialog(tester, surfaceSize: const Size(1200, 900));
+    expect(find.text('No changes'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('defaults-language-options')));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const Key('default-language-option-english')).last,
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Unsaved changes'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('defaults-section-appearance')));
+    await tester.pumpAndSettle();
+    expect(find.text('Unsaved changes'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('defaults-section-general')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('defaults-language-options')));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const Key('default-language-option-system')).last,
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('No changes'), findsOneWidget);
+    expect(
+      tester
+          .widget<FilledButton>(find.byKey(const Key('defaults-save')))
+          .onPressed,
+      isNull,
+    );
+  });
+
+  testWidgets('reset menu stages a profile reset and cancel discards it', (
+    tester,
+  ) async {
+    final profile = defaultTerminalProfile();
+    DefaultsAndAppearanceSelection? selection;
+    await _pumpDefaultsDialogLauncher(
+      tester,
+      profiles: [profile],
+      configuredDefaultProfileId: profile.id,
+      effectiveDefaultProfileId: profile.id,
+      onSelection: (value) => selection = value,
+    );
+    await tester.tap(find.byKey(const Key('defaults-reset-menu')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Reset default'));
+    await tester.pumpAndSettle();
+    expect(find.text('Unsaved changes'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('defaults-cancel')));
+    await tester.pumpAndSettle();
+    expect(selection, isNull);
+    await tester.tap(find.byKey(const Key('open-defaults-profile-test')));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<AppDropdownFormField<String>>(
+            find.byKey(const Key('defaults-profile-select')),
+          )
+          .initialValue,
+      profile.id,
+    );
+    expect(find.text('No changes'), findsOneWidget);
+  });
+
+  for (final brightness in Brightness.values) {
+    testWidgets(
+      'all desktop sections reflow at 680 px and 2x text in $brightness',
+      (tester) async {
+        await _pumpDefaultsDialog(
+          tester,
+          surfaceSize: const Size(680, 620),
+          textScale: 2,
+          brightness: brightness,
+        );
+        for (final section in [
+          'appearance',
+          'shortcuts',
+          'security',
+          'data',
+          'general',
+        ]) {
+          final navigation = find.byKey(Key('defaults-section-$section'));
+          await tester.ensureVisible(navigation);
+          await tester.tap(navigation);
+          await tester.pumpAndSettle();
+          expect(tester.takeException(), isNull, reason: section);
+          if (section != 'shortcuts') {
+            await tester.drag(
+              find.byKey(const Key('defaults-appearance-scroll')),
+              const Offset(0, -1500),
+            );
+            await tester.pumpAndSettle();
+            expect(tester.takeException(), isNull, reason: '$section bottom');
+          }
+          expect(
+            find.byKey(const Key('defaults-save')).hitTestable(),
+            findsOneWidget,
+          );
+        }
+      },
+    );
+  }
+
   for (final size in [
     const Size(375, 667),
     const Size(402, 874),

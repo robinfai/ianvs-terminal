@@ -1,0 +1,15 @@
+Built-in ImageGen mode; edit target is the user-provided screenshot.
+
+Use case: precise-object-edit
+Asset type: Chinese product UI audit annotation image
+Input image 1 is the EDIT TARGET: an existing desktop terminal settings dialog screenshot.
+Primary request: Preserve the actual screenshot and all existing UI, overlay clear professional numbered red/orange audit callouts in Simplified Chinese, with fine leader lines and small highlighted bounding boxes. Add a clean pale legend band below the original image if needed; do not redesign or replace the UI.
+Exactly six callout labels:
+"01 头部占高，标题重复"
+"02 表单过宽，阅读路径拉长"
+"03 编辑入口远离 Profile"
+"04 分组留白过大"
+"05 焦点描边过重"
+"06 重置与保存层级不清"
+Place 01 near dialog header + repeated 常规 heading. Place 02 near long Local Shell dropdown. Place 03 near 编辑 Profile on right. Place 04 in large gaps between groups. Place 05 at blue outline of language dropdown; this refers to visual weight only, not claiming focus is erroneous. Place 06 at bottom actions.
+Constraints: Keep every original UI label, original layout and proportions identifiable; annotating an observed problem, not inventing missing functionality. No replacement mockups, no extra menu items. Sharp readable Chinese type. This is a design review image, not a claim of a screenshot of revised software.

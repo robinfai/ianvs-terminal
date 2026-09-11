@@ -3845,5 +3845,7 @@
   "mobileCopyHistory": "Copy terminal history",
   "mobileHistoryCopied": "Terminal history copied",
   "mobileMoreConnectionSettings": "More connection settings",
-  "mobileHostAsName": "The name defaults to the host address"
+  "mobileHostAsName": "The name defaults to the host address",
+  "settingsUnsavedChanges": "Unsaved changes",
+  "settingsNoChanges": "No changes"
 }

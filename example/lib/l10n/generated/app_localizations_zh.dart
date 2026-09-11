@@ -4477,4 +4477,10 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get mobileHostAsName => '名称默认使用主机地址';
+
+  @override
+  String get settingsUnsavedChanges => '有未保存的更改';
+
+  @override
+  String get settingsNoChanges => '暂无更改';
 }

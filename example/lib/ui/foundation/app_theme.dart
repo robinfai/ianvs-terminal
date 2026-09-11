@@ -98,7 +98,7 @@ ThemeData buildIanvsTerminalTheme(
           design.focus.withValues(alpha: .85),
           design.field,
         ),
-        width: 2,
+        width: 1.5,
       ),
     ),
   );

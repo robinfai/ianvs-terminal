@@ -492,6 +492,170 @@ class _DefaultsAndAppearanceDialogState
     return _buildThemedDialog(context);
   }
 
+  Widget _buildGeneralSettings(
+    BuildContext context, {
+    required bool desktopPresentation,
+    required TerminalProfile? effectiveProfile,
+    required DataApiConfiguration? selectedDataApiConfiguration,
+  }) {
+    final theme = context.appTheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (desktopPresentation) ...[
+          _DefaultsSectionIntro(
+            title: context.l10n.general,
+            description: context.l10n.generalSettingsDescription,
+          ),
+          SizedBox(height: theme.spacing.xl),
+        ],
+        _DefaultsSettingsGroup(
+          groupKey: const Key('defaults-new-session-group'),
+          decorated: desktopPresentation,
+          title: context.l10n.configurationNewSessions,
+          child: _MobileSettingsDisclosure(
+            title: context.l10n.defaultProfile,
+            children: [
+              AppConfigurationField(
+                labelWidth: 112,
+                breakpoint: desktopPresentation ? 420 : 520,
+                label: context.l10n.defaultProfile,
+                helper: effectiveProfile == null
+                    ? context.l10n.noProfileForNewTabs
+                    : _selectedProfileId == null
+                    ? context.l10n.newTabsUseProfileAutomatically(
+                        effectiveProfile.name,
+                      )
+                    : _defaultProfileSubtitle(effectiveProfile),
+                child: AppDropdownFormField<String>(
+                  key: const Key('defaults-profile-select'),
+                  initialValue: _selectedProfileId,
+                  hint: Text(context.l10n.useAutomaticFallback),
+                  isExpanded: true,
+                  itemHeight: null,
+                  decoration: const InputDecoration(),
+                  selectedItemBuilder: (context) => [
+                    Text(context.l10n.useAutomaticFallback),
+                    for (final profile in widget.profiles)
+                      Text(profile.name, overflow: TextOverflow.ellipsis),
+                  ],
+                  items: [
+                    DropdownMenuItem<String>(
+                      key: const Key('default-profile-option-fallback'),
+                      value: null,
+                      child: Text(context.l10n.useAutomaticFallback),
+                    ),
+                    for (final profile in widget.profiles)
+                      DropdownMenuItem<String>(
+                        key: Key('default-profile-option-${profile.id}'),
+                        value: profile.id,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 6),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                profile.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              Text(
+                                _defaultProfileSubtitle(profile),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(color: theme.textSubtle),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
+                  onChanged: (value) {
+                    setState(() {
+                      _selectedProfileId = value;
+                      _selectedTerminalPresetId = _matchingPresetIdFor(
+                        _effectiveProfileFor(
+                          configuredProfileId: value,
+                          effectiveProfileId: widget.effectiveDefaultProfileId,
+                        ),
+                      );
+                    });
+                  },
+                ),
+              ),
+              SizedBox(height: theme.spacing.md),
+              _ProfilesNotice(
+                effectiveProfile: effectiveProfile,
+                onOpenProfiles: effectiveProfile == null
+                    ? null
+                    : () {
+                        Navigator.of(context).pop(
+                          DefaultsAndAppearanceSelection(
+                            configuredDefaultProfileId: _selectedProfileId,
+                            themeMode: _selectedThemeMode,
+                            languageMode: _selectedLanguageMode,
+                            terminalViewportPadding:
+                                _selectedTerminalViewportPadding,
+                            restoreLayout: _selectedRestoreLayout,
+                            osc52Policy: _selectedOsc52Policy,
+                            openUrlPolicy: _selectedOpenUrlPolicy,
+                            requestAttentionPolicy:
+                                _selectedRequestAttentionPolicy,
+                            reportVariableDecisions:
+                                _selectedReportVariableDecisions,
+                            keybindings: _selectedKeybindings,
+                            dataApiConfiguration:
+                                selectedDataApiConfiguration ??
+                                widget.dataApiConfiguration,
+                            dataApiRemoteLogin: null,
+                            updatedProfile: null,
+                            openProfiles: true,
+                          ),
+                        );
+                      },
+              ),
+            ],
+          ),
+        ),
+        SizedBox(height: theme.spacing.lg),
+        _DefaultsSettingsGroup(
+          groupKey: const Key('defaults-language-group'),
+          decorated: desktopPresentation,
+          title: context.l10n.language,
+          child: AppConfigurationField(
+            labelWidth: 112,
+            breakpoint: desktopPresentation ? 420 : 520,
+            label: context.l10n.configurationLanguage,
+            helper: context.l10n.languageModeDescription(
+              _selectedLanguageMode.name,
+            ),
+            child: AppDropdownFormField<TerminalLanguageMode>(
+              key: const Key('defaults-language-options'),
+              initialValue: _selectedLanguageMode,
+              isExpanded: true,
+              items: [
+                for (final mode in TerminalLanguageMode.values)
+                  DropdownMenuItem<TerminalLanguageMode>(
+                    key: Key('default-language-option-${mode.name}'),
+                    value: mode,
+                    child: Text(context.l10n.languageModeName(mode.name)),
+                  ),
+              ],
+              onChanged: (value) {
+                if (value != null) {
+                  setState(() => _selectedLanguageMode = value);
+                }
+              },
+            ),
+          ),
+        ),
+        SizedBox(height: theme.spacing.lg),
+      ],
+    );
+  }
+
   Widget _buildThemedDialog(BuildContext context) {
     final theme = context.appTheme;
     final dataServiceFieldTextStyle = Theme.of(
@@ -517,12 +681,12 @@ class _DefaultsAndAppearanceDialogState
     final dialogInset = compactLayout ? 0.0 : theme.spacing.xxl;
     final dialogWidth = compactLayout
         ? mediaSize.width
-        : (mediaSize.width - dialogInset * 2).clamp(0.0, 940.0);
+        : (mediaSize.width - dialogInset * 2).clamp(0.0, 880.0);
     final dialogHeight = compactLayout
         ? mediaSize.height - keyboardInset
         : (mediaSize.height - keyboardInset - dialogInset * 2).clamp(
             0.0,
-            700.0,
+            640.0,
           );
     final showSectionNavigation =
         desktopPlatform &&
@@ -530,6 +694,10 @@ class _DefaultsAndAppearanceDialogState
         !keyboardVisible &&
         dialogWidth >= 600 &&
         dialogHeight >= 320;
+    final showDataComparison =
+        showSectionNavigation &&
+        dialogWidth - 176 - theme.spacing.xl * 2 >= 600 &&
+        MediaQuery.textScalerOf(context).scale(13) <= 16;
     final mobileNavigation = !desktopPlatform;
     final showSectionContent = showSectionNavigation || mobileNavigation;
     final showMobileSections = mobileNavigation && !_mobileSectionOpen;
@@ -658,17 +826,15 @@ class _DefaultsAndAppearanceDialogState
         insetPadding: EdgeInsets.all(dialogInset),
         constraints: compactLayout
             ? const BoxConstraints()
-            : const BoxConstraints(maxWidth: 940),
+            : const BoxConstraints(maxWidth: 880),
         width: dialogWidth,
         height: dialogHeight,
         expandBody: true,
         centerInViewport: !compactLayout,
         borderRadius: compactLayout ? BorderRadius.zero : null,
-        titleTextStyle:
-            (mobileNavigation
-                    ? Theme.of(context).textTheme.titleMedium
-                    : Theme.of(context).textTheme.titleLarge)
-                ?.copyWith(color: theme.textPrimary),
+        titleTextStyle: Theme.of(
+          context,
+        ).textTheme.titleMedium?.copyWith(color: theme.textPrimary),
         subtitleTextStyle: Theme.of(
           context,
         ).textTheme.bodyMedium?.copyWith(color: theme.textSubtle),
@@ -676,9 +842,9 @@ class _DefaultsAndAppearanceDialogState
             ? const EdgeInsets.symmetric(horizontal: 4)
             : EdgeInsets.fromLTRB(
                 compactLayout ? theme.spacing.lg : theme.spacing.xxl,
-                compactKeyboardLayout ? theme.spacing.sm : theme.spacing.lg,
+                theme.spacing.sm,
                 compactLayout ? theme.spacing.lg : theme.spacing.xxl,
-                compactKeyboardLayout ? theme.spacing.sm : theme.spacing.lg,
+                theme.spacing.sm,
               ),
         bodyPadding: showSectionNavigation && !showStandaloneShortcutEditor
             ? EdgeInsets.zero
@@ -721,33 +887,17 @@ class _DefaultsAndAppearanceDialogState
                 onSectionSelected: _selectSection,
                 child: Padding(
                   key: const Key('defaults-shortcuts-tab-panel'),
-                  padding: EdgeInsets.fromLTRB(
-                    theme.spacing.xxl,
-                    theme.spacing.xl,
-                    theme.spacing.xxl,
-                    theme.spacing.xl,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _DefaultsSectionIntro(
-                        title: context.l10n.keyboardShortcuts,
-                        description: context.l10n.keyboardShortcutsDescription,
-                      ),
-                      SizedBox(height: theme.spacing.xl),
-                      Expanded(
-                        child: ShortcutEditorPanel(
-                          config: _selectedKeybindings,
-                          expandList: true,
-                          showHeader: false,
-                          onChanged: (value) {
-                            setState(() {
-                              _selectedKeybindings = value;
-                            });
-                          },
-                        ),
-                      ),
-                    ],
+                  padding: EdgeInsets.all(theme.spacing.xl),
+                  child: ShortcutEditorPanel(
+                    config: _selectedKeybindings,
+                    expandList: true,
+                    header: _DefaultsSectionIntro(
+                      title: context.l10n.keyboardShortcuts,
+                      description: context.l10n.keyboardShortcutsDescription,
+                    ),
+                    onChanged: (value) {
+                      setState(() => _selectedKeybindings = value);
+                    },
                   ),
                 ),
               )
@@ -761,7 +911,7 @@ class _DefaultsAndAppearanceDialogState
                   keyboardDismissBehavior:
                       ScrollViewKeyboardDismissBehavior.onDrag,
                   padding: showSectionNavigation
-                      ? EdgeInsets.all(theme.spacing.xxl)
+                      ? EdgeInsets.all(theme.spacing.xl)
                       : EdgeInsets.zero,
                   child: _DefaultsSectionColumn(
                     showAll: !showSectionContent,
@@ -770,175 +920,13 @@ class _DefaultsAndAppearanceDialogState
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const _DefaultsSectionMarker(_DefaultsSection.general),
-                      if (showSectionNavigation) ...[
-                        _DefaultsSectionIntro(
-                          title: context.l10n.general,
-                          description: context.l10n.generalSettingsDescription,
-                        ),
-                        SizedBox(height: theme.spacing.xl),
-                      ],
-                      _MobileSettingsDisclosure(
-                        title: context.l10n.defaultProfile,
-                        children: [
-                          AppSectionHeader(
-                            title: context.l10n.configurationNewSessions,
-                          ),
-                          SizedBox(height: theme.spacing.lg),
-                          AppConfigurationField(
-                            label: context.l10n.defaultProfile,
-                            helper: effectiveProfile == null
-                                ? context.l10n.noProfileForNewTabs
-                                : _selectedProfileId == null
-                                ? context.l10n.newTabsUseProfileAutomatically(
-                                    effectiveProfile.name,
-                                  )
-                                : _defaultProfileSubtitle(effectiveProfile),
-                            child: AppDropdownFormField<String>(
-                              key: const Key('defaults-profile-select'),
-                              initialValue: _selectedProfileId,
-                              hint: Text(context.l10n.useAutomaticFallback),
-                              isExpanded: true,
-                              itemHeight: null,
-                              decoration: const InputDecoration(),
-                              selectedItemBuilder: (context) => [
-                                Text(context.l10n.useAutomaticFallback),
-                                for (final profile in widget.profiles)
-                                  Text(
-                                    profile.name,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                              ],
-                              items: [
-                                DropdownMenuItem<String>(
-                                  key: const Key(
-                                    'default-profile-option-fallback',
-                                  ),
-                                  value: null,
-                                  child: Text(
-                                    context.l10n.useAutomaticFallback,
-                                  ),
-                                ),
-                                for (final profile in widget.profiles)
-                                  DropdownMenuItem<String>(
-                                    key: Key(
-                                      'default-profile-option-${profile.id}',
-                                    ),
-                                    value: profile.id,
-                                    child: Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 6,
-                                      ),
-                                      child: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            profile.name,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                          Text(
-                                            _defaultProfileSubtitle(profile),
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .bodySmall
-                                                ?.copyWith(
-                                                  color: theme.textSubtle,
-                                                ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                              onChanged: (value) {
-                                setState(() {
-                                  _selectedProfileId = value;
-                                  _selectedTerminalPresetId =
-                                      _matchingPresetIdFor(
-                                        _effectiveProfileFor(
-                                          configuredProfileId: value,
-                                          effectiveProfileId:
-                                              widget.effectiveDefaultProfileId,
-                                        ),
-                                      );
-                                });
-                              },
-                            ),
-                          ),
-                          SizedBox(height: theme.spacing.xxl),
-                          _ProfilesNotice(
-                            effectiveProfile: effectiveProfile,
-                            onOpenProfiles: effectiveProfile == null
-                                ? null
-                                : () {
-                                    Navigator.of(context).pop(
-                                      DefaultsAndAppearanceSelection(
-                                        configuredDefaultProfileId:
-                                            _selectedProfileId,
-                                        themeMode: _selectedThemeMode,
-                                        languageMode: _selectedLanguageMode,
-                                        terminalViewportPadding:
-                                            _selectedTerminalViewportPadding,
-                                        restoreLayout: _selectedRestoreLayout,
-                                        osc52Policy: _selectedOsc52Policy,
-                                        openUrlPolicy: _selectedOpenUrlPolicy,
-                                        requestAttentionPolicy:
-                                            _selectedRequestAttentionPolicy,
-                                        reportVariableDecisions:
-                                            _selectedReportVariableDecisions,
-                                        keybindings: _selectedKeybindings,
-                                        dataApiConfiguration:
-                                            selectedDataApiConfiguration ??
-                                            widget.dataApiConfiguration,
-                                        dataApiRemoteLogin: null,
-                                        updatedProfile: null,
-                                        openProfiles: true,
-                                      ),
-                                    );
-                                  },
-                          ),
-
-                          SizedBox(height: theme.spacing.xxl),
-                          const Divider(height: 1),
-                          SizedBox(height: theme.spacing.xxl),
-                        ],
+                      _buildGeneralSettings(
+                        context,
+                        desktopPresentation: showSectionNavigation,
+                        effectiveProfile: effectiveProfile,
+                        selectedDataApiConfiguration:
+                            selectedDataApiConfiguration,
                       ),
-                      SizedBox(height: theme.spacing.lg),
-                      AppSectionHeader(title: context.l10n.language),
-                      SizedBox(height: theme.spacing.lg),
-                      AppConfigurationField(
-                        label: context.l10n.configurationLanguage,
-                        helper: context.l10n.languageModeDescription(
-                          _selectedLanguageMode.name,
-                        ),
-                        child: AppDropdownFormField<TerminalLanguageMode>(
-                          key: const Key('defaults-language-options'),
-                          initialValue: _selectedLanguageMode,
-                          isExpanded: true,
-                          items: [
-                            for (final mode in TerminalLanguageMode.values)
-                              DropdownMenuItem<TerminalLanguageMode>(
-                                key: Key(
-                                  'default-language-option-${mode.name}',
-                                ),
-                                value: mode,
-                                child: Text(
-                                  context.l10n.languageModeName(mode.name),
-                                ),
-                              ),
-                          ],
-                          onChanged: (value) {
-                            if (value != null) {
-                              setState(() => _selectedLanguageMode = value);
-                            }
-                          },
-                        ),
-                      ),
-                      SizedBox(height: theme.spacing.xxl),
                       const _DefaultsSectionMarker(_DefaultsSection.appearance),
                       if (showSectionNavigation) ...[
                         _DefaultsSectionIntro(
@@ -954,6 +942,7 @@ class _DefaultsAndAppearanceDialogState
                       ],
                       _SettingsRadioPanel<TerminalThemeMode>(
                         panelKey: const Key('defaults-appearance-options'),
+                        compactOptions: showSectionNavigation,
                         groupValue: _selectedThemeMode,
                         onChanged: (value) {
                           if (value == null) {
@@ -1561,7 +1550,7 @@ class _DefaultsAndAppearanceDialogState
                               },
                               child: Column(
                                 children: [
-                                  if (showSectionNavigation) ...[
+                                  if (showDataComparison) ...[
                                     const _DataServiceComparisonHeader(),
                                     SizedBox(height: theme.spacing.xs),
                                   ],
@@ -1584,7 +1573,7 @@ class _DefaultsAndAppearanceDialogState
                                     active:
                                         _sourceDataApiDeployment ==
                                         DataApiDeployment.disabled,
-                                    showComparison: showSectionNavigation,
+                                    showComparison: showDataComparison,
                                   ),
                                   if (widget.localDataApiAvailable)
                                     _DataServiceModeChoice(
@@ -1600,7 +1589,7 @@ class _DefaultsAndAppearanceDialogState
                                       active:
                                           _sourceDataApiDeployment ==
                                           DataApiDeployment.local,
-                                      showComparison: showSectionNavigation,
+                                      showComparison: showDataComparison,
                                     ),
                                   _DataServiceModeChoice(
                                     tileKey: const Key('data-api-remote'),
@@ -1616,7 +1605,7 @@ class _DefaultsAndAppearanceDialogState
                                     active:
                                         _sourceDataApiDeployment ==
                                         DataApiDeployment.remote,
-                                    showComparison: showSectionNavigation,
+                                    showComparison: showDataComparison,
                                   ),
                                 ],
                               ),
@@ -2025,27 +2014,31 @@ class _DefaultsAndAppearanceDialogState
                       ),
                     ],
                   );
+                  final resets = resetActions.children
+                      .cast<AppActionButton>()
+                      .toList();
+                  final resetMenu = PopupMenuButton<int>(
+                    key: Key(
+                      mobileNavigation
+                          ? 'defaults-mobile-reset-menu'
+                          : 'defaults-reset-menu',
+                    ),
+                    tooltip: context.l10n.reset,
+                    icon: const Icon(Icons.more_horiz_rounded),
+                    onSelected: (index) => resets[index].onPressed?.call(),
+                    itemBuilder: (context) => [
+                      for (var index = 0; index < resets.length; index++)
+                        PopupMenuItem(
+                          value: index,
+                          enabled: resets[index].onPressed != null,
+                          child: Text(resets[index].label!),
+                        ),
+                    ],
+                  );
                   if (mobileNavigation) {
-                    final resets = resetActions.children
-                        .cast<AppActionButton>()
-                        .toList();
                     return Row(
                       children: [
-                        PopupMenuButton<int>(
-                          key: const Key('defaults-mobile-reset-menu'),
-                          tooltip: context.l10n.reset,
-                          icon: const Icon(Icons.more_horiz_rounded),
-                          onSelected: (index) =>
-                              resets[index].onPressed?.call(),
-                          itemBuilder: (context) => [
-                            for (var index = 0; index < resets.length; index++)
-                              PopupMenuItem(
-                                value: index,
-                                enabled: resets[index].onPressed != null,
-                                child: Text(resets[index].label!),
-                              ),
-                          ],
-                        ),
+                        resetMenu,
                         SizedBox(width: theme.spacing.sm),
                         Expanded(child: confirmationActions.children.last),
                       ],
@@ -2056,7 +2049,26 @@ class _DefaultsAndAppearanceDialogState
                     overflowAlignment: OverflowBarAlignment.end,
                     spacing: theme.spacing.md,
                     overflowSpacing: theme.spacing.md,
-                    children: [resetActions, confirmationActions],
+                    children: [
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          resetMenu,
+                          SizedBox(width: theme.spacing.sm),
+                          Flexible(
+                            child: Text(
+                              hasChanges
+                                  ? context.l10n.settingsUnsavedChanges
+                                  : context.l10n.settingsNoChanges,
+                              key: const Key('defaults-change-status'),
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(color: theme.textSubtle),
+                            ),
+                          ),
+                        ],
+                      ),
+                      confirmationActions,
+                    ],
                   );
                 },
               ),
@@ -2133,7 +2145,7 @@ class _DefaultsBodyLayout extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SizedBox(
-          width: 190,
+          width: 176,
           child: _DefaultsSectionNavigation(
             selectedSection: selectedSection,
             onSectionSelected: onSectionSelected,
@@ -2141,7 +2153,16 @@ class _DefaultsBodyLayout extends StatelessWidget {
         ),
         const VerticalDivider(width: 1),
         Expanded(
-          child: ColoredBox(color: context.appTheme.canvas, child: child),
+          child: ColoredBox(
+            color: context.appTheme.canvas,
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 704),
+                child: child,
+              ),
+            ),
+          ),
         ),
       ],
     );
@@ -2329,6 +2350,45 @@ class _DefaultsSectionNavigationItem extends StatelessWidget {
   }
 }
 
+/// A bounded settings group. Layout comes from the field row and the theme;
+/// mobile disclosures keep their native presentation without another surface.
+class _DefaultsSettingsGroup extends StatelessWidget {
+  const _DefaultsSettingsGroup({
+    required this.groupKey,
+    required this.decorated,
+    required this.title,
+    required this.child,
+  });
+
+  final Key groupKey;
+  final bool decorated;
+  final String title;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.appTheme;
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AppSectionHeader(title: title),
+        SizedBox(height: theme.spacing.lg),
+        child,
+      ],
+    );
+    return KeyedSubtree(
+      key: groupKey,
+      child: decorated
+          ? AppPanel(
+              padding: EdgeInsets.all(theme.spacing.lg),
+              borderRadius: BorderRadius.circular(theme.radius.lg),
+              child: content,
+            )
+          : content,
+    );
+  }
+}
+
 class _DefaultsSectionIntro extends StatelessWidget {
   const _DefaultsSectionIntro({required this.title, required this.description});
 
@@ -2354,8 +2414,6 @@ class _DefaultsSectionIntro extends StatelessWidget {
             context,
           ).textTheme.bodyMedium?.copyWith(color: theme.textSubtle),
         ),
-        SizedBox(height: theme.spacing.xl),
-        const Divider(height: 1),
       ],
     );
   }
@@ -2602,7 +2660,7 @@ class _PermissionPolicyRow<T extends Enum> extends StatelessWidget {
           padding: EdgeInsets.only(top: theme.spacing.xs),
           child: Icon(icon, size: 22, color: theme.textMuted),
         ),
-        SizedBox(width: theme.spacing.xl),
+        SizedBox(width: theme.spacing.md),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -2617,8 +2675,6 @@ class _PermissionPolicyRow<T extends Enum> extends StatelessWidget {
               SizedBox(height: theme.spacing.xs),
               Text(
                 description,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
                 style: Theme.of(
                   context,
                 ).textTheme.bodySmall?.copyWith(color: theme.textSubtle),
@@ -2644,7 +2700,7 @@ class _PermissionPolicyRow<T extends Enum> extends StatelessWidget {
           }
         },
         child: SizedBox(
-          width: 136,
+          width: MediaQuery.textScalerOf(context).scale(136).clamp(136, 240),
           child: KeyedSubtree(
             key: dropdownKey,
             child: AppDropdownFormField<T>(
@@ -2676,7 +2732,9 @@ class _PermissionPolicyRow<T extends Enum> extends StatelessWidget {
     return KeyedSubtree(
       key: panelKey,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 120),
+        duration: MediaQuery.disableAnimationsOf(context)
+            ? Duration.zero
+            : const Duration(milliseconds: 120),
         decoration: BoxDecoration(
           color: selected ? theme.selected : Colors.transparent,
           border: Border(
@@ -2695,7 +2753,8 @@ class _PermissionPolicyRow<T extends Enum> extends StatelessWidget {
             ),
             child: LayoutBuilder(
               builder: (context, constraints) {
-                if (constraints.maxWidth < 320) {
+                if (constraints.maxWidth < 440 ||
+                    MediaQuery.textScalerOf(context).scale(13) > 19.5) {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
@@ -2932,59 +2991,76 @@ class _ReportVariablesRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = context.appTheme;
+    final description = Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(Icons.terminal_rounded, size: 22, color: theme.textMuted),
+        SizedBox(width: theme.spacing.md),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'OSC 1337 ReportVariable',
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: theme.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              SizedBox(height: theme.spacing.xs),
+              Text(
+                context.l10n.terminalVariableReportsDescription,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: theme.textSubtle),
+              ),
+              SizedBox(height: theme.spacing.xs),
+              Text(
+                summary,
+                key: const Key(
+                  'default-osc1337-report-variable-decision-summary',
+                ),
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: theme.textMuted,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+    final action = AppActionButton(
+      buttonKey: const Key('defaults-manage-report-variables'),
+      tone: AppActionTone.secondary,
+      size: AppActionSize.compact,
+      icon: expanded ? Icons.expand_less_rounded : Icons.tune_rounded,
+      label: context.l10n.manageDecisions,
+      onPressed: onPressed,
+    );
     return Padding(
-      padding: EdgeInsets.symmetric(
-        horizontal: theme.spacing.xl,
-        vertical: theme.spacing.lg,
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.terminal_rounded, size: 22, color: theme.textMuted),
-          SizedBox(width: theme.spacing.xl),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      padding: EdgeInsets.all(theme.spacing.lg),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth < 520 ||
+              MediaQuery.textScalerOf(context).scale(13) > 17) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
-                  'OSC 1337 ReportVariable',
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: theme.textPrimary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                SizedBox(height: theme.spacing.xs),
-                Text(
-                  context.l10n.terminalVariableReportsDescription,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(color: theme.textSubtle),
-                ),
-                SizedBox(height: theme.spacing.xs),
-                Text(
-                  summary,
-                  key: const Key(
-                    'default-osc1337-report-variable-decision-summary',
-                  ),
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: theme.textMuted,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+                description,
+                SizedBox(height: theme.spacing.md),
+                Align(alignment: AlignmentDirectional.centerEnd, child: action),
               ],
-            ),
-          ),
-          SizedBox(width: theme.spacing.xl),
-          AppActionButton(
-            buttonKey: const Key('defaults-manage-report-variables'),
-            tone: AppActionTone.secondary,
-            size: AppActionSize.compact,
-            icon: expanded ? Icons.expand_less_rounded : Icons.tune_rounded,
-            label: context.l10n.manageDecisions,
-            onPressed: onPressed,
-          ),
-        ],
+            );
+          }
+          return Row(
+            children: [
+              Expanded(child: description),
+              SizedBox(width: theme.spacing.md),
+              action,
+            ],
+          );
+        },
       ),
     );
   }
@@ -3108,7 +3184,8 @@ class _ProfilesNotice extends StatelessWidget {
       key: const Key('defaults-profiles-notice'),
       builder: (context, constraints) {
         if (action == null) return summary;
-        if (constraints.maxWidth < 520) {
+        if (constraints.maxWidth < 420 ||
+            MediaQuery.textScalerOf(context).scale(13) > 19.5) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -3120,8 +3197,8 @@ class _ProfilesNotice extends StatelessWidget {
         }
         return Row(
           children: [
-            Expanded(child: summary),
-            SizedBox(width: theme.spacing.lg),
+            Flexible(child: summary),
+            SizedBox(width: theme.spacing.md),
             action,
           ],
         );
@@ -3150,8 +3227,10 @@ class _SettingsRadioPanel<T> extends StatelessWidget {
     required this.groupValue,
     required this.onChanged,
     required this.options,
+    this.compactOptions = false,
   });
 
+  final bool compactOptions;
   final Key panelKey;
   final T groupValue;
   final ValueChanged<T?> onChanged;
@@ -3160,7 +3239,7 @@ class _SettingsRadioPanel<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = context.appTheme;
-    return AppPanel(
+    final panel = AppPanel(
       key: panelKey,
       tone: AppPanelTone.panel,
       borderRadius: BorderRadius.circular(theme.radius.lg),
@@ -3189,6 +3268,49 @@ class _SettingsRadioPanel<T> extends StatelessWidget {
           ],
         ),
       ),
+    );
+    if (!compactOptions) return panel;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 540 ||
+            MediaQuery.textScalerOf(context).scale(13) > 17) {
+          return panel;
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            AppPanel(
+              key: panelKey,
+              padding: EdgeInsets.all(theme.spacing.xs),
+              child: RadioGroup<T>(
+                groupValue: groupValue,
+                onChanged: onChanged,
+                child: Row(
+                  children: [
+                    for (final option in options)
+                      Expanded(
+                        child: AppCompactRadioTile<T>(
+                          tileKey: option.tileKey,
+                          value: option.value,
+                          title: Text(option.title),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            SizedBox(height: theme.spacing.sm),
+            Text(
+              options
+                  .firstWhere((option) => option.value == groupValue)
+                  .subtitle,
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: theme.textSubtle),
+            ),
+          ],
+        );
+      },
     );
   }
 }

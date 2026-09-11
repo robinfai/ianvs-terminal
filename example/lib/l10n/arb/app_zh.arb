@@ -1220,5 +1220,7 @@
   "mobileCopyHistory": "复制终端历史",
   "mobileHistoryCopied": "已复制终端历史",
   "mobileMoreConnectionSettings": "更多连接设置",
-  "mobileHostAsName": "名称默认使用主机地址"
+  "mobileHostAsName": "名称默认使用主机地址",
+  "settingsUnsavedChanges": "有未保存的更改",
+  "settingsNoChanges": "暂无更改"
 }

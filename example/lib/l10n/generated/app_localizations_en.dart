@@ -4793,4 +4793,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get mobileHostAsName => 'The name defaults to the host address';
+
+  @override
+  String get settingsUnsavedChanges => 'Unsaved changes';
+
+  @override
+  String get settingsNoChanges => 'No changes';
 }
