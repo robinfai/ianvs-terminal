@@ -40,9 +40,7 @@ class AppPanel extends StatelessWidget {
       color: _backgroundFor(theme),
       borderRadius: borderRadius ?? BorderRadius.circular(theme.radius.md),
       border: border ?? Border.all(color: _borderFor(theme)),
-      boxShadow: shadow || tone == AppPanelTone.elevated
-          ? theme.elevation.floating
-          : const [],
+      boxShadow: shadow ? theme.elevation.floating : const [],
     );
 
     return DecoratedBox(

@@ -370,11 +370,12 @@ packages:
   ianvs_design:
     dependency: transitive
     description:
-      name: ianvs_design
-      sha256: "0e7710b288b705cebc4ae0e6db17a3f3943545af1dd1c6857a016e904ab7d5ce"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.3.1"
+      path: "."
+      ref: "63e6e516cb96c9d4ab8cc43405160f660e76ca58"
+      resolved-ref: "63e6e516cb96c9d4ab8cc43405160f660e76ca58"
+      url: "https://github.com/robinfai/ianvs-design.git"
+    source: git
+    version: "0.4.0"
   integration_test:
     dependency: transitive
     description: flutter

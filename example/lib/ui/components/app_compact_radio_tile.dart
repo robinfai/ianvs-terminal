@@ -1,5 +1,6 @@
-import 'package:flutter/material.dart';
+import 'package:ianvs_design/ianvs_design.dart';
 
+/// Trail adapter for the shared, keyboard-accessible choice row.
 class AppCompactRadioTile<T> extends StatelessWidget {
   const AppCompactRadioTile({
     super.key,
@@ -15,22 +16,10 @@ class AppCompactRadioTile<T> extends StatelessWidget {
   final Key? tileKey;
 
   @override
-  Widget build(BuildContext context) {
-    final usesTouchDensity =
-        Theme.of(context).materialTapTargetSize == MaterialTapTargetSize.padded;
-    return ConstrainedBox(
-      constraints: BoxConstraints(minHeight: usesTouchDensity ? 48 : 0),
-      child: RadioListTile<T>(
-        key: tileKey ?? key,
-        value: value,
-        dense: !usesTouchDensity,
-        visualDensity: usesTouchDensity
-            ? VisualDensity.standard
-            : VisualDensity.compact,
-        contentPadding: EdgeInsets.zero,
-        title: title,
-        subtitle: subtitle,
-      ),
-    );
-  }
+  Widget build(BuildContext context) => IanvsChoiceTile<T>(
+    key: tileKey,
+    value: value,
+    title: title,
+    subtitle: subtitle,
+  );
 }

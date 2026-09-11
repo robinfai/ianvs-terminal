@@ -2592,7 +2592,12 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                           ),
                         ),
                       ),
-                      Expanded(child: scrollableSections),
+                      Expanded(
+                        child: ColoredBox(
+                          color: theme.canvas,
+                          child: scrollableSections,
+                        ),
+                      ),
                     ],
                   );
                 }
@@ -2608,7 +2613,12 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                       ),
                       child: sectionNavigation,
                     ),
-                    Expanded(child: scrollableSections),
+                    Expanded(
+                      child: ColoredBox(
+                        color: theme.canvas,
+                        child: scrollableSections,
+                      ),
+                    ),
                   ],
                 );
               },
@@ -3651,21 +3661,9 @@ class _ProfileEditorSectionNavItem extends StatelessWidget {
     final sectionLabel = context.l10n.profileSectionName(spec.section.name);
     final foreground = selected ? theme.accent : theme.textMuted;
     final background = selected ? theme.selected : Colors.transparent;
-    final indicatorColor = selected ? theme.accent : Colors.transparent;
     final content = Row(
       mainAxisSize: vertical ? MainAxisSize.max : MainAxisSize.min,
       children: [
-        if (vertical) ...[
-          Container(
-            width: 3,
-            height: 20,
-            decoration: BoxDecoration(
-              color: indicatorColor,
-              borderRadius: BorderRadius.circular(theme.radius.sm),
-            ),
-          ),
-          SizedBox(width: theme.spacing.sm),
-        ],
         Icon(spec.icon, size: 18, color: foreground),
         SizedBox(width: theme.spacing.sm),
         Flexible(
@@ -3675,7 +3673,7 @@ class _ProfileEditorSectionNavItem extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
               color: foreground,
-              fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+              fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
             ),
           ),
         ),

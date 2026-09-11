@@ -948,8 +948,10 @@ class _DefaultsAndAppearanceDialogState
                         ),
                         SizedBox(height: theme.spacing.lg),
                       ],
-                      AppSectionHeader(title: context.l10n.appearance),
-                      SizedBox(height: theme.spacing.sm),
+                      if (!showSectionNavigation) ...[
+                        AppSectionHeader(title: context.l10n.appearance),
+                        SizedBox(height: theme.spacing.sm),
+                      ],
                       _SettingsRadioPanel<TerminalThemeMode>(
                         panelKey: const Key('defaults-appearance-options'),
                         groupValue: _selectedThemeMode,
@@ -2137,7 +2139,9 @@ class _DefaultsBodyLayout extends StatelessWidget {
           ),
         ),
         const VerticalDivider(width: 1),
-        Expanded(child: child),
+        Expanded(
+          child: ColoredBox(color: context.appTheme.canvas, child: child),
+        ),
       ],
     );
   }
@@ -2606,7 +2610,7 @@ class _PermissionPolicyRow<T extends Enum> extends StatelessWidget {
                 title,
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                   color: theme.textPrimary,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
               SizedBox(height: theme.spacing.xs),
@@ -2764,7 +2768,7 @@ class _PermissionDetail extends StatelessWidget {
                   context.l10n.securityImpact,
                   style: Theme.of(context).textTheme.labelLarge?.copyWith(
                     color: theme.textPrimary,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
@@ -2775,7 +2779,7 @@ class _PermissionDetail extends StatelessWidget {
             title,
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
               color: theme.textPrimary,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w600,
             ),
           ),
           SizedBox(height: theme.spacing.xs),
@@ -2898,7 +2902,7 @@ class _PermissionDetailField extends StatelessWidget {
                           style: Theme.of(context).textTheme.labelSmall
                               ?.copyWith(
                                 color: theme.accent,
-                                fontWeight: FontWeight.w700,
+                                fontWeight: FontWeight.w600,
                               ),
                         ),
                       ),
@@ -2944,7 +2948,7 @@ class _ReportVariablesRow extends StatelessWidget {
                   'OSC 1337 ReportVariable',
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                     color: theme.textPrimary,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
                 SizedBox(height: theme.spacing.xs),
@@ -3158,58 +3162,28 @@ class _SettingsRadioPanel<T> extends StatelessWidget {
     return AppPanel(
       key: panelKey,
       tone: AppPanelTone.panel,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(theme.radius.md),
-        child: Theme(
-          data: Theme.of(
-            context,
-          ).copyWith(hoverColor: theme.focusRing.withValues(alpha: 0.05)),
-          child: RadioGroup<T>(
-            groupValue: groupValue,
-            onChanged: onChanged,
-            child: Column(
-              children: [
-                for (var index = 0; index < options.length; index++) ...[
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 120),
-                    curve: Curves.easeOutCubic,
-                    decoration: BoxDecoration(
-                      color: options[index].value == groupValue
-                          ? theme.selected
-                          : Colors.transparent,
-                      border: Border(
-                        left: BorderSide(
-                          color: options[index].value == groupValue
-                              ? theme.accent
-                              : Colors.transparent,
-                          width: 3,
-                        ),
-                      ),
-                    ),
-                    padding: EdgeInsets.symmetric(
-                      horizontal: theme.spacing.md,
-                      vertical: 0,
-                    ),
-                    child: Material(
-                      type: MaterialType.transparency,
-                      child: AppCompactRadioTile<T>(
-                        tileKey: options[index].tileKey,
-                        value: options[index].value,
-                        title: Text(options[index].title),
-                        subtitle: Text(options[index].subtitle),
-                      ),
-                    ),
-                  ),
-                  if (index != options.length - 1)
-                    Divider(
-                      height: 1,
-                      indent: theme.spacing.xl,
-                      endIndent: theme.spacing.xl,
-                    ),
-                ],
-              ],
-            ),
-          ),
+      borderRadius: BorderRadius.circular(theme.radius.lg),
+      padding: EdgeInsets.all(theme.spacing.xs),
+      child: RadioGroup<T>(
+        groupValue: groupValue,
+        onChanged: onChanged,
+        child: Column(
+          children: [
+            for (var index = 0; index < options.length; index++) ...[
+              AppCompactRadioTile<T>(
+                tileKey: options[index].tileKey,
+                value: options[index].value,
+                title: Text(options[index].title),
+                subtitle: Text(options[index].subtitle),
+              ),
+              if (index != options.length - 1)
+                Divider(
+                  height: 1,
+                  indent: theme.spacing.lg,
+                  endIndent: theme.spacing.lg,
+                ),
+            ],
+          ],
         ),
       ),
     );
@@ -3224,13 +3198,13 @@ class _DataServiceComparisonHeader extends StatelessWidget {
     final theme = context.appTheme;
     final labelStyle = Theme.of(context).textTheme.labelMedium?.copyWith(
       color: theme.textSubtle,
-      fontWeight: FontWeight.w700,
+      fontWeight: FontWeight.w600,
     );
     return Padding(
       padding: EdgeInsets.fromLTRB(
-        theme.controls.regular + theme.spacing.sm,
+        theme.spacing.lg,
         theme.spacing.xs,
-        theme.spacing.md,
+        theme.spacing.lg + 32,
         theme.spacing.xs,
       ),
       child: Row(
@@ -3255,7 +3229,7 @@ class _DataServiceComparisonHeader extends StatelessWidget {
   }
 }
 
-class _DataServiceModeChoice extends StatefulWidget {
+class _DataServiceModeChoice extends StatelessWidget {
   const _DataServiceModeChoice({
     required this.tileKey,
     required this.value,
@@ -3275,82 +3249,50 @@ class _DataServiceModeChoice extends StatefulWidget {
   final bool showComparison;
 
   @override
-  State<_DataServiceModeChoice> createState() => _DataServiceModeChoiceState();
-}
-
-class _DataServiceModeChoiceState extends State<_DataServiceModeChoice> {
-  bool _hovered = false;
-  bool _focused = false;
-
-  @override
   Widget build(BuildContext context) {
     final theme = context.appTheme;
-    final selected = widget.selected;
-    final highlighted = _hovered || _focused;
     final titleWidget = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          widget.title,
+          title,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
             color: theme.textPrimary,
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w600,
           ),
         ),
-        if (selected) ...[
-          SizedBox(height: theme.spacing.xs),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.check_circle_outline_rounded,
-                size: 11,
-                color: theme.accent,
-              ),
-              SizedBox(width: theme.spacing.xs),
-              Flexible(
-                child: Text(
-                  context.l10n.selected,
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: theme.accent,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ] else if (widget.active) ...[
+        if (active && !selected) ...[
           SizedBox(height: theme.spacing.xs),
           Text(
             context.l10n.currentMode,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
               color: theme.textMuted,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ],
       ],
     );
-    final content = widget.showComparison
+    final content = showComparison
         ? Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               SizedBox(width: 132, child: titleWidget),
               Expanded(
                 child: _DataServiceMetric(
-                  value: context.l10n.dataModeApiSummary(widget.value.name),
+                  value: context.l10n.dataModeApiSummary(value.name),
                 ),
               ),
               Expanded(
                 child: _DataServiceMetric(
-                  value: context.l10n.dataModeStorageSummary(widget.value.name),
+                  value: context.l10n.dataModeStorageSummary(value.name),
                 ),
               ),
               Expanded(
                 child: _DataServiceMetric(
-                  value: context.l10n.dataModeSyncSummary(widget.value.name),
+                  value: context.l10n.dataModeSyncSummary(value.name),
                 ),
               ),
             ],
@@ -3361,57 +3303,20 @@ class _DataServiceModeChoiceState extends State<_DataServiceModeChoice> {
               titleWidget,
               SizedBox(height: theme.spacing.xs),
               Text(
-                widget.description,
+                description,
                 style: Theme.of(
                   context,
                 ).textTheme.bodySmall?.copyWith(color: theme.textSubtle),
               ),
             ],
           );
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: Focus(
-        onFocusChange: (value) => setState(() => _focused = value),
-        child: AnimatedContainer(
-          key: Key('data-api-${widget.value.name}-surface'),
-          duration: const Duration(milliseconds: 120),
-          curve: Curves.easeOutCubic,
-          margin: EdgeInsets.symmetric(vertical: theme.spacing.xs / 2),
-          padding: EdgeInsets.symmetric(horizontal: theme.spacing.sm),
-          decoration: BoxDecoration(
-            color: selected
-                ? theme.selected
-                : highlighted
-                ? theme.selected.withValues(alpha: 0.12)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(theme.radius.md),
-            border: Border.all(
-              color: selected
-                  ? theme.focusRing
-                  : highlighted
-                  ? theme.borderStrong
-                  : theme.border,
-              width: selected ? 1.5 : 1,
-            ),
-          ),
-          child: Theme(
-            data: Theme.of(context).copyWith(
-              hoverColor: Colors.transparent,
-              focusColor: Colors.transparent,
-              highlightColor: Colors.transparent,
-            ),
-            child: Material(
-              type: MaterialType.transparency,
-              child: AppCompactRadioTile<DataApiDeployment>(
-                tileKey: widget.tileKey,
-                value: widget.value,
-                title: content,
-              ),
-            ),
-          ),
-        ),
+    return Padding(
+      key: Key('data-api-${value.name}-surface'),
+      padding: EdgeInsets.symmetric(vertical: theme.spacing.xs / 2),
+      child: AppCompactRadioTile<DataApiDeployment>(
+        tileKey: tileKey,
+        value: value,
+        title: content,
       ),
     );
   }
@@ -3482,7 +3387,7 @@ class _DataServiceStatusBanner extends StatelessWidget {
                     context.l10n.activeNow(serviceName),
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: theme.textPrimary,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                   SizedBox(height: theme.spacing.xs),
@@ -3656,14 +3561,14 @@ class _TerminalPresetChoice extends StatelessWidget {
         onTap: enabled ? onPressed : null,
         borderRadius: BorderRadius.circular(theme.radius.md),
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
+          duration: MediaQuery.disableAnimationsOf(context)
+              ? Duration.zero
+              : const Duration(milliseconds: 120),
           width: width,
           constraints: const BoxConstraints(minHeight: 68),
           padding: EdgeInsets.all(theme.spacing.md),
           decoration: BoxDecoration(
-            color: selected
-                ? theme.selected
-                : theme.overlay.withValues(alpha: enabled ? 0.52 : 0.24),
+            color: theme.panel,
             borderRadius: BorderRadius.circular(theme.radius.md),
             border: Border.all(
               color: selected ? theme.focusRing : theme.border,
@@ -3690,11 +3595,7 @@ class _TerminalPresetChoice extends StatelessWidget {
                     ),
                   ),
                   if (selected)
-                    Icon(
-                      Icons.check_circle_rounded,
-                      size: 15,
-                      color: theme.focusRing,
-                    ),
+                    Icon(Icons.check_rounded, size: 15, color: theme.focusRing),
                 ],
               ),
               SizedBox(height: theme.spacing.xs),

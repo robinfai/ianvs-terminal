@@ -28,9 +28,9 @@ class SettingsSection extends StatelessWidget {
         children: [
           Text(
             title,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
               color: theme.textPrimary,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.w600,
             ),
           ),
           if (description != null) ...[
@@ -39,7 +39,7 @@ class SettingsSection extends StatelessWidget {
               description!,
               style: Theme.of(
                 context,
-              ).textTheme.bodyMedium?.copyWith(color: theme.textSubtle),
+              ).textTheme.bodySmall?.copyWith(color: theme.textSubtle),
             ),
           ],
         ],

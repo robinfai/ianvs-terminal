@@ -85,7 +85,7 @@ class AppDialogScaffold extends StatelessWidget {
                       titleTextStyle ??
                       Theme.of(context).textTheme.titleMedium?.copyWith(
                         color: theme.textPrimary,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w600,
                         letterSpacing: 0,
                       ),
                 ),
@@ -154,7 +154,7 @@ class AppDialogScaffold extends StatelessWidget {
         const Divider(height: 1),
         if (expandBody) Expanded(child: paddedBody) else paddedBody,
         if (paddedFooter != null) ...[
-          Divider(height: 1, color: theme.borderStrong),
+          Divider(height: 1, color: theme.border),
           paddedFooter,
         ],
       ],

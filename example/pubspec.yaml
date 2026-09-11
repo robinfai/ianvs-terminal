@@ -42,7 +42,10 @@ dependencies:
     sdk: flutter
   flutter_riverpod: ^3.3.1
   flutter_secure_storage: ^10.3.1
-  ianvs_design: ^0.3.1
+  ianvs_design:
+    git:
+      url: https://github.com/robinfai/ianvs-design.git
+      ref: 63e6e516cb96c9d4ab8cc43405160f660e76ca58
   ianvs_pty:
     path: ../packages/ianvs_pty
   ianvs_terminal:
