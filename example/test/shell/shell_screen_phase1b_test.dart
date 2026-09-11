@@ -265,19 +265,33 @@ void main() {
     expect(_channelSpread(newTabHoverBackground), lessThanOrEqualTo(18));
     expect(
       _decoratedBoxColor(tester, const Key('shell-chrome-bar')),
-      const Color(0xFFF5F5F7),
+      resolveTerminalColors(
+        tester.element(find.byKey(const Key('shell-chrome-bar'))),
+      ).viewport.canvasBackground,
     );
     expect(
       _decoratedBoxColor(tester, const Key('shell-chrome-title-surface')),
-      const Color(0xFFF9FAFB),
+      tester
+          .element(find.byKey(const Key('shell-chrome-bar')))
+          .appTheme
+          .shellChrome
+          .surface,
     );
     expect(
       _decoratedBoxColor(tester, const Key('shell-chrome-tab-rail-surface')),
-      const Color(0xFFEDEEF2),
+      tester
+          .element(find.byKey(const Key('shell-chrome-bar')))
+          .appTheme
+          .shellChrome
+          .rail,
     );
     expect(
       _decoratedBoxColor(tester, const Key('shell-chrome-tab-track')),
-      const Color(0xB3D9DBE1),
+      tester
+          .element(find.byKey(const Key('shell-chrome-bar')))
+          .appTheme
+          .shellChrome
+          .tabTrackBackground,
     );
     expect(find.byKey(const Key('shell-status-bar')), findsNothing);
 

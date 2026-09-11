@@ -192,20 +192,29 @@ void main() {
   testWidgets('iPhone remote mode offers SSH creation without local shell', (
     tester,
   ) async {
+    ProfilesSheetResult? result;
     await _pumpProfilesSheetHarness(
       tester,
       profiles: const <TerminalProfile>[],
       effectiveDefaultProfileId: null,
       platform: TargetPlatform.iOS,
       localShellProfilesEnabled: false,
-      onClosed: (_) {},
+      onClosed: (value) => result = value,
     );
 
     expect(find.text('No SSH profiles yet'), findsOneWidget);
     await tester.tap(find.byKey(const Key('profiles-create')));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('profiles-create-local')), findsNothing);
-    expect(find.byKey(const Key('profiles-create-ssh')), findsOneWidget);
+    expect(
+      result,
+      isA<CreateProfileResult>().having(
+        (value) => value.connectionType,
+        'connection type',
+        NewProfileConnectionType.sshSession,
+      ),
+    );
+    expect(find.byType(SimpleDialog), findsNothing);
   });
 
   testWidgets(
@@ -291,9 +300,12 @@ void main() {
     final themedTile = ListTileTheme.of(tileContext);
     final shape = themedTile.shape! as RoundedRectangleBorder;
     final contentPadding = themedTile.contentPadding! as EdgeInsets;
-    expect(contentPadding.left, 8);
-    expect(contentPadding.top, 2);
-    expect(shape.borderRadius, BorderRadius.circular(6));
+    final shared = buildIanvsTerminalTheme(
+      Brightness.light,
+      platform: TargetPlatform.macOS,
+    ).listTileTheme;
+    expect(contentPadding, shared.contentPadding);
+    expect(shape, shared.shape);
   });
 }
 

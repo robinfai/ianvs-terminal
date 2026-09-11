@@ -1,4 +1,3 @@
-import 'package:app/ui/components/app_configuration_theme.dart';
 import 'package:app/ui/components/app_dropdown_form_field.dart';
 import 'package:app/ui/foundation/app_theme.dart';
 import 'package:flutter/material.dart';
@@ -30,9 +29,7 @@ void main() {
           ).copyWith(textScaler: TextScaler.linear(textScale)),
           child: child!,
         ),
-        home: Scaffold(
-          body: AppConfigurationTheme(child: Center(child: child)),
-        ),
+        home: Scaffold(body: Center(child: child)),
       ),
     );
     await tester.pumpAndSettle();

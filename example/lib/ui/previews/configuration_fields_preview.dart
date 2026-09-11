@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/widget_previews.dart';
 
 import '../components/app_configuration_field.dart';
-import '../components/app_configuration_theme.dart';
 import '../components/app_dropdown_form_field.dart';
 import '../foundation/app_theme.dart';
 import '../foundation/app_theme_tokens.dart';
@@ -84,53 +83,51 @@ class _ConfigurationFieldsPreviewState
           : ThemeMode.light,
       home: Scaffold(
         body: SafeArea(
-          child: AppConfigurationTheme(
-            child: Builder(
-              builder: (context) => SingleChildScrollView(
-                padding: EdgeInsets.all(context.appTheme.spacing.xxl),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      'Configuration fields',
-                      style: Theme.of(context).textTheme.titleLarge,
+          child: Builder(
+            builder: (context) => SingleChildScrollView(
+              padding: EdgeInsets.all(context.appTheme.spacing.xxl),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Configuration fields',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  SizedBox(height: context.appTheme.spacing.xxl),
+                  AppConfigurationField(
+                    label: 'Profile name',
+                    helper: 'Used in tabs and the profile launcher.',
+                    child: TextFormField(
+                      controller: _nameController,
+                      decoration: const InputDecoration(
+                        hintText: 'Enter a profile name',
+                      ),
                     ),
-                    SizedBox(height: context.appTheme.spacing.xxl),
-                    AppConfigurationField(
-                      label: 'Profile name',
-                      helper: 'Used in tabs and the profile launcher.',
-                      child: TextFormField(
-                        controller: _nameController,
-                        decoration: const InputDecoration(
-                          hintText: 'Enter a profile name',
+                  ),
+                  SizedBox(height: context.appTheme.spacing.xxl),
+                  AppConfigurationField(
+                    label: 'Language',
+                    helper: 'Choose the application language.',
+                    child: AppDropdownFormField<String>(
+                      initialValue: _language,
+                      decoration: const InputDecoration(),
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'English',
+                          child: Text('English'),
                         ),
-                      ),
+                        DropdownMenuItem(value: '简体中文', child: Text('简体中文')),
+                        DropdownMenuItem(
+                          value: 'System default',
+                          child: Text('System default'),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) setState(() => _language = value);
+                      },
                     ),
-                    SizedBox(height: context.appTheme.spacing.xxl),
-                    AppConfigurationField(
-                      label: 'Language',
-                      helper: 'Choose the application language.',
-                      child: AppDropdownFormField<String>(
-                        initialValue: _language,
-                        decoration: const InputDecoration(),
-                        items: const [
-                          DropdownMenuItem(
-                            value: 'English',
-                            child: Text('English'),
-                          ),
-                          DropdownMenuItem(value: '简体中文', child: Text('简体中文')),
-                          DropdownMenuItem(
-                            value: 'System default',
-                            child: Text('System default'),
-                          ),
-                        ],
-                        onChanged: (value) {
-                          if (value != null) setState(() => _language = value);
-                        },
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),

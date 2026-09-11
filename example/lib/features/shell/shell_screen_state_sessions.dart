@@ -418,6 +418,7 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     if (returningToLayout) {
       _scheduleReturningCue();
     }
+    _mobileConnectionsOpen = false;
     sessionController.createSession(_profileWithActiveLocalDirectory(profile));
     _focusSession(ref.read(sessionControllerProvider).activeSessionId);
   }
@@ -453,6 +454,7 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     bool requestFocus = true,
   }) {
     final sessionState = ref.read(sessionControllerProvider);
+    _mutateState(() => _mobileConnectionsOpen = false);
     final targetTab = _tabForSession(sessionState, sessionId);
     final activeTab = _tabForSession(
       sessionState,
@@ -882,7 +884,7 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     return lines.join('\n');
   }
 
-  Future<File?> _exportVisibleFrame(String sessionId) async {
+  String _scrollbackExportContent(String sessionId) {
     final historicalContent = ref
         .read(terminalRuntimeControllerProvider)
         .exportScrollbackText(sessionId);
@@ -891,9 +893,17 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     final content = hasHistoricalContent
         ? historicalContent
         : _visibleFrameText(sessionId);
-    if (content.trim().isEmpty) {
-      return null;
-    }
+    return content;
+  }
+
+  Future<File?> _exportVisibleFrame(String sessionId) async {
+    final historicalContent = ref
+        .read(terminalRuntimeControllerProvider)
+        .exportScrollbackText(sessionId);
+    final hasHistoricalContent =
+        historicalContent != null && historicalContent.trim().isNotEmpty;
+    final content = _scrollbackExportContent(sessionId);
+    if (content.trim().isEmpty) return null;
     final supportDirectory = await getApplicationSupportDirectory();
     final exportDirectory = Directory(
       '${supportDirectory.path}/scrollback_exports',

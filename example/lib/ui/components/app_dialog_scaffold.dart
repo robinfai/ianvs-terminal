@@ -57,6 +57,7 @@ class AppDialogScaffold extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = context.appTheme;
+    final fullscreen = !centerInViewport && borderRadius == BorderRadius.zero;
     final header = Padding(
       padding:
           headerPadding ??
@@ -76,6 +77,10 @@ class AppDialogScaffold extends StatelessWidget {
               children: [
                 Text(
                   title,
+                  maxLines: context.usesTouchControlDensity ? 2 : null,
+                  overflow: context.usesTouchControlDensity
+                      ? TextOverflow.ellipsis
+                      : null,
                   style:
                       titleTextStyle ??
                       Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -164,8 +169,9 @@ class AppDialogScaffold extends StatelessWidget {
       child: ConstrainedBox(
         constraints: constraints ?? const BoxConstraints(maxWidth: 720),
         child: AppPanel(
-          tone: AppPanelTone.elevated,
-          shadow: true,
+          tone: fullscreen ? AppPanelTone.panel : AppPanelTone.elevated,
+          shadow: !fullscreen,
+          border: fullscreen ? const Border() : null,
           borderRadius: borderRadius ?? BorderRadius.circular(theme.radius.xl),
           child: contents,
         ),
@@ -202,7 +208,12 @@ class AppDialogScaffold extends StatelessWidget {
         },
         child: FocusTraversalGroup(
           policy: OrderedTraversalPolicy(),
-          child: positionedPanel,
+          child: fullscreen
+              ? ColoredBox(
+                  color: theme.panel,
+                  child: SafeArea(child: positionedPanel),
+                )
+              : SafeArea(child: positionedPanel),
         ),
       ),
     );

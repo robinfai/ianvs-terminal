@@ -1,0 +1,191 @@
+{
+  "01-ssh-home": {},
+  "02-ssh-form": {
+    "ssh-host": {
+      "width": 370.0,
+      "height": 42.0
+    },
+    "ssh-user": {
+      "width": 370.0,
+      "height": 44.0
+    },
+    "ssh-auth-method": {
+      "width": 370.0,
+      "height": 44.0
+    },
+    "ssh-password": {
+      "width": 370.0,
+      "height": 48.0
+    },
+    "ssh-connect": {
+      "width": 370.0,
+      "height": 48.0
+    }
+  },
+  "03-ssh-input": {
+    "ssh-host": {
+      "width": 370.0,
+      "height": 42.0
+    },
+    "ssh-user": {
+      "width": 370.0,
+      "height": 44.0
+    },
+    "ssh-auth-method": {
+      "width": 370.0,
+      "height": 44.0
+    },
+    "ssh-password": {
+      "width": 370.0,
+      "height": 48.0
+    },
+    "ssh-connect": {
+      "width": 370.0,
+      "height": 48.0
+    }
+  },
+  "19-ssh-ready": {
+    "ssh-host": {
+      "width": 370.0,
+      "height": 42.0
+    },
+    "ssh-user": {
+      "width": 370.0,
+      "height": 44.0
+    },
+    "ssh-auth-method": {
+      "width": 370.0,
+      "height": 44.0
+    },
+    "ssh-password": {
+      "width": 370.0,
+      "height": 48.0
+    },
+    "ssh-connect": {
+      "width": 370.0,
+      "height": 48.0
+    }
+  },
+  "20-ssh-more-settings": {
+    "ssh-host": {
+      "width": 370.0,
+      "height": 42.0
+    },
+    "ssh-user": {
+      "width": 370.0,
+      "height": 44.0
+    },
+    "ssh-auth-method": {
+      "width": 370.0,
+      "height": 44.0
+    },
+    "ssh-password": {
+      "width": 370.0,
+      "height": 48.0
+    },
+    "ssh-connect": {
+      "width": 370.0,
+      "height": 48.0
+    }
+  },
+  "05-settings": {
+    "defaults-section-general": {
+      "width": 370.0,
+      "height": 48.0
+    },
+    "defaults-mobile-back": {
+      "width": 48.0,
+      "height": 48.0
+    }
+  },
+  "06-settings-general": {
+    "defaults-mobile-back": {
+      "width": 48.0,
+      "height": 48.0
+    }
+  },
+  "06-settings-appearance": {
+    "defaults-mobile-back": {
+      "width": 48.0,
+      "height": 48.0
+    }
+  },
+  "06-settings-security": {
+    "defaults-mobile-back": {
+      "width": 48.0,
+      "height": 48.0
+    }
+  },
+  "06-settings-data": {
+    "defaults-mobile-back": {
+      "width": 48.0,
+      "height": 48.0
+    }
+  },
+  "07-sync-form": {
+    "defaults-mobile-back": {
+      "width": 48.0,
+      "height": 48.0
+    }
+  },
+  "08-sync-form-bottom": {
+    "defaults-mobile-back": {
+      "width": 48.0,
+      "height": 48.0
+    }
+  },
+  "06-settings-shortcuts": {},
+  "09-terminal": {},
+  "10-terminal-dark": {},
+  "04-session-options": {},
+  "14-sftp-directory": {},
+  "19-file-actions": {},
+  "11-terminal-search": {},
+  "13-replay-library": {},
+  "10-replay": {
+    "mobile-replay-transport": {
+      "width": 402.0,
+      "height": 108.0
+    },
+    "mobile-replay-toggle": {
+      "width": 48.0,
+      "height": 48.0
+    }
+  },
+  "15-replay-options": {
+    "mobile-replay-transport": {
+      "width": 402.0,
+      "height": 108.0
+    },
+    "mobile-replay-toggle": {
+      "width": 48.0,
+      "height": 48.0
+    }
+  },
+  "16-replay-search": {},
+  "17-saved-replay": {
+    "mobile-replay-transport": {
+      "width": 402.0,
+      "height": 108.0
+    },
+    "mobile-replay-toggle": {
+      "width": 48.0,
+      "height": 48.0
+    }
+  },
+  "18-saved-replay-content": {},
+  "12-profile-dark-general": {},
+  "12-profile-dark-startup": {},
+  "12-profile-dark-terminal": {},
+  "12-profile-dark-appearance": {},
+  "12-profile-dark-keys": {},
+  "12-profile-dark-automation": {},
+  "12-profile-dark-advanced": {},
+  "12-profile-light-general": {},
+  "12-profile-light-startup": {},
+  "12-profile-light-terminal": {},
+  "12-profile-light-appearance": {},
+  "12-profile-light-keys": {},
+  "12-profile-light-automation": {},
+  "12-profile-light-advanced": {}
+}

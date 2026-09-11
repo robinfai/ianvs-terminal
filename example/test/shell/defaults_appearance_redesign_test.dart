@@ -10,6 +10,88 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
 
 void main() {
+  for (final size in [
+    const Size(375, 667),
+    const Size(402, 874),
+    const Size(874, 402),
+  ]) {
+    for (final scale in [1.0, 2.0, 3.0]) {
+      testWidgets(
+        'iPhone settings sections remain reachable at $size and ${scale}x',
+        (tester) async {
+          await _pumpDefaultsDialog(
+            tester,
+            surfaceSize: size,
+            textScale: scale,
+            platform: TargetPlatform.iOS,
+            brightness: scale == 2 ? Brightness.dark : Brightness.light,
+          );
+          expect(
+            find.byKey(const Key('defaults-mobile-sections')),
+            findsOneWidget,
+          );
+          for (final section in [
+            'general',
+            'appearance',
+            'security',
+            'data',
+            'shortcuts',
+          ]) {
+            final item = find.byKey(Key('defaults-section-$section'));
+            final menuScroll = find.descendant(
+              of: find.byKey(const Key('defaults-mobile-sections')),
+              matching: find.byType(Scrollable),
+            );
+            await tester.scrollUntilVisible(item, 100, scrollable: menuScroll);
+            await tester.pumpAndSettle();
+            final viewport = tester.getRect(
+              find.byKey(const Key('defaults-mobile-sections')),
+            );
+            final visibleItem = tester.getRect(item).intersect(viewport);
+            expect(visibleItem.height, greaterThan(0));
+            await tester.tapAt(visibleItem.center);
+            await tester.pumpAndSettle();
+            expect(
+              find.byKey(const Key('defaults-mobile-sections')),
+              findsNothing,
+            );
+            expect(
+              tester.takeException(),
+              isNull,
+              reason: '$section at $size and $scale',
+            );
+            if (section != 'shortcuts') {
+              final scroll = find.byKey(
+                const Key('defaults-appearance-scroll'),
+              );
+              await tester.drag(scroll, const Offset(0, -1800));
+              await tester.pumpAndSettle();
+              expect(
+                tester.takeException(),
+                isNull,
+                reason: 'scrolled $section',
+              );
+            }
+            await tester.tap(
+              find.byKey(
+                Key(
+                  section == 'shortcuts'
+                      ? 'defaults-shortcuts-back'
+                      : 'defaults-mobile-back',
+                ),
+              ),
+            );
+            await tester.pumpAndSettle();
+            expect(
+              find.byKey(const Key('defaults-mobile-sections')),
+              findsOneWidget,
+            );
+          }
+        },
+      );
+    }
+  }
+
   testWidgets('wide defaults dialog navigates to compact permission controls', (
     tester,
   ) async {
@@ -366,6 +448,7 @@ Future<void> _pumpDefaultsDialog(
   required Size surfaceSize,
   Brightness brightness = Brightness.light,
   double textScale = 1,
+  TargetPlatform platform = TargetPlatform.macOS,
   List<TerminalProfile> profiles = const [],
   String? configuredDefaultProfileId,
   String? effectiveDefaultProfileId,
@@ -376,10 +459,7 @@ Future<void> _pumpDefaultsDialog(
   addTearDown(tester.view.resetPhysicalSize);
   await tester.pumpWidget(
     MaterialApp(
-      theme: buildIanvsTerminalTheme(
-        brightness,
-        platform: TargetPlatform.macOS,
-      ),
+      theme: buildIanvsTerminalTheme(brightness, platform: platform),
       builder: (context, child) => MediaQuery(
         data: MediaQuery.of(
           context,

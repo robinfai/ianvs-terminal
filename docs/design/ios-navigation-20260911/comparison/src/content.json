@@ -1,0 +1,890 @@
+{
+  "items": [
+    {
+      "id": "density-ssh",
+      "title": "SSH 连接",
+      "group": "本轮 · 紧凑尺度",
+      "after": "/assets/density/02-ssh-form.png",
+      "summary": "常用字段直接呈现，名称与端口进入“更多连接设置”。",
+      "changes": [
+        "全页表单、居中导航标题，主机／用户／认证／密码留在首屏。",
+        "名称默认使用主机地址；已有自定义名称保留。",
+        "标签13 pt、正文16 pt；主操作紧接表单，低频参数可展开。"
+      ],
+      "note": "两张均为新建空表单；本轮默认密码认证，原有自动认证、密钥和交互认证仍可选择。",
+      "afterLabel": "本轮结果",
+      "beforeLabel": "收紧前",
+      "before": "/assets/after/02-ssh-form.png",
+      "reference": "/assets/density/design-option-3.png"
+    },
+    {
+      "id": "density-ssh-ready",
+      "title": "SSH · 填写完成",
+      "group": "本轮 · 紧凑尺度",
+      "after": "/assets/density/19-ssh-ready.png",
+      "summary": "填完常用信息后即可连接。",
+      "changes": [
+        "默认使用密码认证，仍可切换密钥与交互式认证。",
+        "密码只保留显示／隐藏入口，已有密码仍支持忘记操作。",
+        "这张截图使用测试数据，密码为演示内容。"
+      ],
+      "note": "",
+      "afterLabel": "本轮结果",
+      "beforeLabel": "收紧前",
+      "reference": "/assets/density/design-option-3.png"
+    },
+    {
+      "id": "density-ssh-more",
+      "title": "SSH · 更多设置",
+      "group": "本轮 · 紧凑尺度",
+      "after": "/assets/density/20-ssh-more-settings.png",
+      "summary": "按需展开名称、端口和高级连接参数。",
+      "changes": [
+        "自定义名称、端口及保存选择放入下一层。",
+        "折叠行保留端口摘要。",
+        "提交时若端口无效，会展开并定位错误。"
+      ],
+      "note": "",
+      "afterLabel": "本轮结果",
+      "beforeLabel": "收紧前"
+    },
+    {
+      "id": "density-replay",
+      "title": "录屏回放",
+      "group": "本轮 · 紧凑尺度",
+      "after": "/assets/density/10-replay.png",
+      "summary": "时间与进度合为一行，控制区更矮。",
+      "changes": [
+        "普通字号下保留进度＋操作两行；大字体下时间自动分行。",
+        "播放按钮由56降至48 pt，图标由32降至24 pt。",
+        "保留播放、前后10秒、倍速入口和专注模式。"
+      ],
+      "note": "",
+      "afterLabel": "本轮结果",
+      "beforeLabel": "收紧前",
+      "before": "/assets/after/10-replay.png"
+    },
+    {
+      "id": "density-settings",
+      "title": "设置目录",
+      "group": "本轮 · 紧凑尺度",
+      "after": "/assets/density/05-settings.png",
+      "summary": "统一收紧标题、行高及底部操作区。",
+      "changes": [
+        "导航标题17 pt，去掉标题栏额外上下留白。",
+        "普通设置入口最小行高48 pt。",
+        "小字号仍保留足够的触控范围，大字体自然增高。"
+      ],
+      "note": "",
+      "afterLabel": "本轮结果",
+      "beforeLabel": "收紧前",
+      "before": "/assets/after/05-settings.png"
+    },
+    {
+      "id": "density-general",
+      "title": "通用设置",
+      "group": "本轮 · 紧凑尺度",
+      "after": "/assets/density/06-settings-general.png",
+      "summary": "减少字体和标签的视觉竞争。",
+      "changes": [
+        "正文16 pt、辅助说明13 pt。",
+        "下拉和输入继续使用共享组件。",
+        "保留原有明确保存操作。"
+      ],
+      "note": "",
+      "afterLabel": "本轮结果",
+      "beforeLabel": "收紧前",
+      "before": "/assets/after/06-settings-general.png"
+    },
+    {
+      "id": "density-appearance",
+      "title": "外观设置",
+      "group": "本轮 · 紧凑尺度",
+      "after": "/assets/density/06-settings-appearance.png",
+      "summary": "应用界面字号收紧，终端字号偏好独立保留。",
+      "changes": [
+        "字段标签13 pt、标签间距4 pt。",
+        "终端内容字号仍由用户设置控制。",
+        "颜色来自共享主题，深浅色均验证。"
+      ],
+      "note": "",
+      "afterLabel": "本轮结果",
+      "beforeLabel": "收紧前",
+      "before": "/assets/after/06-settings-appearance.png"
+    },
+    {
+      "id": "density-sync",
+      "title": "同步设置",
+      "group": "本轮 · 紧凑尺度",
+      "after": "/assets/density/06-settings-data.png",
+      "summary": "可选同步沿用同一密度尺度。",
+      "changes": [
+        "更紧凑的标签和字段。",
+        "保留本地优先与可选同步层级。",
+        "本轮截图只验证界面，使用内存数据夹具。"
+      ],
+      "note": "",
+      "afterLabel": "本轮结果",
+      "beforeLabel": "收紧前",
+      "before": "/assets/after/06-settings-data.png"
+    },
+    {
+      "id": "density-options",
+      "title": "回放选项",
+      "group": "本轮 · 紧凑尺度",
+      "after": "/assets/density/15-replay-options.png",
+      "summary": "次级播放设置保留在选项面板。",
+      "changes": [
+        "普通列表与说明文本变紧凑。",
+        "倍速、逐帧、缩放和详情按原有层级进入。",
+        "大字体下可滚动访问全部选项。"
+      ],
+      "note": "",
+      "afterLabel": "本轮结果",
+      "beforeLabel": "收紧前",
+      "before": "/assets/after/15-replay-options.png"
+    },
+    {
+      "id": "density-search",
+      "title": "回放搜索",
+      "group": "本轮 · 紧凑尺度",
+      "after": "/assets/density/16-replay-search.png",
+      "summary": "独立搜索状态同样使用紧凑字段。",
+      "changes": [
+        "搜索时暂停回放。",
+        "关闭搜索后回到双行播放控制区。",
+        "匹配跳转保持可触达。"
+      ],
+      "note": "",
+      "afterLabel": "本轮结果",
+      "beforeLabel": "收紧前",
+      "before": "/assets/after/16-replay-search.png"
+    },
+    {
+      "id": "density-saved",
+      "title": "录制回放",
+      "group": "本轮 · 紧凑尺度",
+      "after": "/assets/density/17-saved-replay.png",
+      "summary": "录制库和即时回放共享新的播放器。",
+      "changes": [
+        "控制栏统一为紧凑双行结构。",
+        "拖动结束后恢复原有播放状态。",
+        "进入后台时暂停，避免无意播放。"
+      ],
+      "note": "",
+      "afterLabel": "本轮结果",
+      "beforeLabel": "收紧前",
+      "before": "/assets/after/17-saved-replay.png"
+    },
+    {
+      "id": "density-terminal",
+      "title": "终端会话",
+      "group": "本轮 · 紧凑尺度",
+      "after": "/assets/density/09-terminal.png",
+      "summary": "常用动作图标随共享主题收紧。",
+      "changes": [
+        "普通图标20 pt，触控布局保留。",
+        "终端文本、光标和用户字体偏好不随界面字号缩小。",
+        "已有移动端功能层级保持一致。"
+      ],
+      "note": "",
+      "afterLabel": "本轮结果",
+      "beforeLabel": "收紧前",
+      "before": "/assets/after/09-terminal.png"
+    },
+    {
+      "id": "density-files",
+      "title": "文件浏览",
+      "group": "本轮 · 紧凑尺度",
+      "after": "/assets/density/14-sftp-directory.png",
+      "summary": "文件列表使用同一紧凑字体尺度。",
+      "changes": [
+        "文件名与辅助信息拉开层级。",
+        "每行更多操作仍可见。",
+        "大文字与文件操作沿用回归验证。"
+      ],
+      "note": "",
+      "afterLabel": "本轮结果",
+      "beforeLabel": "收紧前",
+      "before": "/assets/after/14-sftp-directory.png"
+    },
+    {
+      "id": "replay",
+      "title": "录屏回放",
+      "group": "上一轮 · 重点对比",
+      "before": "/assets/before/10-replay.png",
+      "after": "/assets/after/10-replay.png",
+      "summary": "主要播放控制固定在底部，搜索与选项分层进入。",
+      "changes": [
+        "进度、时间、播放和前后 10 秒集中在底部。",
+        "搜索独立打开；倍速、逐帧与详情收进次级入口。",
+        "回放禁止终端输入焦点，关闭搜索主动收起键盘。"
+      ],
+      "note": "调整前为搜索状态，调整后为普通播放；两张截图的交互状态不同，不能作为同状态的像素差异对比。",
+      "afterLabel": "上一轮结果",
+      "beforeLabel": "初始基线"
+    },
+    {
+      "id": "terminal",
+      "title": "终端会话",
+      "group": "上一轮 · 重点对比",
+      "before": "/assets/before/09-terminal.png",
+      "after": "/assets/after/09-terminal.png",
+      "summary": "围绕当前会话组织导航和常用操作。",
+      "changes": [
+        "顶部保留连接返回、会话选择、文件和更多。",
+        "键盘收起时显示键盘、搜索、录制与回看；输入时切换为辅助键。",
+        "手机隐藏桌面标签轨、分屏与面板布局入口。"
+      ],
+      "note": "",
+      "afterLabel": "上一轮结果",
+      "beforeLabel": "初始基线"
+    },
+    {
+      "id": "session",
+      "title": "会话选项",
+      "group": "上一轮 · 重点对比",
+      "before": "/assets/before/04-command-menu.png",
+      "after": "/assets/after/04-session-options.png",
+      "summary": "会话操作按使用频率分层。",
+      "changes": [
+        "用简短操作表承接会话相关功能。",
+        "取消命令搜索自动聚焦，减少键盘干扰。",
+        "桌面窗口、目录与诊断入口在手机收敛。"
+      ],
+      "note": "调整前为全局命令菜单，调整后为当前会话选项，入口职责发生了变化。",
+      "afterLabel": "上一轮结果",
+      "beforeLabel": "初始基线"
+    },
+    {
+      "id": "files",
+      "title": "文件浏览",
+      "group": "上一轮 · 重点对比",
+      "before": "/assets/before/14-sftp-directory.png",
+      "after": "/assets/after/14-sftp-directory.png",
+      "summary": "文件从窄侧栏进入独立页面。",
+      "changes": [
+        "完整宽度显示目录与文件，左上明确返回。",
+        "每一项提供可见的更多按钮，无需鼠标右键。",
+        "仅显示当前 iOS 后端支持的文件操作。"
+      ],
+      "note": "",
+      "afterLabel": "上一轮结果",
+      "beforeLabel": "初始基线"
+    },
+    {
+      "id": "home",
+      "title": "连接首页",
+      "group": "上一轮 · 重点对比",
+      "before": "/assets/before/01-ssh-home.png",
+      "after": "/assets/after/01-ssh-home.png",
+      "summary": "从首页直接进入 SSH。",
+      "changes": [
+        "保存的连接与新建连接是首页重点。",
+        "只有 SSH 类型时跳过单选项类型弹窗。",
+        "编辑和删除移至每个连接的更多入口。"
+      ],
+      "note": "",
+      "afterLabel": "上一轮结果",
+      "beforeLabel": "初始基线"
+    },
+    {
+      "id": "settings",
+      "title": "设置目录",
+      "group": "上一轮 · 重点对比",
+      "before": "/assets/before/05-settings.png",
+      "after": "/assets/after/05-settings.png",
+      "summary": "设置拆分成五个可单独进入的页面。",
+      "changes": [
+        "常规、外观、安全与权限、同步、外接键盘分组。",
+        "语言、浅深色等常用选项优先。",
+        "默认连接、终端配色、主密钥等低频设置按需展开。"
+      ],
+      "note": "",
+      "afterLabel": "上一轮结果",
+      "beforeLabel": "初始基线"
+    },
+    {
+      "id": "ssh",
+      "title": "SSH 表单",
+      "group": "上一轮 · 连接与输入",
+      "before": "/assets/before/02-ssh-form.png",
+      "after": "/assets/after/02-ssh-form.png",
+      "summary": "连接必填项优先，高级能力保留在下一层。",
+      "changes": [
+        "主机、端口、用户和认证方式组成表单主体。",
+        "密码、私钥与键盘交互认证仍保留。",
+        "跳板、保活、主机校验和转发等通过高级选项配置。"
+      ],
+      "note": "",
+      "afterLabel": "上一轮结果",
+      "beforeLabel": "初始基线"
+    },
+    {
+      "id": "ssh-input",
+      "title": "SSH 输入状态",
+      "group": "上一轮 · 连接与输入",
+      "before": "/assets/before/03-ssh-input.png",
+      "after": "/assets/after/03-ssh-input.png",
+      "summary": "检查输入状态下的表单空间与操作入口。",
+      "changes": [
+        "连接参数可滚动浏览。",
+        "保持输入与保存动作可达。"
+      ],
+      "note": "这些截图来自 Flutter 渲染层，不包含系统软键盘。",
+      "afterLabel": "上一轮结果",
+      "beforeLabel": "初始基线"
+    },
+    {
+      "id": "search",
+      "title": "终端搜索",
+      "group": "上一轮 · 连接与输入",
+      "before": "/assets/before/11-terminal-search.png",
+      "after": "/assets/after/11-terminal-search.png",
+      "summary": "搜索输入、结果导航与搜索模式各有层级。",
+      "changes": [
+        "查询独立一行，结果与前后跳转独立一行。",
+        "搜索模式、范围与清除等功能按需进入。"
+      ],
+      "note": "",
+      "afterLabel": "上一轮结果",
+      "beforeLabel": "初始基线"
+    },
+    {
+      "id": "terminal-dark",
+      "title": "终端深色",
+      "group": "上一轮 · 连接与输入",
+      "before": "/assets/before/10-terminal-dark.png",
+      "after": "/assets/after/10-terminal-dark.png",
+      "summary": "深色主题沿用同一套移动端导航。",
+      "changes": [
+        "常用操作保持相同的位置。",
+        "手机不再同时显示桌面工作区控件。"
+      ],
+      "note": "",
+      "afterLabel": "上一轮结果",
+      "beforeLabel": "初始基线"
+    },
+    {
+      "id": "library",
+      "title": "回看库",
+      "group": "上一轮 · 回放细节",
+      "before": "/assets/before/13-replay-library.png",
+      "after": "/assets/after/13-replay-library.png",
+      "summary": "最近画面和保存录制集中到独立页面。",
+      "changes": [
+        "从播放器返回回看库，再返回原会话或连接页。",
+        "库中保留最近画面、保存列表和打开文件。",
+        "录制开始与停止放回终端工具栏。"
+      ],
+      "note": "",
+      "afterLabel": "上一轮结果",
+      "beforeLabel": "初始基线"
+    },
+    {
+      "id": "playback-options",
+      "title": "播放选项",
+      "group": "上一轮 · 回放细节",
+      "before": null,
+      "after": "/assets/after/15-replay-options.png",
+      "summary": "低频播放能力集中在选项面板。",
+      "changes": [
+        "倍速、跳过空闲、逐帧、详情与文本操作按需展开。",
+        "主要播放按钮保持在底部。"
+      ],
+      "note": "",
+      "afterLabel": "上一轮结果",
+      "beforeLabel": "初始基线"
+    },
+    {
+      "id": "playback-search",
+      "title": "回放搜索",
+      "group": "上一轮 · 回放细节",
+      "before": null,
+      "after": "/assets/after/16-replay-search.png",
+      "summary": "搜索作为独立交互状态。",
+      "changes": [
+        "进入搜索后才请求输入。",
+        "关闭搜索时主动收起键盘并回到播放布局。"
+      ],
+      "note": "",
+      "afterLabel": "上一轮结果",
+      "beforeLabel": "初始基线"
+    },
+    {
+      "id": "saved",
+      "title": "保存录制播放",
+      "group": "上一轮 · 回放细节",
+      "before": null,
+      "after": "/assets/after/17-saved-replay.png",
+      "summary": "最近画面与保存录制使用一致的播放器。",
+      "changes": [
+        "播放、暂停、拖动进度和前后 10 秒为主要操作。",
+        "拖动时暂停，松手按原播放状态恢复。",
+        "退到后台暂停播放。"
+      ],
+      "note": "",
+      "afterLabel": "上一轮结果",
+      "beforeLabel": "初始基线"
+    },
+    {
+      "id": "focus",
+      "title": "专注模式",
+      "group": "上一轮 · 回放细节",
+      "before": null,
+      "after": "/assets/after/18-saved-replay-content.png",
+      "summary": "需要阅读终端内容时收起播放控件。",
+      "changes": [
+        "保留恢复控件的入口。",
+        "终端画面支持捏合缩放与平移。"
+      ],
+      "note": "",
+      "afterLabel": "上一轮结果",
+      "beforeLabel": "初始基线"
+    },
+    {
+      "id": "native",
+      "title": "原生触控复核",
+      "group": "上一轮 · 回放细节",
+      "before": null,
+      "after": "/assets/after/native-player.png",
+      "summary": "补充原生截图，确认回放界面没有残留软键盘。",
+      "changes": [
+        "已复核播放与暂停、选项开关、专注模式与恢复。",
+        "恢复后控制条位于底部安全区内。"
+      ],
+      "note": "这是 Simulator 原生窗口截图，与其他 Flutter 渲染截图的范围不同。录制夹具输出较少，画面留白来自终端宽高比与内容。",
+      "afterLabel": "上一轮结果",
+      "beforeLabel": "初始基线"
+    },
+    {
+      "id": "file-actions",
+      "title": "文件操作菜单",
+      "group": "上一轮 · 文件细节",
+      "before": null,
+      "after": "/assets/after/19-file-actions.png",
+      "summary": "手机以触控菜单承接文件操作。",
+      "changes": [
+        "保留目录导航、复制完整路径、创建目录与确认删除。",
+        "隐藏当前不支持的桌面保存位置选择器、本地编辑和监视回传。",
+        "本轮没有实现或宣称支持 iOS 文件下载和分享。"
+      ],
+      "note": "",
+      "afterLabel": "上一轮结果",
+      "beforeLabel": "初始基线"
+    },
+    {
+      "id": "settings-general",
+      "title": "常规设置",
+      "group": "上一轮 · 设置细节",
+      "before": "/assets/before/06-settings-general.png",
+      "after": "/assets/after/06-settings-general.png",
+      "summary": "从设置目录进入单个主题页面。",
+      "changes": [
+        "常用设置在前，高级设置按需展开。",
+        "移动端隐藏不适用的桌面能力入口。"
+      ],
+      "note": "",
+      "afterLabel": "上一轮结果",
+      "beforeLabel": "初始基线"
+    },
+    {
+      "id": "settings-appearance",
+      "title": "外观设置",
+      "group": "上一轮 · 设置细节",
+      "before": "/assets/before/06-settings-appearance.png",
+      "after": "/assets/after/06-settings-appearance.png",
+      "summary": "从设置目录进入单个主题页面。",
+      "changes": [
+        "常用设置在前，高级设置按需展开。",
+        "移动端隐藏不适用的桌面能力入口。"
+      ],
+      "note": "",
+      "afterLabel": "上一轮结果",
+      "beforeLabel": "初始基线"
+    },
+    {
+      "id": "settings-security",
+      "title": "安全与权限设置",
+      "group": "上一轮 · 设置细节",
+      "before": "/assets/before/06-settings-security.png",
+      "after": "/assets/after/06-settings-security.png",
+      "summary": "从设置目录进入单个主题页面。",
+      "changes": [
+        "常用设置在前，高级设置按需展开。",
+        "移动端隐藏不适用的桌面能力入口。"
+      ],
+      "note": "",
+      "afterLabel": "上一轮结果",
+      "beforeLabel": "初始基线"
+    },
+    {
+      "id": "settings-data",
+      "title": "同步设置",
+      "group": "上一轮 · 设置细节",
+      "before": "/assets/before/06-settings-data.png",
+      "after": "/assets/after/06-settings-data.png",
+      "summary": "从设置目录进入单个主题页面。",
+      "changes": [
+        "常用设置在前，高级设置按需展开。",
+        "移动端隐藏不适用的桌面能力入口。"
+      ],
+      "note": "",
+      "afterLabel": "上一轮结果",
+      "beforeLabel": "初始基线"
+    },
+    {
+      "id": "settings-shortcuts",
+      "title": "外接键盘设置",
+      "group": "上一轮 · 设置细节",
+      "before": "/assets/before/06-settings-shortcuts.png",
+      "after": "/assets/after/06-settings-shortcuts.png",
+      "summary": "从设置目录进入单个主题页面。",
+      "changes": [
+        "常用设置在前，高级设置按需展开。",
+        "移动端隐藏不适用的桌面能力入口。"
+      ],
+      "note": "",
+      "afterLabel": "上一轮结果",
+      "beforeLabel": "初始基线"
+    },
+    {
+      "id": "sync",
+      "title": "同步登录表单",
+      "group": "上一轮 · 设置细节",
+      "before": "/assets/before/07-sync-form.png",
+      "after": "/assets/after/07-sync-form.png",
+      "summary": "启用同步时再提供地址与登录配置。",
+      "changes": [
+        "本地使用无需同步账号。",
+        "可选同步实现与原有数据存储策略保持不变。"
+      ],
+      "note": "",
+      "afterLabel": "上一轮结果",
+      "beforeLabel": "初始基线"
+    },
+    {
+      "id": "sync-bottom",
+      "title": "同步表单下部",
+      "group": "上一轮 · 设置细节",
+      "before": "/assets/before/08-sync-form-bottom.png",
+      "after": "/assets/after/08-sync-form-bottom.png",
+      "summary": "查看同步表单的次级设置与底部操作。",
+      "changes": [
+        "页面按移动屏幕滚动浏览。"
+      ],
+      "note": "截图验证 UI，不证明生产同步服务可用。",
+      "afterLabel": "上一轮结果",
+      "beforeLabel": "初始基线"
+    },
+    {
+      "id": "profile-light-general",
+      "title": "浅色 · 常规",
+      "group": "上一轮 · 通用组件覆盖",
+      "before": "/assets/before/12-profile-light-general.png",
+      "after": "/assets/after/12-profile-light-general.png",
+      "summary": "通用连接配置组件的渲染对比。",
+      "changes": [
+        "检查浅深色主题、字号、间距与配置区域。"
+      ],
+      "note": "这组截图属于通用 ProfileEditor 组件覆盖，不代表 iOS 支持本地 shell 或其中所有桌面能力。",
+      "afterLabel": "上一轮结果",
+      "beforeLabel": "初始基线"
+    },
+    {
+      "id": "profile-light-startup",
+      "title": "浅色 · 启动",
+      "group": "上一轮 · 通用组件覆盖",
+      "before": "/assets/before/12-profile-light-startup.png",
+      "after": "/assets/after/12-profile-light-startup.png",
+      "summary": "通用连接配置组件的渲染对比。",
+      "changes": [
+        "检查浅深色主题、字号、间距与配置区域。"
+      ],
+      "note": "这组截图属于通用 ProfileEditor 组件覆盖，不代表 iOS 支持本地 shell 或其中所有桌面能力。",
+      "afterLabel": "上一轮结果",
+      "beforeLabel": "初始基线"
+    },
+    {
+      "id": "profile-light-terminal",
+      "title": "浅色 · 终端",
+      "group": "上一轮 · 通用组件覆盖",
+      "before": "/assets/before/12-profile-light-terminal.png",
+      "after": "/assets/after/12-profile-light-terminal.png",
+      "summary": "通用连接配置组件的渲染对比。",
+      "changes": [
+        "检查浅深色主题、字号、间距与配置区域。"
+      ],
+      "note": "这组截图属于通用 ProfileEditor 组件覆盖，不代表 iOS 支持本地 shell 或其中所有桌面能力。",
+      "afterLabel": "上一轮结果",
+      "beforeLabel": "初始基线"
+    },
+    {
+      "id": "profile-light-appearance",
+      "title": "浅色 · 外观",
+      "group": "上一轮 · 通用组件覆盖",
+      "before": "/assets/before/12-profile-light-appearance.png",
+      "after": "/assets/after/12-profile-light-appearance.png",
+      "summary": "通用连接配置组件的渲染对比。",
+      "changes": [
+        "检查浅深色主题、字号、间距与配置区域。"
+      ],
+      "note": "这组截图属于通用 ProfileEditor 组件覆盖，不代表 iOS 支持本地 shell 或其中所有桌面能力。",
+      "afterLabel": "上一轮结果",
+      "beforeLabel": "初始基线"
+    },
+    {
+      "id": "profile-light-keys",
+      "title": "浅色 · 按键",
+      "group": "上一轮 · 通用组件覆盖",
+      "before": "/assets/before/12-profile-light-keys.png",
+      "after": "/assets/after/12-profile-light-keys.png",
+      "summary": "通用连接配置组件的渲染对比。",
+      "changes": [
+        "检查浅深色主题、字号、间距与配置区域。"
+      ],
+      "note": "这组截图属于通用 ProfileEditor 组件覆盖，不代表 iOS 支持本地 shell 或其中所有桌面能力。",
+      "afterLabel": "上一轮结果",
+      "beforeLabel": "初始基线"
+    },
+    {
+      "id": "profile-light-automation",
+      "title": "浅色 · 自动化",
+      "group": "上一轮 · 通用组件覆盖",
+      "before": "/assets/before/12-profile-light-automation.png",
+      "after": "/assets/after/12-profile-light-automation.png",
+      "summary": "通用连接配置组件的渲染对比。",
+      "changes": [
+        "检查浅深色主题、字号、间距与配置区域。"
+      ],
+      "note": "这组截图属于通用 ProfileEditor 组件覆盖，不代表 iOS 支持本地 shell 或其中所有桌面能力。",
+      "afterLabel": "上一轮结果",
+      "beforeLabel": "初始基线"
+    },
+    {
+      "id": "profile-light-advanced",
+      "title": "浅色 · 高级",
+      "group": "上一轮 · 通用组件覆盖",
+      "before": "/assets/before/12-profile-light-advanced.png",
+      "after": "/assets/after/12-profile-light-advanced.png",
+      "summary": "通用连接配置组件的渲染对比。",
+      "changes": [
+        "检查浅深色主题、字号、间距与配置区域。"
+      ],
+      "note": "这组截图属于通用 ProfileEditor 组件覆盖，不代表 iOS 支持本地 shell 或其中所有桌面能力。",
+      "afterLabel": "上一轮结果",
+      "beforeLabel": "初始基线"
+    },
+    {
+      "id": "profile-dark-general",
+      "title": "深色 · 常规",
+      "group": "上一轮 · 通用组件覆盖",
+      "before": "/assets/before/12-profile-dark-general.png",
+      "after": "/assets/after/12-profile-dark-general.png",
+      "summary": "通用连接配置组件的渲染对比。",
+      "changes": [
+        "检查浅深色主题、字号、间距与配置区域。"
+      ],
+      "note": "这组截图属于通用 ProfileEditor 组件覆盖，不代表 iOS 支持本地 shell 或其中所有桌面能力。",
+      "afterLabel": "上一轮结果",
+      "beforeLabel": "初始基线"
+    },
+    {
+      "id": "profile-dark-startup",
+      "title": "深色 · 启动",
+      "group": "上一轮 · 通用组件覆盖",
+      "before": "/assets/before/12-profile-dark-startup.png",
+      "after": "/assets/after/12-profile-dark-startup.png",
+      "summary": "通用连接配置组件的渲染对比。",
+      "changes": [
+        "检查浅深色主题、字号、间距与配置区域。"
+      ],
+      "note": "这组截图属于通用 ProfileEditor 组件覆盖，不代表 iOS 支持本地 shell 或其中所有桌面能力。",
+      "afterLabel": "上一轮结果",
+      "beforeLabel": "初始基线"
+    },
+    {
+      "id": "profile-dark-terminal",
+      "title": "深色 · 终端",
+      "group": "上一轮 · 通用组件覆盖",
+      "before": "/assets/before/12-profile-dark-terminal.png",
+      "after": "/assets/after/12-profile-dark-terminal.png",
+      "summary": "通用连接配置组件的渲染对比。",
+      "changes": [
+        "检查浅深色主题、字号、间距与配置区域。"
+      ],
+      "note": "这组截图属于通用 ProfileEditor 组件覆盖，不代表 iOS 支持本地 shell 或其中所有桌面能力。",
+      "afterLabel": "上一轮结果",
+      "beforeLabel": "初始基线"
+    },
+    {
+      "id": "profile-dark-appearance",
+      "title": "深色 · 外观",
+      "group": "上一轮 · 通用组件覆盖",
+      "before": "/assets/before/12-profile-dark-appearance.png",
+      "after": "/assets/after/12-profile-dark-appearance.png",
+      "summary": "通用连接配置组件的渲染对比。",
+      "changes": [
+        "检查浅深色主题、字号、间距与配置区域。"
+      ],
+      "note": "这组截图属于通用 ProfileEditor 组件覆盖，不代表 iOS 支持本地 shell 或其中所有桌面能力。",
+      "afterLabel": "上一轮结果",
+      "beforeLabel": "初始基线"
+    },
+    {
+      "id": "profile-dark-keys",
+      "title": "深色 · 按键",
+      "group": "上一轮 · 通用组件覆盖",
+      "before": "/assets/before/12-profile-dark-keys.png",
+      "after": "/assets/after/12-profile-dark-keys.png",
+      "summary": "通用连接配置组件的渲染对比。",
+      "changes": [
+        "检查浅深色主题、字号、间距与配置区域。"
+      ],
+      "note": "这组截图属于通用 ProfileEditor 组件覆盖，不代表 iOS 支持本地 shell 或其中所有桌面能力。",
+      "afterLabel": "上一轮结果",
+      "beforeLabel": "初始基线"
+    },
+    {
+      "id": "profile-dark-automation",
+      "title": "深色 · 自动化",
+      "group": "上一轮 · 通用组件覆盖",
+      "before": "/assets/before/12-profile-dark-automation.png",
+      "after": "/assets/after/12-profile-dark-automation.png",
+      "summary": "通用连接配置组件的渲染对比。",
+      "changes": [
+        "检查浅深色主题、字号、间距与配置区域。"
+      ],
+      "note": "这组截图属于通用 ProfileEditor 组件覆盖，不代表 iOS 支持本地 shell 或其中所有桌面能力。",
+      "afterLabel": "上一轮结果",
+      "beforeLabel": "初始基线"
+    },
+    {
+      "id": "profile-dark-advanced",
+      "title": "深色 · 高级",
+      "group": "上一轮 · 通用组件覆盖",
+      "before": "/assets/before/12-profile-dark-advanced.png",
+      "after": "/assets/after/12-profile-dark-advanced.png",
+      "summary": "通用连接配置组件的渲染对比。",
+      "changes": [
+        "检查浅深色主题、字号、间距与配置区域。"
+      ],
+      "note": "这组截图属于通用 ProfileEditor 组件覆盖，不代表 iOS 支持本地 shell 或其中所有桌面能力。",
+      "afterLabel": "上一轮结果",
+      "beforeLabel": "初始基线"
+    }
+  ],
+  "matrix": [
+    [
+      "首次启动",
+      "“开始使用”为主要操作；“设置同步”为次要入口",
+      "无需同步账号即可使用本地配置和 SSH；必需服务模式的部署约束不变"
+    ],
+    [
+      "连接",
+      "首页直接显示已保存 SSH 和新建连接",
+      "本地 shell 继续由现有 iOS 平台策略禁用"
+    ],
+    [
+      "连接管理",
+      "首页管理入口；每项“更多”提供编辑、删除",
+      "只有 SSH 类型时直接进入创建表单，跳过单选项类型弹窗；原有删除保护继续生效"
+    ],
+    [
+      "SSH 身份验证",
+      "主机、端口、用户、认证方式作为表单主体",
+      "密码、私钥、键盘交互认证保留；主机信任、安全提示保持独立"
+    ],
+    [
+      "SSH 专业参数",
+      "表单内高级选项",
+      "主机校验、跳板、保活、转发等仍可配置，不占据首屏"
+    ],
+    [
+      "会话",
+      "顶部标题打开会话选择器；显式关闭按钮",
+      "返回连接页不结束会话；已恢复的分屏子会话逐个显示和选择"
+    ],
+    [
+      "桌面布局",
+      "手机不显示横向标签轨、面板标题、分屏/缩放布局入口",
+      "没有删除保存的数据或后台会话；桌面布局继续保留"
+    ],
+    [
+      "输入与字体",
+      "键盘收起时显示键盘、搜索、录制、回看四项；输入时换成终端辅助键",
+      "字号调整收进一个入口；Esc、Tab、Ctrl 等按输入需要提供"
+    ],
+    [
+      "终端搜索",
+      "查询输入一行，结果与前后跳转一行；模式收进选项",
+      "不再并排堆放模式、范围、清除等桌面控件"
+    ],
+    [
+      "只读与历史",
+      "会话“更多”内",
+      "手机“复制终端历史”直接写入剪贴板，避免只生成一个难以访问的应用内部导出文件"
+    ],
+    [
+      "诊断与窗口操作",
+      "移除手机可见入口及相关快捷键配置项",
+      "本地目录启动、窗口退出、诊断目录导出和分屏操作继续用于桌面"
+    ],
+    [
+      "文件浏览",
+      "独立完整页面，左上返回；每项可见“更多”",
+      "目录导航、复制完整路径、创建目录、带确认的删除；按实际后端能力显示操作"
+    ],
+    [
+      "桌面文件传输工作流",
+      "手机文件点击改为操作菜单",
+      "隐藏当前不支持 iOS 的保存位置选择器及“本地编辑/监视回传”；桌面下载与编辑逻辑保留。本轮不声称实现 iOS 文件下载或分享"
+    ],
+    [
+      "录制",
+      "终端工具栏开始、停止、重试保存",
+      "回看库不再同时堆放录制控制；原有本地存储及输入保留策略不变"
+    ],
+    [
+      "回看库",
+      "独立页面，最近画面、保存列表、打开文件",
+      "从播放器返回库，再返回原会话/连接页"
+    ],
+    [
+      "回放主要控制",
+      "底部进度、时间、播放/暂停、前后 10 秒",
+      "手机默认真实时间；拖动期间暂停，松手后按原状态恢复；退到后台暂停"
+    ],
+    [
+      "回放次级控制",
+      "顶部搜索、更多；倍速入口",
+      "倍速、跳过空闲、逐帧、详情、复制可见文本及清除历史按需展开；不显示可拖动浮动控制台"
+    ],
+    [
+      "回放内容",
+      "捏合缩放、平移；专注模式可随时恢复控件",
+      "手机回放内容禁止输入焦点；关闭搜索主动收起键盘"
+    ],
+    [
+      "常规、外观",
+      "设置目录进入单个页面",
+      "语言、系统/浅深色在前；默认连接、终端配色、画布留白等按需展开"
+    ],
+    [
+      "安全、权限",
+      "专门设置页；主密钥等放高级选项",
+      "原有终端权限、安全确认和账号操作未移除"
+    ],
+    [
+      "可选同步",
+      "“仅此设备”与“同步服务”",
+      "本地仍是使用入口；启用同步时再填写地址、账号及登录配置；同步实现未重写"
+    ],
+    [
+      "外接键盘",
+      "设置最后一项",
+      "保留适用于手机任务的绑定；移除窗口、目录、分屏等桌面项的配置入口"
+    ]
+  ],
+  "verificationCount": 791
+}

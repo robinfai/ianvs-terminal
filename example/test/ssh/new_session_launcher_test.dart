@@ -539,7 +539,7 @@ void main() {
         reason: 'SSH input heights must match: $heights',
       );
     }
-    expect(heights.first, closeTo(28, 0.01));
+    expect(heights.first, closeTo(32, 0.01));
     expect(
       tester.getSize(find.byKey(const Key('ssh-private-keys'))).height,
       closeTo(heights.first, 0.01),
@@ -548,7 +548,7 @@ void main() {
     for (final height in paintedContainerHeights) {
       expect(
         height,
-        closeTo(28, 0.01),
+        closeTo(32, 0.01),
         reason:
             'SSH painted input containers must match: '
             '$paintedContainerHeights',
@@ -581,7 +581,7 @@ void main() {
     for (final height in advancedContainerHeights) {
       expect(
         height,
-        closeTo(28, 0.01),
+        closeTo(32, 0.01),
         reason:
             'Advanced SSH painted input containers must match: '
             '$advancedContainerHeights',

@@ -65,6 +65,7 @@ extension _ShellScreenStateSftp on _ShellScreenState {
     if (target == null) {
       return;
     }
+    FocusManager.instance.primaryFocus?.unfocus();
     _mutateState(() {
       _isSftpPanelOpen = true;
       _sftpPanelSessionId = target.sessionId;
@@ -80,7 +81,7 @@ extension _ShellScreenStateSftp on _ShellScreenState {
       _isSftpPanelOpen = false;
       _sftpPanelSessionId = null;
     });
-    if (sessionId != null) {
+    if (sessionId != null && !context.usesMobileNavigation) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           _focusSession(sessionId);

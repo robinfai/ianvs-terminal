@@ -7183,6 +7183,264 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Changes apply to new sessions.'**
   String get configurationNewSessionHint;
+
+  /// No description provided for @mobileConnections.
+  ///
+  /// In en, this message translates to:
+  /// **'Connections'**
+  String get mobileConnections;
+
+  /// No description provided for @mobileSessions.
+  ///
+  /// In en, this message translates to:
+  /// **'Active sessions'**
+  String get mobileSessions;
+
+  /// No description provided for @mobileSessionActions.
+  ///
+  /// In en, this message translates to:
+  /// **'Session options'**
+  String get mobileSessionActions;
+
+  /// No description provided for @mobileManageConnections.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage connections'**
+  String get mobileManageConnections;
+
+  /// No description provided for @mobileFiles.
+  ///
+  /// In en, this message translates to:
+  /// **'Files'**
+  String get mobileFiles;
+
+  /// No description provided for @mobileSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Settings'**
+  String get mobileSettings;
+
+  /// No description provided for @mobileKeyboard.
+  ///
+  /// In en, this message translates to:
+  /// **'Keyboard'**
+  String get mobileKeyboard;
+
+  /// No description provided for @mobileRecord.
+  ///
+  /// In en, this message translates to:
+  /// **'Record'**
+  String get mobileRecord;
+
+  /// No description provided for @mobileStopRecording.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop recording'**
+  String get mobileStopRecording;
+
+  /// No description provided for @mobileReplay.
+  ///
+  /// In en, this message translates to:
+  /// **'Replay'**
+  String get mobileReplay;
+
+  /// No description provided for @mobileMore.
+  ///
+  /// In en, this message translates to:
+  /// **'More'**
+  String get mobileMore;
+
+  /// No description provided for @mobilePlaybackOptions.
+  ///
+  /// In en, this message translates to:
+  /// **'Playback options'**
+  String get mobilePlaybackOptions;
+
+  /// No description provided for @mobileSkipBack.
+  ///
+  /// In en, this message translates to:
+  /// **'Back 10 seconds'**
+  String get mobileSkipBack;
+
+  /// No description provided for @mobileSkipForward.
+  ///
+  /// In en, this message translates to:
+  /// **'Forward 10 seconds'**
+  String get mobileSkipForward;
+
+  /// No description provided for @mobileSkipIdle.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip idle time'**
+  String get mobileSkipIdle;
+
+  /// No description provided for @mobileSkipIdleHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Shorten pauses between terminal activity.'**
+  String get mobileSkipIdleHelp;
+
+  /// No description provided for @mobileReplayDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'Recording details'**
+  String get mobileReplayDetails;
+
+  /// No description provided for @mobileFrameNavigation.
+  ///
+  /// In en, this message translates to:
+  /// **'Frame navigation'**
+  String get mobileFrameNavigation;
+
+  /// No description provided for @mobilePlaybackSpeed.
+  ///
+  /// In en, this message translates to:
+  /// **'Playback speed'**
+  String get mobilePlaybackSpeed;
+
+  /// No description provided for @mobileShowPlaybackControls.
+  ///
+  /// In en, this message translates to:
+  /// **'Show playback controls'**
+  String get mobileShowPlaybackControls;
+
+  /// No description provided for @mobileHidePlaybackControls.
+  ///
+  /// In en, this message translates to:
+  /// **'View content only'**
+  String get mobileHidePlaybackControls;
+
+  /// No description provided for @mobileResetZoom.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset zoom'**
+  String get mobileResetZoom;
+
+  /// No description provided for @mobileReplayZoomHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Pinch to zoom, then drag to explore the recording.'**
+  String get mobileReplayZoomHint;
+
+  /// No description provided for @mobileStartLocally.
+  ///
+  /// In en, this message translates to:
+  /// **'Get started'**
+  String get mobileStartLocally;
+
+  /// No description provided for @mobileLocalWelcome.
+  ///
+  /// In en, this message translates to:
+  /// **'Your terminals, with you'**
+  String get mobileLocalWelcome;
+
+  /// No description provided for @mobileLocalWelcomeDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect to your SSH servers. Connections and preferences stay on this device. Sync is optional and can be set up later.'**
+  String get mobileLocalWelcomeDetail;
+
+  /// No description provided for @mobileSetUpSync.
+  ///
+  /// In en, this message translates to:
+  /// **'Set up sync'**
+  String get mobileSetUpSync;
+
+  /// No description provided for @mobileSync.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync'**
+  String get mobileSync;
+
+  /// No description provided for @mobileThisDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'On this device'**
+  String get mobileThisDevice;
+
+  /// No description provided for @mobileExternalKeyboard.
+  ///
+  /// In en, this message translates to:
+  /// **'External keyboard'**
+  String get mobileExternalKeyboard;
+
+  /// No description provided for @mobileAdvanced.
+  ///
+  /// In en, this message translates to:
+  /// **'Advanced options'**
+  String get mobileAdvanced;
+
+  /// No description provided for @mobileRestoreSessions.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore sessions'**
+  String get mobileRestoreSessions;
+
+  /// No description provided for @mobileRestoreSessionsHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Reopen your previous connections when Trail starts.'**
+  String get mobileRestoreSessionsHelp;
+
+  /// No description provided for @mobileConnectionHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Select a server to connect, or add a new connection.'**
+  String get mobileConnectionHelp;
+
+  /// No description provided for @mobileFontSize.
+  ///
+  /// In en, this message translates to:
+  /// **'Text size'**
+  String get mobileFontSize;
+
+  /// No description provided for @mobileSavedEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No recordings yet. Start a recording from a terminal session, or open a recording from Files.'**
+  String get mobileSavedEmpty;
+
+  /// No description provided for @mobileBack.
+  ///
+  /// In en, this message translates to:
+  /// **'Back'**
+  String get mobileBack;
+
+  /// No description provided for @mobileSyncService.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync service'**
+  String get mobileSyncService;
+
+  /// No description provided for @mobileSyncDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep your data on this device, or optionally sync with your service.'**
+  String get mobileSyncDescription;
+
+  /// No description provided for @mobileCopyHistory.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy terminal history'**
+  String get mobileCopyHistory;
+
+  /// No description provided for @mobileHistoryCopied.
+  ///
+  /// In en, this message translates to:
+  /// **'Terminal history copied'**
+  String get mobileHistoryCopied;
+
+  /// No description provided for @mobileMoreConnectionSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'More connection settings'**
+  String get mobileMoreConnectionSettings;
+
+  /// No description provided for @mobileHostAsName.
+  ///
+  /// In en, this message translates to:
+  /// **'The name defaults to the host address'**
+  String get mobileHostAsName;
 }
 
 class _AppLocalizationsDelegate

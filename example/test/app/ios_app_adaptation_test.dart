@@ -20,6 +20,7 @@ import 'package:app/startup/app_startup_models.dart';
 import 'package:app/startup/production_app_startup.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_pty/ianvs_pty.dart';
@@ -94,6 +95,22 @@ void main() {
   testWidgets(
     'iPhone starts empty, lists only SSH profiles, and opens the selected profile',
     (tester) async {
+      String? copiedHistory;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'Clipboard.setData') {
+            copiedHistory = (call.arguments as Map)['text'] as String;
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
       final root = Directory.systemTemp.createTempSync('ianvs-ios-widget-');
       final nativeBackend = _IosSshFakePtyBackend();
       addTearDown(() {
@@ -151,114 +168,80 @@ void main() {
       expect(connectedState.tabs, hasLength(1));
       expect(connectedState.tabs.single.profileId, _sshProfile.id);
       expect(find.byType(TerminalViewport), findsOne);
-      expect(find.byKey(const Key('ios-terminal-input-bar')), findsOne);
-      expect(find.byKey(const Key('shell-chrome-window-title')), findsNothing);
-      expect(find.byKey(const Key('shell-chrome-title-surface')), findsNothing);
-      expect(
-        tester.getSize(find.byKey(const Key('shell-chrome-bar'))).height,
-        52,
-      );
-      expect(find.byKey(const Key('shell-tab-strip')), findsOne);
-      final newTabButton = find.byKey(const Key('shell-chrome-new-tab'));
+      expect(find.byKey(const Key('mobile-show-keyboard')), findsOne);
+      expect(find.byKey(const Key('shell-chrome-bar')), findsNothing);
+      expect(find.byKey(const Key('shell-tab-strip')), findsNothing);
+      expect(find.byKey(const Key('mobile-session-picker')), findsOne);
       final commandMenuButton = find.byKey(const Key('shell-chrome-menu'));
-      expect(tester.getSize(newTabButton), const Size(44, 44));
-      expect(tester.getSize(commandMenuButton), const Size(44, 44));
-      expect(
-        tester.getRect(commandMenuButton).right,
-        lessThanOrEqualTo(
-          tester.getRect(find.byKey(const Key('shell-tab-strip'))).left,
-        ),
-      );
-      expect(
-        tester.getRect(find.byKey(const Key('shell-tab-strip'))).right,
-        lessThanOrEqualTo(tester.getRect(newTabButton).left),
-      );
+      expect(tester.getSize(commandMenuButton).width, greaterThanOrEqualTo(44));
       await tester.tap(commandMenuButton);
       await tester.pumpAndSettle();
-      expect(
-        find.byKey(const Key('shell-command-menu-overlay')),
-        findsOneWidget,
-      );
-      await tester.tap(find.byTooltip('Close command palette'));
+      expect(find.byKey(const Key('mobile-session-menu')), findsOne);
+      expect(find.byKey(const Key('shell-command-search-field')), findsNothing);
+      expect(find.byKey(const Key('shell-export-diagnostics')), findsNothing);
+      await tester.tap(find.byKey(const Key('shell-export-scrollback')));
       await tester.pumpAndSettle();
+      expect(copiedHistory, isNotEmpty);
+      expect(find.byKey(const Key('mobile-session-menu')), findsNothing);
       expect(
         nativeBackend.lastCreatedSessionPayload?['connection'],
         isA<Map<Object?, Object?>>().having(
-          (connection) => connection['host'],
+          (c) => c['host'],
           'host',
           'ssh.example.test',
         ),
       );
 
+      await tester.tap(find.byKey(const Key('mobile-connections-back')));
+      await tester.pumpAndSettle();
+      expect(
+        container.read(sessionControllerProvider).activeSessionId,
+        connectedState.activeSessionId,
+      );
+      expect(find.byKey(const Key('ios-ssh-profile-empty-state')), findsOne);
+      await tester.tap(
+        find.byKey(
+          Key('mobile-resume-${connectedState.tabs.single.sessionId}'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(TerminalViewport), findsOne);
+
+      // Restored desktop splits become selectable sessions, never tiny panes.
       controller.splitActiveSession(_sshProfile, TerminalSplitAxis.horizontal);
       await tester.pumpAndSettle();
       final splitState = container.read(sessionControllerProvider);
       expect(splitState.tabs.single.effectivePanes, hasLength(2));
-      for (final pane in splitState.tabs.single.effectivePanes) {
-        expect(
-          tester
-              .getSize(find.byKey(Key('shell-pane-header-${pane.sessionId}')))
-              .height,
-          44,
-        );
-      }
+      expect(find.byType(TerminalViewport), findsOne);
       final activePaneId = splitState.activeSessionId!;
-      final closePaneSize = tester.getSize(
-        find.byKey(Key('shell-pane-action-close-$activePaneId')),
-      );
-      expect(closePaneSize.width, greaterThanOrEqualTo(44));
-      expect(closePaneSize.height, 44);
-      final zoomPaneSize = tester.getSize(
-        find.byKey(Key('shell-pane-action-zoom-$activePaneId')),
-      );
-      expect(zoomPaneSize.width, greaterThanOrEqualTo(44));
-      expect(zoomPaneSize.height, 44);
-      expect(await controller.closeSession(activePaneId), isTrue);
+      expect(find.byKey(Key('shell-pane-header-$activePaneId')), findsNothing);
+      await tester.tap(find.byKey(const Key('mobile-session-picker')));
       await tester.pumpAndSettle();
+      for (final pane in splitState.tabs.single.effectivePanes) {
+        expect(find.byKey(Key('mobile-session-${pane.sessionId}')), findsOne);
+      }
+      await tester.tap(find.byKey(Key('mobile-session-close-$activePaneId')));
+      await tester.pumpAndSettle();
+      expect(
+        container.read(sessionControllerProvider).tabs.single.effectivePanes,
+        hasLength(1),
+      );
 
       controller.createSession(_sshProfile);
       await tester.pumpAndSettle();
       final twoTabState = container.read(sessionControllerProvider);
       expect(twoTabState.tabs, hasLength(2));
-      expect(
-        find.byKey(Key('shell-tab-close-${connectedState.activeSessionId}')),
-        findsNothing,
-      );
-
-      final mobileCloseButton = find.byKey(
-        Key('shell-tab-close-${twoTabState.activeSessionId}'),
-      );
-      final activeTabButton = find.byKey(
-        Key('shell-tab-${twoTabState.activeSessionId}'),
-      );
-      final mobileCloseSurface = find.byKey(
-        Key('shell-tab-close-surface-${twoTabState.activeSessionId}'),
-      );
-      expect(mobileCloseButton, findsOne);
-      expect(tester.getSize(mobileCloseButton), const Size(44, 44));
-      expect(mobileCloseSurface, findsOne);
-      expect(tester.getSize(mobileCloseSurface), const Size(28, 28));
-      expect(
-        tester.getTopRight(mobileCloseButton).dx,
-        tester.getTopRight(activeTabButton).dx,
-      );
-      final closeSurfaceDecoration =
-          tester.widget<DecoratedBox>(mobileCloseSurface).decoration
-              as BoxDecoration;
-      expect(closeSurfaceDecoration.color, isNotNull);
-      expect(find.bySemanticsLabel(RegExp(r'^Close .+ tab$')), findsOne);
-
-      await tester.tap(mobileCloseButton);
-      await tester.pumpAndSettle();
-      expect(container.read(sessionControllerProvider).tabs, hasLength(1));
-
-      final remainingCloseButton = find.byKey(
-        Key('shell-tab-close-${connectedState.activeSessionId}'),
-      );
-      expect(remainingCloseButton, findsOne);
-      expect(tester.getSize(remainingCloseButton), const Size(44, 44));
-      await tester.tap(remainingCloseButton);
-      await tester.pumpAndSettle();
+      for (final id in [
+        twoTabState.activeSessionId!,
+        connectedState.activeSessionId!,
+      ]) {
+        await tester.tap(find.byKey(const Key('mobile-session-picker')));
+        await tester.pumpAndSettle();
+        final close = find.byKey(Key('mobile-session-close-$id'));
+        expect(tester.getSize(close).height, greaterThanOrEqualTo(44));
+        await tester.tap(close);
+        await tester.pumpAndSettle();
+      }
       expect(container.read(sessionControllerProvider).tabs, isEmpty);
       expect(find.byKey(const Key('ios-ssh-profile-empty-state')), findsOne);
       _resetIphoneTestSurface(tester);
@@ -291,14 +274,20 @@ void main() {
       await _pumpUntilReady(tester);
 
       expect(find.byKey(const Key('shell-chrome-window-title')), findsNothing);
-      expect(
-        tester.getSize(find.byKey(const Key('shell-chrome-bar'))).height,
-        52,
-      );
+      expect(find.byKey(const Key('shell-chrome-bar')), findsNothing);
       tester.view.viewInsets = const FakeViewPadding(bottom: 216);
       await tester.pumpAndSettle();
 
-      expect(find.byKey(const Key('ios-ssh-empty-state-scroll')), findsOne);
+      expect(find.byKey(const Key('ios-ssh-profile-list')), findsOne);
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('ios-ssh-create-profile')),
+        80,
+        scrollable: find.descendant(
+          of: find.byKey(const Key('ios-ssh-profile-list')),
+          matching: find.byType(Scrollable),
+        ),
+      );
+      await tester.pumpAndSettle();
       expect(find.byKey(const Key('ios-ssh-create-profile')), findsOne);
       expect(tester.takeException(), isNull);
       debugDefaultTargetPlatformOverride = null;
@@ -329,7 +318,7 @@ void main() {
       );
       await _pumpUntilReady(tester);
 
-      expect(find.byKey(const Key('ios-ssh-empty-profile-list')), findsOne);
+      expect(find.byKey(const Key('ios-ssh-profile-list')), findsOne);
       expect(find.byKey(const Key('ios-ssh-create-profile')), findsOne);
       await tester.tap(find.byKey(const Key('ios-ssh-create-profile')));
       await tester.pumpAndSettle();
@@ -339,16 +328,28 @@ void main() {
       expect(find.byKey(const Key('new-session-type')), findsNothing);
       expect(find.text('Local shell'), findsNothing);
 
+      await tester.ensureVisible(
+        find.byKey(const Key('ssh-more-settings-toggle')),
+      );
+      await tester.tap(find.byKey(const Key('ssh-more-settings-toggle')));
+      await tester.pumpAndSettle();
       final saveProfile = tester.widget<CheckboxListTile>(
         find.byKey(const Key('ssh-save-profile')),
       );
       expect(saveProfile.value, isFalse);
       expect(saveProfile.onChanged, isNull);
+      await tester.tap(find.byKey(const Key('ssh-more-settings-toggle')));
+      await tester.pumpAndSettle();
       await tester.enterText(
         find.byKey(const Key('ssh-host')),
         'one-time.example.test',
       );
       await tester.enterText(find.byKey(const Key('ssh-user')), 'operator');
+      await tester.ensureVisible(find.byKey(const Key('ssh-password')));
+      await tester.enterText(
+        find.byKey(const Key('ssh-password')),
+        'demo-password',
+      );
       await tester.ensureVisible(find.byKey(const Key('ssh-connect')));
       await tester.tap(find.byKey(const Key('ssh-connect')));
       await tester.pumpAndSettle();

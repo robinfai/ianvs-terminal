@@ -4348,4 +4348,133 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get configurationNewSessionHint => '更改仅应用于新会话。';
+
+  @override
+  String get mobileConnections => '连接';
+
+  @override
+  String get mobileSessions => '进行中的会话';
+
+  @override
+  String get mobileSessionActions => '会话选项';
+
+  @override
+  String get mobileManageConnections => '管理连接';
+
+  @override
+  String get mobileFiles => '文件';
+
+  @override
+  String get mobileSettings => '设置';
+
+  @override
+  String get mobileKeyboard => '键盘';
+
+  @override
+  String get mobileRecord => '录制';
+
+  @override
+  String get mobileStopRecording => '结束录制';
+
+  @override
+  String get mobileReplay => '回放';
+
+  @override
+  String get mobileMore => '更多';
+
+  @override
+  String get mobilePlaybackOptions => '播放选项';
+
+  @override
+  String get mobileSkipBack => '后退 10 秒';
+
+  @override
+  String get mobileSkipForward => '前进 10 秒';
+
+  @override
+  String get mobileSkipIdle => '跳过空闲时间';
+
+  @override
+  String get mobileSkipIdleHelp => '缩短终端活动之间的等待。';
+
+  @override
+  String get mobileReplayDetails => '录制详情';
+
+  @override
+  String get mobileFrameNavigation => '逐帧定位';
+
+  @override
+  String get mobilePlaybackSpeed => '播放速度';
+
+  @override
+  String get mobileShowPlaybackControls => '显示播放控件';
+
+  @override
+  String get mobileHidePlaybackControls => '仅查看画面';
+
+  @override
+  String get mobileResetZoom => '还原缩放';
+
+  @override
+  String get mobileReplayZoomHint => '双指缩放，拖动画面查看细节。';
+
+  @override
+  String get mobileStartLocally => '开始使用';
+
+  @override
+  String get mobileLocalWelcome => '随时连接你的终端';
+
+  @override
+  String get mobileLocalWelcomeDetail => '连接你的 SSH 服务器。连接配置与偏好保存在本机，也可以稍后设置同步。';
+
+  @override
+  String get mobileSetUpSync => '设置同步';
+
+  @override
+  String get mobileSync => '同步';
+
+  @override
+  String get mobileThisDevice => '仅此设备';
+
+  @override
+  String get mobileExternalKeyboard => '外接键盘';
+
+  @override
+  String get mobileAdvanced => '高级选项';
+
+  @override
+  String get mobileRestoreSessions => '恢复会话';
+
+  @override
+  String get mobileRestoreSessionsHelp => '下次启动 Trail 时恢复上次的连接。';
+
+  @override
+  String get mobileConnectionHelp => '选择服务器连接，或添加新的连接。';
+
+  @override
+  String get mobileFontSize => '文字大小';
+
+  @override
+  String get mobileSavedEmpty => '还没有录制。在终端中开始录制，或从“文件”中打开已有录制。';
+
+  @override
+  String get mobileBack => '返回';
+
+  @override
+  String get mobileSyncService => '同步服务';
+
+  @override
+  String get mobileSyncDescription => '数据保留在本机，也可以选择通过你的服务同步。';
+
+  @override
+  String get mobileCopyHistory => '复制终端历史';
+
+  @override
+  String get mobileHistoryCopied => '已复制终端历史';
+
+  @override
+  String get mobileMoreConnectionSettings => '更多连接设置';
+
+  @override
+  String get mobileHostAsName => '名称默认使用主机地址';
 }

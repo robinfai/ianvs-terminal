@@ -4658,4 +4658,139 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get configurationNewSessionHint => 'Changes apply to new sessions.';
+
+  @override
+  String get mobileConnections => 'Connections';
+
+  @override
+  String get mobileSessions => 'Active sessions';
+
+  @override
+  String get mobileSessionActions => 'Session options';
+
+  @override
+  String get mobileManageConnections => 'Manage connections';
+
+  @override
+  String get mobileFiles => 'Files';
+
+  @override
+  String get mobileSettings => 'Settings';
+
+  @override
+  String get mobileKeyboard => 'Keyboard';
+
+  @override
+  String get mobileRecord => 'Record';
+
+  @override
+  String get mobileStopRecording => 'Stop recording';
+
+  @override
+  String get mobileReplay => 'Replay';
+
+  @override
+  String get mobileMore => 'More';
+
+  @override
+  String get mobilePlaybackOptions => 'Playback options';
+
+  @override
+  String get mobileSkipBack => 'Back 10 seconds';
+
+  @override
+  String get mobileSkipForward => 'Forward 10 seconds';
+
+  @override
+  String get mobileSkipIdle => 'Skip idle time';
+
+  @override
+  String get mobileSkipIdleHelp => 'Shorten pauses between terminal activity.';
+
+  @override
+  String get mobileReplayDetails => 'Recording details';
+
+  @override
+  String get mobileFrameNavigation => 'Frame navigation';
+
+  @override
+  String get mobilePlaybackSpeed => 'Playback speed';
+
+  @override
+  String get mobileShowPlaybackControls => 'Show playback controls';
+
+  @override
+  String get mobileHidePlaybackControls => 'View content only';
+
+  @override
+  String get mobileResetZoom => 'Reset zoom';
+
+  @override
+  String get mobileReplayZoomHint =>
+      'Pinch to zoom, then drag to explore the recording.';
+
+  @override
+  String get mobileStartLocally => 'Get started';
+
+  @override
+  String get mobileLocalWelcome => 'Your terminals, with you';
+
+  @override
+  String get mobileLocalWelcomeDetail =>
+      'Connect to your SSH servers. Connections and preferences stay on this device. Sync is optional and can be set up later.';
+
+  @override
+  String get mobileSetUpSync => 'Set up sync';
+
+  @override
+  String get mobileSync => 'Sync';
+
+  @override
+  String get mobileThisDevice => 'On this device';
+
+  @override
+  String get mobileExternalKeyboard => 'External keyboard';
+
+  @override
+  String get mobileAdvanced => 'Advanced options';
+
+  @override
+  String get mobileRestoreSessions => 'Restore sessions';
+
+  @override
+  String get mobileRestoreSessionsHelp =>
+      'Reopen your previous connections when Trail starts.';
+
+  @override
+  String get mobileConnectionHelp =>
+      'Select a server to connect, or add a new connection.';
+
+  @override
+  String get mobileFontSize => 'Text size';
+
+  @override
+  String get mobileSavedEmpty =>
+      'No recordings yet. Start a recording from a terminal session, or open a recording from Files.';
+
+  @override
+  String get mobileBack => 'Back';
+
+  @override
+  String get mobileSyncService => 'Sync service';
+
+  @override
+  String get mobileSyncDescription =>
+      'Keep your data on this device, or optionally sync with your service.';
+
+  @override
+  String get mobileCopyHistory => 'Copy terminal history';
+
+  @override
+  String get mobileHistoryCopied => 'Terminal history copied';
+
+  @override
+  String get mobileMoreConnectionSettings => 'More connection settings';
+
+  @override
+  String get mobileHostAsName => 'The name defaults to the host address';
 }

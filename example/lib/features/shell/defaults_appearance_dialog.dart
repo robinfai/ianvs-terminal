@@ -191,6 +191,7 @@ class _DefaultsAndAppearanceDialogState
   bool _showReportVariableManagement = false;
   String _terminalPresetFilter = '';
   late _DefaultsSection _selectedSection;
+  late bool _mobileSectionOpen;
   _TerminalPermissionKind _selectedPermissionDetail =
       _TerminalPermissionKind.openUrl;
 
@@ -203,6 +204,7 @@ class _DefaultsAndAppearanceDialogState
             widget.profiles.any((profile) => profile.id == configuredProfileId)
         ? configuredProfileId
         : null;
+    _mobileSectionOpen = widget.openDataServiceInitially;
     _selectedSection = widget.openDataServiceInitially
         ? _DefaultsSection.data
         : _DefaultsSection.general;
@@ -454,6 +456,7 @@ class _DefaultsAndAppearanceDialogState
     FocusManager.instance.primaryFocus?.unfocus();
     setState(() {
       _selectedSection = section;
+      _mobileSectionOpen = true;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && _scrollController.hasClients) {
@@ -486,7 +489,7 @@ class _DefaultsAndAppearanceDialogState
 
   @override
   Widget build(BuildContext context) {
-    return AppConfigurationTheme(child: Builder(builder: _buildThemedDialog));
+    return _buildThemedDialog(context);
   }
 
   Widget _buildThemedDialog(BuildContext context) {
@@ -497,7 +500,9 @@ class _DefaultsAndAppearanceDialogState
     final mediaSize = MediaQuery.sizeOf(context);
     final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
     final keyboardVisible = keyboardInset > 0;
-    final compactLayout = mediaSize.width < 600;
+    final compactLayout =
+        mediaSize.width < 600 ||
+        (context.usesTouchControlDensity && mediaSize.shortestSide < 600);
     final compactKeyboardLayout =
         keyboardVisible &&
         (compactLayout || mediaSize.height < mediaSize.width);
@@ -525,8 +530,15 @@ class _DefaultsAndAppearanceDialogState
         !keyboardVisible &&
         dialogWidth >= 600 &&
         dialogHeight >= 320;
+    final mobileNavigation = !desktopPlatform;
+    final showSectionContent = showSectionNavigation || mobileNavigation;
+    final showMobileSections = mobileNavigation && !_mobileSectionOpen;
     final showStandaloneShortcutEditor =
-        _showShortcutEditor && !showSectionNavigation;
+        (_showShortcutEditor ||
+            (mobileNavigation &&
+                _mobileSectionOpen &&
+                _selectedSection == _DefaultsSection.shortcuts)) &&
+        !showSectionNavigation;
     final effectiveProfile = _effectiveProfileFor(
       configuredProfileId: _selectedProfileId,
       effectiveProfileId: widget.effectiveDefaultProfileId,
@@ -565,6 +577,10 @@ class _DefaultsAndAppearanceDialogState
         key: const Key('defaults-dialog'),
         title: showStandaloneShortcutEditor
             ? context.l10n.keyboardShortcuts
+            : mobileNavigation && _mobileSectionOpen
+            ? _defaultsSectionTitle(context, _selectedSection)
+            : mobileNavigation
+            ? context.l10n.mobileSettings
             : context.l10n.defaultsAppearance,
         subtitle: compactLayout || compactKeyboardLayout
             ? null
@@ -578,16 +594,32 @@ class _DefaultsAndAppearanceDialogState
                 tone: AppActionTone.ghost,
                 size: AppActionSize.dense,
                 icon: Icons.arrow_back_rounded,
-                onPressed: () => _setShortcutEditorVisible(false),
+                onPressed: () {
+                  _setShortcutEditorVisible(false);
+                  if (mobileNavigation) {
+                    setState(() => _mobileSectionOpen = false);
+                  }
+                },
               )
-            : compactLayout
+            : mobileNavigation || compactLayout
             ? AppActionButton(
                 buttonKey: const Key('defaults-mobile-back'),
-                tooltip: context.l10n.closeDefaults,
+                tooltip: mobileNavigation && _mobileSectionOpen
+                    ? context.l10n.backToDefaultsAppearance
+                    : context.l10n.closeDefaults,
                 tone: AppActionTone.ghost,
                 size: AppActionSize.dense,
-                icon: Icons.arrow_back_rounded,
-                onPressed: () => Navigator.of(context).pop(),
+                icon: mobileNavigation && !_mobileSectionOpen
+                    ? Icons.close_rounded
+                    : Icons.arrow_back_rounded,
+                onPressed: () {
+                  FocusManager.instance.primaryFocus?.unfocus();
+                  if (mobileNavigation && _mobileSectionOpen) {
+                    setState(() => _mobileSectionOpen = false);
+                  } else {
+                    Navigator.of(context).pop();
+                  }
+                },
               )
             : null,
         actions: showStandaloneShortcutEditor && compactLayout
@@ -619,7 +651,9 @@ class _DefaultsAndAppearanceDialogState
                 ),
               ]
             : const [],
-        onClose: compactLayout ? null : () => Navigator.of(context).pop(),
+        onClose: mobileNavigation || compactLayout
+            ? null
+            : () => Navigator.of(context).pop(),
         closeTooltip: context.l10n.closeDefaults,
         insetPadding: EdgeInsets.all(dialogInset),
         constraints: compactLayout
@@ -630,33 +664,44 @@ class _DefaultsAndAppearanceDialogState
         expandBody: true,
         centerInViewport: !compactLayout,
         borderRadius: compactLayout ? BorderRadius.zero : null,
-        titleTextStyle: Theme.of(
-          context,
-        ).textTheme.titleLarge?.copyWith(color: theme.textPrimary),
+        titleTextStyle:
+            (mobileNavigation
+                    ? Theme.of(context).textTheme.titleMedium
+                    : Theme.of(context).textTheme.titleLarge)
+                ?.copyWith(color: theme.textPrimary),
         subtitleTextStyle: Theme.of(
           context,
         ).textTheme.bodyMedium?.copyWith(color: theme.textSubtle),
-        headerPadding: EdgeInsets.fromLTRB(
-          compactLayout ? theme.spacing.md : theme.spacing.xxl,
-          compactKeyboardLayout ? theme.spacing.sm : theme.spacing.lg,
-          compactLayout ? theme.spacing.md : theme.spacing.xxl,
-          compactKeyboardLayout ? theme.spacing.sm : theme.spacing.lg,
-        ),
+        headerPadding: mobileNavigation
+            ? const EdgeInsets.symmetric(horizontal: 4)
+            : EdgeInsets.fromLTRB(
+                compactLayout ? theme.spacing.lg : theme.spacing.xxl,
+                compactKeyboardLayout ? theme.spacing.sm : theme.spacing.lg,
+                compactLayout ? theme.spacing.lg : theme.spacing.xxl,
+                compactKeyboardLayout ? theme.spacing.sm : theme.spacing.lg,
+              ),
         bodyPadding: showSectionNavigation && !showStandaloneShortcutEditor
             ? EdgeInsets.zero
             : EdgeInsets.fromLTRB(
-                compactLayout ? theme.spacing.md : theme.spacing.xxl,
+                compactLayout ? theme.spacing.lg : theme.spacing.xxl,
                 compactKeyboardLayout ? theme.spacing.sm : theme.spacing.md,
-                compactLayout ? theme.spacing.md : theme.spacing.xxl,
+                compactLayout ? theme.spacing.lg : theme.spacing.xxl,
                 compactKeyboardLayout ? theme.spacing.sm : theme.spacing.md,
               ),
         footerPadding: EdgeInsets.fromLTRB(
-          compactLayout ? theme.spacing.md : theme.spacing.xxl,
-          theme.spacing.md,
-          compactLayout ? theme.spacing.md : theme.spacing.xxl,
-          theme.spacing.md,
+          compactLayout ? theme.spacing.lg : theme.spacing.xxl,
+          mobileNavigation ? 8 : theme.spacing.md,
+          compactLayout ? theme.spacing.lg : theme.spacing.xxl,
+          mobileNavigation ? 8 : theme.spacing.md,
         ),
-        body: showStandaloneShortcutEditor
+        body: showMobileSections
+            ? _DefaultsMobileSections(
+                onSelected: (section) {
+                  setState(() => _mobileSectionOpen = true);
+                  _selectSection(section);
+                },
+              )
+            : showStandaloneShortcutEditor
             ? ShortcutEditorPanel(
                 config: _selectedKeybindings,
                 expandList: true,
@@ -717,9 +762,9 @@ class _DefaultsAndAppearanceDialogState
                       ScrollViewKeyboardDismissBehavior.onDrag,
                   padding: showSectionNavigation
                       ? EdgeInsets.all(theme.spacing.xxl)
-                      : EdgeInsets.only(right: theme.spacing.md),
+                      : EdgeInsets.zero,
                   child: _DefaultsSectionColumn(
-                    showAll: !showSectionNavigation,
+                    showAll: !showSectionContent,
                     selectedSection: _selectedSection,
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -732,124 +777,137 @@ class _DefaultsAndAppearanceDialogState
                         ),
                         SizedBox(height: theme.spacing.xl),
                       ],
-                      AppSectionHeader(
-                        title: context.l10n.configurationNewSessions,
+                      _MobileSettingsDisclosure(
+                        title: context.l10n.defaultProfile,
+                        children: [
+                          AppSectionHeader(
+                            title: context.l10n.configurationNewSessions,
+                          ),
+                          SizedBox(height: theme.spacing.lg),
+                          AppConfigurationField(
+                            label: context.l10n.defaultProfile,
+                            helper: effectiveProfile == null
+                                ? context.l10n.noProfileForNewTabs
+                                : _selectedProfileId == null
+                                ? context.l10n.newTabsUseProfileAutomatically(
+                                    effectiveProfile.name,
+                                  )
+                                : _defaultProfileSubtitle(effectiveProfile),
+                            child: AppDropdownFormField<String>(
+                              key: const Key('defaults-profile-select'),
+                              initialValue: _selectedProfileId,
+                              hint: Text(context.l10n.useAutomaticFallback),
+                              isExpanded: true,
+                              itemHeight: null,
+                              decoration: const InputDecoration(),
+                              selectedItemBuilder: (context) => [
+                                Text(context.l10n.useAutomaticFallback),
+                                for (final profile in widget.profiles)
+                                  Text(
+                                    profile.name,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                              ],
+                              items: [
+                                DropdownMenuItem<String>(
+                                  key: const Key(
+                                    'default-profile-option-fallback',
+                                  ),
+                                  value: null,
+                                  child: Text(
+                                    context.l10n.useAutomaticFallback,
+                                  ),
+                                ),
+                                for (final profile in widget.profiles)
+                                  DropdownMenuItem<String>(
+                                    key: Key(
+                                      'default-profile-option-${profile.id}',
+                                    ),
+                                    value: profile.id,
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 6,
+                                      ),
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            profile.name,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                          Text(
+                                            _defaultProfileSubtitle(profile),
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodySmall
+                                                ?.copyWith(
+                                                  color: theme.textSubtle,
+                                                ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                              onChanged: (value) {
+                                setState(() {
+                                  _selectedProfileId = value;
+                                  _selectedTerminalPresetId =
+                                      _matchingPresetIdFor(
+                                        _effectiveProfileFor(
+                                          configuredProfileId: value,
+                                          effectiveProfileId:
+                                              widget.effectiveDefaultProfileId,
+                                        ),
+                                      );
+                                });
+                              },
+                            ),
+                          ),
+                          SizedBox(height: theme.spacing.xxl),
+                          _ProfilesNotice(
+                            effectiveProfile: effectiveProfile,
+                            onOpenProfiles: effectiveProfile == null
+                                ? null
+                                : () {
+                                    Navigator.of(context).pop(
+                                      DefaultsAndAppearanceSelection(
+                                        configuredDefaultProfileId:
+                                            _selectedProfileId,
+                                        themeMode: _selectedThemeMode,
+                                        languageMode: _selectedLanguageMode,
+                                        terminalViewportPadding:
+                                            _selectedTerminalViewportPadding,
+                                        restoreLayout: _selectedRestoreLayout,
+                                        osc52Policy: _selectedOsc52Policy,
+                                        openUrlPolicy: _selectedOpenUrlPolicy,
+                                        requestAttentionPolicy:
+                                            _selectedRequestAttentionPolicy,
+                                        reportVariableDecisions:
+                                            _selectedReportVariableDecisions,
+                                        keybindings: _selectedKeybindings,
+                                        dataApiConfiguration:
+                                            selectedDataApiConfiguration ??
+                                            widget.dataApiConfiguration,
+                                        dataApiRemoteLogin: null,
+                                        updatedProfile: null,
+                                        openProfiles: true,
+                                      ),
+                                    );
+                                  },
+                          ),
+
+                          SizedBox(height: theme.spacing.xxl),
+                          const Divider(height: 1),
+                          SizedBox(height: theme.spacing.xxl),
+                        ],
                       ),
                       SizedBox(height: theme.spacing.lg),
-                      AppConfigurationField(
-                        label: context.l10n.defaultProfile,
-                        helper: effectiveProfile == null
-                            ? context.l10n.noProfileForNewTabs
-                            : _selectedProfileId == null
-                            ? context.l10n.newTabsUseProfileAutomatically(
-                                effectiveProfile.name,
-                              )
-                            : _defaultProfileSubtitle(effectiveProfile),
-                        child: AppDropdownFormField<String>(
-                          key: const Key('defaults-profile-select'),
-                          initialValue: _selectedProfileId,
-                          hint: Text(context.l10n.useAutomaticFallback),
-                          isExpanded: true,
-                          itemHeight: null,
-                          decoration: const InputDecoration(),
-                          selectedItemBuilder: (context) => [
-                            Text(context.l10n.useAutomaticFallback),
-                            for (final profile in widget.profiles)
-                              Text(
-                                profile.name,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                          ],
-                          items: [
-                            DropdownMenuItem<String>(
-                              key: const Key('default-profile-option-fallback'),
-                              value: null,
-                              child: Text(context.l10n.useAutomaticFallback),
-                            ),
-                            for (final profile in widget.profiles)
-                              DropdownMenuItem<String>(
-                                key: Key(
-                                  'default-profile-option-${profile.id}',
-                                ),
-                                value: profile.id,
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 6,
-                                  ),
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        profile.name,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      Text(
-                                        _defaultProfileSubtitle(profile),
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall
-                                            ?.copyWith(color: theme.textSubtle),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                          ],
-                          onChanged: (value) {
-                            setState(() {
-                              _selectedProfileId = value;
-                              _selectedTerminalPresetId = _matchingPresetIdFor(
-                                _effectiveProfileFor(
-                                  configuredProfileId: value,
-                                  effectiveProfileId:
-                                      widget.effectiveDefaultProfileId,
-                                ),
-                              );
-                            });
-                          },
-                        ),
-                      ),
-                      SizedBox(height: theme.spacing.xxl),
-                      _ProfilesNotice(
-                        effectiveProfile: effectiveProfile,
-                        onOpenProfiles: effectiveProfile == null
-                            ? null
-                            : () {
-                                Navigator.of(context).pop(
-                                  DefaultsAndAppearanceSelection(
-                                    configuredDefaultProfileId:
-                                        _selectedProfileId,
-                                    themeMode: _selectedThemeMode,
-                                    languageMode: _selectedLanguageMode,
-                                    terminalViewportPadding:
-                                        _selectedTerminalViewportPadding,
-                                    restoreLayout: _selectedRestoreLayout,
-                                    osc52Policy: _selectedOsc52Policy,
-                                    openUrlPolicy: _selectedOpenUrlPolicy,
-                                    requestAttentionPolicy:
-                                        _selectedRequestAttentionPolicy,
-                                    reportVariableDecisions:
-                                        _selectedReportVariableDecisions,
-                                    keybindings: _selectedKeybindings,
-                                    dataApiConfiguration:
-                                        selectedDataApiConfiguration ??
-                                        widget.dataApiConfiguration,
-                                    dataApiRemoteLogin: null,
-                                    updatedProfile: null,
-                                    openProfiles: true,
-                                  ),
-                                );
-                              },
-                      ),
-
-                      SizedBox(height: theme.spacing.xxl),
-                      const Divider(height: 1),
-                      SizedBox(height: theme.spacing.xxl),
                       AppSectionHeader(title: context.l10n.language),
                       SizedBox(height: theme.spacing.lg),
                       AppConfigurationField(
@@ -890,160 +948,6 @@ class _DefaultsAndAppearanceDialogState
                         ),
                         SizedBox(height: theme.spacing.lg),
                       ],
-                      AppSectionHeader(
-                        title: context.l10n.terminalPreset,
-                        description: effectiveProfile == null
-                            ? context.l10n.createProfileBeforeColors
-                            : context.l10n.applyPaletteToProfile(
-                                effectiveProfile.name,
-                              ),
-                      ),
-                      SizedBox(height: theme.spacing.sm),
-                      Semantics(
-                        label: context.l10n.filterTerminalPresets,
-                        container: true,
-                        explicitChildNodes: true,
-                        child: TextField(
-                          key: const Key('defaults-terminal-preset-filter'),
-                          textInputAction: TextInputAction.search,
-                          onTapOutside: (_) =>
-                              FocusManager.instance.primaryFocus?.unfocus(),
-                          decoration: InputDecoration(
-                            isDense: true,
-                            filled: true,
-                            fillColor: theme.panel,
-                            prefixIcon: const Icon(Icons.search_rounded),
-                            labelText: context.l10n.filterTerminalPresets,
-                          ),
-                          onChanged: (value) {
-                            setState(() {
-                              _terminalPresetFilter = value;
-                            });
-                          },
-                        ),
-                      ),
-                      SizedBox(height: theme.spacing.sm),
-                      LayoutBuilder(
-                        builder: (context, constraints) {
-                          final columnCount = constraints.maxWidth >= 560
-                              ? 3
-                              : constraints.maxWidth >= 340
-                              ? 2
-                              : 1;
-                          final cardWidth =
-                              (constraints.maxWidth -
-                                  theme.spacing.lg * (columnCount - 1)) /
-                              columnCount;
-                          return Wrap(
-                            key: const Key('defaults-terminal-preset-grid'),
-                            spacing: theme.spacing.lg,
-                            runSpacing: theme.spacing.lg,
-                            children: [
-                              if (showCurrentPreset)
-                                _TerminalPresetChoice(
-                                  key: const Key(
-                                    'defaults-terminal-preset-current',
-                                  ),
-                                  width: cardWidth,
-                                  label: context.l10n.keepCurrent,
-                                  subtitle: selectedPreset == null
-                                      ? context.l10n.customColors
-                                      : context.l10n.currentlyPreset(
-                                          selectedPreset.name,
-                                        ),
-                                  selected: _selectedTerminalPresetId == null,
-                                  enabled: effectiveProfile != null,
-                                  previewColors: effectiveProfile == null
-                                      ? const <String>[]
-                                      : _previewColorsForPalette(
-                                          effectiveProfile.appearance.colors,
-                                        ),
-                                  onPressed: () {
-                                    setState(() {
-                                      _selectedTerminalPresetId = null;
-                                    });
-                                  },
-                                ),
-                              for (final preset in visibleTerminalPresets)
-                                _TerminalPresetChoice(
-                                  key: Key(
-                                    'defaults-terminal-preset-${preset.id}',
-                                  ),
-                                  width: cardWidth,
-                                  label: preset.name,
-                                  subtitle: preset.tone.label,
-                                  selected:
-                                      _selectedTerminalPresetId == preset.id,
-                                  enabled: effectiveProfile != null,
-                                  previewColors: preset.previewColors,
-                                  onPressed: () {
-                                    setState(() {
-                                      _selectedTerminalPresetId = preset.id;
-                                    });
-                                  },
-                                ),
-                              if (!showCurrentPreset &&
-                                  visibleTerminalPresets.isEmpty)
-                                SizedBox(
-                                  width: constraints.maxWidth,
-                                  child: AppPanel(
-                                    tone: AppPanelTone.elevated,
-                                    padding: EdgeInsets.all(theme.spacing.md),
-                                    child: Text(
-                                      context.l10n.noTerminalPresetsMatch(
-                                        _terminalPresetFilter,
-                                      ),
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodySmall
-                                          ?.copyWith(color: theme.textSubtle),
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          );
-                        },
-                      ),
-                      SizedBox(height: theme.spacing.lg),
-                      AppSectionHeader(
-                        title: context.l10n.startup,
-                        description: context.l10n.startupLayoutDescription,
-                      ),
-                      SizedBox(height: theme.spacing.sm),
-                      AppPanel(
-                        key: const Key('defaults-layout-restore-panel'),
-                        tone: AppPanelTone.panel,
-                        padding: EdgeInsets.symmetric(
-                          horizontal: theme.spacing.lg,
-                          vertical: theme.spacing.sm,
-                        ),
-                        child: MergeSemantics(
-                          child: SwitchListTile(
-                            key: const Key('default-restore-layout'),
-                            contentPadding: EdgeInsets.zero,
-                            title: Text(
-                              context.l10n.restoreTabsAndPanes,
-                              style: Theme.of(context).textTheme.bodyLarge
-                                  ?.copyWith(
-                                    color: theme.textPrimary,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                            ),
-                            subtitle: Text(
-                              context.l10n.restoreTabsAndPanesDescription,
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(color: theme.textSubtle),
-                            ),
-                            value: _selectedRestoreLayout,
-                            onChanged: (value) {
-                              setState(() {
-                                _selectedRestoreLayout = value;
-                              });
-                            },
-                          ),
-                        ),
-                      ),
-                      SizedBox(height: theme.spacing.lg),
                       AppSectionHeader(title: context.l10n.appearance),
                       SizedBox(height: theme.spacing.sm),
                       _SettingsRadioPanel<TerminalThemeMode>(
@@ -1072,6 +976,177 @@ class _DefaultsAndAppearanceDialogState
                         ],
                       ),
                       SizedBox(height: theme.spacing.xxl),
+                      _MobileSettingsDisclosure(
+                        title: context.l10n.terminalPreset,
+                        children: [
+                          AppSectionHeader(
+                            title: context.l10n.terminalPreset,
+                            description: effectiveProfile == null
+                                ? context.l10n.createProfileBeforeColors
+                                : context.l10n.applyPaletteToProfile(
+                                    effectiveProfile.name,
+                                  ),
+                          ),
+                          SizedBox(height: theme.spacing.sm),
+                          Semantics(
+                            label: context.l10n.filterTerminalPresets,
+                            container: true,
+                            explicitChildNodes: true,
+                            child: TextField(
+                              key: const Key('defaults-terminal-preset-filter'),
+                              textInputAction: TextInputAction.search,
+                              onTapOutside: (_) =>
+                                  FocusManager.instance.primaryFocus?.unfocus(),
+                              decoration: InputDecoration(
+                                isDense: true,
+                                filled: true,
+                                fillColor: theme.panel,
+                                prefixIcon: const Icon(Icons.search_rounded),
+                                labelText: context.l10n.filterTerminalPresets,
+                              ),
+                              onChanged: (value) {
+                                setState(() {
+                                  _terminalPresetFilter = value;
+                                });
+                              },
+                            ),
+                          ),
+                          SizedBox(height: theme.spacing.sm),
+                          LayoutBuilder(
+                            builder: (context, constraints) {
+                              final columnCount = constraints.maxWidth >= 560
+                                  ? 3
+                                  : constraints.maxWidth >= 340
+                                  ? 2
+                                  : 1;
+                              final cardWidth =
+                                  (constraints.maxWidth -
+                                      theme.spacing.lg * (columnCount - 1)) /
+                                  columnCount;
+                              return Wrap(
+                                key: const Key('defaults-terminal-preset-grid'),
+                                spacing: theme.spacing.lg,
+                                runSpacing: theme.spacing.lg,
+                                children: [
+                                  if (showCurrentPreset)
+                                    _TerminalPresetChoice(
+                                      key: const Key(
+                                        'defaults-terminal-preset-current',
+                                      ),
+                                      width: cardWidth,
+                                      label: context.l10n.keepCurrent,
+                                      subtitle: selectedPreset == null
+                                          ? context.l10n.customColors
+                                          : context.l10n.currentlyPreset(
+                                              selectedPreset.name,
+                                            ),
+                                      selected:
+                                          _selectedTerminalPresetId == null,
+                                      enabled: effectiveProfile != null,
+                                      previewColors: effectiveProfile == null
+                                          ? const <String>[]
+                                          : _previewColorsForPalette(
+                                              effectiveProfile
+                                                  .appearance
+                                                  .colors,
+                                            ),
+                                      onPressed: () {
+                                        setState(() {
+                                          _selectedTerminalPresetId = null;
+                                        });
+                                      },
+                                    ),
+                                  for (final preset in visibleTerminalPresets)
+                                    _TerminalPresetChoice(
+                                      key: Key(
+                                        'defaults-terminal-preset-${preset.id}',
+                                      ),
+                                      width: cardWidth,
+                                      label: preset.name,
+                                      subtitle: preset.tone.label,
+                                      selected:
+                                          _selectedTerminalPresetId ==
+                                          preset.id,
+                                      enabled: effectiveProfile != null,
+                                      previewColors: preset.previewColors,
+                                      onPressed: () {
+                                        setState(() {
+                                          _selectedTerminalPresetId = preset.id;
+                                        });
+                                      },
+                                    ),
+                                  if (!showCurrentPreset &&
+                                      visibleTerminalPresets.isEmpty)
+                                    SizedBox(
+                                      width: constraints.maxWidth,
+                                      child: AppPanel(
+                                        tone: AppPanelTone.elevated,
+                                        padding: EdgeInsets.all(
+                                          theme.spacing.md,
+                                        ),
+                                        child: Text(
+                                          context.l10n.noTerminalPresetsMatch(
+                                            _terminalPresetFilter,
+                                          ),
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall
+                                              ?.copyWith(
+                                                color: theme.textSubtle,
+                                              ),
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              );
+                            },
+                          ),
+                          SizedBox(height: theme.spacing.lg),
+                        ],
+                      ),
+                      AppSectionHeader(
+                        title: context.l10n.startup,
+                        description: context.l10n.startupLayoutDescription,
+                      ),
+                      SizedBox(height: theme.spacing.sm),
+                      AppPanel(
+                        key: const Key('defaults-layout-restore-panel'),
+                        tone: AppPanelTone.panel,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: theme.spacing.lg,
+                          vertical: theme.spacing.sm,
+                        ),
+                        child: MergeSemantics(
+                          child: SwitchListTile(
+                            key: const Key('default-restore-layout'),
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(
+                              mobileNavigation
+                                  ? context.l10n.mobileRestoreSessions
+                                  : context.l10n.restoreTabsAndPanes,
+                              style: Theme.of(context).textTheme.bodyLarge
+                                  ?.copyWith(
+                                    color: theme.textPrimary,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                            ),
+                            subtitle: Text(
+                              mobileNavigation
+                                  ? context.l10n.mobileRestoreSessionsHelp
+                                  : context.l10n.restoreTabsAndPanesDescription,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(color: theme.textSubtle),
+                            ),
+                            value: _selectedRestoreLayout,
+                            onChanged: (value) {
+                              setState(() {
+                                _selectedRestoreLayout = value;
+                              });
+                            },
+                          ),
+                        ),
+                      ),
+                      SizedBox(height: theme.spacing.lg),
                       const _DefaultsSectionMarker(_DefaultsSection.shortcuts),
                       if (!showSectionNavigation) ...[
                         AppSectionHeader(title: context.l10n.keyboardShortcuts),
@@ -1431,8 +1506,12 @@ class _DefaultsAndAppearanceDialogState
                       const _DefaultsSectionMarker(_DefaultsSection.data),
                       if (showSectionNavigation) ...[
                         _DefaultsSectionIntro(
-                          title: context.l10n.dataService,
-                          description: widget.localDataApiAvailable
+                          title: mobileNavigation
+                              ? context.l10n.mobileSync
+                              : context.l10n.dataService,
+                          description: mobileNavigation
+                              ? context.l10n.mobileSyncDescription
+                              : widget.localDataApiAvailable
                               ? context
                                     .l10n
                                     .dataServiceDescriptionLocalAvailable
@@ -1441,8 +1520,12 @@ class _DefaultsAndAppearanceDialogState
                         SizedBox(height: theme.spacing.xl),
                       ] else
                         AppSectionHeader(
-                          title: context.l10n.dataService,
-                          description: widget.localDataApiAvailable
+                          title: mobileNavigation
+                              ? context.l10n.mobileSync
+                              : context.l10n.dataService,
+                          description: mobileNavigation
+                              ? context.l10n.mobileSyncDescription
+                              : widget.localDataApiAvailable
                               ? context
                                     .l10n
                                     .dataServiceDescriptionLocalAvailable
@@ -1450,10 +1533,11 @@ class _DefaultsAndAppearanceDialogState
                         ),
                       const ApiSyncPanel(),
                       SizedBox(height: theme.spacing.sm),
-                      _DataServiceStatusBanner(
-                        deployment: _sourceDataApiDeployment,
-                        localSessionsEnabled: widget.localSessionsEnabled,
-                      ),
+                      if (!mobileNavigation)
+                        _DataServiceStatusBanner(
+                          deployment: _sourceDataApiDeployment,
+                          localSessionsEnabled: widget.localSessionsEnabled,
+                        ),
                       SizedBox(height: theme.spacing.sm),
                       AppPanel(
                         key: const Key('defaults-data-api-panel'),
@@ -1481,7 +1565,9 @@ class _DefaultsAndAppearanceDialogState
                                   _DataServiceModeChoice(
                                     tileKey: const Key('data-api-disabled'),
                                     value: DataApiDeployment.disabled,
-                                    title: widget.localSessionsEnabled
+                                    title: mobileNavigation
+                                        ? context.l10n.mobileThisDevice
+                                        : widget.localSessionsEnabled
                                         ? context.l10n.localTerminal
                                         : context.l10n.noDataService,
                                     description: widget.localSessionsEnabled
@@ -1516,7 +1602,9 @@ class _DefaultsAndAppearanceDialogState
                                   _DataServiceModeChoice(
                                     tileKey: const Key('data-api-remote'),
                                     value: DataApiDeployment.remote,
-                                    title: context.l10n.remoteService,
+                                    title: mobileNavigation
+                                        ? context.l10n.mobileSyncService
+                                        : context.l10n.remoteService,
                                     description:
                                         context.l10n.remoteServiceDescription,
                                     selected:
@@ -1679,122 +1767,140 @@ class _DefaultsAndAppearanceDialogState
                       SizedBox(height: theme.spacing.xxl),
                       if (widget.masterKeyRepository
                           case final repository?) ...[
-                        MasterKeyManagementPanel(repository: repository),
+                        _MobileSettingsDisclosure(
+                          title: context.l10n.mobileAdvanced,
+                          children: [
+                            MasterKeyManagementPanel(repository: repository),
+                          ],
+                        ),
                         SizedBox(height: theme.spacing.xxl),
                       ],
                       const _DefaultsSectionMarker(_DefaultsSection.appearance),
-                      AppSectionHeader(
-                        title: context.l10n.terminalCanvasInset,
-                        description:
-                            context.l10n.terminalCanvasInsetDescription,
-                      ),
-                      SizedBox(height: theme.spacing.sm),
-                      AppPanel(
-                        key: const Key('defaults-canvas-inset-panel'),
-                        tone: AppPanelTone.panel,
-                        padding: EdgeInsets.all(theme.spacing.xl),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
+                      _MobileSettingsDisclosure(
+                        title: context.l10n.mobileAdvanced,
+                        children: [
+                          AppSectionHeader(
+                            title: context.l10n.terminalCanvasInset,
+                            description:
+                                context.l10n.terminalCanvasInsetDescription,
+                          ),
+                          SizedBox(height: theme.spacing.sm),
+                          AppPanel(
+                            key: const Key('defaults-canvas-inset-panel'),
+                            tone: AppPanelTone.panel,
+                            padding: EdgeInsets.all(theme.spacing.xl),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Expanded(
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        context.l10n.viewportPadding,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodyMedium
+                                            ?.copyWith(
+                                              color: theme.textPrimary,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                      ),
+                                    ),
+                                    Text(
+                                      '${_selectedTerminalViewportPadding.round()} px',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .labelLarge
+                                          ?.copyWith(
+                                            color: theme.textMuted,
+                                            fontWeight: FontWeight.w600,
+                                            fontFamily: 'monospace',
+                                          ),
+                                    ),
+                                  ],
+                                ),
+                                Semantics(
+                                  container: true,
+                                  label: context.l10n.viewportPadding,
+                                  value: context.l10n.pixelCount(
+                                    _selectedTerminalViewportPadding.round(),
+                                  ),
+                                  liveRegion: true,
+                                  child: SliderTheme(
+                                    data: SliderTheme.of(context).copyWith(
+                                      activeTrackColor: theme.accent,
+                                      inactiveTrackColor: theme.border,
+                                      thumbColor: theme.accent,
+                                      overlayColor: theme.focusRing.withValues(
+                                        alpha: 0.14,
+                                      ),
+                                      valueIndicatorColor: theme.panelElevated,
+                                      valueIndicatorTextStyle: Theme.of(context)
+                                          .textTheme
+                                          .labelMedium
+                                          ?.copyWith(color: theme.textPrimary),
+                                    ),
+                                    child: Slider(
+                                      key: const Key(
+                                        'default-terminal-viewport-padding',
+                                      ),
+                                      value: _selectedTerminalViewportPadding,
+                                      min: TerminalAppAppearance
+                                          .minTerminalViewportPadding,
+                                      max: TerminalAppAppearance
+                                          .maxTerminalViewportPadding,
+                                      divisions:
+                                          (TerminalAppAppearance
+                                                      .maxTerminalViewportPadding -
+                                                  TerminalAppAppearance
+                                                      .minTerminalViewportPadding)
+                                              .round(),
+                                      label: context.l10n.pixelCount(
+                                        _selectedTerminalViewportPadding
+                                            .round(),
+                                      ),
+                                      semanticFormatterCallback: (value) =>
+                                          context.l10n.pixelCount(
+                                            value.round(),
+                                          ),
+                                      onChanged: (value) {
+                                        setState(() {
+                                          _selectedTerminalViewportPadding =
+                                              value;
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                ),
+                                Center(
                                   child: Text(
-                                    context.l10n.viewportPadding,
+                                    context.l10n.viewportPaddingRange(
+                                      TerminalAppAppearance
+                                          .minTerminalViewportPadding
+                                          .round(),
+                                      TerminalAppAppearance
+                                          .maxTerminalViewportPadding
+                                          .round(),
+                                    ),
                                     style: Theme.of(context)
                                         .textTheme
-                                        .bodyMedium
+                                        .labelMedium
                                         ?.copyWith(
-                                          color: theme.textPrimary,
+                                          color: theme.textSubtle,
                                           fontWeight: FontWeight.w600,
                                         ),
                                   ),
                                 ),
+                                SizedBox(height: theme.spacing.sm),
                                 Text(
-                                  '${_selectedTerminalViewportPadding.round()} px',
-                                  style: Theme.of(context).textTheme.labelLarge
-                                      ?.copyWith(
-                                        color: theme.textMuted,
-                                        fontWeight: FontWeight.w600,
-                                        fontFamily: 'monospace',
-                                      ),
+                                  context.l10n.viewportPaddingDescription,
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(color: theme.textSubtle),
                                 ),
                               ],
                             ),
-                            Semantics(
-                              container: true,
-                              label: context.l10n.viewportPadding,
-                              value: context.l10n.pixelCount(
-                                _selectedTerminalViewportPadding.round(),
-                              ),
-                              liveRegion: true,
-                              child: SliderTheme(
-                                data: SliderTheme.of(context).copyWith(
-                                  activeTrackColor: theme.accent,
-                                  inactiveTrackColor: theme.border,
-                                  thumbColor: theme.accent,
-                                  overlayColor: theme.focusRing.withValues(
-                                    alpha: 0.14,
-                                  ),
-                                  valueIndicatorColor: theme.panelElevated,
-                                  valueIndicatorTextStyle: Theme.of(context)
-                                      .textTheme
-                                      .labelMedium
-                                      ?.copyWith(color: theme.textPrimary),
-                                ),
-                                child: Slider(
-                                  key: const Key(
-                                    'default-terminal-viewport-padding',
-                                  ),
-                                  value: _selectedTerminalViewportPadding,
-                                  min: TerminalAppAppearance
-                                      .minTerminalViewportPadding,
-                                  max: TerminalAppAppearance
-                                      .maxTerminalViewportPadding,
-                                  divisions:
-                                      (TerminalAppAppearance
-                                                  .maxTerminalViewportPadding -
-                                              TerminalAppAppearance
-                                                  .minTerminalViewportPadding)
-                                          .round(),
-                                  label: context.l10n.pixelCount(
-                                    _selectedTerminalViewportPadding.round(),
-                                  ),
-                                  semanticFormatterCallback: (value) =>
-                                      context.l10n.pixelCount(value.round()),
-                                  onChanged: (value) {
-                                    setState(() {
-                                      _selectedTerminalViewportPadding = value;
-                                    });
-                                  },
-                                ),
-                              ),
-                            ),
-                            Center(
-                              child: Text(
-                                context.l10n.viewportPaddingRange(
-                                  TerminalAppAppearance
-                                      .minTerminalViewportPadding
-                                      .round(),
-                                  TerminalAppAppearance
-                                      .maxTerminalViewportPadding
-                                      .round(),
-                                ),
-                                style: Theme.of(context).textTheme.labelMedium
-                                    ?.copyWith(
-                                      color: theme.textSubtle,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                              ),
-                            ),
-                            SizedBox(height: theme.spacing.sm),
-                            Text(
-                              context.l10n.viewportPaddingDescription,
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(color: theme.textSubtle),
-                            ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -1916,6 +2022,32 @@ class _DefaultsAndAppearanceDialogState
                       ),
                     ],
                   );
+                  if (mobileNavigation) {
+                    final resets = resetActions.children
+                        .cast<AppActionButton>()
+                        .toList();
+                    return Row(
+                      children: [
+                        PopupMenuButton<int>(
+                          key: const Key('defaults-mobile-reset-menu'),
+                          tooltip: context.l10n.reset,
+                          icon: const Icon(Icons.more_horiz_rounded),
+                          onSelected: (index) =>
+                              resets[index].onPressed?.call(),
+                          itemBuilder: (context) => [
+                            for (var index = 0; index < resets.length; index++)
+                              PopupMenuItem(
+                                value: index,
+                                enabled: resets[index].onPressed != null,
+                                child: Text(resets[index].label!),
+                              ),
+                          ],
+                        ),
+                        SizedBox(width: theme.spacing.sm),
+                        Expanded(child: confirmationActions.children.last),
+                      ],
+                    );
+                  }
                   return OverflowBar(
                     alignment: MainAxisAlignment.spaceBetween,
                     overflowAlignment: OverflowBarAlignment.end,
@@ -1928,6 +2060,52 @@ class _DefaultsAndAppearanceDialogState
       ),
     );
   }
+}
+
+String _defaultsSectionTitle(BuildContext context, _DefaultsSection section) =>
+    switch (section) {
+      _DefaultsSection.general => context.l10n.general,
+      _DefaultsSection.appearance => context.l10n.appearance,
+      _DefaultsSection.shortcuts =>
+        context.usesMobileNavigation
+            ? context.l10n.mobileExternalKeyboard
+            : context.l10n.keyboardShortcuts,
+      _DefaultsSection.security => context.l10n.securityPermissions,
+      _DefaultsSection.data =>
+        context.usesMobileNavigation
+            ? context.l10n.mobileSync
+            : context.l10n.dataService,
+    };
+
+class _DefaultsMobileSections extends StatelessWidget {
+  const _DefaultsMobileSections({required this.onSelected});
+
+  final ValueChanged<_DefaultsSection> onSelected;
+
+  @override
+  Widget build(BuildContext context) => ListView.separated(
+    key: const Key('defaults-mobile-sections'),
+    itemCount: _DefaultsSection.values.length,
+    separatorBuilder: (_, _) => const Divider(height: 1),
+    itemBuilder: (context, index) {
+      final section = const [
+        _DefaultsSection.general,
+        _DefaultsSection.appearance,
+        _DefaultsSection.security,
+        _DefaultsSection.data,
+        _DefaultsSection.shortcuts,
+      ][index];
+      return ListTile(
+        key: Key('defaults-section-${section.name}'),
+        contentPadding: EdgeInsets.symmetric(
+          horizontal: context.appTheme.spacing.sm,
+        ),
+        title: Text(_defaultsSectionTitle(context, section)),
+        trailing: const Icon(Icons.chevron_right_rounded),
+        onTap: () => onSelected(section),
+      );
+    },
+  );
 }
 
 class _DefaultsBodyLayout extends StatelessWidget {
@@ -3566,4 +3744,27 @@ class _TerminalPresetSwatch extends StatelessWidget {
       child: const SizedBox(height: 16),
     );
   }
+}
+
+/// Progressive disclosure is only used on compact touch windows. Values remain
+/// in the parent form, so closing a disclosure never discards pending edits.
+class _MobileSettingsDisclosure extends StatelessWidget {
+  const _MobileSettingsDisclosure({
+    required this.title,
+    required this.children,
+  });
+  final String title;
+  final List<Widget> children;
+  @override
+  Widget build(BuildContext context) => context.usesMobileNavigation
+      ? ExpansionTile(
+          tilePadding: EdgeInsets.zero,
+          title: Text(title),
+          childrenPadding: const EdgeInsets.symmetric(vertical: 16),
+          children: children,
+        )
+      : Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: children,
+        );
 }

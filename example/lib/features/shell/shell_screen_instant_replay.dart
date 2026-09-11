@@ -103,6 +103,7 @@ final class _InstantReplayDriver implements terminal.TerminalReplayDriver {
 class _InstantReplayLayout extends StatefulWidget {
   const _InstantReplayLayout({
     super.key,
+    this.mobile = false,
     required this.layout,
     required this.palette,
     required this.runtime,
@@ -114,6 +115,7 @@ class _InstantReplayLayout extends StatefulWidget {
     required this.onExit,
   });
 
+  final bool mobile;
   final _InstantReplayLayoutSession layout;
   final AppThemeTokens palette;
   final terminal.TerminalRuntimeController runtime;
@@ -195,6 +197,9 @@ class _InstantReplayLayoutState extends State<_InstantReplayLayout> {
     );
     final semanticNavigation = _instantReplayNavigationOffsets();
     _replayController = terminal.TerminalReplayController(
+      initialTimeMode: widget.mobile
+          ? terminal.TerminalReplayTimeMode.realTime
+          : terminal.TerminalReplayTimeMode.smart,
       driver: _replayDriver,
       navigationOffsets: semanticNavigation.isEmpty
           ? _replayDriver.sourceOffsets
@@ -658,6 +663,30 @@ class _InstantReplayLayoutState extends State<_InstantReplayLayout> {
                 onOpenLink: (url) =>
                     unawaited(WindowBridge.openExternalUrl(url)),
               ),
+      );
+    }
+
+    if (context.usesMobileNavigation) {
+      return MobileReplayPlayer(
+        controller: _replayController,
+        title: widget.layout.sourceLabel,
+        details:
+            '${context.l10n.replayRecentActivity} · ${widget.layout.frames.length}',
+        viewport: replayViewport(),
+        recordedViewportSize: recordedViewportSize,
+        onClose: widget.onExit,
+        onSearchChanged: _updateSearch,
+        searchSummary: _searchSummary(),
+        onSearchPrevious: _searchResultCount == 0
+            ? null
+            : () => _moveSearchMatch(-1),
+        onSearchNext: _searchResultCount == 0
+            ? null
+            : () => _moveSearchMatch(1),
+        onCopyVisible: activeFrame == null
+            ? null
+            : () => unawaited(widget.onCopyVisible(activeFrame.text)),
+        onClear: () => widget.onClear(widget.layout.sourceSessionId),
       );
     }
 

@@ -286,10 +286,19 @@ class SftpSupportingPaneLayout extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final pane = supportingPane;
-        if (pane == null) {
-          return primary;
+        if (context.usesMobileNavigation) {
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              Offstage(
+                offstage: pane != null,
+                child: ExcludeFocus(excluding: pane != null, child: primary),
+              ),
+              if (pane != null) Positioned.fill(child: FocusScope(child: pane)),
+            ],
+          );
         }
-
+        if (pane == null) return primary;
         final palette = context.appTheme;
         if (constraints.maxWidth >= dockedBreakpoint) {
           final paneWidth = (constraints.maxWidth * 0.34).clamp(
@@ -566,31 +575,35 @@ class _SftpSidePanelState extends State<SftpSidePanel> {
         Offset.zero & overlay.size,
       ),
       items: <PopupMenuEntry<_SftpEntryMenuAction>>[
+        if (context.usesMobileNavigation)
+          PopupMenuItem(enabled: false, child: Text(entry.name)),
         PopupMenuItem<_SftpEntryMenuAction>(
           key: const Key('sftp-context-copy-full-path'),
           value: _SftpEntryMenuAction.copyFullPath,
           child: Text(context.l10n.copyFullPath),
         ),
-        if (entry.isFile)
+        if (entry.isFile && !context.usesMobileNavigation)
           PopupMenuItem<_SftpEntryMenuAction>(
             key: const Key('sftp-context-edit-locally'),
             value: _SftpEntryMenuAction.editLocally,
             enabled: _fileDataSource != null && !isBusy,
             child: Text(context.l10n.editLocally),
           ),
-        const PopupMenuDivider(),
-        PopupMenuItem<_SftpEntryMenuAction>(
-          key: const Key('sftp-context-create-directory'),
-          value: _SftpEntryMenuAction.createDirectory,
-          enabled: _fileDataSource != null,
-          child: Text(context.l10n.createDirectory),
-        ),
-        PopupMenuItem<_SftpEntryMenuAction>(
-          key: const Key('sftp-context-delete'),
-          value: _SftpEntryMenuAction.delete,
-          enabled: _fileDataSource != null && !isBusy,
-          child: Text(context.l10n.delete),
-        ),
+        if (!context.usesMobileNavigation) const PopupMenuDivider(),
+        if (!context.usesMobileNavigation)
+          PopupMenuItem<_SftpEntryMenuAction>(
+            key: const Key('sftp-context-create-directory'),
+            value: _SftpEntryMenuAction.createDirectory,
+            enabled: _fileDataSource != null,
+            child: Text(context.l10n.createDirectory),
+          ),
+        if (_fileDataSource != null)
+          PopupMenuItem<_SftpEntryMenuAction>(
+            key: const Key('sftp-context-delete'),
+            value: _SftpEntryMenuAction.delete,
+            enabled: _fileDataSource != null && !isBusy,
+            child: Text(context.l10n.delete),
+          ),
       ],
     );
     if (!mounted || action == null) {
@@ -783,6 +796,9 @@ class _SftpSidePanelState extends State<SftpSidePanel> {
                   _SftpPanelHeader(
                     target: widget.target,
                     onClose: widget.onClose,
+                    onCreateDirectory: _fileDataSource == null
+                        ? null
+                        : _createDirectory,
                   ),
                   Divider(height: 1, thickness: 1, color: palette.border),
                   _SftpPathToolbar(
@@ -835,14 +851,28 @@ class _SftpSidePanelState extends State<SftpSidePanel> {
 }
 
 class _SftpPanelHeader extends StatelessWidget {
-  const _SftpPanelHeader({required this.target, required this.onClose});
+  const _SftpPanelHeader({
+    required this.target,
+    required this.onClose,
+    this.onCreateDirectory,
+  });
 
   final SftpSessionTarget target;
   final VoidCallback onClose;
+  final VoidCallback? onCreateDirectory;
 
   @override
   Widget build(BuildContext context) {
     final palette = context.appTheme;
+    final mobile = context.usesMobileNavigation;
+    final close = IconButton(
+      key: const Key('sftp-right-panel-close'),
+      tooltip: mobile ? context.l10n.mobileBack : context.l10n.closeSftpPanel,
+      onPressed: onClose,
+      icon: Icon(
+        mobile ? Icons.arrow_back_ios_new_rounded : Icons.close_rounded,
+      ),
+    );
     return ConstrainedBox(
       key: const Key('sftp-panel-header'),
       constraints: const BoxConstraints(minHeight: 48),
@@ -855,7 +885,10 @@ class _SftpPanelHeader extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(Icons.folder_open_rounded, size: 19, color: palette.accent),
+            if (mobile)
+              close
+            else
+              Icon(Icons.folder_open_rounded, size: 19, color: palette.accent),
             SizedBox(width: palette.spacing.md),
             Expanded(
               child: Column(
@@ -863,7 +896,9 @@ class _SftpPanelHeader extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'SFTP',
+                    context.usesMobileNavigation
+                        ? context.l10n.mobileFiles
+                        : 'SFTP',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
@@ -882,14 +917,14 @@ class _SftpPanelHeader extends StatelessWidget {
                 ],
               ),
             ),
-            Tooltip(
-              message: context.l10n.closeSftpPanel,
-              child: IconButton(
-                key: const Key('sftp-right-panel-close'),
-                onPressed: onClose,
-                icon: const Icon(Icons.close_rounded),
+            if (mobile && onCreateDirectory != null)
+              IconButton(
+                key: const Key('sftp-create-folder'),
+                tooltip: context.l10n.createDirectory,
+                onPressed: onCreateDirectory,
+                icon: const Icon(Icons.create_new_folder_outlined),
               ),
-            ),
+            if (!mobile) close,
           ],
         ),
       ),
@@ -913,8 +948,8 @@ class _SftpPathToolbar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.appTheme;
-    return SizedBox(
-      height: 42,
+    return ConstrainedBox(
+      constraints: BoxConstraints(minHeight: context.adaptiveControlHeight(42)),
       child: Padding(
         padding: EdgeInsets.symmetric(horizontal: palette.spacing.sm),
         child: Row(
@@ -1112,6 +1147,16 @@ class _SftpDirectoryRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.appTheme;
+    final mobile = context.usesMobileNavigation;
+    void showMenu() {
+      final box = context.findRenderObject();
+      if (box is RenderBox) {
+        onShowContextMenu(
+          box.localToGlobal(Offset(box.size.width - 24, box.size.height / 2)),
+        );
+      }
+    }
+
     final icon = switch (entry.kind) {
       SftpDirectoryEntryKind.directory => Icons.folder_rounded,
       SftpDirectoryEntryKind.file => Icons.insert_drive_file_outlined,
@@ -1134,9 +1179,9 @@ class _SftpDirectoryRow extends StatelessWidget {
             onShowContextMenu(details.globalPosition),
         child: ListTile(
           key: ValueKey('sftp-entry-${entry.name}'),
-          dense: true,
+          dense: !mobile,
           enabled: !busy,
-          minTileHeight: 42,
+          minTileHeight: context.adaptiveControlHeight(42),
           contentPadding: EdgeInsets.symmetric(horizontal: palette.spacing.lg),
           leading: Icon(icon, size: 19, color: palette.accent),
           title: Text(
@@ -1162,6 +1207,13 @@ class _SftpDirectoryRow extends StatelessWidget {
                   dimension: 16,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
+              : mobile
+              ? IconButton(
+                  key: Key('sftp-entry-actions-${entry.name}'),
+                  tooltip: context.l10n.mobileMore,
+                  onPressed: showMenu,
+                  icon: const Icon(Icons.more_horiz_rounded),
+                )
               : entry.isDirectory
               ? Icon(
                   Icons.chevron_right_rounded,
@@ -1171,7 +1223,11 @@ class _SftpDirectoryRow extends StatelessWidget {
               : null,
           hoverColor: palette.selected.withValues(alpha: 0.56),
           focusColor: palette.selected.withValues(alpha: 0.72),
-          onTap: busy ? null : onOpen,
+          onTap: busy
+              ? null
+              : mobile && entry.isFile
+              ? showMenu
+              : onOpen,
         ),
       ),
     );

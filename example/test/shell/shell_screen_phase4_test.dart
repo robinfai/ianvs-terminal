@@ -407,6 +407,8 @@ void main() {
     await _openCommandMenu(tester);
     await tester.tap(find.text('Defaults & appearance'));
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('defaults-section-security')));
+    await tester.pumpAndSettle();
     await tester.ensureVisible(
       find.byKey(const Key('default-osc52-policy-ask')),
     );
@@ -440,13 +442,15 @@ void main() {
     await _openCommandMenu(tester);
     await tester.tap(find.text('Defaults & appearance'));
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('defaults-section-appearance')));
+    await tester.pumpAndSettle();
     final restoreToggle = find.byKey(const Key('default-restore-layout'));
     await tester.ensureVisible(restoreToggle);
 
-    expect(find.text('Restore tabs and panes on launch'), findsOneWidget);
+    expect(find.text('Restore sessions'), findsOneWidget);
     expect(
       find.text(
-        'Starts new shell processes and restores their folders. Running processes are not resumed.',
+        'Reopen your previous connections when Trail starts.',
       ),
       findsOneWidget,
     );
@@ -480,6 +484,8 @@ void main() {
     await _openCommandMenu(tester);
     await tester.tap(find.text('Defaults & appearance'));
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('defaults-section-security')));
+    await tester.pumpAndSettle();
     final deny = find.byKey(
       const Key('default-osc1337-open-url-policy-disabled'),
     );
@@ -510,6 +516,8 @@ void main() {
     );
     await _openCommandMenu(tester);
     await tester.tap(find.text('Defaults & appearance'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('defaults-section-security')));
     await tester.pumpAndSettle();
     final allow = find.byKey(
       const Key('default-osc1337-request-attention-policy-allow'),
@@ -552,6 +560,8 @@ void main() {
     );
     await _openCommandMenu(tester);
     await tester.tap(find.text('Defaults & appearance'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('defaults-section-security')));
     await tester.pumpAndSettle();
     final forget = find.byKey(
       const Key('default-osc1337-report-variable-forget-all'),
@@ -799,6 +809,8 @@ void main() {
 
     await _openCommandMenu(tester);
     await tester.tap(find.text('Defaults & appearance'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('defaults-section-security')));
     await tester.pumpAndSettle();
     final deny = find.byKey(
       const Key('default-osc1337-request-attention-policy-disabled'),

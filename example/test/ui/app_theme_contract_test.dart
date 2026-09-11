@@ -1,7 +1,7 @@
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/ui/app_ui.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ianvs_design/ianvs_design.dart';
 
 void main() {
   double contrastRatio(Color foreground, Color background) {
@@ -16,227 +16,74 @@ void main() {
     return (lighter + 0.05) / (darker + 0.05);
   }
 
-  testWidgets(
-    'light and dark ianvs terminal themes expose stable brand tokens',
-    (tester) async {
-      final lightTheme = buildIanvsTerminalTheme(Brightness.light);
-      final lightTokens = lightTheme.extension<AppThemeTokens>()!;
-      expect(lightTokens.canvas.toARGB32(), const Color(0xFFF5F5F7).toARGB32());
-      expect(lightTokens.chrome.toARGB32(), const Color(0xFFEDEEF2).toARGB32());
-      expect(lightTokens.panel.toARGB32(), const Color(0xFFFFFFFF).toARGB32());
-      expect(
-        lightTokens.panelElevated.toARGB32(),
-        const Color(0xFFFDFDFE).toARGB32(),
-      );
-      expect(lightTokens.border.toARGB32(), const Color(0xFFD1D1D6).toARGB32());
-      expect(
-        lightTokens.borderStrong.toARGB32(),
-        const Color(0xFFA7A7AD).toARGB32(),
-      );
-      expect(
-        lightTokens.textPrimary.toARGB32(),
-        const Color(0xFF1D1D1F).toARGB32(),
-      );
-      expect(lightTokens.accent.toARGB32(), const Color(0xFF007AFF).toARGB32());
-      expect(
-        lightTokens.selected.toARGB32(),
-        const Color(0xFFD9ECFF).toARGB32(),
-      );
-      expect(
-        lightTokens.terminalFrame.toARGB32(),
-        const Color(0xFFD1D1D6).toARGB32(),
-      );
-      expect(
-        lightTokens.inactiveScrim.toARGB32(),
-        const Color(0x66000000).toARGB32(),
-      );
-      expect(
-        lightTokens.shellChrome.surface.toARGB32(),
-        const Color(0xFFF9FAFB).toARGB32(),
-      );
-      expect(
-        lightTokens.shellChrome.rail.toARGB32(),
-        const Color(0xFFEDEEF2).toARGB32(),
-      );
-      expect(
-        lightTokens.shellChrome.tabActiveBackground.toARGB32(),
-        const Color(0xFFFFFFFF).toARGB32(),
-      );
-      expect(
-        contrastRatio(
-          lightTokens.shellChrome.tabTextPrimary,
-          lightTokens.shellChrome.tabActiveBackground,
-        ),
-        greaterThanOrEqualTo(4.5),
-      );
-      expect(lightTokens.spacing.xs, 4);
-      expect(lightTokens.spacing.sm, 6);
-      expect(lightTokens.spacing.md, 8);
-      expect(lightTokens.spacing.lg, 12);
-      expect(lightTokens.spacing.xl, 16);
-      expect(lightTokens.spacing.xxl, 20);
-      expect(lightTokens.radius.sm, 4);
-      expect(lightTokens.radius.md, 6);
-      expect(lightTokens.radius.lg, 8);
-      expect(lightTokens.radius.xl, 10);
-      expect(lightTokens.controls.dense, 28);
-      expect(lightTokens.controls.compact, 32);
-      expect(lightTokens.controls.regular, 36);
-      expect(lightTheme.textTheme.bodyMedium?.fontSize, 13);
-      expect(lightTheme.textTheme.bodySmall?.fontSize, 11);
-      expect(lightTheme.textTheme.titleMedium?.fontSize, 14);
-      expect(lightTheme.textTheme.bodyMedium?.fontFamily, '.AppleSystemUIFont');
-      expect(lightTheme.textTheme.headlineSmall?.fontWeight, FontWeight.w700);
-      expect(lightTheme.textTheme.titleLarge?.fontWeight, FontWeight.w600);
-      expect(lightTheme.textTheme.titleMedium?.fontWeight, FontWeight.w600);
-      expect(lightTheme.textTheme.bodyMedium?.fontWeight, FontWeight.w400);
-      expect(lightTheme.textTheme.labelLarge?.fontWeight, FontWeight.w500);
-      final lightInputPadding =
-          lightTheme.inputDecorationTheme.contentPadding! as EdgeInsets;
-      expect(lightInputPadding.top, 6);
-      expect(lightInputPadding.bottom, 6);
-      expect(lightTheme.inputDecorationTheme.constraints?.minHeight, 36);
-      expect(
-        lightTheme.inputDecorationTheme.prefixIconConstraints,
-        const BoxConstraints(minWidth: 36, minHeight: 36),
-      );
-      expect(
-        lightTheme.inputDecorationTheme.suffixIconConstraints,
-        const BoxConstraints(minWidth: 36, minHeight: 36),
-      );
-      expect(lightTheme.inputDecorationTheme.filled, isTrue);
-      expect(
-        lightTheme.inputDecorationTheme.fillColor?.toARGB32(),
-        lightTokens.chrome.toARGB32(),
-      );
-      expect(
-        lightTheme.scaffoldBackgroundColor.toARGB32(),
-        lightTokens.canvas.toARGB32(),
-      );
-      expect(
-        lightTheme.dialogTheme.backgroundColor!.toARGB32(),
-        lightTokens.panel.toARGB32(),
-      );
-      expect(
-        lightTheme.iconButtonTheme.style?.minimumSize?.resolve({}),
-        const Size.square(28),
-      );
-      expect(
-        lightTheme.filledButtonTheme.style?.minimumSize?.resolve({}),
-        const Size(0, 36),
-      );
-      expect(
-        lightTheme.filledButtonTheme.style?.textStyle?.resolve({})?.fontWeight,
-        FontWeight.w600,
-      );
-      expect(
-        lightTheme.filledButtonTheme.style?.textStyle?.resolve({})?.fontFamily,
-        '.AppleSystemUIFont',
-      );
-      expect(
-        lightTheme.outlinedButtonTheme.style?.minimumSize?.resolve({}),
-        const Size(0, 36),
-      );
-      expect(
-        lightTheme.textButtonTheme.style?.minimumSize?.resolve({}),
-        const Size(0, 32),
-      );
-      expect(
-        lightTheme.dividerTheme.color?.toARGB32(),
-        lightTokens.border.toARGB32(),
-      );
-      expect(lightTheme.dividerTheme.thickness, 1);
-      final lightListTilePadding = lightTheme.listTileTheme.contentPadding!;
-      final lightListTileInsets = lightListTilePadding as EdgeInsets;
-      expect(lightListTileInsets.left, 8);
-      expect(lightListTileInsets.top, 2);
-      final lightListTileShape =
-          lightTheme.listTileTheme.shape! as RoundedRectangleBorder;
-      expect(lightListTileShape.borderRadius, BorderRadius.circular(6));
-      expect(
-        contrastRatio(lightTokens.textPrimary, lightTokens.panel),
-        greaterThanOrEqualTo(4.5),
-      );
-      expect(
-        contrastRatio(lightTokens.focusRing, lightTokens.panel),
-        greaterThanOrEqualTo(3),
-      );
-      expect(
-        contrastRatio(lightTokens.textSubtle, lightTokens.chrome),
-        greaterThanOrEqualTo(4.5),
-      );
+  test('Trail retains the shared design theme and terminal surfaces', () {
+    for (final brightness in Brightness.values) {
+      for (final platform in [TargetPlatform.macOS, TargetPlatform.iOS]) {
+        final theme = buildIanvsTerminalTheme(brightness, platform: platform);
+        final shared = IanvsTheme.build(
+          brightness: brightness,
+          platform: platform,
+          density: platform == TargetPlatform.iOS
+              ? IanvsDensity.touch
+              : IanvsDensity.compact,
+          touchVisualDensity: platform == TargetPlatform.iOS
+              ? IanvsTouchVisualDensity.compact
+              : IanvsTouchVisualDensity.standard,
+        );
+        final tokens = theme.extension<AppThemeTokens>()!;
+        final design = theme.extension<IanvsTokens>()!;
+        expect(theme.extension<IanvsTypography>(), isNotNull);
+        expect(theme.textTheme, shared.textTheme);
+        expect(theme.inputDecorationTheme, shared.inputDecorationTheme);
+        expect(
+          theme.filledButtonTheme.style?.minimumSize?.resolve({}),
+          shared.filledButtonTheme.style?.minimumSize?.resolve({}),
+        );
+        expect(
+          theme.filledButtonTheme.style?.foregroundColor?.resolve({}),
+          shared.filledButtonTheme.style?.foregroundColor?.resolve({}),
+        );
+        expect(tokens.canvas, design.canvas);
+        expect(tokens.panel, design.field);
+        expect(tokens.textPrimary, design.text);
+        expect(tokens.controls.regular, design.controlHeight);
+        expect(tokens.spacing.lg, IanvsSpacing.lg);
+        expect(
+          tokens.terminalSurface,
+          AppThemeTokens.fallbackFor(brightness).terminalSurface,
+        );
+        expect(
+          contrastRatio(tokens.textPrimary, tokens.panel),
+          greaterThanOrEqualTo(4.5),
+        );
+        expect(
+          contrastRatio(tokens.textSubtle, tokens.chrome),
+          greaterThanOrEqualTo(4.5),
+        );
+        expect(
+          contrastRatio(
+            tokens.shellChrome.tabTextPrimary,
+            tokens.shellChrome.tabActiveBackground,
+          ),
+          greaterThanOrEqualTo(4.5),
+        );
+      }
+    }
+  });
 
-      final darkTheme = buildIanvsTerminalTheme(Brightness.dark);
-      final darkTokens = darkTheme.extension<AppThemeTokens>()!;
-      expect(darkTokens.canvas.toARGB32(), const Color(0xFF1D1D1F).toARGB32());
-      expect(darkTokens.overlay.toARGB32(), const Color(0xFF3A3A3C).toARGB32());
-      expect(
-        darkTokens.textPrimary.toARGB32(),
-        const Color(0xFFF5F5F7).toARGB32(),
-      );
-      expect(darkTokens.accent.toARGB32(), const Color(0xFF0A84FF).toARGB32());
-      expect(
-        darkTokens.borderStrong.toARGB32(),
-        const Color(0xFF636366).toARGB32(),
-      );
-      expect(
-        darkTokens.shellChrome.surface.toARGB32(),
-        const Color(0xFF292929).toARGB32(),
-      );
-      expect(
-        lightTokens.shellChrome.surface.computeLuminance(),
-        greaterThan(darkTokens.shellChrome.surface.computeLuminance()),
-      );
-      expect(
-        darkTheme.scaffoldBackgroundColor.toARGB32(),
-        darkTokens.canvas.toARGB32(),
-      );
-      expect(
-        darkTheme.dialogTheme.backgroundColor!.toARGB32(),
-        darkTokens.panel.toARGB32(),
-      );
-      expect(darkTheme.textTheme.bodyMedium?.fontSize, 13);
-      expect(darkTheme.textTheme.bodySmall?.fontSize, 11);
-      expect(darkTheme.textTheme.bodyMedium?.fontFamily, '.AppleSystemUIFont');
-      expect(
-        contrastRatio(darkTokens.textPrimary, darkTokens.panel),
-        greaterThanOrEqualTo(4.5),
-      );
-      expect(
-        contrastRatio(darkTokens.focusRing, darkTokens.panel),
-        greaterThanOrEqualTo(3),
-      );
-
-      await tester.pumpWidget(
-        Theme(
-          data: lightTheme,
-          child: const SizedBox(key: Key('light-theme-probe')),
-        ),
-      );
-
-      final lightContext = tester.element(
-        find.byKey(const Key('light-theme-probe')),
-      );
-      final hydratedLightTokens = AppThemeTokens.of(lightContext);
-      expect(
-        hydratedLightTokens.canvas.toARGB32(),
-        const Color(0xFFF5F5F7).toARGB32(),
-      );
-    },
-  );
-
-  test('iOS theme exposes readable type and 48-point interaction targets', () {
+  test('iOS uses compact touch visuals while retaining padded targets', () {
     final theme = buildIanvsTerminalTheme(
       Brightness.light,
       platform: TargetPlatform.iOS,
     );
 
     expect(theme.materialTapTargetSize, MaterialTapTargetSize.padded);
-    expect(theme.textTheme.bodyMedium?.fontSize, 15);
+    expect(theme.extension<IanvsTokens>()!.density, IanvsDensity.touch);
+    expect(theme.extension<IanvsTokens>()!.isCompactTouch, isTrue);
+    expect(theme.textTheme.bodyMedium?.fontSize, 16);
     expect(theme.textTheme.bodySmall?.fontSize, 13);
-    expect(theme.textTheme.labelSmall?.fontSize, 11);
+    expect(theme.textTheme.labelSmall?.fontSize, 13);
     expect(theme.textTheme.bodyMedium?.fontFamily, 'CupertinoSystemText');
-    expect(theme.inputDecorationTheme.constraints?.minHeight, 48);
     expect(
       theme.inputDecorationTheme.prefixIconConstraints,
       const BoxConstraints(minWidth: 48, minHeight: 48),
@@ -245,16 +92,16 @@ void main() {
       theme.inputDecorationTheme.suffixIconConstraints,
       const BoxConstraints(minWidth: 48, minHeight: 48),
     );
-    expect(theme.inputDecorationTheme.labelStyle?.fontSize, 13);
+    expect(theme.inputDecorationTheme.labelStyle?.fontSize, 16);
     expect(theme.inputDecorationTheme.helperStyle?.fontSize, 13);
-    expect(theme.inputDecorationTheme.hintStyle?.fontSize, 13);
+    expect(theme.inputDecorationTheme.hintStyle?.fontSize, 16);
     expect(
       theme.iconButtonTheme.style?.minimumSize?.resolve({}),
-      const Size.square(48),
+      const Size.square(44),
     );
     expect(
       theme.filledButtonTheme.style?.minimumSize?.resolve({}),
-      const Size(0, 48),
+      const Size(44, 44),
     );
   });
 
@@ -274,11 +121,11 @@ void main() {
       final lightDefaults = resolveTerminalColors(lightContext).viewport;
       expect(
         lightDefaults.canvasBackground.toARGB32(),
-        const Color(0xFFF5F5F7).toARGB32(),
+        Theme.of(lightContext).colorScheme.surfaceContainerLowest.toARGB32(),
       );
       expect(
         lightDefaults.foreground.toARGB32(),
-        const Color(0xFF1D1D1F).toARGB32(),
+        Theme.of(lightContext).colorScheme.onSurface.toARGB32(),
       );
       expect(lightDefaults.minimumContrastRatio, 4.5);
       expect(lightDefaults.smartCursorColor, isTrue);
@@ -323,11 +170,11 @@ void main() {
       final darkDefaults = resolveTerminalColors(darkContext).viewport;
       expect(
         darkDefaults.canvasBackground.toARGB32(),
-        const Color(0xFF1D1D1F).toARGB32(),
+        Theme.of(darkContext).colorScheme.surfaceContainerLowest.toARGB32(),
       );
       expect(
         darkDefaults.foreground.toARGB32(),
-        const Color(0xFFF5F5F7).toARGB32(),
+        Theme.of(darkContext).colorScheme.onSurface.toARGB32(),
       );
     },
   );

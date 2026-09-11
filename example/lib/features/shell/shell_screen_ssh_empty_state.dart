@@ -7,18 +7,83 @@ class _SshOnlyShellEmptyState extends StatelessWidget {
     required this.profiles,
     required this.onOpenProfile,
     required this.onCreateProfile,
+    this.sessions = const [],
+    this.onResumeSession,
+    this.onManageProfiles,
   });
 
   final AppThemeTokens palette;
   final List<TerminalProfile> profiles;
   final ValueChanged<TerminalProfile> onOpenProfile;
   final VoidCallback? onCreateProfile;
+  final List<TerminalTab> sessions;
+  final ValueChanged<String>? onResumeSession;
+  final VoidCallback? onManageProfiles;
 
   @override
   Widget build(BuildContext context) {
     final sshProfiles = profiles
         .where((profile) => profile.isSsh)
         .toList(growable: false);
+    if (context.usesMobileNavigation) {
+      return Material(
+        key: const Key('ios-ssh-profile-empty-state'),
+        color: palette.canvas,
+        child: ListView(
+          key: const Key('ios-ssh-profile-list'),
+          padding: const EdgeInsets.all(16),
+          children: [
+            if (sessions.isNotEmpty) ...[
+              Text(
+                context.l10n.mobileSessions,
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+              const SizedBox(height: 8),
+              for (final tab in sessions)
+                ListTile(
+                  key: Key('mobile-resume-${tab.sessionId}'),
+                  leading: const Icon(Icons.terminal_rounded),
+                  title: Text(tab.title),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => onResumeSession?.call(tab.activePane.sessionId),
+                ),
+              const SizedBox(height: 24),
+            ],
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    context.l10n.mobileConnections,
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                ),
+                if (onManageProfiles != null)
+                  IconButton(
+                    key: const Key('mobile-manage-connections'),
+                    tooltip: context.l10n.mobileManageConnections,
+                    onPressed: onManageProfiles,
+                    icon: const Icon(Icons.edit_outlined),
+                  ),
+              ],
+            ),
+            if (sshProfiles.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 32),
+                child: Text(
+                  context.l10n.mobileConnectionHelp,
+                  style: Theme.of(context).textTheme.bodyLarge,
+                ),
+              ),
+            for (final profile in sshProfiles) ...[
+              _profileTile(profile),
+              const SizedBox(height: 8),
+            ],
+            const SizedBox(height: 16),
+            _buildCreateButton(context),
+          ],
+        ),
+      );
+    }
     return DecoratedBox(
       key: const Key('ios-ssh-profile-empty-state'),
       decoration: BoxDecoration(

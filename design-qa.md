@@ -258,3 +258,14 @@ one input so visible differences can be judged directly.
 No P0, P1, or P2 visual issue remains in the reviewed states. The final
 same-input comparisons show no clipped content, broken alignment, incorrect
 selection, or test-only missing glyphs at the target viewport.
+
+
+---
+
+# 2026-09-11 · Trail iOS 紧凑尺度（选定第 3 张）
+
+详细目标、同输入视觉比较、三项P2修复及最终证据见 [本轮验收记录](docs/design/ios-density-20260911/design-qa.md)。选定图为 `exec-7b666cc5-789a-4b1f-a831-c48d4ae3a7c4.png`；最终原生截图为 `docs/design/ios-density-20260911/after/19-ssh-ready.png`。iPhone17/iOS26.3、402×874点、DPR3，源稿851×1849与实现1206×2622按等逻辑宽度理解，安全区/演示内容差异明确记录。
+
+普通输入及主按钮实测48，设置行48，回放控制区108；正文16、标签13。原先输入高度不齐和安全区灰底均已修复；大字小屏标题挤压通过单行标题与可滚动表单解决。791项相关回归和3项原生集成通过，本轮核心静态检查无问题。Luna完成临时网页的场景切换、图片放大、设计稿查看及错误日志检查。没有剩余可行动的P0/P1/P2；手工VoiceOver和完整原生指针检查的范围限制见详细记录。
+
+final result: passed

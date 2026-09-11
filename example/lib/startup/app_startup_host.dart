@@ -155,6 +155,7 @@ final class _AppStartupDataSetupViewState
   final _passwordController = TextEditingController();
   final _portableMasterKeyController = TextEditingController();
   bool _runningAction = false;
+  bool _showMobileSyncSetup = false;
   String? _actionError;
 
   bool get _canConnect =>
@@ -325,14 +326,151 @@ final class _AppStartupDataSetupViewState
     super.dispose();
   }
 
+  Widget _buildSetupActions({required bool canSkip}) => LayoutBuilder(
+    builder: (context, constraints) {
+      final connect = FilledButton.icon(
+        key: const Key('app-startup-connect-data-api'),
+        onPressed: !_runningAction && _canConnect ? _connect : null,
+        icon: const Icon(Icons.login_rounded),
+        label: Text(
+          canSkip
+              ? context.l10n.connectRemoteApi
+              : context.l10n.connectAndContinue,
+        ),
+      );
+      final skip = TextButton(
+        key: const Key('app-startup-skip-data-api'),
+        onPressed: _runningAction ? null : _skip,
+        child: Text(
+          widget.settings.localDataApiAvailable
+              ? context.l10n.useLocalTerminalOnly
+              : context.l10n.continueWithoutDataService,
+        ),
+      );
+      final horizontal =
+          constraints.maxWidth >= 600 &&
+          MediaQuery.textScalerOf(context).scale(17) < 26;
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (canSkip && widget.settings.localDataApiAvailable) ...[
+            OutlinedButton.icon(
+              key: const Key('app-startup-use-local-api'),
+              onPressed: _runningAction ? null : _useLocalApi,
+              icon: const Icon(Icons.storage_rounded),
+              label: Text(context.l10n.useBundledLocalApi),
+            ),
+            const SizedBox(height: 8),
+          ],
+          if (canSkip && horizontal)
+            Row(
+              children: [
+                Expanded(child: skip),
+                const SizedBox(width: 12),
+                Expanded(child: connect),
+              ],
+            )
+          else ...[
+            connect,
+            if (canSkip) ...[const SizedBox(height: 8), skip],
+          ],
+        ],
+      );
+    },
+  );
+
   @override
   Widget build(BuildContext context) {
     final canSkip =
         widget.requirement == AppStartupDataSetupRequirement.optional;
     final isIos = defaultTargetPlatform == TargetPlatform.iOS;
     final theme = Theme.of(context);
+    if (isIos && canSkip && !_showMobileSyncSetup) {
+      return Scaffold(
+        key: const Key('app-startup-mobile-welcome'),
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 40),
+                        Icon(
+                          Icons.terminal_rounded,
+                          size: 48,
+                          color: theme.colorScheme.primary,
+                        ),
+                        const SizedBox(height: 24),
+                        Text(
+                          context.l10n.mobileLocalWelcome,
+                          style: theme.textTheme.headlineLarge,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          context.l10n.mobileLocalWelcomeDetail,
+                          style: theme.textTheme.bodyLarge,
+                        ),
+                        if (_actionError != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 16),
+                            child: Text(
+                              _actionError!,
+                              style: TextStyle(color: theme.colorScheme.error),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+                FilledButton(
+                  key: const Key('app-startup-skip-data-api'),
+                  onPressed: _runningAction ? null : _skip,
+                  child: Text(context.l10n.mobileStartLocally),
+                ),
+                const SizedBox(height: 8),
+                TextButton(
+                  key: const Key('mobile-setup-sync'),
+                  onPressed: _runningAction
+                      ? null
+                      : () => setState(() => _showMobileSyncSetup = true),
+                  child: Text(context.l10n.mobileSetUpSync),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+    final pinActions = isIos || MediaQuery.sizeOf(context).height < 700;
     return Scaffold(
       key: const Key('app-startup-data-api-setup'),
+      appBar: isIos && canSkip
+          ? AppBar(
+              title: Text(context.l10n.mobileSync),
+              leading: BackButton(
+                onPressed: () {
+                  FocusManager.instance.primaryFocus?.unfocus();
+                  setState(() => _showMobileSyncSetup = false);
+                },
+              ),
+            )
+          : null,
+      bottomNavigationBar:
+          pinActions && MediaQuery.viewInsetsOf(context).bottom == 0
+          ? SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: _buildSetupActions(canSkip: canSkip),
+              ),
+            )
+          : null,
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -470,138 +608,10 @@ final class _AppStartupDataSetupViewState
                                 const SizedBox(height: 18),
                                 const LinearProgressIndicator(),
                               ],
-                              SizedBox(height: compactLandscape ? 14 : 24),
-                              if (canSkip)
-                                if (compactLandscape &&
-                                    !widget.settings.localDataApiAvailable)
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: SizedBox(
-                                          height: 48,
-                                          child: OutlinedButton(
-                                            key: const Key(
-                                              'app-startup-skip-data-api',
-                                            ),
-                                            onPressed: _runningAction
-                                                ? null
-                                                : _skip,
-                                            child: Text(
-                                              context
-                                                  .l10n
-                                                  .continueWithoutDataService,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: SizedBox(
-                                          height: 48,
-                                          child: FilledButton.icon(
-                                            key: const Key(
-                                              'app-startup-connect-data-api',
-                                            ),
-                                            onPressed:
-                                                !_runningAction && _canConnect
-                                                ? _connect
-                                                : null,
-                                            icon: const Icon(
-                                              Icons.login_rounded,
-                                            ),
-                                            label: Text(
-                                              context.l10n.connectRemoteApi,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  )
-                                else
-                                  Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.stretch,
-                                    children: [
-                                      if (widget
-                                          .settings
-                                          .localDataApiAvailable) ...[
-                                        OutlinedButton.icon(
-                                          key: const Key(
-                                            'app-startup-use-local-api',
-                                          ),
-                                          onPressed: !_runningAction
-                                              ? _useLocalApi
-                                              : null,
-                                          icon: const Icon(
-                                            Icons.storage_rounded,
-                                          ),
-                                          label: Text(
-                                            context.l10n.useBundledLocalApi,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 10),
-                                      ],
-                                      OverflowBar(
-                                        alignment:
-                                            MainAxisAlignment.spaceBetween,
-                                        overflowAlignment:
-                                            OverflowBarAlignment.end,
-                                        spacing: 12,
-                                        children: [
-                                          TextButton(
-                                            key: const Key(
-                                              'app-startup-skip-data-api',
-                                            ),
-                                            onPressed: _runningAction
-                                                ? null
-                                                : _skip,
-                                            child: Text(
-                                              widget
-                                                      .settings
-                                                      .localDataApiAvailable
-                                                  ? context
-                                                        .l10n
-                                                        .useLocalTerminalOnly
-                                                  : context
-                                                        .l10n
-                                                        .continueWithoutDataService,
-                                            ),
-                                          ),
-                                          FilledButton.icon(
-                                            key: const Key(
-                                              'app-startup-connect-data-api',
-                                            ),
-                                            onPressed:
-                                                !_runningAction && _canConnect
-                                                ? _connect
-                                                : null,
-                                            icon: const Icon(
-                                              Icons.login_rounded,
-                                            ),
-                                            label: Text(
-                                              context.l10n.connectRemoteApi,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  )
-                              else
-                                SizedBox(
-                                  height: 48,
-                                  child: FilledButton.icon(
-                                    key: const Key(
-                                      'app-startup-connect-data-api',
-                                    ),
-                                    onPressed: !_runningAction && _canConnect
-                                        ? _connect
-                                        : null,
-                                    icon: const Icon(Icons.login_rounded),
-                                    label: Text(
-                                      context.l10n.connectAndContinue,
-                                    ),
-                                  ),
-                                ),
+                              if (!pinActions) ...[
+                                const SizedBox(height: 24),
+                                _buildSetupActions(canSkip: canSkip),
+                              ],
                             ],
                           ),
                         ),

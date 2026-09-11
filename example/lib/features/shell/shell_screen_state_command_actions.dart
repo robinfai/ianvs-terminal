@@ -123,11 +123,28 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         );
       },
     );
-    final action = await Navigator.of(
-      context,
-      rootNavigator: true,
-    ).push<TerminalActionId>(commandMenuRoute);
-    await commandMenuRoute.completed;
+    final TerminalActionId? action;
+    if (context.usesMobileNavigation) {
+      FocusManager.instance.primaryFocus?.unfocus();
+      action = await showModalBottomSheet<TerminalActionId>(
+        context: context,
+        useRootNavigator: true,
+        useSafeArea: true,
+        isScrollControlled: true,
+        showDragHandle: true,
+        builder: (_) => _MobileSessionMenu(
+          hasSession: hasActiveSession,
+          readOnly: isActiveSessionReadOnly,
+          canReopen: sessionController.canReopenClosedTab,
+        ),
+      );
+    } else {
+      action = await Navigator.of(
+        context,
+        rootNavigator: true,
+      ).push<TerminalActionId>(commandMenuRoute);
+      await commandMenuRoute.completed;
+    }
 
     if (!mounted) {
       return;
@@ -626,6 +643,16 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
             return ShellActionBindingResult.skipped(
               l10n.exportScrollbackRequiresSession,
             );
+          }
+          if (context.usesMobileNavigation) {
+            final content = _scrollbackExportContent(currentSessionId);
+            if (content.trim().isEmpty)
+              return ShellActionBindingResult.skipped(
+                l10n.noVisibleContentToExport,
+              );
+            await ClipboardBridge.copy(content);
+            if (mounted) _showShellSnackBar(l10n.mobileHistoryCopied);
+            return ShellActionBindingResult.completed(l10n.mobileHistoryCopied);
           }
           final file = await _exportVisibleFrame(currentSessionId);
           if (file == null) {

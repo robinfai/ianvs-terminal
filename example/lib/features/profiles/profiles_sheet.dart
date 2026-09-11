@@ -150,9 +150,9 @@ class _ProfilesSheetState extends State<ProfilesSheet> {
                 child: Padding(
                   padding: EdgeInsets.fromLTRB(
                     palette.spacing.xl,
-                    compactLayout ? palette.spacing.xs : palette.spacing.lg,
+                    compactLayout ? 0 : palette.spacing.lg,
                     palette.spacing.xl,
-                    compactLayout ? palette.spacing.xs : palette.spacing.lg,
+                    compactLayout ? 0 : palette.spacing.lg,
                   ),
                   child: Column(
                     mainAxisSize: compactLayout
@@ -164,7 +164,9 @@ class _ProfilesSheetState extends State<ProfilesSheet> {
                         children: [
                           Expanded(
                             child: Text(
-                              context.l10n.profiles,
+                              context.usesMobileNavigation
+                                  ? context.l10n.mobileManageConnections
+                                  : context.l10n.profiles,
                               style: Theme.of(context).textTheme.titleLarge
                                   ?.copyWith(
                                     color: palette.textPrimary,
@@ -195,7 +197,7 @@ class _ProfilesSheetState extends State<ProfilesSheet> {
                           ),
                         ],
                       ),
-                      if (!compactLayout)
+                      if (!compactLayout && !context.usesMobileNavigation)
                         Text(
                           _sheetDescription,
                           style: Theme.of(context).textTheme.bodyMedium
@@ -280,35 +282,85 @@ class _ProfilesSheetState extends State<ProfilesSheet> {
                                       summary: summary,
                                       tags: profile.tags,
                                     ),
-                                    trailing: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        AppActionButton(
-                                          tooltip: context.l10n.editNamedItem(
-                                            profile.name,
-                                          ),
-                                          tone: AppActionTone.ghost,
-                                          size: AppActionSize.dense,
-                                          onPressed: () => Navigator.of(
-                                            context,
-                                          ).pop(EditProfileResult(profile)),
-                                          icon: Icons.edit_outlined,
-                                        ),
-                                        AppActionButton(
-                                          tooltip: context.l10n.deleteNamedItem(
-                                            profile.name,
-                                          ),
-                                          tone: AppActionTone.ghost,
-                                          size: AppActionSize.dense,
-                                          onPressed: widget.profiles.length <= 1
-                                              ? null
-                                              : () => Navigator.of(context).pop(
-                                                  DeleteProfileResult(profile),
+                                    trailing: context.usesMobileNavigation
+                                        ? PopupMenuButton<ProfilesSheetResult>(
+                                            key: Key(
+                                              'profile-actions-${profile.id}',
+                                            ),
+                                            tooltip: context.l10n.mobileMore,
+                                            icon: const Icon(
+                                              Icons.more_horiz_rounded,
+                                            ),
+                                            onSelected: (result) =>
+                                                Navigator.of(
+                                                  context,
+                                                ).pop(result),
+                                            itemBuilder: (context) => [
+                                              PopupMenuItem(
+                                                value: EditProfileResult(
+                                                  profile,
                                                 ),
-                                          icon: Icons.delete_outline_rounded,
-                                        ),
-                                      ],
-                                    ),
+                                                child: Text(
+                                                  context.l10n.editNamedItem(
+                                                    profile.name,
+                                                  ),
+                                                ),
+                                              ),
+                                              PopupMenuItem(
+                                                value: DeleteProfileResult(
+                                                  profile,
+                                                ),
+                                                enabled:
+                                                    widget.profiles.length > 1,
+                                                child: Text(
+                                                  context.l10n.deleteNamedItem(
+                                                    profile.name,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          )
+                                        : Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              AppActionButton(
+                                                tooltip: context.l10n
+                                                    .editNamedItem(
+                                                      profile.name,
+                                                    ),
+                                                tone: AppActionTone.ghost,
+                                                size: AppActionSize.dense,
+                                                onPressed: () =>
+                                                    Navigator.of(context).pop(
+                                                      EditProfileResult(
+                                                        profile,
+                                                      ),
+                                                    ),
+                                                icon: Icons.edit_outlined,
+                                              ),
+                                              AppActionButton(
+                                                tooltip: context.l10n
+                                                    .deleteNamedItem(
+                                                      profile.name,
+                                                    ),
+                                                tone: AppActionTone.ghost,
+                                                size: AppActionSize.dense,
+                                                onPressed:
+                                                    widget.profiles.length <= 1
+                                                    ? null
+                                                    : () =>
+                                                          Navigator.of(
+                                                            context,
+                                                          ).pop(
+                                                            DeleteProfileResult(
+                                                              profile,
+                                                            ),
+                                                          ),
+                                                icon: Icons
+                                                    .delete_outline_rounded,
+                                              ),
+                                            ],
+                                          ),
                                     onTap: () => Navigator.of(
                                       context,
                                     ).pop(OpenProfileResult(profile)),
@@ -328,6 +380,12 @@ class _ProfilesSheetState extends State<ProfilesSheet> {
   }
 
   Future<void> _createProfile() async {
+    if (!widget.localShellProfilesEnabled && widget.customSshProfilesEnabled) {
+      Navigator.of(
+        context,
+      ).pop(const CreateProfileResult(NewProfileConnectionType.sshSession));
+      return;
+    }
     final connectionType = await showDialog<NewProfileConnectionType>(
       context: context,
       builder: (dialogContext) => SimpleDialog(

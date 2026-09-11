@@ -445,12 +445,19 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
       );
     }
 
-    final compactDefaultsLayout = MediaQuery.sizeOf(context).width < 600;
+    final compactDefaultsLayout =
+        MediaQuery.sizeOf(context).width < 600 ||
+        (context.usesTouchControlDensity &&
+            MediaQuery.sizeOf(context).shortestSide < 600);
     final ModalRoute<DefaultsAndAppearanceSelection> defaultsRoute =
         compactDefaultsLayout
         ? MaterialPageRoute<DefaultsAndAppearanceSelection>(
             fullscreenDialog: true,
-            builder: buildDefaults,
+            builder: (context) => Scaffold(
+              resizeToAvoidBottomInset: false,
+              backgroundColor: context.appTheme.panel,
+              body: buildDefaults(context),
+            ),
           )
         : DialogRoute<DefaultsAndAppearanceSelection>(
             context: context,
@@ -745,6 +752,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
         if (profile.isSsh) {
           final editResult = await showDialog<SshProfileEditorResult>(
             context: context,
+            useSafeArea: !context.usesMobileNavigation,
             builder: (dialogContext) => SshProfileEditorDialog(
               initialValue: profile,
               saveWhenPristine: false,
@@ -833,6 +841,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
         final edited = connectionType == NewProfileConnectionType.sshSession
             ? (await showDialog<SshProfileEditorResult>(
                 context: context,
+                useSafeArea: !context.usesMobileNavigation,
                 builder: (dialogContext) => SshProfileEditorDialog(
                   initialValue: template,
                   saveWhenPristine: true,

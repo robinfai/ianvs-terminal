@@ -782,6 +782,90 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
     );
   }
 
+  Widget _buildMobileSearch(BuildContext context) => Material(
+    key: const Key('terminal-search-bar'),
+    color: widget.palette.panel,
+    child: Padding(
+      padding: const EdgeInsets.all(8),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  key: const Key('terminal-search-field'),
+                  focusNode: widget.focusNode,
+                  controller: _controller,
+                  autofocus: true,
+                  autocorrect: false,
+                  enableSuggestions: false,
+                  textInputAction: TextInputAction.search,
+                  onChanged: widget.onChanged,
+                  onSubmitted: (_) => widget.focusNode.unfocus(),
+                  decoration: InputDecoration(
+                    hintText: context.l10n.searchTerminalOutput,
+                    prefixIcon: const Icon(Icons.search_rounded),
+                    suffixIcon: widget.query.isEmpty
+                        ? null
+                        : IconButton(
+                            key: const Key('terminal-search-clear'),
+                            tooltip: context.l10n.clearSearchText,
+                            onPressed: widget.onClear,
+                            icon: const Icon(Icons.cancel_outlined),
+                          ),
+                  ),
+                ),
+              ),
+              IconButton(
+                key: const Key('terminal-search-close'),
+                tooltip: context.l10n.closeSearch,
+                onPressed: widget.onClose,
+                icon: const Icon(Icons.close_rounded),
+              ),
+            ],
+          ),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  widget.errorText ?? _counterText,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+              PopupMenuButton<terminal.TerminalSearchMode>(
+                key: const Key('mobile-terminal-search-options'),
+                tooltip: context.l10n.mobileAdvanced,
+                icon: const Icon(Icons.tune_rounded),
+                onSelected: widget.onModeChanged,
+                itemBuilder: (context) => [
+                  for (final mode in terminal.TerminalSearchMode.values)
+                    CheckedPopupMenuItem(
+                      value: mode,
+                      checked: mode == widget.searchMode,
+                      child: Text(_searchModeLabel(mode)),
+                    ),
+                ],
+              ),
+              IconButton(
+                key: const Key('terminal-search-previous'),
+                tooltip: context.l10n.previousMatch,
+                onPressed: widget.matches == 0 ? null : widget.onPrevious,
+                icon: const Icon(Icons.keyboard_arrow_up_rounded),
+              ),
+              IconButton(
+                key: const Key('terminal-search-next'),
+                tooltip: context.l10n.nextMatch,
+                onPressed: widget.matches == 0 ? null : widget.onNext,
+                icon: const Icon(Icons.keyboard_arrow_down_rounded),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ),
+  );
+
   double get _preferredBarWidth {
     if (widget.query.isEmpty && widget.errorText == null) {
       return _searchBarIdleWidth;
@@ -791,6 +875,7 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
 
   @override
   Widget build(BuildContext context) {
+    if (context.usesMobileNavigation) return _buildMobileSearch(context);
     final preferredWidth = _preferredBarWidth;
     return Material(
       key: const Key('terminal-search-bar'),

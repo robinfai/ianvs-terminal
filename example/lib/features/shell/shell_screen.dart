@@ -32,6 +32,7 @@ import '../profiles/profile_editor.dart';
 import '../profiles/profile_models.dart';
 import '../profiles/profiles_sheet.dart';
 import '../recording/local_session_recording_repository.dart';
+import '../recording/mobile_replay_player.dart';
 import '../recording/recording_replay_search_index.dart';
 import '../recording/replay_viewport_layout.dart';
 import '../sessions/session_controller.dart';
@@ -68,6 +69,7 @@ part 'shell_screen_chrome_empty_states.dart';
 part 'shell_screen_command_menu.dart';
 part 'shell_screen_instant_replay.dart';
 part 'shell_screen_mobile_input.dart';
+part 'shell_screen_mobile_navigation.dart';
 part 'shell_screen_models.dart';
 part 'shell_screen_recording_library.dart';
 part 'shell_screen_replay_timeline.dart';
@@ -335,6 +337,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   String? _recordingLibraryError;
   List<LocalSessionRecordingEntry> _recordingEntries = const [];
   bool _recordingShelfOpen = false;
+  bool _mobileConnectionsOpen = false;
   int _recordingOpenGeneration = 0;
   int _recordingPlaybackGeneration = 0;
   FocusNode? _recordingReturnFocus;
@@ -1159,6 +1162,16 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       }
     }
 
+    final mobileNavigation = context.usesMobileNavigation && !referenceDemoMode;
+    final mobileHome =
+        mobileNavigation && (_mobileConnectionsOpen || activeSessionId == null);
+    final mobileDetail =
+        mobileNavigation &&
+        (_recordingShelfOpen ||
+            instantReplaySession != null ||
+            _selectedRecording != null ||
+            _isSftpPanelOpen);
+
     return Focus(
       canRequestFocus: false,
       onKeyEvent: (_, event) => handleShellShortcut(event),
@@ -1171,72 +1184,100 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _ShellChromeBar(
-                palette: palette,
-                onOpenReplay: referenceDemoMode
-                    ? null
-                    : () => unawaited(_openRecordingLibrary()),
-                onOpenSettings:
-                    referenceDemoMode ||
-                        Theme.of(context).platform != TargetPlatform.macOS
-                    ? null
-                    : () => unawaited(
-                        _openDefaultsAndAppearance(
-                          sessionController,
-                          sessionState,
+              if (!mobileNavigation)
+                _ShellChromeBar(
+                  palette: palette,
+                  onOpenReplay: referenceDemoMode
+                      ? null
+                      : () => unawaited(_openRecordingLibrary()),
+                  onOpenSettings:
+                      referenceDemoMode ||
+                          Theme.of(context).platform != TargetPlatform.macOS
+                      ? null
+                      : () => unawaited(
+                          _openDefaultsAndAppearance(
+                            sessionController,
+                            sessionState,
+                          ),
                         ),
-                      ),
-                onSearch:
-                    !referenceDemoMode &&
-                        Theme.of(context).platform == TargetPlatform.macOS &&
-                        activeSessionId != null
-                    ? _openSearch
-                    : null,
-                terminalBackgroundColor: shellChromeBackground,
-                tabStripKey: _sessionDropTabStripKey,
-                paneDropInsertionIndex: _sessionTabDropInsertionIndex,
-                tabs: sessionState.tabs,
-                activeSessionId: activeSessionId,
-                tabHasNewOutput: _tabHasNewOutput,
-                tabNewOutputTooltip: _tabNewOutputTooltip,
-                hiddenTabsNewOutputTooltip: _hiddenTabsNewOutputTooltip,
-                hiddenTabsNewOutputPaneSessionId:
-                    _hiddenTabsNewOutputPaneSessionId,
-                tabNewOutputPaneSessionId: _tabNewOutputPaneSessionId,
-                tabColor: (tab) => _tabProfileColor(sessionState, tab),
-                referenceDemoMode: referenceDemoMode,
-                onNewTab: canOpenNewSession
-                    ? () => unawaited(
-                        _openNewSessionLauncher(
-                          sessionController,
-                          sessionState,
+                  onSearch:
+                      !referenceDemoMode &&
+                          Theme.of(context).platform == TargetPlatform.macOS &&
+                          activeSessionId != null
+                      ? _openSearch
+                      : null,
+                  terminalBackgroundColor: shellChromeBackground,
+                  tabStripKey: _sessionDropTabStripKey,
+                  paneDropInsertionIndex: _sessionTabDropInsertionIndex,
+                  tabs: sessionState.tabs,
+                  activeSessionId: activeSessionId,
+                  tabHasNewOutput: _tabHasNewOutput,
+                  tabNewOutputTooltip: _tabNewOutputTooltip,
+                  hiddenTabsNewOutputTooltip: _hiddenTabsNewOutputTooltip,
+                  hiddenTabsNewOutputPaneSessionId:
+                      _hiddenTabsNewOutputPaneSessionId,
+                  tabNewOutputPaneSessionId: _tabNewOutputPaneSessionId,
+                  tabColor: (tab) => _tabProfileColor(sessionState, tab),
+                  referenceDemoMode: referenceDemoMode,
+                  onNewTab: canOpenNewSession
+                      ? () => unawaited(
+                          _openNewSessionLauncher(
+                            sessionController,
+                            sessionState,
+                          ),
+                        )
+                      : null,
+                  onActivateSession: (sessionId) =>
+                      _activateSession(sessionController, sessionId),
+                  onActivateBadgePane: (sessionId) =>
+                      _activateSession(sessionController, sessionId),
+                  onNotificationInteraction: _handleOscNotificationInteraction,
+                  onActivateNewOutputPane: (sessionId) =>
+                      _activateSession(sessionController, sessionId),
+                  onCloseSession: (sessionId) =>
+                      _closeTab(sessionController, sessionState, sessionId),
+                  onReorderTab: sessionController.reorderTab,
+                  onSessionDragStarted: _startSessionDrag,
+                  onSessionDragUpdated: _updateSessionDrag,
+                  onSessionDragEnded: (data) =>
+                      _finishSessionDrag(sessionController, data),
+                  onSessionDragCancelled: _cancelSessionDrag,
+                  onShowTabContextMenu: (tab, position) => _openTabContextMenu(
+                    sessionController,
+                    ref.read(sessionControllerProvider),
+                    tab,
+                    position,
+                  ),
+                  onShowCommandMenu: () =>
+                      _openCommandMenu(sessionController, sessionState),
+                )
+              else if (!mobileDetail)
+                _MobileShellHeader(
+                  title: mobileHome
+                      ? context.l10n.mobileConnections
+                      : (activeTab?.title ?? context.l10n.terminal),
+                  onReplay: () => unawaited(_openRecordingLibrary()),
+                  onSettings: () => unawaited(
+                    _openDefaultsAndAppearance(sessionController, sessionState),
+                  ),
+                  onBack: mobileHome ? null : _showMobileConnections,
+                  onSessions: mobileHome
+                      ? null
+                      : () => unawaited(
+                          _showMobileSessions(sessionController, sessionState),
                         ),
-                      )
-                    : null,
-                onActivateSession: (sessionId) =>
-                    _activateSession(sessionController, sessionId),
-                onActivateBadgePane: (sessionId) =>
-                    _activateSession(sessionController, sessionId),
-                onNotificationInteraction: _handleOscNotificationInteraction,
-                onActivateNewOutputPane: (sessionId) =>
-                    _activateSession(sessionController, sessionId),
-                onCloseSession: (sessionId) =>
-                    _closeTab(sessionController, sessionState, sessionId),
-                onReorderTab: sessionController.reorderTab,
-                onSessionDragStarted: _startSessionDrag,
-                onSessionDragUpdated: _updateSessionDrag,
-                onSessionDragEnded: (data) =>
-                    _finishSessionDrag(sessionController, data),
-                onSessionDragCancelled: _cancelSessionDrag,
-                onShowTabContextMenu: (tab, position) => _openTabContextMenu(
-                  sessionController,
-                  ref.read(sessionControllerProvider),
-                  tab,
-                  position,
-                ),
-                onShowCommandMenu: () =>
+                  onFiles:
+                      !mobileHome &&
+                          _sftpTargetFor(sessionState, activeSessionId) != null
+                      ? () {
+                          FocusManager.instance.primaryFocus?.unfocus();
+                          _openSftpPanel(sessionState, activeSessionId);
+                        }
+                      : null,
+                  onMore: () => unawaited(
                     _openCommandMenu(sessionController, sessionState),
-              ),
+                  ),
+                ),
               if (sessionState.configurationWarnings.isNotEmpty)
                 _ShellConfigurationWarningsBanner(
                   palette: palette,
@@ -1316,6 +1357,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                         _selectedRecordingEntry != null &&
                             _selectedRecording != null
                         ? _RecordingReplayLayout(
+                            mobile: mobileNavigation,
                             key: ValueKey((
                               _selectedRecordingEntry!.path,
                               _recordingPlaybackGeneration,
@@ -1332,6 +1374,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                           )
                         : instantReplaySession != null
                         ? _InstantReplayLayout(
+                            mobile: mobileNavigation,
                             key: const Key('instant-replay-layout'),
                             layout: instantReplaySession,
                             palette: palette,
@@ -1387,12 +1430,23 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                 displayedProfile?.name ?? context.l10n.terminal,
                             palette: palette,
                           )
-                        : activeSessionId == null || activeTab == null
+                        : mobileHome ||
+                              activeSessionId == null ||
+                              activeTab == null
                         ? launchPolicy.isSshOnly
                               ? _SshOnlyShellEmptyState(
                                   key: const Key('shell-empty-state'),
                                   palette: palette,
                                   profiles: sessionState.profiles,
+                                  sessions: mobileNavigation
+                                      ? sessionState.tabs
+                                      : const [],
+                                  onResumeSession: (id) =>
+                                      _activateSession(sessionController, id),
+                                  onManageProfiles: () => _openProfilesSheet(
+                                    sessionController,
+                                    sessionState,
+                                  ),
                                   onOpenProfile: (profile) => _createSession(
                                     sessionController,
                                     profile,
@@ -1483,24 +1537,52 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
               if (!referenceDemoMode &&
                   defaultTargetPlatform == TargetPlatform.iOS &&
                   !_recordingShelfOpen &&
+                  !_isSftpPanelOpen &&
+                  !_isSearchOpen &&
+                  !mobileHome &&
                   _selectedRecording == null &&
                   instantReplaySession == null &&
                   activeSessionId != null)
-                _IosTerminalInputBar(
-                  key: const Key('ios-terminal-input-bar'),
-                  palette: palette,
-                  fontScale: _mobileFontScaleFor(activeSessionId),
-                  keyboardVisible: MediaQuery.viewInsetsOf(context).bottom > 0,
-                  onSendBytes: (bytes) =>
-                      _sendMobileTerminalBytes(activeSessionId, bytes),
-                  onDecreaseFont: () =>
-                      _stepMobileTerminalFont(activeSessionId, -0.1),
-                  onIncreaseFont: () =>
-                      _stepMobileTerminalFont(activeSessionId, 0.1),
-                  onResetFont: () => _resetMobileTerminalFont(activeSessionId),
-                  onDismissKeyboard: () =>
-                      _dismissMobileTerminalKeyboard(activeSessionId),
-                ),
+                if (MediaQuery.viewInsetsOf(context).bottom == 0)
+                  _MobileTerminalToolbar(
+                    onKeyboard: () => _focusSession(activeSessionId),
+                    onSearch: _openSearch,
+                    onReplay: () => unawaited(_openRecordingLibrary()),
+                    onRecording:
+                        sessionState.recordingBusySessionIds.contains(
+                          activeSessionId,
+                        )
+                        ? null
+                        : () => unawaited(
+                            _toggleActiveSessionRecording(
+                              sessionController,
+                              activeSessionId,
+                            ),
+                          ),
+                    recording: sessionState.recordingSessionIds.contains(
+                      activeSessionId,
+                    ),
+                    pendingSave: sessionState.recordingPendingSaveSessionIds
+                        .contains(activeSessionId),
+                  )
+                else
+                  _IosTerminalInputBar(
+                    key: const Key('ios-terminal-input-bar'),
+                    palette: palette,
+                    fontScale: _mobileFontScaleFor(activeSessionId),
+                    keyboardVisible:
+                        MediaQuery.viewInsetsOf(context).bottom > 0,
+                    onSendBytes: (bytes) =>
+                        _sendMobileTerminalBytes(activeSessionId, bytes),
+                    onDecreaseFont: () =>
+                        _stepMobileTerminalFont(activeSessionId, -0.1),
+                    onIncreaseFont: () =>
+                        _stepMobileTerminalFont(activeSessionId, 0.1),
+                    onResetFont: () =>
+                        _resetMobileTerminalFont(activeSessionId),
+                    onDismissKeyboard: () =>
+                        _dismissMobileTerminalKeyboard(activeSessionId),
+                  ),
             ],
           ),
         ).withSafeArea,

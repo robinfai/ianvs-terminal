@@ -1765,18 +1765,25 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AppConfigurationTheme(child: Builder(builder: _buildThemedDialog));
+    return _buildThemedDialog(context);
   }
 
   Widget _buildThemedDialog(BuildContext context) {
     final theme = context.appTheme;
     final screenSize = MediaQuery.sizeOf(context);
     final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
-    final dialogWidth = math.min(screenSize.width - 32, 940.0);
-    final dialogHeight = math.max(
-      0.0,
-      math.min(screenSize.height - keyboardInset - 32, 700.0),
-    );
+    final mobile =
+        context.usesTouchControlDensity && screenSize.shortestSide < 600;
+    final pageInset = mobile ? theme.spacing.lg : theme.spacing.xxl;
+    final dialogWidth = mobile
+        ? screenSize.width
+        : math.min(screenSize.width - 32, 940.0);
+    final dialogHeight = mobile
+        ? screenSize.height - keyboardInset
+        : math.max(
+            0.0,
+            math.min(screenSize.height - keyboardInset - 32, 700.0),
+          );
 
     return PopScope<TerminalProfile?>(
       canPop: _allowClose || !_didEdit,
@@ -1794,12 +1801,14 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
         child: AppDialogScaffold(
           key: const Key('profile-editor-dialog'),
           title: widget.title ?? context.l10n.editProfile,
-          subtitle: _nameController.text.trim().isEmpty
+          subtitle: mobile || _nameController.text.trim().isEmpty
               ? null
               : _nameController.text.trim(),
           onClose: () => unawaited(_closeWithResult(null)),
           closeTooltip: context.l10n.closeProfileEditor,
-          insetPadding: EdgeInsets.all(theme.spacing.md),
+          insetPadding: EdgeInsets.all(mobile ? 0 : theme.spacing.md),
+          centerInViewport: !mobile,
+          borderRadius: mobile ? BorderRadius.zero : null,
           constraints: const BoxConstraints(maxWidth: 940),
           width: dialogWidth,
           height: dialogHeight,
@@ -1811,14 +1820,14 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
             context,
           ).textTheme.bodyMedium?.copyWith(color: theme.textSubtle),
           headerPadding: EdgeInsets.only(
-            left: theme.spacing.xxl,
+            left: pageInset,
             top: theme.spacing.lg,
-            right: theme.spacing.xxl,
+            right: pageInset,
             bottom: theme.spacing.lg,
           ),
           bodyPadding: EdgeInsets.zero,
           footerPadding: EdgeInsets.symmetric(
-            horizontal: theme.spacing.xxl,
+            horizontal: pageInset,
             vertical: theme.spacing.lg,
           ),
           body: Form(
@@ -1845,9 +1854,9 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                     key: const Key('profile-editor-scroll-view'),
                     controller: _scrollController,
                     padding: EdgeInsets.only(
-                      left: theme.spacing.xxl,
+                      left: pageInset,
                       top: theme.spacing.xxl,
-                      right: theme.spacing.xxl,
+                      right: pageInset,
                       bottom: theme.spacing.xxl,
                     ),
                     child: Column(
@@ -2593,9 +2602,9 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                   children: [
                     Padding(
                       padding: EdgeInsets.only(
-                        left: theme.spacing.xl,
-                        top: theme.spacing.xl,
-                        right: theme.spacing.xl,
+                        left: pageInset,
+                        top: theme.spacing.lg,
+                        right: pageInset,
                       ),
                       child: sectionNavigation,
                     ),
@@ -2605,33 +2614,54 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
               },
             ),
           ),
-          footer: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  context.l10n.configurationNewSessionHint,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(color: theme.textSubtle),
-                ),
-              ),
-              SizedBox(width: theme.spacing.lg),
-              AppActionButton(
+          footer: LayoutBuilder(
+            builder: (context, constraints) {
+              final hint = Text(
+                context.l10n.configurationNewSessionHint,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: theme.textSubtle),
+              );
+              final cancel = AppActionButton(
                 buttonKey: const Key('profile-editor-cancel'),
                 tone: AppActionTone.secondary,
                 label: context.l10n.cancel,
                 onPressed: () => unawaited(_closeWithResult(null)),
-              ),
-              SizedBox(width: theme.spacing.sm),
-              AppActionButton(
+              );
+              final save = AppActionButton(
                 buttonKey: const Key('profile-editor-save'),
                 icon: Icons.save_outlined,
                 label: context.l10n.save,
                 onPressed: (!_didEdit && !widget.saveWhenPristine)
                     ? null
                     : () => unawaited(_save()),
-              ),
-            ],
+              );
+              if (constraints.maxWidth < 520) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    hint,
+                    SizedBox(height: theme.spacing.sm),
+                    Row(
+                      children: [
+                        Expanded(child: cancel),
+                        SizedBox(width: theme.spacing.sm),
+                        Expanded(child: save),
+                      ],
+                    ),
+                  ],
+                );
+              }
+              return Row(
+                children: [
+                  Expanded(child: hint),
+                  SizedBox(width: theme.spacing.lg),
+                  cancel,
+                  SizedBox(width: theme.spacing.sm),
+                  save,
+                ],
+              );
+            },
           ),
         ),
       ),
@@ -3850,7 +3880,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
       onClose: () {
         Navigator.of(context).pop(const _ColorPickerResult(applied: false));
       },
-      height: 472,
+      height: 560,
       expandBody: true,
       constraints: const BoxConstraints(maxWidth: 480),
       headerPadding: EdgeInsets.fromLTRB(

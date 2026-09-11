@@ -42,6 +42,7 @@ extension _ShellScreenRecordingLibraryState on _ShellScreenState {
       _invalidateRecordingOpen();
       _recordingShelfOpen = false;
     });
+    if (context.usesMobileNavigation) return;
     final generation = _recordingOpenGeneration;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_isCurrentRecordingOpen(generation) || _recordingShelfOpen) return;
@@ -120,6 +121,7 @@ extension _ShellScreenRecordingLibraryState on _ShellScreenState {
     LocalSessionRecordingEntry entry,
     terminal.TerminalRecording recording,
   ) {
+    FocusManager.instance.primaryFocus?.unfocus();
     _mutateState(() {
       _recordingShelfOpen = false;
       _recordingReturnFocus = null;
@@ -192,6 +194,10 @@ extension _ShellScreenRecordingLibraryState on _ShellScreenState {
       _selectedRecordingEntry = null;
       _selectedRecording = null;
     });
-    _focusSession(ref.read(sessionControllerProvider).activeSessionId);
+    if (context.usesMobileNavigation) {
+      unawaited(_openRecordingLibrary());
+    } else {
+      _focusSession(ref.read(sessionControllerProvider).activeSessionId);
+    }
   }
 }

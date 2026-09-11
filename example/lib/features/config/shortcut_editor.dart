@@ -158,6 +158,24 @@ class _ShortcutEditorPanelState extends State<ShortcutEditorPanel> {
     final query = _filterController.text.trim().toLowerCase();
     final actions = ShellActionRegistry.actions.values
         .where((descriptor) {
+          if (context.usesMobileNavigation &&
+              const {
+                TerminalActionId.exportDiagnostics,
+                TerminalActionId.openTerminalAtFolder,
+                TerminalActionId.focusNextPane,
+                TerminalActionId.focusPreviousPane,
+                TerminalActionId.closePane,
+                TerminalActionId.reopenClosedPane,
+                TerminalActionId.requestQuitConfirmation,
+                TerminalActionId.splitRight,
+                TerminalActionId.splitDown,
+                TerminalActionId.resizePane,
+                TerminalActionId.swapPane,
+                TerminalActionId.zoomPane,
+                TerminalActionId.duplicateCurrentCwd,
+              }.contains(descriptor.id)) {
+            return false;
+          }
           if (!ShellActionRegistry.hasUserEntryPoint(descriptor.id) ||
               descriptor.id == TerminalActionId.activateTab) {
             return false;
@@ -457,6 +475,46 @@ class _ShortcutEditorPanelState extends State<ShortcutEditorPanel> {
       SizedBox(height: theme.spacing.xl),
     ];
 
+    if (widget.expandList && context.usesTouchControlDensity) {
+      // Filters must scroll with the list when Dynamic Type or the keyboard
+      // leaves little height. A fixed toolbar can otherwise consume the viewport.
+      return CustomScrollView(
+        key: const Key('shortcut-editor-list'),
+        controller: _listScrollController,
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        slivers: [
+          SliverToBoxAdapter(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: fixedContent,
+            ),
+          ),
+          if (visibleActions.isEmpty)
+            SliverToBoxAdapter(
+              child: AppEmptyState(
+                title: context.l10n.noMatchingActions,
+                message: context.l10n.tryAnotherActionOrCategory,
+              ),
+            ),
+          SliverList.separated(
+            itemCount: visibleActions.length,
+            separatorBuilder: (_, _) => Divider(height: 1, color: theme.border),
+            itemBuilder: (context, index) {
+              final descriptor = visibleActions[index];
+              return _ShortcutActionRow(
+                descriptor: descriptor,
+                config: widget.config,
+                customized: _isCustomized(descriptor.id),
+                conflicted: conflictingActionIds.contains(descriptor.id),
+                onEdit: () => _editBinding(descriptor),
+                onDisable: () => _disableBinding(descriptor.id),
+                onRestore: () => _restoreBinding(descriptor.id),
+              );
+            },
+          ),
+        ],
+      );
+    }
     if (widget.expandList) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -466,12 +524,15 @@ class _ShortcutEditorPanelState extends State<ShortcutEditorPanel> {
         ],
       );
     }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        ...fixedContent,
-        SizedBox(height: 360, child: list),
-      ],
+    return SingleChildScrollView(
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ...fixedContent,
+          SizedBox(height: 360, child: list),
+        ],
+      ),
     );
   }
 }

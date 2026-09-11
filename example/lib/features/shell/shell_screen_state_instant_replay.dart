@@ -272,6 +272,7 @@ extension _ShellScreenStateInstantReplay on _ShellScreenState {
     if (activeSessionIdBeforeOpen == null) {
       return;
     }
+    FocusManager.instance.primaryFocus?.unfocus();
     _mutateState(_invalidateRecordingOpen);
     final generation = _recordingOpenGeneration;
     await _seedInstantReplayFrame(activeSessionIdBeforeOpen);
@@ -308,6 +309,10 @@ extension _ShellScreenStateInstantReplay on _ShellScreenState {
         : _profileForPane(pane, sessionState.profiles);
     final tabTitle = tab?.title.trim();
     final profileName = profile?.name.trim();
+    if (context.usesMobileNavigation)
+      return tabTitle?.isNotEmpty == true
+          ? tabTitle!
+          : (profileName ?? context.l10n.mobileReplay);
     return [
       if (tabTitle != null && tabTitle.isNotEmpty) tabTitle,
       if (profileName != null && profileName.isNotEmpty) profileName,
@@ -328,6 +333,10 @@ extension _ShellScreenStateInstantReplay on _ShellScreenState {
       _invalidateRecordingOpen();
       _instantReplayLayoutSession = null;
     });
+    if (context.usesMobileNavigation) {
+      unawaited(_openRecordingLibrary());
+      return;
+    }
     if (sourceSessionId == null) {
       return;
     }

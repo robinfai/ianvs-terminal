@@ -147,27 +147,39 @@ class _IosTerminalInputBar extends StatelessWidget {
           height: 52,
           child: Row(
             children: [
-              _IosTerminalBarButton(
-                key: const Key('ios-terminal-font-decrease'),
-                label: 'A−',
-                semanticLabel: context.l10n.decreaseTerminalTextSize,
-                palette: palette,
-                onPressed: onDecreaseFont,
-              ),
-              _IosTerminalBarButton(
-                key: const Key('ios-terminal-font-reset'),
-                label: '${(fontScale * 100).round()}%',
-                semanticLabel: context.l10n.resetTerminalTextSize,
-                palette: palette,
-                minWidth: 52,
-                onPressed: onResetFont,
-              ),
-              _IosTerminalBarButton(
-                key: const Key('ios-terminal-font-increase'),
-                label: 'A+',
-                semanticLabel: context.l10n.increaseTerminalTextSize,
-                palette: palette,
-                onPressed: onIncreaseFont,
+              PopupMenuButton<String>(
+                key: const Key('ios-terminal-text-size'),
+                tooltip: context.l10n.mobileFontSize,
+                icon: const Icon(Icons.text_fields_rounded),
+                onSelected: (value) {
+                  switch (value) {
+                    case 'smaller':
+                      onDecreaseFont();
+                    case 'reset':
+                      onResetFont();
+                    case 'larger':
+                      onIncreaseFont();
+                  }
+                },
+                itemBuilder: (context) => [
+                  PopupMenuItem(
+                    value: 'smaller',
+                    key: const Key('ios-terminal-font-decrease'),
+                    child: Text(context.l10n.decreaseTerminalTextSize),
+                  ),
+                  PopupMenuItem(
+                    value: 'reset',
+                    key: const Key('ios-terminal-font-reset'),
+                    child: Text(
+                      '${context.l10n.resetTerminalTextSize} · ${(fontScale * 100).round()}%',
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'larger',
+                    key: const Key('ios-terminal-font-increase'),
+                    child: Text(context.l10n.increaseTerminalTextSize),
+                  ),
+                ],
               ),
               VerticalDivider(
                 width: 1,

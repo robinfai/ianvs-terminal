@@ -167,7 +167,7 @@ void main() {
   });
 
   testWidgets(
-    'iPhone optional setup keeps remote API primary without opening keyboard',
+    'iPhone starts locally and exposes sync as an optional setup',
     (tester) async {
       final harness = _HostHarness.create(
         initialSetupRequirement: AppStartupDataSetupRequirement.optional,
@@ -179,24 +179,30 @@ void main() {
       await harness.coordinator.start();
       await tester.pump();
 
+      expect(
+        find.byKey(const Key('app-startup-mobile-welcome')),
+        findsOneWidget,
+      );
+      expect(find.byType(TextField), findsNothing);
+      expect(
+        tester.widget(find.byKey(const Key('app-startup-skip-data-api'))),
+        isA<FilledButton>(),
+      );
+      await tester.tap(find.byKey(const Key('mobile-setup-sync')));
+      await tester.pumpAndSettle();
       final urlField = tester.widget<TextField>(
         find.byKey(const Key('app-startup-initial-data-api-url')),
       );
       expect(urlField.autofocus, isFalse);
       expect(
-        tester
-            .widget<SingleChildScrollView>(find.byType(SingleChildScrollView))
-            .keyboardDismissBehavior,
-        ScrollViewKeyboardDismissBehavior.onDrag,
+        find.byKey(const Key('app-startup-connect-data-api')),
+        findsOneWidget,
       );
-      expect(find.text('Continue without data service'), findsOneWidget);
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
       expect(
-        tester.widget(find.byKey(const Key('app-startup-skip-data-api'))),
-        isA<TextButton>(),
-      );
-      expect(
-        tester.widget(find.byKey(const Key('app-startup-connect-data-api'))),
-        isA<FilledButton>(),
+        find.byKey(const Key('app-startup-mobile-welcome')),
+        findsOneWidget,
       );
     },
     variant: const TargetPlatformVariant(<TargetPlatform>{TargetPlatform.iOS}),
@@ -220,6 +226,8 @@ void main() {
       await harness.coordinator.start();
       await tester.pumpAndSettle();
 
+      await tester.tap(find.byKey(const Key('mobile-setup-sync')));
+      await tester.pumpAndSettle();
       final username = find.byKey(
         const Key('app-startup-initial-data-api-username'),
       );

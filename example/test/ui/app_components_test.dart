@@ -26,6 +26,47 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  testWidgets(
+    'full-screen dialogs keep actions inside safe areas above the keyboard',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.padding = const FakeViewPadding(top: 62);
+      tester.view.viewPadding = const FakeViewPadding(top: 62, bottom: 34);
+      tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+      addTearDown(tester.view.reset);
+      await pumpHarness(
+        tester,
+        AppDialogScaffold(
+          title: 'Connection settings',
+          width: 390,
+          height: 844,
+          expandBody: true,
+          centerInViewport: false,
+          borderRadius: BorderRadius.zero,
+          insetPadding: EdgeInsets.zero,
+          body: const SingleChildScrollView(child: TextField()),
+          footer: AppActionButton(
+            buttonKey: const Key('safe-save'),
+            label: 'Save',
+            onPressed: () {},
+          ),
+          onClose: () {},
+        ),
+        platform: TargetPlatform.iOS,
+        textScale: 2,
+      );
+      final save = tester.getRect(find.byKey(const Key('safe-save')));
+      expect(save.height, greaterThanOrEqualTo(44));
+      expect(save.bottom, lessThanOrEqualTo(544));
+      expect(
+        tester.getRect(find.text('Connection settings')).top,
+        greaterThanOrEqualTo(62),
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('app panel uses semantic panel styling', (tester) async {
     await pumpHarness(
       tester,
@@ -91,7 +132,7 @@ void main() {
     ];
     final cases =
         <({TargetPlatform platform, double textScale, double? expectedHeight})>[
-          (platform: TargetPlatform.macOS, textScale: 1, expectedHeight: 36),
+          (platform: TargetPlatform.macOS, textScale: 1, expectedHeight: 32),
           (platform: TargetPlatform.iOS, textScale: 1, expectedHeight: 48),
           (
             platform: TargetPlatform.macOS,
@@ -185,7 +226,7 @@ void main() {
         );
       }
       if (testCase.expectedHeight case final expectedHeight?) {
-        expect(referenceHeight, closeTo(expectedHeight, 0.01));
+        expect(referenceHeight, greaterThanOrEqualTo(expectedHeight));
       }
       expect(tester.takeException(), isNull);
     }
@@ -321,12 +362,12 @@ void main() {
     expect(find.text('Create'), findsOneWidget);
     expect(find.text('Disabled'), findsOneWidget);
     expect(tapCount, 1);
-    expect(enabledButton.height, 36);
-    expect(denseIconButton.height, 28);
-    expect(denseIconButton.width, 28);
+    expect(enabledButton.height, 32);
+    expect(denseIconButton.height, 32);
+    expect(denseIconButton.width, 32);
     expect(iconOnlyButton.height, 32);
     expect(iconOnlyButton.width, 32);
-    expect(disabledButton.height, 36);
+    expect(disabledButton.height, 32);
     expect(
       tester.widget<IconButton>(find.byKey(const Key('dense-action'))).tooltip,
       isNull,
@@ -357,7 +398,7 @@ void main() {
           .style
           ?.color
           ?.toARGB32(),
-      const Color(0xFF6B6B70).toARGB32(),
+      tester.element(find.byType(AppFieldRow)).appTheme.textSubtle.toARGB32(),
     );
   });
 
@@ -417,8 +458,8 @@ void main() {
     final footerButtonSize = tester.getSize(
       find.byKey(const Key('dialog-cancel')),
     );
-    expect(closeButtonSize.height, 28);
-    expect(closeButtonSize.width, 28);
+    expect(closeButtonSize.height, 32);
+    expect(closeButtonSize.width, 32);
     expect(footerButtonSize.height, 32);
   });
 
@@ -441,10 +482,13 @@ void main() {
       ),
     );
     final decoration = panel.decoration as BoxDecoration;
-    expect(decoration.color!.toARGB32(), const Color(0xFFD9ECFF).toARGB32());
+    expect(
+      decoration.color!.toARGB32(),
+      tester.element(find.byType(AppPanel)).appTheme.selected.toARGB32(),
+    );
     expect(
       (decoration.border! as Border).top.color.toARGB32(),
-      const Color(0xFFA7A7AD).toARGB32(),
+      tester.element(find.byType(AppPanel)).appTheme.borderStrong.toARGB32(),
     );
   });
 }

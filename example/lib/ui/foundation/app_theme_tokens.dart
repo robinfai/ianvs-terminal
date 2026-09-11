@@ -534,9 +534,18 @@ extension AppThemeBuildContext on BuildContext {
   bool get usesTouchControlDensity =>
       Theme.of(this).materialTapTargetSize == MaterialTapTargetSize.padded;
 
+  /// Compact touch windows use task pages instead of desktop tool palettes.
+  /// The shortest side keeps this navigation stable when a phone rotates.
+  bool get usesMobileNavigation =>
+      usesTouchControlDensity && MediaQuery.sizeOf(this).shortestSide < 600;
+
   double get minimumInteractiveDimension =>
-      usesTouchControlDensity ? 48 : appTheme.controls.dense;
+      usesTouchControlDensity && appTheme.controls.dense < 44
+      ? 44
+      : appTheme.controls.dense;
 
   double adaptiveControlHeight(double compactHeight) =>
-      usesTouchControlDensity && compactHeight < 48 ? 48 : compactHeight;
+      usesTouchControlDensity && compactHeight < minimumInteractiveDimension
+      ? minimumInteractiveDimension
+      : compactHeight;
 }

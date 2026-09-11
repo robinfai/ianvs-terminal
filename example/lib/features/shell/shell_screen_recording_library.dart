@@ -18,6 +18,18 @@ class _RecordingLibraryLayout extends StatelessWidget {
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
+      if (context.usesMobileNavigation) {
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            Offstage(
+              offstage: shelfOpen,
+              child: ExcludeFocus(excluding: shelfOpen, child: layout),
+            ),
+            if (shelfOpen) Positioned.fill(child: shelf),
+          ],
+        );
+      }
       final compact = constraints.maxWidth < 960;
       return Stack(
         children: [
@@ -132,36 +144,44 @@ class _SavedRecordingsShelf extends StatelessWidget {
     ),
   );
 
-  Widget _header(BuildContext context) => Padding(
-    padding: EdgeInsets.fromLTRB(
-      palette.spacing.lg,
-      palette.spacing.sm,
-      palette.spacing.sm,
-      palette.spacing.sm,
-    ),
-    child: Row(
-      children: [
-        Expanded(
-          child: Text(
-            context.l10n.replayHubTitle,
-            style: Theme.of(context).textTheme.titleMedium,
+  Widget _header(BuildContext context) {
+    final mobile = context.usesMobileNavigation;
+    final close = MergeSemantics(
+      child: Semantics(
+        label: mobile ? context.l10n.mobileBack : context.l10n.close,
+        child: IconButton(
+          key: const Key('recording-library-close'),
+          autofocus: !mobile,
+          tooltip: mobile ? context.l10n.mobileBack : context.l10n.close,
+          onPressed: onClose,
+          icon: Icon(
+            mobile ? Icons.arrow_back_ios_new_rounded : Icons.close_rounded,
           ),
         ),
-        MergeSemantics(
-          child: Semantics(
-            label: context.l10n.close,
-            child: IconButton(
-              key: const Key('recording-library-close'),
-              autofocus: true,
-              tooltip: context.l10n.close,
-              onPressed: onClose,
-              icon: const Icon(Icons.close_rounded),
+      ),
+    );
+    return Padding(
+      padding: EdgeInsets.symmetric(
+        horizontal: palette.spacing.sm,
+        vertical: palette.spacing.sm,
+      ),
+      child: Row(
+        children: [
+          if (mobile) close,
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(left: palette.spacing.sm),
+              child: Text(
+                context.l10n.replayHubTitle,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
             ),
           ),
-        ),
-      ],
-    ),
-  );
+          if (!mobile) close,
+        ],
+      ),
+    );
+  }
 
   Widget _contents(BuildContext context) {
     final ordered = [...entries]
@@ -178,7 +198,8 @@ class _SavedRecordingsShelf extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _recent(context),
+                if (!context.usesMobileNavigation || onRecent != null)
+                  _recent(context),
                 SizedBox(height: palette.spacing.lg),
                 const Divider(),
                 SizedBox(height: palette.spacing.sm),
@@ -206,7 +227,8 @@ class _SavedRecordingsShelf extends StatelessWidget {
       children: [
         Text(l10n.replayRecentTitle, style: textTheme.titleSmall),
         SizedBox(height: palette.spacing.xs),
-        Text(l10n.replayRecentExplanation, style: textTheme.bodySmall),
+        if (!context.usesMobileNavigation)
+          Text(l10n.replayRecentExplanation, style: textTheme.bodySmall),
         SizedBox(height: palette.spacing.sm),
         OutlinedButton.icon(
           key: const Key('shell-replay-recent-activity'),
@@ -246,12 +268,14 @@ class _SavedRecordingsShelf extends StatelessWidget {
             ),
           ],
         ),
-        Text(
-          l10n.replaySavedExplanation,
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
+        if (!context.usesMobileNavigation)
+          Text(
+            l10n.replaySavedExplanation,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
         SizedBox(height: palette.spacing.sm),
-        if (onRecent != null) _recordingButton(context),
+        if (!context.usesMobileNavigation && onRecent != null)
+          _recordingButton(context),
         OutlinedButton.icon(
           key: const Key('recording-library-open-file'),
           onPressed: selectionLoading ? null : onOpenFile,
@@ -301,7 +325,9 @@ class _SavedRecordingsShelf extends StatelessWidget {
         Padding(
           padding: EdgeInsets.symmetric(vertical: palette.spacing.lg),
           child: Text(
-            context.l10n.replayLibraryEmpty,
+            context.usesMobileNavigation
+                ? context.l10n.mobileSavedEmpty
+                : context.l10n.replayLibraryEmpty,
             key: const Key('recording-library-empty'),
           ),
         ),
@@ -343,6 +369,7 @@ class _SavedRecordingsShelf extends StatelessWidget {
 class _RecordingReplayLayout extends StatefulWidget {
   const _RecordingReplayLayout({
     super.key,
+    this.mobile = false,
     required this.palette,
     required this.entry,
     required this.recording,
@@ -354,6 +381,7 @@ class _RecordingReplayLayout extends StatefulWidget {
     required this.onClose,
   });
 
+  final bool mobile;
   final AppThemeTokens palette;
   final LocalSessionRecordingEntry entry;
   final terminal.TerminalRecording recording;
@@ -504,6 +532,9 @@ class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
         },
       );
       final replayController = terminal.TerminalReplayController(
+        initialTimeMode: widget.mobile
+            ? terminal.TerminalReplayTimeMode.realTime
+            : terminal.TerminalReplayTimeMode.smart,
         driver: replayDriver,
         navigationOffsets: _recordingNavigationOffsets(widget.recording),
         smartAnchors: _recordingPlaybackAnchors(widget.recording),
@@ -802,6 +833,84 @@ class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
       );
     }
 
+    final replayViewport = ReplayViewportFrame(
+      backgroundColor: widget.terminalColors.canvasBackground,
+      borderRadius: BorderRadius.circular(palette.radius.lg),
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child:
+                errorMessage != null ||
+                    runtime == null ||
+                    sessionId == null ||
+                    viewportController == null ||
+                    _selectionController == null ||
+                    _inputController == null
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Text(
+                        errorMessage ?? context.l10n.preparingReplay,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: palette.textMuted),
+                      ),
+                    ),
+                  )
+                : TerminalViewport(
+                    key: const Key('recording-replay-viewport'),
+                    controller: viewportController,
+                    selectionController: _selectionController!,
+                    inputController: _inputController!,
+                    focusNode: _focusNode,
+                    contentPadding: const EdgeInsets.all(12),
+                    colors: widget.terminalColors,
+                    useFrameDefaultColors: false,
+                    font: widget.font,
+                    cursor: widget.cursor,
+                    onMeasuredCellSizeChanged: (cellSize) {
+                      if (_measuredReplayCellSize == cellSize) {
+                        return;
+                      }
+                      setState(() {
+                        _measuredReplayCellSize = cellSize;
+                      });
+                    },
+                    graphicsCache: runtime.graphicsCacheFor(sessionId),
+                    searchMatches: _searchMatches,
+                    activeSearchMatchIndex: _searchMatches.isEmpty
+                        ? -1
+                        : _activeSearchMatchIndex,
+                    onScrollLines: (delta) =>
+                        runtime.scrollViewport(sessionId, delta),
+                    onScrollToOffset: (offset) =>
+                        runtime.scrollViewportTo(sessionId, offset),
+                    onOpenLink: (url) =>
+                        unawaited(WindowBridge.openExternalUrl(url)),
+                  ),
+          ),
+        ],
+      ),
+    );
+    if (context.usesMobileNavigation) {
+      return MobileReplayPlayer(
+        controller: replayController,
+        title: widget.entry.displayName,
+        details: inputDisclosure,
+        viewport: replayViewport,
+        recordedViewportSize: recordedViewportSize,
+        onClose: widget.onClose,
+        onSearchChanged: _updateSearch,
+        searchSummary: _searchHits.isEmpty
+            ? null
+            : context.l10n.matchesAcrossReplay(_searchHits.length),
+        onSearchPrevious: _searchHits.isEmpty
+            ? null
+            : () => _moveSearchMatch(-1),
+        onSearchNext: _searchHits.isEmpty ? null : () => _moveSearchMatch(1),
+        onCopyVisible: () => unawaited(_copyVisible()),
+      );
+    }
+
     final replayLayout = ColoredBox(
       key: const Key('recording-replay-layout'),
       color: palette.canvas,
@@ -823,64 +932,7 @@ class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
             _lastReplayViewportSize = size;
           },
           onDockDragStateChanged: _handleDockDragStateChanged,
-          viewport: ReplayViewportFrame(
-            backgroundColor: widget.terminalColors.canvasBackground,
-            borderRadius: BorderRadius.circular(palette.radius.lg),
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child:
-                      errorMessage != null ||
-                          runtime == null ||
-                          sessionId == null ||
-                          viewportController == null ||
-                          _selectionController == null ||
-                          _inputController == null
-                      ? Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(24),
-                            child: Text(
-                              errorMessage ?? context.l10n.preparingReplay,
-                              textAlign: TextAlign.center,
-                              style: TextStyle(color: palette.textMuted),
-                            ),
-                          ),
-                        )
-                      : TerminalViewport(
-                          key: const Key('recording-replay-viewport'),
-                          controller: viewportController,
-                          selectionController: _selectionController!,
-                          inputController: _inputController!,
-                          focusNode: _focusNode,
-                          contentPadding: const EdgeInsets.all(12),
-                          colors: widget.terminalColors,
-                          useFrameDefaultColors: false,
-                          font: widget.font,
-                          cursor: widget.cursor,
-                          onMeasuredCellSizeChanged: (cellSize) {
-                            if (_measuredReplayCellSize == cellSize) {
-                              return;
-                            }
-                            setState(() {
-                              _measuredReplayCellSize = cellSize;
-                            });
-                          },
-                          graphicsCache: runtime.graphicsCacheFor(sessionId),
-                          searchMatches: _searchMatches,
-                          activeSearchMatchIndex: _searchMatches.isEmpty
-                              ? -1
-                              : _activeSearchMatchIndex,
-                          onScrollLines: (delta) =>
-                              runtime.scrollViewport(sessionId, delta),
-                          onScrollToOffset: (offset) =>
-                              runtime.scrollViewportTo(sessionId, offset),
-                          onOpenLink: (url) =>
-                              unawaited(WindowBridge.openExternalUrl(url)),
-                        ),
-                ),
-              ],
-            ),
-          ),
+          viewport: replayViewport,
           dock: replayController == null
               ? replayDock()
               : ListenableBuilder(

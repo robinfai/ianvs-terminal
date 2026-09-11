@@ -225,7 +225,11 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
     final zoomedPane = zoomedPaneSessionId == null
         ? null
         : activeTab.paneFor(zoomedPaneSessionId);
-    final paneLayout = zoomedPane == null
+    final paneLayout = context.usesMobileNavigation
+        ? TerminalPaneLayoutNode.leaf(
+            activeTab.paneFor(activeSessionId) ?? activeTab.activePane,
+          )
+        : zoomedPane == null
         ? activeTab.effectivePaneLayout
         : TerminalPaneLayoutNode.leaf(zoomedPane);
     final terminalBackground = _tabTerminalBackgroundColor(
@@ -412,7 +416,8 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
       sessionState.profiles,
       sessionState.defaultProfileId,
     );
-    final showsPaneHeader = activeTab.effectivePanes.length > 1;
+    final showsPaneHeader =
+        !context.usesMobileNavigation && activeTab.effectivePanes.length > 1;
     final splitRightUnavailableReason = _splitAxisConflictReason(
       sessionState,
       sessionId,
