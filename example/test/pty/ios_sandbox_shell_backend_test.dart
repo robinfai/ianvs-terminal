@@ -30,6 +30,60 @@ void main() {
     }
   });
 
+  test(
+    'production iOS adapter plays recordings without enabling a local shell',
+    () {
+      final adapter = IosSandboxShellBackend(
+        rootDirectory: root,
+        terminalBackend: NativePtyBackend.load(),
+        localSessionsEnabled: false,
+      );
+      expect(
+        () => adapter.createSessionV1(_sessionConfig('blocked')),
+        throwsUnsupportedError,
+      );
+      const recordedId = 'ios-recorded';
+      final replay = TerminalReplayBackend(
+        delegate: adapter,
+        timingMode: TerminalReplayTimingMode.noDelay,
+        recording: TerminalRecording(
+          metadata: TerminalRecordingMetadata(
+            sessionId: recordedId,
+            createdAtUtc: DateTime.utc(2026, 9, 11),
+            inputPolicy: TerminalRecordingInputPolicy.record,
+          ),
+          events: <TerminalRecordingEvent>[
+            TerminalRecordingEvent.sessionStarted(
+              sessionId: recordedId,
+              sequence: 0,
+              monotonicOffset: Duration.zero,
+              terminalEmulation: 'xterm256',
+              cols: 80,
+              rows: 24,
+            ),
+            TerminalRecordingEvent.ptyOutput(
+              sessionId: recordedId,
+              sequence: 1,
+              monotonicOffset: const Duration(milliseconds: 10),
+              bytes: utf8.encode('TRAIL_REPLAY_OK'),
+            ),
+            TerminalRecordingEvent.sessionExited(
+              sessionId: recordedId,
+              sequence: 2,
+              monotonicOffset: const Duration(milliseconds: 20),
+              exitCode: 0,
+            ),
+          ],
+        ),
+      );
+      final id = replay.createSessionV1(_sshSessionConfig('ios-replay'));
+      addTearDown(() => replay.closeSession(id));
+      final text = _takeText(adapter, id);
+      expect(text, contains('TRAIL_REPLAY_OK'));
+      expect(text, isNot(contains('Ianvs Sandbox Shell')));
+    },
+  );
+
   test('runs useful commands, pipes, and redirects inside the sandbox', () {
     _takeText(backend, sessionId);
 

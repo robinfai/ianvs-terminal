@@ -15,6 +15,9 @@ import 'package:ianvs_terminal/ianvs_terminal.dart'
 final class IosSandboxShellBackend
     implements
         PtySessionBackend,
+        PtyReplaySessionBackend,
+        PtyReplaySessionConfigV1Backend,
+        PtyReplayCheckpointBackend,
         PtySessionConfigV1Backend,
         PtySessionRequestV1Backend,
         PtyHostResponseV1Backend,
@@ -48,6 +51,49 @@ final class IosSandboxShellBackend
 
   @override
   int ping() => _terminalBackend.ping();
+
+  // Playback reuses the native parser without starting a local shell or SSH.
+  @override
+  String createReplaySessionV1(String sessionConfigV1Json) {
+    final backend = _terminalBackend;
+    if (backend is! PtyReplaySessionConfigV1Backend) {
+      throw UnsupportedError('Replay SessionConfig v1 is not supported');
+    }
+    return (backend as PtyReplaySessionConfigV1Backend).createReplaySessionV1(
+      sessionConfigV1Json,
+    );
+  }
+
+  @override
+  void replayOutput(String sessionId, List<int> bytes) =>
+      _terminalOutput.replayOutput(sessionId, bytes);
+
+  @override
+  void replayExit(String sessionId, {int? exitCode}) =>
+      _terminalOutput.replayExit(sessionId, exitCode: exitCode);
+
+  @override
+  bool get supportsReplayCheckpoints {
+    final backend = _terminalBackend;
+    return backend is PtyReplayCheckpointBackend &&
+        (backend as PtyReplayCheckpointBackend).supportsReplayCheckpoints;
+  }
+
+  @override
+  int captureReplayCheckpoint(String sessionId) {
+    if (!supportsReplayCheckpoints) {
+      throw UnsupportedError('Replay checkpoints are not supported');
+    }
+    return (_terminalBackend as PtyReplayCheckpointBackend)
+        .captureReplayCheckpoint(sessionId);
+  }
+
+  @override
+  bool restoreReplayCheckpoint(String sessionId, int checkpointId) {
+    if (!supportsReplayCheckpoints) return false;
+    return (_terminalBackend as PtyReplayCheckpointBackend)
+        .restoreReplayCheckpoint(sessionId, checkpointId);
+  }
 
   @override
   String createSessionV1(String sessionConfigV1Json) {
