@@ -1638,6 +1638,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get pasteHistory => 'Paste history';
 
   @override
+  String get clipboardCopyFailed => 'Could not copy. Please try again.';
+
+  @override
   String get copied => 'Copied';
 
   @override

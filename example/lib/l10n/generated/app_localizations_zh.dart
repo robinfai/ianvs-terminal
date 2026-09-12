@@ -1553,6 +1553,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get pasteHistory => '粘贴历史';
 
   @override
+  String get clipboardCopyFailed => '复制失败，请重试。';
+
+  @override
   String get copied => '已复制';
 
   @override

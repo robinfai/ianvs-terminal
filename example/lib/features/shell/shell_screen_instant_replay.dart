@@ -160,7 +160,7 @@ class _InstantReplayLayoutState extends State<_InstantReplayLayout> {
       readFrame: () => _viewportController.frame,
       readSelection: () =>
           _selectionController.textForFrame(_viewportController.frame),
-      copySelection: ClipboardBridge.copy,
+      copySelection: (text) => ClipboardBridge.copyWithFeedback(context, text),
       readClipboard: () async => '',
       readOnly: () => true,
     );
@@ -521,7 +521,7 @@ class _InstantReplayLayoutState extends State<_InstantReplayLayout> {
     if (selectedText.trim().isEmpty) {
       return;
     }
-    await ClipboardBridge.copy(selectedText);
+    await ClipboardBridge.copyWithFeedback(context, selectedText);
   }
 
   @override

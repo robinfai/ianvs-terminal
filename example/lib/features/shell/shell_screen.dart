@@ -45,6 +45,7 @@ import '../ssh/ssh_auth_prompt.dart';
 import '../ssh/ssh_feature_access.dart';
 import '../ssh/ssh_profile_import_service.dart';
 import '../terminal/selection_controller.dart';
+import '../terminal/selection_resize_guard.dart';
 import '../terminal/terminal.dart' as terminal;
 import '../terminal/terminal_input_controller.dart';
 import '../terminal/terminal_viewport.dart';
@@ -211,6 +212,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   static const _osc1337MaxOutstandingAttentionRequests = 8;
 
   final Map<String, SelectionController> _selectionControllers = {};
+  final Map<String, SelectionResizeGuard> _selectionResizeGuards = {};
   final Map<String, FocusNode> _terminalFocusNodes = {};
   final FocusNode _searchFocusNode = FocusNode(debugLabel: 'shell-search');
   final Map<String, Size> _scheduledViewportSizes = {};
@@ -432,6 +434,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     }
     _osc1337FireworksTimers.clear();
     unawaited(_cancelAllOsc1337AttentionRequests());
+    for (final guard in _selectionResizeGuards.values) {
+      guard.dispose();
+    }
+    _selectionResizeGuards.clear();
     for (final selectionController in _selectionControllers.values) {
       selectionController.dispose();
     }

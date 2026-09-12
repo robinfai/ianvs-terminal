@@ -2780,6 +2780,12 @@ abstract class AppLocalizations {
   /// **'Paste history'**
   String get pasteHistory;
 
+  /// No description provided for @clipboardCopyFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not copy. Please try again.'**
+  String get clipboardCopyFailed;
+
   /// No description provided for @copied.
   ///
   /// In en, this message translates to:

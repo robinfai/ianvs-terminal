@@ -1,5 +1,8 @@
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart';
+
+import '../l10n/l10n.dart';
 
 class ClipboardBridge {
   const ClipboardBridge._();
@@ -8,6 +11,27 @@ class ClipboardBridge {
 
   static Future<void> copy(String value) async {
     await Clipboard.setData(ClipboardData(text: value));
+  }
+
+  static Future<void> copyWithFeedback(
+    BuildContext context,
+    String value,
+  ) async {
+    if (value.isEmpty) return;
+    String message;
+    try {
+      await copy(value);
+      if (!context.mounted) return;
+      message = context.l10n.copied;
+    } on PlatformException {
+      if (!context.mounted) return;
+      message = context.l10n.clipboardCopyFailed;
+    }
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    messenger?.hideCurrentSnackBar();
+    messenger?.showSnackBar(
+      SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
+    );
   }
 
   static Future<void> writeText(String value, String selection) async {

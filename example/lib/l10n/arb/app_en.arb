@@ -1677,6 +1677,7 @@
   "capturedOutput": "Captured output",
   "open": "Open",
   "pasteHistory": "Paste history",
+  "clipboardCopyFailed": "Could not copy. Please try again.",
   "copied": "Copied",
   "pasted": "Pasted",
   "advancedPaste": "Advanced Paste",

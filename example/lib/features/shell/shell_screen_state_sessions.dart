@@ -10,9 +10,34 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     if (!mounted || !_sessionExists(sessionId)) {
       return;
     }
-    sessionController.resizeSession(sessionId, viewportSize, devicePixelRatio);
-    _committedViewportSizes[sessionId] = viewportSize;
-    _refreshSearchMatchesAfterResize(sessionId);
+    final selection = _selectionControllers[sessionId];
+    void applyResize() {
+      // Selection can be cleared during a build (for example closing a pane).
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_sessionExists(sessionId)) return;
+        if (_scheduledViewportSizes[sessionId] != viewportSize) return;
+        if (selection?.selection != null) {
+          _selectionResizeGuards[sessionId]?.resize(applyResize);
+          return;
+        }
+        sessionController.resizeSession(
+          sessionId,
+          viewportSize,
+          devicePixelRatio,
+        );
+        _committedViewportSizes[sessionId] = viewportSize;
+        _refreshSearchMatchesAfterResize(sessionId);
+      });
+      WidgetsBinding.instance.ensureVisualUpdate();
+    }
+
+    if (selection == null) {
+      applyResize();
+    } else {
+      _selectionResizeGuards
+          .putIfAbsent(sessionId, () => SelectionResizeGuard(selection))
+          .resize(applyResize);
+    }
   }
 
   bool _sessionExists(String sessionId) {
@@ -76,6 +101,7 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     _clearViewportMetricsForSession(sessionId);
     _clearInstantReplayHistory(sessionId);
 
+    _selectionResizeGuards.remove(sessionId)?.dispose();
     final selectionController = _selectionControllers.remove(sessionId);
     if (selectionController != null) {
       selectionController.clear();

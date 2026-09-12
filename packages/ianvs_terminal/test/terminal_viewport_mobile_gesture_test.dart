@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -7,6 +8,127 @@ import 'package:ianvs_terminal/ianvs_terminal.dart';
 import 'package:ianvs_terminal/src/terminal/render_terminal_viewport.dart';
 
 void main() {
+  testWidgets(
+    'desktop trackpad pan follows content while wheel deltas keep wheel semantics',
+    (tester) async {
+      final harness = _MobileViewportHarness(initialScrollbackOffset: 50);
+      addTearDown(harness.dispose);
+      await tester.pumpWidget(harness.widget());
+      final center = tester.getCenter(_terminalSurface());
+      final trackpad = await tester.createGesture(
+        kind: PointerDeviceKind.trackpad,
+      );
+      await trackpad.panZoomStart(center);
+      await trackpad.panZoomUpdate(center, pan: const Offset(0, 54));
+      expect(harness.scrollDeltas.single, greaterThan(0));
+      await trackpad.panZoomEnd();
+      harness.scrollDeltas.clear();
+      await tester.sendEventToBinding(
+        PointerScrollEvent(position: center, scrollDelta: const Offset(0, 54)),
+      );
+      expect(harness.scrollDeltas.single, lessThan(0));
+      expect(harness.inputSink.inputs, isEmpty);
+      await tester.pumpAndSettle();
+    },
+    variant: const TargetPlatformVariant({TargetPlatform.macOS}),
+  );
+
+  testWidgets(
+    'selection magnifier follows the finger and disappears on release',
+    (tester) async {
+      final harness = _MobileViewportHarness();
+      addTearDown(harness.dispose);
+      await tester.pumpWidget(harness.widget());
+      final render = tester.renderObject<RenderTerminalViewport>(
+        _terminalSurface(),
+      );
+      final start = render.localToGlobal(
+        Offset(
+          render.debugCellSize.width * 7.5,
+          render.debugCellSize.height * 1.5,
+        ),
+      );
+      final gesture = await tester.startGesture(start);
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(find.byKey(terminalSelectionMagnifierKey), findsOneWidget);
+      await gesture.moveBy(const Offset(28, 0));
+      await tester.pump(const Duration(milliseconds: 60));
+      final magnifier = tester.widget<CupertinoTextMagnifier>(
+        find.byKey(terminalSelectionMagnifierKey),
+      );
+      expect(
+        magnifier.magnifierInfo.value.globalGesturePosition,
+        start + const Offset(28, 0),
+      );
+      expect(harness.scrollDeltas, isEmpty);
+      expect(
+        tester.getRect(find.byType(RawMagnifier)).bottom,
+        lessThan(start.dy),
+      );
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(find.byKey(terminalSelectionMagnifierKey), findsNothing);
+      expect(find.byKey(terminalTouchCopyMenuItemKey), findsOneWidget);
+    },
+    variant: const TargetPlatformVariant({TargetPlatform.iOS}),
+  );
+
+  testWidgets(
+    'copy menu keeps captured text when selection changes behind the menu',
+    (tester) async {
+      final harness = _MobileViewportHarness();
+      addTearDown(harness.dispose);
+      await tester.pumpWidget(harness.widget());
+      final render = tester.renderObject<RenderTerminalViewport>(
+        _terminalSurface(),
+      );
+      await tester.longPressAt(
+        render.localToGlobal(
+          Offset(
+            render.debugCellSize.width * 7.5,
+            render.debugCellSize.height * 0.5,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      harness.selectionController.clear();
+      await tester.tap(find.byKey(terminalTouchCopyMenuItemKey));
+      await tester.pumpAndSettle();
+      expect(harness.copiedText, ['beta']);
+    },
+    variant: const TargetPlatformVariant({TargetPlatform.iOS}),
+  );
+
+  testWidgets(
+    'downward touch drag and release momentum move toward older history',
+    (tester) async {
+      final harness = _MobileViewportHarness(
+        initialScrollbackOffset: 50,
+        applyScrolls: true,
+      );
+      addTearDown(harness.dispose);
+      await tester.pumpWidget(harness.widget());
+      await tester.timedDragFrom(
+        tester.getTopLeft(_terminalSurface()) + const Offset(100, 20),
+        const Offset(0, 90),
+        const Duration(milliseconds: 160),
+      );
+      final beforeMomentum = harness.scrollDeltas.fold<int>(
+        0,
+        (sum, d) => sum + d,
+      );
+      expect(beforeMomentum, greaterThan(0));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(harness.scrollDeltas.every((d) => d > 0), isTrue);
+      expect(
+        harness.scrollDeltas.fold<int>(0, (sum, d) => sum + d),
+        greaterThan(beforeMomentum),
+      );
+      await tester.pumpAndSettle();
+    },
+    variant: const TargetPlatformVariant({TargetPlatform.iOS}),
+  );
+
   testWidgets(
     'iPhone one-finger drag scrolls the viewport instead of terminal modes',
     (tester) async {
@@ -36,7 +158,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 16));
 
       expect(harness.scrollDeltas, isNotEmpty);
-      expect(harness.scrollDeltas.reduce((a, b) => a + b), greaterThan(0));
+      expect(harness.scrollDeltas.reduce((a, b) => a + b), lessThan(0));
       expect(harness.selectionController.selection, isNull);
       expect(harness.inputSink.inputs, isEmpty);
     },

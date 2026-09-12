@@ -32,6 +32,13 @@ class TerminalInputController {
 
   Future<void> copySelection() => _copySelection();
 
+  /// Copies an already captured selection without reading a newer frame.
+  Future<void> copyText(String text) async {
+    if (text.isNotEmpty) {
+      await _copySelectionToClipboard(text);
+    }
+  }
+
   Future<void> pasteClipboard() => _pasteClipboard();
 
   void sendText(String text) {

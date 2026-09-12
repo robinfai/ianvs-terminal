@@ -14,7 +14,7 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
     if (text.isEmpty) {
       return;
     }
-    await ClipboardBridge.copy(text);
+    await ClipboardBridge.copyWithFeedback(context, text);
   }
 
   List<_TerminalAnnotation> _annotationsForSession(String sessionId) {
@@ -118,7 +118,16 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
           selection,
           block: selectionController.isBlockSelection,
         );
-    return text ?? selectionController.textForFrame(frame);
+    if (text == null) return selectionController.textForFrame(frame);
+    if (text.isNotEmpty) return text;
+    // A frame can still display selected text while the backend is refreshing.
+    // Only use an empty-reply fallback when the entire selection is visible;
+    // otherwise a partial copy would misleadingly report success.
+    if (frame.viewportRowForSourceRow(selection.startRow) != null &&
+        frame.viewportRowForSourceRow(selection.endRow) != null) {
+      return selectionController.textForFrame(frame);
+    }
+    return '';
   }
 
   Future<void> _pasteToSession(String sessionId) async {

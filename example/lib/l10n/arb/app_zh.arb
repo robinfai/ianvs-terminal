@@ -447,6 +447,7 @@
   "capturedOutput": "捕获的输出",
   "open": "打开",
   "pasteHistory": "粘贴历史",
+  "clipboardCopyFailed": "复制失败，请重试。",
   "copied": "已复制",
   "pasted": "已粘贴",
   "advancedPaste": "高级粘贴",

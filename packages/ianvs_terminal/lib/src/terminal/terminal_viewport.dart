@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'package:flutter/cupertino.dart' show CupertinoTextMagnifier;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -23,6 +24,7 @@ import 'terminal_viewport_colors.dart';
 const Key terminalScrollbarTrackKey = Key('terminal-scrollbar-track');
 const Key terminalScrollbarThumbKey = Key('terminal-scrollbar-thumb');
 const Key terminalLinkTooltipKey = Key('terminal-link-tooltip');
+const Key terminalSelectionMagnifierKey = Key('terminal-selection-magnifier');
 const Key terminalTouchCopyMenuItemKey = Key('terminal-touch-copy-menu-item');
 const Key terminalGraphicPreviewKey = Key('terminal-graphic-preview');
 const Key terminalGraphicPreviewCloseKey = Key(
@@ -438,6 +440,69 @@ class _TerminalViewportState extends State<TerminalViewport>
   final Map<_GraphicGeometryKey, double> _lockedItermGraphicScales =
       <_GraphicGeometryKey, double>{};
   late MouseCursor _lastTerminalPointerCursor;
+  final MagnifierController _selectionMagnifier = MagnifierController();
+  final ValueNotifier<MagnifierInfo> _selectionMagnifierInfo = ValueNotifier(
+    MagnifierInfo.empty,
+  );
+
+  void _hideSelectionMagnifier() {
+    // Synchronous removal is required on pointer cancellation and dispose.
+    // ignore: invalid_use_of_visible_for_testing_member
+    _selectionMagnifier.removeFromOverlay();
+  }
+
+  void _updateSelectionMagnifier() {
+    final position = _selectionPointerGlobalPosition;
+    final renderObject = _renderViewport;
+    if (!_usesMobileTextInput ||
+        !_isLocalSelectionActive ||
+        position == null ||
+        renderObject == null) {
+      return;
+    }
+    final cell = _selectionCellForGlobalPosition(position);
+    if (cell == null || Overlay.maybeOf(context, rootOverlay: true) == null) {
+      return;
+    }
+    final origin = renderObject.localToGlobal(Offset.zero);
+    final cellSize = renderObject.debugCellSize;
+    final lineTop = origin.dy + cell.row * cellSize.height;
+    _selectionMagnifierInfo.value = MagnifierInfo(
+      globalGesturePosition: position,
+      caretRect: Rect.fromLTWH(
+        origin.dx + cell.col * cellSize.width,
+        lineTop,
+        1,
+        cellSize.height,
+      ),
+      fieldBounds: origin & renderObject.size,
+      currentLineBoundaries: Rect.fromLTWH(
+        origin.dx,
+        lineTop,
+        renderObject.size.width,
+        cellSize.height,
+      ),
+    );
+    if (_selectionMagnifier.overlayEntry == null) {
+      unawaited(
+        _selectionMagnifier.show(
+          context: context,
+          builder: (_) => IgnorePointer(
+            child: Stack(
+              children: [
+                CupertinoTextMagnifier(
+                  key: terminalSelectionMagnifierKey,
+                  controller: _selectionMagnifier,
+                  magnifierInfo: _selectionMagnifierInfo,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+  }
+
   FocusNode get _focusNode =>
       widget.focusNode ??
       (_ownedFocusNode ??= FocusNode(debugLabel: 'terminal-viewport'));
@@ -498,6 +563,8 @@ class _TerminalViewportState extends State<TerminalViewport>
 
   @override
   void dispose() {
+    _hideSelectionMagnifier();
+    _selectionMagnifierInfo.dispose();
     widget.onLinkHoverChanged?.call(null);
     widget.controller.removeListener(_handleFrameUpdate);
     _graphicsSync.reset();
@@ -569,6 +636,7 @@ class _TerminalViewportState extends State<TerminalViewport>
       _syncSelectionAutoScroll();
     } else if (_terminalMouseEnabled) {
       _isLocalSelectionActive = false;
+      _hideSelectionMagnifier();
       _selectionPointerGlobalPosition = null;
       _selectionPointerDownGlobalPosition = null;
       _wordSelectionAnchor = null;
@@ -874,10 +942,10 @@ class _TerminalViewportState extends State<TerminalViewport>
   void _handlePanZoomUpdate(PointerPanZoomUpdateEvent event) {
     _cancelScrollMomentumTimer();
     if (_terminalMouseEnabled) {
-      _sendMouseWheel(event.panDelta.dy, globalPosition: event.position);
+      _sendMouseWheel(-event.panDelta.dy, globalPosition: event.position);
       return;
     }
-    final rawDeltaLines = _rawScrollLinesForDelta(event.panDelta.dy);
+    final rawDeltaLines = _rawScrollLinesForDelta(-event.panDelta.dy);
     if (rawDeltaLines == 0) {
       return;
     }
@@ -1361,6 +1429,7 @@ class _TerminalViewportState extends State<TerminalViewport>
         _schedulePendingLinkOpen(event.position);
       }
       _isLocalSelectionActive = false;
+      _hideSelectionMagnifier();
       _selectionPointerGlobalPosition = null;
       _selectionPointerDownGlobalPosition = null;
       _wordSelectionAnchor = null;
@@ -1393,6 +1462,7 @@ class _TerminalViewportState extends State<TerminalViewport>
       _touchScrollGestureActive = false;
       _mobileSelectionAdjustmentActive = false;
       _isLocalSelectionActive = false;
+      _hideSelectionMagnifier();
       _selectionPointerGlobalPosition = null;
       _selectionPointerDownGlobalPosition = null;
       _selectionMovedSincePointerDown = false;
@@ -1425,6 +1495,7 @@ class _TerminalViewportState extends State<TerminalViewport>
     _currentPrimaryTapCount = 0;
     _selectionMovedSincePointerDown = false;
     _isLocalSelectionActive = false;
+    _hideSelectionMagnifier();
     _selectionPointerGlobalPosition = null;
     _selectionPointerDownGlobalPosition = null;
     _lastHoverGlobalPosition = null;
@@ -1455,7 +1526,7 @@ class _TerminalViewportState extends State<TerminalViewport>
         return;
       }
       _touchScrollGestureActive = true;
-      _applyRawScrollLines(_rawScrollLinesForDelta(deltaY));
+      _applyRawScrollLines(_rawScrollLinesForDelta(-deltaY));
       return;
     }
     if (!_pinchGestureActive) {
@@ -1464,6 +1535,7 @@ class _TerminalViewportState extends State<TerminalViewport>
       _mobileSelectionAdjustmentActive = false;
       _stopScrollMomentum();
       _isLocalSelectionActive = false;
+      _hideSelectionMagnifier();
       _selectionPointerGlobalPosition = null;
       _selectionPointerDownGlobalPosition = null;
       _selectionMovedSincePointerDown = false;
@@ -1481,7 +1553,7 @@ class _TerminalViewportState extends State<TerminalViewport>
       widget.onScaleEnd?.call(details);
     } else if (_touchScrollGestureActive) {
       _scrollMomentumLinesPerSecond = _rawScrollLinesForDelta(
-        details.velocity.pixelsPerSecond.dy,
+        -details.velocity.pixelsPerSecond.dy,
       );
       _startScrollMomentumIfNeeded(ignoreTerminalMouseMode: true);
     } else {
@@ -1594,6 +1666,7 @@ class _TerminalViewportState extends State<TerminalViewport>
     _selectionPointerGlobalPosition = details.globalPosition;
     _updateSelectionFromPointer(details.globalPosition);
     _isLocalSelectionActive = false;
+    _hideSelectionMagnifier();
     _selectionPointerGlobalPosition = null;
     _selectionPointerDownGlobalPosition = null;
     _selectionMovedSincePointerDown = false;
@@ -1607,6 +1680,12 @@ class _TerminalViewportState extends State<TerminalViewport>
     if (widget.selectionController.selection == null) {
       return;
     }
+    // Capture before opening a route: focus/keyboard changes or incoming
+    // terminal output must not change what the user's Copy action means.
+    final selectedText = widget.inputController.readSelection();
+    if (selectedText.isEmpty) {
+      return;
+    }
     final navigator = Navigator.maybeOf(context, rootNavigator: true);
     final overlay = navigator?.overlay?.context.findRenderObject();
     if (overlay is! RenderBox) {
@@ -1614,6 +1693,7 @@ class _TerminalViewportState extends State<TerminalViewport>
     }
     final action = await showMenu<_TerminalTouchSelectionAction>(
       context: context,
+      requestFocus: false,
       useRootNavigator: true,
       position: RelativeRect.fromRect(
         Rect.fromLTWH(globalPosition.dx, globalPosition.dy, 1, 1),
@@ -1628,7 +1708,7 @@ class _TerminalViewportState extends State<TerminalViewport>
       ],
     );
     if (action == _TerminalTouchSelectionAction.copy && mounted) {
-      await widget.inputController.copySelection();
+      await widget.inputController.copyText(selectedText);
     }
   }
 
@@ -1868,6 +1948,7 @@ class _TerminalViewportState extends State<TerminalViewport>
   void _finishMobileSelectionAdjustment() {
     _mobileSelectionAdjustmentActive = false;
     _isLocalSelectionActive = false;
+    _hideSelectionMagnifier();
     _selectionPointerGlobalPosition = null;
     _selectionPointerDownGlobalPosition = null;
     _selectionMovedSincePointerDown = false;
@@ -2127,6 +2208,7 @@ class _TerminalViewportState extends State<TerminalViewport>
   }
 
   void _syncSelectionAutoScroll() {
+    _updateSelectionMagnifier();
     final deltaLines = _selectionAutoScrollDelta();
     if (!_isLocalSelectionActive ||
         !_selectionMovedSincePointerDown ||

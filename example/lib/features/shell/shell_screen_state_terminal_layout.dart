@@ -402,7 +402,7 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
         sessionId,
         selectionController,
       ),
-      copySelection: ClipboardBridge.copy,
+      copySelection: (text) => ClipboardBridge.copyWithFeedback(context, text),
       readClipboard: ClipboardBridge.paste,
       // TerminalViewport can emit a final focus-loss report while its element
       // is being unmounted. Capture the build-time value so that teardown does

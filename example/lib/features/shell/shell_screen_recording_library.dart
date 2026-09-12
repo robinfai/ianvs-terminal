@@ -586,7 +586,7 @@ class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
       readSelection: () => selectionController.textForFrame(
         runtime.viewportFor(sessionId).frame,
       ),
-      copySelection: ClipboardBridge.copy,
+      copySelection: (text) => ClipboardBridge.copyWithFeedback(context, text),
       readClipboard: ClipboardBridge.paste,
       readOnly: () => true,
     );
@@ -687,7 +687,7 @@ class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
     if (selectedText.trim().isEmpty) {
       return;
     }
-    await ClipboardBridge.copy(selectedText);
+    await ClipboardBridge.copyWithFeedback(context, selectedText);
   }
 
   Size? _recordedViewportSizeFor(
