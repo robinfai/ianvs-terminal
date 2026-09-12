@@ -1,0 +1,14 @@
+ssh-keygen: generating new host keys: RSA ECDSA ED25519
+Server listening on 0.0.0.0 port 22.
+Connection from 172.21.0.1 port 47042 on 172.21.0.6 port 22 rdomain ""
+Accepted key ED25519 SHA256:0xvf/CvYsWas7S9pGKGc7ceFR9Gqw6ECFLnxZqwjig0 found at /home/lab/.ssh/authorized_keys:1
+Postponed publickey for lab from 172.21.0.1 port 47042 ssh2 [preauth]
+Accepted key ED25519 SHA256:0xvf/CvYsWas7S9pGKGc7ceFR9Gqw6ECFLnxZqwjig0 found at /home/lab/.ssh/authorized_keys:1
+Accepted publickey for lab from 172.21.0.1 port 47042 ssh2: ED25519 SHA256:0xvf/CvYsWas7S9pGKGc7ceFR9Gqw6ECFLnxZqwjig0
+User child is on pid 43
+Starting session: command on pts/0 for lab from 172.21.0.1 port 47042 id 0
+Starting session: command for lab from 172.21.0.1 port 47042 id 1
+Close session: user lab from 172.21.0.1 port 47042 id 1
+syslogin_perform_logout: logout() returned an error
+Received disconnect from 172.21.0.1 port 47042:11:
+Disconnected from user lab 172.21.0.1 port 47042

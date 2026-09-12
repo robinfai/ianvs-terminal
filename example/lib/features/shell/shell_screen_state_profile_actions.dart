@@ -424,6 +424,14 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
         languageMode: sessionState.languageMode,
         terminalViewportPadding: sessionState.terminalViewportPadding,
         restoreLayout: _notificationLocalConfig.layout.restoreLayout,
+        sshWrapper: ref
+            .read(sessionControllerProvider.notifier)
+            .sshIntegrationDefaults
+            .sshWrapper,
+        sshAutoInject: ref
+            .read(sessionControllerProvider.notifier)
+            .sshIntegrationDefaults
+            .sshAutoInject,
         osc52Policy: _clipboardConfig.osc52,
         openUrlPolicy: _hostActionsConfig.osc1337OpenUrl,
         requestAttentionPolicy: _hostActionsConfig.osc1337RequestAttention,
@@ -513,6 +521,10 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
           selection.terminalViewportPadding,
         );
       }
+      await sessionController.setSshIntegrationDefaults(
+        wrapper: selection.sshWrapper,
+        autoInject: selection.sshAutoInject,
+      );
       if (selection.restoreLayout !=
           _notificationLocalConfig.layout.restoreLayout) {
         await sessionController.setRestoreLayout(selection.restoreLayout);

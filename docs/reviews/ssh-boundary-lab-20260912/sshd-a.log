@@ -1,0 +1,131 @@
+ssh-keygen: generating new host keys: RSA ECDSA ED25519
+Server listening on 0.0.0.0 port 22.
+Connection from 172.21.0.1 port 35958 on 172.21.0.2 port 22 rdomain ""
+Accepted key ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU found at /home/lab/.ssh/authorized_keys:1
+Postponed publickey for lab from 172.21.0.1 port 35958 ssh2 [preauth]
+Accepted key ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU found at /home/lab/.ssh/authorized_keys:1
+Accepted publickey for lab from 172.21.0.1 port 35958 ssh2: ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU
+User child is on pid 48
+Starting session: command on pts/0 for lab from 172.21.0.1 port 35958 id 0
+syslogin_perform_logout: logout() returned an error
+Received disconnect from 172.21.0.1 port 35958:11: disconnected by user
+Disconnected from user lab 172.21.0.1 port 35958
+Connection from 172.21.0.1 port 52844 on 172.21.0.2 port 22 rdomain ""
+Accepted key ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU found at /home/lab/.ssh/authorized_keys:1
+Postponed publickey for lab from 172.21.0.1 port 52844 ssh2 [preauth]
+Accepted key ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU found at /home/lab/.ssh/authorized_keys:1
+Accepted publickey for lab from 172.21.0.1 port 52844 ssh2: ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU
+User child is on pid 128
+Starting session: command on pts/0 for lab from 172.21.0.1 port 52844 id 0
+syslogin_perform_logout: logout() returned an error
+Received disconnect from 172.21.0.1 port 52844:11: disconnected by user
+Disconnected from user lab 172.21.0.1 port 52844
+Connection from 172.21.0.1 port 52860 on 172.21.0.2 port 22 rdomain ""
+Accepted key ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU found at /home/lab/.ssh/authorized_keys:1
+Postponed publickey for lab from 172.21.0.1 port 52860 ssh2 [preauth]
+Accepted key ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU found at /home/lab/.ssh/authorized_keys:1
+Accepted publickey for lab from 172.21.0.1 port 52860 ssh2: ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU
+User child is on pid 220
+Starting session: command on pts/0 for lab from 172.21.0.1 port 52860 id 0
+syslogin_perform_logout: logout() returned an error
+Received disconnect from 172.21.0.1 port 52860:11: disconnected by user
+Disconnected from user lab 172.21.0.1 port 52860
+Connection from 172.21.0.1 port 52866 on 172.21.0.2 port 22 rdomain ""
+Accepted key ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU found at /home/lab/.ssh/authorized_keys:1
+Postponed publickey for lab from 172.21.0.1 port 52866 ssh2 [preauth]
+Accepted key ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU found at /home/lab/.ssh/authorized_keys:1
+Accepted publickey for lab from 172.21.0.1 port 52866 ssh2: ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU
+User child is on pid 332
+Starting session: command on pts/0 for lab from 172.21.0.1 port 52866 id 0
+syslogin_perform_logout: logout() returned an error
+Received disconnect from 172.21.0.1 port 52866:11: disconnected by user
+Disconnected from user lab 172.21.0.1 port 52866
+Connection from 172.21.0.1 port 52874 on 172.21.0.2 port 22 rdomain ""
+Accepted key ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU found at /home/lab/.ssh/authorized_keys:1
+Postponed publickey for lab from 172.21.0.1 port 52874 ssh2 [preauth]
+Accepted key ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU found at /home/lab/.ssh/authorized_keys:1
+Accepted publickey for lab from 172.21.0.1 port 52874 ssh2: ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU
+User child is on pid 413
+Starting session: command on pts/0 for lab from 172.21.0.1 port 52874 id 0
+syslogin_perform_logout: logout() returned an error
+Received disconnect from 172.21.0.1 port 52874:11: disconnected by user
+Disconnected from user lab 172.21.0.1 port 52874
+Connection from 172.21.0.1 port 52890 on 172.21.0.2 port 22 rdomain ""
+Accepted key ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU found at /home/lab/.ssh/authorized_keys:1
+Postponed publickey for lab from 172.21.0.1 port 52890 ssh2 [preauth]
+Accepted key ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU found at /home/lab/.ssh/authorized_keys:1
+Accepted publickey for lab from 172.21.0.1 port 52890 ssh2: ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU
+User child is on pid 482
+subsystem request for sftp by user lab failed, subsystem not found
+Connection closed by 172.21.0.1 port 52890
+Close session: user lab from 172.21.0.1 port 52890 id 0
+Transferred: sent 3348, received 3448 bytes
+Closing connection to 172.21.0.1 port 52890
+Connection from 172.21.0.1 port 52902 on 172.21.0.2 port 22 rdomain ""
+Accepted key ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU found at /home/lab/.ssh/authorized_keys:1
+Postponed publickey for lab from 172.21.0.1 port 52902 ssh2 [preauth]
+Accepted key ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU found at /home/lab/.ssh/authorized_keys:1
+Accepted publickey for lab from 172.21.0.1 port 52902 ssh2: ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU
+User child is on pid 485
+Starting session: command for lab from 172.21.0.1 port 52902 id 0
+Received disconnect from 172.21.0.1 port 52902:11: disconnected by user
+Disconnected from user lab 172.21.0.1 port 52902
+Connection from 172.21.0.1 port 52910 on 172.21.0.2 port 22 rdomain ""
+Accepted key ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU found at /home/lab/.ssh/authorized_keys:1
+Postponed publickey for lab from 172.21.0.1 port 52910 ssh2 [preauth]
+Accepted key ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU found at /home/lab/.ssh/authorized_keys:1
+Accepted publickey for lab from 172.21.0.1 port 52910 ssh2: ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU
+User child is on pid 495
+Starting session: command for lab from 172.21.0.1 port 52910 id 0
+Received disconnect from 172.21.0.1 port 52910:11: disconnected by user
+Disconnected from user lab 172.21.0.1 port 52910
+Connection from 172.21.0.1 port 52922 on 172.21.0.2 port 22 rdomain ""
+Accepted key ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU found at /home/lab/.ssh/authorized_keys:1
+Postponed publickey for lab from 172.21.0.1 port 52922 ssh2 [preauth]
+Accepted key ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU found at /home/lab/.ssh/authorized_keys:1
+Accepted publickey for lab from 172.21.0.1 port 52922 ssh2: ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU
+User child is on pid 499
+Starting session: command on pts/0 for lab from 172.21.0.1 port 52922 id 0
+Starting session: command for lab from 172.21.0.1 port 52922 id 1
+Close session: user lab from 172.21.0.1 port 52922 id 1
+syslogin_perform_logout: logout() returned an error
+Close session: user lab from 172.21.0.1 port 52922 id 0
+Connection from 172.21.0.1 port 52938 on 172.21.0.2 port 22 rdomain ""
+Accepted key ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU found at /home/lab/.ssh/authorized_keys:1
+Postponed publickey for lab from 172.21.0.1 port 52938 ssh2 [preauth]
+Accepted key ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU found at /home/lab/.ssh/authorized_keys:1
+Accepted publickey for lab from 172.21.0.1 port 52938 ssh2: ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU
+User child is on pid 575
+Starting session: command for lab from 172.21.0.1 port 52938 id 0
+Received disconnect from 172.21.0.1 port 52938:11: disconnected by user
+Disconnected from user lab 172.21.0.1 port 52938
+Connection from 172.21.0.1 port 53116 on 172.21.0.2 port 22 rdomain ""
+Accepted key ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU found at /home/lab/.ssh/authorized_keys:1
+Postponed publickey for lab from 172.21.0.1 port 53116 ssh2 [preauth]
+Accepted key ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU found at /home/lab/.ssh/authorized_keys:1
+Accepted publickey for lab from 172.21.0.1 port 53116 ssh2: ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU
+User child is on pid 579
+Starting session: command for lab from 172.21.0.1 port 53116 id 0
+Received disconnect from 172.21.0.1 port 53116:11: disconnected by user
+Disconnected from user lab 172.21.0.1 port 53116
+Connection from 172.21.0.1 port 53118 on 172.21.0.2 port 22 rdomain ""
+Accepted key ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU found at /home/lab/.ssh/authorized_keys:1
+Postponed publickey for lab from 172.21.0.1 port 53118 ssh2 [preauth]
+Accepted key ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU found at /home/lab/.ssh/authorized_keys:1
+Accepted publickey for lab from 172.21.0.1 port 53118 ssh2: ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU
+User child is on pid 583
+Starting session: command for lab from 172.21.0.1 port 53118 id 0
+Received disconnect from 172.21.0.1 port 53118:11: disconnected by user
+Disconnected from user lab 172.21.0.1 port 53118
+Connection from 172.21.0.1 port 53132 on 172.21.0.2 port 22 rdomain ""
+Accepted key ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU found at /home/lab/.ssh/authorized_keys:1
+Postponed publickey for lab from 172.21.0.1 port 53132 ssh2 [preauth]
+Accepted key ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU found at /home/lab/.ssh/authorized_keys:1
+Accepted publickey for lab from 172.21.0.1 port 53132 ssh2: ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU
+User child is on pid 587
+Starting session: command on pts/0 for lab from 172.21.0.1 port 53132 id 0
+syslogin_perform_logout: logout() returned an error
+Received disconnect from 172.21.0.1 port 53132:11: disconnected by user
+Disconnected from user lab 172.21.0.1 port 53132
+Received disconnect from 172.21.0.1 port 52922:11: disconnected by user
+Disconnected from user lab 172.21.0.1 port 52922

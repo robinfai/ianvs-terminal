@@ -371,6 +371,15 @@ void _validateExactSessionConfigWireValues(Map<String, Object?> config) {
     path: r'$.config.shellIntegration.enabled',
   );
 
+  for (final key in ['sshWrapper', 'sshAutoInject']) {
+    if (shellIntegration.containsKey(key)) {
+      _requiredBool(
+        shellIntegration[key],
+        path: r'$.config.shellIntegration.' + key,
+      );
+    }
+  }
+
   final appearance = _objectMap(config['appearance'], r'$.config.appearance');
   final font = _objectMap(appearance['font'], r'$.config.appearance.font');
   _boundedRequiredString(
@@ -600,7 +609,16 @@ void _validateExactSessionConfigWireShape(Map<String, Object?> config) {
     'maxImageBytes',
     'maxTotalBytes',
   }, r'$.config.terminal.graphics');
-  _expectExactObject(config['shellIntegration'], const <String>{
+  final shellIntegration = _objectMap(
+    config['shellIntegration'],
+    r'$.config.shellIntegration',
+  );
+  _expectOnlyKeys(shellIntegration, const {
+    'enabled',
+    'sshWrapper',
+    'sshAutoInject',
+  }, r'$.config.shellIntegration');
+  _expectRequiredKeys(shellIntegration, const {
     'enabled',
   }, r'$.config.shellIntegration');
   final appearance = _expectExactObject(config['appearance'], const <String>{

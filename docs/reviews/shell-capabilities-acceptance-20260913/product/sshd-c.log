@@ -1,0 +1,87 @@
+ssh-keygen: generating new host keys: RSA ECDSA ED25519
+Server listening on 0.0.0.0 port 22.
+Connection from 172.21.0.2 port 58702 on 172.21.0.4 port 22 rdomain ""
+Accepted key ED25519 SHA256:Xi519s88uZQPnzNTQBsxFuiJGScsyTAdveYScsZ0eGs found at /home/lab/.ssh/authorized_keys:1
+Postponed publickey for lab from 172.21.0.2 port 58702 ssh2 [preauth]
+Accepted key ED25519 SHA256:Xi519s88uZQPnzNTQBsxFuiJGScsyTAdveYScsZ0eGs found at /home/lab/.ssh/authorized_keys:1
+Accepted publickey for lab from 172.21.0.2 port 58702 ssh2: ED25519 SHA256:Xi519s88uZQPnzNTQBsxFuiJGScsyTAdveYScsZ0eGs
+User child is on pid 42
+Starting session: command on pts/0 for lab from 172.21.0.2 port 58702 id 0
+Starting session: subsystem 'sftp' for lab from 172.21.0.2 port 58702 id 1
+syslogin_perform_logout: logout() returned an error
+Close session: user lab from 172.21.0.2 port 58702 id 0
+Close session: user lab from 172.21.0.2 port 58702 id 1
+Connection from 172.21.0.5 port 42098 on 172.21.0.4 port 22 rdomain ""
+Accepted key ED25519 SHA256:Xi519s88uZQPnzNTQBsxFuiJGScsyTAdveYScsZ0eGs found at /home/lab/.ssh/authorized_keys:1
+Postponed publickey for lab from 172.21.0.5 port 42098 ssh2 [preauth]
+Accepted key ED25519 SHA256:Xi519s88uZQPnzNTQBsxFuiJGScsyTAdveYScsZ0eGs found at /home/lab/.ssh/authorized_keys:1
+Accepted publickey for lab from 172.21.0.5 port 42098 ssh2: ED25519 SHA256:Xi519s88uZQPnzNTQBsxFuiJGScsyTAdveYScsZ0eGs
+User child is on pid 75
+Starting session: command on pts/0 for lab from 172.21.0.5 port 42098 id 0
+Starting session: subsystem 'sftp' for lab from 172.21.0.5 port 42098 id 1
+Close session: user lab from 172.21.0.5 port 42098 id 0
+Close session: user lab from 172.21.0.5 port 42098 id 1
+syslogin_perform_logout: logout() returned an error
+Connection from 172.21.0.6 port 34886 on 172.21.0.4 port 22 rdomain ""
+Accepted key ED25519 SHA256:Xi519s88uZQPnzNTQBsxFuiJGScsyTAdveYScsZ0eGs found at /home/lab/.ssh/authorized_keys:1
+Postponed publickey for lab from 172.21.0.6 port 34886 ssh2 [preauth]
+Accepted key ED25519 SHA256:Xi519s88uZQPnzNTQBsxFuiJGScsyTAdveYScsZ0eGs found at /home/lab/.ssh/authorized_keys:1
+Accepted publickey for lab from 172.21.0.6 port 34886 ssh2: ED25519 SHA256:Xi519s88uZQPnzNTQBsxFuiJGScsyTAdveYScsZ0eGs
+User child is on pid 108
+Starting session: command on pts/0 for lab from 172.21.0.6 port 34886 id 0
+Starting session: subsystem 'sftp' for lab from 172.21.0.6 port 34886 id 1
+Close session: user lab from 172.21.0.6 port 34886 id 1
+syslogin_perform_logout: logout() returned an error
+Close session: user lab from 172.21.0.6 port 34886 id 0
+Connection from 172.21.0.3 port 58886 on 172.21.0.4 port 22 rdomain ""
+Accepted key ED25519 SHA256:Xi519s88uZQPnzNTQBsxFuiJGScsyTAdveYScsZ0eGs found at /home/lab/.ssh/authorized_keys:1
+Postponed publickey for lab from 172.21.0.3 port 58886 ssh2 [preauth]
+Accepted key ED25519 SHA256:Xi519s88uZQPnzNTQBsxFuiJGScsyTAdveYScsZ0eGs found at /home/lab/.ssh/authorized_keys:1
+Accepted publickey for lab from 172.21.0.3 port 58886 ssh2: ED25519 SHA256:Xi519s88uZQPnzNTQBsxFuiJGScsyTAdveYScsZ0eGs
+User child is on pid 141
+Starting session: command on pts/0 for lab from 172.21.0.3 port 58886 id 0
+Starting session: subsystem 'sftp' for lab from 172.21.0.3 port 58886 id 1
+Close session: user lab from 172.21.0.3 port 58886 id 1
+Starting session: subsystem 'sftp' for lab from 172.21.0.3 port 58886 id 1
+Close session: user lab from 172.21.0.3 port 58886 id 1
+Starting session: subsystem 'sftp' for lab from 172.21.0.3 port 58886 id 1
+Starting session: subsystem 'sftp' for lab from 172.21.0.3 port 58886 id 2
+Close session: user lab from 172.21.0.3 port 58886 id 1
+Close session: user lab from 172.21.0.3 port 58886 id 2
+Starting session: subsystem 'sftp' for lab from 172.21.0.3 port 58886 id 2
+Starting session: subsystem 'sftp' for lab from 172.21.0.3 port 58886 id 1
+Close session: user lab from 172.21.0.3 port 58886 id 2
+Close session: user lab from 172.21.0.3 port 58886 id 1
+syslogin_perform_logout: logout() returned an error
+Close session: user lab from 172.21.0.3 port 58886 id 0
+Received disconnect from 172.21.0.2 port 58702:11: disconnected by user
+Disconnected from user lab 172.21.0.2 port 58702
+Connection from 172.21.0.3 port 34142 on 172.21.0.4 port 22 rdomain ""
+Accepted key ED25519 SHA256:Xi519s88uZQPnzNTQBsxFuiJGScsyTAdveYScsZ0eGs found at /home/lab/.ssh/authorized_keys:1
+Postponed publickey for lab from 172.21.0.3 port 34142 ssh2 [preauth]
+Accepted key ED25519 SHA256:Xi519s88uZQPnzNTQBsxFuiJGScsyTAdveYScsZ0eGs found at /home/lab/.ssh/authorized_keys:1
+Accepted publickey for lab from 172.21.0.3 port 34142 ssh2: ED25519 SHA256:Xi519s88uZQPnzNTQBsxFuiJGScsyTAdveYScsZ0eGs
+User child is on pid 295
+Starting session: command on pts/0 for lab from 172.21.0.3 port 34142 id 0
+Received disconnect from 172.21.0.5 port 42098:11: disconnected by user
+Disconnected from user lab 172.21.0.5 port 42098
+Starting session: subsystem 'sftp' for lab from 172.21.0.3 port 34142 id 1
+Close session: user lab from 172.21.0.3 port 34142 id 1
+Starting session: subsystem 'sftp' for lab from 172.21.0.3 port 34142 id 1
+Close session: user lab from 172.21.0.3 port 34142 id 1
+Starting session: subsystem 'sftp' for lab from 172.21.0.3 port 34142 id 1
+Starting session: subsystem 'sftp' for lab from 172.21.0.3 port 34142 id 2
+Close session: user lab from 172.21.0.3 port 34142 id 1
+Close session: user lab from 172.21.0.3 port 34142 id 2
+Starting session: subsystem 'sftp' for lab from 172.21.0.3 port 34142 id 2
+Starting session: subsystem 'sftp' for lab from 172.21.0.3 port 34142 id 1
+Close session: user lab from 172.21.0.3 port 34142 id 2
+Close session: user lab from 172.21.0.3 port 34142 id 1
+syslogin_perform_logout: logout() returned an error
+Close session: user lab from 172.21.0.3 port 34142 id 0
+Connection closed by 172.21.0.3 port 58886
+Transferred: sent 40676, received 56028 bytes
+Connection closed by 172.21.0.3 port 34142
+Closing connection to 172.21.0.3 port 58886
+Transferred: sent 40580, received 55992 bytes
+Closing connection to 172.21.0.3 port 34142

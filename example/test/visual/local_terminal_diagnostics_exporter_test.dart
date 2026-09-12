@@ -2,10 +2,54 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:app/features/visual/local_terminal_diagnostics_exporter.dart';
+import 'package:app/features/sessions/shell_integration_capabilities.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart';
 
 void main() {
+  test(
+    'diagnostics retain every shell capability status without private event data',
+    () async {
+      final root = await Directory.systemTemp.createTemp('ianvs-capabilities-');
+      addTearDown(() => root.delete(recursive: true));
+      final capabilities = const ShellIntegrationCapabilities.pending().observe(
+        TerminalSessionShellHookEvent(
+          'one',
+          rawPayload: {
+            'hook': 'preexec',
+            'command': 'private-command',
+            'pwd': '/private-path',
+          },
+        ),
+      );
+      final export = LocalTerminalDiagnosticsExporter.withShellCapabilities(
+        const TerminalDiagnosticsExport(
+          manifest: {'session_id': 1},
+          resourceSamples: [],
+          terminalStats: {},
+          events: [],
+          summary: {},
+        ),
+        capabilities,
+      );
+      final directory = await LocalTerminalDiagnosticsExporter.write(
+        directory: root,
+        basename: 'capabilities',
+        exports: [export],
+      );
+      final text = await File('${directory.path}/sessions.json').readAsString();
+      final sessions = jsonDecode(text) as List;
+      final exported =
+          (sessions.single as Map)['summary']['shell_capabilities'] as Map;
+      expect(exported.length, ShellIntegrationCapability.values.length);
+      expect(exported['command_start']['status'], 'active');
+      expect(exported['command_output_ranges']['status'], 'pending');
+      expect(exported['command_start']['evidence'], 'dcsCommandStart');
+      expect(text, isNot(contains('private-command')));
+      expect(text, isNot(contains('private-path')));
+    },
+  );
+
   test('diagnostics exporter writes the expected local bundle files', () async {
     final root = await Directory.systemTemp.createTemp(
       'ianvs terminal-diagnostics-exporter-test-',

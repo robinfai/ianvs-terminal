@@ -1,0 +1,673 @@
+{
+  "metadata": {
+    "context": "colima",
+    "image": "sha256:9b7632238ca27637bf33cb452a2e1cd76e037f105d08dd0aefdfa5c00fabc2ad",
+    "versions": "bash\t5.2.21-2ubuntu4\nfish\t3.7.0-1\nopenssh-client\t1:9.6p1-3ubuntu13.18\nopenssh-server\t1:9.6p1-3ubuntu13.18\nstrace\t6.8-0ubuntu2\ntmux\t3.4-1ubuntu0.1\nzsh\t5.9-6ubuntu2\n",
+    "hook_source_sha256": "41eac0d0b40c6573fdfcb5cfbdc95e4bf777fd1499eff1f8153563ba8eb5461d",
+    "runner_sha256": "c95f7d9f3c095f651c765c94ebc9ec5b6d242ff0105ecce7618e9c6a60a2b054",
+    "prototype_sha256": "ed89c5d0b913a000e3dca03a2e72842029e5836a9f9c3e3a55f951dd5d3a078c",
+    "git_head": "6b0406a473f5bc4619286a5a4f5619956b5927e4",
+    "nodes": {
+      "a": {
+        "config": {
+          "LAB_SFTP": "no"
+        },
+        "published": true
+      },
+      "b": {
+        "config": {
+          "LAB_SFTP": "no"
+        },
+        "published": false
+      },
+      "c": {
+        "config": {},
+        "published": false
+      },
+      "zsh": {
+        "config": {
+          "LAB_SHELL": "zsh",
+          "LAB_SFTP": "no"
+        },
+        "published": true
+      },
+      "fish": {
+        "config": {
+          "LAB_SHELL": "fish",
+          "LAB_SFTP": "no"
+        },
+        "published": true
+      },
+      "preloaded": {
+        "config": {
+          "LAB_STARTUP": "preloaded"
+        },
+        "published": true
+      },
+      "stale": {
+        "config": {
+          "LAB_STARTUP": "stale"
+        },
+        "published": true
+      },
+      "debug": {
+        "config": {
+          "LAB_STARTUP": "debug"
+        },
+        "published": true
+      },
+      "switch": {
+        "config": {
+          "LAB_STARTUP": "switch"
+        },
+        "published": true
+      },
+      "force": {
+        "config": {
+          "LAB_FORCE": "yes"
+        },
+        "published": true
+      },
+      "notty": {
+        "config": {
+          "LAB_TTY": "no"
+        },
+        "published": true
+      },
+      "single": {
+        "config": {
+          "LAB_MAX_SESSIONS": "1"
+        },
+        "published": true
+      },
+      "noforward": {
+        "config": {
+          "LAB_FORWARDING": "no"
+        },
+        "published": true
+      },
+      "noisy": {
+        "config": {
+          "LAB_STARTUP": "noisy"
+        },
+        "published": true
+      },
+      "tmux": {
+        "config": {
+          "LAB_STARTUP": "tmux"
+        },
+        "published": true
+      },
+      "history": {
+        "config": {
+          "LAB_STARTUP": "history"
+        },
+        "published": true
+      },
+      "readonly": {
+        "config": {
+          "LAB_READONLY": "yes",
+          "LAB_SFTP": "no"
+        },
+        "published": true
+      },
+      "password": {
+        "config": {
+          "LAB_PASSWORD": "yes",
+          "LAB_SFTP": "no"
+        },
+        "published": true
+      },
+      "sh": {
+        "config": {
+          "LAB_SHELL": "dash",
+          "LAB_SFTP": "no"
+        },
+        "published": true
+      },
+      "nohelpers": {
+        "config": {
+          "LAB_STARTUP": "nohelpers",
+          "LAB_SFTP": "no"
+        },
+        "published": true
+      }
+    },
+    "scope": "OpenSSH container experiments and prototype; not application end-to-end acceptance"
+  },
+  "cases": [
+    {
+      "id": "bash-memory-nosftp-nomaster",
+      "passed": true,
+      "expected": "Seven hook capabilities with no SFTP and no ControlMaster",
+      "evidence": {
+        "capabilities": [
+          "command_finish",
+          "command_start",
+          "command_text",
+          "current_directory",
+          "exit_code",
+          "prompt_lifecycle",
+          "shell_identity"
+        ],
+        "exit_code_7_observed": true,
+        "ready_before_first_prompt": true,
+        "sftp_configured": false,
+        "controlmaster": false
+      },
+      "seconds": 0.59
+    },
+    {
+      "id": "zsh-memory-nosftp",
+      "passed": true,
+      "expected": "Install repository hook into final interactive shell without SFTP",
+      "evidence": {
+        "capabilities": [
+          "command_finish",
+          "command_start",
+          "command_text",
+          "current_directory",
+          "exit_code",
+          "prompt_lifecycle",
+          "shell_identity"
+        ],
+        "exit_code_7_observed": true,
+        "initial_prompt_buffered": true,
+        "ready_received": true,
+        "fixture_prompt_detection_only": true
+      },
+      "seconds": 1.989
+    },
+    {
+      "id": "fish-memory-nosftp",
+      "passed": true,
+      "expected": "Install repository hook into final interactive shell without SFTP",
+      "evidence": {
+        "capabilities": [
+          "command_finish",
+          "command_start",
+          "command_text",
+          "current_directory",
+          "exit_code",
+          "prompt_lifecycle",
+          "shell_identity"
+        ],
+        "exit_code_7_observed": true,
+        "initial_prompt_buffered": true,
+        "ready_received": true,
+        "fixture_prompt_detection_only": true
+      },
+      "seconds": 1.488
+    },
+    {
+      "id": "bootstrap-preloaded",
+      "passed": true,
+      "expected": "Reuse real hooks; stale sentinel / existing DEBUG trap must not report activation",
+      "evidence": {
+        "capabilities": [
+          "command_finish",
+          "command_start",
+          "command_text",
+          "current_directory",
+          "exit_code",
+          "prompt_lifecycle",
+          "shell_identity"
+        ],
+        "exit_code_7_observed": true,
+        "registration": {
+          "stage": "ready",
+          "context_id": "preloaded:43",
+          "parent": "root",
+          "registered": true,
+          "source": "reused"
+        }
+      },
+      "seconds": 0.485
+    },
+    {
+      "id": "bootstrap-stale",
+      "passed": true,
+      "expected": "Reuse real hooks; stale sentinel / existing DEBUG trap must not report activation",
+      "evidence": {
+        "capabilities": [],
+        "registration": {
+          "stage": "ready",
+          "context_id": "stale:43",
+          "parent": "root",
+          "registered": false,
+          "source": "missing"
+        }
+      },
+      "seconds": 0.271
+    },
+    {
+      "id": "nested-a-b-c-return",
+      "passed": true,
+      "expected": "Three real interactive shells and correct parent restoration",
+      "evidence": {
+        "ready_contexts": [
+          {
+            "stage": "ready",
+            "context_id": "a:129",
+            "parent": "root",
+            "registered": true,
+            "source": "missing"
+          },
+          {
+            "stage": "ready",
+            "context_id": "b:43",
+            "parent": "a:129",
+            "registered": true,
+            "source": "missing"
+          },
+          {
+            "stage": "ready",
+            "context_id": "c:43",
+            "parent": "b:43",
+            "registered": true,
+            "source": "missing"
+          }
+        ],
+        "resumed_hosts": [
+          "b",
+          "a"
+        ],
+        "independent_capabilities": {
+          "a:129": [
+            "command_finish",
+            "command_start",
+            "command_text",
+            "current_directory",
+            "exit_code",
+            "prompt_lifecycle",
+            "shell_identity"
+          ],
+          "b:43": [
+            "command_finish",
+            "command_start",
+            "command_text",
+            "current_directory",
+            "exit_code",
+            "prompt_lifecycle",
+            "shell_identity"
+          ],
+          "c:43": [
+            "command_finish",
+            "command_start",
+            "command_text",
+            "current_directory",
+            "exit_code",
+            "prompt_lifecycle",
+            "shell_identity"
+          ]
+        },
+        "bundle_bytes": 6070
+      },
+      "seconds": 2.261
+    },
+    {
+      "id": "nested-unhooked-child-isolation",
+      "passed": true,
+      "expected": "Child failure must not inherit parent activation",
+      "evidence": {
+        "parent_capabilities": [
+          "command_finish",
+          "command_start",
+          "command_text",
+          "current_directory",
+          "exit_code",
+          "prompt_lifecycle",
+          "shell_identity"
+        ],
+        "child_capabilities": [],
+        "parent_restored": true,
+        "current_app_flat_state_would_retain_parent": true
+      },
+      "seconds": 1.244
+    },
+    {
+      "id": "existing-debug-trap-conflict",
+      "passed": true,
+      "expected": "Expose DEBUG trap coexistence limitation in repository installer",
+      "evidence": {
+        "existing_debug_trap": "trap ':' DEBUG",
+        "after": "trap '__ianvs_preexec' DEBUG",
+        "limitation": "Repository installer overwrites an existing DEBUG trap in this scenario"
+      },
+      "seconds": 0.651
+    },
+    {
+      "id": "wrapper-bypass-and-argv",
+      "passed": true,
+      "expected": "Bypass is observable limitation; noninteractive argv stays unchanged",
+      "evidence": {
+        "command_ssh_bypasses_wrapper": true,
+        "explicit_remote_command_preserved": true,
+        "automatic_child_detection": false
+      },
+      "seconds": 1.179
+    },
+    {
+      "id": "failed-hop-restores-parent",
+      "passed": true,
+      "expected": "Failed connection cannot create an active child",
+      "evidence": {
+        "parent_restored": true,
+        "ssh_exit_code": 255,
+        "child_ready": false
+      },
+      "seconds": 0.558
+    },
+    {
+      "id": "sftp-disabled-independent",
+      "passed": true,
+      "expected": "Missing SFTP does not disable shell access",
+      "evidence": {
+        "sftp_rejected": true,
+        "shell_still_works": true
+      },
+      "seconds": 0.357
+    },
+    {
+      "id": "multi-hop-sftp-binary-reuse",
+      "passed": true,
+      "expected": "Binary SFTP round trip through A/B, reusing both remote masters",
+      "evidence": {
+        "target": "c",
+        "bytes": 131354,
+        "sha256": "e42bb191fb6dfbc8e70b4bc1daa6888977a96b3430f6e761cee53ebd99f5d542",
+        "wrong_key_without_master_exit": 255,
+        "wrong_key_with_master_succeeded": true,
+        "intermediate_a_sftp": false,
+        "b_and_c_have_no_host_ports": true,
+        "pty_in_file_path": false
+      },
+      "seconds": 0.497
+    },
+    {
+      "id": "live-terminal-sftp-reuse-and-pinning",
+      "passed": true,
+      "expected": "Reuse the actual three terminal connections and keep a transfer on C after return to B",
+      "evidence": {
+        "all_three_original_connections_reused": true,
+        "authentication_counts_before": {
+          "a": 9,
+          "b": 2,
+          "c": 4
+        },
+        "authentication_counts_after": {
+          "a": 9,
+          "b": 2,
+          "c": 4
+        },
+        "active_terminal_after_exit": "b",
+        "ongoing_transfer_target": "c",
+        "bytes": 52224,
+        "sha256": "1e71dcbaae982fe97e1062ce93c8784b4a6b0300840010ebddee79345038bb03",
+        "existing_app_panel_not_involved": true
+      },
+      "seconds": 2.224
+    },
+    {
+      "id": "both-intermediates-without-sftp",
+      "passed": true,
+      "expected": "Only the final target needs SFTP",
+      "evidence": {
+        "a_sftp": false,
+        "b_sftp": false,
+        "b_subsystem_rejected": true,
+        "c_sftp": true,
+        "bridge_still_works": true
+      },
+      "seconds": 0.463
+    },
+    {
+      "id": "exec-relay-with-forwarding-disabled",
+      "passed": true,
+      "expected": "Exec-based SFTP bridge does not require TCP forwarding permission",
+      "evidence": {
+        "AllowTcpForwarding": "no",
+        "exec_relay_works": true
+      },
+      "seconds": 0.318
+    },
+    {
+      "id": "no-pty-sftp-available",
+      "passed": true,
+      "expected": "PTY permission and SFTP support are independent",
+      "evidence": {
+        "pty_rejected": true,
+        "sftp_available": true
+      },
+      "seconds": 0.345
+    },
+    {
+      "id": "maxsessions-one",
+      "passed": true,
+      "expected": "Live terminal may exhaust all channels allowed on its connection",
+      "evidence": {
+        "MaxSessions": 1,
+        "extra_sftp_channel_rejected": true,
+        "existing_shell_alive": true,
+        "error": "SFTP stream closed: mux_client_request_session: session request failed: Session open refused by peer\r\nlab@127.0.0.1: Permission denied (publickey).\r\n"
+      },
+      "seconds": 0.611
+    },
+    {
+      "id": "forcecommand-blocks-bootstrap-and-sftp",
+      "passed": true,
+      "expected": "Server-forced command overrides client requests",
+      "evidence": {
+        "bootstrap_ignored": true,
+        "ready_received": false,
+        "sftp_error": "Invalid SFTP packet length 1179603523; stdout contamination"
+      },
+      "seconds": 0.303
+    },
+    {
+      "id": "noisy-startup-corrupts-relay",
+      "passed": true,
+      "expected": "Noninteractive shell stdout can corrupt raw SFTP framing",
+      "evidence": {
+        "noninteractive_startup_stdout_corrupts_sftp": true,
+        "error": "Invalid SFTP packet length 1431192920; stdout contamination"
+      },
+      "seconds": 0.315
+    },
+    {
+      "id": "master-exit-no-silent-reconnect",
+      "passed": true,
+      "expected": "Expired master breaks reuse and cannot masquerade as a healthy file channel",
+      "evidence": {
+        "bridge_unavailable": true,
+        "fresh_auth_not_silently_satisfied": true,
+        "error": "SFTP stream closed: lab@c: Permission denied (publickey).\r\n"
+      },
+      "seconds": 0.432
+    },
+    {
+      "id": "readonly-home-tmp-bootstrap",
+      "passed": true,
+      "expected": "Memory bootstrap succeeds when home and /tmp cannot accept files",
+      "evidence": {
+        "capabilities": [
+          "command_finish",
+          "command_start",
+          "command_text",
+          "current_directory",
+          "exit_code",
+          "prompt_lifecycle",
+          "shell_identity"
+        ],
+        "exit_code_7_observed": true,
+        "home_and_tmp_writable": false,
+        "bootstrap_transport": "pipe and /dev/fd",
+        "sftp": false
+      },
+      "seconds": 0.536
+    },
+    {
+      "id": "stdin-injection-history-leak",
+      "passed": true,
+      "expected": "A leading space alone does not guarantee no script persistence",
+      "evidence": {
+        "leading_space_protects_without_ignorespace": false,
+        "injection_saved_in_history": true,
+        "limitation": "Blind PTY eval is not a general no-persistence solution"
+      },
+      "seconds": 1.816
+    },
+    {
+      "id": "startup-exec-changes-final-shell",
+      "passed": true,
+      "expected": "Configured login shell is not reliable final-shell identification",
+      "evidence": {
+        "capabilities": [
+          "command_finish",
+          "command_start",
+          "command_text",
+          "current_directory",
+          "exit_code",
+          "prompt_lifecycle",
+          "shell_identity"
+        ],
+        "exit_code_7_observed": true,
+        "login_shell": "bash",
+        "final_shell": "fish",
+        "original_bash_bootstrap_ready": false,
+        "recovered_using_final_shell_adapter": true
+      },
+      "seconds": 1.397
+    },
+    {
+      "id": "password-before-readiness",
+      "passed": true,
+      "expected": "Authentication must be interactive before hook ready gating",
+      "evidence": {
+        "password_prompt_before_hook_check": true,
+        "hook_ready_after_auth": true,
+        "auth_ui_must_remain_visible": true
+      },
+      "seconds": 0.58
+    },
+    {
+      "id": "controlpath-length-limit",
+      "passed": true,
+      "expected": "ControlPath must leave room for the OpenSSH temporary suffix",
+      "evidence": {
+        "overlong_ControlPath_rejected": true,
+        "error": "ControlPath too long ('/tmp/ianvs-bl-8ecqzpao/mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm' >= 104 bytes)"
+      },
+      "seconds": 0.007
+    },
+    {
+      "id": "exec-ssh-bypasses-context-tracking",
+      "passed": true,
+      "expected": "Process replacement bypasses wrapper and has no parent return event",
+      "evidence": {
+        "child_interactive": true,
+        "child_handshake": false,
+        "parent_wrapper_resume": false
+      },
+      "seconds": 0.636
+    },
+    {
+      "id": "tmux-dcs-filtering",
+      "passed": true,
+      "expected": "Plain hook DCS needs explicit tmux passthrough handling",
+      "evidence": {
+        "bare_dcs_received": false,
+        "tmux_wrapped_dcs_received": true,
+        "explicit_passthrough_needed": true
+      },
+      "seconds": 0.621
+    },
+    {
+      "id": "script-persistence-and-file-syscalls",
+      "passed": true,
+      "expected": "Check on-disk payload content and transient /tmp creation via strace",
+      "evidence": {
+        "scan": {
+          "a": {
+            "payload_files": [],
+            "created_paths": [
+              "/home/lab/.bash_history"
+            ]
+          },
+          "zsh": {
+            "payload_files": [],
+            "created_paths": []
+          },
+          "fish": {
+            "payload_files": [],
+            "created_paths": [
+              "/home/lab/.config/fish/fish_variables",
+              "/home/lab/.config/fish/fishd.tmp.1IN8UM",
+              "/home/lab/.config/fish/fishd.tmp.2SDNW9",
+              "/home/lab/.config/fish/fishd.tmp.3Sm5Kg",
+              "/home/lab/.config/fish/fishd.tmp.4jA5kM",
+              "/home/lab/.config/fish/fishd.tmp.5ccpeJ",
+              "/home/lab/.config/fish/fishd.tmp.6zHfr8",
+              "/home/lab/.config/fish/fishd.tmp.73Flz4",
+              "/home/lab/.config/fish/fishd.tmp.9fj47n",
+              "/home/lab/.config/fish/fishd.tmp.AqwFEx",
+              "/home/lab/.config/fish/fishd.tmp.BbAXYs",
+              "/home/lab/.config/fish/fishd.tmp.BgfZDw",
+              "/home/lab/.config/fish/fishd.tmp.DIAm7g",
+              "/home/lab/.config/fish/fishd.tmp.GRfTj4",
+              "/home/lab/.config/fish/fishd.tmp.KUrfP4",
+              "/home/lab/.config/fish/fishd.tmp.KyGFRN",
+              "/home/lab/.config/fish/fishd.tmp.MCfF8L",
+              "/home/lab/.config/fish/fishd.tmp.TVQoSI",
+              "/home/lab/.config/fish/fishd.tmp.W5VMzP",
+              "/home/lab/.config/fish/fishd.tmp.YYQzgV",
+              "/home/lab/.config/fish/fishd.tmp.cVN2k9",
+              "/home/lab/.config/fish/fishd.tmp.cX1Sy2",
+              "/home/lab/.config/fish/fishd.tmp.hPlqN9",
+              "/home/lab/.config/fish/fishd.tmp.jm82RG",
+              "/home/lab/.config/fish/fishd.tmp.kKElpM",
+              "/home/lab/.config/fish/fishd.tmp.mFyS1p",
+              "/home/lab/.config/fish/fishd.tmp.oF8MzK",
+              "/home/lab/.config/fish/fishd.tmp.pLXiGR",
+              "/home/lab/.config/fish/fishd.tmp.qW4cLQ",
+              "/home/lab/.config/fish/fishd.tmp.vGOPm1",
+              "/home/lab/.config/fish/fishd.tmp.vr7jq6",
+              "/home/lab/.local/share/fish/fish_history",
+              "/home/lab/.local/share/fish/fish_history.FeG5mv"
+            ]
+          },
+          "readonly": {
+            "payload_files": [],
+            "created_paths": [
+              "/home/lab/.bash_history"
+            ]
+          }
+        },
+        "scope": "Injector script persistence; shell history/cache and sshd audit writes are separate"
+      },
+      "seconds": 0.214
+    },
+    {
+      "id": "posix-sh-directory-only",
+      "passed": true,
+      "expected": "POSIX sh fallback reports directory but not full lifecycle capabilities",
+      "evidence": {
+        "OSC7_cwd": true,
+        "DCS_command_lifecycle": false,
+        "full_bash_zsh_fish_capabilities": false
+      },
+      "seconds": 0.393
+    },
+    {
+      "id": "missing-hook-helpers",
+      "passed": true,
+      "expected": "Unavailable od/tr must not be reported as active shell integration",
+      "evidence": {
+        "od_and_tr_available": false,
+        "hook_registered": false,
+        "shell_commands_work": true
+      },
+      "seconds": 1.439
+    }
+  ]
+}

@@ -48,6 +48,9 @@ extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
   }
 
   String get _visibleOverlay {
+    if (_isShellCapabilitiesOpen) {
+      return 'shellCapabilities';
+    }
     if (_isDefaultsOpen) {
       return 'defaults';
     }

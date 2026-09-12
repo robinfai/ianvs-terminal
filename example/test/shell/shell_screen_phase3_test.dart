@@ -6,6 +6,7 @@ import 'package:app/features/layout/local_terminal_layout_repository.dart';
 import 'package:app/features/preferences/app_preferences_models.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/sessions/session_controller.dart';
+import 'package:app/features/sessions/shell_capabilities_dialog.dart';
 import 'package:app/features/shell/shell_acceptance.dart';
 import 'package:app/features/shell/shell_screen.dart';
 import 'package:app/features/ssh/ssh_feature_access.dart';
@@ -98,6 +99,33 @@ class _MemoryLayoutRepository extends LocalTerminalLayoutRepository {
 }
 
 void main() {
+  testWidgets(
+    'command menu opens the active session capability view and restores focus on close',
+    (tester) async {
+      await _pumpShellScreen(
+        tester,
+        fakeBindings: FakePtyBackend(),
+        profileRepository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+        preferencesRepository: MemoryAppPreferencesRepository(null),
+      );
+      await tester.tap(find.byKey(const Key('shell-chrome-menu')));
+      await tester.pumpAndSettle();
+      final entry = find.byKey(const Key('shell-capabilities'));
+      await tester.ensureVisible(entry);
+      await tester.tap(entry);
+      await tester.pumpAndSettle();
+      expect(find.byType(ShellCapabilitiesDialog), findsOneWidget);
+      expect(find.text('0 of 13 capabilities active'), findsOneWidget);
+      expect(shellAcceptanceProbe.current.visibleOverlay, 'shellCapabilities');
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.byType(ShellCapabilitiesDialog), findsNothing);
+      expect(shellAcceptanceProbe.current.visibleOverlay, 'none');
+    },
+  );
+
   testWidgets(
     'session backend failures use a transient notice and persistent tab error',
     (tester) async {

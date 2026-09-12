@@ -215,7 +215,9 @@ pub fn spawn_terminal_transport(
     match profile.connection.connection_type {
         TerminalConnectionType::Local => spawn_pty(profile, rows, cols),
         TerminalConnectionType::Ssh => {
-            let shell_integration = if !profile.shell_integration.enabled {
+            let shell_integration = if !profile.shell_integration.enabled
+                || profile.shell_integration.ssh_auto_inject == Some(false)
+            {
                 ShellIntegrationPlanStatus::disabled("disabled_by_profile")
             } else if profile.terminal.emulation != TerminalEmulation::Xterm256 {
                 ShellIntegrationPlanStatus::degraded("unsupported_emulation", None, None)
@@ -227,6 +229,7 @@ pub fn spawn_terminal_transport(
                 rows,
                 cols,
                 shell_integration.status == "enabled",
+                profile.shell_integration.ssh_wrapper,
             )?;
             Ok(PtyRuntime {
                 master: runtime.master,
@@ -261,7 +264,15 @@ where
         pixel_height: 0,
     })?;
 
-    let plan = build_command_plan(profile);
+    let mut profile = profile.clone();
+    let bootstrap_nonce = crate::shell_bootstrap::token();
+    if profile.shell_integration.enabled {
+        profile
+            .launch
+            .env
+            .insert("IANVS_BOOTSTRAP_TOKEN".into(), bootstrap_nonce.clone());
+    }
+    let plan = build_command_plan(&profile);
 
     let mut command = CommandBuilder::new(&plan.program);
     for arg in &plan.args {
@@ -273,6 +284,7 @@ where
     for (key, value) in &plan.env {
         command.env(key, value);
     }
+    command.env_remove("IANVS_BOOTSTRAP_TOKEN");
     match profile.terminal.emulation {
         TerminalEmulation::Xterm256 => {
             command.env("TERM", "xterm-256color");
@@ -293,10 +305,23 @@ where
     post_spawn_check(child_pid)?;
     let reader = pair.master.try_clone_reader()?;
     #[cfg(unix)]
-    let reader_poll_handle = Some(duplicate_reader_poll_handle(pair.master.as_raw_fd())?);
+    let mut reader_poll_handle = Some(duplicate_reader_poll_handle(pair.master.as_raw_fd())?);
     #[cfg(not(unix))]
-    let reader_poll_handle = None;
+    let mut reader_poll_handle = None;
     let writer = pair.master.take_writer()?;
+    let (reader, writer, ssh_sftp) =
+        if profile.shell_integration.enabled && plan.shell_integration.status == "enabled" {
+            reader_poll_handle = None;
+            let (reader, writer, sftp) = crate::shell_bootstrap::wrap_local(
+                reader,
+                writer,
+                bootstrap_nonce,
+                profile.shell_integration.ssh_wrapper,
+            )?;
+            (reader, writer, Some(sftp))
+        } else {
+            (reader, writer, None)
+        };
     let child = child_guard.take();
 
     Ok(PtyRuntime {
@@ -309,7 +334,7 @@ where
         shell_integration: plan.shell_integration,
         shell_integration_proxy: plan.shell_integration_proxy,
         ssh_auth: None,
-        ssh_sftp: None,
+        ssh_sftp,
     })
 }
 
@@ -544,10 +569,30 @@ fn is_executable_file(_path: &Path) -> bool {
 
 fn create_shell_integration_proxy(
     kind: ShellIntegrationKind,
-    _profile: &TerminalProfile,
+    profile: &TerminalProfile,
     _program: &str,
 ) -> std::io::Result<ShellIntegrationProxy> {
-    create_shell_integration_proxy_in(kind, &std::env::temp_dir())
+    let proxy = create_shell_integration_proxy_in(kind, &std::env::temp_dir())?;
+    if let Some(nonce) = profile.launch.env.get("IANVS_BOOTSTRAP_TOKEN") {
+        let file = match kind {
+            ShellIntegrationKind::Bash => ".bashrc",
+            ShellIntegrationKind::Zsh => ".zshrc",
+            ShellIntegrationKind::Fish => "init.fish",
+        };
+        let mut output = fs::OpenOptions::new()
+            .append(true)
+            .open(proxy.path().join(file))?;
+        output.write_all(
+            crate::shell_bootstrap::wrapper(
+                nonce,
+                kind.as_str(),
+                profile.shell_integration.ssh_wrapper,
+            )
+            .as_bytes(),
+        )?;
+        output.write_all(crate::shell_bootstrap::local_ready(nonce, kind.as_str()).as_bytes())?;
+    }
+    Ok(proxy)
 }
 
 fn create_shell_integration_proxy_in(
@@ -628,16 +673,15 @@ pub(crate) fn zsh_shell_integration_files() -> Vec<(&'static str, String)> {
     ]
 }
 
-pub(crate) fn remote_bash_shell_integration_source() -> String {
-    format!("{BASH_REMOTE_LOGIN_STARTUP}\n{BASH_RCFILE}")
+pub(crate) fn bash_hook_source() -> &'static str {
+    BASH_RCFILE
+}
+pub(crate) fn zsh_hook_source() -> &'static str {
+    ZSH_HOOK_INSTALLER
 }
 
 pub(crate) fn fish_shell_integration_source() -> &'static str {
     FISH_INIT
-}
-
-pub(crate) fn sh_shell_integration_source() -> &'static str {
-    SH_INIT
 }
 
 const ZSH_PROXY_COMMON: &str = r#"
@@ -837,7 +881,7 @@ __ianvs_install_shell_hooks() {
   [[ -z "${__IANVS_SHELL_INTEGRATION_LOADED:-}" ]] || return 0
   command -v od >/dev/null 2>&1 || return 0
   command -v tr >/dev/null 2>&1 || return 0
-  [[ -z "$(trap -p DEBUG 2>/dev/null)" ]] || return 0
+  [[ -z "${__ianvs_existing_debug_trap:-}" ]] || return 0
 
   __IANVS_SHELL_INTEGRATION_LOADED=1
   __ianvs_command_active=0
@@ -866,6 +910,7 @@ __ianvs_install_shell_hooks() {
   }
 
   __ianvs_preexec() {
+    [[ "${__IANVS_BOOTSTRAPPING:-0}" == 1 ]] && return 0
     local __ianvs_frame
     for __ianvs_frame in "${FUNCNAME[@]:1}"; do
       [[ "$__ianvs_frame" == __ianvs_* ]] && return 0
@@ -875,7 +920,7 @@ __ianvs_install_shell_hooks() {
 
     local __ianvs_command="${BASH_COMMAND:-}"
     [[ -n "$__ianvs_command" ]] || return 0
-    [[ "$__ianvs_command" == "__ianvs_prompt_command"* ]] && return 0
+    case "$__ianvs_command" in __ianvs_*|__iv_*|unset\ __ianvs_*|unset\ -f\ __iv_*) return 0 ;; esac
 
     __ianvs_command_active=1
     __ianvs_last_command="$__ianvs_command"
@@ -910,27 +955,8 @@ __ianvs_install_shell_hooks() {
 }
 
 __ianvs_source_original_bashrc || true
+__ianvs_existing_debug_trap=$(trap -p DEBUG 2>/dev/null)
 __ianvs_install_shell_hooks >/dev/null 2>&1 || true
-"#;
-
-const BASH_REMOTE_LOGIN_STARTUP: &str = r#"
-__ianvs_source_login_startup() {
-  if [[ -r /etc/profile ]]; then
-    . /etc/profile || true
-  fi
-  local __ianvs_login_file
-  for __ianvs_login_file in \
-    "${HOME:-}/.bash_profile" \
-    "${HOME:-}/.bash_login" \
-    "${HOME:-}/.profile"; do
-    [[ -r "$__ianvs_login_file" ]] || continue
-    . "$__ianvs_login_file" || true
-    break
-  done
-}
-
-__ianvs_source_login_startup
-unset -f __ianvs_source_login_startup
 "#;
 
 const FISH_INIT: &str = r#"
@@ -990,6 +1016,8 @@ if test -n "$IANVS_SHELL_INTEGRATION"; and not set -q __IANVS_SHELL_INTEGRATION_
 end
 "#;
 
+#[cfg(test)]
+#[allow(dead_code)] // Historical comparison script read by tools/ssh_boundary_lab/prototype.py.
 const SH_INIT: &str = r#"
 if [ "${IANVS_ORIGINAL_ENV_WAS_SET:-0}" = "1" ] &&
    [ -n "${IANVS_ORIGINAL_ENV:-}" ] &&
@@ -1053,6 +1081,7 @@ mod tests {
             },
             shell_integration: TerminalShellIntegration {
                 enabled: shell_integration_enabled,
+                ..Default::default()
             },
             appearance: TerminalProfileAppearance::default(),
             interaction: TerminalProfileInteraction::default(),

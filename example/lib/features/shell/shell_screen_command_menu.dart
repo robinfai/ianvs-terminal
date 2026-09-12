@@ -346,6 +346,18 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                         ).pop(TerminalActionId.exportScrollback),
                       ),
                       commandTile(
+                        key: const Key('shell-capabilities'),
+                        actionId: TerminalActionId.showShellCapabilities,
+                        icon: Icons.fact_check_outlined,
+                        title: context.l10n.shellCapabilities,
+                        subtitle: context.l10n.shellCapabilitiesMenuDescription,
+                        enabled: hasActiveSession,
+                        disabledReason: activeSessionRequired,
+                        onTap: () => Navigator.of(
+                          context,
+                        ).pop(TerminalActionId.showShellCapabilities),
+                      ),
+                      commandTile(
                         key: const Key('shell-export-diagnostics'),
                         actionId: TerminalActionId.exportDiagnostics,
                         icon: Icons.bug_report_rounded,
@@ -436,6 +448,10 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
 }
 
 const _commandMenuActionSearchEntries = <MapEntry<String, TerminalActionId>>[
+  MapEntry(
+    'shell hook capabilities activation status integration 能力 激活 状态',
+    TerminalActionId.showShellCapabilities,
+  ),
   MapEntry(
     'new tab open current profile terminal shell',
     TerminalActionId.newTab,

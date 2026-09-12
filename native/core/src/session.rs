@@ -4594,7 +4594,11 @@ impl TerminalSession {
             .is_some_and(|auth| auth.respond_host_key(challenge_id, accept))
     }
 
-    fn start_sftp_directory_listing(&self, path: String) -> Result<u64, SessionError> {
+    fn start_sftp_directory_listing(
+        &self,
+        path: String,
+        context: String,
+    ) -> Result<u64, SessionError> {
         if !product_requests::valid_sftp_path(&path) {
             return Err(SessionError::Sftp("invalid remote path".to_string()));
         }
@@ -4609,7 +4613,7 @@ impl TerminalSession {
             ));
         }
         let receiver = client
-            .start_list_directory(path)
+            .start_list_directory_in_context(path, context)
             .map_err(SessionError::Sftp)?;
         let job_id = self
             .sftp_job_seed
@@ -4656,6 +4660,7 @@ impl TerminalSession {
     fn start_sftp_operation(
         &self,
         operation: crate::ssh::SftpOperation,
+        context: String,
     ) -> Result<u64, SessionError> {
         let client = self
             .ssh_sftp
@@ -4668,7 +4673,7 @@ impl TerminalSession {
             ));
         }
         let receiver = client
-            .start_operation(operation)
+            .start_operation_in_context(operation, context)
             .map_err(SessionError::Sftp)?;
         let job_id = self
             .sftp_job_seed
@@ -8660,7 +8665,10 @@ mod tests {
             },
             connection: TerminalProfileConnection::default(),
             terminal: TerminalProfileTerminal::default(),
-            shell_integration: TerminalShellIntegration { enabled: false },
+            shell_integration: TerminalShellIntegration {
+                enabled: false,
+                ..Default::default()
+            },
             appearance: TerminalProfileAppearance::default(),
             interaction: TerminalProfileInteraction::default(),
         }

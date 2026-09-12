@@ -64,11 +64,16 @@ final class TerminalJsonRequestClient {
     return decoded?['accepted'] == true;
   }
 
-  String? startSftpDirectoryListing(String sessionId, String path) {
+  String? startSftpDirectoryListing(
+    String sessionId,
+    String path, {
+    String? contextId,
+  }) {
     const operation = 'ssh.sftp.list_directory_start';
     final decoded = _requestJsonObject(sessionId, operation, <String, Object?>{
       'kind': operation,
       'path': path,
+      'contextId': ?contextId,
     });
     final jobId = decoded?['jobId'];
     if (jobId is! String ||
@@ -115,12 +120,14 @@ final class TerminalJsonRequestClient {
     required String remotePath,
     String? localPath,
     bool? isDirectory,
+    String? contextId,
   }) {
     const operation = 'ssh.sftp.operation_start';
     final decoded = _requestJsonObject(sessionId, operation, <String, Object?>{
       'kind': operation,
       'action': action.wireName,
       'remotePath': remotePath,
+      'contextId': ?contextId,
       'localPath': ?localPath,
       'isDirectory': ?isDirectory,
     });

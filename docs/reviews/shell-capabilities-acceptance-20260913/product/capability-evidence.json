@@ -1,0 +1,1159 @@
+{
+  "passed": true,
+  "scenarios": [
+    {
+      "capabilities": {
+        "no_command_before_input": true,
+        "observations": [
+          {
+            "command": "false",
+            "event_order": [
+              "preexec",
+              "command_finished",
+              "precmd",
+              "precmd.pwd"
+            ],
+            "exit_code": 1
+          },
+          {
+            "command": "true",
+            "event_order": [
+              "preexec",
+              "command_finished",
+              "precmd",
+              "precmd.pwd"
+            ],
+            "exit_code": 0
+          }
+        ],
+        "runtime_verified": [
+          "current_directory",
+          "prompt_lifecycle",
+          "command_start",
+          "command_text",
+          "command_finish",
+          "exit_code",
+          "shell_identity"
+        ],
+        "shell": "bash",
+        "startup_registered": [
+          "current_directory",
+          "prompt_lifecycle",
+          "command_start",
+          "command_text",
+          "command_finish",
+          "exit_code",
+          "shell_identity"
+        ]
+      },
+      "ready_before_connected": true,
+      "scenario": "a",
+      "source": "installed"
+    },
+    {
+      "capabilities": {
+        "no_command_before_input": true,
+        "observations": [
+          {
+            "command": "false",
+            "event_order": [
+              "preexec",
+              "command_finished",
+              "precmd",
+              "precmd.pwd"
+            ],
+            "exit_code": 1
+          },
+          {
+            "command": "true",
+            "event_order": [
+              "preexec",
+              "command_finished",
+              "precmd",
+              "precmd.pwd"
+            ],
+            "exit_code": 0
+          }
+        ],
+        "runtime_verified": [
+          "current_directory",
+          "prompt_lifecycle",
+          "command_start",
+          "command_text",
+          "command_finish",
+          "exit_code",
+          "shell_identity"
+        ],
+        "shell": "bash",
+        "startup_registered": [
+          "current_directory",
+          "prompt_lifecycle",
+          "command_start",
+          "command_text",
+          "command_finish",
+          "exit_code",
+          "shell_identity"
+        ]
+      },
+      "scenario": "a/bash"
+    },
+    {
+      "capabilities": {
+        "no_command_before_input": true,
+        "observations": [
+          {
+            "command": "false",
+            "event_order": [
+              "preexec",
+              "command_finished",
+              "precmd",
+              "precmd.pwd"
+            ],
+            "exit_code": 1
+          },
+          {
+            "command": "true",
+            "event_order": [
+              "preexec",
+              "command_finished",
+              "precmd",
+              "precmd.pwd"
+            ],
+            "exit_code": 0
+          }
+        ],
+        "runtime_verified": [
+          "current_directory",
+          "prompt_lifecycle",
+          "command_start",
+          "command_text",
+          "command_finish",
+          "exit_code",
+          "shell_identity"
+        ],
+        "shell": "zsh",
+        "startup_registered": [
+          "current_directory",
+          "prompt_lifecycle",
+          "command_start",
+          "command_text",
+          "command_finish",
+          "exit_code",
+          "shell_identity"
+        ]
+      },
+      "scenario": "a/bash/zsh"
+    },
+    {
+      "capabilities": {
+        "no_command_before_input": true,
+        "observations": [
+          {
+            "command": "false",
+            "event_order": [
+              "preexec",
+              "command_finished",
+              "precmd",
+              "precmd.pwd"
+            ],
+            "exit_code": 1
+          },
+          {
+            "command": "true",
+            "event_order": [
+              "preexec",
+              "command_finished",
+              "precmd",
+              "precmd.pwd"
+            ],
+            "exit_code": 0
+          }
+        ],
+        "runtime_verified": [
+          "current_directory",
+          "prompt_lifecycle",
+          "command_start",
+          "command_text",
+          "command_finish",
+          "exit_code",
+          "shell_identity"
+        ],
+        "shell": "fish",
+        "startup_registered": [
+          "current_directory",
+          "prompt_lifecycle",
+          "command_start",
+          "command_text",
+          "command_finish",
+          "exit_code",
+          "shell_identity"
+        ]
+      },
+      "scenario": "a/bash/zsh/fish"
+    },
+    {
+      "capabilities": {
+        "no_command_before_input": true,
+        "observations": [
+          {
+            "command": "false",
+            "event_order": [
+              "preexec",
+              "command_finished",
+              "precmd",
+              "precmd.pwd"
+            ],
+            "exit_code": 1
+          },
+          {
+            "command": "true",
+            "event_order": [
+              "preexec",
+              "command_finished",
+              "precmd",
+              "precmd.pwd"
+            ],
+            "exit_code": 0
+          }
+        ],
+        "runtime_verified": [
+          "current_directory",
+          "prompt_lifecycle",
+          "command_start",
+          "command_text",
+          "command_finish",
+          "exit_code",
+          "shell_identity"
+        ],
+        "shell": "zsh",
+        "startup_registered": [
+          "current_directory",
+          "prompt_lifecycle",
+          "command_start",
+          "command_text",
+          "command_finish",
+          "exit_code",
+          "shell_identity"
+        ]
+      },
+      "ready_before_connected": true,
+      "scenario": "zsh",
+      "source": "installed"
+    },
+    {
+      "capabilities": {
+        "no_command_before_input": true,
+        "observations": [
+          {
+            "command": "false",
+            "event_order": [
+              "preexec",
+              "command_finished",
+              "precmd",
+              "precmd.pwd"
+            ],
+            "exit_code": 1
+          },
+          {
+            "command": "true",
+            "event_order": [
+              "preexec",
+              "command_finished",
+              "precmd",
+              "precmd.pwd"
+            ],
+            "exit_code": 0
+          }
+        ],
+        "runtime_verified": [
+          "current_directory",
+          "prompt_lifecycle",
+          "command_start",
+          "command_text",
+          "command_finish",
+          "exit_code",
+          "shell_identity"
+        ],
+        "shell": "bash",
+        "startup_registered": [
+          "current_directory",
+          "prompt_lifecycle",
+          "command_start",
+          "command_text",
+          "command_finish",
+          "exit_code",
+          "shell_identity"
+        ]
+      },
+      "scenario": "zsh/bash"
+    },
+    {
+      "capabilities": {
+        "no_command_before_input": true,
+        "observations": [
+          {
+            "command": "false",
+            "event_order": [
+              "preexec",
+              "command_finished",
+              "precmd",
+              "precmd.pwd"
+            ],
+            "exit_code": 1
+          },
+          {
+            "command": "true",
+            "event_order": [
+              "preexec",
+              "command_finished",
+              "precmd",
+              "precmd.pwd"
+            ],
+            "exit_code": 0
+          }
+        ],
+        "runtime_verified": [
+          "current_directory",
+          "prompt_lifecycle",
+          "command_start",
+          "command_text",
+          "command_finish",
+          "exit_code",
+          "shell_identity"
+        ],
+        "shell": "zsh",
+        "startup_registered": [
+          "current_directory",
+          "prompt_lifecycle",
+          "command_start",
+          "command_text",
+          "command_finish",
+          "exit_code",
+          "shell_identity"
+        ]
+      },
+      "scenario": "zsh/bash/zsh"
+    },
+    {
+      "capabilities": {
+        "no_command_before_input": true,
+        "observations": [
+          {
+            "command": "false",
+            "event_order": [
+              "preexec",
+              "command_finished",
+              "precmd",
+              "precmd.pwd"
+            ],
+            "exit_code": 1
+          },
+          {
+            "command": "true",
+            "event_order": [
+              "preexec",
+              "command_finished",
+              "precmd",
+              "precmd.pwd"
+            ],
+            "exit_code": 0
+          }
+        ],
+        "runtime_verified": [
+          "current_directory",
+          "prompt_lifecycle",
+          "command_start",
+          "command_text",
+          "command_finish",
+          "exit_code",
+          "shell_identity"
+        ],
+        "shell": "fish",
+        "startup_registered": [
+          "current_directory",
+          "prompt_lifecycle",
+          "command_start",
+          "command_text",
+          "command_finish",
+          "exit_code",
+          "shell_identity"
+        ]
+      },
+      "scenario": "zsh/bash/zsh/fish"
+    },
+    {
+      "capabilities": {
+        "no_command_before_input": true,
+        "observations": [
+          {
+            "command": "false",
+            "event_order": [
+              "preexec",
+              "command_finished",
+              "precmd",
+              "precmd.pwd"
+            ],
+            "exit_code": 1
+          },
+          {
+            "command": "true",
+            "event_order": [
+              "preexec",
+              "command_finished",
+              "precmd",
+              "precmd.pwd"
+            ],
+            "exit_code": 0
+          }
+        ],
+        "runtime_verified": [
+          "current_directory",
+          "prompt_lifecycle",
+          "command_start",
+          "command_text",
+          "command_finish",
+          "exit_code",
+          "shell_identity"
+        ],
+        "shell": "fish",
+        "startup_registered": [
+          "current_directory",
+          "prompt_lifecycle",
+          "command_start",
+          "command_text",
+          "command_finish",
+          "exit_code",
+          "shell_identity"
+        ]
+      },
+      "ready_before_connected": true,
+      "scenario": "fish",
+      "source": "installed"
+    },
+    {
+      "capabilities": {
+        "no_command_before_input": true,
+        "observations": [
+          {
+            "command": "false",
+            "event_order": [
+              "preexec",
+              "command_finished",
+              "precmd",
+              "precmd.pwd"
+            ],
+            "exit_code": 1
+          },
+          {
+            "command": "true",
+            "event_order": [
+              "preexec",
+              "command_finished",
+              "precmd",
+              "precmd.pwd"
+            ],
+            "exit_code": 0
+          }
+        ],
+        "runtime_verified": [
+          "current_directory",
+          "prompt_lifecycle",
+          "command_start",
+          "command_text",
+          "command_finish",
+          "exit_code",
+          "shell_identity"
+        ],
+        "shell": "bash",
+        "startup_registered": [
+          "current_directory",
+          "prompt_lifecycle",
+          "command_start",
+          "command_text",
+          "command_finish",
+          "exit_code",
+          "shell_identity"
+        ]
+      },
+      "scenario": "fish/bash"
+    },
+    {
+      "capabilities": {
+        "no_command_before_input": true,
+        "observations": [
+          {
+            "command": "false",
+            "event_order": [
+              "preexec",
+              "command_finished",
+              "precmd",
+              "precmd.pwd"
+            ],
+            "exit_code": 1
+          },
+          {
+            "command": "true",
+            "event_order": [
+              "preexec",
+              "command_finished",
+              "precmd",
+              "precmd.pwd"
+            ],
+            "exit_code": 0
+          }
+        ],
+        "runtime_verified": [
+          "current_directory",
+          "prompt_lifecycle",
+          "command_start",
+          "command_text",
+          "command_finish",
+          "exit_code",
+          "shell_identity"
+        ],
+        "shell": "zsh",
+        "startup_registered": [
+          "current_directory",
+          "prompt_lifecycle",
+          "command_start",
+          "command_text",
+          "command_finish",
+          "exit_code",
+          "shell_identity"
+        ]
+      },
+      "scenario": "fish/bash/zsh"
+    },
+    {
+      "capabilities": {
+        "no_command_before_input": true,
+        "observations": [
+          {
+            "command": "false",
+            "event_order": [
+              "preexec",
+              "command_finished",
+              "precmd",
+              "precmd.pwd"
+            ],
+            "exit_code": 1
+          },
+          {
+            "command": "true",
+            "event_order": [
+              "preexec",
+              "command_finished",
+              "precmd",
+              "precmd.pwd"
+            ],
+            "exit_code": 0
+          }
+        ],
+        "runtime_verified": [
+          "current_directory",
+          "prompt_lifecycle",
+          "command_start",
+          "command_text",
+          "command_finish",
+          "exit_code",
+          "shell_identity"
+        ],
+        "shell": "fish",
+        "startup_registered": [
+          "current_directory",
+          "prompt_lifecycle",
+          "command_start",
+          "command_text",
+          "command_finish",
+          "exit_code",
+          "shell_identity"
+        ]
+      },
+      "scenario": "fish/bash/zsh/fish"
+    },
+    {
+      "capabilities": {
+        "no_command_before_input": true,
+        "observations": [
+          {
+            "command": "false",
+            "event_order": [
+              "preexec",
+              "command_finished",
+              "precmd",
+              "precmd.pwd"
+            ],
+            "exit_code": 1
+          },
+          {
+            "command": "true",
+            "event_order": [
+              "preexec",
+              "command_finished",
+              "precmd",
+              "precmd.pwd"
+            ],
+            "exit_code": 0
+          }
+        ],
+        "runtime_verified": [
+          "current_directory",
+          "prompt_lifecycle",
+          "command_start",
+          "command_text",
+          "command_finish",
+          "exit_code",
+          "shell_identity"
+        ],
+        "shell": "bash",
+        "startup_registered": [
+          "current_directory",
+          "prompt_lifecycle",
+          "command_start",
+          "command_text",
+          "command_finish",
+          "exit_code",
+          "shell_identity"
+        ]
+      },
+      "ready_before_connected": true,
+      "scenario": "preloaded",
+      "source": "reused"
+    },
+    {
+      "ready_before_connected": true,
+      "registered": false,
+      "scenario": "debug",
+      "source": "hook_conflict"
+    },
+    {
+      "capabilities": {
+        "no_command_before_input": true,
+        "observations": [
+          {
+            "command": "false",
+            "event_order": [
+              "preexec",
+              "command_finished",
+              "precmd",
+              "precmd.pwd"
+            ],
+            "exit_code": 1
+          },
+          {
+            "command": "true",
+            "event_order": [
+              "preexec",
+              "command_finished",
+              "precmd",
+              "precmd.pwd"
+            ],
+            "exit_code": 0
+          }
+        ],
+        "runtime_verified": [
+          "current_directory",
+          "prompt_lifecycle",
+          "command_start",
+          "command_text",
+          "command_finish",
+          "exit_code",
+          "shell_identity"
+        ],
+        "shell": "bash",
+        "startup_registered": [
+          "current_directory",
+          "prompt_lifecycle",
+          "command_start",
+          "command_text",
+          "command_finish",
+          "exit_code",
+          "shell_identity"
+        ]
+      },
+      "ready_before_connected": true,
+      "scenario": "stale",
+      "source": "installed"
+    },
+    {
+      "capabilities": {
+        "no_command_before_input": true,
+        "observations": [
+          {
+            "command": "false",
+            "event_order": [
+              "preexec",
+              "command_finished",
+              "precmd",
+              "precmd.pwd"
+            ],
+            "exit_code": 1
+          },
+          {
+            "command": "true",
+            "event_order": [
+              "preexec",
+              "command_finished",
+              "precmd",
+              "precmd.pwd"
+            ],
+            "exit_code": 0
+          }
+        ],
+        "runtime_verified": [
+          "current_directory",
+          "prompt_lifecycle",
+          "command_start",
+          "command_text",
+          "command_finish",
+          "exit_code",
+          "shell_identity"
+        ],
+        "shell": "bash",
+        "startup_registered": [
+          "current_directory",
+          "prompt_lifecycle",
+          "command_start",
+          "command_text",
+          "command_finish",
+          "exit_code",
+          "shell_identity"
+        ]
+      },
+      "ready_before_connected": true,
+      "scenario": "history",
+      "source": "installed"
+    },
+    {
+      "capabilities": {
+        "no_command_before_input": true,
+        "observations": [
+          {
+            "command": "false",
+            "event_order": [
+              "preexec",
+              "command_finished",
+              "precmd",
+              "precmd.pwd"
+            ],
+            "exit_code": 1
+          },
+          {
+            "command": "true",
+            "event_order": [
+              "preexec",
+              "command_finished",
+              "precmd",
+              "precmd.pwd"
+            ],
+            "exit_code": 0
+          }
+        ],
+        "runtime_verified": [
+          "current_directory",
+          "prompt_lifecycle",
+          "command_start",
+          "command_text",
+          "command_finish",
+          "exit_code",
+          "shell_identity"
+        ],
+        "shell": "bash",
+        "startup_registered": [
+          "current_directory",
+          "prompt_lifecycle",
+          "command_start",
+          "command_text",
+          "command_finish",
+          "exit_code",
+          "shell_identity"
+        ]
+      },
+      "ready_before_connected": true,
+      "scenario": "readonly",
+      "source": "installed"
+    },
+    {
+      "ready_before_connected": true,
+      "registered": false,
+      "scenario": "sh",
+      "source": "unsupported"
+    },
+    {
+      "capabilities": {
+        "no_command_before_input": true,
+        "observations": [
+          {
+            "command": "false",
+            "event_order": [
+              "preexec",
+              "command_finished",
+              "precmd",
+              "precmd.pwd"
+            ],
+            "exit_code": 1
+          },
+          {
+            "command": "true",
+            "event_order": [
+              "preexec",
+              "command_finished",
+              "precmd",
+              "precmd.pwd"
+            ],
+            "exit_code": 0
+          }
+        ],
+        "runtime_verified": [
+          "current_directory",
+          "prompt_lifecycle",
+          "command_start",
+          "command_text",
+          "command_finish",
+          "exit_code",
+          "shell_identity"
+        ],
+        "shell": "bash",
+        "startup_registered": [
+          "current_directory",
+          "prompt_lifecycle",
+          "command_start",
+          "command_text",
+          "command_finish",
+          "exit_code",
+          "shell_identity"
+        ]
+      },
+      "scenario": "recursive/local=false/a"
+    },
+    {
+      "capabilities": {
+        "no_command_before_input": true,
+        "observations": [
+          {
+            "command": "false",
+            "event_order": [
+              "preexec",
+              "command_finished",
+              "precmd",
+              "precmd.pwd"
+            ],
+            "exit_code": 1
+          },
+          {
+            "command": "true",
+            "event_order": [
+              "preexec",
+              "command_finished",
+              "precmd",
+              "precmd.pwd"
+            ],
+            "exit_code": 0
+          }
+        ],
+        "runtime_verified": [
+          "current_directory",
+          "prompt_lifecycle",
+          "command_start",
+          "command_text",
+          "command_finish",
+          "exit_code",
+          "shell_identity"
+        ],
+        "shell": "bash",
+        "startup_registered": [
+          "current_directory",
+          "prompt_lifecycle",
+          "command_start",
+          "command_text",
+          "command_finish",
+          "exit_code",
+          "shell_identity"
+        ]
+      },
+      "scenario": "recursive/local=false/b-no-sftp"
+    },
+    {
+      "capabilities": {
+        "no_command_before_input": true,
+        "observations": [
+          {
+            "command": "false",
+            "event_order": [
+              "preexec",
+              "command_finished",
+              "precmd",
+              "precmd.pwd"
+            ],
+            "exit_code": 1
+          },
+          {
+            "command": "true",
+            "event_order": [
+              "preexec",
+              "command_finished",
+              "precmd",
+              "precmd.pwd"
+            ],
+            "exit_code": 0
+          }
+        ],
+        "runtime_verified": [
+          "current_directory",
+          "prompt_lifecycle",
+          "command_start",
+          "command_text",
+          "command_finish",
+          "exit_code",
+          "shell_identity"
+        ],
+        "shell": "bash",
+        "startup_registered": [
+          "current_directory",
+          "prompt_lifecycle",
+          "command_start",
+          "command_text",
+          "command_finish",
+          "exit_code",
+          "shell_identity"
+        ]
+      },
+      "scenario": "recursive/local=false/c"
+    },
+    {
+      "capabilities": {
+        "no_command_before_input": true,
+        "observations": [
+          {
+            "command": "false",
+            "event_order": [
+              "preexec",
+              "command_finished",
+              "precmd",
+              "precmd.pwd"
+            ],
+            "exit_code": 1
+          },
+          {
+            "command": "true",
+            "event_order": [
+              "preexec",
+              "command_finished",
+              "precmd",
+              "precmd.pwd"
+            ],
+            "exit_code": 0
+          }
+        ],
+        "runtime_verified": [
+          "current_directory",
+          "prompt_lifecycle",
+          "command_start",
+          "command_text",
+          "command_finish",
+          "exit_code",
+          "shell_identity"
+        ],
+        "shell": "zsh",
+        "startup_registered": [
+          "current_directory",
+          "prompt_lifecycle",
+          "command_start",
+          "command_text",
+          "command_finish",
+          "exit_code",
+          "shell_identity"
+        ]
+      },
+      "scenario": "recursive/local=false/c/zsh"
+    },
+    {
+      "capabilities": {
+        "no_command_before_input": true,
+        "observations": [
+          {
+            "command": "false",
+            "event_order": [
+              "preexec",
+              "command_finished",
+              "precmd",
+              "precmd.pwd"
+            ],
+            "exit_code": 1
+          },
+          {
+            "command": "true",
+            "event_order": [
+              "preexec",
+              "command_finished",
+              "precmd",
+              "precmd.pwd"
+            ],
+            "exit_code": 0
+          }
+        ],
+        "runtime_verified": [
+          "current_directory",
+          "prompt_lifecycle",
+          "command_start",
+          "command_text",
+          "command_finish",
+          "exit_code",
+          "shell_identity"
+        ],
+        "shell": "bash",
+        "startup_registered": [
+          "current_directory",
+          "prompt_lifecycle",
+          "command_start",
+          "command_text",
+          "command_finish",
+          "exit_code",
+          "shell_identity"
+        ]
+      },
+      "scenario": "recursive/local=true/a"
+    },
+    {
+      "capabilities": {
+        "no_command_before_input": true,
+        "observations": [
+          {
+            "command": "false",
+            "event_order": [
+              "preexec",
+              "command_finished",
+              "precmd",
+              "precmd.pwd"
+            ],
+            "exit_code": 1
+          },
+          {
+            "command": "true",
+            "event_order": [
+              "preexec",
+              "command_finished",
+              "precmd",
+              "precmd.pwd"
+            ],
+            "exit_code": 0
+          }
+        ],
+        "runtime_verified": [
+          "current_directory",
+          "prompt_lifecycle",
+          "command_start",
+          "command_text",
+          "command_finish",
+          "exit_code",
+          "shell_identity"
+        ],
+        "shell": "bash",
+        "startup_registered": [
+          "current_directory",
+          "prompt_lifecycle",
+          "command_start",
+          "command_text",
+          "command_finish",
+          "exit_code",
+          "shell_identity"
+        ]
+      },
+      "scenario": "recursive/local=true/b-no-sftp"
+    },
+    {
+      "capabilities": {
+        "no_command_before_input": true,
+        "observations": [
+          {
+            "command": "false",
+            "event_order": [
+              "preexec",
+              "command_finished",
+              "precmd",
+              "precmd.pwd"
+            ],
+            "exit_code": 1
+          },
+          {
+            "command": "true",
+            "event_order": [
+              "preexec",
+              "command_finished",
+              "precmd",
+              "precmd.pwd"
+            ],
+            "exit_code": 0
+          }
+        ],
+        "runtime_verified": [
+          "current_directory",
+          "prompt_lifecycle",
+          "command_start",
+          "command_text",
+          "command_finish",
+          "exit_code",
+          "shell_identity"
+        ],
+        "shell": "bash",
+        "startup_registered": [
+          "current_directory",
+          "prompt_lifecycle",
+          "command_start",
+          "command_text",
+          "command_finish",
+          "exit_code",
+          "shell_identity"
+        ]
+      },
+      "scenario": "recursive/local=true/c"
+    },
+    {
+      "capabilities": {
+        "no_command_before_input": true,
+        "observations": [
+          {
+            "command": "false",
+            "event_order": [
+              "preexec",
+              "command_finished",
+              "precmd",
+              "precmd.pwd"
+            ],
+            "exit_code": 1
+          },
+          {
+            "command": "true",
+            "event_order": [
+              "preexec",
+              "command_finished",
+              "precmd",
+              "precmd.pwd"
+            ],
+            "exit_code": 0
+          }
+        ],
+        "runtime_verified": [
+          "current_directory",
+          "prompt_lifecycle",
+          "command_start",
+          "command_text",
+          "command_finish",
+          "exit_code",
+          "shell_identity"
+        ],
+        "shell": "zsh",
+        "startup_registered": [
+          "current_directory",
+          "prompt_lifecycle",
+          "command_start",
+          "command_text",
+          "command_finish",
+          "exit_code",
+          "shell_identity"
+        ]
+      },
+      "scenario": "recursive/local=true/c/zsh"
+    }
+  ]
+}

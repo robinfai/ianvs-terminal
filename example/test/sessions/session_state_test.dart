@@ -2,8 +2,51 @@ import 'package:app/features/preferences/app_preferences_models.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/sessions/session_state.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
 
 void main() {
+  test(
+    'SSH connection chain includes jumps with independent host overrides',
+    () {
+      final profile = defaultTerminalProfile().copyWith(
+        connection: const terminal.TerminalConnectionConfig.ssh(
+          host: 'app.example',
+          user: 'deploy',
+          port: 2200,
+          proxyJump: 'alias,ops@[2001:db8::1]:2222',
+          proxyJumpProfiles: [
+            terminal.TerminalSshJumpConfig(
+              host: 'bastion.example',
+              user: 'admin',
+              port: 2220,
+            ),
+            terminal.TerminalSshJumpConfig(),
+          ],
+        ),
+      );
+      final pane = TerminalPane(
+        sessionId: 'ssh-chain',
+        title: 'SSH',
+        profileId: profile.id,
+        profileSnapshot: profile,
+      );
+      final chain = pane.shellConnectionChain;
+      expect(chain.map((hop) => hop.kind), [
+        ShellConnectionHopKind.localClient,
+        ShellConnectionHopKind.jump,
+        ShellConnectionHopKind.jump,
+        ShellConnectionHopKind.sshShell,
+      ]);
+      expect(chain.skip(1).map((hop) => hop.address), [
+        'admin@bastion.example:2220',
+        'ops@[2001:db8::1]:2222',
+        'deploy@app.example:2200',
+      ]);
+      expect(chain.last.contextId, 'root');
+      expect(chain.clear, throwsUnsupportedError);
+    },
+  );
+
   group('Session state immutability', () {
     test('defensively copies collection constructor inputs', () {
       const tab = TerminalTab(

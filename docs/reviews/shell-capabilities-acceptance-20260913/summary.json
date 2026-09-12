@@ -1,0 +1,18 @@
+{
+  "passed": true,
+  "date": "2026-09-13",
+  "native_tests": {
+    "passed": 390,
+    "default_ignored": 1,
+    "ignored_product_test_run_separately": true
+  },
+  "app_tests": {
+    "passed": 219
+  },
+  "product_scenarios": 26,
+  "product_runtime_scenarios": 24,
+  "live_ui_passed": true,
+  "runtime_errors": 0,
+  "fixture_issue_corrected": "B has no published host port; test now reaches B through A as designed.",
+  "production_fixes_required": false
+}

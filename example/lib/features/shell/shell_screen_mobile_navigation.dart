@@ -237,6 +237,12 @@ class _MobileSessionMenu extends StatelessWidget {
             ),
             if (hasSession) ...[
               action(
+                'shell-capabilities',
+                TerminalActionId.showShellCapabilities,
+                Icons.fact_check_outlined,
+                context.l10n.shellCapabilities,
+              ),
+              action(
                 'shell-toggle-read-only',
                 TerminalActionId.toggleReadOnly,
                 readOnly ? Icons.lock_open_rounded : Icons.lock_outline_rounded,

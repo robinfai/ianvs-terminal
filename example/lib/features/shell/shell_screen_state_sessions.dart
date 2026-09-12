@@ -966,7 +966,15 @@ extension _ShellScreenStateSessions on _ShellScreenState {
         }
         final export = runtime.exportSessionDiagnostics(sessionId);
         if (export != null) {
-          exports.add(export);
+          exports.add(
+            LocalTerminalDiagnosticsExporter.withShellCapabilities(
+              export,
+              pane.shellCapabilities,
+              bootstrapPhase: pane.shellIntegration.bootstrapPhase,
+              bootstrapSource: pane.shellIntegration.bootstrapSource,
+              registrationChecks: pane.shellIntegration.registrationChecks,
+            ),
+          );
         }
       }
     }
@@ -984,6 +992,57 @@ extension _ShellScreenStateSessions on _ShellScreenState {
       basename: basename,
       exports: exports,
     );
+  }
+
+  Future<void> _showShellCapabilities(String sessionId) async {
+    if (_isShellCapabilitiesOpen) return;
+    _mutateState(() => _isShellCapabilitiesOpen = true);
+    _publishAcceptanceSnapshot();
+    try {
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => Consumer(
+          builder: (context, ref, _) {
+            final sessions = ref.watch(sessionControllerProvider);
+            TerminalPane? pane;
+            for (final tab in sessions.tabs) {
+              pane = tab.paneFor(sessionId);
+              if (pane != null) break;
+            }
+            return ShellCapabilitiesDialog(
+              connectionChain: pane?.shellConnectionChain ?? const [],
+              sessionExited: pane?.isExited ?? true,
+              bootstrapPhase: pane?.shellIntegration.bootstrapPhase,
+              bootstrapSource: pane?.shellIntegration.bootstrapSource,
+              registrationChecks:
+                  pane?.shellIntegration.registrationChecks ?? const {},
+              sessionTitle: pane == null
+                  ? context.l10n.shellCapabilitiesSessionClosed
+                  : pane.title,
+              capabilities:
+                  pane?.shellCapabilities ??
+                  const ShellIntegrationCapabilities.pending().withPolicy(
+                    enabled: true,
+                    supportedEmulation: true,
+                    exited: true,
+                  ),
+              onClose: () => Navigator.of(dialogContext).pop(),
+            );
+          },
+        ),
+      );
+    } finally {
+      if (mounted) {
+        _mutateState(() => _isShellCapabilitiesOpen = false);
+        _publishAcceptanceSnapshot();
+        _restoreSessionFocus(
+          activeSessionIdBeforeOpen: sessionId,
+          activeSessionIdAfterClose: ref
+              .read(sessionControllerProvider)
+              .activeSessionId,
+        );
+      }
+    }
   }
 
   void _toggleReadOnlySession(String sessionId) {

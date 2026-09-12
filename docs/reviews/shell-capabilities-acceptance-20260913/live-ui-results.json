@@ -1,0 +1,53 @@
+{
+  "passed": true,
+  "application": "Trail Development",
+  "method": "CUA native accessibility actions and assertions against the running development application",
+  "driver_extension_available": false,
+  "runtime_errors": [],
+  "steps": [
+    {
+      "step": "新建本地 Zsh，未执行命令",
+      "active": 7,
+      "runtime_observed": [
+        "current_directory",
+        "prompt_lifecycle",
+        "shell_identity"
+      ],
+      "initialization_checked": [
+        "command_start",
+        "command_text",
+        "command_finish",
+        "exit_code"
+      ]
+    },
+    {
+      "step": "Zsh 执行 false",
+      "active": 7,
+      "all_builtin_runtime_observed": true
+    },
+    {
+      "step": "进入 Bash，未执行子 Shell 命令",
+      "active": 7,
+      "command_capabilities_rechecked": true,
+      "host_chain_nodes": 1,
+      "source": "installed"
+    },
+    {
+      "step": "Bash 执行 false",
+      "active": 7,
+      "all_builtin_runtime_observed": true
+    },
+    {
+      "step": "退出 Bash 返回 Zsh",
+      "active": 7,
+      "parent_runtime_evidence_restored": true,
+      "source": "checked",
+      "host_chain_nodes": 1
+    },
+    {
+      "step": "关闭验收标签页",
+      "remaining_original_tabs": 1
+    }
+  ],
+  "notes": "开发版未启用 Flutter Driver，使用原生界面自动化。未重启应用，仅创建并清理一个验收标签页。"
+}

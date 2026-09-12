@@ -2537,6 +2537,303 @@ void main() {
     expect(published, hasLength(publishCount));
   });
 
+  testWidgets('nested SSH contexts reset observations and restore the parent', (
+    tester,
+  ) async {
+    final bindings = _EventfulPtyBackend(FakePtyBackend());
+    final container = ProviderContainer(
+      overrides: [
+        ptySessionBackendProvider.overrideWithValue(bindings),
+        sessionControllerProvider.overrideWith(_TestSessionController.new),
+        profileRepositoryProvider.overrideWithValue(
+          _TestProfileRepository(const TerminalProfilesDocument(profiles: [])),
+        ),
+        appPreferencesRepositoryProvider.overrideWithValue(
+          _TestAppPreferencesRepository(null),
+        ),
+        sessionPollingEnabledProvider.overrideWithValue(false),
+      ],
+    );
+    addTearDown(container.dispose);
+    container
+        .read(sessionControllerProvider.notifier)
+        .createSession(defaultTerminalProfile());
+    final id = container.read(sessionControllerProvider).activeSessionId!;
+    final runtime = container.read(terminalRuntimeControllerProvider);
+    TerminalPane pane() =>
+        container.read(sessionControllerProvider).tabs.single.activePane;
+    Future<void> hook(Map<String, Object?> payload) async {
+      bindings.enqueueEvent(id, {'kind': 'shell_hook', 'payload': payload});
+      runtime.refreshSession(id);
+      await tester.pump(const Duration(milliseconds: 40));
+    }
+
+    await hook({'hook': 'precmd.pwd', 'pwd': '/local', 'shell': 'zsh'});
+    expect(
+      pane()
+          .shellCapabilities[ShellIntegrationCapability.currentDirectory]
+          .isActive,
+      isTrue,
+    );
+    await hook({
+      'hook': 'bootstrap.checking',
+      'context_id': 'hop-a',
+      'parent_context_id': 'root',
+      'host': 'a.example',
+      'user': 'lab',
+      'port': 2222,
+      'sftp_route': true,
+    });
+    expect(pane().shellIntegration.contextId, 'hop-a');
+    expect(pane().shellConnectionChain.map((hop) => hop.contextId), [
+      'root',
+      'hop-a',
+    ]);
+    expect(pane().shellConnectionChain.last.address, 'lab@a.example:2222');
+    expect(pane().shellIntegration.currentDirectory, isNull);
+    expect(
+      pane()
+          .shellCapabilities[ShellIntegrationCapability.currentDirectory]
+          .isActive,
+      isFalse,
+    );
+    await hook({
+      'hook': 'preexec',
+      'command': '__iv_check',
+      'context_id': 'hop-a',
+    });
+    expect(
+      pane()
+          .shellCapabilities[ShellIntegrationCapability.commandStart]
+          .isActive,
+      isFalse,
+    );
+    await hook({
+      'hook': 'bootstrap.ready',
+      'context_id': 'hop-a',
+      'registered': true,
+      'source': 'reused',
+      'shell': 'bash',
+      'checks': {
+        'current_directory': 'registered',
+        'command_start': 'registered',
+        'command_finish': 'registered',
+        'exit_code': 'registered',
+      },
+      'sftp_route': true,
+    });
+    expect(pane().shellIntegration.bootstrapSource, 'reused');
+    expect(
+      pane().shellIntegration.registrationChecks['current_directory'],
+      'registered',
+    );
+    expect(pane().shellIntegration.lastCommand, isNull);
+    expect(pane().shellIntegration.lastExitCode, isNull);
+    expect(
+      pane()
+          .shellCapabilities[ShellIntegrationCapability.currentDirectory]
+          .isActive,
+      isTrue,
+    );
+    expect(
+      pane().shellCapabilities[ShellIntegrationCapability.commandFinish].reason,
+      ShellCapabilityReason.initializationChecked,
+    );
+    await hook({
+      'hook': 'precmd.pwd',
+      'context_id': 'hop-a',
+      'pwd': '/remote',
+      'shell': 'bash',
+    });
+    expect(pane().shellIntegration.currentDirectory, '/remote');
+    await hook({
+      'hook': 'bootstrap.checking',
+      'context_id': 'bash-a',
+      'parent_context_id': 'hop-a',
+      'context_kind': 'shell',
+      'host_context_id': 'hop-a',
+      'host': 'a.example',
+      'user': 'lab',
+      'port': 2222,
+      'sftp_route': true,
+    });
+    expect(pane().shellIntegration.contextId, 'bash-a');
+    expect(pane().shellIntegration.hostContextId, 'hop-a');
+    expect(pane().shellConnectionChain.map((hop) => hop.contextId), [
+      'root',
+      'hop-a',
+    ]);
+    expect(
+      pane()
+          .shellCapabilities[ShellIntegrationCapability.currentDirectory]
+          .isActive,
+      isFalse,
+    );
+    await hook({
+      'hook': 'bootstrap.ready',
+      'context_id': 'bash-a',
+      'context_kind': 'shell',
+      'host_context_id': 'hop-a',
+      'registered': true,
+      'source': 'installed',
+      'shell': 'bash',
+      'sftp_route': true,
+    });
+    expect(pane().shellConnectionChain, hasLength(2));
+    await hook({
+      'hook': 'bootstrap.resume',
+      'context_id': 'hop-a',
+      'host_context_id': 'hop-a',
+      'retired_contexts': ['bash-a'],
+      'sftp_route': true,
+    });
+    expect(pane().shellIntegration.currentDirectory, '/remote');
+    expect(pane().shellConnectionChain, hasLength(2));
+    await hook({
+      'hook': 'bootstrap.checking',
+      'context_id': 'hop-b',
+      'parent_context_id': 'hop-a',
+      'host': 'b.example',
+      'user': 'deploy',
+      'port': 22,
+      'sftp_route': true,
+    });
+    // The Init message repeats checking for the same child; it must not add a hop.
+    await hook({
+      'hook': 'bootstrap.checking',
+      'context_id': 'hop-b',
+      'parent_context_id': 'hop-a',
+      'host': 'b.example',
+      'user': 'deploy',
+      'port': 22,
+      'sftp_route': true,
+    });
+    expect(pane().shellConnectionChain.map((hop) => hop.contextId), [
+      'root',
+      'hop-a',
+      'hop-b',
+    ]);
+    expect(pane().shellConnectionChain.last.address, 'deploy@b.example:22');
+    await hook({
+      'hook': 'bootstrap.resume',
+      'context_id': 'hop-a',
+      'retired_contexts': ['hop-b'],
+      'sftp_route': true,
+    });
+    expect(pane().shellConnectionChain.map((hop) => hop.contextId), [
+      'root',
+      'hop-a',
+    ]);
+    expect(pane().shellIntegration.currentDirectory, '/remote');
+    await hook({'hook': 'bootstrap.resume', 'context_id': 'root'});
+    expect(pane().shellConnectionChain.single.contextId, 'root');
+    expect(pane().shellIntegration.currentDirectory, '/local');
+    expect(pane().shellIntegration.sftpRoute, isFalse);
+    await hook({'hook': 'precmd.pwd', 'context_id': 'hop-a', 'pwd': '/late'});
+    expect(pane().shellIntegration.currentDirectory, '/local');
+  });
+
+  testWidgets(
+    'shell capabilities stay isolated across panes and reset with their session',
+    (tester) async {
+      final bindings = _EventfulPtyBackend(FakePtyBackend());
+      final container = ProviderContainer(
+        overrides: [
+          ptySessionBackendProvider.overrideWithValue(bindings),
+          sessionControllerProvider.overrideWith(_TestSessionController.new),
+          profileRepositoryProvider.overrideWithValue(
+            _TestProfileRepository(
+              const TerminalProfilesDocument(profiles: []),
+            ),
+          ),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            _TestAppPreferencesRepository(null),
+          ),
+          sessionPollingEnabledProvider.overrideWithValue(false),
+        ],
+      );
+      addTearDown(container.dispose);
+      final controller = container.read(sessionControllerProvider.notifier);
+      final profile = defaultTerminalProfile();
+      controller.createSession(profile);
+      final root = container.read(sessionControllerProvider).activeSessionId!;
+      controller.splitSession(root, profile, TerminalSplitAxis.horizontal);
+      final child = container.read(sessionControllerProvider).activeSessionId!;
+      await tester.pump();
+      TerminalPane pane(String id) =>
+          container.read(sessionControllerProvider).tabs.single.paneFor(id)!;
+      expect(
+        pane(root).shellCapabilities.entries.values.every(
+          (entry) => entry.status == ShellCapabilityStatus.pending,
+        ),
+        isTrue,
+      );
+      bindings.enqueueEvent(root, {
+        'kind': 'shell_context',
+        'payload': {'source': 'osc7', 'cwd': '/tmp/root'},
+      });
+      bindings.enqueueEvent(child, {
+        'kind': 'shell_hook',
+        'payload': {'hook': 'preexec', 'command': 'ls'},
+      });
+      final runtime = container.read(terminalRuntimeControllerProvider);
+      runtime.refreshSession(root);
+      runtime.refreshSession(child);
+      await tester.pump(const Duration(milliseconds: 40));
+      expect(
+        pane(root)
+            .shellCapabilities[ShellIntegrationCapability.currentDirectory]
+            .isActive,
+        isTrue,
+      );
+      expect(
+        pane(
+          root,
+        ).shellCapabilities[ShellIntegrationCapability.commandStart].isActive,
+        isFalse,
+      );
+      expect(
+        pane(child)
+            .shellCapabilities[ShellIntegrationCapability.currentDirectory]
+            .isActive,
+        isFalse,
+      );
+      expect(
+        pane(
+          child,
+        ).shellCapabilities[ShellIntegrationCapability.commandStart].isActive,
+        isTrue,
+      );
+      bindings.enqueueEvent(root, {'kind': 'session_reset'});
+      runtime.refreshSession(root);
+      await tester.pump(const Duration(milliseconds: 40));
+      expect(
+        pane(root).shellCapabilities.entries.values.every(
+          (entry) => entry.status == ShellCapabilityStatus.pending,
+        ),
+        isTrue,
+      );
+      expect(
+        pane(
+          child,
+        ).shellCapabilities[ShellIntegrationCapability.commandStart].isActive,
+        isTrue,
+      );
+      controller.createSession(profile);
+      final fresh = container
+          .read(sessionControllerProvider)
+          .tabs
+          .last
+          .activePane;
+      expect(
+        fresh.shellCapabilities.entries.values.every(
+          (entry) => entry.status == ShellCapabilityStatus.pending,
+        ),
+        isTrue,
+      );
+    },
+  );
+
   testWidgets(
     'shell hook metadata updates per-session shell integration state',
     (tester) async {
@@ -5989,6 +6286,91 @@ void main() {
       isFalse,
     );
   });
+
+  test(
+    'global injection defaults resolve per connection and only change new sessions',
+    () async {
+      final core = FakePtyBackend();
+      final backend = _SshEventfulPtyBackend(core);
+      final config = _TestLocalTerminalConfigRepository(
+        const LocalTerminalConfigDocument(
+          shellIntegration: LocalTerminalShellIntegrationConfig(
+            sshWrapper: false,
+            sshAutoInject: false,
+          ),
+        ),
+      );
+      final profile = TerminalProfile(
+        id: 'ssh-switches',
+        name: 'Switches',
+        shell: '/bin/zsh',
+        connection: const terminal.TerminalConnectionConfig.ssh(
+          host: 'host.example',
+          user: 'lab',
+        ),
+      );
+      final container = ProviderContainer(
+        overrides: [
+          ptySessionBackendProvider.overrideWithValue(backend),
+          profileRepositoryProvider.overrideWithValue(
+            _TestProfileRepository(
+              TerminalProfilesDocument(profiles: [profile]),
+            ),
+          ),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            _TestAppPreferencesRepository(null),
+          ),
+          localTerminalConfigRepositoryProvider.overrideWithValue(config),
+        ],
+      );
+      addTearDown(container.dispose);
+      final controller = container.read(sessionControllerProvider.notifier);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      final first = container
+          .read(sessionControllerProvider)
+          .tabs
+          .single
+          .profileSnapshot!;
+      expect(first.sessionConfig.shellIntegration.sshAutoInject, isFalse);
+      expect(first.sessionConfig.shellIntegration.sshWrapper, isFalse);
+      final explicit = profile.copyWith(
+        sessionConfig: profile.sessionConfig.copyWith(
+          shellIntegration: profile.sessionConfig.shellIntegration.copyWith(
+            sshAutoInject: true,
+          ),
+        ),
+      );
+      controller.createSession(explicit);
+      expect(
+        terminal.TerminalSessionConfigV1.fromJson(
+          core.lastCreatedSessionPayload!,
+        ).config.shellIntegration.sshAutoInject,
+        isTrue,
+      );
+      await controller.setSshIntegrationDefaults(
+        wrapper: true,
+        autoInject: true,
+      );
+      controller.createSession(profile);
+      final fresh = terminal.TerminalSessionConfigV1.fromJson(
+        core.lastCreatedSessionPayload!,
+      ).config.shellIntegration;
+      expect(fresh.sshWrapper, isTrue);
+      expect(fresh.sshAutoInject, isTrue);
+      expect(
+        container
+            .read(sessionControllerProvider)
+            .tabs
+            .first
+            .profileSnapshot!
+            .sessionConfig
+            .shellIntegration
+            .sshAutoInject,
+        isFalse,
+      );
+      expect(config.savedDocuments.last.shellIntegration.sshWrapper, isTrue);
+    },
+  );
 
   test('SSH profiles keep shell integration enabled by default', () async {
     final coreClient = FakePtyBackend();

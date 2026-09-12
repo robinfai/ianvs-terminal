@@ -10,6 +10,27 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
 
 void main() {
+  testWidgets('global SSH switches save independently', (tester) async {
+    final profile = defaultTerminalProfile();
+    DefaultsAndAppearanceSelection? selection;
+    await _pumpDefaultsDialogLauncher(
+      tester,
+      profiles: [profile],
+      configuredDefaultProfileId: profile.id,
+      effectiveDefaultProfileId: profile.id,
+      onSelection: (value) => selection = value,
+    );
+    final wrapper = find.byKey(const Key('defaults-ssh-wrapper'));
+    final injection = find.byKey(const Key('defaults-ssh-auto-inject'));
+    await tester.ensureVisible(wrapper);
+    await tester.tap(wrapper);
+    await tester.pump();
+    expect(tester.widget<SwitchListTile>(injection).value, isTrue);
+    await tester.tap(find.byKey(const Key('defaults-save')));
+    await tester.pumpAndSettle();
+    expect(selection?.sshWrapper, isFalse);
+    expect(selection?.sshAutoInject, isTrue);
+  });
   testWidgets('shortcut empty results keep the list width', (tester) async {
     await _pumpDefaultsDialog(tester, surfaceSize: const Size(1200, 900));
     await tester.tap(find.byKey(const Key('defaults-section-shortcuts')));

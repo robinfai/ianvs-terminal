@@ -2080,6 +2080,7 @@ class AppLocalizationsZh extends AppLocalizations {
       'previous_prompt': '上一个提示符',
       'next_prompt': '下一个提示符',
       'export_scrollback': '导出回滚内容',
+      'shell_capabilities': '会话能力',
       'export_diagnostics': '导出诊断',
       'other': '$action',
     });
@@ -4486,4 +4487,250 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get settingsNoChanges => '暂无更改';
+
+  @override
+  String get shellCapabilities => '会话能力';
+
+  @override
+  String get shellCapabilitiesMenuDescription => '查看当前会话各项能力的激活状态与依据。';
+
+  @override
+  String get shellCapabilitiesSessionClosed => '会话已关闭';
+
+  @override
+  String shellCapabilitiesCount(int active, int total) {
+    return '已激活 $active / $total 项能力';
+  }
+
+  @override
+  String get shellCapabilitiesExplanation =>
+      '能力依据初始化检查或实际事件确认。已激活表示可用；命令记录、提示符位置等操作数据仍需实际产生。';
+
+  @override
+  String get shellCapabilitiesBuiltIn => '内置 hook 能力';
+
+  @override
+  String get shellCapabilitiesExtensions => '兼容协议扩展';
+
+  @override
+  String get shellCapabilityDirectory => '当前目录';
+
+  @override
+  String get shellCapabilityDirectoryHelp => '支持最近目录、在同一目录新建终端，以及按目录匹配配置。';
+
+  @override
+  String get shellCapabilityPrompt => '提示符生命周期';
+
+  @override
+  String get shellCapabilityPromptHelp => '识别新提示符；跳转到提示符还需要有效的位置数据。';
+
+  @override
+  String get shellCapabilityStart => '命令开始执行';
+
+  @override
+  String get shellCapabilityStartHelp => '识别命令开始执行的时刻，与开始输入命令分开判断。';
+
+  @override
+  String get shellCapabilityCommand => '命令文本';
+
+  @override
+  String get shellCapabilityCommandHelp => '支持最近命令、命令上下文与录制元数据。';
+
+  @override
+  String get shellCapabilityFinish => '命令执行结束';
+
+  @override
+  String get shellCapabilityFinishHelp => '识别命令完成；是否能读取退出码需要单独确认。';
+
+  @override
+  String get shellCapabilityExitCode => '退出码';
+
+  @override
+  String get shellCapabilityExitCodeHelp => '用于判断已完成命令的成功或失败。';
+
+  @override
+  String get shellCapabilityShell => 'Shell 类型';
+
+  @override
+  String get shellCapabilityShellHelp => '根据收到的元数据识别 shell，不使用启动路径推断激活状态。';
+
+  @override
+  String get shellCapabilityHost => '主机名';
+
+  @override
+  String get shellCapabilityHostHelp => '提供主机上下文，以及按主机名匹配配置。';
+
+  @override
+  String get shellCapabilityUser => '用户名';
+
+  @override
+  String get shellCapabilityUserHelp => '提供用户上下文，以及按用户名匹配配置。';
+
+  @override
+  String get shellCapabilityVersion => '集成版本';
+
+  @override
+  String get shellCapabilityVersionHelp => '报告集成版本；版本信息不能证明其他能力已经激活。';
+
+  @override
+  String get shellCapabilityNavigation => '提示符跳转';
+
+  @override
+  String get shellCapabilityNavigationHelp => '通过保留的位置记录跳转到上一个或下一个提示符。';
+
+  @override
+  String get shellCapabilityOutput => '命令输出区域';
+
+  @override
+  String get shellCapabilityOutputHelp => '报告明确的输出区域边界。当前复制命令输出使用相邻提示符位置。';
+
+  @override
+  String get shellCapabilityVariables => '自定义 shell 变量';
+
+  @override
+  String get shellCapabilityVariablesHelp => '接收允许的 IANVS_ 变量，用于会话元数据和已配置的查询。';
+
+  @override
+  String get shellCapabilityPending => '待确认';
+
+  @override
+  String get shellCapabilityActive => '已激活';
+
+  @override
+  String get shellCapabilityDisabled => '已关闭';
+
+  @override
+  String get shellCapabilityUnavailable => '不可用';
+
+  @override
+  String get shellCapabilityAwaitingEvidence => '尚无初始化检查或实际事件可以确认这项能力。';
+
+  @override
+  String get shellCapabilityInitializationChecked => '初始化检查通过，已可用；尚未观察到实际事件。';
+
+  @override
+  String get shellCapabilityInitializationFailed => '初始化检查发现所需 Hook 未完整注册。';
+
+  @override
+  String get shellCapabilityObserved => '已收到本次会话的对应事件。';
+
+  @override
+  String get shellCapabilityDisabledReason => '当前会话已关闭 shell 集成。';
+
+  @override
+  String get shellCapabilityEmulationReason => '所选终端仿真模式不支持 shell 集成。';
+
+  @override
+  String get shellCapabilityExitedReason => '会话已结束，新会话需要重新确认能力。';
+
+  @override
+  String get sshWrapper => '包装本地 ssh 命令';
+
+  @override
+  String get sshWrapperDescription => '在新建本地会话中，通过 ssh 登录时启用 Shell 集成。';
+
+  @override
+  String get sshAutoInject => '自动注入 SSH Shell Hook';
+
+  @override
+  String get sshAutoInjectDescription => '新建 SSH 连接时检查并启用 Shell 能力，可在单个连接中覆盖。';
+
+  @override
+  String get sshInjectionInherit => '继承全局设置';
+
+  @override
+  String get sshInjectionOn => '开启';
+
+  @override
+  String get sshInjectionOff => '关闭';
+
+  @override
+  String get shellBootstrapStatus => '初始化检查';
+
+  @override
+  String get shellBootstrapChecking => '正在检查 Shell 集成…';
+
+  @override
+  String get shellBootstrapReady => 'Shell 集成已就绪';
+
+  @override
+  String get shellBootstrapDegraded => '基础终端模式';
+
+  @override
+  String get shellBootstrapChecked => '已完成本地 Hook 检查';
+
+  @override
+  String get shellBootstrapInstalled => '已为本次会话注入';
+
+  @override
+  String get shellBootstrapReused => '已复用 Shell 中已加载的 Hook';
+
+  @override
+  String get shellBootstrapTimeout => '检查超时，已停止后续注入';
+
+  @override
+  String get shellBootstrapUnsupported => '当前 Shell 不支持自动注入';
+
+  @override
+  String get shellBootstrapConflict => '现有 Shell Hook 无法安全合并';
+
+  @override
+  String get shellBootstrapMissingHelpers => '缺少必要的 Shell 辅助命令';
+
+  @override
+  String get shellCapabilityRegistered => 'Hook 注册检查通过';
+
+  @override
+  String get shellCapabilityNotRegistered => '未确认注册';
+
+  @override
+  String get shellCapabilityUnchecked => '此能力未提供注册检查';
+
+  @override
+  String get shellConnectionChain => '连接链路';
+
+  @override
+  String shellChainJumpCount(int count) {
+    return '$count 次 SSH 跳转';
+  }
+
+  @override
+  String get shellChainScope => '下方能力对应当前 Shell。';
+
+  @override
+  String get shellChainIntermediate => '中间层';
+
+  @override
+  String get shellConnectionChainHelp =>
+      '显示已识别的 Shell 层级和配置中的跳板。下方能力属于当前 Shell，转发跳板不运行其 Hook。';
+
+  @override
+  String get shellChainLocalClient => '本机';
+
+  @override
+  String get shellChainLocalShell => '本地 Shell';
+
+  @override
+  String get shellChainCurrentShell => '当前';
+
+  @override
+  String get shellChainLastShell => '最后所在层 · 会话已结束';
+
+  @override
+  String get shellChainParentShell => '父层 Shell';
+
+  @override
+  String get shellChainJump => 'ProxyJump · 仅转发';
+
+  @override
+  String get shellChainOrigin => '起点';
+
+  @override
+  String get shellChainProxy => '代理通道';
+
+  @override
+  String get shellChainProxyUnknown => '内部路径由代理命令管理';
+
+  @override
+  String get shellChainUnknownHost => '未识别的 SSH 主机';
 }

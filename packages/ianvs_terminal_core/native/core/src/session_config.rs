@@ -466,11 +466,17 @@ fn validate_exact_session_config_shape(value: &Value) -> Result<(), String> {
         &["enabled", "advertise", "maxImageBytes", "maxTotalBytes"],
         "$.config.terminal.graphics",
     )?;
-    exact_object(
-        required(config, "shellIntegration", "$.config"),
-        &["enabled"],
-        "$.config.shellIntegration",
-    )?;
+    let integration = required(config, "shellIntegration", "$.config");
+    let mut integration_keys = vec!["enabled"];
+    for key in ["sshWrapper", "sshAutoInject"] {
+        if let Some(value) = integration.get(key) {
+            if !value.is_boolean() {
+                return Err(format!("$.config.shellIntegration.{key} must be boolean"));
+            }
+            integration_keys.push(key);
+        }
+    }
+    exact_object(integration, &integration_keys, "$.config.shellIntegration")?;
     let appearance = exact_object(
         required(config, "appearance", "$.config"),
         &["font", "colors", "cursor"],

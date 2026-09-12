@@ -2,6 +2,37 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_terminal_core/ianvs_terminal_core.dart';
 
 void main() {
+  test(
+    'SSH injection overrides preserve inheritance and false on round trip',
+    () {
+      const inherited = TerminalShellIntegrationConfig();
+      expect(
+        TerminalShellIntegrationConfig.fromJson(
+          inherited.toJson(),
+        ).sshAutoInject,
+        isNull,
+      );
+      for (final value in [true, false]) {
+        final config =
+            const TerminalSessionConfig(
+              launch: TerminalLaunchConfig(program: '/bin/bash'),
+            ).copyWith(
+              shellIntegration: inherited.copyWith(
+                sshWrapper: true,
+                sshAutoInject: value,
+              ),
+            );
+        final decoded = TerminalSessionConfig.fromJson(config.toJson());
+        expect(decoded.shellIntegration.sshWrapper, isTrue);
+        expect(decoded.shellIntegration.sshAutoInject, value);
+        expect(
+          decoded.shellIntegration.copyWith(sshAutoInject: null).sshAutoInject,
+          isNull,
+        );
+      }
+    },
+  );
+
   test('current terminal config round-trips its exact nested shape', () {
     const config = TerminalSessionConfig(
       launch: TerminalLaunchConfig(

@@ -41,6 +41,7 @@ enum TerminalActionId {
   nextPrompt,
   exportScrollback,
   exportDiagnostics,
+  showShellCapabilities,
 }
 
 enum TerminalActionCategory {
@@ -534,6 +535,13 @@ class ShellActionRegistry {
       icon: Icons.bug_report,
       requiresActiveSession: true,
     ),
+    TerminalActionId.showShellCapabilities: TerminalActionDescriptor(
+      id: TerminalActionId.showShellCapabilities,
+      label: 'shell_capabilities',
+      category: TerminalActionCategory.integration,
+      icon: Icons.fact_check_outlined,
+      requiresActiveSession: true,
+    ),
   };
 
   static const Set<TerminalActionId> releaseActionIds = {
@@ -576,6 +584,7 @@ class ShellActionRegistry {
     TerminalActionId.nextPrompt,
     TerminalActionId.exportScrollback,
     TerminalActionId.exportDiagnostics,
+    TerminalActionId.showShellCapabilities,
   };
 
   static bool has(TerminalActionId id) {

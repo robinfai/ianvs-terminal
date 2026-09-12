@@ -443,6 +443,8 @@ final class _PendingNativeRecordingFinalize {
 }
 
 class SessionController extends Notifier<SessionState> {
+  final Map<String, Map<String, TerminalShellIntegrationSnapshot>>
+  _shellContexts = {};
   static const _layoutPersistenceDebounce = Duration(milliseconds: 60);
 
   final SessionBootstrapRunner _bootstrapRunner = SessionBootstrapRunner();
@@ -1272,10 +1274,24 @@ class SessionController extends Notifier<SessionState> {
     TerminalProfile profile,
     Map<String, String> environmentOverrides,
   ) {
-    if (profile.isSsh) {
-      return profile;
+    final integration = profile.sessionConfig.shellIntegration;
+    final autoInject =
+        integration.sshAutoInject ??
+        _localConfigDocument.shellIntegration.sshAutoInject;
+    final configuredProfile = profile.copyWith(
+      sessionConfig: profile.sessionConfig.copyWith(
+        shellIntegration: integration.copyWith(
+          sshWrapper: profile.isSsh
+              ? autoInject
+              : _localConfigDocument.shellIntegration.sshWrapper,
+          sshAutoInject: autoInject,
+        ),
+      ),
+    );
+    if (configuredProfile.isSsh) {
+      return configuredProfile;
     }
-    final launchProfile = profile.copyWith(
+    final launchProfile = configuredProfile.copyWith(
       env: <String, String>{
         ..._defaultEnvironmentForEmulation(profile.terminalEmulation),
         ...profile.env,
@@ -3379,6 +3395,7 @@ class SessionController extends Notifier<SessionState> {
       case TerminalSessionFrameEvent():
         _applyFrame(event.sessionId, event.frame);
       case TerminalSessionExitEvent():
+        _shellContexts.remove(event.sessionId);
         final failedProfileId = _paneForSession(event.sessionId)?.profileId;
         final sshExitError = _sshExitErrorMessage(event);
         unawaited(
@@ -3403,25 +3420,50 @@ class SessionController extends Notifier<SessionState> {
         if (!_sessionShellIntegrationEnabled(event.sessionId)) {
           return;
         }
+        if (event.hook?.startsWith('bootstrap.') ?? false) {
+          _applyBootstrapHook(event);
+          return;
+        }
+        final shellPane = _paneForSession(event.sessionId);
+        final shellProfile = shellPane?.profileSnapshot;
+        if (shellPane?.shellIntegration.bootstrapPhase == 'checking' ||
+            (shellPane?.shellIntegration.bootstrapPhase == null &&
+                shellProfile?.isSsh == true &&
+                shellProfile?.sessionConfig.shellIntegration.enabled == true &&
+                shellProfile?.sessionConfig.shellIntegration.sshAutoInject !=
+                    false)) {
+          return;
+        }
+        final contextId = event.rawPayload['context_id'];
+        if (contextId is String &&
+            contextId !=
+                (_paneForSession(event.sessionId)?.shellIntegration.contextId ??
+                    'root')) {
+          return;
+        }
         _captureRecordingShellHook(event);
         _applyShellHook(event);
+        _observeShellCapabilities(event);
       case TerminalSessionShellContextEvent():
         if (!_sessionShellIntegrationEnabled(event.sessionId)) {
           return;
         }
         _captureRecordingShellContext(event);
         _applyShellContext(event);
+        _observeShellCapabilities(event);
       case TerminalSessionShellCommandEvent():
         if (!_sessionShellIntegrationEnabled(event.sessionId)) {
           return;
         }
         _captureRecordingShellCommand(event);
         _applyShellCommand(event);
+        _observeShellCapabilities(event);
       case TerminalSessionShellUserVarEvent():
         if (!_sessionShellIntegrationEnabled(event.sessionId)) {
           return;
         }
         _applyShellUserVar(event);
+        _observeShellCapabilities(event);
       case TerminalSessionAnnotationEvent():
         // ShellScreen owns the annotation sheet and terminal-range preview.
         break;
@@ -3610,6 +3652,136 @@ class SessionController extends Notifier<SessionState> {
     );
   }
 
+  void _applyBootstrapHook(TerminalSessionShellHookEvent event) {
+    final pane = _paneForSession(event.sessionId);
+    final id = event.rawPayload['context_id'];
+    if (pane == null || id is! String || id.isEmpty || id.length > 64) return;
+    final contexts = _shellContexts.putIfAbsent(event.sessionId, () => {});
+    final current = pane.shellIntegration.copyWith(
+      connectionChain: pane.shellConnectionChain,
+    );
+    contexts[current.contextId ?? 'root'] = current;
+    if (contexts.length > 128) return;
+    TerminalShellIntegrationSnapshot next;
+    if (event.hook == 'bootstrap.resume') {
+      final previous = contexts[id];
+      if (previous == null) return;
+      next = previous;
+      final retired = event.rawPayload['retired_contexts'];
+      if (retired is List) {
+        for (final context in retired.whereType<String>().take(128)) {
+          if (context != id) contexts.remove(context);
+        }
+      }
+    } else if (event.hook == 'bootstrap.checking') {
+      next = TerminalShellIntegrationSnapshot(
+        contextId: id,
+        bootstrapPhase: 'checking',
+      );
+    } else if (event.hook == 'bootstrap.ready') {
+      final checks = event.rawPayload['checks'];
+      next =
+          (current.contextId == id
+                  ? current
+                  : TerminalShellIntegrationSnapshot(contextId: id))
+              .copyWith(
+                bootstrapPhase: event.rawPayload['registered'] == true
+                    ? 'ready'
+                    : 'degraded',
+                bootstrapSource: switch (event.rawPayload['source']) {
+                  final String value => value,
+                  _ => 'unknown',
+                },
+                registrationChecks: checks is Map
+                    ? Map.unmodifiable({
+                        for (final capability
+                            in ShellIntegrationCapability.values)
+                          capability.id: switch (checks[capability.id]) {
+                            final String value
+                                when const {
+                                  'registered',
+                                  'unavailable',
+                                  'unverified',
+                                }.contains(value) =>
+                              value,
+                            _ => 'unknown',
+                          },
+                      })
+                    : const {},
+                shell: event.shell,
+              );
+      next = next.copyWith(
+        capabilities: next.capabilities.applyRegistration(
+          next.registrationChecks,
+        ),
+      );
+    } else {
+      return;
+    }
+    next = next.copyWith(
+      contextId: id,
+      contextKind: switch (event.rawPayload['context_kind']) {
+        final String value
+            when const {'root', 'ssh', 'shell'}.contains(value) =>
+          value,
+        _ => null,
+      },
+      hostContextId: switch (event.rawPayload['host_context_id']) {
+        final String value when value.isNotEmpty && value.length <= 64 => value,
+        _ => null,
+      },
+      sftpRoute: event.rawPayload['sftp_route'] == true,
+      sshHost: switch (event.rawPayload['host']) {
+        final String value => value,
+        _ => null,
+      },
+      sshUser: switch (event.rawPayload['user']) {
+        final String value => value,
+        _ => null,
+      },
+      sshPort: switch (event.rawPayload['port']) {
+        final int value => value,
+        _ => null,
+      },
+    );
+    var chain = contexts[id]?.connectionChain ?? const <ShellConnectionHop>[];
+    if (chain.isEmpty) {
+      if (id == 'root') {
+        chain = ShellConnectionHop.forProfile(pane.profileSnapshot);
+      } else {
+        final parentId = event.rawPayload['parent_context_id'];
+        final parent = contexts[parentId] ?? current;
+        chain = [
+          ...parent.connectionChain,
+          if (next.contextKind != 'shell')
+            ShellConnectionHop(
+              kind: ShellConnectionHopKind.sshShell,
+              contextId: id,
+            ),
+        ];
+      }
+    }
+    next = next.copyWith(
+      connectionChain: List.unmodifiable([
+        for (final hop in chain)
+          if (hop.contextId == id &&
+              hop.kind == ShellConnectionHopKind.sshShell &&
+              next.sshHost?.isNotEmpty == true)
+            ShellConnectionHop(
+              kind: hop.kind,
+              contextId: id,
+              host: next.sshHost,
+              user: next.sshUser,
+              port: next.sshPort,
+            )
+          else
+            hop,
+      ]),
+    );
+    contexts[id] = next;
+    _replaceSessionPane(event.sessionId, pane.copyWith(shellIntegration: next));
+  }
+
   void _applyShellHook(TerminalSessionShellHookEvent event) {
     final tabIndex = _tabIndexContainingSession(event.sessionId);
     if (tabIndex == -1) {
@@ -3639,6 +3811,37 @@ class SessionController extends Notifier<SessionState> {
     }
     state = state.copyWith(tabs: nextTabs);
     _applyAutomaticProfileSwitch(event.sessionId, nextIntegration);
+  }
+
+  void _observeShellCapabilities(TerminalSessionEvent event) {
+    final pane = _paneForSession(event.sessionId);
+    if (pane == null) return;
+    var promptMarkRecorded = false;
+    if (event is TerminalSessionShellHookEvent) {
+      final offset = event.promptScrollbackOffset;
+      if (offset != null) {
+        final frame = _runtime.viewportFor(event.sessionId).frame;
+        final line = terminalPromptGlobalLineFromScrollbackOffset(
+          globalBottomRow: frame.globalBottomRow,
+          scrollbackMaxOffset: frame.scrollbackMaxOffset,
+          scrollbackOffset: offset,
+        );
+        promptMarkRecorded =
+            line != null &&
+            pane.shellIntegration.promptMarks.any(
+              (mark) => mark.globalLine == line,
+            );
+      }
+    }
+    final before = pane.shellCapabilities;
+    final after = before.observe(event, promptMarkRecorded: promptMarkRecorded);
+    if (identical(before, after)) return;
+    _replaceSessionPane(
+      event.sessionId,
+      pane.copyWith(
+        shellIntegration: pane.shellIntegration.copyWith(capabilities: after),
+      ),
+    );
   }
 
   void _applyShellContext(TerminalSessionShellContextEvent event) {
@@ -4178,6 +4381,7 @@ class SessionController extends Notifier<SessionState> {
   }
 
   void _applySessionReset(TerminalSessionResetEvent event) {
+    _shellContexts.remove(event.sessionId);
     _clearNotificationTrackingForSession(event.sessionId);
     final progressKeyPrefix = '${event.sessionId}:';
     _pendingProgressEvents.removeWhere(
@@ -4195,6 +4399,7 @@ class SessionController extends Notifier<SessionState> {
       return;
     }
     final nextIntegration = currentPane.shellIntegration.copyWith(
+      capabilities: const ShellIntegrationCapabilities.pending(),
       currentDirectory: null,
       hostname: null,
       username: null,
@@ -5359,6 +5564,25 @@ class SessionController extends Notifier<SessionState> {
       terminalViewportPadding:
           _appPreferences.appearance.terminalViewportPadding,
     );
+  }
+
+  LocalTerminalShellIntegrationConfig get sshIntegrationDefaults =>
+      _localConfigDocument.shellIntegration;
+
+  Future<void> setSshIntegrationDefaults({
+    required bool wrapper,
+    required bool autoInject,
+  }) async {
+    await _savePreferences(
+      localConfigUpdater: (config) => config.copyWith(
+        shellIntegration: LocalTerminalShellIntegrationConfig(
+          enabled: config.shellIntegration.enabled,
+          sshWrapper: wrapper,
+          sshAutoInject: autoInject,
+        ),
+      ),
+    );
+    state = state.copyWith();
   }
 
   Future<void> setRestoreLayout(bool restoreLayout) async {

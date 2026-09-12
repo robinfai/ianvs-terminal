@@ -604,6 +604,7 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
   final _privateKeyFieldKey = GlobalKey<FormFieldState<List<String>>>();
   final _scrollController = ScrollController();
   final _advancedController = ExpansibleController();
+  bool? _sshAutoInject;
   final _nameFocus = FocusNode(debugLabel: 'ssh-profile-name');
   final _hostFocus = FocusNode();
   final _userFocus = FocusNode();
@@ -659,6 +660,8 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
     WidgetsBinding.instance.addObserver(this);
     FocusManager.instance.addListener(_handlePrimaryFocusChanged);
     final connection = widget.initialValue.connection;
+    _sshAutoInject =
+        widget.initialValue.sessionConfig.shellIntegration.sshAutoInject;
     _name = TextEditingController(text: widget.initialValue.name);
     _host = TextEditingController(text: connection.host);
     _user = TextEditingController(text: connection.user);
@@ -1585,6 +1588,44 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                     const SizedBox(height: 20),
                                   ],
                                   AppConfigurationField(
+                                    label: context.l10n.sshAutoInject,
+                                    child: DropdownButtonFormField<String>(
+                                      key: const Key('ssh-auto-inject'),
+                                      initialValue: _sshAutoInject == null
+                                          ? 'inherit'
+                                          : (_sshAutoInject! ? 'on' : 'off'),
+                                      isExpanded: true,
+                                      items: [
+                                        DropdownMenuItem(
+                                          value: 'inherit',
+                                          child: Text(
+                                            context.l10n.sshInjectionInherit,
+                                          ),
+                                        ),
+                                        DropdownMenuItem(
+                                          value: 'on',
+                                          child: Text(
+                                            context.l10n.sshInjectionOn,
+                                          ),
+                                        ),
+                                        DropdownMenuItem(
+                                          value: 'off',
+                                          child: Text(
+                                            context.l10n.sshInjectionOff,
+                                          ),
+                                        ),
+                                      ],
+                                      onChanged: (value) => setState(
+                                        () => _sshAutoInject = switch (value) {
+                                          'on' => true,
+                                          'off' => false,
+                                          _ => null,
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 20),
+                                  AppConfigurationField(
                                     label: context.l10n.hostKeyPolicy,
                                     child:
                                         AppDropdownFormField<
@@ -2049,7 +2090,9 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
   bool get _hasChanges {
     final initial = widget.initialValue;
     final connection = initial.connection;
-    return _name.text != initial.name ||
+    return _sshAutoInject !=
+            initial.sessionConfig.shellIntegration.sshAutoInject ||
+        _name.text != initial.name ||
         _host.text != connection.host ||
         _user.text != connection.user ||
         _port.text != connection.port.toString() ||
@@ -2248,7 +2291,11 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
           name: context.usesMobileNavigation && _name.text.trim().isEmpty
               ? _host.text.trim()
               : _name.text.trim(),
-          connection: connection,
+          sessionConfig: widget.initialValue.sessionConfig.copyWith(
+            connection: connection,
+            shellIntegration: widget.initialValue.sessionConfig.shellIntegration
+                .copyWith(sshAutoInject: _sshAutoInject),
+          ),
         ),
         saveProfile:
             widget.allowSaveChoice &&

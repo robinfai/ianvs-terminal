@@ -2474,6 +2474,7 @@ class TerminalRuntimeController implements TerminalInputSink {
     String sessionId,
     String path, {
     TerminalSftpCancellation? cancellation,
+    String? contextId,
   }) async {
     if (path.isEmpty ||
         path.length > 4096 ||
@@ -2494,7 +2495,11 @@ class TerminalRuntimeController implements TerminalInputSink {
         'The SFTP directory request was cancelled.',
       );
     }
-    final jobId = _jsonRequestClient.startSftpDirectoryListing(sessionId, path);
+    final jobId = _jsonRequestClient.startSftpDirectoryListing(
+      sessionId,
+      path,
+      contextId: contextId,
+    );
     if (jobId == null) {
       throw const TerminalSftpException(
         'SFTP file browsing is unavailable for this session.',
@@ -2555,6 +2560,7 @@ class TerminalRuntimeController implements TerminalInputSink {
     String remotePath,
     String localPath, {
     TerminalSftpCancellation? cancellation,
+    String? contextId,
   }) {
     return _runSftpOperation(
       sessionId,
@@ -2562,6 +2568,7 @@ class TerminalRuntimeController implements TerminalInputSink {
       remotePath: remotePath,
       localPath: localPath,
       cancellation: cancellation,
+      contextId: contextId,
     );
   }
 
@@ -2570,6 +2577,7 @@ class TerminalRuntimeController implements TerminalInputSink {
     String localPath,
     String remotePath, {
     TerminalSftpCancellation? cancellation,
+    String? contextId,
   }) {
     return _runSftpOperation(
       sessionId,
@@ -2577,6 +2585,7 @@ class TerminalRuntimeController implements TerminalInputSink {
       remotePath: remotePath,
       localPath: localPath,
       cancellation: cancellation,
+      contextId: contextId,
     );
   }
 
@@ -2584,12 +2593,14 @@ class TerminalRuntimeController implements TerminalInputSink {
     String sessionId,
     String remotePath, {
     TerminalSftpCancellation? cancellation,
+    String? contextId,
   }) {
     return _runSftpOperation(
       sessionId,
       action: TerminalSftpOperationAction.createDirectory,
       remotePath: remotePath,
       cancellation: cancellation,
+      contextId: contextId,
     );
   }
 
@@ -2598,6 +2609,7 @@ class TerminalRuntimeController implements TerminalInputSink {
     String remotePath, {
     required bool isDirectory,
     TerminalSftpCancellation? cancellation,
+    String? contextId,
   }) {
     return _runSftpOperation(
       sessionId,
@@ -2605,6 +2617,7 @@ class TerminalRuntimeController implements TerminalInputSink {
       remotePath: remotePath,
       isDirectory: isDirectory,
       cancellation: cancellation,
+      contextId: contextId,
     );
   }
 
@@ -2615,6 +2628,7 @@ class TerminalRuntimeController implements TerminalInputSink {
     String? localPath,
     bool? isDirectory,
     TerminalSftpCancellation? cancellation,
+    String? contextId,
   }) async {
     if (remotePath.isEmpty ||
         remotePath.length > 4096 ||
@@ -2649,6 +2663,7 @@ class TerminalRuntimeController implements TerminalInputSink {
       remotePath: remotePath,
       localPath: localPath,
       isDirectory: isDirectory,
+      contextId: contextId,
     );
     if (jobId == null) {
       throw const TerminalSftpException(

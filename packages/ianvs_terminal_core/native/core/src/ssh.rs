@@ -66,11 +66,6 @@ const MAX_ACTIVE_FORWARD_RELAYS: usize = 64;
 const MAX_PENDING_X11_CONNECTIONS: usize = 32;
 const MAX_X11_SETUP_BYTES: usize = 4 * 1024;
 const X11_AUTH_PROTOCOL: &[u8] = b"MIT-MAGIC-COOKIE-1";
-const SSH_SHELL_PROBE_TIMEOUT: Duration = Duration::from_secs(5);
-const SSH_SHELL_CLEANUP_TIMEOUT: Duration = Duration::from_secs(2);
-const MAX_SSH_SHELL_PROBE_BYTES: usize = 4096;
-const REMOTE_SHELL_MARKER: &str = "__IANVS_REMOTE_SHELL__";
-const REMOTE_CAPABILITY_MARKER: &str = "__IANVS_REMOTE_CAPABILITIES__1";
 
 pub struct SshRuntime {
     pub master: Box<dyn MasterPty + Send>,
@@ -131,21 +126,41 @@ impl SshSftpClient {
         &self,
         path: String,
     ) -> std::result::Result<oneshot::Receiver<SftpDirectoryResult>, String> {
+        self.start_list_directory_in_context(path, "root".into())
+    }
+    pub fn start_operation(
+        &self,
+        operation: SftpOperation,
+    ) -> std::result::Result<oneshot::Receiver<SftpOperationResult>, String> {
+        self.start_operation_in_context(operation, "root".into())
+    }
+
+    pub fn start_list_directory_in_context(
+        &self,
+        path: String,
+        context: String,
+    ) -> std::result::Result<oneshot::Receiver<SftpDirectoryResult>, String> {
         let (response, receiver) = oneshot::channel();
         self.sender
-            .send(SshCommand::ListDirectory { path, response })
+            .send(SshCommand::ListDirectory {
+                path,
+                context,
+                response,
+            })
             .map_err(|_| "SSH session is closed".to_string())?;
         Ok(receiver)
     }
 
-    pub fn start_operation(
+    pub fn start_operation_in_context(
         &self,
         operation: SftpOperation,
+        context: String,
     ) -> std::result::Result<oneshot::Receiver<SftpOperationResult>, String> {
         let (response, receiver) = oneshot::channel();
         self.sender
             .send(SshCommand::SftpOperation {
                 operation,
+                context,
                 response,
             })
             .map_err(|_| "SSH session is closed".to_string())?;
@@ -438,10 +453,12 @@ enum SshCommand {
     Resize(PtySize),
     ListDirectory {
         path: String,
+        context: String,
         response: oneshot::Sender<SftpDirectoryResult>,
     },
     SftpOperation {
         operation: SftpOperation,
+        context: String,
         response: oneshot::Sender<SftpOperationResult>,
     },
     Close,
@@ -1267,7 +1284,7 @@ pub fn spawn_ssh(
     rows: u16,
     cols: u16,
 ) -> Result<SshRuntime> {
-    spawn_ssh_with_shell_integration(connection, rows, cols, false)
+    spawn_ssh_with_shell_integration(connection, rows, cols, false, false)
 }
 
 pub(crate) fn spawn_ssh_with_shell_integration(
@@ -1275,6 +1292,7 @@ pub(crate) fn spawn_ssh_with_shell_integration(
     rows: u16,
     cols: u16,
     shell_integration_enabled: bool,
+    ssh_wrapper: bool,
 ) -> Result<SshRuntime> {
     let auth = SshAuthClient::default();
     let cancellation = SshCancellation::default();
@@ -1318,6 +1336,7 @@ pub(crate) fn spawn_ssh_with_shell_integration(
                         connection,
                         initial_size,
                         shell_integration_enabled,
+                        ssh_wrapper,
                         command_receiver,
                         output_sender.clone(),
                         thread_auth,
@@ -1358,266 +1377,7 @@ struct PreparedSshSession {
     forward_receiver: mpsc::Receiver<AcceptedLocalForward>,
     forward_listeners: ForwardListenerTasks,
     channel: Channel<client::Msg>,
-    shell_integration: Option<RemoteShellIntegration>,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum RemoteShellKind {
-    Sh,
-    Bash,
-    Zsh,
-    Fish,
-    Other,
-}
-
-#[derive(Debug, Eq, PartialEq)]
-struct RemoteShellProbe {
-    program: String,
-    kind: RemoteShellKind,
-    capabilities_available: bool,
-}
-
-#[derive(Debug)]
-struct RemoteShellIntegration {
-    directory: String,
-    files: Vec<String>,
-    launch_command: String,
-}
-
-async fn prepare_remote_shell_integration(
-    session: &client::Handle<SshClientHandler>,
-    cancellation: &SshCancellation,
-) -> Result<Option<RemoteShellIntegration>> {
-    let Some(probe) = probe_remote_shell(session, cancellation).await? else {
-        return Ok(None);
-    };
-    if probe.kind == RemoteShellKind::Other || !probe.capabilities_available {
-        return Ok(None);
-    }
-
-    let token = random_sftp_transfer_token()?;
-    let directory = format!("/tmp/ianvs-terminal-shell-{token}");
-    let files = remote_shell_integration_files(probe.kind);
-    let sftp = open_sftp_session(session)
-        .await
-        .context("could not open SFTP for remote shell integration")?;
-    sftp.create_dir(&directory)
-        .await
-        .context("could not create the remote shell integration directory")?;
-
-    let mut uploaded_paths = Vec::with_capacity(files.len());
-    let upload_result: Result<()> = async {
-        for (name, contents) in files {
-            let path = format!("{directory}/{name}");
-            let mut remote = sftp
-                .create(&path)
-                .await
-                .with_context(|| format!("could not create remote shell hook {name}"))?;
-            uploaded_paths.push(path);
-            remote
-                .write_all(contents.as_bytes())
-                .await
-                .with_context(|| format!("could not write remote shell hook {name}"))?;
-            remote
-                .flush()
-                .await
-                .with_context(|| format!("could not flush remote shell hook {name}"))?;
-            remote
-                .close()
-                .await
-                .with_context(|| format!("could not close remote shell hook {name}"))?;
-        }
-        Ok(())
-    }
-    .await;
-    if let Err(error) = upload_result {
-        for path in uploaded_paths.iter().rev() {
-            let _ = sftp.remove_file(path).await;
-        }
-        let _ = sftp.remove_dir(&directory).await;
-        return Err(error);
-    }
-
-    Ok(Some(RemoteShellIntegration {
-        launch_command: remote_shell_launch_command(probe.kind, &probe.program, &directory),
-        directory,
-        files: uploaded_paths,
-    }))
-}
-
-async fn probe_remote_shell(
-    session: &client::Handle<SshClientHandler>,
-    cancellation: &SshCancellation,
-) -> Result<Option<RemoteShellProbe>> {
-    let output = run_remote_probe(
-        session,
-        r#"printf '__IANVS_REMOTE_SHELL__%s\n' "$SHELL""#,
-        cancellation,
-    )
-    .await?;
-    let Some(program) = parse_remote_shell_program(&output) else {
-        return Ok(None);
-    };
-    let kind = remote_shell_kind(&program);
-    let Some(capability_command) = remote_shell_capability_command(kind, &program) else {
-        return Ok(Some(RemoteShellProbe {
-            program,
-            kind,
-            capabilities_available: false,
-        }));
-    };
-    let capability_output = run_remote_probe(session, &capability_command, cancellation)
-        .await
-        .unwrap_or_default();
-    Ok(Some(RemoteShellProbe {
-        program,
-        kind,
-        capabilities_available: capability_output
-            .lines()
-            .any(|line| line.trim() == REMOTE_CAPABILITY_MARKER),
-    }))
-}
-
-async fn run_remote_probe(
-    session: &client::Handle<SshClientHandler>,
-    command: &str,
-    cancellation: &SshCancellation,
-) -> Result<String> {
-    let probe = async {
-        let channel = session
-            .channel_open_session()
-            .await
-            .context("could not open remote shell probe channel")?;
-        channel
-            .exec(true, command)
-            .await
-            .context("remote shell probe was rejected")?;
-        let mut stream = channel
-            .into_stream()
-            .take((MAX_SSH_SHELL_PROBE_BYTES + 1) as u64);
-        let mut output = Vec::new();
-        stream
-            .read_to_end(&mut output)
-            .await
-            .context("could not read remote shell probe output")?;
-        if output.len() > MAX_SSH_SHELL_PROBE_BYTES {
-            bail!("remote shell probe output exceeded its byte limit");
-        }
-        String::from_utf8(output).context("remote shell probe output was not UTF-8")
-    };
-    tokio::select! {
-        biased;
-        _ = cancellation.cancelled() => bail!("remote shell probe was cancelled"),
-        result = tokio::time::timeout(SSH_SHELL_PROBE_TIMEOUT, probe) => {
-            result.context("remote shell probe timed out")?
-        }
-    }
-}
-
-fn parse_remote_shell_program(output: &str) -> Option<String> {
-    let program = output
-        .lines()
-        .filter_map(|line| line.trim().strip_prefix(REMOTE_SHELL_MARKER))
-        .map(str::trim)
-        .find(|value| !value.is_empty())?;
-    if program.len() > 1024
-        || !program.bytes().all(|byte| {
-            byte.is_ascii_alphanumeric() || matches!(byte, b'/' | b'_' | b'.' | b'+' | b'-')
-        })
-    {
-        return None;
-    }
-    Some(program.to_string())
-}
-
-fn remote_shell_kind(program: &str) -> RemoteShellKind {
-    let name = program
-        .rsplit('/')
-        .next()
-        .unwrap_or(program)
-        .trim_start_matches('-');
-    match name {
-        "bash" => RemoteShellKind::Bash,
-        "zsh" => RemoteShellKind::Zsh,
-        "fish" => RemoteShellKind::Fish,
-        "sh" | "dash" | "ash" | "ksh" | "mksh" => RemoteShellKind::Sh,
-        _ => RemoteShellKind::Other,
-    }
-}
-
-fn remote_shell_capability_command(kind: RemoteShellKind, program: &str) -> Option<String> {
-    let program = shell_quote(program);
-    match kind {
-        RemoteShellKind::Zsh => Some(format!(
-            "command -v od >/dev/null 2>&1 && command -v tr >/dev/null 2>&1 && {program} -fc 'autoload -Uz add-zsh-hook' >/dev/null 2>&1 && printf '{REMOTE_CAPABILITY_MARKER}\\n'"
-        )),
-        RemoteShellKind::Bash => Some(format!(
-            "command -v od >/dev/null 2>&1 && command -v tr >/dev/null 2>&1 && {program} --noprofile --norc -c ':' >/dev/null 2>&1 && printf '{REMOTE_CAPABILITY_MARKER}\\n'"
-        )),
-        RemoteShellKind::Fish => Some(format!(
-            "command -sq od; and command -sq tr; and {program} --init-command ':' -c ':' >/dev/null 2>&1; and printf '{REMOTE_CAPABILITY_MARKER}\\n'"
-        )),
-        RemoteShellKind::Sh => Some(format!(
-            "command -v printf >/dev/null 2>&1 && {program} -c ':' >/dev/null 2>&1 && printf '{REMOTE_CAPABILITY_MARKER}\\n'"
-        )),
-        RemoteShellKind::Other => None,
-    }
-}
-
-fn remote_shell_integration_files(kind: RemoteShellKind) -> Vec<(&'static str, String)> {
-    match kind {
-        RemoteShellKind::Zsh => crate::pty::zsh_shell_integration_files(),
-        RemoteShellKind::Bash => vec![(
-            ".bashrc",
-            crate::pty::remote_bash_shell_integration_source(),
-        )],
-        RemoteShellKind::Fish => vec![(
-            "init.fish",
-            crate::pty::fish_shell_integration_source().to_string(),
-        )],
-        RemoteShellKind::Sh => vec![(
-            "init.sh",
-            crate::pty::sh_shell_integration_source().to_string(),
-        )],
-        RemoteShellKind::Other => Vec::new(),
-    }
-}
-
-fn remote_shell_launch_command(kind: RemoteShellKind, program: &str, directory: &str) -> String {
-    let program = shell_quote(program);
-    let directory = shell_quote(directory);
-    match kind {
-        RemoteShellKind::Zsh => format!(
-            "if [ \"${{ZDOTDIR+x}}\" = x ]; then export IANVS_ORIGINAL_ZDOTDIR_WAS_SET=1 IANVS_ORIGINAL_ZDOTDIR=\"$ZDOTDIR\"; else export IANVS_ORIGINAL_ZDOTDIR_WAS_SET=0 IANVS_ORIGINAL_ZDOTDIR=; fi; export IANVS_SHELL_INTEGRATION=1 ZDOTDIR={directory}; exec {program} -l"
-        ),
-        RemoteShellKind::Bash => format!(
-            "export IANVS_SHELL_INTEGRATION=1 IANVS_SKIP_ORIGINAL_BASHRC=1; exec {program} --rcfile {directory}/.bashrc -i"
-        ),
-        RemoteShellKind::Fish => format!(
-            "set -gx IANVS_SHELL_INTEGRATION 1; set -gx IANVS_FISH_INIT {directory}/init.fish; exec {program} -l --init-command 'source \"$IANVS_FISH_INIT\"'"
-        ),
-        RemoteShellKind::Sh => format!(
-            "if [ \"${{ENV+x}}\" = x ]; then export IANVS_ORIGINAL_ENV_WAS_SET=1 IANVS_ORIGINAL_ENV=\"$ENV\"; else export IANVS_ORIGINAL_ENV_WAS_SET=0 IANVS_ORIGINAL_ENV=; fi; export IANVS_SHELL_INTEGRATION=1 ENV={directory}/init.sh; exec {program} -l -i"
-        ),
-        RemoteShellKind::Other => format!("exec {program} -l"),
-    }
-}
-
-fn shell_quote(value: &str) -> String {
-    format!("'{}'", value.replace('\'', "'\"'\"'"))
-}
-
-async fn cleanup_remote_shell_integration(
-    session: &client::Handle<SshClientHandler>,
-    integration: &RemoteShellIntegration,
-) {
-    let Ok(sftp) = open_sftp_session(session).await else {
-        return;
-    };
-    for path in integration.files.iter().rev() {
-        let _ = sftp.remove_file(path).await;
-    }
-    let _ = sftp.remove_dir(&integration.directory).await;
+    shell_integration: Option<crate::shell_bootstrap::Bootstrap>,
 }
 
 async fn teardown_ssh_network(
@@ -1644,6 +1404,7 @@ async fn prepare_ssh_session(
     connection: &TerminalProfileConnection,
     initial_size: PtySize,
     shell_integration_enabled: bool,
+    ssh_wrapper: bool,
     auth: &SshAuthClient,
     cancellation: &SshCancellation,
     forward_runtime: &ForwardRuntime,
@@ -1670,14 +1431,9 @@ async fn prepare_ssh_session(
         start_local_forward_listeners(connection, forward_sender, forward_runtime.clone()).await?;
     request_remote_forwards(&session, connection).await?;
 
-    let shell_integration = if shell_integration_enabled {
-        prepare_remote_shell_integration(&session, cancellation)
-            .await
-            .ok()
-            .flatten()
-    } else {
-        None
-    };
+    let shell_integration = shell_integration_enabled.then(|| {
+        crate::shell_bootstrap::Bootstrap::new(crate::shell_bootstrap::token(), ssh_wrapper)
+    });
 
     let channel = session.channel_open_session().await?;
     if connection.agent_forwarding {
@@ -1710,7 +1466,7 @@ async fn prepare_ssh_session(
         .await?;
     if let Some(integration) = &shell_integration {
         if channel
-            .exec(true, integration.launch_command.clone())
+            .exec(true, integration.launch_command())
             .await
             .is_err()
         {
@@ -1776,6 +1532,7 @@ async fn run_ssh_session(
     connection: TerminalProfileConnection,
     initial_size: PtySize,
     shell_integration_enabled: bool,
+    ssh_wrapper: bool,
     mut commands: mpsc::UnboundedReceiver<SshCommand>,
     output: std_mpsc::Sender<Vec<u8>>,
     auth: SshAuthClient,
@@ -1788,6 +1545,7 @@ async fn run_ssh_session(
             &connection,
             initial_size,
             shell_integration_enabled,
+            ssh_wrapper,
             &auth,
             &cancellation,
             &forward_runtime,
@@ -1811,16 +1569,23 @@ async fn run_ssh_session(
         mut forward_receiver,
         forward_listeners,
         mut channel,
-        shell_integration,
+        mut shell_integration,
     } = prepared;
-    let _ = output.send(
-        format!(
-            "\r\nConnected to {}@{}:{}\r\n",
-            connection.user, connection.host, connection.port
-        )
-        .into_bytes(),
-    );
+    let connected = format!(
+        "\r\nConnected to {}@{}:{}\r\n",
+        connection.user, connection.host, connection.port
+    )
+    .into_bytes();
+    let mut announced = shell_integration.is_none();
+    let mut bootstrap_input = Vec::new();
+    let mut fallback_shell_pending = false;
+    if announced {
+        let _ = output.send(connected.clone());
+    }
+    let bootstrap_deadline = tokio::time::sleep(crate::shell_bootstrap::TIMEOUT);
+    tokio::pin!(bootstrap_deadline);
 
+    let mut bootstrap_tick = tokio::time::interval(Duration::from_millis(100));
     let mut exit_status = 0;
     let session_result: Result<()> = async {
         let mut sftp_requests: FuturesUnordered<BoxFuture<'_, ()>> =
@@ -1833,9 +1598,39 @@ async fn run_ssh_session(
             _ = cancellation.cancelled() => {
                 break;
             },
+            _ = &mut bootstrap_deadline, if !announced => {
+                if let Some(bootstrap) = &mut shell_integration {
+                    let _ = output.send(bootstrap.expire());
+                }
+                let _ = output.send(connected.clone());
+                announced = true;
+                if !bootstrap_input.is_empty() {
+                    channel.data_bytes(std::mem::take(&mut bootstrap_input)).await?;
+                }
+            },
+            _ = bootstrap_tick.tick() => {
+                if let Some(bootstrap) = &mut shell_integration {
+                    let bytes = bootstrap.expire_due();
+                    if !bytes.is_empty() {
+                        let _ = output.send(bytes);
+                    }
+                    if announced && !bootstrap.checking() && !bootstrap_input.is_empty() {
+                        channel.data_bytes(std::mem::take(&mut bootstrap_input)).await?;
+                    }
+                }
+            },
             _ = sftp_requests.next(), if !sftp_requests.is_empty() => {},
             command = commands.recv() => match command {
-                Some(SshCommand::Data(bytes)) => channel.data_bytes(bytes).await?,
+                Some(SshCommand::Data(bytes)) => {
+                    if !announced || shell_integration.as_ref().is_some_and(|b| b.checking()) {
+                        if bootstrap_input.len() + bytes.len() > 65536 {
+                            bail!("shell initialization input buffer is full");
+                        }
+                        bootstrap_input.extend(bytes);
+                    } else {
+                        channel.data_bytes(bytes).await?;
+                    }
+                },
                 Some(SshCommand::Resize(size)) => {
                     channel.window_change(
                         u32::from(size.cols),
@@ -1844,7 +1639,7 @@ async fn run_ssh_session(
                         u32::from(size.pixel_height),
                     ).await?;
                 }
-                Some(SshCommand::ListDirectory { path, mut response }) => {
+                Some(SshCommand::ListDirectory { path, context, mut response }) => {
                     if response.is_closed() {
                         continue;
                     }
@@ -1854,7 +1649,14 @@ async fn run_ssh_session(
                         ));
                         continue;
                     }
-                    let request = list_sftp_directory(&session, path);
+                    let endpoint = match endpoint_for(&session, shell_integration.as_ref(), &context) {
+                        Ok(endpoint) => endpoint,
+                        Err(error) => {
+                            let _ = response.send(Err(error.to_string()));
+                            continue;
+                        }
+                    };
+                    let request = list_sftp_directory(endpoint, path);
                     sftp_requests.push(Box::pin(async move {
                         let result = tokio::select! {
                             biased;
@@ -1870,7 +1672,7 @@ async fn run_ssh_session(
                         let _ = response.send(result);
                     }));
                 }
-                Some(SshCommand::SftpOperation { operation, mut response }) => {
+                Some(SshCommand::SftpOperation { operation, context, mut response }) => {
                     if response.is_closed() {
                         continue;
                     }
@@ -1881,8 +1683,15 @@ async fn run_ssh_session(
                         continue;
                     }
                     let cancellation = sftp_operation_root.child();
+                    let endpoint = match endpoint_for(&session, shell_integration.as_ref(), &context) {
+                        Ok(endpoint) => endpoint,
+                        Err(error) => {
+                            let _ = response.send(Err(error.to_string()));
+                            continue;
+                        }
+                    };
                     let request = execute_sftp_operation(
-                        &session,
+                        endpoint,
                         operation,
                         cancellation.clone(),
                     );
@@ -1922,8 +1731,50 @@ async fn run_ssh_session(
             },
             message = channel.wait() => match message {
                 Some(ChannelMsg::Data { data }) | Some(ChannelMsg::ExtendedData { data, .. }) => {
-                    if output.send(data.to_vec()).is_err() {
+                    let bytes = if let Some(bootstrap) = &mut shell_integration {
+                        let processed = bootstrap.feed(&data);
+                        for reply in processed.replies {
+                            channel.data_bytes(reply).await?;
+                        }
+                        if bootstrap.ready && !announced {
+                            // Publish the check result before displaying the connected banner.
+                            let _ = output.send(processed.output);
+                            let _ = output.send(connected.clone());
+                            announced = true;
+                            if !bootstrap_input.is_empty() {
+                                channel.data_bytes(std::mem::take(&mut bootstrap_input)).await?;
+                            }
+                            continue;
+                        }
+                        processed.output
+                    } else {
+                        data.to_vec()
+                    };
+                    if announced
+                        && !shell_integration.as_ref().is_some_and(|b| b.checking())
+                        && !bootstrap_input.is_empty()
+                    {
+                        channel.data_bytes(std::mem::take(&mut bootstrap_input)).await?;
+                    }
+                    if !bytes.is_empty() && output.send(bytes).is_err() {
                         break;
+                    }
+                }
+                Some(ChannelMsg::Failure) if !announced => {
+                    if fallback_shell_pending {
+                        bail!("remote server rejected both SSH initialization and the interactive shell");
+                    }
+                    fallback_shell_pending = true;
+                    channel.request_shell(true).await?;
+                }
+                Some(ChannelMsg::Success) if fallback_shell_pending && !announced => {
+                    if let Some(bootstrap) = &mut shell_integration {
+                        let _ = output.send(bootstrap.degrade("exec_rejected"));
+                    }
+                    let _ = output.send(connected.clone());
+                    announced = true;
+                    if !bootstrap_input.is_empty() {
+                        channel.data_bytes(std::mem::take(&mut bootstrap_input)).await?;
                     }
                 }
                 Some(ChannelMsg::ExitStatus { exit_status: code }) => {
@@ -1992,13 +1843,6 @@ async fn run_ssh_session(
     .await;
     forward_listeners.abort_all();
     auth.cancel_all();
-    if let Some(integration) = &shell_integration {
-        let _ = tokio::time::timeout(
-            SSH_SHELL_CLEANUP_TIMEOUT,
-            cleanup_remote_shell_integration(&session, integration),
-        )
-        .await;
-    }
     shutdown_ssh_resources(&cancellation, &forward_runtime).await;
     teardown_ssh_network(channel, session, jump_sessions).await;
     session_result?;
@@ -2018,20 +1862,181 @@ async fn finish_sftp_request_scope<T>(
     channel_loop_result
 }
 
+/// Immutable route captured when work is accepted, shared by transfer and rename.
+struct SftpEndpoint<'a> {
+    session: Option<&'a client::Handle<SshClientHandler>>,
+    route: Vec<String>,
+}
+trait SftpTransport: AsyncRead + AsyncWrite + Unpin + Send {}
+impl<T: AsyncRead + AsyncWrite + Unpin + Send> SftpTransport for T {}
+impl SftpEndpoint<'_> {
+    async fn open_stream(&self) -> Result<Box<dyn SftpTransport>> {
+        let command = crate::shell_bootstrap::sftp_command(&self.route);
+        if let Some(session) = self.session {
+            let channel = session
+                .channel_open_session()
+                .await
+                .context("could not open SFTP channel")?;
+            if let Some(command) = command {
+                channel
+                    .exec(true, command)
+                    .await
+                    .context("could not open the nested SFTP route")?;
+            } else {
+                channel
+                    .request_subsystem(true, "sftp")
+                    .await
+                    .context("remote server rejected SFTP")?;
+            }
+            Ok(Box::new(channel.into_stream()))
+        } else {
+            let command = command.ok_or_else(|| anyhow!("local shell has no SSH file endpoint"))?;
+            let mut child = Command::new("/bin/sh")
+                .args(["-c", &format!("exec {command}")])
+                .stdin(std::process::Stdio::piped())
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::null())
+                .kill_on_drop(true)
+                .spawn()
+                .context("could not open the SSH control socket")?;
+            let stdin = child.stdin.take().unwrap();
+            let stdout = child.stdout.take().unwrap();
+            Ok(Box::new(MuxSftpStream {
+                child,
+                stdin,
+                stdout,
+            }))
+        }
+    }
+}
+struct MuxSftpStream {
+    child: TokioChild,
+    stdin: ChildStdin,
+    stdout: ChildStdout,
+}
+impl AsyncRead for MuxSftpStream {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut TaskContext<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<IoResult<()>> {
+        Pin::new(&mut self.stdout).poll_read(cx, buf)
+    }
+}
+impl AsyncWrite for MuxSftpStream {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut TaskContext<'_>,
+        bytes: &[u8],
+    ) -> Poll<IoResult<usize>> {
+        Pin::new(&mut self.stdin).poll_write(cx, bytes)
+    }
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<IoResult<()>> {
+        Pin::new(&mut self.stdin).poll_flush(cx)
+    }
+    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut TaskContext<'_>) -> Poll<IoResult<()>> {
+        Pin::new(&mut self.stdin).poll_shutdown(cx)
+    }
+}
+impl Drop for MuxSftpStream {
+    fn drop(&mut self) {
+        let _ = self.child.start_kill();
+    }
+}
+fn endpoint_for<'a>(
+    session: &'a client::Handle<SshClientHandler>,
+    bootstrap: Option<&crate::shell_bootstrap::Bootstrap>,
+    context: &str,
+) -> Result<SftpEndpoint<'a>> {
+    let route = match bootstrap {
+        Some(bootstrap) => bootstrap.route_for(context)?,
+        None if context == "root" => Vec::new(),
+        None => bail!("SSH shell context is unavailable"),
+    };
+    Ok(SftpEndpoint {
+        session: Some(session),
+        route,
+    })
+}
+
+pub(crate) fn local_sftp_client(
+    state: Arc<StdMutex<crate::shell_bootstrap::Bootstrap>>,
+) -> Result<SshSftpClient> {
+    let (sender, mut receiver) = mpsc::unbounded_channel();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()?;
+    thread::Builder::new().name("ianvs-local-sftp".into()).spawn(move || runtime.block_on(async move {
+        let cancellation = SftpOperationCancellation::new();
+        let mut work: FuturesUnordered<BoxFuture<'_, ()>> = FuturesUnordered::new();
+        loop {
+            tokio::select! {
+                _ = work.next(), if !work.is_empty() => {},
+                command = receiver.recv() => match command {
+                    Some(SshCommand::ListDirectory {path, context, mut response}) => {
+                        if response.is_closed() {continue;}
+                        if work.len() >= MAX_CONCURRENT_SFTP_REQUESTS {let _=response.send(Err("too many SFTP requests".into()));continue;}
+                        let route = match state.lock().unwrap().route_for(&context) {
+                            Ok(route) => route,
+                            Err(e) => {let _=response.send(Err(e.to_string()));continue;}
+                        };
+                        work.push(Box::pin(async move {
+                            let request = list_sftp_directory(SftpEndpoint {session: None, route}, path);
+                            let result = tokio::select! {
+                                _ = response.closed() => return,
+                                result = tokio::time::timeout(SFTP_DIRECTORY_REQUEST_TIMEOUT, request) => match result {
+                                    Ok(r) => r.map_err(|e|e.to_string()),
+                                    Err(_) => Err("SFTP directory request timed out".into()),
+                                },
+                            };
+                            let _=response.send(result);
+                        }));
+                    }
+                    Some(SshCommand::SftpOperation {operation, context, mut response}) => {
+                        if response.is_closed() {continue;}
+                        if work.len() >= MAX_CONCURRENT_SFTP_REQUESTS {let _=response.send(Err("too many SFTP requests".into()));continue;}
+                        let route = match state.lock().unwrap().route_for(&context) {
+                            Ok(route) => route,
+                            Err(e) => {let _=response.send(Err(e.to_string()));continue;}
+                        };
+                        let cancellation = cancellation.child();
+                        work.push(Box::pin(async move {
+                            let request = execute_sftp_operation(SftpEndpoint {session: None, route}, operation, cancellation.clone());
+                            tokio::pin!(request);
+                            let result = tokio::select! {
+                                _ = response.closed() => {
+                                    cancellation.cancel();
+                                    let _=tokio::time::timeout(SFTP_FILE_CANCELLATION_CLEANUP_TIMEOUT, &mut request).await;
+                                    return;
+                                },
+                                result = tokio::time::timeout(SFTP_FILE_OPERATION_REQUEST_TIMEOUT, &mut request) => match result {
+                                    Ok(r) => r.map_err(|e|e.to_string()),
+                                    Err(_) => {
+                                        cancellation.cancel();
+                                        let _=tokio::time::timeout(SFTP_FILE_CANCELLATION_CLEANUP_TIMEOUT, &mut request).await;
+                                        Err("SFTP file operation timed out".into())
+                                    },
+                                },
+                            };
+                            let _=response.send(result);
+                        }));
+                    }
+                    _ => break,
+                },
+            }
+        }
+        let _ = finish_sftp_request_scope(Ok(()), &cancellation, &mut work).await;
+    }))?;
+    Ok(SshSftpClient { sender })
+}
+
 async fn list_sftp_directory(
-    session: &client::Handle<SshClientHandler>,
+    endpoint: SftpEndpoint<'_>,
     path: String,
 ) -> Result<SftpDirectoryListing> {
-    let channel = session
-        .channel_open_session()
-        .await
-        .context("could not open SFTP channel")?;
-    channel
-        .request_subsystem(true, "sftp")
-        .await
-        .context("remote server rejected the SFTP subsystem")?;
+    let stream = endpoint.open_stream().await?;
     let sftp = RawSftpSession::new_with_config(
-        SftpPacketLengthLimitedStream::new(channel.into_stream(), MAX_SFTP_INBOUND_PACKET_BYTES),
+        SftpPacketLengthLimitedStream::new(stream, MAX_SFTP_INBOUND_PACKET_BYTES),
         SftpConfig {
             max_packet_len: MAX_SFTP_INBOUND_PACKET_BYTES,
             request_timeout_secs: 10,
@@ -2109,17 +2114,10 @@ async fn list_sftp_directory(
     Ok(SftpDirectoryListing { path, entries })
 }
 
-async fn open_sftp_session(session: &client::Handle<SshClientHandler>) -> Result<SftpSession> {
-    let channel = session
-        .channel_open_session()
-        .await
-        .context("could not open SFTP channel")?;
-    channel
-        .request_subsystem(true, "sftp")
-        .await
-        .context("remote server rejected the SFTP subsystem")?;
+async fn open_sftp_session(endpoint: &SftpEndpoint<'_>) -> Result<SftpSession> {
+    let stream = endpoint.open_stream().await?;
     SftpSession::new_with_config(
-        SftpPacketLengthLimitedStream::new(channel.into_stream(), MAX_SFTP_INBOUND_PACKET_BYTES),
+        SftpPacketLengthLimitedStream::new(stream, MAX_SFTP_INBOUND_PACKET_BYTES),
         SftpConfig {
             max_packet_len: MAX_SFTP_INBOUND_PACKET_BYTES,
             request_timeout_secs: 10,
@@ -2131,14 +2129,14 @@ async fn open_sftp_session(session: &client::Handle<SshClientHandler>) -> Result
 }
 
 async fn execute_sftp_operation(
-    session: &client::Handle<SshClientHandler>,
+    endpoint: SftpEndpoint<'_>,
     operation: SftpOperation,
     cancellation: SftpOperationCancellation,
 ) -> Result<()> {
     let sftp = tokio::select! {
         biased;
         _ = cancellation.cancelled() => bail!("SFTP file operation was cancelled"),
-        result = open_sftp_session(session) => result?,
+        result = open_sftp_session(&endpoint) => result?,
     };
     let result = match operation {
         SftpOperation::DownloadFile {
@@ -2150,7 +2148,7 @@ async fn execute_sftp_operation(
             remote_path,
         } => {
             upload_sftp_file(
-                Some(session),
+                Some(&endpoint),
                 &sftp,
                 &local_path,
                 &remote_path,
@@ -2308,7 +2306,7 @@ async fn install_local_download(
 }
 
 async fn upload_sftp_file(
-    ssh_session: Option<&client::Handle<SshClientHandler>>,
+    ssh_session: Option<&SftpEndpoint<'_>>,
     sftp: &SftpSession,
     local_path: &str,
     remote_path: &str,
@@ -2417,19 +2415,17 @@ async fn upload_sftp_file(
 }
 
 async fn posix_rename_sftp_file(
-    session: &client::Handle<SshClientHandler>,
+    endpoint: &SftpEndpoint<'_>,
     old_path: &str,
     new_path: &str,
     cancellation: &SftpOperationCancellation,
 ) -> Result<bool> {
-    let channel = sftp_operation_step(cancellation, session.channel_open_session())
-        .await
-        .context("could not open atomic SFTP rename channel")?;
-    sftp_operation_step(cancellation, channel.request_subsystem(true, "sftp"))
-        .await
-        .context("remote server rejected the atomic SFTP rename channel")?;
+    let stream = tokio::select! {
+        _ = cancellation.cancelled() => bail!("SFTP file operation was cancelled"),
+        stream = endpoint.open_stream() => stream?,
+    };
     let raw = RawSftpSession::new_with_config(
-        SftpPacketLengthLimitedStream::new(channel.into_stream(), MAX_SFTP_INBOUND_PACKET_BYTES),
+        SftpPacketLengthLimitedStream::new(stream, MAX_SFTP_INBOUND_PACKET_BYTES),
         SftpConfig {
             max_packet_len: MAX_SFTP_INBOUND_PACKET_BYTES,
             request_timeout_secs: 10,
@@ -3765,94 +3761,6 @@ mod tests {
     use russh::client::Handler as _;
     use russh_sftp::protocol::{Attrs, Data, Handle, OpenFlags, Status};
 
-    #[test]
-    fn remote_shell_probe_parses_supported_shells_and_rejects_commands() {
-        for (program, kind) in [
-            ("/bin/sh", RemoteShellKind::Sh),
-            ("/usr/bin/dash", RemoteShellKind::Sh),
-            ("/bin/bash", RemoteShellKind::Bash),
-            ("/opt/homebrew/bin/zsh", RemoteShellKind::Zsh),
-            ("/usr/local/bin/fish", RemoteShellKind::Fish),
-            ("/usr/bin/nu", RemoteShellKind::Other),
-        ] {
-            let output = format!("login noise\n{REMOTE_SHELL_MARKER}{program}\n");
-            let parsed = parse_remote_shell_program(&output).expect("shell program");
-            assert_eq!(parsed, program);
-            assert_eq!(remote_shell_kind(&parsed), kind);
-        }
-
-        assert!(parse_remote_shell_program("no marker").is_none());
-        assert!(
-            parse_remote_shell_program(&format!(
-                "{REMOTE_SHELL_MARKER}/bin/zsh; touch /tmp/not-allowed\n"
-            ))
-            .is_none()
-        );
-    }
-
-    #[test]
-    fn remote_shell_capability_probes_are_shell_specific() {
-        let zsh =
-            remote_shell_capability_command(RemoteShellKind::Zsh, "/bin/zsh").expect("zsh probe");
-        let bash = remote_shell_capability_command(RemoteShellKind::Bash, "/bin/bash")
-            .expect("bash probe");
-        let fish = remote_shell_capability_command(RemoteShellKind::Fish, "/bin/fish")
-            .expect("fish probe");
-        let sh = remote_shell_capability_command(RemoteShellKind::Sh, "/bin/sh").expect("sh probe");
-
-        assert!(zsh.contains("autoload -Uz add-zsh-hook"));
-        assert!(zsh.contains("command -v od"));
-        assert!(bash.contains("--noprofile --norc"));
-        assert!(bash.contains("command -v tr"));
-        assert!(fish.contains("command -sq od"));
-        assert!(fish.contains("--init-command"));
-        assert!(sh.contains("command -v printf"));
-        assert!(!sh.contains("command -v od"));
-        assert!(remote_shell_capability_command(RemoteShellKind::Other, "/bin/nu").is_none());
-    }
-
-    #[test]
-    fn remote_shell_launch_plans_use_native_startup_mechanisms() {
-        let directory = "/tmp/ianvs-terminal-shell-test";
-        let zsh = remote_shell_launch_command(RemoteShellKind::Zsh, "/bin/zsh", directory);
-        let bash = remote_shell_launch_command(RemoteShellKind::Bash, "/bin/bash", directory);
-        let fish = remote_shell_launch_command(RemoteShellKind::Fish, "/bin/fish", directory);
-        let sh = remote_shell_launch_command(RemoteShellKind::Sh, "/bin/sh", directory);
-        let other = remote_shell_launch_command(RemoteShellKind::Other, "/bin/nu", directory);
-
-        assert!(zsh.contains("ZDOTDIR='/tmp/ianvs-terminal-shell-test'"));
-        assert!(zsh.contains("IANVS_ORIGINAL_ZDOTDIR"));
-        assert!(bash.contains("--rcfile '/tmp/ianvs-terminal-shell-test'/.bashrc -i"));
-        assert!(fish.contains("--init-command"));
-        assert!(fish.contains("IANVS_FISH_INIT"));
-        assert!(sh.contains("ENV='/tmp/ianvs-terminal-shell-test'/init.sh"));
-        assert!(sh.contains("IANVS_ORIGINAL_ENV"));
-        assert_eq!(other, "exec '/bin/nu' -l");
-    }
-
-    #[test]
-    fn remote_shell_hook_files_cover_full_and_basic_fallbacks() {
-        let zsh = remote_shell_integration_files(RemoteShellKind::Zsh);
-        assert_eq!(zsh.len(), 5);
-        assert!(zsh.iter().any(|(name, _)| *name == ".zshrc"));
-
-        let bash = remote_shell_integration_files(RemoteShellKind::Bash);
-        assert!(bash[0].1.contains("PROMPT_COMMAND"));
-        assert!(bash[0].1.contains("command_finished"));
-        assert!(bash[0].1.contains("/etc/profile"));
-        assert!(bash[0].1.contains(".bash_profile"));
-
-        let fish = remote_shell_integration_files(RemoteShellKind::Fish);
-        assert!(fish[0].1.contains("fish_preexec"));
-        assert!(fish[0].1.contains("fish_prompt"));
-
-        let sh = remote_shell_integration_files(RemoteShellKind::Sh);
-        assert!(sh[0].1.contains("PS1="));
-        assert!(sh[0].1.contains("file://"));
-
-        assert!(remote_shell_integration_files(RemoteShellKind::Other).is_empty());
-    }
-
     struct InMemorySftpServer {
         files: Arc<Mutex<HashMap<String, Vec<u8>>>>,
     }
@@ -4022,10 +3930,16 @@ mod tests {
             .start_list_directory("/srv/app".to_string())
             .expect("enqueue directory request");
         let command = commands.try_recv().expect("queued SFTP command");
-        let SshCommand::ListDirectory { path, response } = command else {
+        let SshCommand::ListDirectory {
+            path,
+            context,
+            response,
+        } = command
+        else {
             panic!("expected an SFTP directory command");
         };
         assert_eq!(path, "/srv/app");
+        assert_eq!(context, "root");
         response
             .send(Ok(SftpDirectoryListing {
                 path,

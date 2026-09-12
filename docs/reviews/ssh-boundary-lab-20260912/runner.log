@@ -1,0 +1,61 @@
+RUN bash-memory-nosftp-nomaster: Seven hook capabilities with no SFTP and no ControlMaster
+PASS bash-memory-nosftp-nomaster
+RUN zsh-memory-nosftp: Install repository hook into final interactive shell without SFTP
+PASS zsh-memory-nosftp
+RUN fish-memory-nosftp: Install repository hook into final interactive shell without SFTP
+PASS fish-memory-nosftp
+RUN bootstrap-preloaded: Reuse real hooks; stale sentinel / existing DEBUG trap must not report activation
+PASS bootstrap-preloaded
+RUN bootstrap-stale: Reuse real hooks; stale sentinel / existing DEBUG trap must not report activation
+PASS bootstrap-stale
+RUN nested-a-b-c-return: Three real interactive shells and correct parent restoration
+PASS nested-a-b-c-return
+RUN nested-unhooked-child-isolation: Child failure must not inherit parent activation
+PASS nested-unhooked-child-isolation
+RUN existing-debug-trap-conflict: Expose DEBUG trap coexistence limitation in repository installer
+PASS existing-debug-trap-conflict
+RUN wrapper-bypass-and-argv: Bypass is observable limitation; noninteractive argv stays unchanged
+PASS wrapper-bypass-and-argv
+RUN failed-hop-restores-parent: Failed connection cannot create an active child
+PASS failed-hop-restores-parent
+RUN sftp-disabled-independent: Missing SFTP does not disable shell access
+PASS sftp-disabled-independent
+RUN multi-hop-sftp-binary-reuse: Binary SFTP round trip through A/B, reusing both remote masters
+PASS multi-hop-sftp-binary-reuse
+RUN live-terminal-sftp-reuse-and-pinning: Reuse the actual three terminal connections and keep a transfer on C after return to B
+PASS live-terminal-sftp-reuse-and-pinning
+RUN both-intermediates-without-sftp: Only the final target needs SFTP
+PASS both-intermediates-without-sftp
+RUN exec-relay-with-forwarding-disabled: Exec-based SFTP bridge does not require TCP forwarding permission
+PASS exec-relay-with-forwarding-disabled
+RUN no-pty-sftp-available: PTY permission and SFTP support are independent
+PASS no-pty-sftp-available
+RUN maxsessions-one: Live terminal may exhaust all channels allowed on its connection
+PASS maxsessions-one
+RUN forcecommand-blocks-bootstrap-and-sftp: Server-forced command overrides client requests
+PASS forcecommand-blocks-bootstrap-and-sftp
+RUN noisy-startup-corrupts-relay: Noninteractive shell stdout can corrupt raw SFTP framing
+PASS noisy-startup-corrupts-relay
+RUN master-exit-no-silent-reconnect: Expired master breaks reuse and cannot masquerade as a healthy file channel
+PASS master-exit-no-silent-reconnect
+RUN readonly-home-tmp-bootstrap: Memory bootstrap succeeds when home and /tmp cannot accept files
+PASS readonly-home-tmp-bootstrap
+RUN stdin-injection-history-leak: A leading space alone does not guarantee no script persistence
+PASS stdin-injection-history-leak
+RUN startup-exec-changes-final-shell: Configured login shell is not reliable final-shell identification
+PASS startup-exec-changes-final-shell
+RUN password-before-readiness: Authentication must be interactive before hook ready gating
+PASS password-before-readiness
+RUN controlpath-length-limit: ControlPath must leave room for the OpenSSH temporary suffix
+PASS controlpath-length-limit
+RUN exec-ssh-bypasses-context-tracking: Process replacement bypasses wrapper and has no parent return event
+PASS exec-ssh-bypasses-context-tracking
+RUN tmux-dcs-filtering: Plain hook DCS needs explicit tmux passthrough handling
+PASS tmux-dcs-filtering
+RUN script-persistence-and-file-syscalls: Check on-disk payload content and transient /tmp creation via strace
+PASS script-persistence-and-file-syscalls
+RUN posix-sh-directory-only: POSIX sh fallback reports directory but not full lifecycle capabilities
+PASS posix-sh-directory-only
+RUN missing-hook-helpers: Unavailable od/tr must not be reported as active shell integration
+PASS missing-hook-helpers
+30/30 expectations satisfied; failed=[]

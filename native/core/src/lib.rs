@@ -10,6 +10,7 @@ pub mod runtime_contract;
 pub mod session;
 pub mod session_config;
 pub mod session_request;
+mod shell_bootstrap;
 pub mod ssh;
 pub mod ssh_config;
 mod zmodem;

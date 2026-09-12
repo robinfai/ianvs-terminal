@@ -712,6 +712,11 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
       return;
     }
     switch (action) {
+      case TerminalActionId.showShellCapabilities:
+        if (currentSessionId != null) {
+          await _showShellCapabilities(currentSessionId);
+        }
+        return;
       case TerminalActionId.openRecording:
         await _openRecordingLibrary();
         return;

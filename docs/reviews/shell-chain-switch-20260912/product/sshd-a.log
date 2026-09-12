@@ -1,0 +1,83 @@
+ssh-keygen: generating new host keys: RSA ECDSA ED25519
+Server listening on 0.0.0.0 port 22.
+Connection from 172.21.0.1 port 42678 on 172.21.0.2 port 22 rdomain ""
+Accepted key ED25519 SHA256:0xvf/CvYsWas7S9pGKGc7ceFR9Gqw6ECFLnxZqwjig0 found at /home/lab/.ssh/authorized_keys:1
+Postponed publickey for lab from 172.21.0.1 port 42678 ssh2 [preauth]
+Accepted key ED25519 SHA256:0xvf/CvYsWas7S9pGKGc7ceFR9Gqw6ECFLnxZqwjig0 found at /home/lab/.ssh/authorized_keys:1
+Accepted publickey for lab from 172.21.0.1 port 42678 ssh2: ED25519 SHA256:0xvf/CvYsWas7S9pGKGc7ceFR9Gqw6ECFLnxZqwjig0
+User child is on pid 47
+Connection from 172.21.0.1 port 42682 on 172.21.0.2 port 22 rdomain ""
+Accepted key ED25519 SHA256:0xvf/CvYsWas7S9pGKGc7ceFR9Gqw6ECFLnxZqwjig0 found at /home/lab/.ssh/authorized_keys:1
+Postponed publickey for lab from 172.21.0.1 port 42682 ssh2 [preauth]
+Accepted key ED25519 SHA256:0xvf/CvYsWas7S9pGKGc7ceFR9Gqw6ECFLnxZqwjig0 found at /home/lab/.ssh/authorized_keys:1
+Accepted publickey for lab from 172.21.0.1 port 42682 ssh2: ED25519 SHA256:0xvf/CvYsWas7S9pGKGc7ceFR9Gqw6ECFLnxZqwjig0
+User child is on pid 50
+Starting session: command on pts/0 for lab from 172.21.0.1 port 42682 id 0
+Starting session: command for lab from 172.21.0.1 port 42682 id 1
+Close session: user lab from 172.21.0.1 port 42682 id 1
+syslogin_perform_logout: logout() returned an error
+Received disconnect from 172.21.0.1 port 42682:11:
+Disconnected from user lab 172.21.0.1 port 42682
+Connection from 172.21.0.1 port 38646 on 172.21.0.2 port 22 rdomain ""
+Accepted key ED25519 SHA256:0xvf/CvYsWas7S9pGKGc7ceFR9Gqw6ECFLnxZqwjig0 found at /home/lab/.ssh/authorized_keys:1
+Postponed publickey for lab from 172.21.0.1 port 38646 ssh2 [preauth]
+Accepted key ED25519 SHA256:0xvf/CvYsWas7S9pGKGc7ceFR9Gqw6ECFLnxZqwjig0 found at /home/lab/.ssh/authorized_keys:1
+Accepted publickey for lab from 172.21.0.1 port 38646 ssh2: ED25519 SHA256:0xvf/CvYsWas7S9pGKGc7ceFR9Gqw6ECFLnxZqwjig0
+User child is on pid 285
+Starting session: command on pts/0 for lab from 172.21.0.1 port 38646 id 0
+Received disconnect from 172.21.0.1 port 38646:11:
+syslogin_perform_logout: logout() returned an error
+Disconnected from user lab 172.21.0.1 port 38646
+Connection from 172.21.0.1 port 38660 on 172.21.0.2 port 22 rdomain ""
+Accepted key ED25519 SHA256:0xvf/CvYsWas7S9pGKGc7ceFR9Gqw6ECFLnxZqwjig0 found at /home/lab/.ssh/authorized_keys:1
+Postponed publickey for lab from 172.21.0.1 port 38660 ssh2 [preauth]
+Accepted key ED25519 SHA256:0xvf/CvYsWas7S9pGKGc7ceFR9Gqw6ECFLnxZqwjig0 found at /home/lab/.ssh/authorized_keys:1
+Accepted publickey for lab from 172.21.0.1 port 38660 ssh2: ED25519 SHA256:0xvf/CvYsWas7S9pGKGc7ceFR9Gqw6ECFLnxZqwjig0
+User child is on pid 336
+Starting session: shell on pts/0 for lab from 172.21.0.1 port 38660 id 0
+syslogin_perform_logout: logout() returned an error
+Received disconnect from 172.21.0.1 port 38660:11:
+Disconnected from user lab 172.21.0.1 port 38660
+Connection from 172.21.0.1 port 38668 on 172.21.0.2 port 22 rdomain ""
+Accepted key ED25519 SHA256:0xvf/CvYsWas7S9pGKGc7ceFR9Gqw6ECFLnxZqwjig0 found at /home/lab/.ssh/authorized_keys:1
+Postponed publickey for lab from 172.21.0.1 port 38668 ssh2 [preauth]
+Accepted key ED25519 SHA256:0xvf/CvYsWas7S9pGKGc7ceFR9Gqw6ECFLnxZqwjig0 found at /home/lab/.ssh/authorized_keys:1
+Accepted publickey for lab from 172.21.0.1 port 38668 ssh2: ED25519 SHA256:0xvf/CvYsWas7S9pGKGc7ceFR9Gqw6ECFLnxZqwjig0
+User child is on pid 343
+Starting session: command on pts/0 for lab from 172.21.0.1 port 38668 id 0
+Starting session: command for lab from 172.21.0.1 port 38668 id 1
+Close session: user lab from 172.21.0.1 port 38668 id 1
+Starting session: command for lab from 172.21.0.1 port 38668 id 1
+Close session: user lab from 172.21.0.1 port 38668 id 1
+Starting session: command for lab from 172.21.0.1 port 38668 id 1
+Starting session: command for lab from 172.21.0.1 port 38668 id 2
+Starting session: command for lab from 172.21.0.1 port 38668 id 3
+Close session: user lab from 172.21.0.1 port 38668 id 1
+Close session: user lab from 172.21.0.1 port 38668 id 2
+Starting session: command for lab from 172.21.0.1 port 38668 id 2
+Close session: user lab from 172.21.0.1 port 38668 id 2
+Close session: user lab from 172.21.0.1 port 38668 id 3
+Starting session: command for lab from 172.21.0.1 port 38668 id 3
+Close session: user lab from 172.21.0.1 port 38668 id 3
+syslogin_perform_logout: logout() returned an error
+Received disconnect from 172.21.0.1 port 38668:11:
+Disconnected from user lab 172.21.0.1 port 38668
+Starting session: command on pts/1 for lab from 172.21.0.1 port 42678 id 0
+Starting session: command for lab from 172.21.0.1 port 42678 id 1
+Close session: user lab from 172.21.0.1 port 42678 id 1
+Starting session: command for lab from 172.21.0.1 port 42678 id 1
+Close session: user lab from 172.21.0.1 port 42678 id 1
+Starting session: command for lab from 172.21.0.1 port 42678 id 1
+Starting session: command for lab from 172.21.0.1 port 42678 id 2
+Starting session: command for lab from 172.21.0.1 port 42678 id 3
+Close session: user lab from 172.21.0.1 port 42678 id 1
+Close session: user lab from 172.21.0.1 port 42678 id 2
+Starting session: command for lab from 172.21.0.1 port 42678 id 2
+Close session: user lab from 172.21.0.1 port 42678 id 2
+Close session: user lab from 172.21.0.1 port 42678 id 3
+Starting session: command for lab from 172.21.0.1 port 42678 id 3
+Close session: user lab from 172.21.0.1 port 42678 id 3
+syslogin_perform_logout: logout() returned an error
+Close session: user lab from 172.21.0.1 port 42678 id 0
+Received disconnect from 172.21.0.1 port 42678:11: disconnected by user
+Disconnected from user lab 172.21.0.1 port 42678

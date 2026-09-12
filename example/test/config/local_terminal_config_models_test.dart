@@ -6,6 +6,27 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('Local terminal config models', () {
+    test(
+      'global SSH switches migrate defaults and preserve disabled values',
+      () {
+        final defaults = _currentConfig(const {});
+        expect(defaults.shellIntegration.sshWrapper, isTrue);
+        expect(defaults.shellIntegration.sshAutoInject, isTrue);
+        final disabled = _currentConfig(const {
+          'shellIntegration': {
+            'enabled': true,
+            'sshWrapper': false,
+            'sshAutoInject': false,
+          },
+        });
+        final restored = LocalTerminalConfigDocument.fromJson(
+          disabled.toJson(),
+        );
+        expect(restored.shellIntegration.enabled, isTrue);
+        expect(restored.shellIntegration.sshWrapper, isFalse);
+        expect(restored.shellIntegration.sshAutoInject, isFalse);
+      },
+    );
     test('decode fills local config defaults', () {
       final config = _currentConfig(const {});
 
@@ -211,8 +232,8 @@ void main() {
       );
     });
 
-    test('retired keybinding IDs are ignored while all 39 active IDs load', () {
-      expect(ShellActionRegistry.releaseActionIds, hasLength(39));
+    test('retired keybinding IDs are ignored while all 40 active IDs load', () {
+      expect(ShellActionRegistry.releaseActionIds, hasLength(40));
       final activeNames = ShellActionRegistry.releaseActionIds
           .map((actionId) => actionId.name)
           .toList(growable: false);

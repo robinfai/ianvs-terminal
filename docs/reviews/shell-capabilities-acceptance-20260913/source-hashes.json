@@ -1,0 +1,18 @@
+{
+  "native/core/src/pty.rs": "a9bf7ae1da6bbd60a73061beadc3b7a86f066d88d12ebc68b47c48b778322dc6",
+  "native/core/src/shell_bootstrap.rs": "a1cf599726068333afd78a430220447d61acf81ca69df35ff5cacbdfd647a48c",
+  "native/core/src/shell_bootstrap/acceptance.rs": "d2b8b3148e3a1f5fa93111a88c733ae388efd0118310e3cb9454caa195e6f849",
+  "native/core/src/shell_bootstrap/fish.fish": "763dc20342dfbee8c066416dd91adc950d5a51c8c6943490ad27fd10b5f6f467",
+  "native/core/src/shell_bootstrap/shells.bash": "092da8b9dfb13b40ff995ee3f17f8570f5e331b2381ffdde994ae226821fad60",
+  "native/core/src/shell_bootstrap/check.bash": "8f0bfaf46b3ba40c8ae1641e1c62000679ab894515cab62af1634315605dabf2",
+  "native/core/src/shell_bootstrap/check.zsh": "ddf53100b54663906a042db1f6c50f58ba337ef998f0cae0b3005fabaa73b305",
+  "native/core/src/shell_bootstrap/bash.sh": "b960334e86557930867627cb736870beb4cfa371e2c1dbd4231452f8a05742c2",
+  "native/core/src/shell_bootstrap/ssh.bash": "b82c8cbdacafd4793efc5a1b5b946fab10c6a6822ffe8c05a4d8af23ea54c425",
+  "native/core/src/shell_bootstrap/zsh.sh": "e8cab1753cac37de8b0bf9c5639ad09559934c7f360303e1b64a8aca68b84395",
+  "native/core/src/shell_bootstrap/check.fish": "c3356b42e0bd62e219916f64275d3b64fe814bf9237c9aa46951dbe64c502f6a",
+  "example/lib/features/sessions/session_controller.dart": "be35ef9e638960d33adc0e39bbaca67f8dea7566e4eb84434073ebbbb6e8fe7f",
+  "example/lib/features/sessions/session_state.dart": "de7603cde89221d3665eeb2bd3da9c523c7c415e294243bd0d6fd77ef8e4f00b",
+  "example/lib/features/sessions/shell_integration_capabilities.dart": "3b59080a4b87ac9769e17c6dfa37b55aa1a1e21e5671f7e0ff893b4bfa482f67",
+  "example/lib/features/sessions/shell_capabilities_dialog.dart": "066f85a2be05a5bd399fe3eaac2c6f40858d18388a61994e7171665f3c4be090",
+  "tools/ssh_boundary_lab/product.py": "b046c99b0ae75ec4a6068d47f2db0094d970e6fef391a1210ab4f590dfdf9bad"
+}

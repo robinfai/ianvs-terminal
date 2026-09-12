@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import '../../platform/local_file_collision.dart';
+import '../sessions/shell_integration_capabilities.dart';
 import '../terminal/terminal.dart' as terminal;
 
 const _maxSafeBasenameLength = 120;
@@ -16,6 +17,29 @@ const _maxDiagnosticsSummaryListStringLength = 512;
 
 class LocalTerminalDiagnosticsExporter {
   const LocalTerminalDiagnosticsExporter._();
+
+  static terminal.TerminalDiagnosticsExport withShellCapabilities(
+    terminal.TerminalDiagnosticsExport export,
+    ShellIntegrationCapabilities capabilities, {
+    String? bootstrapPhase,
+    String? bootstrapSource,
+    Map<String, String> registrationChecks = const {},
+  }) => terminal.TerminalDiagnosticsExport(
+    manifest: export.manifest,
+    resourceSamples: export.resourceSamples,
+    terminalStats: export.terminalStats,
+    events: export.events,
+    summary: {
+      ...export.summary,
+      'shell_capabilities': capabilities.toJson(),
+      if (bootstrapPhase != null)
+        'shell_bootstrap': {
+          'phase': bootstrapPhase,
+          'source': bootstrapSource,
+          'checks': registrationChecks,
+        },
+    },
+  );
 
   static Future<Directory> write({
     required Directory directory,

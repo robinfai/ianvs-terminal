@@ -37,6 +37,7 @@ import '../recording/recording_replay_search_index.dart';
 import '../recording/replay_viewport_layout.dart';
 import '../sessions/session_controller.dart';
 import '../sessions/session_state.dart';
+import '../sessions/shell_capabilities_dialog.dart';
 import '../sessions/terminal_event_coordinator.dart';
 import '../sessions/terminal_session_launch_policy.dart';
 import '../sftp/sftp_side_panel.dart';
@@ -260,6 +261,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   _runtimeErrorNotice;
   final Map<String, Timer> _viewportResizeTimers = {};
   bool _isCommandMenuOpen = false;
+  bool _isShellCapabilitiesOpen = false;
   bool _isDefaultsOpen = false;
   bool _isProfilesOpen = false;
   bool _remoteFallbackSnapshotLoadStarted = false;
@@ -1062,6 +1064,11 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       }
 
       switch (shortcut.action) {
+        case TerminalActionId.showShellCapabilities:
+          if (activeSessionId != null) {
+            unawaited(_showShellCapabilities(activeSessionId));
+          }
+          return KeyEventResult.handled;
         case TerminalActionId.openLauncher:
           unawaited(_openCommandMenu(sessionController, sessionState));
           return KeyEventResult.handled;

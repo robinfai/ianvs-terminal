@@ -571,22 +571,48 @@ class TerminalConnectionConfig {
 }
 
 class TerminalShellIntegrationConfig {
-  const TerminalShellIntegrationConfig({this.enabled = true});
+  const TerminalShellIntegrationConfig({
+    this.enabled = true,
+    this.sshWrapper = false,
+    this.sshAutoInject,
+  });
 
   final bool enabled;
 
-  TerminalShellIntegrationConfig copyWith({bool? enabled}) {
-    return TerminalShellIntegrationConfig(enabled: enabled ?? this.enabled);
-  }
+  /// Wrap interactive ssh commands in shells started by this session.
+  final bool sshWrapper;
 
-  Map<String, Object?> toJson() {
-    return <String, Object?>{'enabled': enabled};
-  }
+  /// Null inherits the application's global setting.
+  final bool? sshAutoInject;
+  static const _unchanged = Object();
+
+  TerminalShellIntegrationConfig copyWith({
+    bool? enabled,
+    bool? sshWrapper,
+    Object? sshAutoInject = _unchanged,
+  }) => TerminalShellIntegrationConfig(
+    enabled: enabled ?? this.enabled,
+    sshWrapper: sshWrapper ?? this.sshWrapper,
+    sshAutoInject: identical(sshAutoInject, _unchanged)
+        ? this.sshAutoInject
+        : sshAutoInject as bool?,
+  );
+
+  Map<String, Object?> toJson() => <String, Object?>{
+    'enabled': enabled,
+    if (sshWrapper) 'sshWrapper': true,
+    if (sshAutoInject != null) 'sshAutoInject': sshAutoInject,
+  };
 
   factory TerminalShellIntegrationConfig.fromJson(Object? json) {
     final map = _asObjectMap(json);
     return TerminalShellIntegrationConfig(
       enabled: _boolOr(map?['enabled'], true),
+      sshWrapper: _boolOr(map?['sshWrapper'], false),
+      sshAutoInject: switch (map?['sshAutoInject']) {
+        final bool value => value,
+        _ => null,
+      },
     );
   }
 }
@@ -1247,6 +1273,8 @@ void _validateCurrentSessionConfigShape(Map<String, Object?> json) {
   }, r'$.terminal.graphics');
   _expectExactObject(json['shellIntegration'], const <String>{
     'enabled',
+    'sshWrapper',
+    'sshAutoInject',
   }, r'$.shellIntegration');
 
   final appearance = _expectExactObject(json['appearance'], const <String>{

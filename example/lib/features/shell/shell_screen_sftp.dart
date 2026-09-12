@@ -14,6 +14,7 @@ extension _ShellScreenStateSftp on _ShellScreenState {
               _sftpPanelSessionId == activeSessionId &&
               target != null
           ? SftpSidePanel(
+              key: ValueKey(target.operationScopeId),
               target: target,
               dataSource: ref.watch(sftpDirectoryDataSourceProvider),
               fileActions: ref.watch(sftpFileActionsProvider),
@@ -47,16 +48,28 @@ extension _ShellScreenStateSftp on _ShellScreenState {
         profile ??
         pane?.profileSnapshot ??
         (pane == null ? null : _profileForPane(pane, sessionState.profiles));
-    if (resolvedProfile == null || !resolvedProfile.isSsh) {
+    final integration = pane?.shellIntegration;
+    if (integration?.bootstrapPhase == 'checking' &&
+        integration?.contextKind != 'shell')
+      return null;
+    final nested = integration?.sftpRoute == true;
+    if (resolvedProfile == null || (!resolvedProfile.isSsh && !nested)) {
       return null;
     }
     final connection = resolvedProfile.connection;
     return SftpSessionTarget(
       sessionId: sessionId,
       profileName: resolvedProfile.name,
-      host: connection.host,
-      user: connection.user,
-      port: connection.port,
+      contextId: integration?.hostContextId ?? integration?.contextId ?? 'root',
+      host: nested
+          ? (integration?.sshHost ?? connection.host)
+          : connection.host,
+      user: nested
+          ? (integration?.sshUser ?? connection.user)
+          : connection.user,
+      port: nested
+          ? (integration?.sshPort ?? connection.port)
+          : connection.port,
     );
   }
 

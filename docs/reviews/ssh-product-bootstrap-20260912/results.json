@@ -1,0 +1,170 @@
+{
+  "passed": true,
+  "metadata": {
+    "context": "colima",
+    "image": "sha256:9b7632238ca27637bf33cb452a2e1cd76e037f105d08dd0aefdfa5c00fabc2ad",
+    "versions": "bash\t5.2.21-2ubuntu4\nfish\t3.7.0-1\nopenssh-client\t1:9.6p1-3ubuntu13.18\nopenssh-server\t1:9.6p1-3ubuntu13.18\nstrace\t6.8-0ubuntu2\ntmux\t3.4-1ubuntu0.1\nzsh\t5.9-6ubuntu2\n",
+    "hook_source_sha256": "c91bb69695b43e69444fa0bc6a64897265f6c279ad9c012ca80209dcf6886666",
+    "runner_sha256": "c95f7d9f3c095f651c765c94ebc9ec5b6d242ff0105ecce7618e9c6a60a2b054",
+    "prototype_sha256": "ed89c5d0b913a000e3dca03a2e72842029e5836a9f9c3e3a55f951dd5d3a078c",
+    "git_head": "6b0406a473f5bc4619286a5a4f5619956b5927e4",
+    "nodes": {
+      "a": {
+        "config": {
+          "LAB_SFTP": "no"
+        },
+        "published": true
+      },
+      "b": {
+        "config": {
+          "LAB_SFTP": "no"
+        },
+        "published": false
+      },
+      "c": {
+        "config": {},
+        "published": false
+      },
+      "zsh": {
+        "config": {
+          "LAB_SHELL": "zsh",
+          "LAB_SFTP": "no"
+        },
+        "published": true
+      },
+      "fish": {
+        "config": {
+          "LAB_SHELL": "fish",
+          "LAB_SFTP": "no"
+        },
+        "published": true
+      },
+      "preloaded": {
+        "config": {
+          "LAB_STARTUP": "preloaded"
+        },
+        "published": true
+      },
+      "stale": {
+        "config": {
+          "LAB_STARTUP": "stale"
+        },
+        "published": true
+      },
+      "debug": {
+        "config": {
+          "LAB_STARTUP": "debug"
+        },
+        "published": true
+      },
+      "switch": {
+        "config": {
+          "LAB_STARTUP": "switch"
+        },
+        "published": true
+      },
+      "force": {
+        "config": {
+          "LAB_FORCE": "yes"
+        },
+        "published": true
+      },
+      "notty": {
+        "config": {
+          "LAB_TTY": "no"
+        },
+        "published": true
+      },
+      "single": {
+        "config": {
+          "LAB_MAX_SESSIONS": "1"
+        },
+        "published": true
+      },
+      "noforward": {
+        "config": {
+          "LAB_FORWARDING": "no"
+        },
+        "published": true
+      },
+      "noisy": {
+        "config": {
+          "LAB_STARTUP": "noisy"
+        },
+        "published": true
+      },
+      "tmux": {
+        "config": {
+          "LAB_STARTUP": "tmux"
+        },
+        "published": true
+      },
+      "history": {
+        "config": {
+          "LAB_STARTUP": "history"
+        },
+        "published": true
+      },
+      "readonly": {
+        "config": {
+          "LAB_READONLY": "yes",
+          "LAB_SFTP": "no"
+        },
+        "published": true
+      },
+      "password": {
+        "config": {
+          "LAB_PASSWORD": "yes",
+          "LAB_SFTP": "no"
+        },
+        "published": true
+      },
+      "sh": {
+        "config": {
+          "LAB_SHELL": "dash",
+          "LAB_SFTP": "no"
+        },
+        "published": true
+      },
+      "nohelpers": {
+        "config": {
+          "LAB_STARTUP": "nohelpers",
+          "LAB_SFTP": "no"
+        },
+        "published": true
+      }
+    },
+    "scope": "Product Rust SSH and local PTY transports, real shell injection and SFTP routing"
+  },
+  "checks": {
+    "borrowed_master_preserved": true,
+    "a": {
+      "history_has_no_injection": true
+    },
+    "b": {
+      "history_has_no_injection": true
+    },
+    "c": {
+      "history_has_no_injection": true
+    },
+    "zsh": {
+      "history_has_no_injection": true
+    },
+    "fish": {
+      "history_has_no_injection": true
+    },
+    "preloaded": {
+      "history_has_no_injection": true
+    },
+    "debug": {
+      "history_has_no_injection": true
+    },
+    "stale": {
+      "history_has_no_injection": true
+    },
+    "history": {
+      "history_has_no_injection": true,
+      "positive_control": true
+    }
+  }
+}

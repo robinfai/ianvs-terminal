@@ -3579,7 +3579,7 @@ abstract class AppLocalizations {
   /// No description provided for @terminalActionName.
   ///
   /// In en, this message translates to:
-  /// **'{action, select, new_tab{New tab} new_ssh_session{New SSH session} new_tab_at_folder{New tab at folder} open_recording_for_replay{Replay} duplicate_current_cwd{Duplicate current directory} reopen_closed_tab{Reopen closed tab} open_launcher{Open launcher} open_command_menu{Open command menu} open_sftp_panel{Open SFTP panel} split_right{Split right} split_down{Split down} focus_next_pane{Focus next pane} focus_previous_pane{Focus previous pane} resize_pane{Resize pane} swap_pane{Swap pane} zoom_pane{Zoom pane} close_pane{Close pane} reopen_closed_pane{Reopen closed pane} close_active_tab{Close active tab} open_defaults{Open defaults} activate_tab{Activate tab} copy{Copy} copy_command_output{Copy command output} paste{Paste} toggle_read_only{Toggle read-only} toggle_replay_recording{Toggle replay recording} clear_buffer{Clear buffer} replay_recent_activity{Replay recent activity} search_scrollback{Search scrollback} next_search_match{Next search match} previous_search_match{Previous search match} clear_search{Clear search} defaults{Defaults} profiles{Profiles} request_quit_confirmation{Request quit confirmation} previous_prompt{Previous prompt} next_prompt{Next prompt} export_scrollback{Export scrollback} export_diagnostics{Export diagnostics} other{{action}}}'**
+  /// **'{action, select, new_tab{New tab} new_ssh_session{New SSH session} new_tab_at_folder{New tab at folder} open_recording_for_replay{Replay} duplicate_current_cwd{Duplicate current directory} reopen_closed_tab{Reopen closed tab} open_launcher{Open launcher} open_command_menu{Open command menu} open_sftp_panel{Open SFTP panel} split_right{Split right} split_down{Split down} focus_next_pane{Focus next pane} focus_previous_pane{Focus previous pane} resize_pane{Resize pane} swap_pane{Swap pane} zoom_pane{Zoom pane} close_pane{Close pane} reopen_closed_pane{Reopen closed pane} close_active_tab{Close active tab} open_defaults{Open defaults} activate_tab{Activate tab} copy{Copy} copy_command_output{Copy command output} paste{Paste} toggle_read_only{Toggle read-only} toggle_replay_recording{Toggle replay recording} clear_buffer{Clear buffer} replay_recent_activity{Replay recent activity} search_scrollback{Search scrollback} next_search_match{Next search match} previous_search_match{Previous search match} clear_search{Clear search} defaults{Defaults} profiles{Profiles} request_quit_confirmation{Request quit confirmation} previous_prompt{Previous prompt} next_prompt{Next prompt} export_scrollback{Export scrollback} shell_capabilities{Shell capabilities} export_diagnostics{Export diagnostics} other{{action}}}'**
   String terminalActionName(String action);
 
   /// No description provided for @appCategory.
@@ -7459,6 +7459,486 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No changes'**
   String get settingsNoChanges;
+
+  /// No description provided for @shellCapabilities.
+  ///
+  /// In en, this message translates to:
+  /// **'Shell capabilities'**
+  String get shellCapabilities;
+
+  /// No description provided for @shellCapabilitiesMenuDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Inspect activation and evidence for this session.'**
+  String get shellCapabilitiesMenuDescription;
+
+  /// No description provided for @shellCapabilitiesSessionClosed.
+  ///
+  /// In en, this message translates to:
+  /// **'Session closed'**
+  String get shellCapabilitiesSessionClosed;
+
+  /// No description provided for @shellCapabilitiesCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{active} of {total} capabilities active'**
+  String shellCapabilitiesCount(int active, int total);
+
+  /// No description provided for @shellCapabilitiesExplanation.
+  ///
+  /// In en, this message translates to:
+  /// **'Capabilities are confirmed by initialization checks or runtime events. Active means ready to use; command history and prompt positions still require actual data.'**
+  String get shellCapabilitiesExplanation;
+
+  /// No description provided for @shellCapabilitiesBuiltIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Built-in hook capabilities'**
+  String get shellCapabilitiesBuiltIn;
+
+  /// No description provided for @shellCapabilitiesExtensions.
+  ///
+  /// In en, this message translates to:
+  /// **'Protocol extensions'**
+  String get shellCapabilitiesExtensions;
+
+  /// No description provided for @shellCapabilityDirectory.
+  ///
+  /// In en, this message translates to:
+  /// **'Current directory'**
+  String get shellCapabilityDirectory;
+
+  /// No description provided for @shellCapabilityDirectoryHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Recent directories, reopening at the same directory, and directory-based profile rules.'**
+  String get shellCapabilityDirectoryHelp;
+
+  /// No description provided for @shellCapabilityPrompt.
+  ///
+  /// In en, this message translates to:
+  /// **'Prompt lifecycle'**
+  String get shellCapabilityPrompt;
+
+  /// No description provided for @shellCapabilityPromptHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Recognizes a new prompt; navigation also needs a valid screen position.'**
+  String get shellCapabilityPromptHelp;
+
+  /// No description provided for @shellCapabilityStart.
+  ///
+  /// In en, this message translates to:
+  /// **'Command execution start'**
+  String get shellCapabilityStart;
+
+  /// No description provided for @shellCapabilityStartHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Detects when execution starts, independently of command input.'**
+  String get shellCapabilityStartHelp;
+
+  /// No description provided for @shellCapabilityCommand.
+  ///
+  /// In en, this message translates to:
+  /// **'Command text'**
+  String get shellCapabilityCommand;
+
+  /// No description provided for @shellCapabilityCommandHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Recent commands, command context and recording metadata.'**
+  String get shellCapabilityCommandHelp;
+
+  /// No description provided for @shellCapabilityFinish.
+  ///
+  /// In en, this message translates to:
+  /// **'Command completion'**
+  String get shellCapabilityFinish;
+
+  /// No description provided for @shellCapabilityFinishHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Detects completion. An exit code is a separate capability.'**
+  String get shellCapabilityFinishHelp;
+
+  /// No description provided for @shellCapabilityExitCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Exit code'**
+  String get shellCapabilityExitCode;
+
+  /// No description provided for @shellCapabilityExitCodeHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Reports success or failure of completed commands.'**
+  String get shellCapabilityExitCodeHelp;
+
+  /// No description provided for @shellCapabilityShell.
+  ///
+  /// In en, this message translates to:
+  /// **'Shell identity'**
+  String get shellCapabilityShell;
+
+  /// No description provided for @shellCapabilityShellHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Identifies the shell from received metadata, not its configured launch path.'**
+  String get shellCapabilityShellHelp;
+
+  /// No description provided for @shellCapabilityHost.
+  ///
+  /// In en, this message translates to:
+  /// **'Hostname'**
+  String get shellCapabilityHost;
+
+  /// No description provided for @shellCapabilityHostHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Host context and hostname-based profile rules.'**
+  String get shellCapabilityHostHelp;
+
+  /// No description provided for @shellCapabilityUser.
+  ///
+  /// In en, this message translates to:
+  /// **'Username'**
+  String get shellCapabilityUser;
+
+  /// No description provided for @shellCapabilityUserHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'User context and username-based profile rules.'**
+  String get shellCapabilityUserHelp;
+
+  /// No description provided for @shellCapabilityVersion.
+  ///
+  /// In en, this message translates to:
+  /// **'Integration version'**
+  String get shellCapabilityVersion;
+
+  /// No description provided for @shellCapabilityVersionHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Reports integration metadata; a version does not prove other capabilities.'**
+  String get shellCapabilityVersionHelp;
+
+  /// No description provided for @shellCapabilityNavigation.
+  ///
+  /// In en, this message translates to:
+  /// **'Prompt navigation'**
+  String get shellCapabilityNavigation;
+
+  /// No description provided for @shellCapabilityNavigationHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Previous/next prompt navigation using retained screen positions.'**
+  String get shellCapabilityNavigationHelp;
+
+  /// No description provided for @shellCapabilityOutput.
+  ///
+  /// In en, this message translates to:
+  /// **'Command output ranges'**
+  String get shellCapabilityOutput;
+
+  /// No description provided for @shellCapabilityOutputHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Reports explicit output boundaries. Current output copying uses adjacent prompt positions.'**
+  String get shellCapabilityOutputHelp;
+
+  /// No description provided for @shellCapabilityVariables.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom shell variables'**
+  String get shellCapabilityVariables;
+
+  /// No description provided for @shellCapabilityVariablesHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Accepts allowed IANVS_ variables for session metadata and configured queries.'**
+  String get shellCapabilityVariablesHelp;
+
+  /// No description provided for @shellCapabilityPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Pending confirmation'**
+  String get shellCapabilityPending;
+
+  /// No description provided for @shellCapabilityActive.
+  ///
+  /// In en, this message translates to:
+  /// **'Active'**
+  String get shellCapabilityActive;
+
+  /// No description provided for @shellCapabilityDisabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Disabled'**
+  String get shellCapabilityDisabled;
+
+  /// No description provided for @shellCapabilityUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Unavailable'**
+  String get shellCapabilityUnavailable;
+
+  /// No description provided for @shellCapabilityAwaitingEvidence.
+  ///
+  /// In en, this message translates to:
+  /// **'No initialization check or runtime event has confirmed this capability yet.'**
+  String get shellCapabilityAwaitingEvidence;
+
+  /// No description provided for @shellCapabilityInitializationChecked.
+  ///
+  /// In en, this message translates to:
+  /// **'Initialization checks passed; ready to use, with no runtime event observed yet.'**
+  String get shellCapabilityInitializationChecked;
+
+  /// No description provided for @shellCapabilityInitializationFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Initialization found that the required hooks were not fully registered.'**
+  String get shellCapabilityInitializationFailed;
+
+  /// No description provided for @shellCapabilityObserved.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirmed by a matching event in this session.'**
+  String get shellCapabilityObserved;
+
+  /// No description provided for @shellCapabilityDisabledReason.
+  ///
+  /// In en, this message translates to:
+  /// **'Shell integration is disabled for this session.'**
+  String get shellCapabilityDisabledReason;
+
+  /// No description provided for @shellCapabilityEmulationReason.
+  ///
+  /// In en, this message translates to:
+  /// **'The selected terminal emulation does not support shell integration.'**
+  String get shellCapabilityEmulationReason;
+
+  /// No description provided for @shellCapabilityExitedReason.
+  ///
+  /// In en, this message translates to:
+  /// **'The session has ended. A new session must confirm its capabilities again.'**
+  String get shellCapabilityExitedReason;
+
+  /// No description provided for @sshWrapper.
+  ///
+  /// In en, this message translates to:
+  /// **'Wrap local ssh commands'**
+  String get sshWrapper;
+
+  /// No description provided for @sshWrapperDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable shell integration when entering SSH from new local sessions.'**
+  String get sshWrapperDescription;
+
+  /// No description provided for @sshAutoInject.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatically inject SSH shell hooks'**
+  String get sshAutoInject;
+
+  /// No description provided for @sshAutoInjectDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Check and enable shell capabilities for new SSH connections. Each connection can override this setting.'**
+  String get sshAutoInjectDescription;
+
+  /// No description provided for @sshInjectionInherit.
+  ///
+  /// In en, this message translates to:
+  /// **'Use global setting'**
+  String get sshInjectionInherit;
+
+  /// No description provided for @sshInjectionOn.
+  ///
+  /// In en, this message translates to:
+  /// **'On'**
+  String get sshInjectionOn;
+
+  /// No description provided for @sshInjectionOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Off'**
+  String get sshInjectionOff;
+
+  /// No description provided for @shellBootstrapStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Initialization check'**
+  String get shellBootstrapStatus;
+
+  /// No description provided for @shellBootstrapChecking.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking shell integration…'**
+  String get shellBootstrapChecking;
+
+  /// No description provided for @shellBootstrapReady.
+  ///
+  /// In en, this message translates to:
+  /// **'Shell integration is ready'**
+  String get shellBootstrapReady;
+
+  /// No description provided for @shellBootstrapDegraded.
+  ///
+  /// In en, this message translates to:
+  /// **'Basic terminal mode'**
+  String get shellBootstrapDegraded;
+
+  /// No description provided for @shellBootstrapChecked.
+  ///
+  /// In en, this message translates to:
+  /// **'Local hook checks completed'**
+  String get shellBootstrapChecked;
+
+  /// No description provided for @shellBootstrapInstalled.
+  ///
+  /// In en, this message translates to:
+  /// **'Injected for this session'**
+  String get shellBootstrapInstalled;
+
+  /// No description provided for @shellBootstrapReused.
+  ///
+  /// In en, this message translates to:
+  /// **'Reused hooks already loaded in this shell'**
+  String get shellBootstrapReused;
+
+  /// No description provided for @shellBootstrapTimeout.
+  ///
+  /// In en, this message translates to:
+  /// **'Check timed out; no further injection will be sent'**
+  String get shellBootstrapTimeout;
+
+  /// No description provided for @shellBootstrapUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'This shell does not support automatic injection'**
+  String get shellBootstrapUnsupported;
+
+  /// No description provided for @shellBootstrapConflict.
+  ///
+  /// In en, this message translates to:
+  /// **'Existing shell hooks could not be safely combined'**
+  String get shellBootstrapConflict;
+
+  /// No description provided for @shellBootstrapMissingHelpers.
+  ///
+  /// In en, this message translates to:
+  /// **'Required shell helpers are unavailable'**
+  String get shellBootstrapMissingHelpers;
+
+  /// No description provided for @shellCapabilityRegistered.
+  ///
+  /// In en, this message translates to:
+  /// **'Hook registration checked'**
+  String get shellCapabilityRegistered;
+
+  /// No description provided for @shellCapabilityNotRegistered.
+  ///
+  /// In en, this message translates to:
+  /// **'Registration was not confirmed'**
+  String get shellCapabilityNotRegistered;
+
+  /// No description provided for @shellCapabilityUnchecked.
+  ///
+  /// In en, this message translates to:
+  /// **'No registration check for this capability'**
+  String get shellCapabilityUnchecked;
+
+  /// No description provided for @shellConnectionChain.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection chain'**
+  String get shellConnectionChain;
+
+  /// No description provided for @shellChainJumpCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} SSH hops'**
+  String shellChainJumpCount(int count);
+
+  /// No description provided for @shellChainScope.
+  ///
+  /// In en, this message translates to:
+  /// **'Capabilities below apply to the current shell.'**
+  String get shellChainScope;
+
+  /// No description provided for @shellChainIntermediate.
+  ///
+  /// In en, this message translates to:
+  /// **'Intermediate shell'**
+  String get shellChainIntermediate;
+
+  /// No description provided for @shellConnectionChainHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Shows detected shell layers and configured jump hosts. Capabilities below belong to the current shell; forwarding hops do not run its hooks.'**
+  String get shellConnectionChainHelp;
+
+  /// No description provided for @shellChainLocalClient.
+  ///
+  /// In en, this message translates to:
+  /// **'This device'**
+  String get shellChainLocalClient;
+
+  /// No description provided for @shellChainLocalShell.
+  ///
+  /// In en, this message translates to:
+  /// **'Local shell'**
+  String get shellChainLocalShell;
+
+  /// No description provided for @shellChainCurrentShell.
+  ///
+  /// In en, this message translates to:
+  /// **'Current shell'**
+  String get shellChainCurrentShell;
+
+  /// No description provided for @shellChainLastShell.
+  ///
+  /// In en, this message translates to:
+  /// **'Last shell · session ended'**
+  String get shellChainLastShell;
+
+  /// No description provided for @shellChainParentShell.
+  ///
+  /// In en, this message translates to:
+  /// **'Parent shell'**
+  String get shellChainParentShell;
+
+  /// No description provided for @shellChainJump.
+  ///
+  /// In en, this message translates to:
+  /// **'ProxyJump · forwarding only'**
+  String get shellChainJump;
+
+  /// No description provided for @shellChainOrigin.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection origin'**
+  String get shellChainOrigin;
+
+  /// No description provided for @shellChainProxy.
+  ///
+  /// In en, this message translates to:
+  /// **'Proxy channel'**
+  String get shellChainProxy;
+
+  /// No description provided for @shellChainProxyUnknown.
+  ///
+  /// In en, this message translates to:
+  /// **'Route managed by the proxy command'**
+  String get shellChainProxyUnknown;
+
+  /// No description provided for @shellChainUnknownHost.
+  ///
+  /// In en, this message translates to:
+  /// **'Unidentified SSH host'**
+  String get shellChainUnknownHost;
 }
 
 class _AppLocalizationsDelegate

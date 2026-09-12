@@ -77,6 +77,7 @@ class TerminalRuntimeSftpDirectoryDataSource
         request.target.sessionId,
         request.path,
         cancellation: cancellation,
+        contextId: request.target.contextId,
       );
       return SftpDirectorySnapshot(
         path: snapshot.path,
@@ -113,6 +114,7 @@ class TerminalRuntimeSftpDirectoryDataSource
         request.target.sessionId,
         request.remotePath,
         request.localPath,
+        contextId: request.target.contextId,
       ),
     );
   }
@@ -124,6 +126,7 @@ class TerminalRuntimeSftpDirectoryDataSource
         request.target.sessionId,
         request.localPath,
         request.remotePath,
+        contextId: request.target.contextId,
       ),
     );
   }
@@ -131,7 +134,11 @@ class TerminalRuntimeSftpDirectoryDataSource
   @override
   Future<void> createDirectory(SftpEntryMutationRequest request) {
     return _translateFileOperation(
-      runtime.createSftpDirectory(request.target.sessionId, request.remotePath),
+      runtime.createSftpDirectory(
+        request.target.sessionId,
+        request.remotePath,
+        contextId: request.target.contextId,
+      ),
     );
   }
 
@@ -142,6 +149,7 @@ class TerminalRuntimeSftpDirectoryDataSource
         request.target.sessionId,
         request.remotePath,
         isDirectory: request.isDirectory,
+        contextId: request.target.contextId,
       ),
     );
   }
@@ -172,6 +180,7 @@ class SftpSessionTarget {
     required this.host,
     required this.user,
     required this.port,
+    this.contextId = 'root',
   });
 
   final String sessionId;
@@ -179,6 +188,11 @@ class SftpSessionTarget {
   final String host;
   final String user;
   final int port;
+  final String contextId;
+
+  /// Separate busy paths and editor watchers across shell contexts.
+  String get operationScopeId =>
+      contextId == 'root' ? sessionId : '$sessionId/$contextId';
 
   String get displayAddress {
     final normalizedHost = host.contains(':') ? '[$host]' : host;
@@ -190,6 +204,7 @@ class SftpSessionTarget {
   bool operator ==(Object other) {
     return other is SftpSessionTarget &&
         other.sessionId == sessionId &&
+        other.contextId == contextId &&
         other.profileName == profileName &&
         other.host == host &&
         other.user == user &&
@@ -197,7 +212,8 @@ class SftpSessionTarget {
   }
 
   @override
-  int get hashCode => Object.hash(sessionId, profileName, host, user, port);
+  int get hashCode =>
+      Object.hash(sessionId, contextId, profileName, host, user, port);
 }
 
 @immutable
@@ -425,13 +441,13 @@ class _SftpSidePanelState extends State<SftpSidePanel> {
 
   void _listenForFileActionEvents() {
     _fileActionSubscription = widget.fileActions.events.listen((event) {
-      if (!mounted || event.sessionId != widget.target.sessionId) {
+      if (!mounted || event.sessionId != widget.target.operationScopeId) {
         return;
       }
       _showMessage(event.message);
     });
     _busySubscription = widget.fileActions.busyEvents.listen((event) {
-      if (!mounted || event.sessionId != widget.target.sessionId) {
+      if (!mounted || event.sessionId != widget.target.operationScopeId) {
         return;
       }
       setState(() {
@@ -443,7 +459,7 @@ class _SftpSidePanelState extends State<SftpSidePanel> {
       });
     });
     final unresolved = widget.fileActions
-        .unresolvedFailuresForSession(widget.target.sessionId)
+        .unresolvedFailuresForSession(widget.target.operationScopeId)
         .toList(growable: false);
     if (unresolved.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -488,19 +504,21 @@ class _SftpSidePanelState extends State<SftpSidePanel> {
   }
 
   Future<void> _downloadFile(SftpDirectoryEntry entry) async {
+    final target = widget.target;
+    final directory = _path;
     final dataSource = _fileDataSource;
     if (dataSource == null || !entry.isFile) {
       return;
     }
-    final remotePath = _childSftpPath(_path, entry.name);
+    final remotePath = _childSftpPath(directory, entry.name);
     await _withBusyPath(remotePath, () {
       return widget.fileActions.downloadAs(
-        sessionId: widget.target.sessionId,
+        sessionId: target.operationScopeId,
         remotePath: remotePath,
         suggestedName: entry.name,
         download: (localPath) => dataSource.downloadFile(
           SftpFileTransferRequest(
-            target: widget.target,
+            target: target,
             remotePath: remotePath,
             localPath: localPath,
           ),
@@ -510,26 +528,28 @@ class _SftpSidePanelState extends State<SftpSidePanel> {
   }
 
   Future<void> _editLocally(SftpDirectoryEntry entry) async {
+    final target = widget.target;
+    final directory = _path;
     final dataSource = _fileDataSource;
     if (dataSource == null || !entry.isFile) {
       return;
     }
-    final remotePath = _childSftpPath(_path, entry.name);
+    final remotePath = _childSftpPath(directory, entry.name);
     await _withBusyPath(remotePath, () {
       return widget.fileActions.editLocally(
-        sessionId: widget.target.sessionId,
+        sessionId: target.operationScopeId,
         remotePath: remotePath,
         fileName: entry.name,
         download: (localPath) => dataSource.downloadFile(
           SftpFileTransferRequest(
-            target: widget.target,
+            target: target,
             remotePath: remotePath,
             localPath: localPath,
           ),
         ),
         upload: (localPath) => dataSource.uploadFile(
           SftpFileTransferRequest(
-            target: widget.target,
+            target: target,
             remotePath: remotePath,
             localPath: localPath,
           ),
@@ -543,7 +563,7 @@ class _SftpSidePanelState extends State<SftpSidePanel> {
     Future<Object?> Function() action,
   ) async {
     if (widget.fileActions.isRemotePathBusy(
-      widget.target.sessionId,
+      widget.target.operationScopeId,
       remotePath,
     )) {
       return;
@@ -565,7 +585,7 @@ class _SftpSidePanelState extends State<SftpSidePanel> {
     }
     final remotePath = _childSftpPath(_path, entry.name);
     final isBusy = widget.fileActions.isRemotePathBusy(
-      widget.target.sessionId,
+      widget.target.operationScopeId,
       remotePath,
     );
     final action = await showMenu<_SftpEntryMenuAction>(
@@ -625,6 +645,8 @@ class _SftpSidePanelState extends State<SftpSidePanel> {
   }
 
   Future<void> _createDirectory() async {
+    final target = widget.target;
+    final directory = _path;
     final dataSource = _fileDataSource;
     if (dataSource == null) {
       return;
@@ -633,14 +655,14 @@ class _SftpSidePanelState extends State<SftpSidePanel> {
     if (!mounted || name == null) {
       return;
     }
-    final remotePath = _childSftpPath(_path, name);
+    final remotePath = _childSftpPath(directory, name);
     try {
       await widget.fileActions.runRemoteOperation(
-        sessionId: widget.target.sessionId,
+        sessionId: target.operationScopeId,
         remotePath: remotePath,
         operation: () => dataSource.createDirectory(
           SftpEntryMutationRequest(
-            target: widget.target,
+            target: target,
             remotePath: remotePath,
             isDirectory: true,
           ),
@@ -711,6 +733,8 @@ class _SftpSidePanelState extends State<SftpSidePanel> {
   }
 
   Future<void> _deleteEntry(SftpDirectoryEntry entry) async {
+    final target = widget.target;
+    final directory = _path;
     final dataSource = _fileDataSource;
     if (dataSource == null) {
       return;
@@ -740,14 +764,14 @@ class _SftpSidePanelState extends State<SftpSidePanel> {
     if (!mounted || confirmed != true) {
       return;
     }
-    final remotePath = _childSftpPath(_path, entry.name);
+    final remotePath = _childSftpPath(directory, entry.name);
     try {
       await widget.fileActions.runRemoteOperation(
-        sessionId: widget.target.sessionId,
+        sessionId: target.operationScopeId,
         remotePath: remotePath,
         operation: () => dataSource.deleteEntry(
           SftpEntryMutationRequest(
-            target: widget.target,
+            target: target,
             remotePath: remotePath,
             isDirectory: entry.isDirectory,
           ),
@@ -832,7 +856,7 @@ class _SftpSidePanelState extends State<SftpSidePanel> {
                           busyPaths: _busyPaths,
                           isRemotePathBusy: (remotePath) =>
                               widget.fileActions.isRemotePathBusy(
-                                widget.target.sessionId,
+                                widget.target.operationScopeId,
                                 remotePath,
                               ),
                           parentPath: _path,

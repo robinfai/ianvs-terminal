@@ -1,0 +1,12 @@
+ssh-keygen: generating new host keys: RSA ECDSA ED25519
+Server listening on 0.0.0.0 port 22.
+Connection from 172.21.0.1 port 36164 on 172.21.0.20 port 22 rdomain ""
+Accepted key ED25519 SHA256:Xi519s88uZQPnzNTQBsxFuiJGScsyTAdveYScsZ0eGs found at /home/lab/.ssh/authorized_keys:1
+Postponed publickey for lab from 172.21.0.1 port 36164 ssh2 [preauth]
+Accepted key ED25519 SHA256:Xi519s88uZQPnzNTQBsxFuiJGScsyTAdveYScsZ0eGs found at /home/lab/.ssh/authorized_keys:1
+Accepted publickey for lab from 172.21.0.1 port 36164 ssh2: ED25519 SHA256:Xi519s88uZQPnzNTQBsxFuiJGScsyTAdveYScsZ0eGs
+User child is on pid 40
+Starting session: command on pts/0 for lab from 172.21.0.1 port 36164 id 0
+syslogin_perform_logout: logout() returned an error
+Received disconnect from 172.21.0.1 port 36164:11:
+Disconnected from user lab 172.21.0.1 port 36164

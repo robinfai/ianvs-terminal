@@ -1,0 +1,36 @@
+ssh-keygen: generating new host keys: RSA ECDSA ED25519
+Server listening on 0.0.0.0 port 22.
+Connection from 172.21.0.2 port 59148 on 172.21.0.3 port 22 rdomain ""
+Accepted key ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU found at /home/lab/.ssh/authorized_keys:1
+Postponed publickey for lab from 172.21.0.2 port 59148 ssh2 [preauth]
+Accepted key ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU found at /home/lab/.ssh/authorized_keys:1
+Accepted publickey for lab from 172.21.0.2 port 59148 ssh2: ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU
+User child is on pid 42
+Starting session: command on pts/0 for lab from 172.21.0.2 port 59148 id 0
+syslogin_perform_logout: logout() returned an error
+Close session: user lab from 172.21.0.2 port 59148 id 0
+Connection from 172.21.0.2 port 59150 on 172.21.0.3 port 22 rdomain ""
+Accepted key ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU found at /home/lab/.ssh/authorized_keys:1
+Postponed publickey for lab from 172.21.0.2 port 59150 ssh2 [preauth]
+Accepted key ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU found at /home/lab/.ssh/authorized_keys:1
+Accepted publickey for lab from 172.21.0.2 port 59150 ssh2: ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU
+User child is on pid 134
+Starting session: command for lab from 172.21.0.2 port 59150 id 0
+Close session: user lab from 172.21.0.2 port 59150 id 0
+Starting session: command on pts/0 for lab from 172.21.0.2 port 59148 id 0
+Starting session: command for lab from 172.21.0.2 port 59148 id 1
+Close session: user lab from 172.21.0.2 port 59148 id 1
+syslogin_perform_logout: logout() returned an error
+Close session: user lab from 172.21.0.2 port 59148 id 0
+subsystem request for sftp by user lab failed, subsystem not found
+Close session: user lab from 172.21.0.2 port 59150 id 0
+Starting session: command for lab from 172.21.0.2 port 59150 id 0
+Close session: user lab from 172.21.0.2 port 59150 id 0
+Starting session: command for lab from 172.21.0.2 port 59150 id 0
+Close session: user lab from 172.21.0.2 port 59150 id 0
+Connection closed by 172.21.0.2 port 59148
+Transferred: sent 70060, received 76520 bytes
+Closing connection to 172.21.0.2 port 59148
+Connection closed by 172.21.0.2 port 59150
+Transferred: sent 137328, received 137632 bytes
+Closing connection to 172.21.0.2 port 59150

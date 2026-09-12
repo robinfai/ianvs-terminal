@@ -1,0 +1,31 @@
+Preparing disposable SSH product fixtures
+Running product transport acceptance
+    Blocking waiting for file lock on build directory
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 29s
+     Running unittests src/lib.rs (native/core/target/debug/deps/ianvs_core-017945922dc68c1a)
+
+running 1 test
+test shell_bootstrap::acceptance::product_ssh_bootstrap_acceptance ... PRODUCT direct a
+PRODUCT shell switching a
+PRODUCT direct b
+
+thread 'shell_bootstrap::acceptance::product_ssh_bootstrap_acceptance' panicked at src/shell_bootstrap/acceptance.rs:405:69:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    shell_bootstrap::acceptance::product_ssh_bootstrap_acceptance
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 390 filtered out; finished in 15.80s
+
+error: test failed, to rerun pass `--lib`
+Traceback (most recent call last):
+  File "/Users/robinfai/flutter_projects/ianvs-terminal/tools/ssh_boundary_lab/product.py", line 75, in <module>
+    main()
+    ~~~~^^
+  File "/Users/robinfai/flutter_projects/ianvs-terminal/tools/ssh_boundary_lab/product.py", line 53, in main
+    raise RuntimeError(f'Product transport acceptance failed ({status})')
+RuntimeError: Product transport acceptance failed (101)

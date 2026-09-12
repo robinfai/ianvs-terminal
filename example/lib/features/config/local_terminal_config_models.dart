@@ -621,12 +621,22 @@ class LocalTerminalPasteConfig {
 enum LocalTerminalBracketedPastePolicy { auto, force, plain }
 
 class LocalTerminalShellIntegrationConfig {
-  const LocalTerminalShellIntegrationConfig({this.enabled = true});
+  const LocalTerminalShellIntegrationConfig({
+    this.enabled = true,
+    this.sshWrapper = true,
+    this.sshAutoInject = true,
+  });
 
   final bool enabled;
+  final bool sshWrapper;
+  final bool sshAutoInject;
 
   Map<String, Object?> toJson() {
-    return {'enabled': enabled};
+    return {
+      'enabled': enabled,
+      'sshWrapper': sshWrapper,
+      'sshAutoInject': sshAutoInject,
+    };
   }
 
   static LocalTerminalShellIntegrationConfig fromJson(
@@ -634,6 +644,8 @@ class LocalTerminalShellIntegrationConfig {
   ) {
     return LocalTerminalShellIntegrationConfig(
       enabled: _boolFromJson(json?['enabled'], true),
+      sshWrapper: _boolFromJson(json?['sshWrapper'], true),
+      sshAutoInject: _boolFromJson(json?['sshAutoInject'], true),
     );
   }
 }

@@ -18,6 +18,20 @@ fn valid_local_transfer_path(path: &str) -> bool {
         && Path::new(path).is_absolute()
 }
 
+fn sftp_context(request: &serde_json::Value) -> Result<String, SessionError> {
+    match request.get("contextId") {
+        None => Ok("root".into()),
+        Some(serde_json::Value::String(id))
+            if !id.is_empty()
+                && id.len() <= 64
+                && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-') =>
+        {
+            Ok(id.clone())
+        }
+        _ => Err(SessionError::Sftp("invalid SSH shell context".into())),
+    }
+}
+
 pub fn request_session(
     session_id: u64,
     operation: &str,
@@ -38,7 +52,7 @@ pub fn request_session(
             };
             let job_id = STORE
                 .get(session_id)?
-                .start_sftp_directory_listing(path.to_string())?;
+                .start_sftp_directory_listing(path.to_string(), sftp_context(request)?)?;
             request_json_response(serde_json::json!({
                 "jobId": job_id.to_string(),
             }))
@@ -121,7 +135,9 @@ pub fn request_session(
                 }
                 _ => return Ok(None),
             };
-            let job_id = STORE.get(session_id)?.start_sftp_operation(operation)?;
+            let job_id = STORE
+                .get(session_id)?
+                .start_sftp_operation(operation, sftp_context(request)?)?;
             request_json_response(serde_json::json!({ "jobId": job_id.to_string() }))
         }
         "ssh.sftp.operation_poll" => {

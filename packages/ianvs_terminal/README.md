@@ -40,6 +40,13 @@ for completion hooks. If a user already has a `DEBUG` trap, bash integration
 automatically falls back without installing hooks. Bash may also report only the
 first simple command for complex pipelines or compound commands.
 
+SSH protocol sessions bootstrap Bash, Zsh and Fish through the terminal channel,
+without SFTP uploads or persistent remote scripts. `sshAutoInject` can override
+the host application's global default; `sshWrapper` enables recursive SSH command
+tracking. Bootstrap registration results and observed capabilities are separate.
+See [SSH bootstrap](../../docs/protocols/ssh_shell_bootstrap.md) for ordering,
+ControlMaster routing and supported cases.
+
 ## Ordered runtime signals
 
 `TerminalRuntimeController.runtimeSignals` provides one broadcast stream for

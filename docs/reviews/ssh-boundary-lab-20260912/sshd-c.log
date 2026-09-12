@@ -1,0 +1,84 @@
+ssh-keygen: generating new host keys: RSA ECDSA ED25519
+Server listening on 0.0.0.0 port 22.
+Connection from 172.21.0.3 port 56362 on 172.21.0.4 port 22 rdomain ""
+Accepted key ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU found at /home/lab/.ssh/authorized_keys:1
+Postponed publickey for lab from 172.21.0.3 port 56362 ssh2 [preauth]
+Accepted key ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU found at /home/lab/.ssh/authorized_keys:1
+Accepted publickey for lab from 172.21.0.3 port 56362 ssh2: ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU
+User child is on pid 42
+Starting session: command on pts/0 for lab from 172.21.0.3 port 56362 id 0
+syslogin_perform_logout: logout() returned an error
+Close session: user lab from 172.21.0.3 port 56362 id 0
+Connection from 172.21.0.2 port 33446 on 172.21.0.4 port 22 rdomain ""
+Accepted key ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU found at /home/lab/.ssh/authorized_keys:1
+Postponed publickey for lab from 172.21.0.2 port 33446 ssh2 [preauth]
+Accepted key ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU found at /home/lab/.ssh/authorized_keys:1
+Accepted publickey for lab from 172.21.0.2 port 33446 ssh2: ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU
+User child is on pid 122
+Starting session: command for lab from 172.21.0.2 port 33446 id 0
+Close session: user lab from 172.21.0.2 port 33446 id 0
+Received disconnect from 172.21.0.2 port 33446:11: disconnected by user
+Disconnected from user lab 172.21.0.2 port 33446
+Connection from 172.21.0.2 port 33462 on 172.21.0.4 port 22 rdomain ""
+Accepted key ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU found at /home/lab/.ssh/authorized_keys:1
+Postponed publickey for lab from 172.21.0.2 port 33462 ssh2 [preauth]
+Accepted key ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU found at /home/lab/.ssh/authorized_keys:1
+Accepted publickey for lab from 172.21.0.2 port 33462 ssh2: ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU
+User child is on pid 126
+Starting session: command for lab from 172.21.0.2 port 33462 id 0
+Close session: user lab from 172.21.0.2 port 33462 id 0
+Received disconnect from 172.21.0.2 port 33462:11: disconnected by user
+Disconnected from user lab 172.21.0.2 port 33462
+Connection from 172.21.0.3 port 56368 on 172.21.0.4 port 22 rdomain ""
+Accepted key ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU found at /home/lab/.ssh/authorized_keys:1
+Postponed publickey for lab from 172.21.0.3 port 56368 ssh2 [preauth]
+Accepted key ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU found at /home/lab/.ssh/authorized_keys:1
+Accepted publickey for lab from 172.21.0.3 port 56368 ssh2: ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU
+User child is on pid 130
+Connection from 172.21.0.3 port 56374 on 172.21.0.4 port 22 rdomain ""
+Failed publickey for lab from 172.21.0.3 port 56374 ssh2: ED25519 SHA256:U5tCZfROsMte1oHNVPTPd06jCwLIFMpxxpBy0Xd9ZPc
+Connection closed by authenticating user lab 172.21.0.3 port 56374 [preauth]
+Starting session: subsystem 'sftp' for lab from 172.21.0.3 port 56368 id 0
+Close session: user lab from 172.21.0.3 port 56368 id 0
+Starting session: command on pts/0 for lab from 172.21.0.3 port 56362 id 0
+Starting session: subsystem 'sftp' for lab from 172.21.0.3 port 56362 id 1
+syslogin_perform_logout: logout() returned an error
+Close session: user lab from 172.21.0.3 port 56362 id 0
+Close session: user lab from 172.21.0.3 port 56362 id 1
+Starting session: subsystem 'sftp' for lab from 172.21.0.3 port 56368 id 0
+Close session: user lab from 172.21.0.3 port 56368 id 0
+Connection from 172.21.0.14 port 35580 on 172.21.0.4 port 22 rdomain ""
+Accepted key ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU found at /home/lab/.ssh/authorized_keys:1
+Postponed publickey for lab from 172.21.0.14 port 35580 ssh2 [preauth]
+Accepted key ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU found at /home/lab/.ssh/authorized_keys:1
+Accepted publickey for lab from 172.21.0.14 port 35580 ssh2: ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU
+User child is on pid 196
+Starting session: subsystem 'sftp' for lab from 172.21.0.14 port 35580 id 0
+Close session: user lab from 172.21.0.14 port 35580 id 0
+Connection from 172.21.0.15 port 53494 on 172.21.0.4 port 22 rdomain ""
+Accepted key ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU found at /home/lab/.ssh/authorized_keys:1
+Postponed publickey for lab from 172.21.0.15 port 53494 ssh2 [preauth]
+Accepted key ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU found at /home/lab/.ssh/authorized_keys:1
+Accepted publickey for lab from 172.21.0.15 port 53494 ssh2: ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU
+User child is on pid 200
+Starting session: subsystem 'sftp' for lab from 172.21.0.15 port 53494 id 0
+Close session: user lab from 172.21.0.15 port 53494 id 0
+Received disconnect from 172.21.0.3 port 56368:11: disconnected by user
+Disconnected from user lab 172.21.0.3 port 56368
+Connection from 172.21.0.3 port 54910 on 172.21.0.4 port 22 rdomain ""
+Failed publickey for lab from 172.21.0.3 port 54910 ssh2: ED25519 SHA256:U5tCZfROsMte1oHNVPTPd06jCwLIFMpxxpBy0Xd9ZPc
+Connection closed by authenticating user lab 172.21.0.3 port 54910 [preauth]
+Connection from 172.21.0.2 port 60324 on 172.21.0.4 port 22 rdomain ""
+Accepted key ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU found at /home/lab/.ssh/authorized_keys:1
+Postponed publickey for lab from 172.21.0.2 port 60324 ssh2 [preauth]
+Accepted key ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU found at /home/lab/.ssh/authorized_keys:1
+Accepted publickey for lab from 172.21.0.2 port 60324 ssh2: ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU
+User child is on pid 206
+Starting session: shell on pts/0 for lab from 172.21.0.2 port 60324 id 0
+syslogin_perform_logout: logout() returned an error
+Close session: user lab from 172.21.0.2 port 60324 id 0
+Received disconnect from 172.21.0.2 port 60324:11: disconnected by user
+Disconnected from user lab 172.21.0.2 port 60324
+Connection closed by 172.21.0.3 port 56362
+Transferred: sent 63264, received 74852 bytes
+Closing connection to 172.21.0.3 port 56362

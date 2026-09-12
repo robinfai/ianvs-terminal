@@ -68,6 +68,43 @@ void main() {
     );
   });
 
+  testWidgets(
+    'SSH injection override saves off and can return to inheritance',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1000, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      var profile = _sshProfile('injection', 'Injection', 'host.example.test');
+      for (final choice in ['Off', 'Use global setting']) {
+        SshProfileEditorResult? result;
+        await _pumpSshEditor(
+          tester,
+          profile: profile,
+          onClosed: (value) => result = value,
+        );
+        await tester.ensureVisible(
+          find.text('Host verification and advanced options'),
+        );
+        await tester.tap(find.text('Host verification and advanced options'));
+        await tester.pumpAndSettle();
+        final field = find.byKey(const Key('ssh-auto-inject'));
+        await tester.ensureVisible(field);
+        await tester.tap(field);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text(choice).last);
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(find.byKey(const Key('ssh-connect')));
+        await tester.tap(find.byKey(const Key('ssh-connect')));
+        await tester.pumpAndSettle();
+        expect(result, isNotNull);
+        profile = result!.profile;
+        expect(profile.connection.host, 'host.example.test');
+        expect(
+          profile.sessionConfig.shellIntegration.sshAutoInject,
+          choice == 'Use global setting' ? isNull : isFalse,
+        );
+      }
+    },
+  );
   testWidgets('chooses between local, saved SSH, and OpenSSH profiles', (
     tester,
   ) async {

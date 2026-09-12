@@ -1,0 +1,20 @@
+ssh-keygen: generating new host keys: RSA ECDSA ED25519
+Server listening on 0.0.0.0 port 22.
+Connection from 172.21.0.1 port 58234 on 172.21.0.11 port 22 rdomain ""
+Accepted key ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU found at /home/lab/.ssh/authorized_keys:1
+Postponed publickey for lab from 172.21.0.1 port 58234 ssh2 [preauth]
+Accepted key ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU found at /home/lab/.ssh/authorized_keys:1
+Accepted publickey for lab from 172.21.0.1 port 58234 ssh2: ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU
+User child is on pid 42
+Starting session: forced-command (config) '/bin/echo FORCE_COMMAND_ONLY' for lab from 172.21.0.1 port 58234 id 0
+Received disconnect from 172.21.0.1 port 58234:11: disconnected by user
+Disconnected from user lab 172.21.0.1 port 58234
+Connection from 172.21.0.1 port 58242 on 172.21.0.11 port 22 rdomain ""
+Accepted key ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU found at /home/lab/.ssh/authorized_keys:1
+Postponed publickey for lab from 172.21.0.1 port 58242 ssh2 [preauth]
+Accepted key ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU found at /home/lab/.ssh/authorized_keys:1
+Accepted publickey for lab from 172.21.0.1 port 58242 ssh2: ED25519 SHA256:Zhpxe0mQk3Fx5nuq0DsXLESDmC9HQlCviZjZ2e7e8uU
+User child is on pid 46
+Starting session: forced-command (config) '/bin/echo FORCE_COMMAND_ONLY' for lab from 172.21.0.1 port 58242 id 0
+Received disconnect from 172.21.0.1 port 58242:11: disconnected by user
+Disconnected from user lab 172.21.0.1 port 58242

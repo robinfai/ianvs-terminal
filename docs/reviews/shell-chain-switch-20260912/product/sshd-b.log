@@ -1,0 +1,54 @@
+ssh-keygen: generating new host keys: RSA ECDSA ED25519
+Server listening on 0.0.0.0 port 22.
+Connection from 172.21.0.2 port 49942 on 172.21.0.3 port 22 rdomain ""
+Accepted key ED25519 SHA256:0xvf/CvYsWas7S9pGKGc7ceFR9Gqw6ECFLnxZqwjig0 found at /home/lab/.ssh/authorized_keys:1
+Postponed publickey for lab from 172.21.0.2 port 49942 ssh2 [preauth]
+Accepted key ED25519 SHA256:0xvf/CvYsWas7S9pGKGc7ceFR9Gqw6ECFLnxZqwjig0 found at /home/lab/.ssh/authorized_keys:1
+Accepted publickey for lab from 172.21.0.2 port 49942 ssh2: ED25519 SHA256:0xvf/CvYsWas7S9pGKGc7ceFR9Gqw6ECFLnxZqwjig0
+User child is on pid 41
+Starting session: command on pts/0 for lab from 172.21.0.2 port 49942 id 0
+Starting session: command for lab from 172.21.0.2 port 49942 id 1
+Close session: user lab from 172.21.0.2 port 49942 id 1
+Starting session: command for lab from 172.21.0.2 port 49942 id 1
+Close session: user lab from 172.21.0.2 port 49942 id 1
+Starting session: command for lab from 172.21.0.2 port 49942 id 1
+Starting session: command for lab from 172.21.0.2 port 49942 id 2
+Close session: user lab from 172.21.0.2 port 49942 id 1
+Close session: user lab from 172.21.0.2 port 49942 id 2
+Starting session: command for lab from 172.21.0.2 port 49942 id 3
+Starting session: command for lab from 172.21.0.2 port 49942 id 2
+Close session: user lab from 172.21.0.2 port 49942 id 2
+Close session: user lab from 172.21.0.2 port 49942 id 3
+subsystem request for sftp by user lab failed, subsystem not found
+Close session: user lab from 172.21.0.2 port 49942 id 3
+syslogin_perform_logout: logout() returned an error
+Close session: user lab from 172.21.0.2 port 49942 id 0
+Connection from 172.21.0.2 port 47640 on 172.21.0.3 port 22 rdomain ""
+Accepted key ED25519 SHA256:0xvf/CvYsWas7S9pGKGc7ceFR9Gqw6ECFLnxZqwjig0 found at /home/lab/.ssh/authorized_keys:1
+Postponed publickey for lab from 172.21.0.2 port 47640 ssh2 [preauth]
+Accepted key ED25519 SHA256:0xvf/CvYsWas7S9pGKGc7ceFR9Gqw6ECFLnxZqwjig0 found at /home/lab/.ssh/authorized_keys:1
+Accepted publickey for lab from 172.21.0.2 port 47640 ssh2: ED25519 SHA256:0xvf/CvYsWas7S9pGKGc7ceFR9Gqw6ECFLnxZqwjig0
+User child is on pid 128
+Starting session: command on pts/1 for lab from 172.21.0.2 port 47640 id 0
+Starting session: command for lab from 172.21.0.2 port 47640 id 1
+Close session: user lab from 172.21.0.2 port 47640 id 1
+Starting session: command for lab from 172.21.0.2 port 47640 id 1
+Close session: user lab from 172.21.0.2 port 47640 id 1
+Starting session: command for lab from 172.21.0.2 port 47640 id 1
+Starting session: command for lab from 172.21.0.2 port 47640 id 2
+Close session: user lab from 172.21.0.2 port 47640 id 1
+Close session: user lab from 172.21.0.2 port 47640 id 2
+Starting session: command for lab from 172.21.0.2 port 47640 id 3
+Starting session: command for lab from 172.21.0.2 port 47640 id 2
+Close session: user lab from 172.21.0.2 port 47640 id 2
+Close session: user lab from 172.21.0.2 port 47640 id 3
+subsystem request for sftp by user lab failed, subsystem not found
+Close session: user lab from 172.21.0.2 port 47640 id 3
+syslogin_perform_logout: logout() returned an error
+Close session: user lab from 172.21.0.2 port 47640 id 0
+Connection closed by 172.21.0.2 port 49942
+Transferred: sent 19308, received 79060 bytes
+Closing connection to 172.21.0.2 port 49942
+Connection closed by 172.21.0.2 port 47640
+Transferred: sent 21048, received 80648 bytes
+Closing connection to 172.21.0.2 port 47640

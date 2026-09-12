@@ -78,3 +78,15 @@ The optional `ianvs_session_create_v1` and `ianvs_replay_session_create_v1` symb
 contract. Runtime Capabilities advertises `session-config.json.v1`. During the compatibility
 window, the old symbols continue consuming the Profile-shaped wire: new Dart falls back when v1
 is unavailable, and old Dart remains usable with a new native core.
+
+### SSH shell integration options
+
+`config.shellIntegration` requires `enabled` and additionally accepts optional boolean
+`sshWrapper` and `sshAutoInject`. Omitted `sshWrapper` defaults to false in the core.
+Omitted `sshAutoInject` preserves host-level inheritance; explicit false disables
+automatic SSH bootstrap. Explicit null and non-boolean values are rejected at the
+v1 runtime boundary. Existing `{ "enabled": true }` documents remain valid.
+
+SFTP directory/file start payloads accept optional `contextId`; omission retains
+the root endpoint API. A context is resolved once at request acceptance. Stale or
+inactive contexts fail, and transfers and atomic rename keep the captured route.

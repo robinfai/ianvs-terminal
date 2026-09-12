@@ -335,11 +335,23 @@ fn default_graphics_max_total_bytes() -> usize {
 pub struct TerminalShellIntegration {
     #[serde(default = "default_shell_integration_enabled")]
     pub enabled: bool,
+    #[serde(rename = "sshWrapper", default)]
+    pub ssh_wrapper: bool,
+    #[serde(
+        rename = "sshAutoInject",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub ssh_auto_inject: Option<bool>,
 }
 
 impl Default for TerminalShellIntegration {
     fn default() -> Self {
-        Self { enabled: true }
+        Self {
+            enabled: true,
+            ssh_wrapper: false,
+            ssh_auto_inject: None,
+        }
     }
 }
 

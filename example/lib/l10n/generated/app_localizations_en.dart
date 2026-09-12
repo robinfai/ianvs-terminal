@@ -2177,6 +2177,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'previous_prompt': 'Previous prompt',
       'next_prompt': 'Next prompt',
       'export_scrollback': 'Export scrollback',
+      'shell_capabilities': 'Shell capabilities',
       'export_diagnostics': 'Export diagnostics',
       'other': '$action',
     });
@@ -4802,4 +4803,280 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsNoChanges => 'No changes';
+
+  @override
+  String get shellCapabilities => 'Shell capabilities';
+
+  @override
+  String get shellCapabilitiesMenuDescription =>
+      'Inspect activation and evidence for this session.';
+
+  @override
+  String get shellCapabilitiesSessionClosed => 'Session closed';
+
+  @override
+  String shellCapabilitiesCount(int active, int total) {
+    return '$active of $total capabilities active';
+  }
+
+  @override
+  String get shellCapabilitiesExplanation =>
+      'Capabilities are confirmed by initialization checks or runtime events. Active means ready to use; command history and prompt positions still require actual data.';
+
+  @override
+  String get shellCapabilitiesBuiltIn => 'Built-in hook capabilities';
+
+  @override
+  String get shellCapabilitiesExtensions => 'Protocol extensions';
+
+  @override
+  String get shellCapabilityDirectory => 'Current directory';
+
+  @override
+  String get shellCapabilityDirectoryHelp =>
+      'Recent directories, reopening at the same directory, and directory-based profile rules.';
+
+  @override
+  String get shellCapabilityPrompt => 'Prompt lifecycle';
+
+  @override
+  String get shellCapabilityPromptHelp =>
+      'Recognizes a new prompt; navigation also needs a valid screen position.';
+
+  @override
+  String get shellCapabilityStart => 'Command execution start';
+
+  @override
+  String get shellCapabilityStartHelp =>
+      'Detects when execution starts, independently of command input.';
+
+  @override
+  String get shellCapabilityCommand => 'Command text';
+
+  @override
+  String get shellCapabilityCommandHelp =>
+      'Recent commands, command context and recording metadata.';
+
+  @override
+  String get shellCapabilityFinish => 'Command completion';
+
+  @override
+  String get shellCapabilityFinishHelp =>
+      'Detects completion. An exit code is a separate capability.';
+
+  @override
+  String get shellCapabilityExitCode => 'Exit code';
+
+  @override
+  String get shellCapabilityExitCodeHelp =>
+      'Reports success or failure of completed commands.';
+
+  @override
+  String get shellCapabilityShell => 'Shell identity';
+
+  @override
+  String get shellCapabilityShellHelp =>
+      'Identifies the shell from received metadata, not its configured launch path.';
+
+  @override
+  String get shellCapabilityHost => 'Hostname';
+
+  @override
+  String get shellCapabilityHostHelp =>
+      'Host context and hostname-based profile rules.';
+
+  @override
+  String get shellCapabilityUser => 'Username';
+
+  @override
+  String get shellCapabilityUserHelp =>
+      'User context and username-based profile rules.';
+
+  @override
+  String get shellCapabilityVersion => 'Integration version';
+
+  @override
+  String get shellCapabilityVersionHelp =>
+      'Reports integration metadata; a version does not prove other capabilities.';
+
+  @override
+  String get shellCapabilityNavigation => 'Prompt navigation';
+
+  @override
+  String get shellCapabilityNavigationHelp =>
+      'Previous/next prompt navigation using retained screen positions.';
+
+  @override
+  String get shellCapabilityOutput => 'Command output ranges';
+
+  @override
+  String get shellCapabilityOutputHelp =>
+      'Reports explicit output boundaries. Current output copying uses adjacent prompt positions.';
+
+  @override
+  String get shellCapabilityVariables => 'Custom shell variables';
+
+  @override
+  String get shellCapabilityVariablesHelp =>
+      'Accepts allowed IANVS_ variables for session metadata and configured queries.';
+
+  @override
+  String get shellCapabilityPending => 'Pending confirmation';
+
+  @override
+  String get shellCapabilityActive => 'Active';
+
+  @override
+  String get shellCapabilityDisabled => 'Disabled';
+
+  @override
+  String get shellCapabilityUnavailable => 'Unavailable';
+
+  @override
+  String get shellCapabilityAwaitingEvidence =>
+      'No initialization check or runtime event has confirmed this capability yet.';
+
+  @override
+  String get shellCapabilityInitializationChecked =>
+      'Initialization checks passed; ready to use, with no runtime event observed yet.';
+
+  @override
+  String get shellCapabilityInitializationFailed =>
+      'Initialization found that the required hooks were not fully registered.';
+
+  @override
+  String get shellCapabilityObserved =>
+      'Confirmed by a matching event in this session.';
+
+  @override
+  String get shellCapabilityDisabledReason =>
+      'Shell integration is disabled for this session.';
+
+  @override
+  String get shellCapabilityEmulationReason =>
+      'The selected terminal emulation does not support shell integration.';
+
+  @override
+  String get shellCapabilityExitedReason =>
+      'The session has ended. A new session must confirm its capabilities again.';
+
+  @override
+  String get sshWrapper => 'Wrap local ssh commands';
+
+  @override
+  String get sshWrapperDescription =>
+      'Enable shell integration when entering SSH from new local sessions.';
+
+  @override
+  String get sshAutoInject => 'Automatically inject SSH shell hooks';
+
+  @override
+  String get sshAutoInjectDescription =>
+      'Check and enable shell capabilities for new SSH connections. Each connection can override this setting.';
+
+  @override
+  String get sshInjectionInherit => 'Use global setting';
+
+  @override
+  String get sshInjectionOn => 'On';
+
+  @override
+  String get sshInjectionOff => 'Off';
+
+  @override
+  String get shellBootstrapStatus => 'Initialization check';
+
+  @override
+  String get shellBootstrapChecking => 'Checking shell integration…';
+
+  @override
+  String get shellBootstrapReady => 'Shell integration is ready';
+
+  @override
+  String get shellBootstrapDegraded => 'Basic terminal mode';
+
+  @override
+  String get shellBootstrapChecked => 'Local hook checks completed';
+
+  @override
+  String get shellBootstrapInstalled => 'Injected for this session';
+
+  @override
+  String get shellBootstrapReused =>
+      'Reused hooks already loaded in this shell';
+
+  @override
+  String get shellBootstrapTimeout =>
+      'Check timed out; no further injection will be sent';
+
+  @override
+  String get shellBootstrapUnsupported =>
+      'This shell does not support automatic injection';
+
+  @override
+  String get shellBootstrapConflict =>
+      'Existing shell hooks could not be safely combined';
+
+  @override
+  String get shellBootstrapMissingHelpers =>
+      'Required shell helpers are unavailable';
+
+  @override
+  String get shellCapabilityRegistered => 'Hook registration checked';
+
+  @override
+  String get shellCapabilityNotRegistered => 'Registration was not confirmed';
+
+  @override
+  String get shellCapabilityUnchecked =>
+      'No registration check for this capability';
+
+  @override
+  String get shellConnectionChain => 'Connection chain';
+
+  @override
+  String shellChainJumpCount(int count) {
+    return '$count SSH hops';
+  }
+
+  @override
+  String get shellChainScope =>
+      'Capabilities below apply to the current shell.';
+
+  @override
+  String get shellChainIntermediate => 'Intermediate shell';
+
+  @override
+  String get shellConnectionChainHelp =>
+      'Shows detected shell layers and configured jump hosts. Capabilities below belong to the current shell; forwarding hops do not run its hooks.';
+
+  @override
+  String get shellChainLocalClient => 'This device';
+
+  @override
+  String get shellChainLocalShell => 'Local shell';
+
+  @override
+  String get shellChainCurrentShell => 'Current shell';
+
+  @override
+  String get shellChainLastShell => 'Last shell · session ended';
+
+  @override
+  String get shellChainParentShell => 'Parent shell';
+
+  @override
+  String get shellChainJump => 'ProxyJump · forwarding only';
+
+  @override
+  String get shellChainOrigin => 'Connection origin';
+
+  @override
+  String get shellChainProxy => 'Proxy channel';
+
+  @override
+  String get shellChainProxyUnknown => 'Route managed by the proxy command';
+
+  @override
+  String get shellChainUnknownHost => 'Unidentified SSH host';
 }

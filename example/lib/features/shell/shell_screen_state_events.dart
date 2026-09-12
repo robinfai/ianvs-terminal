@@ -3,6 +3,7 @@ part of 'shell_screen.dart';
 extension _ShellScreenStateEvents on _ShellScreenState {
   bool get _shellModalInputBlocked =>
       _isCommandMenuOpen ||
+      _isShellCapabilitiesOpen ||
       _isDefaultsOpen ||
       _isProfilesOpen ||
       ModalRoute.of(context)?.isCurrent == false;

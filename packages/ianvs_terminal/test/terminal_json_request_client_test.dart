@@ -16,6 +16,20 @@ Matcher hasStatus(TerminalZmodemRecoveryResolutionStatus status) =>
 
 void main() {
   group('TerminalJsonRequestClient', () {
+    test('directory and file requests pin their shell context', () {
+      final backend = _JsonRequestBackend('{"jobId":"12"}');
+      final client = TerminalJsonRequestClient(backend);
+      client.startSftpDirectoryListing('7', '/srv/app', contextId: 'hop-a');
+      client.startSftpOperation(
+        '7',
+        action: TerminalSftpOperationAction.uploadFile,
+        remotePath: '/srv/app/file',
+        localPath: '/tmp/file',
+        contextId: 'hop-b',
+      );
+      expect(backend.requests[0]['contextId'], 'hop-a');
+      expect(backend.requests[1]['contextId'], 'hop-b');
+    });
     test('sends SSH challenge responses without logging or reshaping them', () {
       final backend = _JsonRequestBackend('{"accepted":true}');
       final client = TerminalJsonRequestClient(backend);

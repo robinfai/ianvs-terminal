@@ -1,6 +1,11 @@
 import '../layout/local_terminal_relaunch_spec.dart';
 import '../preferences/app_preferences_models.dart';
 import '../profiles/profile_models.dart';
+import 'shell_connection_chain.dart';
+import 'shell_integration_capabilities.dart';
+
+export 'shell_connection_chain.dart';
+export 'shell_integration_capabilities.dart';
 
 enum TerminalSplitAxis { horizontal, vertical }
 
@@ -30,6 +35,22 @@ class TerminalPane {
   final bool isExited;
   final int? exitCode;
   final TerminalShellIntegrationSnapshot shellIntegration;
+
+  List<ShellConnectionHop> get shellConnectionChain =>
+      shellIntegration.connectionChain.isNotEmpty
+      ? shellIntegration.connectionChain
+      : ShellConnectionHop.forProfile(profileSnapshot);
+
+  /// Effective activation for this pane, including its current policy gates.
+  ShellIntegrationCapabilities get shellCapabilities =>
+      shellIntegration.capabilities.withPolicy(
+        enabled:
+            profileSnapshot?.sessionConfig.shellIntegration.enabled ?? true,
+        supportedEmulation:
+            profileSnapshot == null ||
+            profileSnapshot!.terminalEmulation == TerminalEmulation.xterm256,
+        exited: isExited,
+      );
   final String? oscBadge;
   final TerminalPaneTabStatusState tabStatus;
   final TerminalPaneProgressState? progress;
@@ -833,6 +854,18 @@ int? terminalPromptGlobalLineFromScrollbackOffset({
 
 class TerminalShellIntegrationSnapshot {
   const TerminalShellIntegrationSnapshot({
+    this.contextId,
+    this.contextKind,
+    this.hostContextId,
+    this.connectionChain = const [],
+    this.sftpRoute = false,
+    this.sshHost,
+    this.sshUser,
+    this.sshPort,
+    this.bootstrapPhase,
+    this.bootstrapSource,
+    this.registrationChecks = const {},
+    this.capabilities = const ShellIntegrationCapabilities.pending(),
     this.currentDirectory,
     this.hostname,
     this.username,
@@ -848,6 +881,19 @@ class TerminalShellIntegrationSnapshot {
 
   static const empty = TerminalShellIntegrationSnapshot();
 
+  final String? contextId;
+  final String? contextKind;
+  final String? hostContextId;
+  final List<ShellConnectionHop> connectionChain;
+  final bool sftpRoute;
+  final String? sshHost;
+  final String? sshUser;
+  final int? sshPort;
+  final String? bootstrapPhase;
+  final String? bootstrapSource;
+  final Map<String, String> registrationChecks;
+  final ShellIntegrationCapabilities capabilities;
+
   final String? currentDirectory;
   final String? hostname;
   final String? username;
@@ -861,6 +907,18 @@ class TerminalShellIntegrationSnapshot {
   final Map<String, String> userVariables;
 
   TerminalShellIntegrationSnapshot copyWith({
+    String? contextId,
+    String? contextKind,
+    String? hostContextId,
+    List<ShellConnectionHop>? connectionChain,
+    bool? sftpRoute,
+    String? sshHost,
+    String? sshUser,
+    int? sshPort,
+    String? bootstrapPhase,
+    String? bootstrapSource,
+    Map<String, String>? registrationChecks,
+    ShellIntegrationCapabilities? capabilities,
     Object? currentDirectory = _shellIntegrationNoChange,
     Object? hostname = _shellIntegrationNoChange,
     Object? username = _shellIntegrationNoChange,
@@ -874,6 +932,18 @@ class TerminalShellIntegrationSnapshot {
     Map<String, String>? userVariables,
   }) {
     return TerminalShellIntegrationSnapshot(
+      contextId: contextId ?? this.contextId,
+      contextKind: contextKind ?? this.contextKind,
+      hostContextId: hostContextId ?? this.hostContextId,
+      connectionChain: connectionChain ?? this.connectionChain,
+      sftpRoute: sftpRoute ?? this.sftpRoute,
+      sshHost: sshHost ?? this.sshHost,
+      sshUser: sshUser ?? this.sshUser,
+      sshPort: sshPort ?? this.sshPort,
+      bootstrapPhase: bootstrapPhase ?? this.bootstrapPhase,
+      bootstrapSource: bootstrapSource ?? this.bootstrapSource,
+      registrationChecks: registrationChecks ?? this.registrationChecks,
+      capabilities: capabilities ?? this.capabilities,
       currentDirectory: identical(currentDirectory, _shellIntegrationNoChange)
           ? this.currentDirectory
           : currentDirectory as String?,

@@ -23,6 +23,8 @@ class DefaultsAndAppearanceSelection {
     required this.languageMode,
     required this.terminalViewportPadding,
     required this.restoreLayout,
+    this.sshWrapper = true,
+    this.sshAutoInject = true,
     required this.osc52Policy,
     required this.openUrlPolicy,
     required this.requestAttentionPolicy,
@@ -41,6 +43,8 @@ class DefaultsAndAppearanceSelection {
   final TerminalLanguageMode languageMode;
   final double terminalViewportPadding;
   final bool restoreLayout;
+  final bool sshWrapper;
+  final bool sshAutoInject;
   final LocalTerminalOsc52Policy osc52Policy;
   final LocalTerminalOpenUrlPolicy openUrlPolicy;
   final LocalTerminalRequestAttentionPolicy requestAttentionPolicy;
@@ -125,6 +129,8 @@ class DefaultsAndAppearanceDialog extends StatefulWidget {
     this.languageMode = TerminalLanguageMode.system,
     required this.terminalViewportPadding,
     required this.restoreLayout,
+    this.sshWrapper = true,
+    this.sshAutoInject = true,
     required this.osc52Policy,
     required this.openUrlPolicy,
     required this.requestAttentionPolicy,
@@ -146,6 +152,8 @@ class DefaultsAndAppearanceDialog extends StatefulWidget {
   final TerminalLanguageMode languageMode;
   final double terminalViewportPadding;
   final bool restoreLayout;
+  final bool sshWrapper;
+  final bool sshAutoInject;
   final LocalTerminalOsc52Policy osc52Policy;
   final LocalTerminalOpenUrlPolicy openUrlPolicy;
   final LocalTerminalRequestAttentionPolicy requestAttentionPolicy;
@@ -176,6 +184,8 @@ class _DefaultsAndAppearanceDialogState
   late TerminalLanguageMode _selectedLanguageMode;
   late double _selectedTerminalViewportPadding;
   late bool _selectedRestoreLayout;
+  late bool _selectedSshWrapper;
+  late bool _selectedSshAutoInject;
   late LocalTerminalOsc52Policy _selectedOsc52Policy;
   late LocalTerminalOpenUrlPolicy _selectedOpenUrlPolicy;
   late LocalTerminalRequestAttentionPolicy _selectedRequestAttentionPolicy;
@@ -212,6 +222,8 @@ class _DefaultsAndAppearanceDialogState
     _selectedLanguageMode = widget.languageMode;
     _selectedTerminalViewportPadding = widget.terminalViewportPadding;
     _selectedRestoreLayout = widget.restoreLayout;
+    _selectedSshWrapper = widget.sshWrapper;
+    _selectedSshAutoInject = widget.sshAutoInject;
     _selectedOsc52Policy = widget.osc52Policy;
     _selectedOpenUrlPolicy = widget.openUrlPolicy;
     _selectedRequestAttentionPolicy = widget.requestAttentionPolicy;
@@ -473,6 +485,8 @@ class _DefaultsAndAppearanceDialogState
         _selectedLanguageMode != widget.languageMode ||
         _selectedTerminalViewportPadding != widget.terminalViewportPadding ||
         _selectedRestoreLayout != widget.restoreLayout ||
+        _selectedSshWrapper != widget.sshWrapper ||
+        _selectedSshAutoInject != widget.sshAutoInject ||
         _selectedOsc52Policy != widget.osc52Policy ||
         _selectedOpenUrlPolicy != widget.openUrlPolicy ||
         _selectedRequestAttentionPolicy != widget.requestAttentionPolicy ||
@@ -599,6 +613,8 @@ class _DefaultsAndAppearanceDialogState
                             terminalViewportPadding:
                                 _selectedTerminalViewportPadding,
                             restoreLayout: _selectedRestoreLayout,
+                            sshWrapper: _selectedSshWrapper,
+                            sshAutoInject: _selectedSshAutoInject,
                             osc52Policy: _selectedOsc52Policy,
                             openUrlPolicy: _selectedOpenUrlPolicy,
                             requestAttentionPolicy:
@@ -927,6 +943,35 @@ class _DefaultsAndAppearanceDialogState
                         selectedDataApiConfiguration:
                             selectedDataApiConfiguration,
                       ),
+                      AppPanel(
+                        child: Column(
+                          children: [
+                            if (widget.localSessionsEnabled)
+                              SwitchListTile.adaptive(
+                                key: const Key('defaults-ssh-wrapper'),
+                                title: Text(context.l10n.sshWrapper),
+                                subtitle: Text(
+                                  context.l10n.sshWrapperDescription,
+                                ),
+                                value: _selectedSshWrapper,
+                                onChanged: (value) =>
+                                    setState(() => _selectedSshWrapper = value),
+                              ),
+                            SwitchListTile.adaptive(
+                              key: const Key('defaults-ssh-auto-inject'),
+                              title: Text(context.l10n.sshAutoInject),
+                              subtitle: Text(
+                                context.l10n.sshAutoInjectDescription,
+                              ),
+                              value: _selectedSshAutoInject,
+                              onChanged: (value) => setState(
+                                () => _selectedSshAutoInject = value,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      SizedBox(height: theme.spacing.lg),
                       const _DefaultsSectionMarker(_DefaultsSection.appearance),
                       if (showSectionNavigation) ...[
                         _DefaultsSectionIntro(
@@ -1994,6 +2039,8 @@ class _DefaultsAndAppearanceDialogState
                                     terminalViewportPadding:
                                         _selectedTerminalViewportPadding,
                                     restoreLayout: _selectedRestoreLayout,
+                                    sshWrapper: _selectedSshWrapper,
+                                    sshAutoInject: _selectedSshAutoInject,
                                     osc52Policy: _selectedOsc52Policy,
                                     openUrlPolicy: _selectedOpenUrlPolicy,
                                     requestAttentionPolicy:
