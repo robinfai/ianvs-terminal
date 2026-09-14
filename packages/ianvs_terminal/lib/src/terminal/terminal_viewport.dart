@@ -401,6 +401,7 @@ class _TerminalViewportState extends State<TerminalViewport>
   bool _scrollMomentumIgnoresTerminalMouseMode = false;
   Duration? _lastPanZoomUpdateTimeStamp;
   Size? _lastReportedCellSize;
+  bool _cellSizeReportScheduled = false;
   int? _activeMouseButton;
   final TerminalFocusReporter _focusReporter = TerminalFocusReporter();
   bool _isLocalSelectionActive = false;
@@ -527,6 +528,7 @@ class _TerminalViewportState extends State<TerminalViewport>
       oldWidget.controller.removeListener(_handleFrameUpdate);
       widget.controller.addListener(_handleFrameUpdate);
       _lastTerminalPointerCursor = _terminalPointerCursor;
+      _lastReportedCellSize = null;
     }
     if (!identical(oldWidget.controller, widget.controller) ||
         !identical(oldWidget.graphicsCache, widget.graphicsCache)) {
@@ -812,10 +814,12 @@ class _TerminalViewportState extends State<TerminalViewport>
   }
 
   void _scheduleMeasuredCellSizeReport() {
-    if (widget.onMeasuredCellSizeChanged == null) {
+    if (_cellSizeReportScheduled) {
       return;
     }
+    _cellSizeReportScheduled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _cellSizeReportScheduled = false;
       if (!mounted) {
         return;
       }
@@ -830,7 +834,10 @@ class _TerminalViewportState extends State<TerminalViewport>
       if (_lastReportedCellSize == measured) {
         return;
       }
-      _lastReportedCellSize = measured;
+      // Overlays are built before the terminal surface measures its cells in
+      // layout. Rebuild once with those metrics even when the host does not
+      // request a PTY resize or the terminal produces no subsequent frame.
+      setState(() => _lastReportedCellSize = measured);
       widget.onMeasuredCellSizeChanged?.call(measured);
     });
   }

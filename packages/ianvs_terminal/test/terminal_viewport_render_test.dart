@@ -2467,7 +2467,7 @@ void main() {
   });
 
   testWidgets(
-    'terminal viewport positions graphics using viewport-relative rows',
+    'terminal viewport positions graphics using remeasured cells and viewport-relative rows',
     (tester) async {
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetDevicePixelRatio);
@@ -2476,9 +2476,9 @@ void main() {
       addTearDown(cache.dispose);
 
       const contentPadding = EdgeInsets.fromLTRB(3, 5, 7, 11);
-      const cellSize = Size(11, 19);
+      const previousCellSize = Size(11, 19);
       final controller = TerminalViewportController()
-        ..updateMeasuredCellSize(cellSize)
+        ..updateMeasuredCellSize(previousCellSize)
         ..updateFrame(
           const TerminalFrameDiff(
             rows: [
@@ -2558,6 +2558,8 @@ void main() {
           matching: find.byType(Positioned),
         ),
       );
+      final cellSize = controller.measuredCellSize!;
+      expect(cellSize, isNot(previousCellSize));
 
       expect(
         positioned.left,
@@ -3024,7 +3026,7 @@ void main() {
   });
 
   testWidgets(
-    'terminal viewport keeps previous graphic while next asset loads',
+    'terminal viewport moves the previous graphic while its replacement loads',
     (tester) async {
       final firstImage = (await tester.runAsync(
         () => createTestImage(cache: false),
@@ -3077,25 +3079,25 @@ void main() {
         readClipboard: () async => '',
       );
 
-      await tester.pumpWidget(
-        Directionality(
-          textDirection: TextDirection.ltr,
-          child: SizedBox(
-            width: 160,
-            height: 48,
-            child: TerminalViewport(
-              controller: controller,
-              selectionController: selectionController,
-              inputController: inputController,
-              onScrollLines: (_) {},
-              onScrollToOffset: (_) {},
-              graphicsCache: cache,
-              benchmarkEventSink: diagnosticEvents.add,
-              graphicsDiagnosticSessionId: '1',
-            ),
+      Widget viewportWithFont(TerminalFontConfig font) => Directionality(
+        textDirection: TextDirection.ltr,
+        child: SizedBox(
+          width: 160,
+          height: 48,
+          child: TerminalViewport(
+            font: font,
+            controller: controller,
+            selectionController: selectionController,
+            inputController: inputController,
+            onScrollLines: (_) {},
+            onScrollToOffset: (_) {},
+            graphicsCache: cache,
+            benchmarkEventSink: diagnosticEvents.add,
+            graphicsDiagnosticSessionId: '1',
           ),
         ),
       );
+      await tester.pumpWidget(viewportWithFont(const TerminalFontConfig()));
       await tester.pump();
       await tester.pump();
 
@@ -3104,12 +3106,53 @@ void main() {
           .image;
       expect(firstVisibleImage, isNotNull);
 
+      final graphicFinder = find.byKey(const Key('terminal-graphic-11'));
+      final firstTopLeft = tester.getTopLeft(graphicFinder);
+      final cellSize = controller.measuredCellSize!;
+
       controller.updateFrame(
-        _graphicFrame(const TerminalGraphicAssetKey(id: 7, version: 2), col: 2),
+        _graphicFrame(
+          const TerminalGraphicAssetKey(id: 7, version: 2),
+          col: 2,
+          row: 1,
+        ),
       );
       await tester.pump();
       await tester.pump();
 
+      expect(
+        tester.widget<RawImage>(find.byType(RawImage)).image,
+        same(firstVisibleImage),
+      );
+      expect(
+        tester.getTopLeft(graphicFinder),
+        firstTopLeft + Offset(cellSize.width, cellSize.height),
+      );
+
+      // A subsequent resize can move the same pending asset again without
+      // changing its version or waiting for its decoding to finish.
+      controller.updateFrame(
+        _graphicFrame(const TerminalGraphicAssetKey(id: 7, version: 2), col: 4),
+      );
+      await tester.pump();
+      expect(
+        tester.widget<RawImage>(find.byType(RawImage)).image,
+        same(firstVisibleImage),
+      );
+      final latestTopLeft = firstTopLeft + Offset(cellSize.width * 3, 0);
+      expect(tester.getTopLeft(graphicFinder), latestTopLeft);
+
+      // Font layout must also move the retained image without terminal output.
+      final frameVersionBeforeZoom = controller.frameVersion;
+      await tester.pumpWidget(
+        viewportWithFont(const TerminalFontConfig(size: 20)),
+      );
+      await tester.pump();
+      final zoomedCellSize = controller.measuredCellSize!;
+      expect(zoomedCellSize.width, greaterThan(cellSize.width));
+      final zoomedTopLeft = Offset(zoomedCellSize.width * 4, 0);
+      expect(controller.frameVersion, frameVersionBeforeZoom);
+      expect(tester.getTopLeft(graphicFinder), zoomedTopLeft);
       expect(
         tester.widget<RawImage>(find.byType(RawImage)).image,
         same(firstVisibleImage),
@@ -3124,6 +3167,7 @@ void main() {
           .image;
       expect(secondVisibleImage, isNotNull);
       expect(secondVisibleImage, isNot(same(firstVisibleImage)));
+      expect(tester.getTopLeft(graphicFinder), zoomedTopLeft);
       expect(
         diagnosticEvents
             .where(
@@ -4084,6 +4128,7 @@ TerminalFrameDiff _emptyGraphicFrame({
 TerminalFrameDiff _graphicFrame(
   TerminalGraphicAssetKey assetKey, {
   int col = 1,
+  int row = 0,
   int renderId = 11,
   int placementId = 11,
   TerminalFrameKind frameKind = TerminalFrameKind.snapshot,
@@ -4104,7 +4149,7 @@ TerminalFrameDiff _graphicFrame(
         placementId: placementId,
         assetKey: assetKey,
         protocol: 'kitty',
-        row: 0,
+        row: row,
         col: col,
         widthPx: 1,
         heightPx: 1,
