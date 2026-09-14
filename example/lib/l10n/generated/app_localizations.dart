@@ -7945,6 +7945,180 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Unidentified SSH host'**
   String get shellChainUnknownHost;
+
+  /// No description provided for @terminalMoreKeys.
+  ///
+  /// In en, this message translates to:
+  /// **'More terminal keys'**
+  String get terminalMoreKeys;
+
+  /// No description provided for @terminalFewerKeys.
+  ///
+  /// In en, this message translates to:
+  /// **'Collapse extra keys'**
+  String get terminalFewerKeys;
+
+  /// No description provided for @terminalKeyGroup.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose key group'**
+  String get terminalKeyGroup;
+
+  /// No description provided for @terminalKeysEditing.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit'**
+  String get terminalKeysEditing;
+
+  /// No description provided for @terminalKeysControl.
+  ///
+  /// In en, this message translates to:
+  /// **'Control'**
+  String get terminalKeysControl;
+
+  /// No description provided for @terminalKeysNavigation.
+  ///
+  /// In en, this message translates to:
+  /// **'Navigate'**
+  String get terminalKeysNavigation;
+
+  /// No description provided for @terminalKeysSymbols.
+  ///
+  /// In en, this message translates to:
+  /// **'Symbols'**
+  String get terminalKeysSymbols;
+
+  /// No description provided for @terminalInterrupt.
+  ///
+  /// In en, this message translates to:
+  /// **'Interrupt'**
+  String get terminalInterrupt;
+
+  /// No description provided for @terminalHistorySearch.
+  ///
+  /// In en, this message translates to:
+  /// **'Search command history'**
+  String get terminalHistorySearch;
+
+  /// No description provided for @terminalClearScreen.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear screen'**
+  String get terminalClearScreen;
+
+  /// No description provided for @terminalLineStart.
+  ///
+  /// In en, this message translates to:
+  /// **'Beginning of line'**
+  String get terminalLineStart;
+
+  /// No description provided for @terminalLineEnd.
+  ///
+  /// In en, this message translates to:
+  /// **'End of line'**
+  String get terminalLineEnd;
+
+  /// No description provided for @terminalDeleteToStart.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete to beginning of line'**
+  String get terminalDeleteToStart;
+
+  /// No description provided for @terminalDeleteToEnd.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete to end of line'**
+  String get terminalDeleteToEnd;
+
+  /// No description provided for @terminalDeleteWord.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete previous word'**
+  String get terminalDeleteWord;
+
+  /// No description provided for @terminalYank.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore deleted text'**
+  String get terminalYank;
+
+  /// No description provided for @terminalEof.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete character / end of input'**
+  String get terminalEof;
+
+  /// No description provided for @terminalSuspend.
+  ///
+  /// In en, this message translates to:
+  /// **'Suspend foreground process'**
+  String get terminalSuspend;
+
+  /// No description provided for @terminalCancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel current operation'**
+  String get terminalCancel;
+
+  /// No description provided for @terminalTmuxPrefix.
+  ///
+  /// In en, this message translates to:
+  /// **'tmux prefix'**
+  String get terminalTmuxPrefix;
+
+  /// No description provided for @terminalNanoSave.
+  ///
+  /// In en, this message translates to:
+  /// **'nano: write file'**
+  String get terminalNanoSave;
+
+  /// No description provided for @terminalNanoExit.
+  ///
+  /// In en, this message translates to:
+  /// **'nano: exit'**
+  String get terminalNanoExit;
+
+  /// No description provided for @terminalCursorLeft.
+  ///
+  /// In en, this message translates to:
+  /// **'Move cursor left'**
+  String get terminalCursorLeft;
+
+  /// No description provided for @terminalCursorRight.
+  ///
+  /// In en, this message translates to:
+  /// **'Move cursor right'**
+  String get terminalCursorRight;
+
+  /// No description provided for @terminalCursorUp.
+  ///
+  /// In en, this message translates to:
+  /// **'Move up / previous command'**
+  String get terminalCursorUp;
+
+  /// No description provided for @terminalCursorDown.
+  ///
+  /// In en, this message translates to:
+  /// **'Move down / next command'**
+  String get terminalCursorDown;
+
+  /// No description provided for @terminalWordBack.
+  ///
+  /// In en, this message translates to:
+  /// **'Previous word'**
+  String get terminalWordBack;
+
+  /// No description provided for @terminalWordForward.
+  ///
+  /// In en, this message translates to:
+  /// **'Next word'**
+  String get terminalWordForward;
+
+  /// No description provided for @terminalComplete.
+  ///
+  /// In en, this message translates to:
+  /// **'Complete input'**
+  String get terminalComplete;
 }
 
 class _AppLocalizationsDelegate

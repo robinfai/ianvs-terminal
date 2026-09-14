@@ -56,6 +56,7 @@ import '../visual/local_terminal_scrollback_exporter.dart';
 import '../visual/local_terminal_visual_models.dart';
 import 'defaults_appearance_dialog.dart';
 import 'instant_replay_store.dart';
+import 'ios_terminal_input_bar.dart';
 import 'local_terminal_shell_ui_wiring_exports.dart';
 import 'osc72_drag_drop_controller.dart';
 import 'paste_history_repository.dart';
@@ -1579,20 +1580,13 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                         .contains(activeSessionId),
                   )
                 else
-                  _IosTerminalInputBar(
+                  IosTerminalInputBar(
                     key: const Key('ios-terminal-input-bar'),
                     palette: palette,
-                    fontScale: _mobileFontScaleFor(activeSessionId),
                     keyboardVisible:
                         MediaQuery.viewInsetsOf(context).bottom > 0,
                     onSendBytes: (bytes) =>
                         _sendMobileTerminalBytes(activeSessionId, bytes),
-                    onDecreaseFont: () =>
-                        _stepMobileTerminalFont(activeSessionId, -0.1),
-                    onIncreaseFont: () =>
-                        _stepMobileTerminalFont(activeSessionId, 0.1),
-                    onResetFont: () =>
-                        _resetMobileTerminalFont(activeSessionId),
                     onDismissKeyboard: () =>
                         _dismissMobileTerminalKeyboard(activeSessionId),
                   ),

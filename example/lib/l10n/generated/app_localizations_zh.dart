@@ -4736,4 +4736,91 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get shellChainUnknownHost => '未识别的 SSH 主机';
+
+  @override
+  String get terminalMoreKeys => '更多终端按键';
+
+  @override
+  String get terminalFewerKeys => '收起扩展按键';
+
+  @override
+  String get terminalKeyGroup => '选择按键分组';
+
+  @override
+  String get terminalKeysEditing => '编辑';
+
+  @override
+  String get terminalKeysControl => '控制';
+
+  @override
+  String get terminalKeysNavigation => '导航';
+
+  @override
+  String get terminalKeysSymbols => '符号';
+
+  @override
+  String get terminalInterrupt => '中断';
+
+  @override
+  String get terminalHistorySearch => '搜索命令历史';
+
+  @override
+  String get terminalClearScreen => '清屏';
+
+  @override
+  String get terminalLineStart => '移到行首';
+
+  @override
+  String get terminalLineEnd => '移到行尾';
+
+  @override
+  String get terminalDeleteToStart => '删除至行首';
+
+  @override
+  String get terminalDeleteToEnd => '删除至行尾';
+
+  @override
+  String get terminalDeleteWord => '删除前一个词';
+
+  @override
+  String get terminalYank => '恢复删去的文本';
+
+  @override
+  String get terminalEof => '删除字符／结束输入';
+
+  @override
+  String get terminalSuspend => '挂起前台进程';
+
+  @override
+  String get terminalCancel => '取消当前操作';
+
+  @override
+  String get terminalTmuxPrefix => 'tmux 前缀键';
+
+  @override
+  String get terminalNanoSave => 'nano：写入文件';
+
+  @override
+  String get terminalNanoExit => 'nano：退出';
+
+  @override
+  String get terminalCursorLeft => '光标左移';
+
+  @override
+  String get terminalCursorRight => '光标右移';
+
+  @override
+  String get terminalCursorUp => '向上／上一条命令';
+
+  @override
+  String get terminalCursorDown => '向下／下一条命令';
+
+  @override
+  String get terminalWordBack => '前一个词';
+
+  @override
+  String get terminalWordForward => '后一个词';
+
+  @override
+  String get terminalComplete => '补全输入';
 }

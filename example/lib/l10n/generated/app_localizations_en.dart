@@ -5082,4 +5082,91 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get shellChainUnknownHost => 'Unidentified SSH host';
+
+  @override
+  String get terminalMoreKeys => 'More terminal keys';
+
+  @override
+  String get terminalFewerKeys => 'Collapse extra keys';
+
+  @override
+  String get terminalKeyGroup => 'Choose key group';
+
+  @override
+  String get terminalKeysEditing => 'Edit';
+
+  @override
+  String get terminalKeysControl => 'Control';
+
+  @override
+  String get terminalKeysNavigation => 'Navigate';
+
+  @override
+  String get terminalKeysSymbols => 'Symbols';
+
+  @override
+  String get terminalInterrupt => 'Interrupt';
+
+  @override
+  String get terminalHistorySearch => 'Search command history';
+
+  @override
+  String get terminalClearScreen => 'Clear screen';
+
+  @override
+  String get terminalLineStart => 'Beginning of line';
+
+  @override
+  String get terminalLineEnd => 'End of line';
+
+  @override
+  String get terminalDeleteToStart => 'Delete to beginning of line';
+
+  @override
+  String get terminalDeleteToEnd => 'Delete to end of line';
+
+  @override
+  String get terminalDeleteWord => 'Delete previous word';
+
+  @override
+  String get terminalYank => 'Restore deleted text';
+
+  @override
+  String get terminalEof => 'Delete character / end of input';
+
+  @override
+  String get terminalSuspend => 'Suspend foreground process';
+
+  @override
+  String get terminalCancel => 'Cancel current operation';
+
+  @override
+  String get terminalTmuxPrefix => 'tmux prefix';
+
+  @override
+  String get terminalNanoSave => 'nano: write file';
+
+  @override
+  String get terminalNanoExit => 'nano: exit';
+
+  @override
+  String get terminalCursorLeft => 'Move cursor left';
+
+  @override
+  String get terminalCursorRight => 'Move cursor right';
+
+  @override
+  String get terminalCursorUp => 'Move up / previous command';
+
+  @override
+  String get terminalCursorDown => 'Move down / next command';
+
+  @override
+  String get terminalWordBack => 'Previous word';
+
+  @override
+  String get terminalWordForward => 'Next word';
+
+  @override
+  String get terminalComplete => 'Complete input';
 }
