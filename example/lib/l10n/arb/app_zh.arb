@@ -944,6 +944,7 @@
   "notificationAction": "通知操作 {number}",
   "closeAndReportToTerminal": "关闭并报告给终端进程",
   "removeNotification": "移除此通知",
+  "clearTabNotifications": "清空当前标签页通知",
   "profileTabColor": "配置文件标签页颜色",
   "osc21337StatusIndicator": "OSC 21337 会话状态指示器",
   "dataServiceWarning": "数据服务警告。",

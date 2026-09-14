@@ -2657,6 +2657,17 @@ _shellTabNotificationMenuEntries(
 ) {
   final visibleTargets = targets.take(6).toList(growable: false);
   return <PopupMenuEntry<_ShellNotificationInteraction>>[
+    PopupMenuItem<_ShellNotificationInteraction>(
+      key: const Key('shell-tab-notification-clear-all'),
+      value: _ShellNotificationInteraction.dismissAll(targets),
+      height: 48,
+      child: _ShellTabNotificationMenuText(
+        title: l10n.clearTabNotifications,
+        subtitle: '',
+        palette: palette,
+      ),
+    ),
+    const PopupMenuDivider(height: 8),
     for (var index = 0; index < visibleTargets.length; index += 1) ...[
       if (index > 0) const PopupMenuDivider(height: 8),
       PopupMenuItem<_ShellNotificationInteraction>(
@@ -2698,23 +2709,24 @@ _shellTabNotificationMenuEntries(
             palette: palette,
           ),
         ),
-      if (visibleTargets[index].notification.source == 'osc99' &&
-          visibleTargets[index].notification.identifier != null)
-        PopupMenuItem<_ShellNotificationInteraction>(
-          key: Key('shell-tab-notification-$index-dismiss'),
-          value: _ShellNotificationInteraction.dismiss(
-            visibleTargets[index].sessionId,
-            visibleTargets[index].notification,
-          ),
-          height: 40,
-          child: _ShellTabNotificationMenuText(
-            title: l10n.dismiss,
-            subtitle: visibleTargets[index].notification.reportClose
-                ? l10n.closeAndReportToTerminal
-                : l10n.removeNotification,
-            palette: palette,
-          ),
+      PopupMenuItem<_ShellNotificationInteraction>(
+        key: Key('shell-tab-notification-$index-dismiss'),
+        value: _ShellNotificationInteraction.dismiss(
+          visibleTargets[index].sessionId,
+          visibleTargets[index].notification,
         ),
+        height: 48,
+        child: _ShellTabNotificationMenuText(
+          title: l10n.removeNotification,
+          subtitle:
+              visibleTargets[index].notification.source == 'osc99' &&
+                  visibleTargets[index].notification.identifier != null &&
+                  visibleTargets[index].notification.reportClose
+              ? l10n.closeAndReportToTerminal
+              : '',
+          palette: palette,
+        ),
+      ),
     ],
   ];
 }
@@ -3642,27 +3654,37 @@ class _ShellTabNotificationTarget {
   final TerminalPaneNotificationState notification;
 }
 
-enum _ShellNotificationInteractionKind { activate, button, dismiss }
+enum _ShellNotificationInteractionKind { activate, button, dismiss, dismissAll }
 
 class _ShellNotificationInteraction {
   const _ShellNotificationInteraction.activate(
     this.sessionId,
     this.notification,
   ) : kind = _ShellNotificationInteractionKind.activate,
+      targets = const [],
       buttonNumber = null;
 
   const _ShellNotificationInteraction.button(
     this.sessionId,
     this.notification,
     this.buttonNumber,
-  ) : kind = _ShellNotificationInteractionKind.button;
+  ) : kind = _ShellNotificationInteractionKind.button,
+      targets = const [];
 
   const _ShellNotificationInteraction.dismiss(this.sessionId, this.notification)
     : kind = _ShellNotificationInteractionKind.dismiss,
+      targets = const [],
       buttonNumber = null;
 
-  final String sessionId;
-  final TerminalPaneNotificationState notification;
+  const _ShellNotificationInteraction.dismissAll(this.targets)
+    : kind = _ShellNotificationInteractionKind.dismissAll,
+      sessionId = null,
+      notification = null,
+      buttonNumber = null;
+
+  final String? sessionId;
+  final TerminalPaneNotificationState? notification;
+  final List<_ShellTabNotificationTarget> targets;
   final _ShellNotificationInteractionKind kind;
   final int? buttonNumber;
 }

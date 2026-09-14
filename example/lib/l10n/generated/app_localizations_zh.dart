@@ -3465,6 +3465,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get removeNotification => '移除此通知';
 
   @override
+  String get clearTabNotifications => '清空当前标签页通知';
+
+  @override
   String get profileTabColor => '配置文件标签页颜色';
 
   @override

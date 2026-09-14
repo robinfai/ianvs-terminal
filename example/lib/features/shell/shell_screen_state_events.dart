@@ -1717,28 +1717,36 @@ extension _ShellScreenStateEvents on _ShellScreenState {
   void _handleOscNotificationInteraction(
     _ShellNotificationInteraction interaction,
   ) {
-    if (interaction.notification.identifier == null ||
-        interaction.notification.source != 'osc99') {
+    final controller = ref.read(sessionControllerProvider.notifier);
+    if (interaction.kind == _ShellNotificationInteractionKind.dismissAll) {
+      // Use the menu snapshot so a notification arriving or changing while
+      // the menu is open is not inadvertently dismissed.
+      for (final target in interaction.targets) {
+        controller.dismissSessionNotification(
+          target.sessionId,
+          target.notification,
+        );
+      }
       return;
     }
-    final controller = ref.read(sessionControllerProvider.notifier);
+    final sessionId = interaction.sessionId;
+    final notification = interaction.notification;
+    if (sessionId == null || notification == null) {
+      return;
+    }
     switch (interaction.kind) {
       case _ShellNotificationInteractionKind.activate:
-        controller.reportSessionNotificationAction(
-          interaction.sessionId,
-          interaction.notification,
-        );
+        controller.reportSessionNotificationAction(sessionId, notification);
       case _ShellNotificationInteractionKind.button:
         controller.reportSessionNotificationAction(
-          interaction.sessionId,
-          interaction.notification,
+          sessionId,
+          notification,
           buttonNumber: interaction.buttonNumber,
         );
       case _ShellNotificationInteractionKind.dismiss:
-        controller.dismissSessionNotification(
-          interaction.sessionId,
-          interaction.notification,
-        );
+        controller.dismissSessionNotification(sessionId, notification);
+      case _ShellNotificationInteractionKind.dismissAll:
+        return;
     }
   }
 

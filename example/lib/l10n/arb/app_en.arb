@@ -2956,6 +2956,10 @@
   },
   "closeAndReportToTerminal": "Close and report to the terminal process",
   "removeNotification": "Remove this notification",
+  "clearTabNotifications": "Clear notifications in this tab",
+  "@clearTabNotifications": {
+    "description": "Clears notifications from all panes in the tab whose notification menu is open."
+  },
   "profileTabColor": "Profile tab color",
   "osc21337StatusIndicator": "OSC 21337 session status indicator",
   "dataServiceWarning": "Data service warning.",

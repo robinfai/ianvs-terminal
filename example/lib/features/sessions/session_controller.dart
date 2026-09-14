@@ -4301,33 +4301,30 @@ class SessionController extends Notifier<SessionState> {
   ) {
     final pane = _paneForSession(sessionId);
     if (pane == null ||
-        expectedNotification.source != 'osc99' ||
-        expectedNotification.identifier == null ||
         !pane.recentNotifications.any(
           (notification) => identical(notification, expectedNotification),
         )) {
       return false;
     }
-    final identifier = expectedNotification.identifier!;
+    final identifier = expectedNotification.identifier;
     final retained = pane.recentNotifications
-        .where(
-          (notification) =>
-              notification.source != 'osc99' ||
-              notification.identifier != identifier,
-        )
+        .where((notification) => !identical(notification, expectedNotification))
         .toList(growable: false);
-    if (retained.length == pane.recentNotifications.length) {
-      return false;
+    if (identifier != null) {
+      _notificationExpiryTimers
+          .remove(_notificationExpiryKey(sessionId, identifier))
+          ?.cancel();
+      if (expectedNotification.source == 'osc99') {
+        _runtime.dismissOsc99Notification(sessionId, identifier);
+      }
     }
-    _notificationExpiryTimers
-        .remove(_notificationExpiryKey(sessionId, identifier))
-        ?.cancel();
-    _runtime.dismissOsc99Notification(sessionId, identifier);
     _replaceSessionPane(
       sessionId,
       pane.copyWith(recentNotifications: retained),
     );
-    if (expectedNotification.reportClose) {
+    if (expectedNotification.source == 'osc99' &&
+        identifier != null &&
+        expectedNotification.reportClose) {
       _sendOsc99NotificationReport(sessionId, identifier, close: true);
     }
     return true;

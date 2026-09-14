@@ -3668,6 +3668,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get removeNotification => 'Remove this notification';
 
   @override
+  String get clearTabNotifications => 'Clear notifications in this tab';
+
+  @override
   String get profileTabColor => 'Profile tab color';
 
   @override

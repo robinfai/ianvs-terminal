@@ -4455,7 +4455,230 @@ void main() {
 
     expect(find.text('Build'), findsOneWidget);
     expect(find.textContaining('Inactive pane done'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('shell-tab-notification-0-dismiss')));
+    await tester.pumpAndSettle();
+
+    expect(notificationSignal, findsNothing);
+    expect(
+      container.read(sessionControllerProvider).activeSessionId,
+      activeSessionId,
+    );
   });
+
+  for (final scenario in [
+    (source: 'osc9', theme: ThemeMode.light, textScale: 1.0),
+    (source: 'osc777', theme: ThemeMode.dark, textScale: 1.0),
+    (source: 'osc99', theme: ThemeMode.dark, textScale: 2.0),
+  ]) {
+    testWidgets(
+      'manual notification removal supports ${scenario.source} without an ID',
+      (tester) async {
+        tester.platformDispatcher.textScaleFactorTestValue = scenario.textScale;
+        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+        final backend = FakePtyBackend();
+        await _pumpShellScreen(
+          tester,
+          fakeBindings: backend,
+          themeMode: scenario.theme,
+        );
+        final container = ProviderScope.containerOf(
+          tester.element(find.byType(ShellScreen)),
+        );
+        final sessionId = container
+            .read(sessionControllerProvider)
+            .activeSessionId!;
+
+        for (final message in ['First', 'Second', 'Second']) {
+          backend.enqueueEvent(
+            sessionId,
+            PtyEvent(
+              kind: 'session_notification',
+              sessionId: sessionId,
+              payload: <String, Object?>{
+                'source': scenario.source,
+                'title': 'Build',
+                'message': message,
+              },
+            ),
+          );
+        }
+        container
+            .read(terminalRuntimeControllerProvider)
+            .refreshSession(sessionId);
+        await tester.pump();
+        backend.writes.clear();
+        backend.jsonRequests.clear();
+
+        final signal = find.byKey(Key('shell-tab-pane-signal-$sessionId'));
+        await tester.tap(signal);
+        await tester.pumpAndSettle();
+        final remove = find.byKey(
+          const Key('shell-tab-notification-0-dismiss'),
+        );
+        await tester.ensureVisible(remove);
+        await tester.tap(remove);
+        await tester.pumpAndSettle();
+
+        final retained = container
+            .read(sessionControllerProvider)
+            .tabs
+            .single
+            .activePane
+            .recentNotifications;
+        // OSC 9/777 collapse duplicate bursts into a single removable row.
+        expect(retained, hasLength(scenario.source == 'osc99' ? 2 : 1));
+        expect(retained.last.message, 'First');
+        expect(signal, findsOneWidget);
+        expect(backend.writes, isEmpty);
+        expect(
+          backend.jsonRequests.where(
+            (request) =>
+                request['kind'] == 'terminal.dismiss_osc99_notification',
+          ),
+          isEmpty,
+        );
+        expect(tester.takeException(), isNull);
+
+        await tester.tap(signal);
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.byKey(const Key('shell-tab-notification-clear-all')),
+        );
+        await tester.pumpAndSettle();
+        expect(signal, findsNothing);
+      },
+    );
+  }
+
+  testWidgets(
+    'manual notification clear all covers every tab pane and hidden history',
+    (tester) async {
+      final backend = FakePtyBackend();
+      await _pumpShellScreen(tester, fakeBindings: backend);
+      await _tapTabContextMenuAction(tester, 'Split right');
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final splitTab = container.read(sessionControllerProvider).tabs.single;
+      final rootId = splitTab.sessionId;
+      final splitId = splitTab.activePane.sessionId;
+      container
+          .read(sessionControllerProvider.notifier)
+          .createSession(defaultTerminalProfile());
+      await tester.pumpAndSettle();
+      final otherId = container
+          .read(sessionControllerProvider)
+          .activeSessionId!;
+
+      void enqueue(String sessionId, Map<String, Object?> payload) {
+        backend.enqueueEvent(
+          sessionId,
+          PtyEvent(
+            kind: 'session_notification',
+            sessionId: sessionId,
+            payload: payload,
+          ),
+        );
+      }
+
+      for (var index = 0; index < 8; index += 1) {
+        enqueue(rootId, {
+          'source': 'osc777',
+          'title': 'History $index',
+          'message': 'Earlier notification',
+        });
+      }
+      enqueue(splitId, {
+        'source': 'osc99',
+        'id': 'deploy',
+        'title': 'Deploy',
+        'message': 'Done',
+        'reportClose': true,
+        'expiresAfterMs': 10000,
+      });
+      enqueue(splitId, {
+        'source': 'osc99',
+        'id': 'persistent',
+        'title': 'Persistent',
+        'message': 'No close report requested',
+      });
+      enqueue(otherId, {
+        'source': 'osc9',
+        'title': 'Other tab',
+        'message': 'Keep this notification',
+      });
+      for (final id in [rootId, splitId, otherId]) {
+        container.read(terminalRuntimeControllerProvider).refreshSession(id);
+      }
+      await tester.pump();
+      backend.writes.clear();
+      backend.jsonRequests.clear();
+
+      final signal = find.byKey(Key('shell-tab-pane-signal-$rootId'));
+      await tester.tap(signal);
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('shell-tab-notification-5-dismiss')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('shell-tab-notification-6-dismiss')),
+        findsNothing,
+      );
+
+      enqueue(rootId, {
+        'source': 'osc9',
+        'title': 'New arrival',
+        'message': 'Arrived while the menu was open',
+      });
+      container.read(terminalRuntimeControllerProvider).refreshSession(rootId);
+      await tester.pump();
+      await tester.tap(
+        find.byKey(const Key('shell-tab-notification-clear-all')),
+      );
+      await tester.pumpAndSettle();
+
+      final state = container.read(sessionControllerProvider);
+      final clearedTab = state.tabs.firstWhere(
+        (tab) => tab.sessionId == rootId,
+      );
+      expect(
+        clearedTab.paneFor(rootId)!.recentNotifications.single.title,
+        'New arrival',
+      );
+      expect(clearedTab.paneFor(splitId)!.recentNotifications, isEmpty);
+      expect(
+        state.tabs.last.activePane.recentNotifications.single.title,
+        'Other tab',
+      );
+      expect(state.activeSessionId, otherId);
+      expect(backend.writes.map(utf8.decode), [
+        '\x1b]99;i=deploy:p=close;\x1b\\',
+      ]);
+      expect(
+        backend.jsonRequests
+            .where(
+              (request) =>
+                  request['kind'] == 'terminal.dismiss_osc99_notification',
+            )
+            .map((request) => request['id']),
+        unorderedEquals(['deploy', 'persistent']),
+      );
+
+      await tester.pump(const Duration(seconds: 11));
+      expect(backend.writes, hasLength(1));
+      await tester.tap(signal);
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const Key('shell-tab-notification-clear-all')),
+      );
+      await tester.pumpAndSettle();
+      expect(signal, findsNothing);
+      expect(find.byKey(Key('shell-tab-pane-signal-$otherId')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('OSC 99 system notification keeps stable ID, expiry and close', (
     tester,

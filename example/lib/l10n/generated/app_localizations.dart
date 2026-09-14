@@ -5766,6 +5766,12 @@ abstract class AppLocalizations {
   /// **'Remove this notification'**
   String get removeNotification;
 
+  /// Clears notifications from all panes in the tab whose notification menu is open.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear notifications in this tab'**
+  String get clearTabNotifications;
+
   /// No description provided for @profileTabColor.
   ///
   /// In en, this message translates to:

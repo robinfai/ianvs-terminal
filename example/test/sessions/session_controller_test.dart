@@ -4100,6 +4100,10 @@ void main() {
         ),
         isFalse,
       );
+      expect(
+        controller.dismissSessionNotification(sessionId, offeredNotification),
+        isFalse,
+      );
       final updatedNotification = container
           .read(sessionControllerProvider)
           .tabs
@@ -4169,6 +4173,23 @@ void main() {
           invalidIdentifierNotification,
         ),
         isFalse,
+      );
+      expect(backend.writes, hasLength(3));
+      expect(
+        controller.dismissSessionNotification(
+          sessionId,
+          invalidIdentifierNotification,
+        ),
+        isTrue,
+      );
+      expect(
+        container
+            .read(sessionControllerProvider)
+            .tabs
+            .single
+            .activePane
+            .recentNotifications,
+        isEmpty,
       );
       expect(backend.writes, hasLength(3));
     },
