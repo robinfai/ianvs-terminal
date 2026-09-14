@@ -453,82 +453,94 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
         }
         final dropTarget = _dropTargetForPane(sessionId);
         final paneHeader = showsPaneHeader
-            ? ListenableBuilder(
-                listenable: viewportController,
-                builder: (context, _) {
-                  return _TerminalPaneHeader(
-                    key: Key('shell-pane-header-$sessionId'),
-                    palette: palette,
-                    sessionId: sessionId,
-                    title: pane.title,
-                    subtitle: context.l10n.panePosition(
-                      paneIndex + 1,
-                      activeTab.effectivePanes.length,
+            ? Consumer(
+                builder: (context, ref, _) {
+                  final title = ref.watch(
+                    sessionControllerProvider.select(
+                      (state) =>
+                          _paneForSession(state, sessionId)?.title ??
+                          pane.title,
                     ),
-                    isActive: isActive,
-                    isZoomed: _zoomedPaneSessionId == sessionId,
-                    canZoom: activeTab.effectivePanes.length > 1,
-                    indicators: _paneHeaderIndicatorsFor(
-                      pane,
-                      modes: viewportController.frame.modes,
-                      readOnly: _isSessionReadOnly(sessionId),
-                    ),
-                    onActivate: () =>
-                        _activateSession(sessionController, sessionId),
-                    dragData: _ShellSessionDragData(
-                      sessionId: sessionId,
-                      title: pane.title,
-                      origin: _ShellSessionDragOrigin.pane,
-                    ),
-                    onDragStarted: _startSessionDrag,
-                    onDragUpdated: _updateSessionDrag,
-                    onDragEnded: (data) =>
-                        _finishSessionDrag(sessionController, data),
-                    splitRightTooltip: splitRightBlockedReason == null
-                        ? context.l10n.splitRight
-                        : context.l10n.splitRightUnavailableReason(
-                            splitRightBlockedReason,
-                          ),
-                    onSplitRight:
-                        defaultProfile == null ||
-                            splitRightBlockedReason != null
-                        ? null
-                        : () => _splitSession(
-                            sessionController,
-                            sessionId,
-                            defaultProfile,
-                            TerminalSplitAxis.horizontal,
-                          ),
-                    splitDownTooltip: splitDownBlockedReason == null
-                        ? context.l10n.splitDown
-                        : context.l10n.splitDownUnavailableReason(
-                            splitDownBlockedReason,
-                          ),
-                    onSplitDown:
-                        defaultProfile == null || splitDownBlockedReason != null
-                        ? null
-                        : () => _splitSession(
-                            sessionController,
-                            sessionId,
-                            defaultProfile,
-                            TerminalSplitAxis.vertical,
-                          ),
-                    onToggleZoom: activeTab.effectivePanes.length < 2
-                        ? null
-                        : () {
-                            _mutateState(() {
-                              _zoomedPaneSessionId =
-                                  _zoomedPaneSessionId == sessionId
-                                  ? null
-                                  : sessionId;
-                            });
-                            _focusSession(sessionId);
-                          },
-                    onClose: () => _closeSession(
-                      sessionController,
-                      sessionState,
-                      sessionId,
-                    ),
+                  );
+                  return ListenableBuilder(
+                    listenable: viewportController,
+                    builder: (context, _) {
+                      return _TerminalPaneHeader(
+                        key: Key('shell-pane-header-$sessionId'),
+                        palette: palette,
+                        sessionId: sessionId,
+                        title: title,
+                        subtitle: context.l10n.panePosition(
+                          paneIndex + 1,
+                          activeTab.effectivePanes.length,
+                        ),
+                        isActive: isActive,
+                        isZoomed: _zoomedPaneSessionId == sessionId,
+                        canZoom: activeTab.effectivePanes.length > 1,
+                        indicators: _paneHeaderIndicatorsFor(
+                          pane,
+                          modes: viewportController.frame.modes,
+                          readOnly: _isSessionReadOnly(sessionId),
+                        ),
+                        onActivate: () =>
+                            _activateSession(sessionController, sessionId),
+                        dragData: _ShellSessionDragData(
+                          sessionId: sessionId,
+                          title: title,
+                          origin: _ShellSessionDragOrigin.pane,
+                        ),
+                        onDragStarted: _startSessionDrag,
+                        onDragUpdated: _updateSessionDrag,
+                        onDragEnded: (data) =>
+                            _finishSessionDrag(sessionController, data),
+                        splitRightTooltip: splitRightBlockedReason == null
+                            ? context.l10n.splitRight
+                            : context.l10n.splitRightUnavailableReason(
+                                splitRightBlockedReason,
+                              ),
+                        onSplitRight:
+                            defaultProfile == null ||
+                                splitRightBlockedReason != null
+                            ? null
+                            : () => _splitSession(
+                                sessionController,
+                                sessionId,
+                                defaultProfile,
+                                TerminalSplitAxis.horizontal,
+                              ),
+                        splitDownTooltip: splitDownBlockedReason == null
+                            ? context.l10n.splitDown
+                            : context.l10n.splitDownUnavailableReason(
+                                splitDownBlockedReason,
+                              ),
+                        onSplitDown:
+                            defaultProfile == null ||
+                                splitDownBlockedReason != null
+                            ? null
+                            : () => _splitSession(
+                                sessionController,
+                                sessionId,
+                                defaultProfile,
+                                TerminalSplitAxis.vertical,
+                              ),
+                        onToggleZoom: activeTab.effectivePanes.length < 2
+                            ? null
+                            : () {
+                                _mutateState(() {
+                                  _zoomedPaneSessionId =
+                                      _zoomedPaneSessionId == sessionId
+                                      ? null
+                                      : sessionId;
+                                });
+                                _focusSession(sessionId);
+                              },
+                        onClose: () => _closeSession(
+                          sessionController,
+                          ref.read(sessionControllerProvider),
+                          sessionId,
+                        ),
+                      );
+                    },
                   );
                 },
               )

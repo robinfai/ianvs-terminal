@@ -138,6 +138,17 @@ abstract final class TerminalFrameNormalizationPolicy {
     if (viewportCols <= 0) {
       return withText(row, '', preserveStyleRuns: false);
     }
+    // Printable ASCII has one cell per code unit. Avoid allocating grapheme
+    // and cell maps just to validate or clip ordinary terminal output.
+    if (_isPrintableAscii(text)) {
+      return text.length <= viewportCols
+          ? row
+          : withText(
+              row,
+              text.substring(0, viewportCols),
+              preserveStyleRuns: true,
+            );
+    }
     final columns = columnsOf(text);
     if (columns.cellCount <= viewportCols) {
       return row;
@@ -147,6 +158,16 @@ abstract final class TerminalFrameNormalizationPolicy {
       clipTextToCompleteColumns(columns, viewportCols),
       preserveStyleRuns: true,
     );
+  }
+
+  static bool _isPrintableAscii(String text) {
+    for (var index = 0; index < text.length; index += 1) {
+      final codeUnit = text.codeUnitAt(index);
+      if (codeUnit < 0x20 || codeUnit > 0x7e) {
+        return false;
+      }
+    }
+    return true;
   }
 
   static String clipTextToCompleteColumns(

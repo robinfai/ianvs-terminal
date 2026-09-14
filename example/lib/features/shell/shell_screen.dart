@@ -466,6 +466,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     _publishAcceptanceSnapshot();
   }
 
+  // Callbacks outlive title-only updates, so read their display metadata
+  // when invoked instead of capturing it from the last layout build.
+  SessionState get _sessionState => ref.read(sessionControllerProvider);
+
   void _handleSessionStateChanged(SessionState? previous, SessionState next) {
     _syncPresentationState(next);
     _publishAcceptanceSnapshot(next);
@@ -694,26 +698,34 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       localFirstSyncProvider.select((sync) => sync?.pulledGeneration ?? 0),
       (_, _) => unawaited(_loadNotificationPreferences()),
     );
-    final sessionState = ref.watch(sessionControllerProvider);
+    // Desktop titles subscribe separately; OSC title animation does not
+    // invalidate the terminal layout. Mobile keeps its existing subscription.
+    if (context.usesMobileNavigation) {
+      ref.watch(sessionControllerProvider);
+    } else {
+      ref.watch(
+        sessionControllerProvider.select((state) => state.layoutIdentity),
+      );
+    }
     final sessionController = ref.read(sessionControllerProvider.notifier);
-    final activeSessionId = sessionState.activeSessionId;
+    final activeSessionId = _sessionState.activeSessionId;
     final defaultProfile = _effectiveDefaultProfileFor(
-      sessionState.profiles,
-      sessionState.defaultProfileId,
+      _sessionState.profiles,
+      _sessionState.defaultProfileId,
     );
     final defaultSummary = _defaultSummary(
-      sessionState.profiles,
-      sessionState.configuredDefaultProfileId,
-      sessionState.defaultProfileId,
+      _sessionState.profiles,
+      _sessionState.configuredDefaultProfileId,
+      _sessionState.defaultProfileId,
     );
     final launchPolicy = ref.watch(terminalSessionLaunchPolicyProvider);
-    final canOpenNewSession = _canOpenNewSessionLauncher(sessionState);
+    final canOpenNewSession = _canOpenNewSessionLauncher(_sessionState);
     final referenceDemoMode = ref.watch(referenceDemoModeProvider);
     final animationsEnabled = ref.watch(shellAnimationsEnabledProvider);
     final dataApiStartupWarning = ref.watch(dataApiStartupWarningProvider);
     TerminalTab? activeTab;
     if (activeSessionId != null) {
-      for (final tab in sessionState.tabs) {
+      for (final tab in _sessionState.tabs) {
         if (tab.containsSession(activeSessionId)) {
           activeTab = tab;
           break;
@@ -722,10 +734,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     }
     final displayedSessionId = _displayedSessionIdFor(
       sessionController,
-      sessionState,
+      _sessionState,
       activeSessionId,
     );
-    final displayedTab = _tabForSession(sessionState, displayedSessionId);
+    final displayedTab = _tabForSession(_sessionState, displayedSessionId);
     final palette = context.appTheme;
     final activePane = activeSessionId == null
         ? null
@@ -736,22 +748,22 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         : displayedTab?.paneFor(displayedSessionId) ?? activePane;
     final displayedProfile = displayedPane == null
         ? null
-        : _profileForPane(displayedPane, sessionState.profiles);
+        : _profileForPane(displayedPane, _sessionState.profiles);
     final shellChromeBackground = displayedProfile == null
         ? activeTab == null
               ? _terminalColorsForProfile(
                   context,
                   defaultProfile,
                 ).canvasBackground
-              : _tabTerminalBackgroundColor(context, sessionState, activeTab)
+              : _tabTerminalBackgroundColor(context, _sessionState, activeTab)
         : _terminalColorsForProfile(context, displayedProfile).canvasBackground;
     final instantReplaySession = _instantReplayLayoutSession;
     final instantReplayPane = instantReplaySession == null
         ? null
-        : _paneForSession(sessionState, instantReplaySession.sourceSessionId);
+        : _paneForSession(_sessionState, instantReplaySession.sourceSessionId);
     final instantReplayProfile = instantReplayPane == null
         ? null
-        : _profileForPane(instantReplayPane, sessionState.profiles);
+        : _profileForPane(instantReplayPane, _sessionState.profiles);
     final instantReplayConfig = instantReplayProfile?.toSessionConfig();
     final instantReplayColors = _terminalColorsForProfile(
       context,
@@ -832,7 +844,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                 'No terminal session option is available.',
               );
             }
-            unawaited(_openNewTabAction(sessionController, sessionState));
+            unawaited(_openNewTabAction(sessionController, _sessionState));
             return const ShellActionBindingResult.completed();
           },
           closeTab: (_) {
@@ -841,7 +853,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                 'Close tab requires an active session.',
               );
             }
-            _closeTab(sessionController, sessionState, activeTab.sessionId);
+            _closeTab(sessionController, _sessionState, activeTab.sessionId);
             return const ShellActionBindingResult.completed();
           },
           reopenClosedPane: (_) {
@@ -872,7 +884,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                 'Close pane requires an active session.',
               );
             }
-            _closeSession(sessionController, sessionState, activeSessionId);
+            _closeSession(sessionController, _sessionState, activeSessionId);
             return const ShellActionBindingResult.completed();
           },
           splitRight: (_) {
@@ -890,7 +902,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
               );
             }
             final conflictReason = _splitAxisConflictReason(
-              sessionState,
+              _sessionState,
               activeSessionId,
               TerminalSplitAxis.horizontal,
             );
@@ -923,7 +935,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
               );
             }
             final conflictReason = _splitAxisConflictReason(
-              sessionState,
+              _sessionState,
               activeSessionId,
               TerminalSplitAxis.vertical,
             );
@@ -1021,7 +1033,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                 'Replay recent activity requires an active session.',
               );
             }
-            await _openInstantReplay(sessionState);
+            await _openInstantReplay(_sessionState);
             return const ShellActionBindingResult.completed();
           },
           clearBuffer: (_) {
@@ -1047,12 +1059,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
             return const ShellActionBindingResult.completed('Cleared buffer.');
           },
           toggleCommandPalette: (_) {
-            unawaited(_openCommandMenu(sessionController, sessionState));
+            unawaited(_openCommandMenu(sessionController, _sessionState));
             return const ShellActionBindingResult.completed();
           },
 
           openDefaults: (_) async {
-            await _openDefaultsAndAppearance(sessionController, sessionState);
+            await _openDefaultsAndAppearance(sessionController, _sessionState);
             return const ShellActionBindingResult.completed();
           },
         ),
@@ -1071,20 +1083,20 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           }
           return KeyEventResult.handled;
         case TerminalActionId.openLauncher:
-          unawaited(_openCommandMenu(sessionController, sessionState));
+          unawaited(_openCommandMenu(sessionController, _sessionState));
           return KeyEventResult.handled;
         case TerminalActionId.openCommandMenu:
-          unawaited(_openCommandMenu(sessionController, sessionState));
+          unawaited(_openCommandMenu(sessionController, _sessionState));
           return KeyEventResult.handled;
 
         case TerminalActionId.openSftpPanel:
-          _openSftpPanel(sessionState, activeSessionId);
+          _openSftpPanel(_sessionState, activeSessionId);
           return KeyEventResult.handled;
         case TerminalActionId.newTab:
           if (!canOpenNewSession) {
             return KeyEventResult.handled;
           }
-          unawaited(_openNewTabAction(sessionController, sessionState));
+          unawaited(_openNewTabAction(sessionController, _sessionState));
           return KeyEventResult.handled;
         case TerminalActionId.newSshSession:
           if (!canOpenNewSession) {
@@ -1093,7 +1105,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           unawaited(
             _openNewSessionLauncher(
               sessionController,
-              sessionState,
+              _sessionState,
               initialConnectionType: terminal.TerminalConnectionType.ssh,
             ),
           );
@@ -1123,7 +1135,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           if (activeSessionId == null) {
             return KeyEventResult.handled;
           }
-          unawaited(_openInstantReplay(sessionState));
+          unawaited(_openInstantReplay(_sessionState));
           return KeyEventResult.handled;
         case TerminalActionId.previousPrompt:
           if (activeSessionId == null) {
@@ -1141,11 +1153,11 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           if (activeSessionId == null || activeTab == null) {
             return KeyEventResult.handled;
           }
-          _closeTab(sessionController, sessionState, activeTab.sessionId);
+          _closeTab(sessionController, _sessionState, activeTab.sessionId);
           return KeyEventResult.handled;
         case TerminalActionId.openDefaults:
           unawaited(
-            _openDefaultsAndAppearance(sessionController, sessionState),
+            _openDefaultsAndAppearance(sessionController, _sessionState),
           );
           return KeyEventResult.handled;
         case TerminalActionId.requestQuitConfirmation:
@@ -1160,10 +1172,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           return KeyEventResult.handled;
         case TerminalActionId.activateTab:
           final tabIndex = shortcut.tabIndex;
-          if (tabIndex == null || tabIndex >= sessionState.tabs.length) {
+          if (tabIndex == null || tabIndex >= _sessionState.tabs.length) {
             return KeyEventResult.handled;
           }
-          final tab = sessionState.tabs[tabIndex];
+          final tab = _sessionState.tabs[tabIndex];
           final tabActiveSessionId = tab.activeSessionId;
           if (tab.containsSession(activeSessionId ?? '')) {
             _focusSession(tabActiveSessionId);
@@ -1211,7 +1223,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                       : () => unawaited(
                           _openDefaultsAndAppearance(
                             sessionController,
-                            sessionState,
+                            _sessionState,
                           ),
                         ),
                   onSearch:
@@ -1223,7 +1235,6 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                   terminalBackgroundColor: shellChromeBackground,
                   tabStripKey: _sessionDropTabStripKey,
                   paneDropInsertionIndex: _sessionTabDropInsertionIndex,
-                  tabs: sessionState.tabs,
                   activeSessionId: activeSessionId,
                   tabHasNewOutput: _tabHasNewOutput,
                   tabNewOutputTooltip: _tabNewOutputTooltip,
@@ -1231,13 +1242,13 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                   hiddenTabsNewOutputPaneSessionId:
                       _hiddenTabsNewOutputPaneSessionId,
                   tabNewOutputPaneSessionId: _tabNewOutputPaneSessionId,
-                  tabColor: (tab) => _tabProfileColor(sessionState, tab),
+                  tabColor: (tab) => _tabProfileColor(_sessionState, tab),
                   referenceDemoMode: referenceDemoMode,
                   onNewTab: canOpenNewSession
                       ? () => unawaited(
                           _openNewSessionLauncher(
                             sessionController,
-                            sessionState,
+                            _sessionState,
                           ),
                         )
                       : null,
@@ -1249,7 +1260,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                   onActivateNewOutputPane: (sessionId) =>
                       _activateSession(sessionController, sessionId),
                   onCloseSession: (sessionId) =>
-                      _closeTab(sessionController, sessionState, sessionId),
+                      _closeTab(sessionController, _sessionState, sessionId),
                   onReorderTab: sessionController.reorderTab,
                   onSessionDragStarted: _startSessionDrag,
                   onSessionDragUpdated: _updateSessionDrag,
@@ -1263,7 +1274,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     position,
                   ),
                   onShowCommandMenu: () =>
-                      _openCommandMenu(sessionController, sessionState),
+                      _openCommandMenu(sessionController, _sessionState),
                 )
               else if (!mobileDetail)
                 _MobileShellHeader(
@@ -1272,30 +1283,33 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                       : (activeTab?.title ?? context.l10n.terminal),
                   onReplay: () => unawaited(_openRecordingLibrary()),
                   onSettings: () => unawaited(
-                    _openDefaultsAndAppearance(sessionController, sessionState),
+                    _openDefaultsAndAppearance(
+                      sessionController,
+                      _sessionState,
+                    ),
                   ),
                   onBack: mobileHome ? null : _showMobileConnections,
                   onSessions: mobileHome
                       ? null
                       : () => unawaited(
-                          _showMobileSessions(sessionController, sessionState),
+                          _showMobileSessions(sessionController, _sessionState),
                         ),
                   onFiles:
                       !mobileHome &&
-                          _sftpTargetFor(sessionState, activeSessionId) != null
+                          _sftpTargetFor(_sessionState, activeSessionId) != null
                       ? () {
                           FocusManager.instance.primaryFocus?.unfocus();
-                          _openSftpPanel(sessionState, activeSessionId);
+                          _openSftpPanel(_sessionState, activeSessionId);
                         }
                       : null,
                   onMore: () => unawaited(
-                    _openCommandMenu(sessionController, sessionState),
+                    _openCommandMenu(sessionController, _sessionState),
                   ),
                 ),
-              if (sessionState.configurationWarnings.isNotEmpty)
+              if (_sessionState.configurationWarnings.isNotEmpty)
                 _ShellConfigurationWarningsBanner(
                   palette: palette,
-                  warnings: sessionState.configurationWarnings,
+                  warnings: _sessionState.configurationWarnings,
                   onReviewProfiles: () => _openProfilesSheet(
                     sessionController,
                     ref.read(sessionControllerProvider),
@@ -1317,14 +1331,14 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     });
                   },
                 ),
-              if (sessionState.isReady && sessionState.lastError != null)
+              if (_sessionState.isReady && _sessionState.lastError != null)
                 _ShellRuntimeErrorBanner(
                   palette: palette,
-                  message: sessionState.lastError!,
+                  message: _sessionState.lastError!,
                   onDismiss: sessionController.dismissLastError,
                 ),
-              if (sessionState.isReady &&
-                  sessionState.lastError == null &&
+              if (_sessionState.isReady &&
+                  _sessionState.lastError == null &&
                   _runtimeErrorNotice != null)
                 _ShellRuntimeErrorBanner(
                   palette: palette,
@@ -1406,17 +1420,17 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                             onClear: _confirmClearInstantReplayHistory,
                             onExit: _closeInstantReplayLayout,
                           )
-                        : !sessionState.isReady
+                        : !_sessionState.isReady
                         ? _ShellStartupSurface(
                             key: const Key('shell-startup-state'),
                             palette: palette,
-                            errorMessage: sessionState.lastError,
-                            onRetry: sessionState.lastError != null
+                            errorMessage: _sessionState.lastError,
+                            onRetry: _sessionState.lastError != null
                                 ? sessionController.retryBootstrap
                                 : null,
                             onOpenSettings: () => _openDefaultsAndAppearance(
                               sessionController,
-                              sessionState,
+                              _sessionState,
                               openDataServiceInitially: true,
                             ),
                             onRepairSettings:
@@ -1451,15 +1465,15 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                               ? _SshOnlyShellEmptyState(
                                   key: const Key('shell-empty-state'),
                                   palette: palette,
-                                  profiles: sessionState.profiles,
+                                  profiles: _sessionState.profiles,
                                   sessions: mobileNavigation
-                                      ? sessionState.tabs
+                                      ? _sessionState.tabs
                                       : const [],
                                   onResumeSession: (id) =>
                                       _activateSession(sessionController, id),
                                   onManageProfiles: () => _openProfilesSheet(
                                     sessionController,
-                                    sessionState,
+                                    _sessionState,
                                   ),
                                   onOpenProfile: (profile) => _createSession(
                                     sessionController,
@@ -1469,7 +1483,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                   onCreateProfile: () => unawaited(
                                     _openSshProfileCreator(
                                       sessionController,
-                                      sessionState,
+                                      _sessionState,
                                     ),
                                   ),
                                 )
@@ -1483,7 +1497,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                       ? () => unawaited(
                                           _openNewSessionLauncher(
                                             sessionController,
-                                            sessionState,
+                                            _sessionState,
                                           ),
                                         )
                                       : null,
@@ -1493,7 +1507,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                               (displayedTab ?? activeTab).sessionId,
                             ),
                             child: _buildSftpSupportingPane(
-                              sessionState: sessionState,
+                              sessionState: _sessionState,
                               activeSessionId: activeSessionId,
                               primary: Row(
                                 children: [
@@ -1501,7 +1515,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                     child: _buildTerminalLayout(
                                       context: context,
                                       sessionController: sessionController,
-                                      sessionState: sessionState,
+                                      sessionState: _sessionState,
                                       activeTab: displayedTab ?? activeTab,
                                       activeSessionId:
                                           displayedSessionId ?? activeSessionId,
@@ -1525,10 +1539,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     onOpenFile: () => unawaited(_openRecordingFromPicker()),
                     onRecent: activeSessionId == null
                         ? null
-                        : () => unawaited(_openInstantReplay(sessionState)),
+                        : () => unawaited(_openInstantReplay(_sessionState)),
                     onToggleRecording:
                         activeSessionId == null ||
-                            sessionState.recordingBusySessionIds.contains(
+                            _sessionState.recordingBusySessionIds.contains(
                               activeSessionId,
                             )
                         ? null
@@ -1538,10 +1552,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                               activeSessionId,
                             ),
                           ),
-                    recording: sessionState.recordingSessionIds.contains(
+                    recording: _sessionState.recordingSessionIds.contains(
                       activeSessionId,
                     ),
-                    pendingSave: sessionState.recordingPendingSaveSessionIds
+                    pendingSave: _sessionState.recordingPendingSaveSessionIds
                         .contains(activeSessionId),
                     onSelect: (entry) => unawaited(_selectRecording(entry)),
                     onClose: _closeRecordingLibrary,
@@ -1563,7 +1577,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     onSearch: _openSearch,
                     onReplay: () => unawaited(_openRecordingLibrary()),
                     onRecording:
-                        sessionState.recordingBusySessionIds.contains(
+                        _sessionState.recordingBusySessionIds.contains(
                           activeSessionId,
                         )
                         ? null
@@ -1573,10 +1587,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                               activeSessionId,
                             ),
                           ),
-                    recording: sessionState.recordingSessionIds.contains(
+                    recording: _sessionState.recordingSessionIds.contains(
                       activeSessionId,
                     ),
-                    pendingSave: sessionState.recordingPendingSaveSessionIds
+                    pendingSave: _sessionState.recordingPendingSaveSessionIds
                         .contains(activeSessionId),
                   )
                 else

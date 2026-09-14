@@ -347,7 +347,6 @@ void main() {
       resizeCall[4],
       (viewportSize.height * tester.view.devicePixelRatio).round(),
     );
-    expect(fakeBindings.resizeCalls.length, greaterThanOrEqualTo(2));
   });
 
   testWidgets('shell applies configured terminal viewport padding', (

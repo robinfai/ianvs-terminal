@@ -1028,6 +1028,7 @@ class SessionState {
     required this.recordingPendingSaveSessionIds,
     required this.recordingBusySessionIds,
     this.lastError,
+    this._layoutIdentity,
   });
 
   final List<TerminalTab> tabs;
@@ -1044,6 +1045,39 @@ class SessionState {
   final Set<String> recordingPendingSaveSessionIds;
   final Set<String> recordingBusySessionIds;
   final String? lastError;
+
+  // A title-only update keeps this token. Every ordinary copy gets a new
+  // identity, so layout, profile, status and session changes still rebuild.
+  final Object? _layoutIdentity;
+  Object get layoutIdentity => _layoutIdentity ?? this;
+
+  /// Updates live title metadata without invalidating the shell layout.
+  SessionState withPaneTitle(String sessionId, String title) {
+    final index = tabs.indexWhere((tab) => tab.containsSession(sessionId));
+    if (index < 0) return this;
+    final tab = tabs[index];
+    final pane = tab.paneFor(sessionId)!;
+    if (pane.title == title) return this;
+    final nextTabs = [...tabs];
+    nextTabs[index] = tab.replacePane(pane.copyWith(title: title));
+    return SessionState._(
+      tabs: List.unmodifiable(nextTabs),
+      activeSessionId: activeSessionId,
+      profiles: profiles,
+      defaultProfileId: defaultProfileId,
+      configuredDefaultProfileId: configuredDefaultProfileId,
+      configurationWarnings: configurationWarnings,
+      themeMode: themeMode,
+      languageMode: languageMode,
+      terminalViewportPadding: terminalViewportPadding,
+      isReady: isReady,
+      recordingSessionIds: recordingSessionIds,
+      recordingPendingSaveSessionIds: recordingPendingSaveSessionIds,
+      recordingBusySessionIds: recordingBusySessionIds,
+      lastError: lastError,
+      layoutIdentity: layoutIdentity,
+    );
+  }
 
   factory SessionState.initial() {
     return const SessionState._(

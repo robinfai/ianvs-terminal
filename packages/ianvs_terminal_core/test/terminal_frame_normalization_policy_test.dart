@@ -40,6 +40,26 @@ void main() {
       expect(empty.styleRuns, isEmpty);
     });
 
+    test('clips printable ASCII without constructing a column map', () {
+      final text = String.fromCharCodes(
+        List.generate(95, (index) => 0x20 + index),
+      );
+      final row = TerminalRow(index: 0, text: text);
+      for (final columns in [1, 40, 95, 100]) {
+        final result =
+            TerminalFrameNormalizationPolicy.rowBoundedToViewportColumns(
+              row: row,
+              text: row.text,
+              viewportCols: columns,
+              columnsOf: (_) => throw StateError('ASCII needs no column map'),
+              withText: (row, text, {required preserveStyleRuns}) =>
+                  TerminalRow(index: row.index, text: text),
+            );
+        expect(result.text, text.substring(0, columns.clamp(0, text.length)));
+        if (columns >= text.length) expect(result, same(row));
+      }
+    });
+
     test('deduplicates, bounds, and orders rows in one shared rule', () {
       final rows = TerminalFrameNormalizationPolicy.normalizedRows(
         values: const <TerminalRow>[

@@ -80,3 +80,72 @@ fn stale_frame_packet_acknowledgement_forces_the_next_snapshot() {
 
     session::close_session(session_id).unwrap();
 }
+
+#[test]
+fn title_and_icon_updates_cross_ffi_as_metadata_only_deltas() {
+    let session_id = session::create_replay_session(&replay_profile("title-deltas")).unwrap();
+    session::replay_session_output(session_id, b"alpha\r\nbeta").unwrap();
+    let initial = take_packet(session_id, None).unwrap();
+    let initial_frame = initial.frame.unwrap();
+    let mut sequence = initial.sequence;
+
+    for (output, title, icon) in [
+        ("\x1b]0;working\x07", "working", "working"),
+        ("\x1b]2;done\x1b\\", "done", "working"),
+        ("\x1b]1;icon\x07", "done", "icon"),
+        ("\x1b]0;\x07", "", ""),
+    ] {
+        session::replay_session_output(session_id, output.as_bytes()).unwrap();
+        let packet = take_packet(session_id, Some(sequence)).expect("title update packet");
+        assert_eq!(packet.sequence, sequence + 1);
+        sequence = packet.sequence;
+        let frame = packet.frame.unwrap();
+        assert_eq!(frame.frame_kind, pb::TerminalFrameKind::Delta as i32);
+        assert_eq!(frame.window_title.as_str(), title);
+        assert_eq!(frame.window_icon_name.as_str(), icon);
+        assert!(
+            frame.rows.is_empty(),
+            "metadata must not resend unchanged rows"
+        );
+        assert!(frame.dirty_ranges.is_empty());
+        assert_eq!(frame.cursor, initial_frame.cursor);
+        assert_eq!(frame.viewport_rows, initial_frame.viewport_rows);
+        assert!(take_packet(session_id, Some(sequence)).is_none());
+    }
+
+    // A lost acknowledgement must still recover the complete screen, even
+    // when the only new output is metadata.
+    session::replay_session_output(session_id, b"\x1b]2;recovered\x07").unwrap();
+    let recovered = take_packet(session_id, Some(sequence - 1))
+        .unwrap()
+        .frame
+        .unwrap();
+    assert_eq!(recovered.frame_kind, pb::TerminalFrameKind::Snapshot as i32);
+    assert_eq!(recovered.window_title.as_str(), "recovered");
+    assert_eq!(recovered.rows, initial_frame.rows);
+    session::close_session(session_id).unwrap();
+}
+
+#[test]
+fn synchronized_title_and_text_updates_keep_the_changed_row() {
+    let session_id = session::create_replay_session(&replay_profile("title-and-text")).unwrap();
+    session::replay_session_output(session_id, b"alpha\r\nbeta").unwrap();
+    let initial = take_packet(session_id, None).unwrap();
+    session::replay_session_output(
+        session_id,
+        b"\x1b[?2026h\x1b]2;working\x07\x1b[2;1H\x1b[31mBETA\x1b[?2026l",
+    )
+    .unwrap();
+    let frame = take_packet(session_id, Some(initial.sequence))
+        .unwrap()
+        .frame
+        .unwrap();
+    assert_eq!(frame.frame_kind, pb::TerminalFrameKind::Delta as i32);
+    assert_eq!(frame.window_title.as_str(), "working");
+    assert_eq!(frame.rows.len(), 1);
+    assert_eq!(frame.rows[0].index, 1);
+    assert_eq!(frame.rows[0].text.trim_end(), "BETA");
+    assert!(!frame.rows[0].style_runs.is_empty());
+    assert_eq!(frame.dirty_ranges.len(), 1);
+    session::close_session(session_id).unwrap();
+}

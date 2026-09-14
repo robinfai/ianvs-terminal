@@ -136,6 +136,7 @@ void main() {
         Theme.of(lightContext).colorScheme.onSurface.toARGB32(),
       );
       expect(lightDefaults.minimumContrastRatio, 4.5);
+      expect(lightDefaults.preserveExplicitForegroundColors, isTrue);
       expect(lightDefaults.smartCursorColor, isTrue);
 
       final overridden = resolveTerminalColors(
@@ -176,6 +177,8 @@ void main() {
         find.byKey(const Key('dark-terminal-probe')),
       );
       final darkDefaults = resolveTerminalColors(darkContext).viewport;
+      expect(darkDefaults.minimumContrastRatio, 4.5);
+      expect(darkDefaults.preserveExplicitForegroundColors, isTrue);
       expect(
         darkDefaults.canvasBackground.toARGB32(),
         Theme.of(darkContext).colorScheme.surfaceContainerLowest.toARGB32(),

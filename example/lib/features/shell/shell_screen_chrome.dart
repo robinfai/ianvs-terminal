@@ -7,13 +7,12 @@ const double _iosShellChromeTabRailHeight = 52;
 const double _shellChromeHorizontalInset = 12;
 const double _compactMobileChromeBreakpoint = 600;
 
-class _ShellChromeBar extends StatelessWidget {
+class _ShellChromeBar extends ConsumerWidget {
   const _ShellChromeBar({
     required this.palette,
     required this.terminalBackgroundColor,
     required this.tabStripKey,
     required this.paneDropInsertionIndex,
-    required this.tabs,
     required this.activeSessionId,
     required this.tabHasNewOutput,
     required this.tabNewOutputTooltip,
@@ -44,7 +43,6 @@ class _ShellChromeBar extends StatelessWidget {
   final Color terminalBackgroundColor;
   final GlobalKey<_ShellTabStripState> tabStripKey;
   final int? paneDropInsertionIndex;
-  final List<TerminalTab> tabs;
   final String? activeSessionId;
   final bool Function(TerminalTab tab) tabHasNewOutput;
   final String Function(TerminalTab tab) tabNewOutputTooltip;
@@ -74,7 +72,10 @@ class _ShellChromeBar extends StatelessWidget {
   final VoidCallback? onSearch;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tabs = ref.watch(
+      sessionControllerProvider.select((state) => state.tabs),
+    );
     final isIos = defaultTargetPlatform == TargetPlatform.iOS;
     final isMobilePlatform = switch (defaultTargetPlatform) {
       TargetPlatform.android || TargetPlatform.iOS => true,

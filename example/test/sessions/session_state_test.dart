@@ -47,6 +47,49 @@ void main() {
     },
   );
 
+  group('$SessionState title updates', () {
+    test(
+      'keeps layout identity only for title metadata and preserves state',
+      () {
+        final original = SessionState.initial().copyWith(
+          tabs: [
+            const TerminalTab(
+              sessionId: 'root',
+              title: 'Shell',
+              profileId: 'local',
+            ),
+          ],
+          activeSessionId: 'root',
+          isReady: true,
+          recordingSessionIds: {'root'},
+          lastError: 'Retained error',
+        );
+        final renamed = original.withPaneTitle('root', 'Codex');
+        expect(renamed.tabs.single.title, 'Codex');
+        expect(original.tabs.single.title, 'Shell');
+        expect(renamed.layoutIdentity, same(original.layoutIdentity));
+        expect(
+          renamed.withPaneTitle('root', 'Next').layoutIdentity,
+          same(original.layoutIdentity),
+        );
+        expect(renamed.recordingSessionIds, same(original.recordingSessionIds));
+        expect(renamed.lastError, original.lastError);
+        expect(renamed.tabs.clear, throwsUnsupportedError);
+        expect(renamed.withPaneTitle('root', 'Codex'), same(renamed));
+        expect(renamed.withPaneTitle('missing', 'Codex'), same(renamed));
+        for (final changed in [
+          renamed.copyWith(activeSessionId: null),
+          renamed.copyWith(terminalViewportPadding: 16),
+          renamed.copyWith(tabs: []),
+          renamed.copyWith(recordingBusySessionIds: {'root'}),
+          renamed.copyWith(lastError: null),
+        ]) {
+          expect(changed.layoutIdentity, isNot(same(original.layoutIdentity)));
+        }
+      },
+    );
+  });
+
   group('Session state immutability', () {
     test('defensively copies collection constructor inputs', () {
       const tab = TerminalTab(

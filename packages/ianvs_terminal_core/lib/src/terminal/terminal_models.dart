@@ -2387,6 +2387,9 @@ List<TerminalGraphicPlacement> _normalizeGraphics({
 }
 
 int _terminalDisplayWidthForGrapheme(String grapheme) {
+  if (grapheme.length == 1 && _isPrintableAscii(grapheme.codeUnitAt(0))) {
+    return 1;
+  }
   final runes = grapheme.runes.toList(growable: false);
   final regionalIndicatorCount = runes.where(_isRegionalIndicatorRune).length;
   if (regionalIndicatorCount == 2 ||
@@ -2461,7 +2464,12 @@ List<_TerminalGraphemeCluster> _terminalGraphemeClusters(String text) {
   return clusters;
 }
 
+bool _isPrintableAscii(int rune) => rune >= 0x20 && rune <= 0x7e;
+
 bool _isZeroWidthRune(int rune) {
+  if (_isPrintableAscii(rune)) {
+    return false;
+  }
   return (rune >= 0x0000 && rune <= 0x001F) ||
       (rune >= 0x007F && rune <= 0x009F) ||
       rune == 0x00AD ||

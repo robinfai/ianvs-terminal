@@ -441,12 +441,8 @@ fn frame_meta_delta_break_reason(
     if previous_frame_meta.modes != frame_meta.modes {
         return Some("terminal_modes_changed");
     }
-    if previous_frame_meta.window_title != frame_meta.window_title {
-        return Some("window_title_changed");
-    }
-    if previous_frame_meta.window_icon_name != frame_meta.window_icon_name {
-        return Some("window_icon_name_changed");
-    }
+    // Title and icon metadata travel on every frame, including a Delta with
+    // no changed rows. They do not invalidate cell contents or scroll shifts.
     if previous_frame_meta.font_family != frame_meta.font_family {
         return Some("terminal_font_changed");
     }

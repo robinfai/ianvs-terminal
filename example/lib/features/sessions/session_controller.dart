@@ -5143,15 +5143,7 @@ class SessionController extends Notifier<SessionState> {
       return;
     }
 
-    final nextTabs = <TerminalTab>[...state.tabs];
-    nextTabs[tabIndex] = currentTab
-        .replacePane(currentPane.copyWith(title: nextTitle))
-        .copyWith(
-          title: sessionId == currentTab.sessionId
-              ? nextTitle
-              : currentTab.title,
-        );
-    state = state.copyWith(tabs: nextTabs);
+    state = state.withPaneTitle(sessionId, nextTitle);
     if (sessionId == state.activeSessionId) {
       _setWindowTitle(nextTitle);
     }

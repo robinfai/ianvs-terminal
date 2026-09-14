@@ -21,7 +21,10 @@ AppTerminalColors resolveTerminalColors(
     selection: colorScheme.primary.withValues(alpha: 0.28),
     scrollbarTrack: colorScheme.outlineVariant.withValues(alpha: 0.32),
     scrollbarThumb: colorScheme.onSurfaceVariant.withValues(alpha: 0.62),
+    // Preserve explicit program colors for fades while keeping theme-derived
+    // text readable on backgrounds selected by terminal applications.
     minimumContrastRatio: 4.5,
+    preserveExplicitForegroundColors: !MediaQuery.highContrastOf(context),
     smartCursorColor: true,
   );
   final overrides = profileAppearance?.colors;

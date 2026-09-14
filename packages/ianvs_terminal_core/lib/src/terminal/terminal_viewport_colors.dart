@@ -50,6 +50,7 @@ class TerminalViewportColors {
     required this.scrollbarTrack,
     required this.scrollbarThumb,
     this.minimumContrastRatio = 1,
+    this.preserveExplicitForegroundColors = false,
     this.smartCursorColor = false,
   });
 
@@ -86,6 +87,10 @@ class TerminalViewportColors {
   final Color scrollbarTrack;
   final Color scrollbarThumb;
   final double minimumContrastRatio;
+
+  /// Keep program-supplied foreground colors while applying the contrast
+  /// floor to theme-derived text, including text on explicit backgrounds.
+  final bool preserveExplicitForegroundColors;
   final bool smartCursorColor;
 
   TerminalViewportColors copyWith({
@@ -96,6 +101,7 @@ class TerminalViewportColors {
     Color? scrollbarTrack,
     Color? scrollbarThumb,
     double? minimumContrastRatio,
+    bool? preserveExplicitForegroundColors,
     bool? smartCursorColor,
   }) {
     return TerminalViewportColors(
@@ -106,6 +112,9 @@ class TerminalViewportColors {
       scrollbarTrack: scrollbarTrack ?? this.scrollbarTrack,
       scrollbarThumb: scrollbarThumb ?? this.scrollbarThumb,
       minimumContrastRatio: minimumContrastRatio ?? this.minimumContrastRatio,
+      preserveExplicitForegroundColors:
+          preserveExplicitForegroundColors ??
+          this.preserveExplicitForegroundColors,
       smartCursorColor: smartCursorColor ?? this.smartCursorColor,
     );
   }
@@ -120,6 +129,8 @@ class TerminalViewportColors {
         other.scrollbarTrack == scrollbarTrack &&
         other.scrollbarThumb == scrollbarThumb &&
         other.minimumContrastRatio == minimumContrastRatio &&
+        other.preserveExplicitForegroundColors ==
+            preserveExplicitForegroundColors &&
         other.smartCursorColor == smartCursorColor;
   }
 
@@ -132,6 +143,7 @@ class TerminalViewportColors {
     scrollbarTrack,
     scrollbarThumb,
     minimumContrastRatio,
+    preserveExplicitForegroundColors,
     smartCursorColor,
   );
 }

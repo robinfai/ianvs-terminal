@@ -1411,10 +1411,13 @@ class RenderTerminalViewport extends RenderBox {
         contrastBackground,
       );
     }
-    final foreground = _foregroundWithMinimumContrast(
-      rawForeground,
-      contrastBackground,
-    );
+    final hasExplicitForeground = run.inverse
+        ? run.background != null
+        : run.foreground != null;
+    final foreground =
+        _colors.preserveExplicitForegroundColors && hasExplicitForeground
+        ? rawForeground
+        : _foregroundWithMinimumContrast(rawForeground, contrastBackground);
 
     return _ResolvedCellStyle(
       rawForeground: rawForeground,
