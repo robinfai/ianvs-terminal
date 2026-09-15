@@ -4823,4 +4823,43 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get terminalComplete => '补全输入';
+
+  @override
+  String get showSessionSidebar => '显示会话侧边栏';
+
+  @override
+  String get hideSessionSidebar => '隐藏会话侧边栏';
+
+  @override
+  String get sessionGroupDirectory => '目录';
+
+  @override
+  String get sessionGroupCommand => '命令';
+
+  @override
+  String get sessionGroupDirectoryHelp => '按当前目录组织会话';
+
+  @override
+  String get sessionGroupCommandHelp => '按最近执行的命令组织会话';
+
+  @override
+  String get sessionUnknownDirectory => '未知目录';
+
+  @override
+  String get sessionNoCommand => '尚未执行命令';
+
+  @override
+  String get sessionSidebarEmpty => '暂无会话';
+
+  @override
+  String get sessionSidebarTitle => '会话';
+
+  @override
+  String get sessionInteractive => '交互程序';
+
+  @override
+  String get sessionLongRunning => '持续运行';
+
+  @override
+  String get sessionUnknownCommand => '未知命令';
 }

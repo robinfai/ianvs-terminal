@@ -25,10 +25,13 @@ Future<void> pumpShellScreen(
   required FakePtyBackend fakeBindings,
   required MemoryProfileRepository repository,
   bool referenceDemoMode = false,
+  DateTime Function()? commandClock,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        if (commandClock != null)
+          sessionCommandClockProvider.overrideWithValue(commandClock),
         ptySessionBackendProvider.overrideWithValue(fakeBindings),
         profileRepositoryProvider.overrideWithValue(repository),
         pasteHistoryRepositoryProvider.overrideWithValue(

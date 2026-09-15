@@ -872,6 +872,8 @@ class TerminalShellIntegrationSnapshot {
     this.shell,
     this.integrationVersion,
     this.lastCommand,
+    this.runningCommand,
+    this.commandStartedAt,
     this.lastExitCode,
     this.recentCommands = const <String>[],
     this.recentDirectories = const <String>[],
@@ -900,6 +902,41 @@ class TerminalShellIntegrationSnapshot {
   final String? shell;
   final String? integrationVersion;
   final String? lastCommand;
+
+  /// Live execution state, intentionally not restored with session history.
+  final String? runningCommand;
+  final DateTime? commandStartedAt;
+
+  TerminalShellIntegrationSnapshot observeExecution({
+    required String? phase,
+    required String? command,
+    required DateTime now,
+  }) {
+    switch (phase) {
+      case 'preexec':
+      case 'command_executed':
+        final nextCommand = command?.trim();
+        return copyWith(
+          runningCommand: nextCommand?.isNotEmpty == true
+              ? nextCommand
+              : runningCommand,
+          commandStartedAt:
+              runningCommand != null &&
+                  nextCommand != null &&
+                  nextCommand.isNotEmpty &&
+                  runningCommand != nextCommand
+              ? now
+              : commandStartedAt ?? now,
+        );
+      case 'command_finished':
+      case 'precmd':
+      case 'prompt_start':
+        return copyWith(runningCommand: null, commandStartedAt: null);
+      default:
+        return this;
+    }
+  }
+
   final int? lastExitCode;
   final List<String> recentCommands;
   final List<String> recentDirectories;
@@ -925,6 +962,8 @@ class TerminalShellIntegrationSnapshot {
     Object? shell = _shellIntegrationNoChange,
     Object? integrationVersion = _shellIntegrationNoChange,
     Object? lastCommand = _shellIntegrationNoChange,
+    Object? runningCommand = _shellIntegrationNoChange,
+    Object? commandStartedAt = _shellIntegrationNoChange,
     Object? lastExitCode = _shellIntegrationNoChange,
     List<String>? recentCommands,
     List<String>? recentDirectories,
@@ -960,6 +999,12 @@ class TerminalShellIntegrationSnapshot {
           identical(integrationVersion, _shellIntegrationNoChange)
           ? this.integrationVersion
           : integrationVersion as String?,
+      runningCommand: identical(runningCommand, _shellIntegrationNoChange)
+          ? this.runningCommand
+          : runningCommand as String?,
+      commandStartedAt: identical(commandStartedAt, _shellIntegrationNoChange)
+          ? this.commandStartedAt
+          : commandStartedAt as DateTime?,
       lastCommand: identical(lastCommand, _shellIntegrationNoChange)
           ? this.lastCommand
           : lastCommand as String?,

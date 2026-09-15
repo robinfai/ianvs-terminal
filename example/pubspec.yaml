@@ -75,7 +75,13 @@ flutter:
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
   # the material Icons class.
-  uses-material-design: true
+  # MaterialIcons codepoints are preserved for app and shared components.
+  # This bundled font supplies lighter Material Symbols glyphs at weight 300.
+  uses-material-design: false
+  fonts:
+    - family: MaterialIcons
+      fonts:
+        - asset: assets/fonts/TrailLightIcons.ttf
 
   # To add assets to your application, add an assets section, like this:
   # assets:

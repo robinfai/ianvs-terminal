@@ -47,6 +47,8 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
   private static let chromeBarHeight: CGFloat = 44
   // Keep the search, settings and command controls out of the drag region.
   private static let trailingWindowControlWidth: CGFloat = 120
+  // Matches the Flutter title bar's 90 pt inset and 48 pt IconButton target.
+  private static let sidebarControlRange: ClosedRange<CGFloat> = 90...138
   private static let maxOsc72DropBytes = 64 * 1024 * 1024
   private static let mimePasteboardTypePrefix = "dev.ianvs.terminal.mime."
   static let mainWindowFrameAutosaveName = "IanvsTerminalMainWindow"
@@ -72,6 +74,7 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
     let dragWidth = max(0, contentSize.width - trailingWindowControlWidth)
     guard
       point.x >= 0,
+      !sidebarControlRange.contains(point.x),
       point.x <= dragWidth,
       point.y >= contentSize.height - chromeBarHeight,
       point.y <= contentSize.height
@@ -96,6 +99,7 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
     let dragWidth = max(0, windowFrame.width - trailingWindowControlWidth)
     guard
       xFromLeft >= 0,
+      !sidebarControlRange.contains(xFromLeft),
       xFromLeft <= dragWidth,
       yFromTop >= 0,
       yFromTop <= chromeBarHeight

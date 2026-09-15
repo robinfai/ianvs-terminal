@@ -8119,6 +8119,84 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Complete input'**
   String get terminalComplete;
+
+  /// No description provided for @showSessionSidebar.
+  ///
+  /// In en, this message translates to:
+  /// **'Show session sidebar'**
+  String get showSessionSidebar;
+
+  /// No description provided for @hideSessionSidebar.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide session sidebar'**
+  String get hideSessionSidebar;
+
+  /// No description provided for @sessionGroupDirectory.
+  ///
+  /// In en, this message translates to:
+  /// **'Directory'**
+  String get sessionGroupDirectory;
+
+  /// No description provided for @sessionGroupCommand.
+  ///
+  /// In en, this message translates to:
+  /// **'Command'**
+  String get sessionGroupCommand;
+
+  /// No description provided for @sessionGroupDirectoryHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Group sessions by current directory'**
+  String get sessionGroupDirectoryHelp;
+
+  /// No description provided for @sessionGroupCommandHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Group sessions by last executed command'**
+  String get sessionGroupCommandHelp;
+
+  /// No description provided for @sessionUnknownDirectory.
+  ///
+  /// In en, this message translates to:
+  /// **'Unknown directory'**
+  String get sessionUnknownDirectory;
+
+  /// No description provided for @sessionNoCommand.
+  ///
+  /// In en, this message translates to:
+  /// **'No command yet'**
+  String get sessionNoCommand;
+
+  /// No description provided for @sessionSidebarEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No sessions'**
+  String get sessionSidebarEmpty;
+
+  /// No description provided for @sessionSidebarTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Sessions'**
+  String get sessionSidebarTitle;
+
+  /// No description provided for @sessionInteractive.
+  ///
+  /// In en, this message translates to:
+  /// **'Interactive'**
+  String get sessionInteractive;
+
+  /// No description provided for @sessionLongRunning.
+  ///
+  /// In en, this message translates to:
+  /// **'Running'**
+  String get sessionLongRunning;
+
+  /// No description provided for @sessionUnknownCommand.
+  ///
+  /// In en, this message translates to:
+  /// **'Unknown command'**
+  String get sessionUnknownCommand;
 }
 
 class _AppLocalizationsDelegate

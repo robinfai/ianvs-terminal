@@ -75,6 +75,10 @@ final terminalGraphicsTraceSinkProvider = Provider<TerminalBenchmarkEventSink?>(
   },
 );
 
+final sessionCommandClockProvider = Provider<DateTime Function()>(
+  (ref) => DateTime.now,
+);
+
 final Provider<TerminalRuntimeController>
 terminalRuntimeControllerProvider = Provider<TerminalRuntimeController>((ref) {
   const osc52PromptPreviewRunes = 120;
@@ -3961,6 +3965,7 @@ class SessionController extends Notifier<SessionState> {
         eventType == 'command_finished' ||
         (eventType == 'zone_closed' && event.zoneType == 'output');
     if (!shouldTrackCommand &&
+        eventType != 'prompt_start' &&
         identical(nextPromptMarks, current.promptMarks)) {
       return;
     }
@@ -3969,12 +3974,18 @@ class SessionController extends Notifier<SessionState> {
       shouldTrackCommand ? command : null,
       limit: 40,
     );
-    final nextIntegration = current.copyWith(
-      lastCommand: shouldTrackCommand ? command : current.lastCommand,
-      lastExitCode: event.exitCode ?? current.lastExitCode,
-      recentCommands: nextCommands,
-      promptMarks: nextPromptMarks,
-    );
+    final nextIntegration = current
+        .copyWith(
+          lastCommand: shouldTrackCommand ? command : current.lastCommand,
+          lastExitCode: event.exitCode ?? current.lastExitCode,
+          recentCommands: nextCommands,
+          promptMarks: nextPromptMarks,
+        )
+        .observeExecution(
+          phase: eventType,
+          command: _boundedShellMetadata(event.command, 512),
+          now: ref.read(sessionCommandClockProvider)(),
+        );
     _replaceSessionPane(
       event.sessionId,
       currentPane.copyWith(shellIntegration: nextIntegration),
@@ -4401,6 +4412,8 @@ class SessionController extends Notifier<SessionState> {
       hostname: null,
       username: null,
       lastCommand: null,
+      runningCommand: null,
+      commandStartedAt: null,
       lastExitCode: null,
       recentCommands: const <String>[],
       recentDirectories: const <String>[],
@@ -4639,17 +4652,23 @@ class SessionController extends Notifier<SessionState> {
       cwd: nextCurrentDirectory,
     );
 
-    return current.copyWith(
-      currentDirectory: nextCurrentDirectory,
-      hostname: hostname ?? current.hostname,
-      username: username ?? current.username,
-      shell: shell ?? current.shell,
-      lastCommand: command ?? current.lastCommand,
-      lastExitCode: event.exitCode ?? current.lastExitCode,
-      recentCommands: nextCommands,
-      recentDirectories: nextDirectories,
-      promptMarks: nextPromptMarks,
-    );
+    return current
+        .copyWith(
+          currentDirectory: nextCurrentDirectory,
+          hostname: hostname ?? current.hostname,
+          username: username ?? current.username,
+          shell: shell ?? current.shell,
+          lastCommand: command ?? current.lastCommand,
+          lastExitCode: event.exitCode ?? current.lastExitCode,
+          recentCommands: nextCommands,
+          recentDirectories: nextDirectories,
+          promptMarks: nextPromptMarks,
+        )
+        .observeExecution(
+          phase: event.hook?.trim().toLowerCase(),
+          command: command,
+          now: ref.read(sessionCommandClockProvider)(),
+        );
   }
 
   List<TerminalShellPromptMark> _promptMarksForHook(

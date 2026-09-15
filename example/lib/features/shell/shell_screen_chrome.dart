@@ -10,6 +10,8 @@ const double _compactMobileChromeBreakpoint = 600;
 class _ShellChromeBar extends ConsumerWidget {
   const _ShellChromeBar({
     required this.palette,
+    this.sidebarOpen = false,
+    this.onToggleSidebar,
     required this.terminalBackgroundColor,
     required this.tabStripKey,
     required this.paneDropInsertionIndex,
@@ -39,6 +41,8 @@ class _ShellChromeBar extends ConsumerWidget {
     this.onSearch,
   });
 
+  final bool sidebarOpen;
+  final VoidCallback? onToggleSidebar;
   final AppThemeTokens palette;
   final Color terminalBackgroundColor;
   final GlobalKey<_ShellTabStripState> tabStripKey;
@@ -117,12 +121,16 @@ class _ShellChromeBar extends ConsumerWidget {
           topRight: Radius.circular(palette.radius.lg),
         ),
         child: SizedBox(
-          height: (usesCompactMobileChrome ? 0 : titleHeight) + tabRailHeight,
+          height:
+              (usesCompactMobileChrome ? 0 : titleHeight) +
+              (sidebarOpen ? 0 : tabRailHeight),
           child: Column(
             children: [
               if (!usesCompactMobileChrome)
                 _ShellWindowTitleBar(
                   height: titleHeight,
+                  sidebarOpen: sidebarOpen,
+                  onToggleSidebar: onToggleSidebar,
                   onOpenReplay: onOpenReplay,
                   onOpenSettings: onOpenSettings,
                   onSearch: onSearch,
@@ -133,124 +141,131 @@ class _ShellChromeBar extends ConsumerWidget {
                       ? null
                       : onShowCommandMenu,
                 ),
-              SizedBox(
-                height: tabRailHeight,
-                child: DecoratedBox(
-                  key: const Key('shell-chrome-tab-rail-surface'),
-                  decoration: BoxDecoration(
-                    color: railSurface,
-                    border: Border(
-                      top: BorderSide(
-                        color: chromeTone.border.withValues(alpha: 0.18),
-                      ),
-                      bottom: BorderSide(
-                        color: chromeTone.border.withValues(alpha: 0.20),
+              if (!sidebarOpen)
+                SizedBox(
+                  height: tabRailHeight,
+                  child: DecoratedBox(
+                    key: const Key('shell-chrome-tab-rail-surface'),
+                    decoration: BoxDecoration(
+                      color: railSurface,
+                      border: Border(
+                        top: BorderSide(
+                          color: chromeTone.border.withValues(alpha: 0.18),
+                        ),
+                        bottom: BorderSide(
+                          color: chromeTone.border.withValues(alpha: 0.20),
+                        ),
                       ),
                     ),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      _shellChromeHorizontalInset,
-                      3,
-                      _shellChromeHorizontalInset,
-                      5,
-                    ),
-                    child: Row(
-                      children: [
-                        if (usesCompactMobileChrome && !referenceDemoMode) ...[
-                          _buildChromeIconButton(
-                            key: const Key('shell-chrome-menu'),
-                            tooltip: context.l10n.openCommandPalette,
-                            onPressed: onShowCommandMenu,
-                            iconSize: 16,
-                            hoverBackgroundColor: chromeTone.hoverBackground,
-                            icon: Icon(
-                              Icons.tune_rounded,
-                              color: chromeTone.subtleText,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                        ],
-                        Expanded(
-                          child: DecoratedBox(
-                            key: const Key('shell-chrome-tab-track'),
-                            decoration: BoxDecoration(
-                              color: chromeTone.trackBackground,
-                              borderRadius: BorderRadius.circular(
-                                palette.radius.md,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        _shellChromeHorizontalInset,
+                        3,
+                        _shellChromeHorizontalInset,
+                        5,
+                      ),
+                      child: Row(
+                        children: [
+                          if (usesCompactMobileChrome &&
+                              !referenceDemoMode) ...[
+                            _buildChromeIconButton(
+                              key: const Key('shell-chrome-menu'),
+                              tooltip: context.l10n.openCommandPalette,
+                              onPressed: onShowCommandMenu,
+                              iconSize: 16,
+                              hoverBackgroundColor: chromeTone.hoverBackground,
+                              icon: Icon(
+                                Icons.tune_rounded,
+                                color: chromeTone.subtleText,
                               ),
                             ),
-                            child: referenceDemoMode
-                                ? _ReferenceDemoTabStrip(
-                                    palette: palette,
-                                    tabs: tabs,
-                                    activeSessionId: activeSessionId,
-                                    onActivateSession: onActivateSession,
-                                  )
-                                : _ShellTabStrip(
-                                    key: tabStripKey,
-                                    palette: palette,
-                                    chromeBackgroundColor:
-                                        terminalBackgroundColor,
-                                    paneDropInsertionIndex:
-                                        paneDropInsertionIndex,
-                                    tabs: tabs,
-                                    activeSessionId: activeSessionId,
-                                    tabHasNewOutput: tabHasNewOutput,
-                                    tabNewOutputTooltip: tabNewOutputTooltip,
-                                    hiddenTabsNewOutputTooltip:
-                                        hiddenTabsNewOutputTooltip,
-                                    hiddenTabsNewOutputPaneSessionId:
-                                        hiddenTabsNewOutputPaneSessionId,
-                                    tabNewOutputPaneSessionId:
-                                        tabNewOutputPaneSessionId,
-                                    tabColor: tabColor,
-                                    showNewTabAction: !usesCompactMobileChrome,
-                                    onNewTab: onNewTab,
-                                    onActivateSession: onActivateSession,
-                                    onActivateBadgePane: onActivateBadgePane,
-                                    onNotificationInteraction:
-                                        onNotificationInteraction,
-                                    onActivateNewOutputPane:
-                                        onActivateNewOutputPane,
-                                    onCloseSession: onCloseSession,
-                                    onReorderTab: onReorderTab,
-                                    onSessionDragStarted: onSessionDragStarted,
-                                    onSessionDragUpdated: onSessionDragUpdated,
-                                    onSessionDragEnded: onSessionDragEnded,
-                                    onSessionDragCancelled:
-                                        onSessionDragCancelled,
-                                    onShowTabContextMenu: onShowTabContextMenu,
-                                  ),
-                          ),
-                        ),
-                        if (usesCompactMobileChrome && !referenceDemoMode) ...[
-                          if (onOpenReplay != null)
-                            TextFieldTapRegion(
-                              child: _buildChromeIconButton(
-                                key: const Key('shell-toolbar-replay'),
-                                iconSize: 20,
-                                tooltip: context.l10n.replayHubTitle,
-                                onPressed: onOpenReplay,
-                                icon: Icon(
-                                  Icons.history_rounded,
-                                  color: chromeTone.mutedText,
+                            const SizedBox(width: 4),
+                          ],
+                          Expanded(
+                            child: DecoratedBox(
+                              key: const Key('shell-chrome-tab-track'),
+                              decoration: BoxDecoration(
+                                color: chromeTone.trackBackground,
+                                borderRadius: BorderRadius.circular(
+                                  palette.radius.md,
                                 ),
                               ),
+                              child: referenceDemoMode
+                                  ? _ReferenceDemoTabStrip(
+                                      palette: palette,
+                                      tabs: tabs,
+                                      activeSessionId: activeSessionId,
+                                      onActivateSession: onActivateSession,
+                                    )
+                                  : _ShellTabStrip(
+                                      key: tabStripKey,
+                                      palette: palette,
+                                      chromeBackgroundColor:
+                                          terminalBackgroundColor,
+                                      paneDropInsertionIndex:
+                                          paneDropInsertionIndex,
+                                      tabs: tabs,
+                                      activeSessionId: activeSessionId,
+                                      tabHasNewOutput: tabHasNewOutput,
+                                      tabNewOutputTooltip: tabNewOutputTooltip,
+                                      hiddenTabsNewOutputTooltip:
+                                          hiddenTabsNewOutputTooltip,
+                                      hiddenTabsNewOutputPaneSessionId:
+                                          hiddenTabsNewOutputPaneSessionId,
+                                      tabNewOutputPaneSessionId:
+                                          tabNewOutputPaneSessionId,
+                                      tabColor: tabColor,
+                                      showNewTabAction:
+                                          !usesCompactMobileChrome,
+                                      onNewTab: onNewTab,
+                                      onActivateSession: onActivateSession,
+                                      onActivateBadgePane: onActivateBadgePane,
+                                      onNotificationInteraction:
+                                          onNotificationInteraction,
+                                      onActivateNewOutputPane:
+                                          onActivateNewOutputPane,
+                                      onCloseSession: onCloseSession,
+                                      onReorderTab: onReorderTab,
+                                      onSessionDragStarted:
+                                          onSessionDragStarted,
+                                      onSessionDragUpdated:
+                                          onSessionDragUpdated,
+                                      onSessionDragEnded: onSessionDragEnded,
+                                      onSessionDragCancelled:
+                                          onSessionDragCancelled,
+                                      onShowTabContextMenu:
+                                          onShowTabContextMenu,
+                                    ),
                             ),
-                          const SizedBox(width: 4),
-                          _ShellNewTabButton(
-                            palette: palette,
-                            tone: chromeTone,
-                            width: 44,
-                            onPressed: onNewTab,
                           ),
+                          if (usesCompactMobileChrome &&
+                              !referenceDemoMode) ...[
+                            if (onOpenReplay != null)
+                              TextFieldTapRegion(
+                                child: _buildChromeIconButton(
+                                  key: const Key('shell-toolbar-replay'),
+                                  iconSize: 20,
+                                  tooltip: context.l10n.replayHubTitle,
+                                  onPressed: onOpenReplay,
+                                  icon: Icon(
+                                    Icons.history_rounded,
+                                    color: chromeTone.mutedText,
+                                  ),
+                                ),
+                              ),
+                            const SizedBox(width: 4),
+                            _ShellNewTabButton(
+                              palette: palette,
+                              tone: chromeTone,
+                              width: 44,
+                              onPressed: onNewTab,
+                            ),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
                   ),
                 ),
-              ),
             ],
           ),
         ),
@@ -262,6 +277,8 @@ class _ShellChromeBar extends ConsumerWidget {
 class _ShellWindowTitleBar extends StatelessWidget {
   const _ShellWindowTitleBar({
     required this.height,
+    this.sidebarOpen = false,
+    this.onToggleSidebar,
     required this.palette,
     required this.tone,
     required this.backgroundColor,
@@ -271,6 +288,8 @@ class _ShellWindowTitleBar extends StatelessWidget {
     this.onSearch,
   });
 
+  final bool sidebarOpen;
+  final VoidCallback? onToggleSidebar;
   final double height;
   final AppThemeTokens palette;
   final _ShellTabTone tone;
@@ -329,6 +348,25 @@ class _ShellWindowTitleBar extends StatelessWidget {
                 ),
               ),
             ),
+            if (onToggleSidebar != null)
+              Positioned(
+                left: titleLeadingInset,
+                top: 8,
+                bottom: 8,
+                child: _buildChromeIconButton(
+                  key: const Key('shell-toggle-sidebar'),
+                  tooltip: sidebarOpen
+                      ? context.l10n.hideSessionSidebar
+                      : context.l10n.showSessionSidebar,
+                  onPressed: onToggleSidebar,
+                  iconSize: 18,
+                  hoverBackgroundColor: tone.hoverBackground,
+                  icon: Icon(
+                    Icons.view_sidebar_outlined,
+                    color: tone.mutedText,
+                  ),
+                ),
+              ),
             if (onShowCommandMenu != null)
               Positioned(
                 top: isIos ? 0 : 8,

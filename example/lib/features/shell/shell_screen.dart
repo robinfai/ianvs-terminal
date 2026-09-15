@@ -61,6 +61,7 @@ import 'local_terminal_shell_ui_wiring_exports.dart';
 import 'osc72_drag_drop_controller.dart';
 import 'paste_history_repository.dart';
 import 'reference_demo.dart';
+import 'session_sidebar_model.dart';
 import 'shell_acceptance.dart';
 import 'shell_action_registry.dart';
 import 'shell_action_runtime_bindings.dart';
@@ -68,6 +69,7 @@ import 'shell_shortcut_bridge.dart';
 import 'window_bridge.dart';
 
 part 'shell_screen_chrome.dart';
+part 'shell_screen_sidebar.dart';
 part 'shell_screen_chrome_empty_states.dart';
 part 'shell_screen_command_menu.dart';
 part 'shell_screen_instant_replay.dart';
@@ -185,6 +187,7 @@ class ShellScreen extends ConsumerStatefulWidget {
 }
 
 class _ShellScreenState extends ConsumerState<ShellScreen> {
+  bool _sessionSidebarOpen = false;
   static const _layoutCueDuration = Duration(milliseconds: 1400);
   static const _runtimeErrorNoticeDuration = Duration(seconds: 4);
   static const _viewportResizeDebounce = Duration(milliseconds: 240);
@@ -1212,6 +1215,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
             children: [
               if (!mobileNavigation)
                 _ShellChromeBar(
+                  sidebarOpen: _sessionSidebarOpen,
+                  onToggleSidebar: () => setState(
+                    () => _sessionSidebarOpen = !_sessionSidebarOpen,
+                  ),
                   palette: palette,
                   onOpenReplay: referenceDemoMode
                       ? null
@@ -1371,194 +1378,255 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                       unawaited(_confirmDiscardZmodemRecovery(zmodemRecovery)),
                 ),
               Expanded(
-                child: _RecordingLibraryLayout(
-                  palette: palette,
-                  shelfOpen: _recordingShelfOpen,
-                  onClose: _closeRecordingLibrary,
-                  layout: AnimatedSwitcher(
-                    duration: animationsEnabled
-                        ? const Duration(milliseconds: 160)
-                        : Duration.zero,
-                    switchInCurve: Curves.easeOutCubic,
-                    switchOutCurve: Curves.easeInCubic,
-                    child:
-                        _selectedRecordingEntry != null &&
-                            _selectedRecording != null
-                        ? _RecordingReplayLayout(
-                            mobile: mobileNavigation,
-                            key: ValueKey((
-                              _selectedRecordingEntry!.path,
-                              _recordingPlaybackGeneration,
-                            )),
-                            palette: palette,
-                            entry: _selectedRecordingEntry!,
-                            recording: _selectedRecording!,
-                            delegate: ref.read(ptySessionBackendProvider),
-                            sessionConfig: recordingReplayConfig,
-                            terminalColors: instantReplayColors,
-                            font: recordingReplayConfig.display.font,
-                            cursor: recordingReplayConfig.display.cursor,
-                            onClose: _closeRecordingReplay,
-                          )
-                        : instantReplaySession != null
-                        ? _InstantReplayLayout(
-                            mobile: mobileNavigation,
-                            key: const Key('instant-replay-layout'),
-                            layout: instantReplaySession,
-                            palette: palette,
-                            runtime: ref.read(
-                              terminalRuntimeControllerProvider,
-                            ),
-                            terminalColors: instantReplayColors,
-                            font:
-                                instantReplayConfig?.display.font ??
-                                const terminal.TerminalFontConfig(),
-                            cursor:
-                                instantReplayConfig?.display.cursor ??
-                                const terminal.TerminalCursorConfig(),
-                            onCopyVisible: _copyInstantReplayVisibleText,
-                            onClear: _confirmClearInstantReplayHistory,
-                            onExit: _closeInstantReplayLayout,
-                          )
-                        : !_sessionState.isReady
-                        ? _ShellStartupSurface(
-                            key: const Key('shell-startup-state'),
-                            palette: palette,
-                            errorMessage: _sessionState.lastError,
-                            onRetry: _sessionState.lastError != null
-                                ? sessionController.retryBootstrap
-                                : null,
-                            onOpenSettings: () => _openDefaultsAndAppearance(
-                              sessionController,
-                              _sessionState,
-                              openDataServiceInitially: true,
-                            ),
-                            onRepairSettings:
-                                sessionController.terminalConfigRepairAvailable
+                child: LayoutBuilder(
+                  builder: (context, constraints) => Row(
+                    children: [
+                      Offstage(
+                        offstage: !_sessionSidebarOpen || mobileNavigation,
+                        child: SizedBox(
+                          width: math.min(280, constraints.maxWidth * 0.45),
+                          child: _SessionSidebar(
+                            visible: _sessionSidebarOpen && !mobileNavigation,
+                            activeSessionId: activeSessionId,
+                            onActivate: (id) =>
+                                _activateSession(sessionController, id),
+                            onClose: (id) =>
+                                _closeTab(sessionController, _sessionState, id),
+                            onNew: canOpenNewSession
                                 ? () => unawaited(
-                                    _confirmRepairTerminalConfig(
-                                      sessionController,
-                                    ),
-                                  )
-                                : null,
-                            onUseLocalSnapshot:
-                                _remoteFallbackSnapshot == null ||
-                                    _remoteFallbackSwitching
-                                ? null
-                                : () => unawaited(
-                                    _confirmRemoteFallbackToLocal(),
-                                  ),
-                            remoteFallbackSwitching: _remoteFallbackSwitching,
-                          )
-                        : activeSessionId != null && displayedSessionId == null
-                        ? _ShellSessionLoadingSurface(
-                            key: Key('shell-session-loading-$activeSessionId'),
-                            sessionId: activeSessionId,
-                            profileName:
-                                displayedProfile?.name ?? context.l10n.terminal,
-                            palette: palette,
-                          )
-                        : mobileHome ||
-                              activeSessionId == null ||
-                              activeTab == null
-                        ? launchPolicy.isSshOnly
-                              ? _SshOnlyShellEmptyState(
-                                  key: const Key('shell-empty-state'),
-                                  palette: palette,
-                                  profiles: _sessionState.profiles,
-                                  sessions: mobileNavigation
-                                      ? _sessionState.tabs
-                                      : const [],
-                                  onResumeSession: (id) =>
-                                      _activateSession(sessionController, id),
-                                  onManageProfiles: () => _openProfilesSheet(
-                                    sessionController,
-                                    _sessionState,
-                                  ),
-                                  onOpenProfile: (profile) => _createSession(
-                                    sessionController,
-                                    profile,
-                                    returningToLayout: true,
-                                  ),
-                                  onCreateProfile: () => unawaited(
-                                    _openSshProfileCreator(
+                                    _openNewSessionLauncher(
                                       sessionController,
                                       _sessionState,
                                     ),
-                                  ),
-                                )
-                              : _ShellEmptyState(
-                                  key: const Key('shell-empty-state'),
-                                  palette: palette,
-                                  title: _emptyStateTitle,
-                                  message: _emptyStateMessage,
-                                  defaultSummary: defaultSummary,
-                                  onNewTab: canOpenNewSession
-                                      ? () => unawaited(
-                                          _openNewSessionLauncher(
-                                            sessionController,
-                                            _sessionState,
+                                  )
+                                : null,
+                            onContextMenu: (tab, position) =>
+                                _openTabContextMenu(
+                                  sessionController,
+                                  ref.read(sessionControllerProvider),
+                                  tab,
+                                  position,
+                                ),
+                            hasNewOutput: _tabHasNewOutput,
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: _RecordingLibraryLayout(
+                          palette: palette,
+                          shelfOpen: _recordingShelfOpen,
+                          onClose: _closeRecordingLibrary,
+                          layout: AnimatedSwitcher(
+                            duration: animationsEnabled
+                                ? const Duration(milliseconds: 160)
+                                : Duration.zero,
+                            switchInCurve: Curves.easeOutCubic,
+                            switchOutCurve: Curves.easeInCubic,
+                            child:
+                                _selectedRecordingEntry != null &&
+                                    _selectedRecording != null
+                                ? _RecordingReplayLayout(
+                                    mobile: mobileNavigation,
+                                    key: ValueKey((
+                                      _selectedRecordingEntry!.path,
+                                      _recordingPlaybackGeneration,
+                                    )),
+                                    palette: palette,
+                                    entry: _selectedRecordingEntry!,
+                                    recording: _selectedRecording!,
+                                    delegate: ref.read(
+                                      ptySessionBackendProvider,
+                                    ),
+                                    sessionConfig: recordingReplayConfig,
+                                    terminalColors: instantReplayColors,
+                                    font: recordingReplayConfig.display.font,
+                                    cursor:
+                                        recordingReplayConfig.display.cursor,
+                                    onClose: _closeRecordingReplay,
+                                  )
+                                : instantReplaySession != null
+                                ? _InstantReplayLayout(
+                                    mobile: mobileNavigation,
+                                    key: const Key('instant-replay-layout'),
+                                    layout: instantReplaySession,
+                                    palette: palette,
+                                    runtime: ref.read(
+                                      terminalRuntimeControllerProvider,
+                                    ),
+                                    terminalColors: instantReplayColors,
+                                    font:
+                                        instantReplayConfig?.display.font ??
+                                        const terminal.TerminalFontConfig(),
+                                    cursor:
+                                        instantReplayConfig?.display.cursor ??
+                                        const terminal.TerminalCursorConfig(),
+                                    onCopyVisible:
+                                        _copyInstantReplayVisibleText,
+                                    onClear: _confirmClearInstantReplayHistory,
+                                    onExit: _closeInstantReplayLayout,
+                                  )
+                                : !_sessionState.isReady
+                                ? _ShellStartupSurface(
+                                    key: const Key('shell-startup-state'),
+                                    palette: palette,
+                                    errorMessage: _sessionState.lastError,
+                                    onRetry: _sessionState.lastError != null
+                                        ? sessionController.retryBootstrap
+                                        : null,
+                                    onOpenSettings: () =>
+                                        _openDefaultsAndAppearance(
+                                          sessionController,
+                                          _sessionState,
+                                          openDataServiceInitially: true,
+                                        ),
+                                    onRepairSettings:
+                                        sessionController
+                                            .terminalConfigRepairAvailable
+                                        ? () => unawaited(
+                                            _confirmRepairTerminalConfig(
+                                              sessionController,
+                                            ),
+                                          )
+                                        : null,
+                                    onUseLocalSnapshot:
+                                        _remoteFallbackSnapshot == null ||
+                                            _remoteFallbackSwitching
+                                        ? null
+                                        : () => unawaited(
+                                            _confirmRemoteFallbackToLocal(),
+                                          ),
+                                    remoteFallbackSwitching:
+                                        _remoteFallbackSwitching,
+                                  )
+                                : activeSessionId != null &&
+                                      displayedSessionId == null
+                                ? _ShellSessionLoadingSurface(
+                                    key: Key(
+                                      'shell-session-loading-$activeSessionId',
+                                    ),
+                                    sessionId: activeSessionId,
+                                    profileName:
+                                        displayedProfile?.name ??
+                                        context.l10n.terminal,
+                                    palette: palette,
+                                  )
+                                : mobileHome ||
+                                      activeSessionId == null ||
+                                      activeTab == null
+                                ? launchPolicy.isSshOnly
+                                      ? _SshOnlyShellEmptyState(
+                                          key: const Key('shell-empty-state'),
+                                          palette: palette,
+                                          profiles: _sessionState.profiles,
+                                          sessions: mobileNavigation
+                                              ? _sessionState.tabs
+                                              : const [],
+                                          onResumeSession: (id) =>
+                                              _activateSession(
+                                                sessionController,
+                                                id,
+                                              ),
+                                          onManageProfiles: () =>
+                                              _openProfilesSheet(
+                                                sessionController,
+                                                _sessionState,
+                                              ),
+                                          onOpenProfile: (profile) =>
+                                              _createSession(
+                                                sessionController,
+                                                profile,
+                                                returningToLayout: true,
+                                              ),
+                                          onCreateProfile: () => unawaited(
+                                            _openSshProfileCreator(
+                                              sessionController,
+                                              _sessionState,
+                                            ),
                                           ),
                                         )
-                                      : null,
-                                )
-                        : KeyedSubtree(
-                            key: ValueKey(
-                              (displayedTab ?? activeTab).sessionId,
-                            ),
-                            child: _buildSftpSupportingPane(
-                              sessionState: _sessionState,
-                              activeSessionId: activeSessionId,
-                              primary: Row(
-                                children: [
-                                  Expanded(
-                                    child: _buildTerminalLayout(
-                                      context: context,
-                                      sessionController: sessionController,
+                                      : _ShellEmptyState(
+                                          key: const Key('shell-empty-state'),
+                                          palette: palette,
+                                          title: _emptyStateTitle,
+                                          message: _emptyStateMessage,
+                                          defaultSummary: defaultSummary,
+                                          onNewTab: canOpenNewSession
+                                              ? () => unawaited(
+                                                  _openNewSessionLauncher(
+                                                    sessionController,
+                                                    _sessionState,
+                                                  ),
+                                                )
+                                              : null,
+                                        )
+                                : KeyedSubtree(
+                                    key: ValueKey(
+                                      (displayedTab ?? activeTab).sessionId,
+                                    ),
+                                    child: _buildSftpSupportingPane(
                                       sessionState: _sessionState,
-                                      activeTab: displayedTab ?? activeTab,
-                                      activeSessionId:
-                                          displayedSessionId ?? activeSessionId,
-                                      palette: palette,
-                                      onHostKeyEvent: handleShellShortcut,
+                                      activeSessionId: activeSessionId,
+                                      primary: Row(
+                                        children: [
+                                          Expanded(
+                                            child: _buildTerminalLayout(
+                                              context: context,
+                                              sessionController:
+                                                  sessionController,
+                                              sessionState: _sessionState,
+                                              activeTab:
+                                                  displayedTab ?? activeTab,
+                                              activeSessionId:
+                                                  displayedSessionId ??
+                                                  activeSessionId,
+                                              palette: palette,
+                                              onHostKeyEvent:
+                                                  handleShellShortcut,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ),
-                                ],
-                              ),
-                            ),
                           ),
-                  ),
-                  shelf: _SavedRecordingsShelf(
-                    palette: palette,
-                    entries: _recordingEntries,
-                    selectedPath: _selectedRecordingEntry?.path,
-                    loading: _recordingLibraryLoading,
-                    selectionLoading: _recordingSelectionLoading,
-                    error: _recordingLibraryError,
-                    onRefresh: () => unawaited(_loadRecordingLibrary()),
-                    onOpenFile: () => unawaited(_openRecordingFromPicker()),
-                    onRecent: activeSessionId == null
-                        ? null
-                        : () => unawaited(_openInstantReplay(_sessionState)),
-                    onToggleRecording:
-                        activeSessionId == null ||
-                            _sessionState.recordingBusySessionIds.contains(
-                              activeSessionId,
-                            )
-                        ? null
-                        : () => unawaited(
-                            _toggleActiveSessionRecording(
-                              sessionController,
-                              activeSessionId,
-                            ),
+                          shelf: _SavedRecordingsShelf(
+                            palette: palette,
+                            entries: _recordingEntries,
+                            selectedPath: _selectedRecordingEntry?.path,
+                            loading: _recordingLibraryLoading,
+                            selectionLoading: _recordingSelectionLoading,
+                            error: _recordingLibraryError,
+                            onRefresh: () => unawaited(_loadRecordingLibrary()),
+                            onOpenFile: () =>
+                                unawaited(_openRecordingFromPicker()),
+                            onRecent: activeSessionId == null
+                                ? null
+                                : () => unawaited(
+                                    _openInstantReplay(_sessionState),
+                                  ),
+                            onToggleRecording:
+                                activeSessionId == null ||
+                                    _sessionState.recordingBusySessionIds
+                                        .contains(activeSessionId)
+                                ? null
+                                : () => unawaited(
+                                    _toggleActiveSessionRecording(
+                                      sessionController,
+                                      activeSessionId,
+                                    ),
+                                  ),
+                            recording: _sessionState.recordingSessionIds
+                                .contains(activeSessionId),
+                            pendingSave: _sessionState
+                                .recordingPendingSaveSessionIds
+                                .contains(activeSessionId),
+                            onSelect: (entry) =>
+                                unawaited(_selectRecording(entry)),
+                            onClose: _closeRecordingLibrary,
                           ),
-                    recording: _sessionState.recordingSessionIds.contains(
-                      activeSessionId,
-                    ),
-                    pendingSave: _sessionState.recordingPendingSaveSessionIds
-                        .contains(activeSessionId),
-                    onSelect: (entry) => unawaited(_selectRecording(entry)),
-                    onClose: _closeRecordingLibrary,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),

@@ -5169,4 +5169,44 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get terminalComplete => 'Complete input';
+
+  @override
+  String get showSessionSidebar => 'Show session sidebar';
+
+  @override
+  String get hideSessionSidebar => 'Hide session sidebar';
+
+  @override
+  String get sessionGroupDirectory => 'Directory';
+
+  @override
+  String get sessionGroupCommand => 'Command';
+
+  @override
+  String get sessionGroupDirectoryHelp => 'Group sessions by current directory';
+
+  @override
+  String get sessionGroupCommandHelp =>
+      'Group sessions by last executed command';
+
+  @override
+  String get sessionUnknownDirectory => 'Unknown directory';
+
+  @override
+  String get sessionNoCommand => 'No command yet';
+
+  @override
+  String get sessionSidebarEmpty => 'No sessions';
+
+  @override
+  String get sessionSidebarTitle => 'Sessions';
+
+  @override
+  String get sessionInteractive => 'Interactive';
+
+  @override
+  String get sessionLongRunning => 'Running';
+
+  @override
+  String get sessionUnknownCommand => 'Unknown command';
 }

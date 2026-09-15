@@ -3972,5 +3972,18 @@
   "terminalCursorDown": "Move down / next command",
   "terminalWordBack": "Previous word",
   "terminalWordForward": "Next word",
-  "terminalComplete": "Complete input"
+  "terminalComplete": "Complete input",
+  "showSessionSidebar": "Show session sidebar",
+  "hideSessionSidebar": "Hide session sidebar",
+  "sessionGroupDirectory": "Directory",
+  "sessionGroupCommand": "Command",
+  "sessionGroupDirectoryHelp": "Group sessions by current directory",
+  "sessionGroupCommandHelp": "Group sessions by last executed command",
+  "sessionUnknownDirectory": "Unknown directory",
+  "sessionNoCommand": "No command yet",
+  "sessionSidebarEmpty": "No sessions",
+  "sessionSidebarTitle": "Sessions",
+  "sessionInteractive": "Interactive",
+  "sessionLongRunning": "Running",
+  "sessionUnknownCommand": "Unknown command"
 }

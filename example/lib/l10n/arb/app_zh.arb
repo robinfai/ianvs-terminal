@@ -1334,5 +1334,18 @@
   "terminalCursorDown": "向下／下一条命令",
   "terminalWordBack": "前一个词",
   "terminalWordForward": "后一个词",
-  "terminalComplete": "补全输入"
+  "terminalComplete": "补全输入",
+  "showSessionSidebar": "显示会话侧边栏",
+  "hideSessionSidebar": "隐藏会话侧边栏",
+  "sessionGroupDirectory": "目录",
+  "sessionGroupCommand": "命令",
+  "sessionGroupDirectoryHelp": "按当前目录组织会话",
+  "sessionGroupCommandHelp": "按最近执行的命令组织会话",
+  "sessionUnknownDirectory": "未知目录",
+  "sessionNoCommand": "尚未执行命令",
+  "sessionSidebarEmpty": "暂无会话",
+  "sessionSidebarTitle": "会话",
+  "sessionInteractive": "交互程序",
+  "sessionLongRunning": "持续运行",
+  "sessionUnknownCommand": "未知命令"
 }

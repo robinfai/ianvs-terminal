@@ -498,6 +498,23 @@ class RunnerTests: XCTestCase {
     )
   }
 
+  func testSidebarControlReceivesMouseClicksInBothCoordinateSpaces() {
+    for x in [90.0, 110.0, 137.0] {
+      XCTAssertFalse(
+        MainFlutterWindow.shouldStartNativeWindowDrag(
+          at: NSPoint(x: x, y: 580),
+          contentSize: NSSize(width: 900, height: 600)
+        )
+      )
+      XCTAssertFalse(
+        MainFlutterWindow.shouldStartNativeWindowDrag(
+          atMouseLocation: NSPoint(x: 100 + x, y: 780),
+          windowFrame: NSRect(x: 100, y: 200, width: 900, height: 600)
+        )
+      )
+    }
+  }
+
   func testNativeWindowDragRegionAvoidsStandardWindowButtons() {
     let contentSize = NSSize(width: 900, height: 600)
     let closeButtonFrame = NSRect(x: 16, y: 570, width: 14, height: 14)
@@ -523,7 +540,7 @@ class RunnerTests: XCTestCase {
 
     XCTAssertTrue(
       MainFlutterWindow.shouldStartNativeWindowDrag(
-        atMouseLocation: NSPoint(x: 190, y: 778),
+        atMouseLocation: NSPoint(x: 250, y: 778),
         windowFrame: windowFrame
       )
     )
@@ -560,7 +577,7 @@ class RunnerTests: XCTestCase {
     )
     XCTAssertTrue(
       MainFlutterWindow.shouldStartNativeWindowDrag(
-        atMouseLocation: NSPoint(x: 190, y: 777),
+        atMouseLocation: NSPoint(x: 250, y: 777),
         windowFrame: windowFrame,
         standardButtonFrames: [closeButtonFrame]
       )
