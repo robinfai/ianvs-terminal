@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { DataApiClient } from '../api/client'
+import { ApiError, DataApiClient } from '../api/client'
 import { Button, Dialog, Notice, TextField } from '../components/ui'
 import type { Mode, User } from '../types'
 
@@ -148,8 +148,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         setMode(health.mode)
         setUser(response.user)
       })
-      .catch(() => {
+      .catch((error) => {
         if (cancelled) return
+        if (!(error instanceof ApiError) || (error.status !== 401 && error.status !== 403)) return
         clearToken()
         clearKey()
         setUser(null)

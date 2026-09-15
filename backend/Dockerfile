@@ -13,7 +13,8 @@ RUN apk add --no-cache ca-certificates su-exec tzdata \
     && addgroup -S ianvs \
     && adduser -S -G ianvs -h /var/lib/ianvs ianvs
 COPY --from=build /out/ianvs-api /usr/local/bin/ianvs-api
-COPY --chmod=0555 container-entrypoint.sh /usr/local/bin/ianvs-container-entrypoint
+COPY container-entrypoint.sh /usr/local/bin/ianvs-container-entrypoint
+RUN chmod 0555 /usr/local/bin/ianvs-container-entrypoint
 WORKDIR /var/lib/ianvs
 EXPOSE 47832
 ENTRYPOINT ["ianvs-container-entrypoint"]

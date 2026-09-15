@@ -897,6 +897,23 @@ class _SftpPanelHeader extends StatelessWidget {
         mobile ? Icons.arrow_back_ios_new_rounded : Icons.close_rounded,
       ),
     );
+    if (mobile) {
+      return AppMobileHeader(
+        key: const Key('sftp-panel-header'),
+        title: context.l10n.mobileFiles,
+        subtitle: target.displayAddress,
+        leading: close,
+        actions: [
+          if (onCreateDirectory != null)
+            IconButton(
+              key: const Key('sftp-create-folder'),
+              tooltip: context.l10n.createDirectory,
+              onPressed: onCreateDirectory,
+              icon: const Icon(Icons.create_new_folder_outlined),
+            ),
+        ],
+      );
+    }
     return ConstrainedBox(
       key: const Key('sftp-panel-header'),
       constraints: const BoxConstraints(minHeight: 48),

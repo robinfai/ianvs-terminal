@@ -110,6 +110,7 @@ paths:
         content:
           application/json:
             schema: {$ref: '#/components/schemas/AuthOperationRequest'}
+                device_name: {type: string, description: Optional display label; sanitized and truncated to 128 characters. Defaults to User-Agent.}
       responses:
         '200':
           description: The prepared registration operation was atomically issued.
@@ -159,6 +160,47 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/InternalError'}
+  /v1/auth/sessions:
+    get:
+      tags: [auth]
+      operationId: listSessions
+      summary: List the authenticated user's active sessions without token secrets.
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: Session IDs, creation and expiry times, and current-session markers.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sessions:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: {type: string}
+                        device_name: {type: string, description: Display-only device label; empty for legacy sessions.}
+                        created_at: {type: string, format: date-time}
+                        expires_at: {type: string, format: date-time}
+                        current: {type: boolean}
+        '401': {description: Authentication required.}
+        '404': {description: Unavailable in local mode.}
+  /v1/auth/sessions/{id}:
+    delete:
+      tags: [auth]
+      operationId: revokeSession
+      summary: Idempotently revoke an owned session and release its capacity.
+      security: [{bearerAuth: []}]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        '204': {description: Session absent or revoked. Foreign IDs are indistinguishable from missing IDs.}
+        '401': {description: Authentication required.}
+        '404': {description: Unavailable in local mode.}
   /v1/auth/login/begin:
     post:
       tags: [auth]
@@ -176,6 +218,7 @@ paths:
               properties:
                 username: {type: string}
                 password: {type: string, description: Must encode to 12-72 UTF-8 bytes., x-ianvs-min-utf8-bytes: 12, x-ianvs-max-utf8-bytes: 72}
+                replace_oldest: {type: boolean, default: false, description: Explicit consent to revoke the oldest active operation only when full after password verification.}
       responses:
         '200':
           description: Credentials were verified and a prepared operation was created; no token exists.
@@ -234,6 +277,7 @@ paths:
         content:
           application/json:
             schema: {$ref: '#/components/schemas/AuthOperationRequest'}
+                device_name: {type: string, description: Optional display label; sanitized and truncated to 128 characters. Defaults to User-Agent.}
       responses:
         '200':
           description: The prepared login operation was atomically issued.

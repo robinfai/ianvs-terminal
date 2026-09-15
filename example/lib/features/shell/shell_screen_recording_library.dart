@@ -160,6 +160,12 @@ class _SavedRecordingsShelf extends StatelessWidget {
         ),
       ),
     );
+    if (mobile) {
+      return AppMobileHeader(
+        title: context.l10n.replayHubTitle,
+        leading: close,
+      );
+    }
     return Padding(
       padding: EdgeInsets.symmetric(
         horizontal: palette.spacing.sm,

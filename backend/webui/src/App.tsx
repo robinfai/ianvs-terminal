@@ -51,7 +51,8 @@ export function App() {
       try {
         await client.logout()
       } catch {
-        // Best effort — clearing the local session below is what matters.
+        window.alert('Could not sign out on the server. Your session has been kept so you can retry.')
+        return
       }
     }
     session.signOut()

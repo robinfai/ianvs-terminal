@@ -20,7 +20,8 @@ func TestContainerCopiesHostSecretThenDropsPrivileges(t *testing.T) {
 
 	for _, required := range []string{
 		"apk add --no-cache ca-certificates su-exec tzdata",
-		"COPY --chmod=0555 container-entrypoint.sh /usr/local/bin/ianvs-container-entrypoint",
+		"COPY container-entrypoint.sh /usr/local/bin/ianvs-container-entrypoint",
+		"RUN chmod 0555 /usr/local/bin/ianvs-container-entrypoint",
 		`ENTRYPOINT ["ianvs-container-entrypoint"]`,
 		`CMD ["serve", "--config", "/run/secrets/ianvs-api-config.json"]`,
 	} {

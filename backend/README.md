@@ -246,3 +246,33 @@ go vet ./...
 重新登录、关闭及重新启用同步，以及敏感数据的加密传输和检查点。脚本自动
 清理临时服务与数据，不依赖现有 API 账号，也不启动应用窗口。真实窗口中的
 配置切换和 SSH 重连仍需单独验收。
+
+### 登录会话管理与满额恢复
+
+Web 控制台的 **Session → Signed-in sessions** 列出当前账号的有效会话，显示
+创建/过期时间和当前会话标记；可以注销指定会话或退出其他会话。新登录显示设备名（网页默认浏览器与系统，可手动备注）；旧会话没有设备
+元数据，标为设备未知并保留会话 ID 前缀，不推测设备或最近使用时间。
+
+`GET /v1/auth/sessions` 返回账号自己的会话；
+`DELETE /v1/auth/sessions/{id}` 幂等注销自己的会话，释放对应 operation 名额。
+接口仅对 remote 模式开放，不返回 token、token hash 或 operation capability。
+
+默认上限仍为 8。满额登录时，网页提供明确确认的恢复按钮；
+`POST /v1/auth/login/begin` 的可选 `replace_oldest: true` 会重新验证密码，
+仅在满额时在同一账号锁/数据库事务内注销最旧有效 operation 并预留新登录。
+旧客户端不发送此字段时行为不变。待完成操作也可能被替换；如后续 complete 未完成，
+新预留会在最多五分钟后过期。成功签发的会话沿用既有有效期。
+
+退出失败时 Web 保留本地会话并提示重试。关闭标签页不等同于服务器注销。
+本次不修改已有设备的 token 有效期，不引入设备追踪或空闲过期策略。
+Flutter 可通过网页登录恢复名额；原生会话管理入口尚未接入这些新接口。
+
+新增浏览器用例需要独立、可丢弃的 SQLite 服务：设置 `WEBUI_REMOTE_URL`
+为本机服务地址、`WEBUI_SESSION_DB` 为该服务数据库绝对路径，先运行
+`python3 e2e/seed-session-fixture.py`（在 `backend/webui` 目录），再运行
+`node node_modules/@playwright/test/cli.js test --config e2e/playwright.config.ts session-management.spec.ts`。
+未设置 fixture 标志时，此专用用例跳过。不得对生产数据库运行种子脚本。
+
+设备名通过登录/注册 complete 的 `device_name` 传入，旧客户端回退到 User-Agent。
+标签仅用于显示，最多 128 个字符，存于服务器私有 settings 的 `auth.session.device/`
+命名空间，绑定 operation hash；注销、替换、过期清理时删除，不参与认证或资源同步。

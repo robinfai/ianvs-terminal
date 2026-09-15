@@ -913,28 +913,17 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     if (mobile)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        child: Row(
-                          children: [
-                            IconButton(
-                              key: const Key('ssh-mobile-back'),
-                              tooltip: context.l10n.cancel,
-                              onPressed: () => Navigator.of(context).pop(),
-                              icon: const Icon(Icons.chevron_left_rounded),
-                            ),
-                            Expanded(
-                              child: Text(
-                                context.l10n.sshConnection,
-                                textAlign: TextAlign.center,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.titleMedium,
-                              ),
-                            ),
-                            const SizedBox(width: kMinInteractiveDimension),
-                          ],
+                      AppMobileHeader(
+                        title: context.l10n.sshConnection,
+                        leading: IconButton(
+                          key: const Key('ssh-mobile-back'),
+                          tooltip: context.l10n.cancel,
+                          onPressed: () => Navigator.of(context).pop(),
+                          icon: const Icon(Icons.arrow_back_ios_new_rounded),
                         ),
+                        actions: const [
+                          SizedBox(width: kMinInteractiveDimension),
+                        ],
                       ),
                     if (!mobile && !compactKeyboardLayout) ...[
                       Row(

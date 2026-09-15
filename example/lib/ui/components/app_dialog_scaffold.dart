@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import '../../l10n/l10n.dart';
 import '../foundation/app_theme_tokens.dart';
 import 'app_action_button.dart';
+import 'app_mobile_header.dart';
 import 'app_panel.dart';
 
 class AppDialogScaffold extends StatelessWidget {
@@ -58,68 +59,87 @@ class AppDialogScaffold extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = context.appTheme;
     final fullscreen = !centerInViewport && borderRadius == BorderRadius.zero;
-    final header = Padding(
-      padding:
-          headerPadding ??
-          EdgeInsets.only(
-            left: theme.spacing.lg,
-            top: theme.spacing.md,
-            right: theme.spacing.lg,
-            bottom: theme.spacing.sm,
-          ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          if (leading != null) ...[leading!, SizedBox(width: theme.spacing.sm)],
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  maxLines: context.usesTouchControlDensity ? 2 : null,
-                  overflow: context.usesTouchControlDensity
-                      ? TextOverflow.ellipsis
-                      : null,
-                  style:
-                      titleTextStyle ??
-                      Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: theme.textPrimary,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0,
-                      ),
+    final mobileHeader = fullscreen && context.usesMobileNavigation;
+    final header = mobileHeader
+        ? AppMobileHeader(
+            title: title,
+            subtitle: subtitle,
+            leading: leading,
+            actions: [
+              ...actions,
+              if (onClose != null)
+                IconButton(
+                  tooltip: closeTooltip ?? context.l10n.closeDialog,
+                  onPressed: onClose,
+                  icon: const Icon(Icons.close_rounded),
                 ),
-                if (subtitle != null) ...[
-                  SizedBox(height: theme.spacing.xs),
-                  Text(
-                    subtitle!,
-                    style:
-                        subtitleTextStyle ??
-                        Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: theme.textSubtle,
-                        ),
-                  ),
+            ],
+          )
+        : Padding(
+            padding:
+                headerPadding ??
+                EdgeInsets.only(
+                  left: theme.spacing.lg,
+                  top: theme.spacing.md,
+                  right: theme.spacing.lg,
+                  bottom: theme.spacing.sm,
+                ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                if (leading != null) ...[
+                  leading!,
+                  SizedBox(width: theme.spacing.sm),
                 ],
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        maxLines: context.usesTouchControlDensity ? 2 : null,
+                        overflow: context.usesTouchControlDensity
+                            ? TextOverflow.ellipsis
+                            : null,
+                        style:
+                            titleTextStyle ??
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                              color: theme.textPrimary,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0,
+                            ),
+                      ),
+                      if (subtitle != null) ...[
+                        SizedBox(height: theme.spacing.xs),
+                        Text(
+                          subtitle!,
+                          style:
+                              subtitleTextStyle ??
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: theme.textSubtle,
+                              ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                for (var index = 0; index < actions.length; index++) ...[
+                  if (index > 0) SizedBox(width: theme.spacing.xs),
+                  actions[index],
+                ],
+                if (actions.isNotEmpty && onClose != null)
+                  SizedBox(width: theme.spacing.xs),
+                if (onClose != null)
+                  AppActionButton(
+                    tooltip: closeTooltip ?? context.l10n.closeDialog,
+                    tone: AppActionTone.ghost,
+                    size: AppActionSize.dense,
+                    onPressed: onClose,
+                    icon: Icons.close_rounded,
+                  ),
               ],
             ),
-          ),
-          for (var index = 0; index < actions.length; index++) ...[
-            if (index > 0) SizedBox(width: theme.spacing.xs),
-            actions[index],
-          ],
-          if (actions.isNotEmpty && onClose != null)
-            SizedBox(width: theme.spacing.xs),
-          if (onClose != null)
-            AppActionButton(
-              tooltip: closeTooltip ?? context.l10n.closeDialog,
-              tone: AppActionTone.ghost,
-              size: AppActionSize.dense,
-              onPressed: onClose,
-              icon: Icons.close_rounded,
-            ),
-        ],
-      ),
-    );
+          );
 
     final paddedBody = Padding(
       padding:
@@ -151,7 +171,7 @@ class AppDialogScaffold extends StatelessWidget {
       mainAxisSize: height == null ? MainAxisSize.min : MainAxisSize.max,
       children: [
         header,
-        const Divider(height: 1),
+        if (!mobileHeader) const Divider(height: 1),
         if (expandBody) Expanded(child: paddedBody) else paddedBody,
         if (paddedFooter != null) ...[
           Divider(height: 1, color: theme.border),

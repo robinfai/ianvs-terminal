@@ -255,22 +255,15 @@ class _MobileReplayPlayerState extends State<MobileReplayPlayer>
     );
   }
 
-  Widget _header() => Row(
-    children: [
-      IconButton(
-        key: const Key('mobile-replay-close'),
-        tooltip: context.l10n.closeReplay,
-        onPressed: widget.onClose,
-        icon: const Icon(Icons.arrow_back_ios_new_rounded),
-      ),
-      Expanded(
-        child: Text(
-          widget.title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
-      ),
+  Widget _header() => AppMobileHeader(
+    title: widget.title,
+    leading: IconButton(
+      key: const Key('mobile-replay-close'),
+      tooltip: context.l10n.closeReplay,
+      onPressed: widget.onClose,
+      icon: const Icon(Icons.arrow_back_ios_new_rounded),
+    ),
+    actions: [
       IconButton(
         key: const Key('mobile-replay-open-search'),
         tooltip: context.l10n.searchReplay,

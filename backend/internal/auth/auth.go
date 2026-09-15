@@ -222,6 +222,11 @@ func (s *Service) BeginRegister(
 }
 
 func (s *Service) BeginLogin(ctx context.Context, username, password string) (PreparedOperation, error) {
+	return s.BeginLoginReplacingOldest(ctx, username, password, false)
+}
+
+// BeginLoginReplacingOldest requires explicit consent and re-verifies credentials.
+func (s *Service) BeginLoginReplacingOldest(ctx context.Context, username, password string, replaceOldest bool) (PreparedOperation, error) {
 	username = normalizeUsername(username)
 	if len(password) < minimumPasswordSize || len(password) > maximumPasswordSize {
 		return PreparedOperation{}, ErrInvalidCredentials
@@ -267,7 +272,21 @@ func (s *Service) BeginLogin(ctx context.Context, username, password string) (Pr
 			return err
 		}
 		if err := ensureUserSessionCapacity(tx, user.ID, now); err != nil {
-			return err
+			if !replaceOldest || !errors.Is(err, ErrSessionCapacity) {
+				return err
+			}
+			var oldest model.AuthOperation
+			if err := tx.Where("user_id = ? AND expires_at > ? AND state IN ?", user.ID, now,
+				[]string{authOperationStatePrepared, authOperationStateIssued}).
+				Order("created_at ASC, operation_hash ASC").First(&oldest).Error; err != nil {
+				return err
+			}
+			if err := revokeOperation(tx, oldest.OperationHash); err != nil {
+				return err
+			}
+			if err := ensureUserSessionCapacity(tx, user.ID, now); err != nil {
+				return err
+			}
 		}
 		expiresAt := now.Add(s.preparedOperationTTL())
 		if err := tx.Create(&model.AuthOperation{
@@ -323,6 +342,9 @@ func (s *Service) completeOperation(ctx context.Context, operationID, expectedKi
 			return fmt.Errorf("load prepared authentication operation: %w", err)
 		}
 		if !operation.ExpiresAt.After(now) {
+			if err := tx.Where("key = ?", sessionMetadataKey(operationHash)).Delete(&model.Setting{}).Error; err != nil {
+				return err
+			}
 			if err := tx.Where("operation_hash = ?", operationHash).Delete(&model.AuthToken{}).Error; err != nil {
 				return fmt.Errorf("delete expired authentication operation token: %w", err)
 			}
@@ -352,6 +374,11 @@ func (s *Service) completeOperation(ctx context.Context, operationID, expectedKi
 		operation.ExpiresAt = now.Add(s.tokenTTL)
 		if err := tx.Save(&operation).Error; err != nil {
 			return fmt.Errorf("mark authentication operation issued: %w", err)
+		}
+		if name, _ := ctx.Value(deviceNameKey{}).(string); name != "" {
+			if err := tx.Create(&model.Setting{Key: sessionMetadataKey(operation.OperationHash), Value: name}).Error; err != nil {
+				return err
+			}
 		}
 		created, err := s.issueReservedToken(tx, user, operation)
 		if err != nil {
@@ -388,6 +415,9 @@ func (s *Service) CancelOperation(ctx context.Context, operationID string) error
 				return nil
 			}
 			return fmt.Errorf("load authentication operation for cancellation: %w", err)
+		}
+		if err := tx.Where("key = ?", sessionMetadataKey(operationHash)).Delete(&model.Setting{}).Error; err != nil {
+			return err
 		}
 		if err := tx.Where("operation_hash = ?", operationHash).Delete(&model.AuthToken{}).Error; err != nil {
 			return fmt.Errorf("revoke authentication operation token: %w", err)
@@ -463,6 +493,9 @@ func (s *Service) Logout(ctx context.Context, rawToken string) error {
 			operation = &linked
 		}
 
+		if err := tx.Where("key = ?", sessionMetadataKey(token.OperationHash)).Delete(&model.Setting{}).Error; err != nil {
+			return err
+		}
 		if err := tx.Where("token_hash = ?", tokenHash).Delete(&model.AuthToken{}).Error; err != nil {
 			return fmt.Errorf("delete auth token: %w", err)
 		}
@@ -559,6 +592,15 @@ func ValidateOperationID(operationID string) error {
 }
 
 func cleanupExpiredAuthState(db *gorm.DB, now time.Time) error {
+	var expired []model.AuthOperation
+	if err := db.Select("operation_hash").Where("expires_at <= ?", now).Find(&expired).Error; err != nil {
+		return err
+	}
+	for _, op := range expired {
+		if err := db.Where("key = ?", sessionMetadataKey(op.OperationHash)).Delete(&model.Setting{}).Error; err != nil {
+			return err
+		}
+	}
 	if err := db.Where("expires_at <= ?", now).Delete(&model.AuthToken{}).Error; err != nil {
 		return fmt.Errorf("delete expired authentication tokens: %w", err)
 	}

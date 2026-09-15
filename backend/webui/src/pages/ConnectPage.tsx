@@ -190,18 +190,21 @@ function LoginForm({ baseUrl }: { baseUrl: string }) {
   const session = useSession()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [deviceName, setDeviceName] = useState(defaultDeviceName)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const submit = async (event: FormEvent) => {
+  const [atCapacity, setAtCapacity] = useState(false)
+  const submit = async (event: FormEvent, replaceOldest = false) => {
     event.preventDefault()
+    if (busy) return
     setError(null)
     setBusy(true)
     const anonymous = new DataApiClient({ baseUrl })
     let issuedToken: string | null = null
     try {
-      const prepared = await anonymous.beginLogin(username.trim(), password)
-      const sessionResult = await anonymous.completeLogin(prepared.operation_id)
+      const prepared = await anonymous.beginLogin(username.trim(), password, replaceOldest)
+      const sessionResult = await anonymous.completeLogin(prepared.operation_id, deviceName)
       issuedToken = sessionResult.token
       await session.signIn(sessionResult.token)
     } catch (err) {
@@ -212,6 +215,7 @@ function LoginForm({ baseUrl }: { baseUrl: string }) {
           // Best-effort cleanup; the invalid token was never persisted locally.
         }
       }
+      setAtCapacity(err instanceof ApiError && err.code === 'auth_session_capacity')
       setError(err instanceof Error ? err.message : String(err))
     } finally {
       setBusy(false)
@@ -219,7 +223,7 @@ function LoginForm({ baseUrl }: { baseUrl: string }) {
   }
 
   return (
-    <form className="terminal-form" onSubmit={submit}>
+    <form className="terminal-form" onSubmit={(event) => void submit(event)}>
       <TextField
         label="Username"
         type="text"
@@ -236,9 +240,22 @@ function LoginForm({ baseUrl }: { baseUrl: string }) {
         autoComplete="current-password"
         required
       />
+      <TextField label="Device name" value={deviceName}
+        onChange={(event) => setDeviceName(event.target.value)} maxLength={128}
+        hint="For example: Work MacBook · Chrome or Personal iPhone. This helps identify this sign-in." />
       {error ? (
         <Notice tone="error" role="alert">
           {error}
+        </Notice>
+      ) : null}
+      {atCapacity ? (
+        <Notice tone="warning">
+          All 8 sign-in slots are occupied. Continuing signs out the oldest session
+          (or cancels the oldest pending sign-in). Its client will need to sign in again.
+          <Button type="button" variant="danger" busy={busy}
+            onClick={(event) => void submit(event, true)}>
+            Sign out oldest session and sign in
+          </Button>
         </Notice>
       ) : null}
       <Button type="submit" variant="primary" busy={busy}>
@@ -252,6 +269,7 @@ function RegisterForm({ baseUrl }: { baseUrl: string }) {
   const session = useSession()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [deviceName, setDeviceName] = useState(defaultDeviceName)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -262,7 +280,7 @@ function RegisterForm({ baseUrl }: { baseUrl: string }) {
     try {
       const anonymous = new DataApiClient({ baseUrl })
       const prepared = await anonymous.beginRegister(username.trim(), password)
-      const sessionResult = await anonymous.completeRegister(prepared.operation_id)
+      const sessionResult = await anonymous.completeRegister(prepared.operation_id, deviceName)
       await session.signIn(sessionResult.token)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
@@ -292,6 +310,9 @@ function RegisterForm({ baseUrl }: { baseUrl: string }) {
         required
         hint="At least 12 characters."
       />
+      <TextField label="Device name" value={deviceName}
+        onChange={(event) => setDeviceName(event.target.value)} maxLength={128}
+        hint="For example: Work MacBook · Chrome or Personal iPhone. This helps identify this sign-in." />
       {error ? (
         <Notice tone="error" role="alert">
           {error}
@@ -302,4 +323,11 @@ function RegisterForm({ baseUrl }: { baseUrl: string }) {
       </Button>
     </form>
   )
+}
+
+function defaultDeviceName(): string {
+  const ua = navigator.userAgent
+  const os = /Android/.test(ua) ? 'Android' : /iPhone/.test(ua) ? 'iPhone' : /iPad/.test(ua) ? 'iPad' : /Macintosh/.test(ua) ? 'Mac' : /Windows/.test(ua) ? 'Windows' : /Linux/.test(ua) ? 'Linux' : 'Browser'
+  const browser = /Edg\//.test(ua) ? 'Edge' : /Firefox\/|FxiOS\//.test(ua) ? 'Firefox' : /Chrome\/|CriOS\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : 'Web'
+  return `${os} · ${browser}`
 }

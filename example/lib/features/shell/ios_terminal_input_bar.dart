@@ -136,6 +136,10 @@ class _IosTerminalInputBarState extends State<IosTerminalInputBar> {
   }
 
   Widget _buildExtraKeys(double height) {
+    final menuItemHeight = math.max(kMinInteractiveDimension, height);
+    const menuPadding = EdgeInsets.symmetric(vertical: 8);
+    final menuHeight =
+        menuItemHeight * _KeyGroup.values.length + menuPadding.vertical;
     return Row(
       key: const Key('ios-terminal-extra-keys'),
       spacing: 8,
@@ -144,14 +148,19 @@ class _IosTerminalInputBarState extends State<IosTerminalInputBar> {
           key: const Key('ios-terminal-key-group'),
           tooltip: context.l10n.terminalKeyGroup,
           requestFocus: false,
-          initialValue: _group,
+          // Anchor the whole menu above the accessory, outside the IME area.
+          // initialValue would instead align the selected row with the button.
+          position: PopupMenuPosition.over,
+          offset: Offset(0, -menuHeight),
+          menuPadding: menuPadding,
           onSelected: (group) => setState(() => _group = group),
           itemBuilder: (context) => [
             for (final group in _KeyGroup.values)
               PopupMenuItem(
                 key: Key('ios-terminal-group-${group.name}'),
                 value: group,
-                child: Text(group.label(context.l10n)),
+                height: menuItemHeight,
+                child: Text(group.label(context.l10n), style: _keyStyle),
               ),
           ],
           child: Container(
@@ -168,7 +177,7 @@ class _IosTerminalInputBarState extends State<IosTerminalInputBar> {
               children: [
                 Text(_group.label(context.l10n), style: _keyStyle),
                 Icon(
-                  Icons.expand_more,
+                  Icons.expand_less,
                   size: 16,
                   color: widget.palette.textPrimary,
                 ),

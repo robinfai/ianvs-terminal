@@ -19,78 +19,66 @@ class _MobileShellHeader extends StatelessWidget {
   final VoidCallback? onMore;
 
   @override
-  Widget build(BuildContext context) => Material(
-    color: context.appTheme.panel,
-    child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      child: Row(
-        children: [
-          if (onBack != null)
-            IconButton(
-              key: const Key('mobile-connections-back'),
-              tooltip: context.l10n.mobileConnections,
-              onPressed: onBack,
-              icon: const Icon(Icons.arrow_back_ios_new_rounded),
-            ),
-          Expanded(
-            child: onSessions == null
-                ? Padding(
-                    padding: const EdgeInsets.only(left: 8),
-                    child: Text(
-                      title,
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
-                  )
-                : TextButton(
-                    key: const Key('mobile-session-picker'),
-                    onPressed: onSessions,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Flexible(
-                          child: Text(
-                            title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                        ),
-                        const Icon(Icons.expand_more_rounded),
-                      ],
-                    ),
-                  ),
+  Widget build(BuildContext context) => AppMobileHeader(
+    title: title,
+    leading: onBack == null
+        ? null
+        : IconButton(
+            key: const Key('mobile-connections-back'),
+            tooltip: context.l10n.mobileConnections,
+            onPressed: onBack,
+            icon: const Icon(Icons.arrow_back_ios_new_rounded),
           ),
-          if (onBack == null) ...[
-            IconButton(
-              key: const Key('shell-open-recording'),
-              tooltip: context.l10n.mobileReplay,
-              onPressed: onReplay,
-              icon: const Icon(Icons.play_circle_outline_rounded),
+    titleWidget: onSessions == null
+        ? null
+        : TextButton(
+            key: const Key('mobile-session-picker'),
+            onPressed: onSessions,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                const Icon(Icons.expand_more_rounded),
+              ],
             ),
-            IconButton(
-              key: const Key('shell-command-defaults'),
-              tooltip: context.l10n.mobileSettings,
-              onPressed: onSettings,
-              icon: const Icon(Icons.settings_outlined),
-            ),
-          ] else ...[
-            if (onFiles != null)
-              IconButton(
-                key: const Key('shell-open-sftp-panel'),
-                tooltip: context.l10n.mobileFiles,
-                onPressed: onFiles,
-                icon: const Icon(Icons.folder_outlined),
-              ),
-            IconButton(
-              key: const Key('shell-chrome-menu'),
-              tooltip: context.l10n.mobileSessionActions,
-              onPressed: onMore,
-              icon: const Icon(Icons.more_horiz_rounded),
-            ),
-          ],
-        ],
-      ),
-    ),
+          ),
+    actions: [
+      if (onBack == null) ...[
+        IconButton(
+          key: const Key('shell-open-recording'),
+          tooltip: context.l10n.mobileReplay,
+          onPressed: onReplay,
+          icon: const Icon(Icons.play_circle_outline_rounded),
+        ),
+        IconButton(
+          key: const Key('shell-command-defaults'),
+          tooltip: context.l10n.mobileSettings,
+          onPressed: onSettings,
+          icon: const Icon(Icons.settings_outlined),
+        ),
+      ] else ...[
+        if (onFiles != null)
+          IconButton(
+            key: const Key('shell-open-sftp-panel'),
+            tooltip: context.l10n.mobileFiles,
+            onPressed: onFiles,
+            icon: const Icon(Icons.folder_outlined),
+          ),
+        IconButton(
+          key: const Key('shell-chrome-menu'),
+          tooltip: context.l10n.mobileSessionActions,
+          onPressed: onMore,
+          icon: const Icon(Icons.more_horiz_rounded),
+        ),
+      ],
+    ],
   );
 }
 

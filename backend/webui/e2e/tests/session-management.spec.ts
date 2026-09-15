@@ -1,0 +1,27 @@
+import { test, expect } from '@playwright/test'
+import { requireEnv } from './env'
+
+const url = requireEnv('WEBUI_REMOTE_URL')
+test('full account can explicitly replace a session and revoke others', async ({ page }) => {
+  test.skip(!process.env.WEBUI_SESSION_DB, 'Requires a pre-seeded isolated SQLite fixture; see backend/README.md')
+  await page.goto(url)
+  await page.getByLabel('Username').fill('capacity-ui')
+  await page.getByLabel('Password').fill('session-ui-password')
+  await page.getByLabel('Device name').fill('Work MacBook · Chrome')
+  await page.getByRole('button', { name: 'Unlock profiles', exact: true }).click()
+  await expect(page.getByRole('button', {name:'Sign out oldest session and sign in'})).toBeVisible()
+  await page.getByRole('button', {name:'Sign out oldest session and sign in'}).click()
+  await expect(page.getByRole('heading',{name:'SSH Profiles'})).toBeVisible()
+  await page.getByRole('link',{name:'Session',exact:true}).click()
+  await expect(page.getByText('Work MacBook · Chrome · This session', {exact:true})).toBeVisible()
+  await expect(page.getByRole('button',{name:'Sign out session',exact:true})).toHaveCount(7)
+  await page.screenshot({path:'/private/tmp/ianvs-session-verify/sessions-desktop.png',fullPage:true})
+  await page.setViewportSize({width:390,height:844})
+  await page.screenshot({path:'/private/tmp/ianvs-session-verify/sessions-mobile.png',fullPage:true})
+  page.on('dialog', d=>d.accept())
+  await page.getByRole('button',{name:'Sign out other sessions',exact:true}).click()
+  await expect(page.getByRole('button',{name:'Sign out session',exact:true})).toHaveCount(0)
+  await expect(page.getByText('Work MacBook · Chrome · This session', {exact:true})).toBeVisible()
+  await page.getByRole('button',{name:'Sign out',exact:true}).click()
+  await expect(page.getByRole('heading',{name:'Unlock SSH profiles'})).toBeVisible()
+})

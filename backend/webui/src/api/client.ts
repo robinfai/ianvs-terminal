@@ -103,20 +103,28 @@ export class DataApiClient {
     })
   }
 
-  completeRegister(operationId: string): Promise<AuthSession> {
-    return this.request('POST', '/v1/auth/register/complete', { body: { operation_id: operationId } })
+  completeRegister(operationId: string, deviceName?: string): Promise<AuthSession> {
+    return this.request('POST', '/v1/auth/register/complete', { body: { operation_id: operationId, device_name: deviceName } })
   }
 
-  beginLogin(username: string, password: string): Promise<PreparedAuthOperation> {
-    return this.request('POST', '/v1/auth/login/begin', { body: { username, password } })
+  beginLogin(username: string, password: string, replaceOldest = false): Promise<PreparedAuthOperation> {
+    return this.request('POST', '/v1/auth/login/begin', { body: { username, password, replace_oldest: replaceOldest } })
   }
 
-  completeLogin(operationId: string): Promise<AuthSession> {
-    return this.request('POST', '/v1/auth/login/complete', { body: { operation_id: operationId } })
+  completeLogin(operationId: string, deviceName?: string): Promise<AuthSession> {
+    return this.request('POST', '/v1/auth/login/complete', { body: { operation_id: operationId, device_name: deviceName } })
   }
 
   cancelOperation(operationId: string): Promise<void> {
     return this.request<void>('POST', '/v1/auth/cancel-operation', { body: { operation_id: operationId } })
+  }
+
+  listSessions(): Promise<{ sessions: { id: string; device_name: string; created_at: string; expires_at: string; current: boolean }[] }> {
+    return this.request('GET', '/v1/auth/sessions')
+  }
+
+  revokeSession(id: string): Promise<void> {
+    return this.request('DELETE', `/v1/auth/sessions/${encodeURIComponent(id)}`)
   }
 
   logout(): Promise<void> {

@@ -37,6 +37,8 @@ func TestOpenAPIPathsMatchImplementedHTTPRoutes(t *testing.T) {
 		"POST /v1/auth/login/complete":     "completeLogin",
 		"POST /v1/auth/cancel-operation":   "cancelAuthenticationOperation",
 		"POST /v1/auth/logout":             "logout",
+		"GET /v1/auth/sessions":            "listSessions",
+		"DELETE /v1/auth/sessions/{id}":    "revokeSession",
 		"GET /v1/me":                       "getCurrentUser",
 		"GET /v1/resources":                "listResources",
 		"GET /v1/resources/{kind}/{id}":    "getResource",

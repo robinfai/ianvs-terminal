@@ -103,6 +103,8 @@ func (a *API) routes() {
 	a.mux.HandleFunc("POST /v1/auth/cancel-operation", a.cancelAuthOperation)
 	a.mux.Handle("POST /v1/auth/logout", a.protected(a.logout))
 	a.mux.Handle("GET /v1/me", a.protected(a.me))
+	a.mux.Handle("GET /v1/auth/sessions", a.protected(a.listSessions))
+	a.mux.Handle("DELETE /v1/auth/sessions/{id}", a.protected(a.revokeSession))
 	a.mux.Handle("GET /v1/resources", a.protected(a.listResources))
 	a.mux.Handle("GET /v1/resources/{kind}/{id}", a.protected(a.getResource))
 	a.mux.Handle("PUT /v1/resources/{kind}/{id}", a.protected(a.putResource))
@@ -171,12 +173,13 @@ func (a *API) completeRegister(w http.ResponseWriter, r *http.Request) {
 	}
 	var request struct {
 		OperationID string `json:"operation_id"`
+		DeviceName  string `json:"device_name"`
 	}
 	if err := decodeBody(w, r, maximumAuthenticationBodySize, &request); err != nil {
 		writeDecodeError(w, err)
 		return
 	}
-	session, err := a.auth.CompleteRegister(r.Context(), request.OperationID)
+	session, err := a.auth.CompleteRegister(auth.WithDeviceName(r.Context(), deviceLabel(request.DeviceName, r.UserAgent())), request.OperationID)
 	if err != nil {
 		a.writeServiceError(w, err)
 		return
@@ -197,14 +200,15 @@ func (a *API) beginLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var request struct {
-		Username string `json:"username"`
-		Password string `json:"password"`
+		Username      string `json:"username"`
+		Password      string `json:"password"`
+		ReplaceOldest bool   `json:"replace_oldest"`
 	}
 	if err := decodeBody(w, r, maximumAuthenticationBodySize, &request); err != nil {
 		writeDecodeError(w, err)
 		return
 	}
-	prepared, err := a.auth.BeginLogin(r.Context(), request.Username, request.Password)
+	prepared, err := a.auth.BeginLoginReplacingOldest(r.Context(), request.Username, request.Password, request.ReplaceOldest)
 	if err != nil {
 		a.writeServiceError(w, err)
 		return
@@ -226,12 +230,13 @@ func (a *API) completeLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	var request struct {
 		OperationID string `json:"operation_id"`
+		DeviceName  string `json:"device_name"`
 	}
 	if err := decodeBody(w, r, maximumAuthenticationBodySize, &request); err != nil {
 		writeDecodeError(w, err)
 		return
 	}
-	session, err := a.auth.CompleteLogin(r.Context(), request.OperationID)
+	session, err := a.auth.CompleteLogin(auth.WithDeviceName(r.Context(), deviceLabel(request.DeviceName, r.UserAgent())), request.OperationID)
 	if err != nil {
 		a.writeServiceError(w, err)
 		return
