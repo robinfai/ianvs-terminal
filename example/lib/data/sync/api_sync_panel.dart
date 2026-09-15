@@ -35,7 +35,10 @@ class _ConnectedApiSyncPanel extends ConsumerWidget {
     final spacing = context.appTheme.spacing;
     final phase = sync?.phase ?? LocalFirstSyncPhase.disabled;
     final status = switch (phase) {
-      LocalFirstSyncPhase.disabled => l10n.syncLocalOnly,
+      LocalFirstSyncPhase.disabled =>
+        context.usesMobileNavigation
+            ? l10n.mobileLocalSyncStatus
+            : l10n.syncLocalOnly,
       LocalFirstSyncPhase.idle => l10n.syncUpToDate,
       LocalFirstSyncPhase.syncing => l10n.syncInProgress,
       LocalFirstSyncPhase.pending => l10n.syncPending,

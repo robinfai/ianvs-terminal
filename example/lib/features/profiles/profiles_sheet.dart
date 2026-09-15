@@ -95,13 +95,17 @@ class _ProfilesSheetState extends State<ProfilesSheet> {
 
   String get _emptyTitle {
     if (_query.trim().isNotEmpty) {
-      return context.l10n.noMatchingProfiles;
+      return context.usesMobileNavigation
+          ? context.l10n.mobileNoMatchingConnections
+          : context.l10n.noMatchingProfiles;
     }
     if (!widget.localShellProfilesEnabled && !widget.customSshProfilesEnabled) {
       return context.l10n.noSavedProfiles;
     }
     if (!widget.localShellProfilesEnabled) {
-      return context.l10n.noSshProfilesYet;
+      return context.usesMobileNavigation
+          ? context.l10n.mobileNoConnections
+          : context.l10n.noSshProfilesYet;
     }
     return context.l10n.noProfilesYet;
   }
@@ -114,7 +118,9 @@ class _ProfilesSheetState extends State<ProfilesSheet> {
       return context.l10n.connectRemoteToCreateSyncSsh;
     }
     if (!widget.localShellProfilesEnabled) {
-      return context.l10n.createSshProfileToConnect;
+      return context.usesMobileNavigation
+          ? context.l10n.mobileConnectionHelp
+          : context.l10n.createSshProfileToConnect;
     }
     return context.l10n.createProfileToCustomize;
   }
@@ -128,7 +134,9 @@ class _ProfilesSheetState extends State<ProfilesSheet> {
         ? Duration.zero
         : const Duration(milliseconds: 160);
     return Semantics(
-      label: context.l10n.profiles,
+      label: context.usesMobileNavigation
+          ? context.l10n.mobileManageConnections
+          : context.l10n.profiles,
       container: true,
       explicitChildNodes: true,
       child: AnimatedPadding(
@@ -176,7 +184,9 @@ class _ProfilesSheetState extends State<ProfilesSheet> {
                           ),
                           Tooltip(
                             message: _canCreateProfile
-                                ? context.l10n.createProfile
+                                ? (context.usesMobileNavigation
+                                      ? context.l10n.newSshConnectionLower
+                                      : context.l10n.createProfile)
                                 : context.l10n.connectRemoteToCreateSavedSsh,
                             child: FilledButton.icon(
                               key: const Key('profiles-create'),
@@ -189,7 +199,9 @@ class _ProfilesSheetState extends State<ProfilesSheet> {
                           ),
                           const SizedBox(width: 6),
                           AppActionButton(
-                            tooltip: context.l10n.closeProfiles,
+                            tooltip: context.usesMobileNavigation
+                                ? context.l10n.closeDialog
+                                : context.l10n.closeProfiles,
                             tone: AppActionTone.ghost,
                             size: AppActionSize.dense,
                             onPressed: () => Navigator.of(context).pop(),
@@ -211,7 +223,9 @@ class _ProfilesSheetState extends State<ProfilesSheet> {
                         ),
                         Semantics(
                           identifier: 'profiles-search-field',
-                          label: context.l10n.searchProfilesOrTags,
+                          label: (context.usesMobileNavigation
+                              ? context.l10n.mobileSearchConnections
+                              : context.l10n.searchProfilesOrTags),
                           container: true,
                           explicitChildNodes: true,
                           child: TextField(
@@ -220,7 +234,9 @@ class _ProfilesSheetState extends State<ProfilesSheet> {
                             autofocus: !context.usesTouchControlDensity,
                             decoration: InputDecoration(
                               prefixIcon: const Icon(Icons.search_rounded),
-                              labelText: context.l10n.searchProfilesOrTags,
+                              labelText: (context.usesMobileNavigation
+                                  ? context.l10n.mobileSearchConnections
+                                  : context.l10n.searchProfilesOrTags),
                             ),
                             textInputAction: TextInputAction.done,
                             onSubmitted: (_) =>

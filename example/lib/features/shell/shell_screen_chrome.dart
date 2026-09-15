@@ -555,12 +555,35 @@ class _ShellRuntimeErrorBanner extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  message,
+                  context.usesMobileNavigation
+                      ? context.l10n.mobileOperationFailed
+                      : message,
                   style: Theme.of(
                     context,
                   ).textTheme.bodyMedium?.copyWith(color: palette.textPrimary),
                 ),
               ),
+              if (context.usesMobileNavigation)
+                IconButton(
+                  key: const Key('shell-runtime-error-details'),
+                  tooltip: context.l10n.mobileErrorDetails,
+                  icon: const Icon(Icons.info_outline_rounded),
+                  onPressed: () => showDialog<void>(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: Text(context.l10n.terminalRuntimeError),
+                      content: SingleChildScrollView(
+                        child: SelectableText(message),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          child: Text(context.l10n.closeDialog),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               _buildCompactActionButton(
                 key: const Key('shell-runtime-error-dismiss'),
                 tooltip: context.l10n.dismissRuntimeError,

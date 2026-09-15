@@ -8197,6 +8197,156 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Unknown command'**
   String get sessionUnknownCommand;
+
+  /// No description provided for @mobileDefaultConnection.
+  ///
+  /// In en, this message translates to:
+  /// **'Default connection'**
+  String get mobileDefaultConnection;
+
+  /// No description provided for @mobileNoDefaultConnection.
+  ///
+  /// In en, this message translates to:
+  /// **'No connections available yet.'**
+  String get mobileNoDefaultConnection;
+
+  /// No description provided for @mobileCreateConnectionBeforeColors.
+  ///
+  /// In en, this message translates to:
+  /// **'Create a connection on the Connections page before choosing terminal colors.'**
+  String get mobileCreateConnectionBeforeColors;
+
+  /// No description provided for @mobileThemeModeDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'{mode, select, system{Match device appearance.} light{Always use light appearance.} dark{Always use dark appearance.} other{{mode}}}'**
+  String mobileThemeModeDescription(String mode);
+
+  /// No description provided for @mobileAttentionDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose whether the terminal may show a brief visual alert near the cursor. Requests never activate or focus the app.'**
+  String get mobileAttentionDescription;
+
+  /// No description provided for @mobileAttentionPolicyDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'{policy, select, disabled{Block alerts, but still process cancellation requests.} allow{Allow rate-limited visual alerts near the cursor.} other{{policy}}}'**
+  String mobileAttentionPolicyDescription(String policy);
+
+  /// No description provided for @mobileLocalSyncHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync is off.'**
+  String get mobileLocalSyncHelp;
+
+  /// No description provided for @mobileRemoteSyncHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync changes through your service.'**
+  String get mobileRemoteSyncHelp;
+
+  /// No description provided for @noPrivateKeySelected.
+  ///
+  /// In en, this message translates to:
+  /// **'No private key selected'**
+  String get noPrivateKeySelected;
+
+  /// No description provided for @savedPrivateKey.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved private key'**
+  String get savedPrivateKey;
+
+  /// No description provided for @savedPrivateKeys.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} saved private keys'**
+  String savedPrivateKeys(int count);
+
+  /// No description provided for @showSecret.
+  ///
+  /// In en, this message translates to:
+  /// **'Show {label}'**
+  String showSecret(String label);
+
+  /// No description provided for @hideSecret.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide {label}'**
+  String hideSecret(String label);
+
+  /// No description provided for @mobileOperationFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The operation could not be completed. View details.'**
+  String get mobileOperationFailed;
+
+  /// No description provided for @mobileErrorDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'View details'**
+  String get mobileErrorDetails;
+
+  /// No description provided for @mobileSearchConnections.
+  ///
+  /// In en, this message translates to:
+  /// **'Search connections or tags'**
+  String get mobileSearchConnections;
+
+  /// No description provided for @mobileSyncSaveNotice.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync settings take effect when saved.'**
+  String get mobileSyncSaveNotice;
+
+  /// No description provided for @mobileLocalSyncStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Data is stored on this device.'**
+  String get mobileLocalSyncStatus;
+
+  /// No description provided for @mobileSavedConnection.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved connection “{name}”.'**
+  String mobileSavedConnection(String name);
+
+  /// No description provided for @mobileUseConnectionPolicy.
+  ///
+  /// In en, this message translates to:
+  /// **'Use connection settings'**
+  String get mobileUseConnectionPolicy;
+
+  /// No description provided for @mobileNoConnections.
+  ///
+  /// In en, this message translates to:
+  /// **'No connections yet'**
+  String get mobileNoConnections;
+
+  /// No description provided for @mobileNoMatchingConnections.
+  ///
+  /// In en, this message translates to:
+  /// **'No matching connections'**
+  String get mobileNoMatchingConnections;
+
+  /// No description provided for @mobileAutomaticConnection.
+  ///
+  /// In en, this message translates to:
+  /// **'New sessions automatically use “{name}”.'**
+  String mobileAutomaticConnection(String name);
+
+  /// No description provided for @mobileCapabilitiesPendingHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Pending capabilities have no initialization check or observed event evidence yet.'**
+  String get mobileCapabilitiesPendingHelp;
+
+  /// No description provided for @mobileExternalKeyboardHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Use these shortcuts with an external keyboard. Tap a binding to edit it and choose its scope while recording.'**
+  String get mobileExternalKeyboardHelp;
 }
 
 class _AppLocalizationsDelegate

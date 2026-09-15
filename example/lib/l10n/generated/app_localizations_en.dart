@@ -5209,4 +5209,109 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sessionUnknownCommand => 'Unknown command';
+
+  @override
+  String get mobileDefaultConnection => 'Default connection';
+
+  @override
+  String get mobileNoDefaultConnection => 'No connections available yet.';
+
+  @override
+  String get mobileCreateConnectionBeforeColors =>
+      'Create a connection on the Connections page before choosing terminal colors.';
+
+  @override
+  String mobileThemeModeDescription(String mode) {
+    String _temp0 = intl.Intl.selectLogic(mode, {
+      'system': 'Match device appearance.',
+      'light': 'Always use light appearance.',
+      'dark': 'Always use dark appearance.',
+      'other': '$mode',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get mobileAttentionDescription =>
+      'Choose whether the terminal may show a brief visual alert near the cursor. Requests never activate or focus the app.';
+
+  @override
+  String mobileAttentionPolicyDescription(String policy) {
+    String _temp0 = intl.Intl.selectLogic(policy, {
+      'disabled': 'Block alerts, but still process cancellation requests.',
+      'allow': 'Allow rate-limited visual alerts near the cursor.',
+      'other': '$policy',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get mobileLocalSyncHelp => 'Sync is off.';
+
+  @override
+  String get mobileRemoteSyncHelp => 'Sync changes through your service.';
+
+  @override
+  String get noPrivateKeySelected => 'No private key selected';
+
+  @override
+  String get savedPrivateKey => 'Saved private key';
+
+  @override
+  String savedPrivateKeys(int count) {
+    return '$count saved private keys';
+  }
+
+  @override
+  String showSecret(String label) {
+    return 'Show $label';
+  }
+
+  @override
+  String hideSecret(String label) {
+    return 'Hide $label';
+  }
+
+  @override
+  String get mobileOperationFailed =>
+      'The operation could not be completed. View details.';
+
+  @override
+  String get mobileErrorDetails => 'View details';
+
+  @override
+  String get mobileSearchConnections => 'Search connections or tags';
+
+  @override
+  String get mobileSyncSaveNotice => 'Sync settings take effect when saved.';
+
+  @override
+  String get mobileLocalSyncStatus => 'Data is stored on this device.';
+
+  @override
+  String mobileSavedConnection(String name) {
+    return 'Saved connection “$name”.';
+  }
+
+  @override
+  String get mobileUseConnectionPolicy => 'Use connection settings';
+
+  @override
+  String get mobileNoConnections => 'No connections yet';
+
+  @override
+  String get mobileNoMatchingConnections => 'No matching connections';
+
+  @override
+  String mobileAutomaticConnection(String name) {
+    return 'New sessions automatically use “$name”.';
+  }
+
+  @override
+  String get mobileCapabilitiesPendingHelp =>
+      'Pending capabilities have no initialization check or observed event evidence yet.';
+
+  @override
+  String get mobileExternalKeyboardHelp =>
+      'Use these shortcuts with an external keyboard. Tap a binding to edit it and choose its scope while recording.';
 }

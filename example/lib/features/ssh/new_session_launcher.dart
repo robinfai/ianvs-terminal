@@ -1750,9 +1750,19 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                     contentPadding: EdgeInsets.zero,
                                     value: _agentForwarding,
                                     title: Text(context.l10n.forwardSshAgent),
-                                    subtitle: Text(
-                                      context.l10n.agentSocketHelp,
-                                    ),
+                                    subtitle:
+                                        context.usesMobileNavigation &&
+                                            !_agentForwarding
+                                        ? null
+                                        : Text(
+                                            context.l10n.agentSocketHelp,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodySmall
+                                                ?.copyWith(
+                                                  color: palette.textSubtle,
+                                                ),
+                                          ),
                                     onChanged: (value) => setState(
                                       () => _agentForwarding = value,
                                     ),
@@ -1773,9 +1783,19 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                     contentPadding: EdgeInsets.zero,
                                     value: _x11Forwarding,
                                     title: Text(context.l10n.forwardX11),
-                                    subtitle: Text(
-                                      context.l10n.x11ForwardingHelp,
-                                    ),
+                                    subtitle:
+                                        context.usesMobileNavigation &&
+                                            !_x11Forwarding
+                                        ? null
+                                        : Text(
+                                            context.l10n.x11ForwardingHelp,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodySmall
+                                                ?.copyWith(
+                                                  color: palette.textSubtle,
+                                                ),
+                                          ),
                                     onChanged: (value) =>
                                         setState(() => _x11Forwarding = value),
                                   ),
@@ -2024,10 +2044,10 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
     }
     if (_privateKeyValues.isNotEmpty) {
       return _privateKeyValues.length == 1
-          ? 'Saved private key'
-          : '${_privateKeyValues.length} saved private keys';
+          ? context.l10n.savedPrivateKey
+          : context.l10n.savedPrivateKeys(_privateKeyValues.length);
     }
-    return 'No private key selected';
+    return context.l10n.noPrivateKeySelected;
   }
 
   Future<void> _pickPrivateKey() async {
@@ -2410,7 +2430,9 @@ class _SecretVisibilityButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final controlSize = context.appTheme.controls.regular;
     return IconButton(
-      tooltip: obscured ? 'Show $label' : 'Hide $label',
+      tooltip: obscured
+          ? context.l10n.showSecret(label)
+          : context.l10n.hideSecret(label),
       onPressed: onPressed,
       padding: EdgeInsets.zero,
       constraints: BoxConstraints(

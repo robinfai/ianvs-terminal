@@ -3985,5 +3985,79 @@
   "sessionSidebarTitle": "Sessions",
   "sessionInteractive": "Interactive",
   "sessionLongRunning": "Running",
-  "sessionUnknownCommand": "Unknown command"
+  "sessionUnknownCommand": "Unknown command",
+  "mobileDefaultConnection": "Default connection",
+  "mobileNoDefaultConnection": "No connections available yet.",
+  "mobileCreateConnectionBeforeColors": "Create a connection on the Connections page before choosing terminal colors.",
+  "mobileThemeModeDescription": "{mode, select, system{Match device appearance.} light{Always use light appearance.} dark{Always use dark appearance.} other{{mode}}}",
+  "mobileAttentionDescription": "Choose whether the terminal may show a brief visual alert near the cursor. Requests never activate or focus the app.",
+  "mobileAttentionPolicyDescription": "{policy, select, disabled{Block alerts, but still process cancellation requests.} allow{Allow rate-limited visual alerts near the cursor.} other{{policy}}}",
+  "mobileLocalSyncHelp": "Sync is off.",
+  "mobileRemoteSyncHelp": "Sync changes through your service.",
+  "noPrivateKeySelected": "No private key selected",
+  "savedPrivateKey": "Saved private key",
+  "savedPrivateKeys": "{count} saved private keys",
+  "showSecret": "Show {label}",
+  "hideSecret": "Hide {label}",
+  "mobileOperationFailed": "The operation could not be completed. View details.",
+  "mobileErrorDetails": "View details",
+  "mobileSearchConnections": "Search connections or tags",
+  "@savedPrivateKeys": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@showSecret": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "@hideSecret": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "@mobileThemeModeDescription": {
+    "placeholders": {
+      "mode": {
+        "type": "String"
+      }
+    }
+  },
+  "@mobileAttentionPolicyDescription": {
+    "placeholders": {
+      "policy": {
+        "type": "String"
+      }
+    }
+  },
+  "mobileSyncSaveNotice": "Sync settings take effect when saved.",
+  "mobileLocalSyncStatus": "Data is stored on this device.",
+  "mobileSavedConnection": "Saved connection “{name}”.",
+  "@mobileSavedConnection": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "mobileUseConnectionPolicy": "Use connection settings",
+  "mobileNoConnections": "No connections yet",
+  "mobileNoMatchingConnections": "No matching connections",
+  "mobileAutomaticConnection": "New sessions automatically use “{name}”.",
+  "@mobileAutomaticConnection": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "mobileCapabilitiesPendingHelp": "Pending capabilities have no initialization check or observed event evidence yet.",
+  "mobileExternalKeyboardHelp": "Use these shortcuts with an external keyboard. Tap a binding to edit it and choose its scope while recording."
 }

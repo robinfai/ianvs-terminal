@@ -9,6 +9,28 @@ import 'package:ianvs_terminal/src/terminal/render_terminal_viewport.dart';
 
 void main() {
   testWidgets(
+    'iPhone keyboard follows theme while input remains attached',
+    (tester) async {
+      final harness = _MobileViewportHarness();
+      addTearDown(harness.dispose);
+      await tester.pumpWidget(harness.widget(brightness: Brightness.dark));
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
+      expect(
+        tester.testTextInput.setClientArgs?['keyboardAppearance'],
+        'Brightness.dark',
+      );
+      await tester.pumpWidget(harness.widget(brightness: Brightness.light));
+      await tester.pumpAndSettle();
+      expect(
+        tester.testTextInput.setClientArgs?['keyboardAppearance'],
+        'Brightness.light',
+      );
+    },
+    variant: const TargetPlatformVariant(<TargetPlatform>{TargetPlatform.iOS}),
+  );
+
+  testWidgets(
     'desktop trackpad pan follows content while wheel deltas keep wheel semantics',
     (tester) async {
       final harness = _MobileViewportHarness(initialScrollbackOffset: 50);
@@ -680,8 +702,9 @@ final class _MobileViewportHarness {
     controller.updateFrame(_frameFor(_scrollbackOffset, modes));
   }
 
-  Widget widget() {
+  Widget widget({Brightness brightness = Brightness.light}) {
     return MaterialApp(
+      theme: ThemeData(brightness: brightness),
       home: Scaffold(
         body: Center(
           child: SizedBox(

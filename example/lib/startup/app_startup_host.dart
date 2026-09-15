@@ -342,7 +342,9 @@ final class _AppStartupDataSetupViewState
         key: const Key('app-startup-skip-data-api'),
         onPressed: _runningAction ? null : _skip,
         child: Text(
-          widget.settings.localDataApiAvailable
+          context.usesMobileNavigation
+              ? context.l10n.mobileThisDevice
+              : widget.settings.localDataApiAvailable
               ? context.l10n.useLocalTerminalOnly
               : context.l10n.continueWithoutDataService,
         ),

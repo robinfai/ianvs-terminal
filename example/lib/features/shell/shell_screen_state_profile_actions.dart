@@ -245,6 +245,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
     required String? activeSessionIdBeforeOpen,
   }) async {
     final l10n = context.l10n;
+    final mobileNavigation = context.usesMobileNavigation;
     if (result.saveProfile) {
       try {
         if (!_customSshProfilesEnabled) {
@@ -252,11 +253,13 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
         }
         await sessionController.saveProfile(result.profile);
         _showShellSnackBar(
-          l10n.sshProfileStored(
-            result.openSession ? 'saved' : 'imported',
-            result.profile.name,
-            _activeProfilePersistenceLabel(),
-          ),
+          mobileNavigation && result.openSession
+              ? l10n.mobileSavedConnection(result.profile.name)
+              : l10n.sshProfileStored(
+                  result.openSession ? 'saved' : 'imported',
+                  result.profile.name,
+                  _activeProfilePersistenceLabel(),
+                ),
         );
       } on Object catch (error) {
         final connectOnce = await _showProfileSaveFailure(
@@ -903,7 +906,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
     final profile = defaultTerminalProfile().copyWith(
       id: id,
       name: connectionType == NewProfileConnectionType.sshSession
-          ? context.l10n.newSshProfile
+          ? (context.usesMobileNavigation ? '' : context.l10n.newSshProfile)
           : context.l10n.newProfileDefaultName,
     );
     if (connectionType == NewProfileConnectionType.localShell) {
@@ -923,10 +926,15 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
     Set<ProfileSecretField> clearSecrets = const {},
   }) async {
     final l10n = context.l10n;
+    final mobileNavigation = context.usesMobileNavigation;
     final destination = _activeProfilePersistenceLabel();
     try {
       await sessionController.saveProfile(profile, clearSecrets: clearSecrets);
-      _showShellSnackBar(l10n.savedProfileTo(profile.name, destination));
+      _showShellSnackBar(
+        mobileNavigation
+            ? l10n.mobileSavedConnection(profile.name)
+            : l10n.savedProfileTo(profile.name, destination),
+      );
       return true;
     } on Object catch (error) {
       await _showProfileSaveFailure(

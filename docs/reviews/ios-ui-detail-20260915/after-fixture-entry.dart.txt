@@ -1,0 +1,20 @@
+import 'package:app/app_bootstrap.dart';
+import 'package:app/features/pty/pty.dart';
+import 'package:app/features/shell/reference_demo.dart';
+import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_driver/driver_extension.dart';
+void main() {
+  enableFlutterDriverExtension(enableTextEntryEmulation: false);
+  final root = buildIanvsTerminalRoot(
+    enableSessionPolling: false,
+    enableDriverWarmUpRefresh: false,
+    enableReferenceDemoMode: true,
+    enableShellAnimations: false,
+    ptySessionBackend: loadDefaultPtySessionBackend(),
+  ) as ProviderScope;
+  runApp(ProviderScope(
+    overrides: [...root.overrides, referenceDemoModeProvider.overrideWithValue(false)],
+    child: root.child,
+  ));
+}

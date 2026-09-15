@@ -49,23 +49,11 @@ class _SshOnlyShellEmptyState extends StatelessWidget {
                 ),
               const SizedBox(height: 24),
             ],
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    context.l10n.mobileConnections,
-                    style: Theme.of(context).textTheme.titleSmall,
-                  ),
-                ),
-                if (onManageProfiles != null)
-                  IconButton(
-                    key: const Key('mobile-manage-connections'),
-                    tooltip: context.l10n.mobileManageConnections,
-                    onPressed: onManageProfiles,
-                    icon: const Icon(Icons.edit_outlined),
-                  ),
-              ],
-            ),
+            if (sessions.isNotEmpty)
+              Text(
+                context.l10n.mobileConnections,
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
             if (sshProfiles.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 32),
@@ -80,6 +68,13 @@ class _SshOnlyShellEmptyState extends StatelessWidget {
             ],
             const SizedBox(height: 16),
             _buildCreateButton(context),
+            if (onManageProfiles != null)
+              TextButton.icon(
+                key: const Key('mobile-manage-connections'),
+                onPressed: onManageProfiles,
+                icon: const Icon(Icons.edit_outlined),
+                label: Text(context.l10n.mobileManageConnections),
+              ),
           ],
         ),
       );

@@ -11,6 +11,49 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  testWidgets('external keyboard edits and clears a mobile binding', (
+    tester,
+  ) async {
+    await _pumpEditor(
+      tester,
+      platform: TargetPlatform.iOS,
+      surfaceSize: const Size(402, 874),
+    );
+    await tester.enterText(
+      find.byKey(const Key('shortcut-editor-filter')),
+      'new tab',
+    );
+    await tester.pump();
+    expect(
+      tester
+          .getSize(find.byKey(const Key('shortcut-mobile-row-newTab')))
+          .height,
+      lessThan(100),
+    );
+    await tester.tap(find.byKey(const Key('shortcut-edit-newTab')));
+    await tester.pumpAndSettle();
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft, platform: 'ios');
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.keyG, platform: 'ios');
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.keyG, platform: 'ios');
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft, platform: 'ios');
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('shortcut-capture-apply')));
+    await tester.pumpAndSettle();
+    expect(find.text('⌘G'), findsOneWidget);
+    expect(find.byKey(const Key('shortcut-more-newTab')), findsNothing);
+    await tester.tap(find.byKey(const Key('shortcut-edit-newTab')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('shortcut-capture-disable')));
+    await tester.pumpAndSettle();
+    expect(find.text('⌘G'), findsNothing);
+    await tester.tap(find.byKey(const Key('shortcut-edit-newTab')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('shortcut-capture-restore')));
+    await tester.pumpAndSettle();
+    expect(find.text('⌘T'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('records a shortcut and reports a live conflict', (tester) async {
     await _pumpEditor(tester);
 
@@ -396,6 +439,7 @@ Future<void> _pumpEditor(
   ValueChanged<LocalTerminalKeybindingsConfig>? onChanged,
   Size surfaceSize = const Size(900, 720),
   TextScaler textScaler = TextScaler.noScaling,
+  TargetPlatform platform = TargetPlatform.macOS,
 }) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = surfaceSize;
@@ -403,7 +447,7 @@ Future<void> _pumpEditor(
   addTearDown(tester.view.resetPhysicalSize);
   await tester.pumpWidget(
     MaterialApp(
-      theme: buildIanvsTerminalTheme(Brightness.dark),
+      theme: buildIanvsTerminalTheme(Brightness.dark, platform: platform),
       home: MediaQuery(
         data: MediaQueryData(textScaler: textScaler),
         child: Scaffold(

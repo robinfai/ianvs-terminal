@@ -699,25 +699,35 @@ class _TerminalViewportState extends State<TerminalViewport>
     _closeTextInputConnection();
   }
 
-  void _openTextInputConnection() {
-    final existingConnection = _textInputConnection;
-    if (existingConnection != null && existingConnection.attached) {
-      existingConnection.show();
-      existingConnection.setEditingState(_textInputValue);
-      return;
-    }
-    final connection = TextInput.attach(
-      this,
-      const TextInputConfiguration(
+  TextInputConfiguration get _mobileTextInputConfiguration =>
+      TextInputConfiguration(
         inputType: TextInputType.multiline,
         inputAction: TextInputAction.newline,
+        keyboardAppearance: Theme.of(context).brightness,
         autocorrect: false,
         enableSuggestions: false,
         enableInteractiveSelection: false,
         smartDashesType: SmartDashesType.disabled,
         smartQuotesType: SmartQuotesType.disabled,
-      ),
-    );
+      );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_textInputConnection case final connection? when connection.attached) {
+      connection.updateConfig(_mobileTextInputConfiguration);
+    }
+  }
+
+  void _openTextInputConnection() {
+    final existingConnection = _textInputConnection;
+    if (existingConnection != null && existingConnection.attached) {
+      existingConnection.updateConfig(_mobileTextInputConfiguration);
+      existingConnection.show();
+      existingConnection.setEditingState(_textInputValue);
+      return;
+    }
+    final connection = TextInput.attach(this, _mobileTextInputConfiguration);
     _textInputConnection = connection;
     connection.setEditingState(_textInputValue);
     connection.show();

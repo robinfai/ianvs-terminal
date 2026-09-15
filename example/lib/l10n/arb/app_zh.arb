@@ -471,11 +471,11 @@
   "scrollbackOffset": "偏移 {offset}",
   "regexError": "正则表达式错误",
   "noMatches": "无匹配项",
-  "smartCaseSubstring": "智能大小写子字符串",
-  "caseSensitiveSubstring": "区分大小写的子字符串",
-  "caseInsensitiveSubstring": "不区分大小写的子字符串",
-  "caseSensitiveRegex": "区分大小写的正则表达式",
-  "caseInsensitiveRegex": "不区分大小写的正则表达式",
+  "smartCaseSubstring": "智能大小写",
+  "caseSensitiveSubstring": "区分大小写",
+  "caseInsensitiveSubstring": "忽略大小写",
+  "caseSensitiveRegex": "正则 · 区分大小写",
+  "caseInsensitiveRegex": "正则 · 忽略大小写",
   "searchFilterValue": "搜索筛选：{filter}",
   "searchFilter": "搜索筛选",
   "filter": "筛选",
@@ -579,7 +579,7 @@
   "idleGap": "空闲间隔",
   "shellSemantics": "Shell 语义",
   "activityFallbackNoShellHook": "活动回退 · 无 Shell 钩子",
-  "terminalActionName": "{action, select, new_tab{新建标签页} new_ssh_session{新建 SSH 会话} new_tab_at_folder{在文件夹中新建标签页} open_recording_for_replay{回看} duplicate_current_cwd{复制当前目录会话} reopen_closed_tab{重新打开关闭的标签页} open_launcher{打开启动器} open_command_menu{打开命令菜单} open_sftp_panel{打开 SFTP 面板} split_right{向右拆分} split_down{向下拆分} focus_next_pane{聚焦下一个窗格} focus_previous_pane{聚焦上一个窗格} resize_pane{调整窗格大小} swap_pane{交换窗格} zoom_pane{缩放窗格} close_pane{关闭窗格} reopen_closed_pane{重新打开关闭的窗格} close_active_tab{关闭活动标签页} open_defaults{打开默认设置} activate_tab{激活标签页} copy{复制} copy_command_output{复制命令输出} paste{粘贴} toggle_read_only{切换只读模式} toggle_replay_recording{切换回放录制} clear_buffer{清除缓冲区} replay_recent_activity{回放近期活动} search_scrollback{搜索回滚内容} next_search_match{下一个搜索匹配项} previous_search_match{上一个搜索匹配项} clear_search{清除搜索} defaults{默认设置} profiles{Profile} request_quit_confirmation{请求退出确认} previous_prompt{上一个提示符} next_prompt{下一个提示符} export_scrollback{导出回滚内容} shell_capabilities{会话能力} export_diagnostics{导出诊断} other{{action}}}",
+  "terminalActionName": "{action, select, new_tab{新建标签页} new_ssh_session{新建 SSH 会话} new_tab_at_folder{在文件夹中新建标签页} open_recording_for_replay{回放} duplicate_current_cwd{复制当前目录会话} reopen_closed_tab{重新打开关闭的标签页} open_launcher{打开启动器} open_command_menu{打开命令菜单} open_sftp_panel{打开 SFTP 面板} split_right{向右拆分} split_down{向下拆分} focus_next_pane{聚焦下一个窗格} focus_previous_pane{聚焦上一个窗格} resize_pane{调整窗格大小} swap_pane{交换窗格} zoom_pane{缩放窗格} close_pane{关闭窗格} reopen_closed_pane{重新打开关闭的窗格} close_active_tab{关闭活动标签页} open_defaults{打开默认设置} activate_tab{激活标签页} copy{复制} copy_command_output{复制命令输出} paste{粘贴} toggle_read_only{切换只读模式} toggle_replay_recording{切换回放录制} clear_buffer{清除缓冲区} replay_recent_activity{回放近期活动} search_scrollback{搜索回滚内容} next_search_match{下一个搜索匹配项} previous_search_match{上一个搜索匹配项} clear_search{清除搜索} defaults{默认设置} profiles{Profile} request_quit_confirmation{请求退出确认} previous_prompt{上一个提示符} next_prompt{下一个提示符} export_scrollback{导出回滚内容} shell_capabilities{会话能力} export_diagnostics{导出诊断} other{{action}}}",
   "appCategory": "应用",
   "sessionCategory": "会话",
   "replayCategory": "回放",
@@ -1166,11 +1166,11 @@
   "syncKeepLocal": "保留本机冲突值",
   "syncUseRemote": "采用 API 冲突值",
   "syncNow": "立即同步",
-  "replayHubTitle": "回看",
+  "replayHubTitle": "回放",
   "replayHubDescription": "查看最近画面、已保存录制，或打开录制文件。",
   "replayRecentTitle": "最近画面",
-  "replayRecentExplanation": "回看当前会话最近的输出。这些临时画面会在退出应用后清除。",
-  "replayRecentNeedsSession": "打开一个终端会话，即可回看它的最近画面。",
+  "replayRecentExplanation": "回放当前会话最近的输出。这些临时画面会在退出应用后清除。",
+  "replayRecentNeedsSession": "打开一个终端会话，即可回放它的最近画面。",
   "replaySavedExplanation": "主动开始录制，停止保存后即可在此打开。录制保存在本机，重启应用后仍可找到。",
   "replayOpenFile": "打开录制文件",
   "replayLibraryEmpty": "还没有已保存录制。开始并停止一次录制，或打开已有录制文件。",
@@ -1347,5 +1347,79 @@
   "sessionSidebarTitle": "会话",
   "sessionInteractive": "交互程序",
   "sessionLongRunning": "持续运行",
-  "sessionUnknownCommand": "未知命令"
+  "sessionUnknownCommand": "未知命令",
+  "mobileDefaultConnection": "默认连接",
+  "mobileNoDefaultConnection": "还没有可用的连接。",
+  "mobileCreateConnectionBeforeColors": "请先在“连接”页创建连接，再选择终端配色。",
+  "mobileThemeModeDescription": "{mode, select, system{跟随设备外观。} light{始终使用浅色外观。} dark{始终使用深色外观。} other{{mode}}}",
+  "mobileAttentionDescription": "选择是否允许终端在光标附近显示短暂提醒。请求不会激活应用或使其获得焦点。",
+  "mobileAttentionPolicyDescription": "{policy, select, disabled{阻止提醒，但仍处理取消请求。} allow{允许限频的光标附近视觉提醒。} other{{policy}}}",
+  "mobileLocalSyncHelp": "不启用同步。",
+  "mobileRemoteSyncHelp": "通过你的服务同步更改。",
+  "noPrivateKeySelected": "尚未选择私钥",
+  "savedPrivateKey": "已保存的私钥",
+  "savedPrivateKeys": "已保存 {count} 个私钥",
+  "showSecret": "显示{label}",
+  "hideSecret": "隐藏{label}",
+  "mobileOperationFailed": "操作未完成，请查看详情。",
+  "mobileErrorDetails": "查看详情",
+  "mobileSearchConnections": "搜索连接或标签",
+  "@savedPrivateKeys": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@showSecret": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "@hideSecret": {
+    "placeholders": {
+      "label": {
+        "type": "String"
+      }
+    }
+  },
+  "@mobileThemeModeDescription": {
+    "placeholders": {
+      "mode": {
+        "type": "String"
+      }
+    }
+  },
+  "@mobileAttentionPolicyDescription": {
+    "placeholders": {
+      "policy": {
+        "type": "String"
+      }
+    }
+  },
+  "mobileSyncSaveNotice": "保存后立即应用同步设置。",
+  "mobileLocalSyncStatus": "数据保存在本机。",
+  "mobileSavedConnection": "已保存连接“{name}”。",
+  "@mobileSavedConnection": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "mobileUseConnectionPolicy": "按连接设置",
+  "mobileNoConnections": "还没有连接",
+  "mobileNoMatchingConnections": "没有匹配的连接",
+  "mobileAutomaticConnection": "新会话将自动使用“{name}”。",
+  "@mobileAutomaticConnection": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "mobileCapabilitiesPendingHelp": "待确认表示尚无初始化检查或实际事件证据。",
+  "mobileExternalKeyboardHelp": "连接外接键盘后可使用这些快捷键。点按组合键可修改，作用范围在录制时设置。"
 }

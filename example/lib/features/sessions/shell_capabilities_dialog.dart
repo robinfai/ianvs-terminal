@@ -96,6 +96,17 @@ class ShellCapabilitiesDialog extends StatelessWidget {
               l10n.shellCapabilitiesExplanation,
               style: Theme.of(context).textTheme.bodySmall,
             ),
+            if (context.usesMobileNavigation &&
+                capabilities.entries.values.any(
+                  (entry) =>
+                      entry.reason == ShellCapabilityReason.awaitingEvidence,
+                )) ...[
+              SizedBox(height: spacing.sm),
+              Text(
+                l10n.mobileCapabilitiesPendingHelp,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
             for (final localHook in [true, false]) ...[
               Padding(
                 padding: EdgeInsets.only(top: spacing.lg, bottom: spacing.sm),
@@ -521,12 +532,14 @@ class _CapabilityRow extends StatelessWidget {
             SizedBox(height: spacing.xs),
             Text(description, style: theme.textTheme.bodyMedium),
             SizedBox(height: spacing.xs),
-            Text(
-              reason,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+            if (!context.usesMobileNavigation ||
+                activation.reason != ShellCapabilityReason.awaitingEvidence)
+              Text(
+                reason,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
               ),
-            ),
           ],
         ),
       ),

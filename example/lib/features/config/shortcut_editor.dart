@@ -16,8 +16,11 @@ class LocalTerminalShortcutFormatter {
 
   static String actionLabel(
     AppLocalizations l10n,
-    TerminalActionDescriptor descriptor,
-  ) => l10n.terminalActionName(descriptor.label);
+    TerminalActionDescriptor descriptor, {
+    bool mobile = false,
+  }) => mobile && descriptor.id == TerminalActionId.profiles
+      ? l10n.mobileManageConnections
+      : l10n.terminalActionName(descriptor.label);
 
   static String categoryLabel(
     AppLocalizations l10n,
@@ -191,6 +194,7 @@ class _ShortcutEditorPanelState extends State<ShortcutEditorPanel> {
           final label = LocalTerminalShortcutFormatter.actionLabel(
             context.l10n,
             descriptor,
+            mobile: context.usesMobileNavigation,
           );
           return '$label ${descriptor.label} ${descriptor.category.name}'
               .toLowerCase()
@@ -283,8 +287,11 @@ class _ShortcutEditorPanelState extends State<ShortcutEditorPanel> {
         actionLabel: LocalTerminalShortcutFormatter.actionLabel(
           context.l10n,
           descriptor,
+          mobile: context.usesMobileNavigation,
         ),
         initialBinding: current,
+        allowRestore:
+            context.usesMobileNavigation && _isCustomized(descriptor.id),
         suggestedScope:
             descriptor.defaultKeyBinding?.scope ??
             (descriptor.requiresActiveSession
@@ -293,6 +300,10 @@ class _ShortcutEditorPanelState extends State<ShortcutEditorPanel> {
       ),
     );
     if (!mounted || result == null) {
+      return;
+    }
+    if (result.restore) {
+      _restoreBinding(descriptor.id);
       return;
     }
     if (result.clear) {
@@ -339,12 +350,13 @@ class _ShortcutEditorPanelState extends State<ShortcutEditorPanel> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                context.l10n.category,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: theme.textSubtle),
-              ),
+              if (!context.usesMobileNavigation)
+                Text(
+                  context.l10n.category,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: theme.textSubtle),
+                ),
               SizedBox(height: theme.spacing.xs),
               AppDropdownFormField<TerminalActionCategory?>(
                 key: const Key('shortcut-editor-category'),
@@ -473,12 +485,25 @@ class _ShortcutEditorPanelState extends State<ShortcutEditorPanel> {
         ),
         SizedBox(height: theme.spacing.sm),
       ],
+      if (context.usesMobileNavigation) ...[
+        Text(
+          context.l10n.mobileExternalKeyboardHelp,
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(color: theme.textSubtle),
+        ),
+        SizedBox(height: theme.spacing.sm),
+      ],
       toolbar,
       if (conflicts.isNotEmpty) ...[
         SizedBox(height: theme.spacing.sm),
         _ShortcutConflictSummary(conflicts: conflicts),
       ],
-      SizedBox(height: theme.spacing.xl),
+      SizedBox(
+        height: context.usesMobileNavigation
+            ? theme.spacing.sm
+            : theme.spacing.xl,
+      ),
     ];
 
     Widget scrollingEditor() {
@@ -715,6 +740,7 @@ class _ShortcutActionRow extends StatelessWidget {
     final actionLabel = LocalTerminalShortcutFormatter.actionLabel(
       context.l10n,
       descriptor,
+      mobile: context.usesMobileNavigation,
     );
     final binding = LocalTerminalShortcutFormatter.currentBinding(
       descriptor.id,
@@ -731,6 +757,77 @@ class _ShortcutActionRow extends StatelessWidget {
         ? context.l10n.shortcutUnassigned
         : context.l10n.shortcutDefault;
 
+    if (context.usesMobileNavigation) {
+      final identity = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            actionLabel,
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+          ),
+          if (conflicted || customized)
+            Text(
+              stateLabel,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: conflicted ? theme.danger : theme.textSubtle,
+              ),
+            ),
+        ],
+      );
+      final controls = Wrap(
+        alignment: WrapAlignment.end,
+        children: [
+          TextButton(
+            key: Key('shortcut-edit-${descriptor.id.name}'),
+            onPressed: onEdit,
+            style: TextButton.styleFrom(minimumSize: const Size(44, 44)),
+            child: Text(
+              binding == null
+                  ? context.l10n.shortcutUnassigned
+                  : LocalTerminalShortcutFormatter.bindingLabel(binding),
+            ),
+          ),
+        ],
+      );
+      return Semantics(
+        container: true,
+        child: Padding(
+          key: Key('shortcut-mobile-row-${descriptor.id.name}'),
+          padding: EdgeInsets.symmetric(
+            horizontal: theme.spacing.md,
+            vertical: theme.spacing.sm,
+          ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              if (constraints.maxWidth < 300 ||
+                  MediaQuery.textScalerOf(context).scale(14) > 20) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    identity,
+                    Align(alignment: Alignment.centerRight, child: controls),
+                  ],
+                );
+              }
+              return Row(
+                children: [
+                  Expanded(child: identity),
+                  SizedBox(width: theme.spacing.sm),
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: constraints.maxWidth * .5,
+                    ),
+                    child: controls,
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      );
+    }
     return Semantics(
       container: true,
       label: context.l10n.shortcutActionSemantics(
@@ -882,11 +979,21 @@ class _ShortcutActionRow extends StatelessWidget {
 }
 
 class _ShortcutCaptureResult {
-  const _ShortcutCaptureResult.binding(this.binding) : clear = false;
-  const _ShortcutCaptureResult.clear() : binding = null, clear = true;
+  const _ShortcutCaptureResult.binding(this.binding)
+    : clear = false,
+      restore = false;
+  const _ShortcutCaptureResult.clear()
+    : binding = null,
+      clear = true,
+      restore = false;
+  const _ShortcutCaptureResult.restore()
+    : binding = null,
+      clear = false,
+      restore = true;
 
   final LocalTerminalKeyBinding? binding;
   final bool clear;
+  final bool restore;
 }
 
 class _ShortcutCaptureDialog extends StatefulWidget {
@@ -894,11 +1001,13 @@ class _ShortcutCaptureDialog extends StatefulWidget {
     required this.actionLabel,
     required this.initialBinding,
     required this.suggestedScope,
+    this.allowRestore = false,
   });
 
   final String actionLabel;
   final LocalTerminalKeyBinding? initialBinding;
   final TerminalKeyBindingScope suggestedScope;
+  final bool allowRestore;
 
   @override
   State<_ShortcutCaptureDialog> createState() => _ShortcutCaptureDialogState();
@@ -1097,6 +1206,14 @@ class _ShortcutCaptureDialogState extends State<_ShortcutCaptureDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: Text(context.l10n.cancel),
         ),
+        if (widget.allowRestore)
+          TextButton(
+            key: const Key('shortcut-capture-restore'),
+            onPressed: () => Navigator.of(
+              context,
+            ).pop(const _ShortcutCaptureResult.restore()),
+            child: Text(context.l10n.resetToDefault),
+          ),
         TextButton(
           key: const Key('shortcut-capture-disable'),
           onPressed: () =>

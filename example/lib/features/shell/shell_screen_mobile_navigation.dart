@@ -117,7 +117,7 @@ class _MobileTerminalToolbar extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon),
+            Icon(icon, size: 24),
             const SizedBox(height: 4),
             Text(
               label,

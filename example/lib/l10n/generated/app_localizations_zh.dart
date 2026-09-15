@@ -1643,19 +1643,19 @@ class AppLocalizationsZh extends AppLocalizations {
   String get noMatches => '无匹配项';
 
   @override
-  String get smartCaseSubstring => '智能大小写子字符串';
+  String get smartCaseSubstring => '智能大小写';
 
   @override
-  String get caseSensitiveSubstring => '区分大小写的子字符串';
+  String get caseSensitiveSubstring => '区分大小写';
 
   @override
-  String get caseInsensitiveSubstring => '不区分大小写的子字符串';
+  String get caseInsensitiveSubstring => '忽略大小写';
 
   @override
-  String get caseSensitiveRegex => '区分大小写的正则表达式';
+  String get caseSensitiveRegex => '正则 · 区分大小写';
 
   @override
-  String get caseInsensitiveRegex => '不区分大小写的正则表达式';
+  String get caseInsensitiveRegex => '正则 · 忽略大小写';
 
   @override
   String searchFilterValue(String filter) {
@@ -2045,7 +2045,7 @@ class AppLocalizationsZh extends AppLocalizations {
       'new_tab': '新建标签页',
       'new_ssh_session': '新建 SSH 会话',
       'new_tab_at_folder': '在文件夹中新建标签页',
-      'open_recording_for_replay': '回看',
+      'open_recording_for_replay': '回放',
       'duplicate_current_cwd': '复制当前目录会话',
       'reopen_closed_tab': '重新打开关闭的标签页',
       'open_launcher': '打开启动器',
@@ -4315,7 +4315,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get syncNow => '立即同步';
 
   @override
-  String get replayHubTitle => '回看';
+  String get replayHubTitle => '回放';
 
   @override
   String get replayHubDescription => '查看最近画面、已保存录制，或打开录制文件。';
@@ -4324,10 +4324,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get replayRecentTitle => '最近画面';
 
   @override
-  String get replayRecentExplanation => '回看当前会话最近的输出。这些临时画面会在退出应用后清除。';
+  String get replayRecentExplanation => '回放当前会话最近的输出。这些临时画面会在退出应用后清除。';
 
   @override
-  String get replayRecentNeedsSession => '打开一个终端会话，即可回看它的最近画面。';
+  String get replayRecentNeedsSession => '打开一个终端会话，即可回放它的最近画面。';
 
   @override
   String get replaySavedExplanation => '主动开始录制，停止保存后即可在此打开。录制保存在本机，重启应用后仍可找到。';
@@ -4862,4 +4862,106 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get sessionUnknownCommand => '未知命令';
+
+  @override
+  String get mobileDefaultConnection => '默认连接';
+
+  @override
+  String get mobileNoDefaultConnection => '还没有可用的连接。';
+
+  @override
+  String get mobileCreateConnectionBeforeColors => '请先在“连接”页创建连接，再选择终端配色。';
+
+  @override
+  String mobileThemeModeDescription(String mode) {
+    String _temp0 = intl.Intl.selectLogic(mode, {
+      'system': '跟随设备外观。',
+      'light': '始终使用浅色外观。',
+      'dark': '始终使用深色外观。',
+      'other': '$mode',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get mobileAttentionDescription =>
+      '选择是否允许终端在光标附近显示短暂提醒。请求不会激活应用或使其获得焦点。';
+
+  @override
+  String mobileAttentionPolicyDescription(String policy) {
+    String _temp0 = intl.Intl.selectLogic(policy, {
+      'disabled': '阻止提醒，但仍处理取消请求。',
+      'allow': '允许限频的光标附近视觉提醒。',
+      'other': '$policy',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get mobileLocalSyncHelp => '不启用同步。';
+
+  @override
+  String get mobileRemoteSyncHelp => '通过你的服务同步更改。';
+
+  @override
+  String get noPrivateKeySelected => '尚未选择私钥';
+
+  @override
+  String get savedPrivateKey => '已保存的私钥';
+
+  @override
+  String savedPrivateKeys(int count) {
+    return '已保存 $count 个私钥';
+  }
+
+  @override
+  String showSecret(String label) {
+    return '显示$label';
+  }
+
+  @override
+  String hideSecret(String label) {
+    return '隐藏$label';
+  }
+
+  @override
+  String get mobileOperationFailed => '操作未完成，请查看详情。';
+
+  @override
+  String get mobileErrorDetails => '查看详情';
+
+  @override
+  String get mobileSearchConnections => '搜索连接或标签';
+
+  @override
+  String get mobileSyncSaveNotice => '保存后立即应用同步设置。';
+
+  @override
+  String get mobileLocalSyncStatus => '数据保存在本机。';
+
+  @override
+  String mobileSavedConnection(String name) {
+    return '已保存连接“$name”。';
+  }
+
+  @override
+  String get mobileUseConnectionPolicy => '按连接设置';
+
+  @override
+  String get mobileNoConnections => '还没有连接';
+
+  @override
+  String get mobileNoMatchingConnections => '没有匹配的连接';
+
+  @override
+  String mobileAutomaticConnection(String name) {
+    return '新会话将自动使用“$name”。';
+  }
+
+  @override
+  String get mobileCapabilitiesPendingHelp => '待确认表示尚无初始化检查或实际事件证据。';
+
+  @override
+  String get mobileExternalKeyboardHelp =>
+      '连接外接键盘后可使用这些快捷键。点按组合键可修改，作用范围在录制时设置。';
 }
