@@ -206,7 +206,9 @@ install-iphone: ## Install on a physical iPhone, or fall back to a simulator.
 			fi; \
 		fi
 
-install-iphone-physical: ## Build and install the release app on a physical iPhone.
+# flutter install uninstalls the previous app and deletes its local session vault.
+# Install in place instead; never fall back to uninstalling on an install error.
+install-iphone-physical: ## Build and update the iPhone app while preserving its data.
 	@set -euo pipefail; \
 		devices_json="$$(cd "$(EXAMPLE_DIR)" && $(FLUTTER) devices --machine)"; \
 		device_id="$$(printf '%s\n' "$$devices_json" | \
@@ -215,8 +217,13 @@ install-iphone-physical: ## Build and install the release app on a physical iPho
 		printf 'Using development Bundle ID: %s\n' "$(IPHONE_BUNDLE_ID)"; \
 		IANVS_IOS_BUNDLE_ID="$(IPHONE_BUNDLE_ID)" \
 			"$(ROOT_DIR)/tools/build_signed_apple_release.sh" ios "$(FLUTTER)"; \
-		cd "$(EXAMPLE_DIR)"; \
-		$(FLUTTER) install --release -d "$$device_id"
+		app_bundle="$(EXAMPLE_DIR)/build/ios/iphoneos/Runner.app"; \
+		actual_bundle_id="$$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$$app_bundle/Info.plist")"; \
+		if [[ "$$actual_bundle_id" != "$(IPHONE_BUNDLE_ID)" ]]; then \
+			printf 'Unexpected iOS Bundle ID: %s (expected %s)\n' "$$actual_bundle_id" "$(IPHONE_BUNDLE_ID)" >&2; \
+			exit 1; \
+		fi; \
+		xcrun devicectl device install app --device "$$device_id" "$$app_bundle"
 
 install-iphone-simulator: ## Build, install, and launch on an iPhone simulator.
 	@IANVS_IOS_SIMULATOR_UDID="$(IPHONE_SIMULATOR)" \
