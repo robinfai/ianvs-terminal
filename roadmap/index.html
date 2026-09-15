@@ -1,83 +1,31 @@
 <!doctype html>
 <html lang="zh-CN" data-theme="system">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="ianvs 路线图：现在可用、接下来、未来，清楚区分当前状态和产品方向。">
-    <title>路线图 - ianvs</title>
-    <link rel="stylesheet" href="../assets/styles.css">
-    <script src="../assets/app.js" defer></script>
-  </head>
-  <body>
-    <a class="skip-link" href="#main-content">跳到正文</a>
-    <header class="site-header">
-      <div class="header-inner">
-        <a class="brand" href="../index.html" aria-label="ianvs 首页">
-          <img class="brand-mark" src="../assets/images/brand/app-icon.png" alt="" width="32" height="32" aria-hidden="true">
-          <span>ianvs</span>
-        </a>
-        <nav class="nav" aria-label="主导航">
-          <a href="../index.html">首页</a>
-          <a href="../features/index.html">功能</a>
-          <a href="../technology/index.html">技术</a>
-          <a href="index.html" aria-current="page">路线图</a>
-          <a href="../open-source/index.html">开源试用</a>
-          <a href="https://github.com/robinfai/ianvs-terminal">GitHub</a>
-          <button class="theme-toggle" type="button" data-theme-toggle>系统</button>
-        </nav>
-      </div>
-    </header>
-
-    <main id="main-content">
-      <section class="section page-hero">
-        <div class="page-intro">
-          <p class="eyebrow">Roadmap</p>
-          <h1 class="page-title">从 macOS 开始，走向更多桌面。</h1>
-          <p>当前重点是把 macOS 本地终端体验打磨稳定，再逐步补齐更多桌面平台和工作流能力。每个阶段都会区分已可用、正在推进和长期方向。</p>
-        </div>
-      </section>
-
-      <section class="section">
-        <div class="grid three">
-          <article class="roadmap-card">
-            <span class="status-pill">现在可用</span>
-            <h2 style="margin-top:18px">macOS 本地终端主链路</h2>
-            <p>macOS 本地 shell、tab 和窗口壳、复制粘贴、滚动、resize、基础 profile/defaults，以及可运行的验证入口。</p>
-          </article>
-          <article class="roadmap-card">
-            <span class="status-pill">接下来</span>
-            <h2 style="margin-top:18px">补齐配置功能的人工验收</h2>
-            <p>继续检查配置里还没有完成人工验收的功能，把可用性、边界状态和交互细节逐项跑通，再根据真实使用感受做体验优化。</p>
-          </article>
-          <article class="roadmap-card">
-            <span class="status-pill">未来</span>
-            <h2 style="margin-top:18px">走向更多桌面平台</h2>
-            <p>更多桌面平台、更完整的 workspace 能力、更清楚的平台状态和验证证据。未来方向不会写成当前能力。</p>
-          </article>
-        </div>
-      </section>
-
-      <section class="section">
-        <div class="section-header">
-          <div>
-            <p class="kicker">Try it</p>
-            <h2>想看当前能跑什么？</h2>
-          </div>
-          <a class="button primary" href="../open-source/index.html">查看开源试用路径</a>
-        </div>
-      </section>
-    </main>
-
-    <footer class="site-footer">
-      <div class="footer-inner">
-        <span>ianvs - 路线图</span>
-        <div class="footer-links">
-          <a href="../index.html">首页</a>
-          <a href="../features/index.html">功能</a>
-          <a href="../technology/index.html">技术</a>
-          <a href="../open-source/index.html">开源试用</a>
-        </div>
-      </div>
-    </footer>
-  </body>
-</html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="Ianvs 当前能力、macOS 主交付状态、iOS SSH 配套路径和待验证桌面平台，以及运行时稳定性的当前重点。">
+<meta property="og:title" content="产品进展 · Ianvs Terminal">
+<meta property="og:description" content="Ianvs 当前能力、macOS 主交付状态、iOS SSH 配套路径和待验证桌面平台，以及运行时稳定性的当前重点。">
+<meta property="og:type" content="website">
+<title>产品进展 · Ianvs Terminal</title>
+<link rel="icon" href="../assets/images/brand/app-icon.png">
+<script src="../assets/theme.js"></script>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/app.js" defer></script>
+</head>
+<body data-page="roadmap">
+<a class="skip-link" href="#main-content">跳到正文</a>
+<header class="site-header"><div class="header-inner wrap">
+<a class="brand" href="../index.html" aria-label="ianvs 首页"><span class="brand-symbol" aria-hidden="true"><i></i><i></i></span><span>ianvs<span class="brand-suffix"> / terminal</span></span></a>
+<button type="button" class="menu-toggle" data-menu-toggle aria-expanded="false" aria-controls="main-nav">菜单 <span aria-hidden="true">☰</span></button>
+<nav id="main-nav" class="main-nav" aria-label="主导航"><a href="../index.html">概览</a><a href="../features/index.html">功能</a><a href="../technology/index.html">技术</a><a href="../osc/index.html">协议</a><a href="../roadmap/index.html" aria-current="page">进展</a></nav>
+<div class="header-actions"><label class="theme-control"><span class="sr-only">外观主题</span><select data-theme-select aria-label="外观主题"><option value="system">◐ 系统</option><option value="light">☀ 浅色</option><option value="dark">☾ 深色</option></select></label><a class="header-cta" href="../open-source/index.html">开始使用 <span aria-hidden="true">↗</span></a></div>
+</div></header>
+<main id="main-content" tabindex="-1"><section class="page-intro wrap"><p class="eyebrow"><span>04</span> A WORK IN PROGRESS</p><h1>把下一步，<br>走得扎实。</h1><p class="lead">已具备的能力、正在打磨的部分、仍待验证的平台。<br>用清楚的状态，描述产品的进展。</p></section><section class="section wrap"><div class="progress-feature"><div><span class="status-pill active-status">当前重点</span><h2>运行时契约<br>稳定性</h2><p>持续收紧 native 与 Dart 的当前边界，让会话、输入、渲染和诊断在明确契约下保持一致。</p><a class="text-link" href="https://github.com/robinfai/ianvs-terminal/blob/main/docs/CURRENT_EXECUTION_TARGET.md">查看执行目标 <span aria-hidden="true">↗</span></a></div><div class="progress-lines"><div><span>01</span><p>明确的当前版本接口</p></div><div><span>02</span><p>真实 PTY 的验证路径</p></div><div><span>03</span><p>布局、重启与录制各自独立</p></div><div><span>04</span><p>针对性回归与完整验证</p></div></div></div></section>
+<section class="section section-rule wrap"><div class="section-heading"><div><p class="eyebrow"><span>01</span> PLATFORM STATUS</p><h2>先把一个平台做好。</h2></div><p>macOS 是当前主交付平台。<br>其他平台的产品状态，以真实设备证据为准。</p></div><div class="platform-list"><article><h3>macOS</h3><span class="status-pill active-status">主交付平台</span><p>本地 shell、SSH、标签与分屏、回看和本地录制。推荐从 macOS 本地源码试用。</p></article><article><h3>iOS</h3><span class="status-pill">SSH 配套路径</span><p>已实现面向 SSH 的流程与本地持久化。实体设备与发布验收仍需要独立证据。</p></article><article><h3>Linux / Windows</h3><span class="status-pill">待桌面验证</span><p>尚不作为已交付桌面平台宣传，需要真实桌面宿主与交互验证后再更新状态。</p></article></div></section>
+<section class="section section-rule wrap"><div class="section-heading"><div><p class="eyebrow"><span>02</span> PRODUCT DIRECTION</p><h2>终端，始终是中心。</h2></div></div><div class="two-grid"><article class="simple-card"><p class="eyebrow">CONTINUE TO REFINE</p><h3>持续打磨的日常能力</h3><ul class="check-list"><li>本地与 SSH 会话的共同体验</li><li>多标签、分屏与终端布局恢复</li><li>回看、录制资料库与输出搜索</li><li>本地保存与可选 API 配置同步</li><li>可复用的 Flutter 终端 package</li></ul></article><article class="simple-card"><p class="eyebrow">CLEAR PRODUCT SCOPE</p><h3>清晰的产品边界</h3><p>选择文件夹会在这个目录打开新终端，不建立项目容器。当前产品不定义项目浏览器、Git / IDE 上下文、插件市场或托管协作服务。</p><p>这样，每一项改进都可以回到同一个问题：它是否让终端更好用。</p><a class="text-link" href="https://github.com/robinfai/ianvs-terminal/blob/main/docs/TERMINAL_PRODUCT_SCOPE.md">阅读完整产品范围 <span aria-hidden="true">↗</span></a></article></div></section>
+<section class="section section-rule wrap"><div class="section-heading"><div><p class="eyebrow"><span>03</span> FOLLOW THE WORK</p><h2>在公开的代码里，<br>一起把它做得更好。</h2></div></div><div class="resource-grid"><article class="resource-item"><h3>跟踪变更</h3><p>在 GitHub 查看最近提交与代码演进。</p><a class="text-link" href="https://github.com/robinfai/ianvs-terminal/commits/main/">查看提交 <span aria-hidden="true">↗</span></a></article><article class="resource-item"><h3>反馈问题</h3><p>附上平台、复现步骤与必要诊断信息。</p><a class="text-link" href="https://github.com/robinfai/ianvs-terminal/issues">打开 Issues <span aria-hidden="true">↗</span></a></article><article class="resource-item"><h3>验证进展</h3><p>从测试文档了解本地验证入口。</p><a class="text-link" href="https://github.com/robinfai/ianvs-terminal/blob/main/docs/TESTING.md">阅读测试文档 <span aria-hidden="true">↗</span></a></article></div></section><section class="closing wrap"><div><p class="eyebrow">YOUR NEXT SESSION</p><h2>下一次打开终端，<br>从这里开始。</h2></div><div><p>开源、macOS 优先。<br>从源码运行，亲手试试你的日常工作流。</p><a class="button primary" href="../open-source/index.html">开始本地试用 <span aria-hidden="true">↗</span></a></div><span class="closing-symbol" aria-hidden="true">↗</span></section></main>
+<footer class="site-footer wrap"><div class="footer-top"><a class="brand" href="../index.html"><span class="brand-symbol" aria-hidden="true"><i></i><i></i></span>ianvs</a><p>让每一次输入，都保持专注。</p><a class="text-link" href="https://github.com/robinfai/ianvs-terminal">GitHub ↗</a></div><div class="footer-bottom"><span>IANVS TERMINAL · OPEN SOURCE</span><nav aria-label="页脚导航"><a href="../features/index.html">功能</a><a href="../technology/index.html">技术</a><a href="../osc/index.html">协议参考</a><a href="../roadmap/index.html">产品进展</a><a href="../open-source/index.html">本地试用</a></nav><span>BUILT WITH FLUTTER + RUST</span></div></footer>
+<div class="sr-only" role="status" data-status></div>
+</body></html>

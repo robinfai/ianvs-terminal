@@ -1,92 +1,35 @@
 <!doctype html>
 <html lang="zh-CN" data-theme="system">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="通过 GitHub 源码和本地运行 example 开源试用 ianvs。">
-    <title>开源试用 - ianvs</title>
-    <link rel="stylesheet" href="../assets/styles.css">
-    <script src="../assets/app.js" defer></script>
-  </head>
-  <body>
-    <a class="skip-link" href="#main-content">跳到正文</a>
-    <header class="site-header">
-      <div class="header-inner">
-        <a class="brand" href="../index.html" aria-label="ianvs 首页">
-          <img class="brand-mark" src="../assets/images/brand/app-icon.png" alt="" width="32" height="32" aria-hidden="true">
-          <span>ianvs</span>
-        </a>
-        <nav class="nav" aria-label="主导航">
-          <a href="../index.html">首页</a>
-          <a href="../features/index.html">功能</a>
-          <a href="../technology/index.html">技术</a>
-          <a href="../roadmap/index.html">路线图</a>
-          <a href="index.html" aria-current="page">开源试用</a>
-          <a href="https://github.com/robinfai/ianvs-terminal">GitHub</a>
-          <button class="theme-toggle" type="button" data-theme-toggle>系统</button>
-        </nav>
-      </div>
-    </header>
-
-    <main id="main-content">
-      <section class="section page-hero">
-        <div class="page-intro">
-          <p class="eyebrow">Open source trial</p>
-          <h1 class="page-title">当前最可靠的入口是源码和本地运行。</h1>
-          <p>ianvs 还没有正式安装包。想试用，请从 GitHub 和 macOS 本地 example 开始。</p>
-        </div>
-      </section>
-
-      <section class="section">
-        <div class="grid two">
-          <article class="card">
-            <p class="kicker">Source</p>
-            <h2>查看源码</h2>
-            <p>GitHub 是当前主入口。你可以看 workspace 分层、终端 package、example app 和 native core。</p>
-            <div class="actions">
-              <a class="button primary" href="https://github.com/robinfai/ianvs-terminal">打开 GitHub</a>
-            </div>
-          </article>
-          <article class="card">
-            <p class="kicker">Local run</p>
-            <h2>本地运行</h2>
-            <p>macOS 是当前最成熟路径。准备 Flutter 环境后，在仓库根目录运行：</p>
-            <div class="code-card" aria-label="本地运行命令">
-              <pre><code>dart pub get
-cd example
-flutter run -d macos</code></pre>
-            </div>
-          </article>
-          <article class="card">
-            <p class="kicker">Verification</p>
-            <h2>验证方式</h2>
-            <p>测试文档记录了 Flutter、Dart、Rust 和人工检查入口，方便你确认当前能力来自哪些验证。</p>
-            <div class="actions">
-              <a class="button secondary" href="https://github.com/robinfai/ianvs-terminal/blob/main/docs/TESTING.md">查看测试文档</a>
-            </div>
-          </article>
-          <article class="card">
-            <p class="kicker">Platform status</p>
-            <h2>平台状态</h2>
-            <p>macOS 当前最成熟。其他桌面平台在路线图中推进，需要更多平台证据后再写成明确支持。</p>
-            <div class="actions">
-              <a class="button secondary" href="../roadmap/index.html">查看路线图</a>
-            </div>
-          </article>
-        </div>
-      </section>
-    </main>
-
-    <footer class="site-footer">
-      <div class="footer-inner">
-        <span>ianvs - 开源试用</span>
-        <div class="footer-links">
-          <a href="../index.html">首页</a>
-          <a href="../features/index.html">功能</a>
-          <a href="../technology/index.html">技术</a>
-          <a href="../roadmap/index.html">路线图</a>
-        </div>
-      </div>
-    </footer>
-  </body>
-</html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="从源码在 macOS 运行 Ianvs Terminal，查看准备步骤、运行命令、验证方法与常见问题。">
+<meta property="og:title" content="开始使用 · Ianvs Terminal">
+<meta property="og:description" content="从源码在 macOS 运行 Ianvs Terminal，查看准备步骤、运行命令、验证方法与常见问题。">
+<meta property="og:type" content="website">
+<title>开始使用 · Ianvs Terminal</title>
+<link rel="icon" href="../assets/images/brand/app-icon.png">
+<script src="../assets/theme.js"></script>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/app.js" defer></script>
+</head>
+<body data-page="open-source">
+<a class="skip-link" href="#main-content">跳到正文</a>
+<header class="site-header"><div class="header-inner wrap">
+<a class="brand" href="../index.html" aria-label="ianvs 首页"><span class="brand-symbol" aria-hidden="true"><i></i><i></i></span><span>ianvs<span class="brand-suffix"> / terminal</span></span></a>
+<button type="button" class="menu-toggle" data-menu-toggle aria-expanded="false" aria-controls="main-nav">菜单 <span aria-hidden="true">☰</span></button>
+<nav id="main-nav" class="main-nav" aria-label="主导航"><a href="../index.html">概览</a><a href="../features/index.html">功能</a><a href="../technology/index.html">技术</a><a href="../osc/index.html">协议</a><a href="../roadmap/index.html">进展</a></nav>
+<div class="header-actions"><label class="theme-control"><span class="sr-only">外观主题</span><select data-theme-select aria-label="外观主题"><option value="system">◐ 系统</option><option value="light">☀ 浅色</option><option value="dark">☾ 深色</option></select></label><a class="header-cta" href="../open-source/index.html" aria-current="page">开始使用 <span aria-hidden="true">↗</span></a></div>
+</div></header>
+<main id="main-content" tabindex="-1"><section class="page-intro wrap"><p class="eyebrow"><span>05</span> MAKE IT YOURS</p><h1>你的下一次会话，<br>从源码开始。</h1><p class="lead">在 macOS 上运行 Ianvs Terminal，<br>用自己的日常命令，体验它的工作方式。</p></section><section class="section wrap start-layout"><aside class="start-aside"><span class="pill">macOS / FROM SOURCE</span><h2>准备好，<br>打开终端。</h2><p>建议先安装 Flutter、Rust / Cargo，以及 Xcode 命令行工具。具体版本要求与平台步骤以仓库 README 为准。</p><p class="inline-note">此处提供源码运行入口。可用的发行文件请以 GitHub Releases 实际列表为准。</p><a class="text-link" href="https://github.com/robinfai/ianvs-terminal/blob/main/README.md">查看仓库 README <span aria-hidden="true">↗</span></a><a class="text-link" href="https://github.com/robinfai/ianvs-terminal/releases">查看 Releases <span aria-hidden="true">↗</span></a></aside><div class="install-steps"><article><div class="step-heading"><span>01</span><h3>获取源码</h3></div><div class="code-card"><div class="code-header"><span>Terminal</span><button type="button" data-copy="clone-code">复制命令</button></div><pre><code id="clone-code">git clone https://github.com/robinfai/ianvs-terminal.git
+cd ianvs-terminal</code></pre></div></article><article><div class="step-heading"><span>02</span><h3>准备依赖，启动 macOS 应用</h3></div><div class="code-card"><div class="code-header"><span>Repository root</span><button type="button" data-copy="run-code">复制命令</button></div><pre><code id="run-code">make bootstrap
+make run</code></pre></div><p>在仓库根目录执行。应用使用本地存储，试用本地 shell 与保存 SSH 主机无需先配置数据 API。</p></article><article><div class="step-heading"><span>03</span><h3>试试你的工作流</h3></div><ol class="number-list"><li>打开本地 shell，在常用目录运行命令</li><li>创建一个 SSH Profile，打开远程会话</li><li>分出一个 Pane，让输出并排显示</li><li>录制一段会话，保存后从「回看」重新打开</li></ol></article></div></section>
+<section class="section section-rule wrap"><div class="section-heading"><div><p class="eyebrow"><span>01</span> BUILD WITH CONFIDENCE</p><h2>参与开发，<br>从验证开始。</h2></div></div><div class="two-grid"><div><h3>常用验证入口</h3><p>仓库提供静态分析、测试与完整验证命令。提交修改前，按实际改动范围完成对应检查。</p><a class="text-link" href="https://github.com/robinfai/ianvs-terminal/blob/main/docs/TESTING.md">阅读测试指南 <span aria-hidden="true">↗</span></a></div><div class="code-card"><div class="code-header"><span>Verification</span><button type="button" data-copy="verify-code">复制命令</button></div><pre><code id="verify-code">make analyze
+make test
+make verify</code></pre></div></div></section>
+<section class="section section-rule wrap"><p class="eyebrow">GOOD TO KNOW</p><h2>开始之前的小问题。</h2><div class="faq"><details><summary>使用之前需要连接服务器或 API 吗？</summary><p>不需要。配置与 SSH 主机先保存在本机。可选 API 只用于配置同步，在设置中的 Defaults &amp; appearance → API sync (optional) 管理。</p></details><details><summary>关闭 API 会影响我的本地数据吗？</summary><p>关闭或切换 API 保留本地数据。布局与录制文件始终留在本机，也不会随配置同步。</p></details><details><summary>恢复布局会找回已经退出的进程吗？</summary><p>布局恢复会按保存的 Profile、命令参数和目录启动新的 PTY 会话。想回看之前的输出，请使用已保存的录制。</p></details><details><summary>可以在 iPhone、Linux 或 Windows 上使用吗？</summary><p>macOS 是主交付平台。iOS 已实现 SSH 配套流程与本地保存，但实体设备和发布验收还需要独立证据；Linux / Windows 尚待真实桌面宿主证据。</p></details><details><summary>可以把终端嵌入自己的 Flutter 应用吗？</summary><p>可以从 ianvs_terminal_core 的 macOS 接入路径开始。它包含运行时、终端视图和底部面板。<a class="text-link" href="https://github.com/robinfai/ianvs-terminal/blob/main/packages/ianvs_terminal_core/README.md">阅读 package 文档 ↗</a></p></details></div></section>
+<section class="source-banner wrap"><span class="code-symbol" aria-hidden="true">&lt;/&gt;</span><div><h2>代码开放，欢迎动手。</h2><p>读源码、提问题，或试着改进你在意的体验。</p></div><a class="button primary" href="https://github.com/robinfai/ianvs-terminal">打开 GitHub <span aria-hidden="true">↗</span></a></section></main>
+<footer class="site-footer wrap"><div class="footer-top"><a class="brand" href="../index.html"><span class="brand-symbol" aria-hidden="true"><i></i><i></i></span>ianvs</a><p>让每一次输入，都保持专注。</p><a class="text-link" href="https://github.com/robinfai/ianvs-terminal">GitHub ↗</a></div><div class="footer-bottom"><span>IANVS TERMINAL · OPEN SOURCE</span><nav aria-label="页脚导航"><a href="../features/index.html">功能</a><a href="../technology/index.html">技术</a><a href="../osc/index.html">协议参考</a><a href="../roadmap/index.html">产品进展</a><a href="../open-source/index.html">本地试用</a></nav><span>BUILT WITH FLUTTER + RUST</span></div></footer>
+<div class="sr-only" role="status" data-status></div>
+</body></html>

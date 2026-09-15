@@ -1,286 +1,39 @@
 <!doctype html>
 <html lang="zh-CN" data-theme="system">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="了解 ianvs 的 Flutter UI、PTY 包、Rust native core、xterm 靠齐和验证覆盖。">
-    <title>技术 - ianvs</title>
-    <link rel="stylesheet" href="../assets/styles.css">
-    <script src="../assets/app.js" defer></script>
-  </head>
-  <body>
-    <a class="skip-link" href="#main-content">跳到正文</a>
-    <header class="site-header">
-      <div class="header-inner">
-        <a class="brand" href="../index.html" aria-label="ianvs 首页">
-          <img class="brand-mark" src="../assets/images/brand/app-icon.png" alt="" width="32" height="32" aria-hidden="true">
-          <span>ianvs</span>
-        </a>
-        <nav class="nav" aria-label="主导航">
-          <a href="../index.html">首页</a>
-          <a href="../features/index.html">功能</a>
-          <a href="index.html" aria-current="page">技术</a>
-          <a href="../roadmap/index.html">路线图</a>
-          <a href="../open-source/index.html">开源试用</a>
-          <a href="https://github.com/robinfai/ianvs-terminal">GitHub</a>
-          <button class="theme-toggle" type="button" data-theme-toggle>系统</button>
-        </nav>
-      </div>
-    </header>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="Ianvs 的 Flutter、Dart、Rust 分层架构，可嵌入的 ianvs_terminal_core package，以及当前运行时契约。">
+<meta property="og:title" content="技术 · Ianvs Terminal">
+<meta property="og:description" content="Ianvs 的 Flutter、Dart、Rust 分层架构，可嵌入的 ianvs_terminal_core package，以及当前运行时契约。">
+<meta property="og:type" content="website">
+<title>技术 · Ianvs Terminal</title>
+<link rel="icon" href="../assets/images/brand/app-icon.png">
+<script src="../assets/theme.js"></script>
+<link rel="stylesheet" href="../assets/styles.css">
+<script src="../assets/app.js" defer></script>
+</head>
+<body data-page="technology">
+<a class="skip-link" href="#main-content">跳到正文</a>
+<header class="site-header"><div class="header-inner wrap">
+<a class="brand" href="../index.html" aria-label="ianvs 首页"><span class="brand-symbol" aria-hidden="true"><i></i><i></i></span><span>ianvs<span class="brand-suffix"> / terminal</span></span></a>
+<button type="button" class="menu-toggle" data-menu-toggle aria-expanded="false" aria-controls="main-nav">菜单 <span aria-hidden="true">☰</span></button>
+<nav id="main-nav" class="main-nav" aria-label="主导航"><a href="../index.html">概览</a><a href="../features/index.html">功能</a><a href="../technology/index.html" aria-current="page">技术</a><a href="../osc/index.html">协议</a><a href="../roadmap/index.html">进展</a></nav>
+<div class="header-actions"><label class="theme-control"><span class="sr-only">外观主题</span><select data-theme-select aria-label="外观主题"><option value="system">◐ 系统</option><option value="light">☀ 浅色</option><option value="dark">☾ 深色</option></select></label><a class="header-cta" href="../open-source/index.html">开始使用 <span aria-hidden="true">↗</span></a></div>
+</div></header>
+<main id="main-content" tabindex="-1"><section class="page-intro wrap"><p class="eyebrow"><span>02</span> UNDER THE SURFACE</p><h1>界面到核心，<br>边界清晰。</h1><p class="lead">从可嵌入的 Flutter 视图，到 Rust PTY 与 VT 核心。<br>把终端能力做成可以理解、复用和验证的层次。</p></section><section class="section wrap" aria-labelledby="layers-title"><p class="eyebrow">ARCHITECTURE</p><h2 id="layers-title">每一层，各司其职。</h2><div class="architecture-map"><div><span class="layer-tag">HOST</span><h3>example / Flutter app</h3><p>窗口、标签、菜单、Profile 编辑与产品流程</p></div><span class="layer-connector" aria-hidden="true">↓</span><div><span class="layer-tag">RUNTIME</span><h3>ianvs_terminal</h3><p>会话运行时、viewport、输入、选区与滚动适配</p></div><span class="layer-connector" aria-hidden="true">↓</span><div><span class="layer-tag">TRANSPORT</span><h3>ianvs_pty</h3><p>PTY 会话传输与 FFI 包装</p></div><span class="layer-connector" aria-hidden="true">↓</span><div><span class="layer-tag">NATIVE</span><h3>Rust / native core</h3><p>PTY、VT 解析、终端帧与图形资源</p></div></div><p class="section-footnote">可选 Go / GORM 数据 API 提供配置同步目标；终端运行与本地保存不依赖它。</p></section>
+<section class="section section-rule wrap" id="xterm-title"><div class="section-heading"><div><p class="eyebrow"><span>01</span> EMBEDDABLE BY DESIGN</p><h2>给你的 Flutter 应用，<br>一个真正的终端。</h2></div><p>ianvs_terminal_core 将 Dart / Flutter 运行时、终端视图、底部面板和 Rust PTY 打包在一起。</p></div><div class="two-grid"><div><h3>macOS 原生库随构建打包</h3><p>CodeAsset build hook 自动编译并打包原生库，宿主无需额外增加 Xcode dylib 复制步骤。</p><ul class="check-list"><li>macOS Intel / Apple silicon；Flutter 3.41+、Rust 1.88+</li><li>TerminalSessionView：单个终端会话</li><li>TerminalBottomPanel：可管理标签的底部面板</li><li>runtimeSignals：有序的会话事件 API</li><li>宿主管理窗口、导航、权限与平台剪贴板</li></ul><a class="text-link" href="https://github.com/robinfai/ianvs-terminal/blob/main/packages/ianvs_terminal_core/README.md">阅读 package 接入文档 <span aria-hidden="true">↗</span></a></div><div class="code-card"><div class="code-header"><span>Flutter / Dart</span><button type="button" data-copy="embed-code">复制代码</button></div><pre><code id="embed-code">import 'package:ianvs_terminal_core/ianvs_terminal_core.dart';
 
-    <main id="main-content">
-      <section class="section page-hero">
-        <div class="page-intro">
-          <p class="eyebrow">Technology</p>
-          <h1 class="page-title">Flutter 界面之下，<br>终端分层清楚。</h1>
-          <p>ianvs 用 Flutter 承载桌面界面，用 package 收口终端运行时，用 Rust native core 处理更贴近系统的终端能力。</p>
-        </div>
-      </section>
-
-      <section class="section" aria-labelledby="layers-title">
-        <div class="section-header">
-          <div>
-            <p class="kicker">Architecture</p>
-            <h2 id="layers-title">界面和运行时，各有边界。</h2>
-          </div>
-        </div>
-        <div class="diagram" aria-label="ianvs 技术分层">
-          <div class="diagram-step">UI shell</div>
-          <div class="diagram-step">ianvs_terminal</div>
-          <div class="diagram-step">ianvs_pty</div>
-          <div class="diagram-step">Rust native core</div>
-        </div>
-        <div class="grid two" style="margin-top:16px">
-          <article class="card">
-            <h3>UI shell</h3>
-            <p>窗口壳、tab、菜单、profile 和 defaults 留在 app 层，避免把产品词汇塞进底层 package。</p>
-          </article>
-          <article class="card">
-            <h3>ianvs_terminal</h3>
-            <p>负责 session runtime、viewport、输入、选区和滚动适配，是 Flutter 侧终端行为的主要边界。</p>
-          </article>
-          <article class="card">
-            <h3>ianvs_pty</h3>
-            <p>负责 PTY 会话传输和 FFI 包装，只暴露创建、写入、读取、resize、scroll、close 这类底层能力。</p>
-          </article>
-          <article class="card">
-            <h3>Rust native core</h3>
-            <p>负责 PTY、VT 解析、frame diff 和事件输出，承接真正贴近终端底层的工作。</p>
-          </article>
-        </div>
-      </section>
-
-      <section class="section" aria-labelledby="capability-map-title">
-        <div class="section-header">
-          <div>
-            <p class="kicker">Capability map</p>
-            <h2 id="capability-map-title">功能亮点落在清楚的边界里。</h2>
-          </div>
-          <p>产品能力不是散在页面里的口号。每个亮点都对应到现有分层，让用户能看懂体验从哪里来，也方便开发者继续扩展。</p>
-        </div>
-        <div class="capability-map">
-          <article class="map-card">
-            <span class="map-layer">UI shell</span>
-            <h3>会话体验和回看入口</h3>
-            <p>Shell Hook 带来的标题、目录和命令线索，以及 Instant Replay 的最近画面回看，最终都在 app 层变成用户能操作的界面。</p>
-          </article>
-          <article class="map-card">
-            <span class="map-layer">ianvs_terminal</span>
-            <h3>输入、视口和 API 外壳</h3>
-            <p>模式感知输入、行级渲染缓存和 xterm 风格 Dart API 主要在这一层收口，负责把 native 状态变成稳定的 Flutter 行为。</p>
-          </article>
-          <article class="map-card">
-            <span class="map-layer">ianvs_pty</span>
-            <h3>稳定的 native 桥</h3>
-            <p>Native JSON 请求通道从这里进入 Rust core，让搜索、选区、滚动历史和诊断能力可以继续扩展，而不打散 PTY 边界。</p>
-          </article>
-          <article class="map-card">
-            <span class="map-layer">Rust native core</span>
-            <h3>终端状态和证据来源</h3>
-            <p>frame diff、Shell Hook 事件、终端模式和诊断归因在 native core 里生成，为 Flutter 侧渲染和产品层功能提供可信数据。</p>
-          </article>
-        </div>
-        <div class="actions">
-          <a class="button secondary" href="../features/index.html#capabilities-title">回到功能亮点</a>
-        </div>
-      </section>
-
-      <section class="section visual-gallery" id="frame-diff-visuals" aria-labelledby="frame-diff-visuals-title">
-        <div class="section-header">
-          <div>
-            <p class="kicker">Frame Diff visuals</p>
-            <h2 id="frame-diff-visuals-title">把原理、路径和收益摊开看。</h2>
-          </div>
-          <p>这组图用于解释 frame diff 为什么能减少传输、合并和重绘，同时保留 snapshot 作为可靠回退。图内信息较密，点击可以打开原图查看。</p>
-        </div>
-        <div class="visual-feature">
-          <a class="visual-frame" href="../assets/images/frame-diff/principle-advantages.png" aria-label="打开 Frame Diff 原理与优势大图">
-            <img src="../assets/images/frame-diff/principle-advantages.png" alt="Frame Diff 原理与优势：Rust 端生成 diff，Dart 端合并状态，Flutter 端只重建必要行。" width="1536" height="1024" loading="eager" decoding="async">
-          </a>
-          <p>完整链路从 Rust native core 的损伤记录开始，到 Dart runtime 合并状态，再到 Flutter 只更新必要行。</p>
-        </div>
-        <div class="visual-grid">
-          <article class="visual-card">
-            <a class="visual-frame" href="../assets/images/frame-diff/lifecycle.png" aria-label="打开 Frame Diff 生命周期大图">
-              <img src="../assets/images/frame-diff/lifecycle.png" alt="Frame Diff 生命周期：PTY 输出到 Rust 损伤跟踪，再到 JSON diff、Dart 合并和 viewport 渲染。" width="1774" height="887" loading="eager" decoding="async">
-            </a>
-            <h3>生命周期</h3>
-            <p>展示 PTY 输出到 viewport 渲染的六段路径，说明 delta 和 snapshot 分别在什么时候出现。</p>
-          </article>
-          <article class="visual-card">
-            <a class="visual-frame" href="../assets/images/frame-diff/snapshot-delta.png" aria-label="打开 Snapshot vs Delta 大图">
-              <img src="../assets/images/frame-diff/snapshot-delta.png" alt="Snapshot 与 Delta 对比：snapshot 负责全量同步，delta 负责高频局部更新。" width="1672" height="941" loading="eager" decoding="async">
-            </a>
-            <h3>Snapshot vs Delta</h3>
-            <p>解释安全基线和高频路径的分工：不确定时回到 snapshot，普通输出走 delta。</p>
-          </article>
-          <article class="visual-card">
-            <a class="visual-frame" href="../assets/images/frame-diff/benefits.png" aria-label="打开 Frame Diff 收益大图">
-              <img src="../assets/images/frame-diff/benefits.png" alt="Frame Diff 收益：传输层 JSON 更小，runtime 合并更轻，render 层复用行缓存。" width="1672" height="941" loading="eager" decoding="async">
-            </a>
-            <h3>收益拆解</h3>
-            <p>从传输、状态合并、渲染复用和正确性回退四个角度看优化边界。</p>
-          </article>
-        </div>
-      </section>
-
-      <section class="section visual-gallery" id="feature-visuals" aria-labelledby="feature-visuals-title">
-        <div class="section-header">
-          <div>
-            <p class="kicker">Feature visuals</p>
-            <h2 id="feature-visuals-title">更多能力，也按同一套方式讲清楚。</h2>
-          </div>
-          <p>Shell Hook、行级缓存、模式感知输入和 Instant Replay 都不是孤立卖点。它们各自有输入、状态处理、体验出口和回退边界。</p>
-        </div>
-        <div class="visual-feature">
-          <a class="visual-frame" href="../assets/images/feature-visuals/architecture-overview.png" aria-label="打开 Ianvs Terminal 架构图大图">
-            <img src="../assets/images/feature-visuals/architecture-overview.png" alt="Ianvs Terminal 架构图：example、ianvs_terminal、ianvs_pty 和 native core 的分层关系。" width="1672" height="941" loading="eager" decoding="async">
-          </a>
-          <p>先看应用层、终端 runtime、PTY 和 native core 的边界，再进入具体能力图解。</p>
-        </div>
-        <div class="visual-grid">
-          <article class="visual-card" id="shell-hook-visual">
-            <a class="visual-frame" href="../assets/images/feature-visuals/shell-hook.png" aria-label="打开 Shell Hook 感知终端大图">
-              <img src="../assets/images/feature-visuals/shell-hook.png" alt="Shell Hook 感知终端：命令、目录、退出状态和标题随 shell 上下文同步。" width="1603" height="981" loading="eager" decoding="async">
-            </a>
-            <h3>Shell Hook 感知终端</h3>
-            <p>把 prompt、命令、目录变化和退出状态整理成可归因事件，再映射到 tab、最近命令、诊断上下文和回放锚点。</p>
-          </article>
-          <article class="visual-card" id="row-cache-visual">
-            <a class="visual-frame" href="../assets/images/feature-visuals/row-cache.png" aria-label="打开行级渲染缓存大图">
-              <img src="../assets/images/feature-visuals/row-cache.png" alt="行级渲染缓存：只重建变化行，未变化行复用视觉结果。" width="1653" height="952" loading="eager" decoding="async">
-            </a>
-            <h3>行级渲染缓存</h3>
-            <p>用 dirty ranges、row key 和缓存命中判断减少重复布局与绘制，同时在尺寸、字体和主题变化时保留安全清理路径。</p>
-          </article>
-          <article class="visual-card" id="input-modes-visual">
-            <a class="visual-frame" href="../assets/images/feature-visuals/input-modes.png" aria-label="打开模式感知输入系统大图">
-              <img src="../assets/images/feature-visuals/input-modes.png" alt="模式感知输入系统：按当前终端模式编码键盘、粘贴、鼠标与滚动。" width="1536" height="1024" loading="eager" decoding="async">
-            </a>
-            <h3>模式感知输入系统</h3>
-            <p>键盘、粘贴、鼠标和滚动会先读取当前终端模式，再决定编码方式，让 vim、tmux、less 和普通 shell 都走合适路径。</p>
-          </article>
-          <article class="visual-card" id="instant-replay-visual">
-            <a class="visual-frame" href="../assets/images/feature-visuals/instant-replay.png" aria-label="打开 Instant Replay 轻量回放大图">
-              <img src="../assets/images/feature-visuals/instant-replay.png" alt="Instant Replay 轻量回放：用轻量文本快照回看最近终端画面。" width="1536" height="1024" loading="eager" decoding="async">
-            </a>
-            <h3>Instant Replay 轻量回放</h3>
-            <p>用最近 N 帧的文本快照支持回看、对比和问题复现，不录制视频，也不改变 shell 行为。</p>
-          </article>
-        </div>
-      </section>
-
-      <section class="section" aria-labelledby="xterm-title">
-        <div class="section-header">
-          <div>
-            <p class="kicker">Terminal behavior</p>
-            <h2 id="xterm-title">向 xterm 行为靠齐，但不夸口。</h2>
-          </div>
-          <p>xterm probes、回归测试和手工验证队列用于校准行为边界。可信来自持续验证，而不是一句口号。</p>
-        </div>
-      </section>
-
-      <section class="section" aria-labelledby="matrix-title">
-        <div class="section-header">
-          <div>
-            <p class="kicker">Verification</p>
-            <h2 id="matrix-title">验证不是装饰。</h2>
-          </div>
-        </div>
-        <table class="matrix">
-          <thead>
-            <tr>
-              <th>类型</th>
-              <th>目的</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>Flutter tests</td>
-              <td>验证 UI、session 和交互行为。</td>
-            </tr>
-            <tr>
-              <td>Dart tests</td>
-              <td>验证 package 逻辑和边界。</td>
-            </tr>
-            <tr>
-              <td>Rust tests</td>
-              <td>验证 native core 行为。</td>
-            </tr>
-            <tr>
-              <td>macOS manual smoke</td>
-              <td>验证桌面真实交互。</td>
-            </tr>
-            <tr>
-              <td>performance baseline</td>
-              <td>观察终端输出和渲染表现。</td>
-            </tr>
-          </tbody>
-        </table>
-      </section>
-
-      <section class="section">
-        <div class="section-header">
-          <div>
-            <p class="kicker">Repository evidence</p>
-            <h2>来自仓库的证据。</h2>
-          </div>
-        </div>
-        <div class="grid two">
-          <a class="card" href="https://github.com/robinfai/ianvs-terminal">
-            <h3>GitHub 仓库</h3>
-            <p>查看源码、任务历史和当前实现。</p>
-          </a>
-          <a class="card" href="https://github.com/robinfai/ianvs-terminal/blob/main/docs/ARCHITECTURE.md">
-            <h3>架构文档</h3>
-            <p>查看 workspace 分层和公开边界。</p>
-          </a>
-          <a class="card" href="https://github.com/robinfai/ianvs-terminal/blob/main/docs/TESTING.md">
-            <h3>测试文档</h3>
-            <p>查看当前可用的验证命令。</p>
-          </a>
-          <a class="card" href="https://github.com/robinfai/ianvs-terminal/blob/main/docs/ROADMAP.md">
-            <h3>路线图文档</h3>
-            <p>查看更细的工程推进顺序。</p>
-          </a>
-          <a class="card" href="../osc/index.html">
-            <h3>OSC 支持矩阵</h3>
-            <p>查看当前 OSC 序号、协议来源、能力范围和安全边界。</p>
-          </a>
-        </div>
-      </section>
-    </main>
-
-    <footer class="site-footer">
-      <div class="footer-inner">
-        <span>ianvs - 技术</span>
-        <div class="footer-links">
-          <a href="../index.html">首页</a>
-          <a href="../features/index.html">功能</a>
-          <a href="../roadmap/index.html">路线图</a>
-          <a href="../open-source/index.html">开源试用</a>
-        </div>
-      </div>
-    </footer>
-  </body>
-</html>
+// 由宿主提供平台剪贴板回调
+final runtime =
+  TerminalRuntimeController.native(
+    copyToClipboard: copyToClipboard,
+    readClipboard: readClipboard,
+  );</code></pre><p class="code-note">结构示例；完整生命周期与依赖版本见 package 文档。</p></div></div></section>
+<section class="section section-rule wrap" id="capability-map-title"><div class="section-heading"><div><p class="eyebrow"><span>02</span> CURRENT CONTRACT</p><h2>让状态、持久化与回放，<br>各走自己的路径。</h2></div></div><div class="three-grid"><article class="simple-card"><span class="pill">SESSION</span><h3>一次运行，一个会话</h3><p>Session 对应一个真实 PTY 进程。运行时标题、时间戳与退出状态属于当前会话。</p></article><article class="simple-card"><span class="pill">RELAUNCH</span><h3>恢复布局，启动新会话</h3><p>Terminal Layout 保存标签和 Pane 拓扑。Relaunch Spec 只保留 Profile、命令参数和初始目录。</p></article><article class="simple-card"><span class="pill">RECORDING</span><h3>录制独立于布局</h3><p>Recording Library 使用当前格式的本地文件。SSH 录制在隔离回放后端打开，不会创建远程连接。</p></article></div><div class="note-panel"><h3>当前工程重点：运行时契约稳定性</h3><p>Native 与 Dart 使用明确的当前版本边界，拒绝缺失、未知或不支持的数据形状。旧版 JSON 回退接口和历史 xterm 风格回调不属于公开接入面。</p><a class="text-link" href="https://github.com/robinfai/ianvs-terminal/blob/main/docs/CURRENT_EXECUTION_TARGET.md">查看当前执行目标 <span aria-hidden="true">↗</span></a></div></section>
+<section class="section section-rule wrap" id="frame-diff-visuals"><p class="eyebrow">FRAME & VIEWPORT</p><h2 id="frame-diff-visuals-title">只把需要变化的内容，<br>送到需要它的地方。</h2><div class="frame-flow"><div><b>01 / PTY</b><span>程序输出</span></div><span aria-hidden="true">→</span><div><b>02 / CORE</b><span>解析与终端帧</span></div><span aria-hidden="true">→</span><div><b>03 / VIEWPORT</b><span>变化行与绘制</span></div></div><p class="lead-small">解析、会话运行时和视图绘制各自承担责任。终端帧与缓存减少重复处理，诊断导出帮助定位具体工作负载中的问题。</p><details class="resource-details"><summary>展开 Frame Diff 原理参考图</summary><p>保留的早期原理图用于理解设计思路；当前接口以源码与 package 文档为准。</p><div class="resource-links"><a class="text-link" href="../assets/images/frame-diff/principle-advantages.png">原理与优势 <span aria-hidden="true">↗</span></a><a class="text-link" href="../assets/images/frame-diff/lifecycle.png">生命周期 <span aria-hidden="true">↗</span></a><a class="text-link" href="../assets/images/frame-diff/snapshot-delta.png">Snapshot / Delta <span aria-hidden="true">↗</span></a><a class="text-link" href="../assets/images/frame-diff/benefits.png">设计收益 <span aria-hidden="true">↗</span></a></div></details></section>
+<section class="section section-rule wrap" id="feature-visuals"><p class="eyebrow">REFERENCE LIBRARY</p><h2 id="feature-visuals-title">继续沿着线索阅读。</h2><div class="resource-grid"><article class="resource-item"><h3>架构参考</h3><p>原有结构图保留为设计参考。</p><a class="text-link" href="../assets/images/feature-visuals/architecture-overview.png">打开参考图 <span aria-hidden="true">↗</span></a></article><article class="resource-item" id="shell-hook-visual"><h3>Shell Hook</h3><p>命令、目录与会话线索。</p><a class="text-link" href="../assets/images/feature-visuals/shell-hook.png">打开参考图 <span aria-hidden="true">↗</span></a></article><article class="resource-item" id="row-cache-visual"><h3>行级缓存</h3><p>从变化行到视图更新。</p><a class="text-link" href="../assets/images/feature-visuals/row-cache.png">打开参考图 <span aria-hidden="true">↗</span></a></article><article class="resource-item" id="input-modes-visual"><h3>输入模式</h3><p>按键与终端模式的关系。</p><a class="text-link" href="../assets/images/feature-visuals/input-modes.png">打开参考图 <span aria-hidden="true">↗</span></a></article><article class="resource-item" id="instant-replay-visual"><h3>最近画面</h3><p>早期回看原理；保存录制见功能页。</p><a class="text-link" href="../assets/images/feature-visuals/instant-replay.png">打开参考图 <span aria-hidden="true">↗</span></a></article><article class="resource-item" id="matrix-title"><h3>OSC 协议参考</h3><p>按协议查看能力与权限边界。</p><a class="text-link" href="../osc/index.html">浏览支持矩阵 <span aria-hidden="true">↗</span></a></article></div><div class="actions"><a class="button secondary" href="https://github.com/robinfai/ianvs-terminal/blob/main/docs/ARCHITECTURE.md">仓库架构 <span aria-hidden="true">↗</span></a><a class="button secondary" href="https://github.com/robinfai/ianvs-terminal/blob/main/docs/TESTING.md">测试与验证 <span aria-hidden="true">↗</span></a></div></section><section class="closing wrap"><div><p class="eyebrow">YOUR NEXT SESSION</p><h2>下一次打开终端，<br>从这里开始。</h2></div><div><p>开源、macOS 优先。<br>从源码运行，亲手试试你的日常工作流。</p><a class="button primary" href="../open-source/index.html">开始本地试用 <span aria-hidden="true">↗</span></a></div><span class="closing-symbol" aria-hidden="true">↗</span></section></main>
+<footer class="site-footer wrap"><div class="footer-top"><a class="brand" href="../index.html"><span class="brand-symbol" aria-hidden="true"><i></i><i></i></span>ianvs</a><p>让每一次输入，都保持专注。</p><a class="text-link" href="https://github.com/robinfai/ianvs-terminal">GitHub ↗</a></div><div class="footer-bottom"><span>IANVS TERMINAL · OPEN SOURCE</span><nav aria-label="页脚导航"><a href="../features/index.html">功能</a><a href="../technology/index.html">技术</a><a href="../osc/index.html">协议参考</a><a href="../roadmap/index.html">产品进展</a><a href="../open-source/index.html">本地试用</a></nav><span>BUILT WITH FLUTTER + RUST</span></div></footer>
+<div class="sr-only" role="status" data-status></div>
+</body></html>

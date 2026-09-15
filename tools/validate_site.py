@@ -1,186 +1,54 @@
 #!/usr/bin/env python3
-"""Validate the static Ianvs Terminal product site."""
-
-from __future__ import annotations
-
+"""Dependency-free structural, link, theme and content-scope checks."""
 from html.parser import HTMLParser
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlsplit, unquote
+import json
 
-
-SITE_ROOT = Path(__file__).resolve().parents[1]
-PAGES = [
-    Path("index.html"),
-    Path("features/index.html"),
-    Path("technology/index.html"),
-    Path("osc/index.html"),
-    Path("roadmap/index.html"),
-    Path("open-source/index.html"),
-]
-REQUIRED_ASSETS = [
-    Path("assets/styles.css"),
-    Path("assets/app.js"),
-]
-FORBIDDEN_COPY = [
-    "立即下载",
-    "全平台已经可用",
-    "完全兼容",
-    "官网",
-    "内部任务编号",
-    "内部验证日志",
-    "首页负责",
-    "路线图用用户能读懂",
-    "技术证明要",
-]
-REQUIRED_APP_SNIPPETS = [
-    "ianvs-terminal-site-theme",
-    'dataset.theme = "system"',
-    "prefers-reduced-motion",
-]
-REQUIRED_CSS_SNIPPETS = [
-    "prefers-reduced-motion",
-    "data-theme=\"dark\"",
-    "data-theme=\"light\"",
-    "--on-accent",
-    "color: var(--on-accent)",
-    ".terminal-hero",
-]
-REQUIRED_OSC_SNIPPETS = [
-    '<html lang="zh-CN"',
-    'rel="icon"',
-    '<caption>OSC',
-    'scope="col"',
-    'class="matrix-scroll"',
-    'OSC 23',
-    'RequestUpload',
-    'ianvs-osc934/1',
-    '完整证据矩阵',
-]
-REQUIRED_OSC_CSS_SNIPPETS = [
-    ".osc-summary",
-    ".matrix-scroll",
-    ".status-pill",
-]
-
-
-class LinkParser(HTMLParser):
-    def __init__(self) -> None:
-        super().__init__()
-        self.links: list[tuple[str, str]] = []
-        self.scripts: list[str] = []
-        self.stylesheets: list[str] = []
-        self.buttons: list[dict[str, str]] = []
-
-    def handle_starttag(
-        self, tag: str, attrs: list[tuple[str, str | None]]
-    ) -> None:
-        values = {key: value or "" for key, value in attrs}
-        if tag == "a" and "href" in values:
-            self.links.append((values["href"], values.get("class", "")))
-        if tag == "script" and "src" in values:
-            self.scripts.append(values["src"])
-        if tag == "link" and values.get("rel") == "stylesheet":
-            self.stylesheets.append(values.get("href", ""))
-        if tag == "button":
-            self.buttons.append(values)
-
-
-def fail(message: str) -> None:
-    raise SystemExit(f"site validation failed: {message}")
-
-
-def read_text(relative_path: Path) -> str:
-    path = SITE_ROOT / relative_path
-    if not path.exists():
-        fail(f"missing {relative_path}")
-    return path.read_text(encoding="utf-8")
-
-
-def resolve_local_reference(source: Path, href: str) -> Path | None:
-    parsed = urlparse(href)
-    if parsed.scheme or parsed.netloc or href.startswith("#"):
-        return None
-    clean_href = href.split("#", 1)[0].split("?", 1)[0]
-    if not clean_href:
-        return None
-    resolved = (SITE_ROOT / source.parent / clean_href).resolve()
-    site_root = SITE_ROOT.resolve()
-    if site_root not in resolved.parents and resolved != site_root:
-        fail(f"{source} links outside site root: {href}")
-    if clean_href.endswith("/") or resolved.is_dir():
-        resolved = resolved / "index.html"
-    return resolved
-
-
-def validate_page(relative_path: Path) -> None:
-    html = read_text(relative_path)
-    parser = LinkParser()
-    parser.feed(html)
-
-    for copy in FORBIDDEN_COPY:
-        if copy in html:
-            fail(f"{relative_path} contains forbidden copy: {copy}")
-
-    if 'id="main-content"' not in html:
-        fail(f"{relative_path} is missing main-content landmark")
-    if "theme-toggle" not in html:
-        fail(f"{relative_path} is missing theme toggle")
-    if "assets/styles.css" not in html and "../assets/styles.css" not in html:
-        fail(f"{relative_path} is missing shared stylesheet")
-    if "assets/app.js" not in html and "../assets/app.js" not in html:
-        fail(f"{relative_path} is missing shared script")
-
-    theme_buttons = [
-        button for button in parser.buttons if button.get("data-theme-toggle") == ""
-    ]
-    if len(theme_buttons) != 1:
-        fail(f"{relative_path} must have exactly one data-theme-toggle button")
-
-    for href, _class_name in parser.links:
-        target = resolve_local_reference(relative_path, href)
-        if target is not None and not target.exists():
-            fail(f"{relative_path} has broken link {href}")
-
-
-def validate_assets() -> None:
-    for asset in REQUIRED_ASSETS:
-        if not (SITE_ROOT / asset).exists():
-            fail(f"missing {asset}")
-
-    app_js = read_text(Path("assets/app.js"))
-    for snippet in REQUIRED_APP_SNIPPETS:
-        if snippet not in app_js:
-            fail(f"assets/app.js missing required snippet: {snippet}")
-
-    styles = read_text(Path("assets/styles.css"))
-    for snippet in REQUIRED_CSS_SNIPPETS:
-        if snippet not in styles:
-            fail(f"assets/styles.css missing required snippet: {snippet}")
-
-
-def validate_osc_page() -> None:
-    html = read_text(Path("osc/index.html"))
-    for snippet in REQUIRED_OSC_SNIPPETS:
-        if snippet not in html:
-            fail(f"osc/index.html missing required snippet: {snippet}")
-
-    technology = read_text(Path("technology/index.html"))
-    if "../osc/index.html" not in technology:
-        fail("technology/index.html is missing the OSC matrix link")
-
-    styles = read_text(Path("assets/styles.css"))
-    for snippet in REQUIRED_OSC_CSS_SNIPPETS:
-        if snippet not in styles:
-            fail(f"assets/styles.css missing OSC snippet: {snippet}")
-
-
-def main() -> None:
-    for page in PAGES:
-        validate_page(page)
-    validate_assets()
-    validate_osc_page()
-    print("site validation passed")
-
-
-if __name__ == "__main__":
-    main()
+ROOT=Path(__file__).resolve().parents[1]
+class Page(HTMLParser):
+    def __init__(self,path):
+        super().__init__(); self.path=path; self.ids=set(); self.refs=[]; self.errors=[]; self.main=0; self.h1=0; self.themes=0; self.options=[]; self.buttons=[]; self.tables=0; self.captions=0; self.in_theme=False
+    def handle_starttag(self,tag,attrs):
+        a=dict(attrs)
+        if 'id' in a:
+            if a['id'] in self.ids:self.errors.append('duplicate id '+a['id'])
+            self.ids.add(a['id'])
+        self.main+=tag=='main'; self.h1+=tag=='h1'; self.tables+=tag=='table'; self.captions+=tag=='caption'
+        if tag=='html' and not a.get('lang'):self.errors.append('missing lang')
+        if tag=='img' and ('alt' not in a or 'width' not in a or 'height' not in a):self.errors.append('image missing alt/dimensions')
+        if tag=='button' and a.get('type')!='button':self.errors.append('button lacks explicit type')
+        if tag=='select' and 'data-theme-select' in a:self.themes+=1; self.in_theme=True
+        if tag=='option' and self.in_theme:self.options.append(a.get('value'))
+        for k in ('href','src'):
+            if a.get(k):self.refs.append(a[k])
+    def handle_endtag(self,tag):
+        if tag=='select':self.in_theme=False
+pages={}
+for path in ROOT.rglob('*.html'):
+    p=Page(path); p.feed(path.read_text()); pages[path.resolve()]=p
+errors=[]
+for path,p in pages.items():
+    label=str(path.relative_to(ROOT)); raw=path.read_text()
+    if p.main!=1 or p.h1!=1:p.errors.append(f'main={p.main}, h1={p.h1}')
+    if p.themes!=1 or p.options!=['system','light','dark']:p.errors.append('missing consistent theme choices')
+    if p.tables!=p.captions:p.errors.append('table lacks caption')
+    for required in ['assets/styles.css','assets/app.js','assets/theme.js','data-menu-toggle','aria-controls="main-nav"','class="skip-link"','name="viewport"','name="color-scheme"']:
+        if required not in raw:p.errors.append('missing '+required)
+    for wrong in ['立即下载','全平台已经可用','完全兼容','Toolbelt']:
+        if wrong in raw:p.errors.append('unverified product claim '+wrong)
+    for ref in p.refs:
+        u=urlsplit(ref)
+        if u.scheme or u.netloc:continue
+        dest=(ROOT/unquote(u.path.lstrip('/')) if u.path.startswith('/') else path.parent/unquote(u.path)).resolve() if u.path else path
+        if dest.is_dir():dest=dest/'index.html'
+        if not dest.is_relative_to(ROOT):p.errors.append('reference outside site '+ref)
+        elif not dest.exists():p.errors.append('missing '+ref)
+        elif u.fragment and dest in pages and unquote(u.fragment) not in pages[dest].ids:p.errors.append('missing fragment '+ref)
+    errors += [label+': '+e for e in p.errors]
+css=(ROOT/'assets/styles.css').read_text()
+for requirement in ['prefers-reduced-motion','prefers-color-scheme:dark','data-theme=dark','data-theme=light','focus-visible','forced-colors:active','--accent-ink']:
+    if requirement not in css:errors.append('CSS missing '+requirement)
+if len(pages)!=6:errors.append('Expected six routes')
+print(json.dumps({'pages':len(pages),'references':sum(len(p.refs) for p in pages.values()),'errors':errors},ensure_ascii=False,indent=2))
+raise SystemExit(bool(errors))
