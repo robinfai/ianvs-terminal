@@ -4854,6 +4854,12 @@ abstract class AppLocalizations {
   /// **'Moved to a new tab'**
   String get movedToNewTab;
 
+  /// No description provided for @terminalPaneCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} panes'**
+  String terminalPaneCount(int count);
+
   /// No description provided for @panePosition.
   ///
   /// In en, this message translates to:

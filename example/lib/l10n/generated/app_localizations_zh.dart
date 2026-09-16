@@ -2900,6 +2900,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get movedToNewTab => '已移到新标签页';
 
   @override
+  String terminalPaneCount(int count) {
+    return '$count 个窗格';
+  }
+
+  @override
   String panePosition(int index, int count) {
     return '窗格 $index/$count';
   }

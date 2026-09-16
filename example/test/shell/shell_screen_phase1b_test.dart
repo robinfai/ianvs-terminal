@@ -171,55 +171,67 @@ void main() {
     },
   );
 
-  testWidgets('shell tabs share the available strip width before overflow', (
-    tester,
-  ) async {
-    await pumpShellScreen(
-      tester,
-      fakeBindings: FakePtyBackend(),
-      repository: MemoryProfileRepository(
-        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
-      ),
-    );
+  testWidgets(
+    'desktop tabs have equal capped widths with an adjacent new action',
+    (tester) async {
+      await pumpShellScreen(
+        tester,
+        fakeBindings: FakePtyBackend(),
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
 
-    final stripWidth = tester
-        .getSize(find.byKey(const Key('shell-tab-strip')))
-        .width;
-    final singleTabWidth = tester
-        .getSize(find.byKey(const Key('shell-tab-1')))
-        .width;
-    expect(singleTabWidth, closeTo(stripWidth - 40, 1));
+      final stripWidth = tester
+          .getSize(find.byKey(const Key('shell-tab-strip')))
+          .width;
+      final singleTabWidth = tester
+          .getSize(find.byKey(const Key('shell-tab-1')))
+          .width;
+      expect(singleTabWidth, closeTo(math.min(240, stripWidth - 40), 1));
 
-    await openNewShellTab(tester);
+      await openNewShellTab(tester);
 
-    final firstTabWidth = tester
-        .getSize(find.byKey(const Key('shell-tab-1')))
-        .width;
-    final secondTabWidth = tester
-        .getSize(find.byKey(const Key('shell-tab-2')))
-        .width;
-    expect(firstTabWidth, closeTo(secondTabWidth, 1));
-    expect(firstTabWidth, closeTo((stripWidth - 40) / 2, 1));
-    expect(find.byKey(const Key('shell-tab-overflow-button')), findsNothing);
+      final firstTabWidth = tester
+          .getSize(find.byKey(const Key('shell-tab-1')))
+          .width;
+      final secondTabWidth = tester
+          .getSize(find.byKey(const Key('shell-tab-2')))
+          .width;
+      expect(firstTabWidth, closeTo(secondTabWidth, 1));
+      expect(
+        tester.getRect(find.byKey(const Key('shell-chrome-new-tab'))).left,
+        closeTo(
+          tester.getRect(find.byKey(const Key('shell-tab-2'))).right + 6,
+          1,
+        ),
+      );
+      expect(firstTabWidth, closeTo(math.min(240, (stripWidth - 40) / 2), 1));
+      expect(find.byKey(const Key('shell-tab-overflow-button')), findsNothing);
 
-    await openNewShellTab(tester);
+      await openNewShellTab(tester);
 
-    final threeTabWidths = [
-      tester.getSize(find.byKey(const Key('shell-tab-1'))).width,
-      tester.getSize(find.byKey(const Key('shell-tab-2'))).width,
-      tester.getSize(find.byKey(const Key('shell-tab-3'))).width,
-    ];
-    expect(threeTabWidths[0], closeTo(threeTabWidths[1], 1));
-    expect(threeTabWidths[1], closeTo(threeTabWidths[2], 1));
-    expect(threeTabWidths[0], closeTo((stripWidth - 40) / 3, 1));
-    expect(
-      tester.getRect(find.byKey(const Key('shell-chrome-new-tab'))).right,
-      lessThanOrEqualTo(
-        tester.getRect(find.byKey(const Key('shell-tab-strip'))).right + 0.1,
-      ),
-    );
-    expect(find.byKey(const Key('shell-tab-overflow-button')), findsNothing);
-  });
+      final threeTabWidths = [
+        tester.getSize(find.byKey(const Key('shell-tab-1'))).width,
+        tester.getSize(find.byKey(const Key('shell-tab-2'))).width,
+        tester.getSize(find.byKey(const Key('shell-tab-3'))).width,
+      ];
+      expect(threeTabWidths[0], closeTo(threeTabWidths[1], 1));
+      expect(threeTabWidths[1], closeTo(threeTabWidths[2], 1));
+      expect(
+        threeTabWidths[0],
+        closeTo(math.min(240, (stripWidth - 40) / 3), 1),
+      );
+      expect(
+        tester.getRect(find.byKey(const Key('shell-chrome-new-tab'))).right,
+        lessThanOrEqualTo(
+          tester.getRect(find.byKey(const Key('shell-tab-strip'))).right + 0.1,
+        ),
+      );
+      expect(find.byKey(const Key('shell-tab-overflow-button')), findsNothing);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
 
   testWidgets('shell chrome background follows the application theme', (
     tester,
@@ -340,7 +352,7 @@ void main() {
       find.byKey(const Key('shell-tab-overflow-ellipsis')),
       findsOneWidget,
     );
-    expect(find.byKey(const Key('shell-chrome-new-tab')), findsNothing);
+    expect(find.byKey(const Key('shell-chrome-new-tab')), findsOneWidget);
     expect(find.bySemanticsIdentifier('shell-tab-12'), findsNothing);
     expect(
       tester.getSize(find.byKey(const Key('shell-tab-1'))).width,
@@ -385,7 +397,7 @@ void main() {
       expect(overflowRect.left, greaterThanOrEqualTo(stripRect.left - 0.1));
       expect(overflowRect.right, lessThanOrEqualTo(stripRect.right + 0.1));
       expect(overflowRect.width, lessThanOrEqualTo(40));
-      expect(find.byKey(const Key('shell-chrome-new-tab')), findsNothing);
+      expect(find.byKey(const Key('shell-chrome-new-tab')), findsOneWidget);
 
       await tester.tap(find.byKey(const Key('shell-tab-overflow-button')));
       await tester.pumpAndSettle();
@@ -1244,7 +1256,7 @@ void main() {
   );
 
   testWidgets(
-    'shell tab full-width body is draggable while hover close stays left',
+    'shell tab body is draggable with a left title and right hover close',
     (tester) async {
       await pumpShellScreen(
         tester,
@@ -1274,9 +1286,9 @@ void main() {
       final titleRect = tester.getRect(tabOneTitle);
       await _hoverShellTab(tester, '1');
       final closeRect = tester.getRect(tabOneClose);
-      expect(titleRect.center.dx, closeTo(tabOneRect.center.dx, 1));
-      expect(closeRect.left, greaterThan(tabOneRect.left + 4));
-      expect(closeRect.right, lessThan(tabOneRect.left + 32));
+      expect(titleRect.left, closeTo(tabOneRect.left + 12, 1));
+      expect(closeRect.left, greaterThan(tabOneRect.right - 32));
+      expect(closeRect.right, lessThan(tabOneRect.right - 4));
 
       final tabOneBodyDragStart = Offset(
         tabOneRect.left + tabOneRect.width * 0.18,

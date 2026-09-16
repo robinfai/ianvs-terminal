@@ -5897,7 +5897,11 @@ void main() {
           .sessionId;
 
       await tester.tap(
-        find.byKey(Key('shell-pane-action-close-$closedSessionId')),
+        find.byKey(Key('shell-pane-action-more-$closedSessionId')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(Key('shell-pane-menu-closePane-$closedSessionId')),
       );
       await tester.pumpAndSettle();
 

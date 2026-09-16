@@ -2447,6 +2447,12 @@
   "swapActivePane": "Swap active pane",
   "closeActivePane": "Close active pane",
   "movedToNewTab": "Moved to a new tab",
+  "terminalPaneCount": "{count} panes",
+  "@terminalPaneCount": {
+    "placeholders": {
+      "count": {"type": "int"}
+    }
+  },
   "panePosition": "Pane {index}/{count}",
   "@panePosition": {
     "placeholders": {

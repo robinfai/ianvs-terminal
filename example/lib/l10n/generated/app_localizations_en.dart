@@ -3059,6 +3059,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get movedToNewTab => 'Moved to a new tab';
 
   @override
+  String terminalPaneCount(int count) {
+    return '$count panes';
+  }
+
+  @override
   String panePosition(int index, int count) {
     return 'Pane $index/$count';
   }

@@ -486,7 +486,180 @@ void _expectSelectedTab(WidgetTester tester, String sessionId) {
   );
 }
 
+void _expectActivePane(WidgetTester tester, String sessionId) {
+  final container = ProviderScope.containerOf(
+    tester.element(find.byType(ShellScreen)),
+  );
+  expect(container.read(sessionControllerProvider).activeSessionId, sessionId);
+}
+
+Future<void> _closePaneViaMenu(WidgetTester tester, String sessionId) async {
+  await tester.tap(find.byKey(Key('shell-pane-action-more-$sessionId')));
+  await tester.pumpAndSettle();
+  await tester.tap(find.byKey(Key('shell-pane-menu-closePane-$sessionId')));
+  await tester.pumpAndSettle();
+}
+
 void main() {
+  testWidgets('split headers omit protocol modes without disabling them', (
+    tester,
+  ) async {
+    final backend = FakePtyBackend();
+    await _pumpShellScreen(
+      tester,
+      bindings: backend,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    container
+        .read(sessionControllerProvider.notifier)
+        .splitSession(
+          '1',
+          defaultTerminalProfile(),
+          TerminalSplitAxis.horizontal,
+        );
+    await tester.pumpAndSettle();
+    backend.setFrame('1', {
+      ..._terminalFrameWithTitle('Running program'),
+      'modes': {
+        'alternate_screen': true,
+        'mouse_mode': 'normal',
+        'mouse_encoding': 'sgr',
+        'bracketed_paste': true,
+        'mime_paste': true,
+        'focus_tracking': true,
+        'kitty_keyboard_flags': 31,
+        'synchronized_output': false,
+      },
+    });
+    container.read(terminalRuntimeControllerProvider).refreshSession('1');
+    await tester.pump();
+    final viewport = tester.widget<TerminalViewport>(
+      find.descendant(
+        of: find.byKey(const Key('shell-pane-1')),
+        matching: find.byType(TerminalViewport),
+      ),
+    );
+    expect(viewport.controller.frame.modes.bracketedPaste, isTrue);
+    expect(viewport.controller.frame.modes.mouseMode, 'normal');
+    for (final kind in [
+      'alt',
+      'mouse',
+      'paste',
+      'mime-paste',
+      'focus',
+      'kitty-keyboard',
+      'sync',
+    ]) {
+      expect(
+        find.byKey(Key('shell-pane-header-indicator-$kind-1')),
+        findsNothing,
+      );
+    }
+    expect(find.byKey(const Key('shell-pane-dim-1')), findsNothing);
+    expect(find.byKey(const Key('shell-pane-header-number-1')), findsOneWidget);
+    expect(
+      tester
+          .widget<Text>(find.byKey(const Key('shell-pane-header-title-1')))
+          .data,
+      'Running program',
+    );
+    expect(find.byKey(const Key('shell-tab-pane-count-1')), findsOneWidget);
+  });
+
+  testWidgets('pane menu keeps its target when the active pane changes', (
+    tester,
+  ) async {
+    final backend = FakePtyBackend();
+    await _pumpShellScreen(
+      tester,
+      bindings: backend,
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    final controller = container.read(sessionControllerProvider.notifier);
+    controller.splitSession(
+      '1',
+      defaultTerminalProfile(),
+      TerminalSplitAxis.horizontal,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('shell-pane-action-more-1')));
+    await tester.pumpAndSettle();
+    controller.activateSession('2');
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('shell-pane-menu-closePane-1')));
+    await tester.pumpAndSettle();
+    expect(backend.closedSessionIds, ['1']);
+    expect(
+      container
+          .read(sessionControllerProvider)
+          .tabs
+          .single
+          .effectivePanes
+          .single
+          .sessionId,
+      '2',
+    );
+  });
+
+  testWidgets(
+    'narrow pane keeps split and zoom accessible through more',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(400, 720);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      await _pumpShellScreen(
+        tester,
+        bindings: FakePtyBackend(),
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      container
+          .read(sessionControllerProvider.notifier)
+          .splitSession(
+            '1',
+            defaultTerminalProfile(),
+            TerminalSplitAxis.horizontal,
+          );
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(
+        find.byKey(const Key('shell-pane-action-split-right-2')),
+        findsNothing,
+      );
+      await tester.tap(find.byKey(const Key('shell-pane-action-more-2')));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('shell-pane-menu-splitRight-2')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('shell-pane-menu-splitDown-2')),
+        findsOneWidget,
+      );
+      await tester.tap(find.byKey(const Key('shell-pane-menu-zoomPane-2')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('shell-pane-1')), findsNothing);
+      expect(find.byKey(const Key('shell-pane-2')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
   testWidgets('shell startup waits silently for bootstrap content', (
     tester,
   ) async {
@@ -1143,7 +1316,8 @@ void main() {
       expect(find.byType(TerminalViewport), findsNWidgets(2));
       expect(find.byKey(const Key('shell-pane-1')), findsOneWidget);
       expect(find.byKey(const Key('shell-pane-2')), findsOneWidget);
-      expect(find.byKey(const Key('shell-pane-dim-1')), findsOneWidget);
+      _expectActivePane(tester, '2');
+      expect(find.byKey(const Key('shell-pane-dim-1')), findsNothing);
       expect(find.byKey(const Key('shell-pane-dim-2')), findsNothing);
       expect(fakeBindings.writes, isEmpty);
     },
@@ -1315,7 +1489,8 @@ void main() {
     await tester.tap(find.text('Split right'));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('shell-pane-dim-1')), findsOneWidget);
+    _expectActivePane(tester, '2');
+    expect(find.byKey(const Key('shell-pane-dim-1')), findsNothing);
     expect(find.byKey(const Key('shell-pane-dim-2')), findsNothing);
 
     final pointer = TestPointer(7, PointerDeviceKind.mouse);
@@ -1324,14 +1499,16 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.byKey(const Key('shell-pane-dim-1')), findsOneWidget);
+    _expectActivePane(tester, '2');
+    expect(find.byKey(const Key('shell-pane-dim-1')), findsNothing);
     expect(find.byKey(const Key('shell-pane-dim-2')), findsNothing);
 
     await tester.tap(find.byKey(const Key('shell-pane-1')));
     await tester.pump();
 
     expect(find.byKey(const Key('shell-pane-dim-1')), findsNothing);
-    expect(find.byKey(const Key('shell-pane-dim-2')), findsOneWidget);
+    _expectActivePane(tester, '1');
+    expect(find.byKey(const Key('shell-pane-dim-2')), findsNothing);
     expect(fakeBindings.writes, isEmpty);
   });
 
@@ -1586,7 +1763,7 @@ void main() {
 
     expect(find.byKey(const Key('shell-pane-header-2')), findsOneWidget);
     expect(find.byKey(const Key('shell-pane-header-1')), findsOneWidget);
-    expect(find.text('Pane 2/2'), findsOneWidget);
+    expect(find.byKey(const Key('shell-pane-header-number-2')), findsOneWidget);
     expect(
       find.byKey(const Key('shell-pane-action-split-right-2')),
       findsOneWidget,
@@ -1745,7 +1922,7 @@ void main() {
 
       await tester.tap(find.byKey(const Key('shell-pane-1')));
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('shell-pane-action-close-1')));
+      await _closePaneViaMenu(tester, '1');
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('shell-pane-1')), findsNothing);
@@ -1851,7 +2028,7 @@ void main() {
     expect(find.byKey(const Key('shell-pane-1')), findsOneWidget);
     expect(find.byKey(const Key('shell-pane-2')), findsOneWidget);
 
-    await tester.tap(find.byKey(const Key('shell-pane-action-close-2')));
+    await _closePaneViaMenu(tester, '2');
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('shell-pane-1')), findsOneWidget);
@@ -4322,7 +4499,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('shell-pane-dim-1')), findsNothing);
-    expect(find.byKey(const Key('shell-pane-dim-2')), findsOneWidget);
+    _expectActivePane(tester, '1');
+    expect(find.byKey(const Key('shell-pane-dim-2')), findsNothing);
     expect(find.text('Pane 1 of 2'), findsNothing);
     expect(find.text('Back in shell'), findsNothing);
   });
@@ -4345,13 +4523,15 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('shell-pane-dim-1')), findsNothing);
-    expect(find.byKey(const Key('shell-pane-dim-2')), findsOneWidget);
+    _expectActivePane(tester, '1');
+    expect(find.byKey(const Key('shell-pane-dim-2')), findsNothing);
 
     await _openCommandMenu(tester);
     expect(find.text('Focus next pane'), findsNothing);
     expect(find.text('Focus previous pane'), findsNothing);
     expect(find.byKey(const Key('shell-pane-dim-1')), findsNothing);
-    expect(find.byKey(const Key('shell-pane-dim-2')), findsOneWidget);
+    _expectActivePane(tester, '1');
+    expect(find.byKey(const Key('shell-pane-dim-2')), findsNothing);
     expect(fakeBindings.writes, isEmpty);
   });
 
@@ -5556,7 +5736,7 @@ void main() {
       expect(find.text('2/2'), findsOneWidget);
       expect(fakeBindings.scrollToCalls.last, [2, 7]);
 
-      await tester.tap(find.byKey(const Key('shell-pane-action-close-2')));
+      await _closePaneViaMenu(tester, '2');
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('shell-pane-1')), findsOneWidget);
