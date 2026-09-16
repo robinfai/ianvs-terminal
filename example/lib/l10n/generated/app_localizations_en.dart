@@ -1543,6 +1543,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get copyOnSelect => 'Copy on select';
 
   @override
+  String get altClickMovesCursor => 'Alt/Option-click moves cursor';
+
+  @override
   String get optionDragMode => 'Option-drag mode';
 
   @override

@@ -452,6 +452,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
   late TerminalCursorShape _cursorShape;
   late bool _cursorBlink;
   late bool _copyOnSelect;
+  late bool _altClickMovesCursor;
   late TerminalOptionDragMode _optionDragMode;
 
   bool _didAttemptSave = false;
@@ -534,6 +535,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     _cursorShape = profile.appearance.cursor.shape;
     _cursorBlink = profile.appearance.cursor.blink;
     _copyOnSelect = profile.interaction.copyOnSelect;
+    _altClickMovesCursor = profile.interaction.altClickMovesCursor;
     _optionDragMode = profile.interaction.optionDragMode;
   }
 
@@ -1117,6 +1119,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
       ),
       interaction: widget.initialValue.interaction.copyWith(
         copyOnSelect: _copyOnSelect,
+        altClickMovesCursor: _altClickMovesCursor,
         optionDragMode: _optionDragMode,
       ),
     );
@@ -1488,6 +1491,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
             ),
       _ProfileEditorSection.keys =>
         _copyOnSelect != profile.interaction.copyOnSelect ||
+            _altClickMovesCursor != profile.interaction.altClickMovesCursor ||
             _optionDragMode != profile.interaction.optionDragMode,
       _ProfileEditorSection.automation =>
         _triggersController.text !=
@@ -1578,6 +1582,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
         _cursorBlink = profile.appearance.cursor.blink;
       case _ProfileEditorSection.keys:
         _copyOnSelect = profile.interaction.copyOnSelect;
+        _altClickMovesCursor = profile.interaction.altClickMovesCursor;
         _optionDragMode = profile.interaction.optionDragMode;
       case _ProfileEditorSection.automation:
         _setControllerText(
@@ -2440,6 +2445,32 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                                 setState(() {
                                                   _didEdit = true;
                                                   _copyOnSelect = value;
+                                                });
+                                              },
+                                            ),
+                                          ),
+                                        ),
+                                        Divider(height: 1, color: theme.border),
+                                        Padding(
+                                          padding: EdgeInsets.symmetric(
+                                            vertical: theme.spacing.xl,
+                                          ),
+                                          child: ConstrainedBox(
+                                            constraints: const BoxConstraints(
+                                              minHeight: 48,
+                                            ),
+                                            child: ToggleSettingRow(
+                                              key: const Key(
+                                                'profile-editor-alt-click-moves-cursor',
+                                              ),
+                                              label: context
+                                                  .l10n
+                                                  .altClickMovesCursor,
+                                              value: _altClickMovesCursor,
+                                              onChanged: (value) {
+                                                setState(() {
+                                                  _didEdit = true;
+                                                  _altClickMovesCursor = value;
                                                 });
                                               },
                                             ),

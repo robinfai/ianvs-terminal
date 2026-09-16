@@ -2600,6 +2600,12 @@ abstract class AppLocalizations {
   /// **'Copy on select'**
   String get copyOnSelect;
 
+  /// No description provided for @altClickMovesCursor.
+  ///
+  /// In en, this message translates to:
+  /// **'Alt/Option-click moves cursor'**
+  String get altClickMovesCursor;
+
   /// No description provided for @optionDragMode.
   ///
   /// In en, this message translates to:

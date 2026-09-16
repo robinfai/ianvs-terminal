@@ -1,0 +1,116 @@
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/test/terminal/render_terminal_viewport_test.dart
+00:00 +0: terminal viewport maps upward wheel motion into positive scrollback deltas
+00:00 +1: terminal viewport sends application arrow keys for alternate trackpad pan
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: '\x1BOA'
+  Actual: '\x1BOB'
+   Which: is different.
+          Expected: \x1BOA
+            Actual: \x1BOB
+                         ^
+           Differ at offset 5
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/terminal/render_terminal_viewport_test.dart:891:7)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/terminal/render_terminal_viewport_test.dart line 891
+The test description was:
+  terminal viewport sends application arrow keys for alternate trackpad pan
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:00 +1 -1: terminal viewport sends application arrow keys for alternate trackpad pan [E]
+  Test failed. See exception logs above.
+  The test description was: terminal viewport sends application arrow keys for alternate trackpad pan
+
+00:00 +1 -1: terminal viewport translates trackpad pan updates into positive scrollback deltas
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: a positive value
+  Actual: <-2>
+   Which: is not a positive value
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/terminal/render_terminal_viewport_test.dart:1442:7)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/terminal/render_terminal_viewport_test.dart line 1442
+The test description was:
+  terminal viewport translates trackpad pan updates into positive scrollback deltas
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:00 +1 -2: terminal viewport translates trackpad pan updates into positive scrollback deltas [E]
+  Test failed. See exception logs above.
+  The test description was: terminal viewport translates trackpad pan updates into positive scrollback deltas
+
+00:00 +1 -2: terminal viewport continues trackpad momentum after pan end
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: a value greater than <0>
+  Actual: <0>
+   Which: is not a value greater than <0>
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/terminal/render_terminal_viewport_test.dart:1524:5)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/terminal/render_terminal_viewport_test.dart line 1524
+The test description was:
+  terminal viewport continues trackpad momentum after pan end
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:00 +1 -3: terminal viewport continues trackpad momentum after pan end [E]
+  Test failed. See exception logs above.
+  The test description was: terminal viewport continues trackpad momentum after pan end
+
+00:00 +1 -3: terminal viewport momentum can carry scrollback back to bottom after a downward flick
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: non-empty
+  Actual: WhereIterable<int>:[]
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/terminal/render_terminal_viewport_test.dart:1606:7)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/terminal/render_terminal_viewport_test.dart line 1606
+The test description was:
+  terminal viewport momentum can carry scrollback back to bottom after a downward flick
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:00 +1 -4: terminal viewport momentum can carry scrollback back to bottom after a downward flick [E]
+  Test failed. See exception logs above.
+  The test description was: terminal viewport momentum can carry scrollback back to bottom after a downward flick
+
+00:00 +1 -4: Some tests failed.
+
+Failing tests:
+  /Users/robinfai/flutter_projects/ianvs-terminal/example/test/terminal/render_terminal_viewport_test.dart: terminal viewport continues trackpad momentum after pan end
+  /Users/robinfai/flutter_projects/ianvs-terminal/example/test/terminal/render_terminal_viewport_test.dart: terminal viewport momentum can carry scrollback back to bottom after a downward flick
+  /Users/robinfai/flutter_projects/ianvs-terminal/example/test/terminal/render_terminal_viewport_test.dart: terminal viewport sends application arrow keys for alternate trackpad pan
+  /Users/robinfai/flutter_projects/ianvs-terminal/example/test/terminal/render_terminal_viewport_test.dart: terminal viewport translates trackpad pan updates into positive scrollback deltas

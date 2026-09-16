@@ -417,6 +417,7 @@
   "keysProfileDescription": "选择新打开会话的默认选择行为。",
   "selection": "选择",
   "copyOnSelect": "选择时复制",
+  "altClickMovesCursor": "Alt/Option 单击移动光标",
   "optionDragMode": "Option 拖动模式",
   "normalSelection": "普通选择",
   "blockSelection": "块选择",

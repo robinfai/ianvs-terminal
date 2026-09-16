@@ -294,6 +294,7 @@ class _TerminalSessionViewState extends State<TerminalSessionView> {
           useFrameDefaultColors: widget.useFrameDefaultColors,
           font: config.display.font,
           cursor: config.display.cursor,
+          altClickMovesCursor: config.interaction.altClickMovesCursor,
           copyOnSelect: config.interaction.copyOnSelect,
           optionDragMode: config.interaction.optionDragMode,
           graphicsCache: widget.session.runtime.graphicsCacheFor(

@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import '../config/terminal_config.dart';
+import 'terminal_cursor_move.dart';
 import 'terminal_input_sink.dart';
 import 'terminal_models.dart';
 
@@ -46,6 +47,11 @@ class TerminalInputController {
       return;
     }
     runtime.sendInput(sessionId, Uint8List.fromList(utf8.encode(text)));
+  }
+
+  /// Sends synthetic arrows without inheriting physical Alt/Meta modifiers.
+  void moveCursorTo(TerminalFrameDiff frame, TerminalCellPosition target) {
+    sendText(terminalCursorMoveSequence(frame, target));
   }
 
   KeyEventResult handle(KeyEvent event) {

@@ -1463,6 +1463,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get copyOnSelect => '选择时复制';
 
   @override
+  String get altClickMovesCursor => 'Alt/Option 单击移动光标';
+
+  @override
   String get optionDragMode => 'Option 拖动模式';
 
   @override

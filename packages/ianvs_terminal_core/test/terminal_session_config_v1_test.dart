@@ -31,6 +31,33 @@ void main() {
       expect(decoded.zmodemEnabled, isFalse);
     });
 
+    test(
+      'keeps client-only Alt click preference outside the native v1 ABI',
+      () {
+        final config = _config().copyWith(
+          interaction: const TerminalInteractionConfig(
+            altClickMovesCursor: false,
+          ),
+        );
+        expect(
+          TerminalSessionConfig.fromJson(
+            config.toJson(),
+          ).interaction.altClickMovesCursor,
+          isFalse,
+        );
+        final wire = TerminalSessionConfigV1(
+          sessionId: 'test',
+          displayName: 'test',
+          config: config,
+        ).toJson();
+        final interaction =
+            (wire['config']! as Map<String, Object?>)['interaction']!
+                as Map<String, Object?>;
+        expect(interaction.containsKey('altClickMovesCursor'), isFalse);
+        expect(() => TerminalSessionConfigV1.fromJson(wire), returnsNormally);
+      },
+    );
+
     test('rejects unknown and case-alias fields at every boundary', () {
       for (final mutation in <void Function(Map<String, Object?>)>{
         (json) => json['future_top_level'] = true,

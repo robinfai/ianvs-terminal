@@ -1647,6 +1647,7 @@
   "keysProfileDescription": "Choose selection defaults for newly opened sessions.",
   "selection": "Selection",
   "copyOnSelect": "Copy on select",
+  "altClickMovesCursor": "Alt/Option-click moves cursor",
   "optionDragMode": "Option-drag mode",
   "normalSelection": "Normal selection",
   "blockSelection": "Block selection",

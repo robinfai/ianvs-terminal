@@ -670,6 +670,11 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                                   _clipboardConfig.copyOnSelect ||
                                   (terminalConfig?.interaction.copyOnSelect ??
                                       false),
+                              altClickMovesCursor:
+                                  terminalConfig
+                                      ?.interaction
+                                      .altClickMovesCursor ??
+                                  true,
                               optionDragMode:
                                   terminalConfig?.interaction.optionDragMode ??
                                   terminal

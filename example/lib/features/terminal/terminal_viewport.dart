@@ -53,6 +53,7 @@ class TerminalViewport extends StatelessWidget {
     this.font = const terminal.TerminalFontConfig(),
     this.cursor = const terminal.TerminalCursorConfig(),
     this.copyOnSelect = false,
+    this.altClickMovesCursor = true,
     this.showLineTimestamps = false,
     this.optionDragMode = terminal.TerminalOptionDragMode.blockSelection,
     this.focusNode,
@@ -93,6 +94,7 @@ class TerminalViewport extends StatelessWidget {
   final terminal.TerminalFontConfig font;
   final terminal.TerminalCursorConfig cursor;
   final bool copyOnSelect;
+  final bool altClickMovesCursor;
   final bool showLineTimestamps;
   final terminal.TerminalOptionDragMode optionDragMode;
   final FocusNode? focusNode;
@@ -136,6 +138,7 @@ class TerminalViewport extends StatelessWidget {
       font: font,
       cursor: cursor,
       copyOnSelect: copyOnSelect,
+      altClickMovesCursor: altClickMovesCursor,
       showLineTimestamps: showLineTimestamps,
       optionDragMode: optionDragMode,
       focusNode: focusNode,

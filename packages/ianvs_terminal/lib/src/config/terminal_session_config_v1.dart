@@ -479,6 +479,8 @@ void _validateExactSessionConfigWireValues(Map<String, Object?> config) {
 
 Map<String, Object?> _sessionConfigWireJson(TerminalSessionConfig config) {
   final json = config.toJson();
+  // Pointer navigation is client-only; keep the exact native v1 ABI stable.
+  (json['interaction']! as Map<String, Object?>).remove('altClickMovesCursor');
   final connection = json['connection']! as Map<String, Object?>;
   if (connection['type'] == 'ssh') {
     for (final field in _nullableSshConnectionFields) {

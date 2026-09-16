@@ -284,6 +284,7 @@ class TerminalViewport extends StatefulWidget {
     this.font = const TerminalFontConfig(),
     this.cursor = const TerminalCursorConfig(),
     this.copyOnSelect = false,
+    this.altClickMovesCursor = true,
     this.showLineTimestamps = false,
     this.optionDragMode = TerminalOptionDragMode.blockSelection,
     this.focusNode,
@@ -331,6 +332,10 @@ class TerminalViewport extends StatefulWidget {
   final TerminalFontConfig font;
   final TerminalCursorConfig cursor;
   final bool copyOnSelect;
+
+  /// Enables best-effort Alt/Option-click navigation through synthetic arrows.
+  /// Disable for read-only/replay views. Alt-drag keeps its selection behavior.
+  final bool altClickMovesCursor;
   final bool showLineTimestamps;
   final TerminalOptionDragMode optionDragMode;
   final FocusNode? focusNode;
@@ -406,6 +411,11 @@ class _TerminalViewportState extends State<TerminalViewport>
   final TerminalFocusReporter _focusReporter = TerminalFocusReporter();
   bool _isLocalSelectionActive = false;
   Offset? _selectionPointerGlobalPosition;
+  Duration? _altClickDownTime;
+  int? _altClickPointer;
+  Offset? _altClickDownPosition;
+  bool _altClickDragged = false;
+  bool? _altClickAlternateScreen;
   Offset? _selectionPointerDownGlobalPosition;
   Offset? _lastHoverGlobalPosition;
   TerminalLinkTarget? _hoveredLinkTarget;
@@ -524,6 +534,11 @@ class _TerminalViewportState extends State<TerminalViewport>
   @override
   void didUpdateWidget(covariant TerminalViewport oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.inputController != widget.inputController ||
+        oldWidget.controller != widget.controller) {
+      _altClickDownTime = null;
+      _altClickPointer = null;
+    }
     if (!identical(oldWidget.controller, widget.controller)) {
       oldWidget.controller.removeListener(_handleFrameUpdate);
       widget.controller.addListener(_handleFrameUpdate);
@@ -1238,6 +1253,8 @@ class _TerminalViewportState extends State<TerminalViewport>
   }
 
   void _handlePointerDown(PointerDownEvent event) {
+    _altClickDownTime = null;
+    _altClickPointer = null;
     _stopScrollMomentum();
     if (_blockTogglePointerActive) {
       return;
@@ -1282,13 +1299,31 @@ class _TerminalViewportState extends State<TerminalViewport>
         _stopSelectionAutoScroll();
         return;
       }
+      if (widget.altClickMovesCursor &&
+          event.kind == PointerDeviceKind.mouse &&
+          HardwareKeyboard.instance.isAltPressed &&
+          !HardwareKeyboard.instance.isControlPressed &&
+          !HardwareKeyboard.instance.isMetaPressed &&
+          !HardwareKeyboard.instance.isShiftPressed &&
+          widget.controller.frame.scrollbackOffset == 0) {
+        _altClickDownTime = event.timeStamp;
+        _altClickPointer = event.pointer;
+        _altClickDownPosition = event.position;
+        _altClickDragged = false;
+        _altClickAlternateScreen =
+            widget.controller.frame.modes.alternateScreen;
+      }
       final foldedBlock = _foldedBlockAtViewportRow(cell.row);
       if (foldedBlock != null && widget.onToggleBlock != null) {
+        _altClickDownTime = null;
+        _altClickPointer = null;
         _isLocalSelectionActive = false;
         _selectionPointerDownGlobalPosition = null;
         _wordSelectionAnchor = null;
         _stopSelectionAutoScroll();
-        widget.onToggleBlock!(foldedBlock);
+        if (!HardwareKeyboard.instance.isAltPressed) {
+          widget.onToggleBlock!(foldedBlock);
+        }
         return;
       }
       _currentPrimaryTapCount = _nextPrimaryTapCount(
@@ -1339,6 +1374,11 @@ class _TerminalViewportState extends State<TerminalViewport>
   }
 
   void _handlePointerMove(PointerMoveEvent event) {
+    if (_altClickPointer == event.pointer && _altClickDownPosition != null) {
+      _altClickDragged =
+          _altClickDragged ||
+          (event.position - _altClickDownPosition!).distance > kTouchSlop;
+    }
     if (_pinchGestureActive) {
       return;
     }
@@ -1355,7 +1395,7 @@ class _TerminalViewportState extends State<TerminalViewport>
       _syncSelectionAutoScroll();
       return;
     }
-    if (!_terminalMouseEnabled) {
+    if (_isLocalSelectionActive || !_terminalMouseEnabled) {
       if (!_isLocalSelectionActive ||
           !_isPrimarySelectionButton(event.buttons)) {
         return;
@@ -1375,6 +1415,7 @@ class _TerminalViewportState extends State<TerminalViewport>
       }
       return;
     }
+    if (_activeMouseButton == null) return;
     if (mode != 'button_event' && mode != 'any_event') {
       return;
     }
@@ -1406,7 +1447,47 @@ class _TerminalViewportState extends State<TerminalViewport>
     _sendMouseEvent(globalPosition: globalPosition, button: 35, pressed: true);
   }
 
+  bool _consumeAltClick(PointerUpEvent event) {
+    final downTime = _altClickDownTime;
+    final pointer = _altClickPointer;
+    _altClickDownTime = null;
+    _altClickPointer = null;
+    if (downTime == null || pointer != event.pointer) return false;
+    final frame = widget.controller.frame;
+    if (!widget.altClickMovesCursor ||
+        !HardwareKeyboard.instance.isAltPressed ||
+        _altClickDragged ||
+        _selectionMovedSincePointerDown ||
+        (_altClickDownPosition != null &&
+            (event.position - _altClickDownPosition!).distance > kTouchSlop) ||
+        event.timeStamp - downTime >= const Duration(milliseconds: 500)) {
+      return false;
+    }
+    // Consume the gesture even when the frame changed to an ineligible mode:
+    // a local mouse-down must never turn into an application mouse-up.
+    final cell = _cellForGlobalPosition(event.position);
+    if (cell != null &&
+        !_terminalMouseEnabled &&
+        frame.modes.alternateScreen == _altClickAlternateScreen &&
+        frame.scrollbackOffset == 0 &&
+        _foldedBlockAtViewportRow(cell.row) == null) {
+      widget.inputController.moveCursorTo(frame, cell);
+    }
+    widget.selectionController.clear();
+    _isLocalSelectionActive = false;
+    _selectionPointerDownGlobalPosition = null;
+    _selectionPointerGlobalPosition = null;
+    _wordSelectionAnchor = null;
+    _currentPrimaryTapCount = 0;
+    _lastPrimaryTapCount = 0;
+    _localSelectionMode = _LocalSelectionMode.cell;
+    _stopSelectionAutoScroll();
+    _cancelPendingLinkOpen();
+    return true;
+  }
+
   void _handlePointerUp(PointerUpEvent event) {
+    if (_consumeAltClick(event)) return;
     if (_pinchGestureActive) {
       return;
     }
@@ -1429,7 +1510,7 @@ class _TerminalViewportState extends State<TerminalViewport>
       }
       return;
     }
-    if (!_terminalMouseEnabled) {
+    if (_isLocalSelectionActive || !_terminalMouseEnabled) {
       if (_isLocalSelectionActive) {
         _selectionPointerGlobalPosition = event.position;
         _selectionMovedSincePointerDown =
@@ -1454,6 +1535,7 @@ class _TerminalViewportState extends State<TerminalViewport>
       _stopSelectionAutoScroll();
       return;
     }
+    if (_activeMouseButton == null) return;
     if (widget.controller.frame.modes.mouseMode == 'x10') {
       _activeMouseButton = null;
       _activeMouseButtonGlobalPosition = null;
@@ -1474,6 +1556,8 @@ class _TerminalViewportState extends State<TerminalViewport>
   }
 
   void _handlePointerCancel(PointerCancelEvent event) {
+    _altClickDownTime = null;
+    _altClickPointer = null;
     _stopScrollMomentum();
     if (_isMobileTouchEvent(event)) {
       _touchScrollGestureActive = false;

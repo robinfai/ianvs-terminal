@@ -415,6 +415,15 @@ void main() {
         _findByKey(const Key('profile-editor-option-drag-blockSelection')),
       );
       await tester.pump();
+      await _ensureVisible(
+        tester,
+        _findByKey(const Key('profile-editor-alt-click-moves-cursor')),
+      );
+      await tester.tap(
+        _findByKey(const Key('profile-editor-alt-click-moves-cursor')),
+      );
+      await tester.pumpAndSettle();
+
       final optionDragControl = tester
           .widget<SegmentedButton<TerminalOptionDragMode>>(
             _findByKey(const Key('profile-editor-option-drag-mode')),
@@ -463,6 +472,7 @@ void main() {
       expect(savedProfile!.appearance.cursor.shape, TerminalCursorShape.block);
       expect(savedProfile!.appearance.cursor.blink, isTrue);
       expect(savedProfile!.interaction.copyOnSelect, isFalse);
+      expect(savedProfile!.interaction.altClickMovesCursor, isFalse);
       expect(
         savedProfile!.interaction.optionDragMode,
         TerminalOptionDragMode.blockSelection,

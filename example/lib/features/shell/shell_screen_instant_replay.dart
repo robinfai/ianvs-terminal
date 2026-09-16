@@ -631,6 +631,7 @@ class _InstantReplayLayoutState extends State<_InstantReplayLayout> {
                 useFrameDefaultColors: false,
                 font: widget.font,
                 cursor: widget.cursor,
+                altClickMovesCursor: false,
                 copyOnSelect: false,
                 onMeasuredCellSizeChanged: (cellSize) {
                   if (_measuredReplayCellSize == cellSize) {

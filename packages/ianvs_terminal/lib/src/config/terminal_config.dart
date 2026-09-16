@@ -1062,18 +1062,24 @@ class TerminalDisplayConfig {
 class TerminalInteractionConfig {
   const TerminalInteractionConfig({
     this.copyOnSelect = false,
+    this.altClickMovesCursor = true,
     this.optionDragMode = TerminalOptionDragMode.blockSelection,
   });
 
   final bool copyOnSelect;
+
+  /// Client-side pointer navigation; not part of the native SessionConfig ABI.
+  final bool altClickMovesCursor;
   final TerminalOptionDragMode optionDragMode;
 
   TerminalInteractionConfig copyWith({
     bool? copyOnSelect,
+    bool? altClickMovesCursor,
     TerminalOptionDragMode? optionDragMode,
   }) {
     return TerminalInteractionConfig(
       copyOnSelect: copyOnSelect ?? this.copyOnSelect,
+      altClickMovesCursor: altClickMovesCursor ?? this.altClickMovesCursor,
       optionDragMode: optionDragMode ?? this.optionDragMode,
     );
   }
@@ -1081,6 +1087,7 @@ class TerminalInteractionConfig {
   Map<String, Object?> toJson() {
     return <String, Object?>{
       'copyOnSelect': copyOnSelect,
+      'altClickMovesCursor': altClickMovesCursor,
       'optionDragMode': optionDragMode.jsonValue,
     };
   }
@@ -1089,6 +1096,7 @@ class TerminalInteractionConfig {
     final map = _asObjectMap(json);
     return TerminalInteractionConfig(
       copyOnSelect: _boolOr(map?['copyOnSelect'], false),
+      altClickMovesCursor: _boolOr(map?['altClickMovesCursor'], true),
       optionDragMode: TerminalOptionDragMode.fromJsonValue(
         map?['optionDragMode'],
       ),
@@ -1326,6 +1334,7 @@ void _validateCurrentSessionConfigShape(Map<String, Object?> json) {
   }, r'$.appearance.cursor');
   _expectExactObject(json['interaction'], const <String>{
     'copyOnSelect',
+    'altClickMovesCursor',
     'optionDragMode',
   }, r'$.interaction');
 }
