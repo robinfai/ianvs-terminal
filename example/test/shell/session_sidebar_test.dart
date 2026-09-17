@@ -1,8 +1,8 @@
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/shell/shell_screen.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_pty/ianvs_pty.dart';
@@ -277,7 +277,7 @@ void main() {
         ),
         findsOneWidget,
       );
-      expect(find.text('00:11'), findsNWidgets(2));
+      expect(find.text('11s'), findsNWidgets(2));
       for (final entry in {first: 'api', second: 'web'}.entries) {
         final path =
             '/tmp/trail-unified-sidebar/very-long-common-parent/${entry.value}';

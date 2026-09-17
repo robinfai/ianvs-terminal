@@ -269,7 +269,13 @@ class _SessionSidebarState extends ConsumerState<_SessionSidebar> {
                   children: [
                     if (elapsed && started != null)
                       Text(
-                        sessionSidebarElapsed(started, now),
+                        sessionSidebarElapsed(
+                          started,
+                          now,
+                          languageCode: Localizations.localeOf(
+                            context,
+                          ).languageCode,
+                        ),
                         style: groupText,
                       ),
                     Visibility(

@@ -32,6 +32,7 @@ resolution: workspace
 dependencies:
   cryptography: ^2.9.0
   cupertino_icons: ^1.0.8
+  duration: ^4.0.3
   ffi: ^2.2.0
   file_selector: ^1.1.0
   # Keep the tested Android implementation pinned independently of UI updates.
