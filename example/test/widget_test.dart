@@ -560,7 +560,7 @@ void main() {
         findsNothing,
       );
     }
-    expect(find.byKey(const Key('shell-pane-dim-1')), findsNothing);
+    expect(find.byKey(const Key('shell-pane-dim-1')), findsOneWidget);
     expect(find.byKey(const Key('shell-pane-header-number-1')), findsOneWidget);
     expect(
       tester
@@ -1317,7 +1317,7 @@ void main() {
       expect(find.byKey(const Key('shell-pane-1')), findsOneWidget);
       expect(find.byKey(const Key('shell-pane-2')), findsOneWidget);
       _expectActivePane(tester, '2');
-      expect(find.byKey(const Key('shell-pane-dim-1')), findsNothing);
+      expect(find.byKey(const Key('shell-pane-dim-1')), findsOneWidget);
       expect(find.byKey(const Key('shell-pane-dim-2')), findsNothing);
       expect(fakeBindings.writes, isEmpty);
     },
@@ -1490,7 +1490,7 @@ void main() {
     await tester.pumpAndSettle();
 
     _expectActivePane(tester, '2');
-    expect(find.byKey(const Key('shell-pane-dim-1')), findsNothing);
+    expect(find.byKey(const Key('shell-pane-dim-1')), findsOneWidget);
     expect(find.byKey(const Key('shell-pane-dim-2')), findsNothing);
 
     final pointer = TestPointer(7, PointerDeviceKind.mouse);
@@ -1500,7 +1500,7 @@ void main() {
     await tester.pump();
 
     _expectActivePane(tester, '2');
-    expect(find.byKey(const Key('shell-pane-dim-1')), findsNothing);
+    expect(find.byKey(const Key('shell-pane-dim-1')), findsOneWidget);
     expect(find.byKey(const Key('shell-pane-dim-2')), findsNothing);
 
     await tester.tap(find.byKey(const Key('shell-pane-1')));
@@ -1508,7 +1508,7 @@ void main() {
 
     expect(find.byKey(const Key('shell-pane-dim-1')), findsNothing);
     _expectActivePane(tester, '1');
-    expect(find.byKey(const Key('shell-pane-dim-2')), findsNothing);
+    expect(find.byKey(const Key('shell-pane-dim-2')), findsOneWidget);
     expect(fakeBindings.writes, isEmpty);
   });
 
@@ -4500,7 +4500,7 @@ void main() {
 
     expect(find.byKey(const Key('shell-pane-dim-1')), findsNothing);
     _expectActivePane(tester, '1');
-    expect(find.byKey(const Key('shell-pane-dim-2')), findsNothing);
+    expect(find.byKey(const Key('shell-pane-dim-2')), findsOneWidget);
     expect(find.text('Pane 1 of 2'), findsNothing);
     expect(find.text('Back in shell'), findsNothing);
   });
@@ -4524,14 +4524,14 @@ void main() {
 
     expect(find.byKey(const Key('shell-pane-dim-1')), findsNothing);
     _expectActivePane(tester, '1');
-    expect(find.byKey(const Key('shell-pane-dim-2')), findsNothing);
+    expect(find.byKey(const Key('shell-pane-dim-2')), findsOneWidget);
 
     await _openCommandMenu(tester);
     expect(find.text('Focus next pane'), findsNothing);
     expect(find.text('Focus previous pane'), findsNothing);
     expect(find.byKey(const Key('shell-pane-dim-1')), findsNothing);
     _expectActivePane(tester, '1');
-    expect(find.byKey(const Key('shell-pane-dim-2')), findsNothing);
+    expect(find.byKey(const Key('shell-pane-dim-2')), findsOneWidget);
     expect(fakeBindings.writes, isEmpty);
   });
 

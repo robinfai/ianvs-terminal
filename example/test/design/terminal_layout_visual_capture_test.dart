@@ -148,12 +148,28 @@ Future<void> _capture(
   expect(find.byKey(const Key('shell-pane-header-number-4')), findsOneWidget);
   expect(find.text('模式'), findsNothing);
   expect(find.text('粘贴'), findsNothing);
+  expect(find.byKey(const Key('shell-pane-dim-1')), findsNothing);
+  for (final id in ['2', '3', '4']) {
+    final dim = find.byKey(Key('shell-pane-dim-$id'));
+    expect(dim, findsOneWidget);
+    expect(
+      tester.widget<ColoredBox>(dim).color,
+      theme.extension<AppThemeTokens>()!.inactiveScrim,
+    );
+  }
   await expectLater(
     find.byKey(const Key('terminal-layout-capture')),
     matchesGoldenFile(
       '../../../docs/design/terminal-layout-review-20260916/$name.png',
     ),
   );
+  final firstPaneRect = tester.getRect(find.byKey(const Key('shell-pane-1')));
+  await tester.tap(find.byKey(const Key('shell-pane-4')));
+  await tester.pumpAndSettle();
+  expect(container.read(sessionControllerProvider).activeSessionId, '4');
+  expect(find.byKey(const Key('shell-pane-dim-4')), findsNothing);
+  expect(find.byKey(const Key('shell-pane-dim-1')), findsOneWidget);
+  expect(tester.getRect(find.byKey(const Key('shell-pane-1'))), firstPaneRect);
 }
 
 void main() {

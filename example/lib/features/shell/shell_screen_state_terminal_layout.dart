@@ -441,6 +441,7 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
         (pane) => pane.sessionId == sessionId,
       ),
     );
+    final hasHoveredLink = _hoveredTerminalLinkSessionId == sessionId;
     return LayoutBuilder(
       key: _paneDropTargetKey(activeTab.sessionId, sessionId),
       builder: (context, constraints) {
@@ -787,6 +788,15 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                                   ),
                             ),
                           ),
+                          if (!isActive && !hasHoveredLink)
+                            Positioned.fill(
+                              child: IgnorePointer(
+                                child: ColoredBox(
+                                  key: Key('shell-pane-dim-$sessionId'),
+                                  color: palette.inactiveScrim,
+                                ),
+                              ),
+                            ),
                           ?attentionBurst,
                           if (isActive && _isSearchOpen)
                             Positioned(
