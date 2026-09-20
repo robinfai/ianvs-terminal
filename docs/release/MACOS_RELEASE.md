@@ -2,7 +2,8 @@
 
 Trail uses Sparkle 2.10.0 (pinned exactly), Developer ID signing, Apple
 notarization, signed update archives and a signed appcast. GitHub Releases hosts
-both the app and the feed. The menu **Trail → Check for Updates…** opens Sparkle's
+both the app and the feed. This release requires macOS 14 or later under the project
+[latest-four-major-versions policy](../APPLE_PLATFORM_COMPATIBILITY.md). The menu **Trail → Check for Updates…** opens Sparkle's
 standard UI. Release clients check daily; automatic download/install is disabled.
 Installation restarts the application through its existing confirmation and Dart
 shutdown/save handshake. Development builds and builds without an update key do

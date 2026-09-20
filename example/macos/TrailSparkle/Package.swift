@@ -4,7 +4,7 @@ import PackageDescription
 // Pin the official binary and its checksum without fetching Sparkle's git history.
 let package = Package(
   name: "TrailSparkle",
-  platforms: [.macOS(.v10_15)],
+  platforms: [.macOS(.v14)],
   products: [.library(name: "Sparkle", targets: ["Sparkle"])],
   targets: [
     .binaryTarget(
