@@ -40,6 +40,28 @@ class RunnerTests: XCTestCase {
     super.tearDown()
   }
 
+  func testUpdatesRejectDevelopmentBuildsAndMissingSigningKeys() {
+    let valid: [String: Any] = [
+      "SUPublicEDKey": Data(repeating: 1, count: 32).base64EncodedString(),
+      "SUFeedURL": "https://github.com/robinfai/ianvs-terminal/releases/latest/download/appcast.xml",
+    ]
+    XCTAssertNil(SoftwareUpdateController.configurationError(info: valid, bundleIdentifier: "work.ianvs.trail"))
+    XCTAssertNotNil(SoftwareUpdateController.configurationError(info: valid, bundleIdentifier: "work.ianvs.trail.development"))
+    XCTAssertNotNil(SoftwareUpdateController.configurationError(info: [:], bundleIdentifier: "work.ianvs.trail"))
+  }
+
+  func testUpdatesRejectInsecureFeedExceptForIsolatedLoopbackFixture() {
+    let validKey = Data(repeating: 1, count: 32).base64EncodedString()
+    for feed in ["http://example.com/appcast.xml", "file:///tmp/appcast.xml", "https://user:secret@example.com/feed"] {
+      XCTAssertNotNil(SoftwareUpdateController.configurationError(
+        info: ["SUPublicEDKey": validKey, "SUFeedURL": feed], bundleIdentifier: "work.ianvs.trail"
+      ))
+    }
+    let local: [String: Any] = ["SUPublicEDKey": validKey, "SUFeedURL": "http://127.0.0.1:9123/appcast.xml"]
+    XCTAssertNotNil(SoftwareUpdateController.configurationError(info: local, bundleIdentifier: "work.ianvs.trail"))
+    XCTAssertNil(SoftwareUpdateController.configurationError(info: local, bundleIdentifier: "work.ianvs.trail.update-test"))
+  }
+
   func testExample() {
     // If you add code to the Runner application, consider adding tests here.
     // See https://developer.apple.com/documentation/xctest for more information about using XCTest.

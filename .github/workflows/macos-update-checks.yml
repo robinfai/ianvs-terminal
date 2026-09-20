@@ -1,0 +1,60 @@
+name: macOS Update Checks
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'example/macos/**'
+      - 'tools/release/**'
+      - '.github/workflows/macos-*.yml'
+      - 'pubspec.lock'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  update-checks:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: '3.44.0'
+          cache: false
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772
+        with:
+          toolchain: '1.88.0'
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
+        with:
+          go-version: '1.23.x'
+          cache-dependency-path: backend/go.sum
+      - name: Validate release metadata and signing guardrails
+        run: |
+          python3 -m unittest discover -s tools/release -p 'test_*.py'
+          bash -n tools/release/*.sh
+          plutil -lint example/macos/Runner/Info.plist example/macos/Runner.xcodeproj/project.pbxproj
+          bash tools/release/fetch_sparkle.sh "$RUNNER_TEMP/sparkle"
+          bash tools/release/test_update_signatures.sh "$RUNNER_TEMP/sparkle/bin"
+      - name: Resolve locked dependencies
+        run: flutter pub get --enforce-lockfile
+      - name: Build the macOS client with Sparkle
+        working-directory: example
+        run: flutter build macos --debug
+      - name: Verify updater configuration and safe shutdown
+        working-directory: example/macos
+        run: |
+          xcodebuild -workspace Runner.xcworkspace -scheme Runner -configuration Debug \
+            -derivedDataPath ../build/macos -destination 'platform=macOS' \
+            -resultBundlePath "$RUNNER_TEMP/TrailUpdateChecks.xcresult" test
+      - name: Save native test results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: macos-update-test-results
+          path: ${{ runner.temp }}/TrailUpdateChecks.xcresult
+          if-no-files-found: ignore
