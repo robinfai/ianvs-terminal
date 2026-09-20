@@ -461,17 +461,6 @@ class RunnerTests: XCTestCase {
     )
   }
 
-  func testReopeningPreservesModalConfirmationBeforeMainWindow() {
-    let modal = NSWindow()
-    let main = NSWindow()
-    XCTAssertTrue(AppDelegate.preferredReopenWindow(
-      modalWindow: modal, keyWindow: main, windows: [main, modal]
-    ) === modal)
-    XCTAssertTrue(AppDelegate.preferredReopenWindow(
-      modalWindow: nil, keyWindow: nil, windows: [main]
-    ) === main)
-  }
-
   func testPreferredForegroundWindowChoosesFlutterWindowFirst() {
     let utilityWindow = NSWindow()
     let mainWindow = MainFlutterWindow()

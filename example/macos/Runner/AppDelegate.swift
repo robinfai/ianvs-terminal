@@ -244,19 +244,8 @@ class AppDelegate: FlutterAppDelegate {
       ?? windows.first
   }
 
-  static func preferredReopenWindow(
-    modalWindow: NSWindow?, keyWindow: NSWindow?, windows: [NSWindow]
-  ) -> NSWindow? {
-    // Reopening from the Dock must not cover an update or quit confirmation.
-    if let modalWindow { return modalWindow }
-    if let keyWindow, keyWindow.isVisible, !keyWindow.isMiniaturized { return keyWindow }
-    return preferredForegroundWindow(from: windows)
-  }
-
   static func foregroundMainWindow(in app: NSApplication) {
-    guard let window = preferredReopenWindow(
-      modalWindow: app.modalWindow, keyWindow: app.keyWindow, windows: app.windows
-    ) else {
+    guard let window = preferredForegroundWindow(from: app.windows) else {
       return
     }
 
