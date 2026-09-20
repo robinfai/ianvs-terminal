@@ -1,9 +1,11 @@
 import Cocoa
 import Sparkle
+import os
 
 /// Sparkle owns downloading, signature verification and replacement. Termination
 /// still goes through AppDelegate's confirmation and Dart shutdown handshake.
-final class SoftwareUpdateController: NSObject {
+final class SoftwareUpdateController: NSObject, SPUUpdaterDelegate {
+  private static let logger = Logger(subsystem: "work.ianvs.trail", category: "SoftwareUpdate")
   private var controller: SPUStandardUpdaterController?
   private(set) var configurationError: String?
 
@@ -35,7 +37,7 @@ final class SoftwareUpdateController: NSObject {
     )
     guard configurationError == nil else { return }
     let controller = SPUStandardUpdaterController(
-      startingUpdater: false, updaterDelegate: nil, userDriverDelegate: nil
+      startingUpdater: false, updaterDelegate: self, userDriverDelegate: nil
     )
     do {
       try controller.updater.start()
@@ -45,6 +47,33 @@ final class SoftwareUpdateController: NSObject {
     } catch {
       configurationError = error.localizedDescription
     }
+  }
+
+  @objc(updaterDidNotFindUpdate:error:)
+  func updaterDidNotFindUpdate(_ updater: SPUUpdater, error: Error) {
+    let error = error as NSError
+    let reason = (error.userInfo[SPUNoUpdateFoundReasonKey] as? NSNumber)?.intValue ?? -1
+    Self.logger.notice("No update available; reason=\(reason, privacy: .public)")
+  }
+
+  @objc(updater:didAbortWithError:)
+  func updater(_ updater: SPUUpdater, didAbortWithError error: Error) {
+    let error = error as NSError
+    // Do not log feed URLs, file paths, or arbitrary error userInfo.
+    Self.logger.notice("Update cycle ended; domain=\(error.domain, privacy: .public) code=\(error.code, privacy: .public)")
+  }
+
+  // Let Sparkle's button/accessibility action return before AppDelegate opens
+  // its modal quit confirmation. Installation still uses the normal shutdown
+  // handshake, including cancellation and the Dart save acknowledgement.
+  @objc(updater:shouldPostponeRelaunchForUpdate:untilInvokingBlock:)
+  func updater(
+    _ updater: SPUUpdater,
+    shouldPostponeRelaunchForUpdate item: SUAppcastItem,
+    untilInvokingBlock installHandler: @escaping () -> Void
+  ) -> Bool {
+    DispatchQueue.main.async(execute: installHandler)
+    return true
   }
 
   @objc func checkForUpdates(_ sender: Any?) {
