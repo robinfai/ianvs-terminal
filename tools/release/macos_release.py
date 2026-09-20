@@ -26,6 +26,7 @@ def configure(app, key, feed=None, test=False):
         info['CFBundleIdentifier'] = 'work.ianvs.trail.update-test'
         info['CFBundleName'] = 'Trail Update Test'
         info['SUEnableAutomaticChecks'] = False
+        info['NSAppTransportSecurity'] = {'NSAllowsLocalNetworking': True}
     elif info['CFBundleIdentifier'] != 'work.ianvs.trail':
         raise ValueError('Unexpected production bundle identifier')
     info['SUPublicEDKey'] = key
@@ -91,9 +92,15 @@ def sign_app(app, identity, entitlements, test=False):
         if path.is_symlink():
             continue
         is_bundle = path.is_dir() and path.suffix in ('.framework', '.app', '.xpc')
-        is_macho = path.is_file() and 'Mach-O' in subprocess.check_output(
-            ['file', '-b', str(path)], text=True
-        )
+        is_macho = False
+        if path.is_file():
+            with path.open('rb') as binary:
+                is_macho = binary.read(4) in (
+                    b'\xfe\xed\xfa\xce', b'\xce\xfa\xed\xfe',
+                    b'\xfe\xed\xfa\xcf', b'\xcf\xfa\xed\xfe',
+                    b'\xca\xfe\xba\xbe', b'\xbe\xba\xfe\xca',
+                    b'\xca\xfe\xba\xbf', b'\xbf\xba\xfe\xca',
+                )
         if is_bundle or is_macho:
             subprocess.run(['codesign', *options, str(path)], check=True)
     subprocess.run(['codesign', *options, '--entitlements', str(entitlements), str(app)], check=True)

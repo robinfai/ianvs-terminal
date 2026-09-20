@@ -20,6 +20,10 @@ mkdir -p "$RELEASE_OUTPUT"
   flutter build macos --release --build-name="$RELEASE_VERSION" --build-number="$RELEASE_BUILD"
 )
 app="$root/example/build/macos/Build/Products/Release/Trail.app"
+[[ -d "$app/Contents/Frameworks/Sparkle.framework" ]] || {
+  echo 'The built app is missing Sparkle.framework' >&2
+  exit 1
+}
 python3 "$root/tools/release/macos_release.py" configure "$app" --public-key "$SPARKLE_PUBLIC_KEY" \
   --feed "https://github.com/$RELEASE_REPOSITORY/releases/latest/download/appcast.xml"
 python3 "$root/tools/release/macos_release.py" sign "$app" --identity "$MACOS_SIGNING_IDENTITY" \

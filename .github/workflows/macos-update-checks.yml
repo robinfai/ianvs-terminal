@@ -44,7 +44,9 @@ jobs:
         run: flutter pub get --enforce-lockfile
       - name: Build the macOS client with Sparkle
         working-directory: example
-        run: flutter build macos --debug
+        run: |
+          flutter build macos --debug
+          test -d "build/macos/Build/Products/Debug/Trail Development.app/Contents/Frameworks/Sparkle.framework"
       - name: Verify updater configuration and safe shutdown
         working-directory: example/macos
         run: |
