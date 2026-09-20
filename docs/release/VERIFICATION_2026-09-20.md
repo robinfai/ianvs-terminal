@@ -27,10 +27,12 @@
   release secrets and variables were empty when checked. Production signing,
   Apple notarization, public GitHub release publication and a real old-to-new
   notarized client upgrade therefore have not been exercised.
-- The general Verify workflow already fails on main, independently of this work:
-  Rust clippy flags type complexity/argument count, and the MySQL auth contracts
-  fail on an unquoted `key` column in DELETE statements. This change does not
-  alter those sources or waive their checks.
+- The initial general Verify failures were also present on main: Rust Clippy
+  flagged type complexity/argument count, and MySQL auth contracts failed on an
+  unquoted `key` column. The follow-up fix introduces a transport type alias and
+  SSH configuration struct, and uses GORM map predicates for all six affected
+  auth/session queries. The device-label cleanup test now also checks query
+  errors. Full CI is being rerun; no checks have been waived.
 - The four-version policy defines required coverage; it does not claim all four
   systems were tested. Local iOS simulator runtimes are 18.4 and 26.3.1; no iOS
   runtime acceptance or four-OS compatibility matrix was performed in this task.

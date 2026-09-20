@@ -682,16 +682,18 @@ impl Read for BootstrapReader {
         Ok(n)
     }
 }
+type LocalShellTransport = (
+    Box<dyn Read + Send>,
+    Box<dyn Write + Send>,
+    crate::ssh::SshSftpClient,
+);
+
 pub(crate) fn wrap_local(
     mut reader: Box<dyn Read + Send>,
     writer: Box<dyn Write + Send>,
     nonce: String,
     wrap_ssh: bool,
-) -> anyhow::Result<(
-    Box<dyn Read + Send>,
-    Box<dyn Write + Send>,
-    crate::ssh::SshSftpClient,
-)> {
+) -> anyhow::Result<LocalShellTransport> {
     let writer = Arc::new(Mutex::new(writer));
     let mut bootstrap = Bootstrap::new(nonce, wrap_ssh);
     bootstrap.local_root = true;

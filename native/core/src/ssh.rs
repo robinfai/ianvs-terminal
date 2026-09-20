@@ -1333,10 +1333,12 @@ pub(crate) fn spawn_ssh_with_shell_integration(
                 .context("could not initialize SSH async runtime")
                 .and_then(|runtime| {
                     runtime.block_on(run_ssh_session(
-                        connection,
-                        initial_size,
-                        shell_integration_enabled,
-                        ssh_wrapper,
+                        SshSessionConfig {
+                            connection,
+                            initial_size,
+                            shell_integration_enabled,
+                            ssh_wrapper,
+                        },
                         command_receiver,
                         output_sender.clone(),
                         thread_auth,
@@ -1528,16 +1530,26 @@ where
     }
 }
 
-async fn run_ssh_session(
+struct SshSessionConfig {
     connection: TerminalProfileConnection,
     initial_size: PtySize,
     shell_integration_enabled: bool,
     ssh_wrapper: bool,
+}
+
+async fn run_ssh_session(
+    config: SshSessionConfig,
     mut commands: mpsc::UnboundedReceiver<SshCommand>,
     output: std_mpsc::Sender<Vec<u8>>,
     auth: SshAuthClient,
     cancellation: SshCancellation,
 ) -> Result<u32> {
+    let SshSessionConfig {
+        connection,
+        initial_size,
+        shell_integration_enabled,
+        ssh_wrapper,
+    } = config;
     let forward_runtime = ForwardRuntime::new(cancellation.clone());
     let setup_timeout = Duration::from_secs(connection.connect_timeout_seconds.clamp(1, 120));
     let prepared = await_ssh_setup(

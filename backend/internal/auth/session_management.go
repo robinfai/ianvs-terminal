@@ -32,7 +32,7 @@ func (s *Service) ListSessions(ctx context.Context, userID, rawToken string) ([]
 	for _, t := range tokens {
 		var metadata model.Setting
 		name := ""
-		result := s.db.WithContext(ctx).Where("key = ?", sessionMetadataKey(t.OperationHash)).Limit(1).Find(&metadata)
+		result := s.db.WithContext(ctx).Where(map[string]any{"key": sessionMetadataKey(t.OperationHash)}).Limit(1).Find(&metadata)
 		if result.Error != nil {
 			return nil, result.Error
 		}
@@ -71,7 +71,7 @@ func revokeOperation(tx *gorm.DB, operationHash string) error {
 	if err := tx.Where("operation_hash = ?", operationHash).Delete(&model.AuthToken{}).Error; err != nil {
 		return err
 	}
-	if err := tx.Where("key = ?", sessionMetadataKey(operationHash)).Delete(&model.Setting{}).Error; err != nil {
+	if err := tx.Where(map[string]any{"key": sessionMetadataKey(operationHash)}).Delete(&model.Setting{}).Error; err != nil {
 		return err
 	}
 	return tx.Model(&operation).Update("state", authOperationStateCanceled).Error
