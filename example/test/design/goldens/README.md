@@ -23,13 +23,30 @@ Sans SC supplies Chinese glyphs; JetBrains Mono also supplies shortcut symbols
 missing from Roboto and Noto Sans SC. The fixtures do not use the production
 terminal's system-font fallback chain. Production themes remain unchanged.
 
-The 44 baselines cover 42 tests. Run all suites with `flutter test test/design`.
+Each reviewed OS baseline contains 44 PNGs covering 42 capture tests. Run all
+suites and the comparator contract tests with `flutter test test/design`.
 Use Flutter 3.44.2 (Dart 3.12.2) for these baselines; CI pins the same SDK and
 engine. The package's minimum supported SDK is a separate compatibility floor.
 CI runs visual comparisons before the longer repository gate and records the
 SDK/engine, macOS version, architecture and fixed font hashes. Investigate
 version/hash differences and the uploaded failure images before changing a
 baseline. Pixel comparisons remain exact.
+
+`../visual_golden_comparator.dart` reads the host macOS major version once per
+test isolate and routes each existing `goldens/<fixture>.png` key to
+`goldens/macos-<major>/<fixture>.png`. Only macOS 26 and 27 are supported;
+unknown versions fail explicitly, and a missing baseline fails comparison.
+The macOS 27 images were moved without re-rendering or changing their bytes.
+macOS 26 candidates must come from the CI host and be reviewed before being
+added. This split accounts for CoreText rasterization differences even with
+identical SDK and font files.
+
+The comparator only changes the URI: Flutter's original `compare` and `update`
+methods remain intact. `--update-goldens` updates only the current OS directory.
+CI's initial exact comparison remains failure-blocking; a later candidate
+capture may use `--update-goldens` for review artifacts, never to approve or
+automatically commit a baseline. Preserve complete relative paths when copying
+reviewed candidates, since several fixtures share a filename.
 
 Design-review screenshots, logs and videos belong in `build/`, not `docs/` or
 this baseline directory.

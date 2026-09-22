@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:ianvs_design/ianvs_design.dart' show IanvsTypography;
 
+import 'visual_golden_comparator.dart';
+
 const _captureFont = 'VisualCaptureSans';
 const _captureCjkFont = 'VisualCaptureCjk';
 const visualCaptureMonoFont = 'VisualCaptureMono';
@@ -16,6 +18,7 @@ const _captureTextFallback = <String>[
 
 /// Load only repository assets and fonts from the pinned Flutter SDK.
 Future<void> loadVisualCaptureFonts() async {
+  installVisualGoldenComparator();
   final flutterRoot =
       Platform.environment['FLUTTER_ROOT'] ??
       File(Platform.resolvedExecutable).parent.parent.parent.parent.parent.path;

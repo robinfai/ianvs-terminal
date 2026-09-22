@@ -165,7 +165,7 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: macos-latest
+          - os: macos-26
             skip_macos_integration: "0"
 
     env:
@@ -239,6 +239,21 @@ jobs:
         with:
           name: visual-comparison-failures
           path: example/test/design/failures/
+          retention-days: 7
+
+      - name: Render baseline candidates for review
+        if: failure() && steps.visual_baselines.outcome == 'failure'
+        working-directory: example
+        # The failed exact comparison remains the gate. These candidate
+        # images are only review artifacts and are never committed by CI.
+        run: flutter test test/design --update-goldens
+
+      - name: Upload baseline candidates
+        if: failure() && steps.visual_baselines.outcome == 'failure'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: visual-baseline-candidates-${{ matrix.os }}
+          path: example/test/design/goldens/${{ matrix.os }}/
           retention-days: 7
 
       - name: Verify standalone pub archive

@@ -180,6 +180,10 @@ UI golden 基线位于 `example/test/design/goldens/`。`matchesGoldenFile` 使�
 macOS、架构和字体哈希，并短期上传失败对比图。测试使用 SDK 的 Roboto/Material
 Icons、仓库中的 JetBrains Mono，以及固定来源的 Noto Sans SC，不读取宿主系统字体。
 这些测试字体不改变产品字体；更新字体或引擎时须审查差异图，像素比较仍保持精确匹配。
+相同字体在不同 macOS CoreText 版本中仍会产生字形边缘差异，因此当前 macOS 26、27
+分别使用 `goldens/macos-26/`、`goldens/macos-27/` 中的有效基线，CI 固定在 `macos-26`。
+测试自动选择当前 macOS 主版本，未知版本会明确失败。CI 比较失败后可生成候选图供
+审查，但原比较仍阻断合入；候选图必须经过审查并单独提交，不会由 CI 自动采纳。
 
 ## vttest-derived 自动化覆盖
 
