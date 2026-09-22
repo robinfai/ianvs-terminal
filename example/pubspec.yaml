@@ -52,7 +52,7 @@ dependencies:
   path_provider: ^2.1.5
 
 dev_dependencies:
-  analyzer: ^10.0.1
+  analyzer: ^10.2.0
   fixnum: ^1.1.1
   flutter_driver:
     sdk: flutter

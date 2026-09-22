@@ -913,6 +913,7 @@ void main() {
     });
     expect(fakeBindings.lastCreatedSessionPayload!['interaction'], {
       'copyOnSelect': true,
+      'altClickMovesCursor': true,
       'optionDragMode': 'block_selection',
     });
   });

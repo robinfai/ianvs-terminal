@@ -75,9 +75,15 @@ void main() {
       expect(find.text('notes.txt'), findsOneWidget);
       await tester.tap(find.byKey(const Key('sftp-entry-actions-notes.txt')));
       await tester.pumpAndSettle();
-      expect(find.byKey(const Key('sftp-context-copy-full-path')), findsOneWidget);
+      expect(
+        find.byKey(const Key('sftp-context-copy-full-path')),
+        findsOneWidget,
+      );
       expect(find.byKey(const Key('sftp-context-edit-locally')), findsNothing);
-      expect(find.byKey(const Key('sftp-context-create-directory')), findsNothing);
+      expect(
+        find.byKey(const Key('sftp-context-create-directory')),
+        findsNothing,
+      );
       expect(find.byKey(const Key('sftp-context-delete')), findsNothing);
       expect(tester.takeException(), isNull);
     });

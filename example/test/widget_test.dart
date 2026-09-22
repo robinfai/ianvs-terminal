@@ -294,7 +294,11 @@ Color _decoratedBoxColor(WidgetTester tester, Key key) {
 }
 
 Future<void> _openShellSearch(WidgetTester tester) async {
-  await tester.tap(find.byType(TerminalViewport).last);
+  // Focus without creating a terminal selection that defers viewport resizes.
+  tester
+      .widget<TerminalViewport>(find.byType(TerminalViewport).last)
+      .focusNode!
+      .requestFocus();
   await tester.pump();
   await _sendMetaShortcut(tester, LogicalKeyboardKey.keyF);
 }
