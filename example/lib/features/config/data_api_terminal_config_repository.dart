@@ -6,8 +6,7 @@ import 'local_terminal_config_repository.dart';
 
 final class DataApiTerminalConfigRepository extends TerminalConfigRepository
     implements TerminalConfigRecoveryRepository {
-  DataApiTerminalConfigRepository({required DataApiResourceClient client})
-    : _client = client;
+  DataApiTerminalConfigRepository({required this._client});
 
   static const resourceKind = 'config';
   static const resourceId = 'local-terminal';

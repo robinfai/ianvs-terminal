@@ -40,8 +40,8 @@ abstract interface class SftpFileDataSource {
 final class SftpDirectoryLoadOperation {
   SftpDirectoryLoadOperation({
     required this.future,
-    required VoidCallback onCancel,
-  }) : _onCancel = onCancel;
+    required VoidCallback this._onCancel,
+  });
 
   final Future<SftpDirectorySnapshot> future;
   VoidCallback? _onCancel;

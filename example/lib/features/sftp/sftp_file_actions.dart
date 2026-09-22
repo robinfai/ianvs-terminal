@@ -102,10 +102,9 @@ final class IoSftpFileActionPlatform implements SftpFileActionPlatform {
 /// must not stop a later editor save from being uploaded to the original path.
 final class SftpFileActions {
   SftpFileActions({
-    SftpFileActionPlatform platform = const IoSftpFileActionPlatform(),
-    Duration settleDelay = const Duration(milliseconds: 350),
-  }) : _platform = platform,
-       _settleDelay = settleDelay;
+    this._platform = const IoSftpFileActionPlatform(),
+    this._settleDelay = const Duration(milliseconds: 350),
+  });
 
   final SftpFileActionPlatform _platform;
   final Duration _settleDelay;

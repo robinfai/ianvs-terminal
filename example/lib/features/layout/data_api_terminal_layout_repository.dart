@@ -5,8 +5,7 @@ import 'local_terminal_layout_models.dart';
 import 'local_terminal_layout_repository.dart';
 
 final class DataApiTerminalLayoutRepository extends TerminalLayoutRepository {
-  DataApiTerminalLayoutRepository({required DataApiResourceClient client})
-    : _client = client;
+  DataApiTerminalLayoutRepository({required this._client});
 
   static const resourceKind = 'session';
   static const resourceId = 'layout';

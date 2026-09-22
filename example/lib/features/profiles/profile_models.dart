@@ -547,8 +547,8 @@ class _TerminalProfileWarningSink {
   _TerminalProfileWarningSink({
     required this.profileId,
     required this.profileName,
-    required List<TerminalProfileLoadWarning>? warnings,
-  }) : _warnings = warnings;
+    required this._warnings,
+  });
 
   final String profileId;
   final String profileName;

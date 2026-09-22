@@ -33,11 +33,10 @@ final class SyncRepositoryBindings {
     required ProfileRepositoryPort profiles,
     required AppPreferencesRepositoryPort preferences,
     required TerminalConfigRepository terminalConfig,
-    required PasteHistoryRepositoryPort pasteHistory,
+    required this._pasteHistory,
   }) : _profiles = profiles,
        _preferences = preferences,
-       _terminalConfig = terminalConfig,
-       _pasteHistory = pasteHistory {
+       _terminalConfig = terminalConfig {
     profileBinding = _profileBinding(profiles);
     preferencesBinding = _preferencesBinding(preferences);
     terminalConfigBinding = _terminalConfigBinding(terminalConfig);
@@ -96,12 +95,10 @@ final class LocalFirstRepositories {
 
 final class LocalFirstProfileRepository extends ProfileRepositoryPort {
   LocalFirstProfileRepository({
-    required ProfileRepositoryPort local,
-    required SyncDocumentBinding binding,
-    required LocalFirstSyncCoordinator coordinator,
-  }) : _local = local,
-       _binding = binding,
-       _coordinator = coordinator;
+    required this._local,
+    required this._binding,
+    required this._coordinator,
+  });
 
   final ProfileRepositoryPort _local;
   final SyncDocumentBinding _binding;
@@ -185,12 +182,10 @@ final class LocalFirstProfileRepository extends ProfileRepositoryPort {
 final class LocalFirstAppPreferencesRepository
     extends AppPreferencesRepositoryPort {
   LocalFirstAppPreferencesRepository({
-    required AppPreferencesRepositoryPort local,
-    required SyncDocumentBinding binding,
-    required LocalFirstSyncCoordinator coordinator,
-  }) : _local = local,
-       _binding = binding,
-       _coordinator = coordinator;
+    required this._local,
+    required this._binding,
+    required this._coordinator,
+  });
 
   final AppPreferencesRepositoryPort _local;
   final SyncDocumentBinding _binding;
@@ -247,12 +242,10 @@ final class LocalFirstAppPreferencesRepository
 final class LocalFirstTerminalConfigRepository
     extends TerminalConfigRepository {
   LocalFirstTerminalConfigRepository({
-    required TerminalConfigRepository local,
-    required SyncDocumentBinding binding,
-    required LocalFirstSyncCoordinator coordinator,
-  }) : _local = local,
-       _binding = binding,
-       _coordinator = coordinator;
+    required this._local,
+    required this._binding,
+    required this._coordinator,
+  });
 
   final TerminalConfigRepository _local;
   final SyncDocumentBinding _binding;

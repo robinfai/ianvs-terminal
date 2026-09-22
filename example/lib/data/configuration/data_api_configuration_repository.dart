@@ -107,8 +107,8 @@ final class DataApiRemoteLoginRequest {
     required this.baseUri,
     required this.username,
     required this.password,
-    required String? encryptionKey,
-  }) : _encryptionKey = encryptionKey;
+    required this._encryptionKey,
+  });
 
   final Uri baseUri;
   final String username;
@@ -380,19 +380,16 @@ final class AuthenticatedDataApiConfigurationRepository
     required DataApiConfigurationRepository delegate,
     required DataApiRemoteSessionSlotStore remoteSessionStore,
     Directory? sagaDirectory,
-    DataApiRemoteConnectionValidator remoteConnectionValidator =
+    this._remoteConnectionValidator =
         const DataApiClientRemoteConnectionValidator(),
-    DataApiRemoteAuthenticator remoteAuthenticator =
-        const DataApiClientRemoteAuthenticator(),
-    DataApiRemoteSessionRevoker remoteSessionRevoker =
-        const DataApiClientRemoteSessionRevoker(),
-    DataApiAuthOperationCanceler authOperationCanceler =
-        const DataApiClientAuthOperationCanceler(),
-    DataApiSagaJournalWriter? sagaJournalWriter,
+    this._remoteAuthenticator = const DataApiClientRemoteAuthenticator(),
+    this._remoteSessionRevoker = const DataApiClientRemoteSessionRevoker(),
+    this._authOperationCanceler = const DataApiClientAuthOperationCanceler(),
+    this._sagaJournalWriter,
     DataApiDisableResetDelete? disableResetDelete,
     DataApiLocalToRemoteMigrationFactory? localToRemoteMigrationFactory,
     DataApiRuntimeMigrationFactory? runtimeMigrationFactory,
-    PortableMasterKeyRepository? masterKeyRepository,
+    this._masterKeyRepository,
   }) : _delegate = delegate,
        _slotStore = remoteSessionStore,
        _sagaDirectory =
@@ -402,16 +399,10 @@ final class AuthenticatedDataApiConfigurationRepository
                fileRepository.configurationFile.parent,
              _ => null,
            },
-       _remoteConnectionValidator = remoteConnectionValidator,
-       _remoteAuthenticator = remoteAuthenticator,
-       _remoteSessionRevoker = remoteSessionRevoker,
-       _authOperationCanceler = authOperationCanceler,
-       _sagaJournalWriter = sagaJournalWriter,
        _localToRemoteMigrationFactory =
            localToRemoteMigrationFactory ?? _defaultLocalToRemoteMigration,
        _runtimeMigrationFactory =
            runtimeMigrationFactory ?? _defaultRuntimeMigration,
-       _masterKeyRepository = masterKeyRepository,
        _disableResetDelete = disableResetDelete ?? _deleteFileIfPresent;
 
   static const int _sagaVersion = 1;

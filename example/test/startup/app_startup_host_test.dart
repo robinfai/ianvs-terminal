@@ -918,11 +918,11 @@ final class _HostSettings
         AppStartupInitialDataSetupCapability {
   _HostSettings({
     required this.configuration,
-    required AppStartupDataSetupRequirement? initialSetupRequirement,
+    required this._initialSetupRequirement,
     required this.loadError,
     required this.onSaved,
     required this.localDataApiAvailable,
-  }) : _initialSetupRequirement = initialSetupRequirement;
+  });
 
   final DataApiConfiguration configuration;
   AppStartupDataSetupRequirement? _initialSetupRequirement;

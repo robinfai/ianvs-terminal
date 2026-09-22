@@ -62,17 +62,12 @@ class _Osc72Drop {
 /// native data after completion/error.
 class Osc72DragDropController {
   Osc72DragDropController({
-    required Osc72SendInput sendInput,
-    Osc72ConfigureTarget configureTarget =
-        WindowBridge.configureOsc72DropTarget,
-    Osc72SetDecision setDecision = WindowBridge.setOsc72DropDecision,
-    Osc72ReadDropData readDropData = WindowBridge.readOsc72DropData,
-    Osc72ReleaseDrop releaseDrop = WindowBridge.releaseOsc72Drop,
-  }) : _sendInput = sendInput,
-       _configureTarget = configureTarget,
-       _setDecision = setDecision,
-       _readDropData = readDropData,
-       _releaseDrop = releaseDrop;
+    required this._sendInput,
+    this._configureTarget = WindowBridge.configureOsc72DropTarget,
+    this._setDecision = WindowBridge.setOsc72DropDecision,
+    this._readDropData = WindowBridge.readOsc72DropData,
+    this._releaseDrop = WindowBridge.releaseOsc72Drop,
+  });
 
   static const int _maxMimeTypes = 64;
   static const int _maxMimeBytes = 256;

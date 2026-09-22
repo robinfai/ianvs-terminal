@@ -416,12 +416,10 @@ final class _RecordingReplayRuntime {
 
 final class _RecordingReplayDriver implements terminal.TerminalReplayDriver {
   _RecordingReplayDriver({
-    required _RecordingReplayRuntime replayRuntime,
-    required _RecordingReplayRuntime Function() recreate,
-    required ValueChanged<_RecordingReplayRuntime> onRecreated,
-  }) : _replayRuntime = replayRuntime,
-       _recreate = recreate,
-       _onRecreated = onRecreated;
+    required this._replayRuntime,
+    required this._recreate,
+    required this._onRecreated,
+  });
 
   _RecordingReplayRuntime _replayRuntime;
   final _RecordingReplayRuntime Function() _recreate;

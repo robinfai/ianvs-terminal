@@ -20,13 +20,13 @@ abstract interface class ProfileSecretKeyStore {
 final class FlutterSecureProfileSecretKeyStore
     implements ProfileSecretKeyStore {
   const FlutterSecureProfileSecretKeyStore({
-    FlutterSecureStorage storage = const FlutterSecureStorage(
+    this._storage = const FlutterSecureStorage(
       // The standard macOS login Keychain is secure and works with local
       // ad-hoc signatures. Data Protection Keychain requires a development
       // certificate and provisioning-profile entitlements.
       mOptions: MacOsOptions(usesDataProtectionKeychain: false),
     ),
-  }) : _storage = storage;
+  });
 
   final FlutterSecureStorage _storage;
 
@@ -113,12 +113,10 @@ final class ProfileSecretCipher {
   }
 
   ProfileSecretCipher._({
-    required ProfileSecretKeyStore keyStore,
-    required ProfileSecretKeyStore? legacyKeyStore,
-    required AesGcm algorithm,
-  }) : _keyStore = keyStore,
-       _legacyKeyStore = legacyKeyStore,
-       _algorithm = algorithm;
+    required this._keyStore,
+    required this._legacyKeyStore,
+    required this._algorithm,
+  });
 
   final ProfileSecretKeyStore _keyStore;
   final ProfileSecretKeyStore? _legacyKeyStore;

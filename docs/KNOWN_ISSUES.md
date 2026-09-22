@@ -23,7 +23,6 @@
 ## 当前门禁阻塞
 
 - 本机 CLT 27 SDK 与链接器不匹配。命令级指定 Xcode 26.2 的 `SDKROOT` 可避开该链接错误，不需改项目配置。
-- Dart 严格分析仍有既有 info 级 lint；Data 范围主要为 `prefer_initializing_formals`。
 - 工作区 iOS Bundle ID / signing 设置与 Apple identity 合同不一致；Runner simulator destination 匹配失败使本地优先启动 gate 尚未运行到断言。
 - 视觉 golden 已归入 `example/test/design/goldens/`。迁移保持原图，但当前 UI 的 39 项视觉回归出现像素差异；基线须经设计确认后更新，不能把文件迁移当作通过。
 

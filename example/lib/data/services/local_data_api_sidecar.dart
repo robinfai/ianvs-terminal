@@ -24,8 +24,8 @@ typedef LocalDataApiSidecarLauncher =
 class LocalDataApiSidecar implements LocalDataApiSidecarHandle {
   LocalDataApiSidecar._({
     required this.baseUri,
-    required LocalDataApiSidecarResourceCleanup resourceCleanup,
-  }) : _resourceCleanup = resourceCleanup;
+    required this._resourceCleanup,
+  });
 
   static const _readyPrefix = 'IANVS_API_READY=';
   static const _defaultShutdownGracePeriod = Duration(seconds: 5);
@@ -282,12 +282,10 @@ typedef LocalDataApiSidecarSubscriptionCancellation = Future<void> Function();
 /// cancellation. If both fail, neither error is discarded.
 final class LocalDataApiSidecarResourceCleanup {
   LocalDataApiSidecarResourceCleanup({
-    required LocalDataApiSidecarProcess process,
-    required LocalDataApiSidecarProcessTerminator processTerminator,
-    required LocalDataApiSidecarSubscriptionCancellation cancelSubscriptions,
-  }) : _process = process,
-       _processTerminator = processTerminator,
-       _cancelSubscriptions = cancelSubscriptions;
+    required this._process,
+    required this._processTerminator,
+    required this._cancelSubscriptions,
+  });
 
   final LocalDataApiSidecarProcess _process;
   final LocalDataApiSidecarProcessTerminator _processTerminator;
@@ -404,14 +402,11 @@ typedef LocalDataApiSidecarExitWait =
 /// Performs bounded stdin, SIGTERM, and SIGKILL sidecar shutdown escalation.
 final class LocalDataApiSidecarProcessTerminator {
   LocalDataApiSidecarProcessTerminator({
-    Duration gracePeriod = const Duration(seconds: 5),
-    Duration terminateTimeout = const Duration(seconds: 3),
-    Duration killTimeout = const Duration(seconds: 2),
+    this._gracePeriod = const Duration(seconds: 5),
+    this._terminateTimeout = const Duration(seconds: 3),
+    this._killTimeout = const Duration(seconds: 2),
     LocalDataApiSidecarExitWait? waitForExit,
-  }) : _gracePeriod = gracePeriod,
-       _terminateTimeout = terminateTimeout,
-       _killTimeout = killTimeout,
-       _waitForExit = waitForExit ?? _waitForSidecarExit;
+  }) : _waitForExit = waitForExit ?? _waitForSidecarExit;
 
   final Duration _gracePeriod;
   final Duration _terminateTimeout;

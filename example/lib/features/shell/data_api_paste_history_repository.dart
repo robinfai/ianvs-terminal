@@ -4,8 +4,7 @@ import '../persistence/versioned_document.dart';
 import 'paste_history_repository.dart';
 
 final class DataApiPasteHistoryRepository extends PasteHistoryRepositoryPort {
-  DataApiPasteHistoryRepository({required DataApiResourceClient client})
-    : _client = client;
+  DataApiPasteHistoryRepository({required this._client});
 
   static const resourceKind = 'paste_history';
   static const resourceId = 'default';

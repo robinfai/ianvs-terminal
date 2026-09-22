@@ -758,8 +758,8 @@ final class _RecordingLibraryIndexLoad {
 class LocalSessionRecordingRepository {
   LocalSessionRecordingRepository({
     LocalSessionRecordingDirectoryResolver? directoryResolver,
-    LocalSessionRecordingEncoder? encoder,
-    LocalSessionRecordingDecoder? decoder,
+    this._encoder,
+    this._decoder,
     LocalSessionRecordingFileWriter? fileWriter,
     LocalSessionRecordingFileReader? fileReader,
     LocalSessionRecordingHandoffWorker? handoffWorker,
@@ -768,27 +768,20 @@ class LocalSessionRecordingRepository {
     this.settlementObservationTimeout =
         _defaultRecordingSettlementObservationTimeout,
     LocalSessionRecordingDestinationIdentityReader? destinationIdentityReader,
-    LocalSessionRecordingDestinationCleanupBarrier? destinationCleanupBarrier,
-    LocalSessionRecordingSettlementPersistenceBarrier?
-    settlementPersistenceBarrier,
-    LocalSessionRecordingDestinationGcPreLockBarrier?
-    destinationGcPreLockBarrier,
+    this._destinationCleanupBarrier,
+    this._settlementPersistenceBarrier,
+    this._destinationGcPreLockBarrier,
     this.destinationLockRetryLimit = _defaultDestinationLockRetryLimit,
     this.destinationLockRetryDelay = _defaultDestinationLockRetryDelay,
     DateTime Function()? now,
     Future<void> Function(Duration duration)? delay,
   }) : directoryResolver = directoryResolver ?? getApplicationSupportDirectory,
-       _encoder = encoder,
-       _decoder = decoder,
        _fileWriter = fileWriter ?? _encodeAndWriteRecordingInBackground,
        _fileReader = fileReader ?? _readAndDecodeRecordingInBackground,
        _handoffWorker = handoffWorker ?? _finalizeRecordingHandoffInBackground,
        _destinationIdentityReader =
            destinationIdentityReader ??
            _recordingDestinationContentIdentityInBackground,
-       _destinationCleanupBarrier = destinationCleanupBarrier,
-       _settlementPersistenceBarrier = settlementPersistenceBarrier,
-       _destinationGcPreLockBarrier = destinationGcPreLockBarrier,
        _now = now ?? DateTime.now,
        _delay = delay ?? Future<void>.delayed {
     if (finalizeTimeout <= Duration.zero) {
