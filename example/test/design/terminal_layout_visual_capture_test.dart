@@ -160,7 +160,7 @@ Future<void> _capture(
   await expectLater(
     find.byKey(const Key('terminal-layout-capture')),
     matchesGoldenFile(
-      '../../../docs/design/terminal-layout-review-20260916/$name.png',
+      'goldens/terminal-layout-review-20260916/$name.png',
     ),
   );
   final firstPaneRect = tester.getRect(find.byKey(const Key('shell-pane-1')));
