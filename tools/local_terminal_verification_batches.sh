@@ -4,7 +4,7 @@
 # Local terminal verification batch helper.
 # Read-only commands: list, print.
 # Execution commands: run.
-# This script never updates the canonical evidence ledger.
+# This script never updates the documentation.
 
 set -u
 
@@ -37,8 +37,8 @@ Batches:
 
 Notes:
   This script does not update the evidence ledger.
-  Record real outputs in docs/LOCAL_TERMINAL_VERIFICATION_EVIDENCE_LEDGER_2026-05.md.
-  Do not treat a zero exit status as objective closure until the ledger and audit checklist are updated.
+  Record real outputs in build/local-terminal-verification/.
+  A successful batch covers only that batch; use make verify for the complete gate.
 EOF
 }
 
@@ -98,7 +98,6 @@ flutter test \
   example/test/shell/local_terminal_completion_command_menu_adapter_test.dart \
   example/test/shell/local_terminal_completion_diagnostics_bundle_test.dart \
   example/test/shell/local_terminal_completion_diagnostics_presentation_test.dart \
-  example/test/shell/local_terminal_completion_diagnostics_panel_test.dart \
   example/test/shell/local_terminal_completion_shell_command_menu_diagnostics_test.dart
 EOF
       ;;
@@ -172,8 +171,8 @@ EOF
       ;;
     manual)
       cat <<'EOF'
-Use docs/LOCAL_TERMINAL_MANUAL_VERIFICATION_TEMPLATE_2026-05.md.
-Record observations in docs/LOCAL_TERMINAL_VERIFICATION_EVIDENCE_LEDGER_2026-05.md.
+Use docs/compatibility/MANUAL_VERIFICATION.md.
+Record observations in build/local-terminal-verification/.
 EOF
       ;;
     *)
@@ -208,7 +207,7 @@ run_batch() {
   cd "$ROOT_DIR" || return 1
 
   echo "Running local-terminal verification batch: $1"
-  echo "This script does not update docs/LOCAL_TERMINAL_VERIFICATION_EVIDENCE_LEDGER_2026-05.md."
+  echo "This script does not update build/local-terminal-verification/."
   echo "Record command output and gate status manually before claiming closure."
 
   case "$1" in
@@ -242,7 +241,6 @@ run_batch() {
         example/test/shell/local_terminal_completion_command_menu_adapter_test.dart \
         example/test/shell/local_terminal_completion_diagnostics_bundle_test.dart \
         example/test/shell/local_terminal_completion_diagnostics_presentation_test.dart \
-        example/test/shell/local_terminal_completion_diagnostics_panel_test.dart \
         example/test/shell/local_terminal_completion_shell_command_menu_diagnostics_test.dart
       ;;
     p1)

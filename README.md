@@ -5,7 +5,7 @@
 - `packages/ianvs_pty`：PTY 会话传输和 FFI 包装
 - `packages/ianvs_terminal`：session runtime、viewport、输入/选区/滚动适配和可选的 Flutter 嵌入组件
 - `packages/ianvs_terminal_core`：面向第三方应用发布的 standalone current-only package
-- `example/`：tab、窗口壳、菜单、profile 编辑和 demo 流程
+- `example/`：产品应用，负责 tab/pane、Profile、SSH/SFTP、录制库、本地存储和可选配置同步
 - `native/core`：Rust PTY / VT core，当前仍作为 `ianvs_pty` 背后的原生实现
 - `backend/`：Go + GORM 数据 API，本地使用 SQLite、远程可切换 MySQL
 
@@ -41,7 +41,7 @@ flutter test
 flutter run -d macos
 ```
 
-数据 API 不读取进程环境变量或 `dart-define`。API 配置为可选项：macOS 与 iOS 都能直接在本地创建、保存、编辑和重连 SSH 主机，密码与私钥加密保存；macOS 是当前主交付平台，iOS 的实体设备和发布验收仍需单独证据。连接 API 后仍先保存本地，再进行双向合并与同步；断网不影响保存。不同主机或不同字段的修改自动合并，相同字段的并发修改在设置中明确选择后才覆盖冲突值。关闭或切换 API 不删除本地数据。API 只提供可选的配置同步目标，不是团队云、协作服务或共享终端会话。布局和录制文件始终保留在本机。后续通过 **Defaults & appearance → API sync (optional)** 管理连接、查看状态和立即同步。远程基础 URL 不允许携带用户名、密码、query 或 fragment，公网服务必须使用 HTTPS（仅回环开发地址可使用 HTTP）。非敏感连接设置保存在应用支持目录的 `data-api/configuration.json`，凭据仅保存在平台凭据保险库中。合并检查点按 API 地址和账号隔离并加密保存。
+数据 API 不读取进程环境变量或 `dart-define`。API 配置为可选项：macOS 与 iOS 都能直接在本地创建、保存、编辑和重连 SSH 主机，密码与私钥加密保存；macOS 是当前主交付平台，iOS 的实体设备和发布验收仍需单独证据。连接 API 后仍先保存本地，再进行双向合并与同步；断网不影响保存。不同主机或不同字段的修改自动合并，相同字段的并发修改在设置中明确选择后才覆盖冲突值。关闭或切换 API 不删除本地数据。API 只提供可选的配置同步目标，不是团队云、协作服务或共享终端会话。布局和录制文件始终保留在本机。后续通过 **Defaults & appearance → API sync (optional)** 管理连接、查看状态和立即同步。远程基础 URL 不允许携带用户名、密码、query 或 fragment，公网服务必须使用 HTTPS（仅回环开发地址可使用 HTTP）。非敏感连接设置保存在应用支持目录的 `data-api/configuration.json`，凭据与 token 元数据保存在本机加密文件保险库中，解密用主密钥由平台 Keychain 保管；旧凭据槽仅用于受控迁移。合并检查点按 API 地址和账号隔离并加密保存。
 
 工具栏的 **回看（Replay）** 统一提供最近画面、已保存录制和打开录制文件。主动录制停止保存后会出现在列表中，重启应用仍可找到；打开后可继续搜索和复制输出。最近画面是退出后清除的临时缓存，已保存录制留在本机。
 
@@ -73,8 +73,5 @@ ianvs terminal/
 - 仓库边界： [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - 当前执行目标： [docs/CURRENT_EXECUTION_TARGET.md](docs/CURRENT_EXECUTION_TARGET.md)
 - 测试命令： [docs/TESTING.md](docs/TESTING.md)
-- Local terminal P0-P5 最终验证 handoff： [docs/LOCAL_TERMINAL_FINAL_VERIFICATION_HANDOFF_2026-05.md](docs/LOCAL_TERMINAL_FINAL_VERIFICATION_HANDOFF_2026-05.md)
-- Local terminal 当前验证阻塞状态： [docs/LOCAL_TERMINAL_VERIFICATION_BLOCKED_STATE_2026-05.md](docs/LOCAL_TERMINAL_VERIFICATION_BLOCKED_STATE_2026-05.md)
-- Local terminal 验证 helper 索引： [docs/LOCAL_TERMINAL_VERIFICATION_HELPER_INDEX_2026-05.md](docs/LOCAL_TERMINAL_VERIFICATION_HELPER_INDEX_2026-05.md)
 - 文档总览： [docs/README.md](docs/README.md)
 - 任务索引： [docs/tasks/README.md](docs/tasks/README.md)

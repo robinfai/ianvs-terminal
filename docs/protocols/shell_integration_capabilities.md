@@ -1,6 +1,6 @@
 # Shell hook 能力清单与会话激活状态
 
-核对日期：2026-09-12。范围为本地、SSH 自动注入及客户端已接入的兼容协议。SSH 每一层分别维护检查结果与运行观察。
+范围为本地、SSH 自动注入及客户端已接入的兼容协议。SSH 每一层分别维护检查结果与运行观察。
 
 ## 能力清单
 
@@ -75,4 +75,6 @@ sh/dash/ash/ksh 等不进行自动注入，使用基础终端；服务器自行�
 
 交互式 Bash/Zsh/Fish 切换使用独立 Shell context 重新检测，但 `context_kind=shell` 不追加 SSH 节点。能力记录属于当前 Shell，文件通道属于稳定的 `host_context_id`；返回父 Shell 时两者分别恢复，避免同主机切 Shell 被误判为 SSH 跳转。链路采用紧凑纵向轨道、终端/服务器图标、当前行高亮与跳数摘要，窄屏自动把状态置于地址下方。
 
-[产品 OpenSSH 验收](../reviews/ssh-product-bootstrap-20260912/README.md) 使用实际 Rust SSH/PTY transport；[早期边界实验](../reviews/ssh-boundary-lab-20260912/README.md) 与 [Warp 参考研究](../reviews/warp-shell-bootstrap-20260912.md) 保留为设计依据。
+[生产 OpenSSH runner](../../tools/ssh_boundary_lab/product.py) 使用实际 Rust SSH/PTY transport；
+客户端状态和显示分别由 [session 测试](../../example/test/sessions/session_controller_test.dart) 与
+[能力对话框测试](../../example/test/sessions/shell_capabilities_dialog_test.dart) 覆盖。

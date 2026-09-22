@@ -117,9 +117,7 @@ Future<void> _pumpShell(WidgetTester tester) async {
 Future<void> _capture(WidgetTester tester, String goldenName) async {
   await expectLater(
     find.byKey(const Key('app-surface-capture-root')),
-    matchesGoldenFile(
-      '../../../docs/design/app-surfaces/current/$goldenName.png',
-    ),
+    matchesGoldenFile('goldens/app-surfaces/current/$goldenName.png'),
   );
 }
 

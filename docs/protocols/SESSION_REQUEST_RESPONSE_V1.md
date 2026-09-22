@@ -58,13 +58,11 @@ Identifiers and operation names are individually bounded. Consumers ignore addit
 object fields, but reject a wrong schema/contract, malformed required fields, oversized input and
 request/response correlation mismatch.
 
-The optional `ianvs_session_request_v1_json` symbol consumes Request v1 and always attempts to
+The required `ianvs_session_request_v1_json` symbol consumes Request v1 and always attempts to
 return Response v1, including structured protocol/runtime errors. Runtime Capabilities advertises
-`session-request-envelope.json.v1`. The older `session-request.json.v1` feature and
-`ianvs_session_request_json` symbol describe the legacy discriminated `{kind, ...payload}` channel
-and remain available during the compatibility window.
+`session-request-envelope.json.v1`. The predecessor `ianvs_session_request_json` symbol and
+`session-request.json.v1` feature are removed; there is no unversioned request fallback.
 
-Operation payloads retain their current semantics. The v1 adapter removes `kind` from the payload
-on Dart emission, and native reconstructs the exact legacy operation object only behind its
-compatibility dispatcher. No application Profile fields or undeclared native internals cross this
-contract.
+Operation-specific clients supply an operation name and its payload separately. Native dispatches
+the validated operation and payload directly; no `{kind, ...payload}` compatibility object crosses
+this contract. No application Profile fields or undeclared native internals cross it either.

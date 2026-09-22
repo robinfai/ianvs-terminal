@@ -125,7 +125,7 @@ Future<void> _captureTab(
   await expectLater(
     find.byKey(const Key('profile-editor-dialog')),
     matchesGoldenFile(
-      goldenPath ?? '../../../docs/design/profile-tabs/current/$goldenName.png',
+      goldenPath ?? 'goldens/profile-tabs/current/$goldenName.png',
     ),
   );
 }
@@ -181,8 +181,7 @@ void main() {
       tabKey: 'appearance',
       goldenName: 'profile-dark-appearance',
       brightness: Brightness.dark,
-      goldenPath:
-          '../../../docs/design/config-refresh/adaptive/profile-dark-appearance.png',
+      goldenPath: 'goldens/config-refresh/adaptive/profile-dark-appearance.png',
     );
   });
 
@@ -193,8 +192,7 @@ void main() {
       goldenName: 'profile-compact-scaled',
       surfaceSize: const Size(620, 900),
       textScaler: const TextScaler.linear(1.25),
-      goldenPath:
-          '../../../docs/design/config-refresh/adaptive/profile-compact-scaled.png',
+      goldenPath: 'goldens/config-refresh/adaptive/profile-compact-scaled.png',
     );
   });
 }

@@ -145,8 +145,7 @@ Future<void> _captureTab(
   await expectLater(
     find.byKey(const Key('defaults-dialog')),
     matchesGoldenFile(
-      goldenPath ??
-          '../../../docs/design/settings-tabs/current/$goldenName.png',
+      goldenPath ?? 'goldens/settings-tabs/current/$goldenName.png',
     ),
   );
 }
@@ -161,7 +160,7 @@ void main() {
   setUpAll(_loadVisualFonts);
 
   const reviewPath =
-      '../../../docs/design/configuration-forms-20260909/interaction-review/after';
+      'goldens/configuration-forms-20260909/interaction-review/after';
   for (final brightness in [Brightness.light, Brightness.dark]) {
     testWidgets('captures compact desktop shortcut menu ${brightness.name}', (
       tester,
@@ -246,7 +245,7 @@ void main() {
       goldenName: 'settings-dark-appearance',
       brightness: Brightness.dark,
       goldenPath:
-          '../../../docs/design/config-refresh/adaptive/settings-dark-appearance.png',
+          'goldens/config-refresh/adaptive/settings-dark-appearance.png',
     );
   });
 
@@ -257,8 +256,7 @@ void main() {
       goldenName: 'settings-compact-scaled',
       surfaceSize: const Size(540, 900),
       textScaler: const TextScaler.linear(1.25),
-      goldenPath:
-          '../../../docs/design/config-refresh/adaptive/settings-compact-scaled.png',
+      goldenPath: 'goldens/config-refresh/adaptive/settings-compact-scaled.png',
     );
   });
 }

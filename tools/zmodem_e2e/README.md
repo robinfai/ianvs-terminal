@@ -73,8 +73,8 @@ distinct files in a remote `sz -e` receive batch
 and two distinct files in a remote `rz -bye` send batch. It compares MD5
 values and byte sizes computed independently at both ends and requires source
 and destination modification times to match to the second for all four files.
-A checked macOS/Colima run with the 108,277,050-byte installer fixture is recorded in
-[`docs/evidence/ZMODEM_COLIMA_OPENSSH_2026-08-07.md`](../../docs/evidence/ZMODEM_COLIMA_OPENSSH_2026-08-07.md).
+Store current-run logs under `build/`; protocol requirements are documented in
+[ZMODEM v1](../../docs/protocols/ZMODEM_V1.md).
 Clean up the one run's container and key directory when finished:
 
 ```bash

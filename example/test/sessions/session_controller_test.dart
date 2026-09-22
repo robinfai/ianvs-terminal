@@ -5496,10 +5496,6 @@ void main() {
                   id: 'old-pane-1',
                   relaunchSpec: const TerminalRelaunchSpec(
                     profileId: 'default',
-                    command: TerminalRelaunchCommand(
-                      program: '/bin/sh',
-                      arguments: ['-l'],
-                    ),
                     cwd: '/workspace/one',
                   ),
                 ),
@@ -5507,10 +5503,6 @@ void main() {
                   id: 'old-pane-2',
                   relaunchSpec: const TerminalRelaunchSpec(
                     profileId: 'ssh',
-                    command: TerminalRelaunchCommand(
-                      program: '/bin/echo',
-                      arguments: ['restored'],
-                    ),
                     cwd: '/workspace/two',
                   ),
                 ),

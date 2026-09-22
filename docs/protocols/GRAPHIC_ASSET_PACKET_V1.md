@@ -35,7 +35,7 @@ unmodifiable RGBA view.
 
 ## FFI and ownership
 
-The optional owned-byte entrypoint is:
+The required owned-byte entrypoint is:
 
 ```text
 ianvs_session_graphic_asset_packet_v1_protobuf(
@@ -51,21 +51,13 @@ session-state lock. A non-null result must be released with `ianvs_bytes_free` u
 returned length. Missing sessions/assets, disabled graphics, invalid cached dimensions or capacity
 violations return null and set `out_len` to zero.
 
-The packet is optional because older libraries do not export the symbol. Once the symbol is
-available, a null or malformed response is authoritative for that call: Dart does not issue the
-legacy meta/copy pair in the same load. This prevents a decoder or native-state error from being
-silently hidden by an in-call downgrade.
+`NativePtyBindings` requires this symbol when loading the library. A null or malformed response
+is authoritative for that call; the predecessor metadata/copy symbols and Dart downgrade path
+have been removed. Missing assets are not reconstructed through a second native read.
 
-## Compatibility
+## Current transport boundary
 
-- new Dart/new native probes and prefers Graphic Asset Packet v1;
-- new Dart/old native falls back to the exact existing `ianvs_session_graphic_asset_meta` plus
-  `ianvs_session_graphic_asset_rgba_copy` sequence;
-- old Dart/new native keeps using those unchanged legacy symbols;
-- malformed new packets fail structurally and do not downgrade in the same call;
-- ReplayBackend keeps its existing `loadGraphicAsset` API and automatically benefits when its
-  native delegate exposes the packet path.
-
-Runtime Capabilities advertises this surface as `graphic-asset-packet.protobuf.v1`. The feature
-does not authorize removal of `graphic-asset.rgba.v1`, change Frame wire, or broaden this packet to
-file downloads, Recording capture, remote transport or UI.
+Runtime Capabilities advertises `graphic-asset-packet.protobuf.v1`. ReplayBackend retains its
+`loadGraphicAsset` API and delegates to this packet path. The predecessor `graphic-asset.rgba.v1`
+feature is removed. This contract does not change Frame wire or cover file downloads, Recording
+capture, remote transport or UI.

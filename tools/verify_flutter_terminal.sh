@@ -99,6 +99,7 @@ python3 "$ROOT_DIR/tools/osc_semantic_probe.py" --self-test
 (
   cd "$ROOT_DIR"
   dart test test/docs_contract_test.dart
+  dart test test/runtime_documentation_contract_test.dart
   dart test \
     test/backend_makefile_contract_test.dart \
     test/terminal_core_publish_contract_test.dart \

@@ -4,7 +4,7 @@ Host Request/Response v1 is the correlated native-to-product contract for child-
 that need host policy or data before the terminal can reply. It is distinct from synchronous
 Dart-to-native Session Request/Response v1 and from one-way Runtime Events.
 
-T-322 introduces the contract through one bounded operation: OSC 52 text clipboard reads. The
+The current response-bearing operation is OSC 52 text clipboard reads. The
 v1 Runtime Event path emits `message_name: "host_request"`; its payload is a complete Host
 Request v1 object:
 
@@ -67,7 +67,7 @@ A denial or host failure contains no payload and uses a bounded structured error
 }
 ```
 
-The optional `ianvs_session_host_response_v1_json` symbol consumes a matching response. Native
+The required `ianvs_session_host_response_v1_json` symbol consumes a matching response. Native
 keeps at most 64 pending requests, validates a response before removal and consumes accepted
 success, denial or error exactly once. Duplicate, stale, cross-session or wrong-operation
 responses fail. A successful clipboard response decodes to at most 4 MiB of UTF-8 and the whole
@@ -75,15 +75,11 @@ Host Response document is limited to 6 MiB; Host Request documents are limited t
 Runtime Capabilities advertises this paired event/response surface as
 `host-request-response.json.v1`.
 
-Compatibility remains dual-stack:
+The native path uses Runtime Event `host_request` plus Host Response v1 exclusively. The
+predecessor event-array ABI has been removed, so older native libraries cannot be loaded through
+a direct OSC 52 reply fallback. Ordinary Runtime Events retain their own message names/payloads.
 
-- new Dart/new native uses Runtime Event `host_request` plus Host Response v1;
-- new Dart/old native receives `clipboard_paste_request` and writes the existing OSC 52 reply;
-- old Dart/new native polls `ianvs_session_poll_events_json`, receives the unchanged legacy event
-  and uses its existing direct reply;
-- ordinary Runtime Events retain their existing message names and payloads.
-
-This first slice deliberately does not classify URL opening, attention feedback, notification
+This contract does not classify URL opening, attention feedback, notification
 display, shell metadata, file downloads or other one-way host actions as response-bearing
 requests. OSC 5522 MIME clipboard, OSC 1337 ReportVariable and notification activation also
-remain on their existing separately governed paths until their own compatibility tasks.
+remain on their separately governed protocol-reply paths.

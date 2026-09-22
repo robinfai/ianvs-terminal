@@ -35,10 +35,10 @@ pub struct SessionConfigV1 {
 
 /// Capabilities explicitly enabled by the client that created the session.
 ///
-/// New native libraries can be loaded by older Dart packages, so every
-/// additive capability is fail-closed by default. In particular, an older
-/// client must continue to receive raw ZMODEM bytes instead of having them
-/// intercepted by a protocol UI it does not know how to drive.
+/// The current SessionConfig requires an explicit boolean for each capability.
+/// A client without ZMODEM UI must send `zmodem: false` so live transport keeps
+/// those bytes raw. Missing fields are rejected rather than inferred from an
+/// older client or filled with defaults.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct SessionClientCapabilitiesV1 {

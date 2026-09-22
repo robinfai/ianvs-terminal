@@ -42,9 +42,9 @@ final class DataApiConfigurationRecoveryRequiredException implements Exception {
   @override
   String toString() {
     return 'The data service configuration was corrupt and was quarantined. '
-        'Persistence remains locked for this launch to prevent a silent switch '
-        'to local data. Open data service settings to confirm Disabled (or '
-        'choose another mode), then restart.';
+        'API synchronization is unavailable; local data remains available. '
+        'Open data service settings to confirm Disabled or choose another '
+        'mode.';
   }
 }
 
@@ -61,12 +61,12 @@ final class DataApiConfigurationRecoverySentinelException implements Exception {
   String toString() {
     if (configurationSaved) {
       return 'The data service configuration was saved, but its recovery lock '
-          'could not be cleared: $cause. Persistence remains locked until the '
+          'could not be cleared: $cause. API synchronization is unavailable until the '
           'recovery marker is removed by a later successful save.';
     }
     return 'The data service recovery lock could not be persisted: $cause. '
-        'The prior configuration remains authoritative and startup stays '
-        'locked.';
+        'The prior configuration remains authoritative and API '
+        'synchronization is unavailable.';
   }
 }
 
@@ -1586,7 +1586,7 @@ final class DataApiConfigurationGenerationConflictException
   @override
   String toString() {
     return 'Data API configuration generation conflict: expected $expected, '
-        'found $actual. Persistence remains locked.';
+        'found $actual. Reload the configuration before retrying.';
   }
 }
 

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:app/data/services/data_api_runtime.dart';
 import 'package:app/data/services/portable_master_key.dart';
+import 'package:app/data/sync/local_first_sync.dart';
 import 'package:app/data/sync/sync_repositories.dart';
 import 'package:app/features/layout/local_terminal_layout_models.dart';
 import 'package:app/features/layout/local_terminal_layout_repository.dart';
@@ -48,7 +49,7 @@ void main() {
     final composition = compose(null);
 
     expect(composition.usesDataApi, isFalse);
-    expect(composition.persistenceUnavailable, isFalse);
+    expect(composition.sync.phase, LocalFirstSyncPhase.disabled);
     expect(composition.profiles, isA<LocalFirstProfileRepository>());
     expect(
       composition.terminalConfig,
@@ -84,7 +85,7 @@ void main() {
       final loaded = await composition.profiles.load();
 
       expect(composition.usesDataApi, isFalse);
-      expect(composition.persistenceUnavailable, isFalse);
+      expect(composition.sync.phase, LocalFirstSyncPhase.unavailable);
       expect(composition.profiles, isA<LocalFirstProfileRepository>());
       expect(loaded.profiles.single.name, 'Local while offline');
       await composition.sync.close();

@@ -1,65 +1,16 @@
 #!/usr/bin/env bash
-# shellcheck shell=bash
-
-# Read-only navigation helper. This script does not execute verification.
-
+# Read-only entrypoints; no historical completion state is embedded.
 set -u
-
 cat <<'EOF'
-Local terminal verification status
+Current checkout status: not evaluated by this read-only helper.
 
-Current decision:
-  verified
+Full validation: make verify
+Focused batches: bash tools/local_terminal_verification_batches.sh list
+Capture output: bash tools/local_terminal_verification_capture.sh run <batch>
 
-Verification authorization:
-  authorized on 2026-05-16
-  automated, integration, and manual/integration-backed gates have passing evidence
-  docs/LOCAL_TERMINAL_VERIFICATION_AUTHORIZATION_GATE_2026-05.md
+Current requirements: docs/TESTING.md
+Manual checks: docs/compatibility/MANUAL_VERIFICATION.md
+Known issues: docs/KNOWN_ISSUES.md
 
-Latest automated evidence:
-  build/local-terminal-verification/20260627T172040Z-all-automated
-  latest formatting, static-analysis, focused, terminal-package, broader unit/widget gates passed
-  build/local-terminal-verification/20260627T172908Z-integration
-  latest smoke and real PTY integration passed
-
-Manual/integration-backed evidence:
-  local shell smoke passed
-  paste/focus safety passed
-  multipane behavior passed after zoom fix
-  notification behavior passed through broader and real PTY evidence
-  hotkey-window failure path passed through visible-failure regression
-
-Primary handoff:
-  docs/LOCAL_TERMINAL_FINAL_VERIFICATION_HANDOFF_2026-05.md
-
-Audit and status:
-  docs/LOCAL_TERMINAL_COMPLETION_AUDIT_CHECKLIST_2026-05.md
-  docs/LOCAL_TERMINAL_COMPLETION_AUDIT_SNAPSHOT_2026-05-16.md
-  docs/LOCAL_TERMINAL_MILESTONE_IMPLEMENTATION_STATUS_2026-05.md
-  docs/KNOWN_ISSUES.md
-
-Verification execution:
-  docs/LOCAL_TERMINAL_VERIFICATION_COMMAND_PLAN_2026-05.md
-  docs/LOCAL_TERMINAL_VERIFICATION_COMMAND_BATCHES_2026-05.md
-  docs/LOCAL_TERMINAL_VERIFICATION_READINESS_CHECKLIST_2026-05.md
-
-Evidence recording:
-  docs/LOCAL_TERMINAL_VERIFICATION_EVIDENCE_LEDGER_2026-05.md
-  docs/LOCAL_TERMINAL_VERIFICATION_RECORD_EXAMPLES_2026-05.md
-  docs/LOCAL_TERMINAL_VERIFICATION_FAILURE_TRIAGE_LOG_2026-05.md
-  docs/LOCAL_TERMINAL_EVIDENCE_RECORDING_RUNBOOK_2026-05.md
-  docs/LOCAL_TERMINAL_MANUAL_VERIFICATION_TEMPLATE_2026-05.md
-
-Helper scripts:
-  bash tools/local_terminal_verification_batches.sh list
-  bash tools/local_terminal_verification_batches.sh print all-automated
-  bash tools/local_terminal_verification_capture.sh run broader
-  bash tools/local_terminal_verification_capture.sh run integration
-  bash tools/local_terminal_verification_batches.sh run all-automated
-  bash tools/local_terminal_verification_capture.sh run all-automated
-
-Notes:
-  This status script does not run verification.
-  Canonical records now include all required passing gates.
-  Use ledger, manifest, LocalTerminalVerificationPlanRecords.latestPassed(), and LocalTerminalCurrentCompletionState.verified() as the completion evidence set.
+Generated results belong in build/, not docs/.
 EOF

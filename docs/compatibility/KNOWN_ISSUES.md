@@ -1,29 +1,15 @@
-# Compatibility Baseline Known Issues
+# Compatibility Evidence Boundaries
 
-The repository-wide canonical list remains [docs/KNOWN_ISSUES.md](../KNOWN_ISSUES.md). This file
-records only the compatibility evidence boundaries exposed by Iteration 01.
+当前缺陷和待办只维护在 [KNOWN_ISSUES](../KNOWN_ISSUES.md)。本页说明如何解读兼容性证据，
+不保存历史通过记录或重复维护产品风险清单。
 
-| Issue | Current evidence | Consequence | Follow-up |
-| --- | --- | --- | --- |
-| macOS-only product baseline | macOS app runner, real PTY integration and XCTest exist; Linux/Windows runners do not | No cross-platform compatibility claim | Keep Linux/Windows matrix cells `Unknown` until real runners and PTY tests exist |
-| External `vttest` is not guaranteed on a developer host | This host has Homebrew `vttest` 20251205 and passed `tools/vttest_gui_nightly.sh --release-gate` on 2026-07-21; the script still reports missing prerequisites elsewhere | A missing binary on another host is a blocked supplemental gate, not a product pass or failure | Install `vttest` and run the GUI gate when a full external TUI sweep is required |
-| Truncated transcript cannot be fully replayed on resize | transcript is capped at 262,144 bytes; debug stats expose truncation and skipped replay | Resize still returns a snapshot but cannot reconstruct history that was discarded | Track with `transcript_truncated` and `resize_replay_skipped_truncated_count`; do not infer full reflow fidelity |
-| Font and DPI fidelity is host dependent | Unicode cell widths are automated; real glyph availability and rasterization are not | Missing Powerline/Nerd/emoji glyphs or display changes can still produce visual defects | Run [MANUAL_VERIFICATION.md](MANUAL_VERIFICATION.md) after font/rendering changes |
-| Physical keyboard, IME and pointing-device combinations are not exhaustive | Encoder and widget tests cover known paths | Hardware/layout-specific behavior can remain unobserved | Run representative keyboard, IME and trackpad checks on release candidates |
-| Kitty POSIX shared-memory tests depend on host support | ordinary verify can explicitly skip unsupported `shm_open`; strict mode is opt-in | Default verification does not prove this transport on every host | Use `IANVS_REQUIRE_POSIX_SHM_TESTS=1` on a compatible nightly host |
-| Cross-machine performance comparisons are not normalized | CI smoke and nightly resource gates exist | A pass is local regression evidence, not a universal performance guarantee | Record host metadata and build a historical cross-machine baseline |
-| SSH/remote shell lifecycle is absent | current product supports local shell only | Remote compatibility is not established | Deferred beyond the foundation baseline |
+- 存在 parser 或单元测试不等于真实 app、外部终端或每一种宿主已经通过验证。
+- macOS 与 iOS 已有 app runner；Linux/Windows native 构建或特定 CI 测试不代表存在对应 app runner。
+- 外部 `vttest`、SSH fixture、系统权限或设备缺失时，应明确标记该次检查未执行。
+- 截断 transcript 的 resize 不能还原已经丢弃的历史；session diagnostics 通过
+  [Diagnostic Event v1](../protocols/DIAGNOSTIC_EVENT_V1.md) 暴露 transcript/replay 计数。
+- Kitty POSIX shared-memory 需要宿主支持；严格验证使用 `IANVS_REQUIRE_POSIX_SHM_TESTS=1`。
+- 字体、DPI、IME 和实体输入设备按 [人工检查表](MANUAL_VERIFICATION.md) 执行。
+- 性能结果需带宿主与构建信息，不能由一次本机通过推断所有机器的性能。
 
-## Observability added by the baseline
-
-`take_session_debug_stats_json` exposes:
-
-- `transcript_bytes`
-- `transcript_truncated`
-- `resize_replay_count`
-- `resize_replay_bytes`
-- `resize_replay_micros`
-- `resize_replay_skipped_truncated_count`
-
-These are cumulative session diagnostics. Elapsed microseconds may be zero for a very short replay
-on a coarse timer; field presence and replay counters are the stable contract.
+测试位置见 [Test Assets](TEST_ASSET_INVENTORY.md)，能力归属见 [Capability Matrix](CAPABILITY_MATRIX.md)。

@@ -175,8 +175,7 @@ Future<void> _captureTab(
   await expectLater(
     find.byKey(const Key('defaults-dialog')),
     matchesGoldenFile(
-      goldenPath ??
-          '../../../docs/design/settings-tabs/current/$goldenName.png',
+      goldenPath ?? 'goldens/settings-tabs/current/$goldenName.png',
     ),
   );
 }
@@ -199,7 +198,7 @@ void main() {
           goldenName: section,
           brightness: brightness,
           goldenPath:
-              '../../../docs/design/settings-general-20260912/renders/${brightness.name}-$section.png',
+              'goldens/settings-general-20260912/renders/${brightness.name}-$section.png',
         );
         expect(tester.takeException(), isNull);
       });
@@ -212,8 +211,7 @@ void main() {
       goldenName: 'narrow-scaled',
       surfaceSize: const Size(680, 620),
       textScaler: const TextScaler.linear(2),
-      goldenPath:
-          '../../../docs/design/settings-general-20260912/renders/narrow-scaled.png',
+      goldenPath: 'goldens/settings-general-20260912/renders/narrow-scaled.png',
     );
     expect(tester.takeException(), isNull);
   });

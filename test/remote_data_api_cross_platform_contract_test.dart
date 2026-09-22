@@ -9,6 +9,11 @@ void main() {
     ).readAsStringSync();
 
     expect(script, contains('set -euo pipefail'));
+    const localStartupTarget =
+        'integration_test/ios_local_first_startup_acceptance_test.dart';
+    expect(script, contains('IOS_GATE_TARGET="$localStartupTarget"'));
+    expect(File('example/$localStartupTarget').existsSync(), isTrue);
+    expect(script, isNot(contains('ios_remote_api_gate_acceptance_test.dart')));
     expect(
       script,
       contains(

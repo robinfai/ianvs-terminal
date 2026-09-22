@@ -1,7 +1,7 @@
 # Terminal Recording Current Format
 
-The Iteration 03 recording format is newline-delimited JSON. It is intentionally separate from
-the existing Frame JSON/Protobuf wire: a recording describes an ordered session event stream,
+The current recording format is newline-delimited JSON. It is intentionally separate from
+the live Frame Packet v1 transport: a recording describes an ordered session event stream,
 while a Frame describes current render state.
 
 ## File Structure
@@ -60,8 +60,8 @@ loss, cross-session mixing and event reordering explicit decoding failures.
 
 Input policy is required metadata rather than an implicit recorder default:
 
-- `redact` records only the input byte count. It is the recommended default for future product
-  wiring because passwords, tokens and pasted secrets never enter the recording file.
+- `redact` records only the input byte count. It is the recommended policy for live capture
+  because typed passwords, tokens and pasted secrets are not stored as input events.
 - `record` stores exact input bytes and must require an explicit product/user decision before a
   live recorder enables it.
 
@@ -71,16 +71,16 @@ must remain local unless a separate explicit export/upload action is approved.
 
 ## Live Capture Boundary
 
-T-310 connects the format to an explicitly started native recorder. Raw output is copied at the
+Live capture uses an explicitly started native recorder. Raw output is copied at the
 PTY reader before parser or Frame processing; successful user writes, resizes and observed child
 exits share the same ordered recording boundary. The capture buffer is limited to 4,096 events and
 8 MiB of raw payload. Capacity overflow returns `capacity_exceeded` and discards the recording at
 stop instead of silently evicting events or exporting a partial stream.
 
-`TerminalLiveRecorder` uses the existing session JSON request bridge for start, stop and cancel.
+`TerminalLiveRecorder` uses Session Request/Response v1 for start, stop and cancel.
 It validates stopped native NDJSON through `TerminalRecordingCodec` before exposing the recording.
 Capture does not add raw output to the normal product event queue and does not change Frame
-JSON/Protobuf.
+Packet v1.
 
 ## Single Current Schema
 

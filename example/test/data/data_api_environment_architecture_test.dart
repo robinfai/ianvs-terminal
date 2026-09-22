@@ -111,6 +111,7 @@ void read() {
       ('lib/features/profiles/profile_models.dart', profileSource),
       ('lib/features/sessions/session_controller.dart', sessionSource),
       ('lib/features/ssh/ssh_profile_import_service.dart', sshImportSource),
+      ('lib/features/shell/shell_screen_sidebar.dart', sshImportSource),
     ]) {
       final result = parseString(
         path: fixture.$1,
@@ -121,7 +122,7 @@ void read() {
       result.unit.accept(_ForbiddenEnvironmentVisitor(fixture.$1, violations));
     }
 
-    expect(violations, hasLength(3));
+    expect(violations, hasLength(4));
     expect(
       violations,
       contains(contains('features/profiles/profile_models.dart')),
@@ -133,6 +134,10 @@ void read() {
     expect(
       violations,
       contains(contains('features/ssh/ssh_profile_import_service.dart')),
+    );
+    expect(
+      violations,
+      contains(contains('features/shell/shell_screen_sidebar.dart')),
     );
   });
 }
@@ -291,6 +296,10 @@ bool _isAllowedNonDataEnvironmentUse(String path, AstNode node) {
     return key == 'IANVS_TERMINAL_GRAPHICS_TRACE';
   }
   if (path.endsWith('features/ssh/ssh_profile_import_service.dart')) {
+    return key == 'HOME';
+  }
+  if (path.endsWith('features/shell/shell_screen_sidebar.dart')) {
+    // Local cwd display abbreviates HOME to ~; this cannot configure the API.
     return key == 'HOME';
   }
   return false;

@@ -32,9 +32,9 @@ final class DataApiStartupDependencyException implements Exception {
       DataApiStartupDependency.configuration => 'data service configuration',
       DataApiStartupDependency.remoteSession => 'remote secure session',
     };
-    return 'The $label could not be read: $cause. Persistence remains locked '
-        'to prevent a silent switch to local data. Open data service settings '
-        'to explicitly save a mode, then restart.';
+    return 'The $label could not be read: $cause. API synchronization is '
+        'unavailable; local data remains available. Open data service settings '
+        'to recover the saved configuration.';
   }
 }
 

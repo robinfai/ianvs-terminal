@@ -12,7 +12,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'configuration_capture_binding.dart';
 
 const _outputDirectory =
-    '../../../docs/design/'
+    'goldens/'
     'configuration-forms-20260909/final/ssh';
 
 Future<ByteData> _readFont(String path) async {
@@ -147,7 +147,7 @@ void main() {
         find.byType(SshProfileEditorDialog),
         matchesGoldenFile(
           variant.name.startsWith('advanced')
-              ? '../../../docs/design/configuration-forms-20260909/interaction-review/after/ssh-${variant.name}.png'
+              ? 'goldens/configuration-forms-20260909/interaction-review/after/ssh-${variant.name}.png'
               : '$_outputDirectory/${variant.name}.png',
         ),
       );

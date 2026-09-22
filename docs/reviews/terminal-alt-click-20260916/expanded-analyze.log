@@ -1,5 +1,0 @@
-Analyzing ianvs_terminal, ianvs_terminal_core, profile_editor.dart, terminal_viewport.dart, shell_screen.dart, shell_screen_instant_replay.dart, shell_screen_state_terminal_layout.dart, profile_editor_test.dart, terminal_alt_click_pty_test.dart...
-
-   info - example/lib/features/shell/shell_screen_instant_replay.dart:8:8 - Use an initializing formal to assign a parameter to a field. Try using an initialing formal ('this._viewportController') to initialize the field. - prefer_initializing_formals
-
-1 issue found.

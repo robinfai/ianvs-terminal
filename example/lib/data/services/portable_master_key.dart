@@ -102,7 +102,7 @@ abstract interface class PortableMasterKeyStorage {
   Future<void> write(String portableValue);
 }
 
-/// The only production platform-vault item owned by Trail.
+/// The synchronized production master-key item owned by Ianvs Terminal.
 final class FlutterSecurePortableMasterKeyStorage
     implements PortableMasterKeyStorage {
   const FlutterSecurePortableMasterKeyStorage({
