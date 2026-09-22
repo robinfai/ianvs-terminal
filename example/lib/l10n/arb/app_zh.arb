@@ -792,6 +792,7 @@
   "swapActivePane": "交换活动窗格",
   "closeActivePane": "关闭活动窗格",
   "movedToNewTab": "已移到新标签页",
+  "terminalPaneCount": "{count} 个窗格",
   "panePosition": "窗格 {index}/{count}",
   "splitRight": "向右拆分",
   "splitDown": "向下拆分",

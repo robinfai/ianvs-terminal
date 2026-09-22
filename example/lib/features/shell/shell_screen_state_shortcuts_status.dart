@@ -335,40 +335,4 @@ extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
         normalized != localHostname &&
         normalized != '$localHostname.local';
   }
-
-  String _mouseModeStatusLabel(String mode) {
-    return switch (mode) {
-      'x10' => 'X10 tracking',
-      'normal' => 'normal tracking',
-      'button_event' => 'button-event tracking',
-      'any_event' => 'any-event tracking',
-      _ => mode.replaceAll('_', ' '),
-    };
-  }
-
-  String _mouseEncodingStatusLabel(String encoding) {
-    return switch (encoding) {
-      'sgr' => 'SGR encoding',
-      'sgr_pixels' => 'SGR pixels encoding',
-      'utf8' => 'UTF-8 encoding',
-      'urxvt' => 'URXVT encoding',
-      'default' => 'default encoding',
-      _ => '${encoding.replaceAll('_', ' ')} encoding',
-    };
-  }
-
-  String _kittyKeyboardStatusTooltip(int flags) {
-    final enabled = <String>[
-      if ((flags & 1) != 0) 'disambiguated keys',
-      if ((flags & 2) != 0) 'repeat and release events',
-      if ((flags & 4) != 0) 'alternate key forms',
-      if ((flags & 8) != 0) 'all keys',
-      if ((flags & 16) != 0) 'associated text',
-    ];
-    return [
-      'Kitty keyboard protocol is active.',
-      if (enabled.isNotEmpty) 'Enabled: ${enabled.join(', ')}.',
-      'Some key combinations are sent as Kitty CSI-u sequences.',
-    ].join('\n');
-  }
 }

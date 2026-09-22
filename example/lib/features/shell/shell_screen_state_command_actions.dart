@@ -833,13 +833,14 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
     SessionController sessionController,
     SessionState sessionState,
     TerminalTab tab,
-    Offset position,
-  ) async {
+    Offset position, {
+    String? paneSessionId,
+  }) async {
     final defaultProfile = _effectiveDefaultProfileFor(
       sessionState.profiles,
       sessionState.defaultProfileId,
     );
-    final targetSessionId = tab.activeSessionId;
+    final targetSessionId = paneSessionId ?? tab.activeSessionId;
     final hasMultiplePanes = tab.effectivePanes.length > 1;
     final paneManagementBlockedReason = _zoomedPaneManagementUnavailableReason(
       tab,
@@ -889,6 +890,9 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
     }) {
       final reason = enabled ? null : disabledReason;
       return PopupMenuItem<TerminalActionId>(
+        key: paneSessionId == null
+            ? null
+            : Key('shell-pane-menu-${action.name}-$targetSessionId'),
         height: Theme.of(context).platform == TargetPlatform.macOS ? 32 : 48,
         padding: EdgeInsets.symmetric(
           horizontal: context.appTheme.spacing.lg,
@@ -900,14 +904,19 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Row(
-              children: [
-                Icon(icon, size: 18),
-                const SizedBox(width: 10),
-                Expanded(child: Text(title)),
-              ],
+            Tooltip(
+              message: reason != null && paneSessionId != null
+                  ? context.l10n.unavailableReason(reason)
+                  : '',
+              child: Row(
+                children: [
+                  Icon(icon, size: 18),
+                  const SizedBox(width: 10),
+                  Expanded(child: Text(title)),
+                ],
+              ),
             ),
-            if (reason != null) ...[
+            if (reason != null && paneSessionId == null) ...[
               const SizedBox(height: 4),
               Padding(
                 padding: const EdgeInsets.only(left: 28),
@@ -960,6 +969,18 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
           disabledReason: reopenClosedPaneBlockedReason,
         ),
 
+        if (paneSessionId != null)
+          item(
+            action: TerminalActionId.zoomPane,
+            icon: _zoomedPaneSessionId == targetSessionId
+                ? Icons.close_fullscreen_rounded
+                : Icons.open_in_full_rounded,
+            title: _zoomedPaneSessionId == targetSessionId
+                ? context.l10n.unzoomPane
+                : context.l10n.zoomPane,
+            enabled: hasMultiplePanes,
+          ),
+
         const PopupMenuDivider(),
         item(
           action: TerminalActionId.resizePane,
@@ -1000,6 +1021,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
       sessionController,
       action,
       targetTabSessionId: tab.sessionId,
+      targetPaneSessionId: paneSessionId,
     );
   }
 
@@ -1007,6 +1029,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
     SessionController sessionController,
     TerminalActionId action, {
     required String targetTabSessionId,
+    String? targetPaneSessionId,
   }) async {
     final defaultProfile = _effectiveDefaultProfileFor(
       ref.read(sessionControllerProvider).profiles,
@@ -1023,7 +1046,10 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
     if (targetTab == null) {
       return;
     }
-    final targetSessionId = targetTab.activeSessionId;
+    final targetSessionId = targetPaneSessionId ?? targetTab.activeSessionId;
+    if (!targetTab.containsSession(targetSessionId)) {
+      return;
+    }
 
     if (action == TerminalActionId.closeActiveTab) {
       _closeTab(sessionController, initialState, targetTab.sessionId);

@@ -470,6 +470,7 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                         palette: palette,
                         sessionId: sessionId,
                         title: title,
+                        paneNumber: paneIndex + 1,
                         subtitle: context.l10n.panePosition(
                           paneIndex + 1,
                           activeTab.effectivePanes.length,
@@ -479,7 +480,6 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                         canZoom: activeTab.effectivePanes.length > 1,
                         indicators: _paneHeaderIndicatorsFor(
                           pane,
-                          modes: viewportController.frame.modes,
                           readOnly: _isSessionReadOnly(sessionId),
                         ),
                         onActivate: () =>
@@ -534,11 +534,20 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                                 });
                                 _focusSession(sessionId);
                               },
-                        onClose: () => _closeSession(
-                          sessionController,
-                          ref.read(sessionControllerProvider),
-                          sessionId,
-                        ),
+                        onShowMenu: (position) {
+                          final state = ref.read(sessionControllerProvider);
+                          final tab = _tabForSession(state, sessionId);
+                          if (tab == null) return;
+                          unawaited(
+                            _openTabContextMenu(
+                              sessionController,
+                              state,
+                              tab,
+                              position,
+                              paneSessionId: sessionId,
+                            ),
+                          );
+                        },
                       );
                     },
                   );
@@ -566,7 +575,7 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                 color: isActive
                     ? palette.focusRing.withValues(alpha: 0.78)
                     : Colors.transparent,
-                width: isActive ? 1.5 : 1,
+                width: 1.5,
               ),
             ),
             child: Column(
@@ -1219,7 +1228,6 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
 
   List<_TerminalPaneHeaderIndicator> _paneHeaderIndicatorsFor(
     TerminalPane pane, {
-    required terminal.TerminalFrameModes modes,
     required bool readOnly,
   }) {
     final indicators = <_TerminalPaneHeaderIndicator>[];
@@ -1227,7 +1235,7 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
     final focusLine = _sessionNeedsFocus(pane.sessionId)
         ? context.l10n.clickToFocusPane
         : null;
-    void addModeIndicator({
+    void addStateIndicator({
       required String kind,
       required String label,
       required String tooltip,
@@ -1325,66 +1333,8 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
       );
     }
 
-    if (modes.alternateScreen) {
-      addModeIndicator(
-        kind: 'alt',
-        label: context.l10n.terminalModeAlt,
-        tooltip: context.l10n.alternateScreenActive,
-        icon: Icons.fullscreen_rounded,
-      );
-    }
-    if (modes.mouseMode != 'off') {
-      addModeIndicator(
-        kind: 'mouse',
-        label: context.l10n.terminalModeMouse,
-        tooltip: context.l10n.mouseReportingActive(
-          _mouseModeStatusLabel(modes.mouseMode),
-          _mouseEncodingStatusLabel(modes.mouseEncoding),
-        ),
-        icon: Icons.mouse_outlined,
-      );
-    }
-    if (modes.mimePaste) {
-      addModeIndicator(
-        kind: 'mime-paste',
-        label: context.l10n.terminalModeMimePaste,
-        tooltip: context.l10n.mimePasteActive,
-        icon: Icons.content_paste_go_rounded,
-      );
-    } else if (modes.bracketedPaste) {
-      addModeIndicator(
-        kind: 'paste',
-        label: context.l10n.terminalModePaste,
-        tooltip: context.l10n.bracketedPasteActive,
-        icon: Icons.content_paste_rounded,
-      );
-    }
-    if (modes.focusTracking) {
-      addModeIndicator(
-        kind: 'focus',
-        label: context.l10n.terminalModeFocus,
-        tooltip: context.l10n.focusReportingActive,
-        icon: Icons.center_focus_strong_rounded,
-      );
-    }
-    if (modes.kittyKeyboardFlags != 0) {
-      addModeIndicator(
-        kind: 'kitty-keyboard',
-        label: context.l10n.terminalModeKeys,
-        tooltip: _kittyKeyboardStatusTooltip(modes.kittyKeyboardFlags),
-        icon: Icons.keyboard_alt_outlined,
-      );
-    }
-    if (modes.synchronizedOutput) {
-      addModeIndicator(
-        kind: 'sync',
-        label: context.l10n.terminalModeSync,
-        tooltip: context.l10n.synchronizedOutputActive,
-        icon: Icons.sync_rounded,
-      );
-    }
     if (readOnly) {
-      addModeIndicator(
+      addStateIndicator(
         kind: 'read-only',
         label: context.l10n.terminalModeReadOnly,
         tooltip: context.l10n.readOnlyPaneActive,
@@ -1753,6 +1703,7 @@ class _TerminalPaneHeader extends StatelessWidget {
     required this.palette,
     required this.sessionId,
     required this.title,
+    required this.paneNumber,
     required this.subtitle,
     required this.isActive,
     required this.isZoomed,
@@ -1768,12 +1719,13 @@ class _TerminalPaneHeader extends StatelessWidget {
     required this.splitDownTooltip,
     required this.onSplitDown,
     required this.onToggleZoom,
-    required this.onClose,
+    required this.onShowMenu,
   });
 
   final AppThemeTokens palette;
   final String sessionId;
   final String title;
+  final int paneNumber;
   final String subtitle;
   final bool isActive;
   final bool isZoomed;
@@ -1790,7 +1742,7 @@ class _TerminalPaneHeader extends StatelessWidget {
   final String splitDownTooltip;
   final VoidCallback? onSplitDown;
   final VoidCallback? onToggleZoom;
-  final VoidCallback onClose;
+  final ValueChanged<Offset> onShowMenu;
 
   @override
   Widget build(BuildContext context) {
@@ -1818,14 +1770,13 @@ class _TerminalPaneHeader extends StatelessWidget {
           child: LayoutBuilder(
             builder: (context, constraints) {
               final compact = constraints.maxWidth < 230;
-              final showLeadingIcon = constraints.maxWidth >= 210;
-              final showSubtitle = constraints.maxWidth >= 260;
+              final showPaneNumber = constraints.maxWidth >= 104;
               final showSplitActions = !compact;
               final showIndicators = constraints.maxWidth >= 110;
-              final showZoomAction = constraints.maxWidth >= 96;
-              final showCloseAction = constraints.maxWidth >= 72;
+              final showZoomAction = constraints.maxWidth >= 160;
+              final showMoreAction = constraints.maxWidth >= 48;
               final actions = <Widget>[
-                if (showSplitActions) ...[
+                if (isActive && showSplitActions) ...[
                   _TerminalPaneHeaderAction(
                     buttonKey: Key('shell-pane-action-split-right-$sessionId'),
                     tooltip: splitRightTooltip,
@@ -1841,7 +1792,7 @@ class _TerminalPaneHeader extends StatelessWidget {
                     onPressed: onSplitDown,
                   ),
                 ],
-                if (showZoomAction)
+                if (isActive && showZoomAction)
                   _TerminalPaneHeaderAction(
                     buttonKey: Key('shell-pane-action-zoom-$sessionId'),
                     tooltip: isZoomed
@@ -1854,28 +1805,27 @@ class _TerminalPaneHeader extends StatelessWidget {
                     onPressed: canZoom ? onToggleZoom : null,
                     selected: isZoomed,
                   ),
-                if (showCloseAction)
-                  _TerminalPaneHeaderAction(
-                    buttonKey: Key('shell-pane-action-close-$sessionId'),
-                    tooltip: context.l10n.terminalActionName('close_pane'),
-                    icon: Icons.close_rounded,
-                    palette: palette,
-                    onPressed: onClose,
+                if (showMoreAction)
+                  Builder(
+                    builder: (buttonContext) => _TerminalPaneHeaderAction(
+                      buttonKey: Key('shell-pane-action-more-$sessionId'),
+                      tooltip: context.l10n.moreActionsFor(
+                        '$title · $subtitle',
+                      ),
+                      icon: Icons.more_horiz_rounded,
+                      palette: palette,
+                      onPressed: () {
+                        final box =
+                            buttonContext.findRenderObject()! as RenderBox;
+                        onShowMenu(
+                          box.localToGlobal(Offset(0, box.size.height)),
+                        );
+                      },
+                    ),
                   ),
               ];
               return Row(
                 children: [
-                  if (showLeadingIcon) ...[
-                    Icon(
-                      Icons.terminal_rounded,
-                      size: 14,
-                      color: metadataColor,
-                      semanticLabel: isActive
-                          ? context.l10n.activePane
-                          : context.l10n.inactivePane,
-                    ),
-                    const SizedBox(width: 6),
-                  ],
                   Expanded(
                     child: _ShellPaneDragStartRegion(
                       key: Key('shell-pane-drag-$sessionId'),
@@ -1887,6 +1837,45 @@ class _TerminalPaneHeader extends StatelessWidget {
                       onTap: onActivate,
                       child: Row(
                         children: [
+                          if (showPaneNumber) ...[
+                            Tooltip(
+                              message: subtitle,
+                              child: Semantics(
+                                label:
+                                    '$subtitle · ${isActive ? context.l10n.activePane : context.l10n.inactivePane}',
+                                excludeSemantics: true,
+                                child: Container(
+                                  key: Key(
+                                    'shell-pane-header-number-$sessionId',
+                                  ),
+                                  constraints: const BoxConstraints(
+                                    minWidth: 20,
+                                    minHeight: 20,
+                                    maxHeight: 20,
+                                  ),
+                                  alignment: Alignment.center,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: palette.panelElevated,
+                                    borderRadius: BorderRadius.circular(
+                                      palette.radius.sm,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    '$paneNumber',
+                                    style: textTheme.labelSmall?.copyWith(
+                                      color: metadataColor,
+                                      fontWeight: FontWeight.w600,
+                                      height: 1,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                          ],
                           Flexible(
                             child: Text(
                               title,
@@ -1900,29 +1889,11 @@ class _TerminalPaneHeader extends StatelessWidget {
                               ),
                             ),
                           ),
-                          if (showSubtitle) ...[
-                            const SizedBox(width: 6),
-                            Flexible(
-                              child: Text(
-                                subtitle,
-                                key: Key(
-                                  'shell-pane-header-subtitle-$sessionId',
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: textTheme.labelSmall?.copyWith(
-                                  color: metadataColor,
-                                  fontWeight: FontWeight.w600,
-                                  height: 1,
-                                ),
-                              ),
-                            ),
-                          ],
                         ],
                       ),
                     ),
                   ),
-                  if (!isActive && showIndicators && indicators.isNotEmpty) ...[
+                  if (showIndicators && indicators.isNotEmpty) ...[
                     const SizedBox(width: 6),
                     Flexible(
                       child: _TerminalPaneHeaderIndicatorStrip(
@@ -1935,7 +1906,7 @@ class _TerminalPaneHeader extends StatelessWidget {
                       ),
                     ),
                   ],
-                  if (isActive && actions.isNotEmpty) ...[
+                  if (actions.isNotEmpty) ...[
                     const SizedBox(width: 6),
                     ...actions,
                   ],

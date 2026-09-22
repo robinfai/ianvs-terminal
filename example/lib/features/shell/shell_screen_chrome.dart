@@ -947,6 +947,7 @@ class _ShellTabStrip extends StatefulWidget {
 }
 
 class _ShellTabStripState extends State<_ShellTabStrip> {
+  static const double _desktopMaxTabWidth = 240;
   static const double _regularMinTabWidth = 180;
   static const double _compactMinTabWidth = 104;
   static const double _compactTabThreshold = 140;
@@ -1163,10 +1164,13 @@ class _ShellTabStripState extends State<_ShellTabStrip> {
             );
             final needsOverflowAction =
                 initialVisibleTabCount < widget.tabs.length;
-            final tabsAreaWidth =
-                !widget.showNewTabAction && needsOverflowAction
-                ? math.max(0.0, totalWidth - actionButtonWidth)
-                : initialTabsAreaWidth;
+            final overflowActionWidth = needsOverflowAction
+                ? math.min(actionButtonWidth, initialTabsAreaWidth)
+                : 0.0;
+            final tabsAreaWidth = math.max(
+              0.0,
+              initialTabsAreaWidth - overflowActionWidth,
+            );
             final visibleTabCount = needsOverflowAction
                 ? _visibleTabCountFor(tabsAreaWidth)
                 : initialVisibleTabCount;
@@ -1175,10 +1179,14 @@ class _ShellTabStripState extends State<_ShellTabStrip> {
             final hiddenTabs = hasOverflow
                 ? widget.tabs.skip(visibleTabCount).toList(growable: false)
                 : const <TerminalTab>[];
-            final visibleTabsCapacity = tabsAreaWidth;
             final tabWidth = visibleTabCount == 0
                 ? 0.0
-                : visibleTabsCapacity / visibleTabCount;
+                : math.min(
+                    tabsAreaWidth / visibleTabCount,
+                    _usesDelayedDragStart
+                        ? double.infinity
+                        : _desktopMaxTabWidth,
+                  );
             _visibleTabWidth = tabWidth;
             final compactTabs = tabWidth < _compactTabThreshold;
             final visibleTabsWidth = tabWidth * visibleTabCount;
@@ -1353,8 +1361,6 @@ class _ShellTabStripState extends State<_ShellTabStrip> {
                           ),
                   ),
                 ),
-                if (visibleTabsWidth < tabsAreaWidth)
-                  const Expanded(child: SizedBox()),
                 if (hasOverflow)
                   _ShellTabOverflowMenu(
                     palette: widget.palette,
@@ -1374,17 +1380,17 @@ class _ShellTabStripState extends State<_ShellTabStrip> {
                     onActivateBadgePane: widget.onActivateBadgePane,
                     onNotificationInteraction: widget.onNotificationInteraction,
                     onActivateNewOutputPane: widget.onActivateNewOutputPane,
-                    width: actionButtonWidth,
+                    width: overflowActionWidth,
                   ),
-                if (!hasOverflow &&
-                    widget.showNewTabAction &&
-                    actionButtonWidth > 0)
+                if (widget.showNewTabAction && actionButtonWidth > 0)
                   _ShellNewTabButton(
                     palette: widget.palette,
                     tone: chromeTone,
                     width: actionButtonWidth,
                     onPressed: widget.onNewTab,
                   ),
+                if (visibleTabsWidth < tabsAreaWidth)
+                  const Expanded(child: SizedBox()),
               ],
             );
           },
@@ -3018,7 +3024,9 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
     final usesPersistentTouchClose =
         defaultTargetPlatform == TargetPlatform.android ||
         defaultTargetPlatform == TargetPlatform.iOS;
-    final closeVisible = usesPersistentTouchClose ? widget.isActive : _hovered;
+    final closeVisible = usesPersistentTouchClose
+        ? widget.isActive
+        : _hovered || widget.focusNode.hasFocus;
     final badgeInfos = _shellTabBadgeInfos(widget.tab);
     final paneSignalInfos = _shellTabPaneSignalInfos(context.l10n, widget.tab);
     final paneSignalInfo = paneSignalInfos.isEmpty
@@ -3037,6 +3045,94 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
       color: widget.isActive ? tone.primaryText : tone.mutedText,
       fontSize: 12.5,
       fontWeight: widget.isActive ? FontWeight.w600 : FontWeight.w500,
+    );
+
+    final details = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (!widget.compact && widget.tab.effectivePanes.length > 1) ...[
+          const SizedBox(width: 6),
+          Tooltip(
+            message: context.l10n.terminalPaneCount(
+              widget.tab.effectivePanes.length,
+            ),
+            child: Row(
+              key: Key('shell-tab-pane-count-${widget.tab.sessionId}'),
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.grid_view_rounded, size: 12, color: tone.subtleText),
+                const SizedBox(width: 3),
+                Text(
+                  '${widget.tab.effectivePanes.length}',
+                  style: tabTextStyle.copyWith(
+                    fontSize: 11,
+                    color: tone.subtleText,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+        if (statusText != null) ...[
+          const SizedBox(width: 6),
+          _ShellTabStatusLabel(
+            key: Key('shell-tab-status-${widget.tab.sessionId}'),
+            text: statusText,
+            requestedColor: requestedStatusColor,
+            backgroundColor: widget.isActive
+                ? tone.activeBackground
+                : widget.chromeBackgroundColor,
+            fallbackColor: widget.isActive ? tone.primaryText : tone.mutedText,
+            maxWidth: widget.compact ? 48 : 72,
+          ),
+        ],
+        ..._shellTabBadgeChips(
+          l10n: context.l10n,
+          keyPrefix: 'shell-tab-badge-${widget.tab.sessionId}',
+          tab: widget.tab,
+          badges: badgeInfos,
+          palette: widget.palette,
+          foreground: widget.isActive ? tone.primaryText : tone.mutedText,
+          background: tone.hoverBackground.withValues(
+            alpha: widget.isActive ? 0.70 : 0.45,
+          ),
+          border: tone.border.withValues(alpha: 0.38),
+          maxWidth: widget.compact ? 46 : 62,
+          badgeNeedsFocus: (badge) => !(widget.isActive && badge.isActivePane),
+          onSelected: canActivateBadgePane ? widget.onActivateBadgePane : null,
+        ),
+        if (paneSignalInfo != null) ...[
+          const SizedBox(width: 6),
+          _ShellTabPaneSignalChip(
+            itemKey: Key('shell-tab-pane-signal-${widget.tab.sessionId}'),
+            palette: widget.palette,
+            tab: widget.tab,
+            signals: paneSignalInfos,
+            primaryNeedsFocus:
+                !(widget.isActive && paneSignalInfo.isActivePane),
+            onActivatePane: widget.onActivateBadgePane,
+            onNotificationInteraction: widget.onNotificationInteraction,
+            foreground: widget.isActive ? tone.primaryText : tone.mutedText,
+            background: widget.palette.focusRing.withValues(
+              alpha: widget.isActive ? 0.58 : 0.42,
+            ),
+            border: widget.palette.focusRing.withValues(alpha: 0.34),
+          ),
+        ],
+        if (widget.hasNewOutput) ...[
+          const SizedBox(width: 6),
+          _ShellTabNewOutputDot(
+            key: Key('shell-tab-new-output-${widget.tab.sessionId}'),
+            palette: widget.palette,
+            tooltip: widget.newOutputTooltip,
+            onPressed: widget.newOutputPaneSessionId == null
+                ? null
+                : () => widget.onActivateNewOutputPane(
+                    widget.newOutputPaneSessionId!,
+                  ),
+          ),
+        ],
+      ],
     );
 
     return MouseRegion(
@@ -3078,8 +3174,9 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
                           padding: WidgetStatePropertyAll(
                             usesPersistentTouchClose && widget.isActive
                                 ? const EdgeInsets.only(left: 8, right: 48)
-                                : EdgeInsets.symmetric(
-                                    horizontal: widget.compact ? 8 : 12,
+                                : EdgeInsets.only(
+                                    left: widget.compact ? 8 : 12,
+                                    right: 28,
                                   ),
                           ),
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -3120,8 +3217,10 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
                             ),
                           ),
                         ),
+                        onFocusChange: (_) => setState(() {}),
                         onPressed: widget.onActivate,
-                        child: Center(
+                        child: Align(
+                          alignment: AlignmentDirectional.centerStart,
                           child: KeyedSubtree(
                             key: Key('shell-tab-title-${widget.tab.sessionId}'),
                             child: Row(
@@ -3171,88 +3270,22 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
                                     ),
                                   ),
                                 ),
-                                if (statusText != null) ...[
-                                  const SizedBox(width: 6),
-                                  _ShellTabStatusLabel(
-                                    key: Key(
-                                      'shell-tab-status-${widget.tab.sessionId}',
+                                if (badgeInfos.isNotEmpty ||
+                                    paneSignalInfo != null ||
+                                    statusText != null)
+                                  Flexible(
+                                    child: SingleChildScrollView(
+                                      scrollDirection: Axis.horizontal,
+                                      child: details,
                                     ),
-                                    text: statusText,
-                                    requestedColor: requestedStatusColor,
-                                    backgroundColor: widget.isActive
-                                        ? tone.activeBackground
-                                        : widget.chromeBackgroundColor,
-                                    fallbackColor: widget.isActive
-                                        ? tone.primaryText
-                                        : tone.mutedText,
-                                    maxWidth: widget.compact ? 48 : 72,
-                                  ),
-                                ],
-                                ..._shellTabBadgeChips(
-                                  l10n: context.l10n,
-                                  keyPrefix:
-                                      'shell-tab-badge-${widget.tab.sessionId}',
-                                  tab: widget.tab,
-                                  badges: badgeInfos,
-                                  palette: widget.palette,
-                                  foreground: widget.isActive
-                                      ? tone.primaryText
-                                      : tone.mutedText,
-                                  background: tone.hoverBackground.withValues(
-                                    alpha: widget.isActive ? 0.70 : 0.45,
-                                  ),
-                                  border: tone.border.withValues(alpha: 0.38),
-                                  maxWidth: widget.compact ? 46 : 62,
-                                  badgeNeedsFocus: (badge) =>
-                                      !(widget.isActive && badge.isActivePane),
-                                  onSelected: canActivateBadgePane
-                                      ? widget.onActivateBadgePane
-                                      : null,
-                                ),
-                                if (paneSignalInfo != null) ...[
-                                  const SizedBox(width: 6),
-                                  _ShellTabPaneSignalChip(
-                                    itemKey: Key(
-                                      'shell-tab-pane-signal-${widget.tab.sessionId}',
-                                    ),
-                                    palette: widget.palette,
-                                    tab: widget.tab,
-                                    signals: paneSignalInfos,
-                                    primaryNeedsFocus:
-                                        !(widget.isActive &&
-                                            paneSignalInfo.isActivePane),
-                                    onActivatePane: widget.onActivateBadgePane,
-                                    onNotificationInteraction:
-                                        widget.onNotificationInteraction,
-                                    foreground: widget.isActive
-                                        ? tone.primaryText
-                                        : tone.mutedText,
-                                    background: widget.palette.focusRing
-                                        .withValues(
-                                          alpha: widget.isActive ? 0.58 : 0.42,
-                                        ),
-                                    border: widget.palette.focusRing.withValues(
-                                      alpha: 0.34,
-                                    ),
-                                  ),
-                                ],
-                                if (widget.hasNewOutput) ...[
-                                  const SizedBox(width: 6),
-                                  _ShellTabNewOutputDot(
-                                    key: Key(
-                                      'shell-tab-new-output-${widget.tab.sessionId}',
-                                    ),
-                                    palette: widget.palette,
-                                    tooltip: widget.newOutputTooltip,
-                                    onPressed:
-                                        widget.newOutputPaneSessionId == null
-                                        ? null
-                                        : () => widget.onActivateNewOutputPane(
-                                            widget.newOutputPaneSessionId!,
-                                          ),
-                                  ),
-                                ],
-                                if (widget.shortcutIndex != null) ...[
+                                  )
+                                else
+                                  details,
+                                if (widget.shortcutIndex != null &&
+                                    !widget.compact &&
+                                    badgeInfos.isEmpty &&
+                                    paneSignalInfo == null &&
+                                    statusText == null) ...[
                                   const SizedBox(width: 6),
                                   Text(
                                     '⌘${widget.shortcutIndex}',
@@ -3302,10 +3335,9 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
                   Positioned(
                     top: 0,
                     bottom: 0,
-                    left: usesPersistentTouchClose
-                        ? null
+                    right: usesPersistentTouchClose
+                        ? 0
                         : widget.palette.spacing.md,
-                    right: usesPersistentTouchClose ? 0 : null,
                     child: usesPersistentTouchClose
                         ? _buildCloseControl(title, tone, true)
                         : IgnorePointer(

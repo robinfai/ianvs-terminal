@@ -1,0 +1,258 @@
+package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+00:00 +0: loading /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart
+00:00 +0: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/design/terminal_layout_visual_capture_test.dart: (setUpAll)
+00:00 +0: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell screen exposes a selected tab in the hyper-style strip
+00:01 +1: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: opening the new-tab sheet releases terminal text input
+00:01 +2: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: split headers omit protocol modes without disabling them
+00:01 +3: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/design/terminal_layout_visual_capture_test.dart: four panes in dark (variant: TargetPlatform.macOS)
+00:01 +4: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/design/terminal_layout_visual_capture_test.dart: four panes in dark (variant: TargetPlatform.macOS)
+00:01 +5: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/design/terminal_layout_visual_capture_test.dart: four panes in dark (variant: TargetPlatform.macOS)
+00:01 +6: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell screen keeps tab hierarchy clear after opening a second tab
+00:01 +7: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: pane menu keeps its target when the active pane changes
+00:01 +8: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: pane menu keeps its target when the active pane changes
+00:02 +9: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/design/terminal_layout_visual_capture_test.dart: four panes in light (variant: TargetPlatform.macOS)
+00:02 +10: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: desktop tabs have equal capped widths with an adjacent new action (variant: TargetPlatform.macOS)
+00:02 +11: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: defaults dialog saves OSC 52 ask policy
+00:02 +12: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: defaults dialog saves OSC 52 ask policy
+00:02 +13: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: defaults dialog saves OSC 52 ask policy
+00:02 +14: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: defaults dialog saves OSC 52 ask policy
+00:02 +15: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: defaults dialog saves OSC 52 ask policy
+00:02 +16: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs overflow into a selector at readable widths
+00:03 +17: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs overflow into a selector at readable widths
+00:03 +18: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs overflow into a selector at readable widths
+00:03 +19: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs overflow into a selector at readable widths
+00:03 +20: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs overflow into a selector at readable widths
+00:03 +21: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs overflow into a selector at readable widths
+00:04 +22: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs overflow into a selector at readable widths
+00:04 +23: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs overflow into a selector at readable widths
+00:04 +24: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs overflow into a selector at readable widths
+00:05 +25: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs overflow into a selector at readable widths
+00:05 +26: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs overflow into a selector at readable widths
+00:05 +27: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs overflow into a selector at readable widths
+00:05 +28: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs overflow into a selector at readable widths
+00:05 +29: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: profile tab color renders in the active tab and overflow selector (variant: TargetPlatform.macOS)
+00:05 +30: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: profile tab color renders in the active tab and overflow selector (variant: TargetPlatform.macOS)
+00:05 +31: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: profile tab color renders in the active tab and overflow selector (variant: TargetPlatform.macOS)
+00:05 +32: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs keep compact overflow controls inside narrow chrome (variant: TargetPlatform.macOS)
+00:06 +33: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs keep compact overflow controls inside narrow chrome (variant: TargetPlatform.macOS)
+00:06 +34: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs keep compact overflow controls inside narrow chrome (variant: TargetPlatform.macOS)
+00:06 +35: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs keep compact overflow controls inside narrow chrome (variant: TargetPlatform.macOS)
+00:06 +36: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs keep compact overflow controls inside narrow chrome (variant: TargetPlatform.macOS)
+00:06 +37: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs keep compact overflow controls inside narrow chrome (variant: TargetPlatform.macOS)
+00:06 +38: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: tab overflow menu activates hidden tabs (variant: TargetPlatform.macOS)
+00:06 +39: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: tab overflow menu activates hidden tabs (variant: TargetPlatform.macOS)
+00:06 +40: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: tab overflow menu activates hidden tabs (variant: TargetPlatform.macOS)
+00:06 +41: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: inactive tabs mark and clear new output activity
+00:06 +42: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: OSC 1337 OpenURL deny policy blocks without a dialog
+00:06 +43: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: tab overflow badge can focus an inactive split pane (variant: TargetPlatform.macOS)
+00:06 +44: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: tab overflow badge can focus an inactive split pane (variant: TargetPlatform.macOS)
+00:07 +45: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: tab overflow badge can focus an inactive split pane (variant: TargetPlatform.macOS)
+00:07 +46: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: tab overflow badge can focus an inactive split pane (variant: TargetPlatform.macOS)
+00:07 +47: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: tab overflow badge can focus an inactive split pane (variant: TargetPlatform.macOS)
+00:07 +48: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: tab overflow badge can focus an inactive split pane (variant: TargetPlatform.macOS)
+00:07 +49: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: OSC 8 file link prompt identifies source split pane
+00:07 +50: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: overflow menu only dots hidden tabs with new output
+00:07 +51: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: overflow menu only dots hidden tabs with new output
+00:07 +52: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: overflow menu only dots hidden tabs with new output
+00:08 +53: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: overflow menu only dots hidden tabs with new output
+00:08 +54: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: overflow menu only dots hidden tabs with new output
+00:08 +55: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: overflow menu only dots hidden tabs with new output
+00:08 +56: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: overflow menu only dots hidden tabs with new output
+00:08 +57: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: overflow menu only dots hidden tabs with new output
+00:08 +58: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: overflow menu only dots hidden tabs with new output
+00:08 +59: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: overflow menu only dots hidden tabs with new output
+00:08 +60: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: overflow menu only dots hidden tabs with new output
+00:08 +61: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: overflow menu only dots hidden tabs with new output
+00:08 +62: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: overflow menu only dots hidden tabs with new output
+00:08 +63: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: overflow menu only dots hidden tabs with new output
+00:08 +64: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: overflow menu only dots hidden tabs with new output
+00:08 +65: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: tab context menu stops growing a pane before a sibling becomes too small
+00:09 +66: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: tab context menu stops growing a pane before a sibling becomes too small
+00:09 +67: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: tab context menu stops growing a pane before a sibling becomes too small
+00:09 +68: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: First-batch ZMODEM gap survivor exposes transfer UI and pauses input
+00:09 +69: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: First-batch ZMODEM gap survivor exposes transfer UI and pauses input
+00:09 +70: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: tab context menu disables pane management actions while zoomed
+00:09 +71: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: tab context menu disables pane management actions while zoomed
+00:09 +72: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell screen reorders tabs through a direct drag gesture (variant: TargetPlatform.macOS)
+00:09 +73: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell screen reorders tabs through a direct drag gesture (variant: TargetPlatform.macOS)
+00:09 +74: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: hovering a split pane does not activate it, but clicking does
+00:09 +75: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: Inactive ZMODEM result is shown when its session is activated
+00:09 +76: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: dragging a standalone tab onto a pane creates a split (variant: TargetPlatform.macOS)
+00:09 +77: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: dragging a standalone tab onto a pane creates a split (variant: TargetPlatform.macOS)
+00:09 +78: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: dragging a standalone tab onto a pane creates a split (variant: TargetPlatform.macOS)
+00:09 +79: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: clicking an inactive split pane with mouse reporting activates and reports to that pane
+00:09 +80: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: Inactive preserved ZMODEM receive marks output and notifies attention
+00:09 +81: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: dragging the active tab previews a sibling target without rebuilding tabs (variant: TargetPlatform.macOS)
+00:09 +82: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: dragging the active tab previews a sibling target without rebuilding tabs (variant: TargetPlatform.macOS)
+00:09 +83: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: dragging the active tab previews a sibling target without rebuilding tabs (variant: TargetPlatform.macOS)
+00:10 +84: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: terminal focus updates refresh policy without backgrounding it
+00:10 +85: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: ZMODEM recovery survives session close and is consumed after Reveal
+00:10 +86: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: a quick active tab pane drop disposes its feedback safely (variant: TargetPlatform.macOS)
+00:10 +87: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: a quick active tab pane drop disposes its feedback safely (variant: TargetPlatform.macOS)
+00:10 +88: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: a quick active tab pane drop disposes its feedback safely (variant: TargetPlatform.macOS)
+00:10 +89: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: active split pane header exposes split affordances
+00:10 +90: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: active split pane header exposes split affordances
+00:10 +91: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: cancelling an active tab pane drag keeps the source tab active (variant: TargetPlatform.macOS)
+00:10 +92: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: ZMODEM multi-file send keeps batch progress and clears finished names
+00:10 +93: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: tab title follows active pane title when tab has multiple panes
+00:10 +94: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: dragging a split pane header to the tab strip restores a tab (variant: TargetPlatform.macOS)
+00:10 +95: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: dragging a split pane header to the tab strip restores a tab (variant: TargetPlatform.macOS)
+00:10 +96: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: collapsed split tab keeps remaining pane title and badge after closing root pane
+00:10 +97: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: collapsed split tab keeps remaining pane title and badge after closing root pane
+00:10 +98: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: collapsed split tab keeps remaining pane title and badge after closing root pane
+00:10 +99: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: collapsed split tab keeps remaining pane title and badge after closing root pane
+00:11 +100: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: collapsed split tab keeps remaining pane title and badge after closing root pane
+00:11 +101: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tab body is draggable with a left title and right hover close (variant: TargetPlatform.macOS)
+00:11 +102: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tab body is draggable with a left title and right hover close (variant: TargetPlatform.macOS)
+00:11 +103: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tab body is draggable with a left title and right hover close (variant: TargetPlatform.macOS)
+00:11 +104: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: active split pane header zooms and closes the pane
+00:11 +105: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: OSC 1337 download cancel and inactive pane release bytes
+00:11 +106: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: OSC 1337 download cancel and inactive pane release bytes
+00:11 +107: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: OSC 1337 download cancel and inactive pane release bytes
+00:11 +108: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: dragging a split pane divider resizes adjacent panes
+00:11 +109: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: reference demo mode supports command-number tab selection (variant: TargetPlatform.macOS)
+00:11 +110: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: reference demo mode supports command-number tab selection (variant: TargetPlatform.macOS)
+00:11 +111: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: dragging a split pane divider respects minimum pane width
+00:11 +112: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: OSC 52 prompt identifies inactive split pane
+00:11 +113: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: native paste sends clipboard text to the active session
+00:11 +114: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: tab badge from inactive split pane focuses originating pane
+00:11 +115: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: tab badge from inactive split pane focuses originating pane
+00:11 +116: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: native paste confirms carriage-return multiline text
+00:11 +117: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: OSC 52 paste read labels empty clipboard preview
+00:11 +118: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: command-option-b opens instant replay workspace backed by terminal viewport (variant: TargetPlatform.macOS)
+00:12 +119: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: command-option-b opens instant replay workspace backed by terminal viewport (variant: TargetPlatform.macOS)
+00:12 +120: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: command-option-b opens instant replay workspace backed by terminal viewport (variant: TargetPlatform.macOS)
+00:12 +121: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: command-option-b opens instant replay workspace backed by terminal viewport (variant: TargetPlatform.macOS)
+00:12 +122: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: command-option-b opens instant replay workspace backed by terminal viewport (variant: TargetPlatform.macOS)
+00:12 +123: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: hidden overflow new output marker prioritizes inactive pane in active hidden split tab
+00:12 +124: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: instant replay stays usable with touch-sized controls on iPhone (variant: TargetPlatform.iOS)
+00:13 +125: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: OSC notification stays in the tab instead of a snackbar
+00:13 +126: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: OSC notification stays in the tab instead of a snackbar
+00:13 +127: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: OSC 1337 inline buttons route custom activation and explicit copy through product bridges
+00:13 +128: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: manual notification removal supports osc9 without an ID
+00:13 +129: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: manual notification removal supports osc9 without an ID
+00:13 +130: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: visible OSC 1337 annotation shows its note and a badge
+00:13 +131: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: manual notification removal supports osc777 without an ID
+00:13 +132: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: command-shift-p opens the command menu without leaking input (variant: TargetPlatform.macOS)
+00:13 +133: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: manual notification removal supports osc99 without an ID
+00:13 +134: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: manual notification removal supports osc99 without an ID
+00:13 +135: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: command-t opens the selected default instead of the current profile (variant: TargetPlatform.macOS)
+00:13 +136: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: manual notification clear all covers every tab pane and hidden history
+00:13 +137: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: manual notification clear all covers every tab pane and hidden history
+00:13 +138: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: manual notification clear all covers every tab pane and hidden history
+00:13 +139: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: shortcut proof matrix covers retained mac shortcuts (variant: TargetPlatform.macOS)
+00:14 +140: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: shortcut proof matrix covers retained mac shortcuts (variant: TargetPlatform.macOS)
+00:14 +141: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: shortcut proof matrix covers retained mac shortcuts (variant: TargetPlatform.macOS)
+00:14 +142: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: shortcut proof matrix covers retained mac shortcuts (variant: TargetPlatform.macOS)
+00:14 +143: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: shell shortcuts honor local config keybinding overrides
+00:14 +144: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: repeated command-t is swallowed by the shell shortcut handler (variant: TargetPlatform.macOS)
+00:14 +145: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: shortcut editor saves and hot-reloads an override
+00:14 +146: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: shortcut editor saves and hot-reloads an override
+00:14 +147: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: shortcut editor saves and hot-reloads an override
+00:15 +148: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: shortcut editor saves and hot-reloads an override
+00:15 +149: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: export diagnostics explains when no bundle is available
+00:15 +150: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: shortcut editor restores defaults and hot-reloads them
+00:15 +151: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: shortcut editor restores defaults and hot-reloads them
+00:15 +152: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: read-only mode blocks shortcut and native paste before clipboard read (variant: TargetPlatform.macOS)
+00:15 +153: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: native paste confirms multiline text before sending
+00:15 +154: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: command menu accepts hyphenated read-only query
+00:15 +155: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: command menu accepts hyphenated read-only query
+00:15 +156: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: command menu accepts hyphenated read-only query
+00:15 +157: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: command menu accepts hyphenated read-only query
+00:15 +158: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: local paste config can force plain paste despite terminal mode
+00:15 +159: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: focused shell semantics expose command search and selected tab
+00:15 +160: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: command-v uses paste confirmation before sending multiline text
+00:15 +161: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: command menu supports keyboard-only focus traversal to actions
+00:15 +162: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: command menu supports keyboard-only focus traversal to actions
+00:16 +163: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: command-v read-only paste does not read clipboard
+00:16 +164: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: tab strip supports keyboard-only focus traversal between tabs
+00:16 +165: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: tab strip supports keyboard-only focus traversal between tabs
+00:16 +166: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: tab context menu hides focus pane actions while zoomed
+00:16 +167: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: tab context menu hides focus pane actions while zoomed
+00:16 +168: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: command-number activates the matching tab without input leak (variant: TargetPlatform.macOS)
+00:16 +169: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: modal barriers block native paste and terminal host input (variant: TargetPlatform.macOS)
+00:16 +170: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: native find menu opens search without leaking input (variant: TargetPlatform.macOS)
+00:16 +171: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: form fields keep command and native paste out of the terminal (variant: TargetPlatform.macOS)
+00:16 +172: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: form fields keep command and native paste out of the terminal (variant: TargetPlatform.macOS)
+00:16 +173: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: form fields keep command and native paste out of the terminal (variant: TargetPlatform.macOS)
+00:16 +174: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: inactive session activity posts a notification
+00:16 +175: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: native select all targets the focused form field (variant: TargetPlatform.macOS)
+00:16 +176: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: native select all targets the focused form field (variant: TargetPlatform.macOS)
+00:17 +177: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: inactive session activity notifications redact immediate and trailing output
+00:17 +178: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: command-v pastes into the open search field instead of the terminal (variant: TargetPlatform.macOS)
+00:17 +179: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: command-v pastes into the open search field instead of the terminal (variant: TargetPlatform.macOS)
+00:17 +180: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: profile triggers fire for repeated delta output
+00:17 +181: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: native paste menu pastes into the open search field instead of the terminal (variant: TargetPlatform.macOS)
+00:17 +182: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: native paste menu pastes into the open search field instead of the terminal (variant: TargetPlatform.macOS)
+00:17 +183: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: switching panes does not show the return-to-shell cue
+00:17 +184: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: tab context menu disables split actions while pane is zoomed
+00:17 +185: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: clicking another pane updates focus without a legacy cue
+00:17 +186: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: tab context menu can reopen the most recently closed split pane
+00:17 +187: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: tab context menu can reopen the most recently closed split pane
+00:17 +188: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: shift-command arrows track global prompt marks through new output and caps (variant: TargetPlatform.macOS)
+00:17 +189: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: split tab semantics describe pane signals and new output
+00:17 +190: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: split tab semantics describe pane signals and new output
+00:17 +191: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: command-w closes the active tab without leaking input (variant: TargetPlatform.macOS)
+00:17 +192: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: shell coalesces rapid window-width changes into the final terminal resize
+00:17 +193: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: partial split-tab close cleans removed pane state and focuses survivor (variant: TargetPlatform.macOS)
+00:17 +194: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: split panes each commit their debounced terminal resize
+00:18 +195: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: command-comma opens defaults and returns keyboard to terminal (variant: TargetPlatform.macOS)
+00:18 +196: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: terminal focus alone does not show the shell layout cue
+00:18 +197: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: native Settings menu opens defaults
+00:18 +198: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: native Settings menu opens defaults
+00:18 +199: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: launcher close shows a brief return cue at top right and keeps keyboard path
+00:18 +200: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: launcher close shows a brief return cue at top right and keeps keyboard path
+00:18 +201: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: native terminal menu actions choose the requested type
+00:18 +202: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: defaults close restores the layout cue and keyboard path
+00:18 +203: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: closing the last tab can recover from the empty state
+00:18 +204: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: closing the last tab can recover via Reopen closed tab
+00:18 +205: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: terminal exit returns the shell to the empty state
+00:18 +206: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: SSH transport failure remains visible after its tab closes
+00:18 +207: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: shell terminal scrollbar drag sends absolute scroll requests
+00:18 +208: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: shell search opens and scrolls to matches (variant: TargetPlatform.macOS)
+00:19 +209: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: shell search closes on Escape without terminal input (variant: TargetPlatform.macOS)
+00:19 +210: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: shell search keeps vertical padding balanced (variant: TargetPlatform.macOS)
+00:19 +211: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: shell search compacts inside a narrow terminal pane (variant: TargetPlatform.macOS)
+00:19 +212: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: cmd-f opens shell search without writing to terminal (variant: TargetPlatform.macOS)
+00:19 +213: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: shell search opening and clearing keeps input focused (variant: TargetPlatform.macOS)
+00:19 +214: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: shell search mode and navigation do not force input focus (variant: TargetPlatform.macOS)
+00:20 +215: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: shell search scope searches current tab panes and jumps between panes (variant: TargetPlatform.macOS)
+00:20 +216: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: shell search overlay stays inside active split pane (variant: TargetPlatform.macOS)
+00:20 +217: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: shell search jump clears inactive pane new output marker (variant: TargetPlatform.macOS)
+00:20 +218: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: shell search drops closed split pane matches (variant: TargetPlatform.macOS)
+00:21 +219: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: shell search pane scope refreshes after activating another pane (variant: TargetPlatform.macOS)
+00:21 +220: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: shell search scope searches all tabs and jumps across tabs (variant: TargetPlatform.macOS)
+00:21 +221: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: shell search highlights visible matches (variant: TargetPlatform.macOS)
+00:21 +222: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: shell search recomputes selected highlight geometry after resize (variant: TargetPlatform.macOS)
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: a value greater than or equal to <3>
+  Actual: <2>
+   Which: is not a value greater than or equal to <3>
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart:6098:7)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart line 6098
+The test description was:
+  shell search recomputes selected highlight geometry after resize (variant: TargetPlatform.macOS)
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:22 +222 -1: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: shell search recomputes selected highlight geometry after resize (variant: TargetPlatform.macOS) [E]
+  Test failed. See exception logs above.
+  The test description was: shell search recomputes selected highlight geometry after resize (variant: TargetPlatform.macOS)
+
+00:22 +222 -1: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: shell search recomputes selected highlight geometry after output updates (variant: TargetPlatform.macOS)
+00:22 +223 -1: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: shell search regex mode matches visible terminal output (variant: TargetPlatform.macOS)
+00:22 +224 -1: /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: shell search regex mode keeps text editable and reports errors (variant: TargetPlatform.macOS)
+00:22 +225 -1: Some tests failed.
+
+Failing tests:
+  /Users/robinfai/personal/ianvs/ianvs-terminal/example/test/widget_test.dart: shell search recomputes selected highlight geometry after resize (variant: TargetPlatform.macOS)

@@ -5,6 +5,37 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   final now = DateTime(2026, 9, 15);
   test(
+    'elapsed time uses readable units at minute, hour and day boundaries',
+    () {
+      final cases = <Duration, String>{
+        Duration.zero: '0s',
+        const Duration(seconds: 59): '59s',
+        const Duration(minutes: 1): '1min',
+        const Duration(minutes: 59, seconds: 59): '59min',
+        const Duration(hours: 1): '1h',
+        const Duration(minutes: 405, seconds: 55): '6h 45min',
+        const Duration(minutes: 357, seconds: 25): '5h 57min',
+        const Duration(minutes: 1369, seconds: 28): '22h 49min',
+        const Duration(hours: 23, minutes: 59, seconds: 59): '23h 59min',
+        const Duration(days: 1): '1d',
+        const Duration(days: 1, hours: 3, minutes: 59): '1d 3h',
+        const Duration(days: 8, hours: 2): '8d 2h',
+      };
+      for (final entry in cases.entries) {
+        expect(sessionSidebarElapsed(now, now.add(entry.key)), entry.value);
+      }
+      expect(
+        sessionSidebarElapsed(
+          now,
+          now.add(const Duration(minutes: 1369, seconds: 28)),
+          languageCode: 'zh',
+        ),
+        '22小时 49分',
+      );
+      expect(sessionSidebarElapsed(now, now, languageCode: 'unknown'), '0s');
+    },
+  );
+  test(
     'typing is not execution, duplicate execution markers keep start time',
     () {
       const empty = TerminalShellIntegrationSnapshot.empty;
@@ -88,14 +119,14 @@ void main() {
     );
     expect(
       sessionSidebarElapsed(now, now.subtract(const Duration(seconds: 1))),
-      '00:00',
+      '0s',
     );
     expect(
       sessionSidebarElapsed(
         now,
         now.add(const Duration(minutes: 12, seconds: 34)),
       ),
-      '12:34',
+      '12min',
     );
   });
 }
