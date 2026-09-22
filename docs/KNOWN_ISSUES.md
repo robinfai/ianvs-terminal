@@ -24,6 +24,6 @@
 
 - 本机 CLT 27 SDK 与链接器不匹配。命令级指定 Xcode 26.2 的 `SDKROOT` 可避开该链接错误，不需改项目配置。
 - 工作区 iOS Bundle ID / signing 设置与 Apple identity 合同不一致；Runner simulator destination 匹配失败使本地优先启动 gate 尚未运行到断言。
-- 视觉 golden 已归入 `example/test/design/goldens/`。迁移保持原图，但当前 UI 的 39 项视觉回归出现像素差异；基线须经设计确认后更新，不能把文件迁移当作通过。
+- macOS 视觉 golden 位于 `example/test/design/goldens/`，使用共享字体配置与精确像素比较；运行环境的 Flutter 和系统字体版本差异仍可能影响结果。
 
 运行方法见 [TESTING.md](TESTING.md)。修复问题时同步本页；新日志、截图与失败对比统一写入 `build/` 或测试工具的临时失败目录。

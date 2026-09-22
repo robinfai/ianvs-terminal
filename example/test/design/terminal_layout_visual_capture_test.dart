@@ -6,7 +6,6 @@ import 'package:app/features/sessions/session_state.dart';
 import 'package:app/features/shell/shell_screen.dart';
 import 'package:app/ui/app_ui.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -18,23 +17,7 @@ import '../support/memory_profile_repository.dart';
 import '../support/no_io_local_session_recording_repository.dart';
 import '../support/no_io_local_terminal_layout_repository.dart';
 import 'configuration_capture_binding.dart';
-
-Future<void> _loadFonts() async {
-  final flutterRoot =
-      Platform.environment['FLUTTER_ROOT'] ??
-      File(Platform.resolvedExecutable).parent.parent.parent.parent.parent.path;
-  for (final entry in <String, String>{
-    'LayoutCaptureSans': '/System/Library/Fonts/SFNS.ttf',
-    'LayoutCaptureCjk': '/System/Library/Fonts/STHeiti Medium.ttc',
-    'Menlo': '/System/Library/Fonts/Menlo.ttc',
-    'MaterialIcons':
-        '$flutterRoot/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf',
-  }.entries) {
-    final loader = FontLoader(entry.key)
-      ..addFont(File(entry.value).readAsBytes().then(ByteData.sublistView));
-    await loader.load();
-  }
-}
+import 'visual_capture_fonts.dart';
 
 Future<void> _capture(
   WidgetTester tester, {
@@ -96,12 +79,7 @@ Future<void> _capture(
             ).copyWith(textScaler: TextScaler.linear(textScale)),
             child: child!,
           ),
-          theme: theme.copyWith(
-            textTheme: theme.textTheme.apply(
-              fontFamily: 'LayoutCaptureSans',
-              fontFamilyFallback: const ['LayoutCaptureCjk'],
-            ),
-          ),
+          theme: withVisualCaptureFonts(theme),
           home: const ShellScreen(),
         ),
       ),
@@ -159,9 +137,7 @@ Future<void> _capture(
   }
   await expectLater(
     find.byKey(const Key('terminal-layout-capture')),
-    matchesGoldenFile(
-      'goldens/terminal-layout-review-20260916/$name.png',
-    ),
+    matchesGoldenFile('goldens/terminal-layout-review-20260916/$name.png'),
   );
   final firstPaneRect = tester.getRect(find.byKey(const Key('shell-pane-1')));
   await tester.tap(find.byKey(const Key('shell-pane-4')));
@@ -178,7 +154,7 @@ void main() {
     test('terminal layout captures require macOS fonts', () {}, skip: true);
     return;
   }
-  setUpAll(_loadFonts);
+  setUpAll(loadVisualCaptureFonts);
   for (final brightness in Brightness.values) {
     testWidgets(
       'four panes in ${brightness.name}',

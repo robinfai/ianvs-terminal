@@ -8,7 +8,6 @@ import 'package:app/features/shell/shell_screen.dart';
 import 'package:app/features/ssh/ssh_feature_access.dart';
 import 'package:app/ui/app_ui.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -19,28 +18,9 @@ import '../support/memory_paste_history_repository.dart';
 import '../support/memory_profile_repository.dart';
 import '../support/no_io_local_session_recording_repository.dart';
 import '../support/no_io_local_terminal_layout_repository.dart';
+import 'visual_capture_fonts.dart';
 
 const _surfaceSize = Size(1280, 800);
-
-Future<ByteData> _readFont(String path) async {
-  final bytes = await File(path).readAsBytes();
-  return ByteData.sublistView(Uint8List.fromList(bytes));
-}
-
-Future<void> _loadVisualFonts() async {
-  final flutterRoot =
-      Platform.environment['FLUTTER_ROOT'] ??
-      File(Platform.resolvedExecutable).parent.parent.parent.parent.parent.path;
-  final text = FontLoader('AppSurfaceCaptureSans')
-    ..addFont(_readFont('/System/Library/Fonts/SFNS.ttf'));
-  final materialIcons = FontLoader('MaterialIcons')
-    ..addFont(
-      _readFont(
-        '$flutterRoot/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf',
-      ),
-    );
-  await Future.wait([text.load(), materialIcons.load()]);
-}
 
 Future<void> _pumpShell(WidgetTester tester) async {
   tester.view.devicePixelRatio = 1;
@@ -48,7 +28,11 @@ Future<void> _pumpShell(WidgetTester tester) async {
   addTearDown(tester.view.resetDevicePixelRatio);
   addTearDown(tester.view.resetPhysicalSize);
 
-  final local = defaultTerminalProfile().copyWith(
+  final defaultProfile = defaultTerminalProfile();
+  final local = defaultProfile.copyWith(
+    appearance: defaultProfile.appearance.copyWith(
+      font: defaultProfile.appearance.font.copyWith(family: 'Menlo'),
+    ),
     tags: const <String>['local', 'login'],
   );
   final ssh = TerminalProfile(
@@ -61,7 +45,6 @@ Future<void> _pumpShell(WidgetTester tester) async {
     Brightness.dark,
     platform: TargetPlatform.macOS,
   );
-  const captureFont = 'AppSurfaceCaptureSans';
 
   await tester.pumpWidget(
     ProviderScope(
@@ -100,12 +83,7 @@ Future<void> _pumpShell(WidgetTester tester) async {
         key: const Key('app-surface-capture-root'),
         child: MaterialApp(
           debugShowCheckedModeBanner: false,
-          theme: baseTheme.copyWith(
-            textTheme: baseTheme.textTheme.apply(fontFamily: captureFont),
-            primaryTextTheme: baseTheme.primaryTextTheme.apply(
-              fontFamily: captureFont,
-            ),
-          ),
+          theme: withVisualCaptureFonts(baseTheme),
           home: const ShellScreen(),
         ),
       ),
@@ -127,7 +105,7 @@ void main() {
     return;
   }
 
-  setUpAll(_loadVisualFonts);
+  setUpAll(loadVisualCaptureFonts);
 
   testWidgets('captures the desktop shell', (tester) async {
     await _pumpShell(tester);
