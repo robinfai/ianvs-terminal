@@ -470,37 +470,37 @@ impl Bootstrap {
                         .extend(hook(self.event(ctx, "bootstrap.checking")));
                 }
                 "init" if matches!(fields[3], "bash" | "zsh" | "fish") && ctx == self.active => {
-                    if let Some(context) = self.contexts.get_mut(ctx) {
-                        if context.started.is_none() && !context.completed {
-                            context.started = Some(std::time::Instant::now());
-                            result
-                                .output
-                                .extend(hook(self.event(ctx, "bootstrap.checking")));
-                            result.replies.push(
-                                body(
-                                    self.context_token(ctx),
-                                    ctx,
-                                    fields[3],
-                                    self.wrap,
-                                    self.contexts[ctx].kind != "shell",
-                                )
-                                .into_bytes(),
-                            );
-                        }
+                    if let Some(context) = self.contexts.get_mut(ctx)
+                        && context.started.is_none()
+                        && !context.completed
+                    {
+                        context.started = Some(std::time::Instant::now());
+                        result
+                            .output
+                            .extend(hook(self.event(ctx, "bootstrap.checking")));
+                        result.replies.push(
+                            body(
+                                self.context_token(ctx),
+                                ctx,
+                                fields[3],
+                                self.wrap,
+                                self.contexts[ctx].kind != "shell",
+                            )
+                            .into_bytes(),
+                        );
                     }
                 }
                 "ready" if fields.len() == 6 && ctx == self.active => {
-                    if let Some(context) = self.contexts.get(ctx) {
-                        if !context.completed
-                            && (context.started.is_some() || fields[3] == "unsupported")
-                        {
-                            result.output.extend(self.finish(
-                                ctx,
-                                fields[3],
-                                fields[4] == "1",
-                                fields[5],
-                            ));
-                        }
+                    if let Some(context) = self.contexts.get(ctx)
+                        && !context.completed
+                        && (context.started.is_some() || fields[3] == "unsupported")
+                    {
+                        result.output.extend(self.finish(
+                            ctx,
+                            fields[3],
+                            fields[4] == "1",
+                            fields[5],
+                        ));
                     }
                 }
                 "resume" if self.contexts.contains_key(ctx) && ctx != self.active => {
@@ -682,16 +682,18 @@ impl Read for BootstrapReader {
         Ok(n)
     }
 }
+type LocalShellTransport = (
+    Box<dyn Read + Send>,
+    Box<dyn Write + Send>,
+    crate::ssh::SshSftpClient,
+);
+
 pub(crate) fn wrap_local(
     mut reader: Box<dyn Read + Send>,
     writer: Box<dyn Write + Send>,
     nonce: String,
     wrap_ssh: bool,
-) -> anyhow::Result<(
-    Box<dyn Read + Send>,
-    Box<dyn Write + Send>,
-    crate::ssh::SshSftpClient,
-)> {
+) -> anyhow::Result<LocalShellTransport> {
     let writer = Arc::new(Mutex::new(writer));
     let mut bootstrap = Bootstrap::new(nonce, wrap_ssh);
     bootstrap.local_root = true;
