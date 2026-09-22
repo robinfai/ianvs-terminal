@@ -78,7 +78,11 @@ Future<void> _captureTab(
 void main() {
   ConfigurationCaptureBinding();
   if (!Platform.isMacOS) {
-    test('profile tab visual captures require macOS fonts', () {}, skip: true);
+    test(
+      'profile tab visual captures require macOS rendering',
+      () {},
+      skip: true,
+    );
     return;
   }
 

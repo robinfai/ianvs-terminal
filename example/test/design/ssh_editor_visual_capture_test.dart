@@ -18,7 +18,11 @@ const _outputDirectory =
 void main() {
   ConfigurationCaptureBinding();
   if (!Platform.isMacOS) {
-    test('SSH editor visual capture requires macOS fonts', () {}, skip: true);
+    test(
+      'SSH editor visual capture requires macOS rendering',
+      () {},
+      skip: true,
+    );
     return;
   }
 

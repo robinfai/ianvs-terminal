@@ -99,7 +99,11 @@ Future<void> _captureTab(
 void main() {
   ConfigurationCaptureBinding();
   if (!Platform.isMacOS) {
-    test('settings tab visual captures require macOS fonts', () {}, skip: true);
+    test(
+      'settings tab visual captures require macOS rendering',
+      () {},
+      skip: true,
+    );
     return;
   }
 

@@ -31,7 +31,10 @@ Future<void> _pumpShell(WidgetTester tester) async {
   final defaultProfile = defaultTerminalProfile();
   final local = defaultProfile.copyWith(
     appearance: defaultProfile.appearance.copyWith(
-      font: defaultProfile.appearance.font.copyWith(family: 'Menlo'),
+      font: defaultProfile.appearance.font.copyWith(
+        family: visualCaptureMonoFont,
+        fallback: visualCaptureFontFallback,
+      ),
     ),
     tags: const <String>['local', 'login'],
   );
@@ -101,7 +104,11 @@ Future<void> _capture(WidgetTester tester, String goldenName) async {
 
 void main() {
   if (!Platform.isMacOS) {
-    test('app surface visual captures require macOS fonts', () {}, skip: true);
+    test(
+      'app surface visual captures require macOS rendering',
+      () {},
+      skip: true,
+    );
     return;
   }
 

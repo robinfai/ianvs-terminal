@@ -177,8 +177,9 @@ UI golden 基线位于 `example/test/design/goldens/`。`matchesGoldenFile` 使�
 测试资产；临时截图与失败对比图不能写回 `docs/`。更新基线前先确认是预期 UI 变化。
 视觉验收使用 Flutter 3.44.2 / Dart 3.12.2，与 CI 固定版本一致；pubspec 中的最低
 支持版本不代表视觉基线版本。CI 提前运行 `flutter test test/design`，记录引擎、
-macOS、架构和字体哈希，并短期上传失败对比图。系统字体或引擎变化须根据差异图
-定位原因，像素比较仍保持精确匹配。
+macOS、架构和字体哈希，并短期上传失败对比图。测试使用 SDK 的 Roboto/Material
+Icons、仓库中的 JetBrains Mono，以及固定来源的 Noto Sans SC，不读取宿主系统字体。
+这些测试字体不改变产品字体；更新字体或引擎时须审查差异图，像素比较仍保持精确匹配。
 
 ## vttest-derived 自动化覆盖
 

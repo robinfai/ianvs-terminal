@@ -34,7 +34,10 @@ Future<void> _capture(
   final baseProfile = defaultTerminalProfile();
   final profile = baseProfile.copyWith(
     appearance: baseProfile.appearance.copyWith(
-      font: baseProfile.appearance.font.copyWith(family: 'Menlo'),
+      font: baseProfile.appearance.font.copyWith(
+        family: visualCaptureMonoFont,
+        fallback: visualCaptureFontFallback,
+      ),
     ),
   );
   final theme = buildIanvsTerminalTheme(
@@ -151,7 +154,7 @@ Future<void> _capture(
 void main() {
   ConfigurationCaptureBinding();
   if (!Platform.isMacOS) {
-    test('terminal layout captures require macOS fonts', () {}, skip: true);
+    test('terminal layout captures require macOS rendering', () {}, skip: true);
     return;
   }
   setUpAll(loadVisualCaptureFonts);

@@ -220,9 +220,9 @@ jobs:
           sw_vers
           uname -m
           shasum -a 256 \
-            /System/Library/Fonts/SFNS.ttf \
-            "/System/Library/Fonts/STHeiti Medium.ttc" \
-            /System/Library/Fonts/Menlo.ttc \
+            "$FLUTTER_ROOT"/bin/cache/artifacts/material_fonts/Roboto-*.ttf \
+            example/test/design/fonts/NotoSansSC-Regular.otf \
+            native/vendor/par-term-emu-core-rust/src/screenshot/JetBrainsMono-Regular.ttf \
             "$FLUTTER_ROOT/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf"
 
       - name: Resolve workspace dependencies
