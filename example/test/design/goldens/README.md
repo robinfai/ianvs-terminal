@@ -16,9 +16,13 @@ fonts to button and input themes that have explicit text styles. The shell
 fixtures use the loaded Menlo font instead of an unregistered terminal font.
 
 The 44 baselines cover 42 tests. Run all suites with `flutter test test/design`.
-The current refresh was generated and compared with Flutter 3.44.2 on macOS;
-CI uses its pinned Flutter SDK and macOS runner. Pixel comparisons remain exact,
-so a runner or font change must be investigated rather than silently tolerated.
+Use Flutter 3.44.2 (Dart 3.12.2) for these baselines; CI pins the same SDK and
+engine. The package's minimum supported SDK is a separate compatibility floor.
+CI runs visual comparisons before the longer repository gate and records the
+SDK/engine, macOS version, architecture and font hashes. Its macOS runner image
+can still update system fonts: investigate version/hash differences and the
+uploaded failure images before changing a baseline. Pixel comparisons remain
+exact.
 
 Design-review screenshots, logs and videos belong in `build/`, not `docs/` or
 this baseline directory.

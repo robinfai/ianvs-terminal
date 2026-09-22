@@ -175,6 +175,10 @@ fixture 和当前验收要求，不保存历史 pass 记录。
 
 UI golden 基线位于 `example/test/design/goldens/`。`matchesGoldenFile` 使用这些
 测试资产；临时截图与失败对比图不能写回 `docs/`。更新基线前先确认是预期 UI 变化。
+视觉验收使用 Flutter 3.44.2 / Dart 3.12.2，与 CI 固定版本一致；pubspec 中的最低
+支持版本不代表视觉基线版本。CI 提前运行 `flutter test test/design`，记录引擎、
+macOS、架构和字体哈希，并短期上传失败对比图。系统字体或引擎变化须根据差异图
+定位原因，像素比较仍保持精确匹配。
 
 ## vttest-derived 自动化覆盖
 
