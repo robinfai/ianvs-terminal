@@ -342,7 +342,7 @@ func (s *Service) completeOperation(ctx context.Context, operationID, expectedKi
 			return fmt.Errorf("load prepared authentication operation: %w", err)
 		}
 		if !operation.ExpiresAt.After(now) {
-			if err := tx.Where("key = ?", sessionMetadataKey(operationHash)).Delete(&model.Setting{}).Error; err != nil {
+			if err := tx.Where(sessionMetadataCondition(operationHash)).Delete(&model.Setting{}).Error; err != nil {
 				return err
 			}
 			if err := tx.Where("operation_hash = ?", operationHash).Delete(&model.AuthToken{}).Error; err != nil {
@@ -416,7 +416,7 @@ func (s *Service) CancelOperation(ctx context.Context, operationID string) error
 			}
 			return fmt.Errorf("load authentication operation for cancellation: %w", err)
 		}
-		if err := tx.Where("key = ?", sessionMetadataKey(operationHash)).Delete(&model.Setting{}).Error; err != nil {
+		if err := tx.Where(sessionMetadataCondition(operationHash)).Delete(&model.Setting{}).Error; err != nil {
 			return err
 		}
 		if err := tx.Where("operation_hash = ?", operationHash).Delete(&model.AuthToken{}).Error; err != nil {
@@ -493,7 +493,7 @@ func (s *Service) Logout(ctx context.Context, rawToken string) error {
 			operation = &linked
 		}
 
-		if err := tx.Where("key = ?", sessionMetadataKey(token.OperationHash)).Delete(&model.Setting{}).Error; err != nil {
+		if err := tx.Where(sessionMetadataCondition(token.OperationHash)).Delete(&model.Setting{}).Error; err != nil {
 			return err
 		}
 		if err := tx.Where("token_hash = ?", tokenHash).Delete(&model.AuthToken{}).Error; err != nil {
@@ -597,7 +597,7 @@ func cleanupExpiredAuthState(db *gorm.DB, now time.Time) error {
 		return err
 	}
 	for _, op := range expired {
-		if err := db.Where("key = ?", sessionMetadataKey(op.OperationHash)).Delete(&model.Setting{}).Error; err != nil {
+		if err := db.Where(sessionMetadataCondition(op.OperationHash)).Delete(&model.Setting{}).Error; err != nil {
 			return err
 		}
 	}
