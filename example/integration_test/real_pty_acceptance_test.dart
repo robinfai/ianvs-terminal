@@ -716,7 +716,12 @@ sleep 1
           .activeSessionId!;
 
       Future<void> openNotificationMenu() async {
-        await tester.tap(find.byKey(Key('shell-tab-pane-signal-$sessionId')));
+        // The child can report a selection before the previous popup's
+        // reverse transition removes its modal barrier.
+        await tester.pumpAndSettle();
+        final signal = find.byKey(Key('shell-tab-pane-signal-$sessionId'));
+        expect(signal.hitTestable(), findsOneWidget);
+        await tester.tap(signal);
         await tester.pumpAndSettle();
       }
 
