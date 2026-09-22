@@ -36,10 +36,10 @@ baseline. Pixel comparisons remain exact.
 test isolate and routes each existing `goldens/<fixture>.png` key to
 `goldens/macos-<major>/<fixture>.png`. Only macOS 26 and 27 are supported;
 unknown versions fail explicitly, and a missing baseline fails comparison.
-The macOS 27 images were moved without re-rendering or changing their bytes.
-macOS 26 candidates must come from the CI host and be reviewed before being
-added. This split accounts for CoreText rasterization differences even with
-identical SDK and font files.
+Both directories contain active expectations for the same current fixtures.
+Generate and review each baseline on its corresponding OS; do not copy one
+OS's rendered output into the other. This split accounts for CoreText
+rasterization differences even with identical SDK and font files.
 
 The comparator only changes the URI: Flutter's original `compare` and `update`
 methods remain intact. `--update-goldens` updates only the current OS directory.
