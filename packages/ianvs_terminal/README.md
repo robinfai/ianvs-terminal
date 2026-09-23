@@ -5,6 +5,7 @@
 ## 对上层暴露
 
 - `TerminalSessionConfig`
+- `TerminalSessionConfigV1`
 - `TerminalLaunchConfig`
 - `TerminalShellIntegrationConfig`
 - `TerminalDisplayConfig`
@@ -14,6 +15,17 @@
 - `TerminalSessionShellHookEvent`
 - `TerminalViewport`
 - `TerminalViewportController`
+
+## 当前运行合同
+
+Session create 使用严格的 SessionConfig v1；通用命令只发送 Session Request/Response v1；
+Frame transport 只接受带 session identity 和 sequence 的 Frame Packet v1。
+旧 native JSON/Protobuf fallback 已移除。当前 wire 入口见
+[Runtime Wire Inventory](../../docs/protocols/RUNTIME_WIRE_INVENTORY.md)，录制与回放见
+[Current Recording Format](../../docs/recording/FORMAT_CURRENT.md)。
+
+本包是 canonical terminal 源；`ianvs_terminal_core` 的对应目录是生成镜像。
+修改后在仓库根目录运行 `make terminal-core-sync` 和 `make terminal-core-check`。
 
 ## Shell Hook Events
 
@@ -67,5 +79,6 @@ that distinguishes reused native session IDs, and the current typed payload.
 
 ```bash
 cd packages/ianvs_terminal
+flutter analyze --fatal-infos
 flutter test
 ```

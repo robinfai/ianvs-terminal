@@ -82,8 +82,8 @@
 
 ## macOS ↔ iOS 远程 Data API 验收
 
-验收先在真实 iPhone 模拟器证明远程 API 未配置时没有跳过或本地模式入口，
-缺少 URL/凭据不能继续，非 loopback HTTP 会被拒绝。随后使用真实 macOS
+验收先在真实 iPhone 模拟器证明未配置 API 时可以启动并使用本地持久化，
+无需登录远程 API。远程配置的 HTTPS/凭据校验由配置单测独立覆盖。随后使用真实 macOS
 Runner、真实 iPhone 模拟器和远程 HTTPS Data API，按固定顺序执行：macOS
 从本机 `~/.ssh/config` 导入 `cloud`，通过生产 `DataApiProfileRepository`
 写入 `profile/default`；iOS 读取并解密 SSH 密码、私钥标记和私钥口令后更新；
@@ -135,3 +135,8 @@ make acceptance-cross-platform-sync
 3. `KNOWN_ISSUES.md`
 4. `ARCHITECTURE.md`
 5. `ROADMAP.md`
+
+## 验收产物存放
+
+日志、截图、trace 和临时报告统一写入 `build/`。完成任务后只同步现行合同、
+测试入口和未解决风险；不把已完成任务或整套运行证据复制到 `docs/`。

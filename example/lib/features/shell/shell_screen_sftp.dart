@@ -50,8 +50,9 @@ extension _ShellScreenStateSftp on _ShellScreenState {
         (pane == null ? null : _profileForPane(pane, sessionState.profiles));
     final integration = pane?.shellIntegration;
     if (integration?.bootstrapPhase == 'checking' &&
-        integration?.contextKind != 'shell')
+        integration?.contextKind != 'shell') {
       return null;
+    }
     final nested = integration?.sftpRoute == true;
     if (resolvedProfile == null || (!resolvedProfile.isSsh && !nested)) {
       return null;

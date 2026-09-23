@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "calibrated_at": "2026-07-21",
+  "calibrated_at": "2026-09-22",
   "source_of_truth": "docs/ROADMAP.md",
   "current_target": "runtime-contract-stability",
   "lanes": [
@@ -28,20 +28,10 @@
       ]
     },
     {
-      "id": "audited-xterm-automation",
+      "id": "terminal-input-contracts",
       "status": "achieved",
-      "goal": "Preserve the already closed automated portion of the xterm compatibility audit without reopening deferred product scope.",
+      "goal": "Preserve current terminal keyboard encoding and native shell integration contracts.",
       "evidence": [
-        {
-          "path": "docs/TERMINAL_XTERM_RECENT_FIX_AUDIT.md",
-          "contains": [
-            "| Covered |",
-            "| Deferred |"
-          ],
-          "not_contains": [
-            "| Gap |"
-          ]
-        },
         {
           "path": "packages/ianvs_terminal/lib/src/terminal/terminal_input_controller.dart",
           "contains": [
@@ -102,7 +92,7 @@
           "contains": [
             "class TerminalRelaunchSpec",
             "terminalRelaunchSpecContract",
-            "Runtime state (title, timestamps and exit information)"
+            "Runtime state and recording associations live outside this contract."
           ],
           "not_contains": [
             "recordingPath",
@@ -225,63 +215,6 @@
           ]
         },
         {
-          "path": "docs/tasks/verification-gates/T-301-osc99-notification-menu-regression.md",
-          "contains": [
-            "The final `make verify` run passed all 44 real PTY tests",
-            "all 16 Runner XCTest cases"
-          ]
-        },
-        {
-          "path": "docs/tasks/verification-gates/T-302-compatibility-baseline.md",
-          "contains": [
-            "real PTY 46/46",
-            "Iteration 02 frame-pipeline refactoring",
-            "Iteration 03 recording/replay"
-          ]
-        },
-        {
-          "path": "docs/tasks/verification-gates/T-303-vttest-gui-gate-determinism.md",
-          "contains": [
-            "cargo test vt220 -- --test-threads=1",
-            "20260721T013423+0800/summary.json"
-          ]
-        },
-        {
-          "path": "docs/tasks/shell-product/T-313-local-workspace-session-restore.md",
-          "contains": [
-            "T-313 is closed",
-            "build/bench-results-ci/20260721T041743Z",
-            "Recent Workspaces/project identity"
-          ]
-        },
-        {
-          "path": "docs/tasks/shell-product/T-314-versioned-session-descriptor.md",
-          "contains": [
-            "Session Descriptor v1 and Workspace schema v2 are implemented",
-            "environment values remain deliberately excluded",
-            "build/bench-results-ci/20260721T044538Z",
-            "T-314 is closed"
-          ]
-        },
-        {
-          "path": "docs/tasks/shell-product/T-315-project-workspace-identity-and-recent-index.md",
-          "contains": [
-            "Workspace schema v3, stable project identity, Recent index v1",
-            "complete Workspace plus",
-            "build/bench-results-ci/20260721T051058Z",
-            "T-315 is closed"
-          ]
-        },
-        {
-          "path": "docs/tasks/shell-product/T-316-project-workspace-switcher.md",
-          "contains": [
-            "native `File > Open Project…`",
-            "closes old PTYs only after activation succeeds",
-            "build/bench-results-ci/20260721T053640Z",
-            "T-316 is closed"
-          ]
-        },
-        {
           "path": "example/lib/features/recording/local_session_recording_repository.dart",
           "contains": [
             "class LocalSessionRecordingRepository",
@@ -293,28 +226,11 @@
           ]
         },
         {
-          "path": "docs/tasks/shell-product/T-317-session-recording-lifecycle-and-workspace-association.md",
-          "contains": [
-            "retries without issuing a second native stop",
-            "1,102 selected example CI tests",
-            "build/bench-results-ci/20260721T062119Z",
-            "T-317 is closed"
-          ]
-        },
-        {
           "path": "docs/TERMINAL_PRODUCT_SCOPE.md",
           "contains": [
             "Open Terminal at Folder",
             "Unsupported Workspace schemas",
             "SSH is implemented as a **Profile and Session extension**"
-          ]
-        },
-        {
-          "path": "docs/tasks/shell-product/T-331-terminal-scope-convergence.md",
-          "contains": [
-            "Terminal Scope Convergence",
-            "Project Workspace product model",
-            "Final repository-gate evidence"
           ]
         }
       ],
@@ -330,7 +246,7 @@
         "Recording persistence uses one flat current-format library and fails closed on unsupported repository metadata.",
         "Current source and focused tests cover the Terminal Layout, Relaunch Spec and Recording Library contracts; complete macOS verification remains a separate acceptance gate."
       ],
-      "reason": "T-331 supersedes the Project Workspace product claims from T-312 through T-317; those files are archival task history rather than format authority or migration inputs. The current product persists one current-format Terminal Layout, minimal Relaunch Specs and a separate Recording Library; folder opening launches a terminal rather than switching a project container."
+      "reason": "The current product persists Terminal Layout, profileId/cwd Relaunch Specs and an independent Recording Library; unsupported Project Workspace data stays outside runtime discovery."
     },
     {
       "id": "runtime-contract-stability",
@@ -519,7 +435,7 @@
         "The public terminal facade exposes one ordered runtime signal stream and contextual callbacks only.",
         "The complete repository verification entrypoint passes after every cross-boundary slice."
       ],
-      "reason": "The unreleased predecessor routes from the T-318 through T-324 and T-330 migration sequence have been squashed. Those task files are historical records, not current runtime authority. The active lane now requires the single versioned current ABI and Dart contracts plus exact architecture gates."
+      "reason": "The active lane requires one current versioned ABI and Dart contracts, protected by architecture and protocol tests. Predecessor symbols and downgrade routes are unsupported."
     },
     {
       "id": "frame-pipeline-modularity",
@@ -542,14 +458,6 @@
           ]
         },
         {
-          "path": "docs/tasks/runtime-pty/T-304-frame-pipeline-damage-extraction.md",
-          "contains": [
-            "Reduced `session.rs` from 10,303 to 9,814 lines",
-            "All six hash comparisons were `true`",
-            "real PTY passed 46/46"
-          ]
-        },
-        {
           "path": "native/core/src/session/frame/context.rs",
           "contains": [
             "struct FrameBuildContext",
@@ -566,29 +474,11 @@
           ]
         },
         {
-          "path": "docs/tasks/runtime-pty/T-305-frame-build-context-snapshot-extraction.md",
-          "contains": [
-            "Reduced `session.rs` from 9,814 to 9,696 lines",
-            "byte-identical correctness files for all six",
-            "Frame golden and JSON/Protobuf parity tests passed 35/35",
-            "real PTY passed 46/46"
-          ]
-        },
-        {
           "path": "native/core/src/session/frame/delta.rs",
           "contains": [
             "struct DeltaFrameContext",
             "fn build_delta_frame",
             "delta_emits_only_a_changed_candidate_row_and_updates_its_cache"
-          ]
-        },
-        {
-          "path": "docs/tasks/runtime-pty/T-306-frame-delta-builder-extraction.md",
-          "contains": [
-            "Reduced `session.rs` from 9,696 to 9,630 lines",
-            "byte-identical correctness files for all six",
-            "Frame golden and JSON/Protobuf parity tests passed 35/35",
-            "512 session tests and 3 vttest regressions"
           ]
         },
         {
@@ -601,31 +491,12 @@
           ]
         },
         {
-          "path": "docs/tasks/runtime-pty/T-307-frame-display-projection-extraction.md",
-          "contains": [
-            "Reduced `session.rs` from 9,630 to 9,468 lines",
-            "byte-identical correctness files for all six",
-            "Frame golden and JSON/Protobuf parity tests passed 35/35",
-            "512 session tests and 3 vttest regressions"
-          ]
-        },
-        {
           "path": "native/core/src/session/frame/graphics.rs",
           "contains": [
             "struct GraphicAssetSnapshot",
             "fn build_projected_graphic_placements",
             "identity_projection_preserves_graphic_placement",
             "folded_source_range_hides_intersecting_graphic"
-          ]
-        },
-        {
-          "path": "docs/tasks/runtime-pty/T-308-frame-graphics-projection-extraction.md",
-          "contains": [
-            "Reduced `session.rs` from 9,468 to 8,930 lines",
-            "byte-identical correctness files for all six",
-            "Frame golden and JSON/Protobuf parity tests passed 35/35",
-            "real PTY passed 46/46",
-            "Iteration 02 is complete"
           ]
         }
       ],
@@ -676,15 +547,6 @@
           ]
         },
         {
-          "path": "docs/tasks/runtime-pty/T-309-recording-event-format-v1.md",
-          "contains": [
-            "Recording Event Format V1",
-            "Seven focused codec/privacy tests pass",
-            "T-310 must add a bounded output-recording seam",
-            "T-309 is closed"
-          ]
-        },
-        {
           "path": "native/core/src/session/recording.rs",
           "contains": [
             "RECORDING_MAX_EVENTS",
@@ -707,14 +569,6 @@
           "contains": [
             "starts native capture and decodes the stopped current recording",
             "reports bounded native overflow without returning a partial recording"
-          ]
-        },
-        {
-          "path": "docs/tasks/runtime-pty/T-310-live-recording-seam.md",
-          "contains": [
-            "Live Recording Seam",
-            "Capacity overflow never returns a plausible partial recording",
-            "T-310 is closed"
           ]
         },
         {
@@ -753,32 +607,6 @@
             "compares applied state rather than raw Frame partitioning",
             "reports the first applied viewport hash mismatch",
             "accepts a stricter applied-Frame hash projection"
-          ]
-        },
-        {
-          "path": "docs/tasks/runtime-pty/T-311-replay-backend.md",
-          "contains": [
-            "T-311 ReplayBackend",
-            "Same-offset events retain recording sequence order",
-            "T-311 and Recording / Replay MVP Iteration 03 are closed"
-          ]
-        },
-        {
-          "path": "docs/tasks/runtime-pty/T-325-replay-speed-control.md",
-          "contains": [
-            "T-325 Replay Speed Control",
-            "0.25x through 4x",
-            "scaled absolute recording offsets",
-            "T-325 is closed",
-            "build/bench-results-ci/20260721T102918Z"
-          ]
-        },
-        {
-          "path": "docs/tasks/runtime-pty/T-326-replay-frame-hash-comparison.md",
-          "contains": [
-            "T-326 Replay Frame Hash Comparison",
-            "T-326 is closed",
-            "build/bench-results-ci/20260721T104233Z"
           ]
         },
         {
@@ -826,14 +654,6 @@
           ]
         },
         {
-          "path": "docs/tasks/runtime-pty/T-327-replay-checkpoint-contract-v1.md",
-          "contains": [
-            "T-327 Replay Checkpoint Contract v1",
-            "T-327 is closed",
-            "build/bench-results-ci/20260721T111849Z"
-          ]
-        },
-        {
           "path": "packages/ianvs_terminal/lib/src/recording/terminal_replay_backend.dart",
           "contains": [
             "class TerminalReplaySeekResult",
@@ -852,14 +672,6 @@
             "seek preserves pending events and discards regenerated lifecycle",
             "realtime seek replaces the timer from the requested offset",
             "seek restores the expected Frame through the real native core"
-          ]
-        },
-        {
-          "path": "docs/tasks/runtime-pty/T-328-replay-checkpoint-seek.md",
-          "contains": [
-            "T-328 Replay Checkpoint Seek",
-            "T-328 is closed",
-            "build/bench-results-ci/20260721T115621Z"
           ]
         },
         {
@@ -884,14 +696,6 @@
           "path": "packages/ianvs_terminal/test/terminal_replay_backend_test.dart",
           "contains": [
             "serves bundled graphic assets before the native fallback"
-          ]
-        },
-        {
-          "path": "docs/tasks/runtime-pty/T-329-replay-graphic-asset-bundle.md",
-          "contains": [
-            "T-329 Replay Graphic Asset Bundle",
-            "T-329 is closed",
-            "build/bench-results-ci/20260721T122846Z"
           ]
         }
       ],
@@ -936,18 +740,10 @@
             "尚未完成实体设备上的完整产品验收",
             "还没有跨平台验证"
           ]
-        },
-        {
-          "path": "docs/tasks/verification-gates/T-065-phase4-windows-linux-validation-gate.md",
-          "contains": [
-            "Windows",
-            "Linux",
-            "blocked"
-          ]
         }
       ],
       "verification_commands": [
-        "Follow docs/tasks/verification-gates/T-065-phase4-windows-linux-validation-gate.md on a target host"
+        "Follow docs/compatibility/MANUAL_VERIFICATION.md on each target desktop host"
       ],
       "blockers": [
         "No current Windows or Linux desktop host run proves build, PTY spawn, resize, input, and runnable app behavior."

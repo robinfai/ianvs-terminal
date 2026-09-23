@@ -158,8 +158,8 @@ final class DataApiRemoteSessionFormatException implements Exception {
   @override
   String toString() {
     return 'The secure Data API credential in slot $slotRef is invalid: '
-        '$cause. The original Keychain item was preserved and persistence '
-        'remains locked.';
+        '$cause. The original credential data was preserved and API '
+        'synchronization is unavailable.';
   }
 }
 
@@ -188,9 +188,9 @@ final class DataApiRemoteSessionSlotExistsException implements Exception {
       'Secure Data API credential slot already exists: $slotRef.';
 }
 
-/// Stores the bearer token, its expiry and the per-user encryption key in the
-/// platform credential vault. The ordinary configuration file contains only
-/// deployment mode and base URL.
+/// Predecessor per-slot Keychain storage used by the one-time vault migration.
+/// Production composition writes new sessions to the encrypted file vault;
+/// this store remains available to recover existing credentials safely.
 final class FlutterSecureDataApiRemoteSessionStore
     implements DataApiRemoteSessionSlotStore {
   FlutterSecureDataApiRemoteSessionStore({FlutterSecureStorage? storage})

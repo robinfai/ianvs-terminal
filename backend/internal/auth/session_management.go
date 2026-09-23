@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 	"ianvs-terminal/backend/internal/database"
 	"ianvs-terminal/backend/internal/model"
 	"strings"
@@ -32,7 +33,7 @@ func (s *Service) ListSessions(ctx context.Context, userID, rawToken string) ([]
 	for _, t := range tokens {
 		var metadata model.Setting
 		name := ""
-		result := s.db.WithContext(ctx).Where("key = ?", sessionMetadataKey(t.OperationHash)).Limit(1).Find(&metadata)
+		result := s.db.WithContext(ctx).Where(sessionMetadataCondition(t.OperationHash)).Limit(1).Find(&metadata)
 		if result.Error != nil {
 			return nil, result.Error
 		}
@@ -71,7 +72,7 @@ func revokeOperation(tx *gorm.DB, operationHash string) error {
 	if err := tx.Where("operation_hash = ?", operationHash).Delete(&model.AuthToken{}).Error; err != nil {
 		return err
 	}
-	if err := tx.Where("key = ?", sessionMetadataKey(operationHash)).Delete(&model.Setting{}).Error; err != nil {
+	if err := tx.Where(sessionMetadataCondition(operationHash)).Delete(&model.Setting{}).Error; err != nil {
 		return err
 	}
 	return tx.Model(&operation).Update("state", authOperationStateCanceled).Error
@@ -95,3 +96,11 @@ func WithDeviceName(ctx context.Context, name string) context.Context {
 	return context.WithValue(ctx, deviceNameKey{}, string(chars))
 }
 func sessionMetadataKey(operationHash string) string { return "auth.session.device/" + operationHash }
+
+// key is reserved in MySQL; let the dialect quote the identifier.
+func sessionMetadataCondition(operationHash string) clause.Eq {
+	return clause.Eq{
+		Column: clause.Column{Name: "key"},
+		Value:  sessionMetadataKey(operationHash),
+	}
+}

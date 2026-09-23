@@ -167,9 +167,7 @@ void main() {
       );
 
       expect(
-        find.textContaining(
-          'API synchronization is unavailable; local data is still available',
-        ),
+        find.textContaining('Profile repository is unavailable in this test.'),
         findsOneWidget,
       );
       expect(find.byKey(const Key('data-api-startup-warning')), findsOneWidget);
@@ -627,17 +625,17 @@ final class _UnavailableProfileRepository extends ProfileRepositoryPort {
     TerminalProfilesDocument document, {
     String basename = 'ianvs-profiles',
   }) async {
-    throw const DataApiPersistenceUnavailableException();
+    throw StateError('Profile repository is unavailable in this test.');
   }
 
   @override
   Future<TerminalProfilesDocument> load() async {
-    throw const DataApiPersistenceUnavailableException();
+    throw StateError('Profile repository is unavailable in this test.');
   }
 
   @override
   Future<void> save(TerminalProfilesDocument document) async {
-    throw const DataApiPersistenceUnavailableException();
+    throw StateError('Profile repository is unavailable in this test.');
   }
 }
 

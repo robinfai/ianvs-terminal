@@ -305,7 +305,7 @@ void main() {
             .having(
               (error) => error.toString(),
               'message',
-              contains('Persistence remains locked'),
+              contains('API synchronization is unavailable'),
             ),
       ),
     );

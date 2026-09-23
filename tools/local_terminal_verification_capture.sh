@@ -4,7 +4,7 @@
 # Local terminal verification capture helper.
 # Read-only commands: list, print.
 # Execution commands: run.
-# This wrapper captures logs but never updates the canonical evidence ledger.
+# This wrapper captures logs but never updates the documentation.
 
 set -u
 
@@ -24,9 +24,9 @@ Usage:
 This wrapper captures combined stdout/stderr and exit status under:
   build/local-terminal-verification/<timestamp>-<batch>/
 
-It does not update docs/LOCAL_TERMINAL_VERIFICATION_EVIDENCE_LEDGER_2026-05.md.
-Copy the captured command, exit status, and output summary into the ledger.
-Do not treat captured logs as objective closure until the ledger and audit checklist are updated.
+It does not update build/local-terminal-verification/.
+Keep captured command outputs in build; update current known issues only when needed.
+A successful batch covers only that batch; use make verify for the complete gate.
 EOF
 }
 
@@ -95,15 +95,15 @@ run_and_capture() {
     echo "command: bash tools/local_terminal_verification_batches.sh run $batch"
     echo "verification_gates: $gate_hint"
     echo "output_log: $log_file"
-    echo "evidence_ledger: docs/LOCAL_TERMINAL_VERIFICATION_EVIDENCE_LEDGER_2026-05.md"
+    echo "capture_root: build/local-terminal-verification/"
     echo "started_status: running"
   } > "$summary_file"
 
   cd "$ROOT_DIR" || return 1
 
   echo "Running and capturing local-terminal verification batch: $batch"
-  echo "This wrapper writes logs but does not update the canonical evidence ledger."
-  echo "Review ledger-entry.md before copying any status into docs/LOCAL_TERMINAL_VERIFICATION_EVIDENCE_LEDGER_2026-05.md."
+  echo "This wrapper writes logs but does not update the documentation."
+  echo "Review ledger-entry.md locally; do not copy generated output into docs/."
 
   bash "$BATCH_SCRIPT" run "$batch" 2>&1 | tee "$log_file"
   status="${PIPESTATUS[0]}"
@@ -138,14 +138,14 @@ run_and_capture() {
     echo "| Verification gate status | pending |"
     echo
     echo "Only change the gate status to passed after the captured output satisfies the gate rule."
-    echo "If the exit status is non-zero, also add a row to docs/LOCAL_TERMINAL_VERIFICATION_FAILURE_TRIAGE_LOG_2026-05.md."
+    echo "If the exit status is non-zero, also add a row to docs/KNOWN_ISSUES.md."
   } > "$ledger_file"
 
   if [ "$status" -eq 0 ]; then
     echo "Captured successful batch output in $output_dir"
   else
     echo "Captured failing batch output in $output_dir" >&2
-    echo "Record the blocker in docs/LOCAL_TERMINAL_VERIFICATION_FAILURE_TRIAGE_LOG_2026-05.md" >&2
+    echo "Record the blocker in docs/KNOWN_ISSUES.md" >&2
   fi
 
   return "$status"

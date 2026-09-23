@@ -8,10 +8,9 @@ typedef MasterKeyClipboardWriter = Future<void> Function(String value);
 
 final class MasterKeyManagementController extends ChangeNotifier {
   MasterKeyManagementController({
-    required PortableMasterKeyRepository repository,
+    required this._repository,
     MasterKeyClipboardWriter? clipboardWriter,
-  }) : _repository = repository,
-       _clipboardWriter = clipboardWriter ?? _writeClipboard;
+  }) : _clipboardWriter = clipboardWriter ?? _writeClipboard;
 
   final PortableMasterKeyRepository _repository;
   final MasterKeyClipboardWriter _clipboardWriter;

@@ -1335,8 +1335,10 @@ pub(crate) fn spawn_ssh_with_shell_integration(
                     runtime.block_on(run_ssh_session(
                         connection,
                         initial_size,
-                        shell_integration_enabled,
-                        ssh_wrapper,
+                        SshShellIntegrationOptions {
+                            enabled: shell_integration_enabled,
+                            wrap_ssh: ssh_wrapper,
+                        },
                         command_receiver,
                         output_sender.clone(),
                         thread_auth,
@@ -1528,11 +1530,15 @@ where
     }
 }
 
+struct SshShellIntegrationOptions {
+    enabled: bool,
+    wrap_ssh: bool,
+}
+
 async fn run_ssh_session(
     connection: TerminalProfileConnection,
     initial_size: PtySize,
-    shell_integration_enabled: bool,
-    ssh_wrapper: bool,
+    shell_integration: SshShellIntegrationOptions,
     mut commands: mpsc::UnboundedReceiver<SshCommand>,
     output: std_mpsc::Sender<Vec<u8>>,
     auth: SshAuthClient,
@@ -1544,8 +1550,8 @@ async fn run_ssh_session(
         prepare_ssh_session(
             &connection,
             initial_size,
-            shell_integration_enabled,
-            ssh_wrapper,
+            shell_integration.enabled,
+            shell_integration.wrap_ssh,
             &auth,
             &cancellation,
             &forward_runtime,

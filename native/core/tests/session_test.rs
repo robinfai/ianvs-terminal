@@ -2320,12 +2320,10 @@ fn wait_for_frame_where(session_id: u64, predicate: impl Fn(&str) -> bool) -> St
     panic!("timed out waiting for matching frame");
 }
 
-#[cfg(target_os = "macos")]
 struct SessionGuard {
     session_id: u64,
 }
 
-#[cfg(target_os = "macos")]
 impl SessionGuard {
     fn new(session_id: u64) -> Self {
         Self { session_id }
@@ -2336,7 +2334,6 @@ impl SessionGuard {
     }
 }
 
-#[cfg(target_os = "macos")]
 impl Drop for SessionGuard {
     fn drop(&mut self) {
         let _ = session::close_session(self.session_id);
@@ -7000,18 +6997,31 @@ fn session_frame_diff_applies_kitty_animation_current_frame_control() {
     let profile = local_profile(
         "kitty-animation-current-frame-diff",
         "Kitty Animation Current Frame Diff",
-        "/bin/sh",
+        "/usr/bin/env",
         vec![
-            "-lc".to_string(),
+            "python3".to_string(),
+            "-c".to_string(),
             format!(
-                "python3 - <<'PY'\nimport sys, time\nsys.stdout.write('\\x1b_Ga=f,f=32,s=1,v=1,i=61001,r=1,z=1000,q=1;{}\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(0.15)\nsys.stdout.write('\\x1b_Ga=f,f=32,s=2,v=1,i=61001,r=2,z=1000,q=1;{}\\x1b\\\\')\nsys.stdout.write('\\x1b_Ga=a,i=61001,c=2,q=1;\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(0.15)\nPY",
+                r#"import sys
+sys.stdout.write('\x1b_Ga=f,f=32,s=1,v=1,i=61001,r=1,z=1000,q=1;{}\x1b\\')
+sys.stdout.write('\x1b_Ga=a,i=61001,s=1,q=1;\x1b\\')
+sys.stdout.flush()
+sys.stdin.readline()
+sys.stdout.write('\x1b_Ga=f,f=32,s=2,v=1,i=61001,r=2,z=1000,q=1;{}\x1b\\')
+sys.stdout.write('\x1b_Ga=a,i=61001,c=2,q=1;\x1b\\')
+sys.stdout.flush()
+sys.stdin.readline()
+"#,
                 RED_RGBA_BASE64, GREEN_2X1_RGBA_BASE64
             ),
         ],
         BTreeMap::new(),
         TerminalEmulation::Xterm256,
     );
-    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+    let session_guard = SessionGuard::new(
+        session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap(),
+    );
+    let session_id = session_guard.id();
 
     let first = wait_for_frame_where(session_id, |frame| frame.contains("\"asset_id\":61001"));
     let first_parsed: serde_json::Value = serde_json::from_str(&first).unwrap();
@@ -7031,6 +7041,9 @@ fn session_frame_diff_applies_kitty_animation_current_frame_control() {
         .as_u64()
         .expect("expected first Kitty animation asset version");
 
+    // Advance only after observing the initial stopped frame; elapsed sleeps
+    // can let PTY output coalesce multiple stages on a busy host.
+    session::write_session(session_id, b"\n").unwrap();
     let updated = wait_for_frame_where(session_id, |frame| {
         let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
             return false;
@@ -7095,11 +7108,24 @@ fn session_frame_diff_applies_kitty_animation_compose_control() {
     let profile = local_profile(
         "kitty-animation-compose-frame-diff",
         "Kitty Animation Compose Frame Diff",
-        "/bin/sh",
+        "/usr/bin/env",
         vec![
-            "-lc".to_string(),
+            "python3".to_string(),
+            "-c".to_string(),
             format!(
-                "python3 - <<'PY'\nimport sys, time\nsys.stdout.write('\\x1b_Ga=f,f=32,s=2,v=2,i={image_id},r=1,z=1000,q=1;{source}\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(0.15)\nsys.stdout.write('\\x1b_Ga=f,f=32,s=2,v=2,i={image_id},r=2,z=1000,q=1;{black}\\x1b\\\\')\nsys.stdout.write('\\x1b_Ga=a,i={image_id},c=2,q=1;\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(0.15)\nsys.stdout.write('\\x1b_Ga=c,i={image_id},r=1,c=2,x=1,y=0,w=1,h=1,X=0,Y=1,C=1,q=1;\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(0.15)\nPY",
+                r#"import sys
+sys.stdout.write('\x1b_Ga=f,f=32,s=2,v=2,i={image_id},r=1,z=1000,q=1;{source}\x1b\\')
+sys.stdout.write('\x1b_Ga=a,i={image_id},s=1,q=1;\x1b\\')
+sys.stdout.flush()
+sys.stdin.readline()
+sys.stdout.write('\x1b_Ga=f,f=32,s=2,v=2,i={image_id},r=2,z=1000,q=1;{black}\x1b\\')
+sys.stdout.write('\x1b_Ga=a,i={image_id},c=2,q=1;\x1b\\')
+sys.stdout.flush()
+sys.stdin.readline()
+sys.stdout.write('\x1b_Ga=c,i={image_id},r=1,c=2,x=1,y=0,w=1,h=1,X=0,Y=1,C=1,q=1;\x1b\\')
+sys.stdout.flush()
+sys.stdin.readline()
+"#,
                 image_id = IMAGE_ID,
                 source = SOURCE_2X2_RGBA_BASE64,
                 black = BLACK_2X2_RGBA_BASE64
@@ -7108,7 +7134,10 @@ fn session_frame_diff_applies_kitty_animation_compose_control() {
         BTreeMap::new(),
         TerminalEmulation::Xterm256,
     );
-    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+    let session_guard = SessionGuard::new(
+        session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap(),
+    );
+    let session_id = session_guard.id();
 
     let first = wait_for_frame_where(session_id, |frame| {
         frame.contains(&format!("\"asset_id\":{IMAGE_ID}"))
@@ -7130,6 +7159,7 @@ fn session_frame_diff_applies_kitty_animation_compose_control() {
         .as_u64()
         .expect("expected first Kitty animation asset version");
 
+    session::write_session(session_id, b"\n").unwrap();
     let black_frame = wait_for_frame_where(session_id, |frame| {
         let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
             return false;
@@ -7161,6 +7191,7 @@ fn session_frame_diff_applies_kitty_animation_compose_control() {
         .as_u64()
         .expect("expected destination frame asset version");
 
+    session::write_session(session_id, b"\n").unwrap();
     let composed_frame = wait_for_frame_where(session_id, |frame| {
         let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
             return false;
@@ -7231,18 +7262,34 @@ fn session_frame_diff_applies_kitty_animation_stop_control() {
     let profile = local_profile(
         "kitty-animation-stop-frame-diff",
         "Kitty Animation Stop Frame Diff",
-        "/bin/sh",
+        "/usr/bin/env",
         vec![
-            "-lc".to_string(),
+            "python3".to_string(),
+            "-c".to_string(),
             format!(
-                "python3 - <<'PY'\nimport sys, time\nsys.stdout.write('\\x1b_Ga=f,f=32,s=1,v=1,i=61006,r=1,z=1000,q=1;{}\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(0.15)\nsys.stdout.write('\\x1b_Ga=f,f=32,s=1,v=1,i=61006,r=2,z=1000,q=1;{}\\x1b\\\\')\nsys.stdout.write('\\x1b_Ga=a,i=61006,c=2,q=1;\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(0.15)\nsys.stdout.write('\\x1b_Ga=a,i=61006,s=1,q=1;\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(0.15)\nPY",
+                r#"import sys
+sys.stdout.write('\x1b_Ga=f,f=32,s=1,v=1,i=61006,r=1,z=1000,q=1;{}\x1b\\')
+sys.stdout.write('\x1b_Ga=a,i=61006,s=1,q=1;\x1b\\')
+sys.stdout.flush()
+sys.stdin.readline()
+sys.stdout.write('\x1b_Ga=f,f=32,s=1,v=1,i=61006,r=2,z=1000,q=1;{}\x1b\\')
+sys.stdout.write('\x1b_Ga=a,i=61006,c=2,q=1;\x1b\\')
+sys.stdout.flush()
+sys.stdin.readline()
+sys.stdout.write('\x1b_Ga=a,i=61006,s=1,q=1;\x1b\\')
+sys.stdout.flush()
+sys.stdin.readline()
+"#,
                 RED_RGBA_BASE64, GREEN_RGBA_BASE64
             ),
         ],
         BTreeMap::new(),
         TerminalEmulation::Xterm256,
     );
-    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+    let session_guard = SessionGuard::new(
+        session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap(),
+    );
+    let session_id = session_guard.id();
 
     let first = wait_for_frame_where(session_id, |frame| frame.contains("\"asset_id\":61006"));
     let first_parsed: serde_json::Value = serde_json::from_str(&first).unwrap();
@@ -7262,6 +7309,9 @@ fn session_frame_diff_applies_kitty_animation_stop_control() {
         .as_u64()
         .expect("expected first Kitty animation asset version");
 
+    // Advance only after observing the initial stopped frame; elapsed sleeps
+    // can let PTY output coalesce multiple stages on a busy host.
+    session::write_session(session_id, b"\n").unwrap();
     let updated = wait_for_frame_where(session_id, |frame| {
         let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
             return false;
@@ -7291,6 +7341,7 @@ fn session_frame_diff_applies_kitty_animation_stop_control() {
         .as_u64()
         .expect("expected current-frame control to publish a new asset version");
 
+    session::write_session(session_id, b"\n").unwrap();
     let stopped = wait_for_frame_where(session_id, |frame| {
         let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
             return false;
@@ -7348,18 +7399,34 @@ fn session_frame_diff_applies_kitty_animation_frame_delete() {
     let profile = local_profile(
         "kitty-animation-frame-delete-diff",
         "Kitty Animation Frame Delete Diff",
-        "/bin/sh",
+        "/usr/bin/env",
         vec![
-            "-lc".to_string(),
+            "python3".to_string(),
+            "-c".to_string(),
             format!(
-                "python3 - <<'PY'\nimport sys, time\nsys.stdout.write('\\x1b_Ga=f,f=32,s=1,v=1,i=61002,r=1,z=1000,q=1;{}\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(0.15)\nsys.stdout.write('\\x1b_Ga=f,f=32,s=1,v=1,i=61002,r=2,z=1000,q=1;{}\\x1b\\\\')\nsys.stdout.write('\\x1b_Ga=a,i=61002,c=2,q=1;\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(0.15)\nsys.stdout.write('\\x1b_Ga=d,d=f,i=61002,r=2,q=1;\\x1b\\\\')\nsys.stdout.flush()\ntime.sleep(0.15)\nPY",
+                r#"import sys
+sys.stdout.write('\x1b_Ga=f,f=32,s=1,v=1,i=61002,r=1,z=1000,q=1;{}\x1b\\')
+sys.stdout.write('\x1b_Ga=a,i=61002,s=1,q=1;\x1b\\')
+sys.stdout.flush()
+sys.stdin.readline()
+sys.stdout.write('\x1b_Ga=f,f=32,s=1,v=1,i=61002,r=2,z=1000,q=1;{}\x1b\\')
+sys.stdout.write('\x1b_Ga=a,i=61002,c=2,q=1;\x1b\\')
+sys.stdout.flush()
+sys.stdin.readline()
+sys.stdout.write('\x1b_Ga=d,d=f,i=61002,r=2,q=1;\x1b\\')
+sys.stdout.flush()
+sys.stdin.readline()
+"#,
                 RED_RGBA_BASE64, GREEN_RGBA_BASE64
             ),
         ],
         BTreeMap::new(),
         TerminalEmulation::Xterm256,
     );
-    let session_id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+    let session_guard = SessionGuard::new(
+        session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap(),
+    );
+    let session_id = session_guard.id();
 
     let first = wait_for_frame_where(session_id, |frame| frame.contains("\"asset_id\":61002"));
     let first_parsed: serde_json::Value = serde_json::from_str(&first).unwrap();
@@ -7379,6 +7446,7 @@ fn session_frame_diff_applies_kitty_animation_frame_delete() {
         .as_u64()
         .expect("expected first Kitty animation asset version");
 
+    session::write_session(session_id, b"\n").unwrap();
     let updated = wait_for_frame_where(session_id, |frame| {
         let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
             return false;
@@ -7410,6 +7478,7 @@ fn session_frame_diff_applies_kitty_animation_frame_delete() {
         .as_u64()
         .expect("expected current-frame control to publish a new asset version");
 
+    session::write_session(session_id, b"\n").unwrap();
     let deleted = wait_for_frame_where(session_id, |frame| {
         let Ok(parsed) = serde_json::from_str::<serde_json::Value>(frame) else {
             return false;

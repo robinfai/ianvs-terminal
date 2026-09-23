@@ -72,7 +72,6 @@ void main() {
       final firstSpec = layout.activeTab!.root
           .findPane(first.sessionId)!
           .relaunchSpec!;
-      expect(firstSpec.command, isNull);
       expect(firstSpec.cwd, '/current-cwd');
       expect(
         layout.activeTab!.root.findPane(second.sessionId)!.relaunchSpec!.cwd,

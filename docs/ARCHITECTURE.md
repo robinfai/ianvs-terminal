@@ -7,7 +7,7 @@
 - `packages/ianvs_pty`
   - 负责 PTY 会话传输和 FFI 包装
   - 对上层公开 `PtySessionBackend`、`PtyEvent`、`PtyBindings`、`NativePtyBackend`
-  - 能力边界只有 `create / write / read|poll / resize / scroll / close`
+  - 封装当前 ABI 的会话、事件、帧与图形资产传输；运行能力由 Runtime Capabilities v1 和 ABI manifest 共同约束
 - `packages/ianvs_terminal`
   - 依赖 `ianvs_pty`
   - 负责 `TerminalSessionConfig`、`TerminalLaunchConfig`、`TerminalDisplayConfig`
@@ -18,8 +18,8 @@
   - terminal、PTY 和 native 实现由 canonical 源确定性生成，不维护第二套协议或 ABI
   - 手写范围只包含嵌入组件、公开 barrel、发布元数据和 build hook
 - `example/`
-  - 负责 tab、窗口壳、菜单、profile 编辑、defaults、demo fixture
-  - 负责用 demo 侧元数据包住 `TerminalSessionConfig`
+  - 负责 tab/pane、窗口壳、菜单、Profile、SSH/SFTP、defaults、录制库与可选配置同步
+  - 将产品 Profile 与凭据组装为 `TerminalSessionConfig`，不把产品元数据写入 native wire
   - 通过 `features/terminal/terminal.dart` 和 `features/pty/pty.dart` 消费 package
   - 平台桥接（例如系统剪贴板）留在 `example/lib/platform/`
   - 不再定义 PTY/terminal 共享能力
@@ -31,7 +31,8 @@
   - 本地模式是一名保留用户 + SQLite；远程模式是登录后的多用户 + SQLite/MySQL
   - profile、session relaunch 和配置数据使用普通文本列保存 JSON，不依赖数据库 JSON 类型
   - 主密钥只保存在客户端；服务端不接收或验证密钥，只保存客户端生成的 AES-256-GCM 不透明信封
-  - 本地到远程使用单向 export/merge，默认保留远程冲突项并返回逐项报告
+  - 显式 API export/merge 与客户端迁移器提供独立的数据迁移合同；应用始终本地优先，通过可选 API 做双向配置同步，冲突由用户选择
+  - Terminal Layout、粘贴历史和录制留在本机，不进入应用的 API 同步集合
 
 ## 公开接口
 
@@ -94,8 +95,8 @@ root manifest 完全一致的 `libianvs_core`。仓库内的同步门禁保证 s
 
 创建会话：
 
-1. `example/` 选择一个 demo profile。
-2. demo profile 组装成 `TerminalSessionConfig`。
+1. `example/` 选择一个本地 shell 或 SSH Profile。
+2. Profile 与平台凭据组装成 `TerminalSessionConfig`。
 3. `TerminalRuntimeController` 把中性的 session config 转成当前 native wire。
 4. `ianvs_pty` 通过 FFI 调 Rust。
 5. `native/core` 启 PTY、解析输出并生成 frame diff / 事件。
@@ -115,12 +116,12 @@ root manifest 完全一致的 `libianvs_core`。仓库内的同步门禁保证 s
 - `Profile` 提供可复用启动默认值；
 - `Session` 拥有 live PTY 和运行态；
 - `Terminal Layout` 只保存 tab/pane topology、焦点和最小 Relaunch Spec；
-- `Relaunch Spec` 只保存 `profileId`、可选 command/arguments 和可选 `cwd`；
+- `Relaunch Spec` 只保存 `profileId` 和可选 `cwd`；启动命令与参数来自当前 Profile；
 - `Recording Library` 独立保存录制，不把 recording path 写回重启意图。
 
 `Open Terminal at Folder` 只以所选目录作为新 Session 的初始 `cwd`。它不创建
 Project Workspace identity，不切换现有 tab/PTY，也不维护 Recent Workspace。
-旧 Workspace v1-v3、project index 和 `workspace` config 只作为单向迁移输入。
+旧 Workspace v1-v3、project index 和 `workspace` config 不属于当前合同；运行时不发现、迁移、删除或重新创建这些数据。
 
 ## 不属于 package 的内容
 
@@ -144,5 +145,21 @@ Project Workspace identity，不切换现有 tab/PTY，也不维护 Recent Works
   workspace native 与 standalone package native 都执行同一门禁。
 - `example/` 目录里的 Flutter package 现阶段仍保留 `name: app`，这是为了稳定既有 `package:app/...` import 面；macOS bundle identity 由 Runner project 单独维护。
 - `ianvs_terminal_core` 是 pub.dev 发布入口；workspace packages 仍是 canonical 开发源。
-- SSH 是延期扩展；若后续实现，只扩展 Profile/Session，不恢复 Project Workspace。
-- completion/wiring 诊断面板只在 debug build 的 Toolbelt 中出现；用户诊断导出保持独立。
+- SSH 已作为 Profile/Session 扩展实现，SFTP 复用 SSH 连接配置；它们不恢复 Project Workspace。
+- Toolbelt 和旧 completion/wiring 产品面板已退役；历史验证模型仅用于工程回归，用户诊断导出保持独立。
+
+## 模块代码与文档入口
+
+| 模块 | 当前实现入口 | 权威文档 |
+| --- | --- | --- |
+| PTY / native wire | `packages/ianvs_pty/lib`、`native/core/src` | [PTY README](../packages/ianvs_pty/README.md)、[wire 清单](protocols/RUNTIME_WIRE_INVENTORY.md) |
+| runtime / viewport / recording codec | `packages/ianvs_terminal/lib` | [Terminal README](../packages/ianvs_terminal/README.md)、[录制格式](recording/FORMAT_CURRENT.md) |
+| standalone 发布包 | `packages/ianvs_terminal_core`、`tools/sync_terminal_core.dart` | [Core README](../packages/ianvs_terminal_core/README.md) |
+| Shell / Session / Profile / Layout / SSH / SFTP | `example/lib/features` | [产品范围](TERMINAL_PRODUCT_SCOPE.md)、[App README](../example/README.md) |
+| 本地存储 / 可选同步 / 凭据 | `example/lib/persistence_repository_composition.dart`、`example/lib/data` | [持久化合同](DATA_API_PERSISTENCE.md) |
+| 数据 API / Web 管理端 | `backend/internal`、`backend/webui` | [Backend README](../backend/README.md)、[OpenAPI](../backend/openapi.yaml) |
+| 构建 / 验证 | `Makefile`、`tools`、`test` | [测试入口](TESTING.md) |
+
+版本依据是工作区当前源代码、ABI/schema 与对应测试。过期任务与验收产物不保存在 docs；当前运行结果写入 build，不能凭历史结果宣称当前 checkout 已通过验证。
+有效的终端标准兼容、密钥迁移和显式 API 迁移路径各有实际消费者，不能因包含
+legacy/compatibility 字样就删除；废弃产品模型和旧 native ABI 不因此恢复。

@@ -646,10 +646,11 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
           }
           if (context.usesMobileNavigation) {
             final content = _scrollbackExportContent(currentSessionId);
-            if (content.trim().isEmpty)
+            if (content.trim().isEmpty) {
               return ShellActionBindingResult.skipped(
                 l10n.noVisibleContentToExport,
               );
+            }
             await ClipboardBridge.copy(content);
             if (mounted) _showShellSnackBar(l10n.mobileHistoryCopied);
             return ShellActionBindingResult.completed(l10n.mobileHistoryCopied);

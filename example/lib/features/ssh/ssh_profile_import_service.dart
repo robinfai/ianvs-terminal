@@ -30,9 +30,8 @@ typedef SshProfileImportBackgroundLoader =
 
 final class NativeSshProfileImportService implements SshProfileImportService {
   const NativeSshProfileImportService({
-    SshProfileImportBackgroundLoader backgroundLoader =
-        _loadNativeSshProfilesInBackground,
-  }) : _backgroundLoader = backgroundLoader;
+    this._backgroundLoader = _loadNativeSshProfilesInBackground,
+  });
 
   final SshProfileImportBackgroundLoader _backgroundLoader;
 

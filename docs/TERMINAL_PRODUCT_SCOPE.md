@@ -1,7 +1,7 @@
 # Ianvs Terminal Product Scope
 
-This document is the authoritative product boundary for Ianvs Terminal after
-the 2026-07-23 scope convergence.
+This document defines the current authoritative product boundary for Ianvs
+Terminal. Historical scope changes remain in dated task records.
 
 ## Product center
 
@@ -13,7 +13,8 @@ Ianvs Terminal is a terminal application. Its durable product concepts are:
   belong to the live session and are not restart intent.
 - **Terminal Layout**: local tab/pane topology plus the active tab and pane.
 - **Relaunch Spec**: the minimum data needed to start a fresh terminal:
-  `profileId`, optional command/arguments and optional `cwd`.
+  `profileId` and optional `cwd`. Command, arguments and connection settings
+  always come from the referenced current Profile.
 - **Recording Library**: a recording index and recording files independent of
   layout and relaunch persistence.
 
@@ -54,7 +55,9 @@ switch or remember a project container.
   discover, migrate, delete or recreate them.
 
 Runtime titles, creation/exit timestamps, exit codes, environment metadata,
-recording paths and restart policy are excluded from Relaunch Spec.
+recording paths, command overrides and restart policy are excluded from Relaunch
+Spec. Stale command fields in current-schema documents are ignored and are not
+written back.
 
 ## Explicit non-goals
 
@@ -77,20 +80,18 @@ and diagnostics export, but do not create a second product surface.
 
 ## Retired action boundary
 
-The action registry contains the 39 supported actions. The 23 previously hidden
+The action registry (`TerminalActionId` and `ShellActionRegistry`) contains 40
+supported actions, including the SSH session SFTP panel. The 23 previously hidden
 actions have been retired from dispatch, menus, shortcut resolution and dedicated
 UI. Debug builds use the same boundary. Shared terminal protocols and ordinary
 clipboard, search, profile, theme and notification infrastructure remain where
 needed by supported behavior. Unknown legacy shortcut entries round-trip without
 becoming executable; retirement does not delete user data.
 
-See [the retirement record](reviews/trail_feature_retirement_20260907.md) for the
-per-action disposition and retained compatibility boundaries.
-
 ## Historical terminology
 
 Older task records T-312 through T-317 describe the superseded Project
-Workspace implementation and remain unchanged as history. Some internal pane
-action types still use the generic word `Workspace`; they model the terminal
-canvas, not a persisted project identity. Product UI, persistence and current
-capability claims use Terminal Layout.
+Workspace implementation and remain unchanged as history. Current pane action
+types, product UI, persistence and capability claims use Terminal Layout.
+Test fixture variable names and historical records may still
+use the generic word `workspace`; they do not define a persisted project identity.

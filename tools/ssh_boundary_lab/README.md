@@ -4,7 +4,7 @@ This lab provides disposable OpenSSH servers for two separate runners:
 
 - `run.py` validates the architecture prototype and boundary conditions.
 - `product.py` exercises the production Rust SSH/PTY transports, bootstrap and
-  SFTP routing. See the [product acceptance report](../../docs/reviews/ssh-product-bootstrap-20260912/README.md).
+  SFTP routing. See the [current bootstrap protocol](../../docs/protocols/ssh_shell_bootstrap.md).
 
 Neither runner drives the complete Flutter GUI; application state and widget
 behavior are tested separately.
@@ -47,6 +47,9 @@ and assertion failures collect sshd logs and remove those resources and the
 temporary keys. The reusable image remains cached. If the runner is forcibly
 killed, inspect `docker --context colima ps -a --filter label=ianvs.boundary-lab`
 and remove only the resources bearing that interrupted run's label.
+
+Default outputs are `build/ssh-boundary-lab` and `build/ssh-product-bootstrap`.
+Generated reports and logs are not stored under `docs/`.
 
 ## Evidence and interpretation
 

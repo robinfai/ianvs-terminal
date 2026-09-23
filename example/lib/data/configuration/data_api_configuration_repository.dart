@@ -42,9 +42,9 @@ final class DataApiConfigurationRecoveryRequiredException implements Exception {
   @override
   String toString() {
     return 'The data service configuration was corrupt and was quarantined. '
-        'Persistence remains locked for this launch to prevent a silent switch '
-        'to local data. Open data service settings to confirm Disabled (or '
-        'choose another mode), then restart.';
+        'API synchronization is unavailable; local data remains available. '
+        'Open data service settings to confirm Disabled or choose another '
+        'mode.';
   }
 }
 
@@ -61,12 +61,12 @@ final class DataApiConfigurationRecoverySentinelException implements Exception {
   String toString() {
     if (configurationSaved) {
       return 'The data service configuration was saved, but its recovery lock '
-          'could not be cleared: $cause. Persistence remains locked until the '
+          'could not be cleared: $cause. API synchronization is unavailable until the '
           'recovery marker is removed by a later successful save.';
     }
     return 'The data service recovery lock could not be persisted: $cause. '
-        'The prior configuration remains authoritative and startup stays '
-        'locked.';
+        'The prior configuration remains authoritative and API '
+        'synchronization is unavailable.';
   }
 }
 
@@ -107,8 +107,8 @@ final class DataApiRemoteLoginRequest {
     required this.baseUri,
     required this.username,
     required this.password,
-    required String? encryptionKey,
-  }) : _encryptionKey = encryptionKey;
+    required this._encryptionKey,
+  });
 
   final Uri baseUri;
   final String username;
@@ -380,19 +380,16 @@ final class AuthenticatedDataApiConfigurationRepository
     required DataApiConfigurationRepository delegate,
     required DataApiRemoteSessionSlotStore remoteSessionStore,
     Directory? sagaDirectory,
-    DataApiRemoteConnectionValidator remoteConnectionValidator =
+    this._remoteConnectionValidator =
         const DataApiClientRemoteConnectionValidator(),
-    DataApiRemoteAuthenticator remoteAuthenticator =
-        const DataApiClientRemoteAuthenticator(),
-    DataApiRemoteSessionRevoker remoteSessionRevoker =
-        const DataApiClientRemoteSessionRevoker(),
-    DataApiAuthOperationCanceler authOperationCanceler =
-        const DataApiClientAuthOperationCanceler(),
-    DataApiSagaJournalWriter? sagaJournalWriter,
+    this._remoteAuthenticator = const DataApiClientRemoteAuthenticator(),
+    this._remoteSessionRevoker = const DataApiClientRemoteSessionRevoker(),
+    this._authOperationCanceler = const DataApiClientAuthOperationCanceler(),
+    this._sagaJournalWriter,
     DataApiDisableResetDelete? disableResetDelete,
     DataApiLocalToRemoteMigrationFactory? localToRemoteMigrationFactory,
     DataApiRuntimeMigrationFactory? runtimeMigrationFactory,
-    PortableMasterKeyRepository? masterKeyRepository,
+    this._masterKeyRepository,
   }) : _delegate = delegate,
        _slotStore = remoteSessionStore,
        _sagaDirectory =
@@ -402,16 +399,10 @@ final class AuthenticatedDataApiConfigurationRepository
                fileRepository.configurationFile.parent,
              _ => null,
            },
-       _remoteConnectionValidator = remoteConnectionValidator,
-       _remoteAuthenticator = remoteAuthenticator,
-       _remoteSessionRevoker = remoteSessionRevoker,
-       _authOperationCanceler = authOperationCanceler,
-       _sagaJournalWriter = sagaJournalWriter,
        _localToRemoteMigrationFactory =
            localToRemoteMigrationFactory ?? _defaultLocalToRemoteMigration,
        _runtimeMigrationFactory =
            runtimeMigrationFactory ?? _defaultRuntimeMigration,
-       _masterKeyRepository = masterKeyRepository,
        _disableResetDelete = disableResetDelete ?? _deleteFileIfPresent;
 
   static const int _sagaVersion = 1;
@@ -1586,7 +1577,7 @@ final class DataApiConfigurationGenerationConflictException
   @override
   String toString() {
     return 'Data API configuration generation conflict: expected $expected, '
-        'found $actual. Persistence remains locked.';
+        'found $actual. Reload the configuration before retrying.';
   }
 }
 

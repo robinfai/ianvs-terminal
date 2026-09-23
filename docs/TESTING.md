@@ -6,11 +6,14 @@
 
 ```bash
 dart test test/docs_contract_test.dart
+dart test test/runtime_documentation_contract_test.dart
 ```
 
 该测试会校验 `docs/CURRENT_EXECUTION_TARGETS.json` 的唯一 active lane、状态字段、
 证据文件和关键 token，同时检查权威文档入口里的本地 Markdown 链接。它只能证明
 目标描述与仓库静态证据仍一致，不能替代后续代码测试、macOS integration 或人工 QA。
+Runtime 文档合同还会核对 ABI 符号集合、能力查询示例与 Rust FEATURES，
+并用实际 Dart 解码器验证 SessionConfig 示例，避免文档与严格 wire 合同漂移。
 
 ## 默认顺序
 
@@ -21,7 +24,7 @@ cargo clippy --all-targets -- -D warnings
 cargo test
 ```
 
-## Compatibility Baseline (Iteration 01)
+## 兼容性验证
 
 兼容性基线的权威证据入口：
 
@@ -30,8 +33,7 @@ cargo test
 - [compatibility/KNOWN_ISSUES.md](compatibility/KNOWN_ISSUES.md)
 - [compatibility/MANUAL_VERIFICATION.md](compatibility/MANUAL_VERIFICATION.md)
 
-完整基线必须按顺序执行并在
-[T-302](tasks/verification-gates/T-302-compatibility-baseline.md) 回填真实结果：
+完整基线按顺序执行，输出写入 `build/`：
 
 ```bash
 make bootstrap
@@ -131,12 +133,12 @@ cd example
 flutter build macos --release
 cd ..
 ./tools/sign_local_macos_release.sh \
-  "example/build/macos/Build/Products/Release/Ianvs Terminal.app"
+  "example/build/macos/Build/Products/Release/Trail.app"
 ```
 
 `make build-macos` 默认生成具备同步 Keychain 权限的 profile-signed 构建，
 因此需要在 Xcode 中登录 Apple Developer 账号，并安装匹配
-`dev.ianvs.terminal.dev` 的 Apple Development 证书和 provisioning profile。
+`work.ianvs.trail` 的 Apple Development 证书和 provisioning profile。
 
 只验证本地终端、不使用远程数据服务和跨设备主密钥同步时，可以显式选择
 ad-hoc 模式：
@@ -157,55 +159,38 @@ hardened runtime 并执行深度验签。若 app 已有证书签名，脚本不�
 ./tools/run_release_real_pty_refresh_gate.sh
 ```
 
-## 运行 demo
+## 运行应用
 
 ```bash
 cd example
 flutter run -d macos
 ```
 
-## Local Terminal Manual Matrix
+## 人工验收与输出
 
-当前 local-only 的 terminal 人工矩阵结果入口固定是
-[tasks/verification-gates/T-059-local-terminal-manual-matrix.md](tasks/verification-gates/T-059-local-terminal-manual-matrix.md)。
+字体、输入法、快捷键、滚动和真实宿主检查统一见
+[compatibility/MANUAL_VERIFICATION.md](compatibility/MANUAL_VERIFICATION.md)。
+运行日志、截图和 benchmark 输出写入 `build/`；版本库只维护可重复执行的测试、
+fixture 和当前验收要求，不保存历史 pass 记录。
 
-## Local Terminal P0-P5 final verification
-
-当前 local-terminal P0-P5 收尾验证入口固定为：
-
-- [LOCAL_TERMINAL_FINAL_VERIFICATION_HANDOFF_2026-05.md](LOCAL_TERMINAL_FINAL_VERIFICATION_HANDOFF_2026-05.md)
-- [LOCAL_TERMINAL_VERIFICATION_AUTHORIZATION_GATE_2026-05.md](LOCAL_TERMINAL_VERIFICATION_AUTHORIZATION_GATE_2026-05.md)
-- [LOCAL_TERMINAL_VERIFICATION_HELPER_INDEX_2026-05.md](LOCAL_TERMINAL_VERIFICATION_HELPER_INDEX_2026-05.md)
-- [LOCAL_TERMINAL_VERIFICATION_COMMAND_BATCHES_2026-05.md](LOCAL_TERMINAL_VERIFICATION_COMMAND_BATCHES_2026-05.md)
-- [LOCAL_TERMINAL_VERIFICATION_EVIDENCE_LEDGER_2026-05.md](LOCAL_TERMINAL_VERIFICATION_EVIDENCE_LEDGER_2026-05.md)
-
-只查看入口，不运行验证：
-
-```bash
-bash tools/local_terminal_verification_status.sh
-```
-
-可先打印自动化命令批次，不执行：
-
-```bash
-bash tools/local_terminal_verification_batches.sh print all-automated
-```
-
-显式获准后再运行自动化批次：
-
-```bash
-bash tools/local_terminal_verification_batches.sh run all-automated
-```
-
-如果需要捕获输出方便回填 ledger：
-
-```bash
-bash tools/local_terminal_verification_capture.sh run all-automated
-```
-
-capture wrapper 会在 `build/local-terminal-verification/` 下写出 `output.log`、
-`summary.txt` 和 `ledger-entry.md`。脚本不会自动更新 evidence ledger。所有真实命令输出和人工观察结果都必须写回
-[LOCAL_TERMINAL_VERIFICATION_EVIDENCE_LEDGER_2026-05.md](LOCAL_TERMINAL_VERIFICATION_EVIDENCE_LEDGER_2026-05.md)。
+UI golden 基线位于 `example/test/design/goldens/`。`matchesGoldenFile` 使用这些
+测试资产；临时截图与失败对比图不能写回 `docs/`。更新基线前先确认是预期 UI 变化。
+视觉验收使用 Flutter 3.44.2 / Dart 3.12.2，与 CI 固定版本一致；pubspec 中的最低
+支持版本不代表视觉基线版本。CI 提前运行 `flutter test test/design`，记录引擎、
+macOS、架构和字体哈希，并短期上传失败对比图。测试使用 SDK 的 Roboto/Material
+Icons、仓库中的 JetBrains Mono，以及固定来源的 Noto Sans SC，不读取宿主系统字体。
+这些测试字体不改变产品字体；更新字体或引擎时须审查差异图。比较器只容忍受限的
+边缘像素差异：尺寸与 alpha 必须完全相同，变化像素不超过 0.45%，每个 RGB 通道
+差值不超过 56/255。每个变化像素在两图各自的 3×3 邻域中至少有一个通道对比度
+达到 20/255，且每个通道的邻域范围至少为该通道差值的两倍。阈值依据已审查的
+固定字体 CoreText 差异（最多 0.41029% 像素、最大通道差 52/255），不适用全图
+模糊或单一比例放行。缺失基线、尺寸或 alpha 变化仍失败，拒绝时保留 Flutter 差异图。
+此规则不识别字体，同等级的小图标边缘变化也可能通过；预期 UI 变化仍须审查，不能
+声称捕获所有布局变化。比较器测试覆盖限额边界、区域位移、平坦区域变色等拒绝场景。
+相同字体在不同 macOS CoreText 版本中仍会产生字形边缘差异，因此当前 macOS 26、27
+分别使用 `goldens/macos-26/`、`goldens/macos-27/` 中的有效基线，CI 固定在 `macos-26`。
+测试自动选择当前 macOS 主版本，未知版本会明确失败。CI 比较失败后可生成候选图供
+审查，但原比较仍阻断合入；候选图必须经过审查并单独提交，不会由 CI 自动采纳。
 
 ## vttest-derived 自动化覆盖
 
@@ -220,7 +205,7 @@ cd ../../example
 flutter test test/terminal/render_terminal_viewport_test.dart --plain-name "terminal viewport repaints consecutive full-width wrapped rows without leaving a shorter middle row"
 ```
 
-这些测试覆盖 VT220/vttest 类 screen-features 的 autowrap、terminal reports、已知 wrap-around 回归，以及 Flutter viewport 对连续满宽 wrapped rows 的重绘。真实 app 前台、macOS shortcut 抢键、trackpad/DPI 这类依赖宿主 GUI 的项仍保留在 `T-059` 人工矩阵。
+这些测试覆盖 VT220/vttest 类 screen-features 的 autowrap、terminal reports、已知 wrap-around 回归，以及 Flutter viewport 对连续满宽 wrapped rows 的重绘。真实 app 前台、macOS shortcut 抢键、trackpad/DPI 这类依赖宿主 GUI 的项仍保留在 人工验收清单。
 
 ## vttest GUI nightly/manual gate
 
@@ -235,7 +220,7 @@ flutter test test/terminal/render_terminal_viewport_test.dart --plain-name "term
 
 - fast deterministic regression：`cargo test --test vttest_regression_test`、串行执行的 `cargo test vt220 -- --test-threads=1`、Flutter wraparound viewport 单测；VT220 用例密集创建 PTY，串行化可避免并发 `openpty` 引发宿主资源竞争，但不会重试或放宽产品断言
 - GUI full-chain vttest：`flutter test -d macos integration_test/vttest_gui_test.dart`，使用真实 `NativePtyBackend` 和 VT220 profile 启动 `vttest`
-- still manual：真实 trackpad、DPI/font-metric 切换、以及外部宿主条件仍按 `T-059` 人工矩阵记录
+- still manual：真实 trackpad、DPI/font-metric 切换、以及外部宿主条件仍按 人工验收清单记录
 
 默认模式下，缺少 macOS GUI session、`vttest`、或 macOS Flutter device 会生成 `blocked` summary 并退出 0；`--release-gate` 下同样的前置缺失退出 2。产品断言或构建/测试失败始终退出 1。结果写到 `build/vttest-gui-nightly/<timestamp>/summary.json`，GUI 测试日志固定为同目录下的 `flutter-test.log`。
 
@@ -249,7 +234,7 @@ cd example && flutter test -d macos integration_test/ianvs_terminal_smoke_test.d
 cd example && flutter run -d macos
 ```
 
-如果改动触达以下任一边界，除了自动化验证，还要重新跑 `T-059` 对应的人工 lane：
+如果改动触达以下任一边界，除了自动化验证，还要重新跑 人工验收清单对应场景：
 
 - terminal emulation / VT220 行为
 - app-vs-session shortcut routing
@@ -298,8 +283,16 @@ rustup target add thumbv7em-none-eabihf
 ```
 
 这个脚本会先构建并验证 `native/core`，再跑 `packages/ianvs_pty`、`packages/ianvs_terminal`、`example` 的默认验证链路，并用 `grep` 守住 Phase 3 的单一 defaults 写入口约束。Dart/Flutter analyze gate 使用 `--fatal-infos`，因此 info 级诊断也会阻断 CI。`example` 默认同时运行模块化测试目录和 `example/test/widget_test.dart` 中的完整 Shell Widget 回归。脚本还会执行 `tools/bench/configs/bench_ci_smoke.yaml`，用确定性 workload 检查 frame diff hash、schema gate、`p95_frame_build_micros`、`p95_json_decode_micros` 和 `p95_apply_frame_micros` 上限，并写出 `os_resource.ndjson` / `p95_process_cpu_percent` / `peak_process_rss_bytes` 作为 CPU/RSS 可观测基线。资源阈值可通过 benchmark config 的 `max_p95_process_cpu_percent` 和 `max_peak_process_rss_bytes` 打开；普通 smoke 默认只采样，不把宿主负载波动作为失败条件。
-脚本末尾会顺序执行 macOS smoke 与 real PTY acceptance，覆盖启动级 UI
-路径和真实 `NativePtyBackend` / shell frame-event 路径。
+脚本末尾默认调用 `./tools/verify_macos_app.sh`。这个入口也可独立运行，先解析
+workspace 依赖并构建 Debug Rust core，然后执行 macOS smoke、real PTY acceptance
+与 Keychain secret integration、Debug 构建与签名校验、两次 Release 构建及架构、
+C ABI、签名和 entitlement 校验，最后运行原生 Xcode 测试。
+
+CI 在三个独立的 `macos-26` 任务中并行运行仓库验证、`./tools/verify_macos_app.sh`
+与 `./tools/verify_ios_simulator.sh`。仓库任务设置
+`VERIFY_FLUTTER_TERMINAL_SKIP_MACOS_INTEGRATION=1`，应用任务保留全部 macOS 检查；
+iOS 任务验证模拟器与设备 Release 构建的静态链接、当前 C ABI、原生测试和沙箱 shell。
+仓库验证使用 90 分钟超时，macOS 应用与 iOS 验证各使用 60 分钟，三个任务均须通过。
 
 夜间或安静宿主资源门禁可以在同一脚本里显式打开：
 
@@ -318,7 +311,7 @@ nightly/quiet-host gate；跨机器可比的长期基线仍需要单独记录宿
 VERIFY_FLUTTER_TERMINAL_SKIP_MACOS_INTEGRATION=1 ./tools/verify_flutter_terminal.sh
 ```
 
-这个模式仍会跑 Rust、Dart/Flutter package、example 模块化单测与完整 Shell Widget 回归、analyze、Phase 3 grep gate 和 benchmark CI smoke，只跳过 `flutter test -d macos integration_test/...` 两条真实 app integration gate。Kitty POSIX shared memory 专项 Rust 测试在受限宿主上会明确打印 skip；夜间或真机验证若必须证明该路径，请设置 `IANVS_REQUIRE_POSIX_SHM_TESTS=1`，让宿主不支持 `shm_open` 时直接失败。
+这个模式仍会跑 Rust、Dart/Flutter package、example 模块化单测与完整 Shell Widget 回归、analyze、Phase 3 grep gate 和 benchmark CI smoke，只跳过 `verify_macos_app.sh` 中的应用 integration、构建、签名与原生 Xcode 验证。Kitty POSIX shared memory 专项 Rust 测试在受限宿主上会明确打印 skip；夜间或真机验证若必须证明该路径，请设置 `IANVS_REQUIRE_POSIX_SHM_TESTS=1`，让宿主不支持 `shm_open` 时直接失败。
 
 ## 按边界挑命令
 
@@ -337,3 +330,16 @@ VERIFY_FLUTTER_TERMINAL_SKIP_MACOS_INTEGRATION=1 ./tools/verify_flutter_terminal
   - 全部默认顺序都跑
 - 改动跨越 emulation、shortcut routing、trackpad scrollback 或 viewport scroll 行为
   - 默认顺序之外，再看 `T-059` 对应的人工矩阵 lane
+
+## 交互回归入口
+
+剪贴板、OSC 52、粘贴安全、搜索关闭与 split-pane overlay 的可重复验证：
+
+```bash
+cd example
+flutter test test/shell/shell_screen_phase4_test.dart --plain-name "OSC 52"
+flutter test test/shell/shell_screen_phase4_test.dart --plain-name "paste"
+flutter test test/widget_test.dart --plain-name "shell search"
+```
+
+这些检查验证当前代码，不依赖历史审计报告中的通过描述。

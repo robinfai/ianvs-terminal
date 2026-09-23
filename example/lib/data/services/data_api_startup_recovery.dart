@@ -13,11 +13,10 @@ final class DataApiStartupRecoveryBusyException implements Exception {
 /// that temporary runtime to the locked composition.
 final class DataApiFreshRuntimeRunner {
   DataApiFreshRuntimeRunner({
-    required DataApiRuntime? initialRuntime,
-    required DataApiFreshRuntimeBootstrap bootstrap,
+    required this._initialRuntime,
+    required this._bootstrap,
     this.closeTimeout = const Duration(seconds: 5),
-  }) : _initialRuntime = initialRuntime,
-       _bootstrap = bootstrap;
+  });
 
   final DataApiRuntime? _initialRuntime;
   final DataApiFreshRuntimeBootstrap _bootstrap;

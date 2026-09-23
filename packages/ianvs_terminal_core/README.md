@@ -87,6 +87,17 @@ frame/request fallbacks.
 The host application remains responsible for windows, navigation, product
 sessions, permissions, and platform clipboard integration.
 
+## Repository development
+
+This is the standalone publication artifact. Runtime, PTY, native source and their tests are
+synchronized from `packages/ianvs_terminal`, `packages/ianvs_pty` and `native/core` in the
+repository; edit those canonical sources rather than the generated copies. The hand-owned
+embedding widgets, public barrel, package metadata and build integration remain here.
+
+From the repository root, run `make terminal-core-sync` after canonical changes and
+`make terminal-core-check` before review. The workspace and standalone native builds enforce
+the same ABI manifest; consumers must use the native library bundled with this package.
+
 ## License
 
 BSD-3-Clause. Bundled third-party Rust sources retain their own license files.

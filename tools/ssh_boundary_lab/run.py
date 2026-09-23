@@ -432,7 +432,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--context', default='colima')
     parser.add_argument('--image', default='ianvs-ssh-boundary-lab:20260912')
-    parser.add_argument('--output', type=Path, default=ROOT / 'docs/reviews/ssh-boundary-lab-20260912')
+    parser.add_argument('--output', type=Path, default=ROOT / 'build/ssh-boundary-lab')
     args = parser.parse_args()
     lab = Lab(args)
     try:

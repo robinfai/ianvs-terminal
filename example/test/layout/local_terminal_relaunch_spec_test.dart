@@ -3,15 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('TerminalRelaunchSpec', () {
-    test('canonical writes omit compatibility command data', () {
-      const spec = TerminalRelaunchSpec(
-        profileId: ' default ',
-        command: TerminalRelaunchCommand(
-          program: ' /bin/zsh ',
-          arguments: <String>['-l', '--no-rcs'],
-        ),
-        cwd: ' /repo ',
-      );
+    test('round-trips only the profile reference and working directory', () {
+      const spec = TerminalRelaunchSpec(profileId: ' default ', cwd: ' /repo ');
 
       final json = spec.toJson();
       final decoded = TerminalRelaunchSpec.fromJson(json);
@@ -25,8 +18,24 @@ void main() {
       expect(json['schemaVersion'], currentTerminalRelaunchSpecVersion);
       expect(json['contract'], terminalRelaunchSpecContract);
       expect(decoded.profileId, 'default');
-      expect(decoded.command, isNull);
       expect(decoded.cwd, '/repo');
+    });
+
+    test('ignores stale command payloads in current-schema documents', () {
+      final decoded = TerminalRelaunchSpec.fromJson({
+        ...const TerminalRelaunchSpec(
+          profileId: 'default',
+          cwd: '/repo',
+        ).toJson(),
+        'command': {
+          'program': '/bin/echo',
+          'arguments': ['obsolete'],
+        },
+      });
+
+      expect(decoded.profileId, 'default');
+      expect(decoded.cwd, '/repo');
+      expect(decoded.toJson(), isNot(contains('command')));
     });
 
     test('rejects unsupported versions and contracts', () {

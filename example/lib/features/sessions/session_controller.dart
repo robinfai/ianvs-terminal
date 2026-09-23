@@ -1331,14 +1331,7 @@ class SessionController extends Notifier<SessionState> {
     required String profileId,
     required TerminalProfile launchProfile,
   }) {
-    return TerminalRelaunchSpec(
-      profileId: profileId,
-      command: TerminalRelaunchCommand(
-        program: launchProfile.shell,
-        arguments: launchProfile.args,
-      ),
-      cwd: launchProfile.cwd,
-    );
+    return TerminalRelaunchSpec(profileId: profileId, cwd: launchProfile.cwd);
   }
 
   String? _createRuntimeSession(TerminalProfile launchProfile) {

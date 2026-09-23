@@ -80,5 +80,7 @@ and its matching 2026-04-19 `charproc.c`/`misc.c`: `report_win_label`,
 Repository evidence covers raw and hexadecimal exact replies, fragmentation,
 selectors, partial fallback, implicit bounds, all direct positions, invalid
 input, policy denial, VT220 silence, RIS, snapshots, shared corpus, native real
-PTY and macOS product real PTY behavior. Final acceptance evidence is recorded
-in [Phase 40 review](../reviews/xterm_title_window_ops_phase40_20260714.md).
+PTY and macOS product real PTY behavior. Run the current
+[native session suite](../../native/core/tests/session_test.rs) and
+[real PTY suite](../../example/integration_test/real_pty_acceptance_test.dart);
+GUI and reference-terminal checks use [Manual Verification](../compatibility/MANUAL_VERIFICATION.md).

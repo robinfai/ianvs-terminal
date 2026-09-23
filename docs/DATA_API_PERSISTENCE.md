@@ -1,152 +1,174 @@
-# Data API persistence boundary
+# Data API persistence and synchronization boundary
 
-The Flutter application selects persistence adapters once in
-`example/lib/persistence_repository_composition.dart`. A running Data API uses
-API adapters exclusively; disabled mode uses the existing local JSON adapters.
-If a configured local or remote API cannot start, composition enters an
-explicit persistence-unavailable mode. It does not silently read or write the
-local JSON repositories.
+The current application is local-first. `example/lib/persistence_repository_composition.dart`
+constructs the same local repositories in every deployment mode. An optional
+Data API synchronizes selected configuration documents; it does not replace
+local persistence or become a prerequisite for saving SSH profiles.
 
-## Initial startup gate
+## Module ownership
 
-On macOS, an absent `data-api/configuration.json` pauses the first startup at
-the remote HTTP API connection form. The user may authenticate immediately or
-explicitly skip. Skipping persists the current Disabled configuration so the
-prompt is not repeated, starts no API sidecar, exposes local terminal profiles,
-and keeps `~/.ssh/config` discovery available. Custom SSH profile documents are
-not available in this local-terminal-only mode.
+- `example/lib/data/configuration/` owns deployment configuration, credential
+  references, authentication transactions, recovery journals, and cleanup.
+- `example/lib/data/services/` owns bounded HTTP transport, client-side
+  encryption, credential storage, sidecar lifecycle, and explicit API migration.
+- `example/lib/data/sync/` owns local repository decorators, encrypted
+  checkpoints, three-way merge, scheduling, conflict resolution, and sync status.
+- Feature repositories own their document formats and local storage. Data API
+  adapters encode those same documents for API operations and contract tests.
+- `backend/` owns authentication, revisioned opaque resources, pagination,
+  migration export/merge, SQLite/MySQL persistence, and the embedded Web console.
 
-On iOS, any non-remote configuration pauses startup at the same form without a
-skip action. The terminal runtime is not composed until the remote URL and
-credentials have been validated and committed. An existing authenticated
-remote configuration proceeds normally; expired or missing secure credentials
-continue through the typed recovery flow for that same origin.
+## Startup and deployment modes
 
-## Three deployment modes
+On macOS, an absent `data-api/configuration.json` opens an optional connection
+form. On iOS, it opens the mobile welcome screen without credential fields;
+users continue locally and configure optional API sync later in Settings.
+Skipping setup persists Disabled and continues with local repositories.
+Existing configuration is recovered before
+starting its transport. Recoverable API configuration, credential, and transport
+failures leave local data available with an API synchronization warning.
+Unconfirmed sidecar termination and failures that prevent safe recovery remain
+startup failures; local-first does not bypass lifecycle or key-integrity checks.
 
-| Mode | API process/runtime | Custom SSH profiles | Persistence | Cross-device sync |
-| --- | --- | --- | --- | --- |
-| Local terminal (`disabled`) | None | No; `~/.ssh/config` remains available | Current local terminal repositories | No |
-| Bundled local API (`local`, macOS) | Bundled sidecar and local SQLite | Yes | Data API resources, offline | No |
-| Remote API (`remote`) | Authenticated HTTP API | Yes | Data API resources | Yes |
+| Mode | API runtime | Application persistence | Synchronization |
+| --- | --- | --- | --- |
+| Disabled | None | Local repositories, including encrypted SSH profile secrets | Off |
+| Local (macOS) | Bundled sidecar with SQLite | Same local repositories | Selected documents synchronized to bundled API |
+| Remote | Authenticated HTTP API | Same local repositories | Selected documents synchronized to remote account |
 
-The custom-SSH capability depends on persistent API storage, not on cloud
-connectivity. The synchronization capability is separate and becomes true only
-when the active runtime has a configured remote HTTP API URL.
+Custom SSH profiles do not require API enablement. The local API remains a
+supported explicit deployment, and iOS cannot launch the macOS sidecar.
+Changing the active sync transport reuses the local repositories and live
+application graph.
 
-Each bundled sidecar start receives a fresh 32-byte random Bearer token that
-remains process-local; the token is never written to Keychain or a persistent
-file, and its private runtime configuration is deleted immediately after the
-backend reports READY. One portable master key remains in synchronized Apple
-Keychain and is shared automatically by macOS and iOS. Sensitive resource JSON
-is encrypted and authenticated by the Flutter client before either local or
-remote API upload. The server stores only opaque envelopes.
+## Production sync scope
 
-## Explicit local-to-remote migration
+| Feature | API resource | Sensitive payload | Current production behavior |
+| --- | --- | --- | --- |
+| Profiles | `profile/default` | SSH and other profile secrets | Bidirectional sync of one atomic document |
+| App preferences | `config/preferences` | None | Bidirectional sync |
+| Terminal config | `config/local-terminal` | None | Bidirectional sync |
+| Terminal layout | None | Local document | Local only |
+| Paste history | None | Local document | Local only |
 
-Changing a running bundled local API to Remote in **Defaults & appearance →
-Data service** is labelled **Migrate to remote API**. After remote
-authentication, the app exports bounded pages from
-`GET /v1/migrations/export`, decrypts sensitive envelopes locally under the
-source account context, re-encrypts them under the destination account context, and submits each page to
-`POST /v1/migrations/merge` with `preserve_destination` and no delete
-propagation. Only a complete, conflict-free merge permits the non-secret
-deployment configuration to commit as Remote.
+Recording/replay, theme, layout-template, and recent-item repositories are not
+bound to this coordinator. The generic server and explicit API adapters can
+represent additional resource kinds, but that does not make them production
+sync bindings. Profile export is an explicit local copy, not another source.
 
-Authentication, export, merge, report-identity, cursor, or conflict failures
-leave the current Local configuration and sidecar ownership intact. Source
-data is never deleted. A partial remote merge can be retried safely because
-the server source identity and source revisions make the operation idempotent.
-Startup recovery does not offer an implicit Local-to-Remote switch; migration
-must be initiated while the local API is running.
+Local writes commit before scheduling synchronization. The coordinator runs
+on start, every 30 seconds, after a 400 ms local-edit debounce, on foreground
+resume, and on explicit retry. It compares local and remote documents against
+the last acknowledged checkpoint. Independent edits merge; conflicting edits
+remain visible until the user chooses local or remote values. Profile arrays
+merge by stable profile ID. A whole aggregate resource disappearing remotely
+requires a visible choice rather than silently deleting every local profile.
 
-## Explicit remote-to-local migration
+Remote writes use the observed server revision, including `expected_revision: 0`
+for create-if-absent. Revision conflicts and concurrent local edits retry at
+most three times. Local mutation locks are not held during network I/O. The
+checkpoint advances only after the corresponding local commit; checkpoints
+are authenticated ciphertext scoped to destination identity and resource.
+Remote account identities survive token renewal; different accounts use
+separate checkpoints. Network failures and HTTP 401 affect synchronization,
+not the ability to read or save local documents.
 
-Changing an authenticated Remote API to **Bundled local API** is labelled
-**Migrate to local API**. The app starts an isolated temporary local sidecar,
-exports the remote current resources, and merges them with `source_wins` while
-keeping `propagate_deletes` disabled. This makes the explicitly selected remote
-source authoritative for matching local resources without deleting unrelated
-local data. The remote API and its data are never deleted.
+## Client-only encryption and authentication
 
-Only after every page and merge result succeeds does the app commit the Local
-deployment configuration and close the temporary sidecar. Authentication,
-export, merge, temporary-runtime cleanup, or configuration-commit failures keep
-the Remote deployment active and can be retried safely. The next startup opens
-the same local SQLite store through the ordinary bundled-sidecar path.
+One portable master key is stored in synchronized Apple Keychain in production.
+Development uses its separate, non-synchronized key namespace. Profile secrets,
+credential vault contents, and sync checkpoints use client-side encryption;
+sensitive API payloads use AES-256-GCM with account/resource-bound key derivation
+and authentication data. The server stores only opaque envelopes and never
+receives the master key. See [ADR-0004](DECISIONS/ADR-0004-client-side-sensitive-encryption.md).
 
-## Production-wired resources
+Remote login requires HTTPS, except loopback HTTP development endpoints. The
+client begins authentication, durably records the prepared credential slot and
+transaction intent, and then completes the exchange. Passwords are never
+persisted. Tokens and expiry live in an encrypted local credential vault;
+`configuration.json` stores only non-secret deployment state, normalized base
+URL, credential reference, generation, and transaction identity.
 
-| Feature-owned port | Data API resource | Sensitive payload |
-| --- | --- | --- |
-| Profiles | `profile/default` | SSH and other profile secrets |
-| App preferences | `config/preferences` | No |
-| Terminal config | `config/local-terminal` | No |
-| Terminal layout | `session/layout` | Entire document |
-| Paste history | `paste_history/default` | Entire document |
+Before configuration commit, `validateSession()` verifies `/v1/me` bearer
+access. Key mismatch is detected locally when sensitive data is decrypted.
+Configuration and credential transactions use generation/digest compare-and-swap
+checks under an OS lock. Cancellation and revocation queues survive restarts;
+cleanup failure remains visible and is retried without discarding pending work.
 
-Profiles are one versioned resource rather than one request per profile. This
-preserves the local repository's atomic-document behavior and prevents a
-conflict from leaving a partially updated profile collection. Profile export
-remains an explicit local copy through an injected export-directory resolver;
-it is not another persistence source.
+Each bundled sidecar start gets a fresh 32-byte random Bearer token. The token
+is process-local; its private startup configuration is removed after READY.
+The independent portable master key remains durable so resource envelopes can
+be decrypted after restart.
 
-Theme, layout-template, and recent-item repositories are deliberately deferred.
-They have no production provider/consumer path, so this composition does not
-construct API adapters or discover non-current persistence. Recording and
-replay persistence are also outside this boundary.
+## Explicit API-to-API migration
 
-## Remote authentication
+`DataApiMigrationService` and the authenticated configuration repository retain
+bounded, explicit migration between current API stores. This is separate from
+normal local-first synchronization and does not import historical JSON files.
 
-Remote account login requires HTTPS, except for an explicit loopback HTTP
-development endpoint. Authentication is a two-step transaction: the app
-begins authentication, durably records the prepared credential slot and
-transaction intent, and only then completes the server exchange. Passwords
-are never persisted. The returned token and expiry live in an encrypted,
-generation-qualified local credential vault. The independently synchronized
-master key unlocks that vault and resource envelopes but is never part of the
-authentication request or response. The
-ordinary `configuration.json` contains only non-secret deployment state,
-normalized base URL, credential-slot reference, generation, and transaction
-identity.
+Local-to-remote uses `preserve_destination`; remote-to-local uses `source_wins`
+against a temporary local runtime. Both disable delete propagation. Each page
+comes from `GET /v1/migrations/export` and is submitted to
+`POST /v1/migrations/merge`; sensitive data is decrypted and re-encrypted in
+client memory for the destination account. Source data is not deleted.
 
-Before committing remote configuration, the client validates `/v1/me`. A
-missing, expired, or wrong-origin session leaves the prior configuration
-unchanged. Key mismatch and corrupt-resource failures are local AEAD/MAC
-errors raised only when sensitive data is decrypted.
-The same URL can be reconnected explicitly after token loss or expiry.
-Switching to local or disabled mode commits the new non-secret configuration
-and queues the old immutable credential slot for bounded revocation and
-cleanup. Revocation and interrupted-authentication cancellation queues are
-durable and replayed on startup; a network failure does not silently erase the
-pending work. Configuration, saga journal, and credential slots use
-generation/digest compare-and-swap checks under the repository's OS lock, so
-another process cannot replace the snapshot being committed. The UI exposes
-typed pending-cleanup warnings while startup and settings retry the same
-current transaction.
+Configuration commits only after every page and report is accepted, with
+required temporary-runtime cleanup completed. Source identity, source revisions,
+report identity, and cursor checks make interrupted work safely retryable.
+The explicit remote fallback mirror also uses staged API storage and activation;
+it is not the local repository source used during ordinary sync outages.
 
-## Concurrency and current API persistence
+## Retained compatibility and removal boundaries
 
-There is no product-time importer for historical JSON repositories. API-backed
-deployments read and write only the current API resource contract; local JSON
-adapters remain an explicitly selected disabled-mode backend and are never
-silently imported, deleted, or used as fallback data.
+Current configuration, server schema, and sensitive envelopes reject unsupported
+versions. Removed server key-verification endpoints and server-side encryption
+formats have no fallback readers. Historical feature JSON is not silently
+imported into API storage.
 
-API adapters retain server revisions. Initial writes use
-`expected_revision: 0` (create-if-absent, including one-winner recreation of a
-logically absent tombstone); updates and deletes use the revision returned by
-the preceding read. Terminal-config transforms are pure and may be
-replayed up to three times after a typed revision conflict. Ordinary save
-conflicts remain typed and visible to the caller.
+The following narrow compatibility paths remain because they protect existing
+credentials or encrypted data:
 
-## HTTP client boundary
+- Predecessor macOS master keys and local API keys are adopted only through
+  their guarded migration paths. A mismatched synchronized key is replaced
+  only after the candidate authenticates the existing encrypted vault.
+- Predecessor per-slot Keychain credentials are copied into the encrypted file
+  vault, read back, and retired. Completion markers stop further legacy reads;
+  new production writes target the file vault.
+- Remote sessions without a saved username retain token-isolated checkpoint
+  identities until the next successful login supplies a stable account identity.
+- The former project API URL is normalized to the current project URL. The
+  configured project transport alias remains a narrowly scoped TLS-handshake
+  recovery route; it is not a JSON schema or persistence fallback.
 
-The client independently validates the base URL, disables redirects, applies
-connection and whole-request deadlines, and limits JSON response bodies to the
-server contract's 12 MiB maximum envelope. Resource listing exposes only a
-bounded cursor page (`limit` is at most 100); callers must explicitly request
-the opaque `next_cursor` rather than materializing an unbounded account-wide
-list. Malformed JSON, oversized responses, invalid cursors, timeouts,
-authentication failures, and revision conflicts are exposed as typed errors.
-Authorization headers therefore cannot be redirected to
-another origin.
+Removing these paths requires evidence that the affected stored data is no
+longer supported or a separate explicit migration, not simply absence of new
+writes in the old format.
+
+## HTTP boundary
+
+The client validates base URLs, disables redirects, applies connection and
+whole-request deadlines, and bounds request/response JSON to 12 MiB. Resource
+lists and migration exports use explicit cursor pages of at most 100 resources.
+Malformed JSON, invalid cursors, oversized bodies, timeouts, authentication
+failures, and revision conflicts remain typed errors.
+
+Redirects cannot forward Authorization to another origin. A TLS handshake
+failure may retry once through the explicitly configured fallback transport;
+the project default has a fixed HTTPS alias. This occurs before HTTP dispatch,
+preserves the configured logical account identity, and never bypasses certificate
+validation. Arbitrary server redirects do not select that fallback.
+
+## Verification
+
+From the repository root:
+
+```bash
+(cd example && flutter test test/data)
+(cd backend && go test ./... && go vet ./...)
+(cd backend/webui && pnpm typecheck && pnpm test:unit)
+./tools/verify_local_first_sync_http.sh
+```
+
+The real HTTP gate uses disposable loopback services and two clients. GUI
+startup, settings changes, Keychain prompts, and cross-device synchronization
+remain separate acceptance checks in [TESTING.md](TESTING.md).

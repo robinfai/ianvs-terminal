@@ -130,13 +130,4 @@ final class PersistenceRepositoryComposition {
   bool get usesDataApi =>
       sync.client != null && sync.phase != LocalFirstSyncPhase.disabled;
   final Future<void> Function(DataApiRuntime?) configureSyncRuntime;
-  bool get persistenceUnavailable => false;
-}
-
-/// Retained for callers decoding historical startup failures.
-final class DataApiPersistenceUnavailableException implements Exception {
-  const DataApiPersistenceUnavailableException();
-  @override
-  String toString() =>
-      'API synchronization is unavailable; local data is still available.';
 }

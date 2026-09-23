@@ -1,25 +1,9 @@
-# Decisions
+# 当前架构决策
 
-这个目录用来放需要长期追踪的架构决策文档。
+- [ADR-0001：模块边界](ADR-0001-hyper-phase0-shell-boundaries.md)
+- [ADR-0002：vendored terminal core](ADR-0002-terminal-core-fork-rationale.md)
+- [ADR-0003：Terminal Layout 产品边界](ADR-0003-terminal-scope-convergence.md)
+- [ADR-0004：客户端敏感数据加密](ADR-0004-client-side-sensitive-encryption.md)
 
-适合写成决策文档的情况：
-
-- 影响多个阶段的技术选型
-- 会改变后续任务边界
-- 未来很可能需要回看“为什么当时这么选”
-
-建议命名格式：
-
-- `ADR-0001-flutter-canvas-first.md`
-- `ADR-0002-json-ffi-first.md`
-- `ADR-0003-terminal-scope-convergence.md`
-- `ADR-0004-client-side-sensitive-encryption.md`
-
-每份决策文档至少包含：
-
-- `Context`
-- `Decision`
-- `Consequences`
-- `Alternatives Considered`
-
-如果只是一次性实现细节，不要放到这里，直接写在任务文档里。
+这里只保存仍约束当前实现的决策。变更时直接更新正文和源码/测试链接；
+不追加已被取代的实现版本、运行日志或会话回溯路径。

@@ -86,25 +86,24 @@ void main() {
   });
 
   test('authoritative documentation links resolve', () {
-    const documents = <String>[
+    final documents = <String>{
       'README.md',
       'ARCHITECTURE.md',
-      'docs/README.md',
-      'docs/ACCEPTANCE.md',
-      'docs/ARCHITECTURE.md',
-      'docs/CURRENT_EXECUTION_TARGET.md',
-      'docs/compatibility/CAPABILITY_MATRIX.md',
-      'docs/compatibility/KNOWN_ISSUES.md',
-      'docs/compatibility/MANUAL_VERIFICATION.md',
-      'docs/compatibility/TEST_ASSET_INVENTORY.md',
-      'docs/KNOWN_ISSUES.md',
-      'docs/ROADMAP.md',
-      'docs/TESTING.md',
-      'docs/tasks/README.md',
-      'docs/tasks/verification-gates/'
-          'T-298-current-execution-target-contract.md',
-      'docs/tasks/verification-gates/T-302-compatibility-baseline.md',
-    ];
+      'design-qa.md',
+      'backend/README.md',
+      'example/README.md',
+      'packages/ianvs_pty/README.md',
+      'packages/ianvs_terminal/README.md',
+      'packages/ianvs_terminal_core/README.md',
+      'tools/ssh_boundary_lab/README.md',
+      'tools/zmodem_e2e/README.md',
+      'tools/recording_bench/README.md',
+      ...Directory('docs')
+          .listSync(recursive: true)
+          .whereType<File>()
+          .where((file) => file.path.endsWith('.md'))
+          .map((file) => file.path),
+    };
     final failures = <String>[];
 
     for (final document in documents) {
@@ -136,6 +135,30 @@ void main() {
     expect(failures, isEmpty, reason: failures.join('\n'));
   });
 
+  test('docs contain current documentation instead of execution archives', () {
+    for (final directory in <String>[
+      'audits',
+      'evidence',
+      'reviews',
+      'design',
+      'retros',
+      'terminal-graphics-debug',
+      'ai',
+      'superpowers',
+    ]) {
+      expect(Directory('docs/$directory').existsSync(), isFalse);
+    }
+    final generatedFiles = Directory('docs')
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where(
+          (file) =>
+              RegExp(r'\.(log|trace|py|dart|ts|zip|mp4)$').hasMatch(file.path),
+        )
+        .map((file) => file.path);
+    expect(generatedFiles, isEmpty);
+  });
+
   test('compatibility baseline keeps six-layer evidence explicit', () {
     final matrix = File(
       'docs/compatibility/CAPABILITY_MATRIX.md',
@@ -149,15 +172,12 @@ void main() {
     final manual = File(
       'docs/compatibility/MANUAL_VERIFICATION.md',
     ).readAsStringSync();
-    final task = File(
-      'docs/tasks/verification-gates/T-302-compatibility-baseline.md',
-    ).readAsStringSync();
 
     expect(
       matrix,
       contains(
         '| Area | Capability | Parse | State | Frame | Runtime | UI | '
-        'Verified | Evidence |',
+        'Test layer | Current test / boundary |',
       ),
     );
     for (final area in <String>[
@@ -178,46 +198,46 @@ void main() {
     expect(inventory, contains('native/core/tests/'));
     expect(inventory, contains('example/integration_test/'));
     expect(inventory, contains('tools/vttest_gui_nightly.sh'));
-    expect(knownIssues, contains('resize_replay_skipped_truncated_count'));
+    expect(matrix, contains('resize_replay_skipped_truncated_count'));
+    expect(knownIssues, contains('DIAGNOSTIC_EVENT_V1.md'));
     expect(manual, contains('Never record a missing prerequisite as `pass`'));
-    for (final command in <String>[
-      'make bootstrap',
-      'make analyze',
-      'make test',
-      'make verify',
-    ]) {
-      expect(task, contains(command));
-    }
-    expect(task, contains('Do not perform the Iteration 02'));
-    expect(task, contains('Do not implement Iteration 03'));
   });
 
-  test('OSC capability plan uses automated OSC52 UI evidence first', () {
-    final plan = File('docs/OSC_CAPABILITY_PLAN.md').readAsStringSync();
+  test('current testing guide points to interaction regressions', () {
+    final guide = File('docs/TESTING.md').readAsStringSync();
+    final pasteTests = File(
+      'example/test/shell/shell_screen_phase4_test.dart',
+    ).readAsStringSync();
+    final searchTests = File(
+      'example/test/widget_test.dart',
+    ).readAsStringSync();
 
+    expect(guide, contains('test/shell/shell_screen_phase4_test.dart'));
+    expect(guide, contains('test/widget_test.dart'));
     expect(
-      plan,
-      isNot(
-        contains(
-          'Manual acceptance must include a visible clipboard-copy and '
-          'paste-request flow.',
-        ),
-      ),
+      pasteTests,
+      contains('OSC 52 prompt identifies inactive split pane'),
     );
     expect(
-      plan,
-      contains(
-        'cd example && flutter test test/shell/shell_screen_phase4_test.dart '
-        '--plain-name "OSC 52"',
-      ),
+      pasteTests,
+      contains('OSC 52 paste read labels empty clipboard preview'),
     );
     expect(
-      plan,
-      contains('OSC 52 blocked copy shows visible status and feedback'),
+      pasteTests,
+      contains('native paste confirms multiline text before sending'),
     );
-    expect(plan, contains('OSC 52 ask policy prompts before paste read'));
-    expect(plan, contains('Desktop smoke remains supplemental'));
-    expect(plan, isNot(contains('Computer acceptance confirms')));
+    expect(
+      pasteTests,
+      contains('command-v read-only paste does not read clipboard'),
+    );
+    expect(
+      searchTests,
+      contains('shell search closes on Escape without terminal input'),
+    );
+    expect(
+      searchTests,
+      contains('shell search overlay stays inside active split pane'),
+    );
   });
 
   test('terminal verification script runs docs contract tests', () {
@@ -387,74 +407,6 @@ time.sleep(30)
       }
     },
   );
-
-  test('real-flow audit records automated paste-safety closure', () {
-    final audit = File(
-      'docs/audits/ianvs-terminal-real-flow-2026-06-03/AUDIT.md',
-    ).readAsStringSync();
-
-    expect(audit, isNot(contains('missing current-run paste-safety capture')));
-    expect(audit, contains('Automated Paste-Safety Closure'));
-    expect(
-      audit,
-      contains(
-        'cd example && flutter test test/shell/shell_screen_phase4_test.dart '
-        '--plain-name "paste"',
-      ),
-    );
-    expect(
-      audit,
-      contains('paste clipboard confirms multiline text before sending'),
-    );
-    expect(
-      audit,
-      contains('command-v read-only paste does not read clipboard'),
-    );
-  });
-
-  test('real-flow audit records automated search close proof', () {
-    final audit = File(
-      'docs/audits/ianvs-terminal-real-flow-2026-06-03/AUDIT.md',
-    ).readAsStringSync();
-
-    expect(
-      audit,
-      isNot(
-        contains(
-          'keyboard escape/close behavior still needs manual or automated proof',
-        ),
-      ),
-    );
-    expect(audit, contains('Automated Search Closure Proof'));
-    expect(
-      audit,
-      contains(
-        'cd example && flutter test test/widget_test.dart '
-        '--plain-name "shell search closes on Escape without terminal input"',
-      ),
-    );
-    expect(
-      audit,
-      contains('shell search closes on Escape without terminal input'),
-    );
-  });
-
-  test('comprehensive evaluation records automated split-search proof', () {
-    final evaluation = File(
-      'docs/audits/ianvs-terminal-comprehensive-evaluation-2026-06-03/'
-      'EVALUATION.md',
-    ).readAsStringSync();
-
-    expect(
-      evaluation,
-      isNot(contains('split-pane overlay placement needs more proof')),
-    );
-    expect(evaluation, contains('split-pane overlay placement is automated'));
-    expect(
-      evaluation,
-      contains('shell search overlay stays inside active split pane'),
-    );
-  });
 }
 
 final RegExp _markdownLinkPattern = RegExp(

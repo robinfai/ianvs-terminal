@@ -14,37 +14,21 @@ unsupported shapes, and has no predecessor symbol or downgrade route.
 
 The current boundary consists of Runtime Capabilities, Runtime Event Batch,
 SessionConfig, Session Request/Response, Host Request/Response, Diagnostic
-Event, Terminal Frame Packet and Graphic Asset Packet v1. Historical migration
-tasks are implementation history only and cannot authorize a predecessor wire
-or exported symbol.
+Event, Terminal Frame Packet and Graphic Asset Packet v1. Previous wire versions do not authorize a predecessor symbol or downgrade route.
 
-## Product scope convergence
+## Product boundary
 
-T-331 supersedes the current-product claims made by T-312 through T-317:
+- Profile and Session own reusable configuration and live runtime respectively.
+- Terminal Layout persists tab/pane topology and a Relaunch Spec containing only
+  profileId and optional cwd. Restoration creates fresh sessions from the current Profile.
+- Open Terminal at Folder adds a session at the selected cwd.
+- Recordings belong to an independent flat Recording Library.
+- Unsupported Workspace structures are outside the runtime contract: the app
+  neither imports nor deletes them.
+- Toolbelt/completion panels are retired; user diagnostics export remains supported.
 
-- the durable UI/persistence concept is **Terminal Layout**, not Project
-  Workspace;
-- the restart contract is **Relaunch Spec** containing only profile,
-  command/arguments and cwd;
-- **Open Terminal at Folder** adds a terminal at the selected cwd without
-  changing an application/project container;
-- recordings belong to an independent flat **Recording Library**;
-- Project Workspace identity, Recent Workspace and project switching are not
-  current capabilities;
-- unsupported Workspace/config/recording structures are outside the current
-  product contract; runtime code neither imports nor deletes them;
-- completion/wiring diagnostics are debug-only; diagnostics export remains a
-  user capability.
-
-The authoritative boundary is
-[`TERMINAL_PRODUCT_SCOPE.md`](TERMINAL_PRODUCT_SCOPE.md) and the accepted
-decision is
-[`ADR-0003`](DECISIONS/ADR-0003-terminal-scope-convergence.md).
-
-Historical task documents T-312 through T-317 remain unchanged as archival
-implementation evidence only. Their compatibility and migration descriptions
-are not product authority and do not override T-331 or the current scope
-document.
+The authority is [TERMINAL_PRODUCT_SCOPE.md](TERMINAL_PRODUCT_SCOPE.md) and
+[ADR-0003](DECISIONS/ADR-0003-terminal-scope-convergence.md).
 
 ## Current invariants
 

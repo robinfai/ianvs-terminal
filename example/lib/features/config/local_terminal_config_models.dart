@@ -238,10 +238,9 @@ class LocalTerminalKeybindingsConfig {
     this.disabledDefaultActions = const <TerminalActionId>{},
     this.overrides =
         const <TerminalActionId, LocalTerminalKeyBindingOverride>{},
-    List<String> persistedDisabledDefaultActions = const <String>[],
-    Map<String, Object?> tombstonedOverrides = const <String, Object?>{},
-  }) : _persistedDisabledDefaultActions = persistedDisabledDefaultActions,
-       _tombstonedOverrides = tombstonedOverrides;
+    this._persistedDisabledDefaultActions = const <String>[],
+    this._tombstonedOverrides = const <String, Object?>{},
+  });
 
   final Set<TerminalActionId> disabledDefaultActions;
   final Map<TerminalActionId, LocalTerminalKeyBindingOverride> overrides;

@@ -1,7 +1,6 @@
 # ADR-0003: Converge On Terminal Layout Instead Of Project Workspace
 
-- Status: Accepted
-- Date: 2026-07-23
+Status: Accepted. Current product authority is [TERMINAL_PRODUCT_SCOPE.md](../TERMINAL_PRODUCT_SCOPE.md).
 
 ## Context
 
@@ -20,12 +19,11 @@ does not switch an application container.
 Project identity, Recent Workspace and project switching are removed from the
 product and from current persistence. Unsupported Workspace documents are
 outside the runtime contract: the app does not discover, migrate or delete
-them. Relaunch Spec stores only launchable intent. Recordings use their own
-flat library/index. Internal completion diagnostics are debug-only, while
-diagnostics export remains supported.
+them. Relaunch Spec persists only `profileId` and optional `cwd`; the referenced
+Profile supplies command and connection settings. Recordings use their own flat
+library/index. User diagnostics export remains supported.
 
-SSH is deferred, not rejected. A future SSH design must extend Profile and
-Session without restoring the project Workspace abstraction.
+SSH and SFTP extend Profile and Session without restoring Project Workspace.
 
 ## Consequences
 
@@ -35,8 +33,6 @@ Session without restoring the project Workspace abstraction.
   restart policy.
 - Unsupported project collections remain outside runtime discovery and are
   not modified by the app.
-- Historical T-312 through T-317 records remain valid history but no longer
-  describe the current product surface.
 
 ## Rejected alternatives
 

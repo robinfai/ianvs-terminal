@@ -54,11 +54,10 @@ class DataApiRuntime {
     required this.baseUri,
     required this.localAccessToken,
     required this.encryptionKey,
-    required DataApiRuntimeClose closeLocalSidecar,
+    required DataApiRuntimeClose this._closeLocalSidecar,
   }) : deployment = DataApiDeployment.local,
        syncIdentity = 'bundled-local',
-       remoteAccessToken = null,
-       _closeLocalSidecar = closeLocalSidecar;
+       remoteAccessToken = null;
 
   final Uri baseUri;
   final DataApiDeployment deployment;

@@ -423,49 +423,48 @@ void main() {
     );
   });
 
-  testWidgets('defaults dialog enables layout restore with clear process copy', (
-    tester,
-  ) async {
-    final localConfigRepository = _MemoryLocalTerminalConfigRepository(
-      const LocalTerminalConfigDocument(
-        layout: LocalTerminalLayoutConfig(restoreLayout: false),
-      ),
-    );
+  testWidgets(
+    'defaults dialog enables layout restore with clear process copy',
+    (tester) async {
+      final localConfigRepository = _MemoryLocalTerminalConfigRepository(
+        const LocalTerminalConfigDocument(
+          layout: LocalTerminalLayoutConfig(restoreLayout: false),
+        ),
+      );
 
-    await _pumpShellScreen(
-      tester,
-      fakeBindings: FakePtyBackend(),
-      localConfigRepository: localConfigRepository,
-    );
+      await _pumpShellScreen(
+        tester,
+        fakeBindings: FakePtyBackend(),
+        localConfigRepository: localConfigRepository,
+      );
 
-    await _openCommandMenu(tester);
-    await tester.tap(find.text('Defaults & appearance'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('defaults-section-appearance')));
-    await tester.pumpAndSettle();
-    final restoreToggle = find.byKey(const Key('default-restore-layout'));
-    await tester.ensureVisible(restoreToggle);
+      await _openCommandMenu(tester);
+      await tester.tap(find.text('Defaults & appearance'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('defaults-section-appearance')));
+      await tester.pumpAndSettle();
+      final restoreToggle = find.byKey(const Key('default-restore-layout'));
+      await tester.ensureVisible(restoreToggle);
 
-    expect(find.text('Restore sessions'), findsOneWidget);
-    expect(
-      find.text(
-        'Reopen your previous connections when Trail starts.',
-      ),
-      findsOneWidget,
-    );
-    expect(tester.widget<SwitchListTile>(restoreToggle).value, isFalse);
+      expect(find.text('Restore sessions'), findsOneWidget);
+      expect(
+        find.text('Reopen your previous connections when Trail starts.'),
+        findsOneWidget,
+      );
+      expect(tester.widget<SwitchListTile>(restoreToggle).value, isFalse);
 
-    await tester.tap(restoreToggle);
-    await tester.pump();
-    expect(tester.widget<SwitchListTile>(restoreToggle).value, isTrue);
-    await tester.tap(find.byKey(const Key('defaults-save')));
-    await tester.pumpAndSettle();
+      await tester.tap(restoreToggle);
+      await tester.pump();
+      expect(tester.widget<SwitchListTile>(restoreToggle).value, isTrue);
+      await tester.tap(find.byKey(const Key('defaults-save')));
+      await tester.pumpAndSettle();
 
-    expect(
-      localConfigRepository.savedDocuments.last.layout.restoreLayout,
-      isTrue,
-    );
-  });
+      expect(
+        localConfigRepository.savedDocuments.last.layout.restoreLayout,
+        isTrue,
+      );
+    },
+  );
 
   testWidgets('defaults dialog saves OSC 1337 OpenURL deny policy', (
     tester,

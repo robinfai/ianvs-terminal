@@ -52,7 +52,6 @@ requests without re-emitting them.
 
 No frame or protobuf schema changes are required. The local-config addition is
 optional and defaults to Ask; the legacy `deny` spelling maps to Disabled.
-Reverting Phase 29 returns OpenURL to a bounded unsupported OSC 1337 no-op.
 
 The behavior follows the official
 [iTerm2 proprietary escape-code documentation](https://iterm2.com/documentation-escape-codes.html),

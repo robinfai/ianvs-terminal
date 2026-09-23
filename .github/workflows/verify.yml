@@ -165,8 +165,8 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: macos-latest
-            skip_macos_integration: "0"
+          - os: macos-26
+            skip_macos_integration: "1"
 
     env:
       VERIFY_FLUTTER_TERMINAL_SKIP_MACOS_INTEGRATION: ${{ matrix.skip_macos_integration }}
@@ -191,22 +191,20 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
-          flutter-version: "3.44.0"
+          # Match the SDK/engine used by example/test/design/goldens.
+          flutter-version: "3.44.2"
           channel: stable
           # flutter-action's cache=true path currently invokes a transitive
           # mutable actions/cache tag. Keep it disabled until upstream pins
           # that dependency; pub/cargo locks still make resolution repeatable.
           cache: false
 
-      - name: Enable Apple build targets
+      - name: Enable macOS build targets
         if: runner.os == 'macOS'
         run: |
           rustup target add \
             aarch64-apple-darwin \
-            x86_64-apple-darwin \
-            aarch64-apple-ios \
-            aarch64-apple-ios-sim \
-            x86_64-apple-ios
+            x86_64-apple-darwin
           flutter config --enable-macos-desktop
 
       - name: Print tool versions
@@ -215,9 +213,45 @@ jobs:
           cargo --version
           flutter --version
           dart --version
+          flutter --version --machine
+          sw_vers
+          uname -m
+          shasum -a 256 \
+            "$FLUTTER_ROOT"/bin/cache/artifacts/material_fonts/Roboto-*.ttf \
+            example/test/design/fonts/NotoSansSC-Regular.otf \
+            native/vendor/par-term-emu-core-rust/src/screenshot/JetBrainsMono-Regular.ttf \
+            "$FLUTTER_ROOT/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf"
 
       - name: Resolve workspace dependencies
         run: flutter pub get
+
+      - name: Verify visual baselines
+        id: visual_baselines
+        working-directory: example
+        run: flutter test test/design
+
+      - name: Upload visual comparison failures
+        if: failure() && steps.visual_baselines.outcome == 'failure'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: visual-comparison-failures
+          path: example/test/design/failures/
+          retention-days: 7
+
+      - name: Render baseline candidates for review
+        if: failure() && steps.visual_baselines.outcome == 'failure'
+        working-directory: example
+        # The failed visual comparison remains the gate. These candidate
+        # images are only review artifacts and are never committed by CI.
+        run: flutter test test/design --update-goldens
+
+      - name: Upload baseline candidates
+        if: failure() && steps.visual_baselines.outcome == 'failure'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: visual-baseline-candidates-${{ matrix.os }}
+          path: example/test/design/goldens/${{ matrix.os }}/
+          retention-days: 7
 
       - name: Verify standalone pub archive
         run: dart run tools/verify_terminal_core_publish.dart
@@ -225,6 +259,92 @@ jobs:
       - name: Run repository verification
         run: ./tools/verify_flutter_terminal.sh
 
-      - name: Verify iOS simulator static linkage and sandbox shell
-        if: runner.os == 'macOS'
+  macos-app:
+    name: macOS app integration and release (macos-26)
+    runs-on: macos-26
+    timeout-minutes: 60
+
+    # Start app integration immediately, independently of the repository suite.
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+
+      - name: Set up Go
+        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
+        with:
+          go-version: "1.23.x"
+          cache-dependency-path: backend/go.sum
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master; Rust version pinned below
+        with:
+          toolchain: "1.88.0"
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: "3.44.2"
+          channel: stable
+          cache: false
+
+      - name: Enable macOS build target
+        run: flutter config --enable-macos-desktop
+
+      - name: Print tool versions
+        run: |
+          go version
+          rustc --version
+          cargo --version
+          flutter --version
+          xcodebuild -version
+          sw_vers
+          uname -m
+
+      - name: Verify macOS integration, packaging, signature and native tests
+        run: ./tools/verify_macos_app.sh
+
+  ios-terminal:
+    name: iOS simulator and device (macos-26)
+    runs-on: macos-26
+    timeout-minutes: 60
+
+    # Run independently so iOS builds do not share the time budget of the
+    # macOS/Rust/package suite, without dropping any platform checks.
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master; Rust version pinned below
+        with:
+          toolchain: "1.88.0"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: "3.44.2"
+          channel: stable
+          cache: false
+
+      - name: Enable iOS build targets
+        run: |
+          rustup target add \
+            aarch64-apple-ios \
+            aarch64-apple-ios-sim \
+            x86_64-apple-ios
+
+      - name: Print tool versions
+        run: |
+          rustc --version
+          cargo --version
+          flutter --version
+          xcodebuild -version
+          sw_vers
+          uname -m
+
+      - name: Resolve workspace dependencies
+        run: flutter pub get
+
+      - name: Verify iOS simulator and device static linkage and sandbox shell
         run: ./tools/verify_ios_simulator.sh

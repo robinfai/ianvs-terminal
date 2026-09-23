@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 EXAMPLE_DIR="$ROOT_DIR/example"
 TEST_TARGET="integration_test/remote_data_api_sync_acceptance_test.dart"
-IOS_GATE_TARGET="integration_test/ios_remote_api_gate_acceptance_test.dart"
+IOS_GATE_TARGET="integration_test/ios_local_first_startup_acceptance_test.dart"
 IOS_SIMULATOR_UDID="${IANVS_IOS_SIMULATOR_UDID:-}"
 RESULT_FILE="${IANVS_ACCEPTANCE_RESULT_FILE:-/private/tmp/ianvs-cross-platform-acceptance.status}"
 CREDENTIALS_SOURCE_FILE="${IANVS_ACCEPTANCE_CREDENTIALS_FILE:-}"
