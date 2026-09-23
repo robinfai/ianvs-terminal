@@ -179,7 +179,14 @@ UI golden 基线位于 `example/test/design/goldens/`。`matchesGoldenFile` 使�
 支持版本不代表视觉基线版本。CI 提前运行 `flutter test test/design`，记录引擎、
 macOS、架构和字体哈希，并短期上传失败对比图。测试使用 SDK 的 Roboto/Material
 Icons、仓库中的 JetBrains Mono，以及固定来源的 Noto Sans SC，不读取宿主系统字体。
-这些测试字体不改变产品字体；更新字体或引擎时须审查差异图，像素比较仍保持精确匹配。
+这些测试字体不改变产品字体；更新字体或引擎时须审查差异图。比较器只容忍受限的
+边缘像素差异：尺寸与 alpha 必须完全相同，变化像素不超过 0.45%，每个 RGB 通道
+差值不超过 56/255。每个变化像素在两图各自的 3×3 邻域中至少有一个通道对比度
+达到 20/255，且每个通道的邻域范围至少为该通道差值的两倍。阈值依据已审查的
+固定字体 CoreText 差异（最多 0.41029% 像素、最大通道差 52/255），不适用全图
+模糊或单一比例放行。缺失基线、尺寸或 alpha 变化仍失败，拒绝时保留 Flutter 差异图。
+此规则不识别字体，同等级的小图标边缘变化也可能通过；预期 UI 变化仍须审查，不能
+声称捕获所有布局变化。比较器测试覆盖限额边界、区域位移、平坦区域变色等拒绝场景。
 相同字体在不同 macOS CoreText 版本中仍会产生字形边缘差异，因此当前 macOS 26、27
 分别使用 `goldens/macos-26/`、`goldens/macos-27/` 中的有效基线，CI 固定在 `macos-26`。
 测试自动选择当前 macOS 主版本，未知版本会明确失败。CI 比较失败后可生成候选图供
@@ -278,6 +285,10 @@ rustup target add thumbv7em-none-eabihf
 这个脚本会先构建并验证 `native/core`，再跑 `packages/ianvs_pty`、`packages/ianvs_terminal`、`example` 的默认验证链路，并用 `grep` 守住 Phase 3 的单一 defaults 写入口约束。Dart/Flutter analyze gate 使用 `--fatal-infos`，因此 info 级诊断也会阻断 CI。`example` 默认同时运行模块化测试目录和 `example/test/widget_test.dart` 中的完整 Shell Widget 回归。脚本还会执行 `tools/bench/configs/bench_ci_smoke.yaml`，用确定性 workload 检查 frame diff hash、schema gate、`p95_frame_build_micros`、`p95_json_decode_micros` 和 `p95_apply_frame_micros` 上限，并写出 `os_resource.ndjson` / `p95_process_cpu_percent` / `peak_process_rss_bytes` 作为 CPU/RSS 可观测基线。资源阈值可通过 benchmark config 的 `max_p95_process_cpu_percent` 和 `max_peak_process_rss_bytes` 打开；普通 smoke 默认只采样，不把宿主负载波动作为失败条件。
 脚本末尾会顺序执行 macOS smoke 与 real PTY acceptance，覆盖启动级 UI
 路径和真实 `NativePtyBackend` / shell frame-event 路径。
+
+CI 在独立的 `macos-26` 任务中并行运行 `./tools/verify_ios_simulator.sh`，
+验证 iOS 模拟器与设备 Release 构建的静态链接、当前 C ABI、原生测试和沙箱 shell。
+macOS 仓库验证与 iOS 验证分别使用 90 分钟和 60 分钟的超时预算，两个任务均须通过。
 
 夜间或安静宿主资源门禁可以在同一脚本里显式打开：
 
