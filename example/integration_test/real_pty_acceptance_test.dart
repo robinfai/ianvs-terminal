@@ -2408,6 +2408,21 @@ sleep 5
       );
       _signal(goFile);
 
+      final toggle = find.byKey(
+        terminal.terminalBlockToggleKey('build-acceptance'),
+      );
+      // The controller publishes frames before AnimatedBuilder rebuilds the
+      // block control. Wait for its current icon too, so a tap cannot invoke
+      // the callback still bound to the previous folded/unfolded block.
+      bool toggleIsReady(IconData icon) =>
+          toggle.evaluate().length == 1 &&
+          toggle.hitTestable().evaluate().length == 1 &&
+          find
+                  .descendant(of: toggle, matching: find.byIcon(icon))
+                  .evaluate()
+                  .length ==
+              1;
+
       await _waitFor(
         tester,
         description: 'folded OSC 1337 block product frame',
@@ -2426,14 +2441,12 @@ sleep 5
                     row.text.contains('BLOCK-LAST') &&
                     row.sourceEndRow != null,
               ) &&
-              !frame.rows.any((row) => row.text.contains('BLOCK-SECRET'));
+              !frame.rows.any((row) => row.text.contains('BLOCK-SECRET')) &&
+              toggleIsReady(Icons.chevron_right_rounded);
         },
         onTimeout: () => 'Frame: ${_activeFrame(harness.container)}',
       );
 
-      final toggle = find.byKey(
-        terminal.terminalBlockToggleKey('build-acceptance'),
-      );
       expect(toggle, findsOneWidget);
       await tester.tap(toggle);
       await tester.pump();
@@ -2447,7 +2460,8 @@ sleep 5
               frame.blocks.any(
                 (block) => block.id == 'build-acceptance' && !block.folded,
               ) &&
-              frame.rows.any((row) => row.text.contains('BLOCK-SECRET'));
+              frame.rows.any((row) => row.text.contains('BLOCK-SECRET')) &&
+              toggleIsReady(Icons.expand_more_rounded);
         },
         onTimeout: () => 'Frame: ${_activeFrame(harness.container)}',
       );
@@ -2463,7 +2477,8 @@ sleep 5
               frame.blocks.any(
                 (block) => block.id == 'build-acceptance' && block.folded,
               ) &&
-              !frame.rows.any((row) => row.text.contains('BLOCK-SECRET'));
+              !frame.rows.any((row) => row.text.contains('BLOCK-SECRET')) &&
+              toggleIsReady(Icons.chevron_right_rounded);
         },
         onTimeout: () => 'Frame: ${_activeFrame(harness.container)}',
       );
@@ -2515,6 +2530,17 @@ sleep 5
       );
       final harness = await _pumpRealPtyApp(tester, profiles: [profile]);
 
+      // Native frame validity can change before the widget's callback does.
+      bool inlineButtonIsReady(
+        terminal.TerminalInlineButton button, {
+        required bool enabled,
+      }) {
+        final control = find.byKey(terminal.terminalInlineButtonKey(button.id));
+        return control.evaluate().length == 1 &&
+            (tester.widget<IconButton>(control).onPressed != null) == enabled &&
+            (!enabled || control.hitTestable().evaluate().length == 1);
+      }
+
       await _waitFor(
         tester,
         description: 'OSC 1337 real PTY inline buttons',
@@ -2523,6 +2549,9 @@ sleep 5
           return frame != null &&
               frame.inlineButtons.length == 2 &&
               frame.inlineButtons.every((button) => button.valid) &&
+              frame.inlineButtons.every(
+                (button) => inlineButtonIsReady(button, enabled: true),
+              ) &&
               _terminalText(
                 harness.container,
               ).contains('OSC1337-BUTTONS-READY');
@@ -2554,7 +2583,8 @@ sleep 5
                 (button) =>
                     button.id == custom.id &&
                     button.kind == terminal.TerminalInlineButtonKind.custom &&
-                    !button.valid,
+                    !button.valid &&
+                    inlineButtonIsReady(button, enabled: false),
               );
         },
         onTimeout: () =>

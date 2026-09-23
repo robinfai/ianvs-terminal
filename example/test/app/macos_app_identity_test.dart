@@ -110,7 +110,7 @@ void main() {
       File('${exampleRoot.path}/pubspec.yaml'),
     );
     final verifierText = File(
-      '${repositoryRoot.path}/tools/verify_flutter_terminal.sh',
+      '${repositoryRoot.path}/tools/verify_macos_app.sh',
     ).readAsStringSync();
     final runnerRelease = RegExp(
       r'33CC10FD2044A3C60003C045 /\* Release \*/ = \{(.*?)\n\s*\};',
@@ -230,7 +230,7 @@ void main() {
   test('macOS native test gate does not inherit credential variables', () {
     final repositoryRoot = _exampleRoot().parent;
     final verifier = File(
-      '${repositoryRoot.path}/tools/verify_flutter_terminal.sh',
+      '${repositoryRoot.path}/tools/verify_macos_app.sh',
     ).readAsStringSync();
 
     expect(verifier, contains('/usr/bin/env -i'));
@@ -261,7 +261,7 @@ void main() {
   test('macOS release entitlement inspection uses a cleaned random file', () {
     final repositoryRoot = _exampleRoot().parent;
     final verifier = File(
-      '${repositoryRoot.path}/tools/verify_flutter_terminal.sh',
+      '${repositoryRoot.path}/tools/verify_macos_app.sh',
     ).readAsStringSync();
 
     expect(verifier, contains('ianvs-release-entitlements.plist.XXXXXX'));

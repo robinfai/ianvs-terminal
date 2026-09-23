@@ -166,7 +166,7 @@ jobs:
       matrix:
         include:
           - os: macos-26
-            skip_macos_integration: "0"
+            skip_macos_integration: "1"
 
     env:
       VERIFY_FLUTTER_TERMINAL_SKIP_MACOS_INTEGRATION: ${{ matrix.skip_macos_integration }}
@@ -258,6 +258,51 @@ jobs:
 
       - name: Run repository verification
         run: ./tools/verify_flutter_terminal.sh
+
+  macos-app:
+    name: macOS app integration and release (macos-26)
+    runs-on: macos-26
+    timeout-minutes: 60
+
+    # Start app integration immediately, independently of the repository suite.
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+
+      - name: Set up Go
+        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
+        with:
+          go-version: "1.23.x"
+          cache-dependency-path: backend/go.sum
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master; Rust version pinned below
+        with:
+          toolchain: "1.88.0"
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: "3.44.2"
+          channel: stable
+          cache: false
+
+      - name: Enable macOS build target
+        run: flutter config --enable-macos-desktop
+
+      - name: Print tool versions
+        run: |
+          go version
+          rustc --version
+          cargo --version
+          flutter --version
+          xcodebuild -version
+          sw_vers
+          uname -m
+
+      - name: Verify macOS integration, packaging, signature and native tests
+        run: ./tools/verify_macos_app.sh
 
   ios-terminal:
     name: iOS simulator and device (macos-26)
