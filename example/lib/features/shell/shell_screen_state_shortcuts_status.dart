@@ -40,10 +40,11 @@ extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
       if (message == null) {
         return;
       }
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      ScaffoldMessenger.of(
+      AppNotifications.show(
         context,
-      ).showSnackBar(SnackBar(content: Text(message)));
+        SnackBar(content: Text(message)),
+        replaceCurrent: true,
+      );
     }
   }
 

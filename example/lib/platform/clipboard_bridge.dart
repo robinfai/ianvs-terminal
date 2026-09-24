@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart';
 
 import '../l10n/l10n.dart';
+import '../ui/components/app_notifications.dart';
 
 class ClipboardBridge {
   const ClipboardBridge._();
@@ -27,10 +28,12 @@ class ClipboardBridge {
       if (!context.mounted) return;
       message = context.l10n.clipboardCopyFailed;
     }
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    messenger?.hideCurrentSnackBar();
-    messenger?.showSnackBar(
+    AppNotifications.show(
+      context,
       SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
+      deduplicationKey: 'clipboard-$message',
+      icon: Icons.content_copy,
+      replaceCurrent: true,
     );
   }
 

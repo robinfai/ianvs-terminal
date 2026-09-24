@@ -1082,9 +1082,7 @@ extension _ShellScreenStateSessions on _ShellScreenState {
             : _zoomedPaneManagementUnavailableReason(targetTab)) ??
         _splitAxisConflictReason(currentState, targetSessionId, axis);
     if (conflictReason != null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(conflictReason)));
+      AppNotifications.show(context, SnackBar(content: Text(conflictReason)));
       return false;
     }
     sessionController.splitSession(targetSessionId, profile, axis);

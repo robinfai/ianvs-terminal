@@ -86,7 +86,8 @@ final class SshHostKeyPromptPresenter {
             accept: accepted == true,
           );
           if (!responseAccepted && context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
+            AppNotifications.show(
+              context,
               SnackBar(content: Text(context.l10n.sshHostKeyPromptInactive)),
             );
           }
@@ -295,7 +296,8 @@ final class SshAuthenticationPromptPresenter {
             cancel: responses == null,
           );
           if (!accepted && context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
+            AppNotifications.show(
+              context,
               SnackBar(
                 content: Text(context.l10n.sshAuthenticationPromptInactive),
               ),

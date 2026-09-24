@@ -789,11 +789,11 @@ class _SftpSidePanelState extends State<SftpSidePanel> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(content: Text(message), duration: const Duration(seconds: 3)),
-      );
+    AppNotifications.show(
+      context,
+      SnackBar(content: Text(message), duration: const Duration(seconds: 3)),
+      replaceCurrent: true,
+    );
   }
 
   @override

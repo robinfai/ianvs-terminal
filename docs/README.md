@@ -9,6 +9,7 @@
 - [开发环境](DEVELOPMENT.md)：macOS 工具链、运行与构建。
 - [产品范围](TERMINAL_PRODUCT_SCOPE.md)：Profile、Session、Layout、SSH/SFTP、录制和延期边界。
 - [架构与模块入口](ARCHITECTURE.md)：源码职责与模块 README。
+- [桌面通知与操作反馈](DESKTOP_NOTIFICATIONS.md)：右上角提示队列、复制反馈和系统通知边界。
 - [数据持久化与同步](DATA_API_PERSISTENCE.md)：本地优先、可选 API 同步及凭据边界。
 - [当前执行目标](CURRENT_EXECUTION_TARGET.md)、[路线图](ROADMAP.md)：当前优先级与退出条件。
 - [已知问题](KNOWN_ISSUES.md)：当前限制与未关闭的风险。

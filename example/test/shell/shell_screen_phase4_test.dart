@@ -12,6 +12,7 @@ import 'package:app/features/shell/shell_action_registry.dart';
 import 'package:app/features/shell/shell_screen.dart';
 import 'package:app/features/shell/window_bridge.dart';
 import 'package:app/features/terminal/terminal_viewport.dart';
+import 'package:app/ui/components/app_notifications.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -30,6 +31,7 @@ Future<void> _pumpShellScreen(
   WidgetTester tester, {
   required FakePtyBackend fakeBindings,
   ThemeMode themeMode = ThemeMode.light,
+  bool desktopNotifications = false,
   TerminalAppPreferencesDocument? preferences,
   MemoryAppPreferencesRepository? preferencesRepository,
   LocalTerminalConfigRepository? localConfigRepository,
@@ -105,11 +107,19 @@ Future<void> _pumpShellScreen(
       child: MaterialApp(
         theme: ThemeData.light().copyWith(
           splashFactory: NoSplash.splashFactory,
+          platform: desktopNotifications ? TargetPlatform.macOS : null,
         ),
         darkTheme: ThemeData.dark().copyWith(
           splashFactory: NoSplash.splashFactory,
+          platform: desktopNotifications ? TargetPlatform.macOS : null,
         ),
         themeMode: themeMode,
+        builder: (context, child) => desktopNotifications
+            ? AppNotificationHost(
+                topInset: ShellScreen.desktopChromeHeight,
+                child: child!,
+              )
+            : child!,
         home: shellMounted == null
             ? const ShellScreen()
             : ValueListenableBuilder<bool>(
@@ -1421,6 +1431,7 @@ void main() {
     await _pumpShellScreen(
       tester,
       fakeBindings: fakeBindings,
+      desktopNotifications: true,
       fileDownloadWriter: (path, bytes) async {
         savedFiles[path] = Uint8List.fromList(bytes);
       },
@@ -3764,7 +3775,11 @@ void main() {
       ),
     );
 
-    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: fakeBindings,
+      desktopNotifications: true,
+    );
     fakeBindings.fileDownloads[('1', 8)] = Uint8List.fromList(const <int>[1]);
     fakeBindings.enqueueEvent(
       1,

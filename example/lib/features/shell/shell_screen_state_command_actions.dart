@@ -562,7 +562,8 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
           final willEnableReadOnly = !_isSessionReadOnly(currentSessionId);
           _toggleReadOnlySession(currentSessionId);
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
+            AppNotifications.show(
+              context,
               SnackBar(
                 content: Text(
                   willEnableReadOnly
@@ -590,7 +591,8 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
             _showShellSnackBar(l10n.bufferClearedCommandKept);
           }
           if (!cleared && mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
+            AppNotifications.show(
+              context,
               SnackBar(content: Text(l10n.clearBufferRequiresNative)),
             );
           }
@@ -674,7 +676,8 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         exportDiagnostics: (_) async {
           if (currentSessionId == null) {
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
+              AppNotifications.show(
+                context,
                 SnackBar(content: Text(l10n.exportDiagnosticsRequiresSession)),
               );
             }
@@ -685,7 +688,8 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
           final directory = await _exportDiagnosticsBundle(currentState);
           if (directory == null) {
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
+              AppNotifications.show(
+                context,
                 SnackBar(content: Text(l10n.diagnosticsExportUnavailable)),
               );
             }
@@ -1164,9 +1168,10 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         if (_growActivePane(currentTab, currentSessionId)) {
           _focusSession(currentSessionId);
         } else if (blockedReason != null) {
-          ScaffoldMessenger.of(
+          AppNotifications.show(
             context,
-          ).showSnackBar(SnackBar(content: Text(blockedReason)));
+            SnackBar(content: Text(blockedReason)),
+          );
         }
         return;
       case TerminalActionId.swapPane:
@@ -1175,9 +1180,10 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
             ? null
             : _zoomedPaneManagementUnavailableReason(currentTab);
         if (blockedReason != null) {
-          ScaffoldMessenger.of(
+          AppNotifications.show(
             context,
-          ).showSnackBar(SnackBar(content: Text(blockedReason)));
+            SnackBar(content: Text(blockedReason)),
+          );
           return;
         }
         if ((currentTab?.effectivePanes.length ?? 0) < 2) {

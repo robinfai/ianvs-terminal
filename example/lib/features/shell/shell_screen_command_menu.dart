@@ -204,7 +204,8 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                                   query,
                                 );
                                 if (action == null) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
+                                  AppNotifications.show(
+                                    context,
                                     SnackBar(
                                       content: Text(
                                         context.l10n.noActionMatches(query),

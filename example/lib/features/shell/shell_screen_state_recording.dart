@@ -30,9 +30,10 @@ extension _ShellScreenStateRecording on _ShellScreenState {
     if (!mounted) {
       return;
     }
-    final messenger = ScaffoldMessenger.of(context)..hideCurrentSnackBar();
+    late final AppNotificationController notification;
     final fileName = File(path).uri.pathSegments.last;
-    messenger.showSnackBar(
+    notification = AppNotifications.show(
+      context,
       SnackBar(
         duration: const Duration(seconds: 6),
         content: Column(
@@ -51,12 +52,12 @@ extension _ShellScreenStateRecording on _ShellScreenState {
                 TextButton(
                   key: const Key('recording-saved-replay'),
                   style: TextButton.styleFrom(
-                    foregroundColor: Theme.of(
-                      context,
-                    ).colorScheme.inversePrimary,
+                    foregroundColor: AppNotifications.usesDesktopHost(context)
+                        ? Theme.of(context).colorScheme.primary
+                        : Theme.of(context).colorScheme.inversePrimary,
                   ),
                   onPressed: () {
-                    messenger.hideCurrentSnackBar();
+                    notification.close();
                     unawaited(_openRecordingAtPath(path));
                   },
                   child: Text(context.l10n.replay),
@@ -64,9 +65,9 @@ extension _ShellScreenStateRecording on _ShellScreenState {
                 TextButton(
                   key: const Key('recording-saved-reveal'),
                   style: TextButton.styleFrom(
-                    foregroundColor: Theme.of(
-                      context,
-                    ).colorScheme.inversePrimary,
+                    foregroundColor: AppNotifications.usesDesktopHost(context)
+                        ? Theme.of(context).colorScheme.primary
+                        : Theme.of(context).colorScheme.inversePrimary,
                   ),
                   onPressed: () => unawaited(_revealShellPath(path)),
                   child: Text(context.l10n.reveal),
@@ -76,6 +77,8 @@ extension _ShellScreenStateRecording on _ShellScreenState {
           ],
         ),
       ),
+      hasActions: true,
+      replaceCurrent: true,
     );
   }
 }

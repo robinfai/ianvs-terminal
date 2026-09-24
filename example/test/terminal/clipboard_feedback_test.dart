@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:app/platform/clipboard_bridge.dart';
+import 'package:app/ui/components/app_notifications.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -28,6 +29,8 @@ void main() {
     );
     await tester.pumpWidget(
       MaterialApp(
+        theme: ThemeData(platform: TargetPlatform.macOS),
+        builder: (context, child) => AppNotificationHost(child: child!),
         home: Scaffold(
           body: Builder(
             builder: (context) => TextButton(
@@ -48,6 +51,10 @@ void main() {
     completion.complete();
     await tester.pumpAndSettle();
     expect(find.text('Copied'), findsOneWidget);
+    expect(find.byType(SnackBar), findsNothing);
+    expect(tester.getTopLeft(find.text('Copied')).dy, lessThan(150));
+    await tester.pump(const Duration(seconds: 2));
+    expect(find.text('Copied'), findsNothing);
   });
 
   testWidgets('clipboard failure shows retry feedback without false success', (
@@ -70,6 +77,8 @@ void main() {
     );
     await tester.pumpWidget(
       MaterialApp(
+        theme: ThemeData(platform: TargetPlatform.macOS),
+        builder: (context, child) => AppNotificationHost(child: child!),
         home: Scaffold(
           body: Builder(
             builder: (context) => TextButton(
@@ -85,5 +94,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Copied'), findsNothing);
     expect(find.text('Could not copy. Please try again.'), findsOneWidget);
+    expect(find.byType(SnackBar), findsNothing);
+    await tester.pump(const Duration(seconds: 2));
   });
 }

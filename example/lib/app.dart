@@ -46,6 +46,10 @@ class IanvsTerminalApp extends ConsumerWidget {
         Brightness.dark,
         platform: defaultTargetPlatform,
       ),
+      builder: (context, child) => AppNotificationHost(
+        topInset: ShellScreen.desktopChromeHeight,
+        child: child!,
+      ),
       home: ShellScreen(activeDataApiDeployment: activeDataApiDeployment),
     );
   }

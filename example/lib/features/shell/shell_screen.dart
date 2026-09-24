@@ -181,6 +181,9 @@ final shellRecordingExportPickerProvider = Provider<ShellRecordingExportPicker>(
 class ShellScreen extends ConsumerStatefulWidget {
   const ShellScreen({this.activeDataApiDeployment, super.key});
 
+  static const double desktopChromeHeight =
+      _shellChromeTitleHeight + _shellChromeTabRailHeight;
+
   final DataApiDeployment? activeDataApiDeployment;
 
   @override
@@ -552,29 +555,29 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     if (!mounted) {
       return;
     }
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(content: Text(message), duration: const Duration(seconds: 3)),
-      );
+    AppNotifications.show(
+      context,
+      SnackBar(content: Text(message), duration: const Duration(seconds: 3)),
+      replaceCurrent: true,
+    );
   }
 
   void _showShellPathSnackBar({required String message, required String path}) {
     if (!mounted) {
       return;
     }
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(message),
-          duration: const Duration(seconds: 4),
-          action: SnackBarAction(
-            label: context.l10n.reveal,
-            onPressed: () => unawaited(_revealShellPath(path)),
-          ),
+    AppNotifications.show(
+      context,
+      SnackBar(
+        content: Text(message),
+        duration: const Duration(seconds: 4),
+        action: SnackBarAction(
+          label: context.l10n.reveal,
+          onPressed: () => unawaited(_revealShellPath(path)),
         ),
-      );
+      ),
+      replaceCurrent: true,
+    );
   }
 
   Future<void> _revealShellPath(String path) async {

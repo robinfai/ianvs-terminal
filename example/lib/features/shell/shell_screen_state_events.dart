@@ -558,9 +558,9 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     }
 
     final downloadId = event.downloadId!;
-    final messenger = ScaffoldMessenger.of(context);
     var actionClaimed = false;
-    final controller = messenger.showSnackBar(
+    final controller = AppNotifications.show(
+      context,
       SnackBar(
         key: Key('osc1337-file-download-$downloadId'),
         content: Text(
@@ -680,7 +680,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     ref.read(sessionControllerProvider.notifier).reportRuntimeError(message);
     if (ref.read(sessionControllerProvider).activeSessionId ==
         diagnostic.sessionId) {
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      AppNotifications.dismissLatest(context);
     }
   }
 
@@ -811,7 +811,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       next = next.clearRecoverableError();
       if (ref.read(sessionControllerProvider).activeSessionId ==
           event.sessionId) {
-        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        AppNotifications.dismissLatest(context);
       }
     }
     _mutateState(() {

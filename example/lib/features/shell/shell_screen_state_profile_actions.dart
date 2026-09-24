@@ -361,7 +361,8 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
       if (!mounted) {
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(
+      AppNotifications.show(
+        context,
         SnackBar(content: Text(l10n.terminalSettingsRepairFailed('$error'))),
       );
     }
@@ -395,7 +396,8 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
         };
       } on Object catch (error) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
+          AppNotifications.show(
+            context,
             SnackBar(
               content: Text(
                 'Unable to read the data service configuration: $error',
@@ -619,7 +621,8 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
           dataApiConfigurationRecoveryRequired) {
         if (dataApiConfigurationRepository == null) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
+            AppNotifications.show(
+              context,
               SnackBar(content: Text(l10n.dataServiceConfigurationUnavailable)),
             );
           }
@@ -644,7 +647,8 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
             }
             final applyResult = await _applySavedApiSyncConfiguration();
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
+              AppNotifications.show(
+                context,
                 SnackBar(
                   content: Text(switch (applyResult) {
                     _ApiSyncConfigurationApplyResult.restartRequired =>
@@ -660,7 +664,8 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
           } on DataApiRemoteRevocationPendingWarning {
             await _applySavedApiSyncConfiguration();
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
+              AppNotifications.show(
+                context,
                 SnackBar(
                   key: const Key('data-api-revocation-pending-warning'),
                   content: Text(
@@ -677,7 +682,8 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
               await _applySavedApiSyncConfiguration();
             }
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
+              AppNotifications.show(
+                context,
                 SnackBar(
                   key: const Key('data-api-secure-session-warning'),
                   content: Text(warning.toString()),
@@ -686,7 +692,8 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
             }
           } on Object catch (error) {
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
+              AppNotifications.show(
+                context,
                 SnackBar(
                   content: Text(
                     l10n.unableToSaveDataServiceConfiguration(error.toString()),
@@ -824,7 +831,8 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
           try {
             await sessionController.deleteProfile(profile.id);
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
+              AppNotifications.show(
+                context,
                 SnackBar(content: Text(l10n.deletedProfile(profile.name))),
               );
             }
