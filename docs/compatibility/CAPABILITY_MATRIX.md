@@ -1,8 +1,7 @@
 # Compatibility Capability Matrix
 
-这是 Iteration 01 的兼容性基线，不是功能愿望清单。矩阵按协议输入到产品 UI
-的六层链路记录证据；没有代码或测试证据时使用 `Unknown`，不根据“看起来应该支持”
-推断。
+矩阵按协议输入到产品 UI 的链路记录当前实现与测试入口；没有代码或测试依据时使用
+`Unknown`。这些是源码覆盖信息，不是某次宿主运行通过的历史记录。
 
 ## 状态口径
 
@@ -10,13 +9,13 @@
 - `Partial`：该层存在实现，但只覆盖部分变体或还缺真实宿主验证。
 - `N/A`：该能力不经过这一层。
 - `Unknown`：当前没有足够证据。
-- `Deferred`：明确不在 Iteration 01 范围内。
+- `Deferred`：当前不提供。
 - `E2E macOS`：真实 Flutter macOS app、`NativePtyBackend` 和真实子进程链路。
 - `Component`：Rust、Dart 或 Flutter 的确定性自动化，但不是完整真实 app 链路。
 
 ## Matrix
 
-| Area | Capability | Parse | State | Frame | Runtime | UI | Verified | Evidence |
+| Area | Capability | Parse | State | Frame | Runtime | UI | Test layer | Current test / boundary |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Basics | Real shell startup / input / output / exit | N/A | Yes | Yes | Yes | Yes | E2E macOS | `example/integration_test/real_pty_acceptance_test.dart`: `real PTY shell starts, accepts input, emits output, and exits` |
 | Basics | Primary / alternate screen (`DECSET 1049`) | Yes | Yes | Yes | Yes | Yes | E2E macOS | `native/core/tests/session_test.rs`: `session_frame_diff_exposes_alternate_screen_mode`; real PTY test: `real PTY alternate-screen TUI starts, resizes, accepts input, and exits` |
@@ -31,7 +30,7 @@
 | Input | Focus reporting | Yes | Yes | Yes | Yes | Yes | Component | `session_frame_diff_exposes_focus_tracking_mode`; `packages/ianvs_terminal/test/terminal_focus_reporter_test.dart`; pane-scoped viewport tests |
 | Input | X10 / SGR / SGR-pixel mouse reporting | Yes | Yes | Yes | Yes | Yes | Component; physical device manual | `session_frame_diff_exposes_sgr_pixel_mouse_encoding`; `packages/ianvs_terminal/test/terminal_input_controller_test.dart`; real trackpad remains manual |
 | OSC | Window title / icon title | Yes | Yes | Yes | Yes | Yes | Component | title fields are covered by native frame tests and `example/test/sessions/session_controller_test.dart` |
-| OSC | OSC 8 hyperlinks and protocol IDs | Yes | Yes | Yes | Yes | Yes | Component | `xterm_sessions_surface_osc8_hyperlink_ranges`; `terminal_frame_codec_parity_test.dart`; `render_terminal_viewport_test.dart` |
+| OSC | OSC 8 hyperlinks and protocol IDs | Yes | Yes | Yes | Yes | Yes | Component | `xterm_sessions_surface_osc8_hyperlink_ranges`; `packages/ianvs_terminal/test/terminal_protobuf_frame_codec_current_test.dart`; `render_terminal_viewport_test.dart` |
 | OSC | OSC 52 clipboard query / policy | Yes | Yes | N/A | Yes | Yes | Component | `session_emits_clipboard_paste_requests_from_osc_52_queries`; `example/test/sessions/session_controller_test.dart`; `shell_screen_phase4_test.dart` |
 | OSC | OSC 5522 MIME paste mode | Yes | Yes | Yes | Yes | Yes | Component | `session_frame_diff_exposes_osc5522_mime_paste_mode`; terminal input/controller coverage |
 | OSC | OSC 99 notification lifecycle and reports | Yes | Yes | Yes | Yes | Yes | E2E macOS | `real PTY OSC 99 assembles, updates, expires and closes by stable ID`; `real PTY OSC 99 reports explicit menu interactions to its source child` |
@@ -42,11 +41,11 @@
 | Graphics | Font fallback, DPI and cross-display visual fidelity | N/A | Partial | Yes | Yes | Partial | Manual only | [MANUAL_VERIFICATION.md](MANUAL_VERIFICATION.md); no cross-host golden baseline |
 | Shell integration | DCS hook parse and command lifecycle | Yes | Yes | N/A | Yes | Yes | Component + E2E macOS | zsh/bash/fish lifecycle tests in `native/core/tests/session_test.rs`; real PTY automatic profile switching test |
 | Shell integration | Prompt marks, cwd/user/context and profile switching | Yes | Yes | Yes | Yes | Yes | E2E macOS | `real PTY shell hooks restore automatic profile switching baselines`; session controller shell-context tests |
-| Shell integration | SSH / remote shell lifecycle | Unknown | Unknown | Unknown | Unknown | Unknown | Deferred | Current product is local-shell only; see [KNOWN_ISSUES.md](KNOWN_ISSUES.md) |
+| Shell integration | SSH / remote shell lifecycle | Yes | Yes | Yes | Yes | Yes | Component + OpenSSH fixture | [SSH bootstrap](../protocols/ssh_shell_bootstrap.md); `native/core/tests/ssh_openssh_acceptance_test.rs`; [production transport runner](../../tools/ssh_boundary_lab/product.py) |
 | File transfer | ZMODEM receive over a live PTY (native core on macOS/Linux; example picker UI on macOS) | Yes | Yes | N/A | Yes | Partial | Component + CI real OpenSSH PTY | `zmodem.receive.v1` is emitted by the native core only on macOS/Linux; the current example product supplies file dialogs only in its macOS runner. `native/core/tests/zmodem_ssh_test.rs` and the Docker/Colima fixture verify GNU `lrzsz` `sz -e`, independent MD5, byte size and exact whole-second mtime in CI; the Windows CI job asserts capability omission and `unsupported_platform`; see [protocol](../protocols/ZMODEM_V1.md) |
-| File transfer | ZMODEM send over a live PTY (native core on macOS/Linux; example picker UI on macOS) | Yes | Yes | N/A | Yes | Partial | Component + CI real OpenSSH PTY | `zmodem.send.v1` is emitted by the native core only on macOS/Linux; the current example product supplies file dialogs only in its macOS runner. The Docker/Colima fixture verifies GNU `lrzsz` `rz -bye`, independent MD5, byte size and exact whole-second mtime in CI and in the checked [Colima evidence](../evidence/ZMODEM_COLIMA_OPENSSH_2026-08-07.md); the Windows CI job asserts capability omission and `unsupported_platform`; see [protocol](../protocols/ZMODEM_V1.md) |
+| File transfer | ZMODEM send over a live PTY (native core on macOS/Linux; example picker UI on macOS) | Yes | Yes | N/A | Yes | Partial | Component + CI real OpenSSH PTY | `zmodem.send.v1` is emitted by the native core only on macOS/Linux; the current example product supplies file dialogs only in its macOS runner. The Docker/Colima fixture verifies GNU `lrzsz` `rz -bye`, independent MD5, byte size and exact whole-second mtime through [current interoperability tests](../../native/core/tests/zmodem_ssh_test.rs); the Windows CI job asserts capability omission and `unsupported_platform`; see [protocol](../protocols/ZMODEM_V1.md) |
 | Platform | macOS app bundle and real PTY | N/A | Yes | Yes | Yes | Yes | E2E macOS | `make verify`, macOS smoke, real PTY acceptance and Runner XCTest |
-| Platform | Linux / Windows app and PTY | Unknown | Unknown | Unknown | Unknown | Unknown | Deferred | No Linux/Windows runner directories or current device evidence |
+| Platform | Linux / Windows app runners | Unknown | Unknown | Unknown | Unknown | Unknown | Deferred | No Linux/Windows runner directories or current device evidence |
 
 ## Baseline commands
 
@@ -59,7 +58,7 @@ make test
 make verify
 ```
 
-Focused Iteration 01 evidence:
+Focused deterministic checks:
 
 ```bash
 cd native/core

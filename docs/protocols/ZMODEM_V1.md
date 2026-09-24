@@ -336,14 +336,11 @@ than producing a false pass.
 The remote commands refuse hosts without the fixture marker, use independent
 `mktemp` directories, and clean those directories before reporting success.
 
-The verified receive path accepts a two-file `sz -e` batch. The send path
-negotiates `ZRINIT.ESCCTL` and has been verified against GNU `lrzsz` `rz -bye`
-with a two-file batch, including an exact MD5 and byte-size round trip of the
-108,277,050-byte macOS installer fixture; the checked
-[Colima/OpenSSH evidence](../evidence/ZMODEM_COLIMA_OPENSSH_2026-08-07.md)
-records all four file hashes, sizes, mtimes, architecture, image ID and exact
-command. CI also exercises an independently generated 8 MiB primary file plus
-the deterministic companion. Uploads use one
+The [current interoperability test](../../native/core/tests/zmodem_ssh_test.rs) checks a two-file
+`sz -e` receive batch and a `rz -bye` send batch. CI generates an 8 MiB primary file and a
+deterministic companion; assertions compare independent hashes, byte sizes and whole-second
+mtimes. Run instructions are in the [fixture README](../../tools/zmodem_e2e/README.md).
+Uploads use one
 CRC-bounded subpacket per acknowledgement even when a PTY peer advertises
 `CANOVIO`; this avoids GNU lrzsz 0.12.21rc's PTY buffered-window failure while
 retaining CRC32 integrity. The OpenSSH fixture disables the client's local

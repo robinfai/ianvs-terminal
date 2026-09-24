@@ -1,6 +1,6 @@
 # Ianvs Data API
 
-该目录是 Ianvs Terminal 的统一持久化服务。相同的 Go 二进制和 GORM 模型运行于两种模式：
+该目录提供 Ianvs Terminal 的资源 API 与可选同步服务。Flutter 应用在所有模式下优先读写本地仓库，再按配置同步选定文档。相同的 Go 二进制和 GORM 模型运行于两种模式：
 
 - `local`：默认绑定 `127.0.0.1:47832`，保留一个本地用户，默认 SQLite。
 - `remote`：Bearer 登录后的多用户服务，可使用 SQLite 或 MySQL。
@@ -23,7 +23,7 @@
 
 ## 本地运行
 
-macOS 主应用无需手工运行本节命令：构建阶段会把 `ianvs-api` 放入应用包。在应用的 **Defaults & appearance → Data service** 选择本地服务后，主应用会在下次启动时以随机回环端口运行它。每次 sidecar 启动都会生成新的 32 字节随机 Bearer token，token 只存在于当前进程及启动期私有配置中，不写入 Keychain 或持久文件；后端报告 READY 后配置立即删除。独立的本地数据加密密钥继续保存在 macOS 登录 Keychain，以保证重启后仍能解密既有敏感资源。正常退出会主动关闭服务，主进程意外结束造成的 stdin 断开也会让服务自行退出。
+macOS 主应用无需手工运行本节命令：构建阶段会把 `ianvs-api` 放入应用包。在应用的 **Defaults & appearance → Data service** 选择本地服务并保存后，主应用以随机回环端口运行它；保存同步设置会切换当前传输，后续启动也读取同一配置。每次 sidecar 启动都会生成新的 32 字节随机 Bearer token，token 只存在于当前进程及启动期私有配置中，不写入 Keychain 或持久文件；后端报告 READY 后配置立即删除。客户端统一使用同步 Apple Keychain 中的 portable master key 加解密本地与远程资源；开发环境使用隔离的非同步密钥。旧本地密钥仅作为受保护的一次性迁移输入，以保证既有敏感资源仍可解密。正常退出会主动关闭服务，主进程意外结束造成的 stdin 断开也会让服务自行退出。
 
 下面的命令用于独立开发和调试：
 
@@ -153,7 +153,7 @@ cd backend/webui
 pnpm install --frozen-lockfile
 pnpm build        # 产出 dist/，go build 会将其嵌入二进制
 
-make webui-e2e    # 构建前后端并跑 Playwright 端到端验收
+make -C ../.. webui-e2e  # 从仓库根 Makefile 构建并验收
 ```
 
 端到端验收脚本 `tools/verify_data_api_webui.sh` 会构建前端与 `ianvs-api`，分别启动 local 与 remote（开发 HTTP）两个临时 SQLite 实例，再用真实 Chrome 验证无 key 登录、敏感操作按需请求 key、错误 key 拒绝、SSH profile 创建/查看/解密/编辑/删除、退出与重新登录等流程；用例位于 `backend/webui/e2e/tests`。`pnpm test:unit` 与 Flutter 的 Web UI profile 合同测试共同验证 canonical 文档及递归敏感字段分离。
@@ -178,21 +178,25 @@ DELETE /v1/resources/{kind}/{id}
     "connection": {"type": "ssh", "host": "prod.example.com"}
   },
   "sensitive": {
-    "connection": {"password": "secret"}
+    "version": 1,
+    "cipher": "aes-256-gcm",
+    "nonce": "<base64 nonce>",
+    "ciphertext": "<base64 ciphertext>",
+    "mac": "<base64 authentication tag>"
   },
   "expected_revision": 3
 }
 ```
 
-`data` 明文保存；`sensitive` 整体加密。省略 `sensitive` 会保留原密文，`clear_sensitive: true` 才会清除它。`expected_revision` 可选，用于阻止并发覆盖；值为 `0` 时只在逻辑资源不存在时创建，已删除的 tombstone 可由一个并发创建者安全重建。读取默认只返回 `has_sensitive`；显式添加 `?include_sensitive=true` 并提供数据密钥才会解密返回。
+以上 `sensitive` 是客户端加密后信封的结构示意，占位值不可用于真实请求。`data` 明文保存；`sensitive` 必须在客户端整体加密，服务端不负责加密或解密。省略 `sensitive` 会保留原密文，`clear_sensitive: true` 才会清除它。`expected_revision` 可选，用于阻止并发覆盖；值为 `0` 时只在逻辑资源不存在时创建，已删除的 tombstone 可由一个并发创建者安全重建。读取默认只返回 `has_sensitive`；显式添加 `?include_sensitive=true` 只返回不透明信封，客户端使用本地主密钥解密，绝不能向服务端提供数据密钥。
 
 列表使用按 `kind / resource id / internal id` 排序的 keyset 分页。`limit` 默认为 100，范围 1–100；响应中的 `next_cursor` 存在时必须继续请求下一页。服务端签名的游标会绑定数据库时钟产生的首屏 UTC 创建时间 cutoff、`kind` 与 `include_deleted`，不能篡改或在翻页中切换这些过滤条件；共享数据库的多个 API 实例即使主机时钟偏斜，也不会把首屏请求后新建的资源纳入该次遍历。单页和单资源 JSON 响应上限为 12 MiB；为了保持该上限，实际条数可能少于 `limit`。
 
-建议的 kind：`profile`、`session`、`config`、`theme`、`layout_template`、`recent_items`、`paste_history`。API 允许增加其他 kind，无需改表。
+服务端接受满足标识符合同的任意 kind，无需改表。Flutter 当前本地优先同步只绑定 `profile/default`、`config/preferences` 和 `config/local-terminal`；终端布局、粘贴历史与录制仍为本地数据。API 中可存在其他 kind，但不代表客户端会同步它们。持久化与同步边界见 [DATA_API_PERSISTENCE.md](../docs/DATA_API_PERSISTENCE.md)。
 
-## 本地到远程单向合并
+## 显式 API 数据迁移
 
-本地和远程暴露相同的 migration contract：
+本地和远程暴露相同的 migration contract；这是显式 API 存储复制，与 Flutter 日常双向配置同步相互独立：
 
 ```text
 GET  /v1/migrations/export?include_sensitive=true&limit=100&cursor=<opaque>

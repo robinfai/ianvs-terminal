@@ -56,3 +56,16 @@ URLs, file paths or error userInfo.
 See [release setup](MACOS_RELEASE.md) for credentials and reproducible isolated
 acceptance steps, and [platform policy](../APPLE_PLATFORM_COMPATIBILITY.md) for
 current supported versions. Never attach temporary private keys to the PR.
+
+## Merge preparation — 2026-09-24
+
+Main commit `ffac7a02` was merged into this branch. Its shared GORM column
+predicate and SSH options refactor supersede the equivalent fixes previously
+made here. Its terminal test synchronization also replaces the elapsed-time
+assumptions behind the earlier animation failure. The remaining PR diff is
+limited to the updater, release tooling, and Apple compatibility policy.
+
+Source-mirror verification, eight release metadata tests, shell syntax and
+Apple project/plist checks pass after conflict resolution. Updated CI must
+validate the integrated revision. Production signing and notarization still
+require the credentials documented above.

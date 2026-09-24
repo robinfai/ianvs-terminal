@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:app/features/visual/local_terminal_diagnostics_exporter.dart';
 import 'package:app/features/sessions/shell_integration_capabilities.dart';
+import 'package:app/features/visual/local_terminal_diagnostics_exporter.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart';
 
@@ -38,13 +38,17 @@ void main() {
         exports: [export],
       );
       final text = await File('${directory.path}/sessions.json').readAsString();
-      final sessions = jsonDecode(text) as List;
-      final exported =
-          (sessions.single as Map)['summary']['shell_capabilities'] as Map;
+      final sessions = jsonDecode(text) as List<Object?>;
+      final session = sessions.single! as Map<String, Object?>;
+      final summary = session['summary']! as Map<String, Object?>;
+      final exported = summary['shell_capabilities']! as Map<String, Object?>;
+      final commandStart = exported['command_start']! as Map<String, Object?>;
+      final commandOutputRanges =
+          exported['command_output_ranges']! as Map<String, Object?>;
       expect(exported.length, ShellIntegrationCapability.values.length);
-      expect(exported['command_start']['status'], 'active');
-      expect(exported['command_output_ranges']['status'], 'pending');
-      expect(exported['command_start']['evidence'], 'dcsCommandStart');
+      expect(commandStart['status'], 'active');
+      expect(commandOutputRanges['status'], 'pending');
+      expect(commandStart['evidence'], 'dcsCommandStart');
       expect(text, isNot(contains('private-command')));
       expect(text, isNot(contains('private-path')));
     },

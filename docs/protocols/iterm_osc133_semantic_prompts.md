@@ -25,7 +25,6 @@ The event bridge adds optional `promptKind`, `aid`, `parentAid`, `freshLine`,
 and `implicitClosedCount` fields. JSON and protobuf additions are backwards
 compatible; old readers continue to receive the original event fields.
 
-The behavior follows the current iTerm2 `VT100Terminal.m` implementation and
-its `k=`/`aid=` end-to-end change (`131b9c60`, reviewed 2026-07-13). Host-side
+The behavior follows the iTerm2 `VT100Terminal.m` `k=`/`aid=` semantics. Host-side
 fresh-line rendering remains terminal-owned: Ianvs records the semantic flag
 without inserting bytes into the PTY stream.

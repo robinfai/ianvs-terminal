@@ -276,7 +276,7 @@ final class DataApiAuthenticationRequiredException implements Exception {
   @override
   String toString() {
     return 'The selected remote Data API requires an authenticated session. '
-        'Local JSON persistence is intentionally not used as a fallback.';
+        'Sign in to resume API synchronization; local data remains available.';
   }
 }
 
@@ -406,7 +406,9 @@ final class DataApiClient
   @override
   bool get canAccessResources => _accessToken != null;
 
-  Future<void> validateAccess() async {
+  /// Verifies bearer authentication only. Encryption keys are never sent to
+  /// or verified by the Data API.
+  Future<void> validateSession() async {
     try {
       final ownerId = await _loadAuthenticatedOwnerId();
       _ownerIdFuture = Future<String>.value(ownerId);
@@ -423,10 +425,6 @@ final class DataApiClient
       acceptedStatusCodes: const <int>{HttpStatus.noContent},
     );
   }
-
-  /// Verifies bearer authentication only. Encryption keys are never sent to
-  /// or verified by the Data API.
-  Future<void> validateSession() => validateAccess();
 
   /// Verifies ephemeral credentials and creates a short-lived server-side
   /// operation without issuing an access token.

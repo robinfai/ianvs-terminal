@@ -257,6 +257,7 @@ export function createCanonicalSshProfile({
     },
     interaction: {
       copyOnSelect: false,
+      altClickMovesCursor: true,
       optionDragMode: 'block_selection',
     },
   }

@@ -874,23 +874,23 @@ void main() {
       final center = tester.getCenter(find.byType(TerminalViewport));
       final trackpad = TestPointer(31, PointerDeviceKind.trackpad);
 
+      // A downward content pan reveals earlier rows: Up in an alternate TUI.
       await tester.sendEventToBinding(trackpad.panZoomStart(center));
       await tester.pump();
       await tester.sendEventToBinding(
-        trackpad.panZoomUpdate(center, pan: Offset(0, -lineHeight * 1.1)),
+        trackpad.panZoomUpdate(center, pan: Offset(0, lineHeight * 1.1)),
       );
       await tester.pump();
+      // pan is cumulative, so returning to zero reverses the first movement.
       await tester.sendEventToBinding(
-        trackpad.panZoomUpdate(center, pan: Offset(0, lineHeight * 1.1)),
+        trackpad.panZoomUpdate(center, pan: Offset.zero),
       );
       await tester.pump();
       await tester.sendEventToBinding(trackpad.panZoomEnd());
       await tester.pump();
 
       final writes = bindings.writes.map(ascii.decode).toList();
-      expect(writes.first, '\x1BOA');
-      expect(writes.last, startsWith('\x1BOB'));
-      expect(writes.last, isNot(contains('\x1BOA')));
+      expect(writes, ['\x1BOA', '\x1BOB']);
       expect(scrollLines, isEmpty);
     },
   );
@@ -1386,7 +1386,7 @@ void main() {
   );
 
   testWidgets(
-    'terminal viewport translates trackpad pan updates into positive scrollback deltas',
+    'terminal viewport maps content pan directions to scrollback deltas',
     (tester) async {
       final controller = TerminalViewportController()
         ..updateFrame(
@@ -1433,13 +1433,17 @@ void main() {
       final trackpad = TestPointer(1, PointerDeviceKind.trackpad);
       await tester.sendEventToBinding(trackpad.panZoomStart(center));
       await tester.sendEventToBinding(
-        trackpad.panZoomUpdate(center, pan: const Offset(0, -36)),
+        trackpad.panZoomUpdate(center, pan: const Offset(0, 36)),
       );
       await tester.pump();
-      await tester.sendEventToBinding(trackpad.panZoomEnd());
-
-      expect(scrollLines, isNotEmpty);
+      // Pan moves content, unlike PointerScrollEvent's viewport direction.
       expect(scrollLines.single, isPositive);
+      await tester.sendEventToBinding(
+        trackpad.panZoomUpdate(center, pan: Offset.zero),
+      );
+      await tester.sendEventToBinding(trackpad.panZoomEnd());
+      expect(scrollLines, hasLength(2));
+      expect(scrollLines.last, -scrollLines.first);
     },
   );
 
@@ -1500,15 +1504,16 @@ void main() {
     );
 
     final center = tester.getCenter(find.byType(TerminalViewport));
+    // Pull content down to reveal history, then keep moving into history.
     final trackpad = TestPointer(1, PointerDeviceKind.trackpad);
     await tester.sendEventToBinding(trackpad.panZoomStart(center));
     await tester.pump();
     await tester.sendEventToBinding(
-      trackpad.panZoomUpdate(center, pan: const Offset(0, -24)),
+      trackpad.panZoomUpdate(center, pan: const Offset(0, 24)),
     );
     await tester.pump(const Duration(milliseconds: 16));
     await tester.sendEventToBinding(
-      trackpad.panZoomUpdate(center, pan: const Offset(0, -48)),
+      trackpad.panZoomUpdate(center, pan: const Offset(0, 48)),
     );
     await tester.pump();
 
@@ -1525,7 +1530,7 @@ void main() {
   });
 
   testWidgets(
-    'terminal viewport momentum can carry scrollback back to bottom after a downward flick',
+    'terminal viewport momentum can carry scrollback back to bottom after an upward content flick',
     (tester) async {
       final controller = TerminalViewportController()
         ..updateFrame(
@@ -1581,15 +1586,16 @@ void main() {
       );
 
       final center = tester.getCenter(find.byType(TerminalViewport));
+      // Push content up to move from historical rows toward live output.
       final trackpad = TestPointer(1, PointerDeviceKind.trackpad);
       await tester.sendEventToBinding(trackpad.panZoomStart(center));
       await tester.pump();
       await tester.sendEventToBinding(
-        trackpad.panZoomUpdate(center, pan: const Offset(0, 24)),
+        trackpad.panZoomUpdate(center, pan: const Offset(0, -24)),
       );
       await tester.pump(const Duration(milliseconds: 16));
       await tester.sendEventToBinding(
-        trackpad.panZoomUpdate(center, pan: const Offset(0, 48)),
+        trackpad.panZoomUpdate(center, pan: const Offset(0, -48)),
       );
       await tester.pump();
 

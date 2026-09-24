@@ -510,7 +510,8 @@ void main() {
           graph.dataApiStartupWarning?.message,
           contains('API synchronization is unavailable'),
         );
-        expect(graph.persistenceRepositories.persistenceUnavailable, isFalse);
+        expect(graph.persistenceRepositories.usesDataApi, isFalse);
+        expect(await graph.persistenceRepositories.profiles.load(), isNotNull);
         expect(repository.loadCount, 0);
       },
     );

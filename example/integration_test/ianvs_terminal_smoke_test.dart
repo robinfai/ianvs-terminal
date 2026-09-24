@@ -35,20 +35,34 @@ Future<void> _pumpSmokeApp(
     ),
   );
 
+  // Bootstrap includes asynchronous platform persistence even with fake PTY
+  // and profile repositories. No scheduled animation does not mean it is done.
+  await _waitForTab(tester, '1');
   await tester.pumpAndSettle();
 }
 
 Future<void> _openCommandMenu(WidgetTester tester) async {
   await tester.tap(find.byKey(const Key('shell-chrome-menu')));
+  await _waitForWidget(
+    tester,
+    find.byKey(const Key('shell-command-menu-overlay')),
+    description: 'the command menu to open',
+  );
   await tester.pumpAndSettle();
 }
 
-Future<void> _chooseDefaultLocalSession(WidgetTester tester) async {
-  if (find.byKey(const Key('new-session-launcher')).evaluate().isEmpty) {
-    return;
+Future<void> _waitForCondition(
+  WidgetTester tester, {
+  required bool Function() condition,
+  required String description,
+  String Function()? onTimeout,
+}) async {
+  final deadline = DateTime.now().add(const Duration(seconds: 10));
+  while (DateTime.now().isBefore(deadline)) {
+    if (condition()) return;
+    await tester.pump(const Duration(milliseconds: 50));
   }
-  await tester.tap(find.byKey(const Key('new-local-session-default')));
-  await tester.pumpAndSettle();
+  fail('Timed out waiting for $description. ${onTimeout?.call() ?? ''}');
 }
 
 Future<void> _waitForWidget(
@@ -56,15 +70,41 @@ Future<void> _waitForWidget(
   Finder finder, {
   required String description,
 }) async {
-  final deadline = DateTime.now().add(const Duration(seconds: 10));
-  while (DateTime.now().isBefore(deadline)) {
-    if (finder.evaluate().isNotEmpty) {
-      expect(finder, findsOneWidget);
-      return;
-    }
-    await tester.pump(const Duration(milliseconds: 50));
-  }
-  fail('Timed out waiting for $description.');
+  await _waitForCondition(
+    tester,
+    condition: () => finder.evaluate().length == 1,
+    description: description,
+  );
+  expect(finder, findsOneWidget);
+}
+
+Future<void> _waitForTab(
+  WidgetTester tester,
+  String sessionId, {
+  bool selected = false,
+}) async {
+  final tab = find.bySemanticsIdentifier('shell-tab-$sessionId');
+  await _waitForCondition(
+    tester,
+    condition: () =>
+        tab.evaluate().length == 1 &&
+        find.byType(TerminalViewport).evaluate().length == 1 &&
+        (!selected ||
+            tester
+                    .getSemantics(tab)
+                    .getSemanticsData()
+                    .flagsCollection
+                    .isSelected
+                    .toBoolOrNull() ==
+                true),
+    description:
+        'tab $sessionId and its terminal viewport (selected=$selected)',
+    onTimeout: () =>
+        'tabs=${tab.evaluate().length}, '
+        'viewports=${find.byType(TerminalViewport).evaluate().length}, '
+        'semantics=${tab.evaluate().isEmpty ? null : tester.getSemantics(tab).getSemanticsData()}, '
+        'launcher=${find.byKey(const Key('new-session-launcher')).evaluate().length}',
+  );
 }
 
 void _expectSelectedTab(WidgetTester tester, String sessionId) {
@@ -92,7 +132,7 @@ void main() {
     await _openCommandMenu(tester);
     await tester.tap(find.byKey(const Key('shell-top-new-tab')));
     await tester.pumpAndSettle();
-    await _chooseDefaultLocalSession(tester);
+    await _waitForTab(tester, '2', selected: true);
 
     expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
     _expectSelectedTab(tester, '2');
@@ -122,13 +162,23 @@ void main() {
       platform: 'macos',
     );
     await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft, platform: 'macos');
-    await tester.pump();
+    await _waitForWidget(
+      tester,
+      find.byKey(const Key('shell-command-defaults')).hitTestable(),
+      description: 'the command palette defaults action',
+    );
+    await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('shell-command-menu-overlay')), findsOneWidget);
     expect(find.byKey(const Key('shell-command-search-field')), findsOneWidget);
     expect(find.byKey(const Key('shell-command-defaults')), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('shell-command-defaults')));
+    await _waitForWidget(
+      tester,
+      find.byKey(const Key('defaults-cancel')).hitTestable(),
+      description: 'the defaults dialog controls',
+    );
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('defaults-dialog')), findsOneWidget);
@@ -136,6 +186,13 @@ void main() {
 
     await tester.tap(find.byKey(const Key('defaults-cancel')));
     await tester.pumpAndSettle();
+    await _waitForCondition(
+      tester,
+      condition: () =>
+          find.byKey(const Key('defaults-dialog')).evaluate().isEmpty,
+      description: 'the defaults dialog to close',
+    );
+    await _waitForTab(tester, '1');
 
     expect(find.byKey(const Key('defaults-dialog')), findsNothing);
     expect(find.byType(TerminalViewport), findsOneWidget);
@@ -169,14 +226,15 @@ void main() {
       find.byKey(const Key('profiles-sheet')),
       description: 'the profiles sheet to open',
     );
+    await _waitForWidget(
+      tester,
+      find.byKey(const Key('profile-entry-shell-b')).hitTestable(),
+      description: 'the second profile entry to become available',
+    );
     await tester.tap(find.byKey(const Key('profile-entry-shell-b')));
     await tester.pumpAndSettle();
 
-    await _waitForWidget(
-      tester,
-      find.bySemanticsIdentifier('shell-tab-2'),
-      description: 'the second profile tab to open',
-    );
+    await _waitForTab(tester, '2', selected: true);
     _expectSelectedTab(tester, '2');
   });
 
@@ -198,13 +256,41 @@ void main() {
     await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft, platform: 'macos');
     await tester.pumpAndSettle();
 
+    await _waitForCondition(
+      tester,
+      condition: () =>
+          find.byKey(const Key('shell-empty-state')).evaluate().length == 1 &&
+          find.byType(TerminalViewport).evaluate().isEmpty &&
+          find
+                  .byKey(const Key('shell-empty-new-tab'))
+                  .hitTestable()
+                  .evaluate()
+                  .length ==
+              1,
+      description: 'the empty state after closing the last tab',
+    );
     expect(find.byKey(const Key('shell-empty-state')), findsOneWidget);
     expect(find.byType(TerminalViewport), findsNothing);
     expect(find.byKey(const Key('shell-empty-new-tab')), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('shell-empty-new-tab')));
+    // The empty-state action opens the launcher; the top-bar action uses the
+    // default profile directly. Wait for the actual launcher before choosing.
+    await _waitForWidget(
+      tester,
+      find.byKey(const Key('new-session-launcher')),
+      description: 'the new-session launcher after leaving the empty state',
+    );
     await tester.pumpAndSettle();
-    await _chooseDefaultLocalSession(tester);
+    final defaultSession = find.byKey(const Key('new-local-session-default'));
+    await _waitForWidget(
+      tester,
+      defaultSession.hitTestable(),
+      description: 'the default local profile in the launcher',
+    );
+    await tester.tap(defaultSession);
+    await tester.pumpAndSettle();
+    await _waitForTab(tester, '2');
 
     expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
     expect(find.byType(TerminalViewport), findsOneWidget);

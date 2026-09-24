@@ -437,15 +437,12 @@ final class _ProductionDataSettingsCapability
         AppStartupMasterKeyCapability,
         AppStartupInitialDataSetupCapability {
   const _ProductionDataSettingsCapability({
-    required AuthenticatedDataApiConfigurationRepository repository,
-    required FileDataApiConfigurationRepository fileRepository,
-    required PortableMasterKeyRepository masterKeyRepository,
-    required TargetPlatform platform,
+    required this._repository,
+    required this._fileRepository,
+    required this._masterKeyRepository,
+    required this._platform,
     required this.localDataApiAvailable,
-  }) : _repository = repository,
-       _fileRepository = fileRepository,
-       _masterKeyRepository = masterKeyRepository,
-       _platform = platform;
+  });
 
   final AuthenticatedDataApiConfigurationRepository _repository;
   final FileDataApiConfigurationRepository _fileRepository;

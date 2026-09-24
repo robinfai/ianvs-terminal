@@ -69,10 +69,9 @@ DataApiProfilePayload encodeDataApiProfilesDocument(
 
 final class DataApiProfileRepository extends ProfileRepositoryPort {
   DataApiProfileRepository({
-    required DataApiResourceClient client,
-    DirectoryResolver? exportDirectoryResolver,
-  }) : _client = client,
-       _exportDirectoryResolver = exportDirectoryResolver;
+    required this._client,
+    this._exportDirectoryResolver,
+  });
 
   static const resourceKind = 'profile';
   static const resourceId = 'default';

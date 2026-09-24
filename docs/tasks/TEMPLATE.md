@@ -1,11 +1,6 @@
-# T-XXX Task Title
+# Task Title
 
-在开始实现前，复制这份模板到对应主题目录，并把 `XXX` 替换成稳定编号。
-
-建议文件名格式：
-
-- `T-001-terminal-scrollback.md`
-- `T-002-profile-editor.md`
+在开始实现前复制模板，使用清晰的主题文件名，例如 `terminal-scrollback.md`。
 
 ## Goal
 
@@ -40,7 +35,7 @@
 
 ```bash
 cd example
-flutter analyze
+flutter analyze --fatal-infos
 flutter test
 ```
 
@@ -59,3 +54,5 @@ flutter test
 
 - 记录本次没有解决但值得继续追踪的问题
 - 如果需要下一任务，直接写出来
+
+完成后将规范与剩余问题更新到对应文档，再删除此任务文件；运行日志不保存在 `docs/`。

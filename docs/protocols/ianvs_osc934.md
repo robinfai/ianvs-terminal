@@ -203,7 +203,8 @@ ESC ] 934;remove;download-1 ESC \
 ESC ] 934;remove_all ESC \
 ```
 
-Automated protocol evidence lives in the OSC 934 parser tests and the Phase 7
-review record. Cross-terminal observations are supplemental for this private
+Automated protocol checks live in the parser,
+[native session suite](../../native/core/tests/session_test.rs) and
+[real PTY suite](../../example/integration_test/real_pty_acceptance_test.dart). Cross-terminal observations are supplemental for this private
 protocol and must be recorded only after the referenced terminal was actually
 run.

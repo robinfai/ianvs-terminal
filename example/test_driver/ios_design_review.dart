@@ -5,7 +5,7 @@ Future<void> main() => integrationDriver(
   onScreenshot: (name, bytes, [args]) async {
     final directory = Directory(
       Platform.environment['TRAIL_REVIEW_SCREENSHOTS'] ??
-          '../docs/design/ios-20260911/screenshots',
+          '../build/ios-design-review/screenshots',
     );
     await directory.create(recursive: true);
     await File('${directory.path}/$name.png').writeAsBytes(bytes);

@@ -102,16 +102,15 @@ abstract interface class PortableMasterKeyStorage {
   Future<void> write(String portableValue);
 }
 
-/// The only production platform-vault item owned by Trail.
+/// The synchronized production master-key item owned by Ianvs Terminal.
 final class FlutterSecurePortableMasterKeyStorage
     implements PortableMasterKeyStorage {
   const FlutterSecurePortableMasterKeyStorage({
-    FlutterSecureStorage storage = const FlutterSecureStorage(
+    this._storage = const FlutterSecureStorage(
       iOptions: IOSOptions(synchronizable: true),
       mOptions: MacOsOptions(synchronizable: true),
     ),
-  }) : _storage = storage,
-       _key = storageKey;
+  }) : _key = storageKey;
 
   const FlutterSecurePortableMasterKeyStorage.development()
     : _storage = const FlutterSecureStorage(
@@ -176,10 +175,9 @@ final class PortableMasterKeyUnavailableException implements Exception {
 final class PortableMasterKeyRepository {
   PortableMasterKeyRepository({
     PortableMasterKeyStorage? storage,
-    bool allowCreation = true,
+    this._allowCreation = true,
     this.allowLegacyMigration = true,
-  }) : _storage = storage ?? const FlutterSecurePortableMasterKeyStorage(),
-       _allowCreation = allowCreation;
+  }) : _storage = storage ?? const FlutterSecurePortableMasterKeyStorage();
 
   final PortableMasterKeyStorage _storage;
   final bool _allowCreation;

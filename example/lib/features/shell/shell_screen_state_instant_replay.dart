@@ -309,10 +309,11 @@ extension _ShellScreenStateInstantReplay on _ShellScreenState {
         : _profileForPane(pane, sessionState.profiles);
     final tabTitle = tab?.title.trim();
     final profileName = profile?.name.trim();
-    if (context.usesMobileNavigation)
+    if (context.usesMobileNavigation) {
       return tabTitle?.isNotEmpty == true
           ? tabTitle!
           : (profileName ?? context.l10n.mobileReplay);
+    }
     return [
       if (tabTitle != null && tabTitle.isNotEmpty) tabTitle,
       if (profileName != null && profileName.isNotEmpty) profileName,

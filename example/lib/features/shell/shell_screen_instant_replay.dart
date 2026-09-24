@@ -3,9 +3,8 @@ part of 'shell_screen.dart';
 final class _InstantReplayDriver implements terminal.TerminalReplayDriver {
   _InstantReplayDriver({
     required List<InstantReplayFrame> frames,
-    required terminal.TerminalViewportController viewportController,
+    required this._viewportController,
   }) : frames = List<InstantReplayFrame>.unmodifiable(frames),
-       _viewportController = viewportController,
        sourceOffsets = _sourceOffsetsFor(frames) {
     _applyFrameAt(Duration.zero);
   }

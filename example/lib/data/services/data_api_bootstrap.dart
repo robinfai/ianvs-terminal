@@ -32,9 +32,9 @@ final class DataApiStartupDependencyException implements Exception {
       DataApiStartupDependency.configuration => 'data service configuration',
       DataApiStartupDependency.remoteSession => 'remote secure session',
     };
-    return 'The $label could not be read: $cause. Persistence remains locked '
-        'to prevent a silent switch to local data. Open data service settings '
-        'to explicitly save a mode, then restart.';
+    return 'The $label could not be read: $cause. API synchronization is '
+        'unavailable; local data remains available. Open data service settings '
+        'to recover the saved configuration.';
   }
 }
 
@@ -181,17 +181,16 @@ final class DataApiLocalApiInitializer
 
 class DataApiBootstrap {
   DataApiBootstrap({
-    DataApiConfigurationRepository? configurationRepository,
+    this._configurationRepository,
     DataApiLocalCredentialsProvider? localCredentialsProvider,
-    DataApiRemoteSessionSlotStore? remoteSessionStore,
-    LocalDataApiRuntimeStarter? localRuntimeStarter,
+    this._remoteSessionStore,
+    this._localRuntimeStarter,
     LocalDataApiSidecarLauncher? localSidecarLauncher,
     DataApiLocalApiInitialization? localApiInitializer,
     PortableMasterKeyRepository? masterKeyRepository,
-    Duration sidecarCloseTimeout = const Duration(seconds: 12),
+    this._sidecarCloseTimeout = const Duration(seconds: 12),
     bool? isMacOS,
-  }) : _configurationRepository = configurationRepository,
-       _masterKeyRepository =
+  }) : _masterKeyRepository =
            masterKeyRepository ?? PortableMasterKeyRepository(),
        _localCredentialsProvider =
            localCredentialsProvider ??
@@ -201,13 +200,10 @@ class DataApiBootstrap {
                    masterKeyRepository: masterKeyRepository,
                  ),
            ),
-       _remoteSessionStore = remoteSessionStore,
-       _localRuntimeStarter = localRuntimeStarter,
        _localSidecarLauncher =
            localSidecarLauncher ?? LocalDataApiSidecar.start,
        _localApiInitializer =
            localApiInitializer ?? DataApiLocalApiInitializer(),
-       _sidecarCloseTimeout = sidecarCloseTimeout,
        _isMacOS = isMacOS ?? Platform.isMacOS;
 
   final DataApiConfigurationRepository? _configurationRepository;

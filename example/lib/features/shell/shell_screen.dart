@@ -69,6 +69,7 @@ import 'shell_shortcut_bridge.dart';
 import 'window_bridge.dart';
 
 part 'shell_screen_chrome.dart';
+part 'shell_screen_window_title_bar.dart';
 part 'shell_screen_sidebar.dart';
 part 'shell_screen_chrome_empty_states.dart';
 part 'shell_screen_command_menu.dart';

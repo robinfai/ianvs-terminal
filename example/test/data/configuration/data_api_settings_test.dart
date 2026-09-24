@@ -57,6 +57,15 @@ Future<void> _selectDataSectionWhenTabbed(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+Future<Finder> _openRemoteUsername(WidgetTester tester) async {
+  await _selectDataSectionWhenTabbed(tester);
+  final remote = find.byKey(const Key('data-api-remote'));
+  await tester.ensureVisible(remote);
+  await tester.tap(remote);
+  await tester.pumpAndSettle();
+  return find.byKey(const Key('data-api-remote-username'));
+}
+
 void main() {
   testWidgets(
     'defaults keeps focused content above the portrait iPhone keyboard',
@@ -69,16 +78,16 @@ void main() {
 
       await _pumpIosDefaultsDialog(tester);
 
-      final filter = find.byKey(const Key('defaults-terminal-preset-filter'));
-      await tester.ensureVisible(filter);
-      await tester.tap(filter);
+      final username = await _openRemoteUsername(tester);
+      await tester.ensureVisible(username);
+      await tester.tap(username);
       tester.view.viewInsets = FakeViewPadding(
         bottom: keyboardHeight * tester.view.devicePixelRatio,
       );
       await tester.pumpAndSettle();
 
       final keyboardTop = surfaceSize.height - keyboardHeight;
-      expect(tester.getRect(filter).bottom, lessThanOrEqualTo(keyboardTop));
+      expect(tester.getRect(username).bottom, lessThanOrEqualTo(keyboardTop));
       expect(find.byKey(const Key('defaults-save')), findsNothing);
       final bodyScroll = tester.widget<SingleChildScrollView>(
         find
@@ -108,17 +117,17 @@ void main() {
 
       await _pumpIosDefaultsDialog(tester);
 
-      final filter = find.byKey(const Key('defaults-terminal-preset-filter'));
-      await tester.ensureVisible(filter);
-      await tester.tap(filter);
+      final username = await _openRemoteUsername(tester);
+      await tester.ensureVisible(username);
+      await tester.tap(username);
       tester.view.viewInsets = FakeViewPadding(
         bottom: keyboardHeight * tester.view.devicePixelRatio,
       );
       await tester.pumpAndSettle();
 
       final keyboardTop = surfaceSize.height - keyboardHeight;
-      expect(find.text('Defaults & appearance'), findsOneWidget);
-      expect(tester.getRect(filter).bottom, lessThanOrEqualTo(keyboardTop));
+      expect(find.text('Data sync'), findsOneWidget);
+      expect(tester.getRect(username).bottom, lessThanOrEqualTo(keyboardTop));
       expect(find.byKey(const Key('defaults-save')), findsNothing);
       expect(tester.takeException(), isNull);
     },
@@ -197,7 +206,7 @@ void main() {
 
       final keyboardTop = surfaceSize.height - keyboardHeight;
       expect(tester.getRect(username).bottom, lessThanOrEqualTo(keyboardTop));
-      expect(find.text('Defaults & appearance'), findsOneWidget);
+      expect(find.text('Data sync'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
     variant: TargetPlatformVariant.only(TargetPlatform.iOS),
@@ -341,7 +350,13 @@ void main() {
           .onPressed,
       isNotNull,
     );
-    expect(find.text('Sync with the API after sign-in'), findsOneWidget);
+    expect(
+      find.text(
+        'Local data remains available. Sync connection changes are applied '
+        'when you save.',
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('configured loopback remote is presented as a mode', (
@@ -384,9 +399,12 @@ void main() {
 
     expect(find.text('Active mode: Remote service'), findsOneWidget);
     expect(
-      find.text(
-        'Keep local data available and sync supported changes with the '
-        'configured API.',
+      find.descendant(
+        of: find.byKey(const Key('data-api-active-deployment')),
+        matching: find.text(
+          'Keep local data available and sync supported changes with the '
+          'configured API.',
+        ),
       ),
       findsOneWidget,
     );
@@ -405,24 +423,33 @@ void main() {
     );
 
     final localSurface = find.byKey(const Key('data-api-local-surface'));
-    final initialSurface = tester.widget<AnimatedContainer>(localSurface);
+    final choiceSurface = find.descendant(
+      of: localSurface,
+      matching: find.byType(AnimatedContainer),
+    );
+    final initialSurface = tester.widget<AnimatedContainer>(choiceSurface);
     final initialDecoration = initialSurface.decoration! as BoxDecoration;
     expect(initialDecoration.color, Colors.transparent);
 
+    await tester.ensureVisible(choiceSurface);
+    await tester.pumpAndSettle();
+    // The shared RawRadio shows hover feedback in keyboard/mouse highlight
+    // mode; preceding touch gestures otherwise leave the test in touch mode.
+    final highlightStrategy = FocusManager.instance.highlightStrategy;
+    FocusManager.instance.highlightStrategy =
+        FocusHighlightStrategy.alwaysTraditional;
+    addTearDown(() {
+      FocusManager.instance.highlightStrategy = highlightStrategy;
+    });
     final pointer = await tester.createGesture(kind: PointerDeviceKind.mouse);
     await pointer.addPointer(location: Offset.zero);
-    await pointer.moveTo(tester.getCenter(localSurface));
+    await pointer.moveTo(tester.getCenter(choiceSurface));
     await tester.pumpAndSettle();
 
-    final hoveredSurface = tester.widget<AnimatedContainer>(localSurface);
+    final hoveredSurface = tester.widget<AnimatedContainer>(choiceSurface);
     final hoveredDecoration = hoveredSurface.decoration! as BoxDecoration;
     expect(hoveredDecoration.color, isNot(Colors.transparent));
-    expect(
-      (hoveredDecoration.border! as Border).top.color,
-      Theme.of(
-        tester.element(localSurface),
-      ).extension<AppThemeTokens>()!.borderStrong,
-    );
+    expect((hoveredDecoration.border! as Border).top.color, Colors.transparent);
     await pointer.removePointer();
     await tester.pumpAndSettle();
 
@@ -453,7 +480,10 @@ void main() {
     ]) {
       final field = tester.widget<TextField>(find.byKey(key));
       expect(field.style?.fontSize, expectedFieldSize);
-      expect(field.decoration?.constraints?.minHeight, 28);
+      expect(
+        field.decoration?.constraints?.minHeight,
+        tester.element(find.byKey(key)).appTheme.controls.regular,
+      );
     }
     await tester.enterText(
       find.byKey(const Key('data-api-remote-username')),

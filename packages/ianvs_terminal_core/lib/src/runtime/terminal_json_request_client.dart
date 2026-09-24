@@ -42,7 +42,6 @@ final class TerminalJsonRequestClient {
   }) {
     const operation = 'ssh.auth_response';
     final decoded = _requestJsonObject(sessionId, operation, <String, Object?>{
-      'kind': operation,
       'challengeId': challengeId,
       'responses': responses,
       'cancel': cancel,
@@ -57,7 +56,6 @@ final class TerminalJsonRequestClient {
   }) {
     const operation = 'ssh.host_key_response';
     final decoded = _requestJsonObject(sessionId, operation, <String, Object?>{
-      'kind': operation,
       'challengeId': challengeId,
       'accept': accept,
     });
@@ -71,7 +69,6 @@ final class TerminalJsonRequestClient {
   }) {
     const operation = 'ssh.sftp.list_directory_start';
     final decoded = _requestJsonObject(sessionId, operation, <String, Object?>{
-      'kind': operation,
       'path': path,
       'contextId': ?contextId,
     });
@@ -91,7 +88,6 @@ final class TerminalJsonRequestClient {
   ) {
     const operation = 'ssh.sftp.list_directory_poll';
     final decoded = _requestJsonObject(sessionId, operation, <String, Object?>{
-      'kind': operation,
       'jobId': jobId,
     });
     if (decoded == null) {
@@ -108,7 +104,6 @@ final class TerminalJsonRequestClient {
   bool cancelSftpDirectoryListing(String sessionId, String jobId) {
     const operation = 'ssh.sftp.list_directory_cancel';
     final decoded = _requestJsonObject(sessionId, operation, <String, Object?>{
-      'kind': operation,
       'jobId': jobId,
     });
     return decoded?['cancelled'] == true;
@@ -124,7 +119,6 @@ final class TerminalJsonRequestClient {
   }) {
     const operation = 'ssh.sftp.operation_start';
     final decoded = _requestJsonObject(sessionId, operation, <String, Object?>{
-      'kind': operation,
       'action': action.wireName,
       'remotePath': remotePath,
       'contextId': ?contextId,
@@ -147,7 +141,6 @@ final class TerminalJsonRequestClient {
   ) {
     const operation = 'ssh.sftp.operation_poll';
     final decoded = _requestJsonObject(sessionId, operation, <String, Object?>{
-      'kind': operation,
       'jobId': jobId,
     });
     if (decoded == null) {
@@ -164,7 +157,6 @@ final class TerminalJsonRequestClient {
   bool cancelSftpOperation(String sessionId, String jobId) {
     const operation = 'ssh.sftp.operation_cancel';
     final decoded = _requestJsonObject(sessionId, operation, <String, Object?>{
-      'kind': operation,
       'jobId': jobId,
     });
     return decoded?['cancelled'] == true;
@@ -177,7 +169,6 @@ final class TerminalJsonRequestClient {
   }) {
     const operation = 'terminal.selection_text';
     final decoded = _requestJsonObject(sessionId, operation, <String, Object?>{
-      'kind': 'terminal.selection_text',
       'selection': selection.toJson(),
       'block': block,
     });
@@ -197,7 +188,6 @@ final class TerminalJsonRequestClient {
     }
     const operation = 'terminal.search_text';
     final decoded = _requestJsonObject(sessionId, operation, <String, Object?>{
-      'kind': operation,
       'query': query,
       'mode': mode.wireName,
     });
@@ -209,17 +199,21 @@ final class TerminalJsonRequestClient {
 
   bool clearScrollback(String sessionId) {
     const operation = 'terminal.clear_scrollback';
-    final decoded = _requestJsonObject(sessionId, operation, <String, Object?>{
-      'kind': operation,
-    });
+    final decoded = _requestJsonObject(
+      sessionId,
+      operation,
+      <String, Object?>{},
+    );
     return decoded?['cleared'] == true;
   }
 
   bool clearBuffer(String sessionId) {
     const operation = 'terminal.clear_buffer';
-    final decoded = _requestJsonObject(sessionId, operation, <String, Object?>{
-      'kind': operation,
-    });
+    final decoded = _requestJsonObject(
+      sessionId,
+      operation,
+      <String, Object?>{},
+    );
     return decoded?['cleared'] == true;
   }
 
@@ -230,7 +224,6 @@ final class TerminalJsonRequestClient {
   }) {
     const operation = 'terminal.zmodem.accept_receive';
     final decoded = _requestJsonObject(sessionId, operation, <String, Object?>{
-      'kind': operation,
       'transferId': transferId,
       'destination': destination,
     });
@@ -244,7 +237,6 @@ final class TerminalJsonRequestClient {
   }) {
     const operation = 'terminal.zmodem.accept_send';
     final decoded = _requestJsonObject(sessionId, operation, <String, Object?>{
-      'kind': operation,
       'transferId': transferId,
       'files': files,
     });
@@ -254,7 +246,6 @@ final class TerminalJsonRequestClient {
   bool cancelZmodem(String sessionId, {required String transferId}) {
     const operation = 'terminal.zmodem.cancel';
     final decoded = _requestJsonObject(sessionId, operation, <String, Object?>{
-      'kind': operation,
       'transferId': transferId,
     });
     return decoded?['cancelled'] == true;
@@ -262,9 +253,11 @@ final class TerminalJsonRequestClient {
 
   TerminalZmodemCancelActiveOutcome? cancelActiveZmodem(String sessionId) {
     const operation = 'terminal.zmodem.cancel_active';
-    final decoded = _requestJsonObject(sessionId, operation, <String, Object?>{
-      'kind': operation,
-    });
+    final decoded = _requestJsonObject(
+      sessionId,
+      operation,
+      <String, Object?>{},
+    );
     if (decoded?['reconciled'] != true) {
       return null;
     }
@@ -278,9 +271,11 @@ final class TerminalJsonRequestClient {
 
   bool? sessionCloseReady(String sessionId) {
     const operation = 'terminal.session.close_readiness';
-    final decoded = _requestJsonObject(sessionId, operation, <String, Object?>{
-      'kind': operation,
-    });
+    final decoded = _requestJsonObject(
+      sessionId,
+      operation,
+      <String, Object?>{},
+    );
     return switch (decoded?['ready']) {
       true => true,
       false => false,
@@ -297,7 +292,6 @@ final class TerminalJsonRequestClient {
     }
     const operation = 'terminal.zmodem.resolve_recovery';
     final decoded = _requestJsonObject(sessionId, operation, <String, Object?>{
-      'kind': operation,
       'recoveryToken': recoveryToken,
     });
     if (decoded == null) {
@@ -327,7 +321,6 @@ final class TerminalJsonRequestClient {
     }
     const operation = 'terminal.zmodem.consume_recovery';
     final decoded = _requestJsonObject(sessionId, operation, <String, Object?>{
-      'kind': operation,
       'recoveryToken': recoveryToken,
     });
     if (decoded == null || decoded['consumed'] is! bool) {
@@ -347,7 +340,6 @@ final class TerminalJsonRequestClient {
     }
     const operation = 'terminal.zmodem.dismiss_recovery';
     final decoded = _requestJsonObject(sessionId, operation, <String, Object?>{
-      'kind': operation,
       'recoveryToken': recoveryToken,
     });
     if (decoded == null || decoded['dismissed'] is! bool) {
@@ -361,7 +353,6 @@ final class TerminalJsonRequestClient {
   bool dismissOsc99Notification(String sessionId, String identifier) {
     const operation = 'terminal.dismiss_osc99_notification';
     final decoded = _requestJsonObject(sessionId, operation, <String, Object?>{
-      'kind': operation,
       'id': identifier,
     });
     return decoded?['dismissed'] == true;
@@ -370,7 +361,6 @@ final class TerminalJsonRequestClient {
   bool setBlockFolded(String sessionId, String id, {required bool folded}) {
     const operation = 'terminal.set_block_folded';
     final decoded = _requestJsonObject(sessionId, operation, <String, Object?>{
-      'kind': operation,
       'id': id,
       'folded': folded,
     });
@@ -380,7 +370,6 @@ final class TerminalJsonRequestClient {
   bool setBlockRendered(String sessionId, String id, {required bool rendered}) {
     const operation = 'terminal.set_block_rendered';
     final decoded = _requestJsonObject(sessionId, operation, <String, Object?>{
-      'kind': operation,
       'id': id,
       'rendered': rendered,
     });
@@ -390,7 +379,6 @@ final class TerminalJsonRequestClient {
   TerminalInlineButtonActivation activateItermButton(String sessionId, int id) {
     const operation = 'terminal.activate_iterm_button';
     final decoded = _requestJsonObject(sessionId, operation, <String, Object?>{
-      'kind': operation,
       'id': id,
     });
     return decoded == null
@@ -401,7 +389,6 @@ final class TerminalJsonRequestClient {
   String? exportScrollbackText(String sessionId, {int? maxLines}) {
     const operation = 'terminal.export_scrollback';
     final decoded = _requestJsonObject(sessionId, operation, <String, Object?>{
-      'kind': operation,
       'maxLines': ?_boundedScrollbackExportMaxLines(maxLines),
     });
     if (decoded == null) {
@@ -413,13 +400,12 @@ final class TerminalJsonRequestClient {
   Map<String, Object?>? _requestJsonObject(
     String sessionId,
     String operation,
-    Map<String, Object?> request,
+    Map<String, Object?> payload,
   ) {
     if (!_transport.isSupported) {
       return null;
     }
     try {
-      final payload = Map<String, Object?>.of(request)..remove('kind');
       return _transport.requestObject(sessionId, operation, payload);
     } on Object catch (error, stackTrace) {
       _onRequestError?.call(sessionId, operation, error, stackTrace);

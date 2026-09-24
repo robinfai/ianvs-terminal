@@ -6,8 +6,7 @@ import 'app_preferences_repository.dart';
 
 final class DataApiAppPreferencesRepository
     extends AppPreferencesRepositoryPort {
-  DataApiAppPreferencesRepository({required DataApiResourceClient client})
-    : _client = client;
+  DataApiAppPreferencesRepository({required this._client});
 
   static const resourceKind = 'config';
   static const resourceId = 'preferences';

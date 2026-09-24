@@ -1,6 +1,6 @@
 # Runtime Event Envelope V1
 
-Runtime Event Envelope v1 is the first migrated message class under the Runtime Contract. One
+Runtime Event Envelope v1 is the current event transport under the Runtime Contract. One
 poll returns a batch object:
 
 ```json
@@ -95,6 +95,6 @@ Every direct transport-termination path that cannot deliver such queued input
 first emits `zmodem_deferred_write_failed`; reconciliation cannot silently
 discard user input.
 
-The new poll symbol is optional. `NativePtyBackend` uses it when present and otherwise calls the
-legacy event-array symbol. Presence is advertised by `event-envelope.json.v1` in Runtime
-Capabilities v1. The legacy symbol is not removed in T-319.
+`ianvs_session_poll_event_envelopes_json` is the required native event entrypoint, advertised by
+`event-envelope.json.v1` in Runtime Capabilities. The predecessor event-array symbol is removed;
+`NativePtyBackend` does not fall back when the current contract is absent or malformed.

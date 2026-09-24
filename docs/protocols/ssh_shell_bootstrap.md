@@ -1,6 +1,7 @@
 # SSH Shell 内存引导
 
-实现日期：2026-09-12。参考 [Warp 的两阶段引导与回执控制](../reviews/warp-shell-bootstrap-20260912.md)。生产实现位于 `native/core/src/shell_bootstrap.rs`、其脚本目录、`ssh.rs` 和 `pty.rs`。
+生产实现位于 [shell bootstrap](../../native/core/src/shell_bootstrap.rs)、
+[SSH transport](../../native/core/src/ssh.rs) 和 [PTY](../../native/core/src/pty.rs)。
 
 ## 配置与入口
 
@@ -59,4 +60,7 @@ SFTP 请求携带 `contextId`，由原生层解析到已验证的 socket 链。�
 
 当前支持 Bash、Zsh、Fish；不支持的 shell、强制命令、被 rc 文件替换的 shell 或 tmux 会话不能承诺自动恢复完整能力。检测失败时保留基础终端，不绕过服务器限制。递归文件通道仍受 MaxSessions、exec 权限和最后一跳 SFTP 配置约束。
 
-验证步骤和结果见 [产品验收](../reviews/ssh-product-bootstrap-20260912/README.md)。
+当前验证入口是 [生产 SSH/PTY/SFTP runner](../../tools/ssh_boundary_lab/product.py)、
+[执行说明](../../tools/ssh_boundary_lab/README.md) 和
+[OpenSSH 自动验收](../../native/core/tests/ssh_openssh_acceptance_test.rs)。
+宿主交互按 [人工检查表](../compatibility/MANUAL_VERIFICATION.md) 执行，运行报告不存入 `docs/`。

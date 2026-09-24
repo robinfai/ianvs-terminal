@@ -1,7 +1,6 @@
 # Kitty OSC 99 safe interactive notification subset
 
-Status: supported through Phase 31 on
-`codex/osc99-interactive-reporting-phase31-20260713`.
+Status: supported safe interactive subset.
 
 Normative upstream syntax: [Kitty desktop notifications](https://sw.kovidgoyal.net/kitty/desktop-notifications/).
 
@@ -135,12 +134,13 @@ inactive-session, and rate-limit policy. OSC 99 cannot execute shell commands,
 open links, read files or clipboard data, select sounds or icons, or steal
 focus. VT220 and a denied notification capability do not expose OSC 99.
 
-## Acceptance
+## Verification
 
-The repository verifier covers the vendored parser, native typed events and
-real PTY, Dart runtime, product lifecycle, widget interaction, macOS build and
-RunnerTests. The final cold-launch Computer Use gate exercised a real child and
-observed the exact button, activation and close reports, status removal,
-continued input, and Finder retaining foreground focus after `a=focus`. The
-recorded evidence and remaining Kitty reference-terminal boundary are in the
-[Phase 31 review](../reviews/osc99_interactive_reports_phase31_20260713.md).
+Current assertions live in [parser tests](../../native/vendor/par-term-emu-core-rust/src/terminal/sequences/osc/notify.rs),
+[native session tests](../../native/core/tests/session_test.rs),
+[runtime tests](../../packages/ianvs_terminal/test/terminal_runtime_controller_test.dart),
+[product session tests](../../example/test/sessions/session_controller_test.dart) and
+[real PTY acceptance](../../example/integration_test/real_pty_acceptance_test.dart).
+System notification and focus behavior still require the relevant
+[manual host checks](../compatibility/MANUAL_VERIFICATION.md); these source links do not assert
+a current Kitty reference-terminal comparison.

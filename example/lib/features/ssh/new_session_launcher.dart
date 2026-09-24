@@ -1578,7 +1578,7 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                   ],
                                   AppConfigurationField(
                                     label: context.l10n.sshAutoInject,
-                                    child: DropdownButtonFormField<String>(
+                                    child: AppDropdownFormField<String>(
                                       key: const Key('ssh-auto-inject'),
                                       initialValue: _sshAutoInject == null
                                           ? 'inherit'

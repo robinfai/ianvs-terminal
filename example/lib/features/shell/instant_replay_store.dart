@@ -97,11 +97,9 @@ class InstantReplayStore {
     this.byteBudget = 16 * 1024 * 1024,
     this.minimumCaptureInterval = Duration.zero,
     DateTime Function()? now,
-    void Function()? onFrameMaterialized,
-    void Function(int byteLength)? onInlineImageFingerprint,
-  }) : _now = now ?? DateTime.now,
-       _onFrameMaterialized = onFrameMaterialized,
-       _onInlineImageFingerprint = onInlineImageFingerprint;
+    this._onFrameMaterialized,
+    this._onInlineImageFingerprint,
+  }) : _now = now ?? DateTime.now;
 
   final int frameLimit;
   final int byteBudget;

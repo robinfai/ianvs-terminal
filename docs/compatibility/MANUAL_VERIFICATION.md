@@ -77,8 +77,10 @@ path. Do not substitute a visual glance for the automated menu assertions.
 4. Record foreground warnings, permission prompts and any host denial independently from product
    assertions.
 
-## Canonical record
+## Results and follow-ups
 
-The historical local-only matrix and result format remain in
-[T-059](../tasks/verification-gates/T-059-local-terminal-manual-matrix.md). Attach new evidence there
-or in a dated task record; this checklist does not itself assert that a manual run occurred.
+Keep screenshots, logs and per-run summaries under `build/` or a temporary output directory.
+Record whether each requested lane passed, failed or could not run in the review/task result;
+do not create a dated evidence archive under `docs/`. Track unresolved product risks in
+[KNOWN_ISSUES.md](../KNOWN_ISSUES.md). This checklist defines the procedure and does not itself
+claim that a manual run occurred.

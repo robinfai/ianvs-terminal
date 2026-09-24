@@ -3,7 +3,6 @@ export 'local_terminal_completion_command_menu_adapter.dart';
 export 'local_terminal_completion_controller.dart';
 export 'local_terminal_completion_diagnostics_actions.dart';
 export 'local_terminal_completion_diagnostics_bundle.dart';
-export 'local_terminal_completion_diagnostics_panel.dart';
 export 'local_terminal_completion_diagnostics_presentation.dart';
 export 'local_terminal_completion_diagnostics_presentation_resolver.dart';
 export 'local_terminal_completion_diagnostics_view_model.dart';

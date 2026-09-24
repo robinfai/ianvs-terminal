@@ -16,12 +16,10 @@ import 'portable_master_key.dart';
 final class EncryptedFileDataApiRemoteSessionStore
     implements DataApiRemoteSessionSlotStore {
   EncryptedFileDataApiRemoteSessionStore({
-    required File vaultFile,
-    required PortableMasterKeyRepository masterKeyRepository,
+    required this._vaultFile,
+    required this._masterKeyRepository,
     AesGcm? algorithm,
-  }) : _vaultFile = vaultFile,
-       _masterKeyRepository = masterKeyRepository,
-       _algorithm = algorithm ?? AesGcm.with256bits();
+  }) : _algorithm = algorithm ?? AesGcm.with256bits();
 
   static const fileName = 'data-api-remote-sessions.v1.vault';
   static const _vaultVersion = 1;
@@ -253,16 +251,12 @@ final class EncryptedFileDataApiRemoteSessionStore
 final class MigratingDataApiRemoteSessionStore
     implements DataApiRemoteSessionSlotStore {
   MigratingDataApiRemoteSessionStore({
-    required EncryptedFileDataApiRemoteSessionStore primary,
-    required FlutterSecureDataApiRemoteSessionStore legacy,
-    required PortableMasterKeyRepository masterKeyRepository,
-    File? migrationMarker,
-    bool legacyMigrationEnabled = true,
-  }) : _primary = primary,
-       _legacy = legacy,
-       _masterKeyRepository = masterKeyRepository,
-       _migrationMarker = migrationMarker,
-       _legacyMigrationEnabled = legacyMigrationEnabled;
+    required this._primary,
+    required this._legacy,
+    required this._masterKeyRepository,
+    this._migrationMarker,
+    this._legacyMigrationEnabled = true,
+  });
 
   final EncryptedFileDataApiRemoteSessionStore _primary;
   final FlutterSecureDataApiRemoteSessionStore _legacy;

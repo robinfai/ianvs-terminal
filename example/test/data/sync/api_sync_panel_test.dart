@@ -330,11 +330,11 @@ enum _ConflictChoice { keepLocal, useRemote }
 
 final class _SyncHarness {
   _SyncHarness._({
-    required _LocalDocument local,
+    required this._local,
     required this.remote,
     required this.coordinator,
     required this.checkpoints,
-  }) : _local = local;
+  });
 
   factory _SyncHarness.conflicting() {
     final local = _LocalDocument(<String, Object?>{'name': 'local'});

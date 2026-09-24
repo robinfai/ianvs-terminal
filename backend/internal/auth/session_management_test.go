@@ -148,8 +148,8 @@ func TestDeviceNamePersistsAcrossServiceRestartAndCleansUp(t *testing.T) {
 		t.Fatal(err)
 	}
 	var count int64
-	if err := db.Model(&model.Setting{}).Where(map[string]any{"key": sessionMetadataKey(hashOperationID(p.OperationID))}).Count(&count).Error; err != nil {
-		t.Fatalf("count device labels after logout: %v", err)
+	if err := db.Model(&model.Setting{}).Where(sessionMetadataCondition(hashOperationID(p.OperationID))).Count(&count).Error; err != nil {
+		t.Fatal(err)
 	}
 	if count != 0 {
 		t.Fatal("device label survived logout")
