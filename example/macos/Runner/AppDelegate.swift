@@ -7,6 +7,8 @@ class AppDelegate: FlutterAppDelegate {
   static var suppressNextTerminateConfirmation = false
   static let dartShutdownTimeout: TimeInterval = 10
 
+  private lazy var softwareUpdates = SoftwareUpdateController()
+
   private var terminationReplyPending = false
   private var terminationAttemptGeneration: UInt64 = 0
   private var pendingTerminationAttempt: UInt64?
@@ -22,7 +24,12 @@ class AppDelegate: FlutterAppDelegate {
   var unsafeTerminationConfirmationOverride: ((DartShutdownSafety.UnsafeReason) -> Bool)?
 
   override func applicationDidFinishLaunching(_ notification: Notification) {
+    softwareUpdates.start()
     scheduleForegroundMainWindow(for: NSApp)
+  }
+
+  @IBAction func checkForUpdates(_ sender: Any?) {
+    softwareUpdates.checkForUpdates(sender)
   }
 
   override func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply

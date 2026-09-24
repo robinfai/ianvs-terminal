@@ -1,0 +1,166 @@
+name: macOS Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# main only accepts PRs. Serialize publication so the latest feed cannot regress.
+concurrency:
+  group: macos-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: macos-15
+    timeout-minutes: 90
+    permissions:
+      contents: write
+    env:
+      RELEASE_REPOSITORY: ${{ github.repository }}
+      SPARKLE_PUBLIC_KEY: ${{ vars.SPARKLE_PUBLIC_KEY }}
+      MACOS_SIGNING_IDENTITY: ${{ vars.MACOS_SIGNING_IDENTITY }}
+      NOTARY_KEY_ID: ${{ vars.NOTARY_KEY_ID }}
+      NOTARY_ISSUER_ID: ${{ vars.NOTARY_ISSUER_ID }}
+    steps:
+      - name: Check out the merged commit
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate release credentials
+        env:
+          MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          NOTARY_API_KEY_BASE64: ${{ secrets.NOTARY_API_KEY_BASE64 }}
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          python3 - <<'PY'
+          import os
+          required = (
+              'MACOS_CERTIFICATE_P12_BASE64', 'MACOS_CERTIFICATE_PASSWORD',
+              'NOTARY_API_KEY_BASE64', 'SPARKLE_PRIVATE_KEY', 'SPARKLE_PUBLIC_KEY',
+              'MACOS_SIGNING_IDENTITY', 'NOTARY_KEY_ID', 'NOTARY_ISSUER_ID',
+          )
+          missing = [name for name in required if not os.environ.get(name)]
+          if missing:
+              raise SystemExit('Configure release secrets/variables before publishing: ' + ', '.join(missing))
+          if not os.environ['MACOS_SIGNING_IDENTITY'].startswith('Developer ID Application:'):
+              raise SystemExit('Apple Development or ad-hoc signing cannot publish a public release')
+          PY
+
+      - name: Select version and reject stale publication
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          build=$(git rev-list --count HEAD)
+          version="1.1.$build"
+          latest_build=$(gh api "repos/$GITHUB_REPOSITORY/releases" --jq '[.[] | select(.draft == false and .prerelease == false) | .tag_name | select(test("^v1\\.1\\.[0-9]+$")) | split(".")[-1] | tonumber] | max // 0')
+          if (( build <= latest_build )); then
+            echo "Release $version already published or superseded."
+            echo 'publish=false' >> "$GITHUB_OUTPUT"
+          else
+            echo 'publish=true' >> "$GITHUB_OUTPUT"
+          fi
+          echo "RELEASE_BUILD=$build" >> "$GITHUB_ENV"
+          echo "RELEASE_VERSION=$version" >> "$GITHUB_ENV"
+          echo "RELEASE_OUTPUT=$RUNNER_TEMP/trail-release" >> "$GITHUB_ENV"
+          echo "SPARKLE_TOOLS=$RUNNER_TEMP/sparkle/bin" >> "$GITHUB_ENV"
+
+      - name: Set up Flutter
+        if: steps.version.outputs.publish == 'true'
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: '3.44.0'
+          channel: stable
+          cache: false
+
+      - name: Set up Rust
+        if: steps.version.outputs.publish == 'true'
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772
+        with:
+          toolchain: '1.88.0'
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Set up Go
+        if: steps.version.outputs.publish == 'true'
+        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
+        with:
+          go-version: '1.23.x'
+          cache-dependency-path: backend/go.sum
+
+      - name: Verify release helpers and prepare Sparkle
+        if: steps.version.outputs.publish == 'true'
+        run: |
+          python3 -m unittest discover -s tools/release -p 'test_*.py'
+          bash tools/release/fetch_sparkle.sh "$RUNNER_TEMP/sparkle"
+          flutter pub get --enforce-lockfile
+
+      - name: Import signing credentials into an ephemeral keychain
+        if: steps.version.outputs.publish == 'true'
+        env:
+          MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          NOTARY_API_KEY_BASE64: ${{ secrets.NOTARY_API_KEY_BASE64 }}
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          umask 077
+          signing_dir="$RUNNER_TEMP/trail-signing"
+          mkdir -p "$signing_dir"
+          python3 - <<'PY'
+          import os, base64
+          from pathlib import Path
+          root = Path(os.environ['RUNNER_TEMP']) / 'trail-signing'
+          for name, filename in [('MACOS_CERTIFICATE_P12_BASE64', 'certificate.p12'), ('NOTARY_API_KEY_BASE64', 'notary.p8')]:
+              (root / filename).write_bytes(base64.b64decode(os.environ[name], validate=True))
+          (root / 'sparkle.key').write_text(os.environ['SPARKLE_PRIVATE_KEY'])
+          PY
+          keychain="$signing_dir/release.keychain-db"
+          keychain_password=$(openssl rand -hex 32)
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security import "$signing_dir/certificate.p12" -k "$keychain" -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$keychain" > /dev/null
+          security list-keychains -d user -s "$keychain" login.keychain-db
+          echo "SPARKLE_KEY_FILE=$signing_dir/sparkle.key" >> "$GITHUB_ENV"
+          echo "NOTARY_KEY_FILE=$signing_dir/notary.p8" >> "$GITHUB_ENV"
+
+      - name: Build, sign, notarize, and sign the update feed
+        if: steps.version.outputs.publish == 'true'
+        run: bash tools/release/build_macos_release.sh
+
+      - name: Publish complete release atomically
+        if: steps.version.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="v$RELEASE_VERSION"
+          if gh release view "$tag" --json isDraft --jq .isDraft > "$RUNNER_TEMP/existing-release" 2>/dev/null; then
+            test "$(cat "$RUNNER_TEMP/existing-release")" = true
+            # A rerun may resume its own draft, but never replace another commit.
+            test "$(gh release view "$tag" --json targetCommitish --jq .targetCommitish)" = "$GITHUB_SHA"
+          else
+            gh release create "$tag" --draft --target "$GITHUB_SHA" --title "Trail $RELEASE_VERSION" --generate-notes
+          fi
+          gh release upload "$tag" "$RELEASE_OUTPUT/Trail-$RELEASE_VERSION-macOS-universal.zip" \
+            "$RELEASE_OUTPUT/appcast.xml" "$RELEASE_OUTPUT/SHA256SUMS" --clobber
+          gh release edit "$tag" --draft=false --latest
+
+      - name: Remove ephemeral signing material
+        if: always()
+        run: |
+          signing_dir="$RUNNER_TEMP/trail-signing"
+          if [[ -f "$signing_dir/release.keychain-db" ]]; then
+            security delete-keychain "$signing_dir/release.keychain-db"
+          fi
+          rm -rf -- "$signing_dir"

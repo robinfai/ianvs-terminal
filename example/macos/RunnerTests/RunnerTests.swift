@@ -1,5 +1,6 @@
 import Cocoa
 import FlutterMacOS
+import Sparkle
 import XCTest
 @testable import Trail_Development
 
@@ -38,6 +39,50 @@ class RunnerTests: XCTestCase {
     AppDelegate.suppressNextLastWindowTerminate = false
     AppDelegate.suppressNextTerminateConfirmation = false
     super.tearDown()
+  }
+
+  func testUpdatesRejectDevelopmentBuildsAndMissingSigningKeys() {
+    let valid: [String: Any] = [
+      "SUPublicEDKey": Data(repeating: 1, count: 32).base64EncodedString(),
+      "SUFeedURL": "https://github.com/robinfai/ianvs-terminal/releases/latest/download/appcast.xml",
+    ]
+    XCTAssertNil(SoftwareUpdateController.configurationError(info: valid, bundleIdentifier: "work.ianvs.trail"))
+    XCTAssertNotNil(SoftwareUpdateController.configurationError(info: valid, bundleIdentifier: "work.ianvs.trail.development"))
+    XCTAssertNotNil(SoftwareUpdateController.configurationError(info: [:], bundleIdentifier: "work.ianvs.trail"))
+  }
+
+  func testUpdatesRejectInsecureFeedExceptForIsolatedLoopbackFixture() {
+    let validKey = Data(repeating: 1, count: 32).base64EncodedString()
+    for feed in ["http://example.com/appcast.xml", "file:///tmp/appcast.xml", "https://user:secret@example.com/feed"] {
+      XCTAssertNotNil(SoftwareUpdateController.configurationError(
+        info: ["SUPublicEDKey": validKey, "SUFeedURL": feed], bundleIdentifier: "work.ianvs.trail"
+      ))
+    }
+    let local: [String: Any] = ["SUPublicEDKey": validKey, "SUFeedURL": "http://127.0.0.1:9123/appcast.xml"]
+    XCTAssertNotNil(SoftwareUpdateController.configurationError(info: local, bundleIdentifier: "work.ianvs.trail"))
+    XCTAssertNil(SoftwareUpdateController.configurationError(info: local, bundleIdentifier: "work.ianvs.trail.update-test"))
+  }
+
+  func testUpdateRelaunchYieldsBeforeRequestingTermination() throws {
+    let updater = SPUStandardUpdaterController(
+      startingUpdater: false, updaterDelegate: nil, userDriverDelegate: nil
+    ).updater
+    let item = try XCTUnwrap(SUAppcastItem(dictionary: [
+      "title": "Trail 2", "sparkle:version": "2",
+      "enclosure": ["url": "https://example.com/Trail.zip", "sparkle:version": "2"],
+    ]))
+    let delegate = SoftwareUpdateController()
+    let didResume = expectation(description: "relaunch resumes asynchronously")
+    var resumed = false
+    XCTAssertTrue(delegate.updater(
+      updater, shouldPostponeRelaunchForUpdate: item, untilInvokingBlock: {
+        resumed = true
+        didResume.fulfill()
+      }
+    ))
+    XCTAssertFalse(resumed, "Quit confirmation must not run inside Sparkle's button action")
+    wait(for: [didResume], timeout: 1)
+    XCTAssertTrue(resumed)
   }
 
   func testExample() {

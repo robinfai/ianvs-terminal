@@ -16,6 +16,13 @@ CodeAsset build hook 自动编译并随应用打包；宿主 Xcode 工程不得�
 拷贝 phase。具体依赖、`TerminalSessionHandle.runtimeSignals` 和嵌入生命周期示例见
 [packages/ianvs_terminal_core/README.md](packages/ianvs_terminal_core/README.md)。
 
+## Apple 平台兼容范围
+
+macOS 和 iOS 默认仅要求兼容最近 4 个已正式发布的大版本，按实际发布顺序滚动，
+不计 beta/RC。截至 2026-09-20：macOS 14、15、26、27；iOS 17、18、26、27。
+最低部署版本分别为 macOS 14.0 和 iOS 17.0。详见
+[兼容性要求](docs/APPLE_PLATFORM_COMPATIBILITY.md)。
+
 ## 快速开始
 
 仓库根目录提供常用命令入口；运行 `make help` 查看开发、验证和 macOS
