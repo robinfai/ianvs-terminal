@@ -6,6 +6,7 @@
 /.tmp-home/
 /.pnpm-store/
 /build/
+/tmp/
 packages/*/.dart_tool/
 packages/*/build/
 .codex/*

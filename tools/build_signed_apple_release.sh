@@ -16,6 +16,17 @@ case "$PLATFORM" in
     ;;
 esac
 
+resolve_development_team() {
+  if [[ -z "${IANVS_APPLE_TEAM:-}" ]]; then
+    "$ROOT_DIR/tools/detect_apple_development_team.sh"
+  elif [[ "$IANVS_APPLE_TEAM" =~ ^[A-Z0-9]{10}$ ]]; then
+    printf '%s\n' "$IANVS_APPLE_TEAM"
+  else
+    echo "IANVS_APPLE_TEAM must be a 10-character uppercase alphanumeric Team ID." >&2
+    return 64
+  fi
+}
+
 cd "$EXAMPLE_DIR"
 if [[ "$PLATFORM" == "macos" ]]; then
   MACOS_BUNDLE_ID="${IANVS_MACOS_BUNDLE_ID:-}"
@@ -31,7 +42,7 @@ if [[ "$PLATFORM" == "macos" ]]; then
     exit 64
   fi
 
-  TEAM="$("$ROOT_DIR/tools/detect_apple_development_team.sh")"
+  TEAM="$(resolve_development_team)"
   SIGNING_TEMP_BASE="${TMPDIR:-/tmp}"
   SIGNING_ROOT="$(
     mktemp -d "${SIGNING_TEMP_BASE%/}/ianvs-macos-signing.XXXXXX"
@@ -120,7 +131,7 @@ if [[ "$PLATFORM" == "macos" ]]; then
   exit 0
 fi
 
-TEAM="$("$ROOT_DIR/tools/detect_apple_development_team.sh")"
+TEAM="$(resolve_development_team)"
 IOS_BUNDLE_ID="${IANVS_IOS_BUNDLE_ID:-}"
 if [[ -n "$IOS_BUNDLE_ID" &&
       ! "$IOS_BUNDLE_ID" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*[A-Za-z0-9]$ ]]; then
@@ -143,7 +154,7 @@ if [[ -n "$IOS_BUNDLE_ID" ]]; then
 fi
 printf '%s\n' "${SIGNING_SETTINGS[@]}" >"$SIGNING_CONFIG"
 
-echo "Using the Apple Development identity selected from Keychain."
+echo "Using Apple Development signing team: $TEAM"
 if [[ -n "$IOS_BUNDLE_ID" ]]; then
   echo "Temporarily overriding the iOS Bundle ID with $IOS_BUNDLE_ID."
 fi

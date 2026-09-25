@@ -50,6 +50,31 @@ echo 'subject=C=US,O=Ianvs,OU=RIGHT12345,CN=Apple Development'
     expect((result.stdout as String).trim(), 'RIGHT12345');
   });
 
+  test(
+    'explicit Apple team is injected through a temporary xcconfig',
+    () async {
+      final result = await _buildWithExplicitTeam('ABCDE12345');
+
+      expect(result.exitCode, 0, reason: result.stderr as String?);
+      expect(result.stdout, contains('DEVELOPMENT_TEAM = ABCDE12345'));
+    },
+  );
+
+  test('invalid Apple team overrides fail before signing', () async {
+    for (final team in <String>[
+      'short',
+      'abcde12345',
+      'ABCDEFGHIJK',
+      'ABCDE12345\nCODE_SIGNING_ALLOWED = NO',
+    ]) {
+      final result = await _buildWithExplicitTeam(team);
+
+      expect(result.exitCode, 64, reason: result.stderr as String?);
+      expect(result.stdout, isEmpty);
+      expect(result.stderr, contains('IANVS_APPLE_TEAM must be'));
+    }
+  });
+
   test('Apple app identity is unified without a committed signing team', () {
     final iosProject = File(
       'example/ios/Runner.xcodeproj/project.pbxproj',
@@ -302,4 +327,49 @@ echo 'subject=C=US,O=Ianvs,OU=RIGHT12345,CN=Apple Development'
       matches(RegExp(r'^\s+aarch64-apple-ios\s+\\$', multiLine: true)),
     );
   });
+}
+
+Future<ProcessResult> _buildWithExplicitTeam(String team) async {
+  final directory = Directory.systemTemp.createTempSync(
+    'ianvs-apple-team-env-',
+  );
+  addTearDown(() => directory.deleteSync(recursive: true));
+  final uname = File('${directory.path}/uname')
+    ..writeAsStringSync('#!/usr/bin/env bash\necho Darwin\n');
+  final security = File('${directory.path}/security')
+    ..writeAsStringSync('#!/usr/bin/env bash\nexit 99\n');
+  final configPath = File('${directory.path}/xcconfig-path');
+  final flutter = File('${directory.path}/flutter')
+    ..writeAsStringSync(r'''
+#!/usr/bin/env bash
+set -euo pipefail
+test "$*" = "build ios --release"
+cat "$XCODE_XCCONFIG_FILE"
+printf '%s' "$XCODE_XCCONFIG_FILE" > "$IANVS_TEST_CONFIG_PATH"
+''');
+  final chmod = await Process.run('chmod', <String>[
+    '+x',
+    uname.path,
+    security.path,
+    flutter.path,
+  ]);
+  expect(chmod.exitCode, 0, reason: chmod.stderr as String?);
+
+  final result = await Process.run(
+    'bash',
+    <String>['tools/build_signed_apple_release.sh', 'ios', flutter.path],
+    environment: <String, String>{
+      'PATH': '${directory.path}:${Platform.environment['PATH']}',
+      'IANVS_APPLE_TEAM': team,
+      'IANVS_TEST_CONFIG_PATH': configPath.path,
+    },
+  );
+  if (configPath.existsSync()) {
+    expect(
+      File(configPath.readAsStringSync()).existsSync(),
+      isFalse,
+      reason: 'The temporary signing xcconfig must be removed after the build.',
+    );
+  }
+  return result;
 }
