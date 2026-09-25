@@ -331,7 +331,9 @@ impl Bootstrap {
         json!({"hook":name, "context_id":ctx, "parent_context_id":context.parent,
             "host":context.host,"user":context.user,"port":context.port,
             "context_kind":context.kind,"host_context_id":context.host_context,
-            "sftp_route":context.available && self.contexts.get(&context.host_context).is_some_and(|host| host.socket.is_some())})
+            "sftp_route":context.available
+                && self.contexts.get(&context.host_context).is_some_and(|host| host.socket.is_some())
+                && self.route_for(&context.host_context).is_ok()})
     }
     fn finish(&mut self, ctx: &str, source: &str, registered: bool, shell: &str) -> Vec<u8> {
         self.contexts.get_mut(ctx).unwrap().completed = true;
@@ -409,11 +411,12 @@ impl Bootstrap {
                         && !self.contexts.contains_key(ctx) =>
                 {
                     let socket = fields[4];
-                    if socket.len() > 104
-                        || !socket.starts_with('/')
-                        || !socket
-                            .bytes()
-                            .all(|b| b.is_ascii_alphanumeric() || b"_./:@+,-".contains(&b))
+                    if !socket.is_empty()
+                        && (socket.len() > 104
+                            || !socket.starts_with('/')
+                            || !socket
+                                .bytes()
+                                .all(|b| b.is_ascii_alphanumeric() || b"_./:@+,-".contains(&b)))
                     {
                         continue;
                     }
@@ -430,7 +433,7 @@ impl Bootstrap {
                         ctx.into(),
                         Context {
                             parent: fields[3].into(),
-                            socket: Some(socket.into()),
+                            socket: (!socket.is_empty()).then(|| socket.into()),
                             host: fields[5].into(),
                             user: fields[6].into(),
                             port,
@@ -569,6 +572,8 @@ impl Bootstrap {
                 .ok_or_else(|| anyhow::anyhow!("SSH shell context is no longer available"))?;
             if let Some(socket) = &ctx.socket {
                 route.push(socket.clone());
+            } else if ctx.kind == "ssh" {
+                anyhow::bail!("SSH shell context has no control socket for file operations");
             }
             if ctx.parent.is_empty() {
                 break;
@@ -791,6 +796,29 @@ mod tests {
             bootstrap.route_for(&bootstrap.active).unwrap(),
             vec!["/tmp/a"]
         );
+    }
+    #[test]
+    fn ssh_without_a_socket_initializes_but_cannot_route_files() {
+        let mut b = Bootstrap::new("local".into(), true);
+        let entered = b.feed(b"\x1b]6973;local;a;enter;root;;host;user;22\x07");
+        assert_eq!(b.active, "a");
+        assert_eq!(events(&entered.output)[0]["sftp_route"], false);
+        assert_eq!(b.feed(b"\x1b]6973;a;a;init;bash\x07").replies.len(), 1);
+        let ready = b.feed(b"\x1b]6973;a;a;ready;installed;1;bash\x07");
+        assert_eq!(events(&ready.output)[0]["registered"], true);
+        assert!(b.route_for("a").is_err());
+
+        // A later socket must not skip the unrouteable SSH hop and land on a
+        // different host. The same restriction applies to child shells.
+        let child = b.feed(b"\x1b]6973;a;b;enter;a;/tmp/b;next;user;22\x07");
+        assert_eq!(events(&child.output)[0]["sftp_route"], false);
+        assert!(b.route_for("b").is_err());
+        let shell = b.feed(b"\x1b]6973;b;c;enter_shell;b;zsh\x07");
+        assert_eq!(events(&shell.output)[0]["sftp_route"], false);
+        assert!(b.route_for("c").is_err());
+        b.feed(b"\x1b]6973;local;root;resume;done\x07");
+        assert_eq!(b.active, "root");
+        assert!(b.route_for("root").unwrap().is_empty());
     }
     #[test]
     fn child_shell_reuses_host_route_and_does_not_authorize_other_hosts() {
@@ -1063,3 +1091,7 @@ mod tests {
 #[cfg(all(test, unix))]
 #[path = "shell_bootstrap/acceptance.rs"]
 mod acceptance;
+
+#[cfg(all(test, unix))]
+#[path = "shell_bootstrap/ssh_wrapper_tests.rs"]
+mod ssh_wrapper_tests;

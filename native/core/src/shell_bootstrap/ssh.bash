@@ -33,23 +33,31 @@ function ssh {
   if [ -z "$__iv_socket" ] || [ "$__iv_socket" = none ] || ! command ssh -S "$__iv_socket" -O check "$@" >/dev/null 2>&1; then
     # Socket metadata is allowed; bootstrap scripts are never written here.
     local __iv_dir
-    __iv_dir=$(command mktemp -d "${TMPDIR:-/tmp}/ivssh.XXXXXXXX" 2>/dev/null) || { command ssh "$@"; return $?; }
-    __iv_socket="$__iv_dir/m"
-    __iv_owned=1
+    if __iv_dir=$(command mktemp -d "${TMPDIR:-/tmp}/ivssh.XXXXXXXX" 2>/dev/null); then
+      __iv_socket="$__iv_dir/m"
+      __iv_owned=1
+    else
+      __iv_socket=''
+    fi
   fi
-  # Keep filesystem metadata short enough for Unix domain sockets on macOS.
-  if [ ${#__iv_socket} -gt 104 ]; then
+  # A file-channel socket is optional: its absence must not change the remote
+  # shell bootstrap. Only absolute, bounded ASCII paths can be routed safely.
+  local __iv_socket_valid=1
+  case "$__iv_socket" in /*) ;; *) __iv_socket_valid=0 ;; esac
+  case "$__iv_socket" in *[!a-zA-Z0-9_./:@+,-]*) __iv_socket_valid=0 ;; esac
+  if [ ${#__iv_socket} -gt 104 ] || [ "$__iv_socket_valid" = 0 ]; then
     [ "$__iv_owned" = 1 ] && command rmdir "$__iv_dir" 2>/dev/null
-    command ssh "$@"; return $?
+    __iv_socket=''
+    __iv_owned=0
   fi
-  # Only bounded ASCII socket paths are carried in the control frame.
-  case "$__iv_socket" in *[!a-zA-Z0-9_./:@+,-]*) [ "$__iv_owned" = 1 ] && command rmdir "$__iv_dir" 2>/dev/null; command ssh "$@"; return $? ;; esac
   printf '\033]6973;@@NONCE@@;%s;enter;%s;%s;%s;%s;%s\007' "$__iv_id" "$__iv_parent" "$__iv_socket" "$__iv_host" "$__iv_user" "$__iv_port"
   __iv_cmd=@@LAUNCHER@@
   __iv_cmd=${__iv_cmd//@@CONTEXT@@/$__iv_id}
   __iv_cmd=${__iv_cmd//@@CHILD_NONCE@@/$__iv_id}
   if [ "$__iv_owned" = 1 ]; then
     command ssh -o ControlMaster=auto -o ControlPersist=60 -o ControlPath="$__iv_socket" -t "$@" "$__iv_cmd"
+  elif [ -z "$__iv_socket" ]; then
+    command ssh -o ControlMaster=no -o ControlPath=none -t "$@" "$__iv_cmd"
   else
     command ssh -o ControlMaster=no -o ControlPath="$__iv_socket" -t "$@" "$__iv_cmd"
   fi
