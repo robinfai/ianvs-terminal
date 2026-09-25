@@ -92,6 +92,8 @@ if [[ "$PLATFORM" == "macos" ]]; then
   )
 
   MACOS_APP="$EXAMPLE_DIR/build/macos/Build/Products/Release/Trail.app"
+  python3 "$ROOT_DIR/tools/verify_macos_native_library.py" \
+    "$MACOS_APP/Contents/Frameworks/ianvs_core.framework/ianvs_core"
   [[ -f "$MACOS_APP/Contents/embedded.provisionprofile" ]] || {
     echo "macOS development build is missing its provisioning profile" >&2
     exit 1

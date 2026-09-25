@@ -10,6 +10,8 @@ if [ "$(uname -s)" != "Darwin" ]; then
   exit 1
 fi
 
+python3 -B "$ROOT_DIR/tools/tests/test_macos_native_library.py"
+
 # This entry point also runs in a fresh CI job without the repository gate.
 (
   cd "$ROOT_DIR"
@@ -35,6 +37,7 @@ PROFILE=debug "$ROOT_DIR/tools/build_core.sh"
 
     python3 "$ROOT_DIR/tools/verify_native_contract.py" \
       --library "$release_core"
+    python3 "$ROOT_DIR/tools/verify_macos_native_library.py" "$release_core"
 
     codesign --verify --deep --strict "$release_app"
     signature_metadata="$(codesign -d --verbose=4 "$release_app" 2>&1)"

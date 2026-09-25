@@ -18,6 +18,8 @@ if [[ ! -d "$APP_PATH" ]]; then
 fi
 
 python3 "$ENTITLEMENT_VALIDATOR" "$LOCAL_ENTITLEMENTS"
+python3 "$ROOT_DIR/tools/verify_macos_native_library.py" \
+  "$APP_PATH/Contents/Frameworks/ianvs_core.framework/ianvs_core"
 
 signature_details="$(codesign -d --verbose=4 "$APP_PATH" 2>&1)"
 was_adhoc=0
