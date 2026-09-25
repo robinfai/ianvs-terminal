@@ -28,6 +28,8 @@ python3 "$root/tools/release/macos_release.py" configure "$app" --public-key "$S
   --feed "https://github.com/$RELEASE_REPOSITORY/releases/latest/download/appcast.xml"
 python3 "$root/tools/release/macos_release.py" sign "$app" --identity "$MACOS_SIGNING_IDENTITY" \
   --entitlements "$root/example/macos/Runner/Release.entitlements"
+python3 "$root/tools/verify_macos_native_library.py" \
+  "$app/Contents/Frameworks/ianvs_core.framework/ianvs_core"
 # Every embedded executable must support both advertised architectures.
 while IFS= read -r -d '' binary; do
   if file -b "$binary" | grep -q 'Mach-O'; then

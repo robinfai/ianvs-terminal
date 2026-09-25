@@ -8,6 +8,14 @@ build = "build.rs"
 [lib]
 crate-type = ["cdylib", "staticlib", "rlib"]
 
+[profile.release]
+# Rust's implicit debuginfo stripping can misalign the Mach-O LINKEDIT string
+# pool, which macOS 27 rejects at dlopen. Explicit "none" also prevents Cargo's
+# automatic stripping of std debuginfo. Flutter strips the final framework with
+# Apple's strip, which preserves the linker's correct alignment.
+# https://github.com/rust-lang/rust/issues/157750
+strip = "none"
+
 [features]
 regenerate-proto = ["prost-build"]
 
