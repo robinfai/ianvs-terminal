@@ -1731,6 +1731,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get regexError => 'Regex error';
 
   @override
+  String get invalidRegularExpression => 'Invalid regular expression';
+
+  @override
   String get noMatches => 'No matches';
 
   @override

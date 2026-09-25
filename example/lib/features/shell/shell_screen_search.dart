@@ -1,5 +1,18 @@
 part of 'shell_screen.dart';
 
+/// macOS HIG body/control metrics, with app-owned spacing for this composite
+/// search field. See output/search-review-20260925/apple-hig.md for sources.
+abstract final class _SearchMetrics {
+  static const bodySize = 13.0;
+  static const bodyLineHeight = 16.0;
+  static const secondarySize = 11.0;
+  static const secondaryLineHeight = 14.0;
+  static const controlTarget = 28.0;
+  static const inset = 4.0;
+  static const gap = 8.0;
+  static const menuVerticalPadding = 6.0;
+}
+
 class _TerminalSearchBar extends StatefulWidget {
   const _TerminalSearchBar({
     required this.query,
@@ -45,12 +58,50 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
   static const _searchBarMaxWidth = 520.0;
   static const _searchBarIdleWidth = 520.0;
   static const _searchBarCompactBreakpoint = 340.0;
-  static const _searchBarControlHeight = 30.0;
-  static const _searchFieldEditHeight = 20.0;
-  static const _searchBarHorizontalInset = 5.0;
-  static const _searchBarVerticalInset = 4.0;
+  static const double _searchBarHorizontalInset = _SearchMetrics.gap;
+  static const double _searchBarVerticalInset = _SearchMetrics.inset;
+
+  // Compact desktop menus share the app's surfaces, type and shape tokens.
+  // Keep a small inset around selected rows and a gap below the toolbar.
+  static const double _searchMenuInset = _SearchMetrics.inset;
 
   late final TextEditingController _controller;
+  final _modeFocusNode = FocusNode();
+  final _scopeFocusNode = FocusNode();
+
+  TextStyle get _controlTextStyle =>
+      Theme.of(context).textTheme.bodyMedium!.copyWith(
+        fontSize: _SearchMetrics.bodySize,
+        height: _SearchMetrics.bodyLineHeight / _SearchMetrics.bodySize,
+        fontWeight: FontWeight.w400,
+        color: widget.palette.textPrimary,
+      );
+
+  double get _textScale {
+    final size = _controlTextStyle.fontSize!;
+    return MediaQuery.textScalerOf(context).scale(size) / size;
+  }
+
+  double get _searchFieldEditHeight {
+    final size = _controlTextStyle.fontSize!;
+    return math.max(
+      20,
+      (MediaQuery.textScalerOf(context).scale(size) * _controlTextStyle.height!)
+          .ceilToDouble(),
+    );
+  }
+
+  double get _searchBarControlHeight => math.max(
+    _SearchMetrics.controlTarget,
+    _searchFieldEditHeight + _SearchMetrics.gap,
+  );
+
+  bool get _separateStatus => _textScale > 1.4 && widget.errorText == null;
+
+  String? get _localizedErrorText =>
+      widget.errorText == 'Invalid regular expression'
+      ? context.l10n.invalidRegularExpression
+      : widget.errorText;
 
   @override
   void initState() {
@@ -87,6 +138,8 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
   @override
   void dispose() {
     _controller.dispose();
+    _modeFocusNode.dispose();
+    _scopeFocusNode.dispose();
     super.dispose();
   }
 
@@ -220,8 +273,11 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
       child: Semantics(
         button: true,
         label: context.l10n.searchFilter,
+        value: _searchModeLabel(widget.searchMode),
+        expanded: controller.isOpen,
         child: InkWell(
           key: const Key('terminal-search-mode'),
+          focusNode: _modeFocusNode,
           borderRadius: BorderRadius.circular(palette.radius.sm),
           onTap: () {
             if (controller.isOpen) {
@@ -232,17 +288,17 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
           },
           child: DecoratedBox(
             decoration: BoxDecoration(
-              color: Colors.transparent,
+              color: controller.isOpen ? palette.selected : Colors.transparent,
               borderRadius: BorderRadius.circular(palette.radius.sm),
             ),
             child: SizedBox(
-              width: 32,
+              width: 18 * math.max(1, _textScale) + 14,
               height: _searchBarControlHeight,
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   SizedBox(
-                    width: 18,
+                    width: 18 * math.max(1, _textScale),
                     child: Center(child: _searchModeMark(widget.searchMode)),
                   ),
                   Icon(
@@ -261,7 +317,6 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
 
   List<Widget> _buildSearchModeMenuChildren(BuildContext context) {
     final palette = widget.palette;
-    final textTheme = Theme.of(context).textTheme;
     const modes = terminal.TerminalSearchMode.values;
 
     Widget item(terminal.TerminalSearchMode mode) {
@@ -271,76 +326,94 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
         onPressed: () {
           widget.onModeChanged(mode);
         },
-        style: ButtonStyle(
-          minimumSize: WidgetStateProperty.all(const Size(288, 30)),
-          padding: WidgetStateProperty.all(
-            const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-          ),
-          backgroundColor: WidgetStateProperty.all(
-            selected ? palette.selected : Colors.transparent,
-          ),
-          foregroundColor: WidgetStateProperty.all(palette.textPrimary),
-          overlayColor: WidgetStateProperty.all(
-            palette.accent.withValues(alpha: 0.12),
-          ),
-        ),
+        style: _searchMenuItemStyle(selected: selected),
         leadingIcon: selected
             ? Icon(Icons.check_rounded, size: 16, color: palette.textPrimary)
             : const SizedBox(width: 16, height: 16),
-        child: Text(
-          _searchModeLabel(mode),
-          style: textTheme.bodyMedium?.copyWith(
-            color: palette.textPrimary,
-            fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-          ),
+        child: Semantics(
+          selected: selected,
+          child: Text(_searchModeLabel(mode), style: _searchMenuTextStyle),
         ),
       );
     }
 
     return [
-      Padding(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
-        child: Text(
-          context.l10n.filter,
-          style: textTheme.titleSmall?.copyWith(
-            color: palette.textPrimary,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
-      Divider(color: palette.border),
+      _searchMenuHeading(context.l10n.filter),
       item(modes[0]),
-      Divider(color: palette.border),
       item(modes[1]),
       item(modes[2]),
-      Divider(color: palette.border),
+      _searchMenuDivider(),
       item(modes[3]),
       item(modes[4]),
     ];
   }
 
   Widget _buildSearchModeMenu(BuildContext context) {
-    final palette = widget.palette;
     return MenuAnchor(
-      style: MenuStyle(
-        backgroundColor: WidgetStateProperty.all(palette.overlay),
-        elevation: WidgetStateProperty.all(8.0),
-        padding: WidgetStateProperty.all(
-          const EdgeInsets.symmetric(vertical: 4),
-        ),
-        shape: WidgetStateProperty.all(
-          RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(palette.radius.md),
-            side: BorderSide(color: palette.borderStrong),
-          ),
-        ),
-      ),
+      childFocusNode: _modeFocusNode,
+      alignmentOffset: const Offset(0, _SearchMetrics.gap),
+      style: _searchMenuStyle(),
       menuChildren: _buildSearchModeMenuChildren(context),
       builder: (context, controller, child) {
         return _buildSearchModeButton(context, controller);
       },
     );
   }
+
+  MenuStyle _searchMenuStyle() => MenuStyle(
+    backgroundColor: WidgetStatePropertyAll(widget.palette.overlay),
+    elevation: const WidgetStatePropertyAll(4),
+    padding: const WidgetStatePropertyAll(EdgeInsets.all(_searchMenuInset)),
+    shape: WidgetStatePropertyAll(
+      RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(widget.palette.radius.md),
+        side: BorderSide(color: widget.palette.border),
+      ),
+    ),
+  );
+
+  TextStyle get _searchMenuTextStyle => _controlTextStyle;
+
+  ButtonStyle _searchMenuItemStyle({required bool selected}) => ButtonStyle(
+    // Let the longest localized label determine width, as a native menu does.
+    minimumSize: const WidgetStatePropertyAll(
+      Size(0, _SearchMetrics.controlTarget),
+    ),
+    textStyle: WidgetStatePropertyAll(_controlTextStyle),
+    padding: const WidgetStatePropertyAll(
+      EdgeInsets.symmetric(
+        horizontal: _SearchMetrics.gap,
+        vertical: _SearchMetrics.menuVerticalPadding,
+      ),
+    ),
+    backgroundColor: WidgetStatePropertyAll(
+      selected ? widget.palette.selected : Colors.transparent,
+    ),
+    foregroundColor: WidgetStatePropertyAll(widget.palette.textPrimary),
+    overlayColor: WidgetStatePropertyAll(
+      widget.palette.accent.withValues(alpha: 0.12),
+    ),
+  );
+
+  Widget _searchMenuHeading(String text) => Padding(
+    padding: const EdgeInsets.symmetric(
+      horizontal: _SearchMetrics.gap,
+      vertical: _SearchMetrics.inset,
+    ),
+    child: Text(
+      text,
+      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+        fontSize: _SearchMetrics.secondarySize,
+        height:
+            _SearchMetrics.secondaryLineHeight / _SearchMetrics.secondarySize,
+        color: widget.palette.textMuted,
+        fontWeight: FontWeight.w400,
+      ),
+    ),
+  );
+
+  Widget _searchMenuDivider() =>
+      Divider(height: 9, indent: 8, endIndent: 8, color: widget.palette.border);
 
   IconData _searchScopeIcon(_TerminalSearchScope scope) {
     return switch (scope) {
@@ -364,8 +437,10 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
         label: context.l10n.searchScopeValue(
           _searchScopeLabel(widget.searchScope),
         ),
+        expanded: controller.isOpen,
         child: InkWell(
           key: const Key('terminal-search-scope'),
+          focusNode: _scopeFocusNode,
           borderRadius: BorderRadius.circular(palette.radius.sm),
           onTap: () {
             if (controller.isOpen) {
@@ -381,18 +456,14 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
               border: Border.all(color: palette.border.withValues(alpha: 0.7)),
             ),
             child: SizedBox(
-              width: 48,
+              width: 48 + 24 * (math.max(1, _textScale) - 1),
               height: _searchBarControlHeight,
               child: Center(
                 child: Text(
                   _searchScopeShortLabel(widget.searchScope),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: palette.textPrimary,
-                    fontWeight: FontWeight.w700,
-                    height: 1,
-                  ),
+                  style: _controlTextStyle,
                 ),
               ),
             ),
@@ -404,7 +475,6 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
 
   List<Widget> _buildSearchScopeMenuChildren(BuildContext context) {
     final palette = widget.palette;
-    final textTheme = Theme.of(context).textTheme;
 
     Widget item(_TerminalSearchScope scope) {
       final selected = scope == widget.searchScope;
@@ -413,66 +483,30 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
         onPressed: () {
           widget.onScopeChanged(scope);
         },
-        style: ButtonStyle(
-          minimumSize: WidgetStateProperty.all(const Size(220, 30)),
-          padding: WidgetStateProperty.all(
-            const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-          ),
-          backgroundColor: WidgetStateProperty.all(
-            selected ? palette.selected : Colors.transparent,
-          ),
-          foregroundColor: WidgetStateProperty.all(palette.textPrimary),
-          overlayColor: WidgetStateProperty.all(
-            palette.accent.withValues(alpha: 0.12),
-          ),
-        ),
+        style: _searchMenuItemStyle(selected: selected),
         leadingIcon: Icon(
           selected ? Icons.check_rounded : _searchScopeIcon(scope),
           size: 16,
           color: palette.textPrimary,
         ),
-        child: Text(
-          _searchScopeLabel(scope),
-          style: textTheme.bodyMedium?.copyWith(
-            color: palette.textPrimary,
-            fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-          ),
+        child: Semantics(
+          selected: selected,
+          child: Text(_searchScopeLabel(scope), style: _searchMenuTextStyle),
         ),
       );
     }
 
     return [
-      Padding(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
-        child: Text(
-          context.l10n.scope,
-          style: textTheme.titleSmall?.copyWith(
-            color: palette.textPrimary,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
-      Divider(color: palette.border),
+      _searchMenuHeading(context.l10n.scope),
       for (final scope in _TerminalSearchScope.values) item(scope),
     ];
   }
 
   Widget _buildSearchScopeMenu(BuildContext context) {
-    final palette = widget.palette;
     return MenuAnchor(
-      style: MenuStyle(
-        backgroundColor: WidgetStateProperty.all(palette.overlay),
-        elevation: WidgetStateProperty.all(8.0),
-        padding: WidgetStateProperty.all(
-          const EdgeInsets.symmetric(vertical: 4),
-        ),
-        shape: WidgetStateProperty.all(
-          RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(palette.radius.md),
-            side: BorderSide(color: palette.borderStrong),
-          ),
-        ),
-      ),
+      childFocusNode: _scopeFocusNode,
+      alignmentOffset: const Offset(0, _SearchMetrics.gap),
+      style: _searchMenuStyle(),
       menuChildren: _buildSearchScopeMenuChildren(context),
       builder: (context, controller, child) {
         return _buildSearchScopeButton(context, controller);
@@ -528,32 +562,60 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
       splashRadius: 12,
       iconSize: 15,
       padding: EdgeInsets.zero,
-      constraints: const BoxConstraints.tightFor(width: 18, height: 18),
+      constraints: const BoxConstraints.tightFor(
+        width: _SearchMetrics.controlTarget,
+        height: _SearchMetrics.controlTarget,
+      ),
       icon: Icon(Icons.cancel_rounded, color: widget.palette.textSubtle),
     );
   }
 
-  Widget _buildInlineSearchStatus(BuildContext context) {
+  Widget _buildInlineSearchStatus(
+    BuildContext context, {
+    bool belowBar = false,
+  }) {
     if (_counterText.isEmpty) {
       return const SizedBox.shrink();
     }
     final foreground = _statusForeground(context);
+    if (widget.errorText != null) {
+      return Semantics(
+        liveRegion: true,
+        label: _localizedErrorText,
+        child: Tooltip(
+          message: _localizedErrorText,
+          child: Padding(
+            key: const Key('terminal-search-status'),
+            padding: const EdgeInsets.symmetric(
+              horizontal: _SearchMetrics.inset,
+            ),
+            child: Icon(
+              Icons.error_outline_rounded,
+              size: 16,
+              color: foreground,
+            ),
+          ),
+        ),
+      );
+    }
     return Semantics(
       liveRegion: true,
       label: context.l10n.searchResultValue(_counterText),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 68),
+        constraints: BoxConstraints(
+          maxWidth: belowBar ? _preferredBarWidth : 68,
+        ),
         child: Padding(
           key: const Key('terminal-search-status'),
-          padding: const EdgeInsets.symmetric(horizontal: 5),
+          padding: const EdgeInsets.symmetric(horizontal: _SearchMetrics.inset),
           child: Text(
             _counterText,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+            maxLines: belowBar ? null : 1,
+            overflow: belowBar ? TextOverflow.visible : TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
               color: foreground.withValues(alpha: 0.92),
-              fontWeight: FontWeight.w600,
-              height: 1,
+              fontWeight: FontWeight.w400,
+              height: 15 / 12,
             ),
           ),
         ),
@@ -561,20 +623,10 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
     );
   }
 
-  Widget _buildSearchField(BuildContext context) {
+  Widget _buildSearchField(BuildContext context, {bool compact = false}) {
     final palette = widget.palette;
-    final textTheme = Theme.of(context).textTheme;
-    final baseTextStyle = textTheme.bodyMedium ?? const TextStyle(fontSize: 14);
-    final inputTextStyle = baseTextStyle.copyWith(
-      color: palette.textPrimary,
-      fontWeight: FontWeight.w600,
-      height: 1.1,
-    );
-    final hintTextStyle = baseTextStyle.copyWith(
-      color: palette.textSubtle,
-      fontWeight: FontWeight.w500,
-      height: 1.1,
-    );
+    final inputTextStyle = _controlTextStyle;
+    final hintTextStyle = _controlTextStyle.copyWith(color: palette.textSubtle);
     return AnimatedBuilder(
       animation: widget.focusNode,
       builder: (context, _) {
@@ -582,13 +634,13 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
           key: const Key('terminal-search-input'),
           height: _searchBarControlHeight,
           child: Padding(
-            padding: const EdgeInsets.only(left: 1, right: 4),
+            padding: EdgeInsets.zero,
             child: Row(
               children: [
                 _buildSearchModeMenu(context),
-                const SizedBox(width: 4),
+                const SizedBox(width: _SearchMetrics.inset),
                 _buildSearchScopeMenu(context),
-                const SizedBox(width: 6),
+                const SizedBox(width: _SearchMetrics.gap),
                 Expanded(
                   child: Focus(
                     onKeyEvent: _handleSearchKeyEvent,
@@ -637,8 +689,12 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
                     ),
                   ),
                 ),
-                if (_counterText.isNotEmpty) _buildInlineSearchStatus(context),
-                if (widget.query.isNotEmpty) const SizedBox(width: 2),
+                if (_counterText.isNotEmpty &&
+                    !_separateStatus &&
+                    (!compact || widget.errorText != null))
+                  _buildInlineSearchStatus(context),
+                if (widget.query.isNotEmpty)
+                  const SizedBox(width: _SearchMetrics.inset),
                 if (widget.query.isNotEmpty) _buildInlineSearchClearButton(),
               ],
             ),
@@ -668,7 +724,12 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
         iconSize: 18,
         padding: EdgeInsets.zero,
         constraints: constraints,
-        icon: const Icon(Icons.chevron_left_rounded),
+        icon: Icon(
+          Icons.chevron_left_rounded,
+          color: widget.matches == 0
+              ? widget.palette.textSubtle.withValues(alpha: 0.45)
+              : null,
+        ),
       ),
       _buildCompactActionButton(
         key: const Key('terminal-search-next'),
@@ -678,7 +739,12 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
         iconSize: 18,
         padding: EdgeInsets.zero,
         constraints: constraints,
-        icon: const Icon(Icons.chevron_right_rounded),
+        icon: Icon(
+          Icons.chevron_right_rounded,
+          color: widget.matches == 0
+              ? widget.palette.textSubtle.withValues(alpha: 0.45)
+              : null,
+        ),
       ),
     ];
   }
@@ -704,11 +770,11 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Expanded(child: _buildSearchField(context)),
-        const SizedBox(width: 3),
+        const SizedBox(width: _SearchMetrics.gap),
         _searchToolbarDivider(context),
-        const SizedBox(width: 3),
+        const SizedBox(width: _SearchMetrics.gap),
         ..._buildSearchNavigationButtons(actionButtonConstraints),
-        const SizedBox(width: 1),
+        const SizedBox(width: _SearchMetrics.inset),
         _buildSearchCloseButton(actionButtonConstraints),
       ],
     );
@@ -721,10 +787,10 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Expanded(child: _buildSearchField(context)),
-        const SizedBox(width: 3),
+        Expanded(child: _buildSearchField(context, compact: true)),
+        const SizedBox(width: _SearchMetrics.gap),
         _searchToolbarDivider(context),
-        const SizedBox(width: 3),
+        const SizedBox(width: _SearchMetrics.gap),
         _buildSearchCloseButton(actionButtonConstraints),
       ],
     );
@@ -740,9 +806,9 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
 
   Widget _buildSearchPanel(BuildContext context, {required bool compact}) {
     final palette = widget.palette;
-    const actionButtonConstraints = BoxConstraints.tightFor(
-      width: 26,
-      height: 30,
+    final actionButtonConstraints = BoxConstraints.tightFor(
+      width: _SearchMetrics.controlTarget,
+      height: _searchBarControlHeight,
     );
     return AnimatedBuilder(
       animation: widget.focusNode,
@@ -760,13 +826,7 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
                   : palette.borderStrong.withValues(alpha: 0.68),
               width: focused ? 1.2 : 1,
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.20),
-                blurRadius: 12,
-                offset: const Offset(0, 5),
-              ),
-            ],
+            boxShadow: palette.elevation.floating,
           ),
           child: Padding(
             padding: const EdgeInsets.symmetric(
@@ -829,7 +889,7 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
             children: [
               Expanded(
                 child: Text(
-                  widget.errorText ?? _counterText,
+                  _localizedErrorText ?? _counterText,
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ),
@@ -895,9 +955,19 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
                 width: width,
                 child: _buildSearchPanel(context, compact: compact),
               ),
+              if (_counterText.isNotEmpty &&
+                  (_separateStatus || compact) &&
+                  widget.errorText == null)
+                Padding(
+                  padding: const EdgeInsets.only(
+                    top: _SearchMetrics.inset,
+                    right: _SearchMetrics.gap,
+                  ),
+                  child: _buildInlineSearchStatus(context, belowBar: true),
+                ),
               if (widget.errorText != null)
                 _TerminalSearchErrorPopover(
-                  errorText: widget.errorText!,
+                  errorText: _localizedErrorText!,
                   palette: widget.palette,
                 ),
             ],

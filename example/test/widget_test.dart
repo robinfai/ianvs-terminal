@@ -5145,7 +5145,7 @@ void main() {
       expect(fakeBindings.scrollToCalls.last, [1, 3]);
       expect(
         tester.getSize(find.byKey(const Key('terminal-search-close'))),
-        const Size(26, 30),
+        const Size(28, 28),
       );
       final inputRect = tester.getRect(
         find.byKey(const Key('terminal-search-input')),
@@ -5258,9 +5258,9 @@ void main() {
         find.byKey(const Key('terminal-search-mode')),
       );
 
-      expect(barRect.height, 38);
-      expect(modeRect.size, const Size(32, 30));
-      expect(inputRect.height, 30);
+      expect(barRect.height, 36);
+      expect(modeRect.size, const Size(32, 28));
+      expect(inputRect.height, 28);
       expect(fieldRect.height, 20);
       expect(inputRect.top - barRect.top, moreOrLessEquals(4));
       expect(barRect.bottom - inputRect.bottom, moreOrLessEquals(4));
@@ -5326,7 +5326,7 @@ void main() {
 
       expect(barRect.left, greaterThanOrEqualTo(12));
       expect(barRect.right, lessThanOrEqualTo(346));
-      expect(barRect.height, 38);
+      expect(statusRect.top, greaterThan(fieldRect.bottom));
       expect(fieldRect.width, greaterThan(100));
       expect(statusRect.left, greaterThanOrEqualTo(barRect.left));
       expect(statusRect.right, lessThanOrEqualTo(barRect.right));

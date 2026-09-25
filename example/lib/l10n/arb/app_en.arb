@@ -1729,6 +1729,7 @@
     }
   },
   "regexError": "Regex error",
+  "invalidRegularExpression": "Invalid regular expression",
   "noMatches": "No matches",
   "smartCaseSubstring": "Smart Case Substring",
   "caseSensitiveSubstring": "Case-Sensitive Substring",

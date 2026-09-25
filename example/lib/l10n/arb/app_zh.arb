@@ -471,6 +471,7 @@
   "globalLine": "全局第 {line} 行",
   "scrollbackOffset": "偏移 {offset}",
   "regexError": "正则表达式错误",
+  "invalidRegularExpression": "无效的正则表达式",
   "noMatches": "无匹配项",
   "smartCaseSubstring": "智能大小写",
   "caseSensitiveSubstring": "区分大小写",

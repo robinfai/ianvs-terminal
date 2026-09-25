@@ -1643,6 +1643,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get regexError => '正则表达式错误';
 
   @override
+  String get invalidRegularExpression => '无效的正则表达式';
+
+  @override
   String get noMatches => '无匹配项';
 
   @override

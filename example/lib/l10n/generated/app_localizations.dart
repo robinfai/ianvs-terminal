@@ -2924,6 +2924,12 @@ abstract class AppLocalizations {
   /// **'Regex error'**
   String get regexError;
 
+  /// No description provided for @invalidRegularExpression.
+  ///
+  /// In en, this message translates to:
+  /// **'Invalid regular expression'**
+  String get invalidRegularExpression;
+
   /// No description provided for @noMatches.
   ///
   /// In en, this message translates to:
