@@ -54,7 +54,7 @@ impl AssetBinding {
         Ok(())
     }
 
-    fn filename(&self) -> StorageResult<String> {
+    pub(super) fn filename(&self) -> StorageResult<String> {
         self.validate()?;
         use std::fmt::Write;
         let mut name = String::with_capacity(69);

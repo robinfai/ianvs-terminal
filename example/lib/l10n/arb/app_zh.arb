@@ -93,7 +93,7 @@
   "recordingDescription": "回放 • 将此会话保存为持久录制。按键内容会被隐藏；如果可用，会包含 Shell 命令元数据。",
   "recordingOperationInProgress": "录制操作正在进行。",
   "openRecordingInReplay": "在回放中打开录制…",
-  "openRecordingInReplayDescription": "回放 • 打开一个已保存的终端录制，但不导入它。",
+  "openRecordingInReplayDescription": "回放 • 打开录制。外部录制会复制到录制库并标记为保留。",
   "globalSearch": "全局搜索",
   "openCommandPaletteWith": "使用 {shortcut} 打开命令面板",
   "configurationWarningsSummary": "部分终端 Profile 配置值已被忽略，并重置为安全默认值。",

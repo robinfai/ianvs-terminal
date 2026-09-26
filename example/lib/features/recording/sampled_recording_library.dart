@@ -8,6 +8,8 @@ import 'package:path_provider/path_provider.dart';
 
 import 'recording_retention_policy.dart';
 
+part 'sampled_recording_library_import.dart';
+
 /// Claims live in the UI isolate. Disk workers never open these lock files:
 /// POSIX process-scoped locks must not be accidentally closed by another owner.
 final Map<String, Object> _processClaims = <String, Object>{};
@@ -145,6 +147,8 @@ class SampledRecordingLibrary {
   int get maximumBytes => (_lastReadPolicy ?? _defaultPolicy).maximumBytes;
   Future<Directory>? _rootFuture;
   Future<void> _tail = Future<void>.value();
+  final Map<Future<void>, RecordingFileCancellation> _pendingImports = {};
+  bool _importsClosed = false;
   final Map<String, SampledRecordingClaim> _active =
       <String, SampledRecordingClaim>{};
   Iterable<SampledRecordingClaim> get activeClaims =>
@@ -165,6 +169,16 @@ class SampledRecordingLibrary {
     final root = Directory(await directory.resolveSymbolicLinks());
     await _createDirectoryDurably(Directory('${root.path}/entries'));
     await _createDirectoryDurably(Directory('${root.path}/claims'));
+    final imports = Directory('${root.path}/.imports');
+    final type = await FileSystemEntity.type(imports.path, followLinks: false);
+    if (type != FileSystemEntityType.notFound &&
+        type != FileSystemEntityType.directory) {
+      throw FileSystemException(
+        'Import staging is not a directory',
+        imports.path,
+      );
+    }
+    await _createDirectoryDurably(imports);
     return root;
   }
 
@@ -434,6 +448,51 @@ class SampledRecordingLibrary {
     return List<SampledRecordingEntry>.unmodifiable(entries);
   }
 
+  /// External new-format recordings become protected, owned library copies.
+  /// Legacy formats are never inspected or converted by this path.
+  Future<SampledOpenedRecording> openPickedRecording(
+    String path, {
+    RecordingFileCancellation? cancellation,
+  }) {
+    if (_importsClosed) return Future.error(const RecordingFileCancelled());
+    final token = cancellation ?? RecordingFileCancellation();
+    final operation = _openPickedRecording(path, token);
+    late Future<void> settled;
+    settled = operation
+        .then<void>((_) {}, onError: (Object _, StackTrace _) {})
+        .whenComplete(() => _pendingImports.remove(settled));
+    _pendingImports[settled] = token;
+    return operation;
+  }
+
+  Future<SampledOpenedRecording> _openPickedRecording(
+    String path,
+    RecordingFileCancellation token,
+  ) async {
+    _checkImport(token);
+    final root = await ensureRecordingDirectory();
+    final source = Directory(path).absolute;
+    final canonical = await source.resolveSymbolicLinks();
+    _checkImport(token);
+    final String destination;
+    if (canonical == root.path || canonical.startsWith('${root.path}/')) {
+      _ownedId(root, canonical); // Reject internal staging and unrelated files.
+      destination = canonical;
+    } else {
+      destination = await _importRecording(source.path, token);
+    }
+    _checkImport(token);
+    return openRecording(destination, cancellation: token);
+  }
+
+  /// Call before waiting for maintenance, which may itself be queued on an import.
+  void cancelPendingImports() {
+    _importsClosed = true;
+    for (final cancellation in _pendingImports.values.toList(growable: false)) {
+      cancellation.cancel();
+    }
+  }
+
   Future<SampledOpenedRecording> openRecording(
     String path, {
     RecordingFileCancellation? cancellation,
@@ -476,6 +535,11 @@ class SampledRecordingLibrary {
     var recovered = 0;
     var busy = 0;
     final errors = <String>[];
+    try {
+      await _cleanImports(root);
+    } on Object catch (error) {
+      errors.add('Import cleanup: $error');
+    }
     final ids = <String>{};
     for (final entry in await _list(root)) {
       if (entry.isActive) ids.add(entry.id);
@@ -585,7 +649,11 @@ class SampledRecordingLibrary {
       });
 
   Future<int> storageBytes() => _withLibraryLock(_libraryBytes);
-  Future<void> drain() => _tail;
+  Future<void> drain() async {
+    // Include picker reads after publication as well as the serialized mutation.
+    await Future.wait(_pendingImports.keys.toList(growable: false));
+    await _tail;
+  }
 
   Future<RecordingRetentionPolicy> _readPolicy(Directory root) async {
     final file = File('${root.path}/retention.json');
@@ -604,6 +672,7 @@ class SampledRecordingLibrary {
   Future<void> applyRetention() => _withLibraryLock(_retain);
   Future<void> _retain(Directory root) async {
     final policy = await _readPolicy(root);
+    await _cleanImports(root);
     var total = await _libraryBytes(root);
     final cutoff = DateTime.now().toUtc().subtract(policy.maximumAge);
     final entries = (await _list(root)).reversed;
@@ -633,7 +702,7 @@ class SampledRecordingLibrary {
   }
 
   Future<int> _libraryBytes(Directory root) async {
-    var bytes = 0;
+    var bytes = await _treeBytes(Directory('${root.path}/.imports'));
     await for (final entity in root.list(followLinks: false)) {
       if (entity is Directory &&
           RegExp(r'/[0-9a-f]{32}\.trailrec$').hasMatch(entity.path)) {
@@ -689,10 +758,11 @@ class SampledRecordingLibrary {
 
   SampledRecordingEntry _fromInfo(
     SampledRecordingInfo info,
-    SampledRecordingEntry? prior,
-  ) => SampledRecordingEntry(
+    SampledRecordingEntry? prior, {
+    String? path,
+  }) => SampledRecordingEntry(
     id: info.id,
-    path: info.path,
+    path: path ?? info.path,
     displayName: info.title,
     createdAtUtc: info.startedAtUtc,
     duration: info.duration,

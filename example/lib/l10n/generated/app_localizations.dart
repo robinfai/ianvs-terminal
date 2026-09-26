@@ -659,7 +659,7 @@ abstract class AppLocalizations {
   /// Open-recording action description
   ///
   /// In en, this message translates to:
-  /// **'Replay • Open one saved terminal recording without importing it.'**
+  /// **'Replay • Open a recording. External recordings are copied to the library and marked Keep.'**
   String get openRecordingInReplayDescription;
 
   /// Action that searches all terminal tabs

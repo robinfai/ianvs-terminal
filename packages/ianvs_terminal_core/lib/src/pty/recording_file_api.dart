@@ -80,6 +80,8 @@ final class NativeRecordingFileApi implements RecordingFileApi {
       'asset',
       'search',
       'sync_directory',
+      'copy_bundle',
+      'publish_bundle',
     }.contains(operation)) {
       return Future.error(ArgumentError.value(operation, 'operation'));
     }

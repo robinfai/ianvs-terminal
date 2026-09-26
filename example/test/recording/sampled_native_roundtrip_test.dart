@@ -142,6 +142,47 @@ void main() {
         } finally {
           await opened.close();
         }
+        final primary = File('$path/records.bin');
+        final originalBytes = await primary.readAsBytes();
+        final originalFiles = await Directory(
+          path,
+        ).list().map((entry) => entry.path).toList();
+        final importedLibrary = SampledRecordingLibrary(
+          files: api,
+          directoryResolver: () async =>
+              Directory('${root.path}/imported-library'),
+        );
+        final imported = await importedLibrary.openPickedRecording(path);
+        try {
+          expect(imported.entry.keep, isTrue);
+          expect(imported.entry.id, opened.entry.id);
+          expect(imported.entry.path, isNot(path));
+          final end = (await imported.recording.seek(
+            imported.recording.info.duration,
+          ))!;
+          expect(
+            end.frame.rows.any(
+              (row) => row.text.contains('retained native screen 雪'),
+            ),
+            isTrue,
+          );
+          final commands = await imported.recording.search(
+            query: 'quoted 雪',
+            kind: SampledRecordingSearchKind.command,
+          );
+          expect(
+            commands.hits.any((hit) => hit.preview.contains('quoted 雪')),
+            isTrue,
+          );
+        } finally {
+          await imported.close();
+        }
+        await importedLibrary.deleteRecording(imported.entry.path);
+        expect(await primary.readAsBytes(), originalBytes);
+        expect(
+          await Directory(path).list().map((entry) => entry.path).toList(),
+          unorderedEquals(originalFiles),
+        );
         expect(reopenedLibrary.activeClaims, isEmpty);
       } finally {
         if (claim?.dispatched == true && library.activeClaims.isNotEmpty) {

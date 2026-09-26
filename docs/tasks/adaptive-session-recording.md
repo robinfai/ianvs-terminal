@@ -403,3 +403,48 @@ now repeats Debug as well as Release builds. A full gate including Release and
 native Xcode tests must still be rerun after this fix. Evidence is in
 `build/recording_bench/adaptive/directory-make-verify.log`,
 `debug-signing-transition.log` and `debug-signing-contracts.log` in that folder.
+
+
+## Implementation checkpoint — owned external recording import
+
+The file picker now admits external schema-2 recordings through a bounded native
+copy, retaining the original identity, exact primary bytes and verified referenced
+graphics. It writes indexes only in the owned copy. Native publication uses an
+exclusive rename that cannot replace an existing entry. Existing identities,
+invalid policy, capacity exhaustion, changed source data and invalid referenced
+assets fail without overwriting an existing recording or modifying the source.
+
+The app journals staging before the worker starts, holds its library claim until
+settlement, rechecks capacity including indexes, and publishes imported entries
+as Keep. Cancellation before publication cleans only owned staging. Cancellation
+after publication begins waits for settlement and preserves the committed copy.
+Lost publication/manifest acknowledgements leave a protected recoverable bundle.
+Restart cleans only strict known staging journals; unknown/future/corrupt ones
+remain untouched and count toward protected capacity. Shutdown cancels imports
+before waiting for maintenance queued behind them and also drains picker reads.
+The picker and command-palette descriptions now explain the owned copy behavior.
+
+Focused verification passed two native copy units, seven copy/publication
+integration tests and eight native file-service tests, plus strict Clippy.
+Canonical/standalone typed-file tests passed 20 cases, including real native
+copy, publish, graphics, seek and search. Application checks passed 45 import,
+library and management cases and a further 30 import/picker/native/architecture
+cases (overlapping import cases are not unique additional tests). The actual
+PTY round trip now imports its finished bundle through the app library, seeks
+and searches its copy, deletes the copy and verifies the original remains intact.
+Widget tests exercise opening through the picker, cancelling it, and shutdown
+while periodic retention waits behind a still-running copy; replay creates no
+PTY and sends no terminal input.
+
+Evidence: `/private/tmp/adaptive-recording-import-native.log`,
+`/private/tmp/adaptive-recording-import-file-api.log`,
+`/private/tmp/adaptive-recording-import-app-tests.log`, and
+`/private/tmp/adaptive-recording-import-roundtrip.log`. Full-tree fatal-infos
+analysis and all 12 documentation contracts pass, and generated mirrors are
+current. The complete repository/macOS gate is being rerun for this checkpoint;
+no completion claim follows from the focused tests.
+
+Remaining: actual macOS recording UI and installed-shell/SSH recording review,
+whole-pipeline resource and input measurements, system-failure evidence, more
+than 24 actual hours on the final pipeline, and a green final complete gate.
+All four delivery batches remain in scope.

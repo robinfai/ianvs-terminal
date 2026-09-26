@@ -73,13 +73,14 @@ Future<SampledShellHarness> pumpSampledShell(
   ThemeMode themeMode = ThemeMode.light,
   bool seed = true,
   ShellRecordingFilePicker? picker,
+  SampledTestFiles? recordingFiles,
   SampledRecordingLibrary Function(SampledTestFiles files, Directory directory)?
   libraryBuilder,
 }) async {
   final directory = (await tester.runAsync(
     () => Directory.systemTemp.createTemp('sampled-shell-'),
   ))!;
-  final files = SampledTestFiles();
+  final files = recordingFiles ?? SampledTestFiles();
   final library =
       libraryBuilder?.call(files, directory) ??
       SampledRecordingLibrary(

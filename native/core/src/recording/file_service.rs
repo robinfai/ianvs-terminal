@@ -183,7 +183,8 @@ fn dispatch(request: &Request, response_id: &mut Option<String>) -> StorageResul
             jobs.remove(&id);
             return Ok(json!({}));
         }
-        "inspect" | "metadata" | "seek" | "timeline" | "asset" | "search" | "sync_directory" => {}
+        "inspect" | "metadata" | "seek" | "timeline" | "asset" | "search" | "sync_directory"
+        | "copy_bundle" | "publish_bundle" => {}
         _ => {
             return Err(StorageError::Invalid(
                 "unsupported recording file operation",
@@ -197,6 +198,18 @@ fn dispatch(request: &Request, response_id: &mut Option<String>) -> StorageResul
     let _completion = Completion(job.clone());
     job.check()?;
     let result = match request.operation.as_str() {
+        "publish_bundle" => {
+            super::bundle_copy::publish_bundle(serde_json::from_value(request.payload.clone())?)?;
+            Ok(json!({}))
+        }
+        "copy_bundle" => {
+            let copied = super::bundle_copy::copy_bundle(
+                serde_json::from_value(request.payload.clone())?,
+                || job.cancelled.load(Ordering::Acquire),
+            )?;
+            let inspection = inspection_result(copied.metadata, copied.source_bytes, copied.scan)?;
+            Ok(json!({"inspection":inspection,"copied_bytes":copied.copied_bytes}))
+        }
         "sync_directory" => sync_directory(serde_json::from_value(request.payload.clone())?),
         "inspect" => inspect(serde_json::from_value(request.payload.clone())?, &job),
         "metadata" => {

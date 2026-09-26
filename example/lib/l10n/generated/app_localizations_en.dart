@@ -344,7 +344,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get openRecordingInReplayDescription =>
-      'Replay • Open one saved terminal recording without importing it.';
+      'Replay • Open a recording. External recordings are copied to the library and marked Keep.';
 
   @override
   String get globalSearch => 'Global search';

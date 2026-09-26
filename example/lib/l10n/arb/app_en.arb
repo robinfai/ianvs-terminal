@@ -404,7 +404,7 @@
   "@openRecordingInReplay": {
     "description": "Action that opens a saved recording"
   },
-  "openRecordingInReplayDescription": "Replay • Open one saved terminal recording without importing it.",
+  "openRecordingInReplayDescription": "Replay • Open a recording. External recordings are copied to the library and marked Keep.",
   "@openRecordingInReplayDescription": {
     "description": "Open-recording action description"
   },

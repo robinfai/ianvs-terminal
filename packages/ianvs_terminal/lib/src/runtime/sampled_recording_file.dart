@@ -63,6 +63,13 @@ final class SampledRecordingInfo {
   final String? error;
 }
 
+/// A validated copy in caller-owned staging. It is not yet in the library.
+final class SampledRecordingCopy {
+  const SampledRecordingCopy._(this.info, this.copiedBytes);
+  final SampledRecordingInfo info;
+  final int copiedBytes;
+}
+
 final class SampledRecordingAsset {
   SampledRecordingAsset._(Map<String, Object?> value)
     : key = TerminalGraphicAssetKey(
@@ -259,6 +266,64 @@ final class SampledRecordingFile {
         _drained?.complete();
         _drained = null;
       }
+    }
+  }
+
+  /// Copies an external bundle without writing indexes beside the source.
+  /// The caller owns staging cleanup until this future actually settles, even
+  /// when cancellation is requested or a filesystem acknowledgement fails.
+  static Future<SampledRecordingCopy> copyBundle(
+    String sourcePath,
+    String stagingPath, {
+    required RecordingFileApi api,
+    required int maximumBytes,
+    RecordingFileCancellation? cancellation,
+  }) async {
+    if (maximumBytes <= 0 || maximumBytes > 9007199254740991) {
+      throw ArgumentError.value(maximumBytes, 'maximumBytes');
+    }
+    final value = await api.run('copy_bundle', <String, Object?>{
+      'source_path': sourcePath,
+      'destination_path': stagingPath,
+      'maximum_bytes': maximumBytes,
+    }, cancellation: cancellation);
+    if (cancellation?.isCancelled == true) throw const RecordingFileCancelled();
+    if (value.length != 2 ||
+        value.keys.any(
+          (key) => !const {'inspection', 'copied_bytes'}.contains(key),
+        )) {
+      throw const FormatException('Invalid recording copy acknowledgement');
+    }
+    final info = SampledRecordingInfo._(stagingPath, _map(value['inspection']));
+    final bytes = _number(value, 'copied_bytes');
+    if (!RegExp(r'^[0-9a-f]{32}$').hasMatch(info.id) ||
+        bytes < info.sourceBytes ||
+        bytes > maximumBytes) {
+      throw const FormatException(
+        'Invalid copied recording identity or byte count',
+      );
+    }
+    return SampledRecordingCopy._(info, bytes);
+  }
+
+  /// Atomically publishes caller-owned staging without replacing another entry.
+  /// Publication is a commit boundary: once begun it must settle before cleanup
+  /// or releasing the library claim, regardless of a later UI cancellation.
+  static Future<void> publishBundle(
+    String stagingPath,
+    String destinationPath, {
+    required String recordingId,
+    required RecordingFileApi api,
+  }) async {
+    final result = await api.run('publish_bundle', <String, Object?>{
+      'staging_path': stagingPath,
+      'destination_path': destinationPath,
+      'recording_id': recordingId,
+    });
+    if (result.isNotEmpty) {
+      throw const FormatException(
+        'Invalid recording publication acknowledgement',
+      );
     }
   }
 

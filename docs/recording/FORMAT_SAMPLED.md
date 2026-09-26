@@ -234,6 +234,55 @@ Actual process-kill evidence is separate from hardware power-loss/system-failure
 acceptance, which remains outstanding.
 
 
+## External new-format bundles
+
+The picker copies an external schema-2 bundle into the managed library and marks
+it Keep. Selecting an existing managed entry opens it without copying. The old
+NDJSON format is never read, imported, migrated or cleaned. External originals
+are not modified, indexed, moved or deleted; only their verified new-format
+primary data and referenced graphic assets are admitted.
+
+`copy_bundle` accepts exactly `source_path`, `destination_path` and
+`maximum_bytes` (integer 1..9007199254740991). Both paths are absolute `.trailrec`
+directories; the destination must not exist or resolve inside the source. It
+preserves the 32-lowercase-hex recording identity and exact primary bytes,
+including a damaged tail, and validates referenced assets against the verified
+prefix. Unreferenced assets, external indexes and unknown files are omitted.
+Changed primary files, symlink leaves/assets, missing or corrupt referenced
+assets and budget exhaustion fail explicitly. Copying uses bounded blocks and a
+bounded recent-asset cache, counts deduplicated blob bytes including headers,
+and checks cancellation between blocks. It synchronizes the copy and parent
+before returning exactly `inspection` (the inspect result) and `copied_bytes`.
+Failed copies remove only their newly created destination when possible; the
+caller retains staging ownership until the worker actually settles.
+
+`publish_bundle` accepts exactly `staging_path`, `destination_path` and
+`recording_id`. It validates the staging metadata and final `<id>.trailrec` name,
+then atomically renames without replacing any existing entry, including an empty
+directory. It uses descriptor-anchored exclusive rename on macOS/Linux and
+synchronizes both parent directories before returning an empty acknowledgement.
+Other platforms fail explicitly. A failed acknowledgement can occur after the
+rename; the caller must preserve that destination for orphan recovery.
+
+Before dispatching a copy, the application durably writes
+`.imports/<nonce>.json` with exactly `schema_version: 2` and `import_id: <nonce>`.
+The nonce is 32 lowercase hex digits and owns only the sibling
+`<nonce>.trailrec` staging directory. One library mutation claim spans the copy,
+local index preparation, final capacity check, exclusive publication, Keep
+manifest and staging cleanup. Active-file growth and staging/index bytes count
+against capacity. Existing recording identities are rejected without replacing
+their data or manifests. Cancellation before publication removes only owned
+staging after the worker settles. Once publication begins it settles without UI
+cancellation; a committed copy stays protected even if its viewer was cancelled.
+
+Restart and retention clean only staging authorized by a strict known journal;
+unknown, corrupt and future journals remain untouched and their regular-file
+bytes count as protected capacity. A published bundle without its manifest
+recovers as Keep. Staging deletion is synchronized before its journal is removed
+and synchronized. Shutdown first cancels imports, then waits for queued
+maintenance, picker reads and library operations before closing file workers.
+
+
 ## Retained text search
 
 The first search creates disposable `search.index` and `search.info` files by

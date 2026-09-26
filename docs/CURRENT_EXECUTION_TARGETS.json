@@ -910,11 +910,35 @@
           "contains": [
             "application persistence before closing workers"
           ]
+        },
+        {
+          "path": "native/core/src/recording/bundle_copy.rs",
+          "contains": [
+            "CopyRequest",
+            "PublishRequest",
+            "copy_bundle",
+            "publish_bundle"
+          ]
+        },
+        {
+          "path": "example/lib/features/recording/sampled_recording_library_import.dart",
+          "contains": [
+            "_importRecording",
+            "_cleanImport",
+            "publishBundle"
+          ]
+        },
+        {
+          "path": "example/test/shell/shell_recording_import_test.dart",
+          "contains": [
+            "external picker copies and replays without PTY side effects"
+          ]
         }
       ],
       "verification_commands": [
         "cargo test --manifest-path native/core/Cargo.toml --test sampled_recording_test --test sampled_recording_storage_test --test sampled_recording_timeline_test --test sampled_recording_session_test",
         "flutter test example/test/sessions/session_recording_lifecycle_test.dart example/test/recording/sampled_native_roundtrip_test.dart example/test/sampled_recording_library_test.dart example/test/sampled_replay_controller_test.dart example/test/sampled_replay_surface_test.dart",
+        "flutter test example/test/sampled_recording_import_test.dart example/test/shell/shell_recording_import_test.dart example/test/recording/sampled_native_roundtrip_test.dart",
         "flutter test example/test/recording_retention_maintenance_test.dart example/test/recording_retention_surface_test.dart example/test/shell/shell_recording_management_test.dart",
         "flutter test example/test/sampled_recording_library_test.dart example/test/sessions/recording_file_shutdown_test.dart",
         "dart test test/docs_contract_test.dart",

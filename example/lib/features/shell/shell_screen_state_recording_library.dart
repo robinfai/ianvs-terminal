@@ -102,7 +102,7 @@ extension _ShellScreenRecordingLibraryState on _ShellScreenState {
     try {
       final sourcePath = await _chooseRecordingFile(generation);
       if (!_isCurrentRecordingOpen(generation) || sourcePath == null) return;
-      await _loadRecordingAtPath(sourcePath, generation);
+      await _loadRecordingAtPath(sourcePath, generation, fromPicker: true);
     } on Object catch (error) {
       _recordingOpenFailed(error, generation);
     } finally {
@@ -120,7 +120,7 @@ extension _ShellScreenRecordingLibraryState on _ShellScreenState {
               .absolute
               .path;
     } on Object {
-      // A file can still be opened when the library directory is unavailable.
+      // The picker can still appear; opening reports the library error with retry.
     }
     if (!_isCurrentRecordingOpen(generation)) return null;
     return ref.read(shellRecordingFilePickerProvider)(
@@ -145,6 +145,7 @@ extension _ShellScreenRecordingLibraryState on _ShellScreenState {
     String sourcePath,
     int generation, {
     Duration? initialPosition,
+    bool fromPicker = false,
   }) async {
     if (_selectedRecordingEntry?.path == sourcePath &&
         initialPosition == null) {
@@ -153,9 +154,16 @@ extension _ShellScreenRecordingLibraryState on _ShellScreenState {
       }
       return true;
     }
-    final opened = await ref
-        .read(sampledRecordingLibraryProvider)
-        .openRecording(sourcePath, cancellation: _recordingOpenCancellation);
+    final library = ref.read(sampledRecordingLibraryProvider);
+    final opened = fromPicker
+        ? await library.openPickedRecording(
+            sourcePath,
+            cancellation: _recordingOpenCancellation,
+          )
+        : await library.openRecording(
+            sourcePath,
+            cancellation: _recordingOpenCancellation,
+          );
     if (!_isCurrentRecordingOpen(generation)) {
       await opened.close();
       return false;

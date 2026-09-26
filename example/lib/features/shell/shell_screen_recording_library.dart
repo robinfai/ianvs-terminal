@@ -304,11 +304,14 @@ class _SavedRecordingsShelf extends StatelessWidget {
           icon: const Icon(Icons.auto_delete_outlined),
           label: Text(l10n.recordingRetentionTitle),
         ),
-        OutlinedButton.icon(
-          key: const Key('recording-library-open-file'),
-          onPressed: selectionLoading ? null : onOpenFile,
-          icon: const Icon(Icons.folder_open_rounded),
-          label: Text(l10n.replayOpenFile),
+        Tooltip(
+          message: l10n.openRecordingInReplayDescription,
+          child: OutlinedButton.icon(
+            key: const Key('recording-library-open-file'),
+            onPressed: selectionLoading ? null : onOpenFile,
+            icon: const Icon(Icons.folder_open_rounded),
+            label: Text(l10n.replayOpenFile),
+          ),
         ),
       ],
     );

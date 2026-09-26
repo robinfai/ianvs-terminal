@@ -2139,6 +2139,7 @@ class SessionController extends Notifier<SessionState> {
   ) async {
     _recordingTimer?.cancel();
     _recordingTimer = null;
+    library.cancelPendingImports();
     await _recordingMaintenance?.stop();
     await library.drain();
     await Future.wait(_recordingStarts.values.toList(growable: false));

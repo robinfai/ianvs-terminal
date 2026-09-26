@@ -9,9 +9,10 @@ file workers are connected to the application library and player. This does not
 establish completed delivery. Incremental indexes and bounded cached opens are
 implemented, along with cross-recording command/screen search and host/date
 filters. Persistent retention settings and Keep controls are connected. Library
-metadata and directory publication now await native synchronization acknowledgements. External
-bundle ownership, real system-failure/cold-disk measurements and
-long-running validation remain open in the
+metadata and directory publication now await native synchronization acknowledgements.
+External new-format bundles use cancellable owned staging, protected publication
+and restart cleanup. Real system-failure/cold-disk measurements and long-running
+validation remain open in the
 [delivery task](../tasks/adaptive-session-recording.md).
 
 ## Fidelity and scope

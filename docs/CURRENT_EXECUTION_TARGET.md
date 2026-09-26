@@ -15,8 +15,9 @@ acceptance. The application now uses schema 2 sampled capture and structured
 replay with incrementally published indexes and bounded cached open. Integration
 tests cover cross-recording search, persistent age/capacity retention and Keep
 controls. Directory publication and metadata writes wait for native durability
-acknowledgements. External bundle ownership, real system-failure/cold-disk/product
-measurements and long-running acceptance are still open.
+acknowledgements. External new-format bundles are copied into protected library
+entries with cancellable staging and restart cleanup. Real system-failure,
+cold-disk/product measurements and long-running acceptance are still open.
 
 ## Continuing runtime guardrails
 

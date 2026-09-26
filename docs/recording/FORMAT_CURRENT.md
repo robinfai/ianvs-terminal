@@ -28,8 +28,10 @@ command/screen search with host/date filters and result-to-replay navigation is
 implemented with cancellable, bounded pages. The library exposes persistent
 age/capacity settings, Keep and explicit deletion; cleanup runs at startup, every
 five minutes and after an explicit settings apply. Active/read files remain
-protected. External bundle ownership, directory durability and more-than-24-hour
-system/product validation remain open in the
+protected. Opening an external new-format bundle copies it into the library and
+marks it Keep; the original stays untouched. Directory publications await native
+synchronization. System-failure, whole-product measurements and more-than-24-hour
+validation remain open in the
 [delivery task](../tasks/adaptive-session-recording.md). The application recording
 tests and isolated review entrypoints use the new product contract;
 full release acceptance is still pending.

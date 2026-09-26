@@ -276,4 +276,217 @@ void main() {
         ? 'Build native/core to exercise real FFI workers.'
         : false,
   );
+  test(
+    'copy validates native identity and storage accounting before admission',
+    () async {
+      final api = FixtureApi();
+      Map<String, Object?> result(int bytes) => {
+        'inspection': api.data['inspect'],
+        'copied_bytes': bytes,
+      };
+      for (final bytes in [0, 8100, 1048577]) {
+        api.data['copy_bundle'] = result(bytes);
+        await expectLater(
+          SampledRecordingFile.copyBundle(
+            '/tmp/source.trailrec',
+            '/tmp/staging.trailrec',
+            api: api,
+            maximumBytes: 1048576,
+          ),
+          throwsFormatException,
+        );
+      }
+      api.data['copy_bundle'] = {...result(8125), 'unexpected': true};
+      await expectLater(
+        SampledRecordingFile.copyBundle(
+          '/tmp/source.trailrec',
+          '/tmp/staging.trailrec',
+          api: api,
+          maximumBytes: 1048576,
+        ),
+        throwsFormatException,
+      );
+      api.data['copy_bundle'] = result(8125);
+      final copied = await SampledRecordingFile.copyBundle(
+        '/tmp/source.trailrec',
+        '/tmp/staging.trailrec',
+        api: api,
+        maximumBytes: 1048576,
+      );
+      expect(copied.info.path, '/tmp/staging.trailrec');
+      expect(copied.copiedBytes, 8125);
+      final metadata = (api.data['inspect']! as Map)['metadata'] as Map;
+      metadata['recording_id'] = '../foreign';
+      await expectLater(
+        SampledRecordingFile.copyBundle(
+          '/tmp/source.trailrec',
+          '/tmp/staging.trailrec',
+          api: api,
+          maximumBytes: 1048576,
+        ),
+        throwsFormatException,
+      );
+    },
+  );
+
+  test(
+    'cancelled copying settles only after the underlying operation returns',
+    () async {
+      final api = FixtureApi()..barrier = Completer<void>();
+      api.data['copy_bundle'] = {
+        'inspection': api.data['inspect'],
+        'copied_bytes': 8125,
+      };
+      final token = RecordingFileCancellation();
+      var settled = false;
+      final copying = SampledRecordingFile.copyBundle(
+        '/tmp/source.trailrec',
+        '/tmp/staging.trailrec',
+        api: api,
+        maximumBytes: 1048576,
+        cancellation: token,
+      ).whenComplete(() => settled = true);
+      final expectation = expectLater(
+        copying,
+        throwsA(isA<RecordingFileCancelled>()),
+      );
+      token.cancel();
+      await Future<void>.delayed(Duration.zero);
+      expect(settled, isFalse);
+      api.barrier!.complete();
+      await expectation;
+      expect(settled, isTrue);
+    },
+  );
+
+  test('publication requires an exact completed acknowledgement', () async {
+    final api = FixtureApi();
+    api.data['publish_bundle'] = {'enqueued': true};
+    await expectLater(
+      SampledRecordingFile.publishBundle(
+        '/tmp/staging.trailrec',
+        '/tmp/copy.trailrec',
+        recordingId: 'a' * 32,
+        api: api,
+      ),
+      throwsFormatException,
+    );
+    api.data['publish_bundle'] = <String, Object?>{};
+    await SampledRecordingFile.publishBundle(
+      '/tmp/staging.trailrec',
+      '/tmp/copy.trailrec',
+      recordingId: 'a' * 32,
+      api: api,
+    );
+  });
+
+  test(
+    'native workers copy, publish and replay an external bundle without changing its files',
+    () async {
+      final temporary = await Directory.systemTemp.createTemp(
+        'sampled-copy-dart-',
+      );
+      final external = Directory('${temporary.path}/external.trailrec');
+      await external.create();
+      final fixture = fixtureFile('sample.trailrec/records.bin').parent;
+      await for (final entity in fixture.list(
+        recursive: true,
+        followLinks: false,
+      )) {
+        final relative = entity.path.substring(fixture.path.length);
+        if (entity is Directory) {
+          await Directory('${external.path}$relative').create(recursive: true);
+        }
+        if (entity is File) {
+          await entity.copy('${external.path}$relative');
+        }
+      }
+      final marker = File('${external.path}/search.index');
+      await marker.writeAsString('preserve the external cache');
+      final before = await File('${external.path}/records.bin').readAsBytes();
+      final names = await external
+          .list(recursive: true)
+          .map((entry) => entry.path)
+          .toSet();
+      final api = NativeRecordingFileApi(libraryPath: library!.absolute.path);
+      final staging = Directory('${temporary.path}/staging.trailrec');
+      try {
+        await expectLater(
+          SampledRecordingFile.copyBundle(
+            external.path,
+            staging.path,
+            api: api,
+            maximumBytes: 1,
+          ),
+          throwsFormatException,
+        );
+        expect(await staging.exists(), isFalse);
+        final copied = await SampledRecordingFile.copyBundle(
+          external.path,
+          staging.path,
+          api: api,
+          maximumBytes: 1048576,
+        );
+        expect(copied.info.visualCount, 11);
+        expect(copied.copiedBytes, before.length + 24);
+        final destination = '${temporary.path}/${copied.info.id}.trailrec';
+        await SampledRecordingFile.publishBundle(
+          staging.path,
+          destination,
+          recordingId: copied.info.id,
+          api: api,
+        );
+        expect(await staging.exists(), isFalse);
+        final replay = await SampledRecordingFile.open(destination, api: api);
+        try {
+          final frame = (await replay.seek(const Duration(seconds: 6)))!;
+          expect(frame.frame.rows.first.text, 'frame 6 雪');
+          expect((await replay.loadAsset(frame.assets.single)).rgba.length, 8);
+          expect(
+            (await replay.search(
+              query: 'quoted 雪-6',
+              kind: SampledRecordingSearchKind.command,
+            )).hits.single.offset,
+            const Duration(microseconds: 6000100),
+          );
+        } finally {
+          await replay.close();
+        }
+        await SampledRecordingFile.copyBundle(
+          external.path,
+          staging.path,
+          api: api,
+          maximumBytes: 1048576,
+        );
+        await expectLater(
+          SampledRecordingFile.publishBundle(
+            staging.path,
+            destination,
+            recordingId: copied.info.id,
+            api: api,
+          ),
+          throwsFormatException,
+        );
+        expect(await staging.exists(), isTrue);
+        expect(
+          await File('${external.path}/records.bin').readAsBytes(),
+          before,
+        );
+        expect(await marker.readAsString(), 'preserve the external cache');
+        expect(
+          await external
+              .list(recursive: true)
+              .map((entry) => entry.path)
+              .toSet(),
+          names,
+        );
+      } finally {
+        api.dispose();
+        await temporary.delete(recursive: true);
+      }
+    },
+    skip: library == null
+        ? 'Build native/core to exercise real import workers.'
+        : false,
+  );
 }

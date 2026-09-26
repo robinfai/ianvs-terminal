@@ -325,7 +325,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get openRecordingInReplay => '在回放中打开录制…';
 
   @override
-  String get openRecordingInReplayDescription => '回放 • 打开一个已保存的终端录制，但不导入它。';
+  String get openRecordingInReplayDescription => '回放 • 打开录制。外部录制会复制到录制库并标记为保留。';
 
   @override
   String get globalSearch => '全局搜索';
