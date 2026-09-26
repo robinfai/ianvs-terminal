@@ -5,6 +5,7 @@ export 'src/embed/terminal_bottom_panel.dart';
 export 'src/embed/terminal_session_handle.dart';
 export 'src/embed/terminal_session_view.dart';
 export 'src/pty/ianvs_pty.dart';
+export 'src/recording/sampled_recording_capture.dart';
 export 'src/recording/terminal_live_recorder.dart';
 export 'src/recording/terminal_recording.dart';
 export 'src/recording/terminal_replay_backend.dart';

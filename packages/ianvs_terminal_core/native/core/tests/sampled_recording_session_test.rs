@@ -205,20 +205,73 @@ fn real_pty_hook_bytes_reach_timeline_without_ui_event_polling() {
     // Controlled synthetic hooks emitted through a real PTY/parser. Installed
     // interactive-shell and SSH coverage are separate acceptance tests.
     let script = format!(
-        "read gate; printf '\\033Phook;{started}\\033\\\\'; printf 'native captured output'; printf '\\033Phook;{finished}\\033\\\\'; read finish_gate"
+        "printf 'hook-fixture-ready\\n'; read gate; printf '\\033Phook;{started}\\033\\\\'; printf 'native captured output'; printf '\\033Phook;{finished}\\033\\\\'; read finish_gate"
     );
     let profile = json!({"id":"hook-pty","name":"hook-pty","launch":{"program":"/bin/sh","args":["-c",script]}});
     let engine = Engine(session::create_session(&profile.to_string()).unwrap());
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("pty.trailrec");
+    // Synchronize with the actual child before sending its input gate. All UI
+    // polling ends before capture; afterwards only the disk track is observed.
+    wait_until(|| {
+        session::take_frame_diff_protobuf(engine.0)
+            .unwrap()
+            .is_some_and(|bytes| {
+                TerminalFrameDiff::decode(bytes.as_slice())
+                    .unwrap()
+                    .rows
+                    .iter()
+                    .any(|row| row.text.contains("hook-fixture-ready"))
+            })
+    });
     engine.start(&path);
     session::write_session(engine.0, b"go\n").unwrap();
+    let waiting_since = Instant::now();
     wait_until(|| {
         let status = session::sampled_recording_status(engine.0)
             .unwrap()
             .unwrap();
         assert_ne!(status.phase, WriterPhase::Failed, "{status:?}");
-        status.written.semantic_count >= 5
+        // Availability/context records depend on whether shell bootstrap was
+        // observed before start. Wait for the actual target event, not a count.
+        let mut finished = false;
+        ContainerReader::open(&path)
+            .unwrap()
+            .scan(
+                || false,
+                |record| {
+                    if let StoredRecord::Semantic(event) = &record.record {
+                        finished |= event.kind == SemanticKind::CommandFinished
+                            && event.command.as_deref() == Some(command.as_str());
+                    }
+                    Ok(())
+                },
+            )
+            .unwrap();
+        if !finished && waiting_since.elapsed() > Duration::from_secs(7) {
+            let mut reader = ContainerReader::open(&path).unwrap();
+            let mut seen = Vec::new();
+            while let Ok(Some(record)) = reader.next_record() {
+                if let StoredRecord::Semantic(event) = &record.record {
+                    seen.push(format!(
+                        "{:?} id={:?} text_bytes={:?}",
+                        event.kind,
+                        event.command_id,
+                        event.command.as_ref().map(String::len)
+                    ));
+                }
+            }
+            panic!(
+                "status={status:?}, events={seen:?}, screen={:?}, live_events={}",
+                reader.screen().map(|frame| frame
+                    .rows
+                    .iter()
+                    .map(|row| row.text.clone())
+                    .collect::<Vec<_>>()),
+                session::poll_events(engine.0).unwrap()
+            );
+        }
+        finished
     });
     engine.finish();
     let mut starts = Vec::new();

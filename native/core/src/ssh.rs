@@ -5110,7 +5110,7 @@ mod tests {
         let script = fixture_directory.join("normal-close-proxy-command");
         std::fs::write(
             &script,
-            "#!/bin/sh\nprintf '%s' \"$$\" > \"$1\"\nexec sleep 30\n",
+            "#!/bin/sh\nprintf '%s' \"$$\" > \"$1.pending\"\nmv \"$1.pending\" \"$1\"\nexec sleep 30\n",
         )
         .expect("proxy script");
         let mut permissions = std::fs::metadata(&script)
@@ -5175,7 +5175,7 @@ mod tests {
         let script = fixture_directory.join("proxy-command");
         std::fs::write(
             &script,
-            "#!/bin/sh\nprintf '%s' \"$$\" > \"$1\"\nexec sleep 30\n",
+            "#!/bin/sh\nprintf '%s' \"$$\" > \"$1.pending\"\nmv \"$1.pending\" \"$1\"\nexec sleep 30\n",
         )
         .expect("proxy script");
         let mut permissions = std::fs::metadata(&script)

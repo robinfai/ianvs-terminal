@@ -87,11 +87,38 @@ pub struct WriterStatus {
     pub written: RecordingSummary,
     pub committed: RecordingSummary,
     pub error: Option<String>,
+    /// True only after the worker has released its file and pending queue.
+    pub settled: bool,
 }
 
 struct SharedState {
     status: WriterStatus,
     finish_offset: Option<u64>,
+}
+
+/// Read-only ownership proof that outlives the producer and its session.
+#[derive(Clone)]
+pub struct WriterMonitor(Arc<Mutex<SharedState>>);
+
+impl WriterMonitor {
+    pub fn status(&self) -> WriterStatus {
+        self.0.lock().status.clone()
+    }
+}
+
+struct WorkerCompletion(Arc<Mutex<SharedState>>);
+impl Drop for WorkerCompletion {
+    fn drop(&mut self) {
+        let mut shared = self.0.lock();
+        if matches!(
+            shared.status.phase,
+            WriterPhase::Capturing | WriterPhase::Finishing
+        ) {
+            shared.status.phase = WriterPhase::Failed;
+            shared.status.error = Some("recording writer terminated unexpectedly".into());
+        }
+        shared.status.settled = true;
+    }
 }
 
 struct PendingRecord {
@@ -161,6 +188,7 @@ impl BackgroundWriter {
                 written: RecordingSummary::default(),
                 committed: RecordingSummary::default(),
                 error: None,
+                settled: false,
             },
             finish_offset: None,
         }));
@@ -168,6 +196,7 @@ impl BackgroundWriter {
         thread::Builder::new()
             .name("trail-recording-writer".to_owned())
             .spawn(move || {
+                let _completion = WorkerCompletion(worker_state.clone());
                 let _writer_lease = writer_lease;
                 let result = run_worker(writer, receiver, &worker_state);
                 if let Err(error) = result {
@@ -185,6 +214,9 @@ impl BackgroundWriter {
 
     pub fn status(&self) -> WriterStatus {
         self.state.lock().status.clone()
+    }
+    pub fn monitor(&self) -> WriterMonitor {
+        WriterMonitor(self.state.clone())
     }
     pub fn pressure_percent(&self) -> u8 {
         self.budget.pressure_percent()
@@ -245,10 +277,7 @@ impl BackgroundWriter {
 
     pub fn interrupt(&mut self, message: String) {
         let mut shared = self.state.lock();
-        if matches!(
-            shared.status.phase,
-            WriterPhase::Finished | WriterPhase::Interrupted
-        ) {
+        if shared.status.settled || shared.status.phase != WriterPhase::Capturing {
             return;
         }
         shared.status.phase = WriterPhase::Failed;
@@ -286,6 +315,9 @@ impl BackgroundWriter {
 
     fn fail<T>(&mut self, error: StorageError) -> StorageResult<T> {
         let mut shared = self.state.lock();
+        if shared.status.settled || shared.status.phase != WriterPhase::Capturing {
+            return Err(error);
+        }
         shared.status.phase = WriterPhase::Failed;
         if shared.status.error.is_none() {
             shared.status.error = Some(error.to_string());

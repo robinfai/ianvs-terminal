@@ -65,7 +65,8 @@ added as each executable entrypoint is implemented; no absent entrypoint counts
 as evidence.
 
 ```bash
-cargo test --manifest-path native/core/Cargo.toml --test sampled_recording_test --test sampled_recording_storage_test --test sampled_recording_timeline_test --test sampled_recording_session_test
+cargo test --manifest-path native/core/Cargo.toml --test sampled_recording_test --test sampled_recording_storage_test --test sampled_recording_timeline_test --test sampled_recording_session_test --test sampled_recording_request_test
+flutter test packages/ianvs_terminal/test/sampled_recording_capture_test.dart
 cargo run --release --manifest-path native/core/Cargo.toml --example sampled_recording_bench -- build/recording_bench/adaptive/results.json
 dart test test/docs_contract_test.dart
 dart run tools/sync_terminal_core.dart
@@ -117,8 +118,25 @@ Implemented, with focused coverage:
   goldens. Logs and image differences are local build/test artifacts. This is
   not a green repository baseline; later native changes also require full rerun.
 
-Still required before batch 2 acceptance: exact-current native/Dart request
-contracts, app start/stop/status and ownership-aware handoff, pure structured
+A subsequent control checkpoint adds asynchronous idempotent capture requests,
+a bounded registry queryable after session close, explicit writer settlement,
+and a typed Dart client. The shared status fixture and failure tests cover lost
+replies, correlation errors, retry, stop during start, late stop, existing-file
+protection, timeout and cancellation. Filesystem creation no longer holds the
+session capture lock. These interfaces are staged; the app has not switched.
+
+Control-checkpoint verification: 1,007 native tests passed, five conditional tests
+were ignored; 83 canonical/standalone/client-regression Dart tests and targeted
+fatal-infos analysis passed. The native control suite includes six request
+lifecycle tests and two unit contract/close-gate tests. A flaky SSH fixture now
+publishes its complete PID marker atomically. A real-PTY timeout observed during
+broad runs led to a child-ready barrier, waiting on the persisted command-finish
+event instead of a bootstrap-dependent count, and richer failure diagnostics.
+The updated five-test capture suite passed its final rerun; strict Clippy,
+15 documentation contract tests and generated-source verification also passed.
+
+Still required before batch 2 acceptance: switch exact-current native/Dart
+capabilities and app start/stop/status with ownership-aware handoff, pure structured
 Flutter replay and cancellable seek jobs, incremental index publication, durable
 failure UI, representative whole-container/asset/RSS/input-latency measurements.
 Batch 3 library/search/retention and batch 4 real >24-hour/product/SSH/system

@@ -575,3 +575,43 @@ fn indexed_seek_on_interrupted_prefix_ignores_an_uncommitted_tail() {
         "preserved"
     );
 }
+
+#[test]
+fn detached_monitor_proves_drain_after_producer_drop_and_preserves_completion() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("detached.trailrec");
+    let budget = QueueBudget::new(1024 * 1024);
+    let mut writer = BackgroundWriter::with_budget(&path, &metadata(), budget.clone()).unwrap();
+    let monitor = writer.monitor();
+    writer
+        .enqueue_visual(sample("kept after producer drop"), vec![])
+        .unwrap();
+    writer.enqueue_semantic(&event(100)).unwrap();
+    assert!(!monitor.status().settled);
+    drop(writer);
+    wait_until(|| monitor.status().settled);
+    assert_eq!(monitor.status().phase, WriterPhase::Interrupted);
+    assert_eq!(monitor.status().committed.record_count, 2);
+    assert_eq!(budget.used_bytes(), 0);
+    let report = ContainerReader::open(&path)
+        .unwrap()
+        .scan(|| false, |_| Ok(()))
+        .unwrap();
+    assert_eq!(report.summary, monitor.status().committed);
+}
+
+#[test]
+fn late_producer_errors_do_not_downgrade_a_settled_writer() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut writer =
+        BackgroundWriter::start(&dir.path().join("late.trailrec"), &metadata()).unwrap();
+    writer.enqueue_visual(sample("complete"), vec![]).unwrap();
+    writer.request_finish(100).unwrap();
+    wait_until(|| writer.status().settled);
+    writer.interrupt("late cancellation".into());
+    let mut invalid = event(200);
+    invalid.context_id.clear();
+    assert!(writer.enqueue_semantic(&invalid).is_err());
+    assert_eq!(writer.status().phase, WriterPhase::Finished);
+    assert!(writer.status().error.is_none());
+}

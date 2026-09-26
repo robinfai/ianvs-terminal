@@ -60,6 +60,7 @@ mod pty_reader;
 mod recording;
 mod recording_snapshot;
 mod sampled_recording;
+mod sampled_recording_requests;
 pub use sampled_recording::{
     sampled_recording_status, start_sampled_recording, stop_sampled_recording,
 };
@@ -754,6 +755,7 @@ pub struct TerminalSession {
     events: Mutex<PendingEventQueue>,
     recording: Mutex<SessionRecording>,
     sampled_capture: Mutex<Option<sampled_recording::SampledCapture>>,
+    sampled_capture_start: Mutex<()>,
     recording_timeline: Mutex<crate::recording::HookTimeline>,
     replay_checkpoints: Mutex<ReplayCheckpointStore>,
     diagnostic_events: Mutex<VecDeque<TerminalDiagnosticEvent>>,
@@ -1263,6 +1265,7 @@ impl TerminalSession {
             })),
             recording: Mutex::new(SessionRecording::bounded()),
             sampled_capture: Mutex::new(None),
+            sampled_capture_start: Mutex::new(()),
             recording_timeline: Mutex::new(
                 crate::recording::HookTimeline::new(crate::recording::TimelineContext {
                     id: "root".into(),

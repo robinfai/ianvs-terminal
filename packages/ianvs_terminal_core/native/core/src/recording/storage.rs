@@ -56,7 +56,7 @@ pub struct RecordingMetadata {
 }
 
 impl RecordingMetadata {
-    fn validate(&self) -> StorageResult<()> {
+    pub(crate) fn validate(&self) -> StorageResult<()> {
         if self.recording_id.is_empty()
             || self.recording_id.len() > 128
             || [&self.recording_id, &self.title]

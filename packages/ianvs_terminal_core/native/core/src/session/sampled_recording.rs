@@ -2,13 +2,14 @@ use super::recording_snapshot::NativeCaptureSnapshot;
 use super::*;
 use crate::recording::{
     AdaptiveSampler, BackgroundWriter, HookTimeline, RecordedAsset, RecordingMetadata,
-    SampleRecord, SamplingPolicy, StorageError, StorageResult, VisualSample, WriterPhase,
-    WriterStatus,
+    SampleRecord, SamplingPolicy, StorageError, StorageResult, VisualSample, WriterMonitor,
+    WriterPhase, WriterStatus,
 };
 use std::path::Path;
 
 pub(super) struct SampledCapture {
     token: String,
+    recording_id: String,
     started: Instant,
     sampler: AdaptiveSampler,
     timeline: HookTimeline,
@@ -58,47 +59,78 @@ impl TerminalSession {
         self: &Arc<Self>,
         path: &Path,
         metadata: &RecordingMetadata,
-    ) -> StorageResult<WriterStatus> {
+    ) -> StorageResult<WriterMonitor> {
         if !path.is_absolute() {
             return Err(StorageError::Invalid("recording path must be absolute"));
         }
+        // Only other starts wait on filesystem creation. Close, hooks and
+        // status must never wait on a stalled create/sync operation.
+        let _start = self.sampled_capture_start.lock();
         if self.exited.load(Ordering::SeqCst) {
             return Err(StorageError::Invalid("session already exited"));
         }
-        let mut slot = self.sampled_capture.lock();
-        if slot.as_ref().is_some_and(|capture| {
-            matches!(
-                capture.writer.status().phase,
-                WriterPhase::Capturing | WriterPhase::Finishing
-            )
-        }) {
+        if self
+            .sampled_capture
+            .lock()
+            .as_ref()
+            .is_some_and(|capture| !capture.writer.status().settled)
+        {
             return Err(StorageError::Invalid(
                 "session already has an active recording",
             ));
         }
-        let initial = self.recording_snapshot()?.ok_or(StorageError::Invalid(
-            "screen is in a synchronized update; retry start",
-        ))?;
-        let mut sampler = AdaptiveSampler::new(SamplingPolicy::default())?;
-        let first = sampler
-            .observe_frame(0, initial.frame)?
-            .ok_or(StorageError::Invalid("missing initial recording frame"))?;
-        let timeline = self
-            .recording_timeline
-            .lock()
-            .for_recording(metadata.hostname.as_deref());
-        let writer = BackgroundWriter::start(path, metadata)?;
+        let mut writer = BackgroundWriter::start(path, metadata)?;
+        let monitor = writer.monitor();
+        let mut slot = self.sampled_capture.lock();
+        if self.exited.load(Ordering::SeqCst) {
+            writer.interrupt("session closed while recording was starting".into());
+            return Ok(monitor);
+        }
+        // The initial screen and context are taken after filesystem setup,
+        // at attachment time, so a slow disk cannot make the first frame stale.
+        let initial = (|| -> StorageResult<_> {
+            let initial = self.recording_snapshot()?.ok_or(StorageError::Invalid(
+                "screen is in a synchronized update; retry start",
+            ))?;
+            let mut sampler = AdaptiveSampler::new(SamplingPolicy::default())?;
+            let first = sampler
+                .observe_frame(0, initial.frame)?
+                .ok_or(StorageError::Invalid("missing initial recording frame"))?;
+            let timeline = self
+                .recording_timeline
+                .lock()
+                .for_recording(metadata.hostname.as_deref());
+            Ok((sampler, first, timeline, initial.assets))
+        })();
+        let (sampler, first, timeline, assets) = match initial {
+            Ok(initial) => initial,
+            Err(error) => {
+                writer.interrupt(error.to_string());
+                return Ok(monitor);
+            }
+        };
         let mut capture = SampledCapture {
             token: crate::shell_bootstrap::token(),
+            recording_id: metadata.recording_id.clone(),
             started: Instant::now(),
             sampler,
             timeline,
-            assets: initial.assets,
+            assets,
             writer,
         };
-        capture.visual(first)?;
-        for event in capture.timeline.initial_events() {
-            capture.event(event)?;
+        // Once the writer exists, always return its monitor, including initial
+        // admission failures. An error alone cannot prove disk ownership ended.
+        let initial_result = (|| {
+            capture.visual(first)?;
+            for event in capture.timeline.initial_events() {
+                capture.event(event)?;
+            }
+            Ok(())
+        })();
+        if let Err(error) = initial_result {
+            capture.fail(error);
+            *slot = Some(capture);
+            return Ok(monitor);
         }
         let token = capture.token.clone();
         let weak = Arc::downgrade(self);
@@ -120,9 +152,8 @@ impl TerminalSession {
             })
         {
             slot.as_mut().unwrap().writer.interrupt(error.to_string());
-            return Err(error.into());
         }
-        Ok(slot.as_ref().unwrap().writer.status())
+        Ok(monitor)
     }
 
     fn sampled_capture_tick(&self, token: &str) -> bool {
@@ -182,8 +213,18 @@ impl TerminalSession {
     }
 
     pub(super) fn stop_sampled_capture(&self) -> StorageResult<Option<WriterStatus>> {
+        self.stop_sampled_capture_matching(None)
+    }
+
+    pub(super) fn stop_sampled_capture_matching(
+        &self,
+        recording_id: Option<&str>,
+    ) -> StorageResult<Option<WriterStatus>> {
         let mut slot = self.sampled_capture.lock();
-        let Some(capture) = slot.as_mut() else {
+        let Some(capture) = slot
+            .as_mut()
+            .filter(|capture| recording_id.is_none_or(|id| capture.recording_id == id))
+        else {
             return Ok(None);
         };
         if !capture.active() {
@@ -215,6 +256,7 @@ pub fn start_sampled_recording(
         .get(session_id)
         .map_err(|error| StorageError::Runtime(error.to_string()))?
         .start_sampled_capture(path, metadata)
+        .map(|monitor| monitor.status())
 }
 pub fn stop_sampled_recording(session_id: u64) -> StorageResult<Option<WriterStatus>> {
     STORE

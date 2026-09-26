@@ -118,3 +118,38 @@ mid-session start; command boundaries and missing coverage remain explicit.
 The native clock timestamps hook observation, so multiple hooks parsed in one
 read can be associated with the same resulting screen. Sampling is not lossless
 output capture and does not claim an exact intermediate screen for every command.
+
+
+## Capture control during app integration
+
+The staged `terminal.sampled_recording_start/status/stop/release` operations use
+Session Request v1 with a strict schema 2 operation payload. They do not change
+the advertised recording capability or replace the app's legacy path yet.
+The application must persist its library reservation and filesystem claim before
+start. It generates a 32-character lowercase hexadecimal capture ID and reserves
+an absolute path whose final component is `<capture_id>.trailrec`.
+
+Start takes `schema_version`, `capture_id`, `bundle_path` and `metadata` (whose
+`recording_id` must equal the capture ID). The other operations take the first
+three fields. The positive originating session ID remains part of the outer
+request identity after the session closes. Retrying an identical start is
+idempotent; changed metadata, session or path under the same ID is rejected.
+
+Requests do not perform disk creation, snapshot extraction or final writing on
+the caller thread. A bounded registry retains at most 128 jobs, including at most
+16 unsettled captures. Stop intent can arrive before initialization completes.
+Native status remains available after SessionStore removal. A delayed stop is
+bound to its recording ID and cannot stop a subsequent capture in that session.
+Filesystem creation does not hold the session capture lock, so close and hook
+handling do not wait for a stalled create or header synchronization.
+
+Status includes phase (`starting`, `capturing`, `stopping`, `finished`,
+`interrupted`, `failed`), written/committed counts, error, stop intent and
+`settled`. A failed producer may still have a draining writer: only `settled=true`
+proves that native worker has closed its file and released its pending queue.
+The library must also honor its own process/filesystem ownership claim.
+Release is allowed only after settlement and removes only the registry entry.
+It never deletes or renames recording files. Unknown entries, malformed replies,
+identity conflicts, transport errors and polling timeouts are not settlement.
+The Dart client validates the correlated identity, exact fields, counts and state
+relationships and preserves these distinctions for the application repository.

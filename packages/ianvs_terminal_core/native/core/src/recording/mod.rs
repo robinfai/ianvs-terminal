@@ -36,7 +36,7 @@ pub enum RecordingError {
 }
 
 pub use assets::{AssetBinding, RecordedAsset};
-pub use background::{BackgroundWriter, QueueBudget, WriterPhase, WriterStatus};
+pub use background::{BackgroundWriter, QueueBudget, WriterMonitor, WriterPhase, WriterStatus};
 pub use storage::{
     ContainerReader, ContainerWriter, LocatedRecord, RECORDING_BUNDLE_EXTENSION,
     RecordingCompletion, RecordingMetadata, RecordingSummary, ScanReport, StorageError,
