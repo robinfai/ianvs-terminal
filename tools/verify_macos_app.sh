@@ -99,6 +99,10 @@ PROFILE=debug "$ROOT_DIR/tools/build_core.sh"
   flutter build macos --debug
   debug_app="$EXAMPLE_DIR/build/macos/Build/Products/Debug/Trail Development.app"
   codesign --verify --deep --strict "$debug_app"
+  # Embedding updates nested signatures even on an incremental Debug build.
+  # Declared script outputs must make Xcode reseal the enclosing application.
+  flutter build macos --debug
+  codesign --verify --deep --strict "$debug_app"
   flutter build macos --release
   release_app="$EXAMPLE_DIR/build/macos/Build/Products/Release/Trail.app"
   verify_release_bundle "$release_app"

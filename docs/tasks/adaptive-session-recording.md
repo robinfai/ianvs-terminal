@@ -383,3 +383,23 @@ Remaining work: external new-format bundle ownership/opening, actual macOS
 recording UI and installed-shell/SSH recording review, whole-pipeline resource
 and input measurements, system-failure evidence, and more than 24 actual hours
 on the final pipeline. All four delivery batches remain in scope.
+
+
+### Incremental macOS bundle signing regression
+
+The complete gate on `bda766be` passed 1,021 canonical native tests (five
+conditional skips), the package/contracts/analysis stages, 1,998 application
+tests (one skip), all four actual macOS smoke cases, 45 real-PTY cases and
+Keychain. It then failed strict Debug bundle signing: `App.framework` itself
+was valid, but the enclosing app still recorded its prior signature. A repeated
+unchanged Debug build reproduced the failure; Xcode reran the Flutter embedding
+script without rerunning the enclosing CodeSign step.
+
+The Flutter framework embedding and Data API scripts now declare their actual
+bundle outputs to Xcode. The actual Keychain test build, transition back to the
+normal Debug entrypoint, and a second incremental Debug build all pass strict
+deep signature verification; all 12 Apple build contracts pass. The macOS gate
+now repeats Debug as well as Release builds. A full gate including Release and
+native Xcode tests must still be rerun after this fix. Evidence is in
+`build/recording_bench/adaptive/directory-make-verify.log`,
+`debug-signing-transition.log` and `debug-signing-contracts.log` in that folder.
