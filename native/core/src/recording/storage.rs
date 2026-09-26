@@ -3,6 +3,7 @@
 //! application owns library admission, active-file protection and publication.
 
 use super::assets::{self, AssetBinding, MAX_FRAME_ASSETS, RecordedAsset};
+use super::cache::IncrementalIndexes;
 use super::{RecordingError, ScreenReplay, SemanticEvent, VisualSample};
 use crate::proto::frame_diff::TerminalFrameDiff;
 use prost::Message;
@@ -110,14 +111,15 @@ pub struct LocatedRecord {
     pub record: StoredRecord,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RecordingCompletion {
     Finished,
     Interrupted,
     DamagedTail(String),
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ScanReport {
     pub summary: RecordingSummary,
     pub completion: RecordingCompletion,
@@ -130,6 +132,8 @@ pub struct ContainerWriter {
     summary: RecordingSummary,
     replay: ScreenReplay,
     failed: bool,
+    finished: bool,
+    indexes: Option<IncrementalIndexes>,
 }
 
 impl ContainerWriter {
@@ -170,6 +174,8 @@ impl ContainerWriter {
             summary: RecordingSummary::default(),
             replay: ScreenReplay::default(),
             failed: false,
+            finished: false,
+            indexes: IncrementalIndexes::create(path, metadata).ok(),
         })
     }
 
@@ -207,8 +213,14 @@ impl ContainerWriter {
         }
         let offset = sample.offset_micros;
         self.replay.apply(sample)?;
-        self.write_record(1, offset, &stored.encode_to_vec())?;
+        let file_offset = self.write_record(1, offset, &stored.encode_to_vec())?;
         self.summary.visual_count += 1;
+        if stored.base_sequence.is_none() {
+            let ordinal = self.summary.record_count - 1;
+            self.update_indexes(|indexes| {
+                indexes.visual(offset, file_offset, ordinal, stored.sequence)
+            });
+        }
         Ok(())
     }
 
@@ -217,6 +229,7 @@ impl ContainerWriter {
         event.validate()?;
         self.write_record(2, event.offset_micros, &serde_json::to_vec(event)?)?;
         self.summary.semantic_count += 1;
+        self.update_indexes(|indexes| indexes.semantic(event));
         Ok(())
     }
 
@@ -228,7 +241,36 @@ impl ContainerWriter {
             self.failed = true;
             return Err(error.into());
         }
+        let mut summary = self.summary.clone();
+        if self.finished {
+            summary.record_count -= 1;
+        }
+        let report = ScanReport {
+            summary,
+            completion: if self.finished {
+                RecordingCompletion::Finished
+            } else {
+                RecordingCompletion::Interrupted
+            },
+            verified_bytes: self.file.metadata()?.len(),
+        };
+        self.update_indexes(|indexes| indexes.publish(&report));
         Ok(())
+    }
+
+    // These files are disposable accelerators. Failed cache writes must never
+    // discard valid primary data or misreport capture failure; inspect rebuilds.
+    fn update_indexes(
+        &mut self,
+        action: impl FnOnce(&mut IncrementalIndexes) -> StorageResult<()>,
+    ) {
+        if self
+            .indexes
+            .as_mut()
+            .is_some_and(|indexes| action(indexes).is_err())
+        {
+            self.indexes = None;
+        }
     }
 
     pub fn finish(mut self, offset_micros: u64) -> StorageResult<RecordingSummary> {
@@ -236,6 +278,7 @@ impl ContainerWriter {
         let mut summary = self.summary.clone();
         summary.duration_micros = offset_micros;
         self.write_record(3, offset_micros, &serde_json::to_vec(&summary)?)?;
+        self.finished = true;
         self.commit()?;
         Ok(summary)
     }
@@ -253,10 +296,11 @@ impl ContainerWriter {
         Ok(())
     }
 
-    fn write_record(&mut self, kind: u8, offset: u64, payload: &[u8]) -> StorageResult<()> {
+    fn write_record(&mut self, kind: u8, offset: u64, payload: &[u8]) -> StorageResult<u64> {
         if payload.len() > MAX_RECORD_BYTES {
             return Err(StorageError::Invalid("record exceeds byte limit"));
         }
+        let file_offset = self.file.stream_position()?;
         let mut header = [0u8; HEADER_BYTES];
         header[..4].copy_from_slice(RECORD_MAGIC);
         header[4] = kind;
@@ -277,7 +321,7 @@ impl ContainerWriter {
         }
         self.summary.record_count += 1;
         self.summary.duration_micros = offset;
-        Ok(())
+        Ok(file_offset)
     }
 }
 

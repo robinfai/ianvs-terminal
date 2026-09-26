@@ -36,10 +36,32 @@ fn ffi_reads_structured_frames_images_and_bounded_command_pages_without_sessions
     let path = root.path().join("fixture.trailrec");
     fixture::create(&path, 11);
     let original = std::fs::read(path.join("records.bin")).unwrap();
+    let summary_cache = std::fs::read(path.join("summary.index")).unwrap();
+    // The writer publishes usable caches before the first inspect/rebuild.
+    assert_eq!(
+        run(
+            "seek",
+            json!({"bundle_path":path,"recording_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","offset_micros":6_500_000})
+        )["ok"],
+        true
+    );
     let info = run("inspect", json!({"bundle_path":path}));
     assert_eq!(info["ok"], true, "{info}");
     assert_eq!(info["result"]["summary"]["visual_count"], 11);
     assert_eq!(info["result"]["completion"], "finished");
+    assert_eq!(
+        std::fs::read(path.join("summary.index")).unwrap(),
+        summary_cache,
+        "first open must reuse writer-published caches"
+    );
+    assert_eq!(
+        run("inspect", json!({"bundle_path":path}))["result"],
+        info["result"]
+    );
+    assert_eq!(
+        std::fs::read(path.join("summary.index")).unwrap(),
+        summary_cache
+    );
     let id = info["result"]["metadata"]["recording_id"].as_str().unwrap();
     let screen = run(
         "seek",
@@ -126,4 +148,139 @@ fn wrong_identity_stale_timeline_corruption_and_legacy_are_rejected() {
     assert_eq!(run("inspect", json!({"bundle_path":legacy}))["ok"], false);
     assert_eq!(std::fs::read(&legacy).unwrap(), b"preserve");
     assert!(serde_json::from_str::<Value>(&request_json("{}")).unwrap()["ok"] == false);
+}
+
+#[test]
+fn damaged_missing_and_oversized_caches_rebuild_without_modifying_primary_data() {
+    let root = tempfile::tempdir().unwrap();
+    let path = root.path().join("fixture.trailrec");
+    fixture::create(&path, 3);
+    let original = std::fs::read(path.join("records.bin")).unwrap();
+    for name in ["summary.index", "commands.index", "seek.index"] {
+        let cache = path.join(name);
+        let mut bytes = std::fs::read(&cache).unwrap();
+        let last = bytes.len() - 1;
+        bytes[last] ^= 1;
+        std::fs::write(&cache, bytes).unwrap();
+        let info = run("inspect", json!({"bundle_path":path}));
+        assert_eq!(info["result"]["completion"], "finished", "{info}");
+        assert_eq!(info["result"]["summary"]["record_count"], 9);
+        assert_eq!(run("timeline", json!({"bundle_path":path,"recording_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","cursor":0,"limit":128}))["result"]["events"].as_array().unwrap().len(), 6);
+        assert_eq!(std::fs::read(path.join("records.bin")).unwrap(), original);
+    }
+    std::fs::OpenOptions::new()
+        .write(true)
+        .open(path.join("summary.index"))
+        .unwrap()
+        .set_len(1024 * 1024 * 1024)
+        .unwrap();
+    assert_eq!(
+        run("inspect", json!({"bundle_path":path}))["result"]["completion"],
+        "finished"
+    );
+    std::fs::remove_file(path.join("commands.index")).unwrap();
+    assert_eq!(
+        run("inspect", json!({"bundle_path":path}))["result"]["completion"],
+        "finished"
+    );
+    assert_eq!(std::fs::read(path.join("records.bin")).unwrap(), original);
+}
+
+#[test]
+fn committed_interrupted_prefix_opens_fast_and_later_growth_forces_recovery() {
+    use ianvs_core::recording::{ContainerWriter, RecordingMetadata, SemanticEvent, SemanticKind};
+    let root = tempfile::tempdir().unwrap();
+    let path = root.path().join("interrupted.trailrec");
+    let metadata = RecordingMetadata {
+        recording_id: "interrupted".into(),
+        title: "committed prefix".into(),
+        started_at_unix_millis: 0,
+        hostname: None,
+    };
+    let mut writer = ContainerWriter::create(&path, &metadata).unwrap();
+    let mut event = SemanticEvent {
+        offset_micros: 1,
+        kind: SemanticKind::CommandStarted,
+        context_id: "local".into(),
+        command_id: Some("1".into()),
+        command: Some("echo one".into()),
+        cwd: None,
+        hostname: None,
+        exit_code: None,
+    };
+    writer.append_semantic(&event).unwrap();
+    writer.commit().unwrap();
+    let committed = std::fs::read(path.join("summary.index")).unwrap();
+    let info = run("inspect", json!({"bundle_path":path}));
+    assert_eq!(info["result"]["completion"], "interrupted");
+    assert_eq!(info["result"]["summary"]["record_count"], 1);
+    assert_eq!(
+        std::fs::read(path.join("summary.index")).unwrap(),
+        committed
+    );
+    event.offset_micros = 2;
+    event.command_id = Some("2".into());
+    writer.append_semantic(&event).unwrap();
+    drop(writer);
+    let recovered = run("inspect", json!({"bundle_path":path}));
+    assert_eq!(recovered["result"]["completion"], "interrupted");
+    assert_eq!(recovered["result"]["summary"]["record_count"], 2);
+    assert_ne!(
+        std::fs::read(path.join("summary.index")).unwrap(),
+        committed
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn same_size_source_corruption_with_restored_mtime_invalidates_local_cache() {
+    let root = tempfile::tempdir().unwrap();
+    let path = root.path().join("fixture.trailrec");
+    fixture::create(&path, 3);
+    let file = path.join("records.bin");
+    let modified = std::fs::metadata(&file).unwrap().modified().unwrap();
+    let mut bytes = std::fs::read(&file).unwrap();
+    let first_record = 44 + u32::from_le_bytes(bytes[8..12].try_into().unwrap()) as usize;
+    bytes[first_record + 60] ^= 1;
+    std::fs::write(&file, &bytes).unwrap();
+    std::fs::OpenOptions::new()
+        .write(true)
+        .open(&file)
+        .unwrap()
+        .set_times(std::fs::FileTimes::new().set_modified(modified))
+        .unwrap();
+    let info = run("inspect", json!({"bundle_path":path}));
+    assert_eq!(info["result"]["completion"], "damaged_tail", "{info}");
+    assert_eq!(info["result"]["summary"]["visual_count"], 0);
+    assert_eq!(std::fs::read(&file).unwrap(), bytes);
+}
+
+#[test]
+fn optional_summary_publication_failure_does_not_lose_a_finished_recording() {
+    use ianvs_core::recording::{
+        ContainerReader, ContainerWriter, RecordingCompletion, RecordingMetadata,
+    };
+    let root = tempfile::tempdir().unwrap();
+    let path = root.path().join("fixture.trailrec");
+    let writer = ContainerWriter::create(
+        &path,
+        &RecordingMetadata {
+            recording_id: "cache-failure".into(),
+            title: "".into(),
+            started_at_unix_millis: 0,
+            hostname: None,
+        },
+    )
+    .unwrap();
+    // A destination directory makes atomic summary publication fail.
+    std::fs::create_dir(path.join("summary.index")).unwrap();
+    writer.finish(42).unwrap();
+    let report = ContainerReader::open(&path)
+        .unwrap()
+        .scan(|| false, |_| Ok(()))
+        .unwrap();
+    assert_eq!(report.completion, RecordingCompletion::Finished);
+    let info = run("inspect", json!({"bundle_path":path}));
+    assert_eq!(info["result"]["completion"], "finished", "{info}");
+    assert_eq!(info["result"]["summary"]["duration_micros"], 42);
 }

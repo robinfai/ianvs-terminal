@@ -1,3 +1,5 @@
+// Native file-service composition boundary. This adapter owns wire decoding;
+// recording domain models and terminal presentation never depend on transport.
 import 'dart:async';
 import 'dart:typed_data';
 

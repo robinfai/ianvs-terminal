@@ -97,7 +97,7 @@ respect application ownership and must not race active writers.
 
 ## Disk index and native capture
 
-`seek.index` is an atomically published cache with a 104-byte checksummed header
+`seek.index` is a disposable disk cache with a 104-byte checksummed header
 and 64-byte checksummed entries for keyframes. Entries store timestamp, primary
 file offset, record ordinal and visual sequence. Open validates source length,
 metadata fingerprint and index length. Seek binary-searches entries on disk,
@@ -105,10 +105,27 @@ then streams the selected dependency group, checking cancellation between record
 It does not open a PTY or execute historical host actions. Interrupted prefixes
 can be indexed; stale or corrupted indexes fail and can be rebuilt by streaming.
 
-The current index builder scans the primary file on open. File work runs on
-bounded Dart worker isolates and has native cancellation, including UI seek
-replacement. Incremental index publication during capture and fast cold-open
-remain required; rebuilding an entire long file on each open is not the target.
+The writer appends keyframe and command index entries as records are written.
+After syncing primary data, each five-second commit (and finish) syncs both index
+headers and publishes `summary.index` last. It never copies or rescans an entire
+index to commit. Cache I/O failure disables publication for that writer; primary
+capture remains authoritative and the next open can rebuild caches.
+
+`summary.index` contains `TRLINFO2`, a little-endian `u32` payload length, SHA-256
+of the payload, and strict JSON capped at 64 KiB. The payload stores schema 2,
+metadata fingerprint, scan report and local file stamps for records, seek and
+command indexes. Stamps include length and nanosecond modification time; Unix
+also checks device, inode and change time. Copied, replaced, changed, missing or
+corrupt files invalidate this disposable cache. Checksums still verify each
+record, keyframe and command when read; the marker is not an authenticity proof.
+
+Normal opens validate this bounded marker and file stamps without scanning the
+primary stream. An interrupted file exactly at a published commit also opens
+this way. An uncommitted tail, damaged cache or imported bundle requires one
+cancellable, bounded-memory prefix scan and atomic cache replacement. Recovery
+never rewrites primary data. Application ownership prevents index rebuild from
+racing a live writer. File work runs on bounded Dart worker isolates and has
+native cancellation, including UI seek replacement.
 
 Native Session capture has its own snapshot extraction and 100 ms observation
 timer; it does not consume UI damage/acknowledgements or require frontend polling.
@@ -165,8 +182,8 @@ native read jobs exist concurrently. Requests are at most 64 KiB; responses are
 at most 48 MiB. The Dart API limits itself to two workers and 256 queued requests.
 
 Read operations are `inspect`, `metadata`, `seek`, `timeline` and `asset`.
-Inspect streams the primary file and publishes seek and command caches. Metadata
-only verifies the native header and recording identity. Seek returns one complete
+Inspect uses valid local summary/index caches, or streams a recovery scan to
+rebuild them. Metadata only verifies the native header and recording identity. Seek returns one complete
 Protobuf screen plus asset bindings. Timeline returns up to 128 semantic events
 and a byte cursor. Asset returns verified RGBA pixels. Binary payloads are base64
 on this JSON boundary and decoded on the worker isolate; no session is created.

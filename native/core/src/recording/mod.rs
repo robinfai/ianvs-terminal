@@ -4,6 +4,7 @@
 
 mod assets;
 mod background;
+mod cache;
 pub mod file_service;
 mod frame_state;
 mod index;

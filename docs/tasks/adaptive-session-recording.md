@@ -202,3 +202,45 @@ Remaining work: native incremental cache publication/fast open, external bundle
 ownership/import, library search and host/date filters, Keep/settings/retention UI,
 real macOS and installed-shell/SSH review, whole-pipeline performance and failure
 measurements, and more than 24 actual hours of acceptance on the final code.
+
+
+## Implementation checkpoint — incremental file indexes
+
+The native writer now appends keyframe/command indexes and publishes a bounded,
+checksummed summary marker after syncing primary data. Normal open reuses these
+local caches without scanning the full recording. Changed or missing caches and
+uncommitted tails trigger a cancellable recovery scan. Cache publication failure
+does not discard a finished primary recording. Same-size corruption with restored
+mtime is detected by Unix change stamps; pixel integrity remains checked at load.
+
+Thirty-five focused native file/storage/control/session tests and strict Clippy
+passed. A real-container benchmark now measures 10,000/100,000 samples, cached
+open, random seek and forced recovery under warm filesystem caches. Timing data
+is generated under ignored build output; this does not establish cold-disk or
+real-duration acceptance.
+
+The first complete verification rerun stopped at two terminal architecture tests:
+the new file adapter was placed in the domain folder while decoding the wire
+format. It now lives in the runtime composition layer with an explicit adapter
+boundary; domain restrictions remain intact. All 30 canonical architecture/file
+tests pass. Full repository verification must be rerun on this checkpoint.
+
+Search/filter UI, configurable protected retention, external bundle ownership,
+actual macOS/local/SSH review, whole-pipeline measurements and >24-hour real-time
+acceptance remain required.
+
+
+File benchmark evidence on macOS 27.0 (26A428), arm64, release build, warm
+filesystem caches: 100,000 samples / 10,000 commands produced 105,866,253 primary
+bytes plus 3,607,711 index bytes. Across 25 opens, P95 was 93 microseconds; across
+100 random seeks, P95 was 185 microseconds. Forced recovery took 812,253
+microseconds. The same 10,000-sample case opened at P95 137 microseconds, supporting
+bounded cached-open work rather than a duration-sized scan. The short native
+benchmark process peaked at 6,995,968 bytes RSS; that is not application or
+long-running memory evidence. Logs: `build/recording_bench/adaptive/file-results.json`
+and `file-benchmark.log` (ignored local outputs). Full verification is running.
+
+The complete gate's native section passed 1014 tests with 5 conditional
+tests ignored. The next stage reported two alphabetic export-order lints after
+the reader's move to runtime; both barrel files are now sorted. The complete
+repository gate is being rerun and remains unconfirmed until it exits successfully.

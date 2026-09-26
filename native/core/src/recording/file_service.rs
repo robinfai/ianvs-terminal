@@ -1,6 +1,7 @@
 //! Recording file operations have no Session/PTY dependency. The caller runs
 //! blocking work off its UI thread; cancellation is an independent atomic request.
 use super::assets::AssetBinding;
+use super::cache::{self, FileStamp, TIMELINE_HEADER_BYTES, TIMELINE_MAGIC};
 use super::index::metadata_fingerprint;
 use super::storage::open_regular_file;
 use super::{
@@ -22,8 +23,6 @@ use std::sync::{Arc, LazyLock};
 
 const MAX_JOBS: usize = 8;
 const MAX_RESPONSE_BYTES: usize = 48 * 1024 * 1024;
-const TIMELINE_HEADER_BYTES: usize = 80;
-const TIMELINE_MAGIC: &[u8; 8] = b"TRLCMD02";
 static NEXT_JOB: AtomicU64 = AtomicU64::new(1);
 static JOBS: LazyLock<Mutex<HashMap<u64, Arc<Job>>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
 
@@ -232,6 +231,11 @@ fn inspect(request: Inspect, job: &Job) -> StorageResult<Value> {
     let reader = reader(&request.bundle_path, None)?;
     let metadata = reader.metadata;
     let source_bytes = fs::metadata(root.join("records.bin"))?.len();
+    if let Ok(report) = cache::load_report(root, &metadata) {
+        job.check()?;
+        return inspection_result(metadata, source_bytes, report);
+    }
+    let source_stamp = FileStamp::read(&root.join("records.bin"))?;
     let mut commands = tempfile::NamedTempFile::new_in(root)?;
     commands.write_all(&[0; TIMELINE_HEADER_BYTES])?;
     let report = RecordingIndex::rebuild_with_visitor(
@@ -239,32 +243,37 @@ fn inspect(request: Inspect, job: &Job) -> StorageResult<Value> {
         || job.cancelled.load(Ordering::Acquire),
         |record| {
             if let StoredRecord::Semantic(event) = &record.record {
-                let bytes = serde_json::to_vec(event)?;
-                commands.write_all(&(bytes.len() as u32).to_le_bytes())?;
-                commands.write_all(&Sha256::digest(&bytes))?;
-                commands.write_all(&bytes)?;
+                cache::write_event(&mut commands, event)?;
             }
             Ok(())
         },
     )?;
     job.check()?;
-    if fs::metadata(root.join("records.bin"))?.len() != source_bytes {
+    if FileStamp::read(&root.join("records.bin"))? != source_stamp {
         return Err(StorageError::Invalid("recording changed during inspection"));
     }
-    let mut header = [0u8; TIMELINE_HEADER_BYTES];
-    header[..8].copy_from_slice(TIMELINE_MAGIC);
-    header[8..16].copy_from_slice(&source_bytes.to_le_bytes());
-    header[16..48].copy_from_slice(&metadata_fingerprint(&metadata)?);
-    let checksum = Sha256::digest(&header[..48]);
-    header[48..].copy_from_slice(&checksum);
     commands.seek(SeekFrom::Start(0))?;
-    commands.write_all(&header)?;
+    cache::write_timeline_header(
+        &mut commands,
+        source_bytes,
+        &metadata_fingerprint(&metadata)?,
+    )?;
     commands.as_file().sync_all()?;
     job.check()?;
     commands
         .persist(root.join("commands.index"))
         .map_err(|e| e.error)?;
     super::assets::sync_directory(root)?;
+    // A failed optional summary cache does not invalidate recovered primary data.
+    let _ = cache::publish_report(root, &metadata, source_stamp, &report);
+    inspection_result(metadata, source_bytes, report)
+}
+
+fn inspection_result(
+    metadata: super::RecordingMetadata,
+    source_bytes: u64,
+    report: super::ScanReport,
+) -> StorageResult<Value> {
     let (completion, error) = match report.completion {
         RecordingCompletion::Finished => ("finished", None),
         RecordingCompletion::Interrupted => ("interrupted", None),

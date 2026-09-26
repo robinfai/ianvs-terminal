@@ -18,11 +18,11 @@
 - benchmark smoke 覆盖正确性和轻量时延门槛；CPU/RSS 阈值需要安静宿主运行，尚无跨机器长期对比基线。
 - SSH 自动化覆盖认证、ProxyJump、host-key 与转发；更宽的服务器版本、发行版和真实网络环境仍需验证。
 - 字体/DPI、Unicode cluster、Powerline / Nerd Font 的实际观感，以及 trackpad 和宿主快捷键，需要[人工检查](compatibility/MANUAL_VERIFICATION.md)。
-- 长录制的容量、内存与快照恢复改进见[录制存储提案](recording/STORAGE_PROPOSAL.md)，正在分批实施。产品入口已切换为新格式，跨录制搜索、保留设置、长文件快速打开及超过 24 小时验收尚未完成。
+- 长录制的容量、内存与快照恢复改进见[录制存储提案](recording/STORAGE_PROPOSAL.md)，正在分批实施。产品入口已切换为新格式，已增加录制时增量索引和缓存快速打开；跨录制搜索、保留设置、真实长文件性能及超过 24 小时验收尚未完成。
 
 ## 当前门禁阻塞
 
-- 新录制专项、会话/界面测试与启动依赖替身已迁移。签名夹具、iPhone 键盘高度读取和旧标题栏 golden 已修复；完整 verification 正在重新验证，不能以专项通过代替完整 gate。
+- 新录制专项、会话/界面测试与启动依赖替身已迁移。签名夹具、iPhone 键盘高度读取和旧标题栏 golden 已修复；读取器的传输层依赖已归入 runtime 组合边界。完整 verification 需要在当前索引实现上重跑，不能以专项通过代替完整 gate。
 
 - 本机 CLT 27 SDK 与链接器不匹配。命令级指定 Xcode 26.2 的 `SDKROOT` 可避开该链接错误，不需改项目配置。
 - 工作区 iOS Bundle ID / signing 设置与 Apple identity 合同不一致；Runner simulator destination 匹配失败使本地优先启动 gate 尚未运行到断言。

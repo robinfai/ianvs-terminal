@@ -2,8 +2,9 @@
 
 These are reusable measurement tools for the
 [storage proposal](../../docs/recording/STORAGE_PROPOSAL.md), not production
-readers/writers or correctness fixtures. The current recording contract remains
-[schema 1 NDJSON](../../docs/recording/FORMAT_CURRENT.md).
+readers/writers or correctness fixtures. The current product contract is
+[sampled schema 2](../../docs/recording/FORMAT_CURRENT.md). Older Python experiments
+use committed legacy fixtures only; they are not product import/migration paths.
 
 Run from the repository root. Default outputs are under ignored
 `build/recording_bench/`; `--output` selects another local destination. Repeated
@@ -80,3 +81,18 @@ fixture counts, sampler timings and retained-model encoded sizes. Encoded sizes
 are not heap/RSS; payload bytes exclude the implemented container, indexes, compression
 and image blobs. Semantic fixtures do not prove real hook delivery. This is
 accelerated logical time and never substitutes for 24-hour wall-clock acceptance.
+
+
+## Structured file open and seek
+
+```bash
+cargo build --release --manifest-path native/core/Cargo.toml --example sampled_recording_file_bench
+native/core/target/release/examples/sampled_recording_file_bench build/recording_bench/adaptive/file-results.json
+```
+
+This writes real containers and incremental indexes for 10,000 and 100,000
+structured samples, verifies 25 cached opens without index replacement and 100
+random seeks, then forces a recovery scan. It reports primary/index byte sizes,
+creation/finish times and open/seek percentiles. Filesystem caches are warm and
+timestamps are accelerated logical time. It excludes Flutter, live PTY, images,
+search, input latency and power loss, and never establishes >24-hour endurance.

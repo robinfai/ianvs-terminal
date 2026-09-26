@@ -22,7 +22,9 @@ recovered prefixes as interrupted. Existing schema 1 NDJSON files and indexes ar
 left untouched. The application does not read, migrate, rewrite or delete them.
 
 This is the development implementation, not completed release acceptance.
-Incremental index publication, cross-recording search, retention controls and
-more-than-24-hour system/product validation remain open in the
-[delivery task](../tasks/adaptive-session-recording.md). The application recording tests and isolated review entrypoints now use the new
-product contract; full release acceptance is still pending.
+The writer publishes incremental seek/command indexes and a bounded summary
+cache for normal opens; changed files fall back to a recovery scan. Cross-recording
+search, retention controls and more-than-24-hour system/product validation remain
+open in the [delivery task](../tasks/adaptive-session-recording.md). The application
+recording tests and isolated review entrypoints use the new product contract;
+full release acceptance is still pending.

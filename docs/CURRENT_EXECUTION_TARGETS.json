@@ -159,11 +159,11 @@
         {
           "path": "example/macos/Runner/MainFlutterWindow.swift",
           "contains": [
-            "Open Terminal at Folder…",
+            "Open Terminal at Folder\u2026",
             "bindNativeTerminalFolderMenuItem"
           ],
           "not_contains": [
-            "Open Project…",
+            "Open Project\u2026",
             "bindNativeWorkspaceMenuItems"
           ]
         },
@@ -705,9 +705,9 @@
         {
           "path": "docs/KNOWN_ISSUES.md",
           "contains": [
-            "macOS 是当前主交付平台",
-            "尚未完成实体设备上的完整产品验收",
-            "还没有跨平台验证"
+            "macOS \u662f\u5f53\u524d\u4e3b\u4ea4\u4ed8\u5e73\u53f0",
+            "\u5c1a\u672a\u5b8c\u6210\u5b9e\u4f53\u8bbe\u5907\u4e0a\u7684\u5b8c\u6574\u4ea7\u54c1\u9a8c\u6536",
+            "\u8fd8\u6ca1\u6709\u8de8\u5e73\u53f0\u9a8c\u8bc1"
           ]
         }
       ],
@@ -726,8 +726,8 @@
         {
           "path": "docs/KNOWN_ISSUES.md",
           "contains": [
-            "还没有插件系统",
-            "当前没有 native renderer"
+            "\u8fd8\u6ca1\u6709\u63d2\u4ef6\u7cfb\u7edf",
+            "\u5f53\u524d\u6ca1\u6709 native renderer"
           ]
         }
       ],
@@ -841,6 +841,21 @@
           "contains": [
             "SampledRecordingLibrary",
             "SampledRecordingCaptureClient"
+          ]
+        },
+        {
+          "path": "native/core/src/recording/cache.rs",
+          "contains": [
+            "struct IncrementalIndexes",
+            "fn load_report",
+            "fn publish_report"
+          ]
+        },
+        {
+          "path": "native/core/tests/sampled_recording_file_service_test.rs",
+          "contains": [
+            "committed_interrupted_prefix_opens_fast_and_later_growth_forces_recovery",
+            "same_size_source_corruption_with_restored_mtime_invalidates_local_cache"
           ]
         }
       ],

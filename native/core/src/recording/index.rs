@@ -10,15 +10,15 @@ use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 
 const MAGIC: &[u8; 8] = b"TRLIDX02";
-const HEADER_BYTES: u64 = 104;
+pub(super) const HEADER_BYTES: u64 = 104;
 const ENTRY_BYTES: u64 = 64;
 
 #[derive(Clone, Copy)]
-struct KeyframeEntry {
-    offset_micros: u64,
-    file_offset: u64,
-    ordinal: u64,
-    visual_sequence: u64,
+pub(super) struct KeyframeEntry {
+    pub(super) offset_micros: u64,
+    pub(super) file_offset: u64,
+    pub(super) ordinal: u64,
+    pub(super) visual_sequence: u64,
 }
 
 /// An on-disk binary-search table. No recording-sized array is loaded by open
@@ -81,17 +81,8 @@ impl RecordingIndex {
                 "recording changed during index build",
             ));
         }
-        let mut header = [0u8; HEADER_BYTES as usize];
-        header[..8].copy_from_slice(MAGIC);
-        header[8..16].copy_from_slice(&source_bytes.to_le_bytes());
-        header[16..24].copy_from_slice(&report.verified_bytes.to_le_bytes());
-        header[24..32].copy_from_slice(&entries.to_le_bytes());
-        header[32..64].copy_from_slice(&fingerprint);
-        header[64] = u8::from(report.completion == RecordingCompletion::Finished);
-        let checksum = Sha256::digest(&header[..72]);
-        header[72..].copy_from_slice(&checksum);
         temporary.seek(SeekFrom::Start(0))?;
-        temporary.write_all(&header)?;
+        write_header(&mut temporary, source_bytes, &report, entries, &fingerprint)?;
         temporary.as_file().sync_all()?;
         temporary
             .persist(path.join("seek.index"))
@@ -256,7 +247,7 @@ fn read_u64(bytes: &[u8]) -> u64 {
 pub(super) fn metadata_fingerprint(metadata: &RecordingMetadata) -> StorageResult<[u8; 32]> {
     Ok(Sha256::digest(serde_json::to_vec(metadata)?).into())
 }
-fn encode_entry(entry: KeyframeEntry) -> [u8; ENTRY_BYTES as usize] {
+pub(super) fn encode_entry(entry: KeyframeEntry) -> [u8; ENTRY_BYTES as usize] {
     let mut bytes = [0u8; ENTRY_BYTES as usize];
     bytes[..8].copy_from_slice(&entry.offset_micros.to_le_bytes());
     bytes[8..16].copy_from_slice(&entry.file_offset.to_le_bytes());
@@ -265,4 +256,24 @@ fn encode_entry(entry: KeyframeEntry) -> [u8; ENTRY_BYTES as usize] {
     let checksum = Sha256::digest(&bytes[..32]);
     bytes[32..].copy_from_slice(&checksum);
     bytes
+}
+
+pub(super) fn write_header(
+    file: &mut impl Write,
+    source_bytes: u64,
+    report: &ScanReport,
+    entries: u64,
+    fingerprint: &[u8; 32],
+) -> StorageResult<()> {
+    let mut header = [0u8; HEADER_BYTES as usize];
+    header[..8].copy_from_slice(MAGIC);
+    header[8..16].copy_from_slice(&source_bytes.to_le_bytes());
+    header[16..24].copy_from_slice(&report.verified_bytes.to_le_bytes());
+    header[24..32].copy_from_slice(&entries.to_le_bytes());
+    header[32..64].copy_from_slice(fingerprint);
+    header[64] = u8::from(report.completion == RecordingCompletion::Finished);
+    let checksum = Sha256::digest(&header[..72]);
+    header[72..].copy_from_slice(&checksum);
+    file.write_all(&header)?;
+    Ok(())
 }
