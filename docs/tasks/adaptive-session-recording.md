@@ -244,3 +244,45 @@ The complete gate's native section passed 1014 tests with 5 conditional
 tests ignored. The next stage reported two alphabetic export-order lints after
 the reader's move to runtime; both barrel files are now sorted. The complete
 repository gate is being rerun and remains unconfirmed until it exits successfully.
+
+
+## Implementation checkpoint — cross-recording search
+
+Native disposable text indexes and cancellable search pages now cover hook
+commands and retained structured-screen text, including soft wrap, Unicode,
+sized text and nested-host transitions. The library controller combines files
+with bounded result/cursor state, date/host/kind filters, visible partial-file
+failures and stale-query suppression. Search results open the recorded moment,
+including in an already open replay, without creating sessions or sending input.
+Independent readers share one OS claim; cancelling or closing one cannot make a
+file eligible for deletion while another reader remains active.
+
+Focused verification: six native search tests and strict Clippy passed; 25 app
+controller/library/architecture tests, six actual native-worker/file-contract
+tests and 14 widget/shell tests passed. Four search captures at 1,100 px and
+390 px / 2x text, light and dark, were inspected; filter, paging, error/retry,
+keyboard dismissal and result navigation checks are included. The search preview
+has no file/native dependency. Generated package mirrors are synchronized and
+full-tree fatal-infos Dart analysis is clean. The current complete gate has passed
+1,020 canonical native tests (five conditional tests ignored); later stages remain
+running, so complete verification is not yet established.
+
+On the same macOS 27.0 arm64 host, 100,000 synthetic samples / 10,000 commands
+produced 15,054,116 bytes of text index plus a 495-byte marker. First build and
+first result page took 1,989,219 microseconds. Across 25 dense cached pages, P95
+was 478 microseconds. A rare tail hit scanned all 54 pages in 169,660 microseconds;
+a no-match scan took 178,690 microseconds (per-page P95 3,457 microseconds).
+Native benchmark RSS peaked at 7,782,400 bytes. These warm-filesystem, short,
+synthetic measurements exclude Flutter, live PTY, images and input latency.
+Evidence: `build/recording_bench/adaptive/search-file-results.json` and
+`search-file-benchmark.log`, with search screenshots under the example build tree.
+
+The previous complete gate passed canonical/standalone terminal suites and then
+found an omitted iOS export for the file-service ABI. The list is fixed and all
+12 Apple build-contract tests pass. That gate had not reached the example app or
+macOS integration stages; full verification remains unconfirmed.
+
+Remaining: configurable persistent retention and Keep controls, external bundle
+ownership/import, real macOS/local/installed-shell/SSH review, whole-pipeline and
+system-failure measurements, >24 actual hours on the final pipeline, and a green
+complete repository gate. No batch is declared complete solely by this checkpoint.

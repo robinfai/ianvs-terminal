@@ -83,7 +83,7 @@ and image blobs. Semantic fixtures do not prove real hook delivery. This is
 accelerated logical time and never substitutes for 24-hour wall-clock acceptance.
 
 
-## Structured file open and seek
+## Structured file open, seek and search
 
 ```bash
 cargo build --release --manifest-path native/core/Cargo.toml --example sampled_recording_file_bench
@@ -93,6 +93,10 @@ native/core/target/release/examples/sampled_recording_file_bench build/recording
 This writes real containers and incremental indexes for 10,000 and 100,000
 structured samples, verifies 25 cached opens without index replacement and 100
 random seeks, then forces a recovery scan. It reports primary/index byte sizes,
-creation/finish times and open/seek percentiles. Filesystem caches are warm and
-timestamps are accelerated logical time. It excludes Flutter, live PTY, images,
-search, input latency and power loss, and never establishes >24-hour endurance.
+creation/finish times and open/seek percentiles. It also measures first text-index
+construction, 25 dense cached search pages, and complete rare/no-match scans,
+checking hit counts, forward cursors and cache reuse. Search index bytes and both
+per-page and whole-query latency are reported. Filesystem caches are warm and
+timestamps are accelerated logical time. It excludes Flutter cross-file queries,
+live PTY, images, input latency and power loss, and never establishes >24-hour
+endurance.

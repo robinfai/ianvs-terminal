@@ -388,7 +388,10 @@ class SampledRecordingLibrary {
   }) async {
     final root = await ensureRecordingDirectory();
     final id = _ownedId(root, path);
-    final lease = await _Lease.acquire('${root.path}/claims/$id.lock');
+    final lease = await _Lease.acquire(
+      '${root.path}/claims/$id.lock',
+      shared: true,
+    );
     try {
       var entry = await _read(root, File('${root.path}/entries/$id.json'));
       final file = await SampledRecordingFile.open(
@@ -682,26 +685,40 @@ class SampledRecordingLibrary {
   }
 }
 
-final class _Lease {
-  _Lease(this.path, this.file, this.owner);
-  final String path;
+final class _LeaseOwner {
+  _LeaseOwner(this.file, this.shared);
   final RandomAccessFile file;
-  final Object owner;
+  final bool shared;
+  int references = 1;
+}
+
+final class _Lease {
+  _Lease(this.path, this.owner);
+  final String path;
+  final _LeaseOwner owner;
   bool _closed = false;
-  static Future<_Lease> acquire(String path) async {
-    if (_processClaims.containsKey(path)) throw RecordingLibraryBusy(path);
-    final owner = Object();
-    _processClaims[path] = owner;
+  static Future<_Lease> acquire(String path, {bool shared = false}) async {
+    final existing = _processClaims[path];
+    if (existing is _LeaseOwner &&
+        existing.shared &&
+        shared &&
+        existing.references > 0) {
+      existing.references++;
+      return _Lease(path, existing);
+    }
+    if (existing != null) throw RecordingLibraryBusy(path);
+    final pending = Object();
+    _processClaims[path] = pending;
     RandomAccessFile? file;
     try {
       file = await File(path).open(mode: FileMode.append);
-      await file.lock(FileLock.exclusive);
-      return _Lease(path, file, owner);
+      await file.lock(shared ? FileLock.shared : FileLock.exclusive);
+      final owner = _LeaseOwner(file, shared);
+      _processClaims[path] = owner;
+      return _Lease(path, owner);
     } on Object catch (error) {
       await file?.close();
-      if (identical(_processClaims[path], owner)) _processClaims.remove(path);
-      // EAGAIN/EACCES on Unix and lock-violation on Windows indicate contention.
-      // Preserve other filesystem failures so the UI can explain them.
+      if (identical(_processClaims[path], pending)) _processClaims.remove(path);
       if (error is FileSystemException &&
           const <int>{11, 13, 33, 35}.contains(error.osError?.errorCode)) {
         throw RecordingLibraryBusy(path);
@@ -713,10 +730,14 @@ final class _Lease {
   Future<void> close() async {
     if (_closed) return;
     _closed = true;
+    owner.references--;
+    if (owner.references > 0) return;
+    // One OS handle per process claim: closing an independent POSIX descriptor
+    // could release every reader's process-scoped lock on the same inode.
     try {
-      await file.unlock();
+      await owner.file.unlock();
     } finally {
-      await file.close();
+      await owner.file.close();
       if (identical(_processClaims[path], owner)) _processClaims.remove(path);
     }
   }

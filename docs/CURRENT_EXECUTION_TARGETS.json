@@ -857,6 +857,25 @@
             "committed_interrupted_prefix_opens_fast_and_later_growth_forces_recovery",
             "same_size_source_corruption_with_restored_mtime_invalidates_local_cache"
           ]
+        },
+        {
+          "path": "native/core/tests/sampled_recording_search_test.rs",
+          "contains": [
+            "#[test]"
+          ]
+        },
+        {
+          "path": "example/lib/features/recording/sampled_recording_search_controller.dart",
+          "contains": [
+            "class RecordingSearchController",
+            "pageSize = 50"
+          ]
+        },
+        {
+          "path": "example/test/shell/shell_recording_library_test.dart",
+          "contains": [
+            "search hits seek to their time"
+          ]
         }
       ],
       "verification_commands": [

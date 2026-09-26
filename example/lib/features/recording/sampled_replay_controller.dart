@@ -55,8 +55,8 @@ final class SampledReplayController extends ChangeNotifier {
   bool get hasNextPage => _nextCursor != null;
   bool get hasPreviousPage => _previousCursors.isNotEmpty;
 
-  Future<void> initialize() async {
-    await Future.wait([seek(Duration.zero), _loadTimeline(0)]);
+  Future<void> initialize({Duration position = Duration.zero}) async {
+    await Future.wait([seek(position), _loadTimeline(0)]);
   }
 
   Future<void> seek(Duration target) {

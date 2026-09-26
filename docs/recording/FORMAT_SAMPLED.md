@@ -181,7 +181,7 @@ sets an atomic flag; release is rejected while a read is running. At most eight
 native read jobs exist concurrently. Requests are at most 64 KiB; responses are
 at most 48 MiB. The Dart API limits itself to two workers and 256 queued requests.
 
-Read operations are `inspect`, `metadata`, `seek`, `timeline` and `asset`.
+Read operations are `inspect`, `metadata`, `seek`, `timeline`, `asset` and `search`.
 Inspect uses valid local summary/index caches, or streams a recovery scan to
 rebuild them. Metadata only verifies the native header and recording identity. Seek returns one complete
 Protobuf screen plus asset bindings. Timeline returns up to 128 semantic events
@@ -201,3 +201,48 @@ excluded from automatic retention. Orphan new-format bundles recover as Keep;
 legacy NDJSON and directories outside this library are never cleanup candidates.
 Manifest writes use flushed temporary files and rename; directory durability and
 system-failure acceptance are still outstanding.
+
+
+## Retained text search
+
+The first search creates disposable `search.index` and `search.info` files by
+streaming the verified primary prefix. Index construction is cancellable and
+holds only current replay state, previous logical lines and 64 recent command
+starts; it does not keep the recording history in memory. Temporary files are
+published only after a complete scan. Source metadata/file stamps and the index
+stamp invalidate changed or damaged caches; primary data is never rewritten.
+
+`search.index` begins with `TRLTXT02`. Each document contains two little-endian
+u32 lengths (metadata and text), a SHA-256 digest of their concatenated bytes,
+strict JSON metadata and UTF-8 text. Metadata holds offset, command/screen kind,
+host and optional row. Text is capped at 16 MiB and metadata at 512 KiB per
+document. `search.info` contains a 32-byte SHA-256 and at most 64 KiB of strict
+JSON identifying schema 2, metadata fingerprint and source/index file stamps.
+Both files are disposable local caches, not authenticity evidence.
+
+Screen documents join soft-wrapped rows and include sized-text placements;
+unchanged logical rows at the same position are not repeated. Host changes
+index the last retained screen under the new context at that event time, matching
+what replay can actually show. Command starts and orphan finishes are indexed.
+A finish whose start was evicted from the 64-context deduplication window can
+produce a duplicate hit. No raw keys, OCR or unsampled output are searched.
+
+Queries use case-insensitive Unicode lowercase substring matching. Native pages
+return at most 100 hits with previews capped at 240 characters plus ellipses.
+Work yields after 2,048 documents, about 4 MiB scanned, or about 1 MiB of response
+text; one bounded document may exceed the scan budget. Empty pages can have a
+forward byte cursor. Cancellation is checked during construction and paging.
+First construction still requires a complete streaming scan of the recording.
+
+The application searches finished/recovered library files, newest first, with
+recording start-date, nested-host and command/screen filters. It keeps one page
+of at most 50 results and 128 prior cursors; the first page remains reachable.
+Date ranges use local calendar boundaries converted to UTC. Unreadable files
+produce a partial-results warning. A result opens replay at its stored time and
+never creates a PTY or dispatches a historical command.
+
+Replay and search share one process-owned OS file descriptor per recording.
+Each reader retains its reference until its native work settles, including after
+cancellation. Only the last reader releases the shared OS lock. Exclusive writer
+and cleanup claims still reject busy files. Search caches live inside the bundle
+and are deleted with it; no external search entry outlives library deletion.

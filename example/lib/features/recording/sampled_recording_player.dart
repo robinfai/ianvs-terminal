@@ -18,11 +18,13 @@ class SampledRecordingPlayer extends StatefulWidget {
     required this.recording,
     required this.onClose,
     required this.colors,
+    this.initialPosition = Duration.zero,
     this.font = const terminal.TerminalFontConfig(),
     this.cursor = const terminal.TerminalCursorConfig(),
   });
   final terminal.SampledRecordingFile recording;
   final VoidCallback onClose;
+  final Duration initialPosition;
   final terminal.TerminalViewportColors colors;
   final terminal.TerminalFontConfig font;
   final terminal.TerminalCursorConfig cursor;
@@ -52,7 +54,7 @@ class _SampledRecordingPlayerState extends State<SampledRecordingPlayer> {
       readClipboard: () async => '',
       readOnly: () => true,
     );
-    unawaited(_replay.initialize());
+    unawaited(_replay.initialize(position: widget.initialPosition));
   }
 
   @override

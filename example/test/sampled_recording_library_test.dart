@@ -288,6 +288,50 @@ void main() {
     },
   );
 
+  test(
+    'independent viewers share one process claim until every read settles',
+    () async {
+      final id = 'a' * 32;
+      await _seed(root, id);
+      final path = '${root.path}/$id.trailrec';
+      final first = await library.openRecording(path);
+      final other = SampledRecordingLibrary(
+        files: files,
+        directoryResolver: () async => root,
+      );
+      final second = await other.openRecording(path);
+      await first.close();
+      await expectLater(
+        library.deleteRecording(path),
+        throwsA(isA<RecordingLibraryBusy>()),
+      );
+      if (!Platform.isWindows) {
+        final locked = await Process.run('python3', [
+          '-c',
+          'import fcntl,sys; f=open(sys.argv[1], "a+"); fcntl.lockf(f, fcntl.LOCK_EX | fcntl.LOCK_NB)',
+          '${root.path}/claims/$id.lock',
+        ]);
+        expect(
+          locked.exitCode,
+          isNot(0),
+          reason: 'The remaining reader must retain its OS lock',
+        );
+        expect(locked.stderr, contains('BlockingIOError'));
+      }
+      await second.close();
+      if (!Platform.isWindows) {
+        final unlocked = await Process.run('python3', [
+          '-c',
+          'import fcntl,sys; f=open(sys.argv[1], "a+"); fcntl.lockf(f, fcntl.LOCK_EX | fcntl.LOCK_NB)',
+          '${root.path}/claims/$id.lock',
+        ]);
+        expect(unlocked.exitCode, 0, reason: '${unlocked.stderr}');
+      }
+      await library.deleteRecording(path);
+      expect(await Directory(path).exists(), isFalse);
+    },
+  );
+
   test('read lease survives close until native reads complete', () async {
     final id = 'a' * 32;
     await _seed(root, id);

@@ -1450,5 +1450,23 @@
         "type": "int"
       }
     }
-  }
+  },
+  "recordingSearchTitle": "搜索录制",
+  "recordingSearchCoverage": "搜索已保存的 hook 命令和采样屏幕文字；不包含正在录制的会话或未采样输出。",
+  "recordingSearchQuery": "命令或屏幕文字",
+  "recordingSearchHost": "主机（包含嵌套 SSH）",
+  "recordingSearchAll": "命令和屏幕文字",
+  "recordingSearchCommands": "仅命令",
+  "recordingSearchScreens": "仅屏幕文字",
+  "recordingSearchDates": "录制日期",
+  "recordingSearchClearFilters": "清除筛选",
+  "recordingSearchProgress": "正在搜索录制：{scanned} / {total}",
+  "recordingSearchSkipped": "{count} 份录制暂时无法搜索",
+  "recordingSearchEmpty": "没有匹配的已存文字。可以尝试其他关键词或扩大筛选范围。",
+  "recordingSearchHint": "输入文字或选择筛选条件，点击结果可回到对应的录制时刻。",
+  "recordingSearchUnknownHost": "主机未知",
+  "recordingSearchFirstPage": "搜索首页",
+  "recordingSearchPreviousPage": "搜索上一页",
+  "recordingSearchNextPage": "搜索下一页",
+  "recordingSearchPage": "第 {page} 页"
 }

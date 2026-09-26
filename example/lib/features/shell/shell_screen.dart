@@ -35,6 +35,7 @@ import '../recording/mobile_replay_player.dart';
 import '../recording/replay_viewport_layout.dart';
 import '../recording/sampled_recording_library.dart';
 import '../recording/sampled_recording_player.dart';
+import '../recording/sampled_recording_search_dialog.dart';
 import '../sessions/session_controller.dart';
 import '../sessions/session_state.dart';
 import '../sessions/shell_capabilities_dialog.dart';
@@ -356,6 +357,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   bool _recordingLibraryReloadRequested = false;
   SampledRecordingEntry? _selectedRecordingEntry;
   terminal.SampledRecordingFile? _selectedRecording;
+  Duration _selectedRecordingInitialPosition = Duration.zero;
   SampledOpenedRecording? _selectedRecordingOwner;
   terminal.RecordingFileCancellation? _recordingOpenCancellation;
 
@@ -1439,6 +1441,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                         _recordingPlaybackGeneration,
                                       )),
                                       recording: _selectedRecording!,
+                                      initialPosition:
+                                          _selectedRecordingInitialPosition,
                                       colors: instantReplayColors,
                                       font: recordingReplayConfig.display.font,
                                       cursor:
@@ -1602,6 +1606,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                   unawaited(_loadRecordingLibrary()),
                               onOpenFile: () =>
                                   unawaited(_openRecordingFromPicker()),
+                              onSearch: () =>
+                                  unawaited(_searchSavedRecordings()),
                               onRecent: activeSessionId == null
                                   ? null
                                   : () => unawaited(

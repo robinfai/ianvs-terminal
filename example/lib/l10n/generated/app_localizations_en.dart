@@ -5368,4 +5368,67 @@ class AppLocalizationsEn extends AppLocalizations {
   String sampledCommandExit(int code) {
     return 'Exit $code';
   }
+
+  @override
+  String get recordingSearchTitle => 'Search recordings';
+
+  @override
+  String get recordingSearchCoverage =>
+      'Search saved hook commands and sampled screen text. Active recordings and unsampled output are not included.';
+
+  @override
+  String get recordingSearchQuery => 'Command or screen text';
+
+  @override
+  String get recordingSearchHost => 'Host, including nested SSH';
+
+  @override
+  String get recordingSearchAll => 'Commands and screen text';
+
+  @override
+  String get recordingSearchCommands => 'Commands only';
+
+  @override
+  String get recordingSearchScreens => 'Screen text only';
+
+  @override
+  String get recordingSearchDates => 'Recording dates';
+
+  @override
+  String get recordingSearchClearFilters => 'Clear filters';
+
+  @override
+  String recordingSearchProgress(int scanned, int total) {
+    return 'Searching recordings: $scanned of $total';
+  }
+
+  @override
+  String recordingSearchSkipped(int count) {
+    return '$count recordings could not be searched';
+  }
+
+  @override
+  String get recordingSearchEmpty =>
+      'No matching saved text. Try another phrase or wider filters.';
+
+  @override
+  String get recordingSearchHint =>
+      'Enter text or choose a filter. Select a result to open its recorded moment.';
+
+  @override
+  String get recordingSearchUnknownHost => 'Unknown host';
+
+  @override
+  String get recordingSearchFirstPage => 'First search page';
+
+  @override
+  String get recordingSearchPreviousPage => 'Previous search page';
+
+  @override
+  String get recordingSearchNextPage => 'Next search page';
+
+  @override
+  String recordingSearchPage(int page) {
+    return 'Page $page';
+  }
 }

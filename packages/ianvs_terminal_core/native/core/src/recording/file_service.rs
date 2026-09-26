@@ -178,7 +178,7 @@ fn dispatch(request: &Request, response_id: &mut Option<String>) -> StorageResul
             jobs.remove(&id);
             return Ok(json!({}));
         }
-        "inspect" | "metadata" | "seek" | "timeline" | "asset" => {}
+        "inspect" | "metadata" | "seek" | "timeline" | "asset" | "search" => {}
         _ => {
             return Err(StorageError::Invalid(
                 "unsupported recording file operation",
@@ -201,6 +201,16 @@ fn dispatch(request: &Request, response_id: &mut Option<String>) -> StorageResul
         "seek" => seek(serde_json::from_value(request.payload.clone())?, &job),
         "timeline" => timeline(serde_json::from_value(request.payload.clone())?, &job),
         "asset" => asset(serde_json::from_value(request.payload.clone())?, &job),
+        "search" => {
+            let input: super::search::SearchRequest =
+                serde_json::from_value(request.payload.clone())?;
+            let source = reader(&input.bundle_path, Some(&input.recording_id))?;
+            Ok(serde_json::to_value(super::search::page(
+                &input,
+                &source.metadata,
+                || job.cancelled.load(Ordering::Acquire),
+            )?)?)
+        }
         _ => unreachable!(),
     }?;
     job.check()?;

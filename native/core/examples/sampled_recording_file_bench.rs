@@ -125,6 +125,69 @@ fn measure(frames: u64) -> Result<Value, Box<dyn Error>> {
             return Err("random seek mismatch".into());
         }
     }
+    let search_payload = |query: &str, cursor: u64| {
+        json!({
+            "bundle_path":path,"recording_id":metadata.recording_id,
+            "query":query,"hostname":"fixture.local","kind":"all",
+            "cursor":cursor,"limit":100,
+        })
+    };
+    let start = Instant::now();
+    let first_search = run("search", search_payload("sample", 0))?;
+    let search_build_and_first_page_micros = start.elapsed().as_micros();
+    if first_search["hits"]
+        .as_array()
+        .ok_or("missing search hits")?
+        .len()
+        != 100
+    {
+        return Err("dense search page mismatch".into());
+    }
+    let search_cache_before = std::fs::read(path.join("search.info"))?;
+    let mut search_page_times = Vec::new();
+    for _ in 0..25 {
+        let start = Instant::now();
+        run("search", search_payload("sample", 0))?;
+        search_page_times.push(start.elapsed().as_micros());
+    }
+    let rare_query = format!("sample {} 雪", frames - 1);
+    let mut full_scans = Vec::new();
+    for query in [rare_query.as_str(), "not-present-in-any-document"] {
+        let start = Instant::now();
+        let mut cursor = 0;
+        let mut hits = 0;
+        let mut pages = Vec::new();
+        let mut scanned_bytes = 0;
+        loop {
+            let page_start = Instant::now();
+            let result = run("search", search_payload(query, cursor))?;
+            pages.push(page_start.elapsed().as_micros());
+            hits += result["hits"]
+                .as_array()
+                .ok_or("missing search hits")?
+                .len();
+            scanned_bytes += result["scanned_bytes"]
+                .as_u64()
+                .ok_or("missing scan bytes")?;
+            let Some(next) = result["next_cursor"].as_u64() else {
+                break;
+            };
+            if next <= cursor {
+                return Err("nonadvancing search page".into());
+            }
+            cursor = next;
+        }
+        let expected = usize::from(query == rare_query);
+        if hits != expected {
+            return Err("full search result mismatch".into());
+        }
+        full_scans.push(json!({"query":query,"hits":hits,"pages":pages.len(),
+            "scanned_bytes":scanned_bytes,"total_micros":start.elapsed().as_micros(),
+            "page_latency":percentiles(pages)}));
+    }
+    if search_cache_before != std::fs::read(path.join("search.info"))? {
+        return Err("cached searches unexpectedly rebuilt indexes".into());
+    }
     std::fs::remove_file(path.join("summary.index"))?;
     let start = Instant::now();
     let rebuilt = run("inspect", json!({"bundle_path":path}))?;
@@ -136,7 +199,7 @@ fn measure(frames: u64) -> Result<Value, Box<dyn Error>> {
         Ok(std::fs::metadata(path.join(name))?.len())
     };
     Ok(
-        json!({"visual_samples":frames,"commands":command_count,"logical_duration_seconds":frames,"creation_micros":creation_micros,"finish_micros":finish_micros,"records_bytes":bytes("records.bin")?,"seek_index_bytes":bytes("seek.index")?,"commands_index_bytes":bytes("commands.index")?,"summary_index_bytes":bytes("summary.index")?,"cached_open":percentiles(open_times),"random_seek":percentiles(seek_times),"recovery_scan_micros":recovery_scan_micros}),
+        json!({"visual_samples":frames,"commands":command_count,"logical_duration_seconds":frames,"creation_micros":creation_micros,"finish_micros":finish_micros,"records_bytes":bytes("records.bin")?,"seek_index_bytes":bytes("seek.index")?,"commands_index_bytes":bytes("commands.index")?,"summary_index_bytes":bytes("summary.index")?,"search_index_bytes":bytes("search.index")?,"search_info_bytes":bytes("search.info")?,"search_build_and_first_page_micros":search_build_and_first_page_micros,"cached_dense_search_page":percentiles(search_page_times),"full_search_scans":full_scans,"cached_open":percentiles(open_times),"random_seek":percentiles(seek_times),"recovery_scan_micros":recovery_scan_micros}),
     )
 }
 
@@ -146,7 +209,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         return Err("usage: sampled_recording_file_bench [output.json]".into());
     }
     let results = [measure(10_000)?, measure(100_000)?];
-    let report = json!({"schema_version":1,"os":std::env::consts::OS,"arch":std::env::consts::ARCH,"duration_mode":"accelerated_logical_time","filesystem_cache":"warm","limitations":["synthetic structured frames, no live PTY or Flutter","no image assets, search, input latency, or power failure measurement","logical duration does not establish real 24-hour endurance"],"results":results});
+    let report = json!({"schema_version":1,"os":std::env::consts::OS,"arch":std::env::consts::ARCH,"duration_mode":"accelerated_logical_time","filesystem_cache":"warm","limitations":["synthetic structured frames, no live PTY or Flutter","no image assets, Flutter cross-file search, input latency, or power failure measurement","logical duration does not establish real 24-hour endurance"],"results":results});
     let output = serde_json::to_string_pretty(&report)?;
     if let Some(path) = args.first() {
         if let Some(parent) = Path::new(path).parent() {

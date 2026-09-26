@@ -78,6 +78,7 @@ final class NativeRecordingFileApi implements RecordingFileApi {
       'seek',
       'timeline',
       'asset',
+      'search',
     }.contains(operation)) {
       return Future.error(ArgumentError.value(operation, 'operation'));
     }

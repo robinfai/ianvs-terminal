@@ -10,6 +10,7 @@ mod frame_state;
 mod index;
 mod replay;
 mod sampler;
+mod search;
 mod storage;
 mod timeline;
 

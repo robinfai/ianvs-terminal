@@ -5017,4 +5017,65 @@ class AppLocalizationsZh extends AppLocalizations {
   String sampledCommandExit(int code) {
     return '退出状态 $code';
   }
+
+  @override
+  String get recordingSearchTitle => '搜索录制';
+
+  @override
+  String get recordingSearchCoverage =>
+      '搜索已保存的 hook 命令和采样屏幕文字；不包含正在录制的会话或未采样输出。';
+
+  @override
+  String get recordingSearchQuery => '命令或屏幕文字';
+
+  @override
+  String get recordingSearchHost => '主机（包含嵌套 SSH）';
+
+  @override
+  String get recordingSearchAll => '命令和屏幕文字';
+
+  @override
+  String get recordingSearchCommands => '仅命令';
+
+  @override
+  String get recordingSearchScreens => '仅屏幕文字';
+
+  @override
+  String get recordingSearchDates => '录制日期';
+
+  @override
+  String get recordingSearchClearFilters => '清除筛选';
+
+  @override
+  String recordingSearchProgress(int scanned, int total) {
+    return '正在搜索录制：$scanned / $total';
+  }
+
+  @override
+  String recordingSearchSkipped(int count) {
+    return '$count 份录制暂时无法搜索';
+  }
+
+  @override
+  String get recordingSearchEmpty => '没有匹配的已存文字。可以尝试其他关键词或扩大筛选范围。';
+
+  @override
+  String get recordingSearchHint => '输入文字或选择筛选条件，点击结果可回到对应的录制时刻。';
+
+  @override
+  String get recordingSearchUnknownHost => '主机未知';
+
+  @override
+  String get recordingSearchFirstPage => '搜索首页';
+
+  @override
+  String get recordingSearchPreviousPage => '搜索上一页';
+
+  @override
+  String get recordingSearchNextPage => '搜索下一页';
+
+  @override
+  String recordingSearchPage(int page) {
+    return '第 $page 页';
+  }
 }

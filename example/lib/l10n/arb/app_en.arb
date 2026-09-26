@@ -4095,5 +4095,47 @@
         "type": "int"
       }
     }
+  },
+  "recordingSearchTitle": "Search recordings",
+  "recordingSearchCoverage": "Search saved hook commands and sampled screen text. Active recordings and unsampled output are not included.",
+  "recordingSearchQuery": "Command or screen text",
+  "recordingSearchHost": "Host, including nested SSH",
+  "recordingSearchAll": "Commands and screen text",
+  "recordingSearchCommands": "Commands only",
+  "recordingSearchScreens": "Screen text only",
+  "recordingSearchDates": "Recording dates",
+  "recordingSearchClearFilters": "Clear filters",
+  "recordingSearchProgress": "Searching recordings: {scanned} of {total}",
+  "recordingSearchSkipped": "{count} recordings could not be searched",
+  "recordingSearchEmpty": "No matching saved text. Try another phrase or wider filters.",
+  "recordingSearchHint": "Enter text or choose a filter. Select a result to open its recorded moment.",
+  "recordingSearchUnknownHost": "Unknown host",
+  "recordingSearchFirstPage": "First search page",
+  "recordingSearchPreviousPage": "Previous search page",
+  "recordingSearchNextPage": "Next search page",
+  "recordingSearchPage": "Page {page}",
+  "@recordingSearchProgress": {
+    "placeholders": {
+      "scanned": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "@recordingSearchSkipped": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@recordingSearchPage": {
+    "placeholders": {
+      "page": {
+        "type": "int"
+      }
+    }
   }
 }

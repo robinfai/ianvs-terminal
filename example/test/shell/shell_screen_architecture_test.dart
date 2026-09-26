@@ -477,6 +477,7 @@ Iterable<File> _allowedShellExternalDependencies(Directory libDirectory) {
     'features/profiles/profiles_sheet.dart',
     'features/recording/sampled_recording_library.dart',
     'features/recording/sampled_recording_player.dart',
+    'features/recording/sampled_recording_search_dialog.dart',
     'features/recording/mobile_replay_player.dart',
     'features/recording/recording_replay_search_index.dart',
     'features/recording/replay_viewport_layout.dart',

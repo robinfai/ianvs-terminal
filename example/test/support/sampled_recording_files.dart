@@ -25,6 +25,7 @@ class SampledTestFiles implements RecordingFileApi {
   final Map<String, dynamic> fixture;
   final List<String> operations = [];
   final List<int> seeks = [];
+  final List<Map<String, Object?>> searchRequests = [];
   Completer<void>? inspectBarrier;
   bool failInspect = false;
   RecordingFileCancellation? inspectCancellation;
@@ -36,6 +37,7 @@ class SampledTestFiles implements RecordingFileApi {
     RecordingFileCancellation? cancellation,
   }) async {
     operations.add(operation);
+    if (operation == 'search') searchRequests.add(Map.of(payload));
     if (operation == 'inspect') {
       inspectCancellation = cancellation;
       await inspectBarrier?.future;

@@ -171,6 +171,48 @@ final class SampledTimelinePage {
   final int? nextCursor;
 }
 
+enum SampledRecordingSearchKind { all, command, screen }
+
+final class SampledRecordingSearchHit {
+  SampledRecordingSearchHit._(Map<String, Object?> value)
+    : offset = Duration(microseconds: _number(value, 'offset_micros')),
+      kind = switch (value['kind']) {
+        'command' => SampledRecordingSearchKind.command,
+        'screen' => SampledRecordingSearchKind.screen,
+        _ => throw const FormatException('Invalid search hit kind'),
+      },
+      hostname = _optionalString(value, 'hostname'),
+      row = value['row'] == null ? null : _number(value, 'row'),
+      preview = _string(value, 'preview') {
+    if ((row != null && row! >= 4096) || preview.runes.length > 242) {
+      throw const FormatException('Invalid recording search hit');
+    }
+  }
+  final Duration offset;
+  final SampledRecordingSearchKind kind;
+  final String? hostname;
+  final int? row;
+  final String preview;
+}
+
+final class SampledRecordingSearchPage {
+  SampledRecordingSearchPage._(Map<String, Object?> value)
+    : hits = List<SampledRecordingSearchHit>.unmodifiable(
+        (value['hits']! as List).map(
+          (hit) => SampledRecordingSearchHit._(_map(hit)),
+        ),
+      ),
+      nextCursor = value['next_cursor'] == null
+          ? null
+          : _number(value, 'next_cursor'),
+      scannedBytes = _number(value, 'scanned_bytes'),
+      totalBytes = _number(value, 'total_bytes');
+  final List<SampledRecordingSearchHit> hits;
+  final int? nextCursor;
+  final int scannedBytes;
+  final int totalBytes;
+}
+
 /// Disk-backed immutable recording. Opening returns metadata, not all frames or
 /// commands. Each seek returns one complete screen; timeline pages are bounded.
 final class SampledRecordingFile {
@@ -273,6 +315,41 @@ final class SampledRecordingFile {
     if (page.events.length > limit ||
         (page.nextCursor != null && page.nextCursor! <= cursor)) {
       throw const FormatException('Invalid timeline continuation');
+    }
+    return page;
+  }
+
+  /// Searches only retained screen text and hook commands. Empty pages can
+  /// contain a forward cursor when the bounded scan budget is exhausted.
+  Future<SampledRecordingSearchPage> search({
+    required String query,
+    String? hostname,
+    SampledRecordingSearchKind kind = SampledRecordingSearchKind.all,
+    int cursor = 0,
+    int limit = 100,
+    RecordingFileCancellation? cancellation,
+  }) async {
+    if (cursor < 0 || limit < 1 || limit > 100) {
+      throw ArgumentError('Invalid recording search page');
+    }
+    final value = await _run('search', <String, Object?>{
+      ..._identity,
+      'query': query,
+      'hostname': hostname,
+      'kind': kind.name,
+      'cursor': cursor,
+      'limit': limit,
+    }, cancellation: cancellation);
+    final page = SampledRecordingSearchPage._(value);
+    if (page.hits.length > limit ||
+        page.totalBytes < 8 ||
+        page.scannedBytes > page.totalBytes ||
+        page.hits.any((hit) => hit.offset > info.duration) ||
+        (page.nextCursor != null &&
+            (page.nextCursor! <= cursor ||
+                page.nextCursor! >= page.totalBytes ||
+                page.scannedBytes == 0))) {
+      throw const FormatException('Invalid recording search continuation');
     }
     return page;
   }

@@ -81,6 +81,7 @@ class _SavedRecordingsShelf extends StatelessWidget {
     required this.error,
     required this.onRefresh,
     required this.onOpenFile,
+    required this.onSearch,
     required this.onRecent,
     required this.onToggleRecording,
     required this.recording,
@@ -97,6 +98,7 @@ class _SavedRecordingsShelf extends StatelessWidget {
   final String? error;
   final VoidCallback onRefresh;
   final VoidCallback onOpenFile;
+  final VoidCallback onSearch;
   final VoidCallback? onRecent;
   final VoidCallback? onToggleRecording;
   final bool recording;
@@ -282,6 +284,12 @@ class _SavedRecordingsShelf extends StatelessWidget {
         SizedBox(height: palette.spacing.sm),
         if (!context.usesMobileNavigation && onRecent != null)
           _recordingButton(context),
+        OutlinedButton.icon(
+          key: const Key('recording-library-search'),
+          onPressed: selectionLoading ? null : onSearch,
+          icon: const Icon(Icons.search),
+          label: Text(l10n.recordingSearchTitle),
+        ),
         OutlinedButton.icon(
           key: const Key('recording-library-open-file'),
           onPressed: selectionLoading ? null : onOpenFile,

@@ -105,8 +105,13 @@ extension _ShellScreenRecordingLibraryState on _ShellScreenState {
     }
   }
 
-  Future<bool> _loadRecordingAtPath(String sourcePath, int generation) async {
-    if (_selectedRecordingEntry?.path == sourcePath) {
+  Future<bool> _loadRecordingAtPath(
+    String sourcePath,
+    int generation, {
+    Duration? initialPosition,
+  }) async {
+    if (_selectedRecordingEntry?.path == sourcePath &&
+        initialPosition == null) {
       if (_isCurrentRecordingOpen(generation)) {
         _mutateState(() => _recordingShelfOpen = false);
       }
@@ -119,7 +124,10 @@ extension _ShellScreenRecordingLibraryState on _ShellScreenState {
       await opened.close();
       return false;
     }
-    _showSelectedRecording(opened);
+    _showSelectedRecording(
+      opened,
+      initialPosition: initialPosition ?? Duration.zero,
+    );
     return true;
   }
 
@@ -136,7 +144,10 @@ extension _ShellScreenRecordingLibraryState on _ShellScreenState {
     _showShellSnackBar(message);
   }
 
-  void _showSelectedRecording(SampledOpenedRecording opened) {
+  void _showSelectedRecording(
+    SampledOpenedRecording opened, {
+    Duration initialPosition = Duration.zero,
+  }) {
     _releaseSelectedRecording();
     FocusManager.instance.primaryFocus?.unfocus();
     _mutateState(() {
@@ -146,6 +157,7 @@ extension _ShellScreenRecordingLibraryState on _ShellScreenState {
       _selectedRecordingOwner = opened;
       _selectedRecordingEntry = opened.entry;
       _selectedRecording = opened.recording;
+      _selectedRecordingInitialPosition = initialPosition;
       _recordingPlaybackGeneration++;
     });
   }
@@ -186,6 +198,26 @@ extension _ShellScreenRecordingLibraryState on _ShellScreenState {
           unawaited(_loadRecordingLibrary());
         }
       }
+    }
+  }
+
+  Future<void> _searchSavedRecordings() async {
+    final hit = await showRecordingSearch(
+      context: context,
+      library: ref.read(sampledRecordingLibraryProvider),
+    );
+    if (!mounted || hit == null) return;
+    final generation = _beginRecordingOpen();
+    try {
+      await _loadRecordingAtPath(
+        hit.path,
+        generation,
+        initialPosition: hit.offset,
+      );
+    } on Object catch (error) {
+      _recordingOpenFailed(error, generation);
+    } finally {
+      _finishRecordingOpen(generation);
     }
   }
 

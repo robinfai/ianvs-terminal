@@ -5,7 +5,7 @@ byte layout, validation rules, bounds and recovery behavior are described in
 [the sampled recording specification](FORMAT_SAMPLED.md).
 
 A bundle contains `records.bin`, content-addressed RGBA assets and rebuildable
-seek/command indexes. Visual records retain adaptively sampled structured screen
+seek/command/text indexes. Visual records retain adaptively sampled structured screen
 state; semantic records retain independently observed hook commands, arguments,
 context and status. Raw keystrokes and lossless PTY output are not recorded.
 A sample can omit short-lived output; commands without observed hooks are absent.
@@ -24,7 +24,8 @@ left untouched. The application does not read, migrate, rewrite or delete them.
 This is the development implementation, not completed release acceptance.
 The writer publishes incremental seek/command indexes and a bounded summary
 cache for normal opens; changed files fall back to a recovery scan. Cross-recording
-search, retention controls and more-than-24-hour system/product validation remain
-open in the [delivery task](../tasks/adaptive-session-recording.md). The application
+command/screen search with host/date filters and result-to-replay navigation is
+implemented with cancellable, bounded pages. Retention controls and more-than-24-hour
+system/product validation remain open in the [delivery task](../tasks/adaptive-session-recording.md). The application
 recording tests and isolated review entrypoints use the new product contract;
 full release acceptance is still pending.

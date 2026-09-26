@@ -7,8 +7,9 @@ now uses the new capture and structured replay path described in
 Native sampling, writing, recovery, disk seek, hook tracking and bounded Dart
 file workers are connected to the application library and player. This does not
 establish completed delivery. Incremental indexes and bounded cached opens are
-implemented; real cold-disk measurements, cross-recording search, retention
-controls and long-running validation remain open in the
+implemented, along with cross-recording command/screen search and host/date
+filters. Real cold-disk measurements, retention controls and long-running
+validation remain open in the
 [delivery task](../tasks/adaptive-session-recording.md).
 
 ## Fidelity and scope

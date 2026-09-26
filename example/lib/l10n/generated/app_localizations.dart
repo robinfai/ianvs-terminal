@@ -8443,6 +8443,114 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Exit {code}'**
   String sampledCommandExit(int code);
+
+  /// No description provided for @recordingSearchTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Search recordings'**
+  String get recordingSearchTitle;
+
+  /// No description provided for @recordingSearchCoverage.
+  ///
+  /// In en, this message translates to:
+  /// **'Search saved hook commands and sampled screen text. Active recordings and unsampled output are not included.'**
+  String get recordingSearchCoverage;
+
+  /// No description provided for @recordingSearchQuery.
+  ///
+  /// In en, this message translates to:
+  /// **'Command or screen text'**
+  String get recordingSearchQuery;
+
+  /// No description provided for @recordingSearchHost.
+  ///
+  /// In en, this message translates to:
+  /// **'Host, including nested SSH'**
+  String get recordingSearchHost;
+
+  /// No description provided for @recordingSearchAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Commands and screen text'**
+  String get recordingSearchAll;
+
+  /// No description provided for @recordingSearchCommands.
+  ///
+  /// In en, this message translates to:
+  /// **'Commands only'**
+  String get recordingSearchCommands;
+
+  /// No description provided for @recordingSearchScreens.
+  ///
+  /// In en, this message translates to:
+  /// **'Screen text only'**
+  String get recordingSearchScreens;
+
+  /// No description provided for @recordingSearchDates.
+  ///
+  /// In en, this message translates to:
+  /// **'Recording dates'**
+  String get recordingSearchDates;
+
+  /// No description provided for @recordingSearchClearFilters.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear filters'**
+  String get recordingSearchClearFilters;
+
+  /// No description provided for @recordingSearchProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'Searching recordings: {scanned} of {total}'**
+  String recordingSearchProgress(int scanned, int total);
+
+  /// No description provided for @recordingSearchSkipped.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} recordings could not be searched'**
+  String recordingSearchSkipped(int count);
+
+  /// No description provided for @recordingSearchEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No matching saved text. Try another phrase or wider filters.'**
+  String get recordingSearchEmpty;
+
+  /// No description provided for @recordingSearchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter text or choose a filter. Select a result to open its recorded moment.'**
+  String get recordingSearchHint;
+
+  /// No description provided for @recordingSearchUnknownHost.
+  ///
+  /// In en, this message translates to:
+  /// **'Unknown host'**
+  String get recordingSearchUnknownHost;
+
+  /// No description provided for @recordingSearchFirstPage.
+  ///
+  /// In en, this message translates to:
+  /// **'First search page'**
+  String get recordingSearchFirstPage;
+
+  /// No description provided for @recordingSearchPreviousPage.
+  ///
+  /// In en, this message translates to:
+  /// **'Previous search page'**
+  String get recordingSearchPreviousPage;
+
+  /// No description provided for @recordingSearchNextPage.
+  ///
+  /// In en, this message translates to:
+  /// **'Next search page'**
+  String get recordingSearchNextPage;
+
+  /// No description provided for @recordingSearchPage.
+  ///
+  /// In en, this message translates to:
+  /// **'Page {page}'**
+  String recordingSearchPage(int page);
 }
 
 class _AppLocalizationsDelegate

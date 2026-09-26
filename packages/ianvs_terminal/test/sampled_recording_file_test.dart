@@ -134,6 +134,38 @@ void main() {
     },
   );
 
+  test(
+    'search rejects nonadvancing pages and close cancels pending search reads',
+    () async {
+      final api = FixtureApi();
+      api.data['search'] = {
+        'hits': <Object>[],
+        'next_cursor': 0,
+        'scanned_bytes': 1,
+        'total_bytes': 100,
+      };
+      final file = await SampledRecordingFile.open(
+        '/tmp/sample.trailrec',
+        api: api,
+      );
+      await expectLater(file.search(query: 'text'), throwsFormatException);
+      api.barrier = Completer<void>();
+      final reading = file.search(query: 'text');
+      final expectation = expectLater(
+        reading,
+        throwsA(isA<RecordingFileCancelled>()),
+      );
+      var closed = false;
+      final closing = file.close().then((_) => closed = true);
+      await Future<void>.delayed(Duration.zero);
+      expect(closed, isFalse);
+      api.barrier!.complete();
+      await expectation;
+      await closing;
+      expect(closed, isTrue);
+    },
+  );
+
   final library = <File>[
     File('native/core/target/debug/libianvs_core.dylib'),
     File('../../native/core/target/debug/libianvs_core.dylib'),
@@ -177,6 +209,23 @@ void main() {
           cursor = page.nextCursor!;
         }
         expect(events, 22);
+        final search = await file.search(
+          query: 'quoted 雪-6',
+          kind: SampledRecordingSearchKind.command,
+        );
+        expect(search.hits.single.preview, "printf '%s' 'quoted 雪-6'");
+        expect(
+          search.hits.single.offset,
+          const Duration(microseconds: 6000100),
+        );
+        expect(search.nextCursor, isNull);
+        expect(
+          (await file.search(
+            query: 'frame 8',
+            kind: SampledRecordingSearchKind.screen,
+          )).hits.single.offset,
+          const Duration(seconds: 8),
+        );
         for (var attempt = 0; attempt < 20; attempt++) {
           final token = RecordingFileCancellation();
           final pending = file.seek(Duration.zero, cancellation: token);

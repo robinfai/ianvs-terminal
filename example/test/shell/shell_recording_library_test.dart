@@ -70,6 +70,52 @@ void main() {
   );
 
   sampledShellTest(
+    'search hits seek to their time even in an already open recording without terminal side effects',
+    (tester) async {
+      final harness = await pumpSampledShell(tester);
+      final sessions = harness.backend.createdSessions.length;
+      final writes = harness.backend.writes.length;
+      await openSampledEntry(tester, harness);
+      harness.files.fixture['search'] = {
+        'hits': [
+          {
+            'offset_micros': 6500000,
+            'kind': 'command',
+            'hostname': 'fixture.local',
+            'row': null,
+            'preview': 'search matched command',
+          },
+        ],
+        'next_cursor': null,
+        'scanned_bytes': 200,
+        'total_bytes': 200,
+      };
+      await openSampledShelf(tester);
+      final searchButton = find.byKey(const Key('recording-library-search'));
+      await tester.ensureVisible(searchButton);
+      await tester.tap(searchButton);
+      await pumpSampledUntil(
+        tester,
+        () => find.byType(TextField).evaluate().isNotEmpty,
+      );
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.enterText(find.byType(TextField).first, 'matched');
+      final result = find.text('search matched command');
+      await pumpSampledUntil(tester, () => result.evaluate().isNotEmpty);
+      await tester.ensureVisible(result);
+      await tester.tap(result);
+      await pumpSampledUntil(tester, () => harness.files.seeks.last == 6500000);
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(harness.files.searchRequests.single['query'], 'matched');
+      expect(find.byKey(const Key('saved-recordings-shelf')), findsNothing);
+      expect(find.byKey(const Key('recording-replay-layout')), findsOneWidget);
+      expect(harness.backend.createdSessions, hasLength(sessions));
+      expect(harness.backend.writes, hasLength(writes));
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  sampledShellTest(
     'a compact empty library offers file opening and exposes no unavailable items',
     (tester) async {
       await pumpSampledShell(tester, seed: false, size: const Size(820, 900));
