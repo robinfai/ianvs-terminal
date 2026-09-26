@@ -13,8 +13,9 @@ Implement and accept the four batches in
 validation, durable capture/replay, library/search/retention and real long-running
 acceptance. The application now uses schema 2 sampled capture and structured
 replay with incrementally published indexes and bounded cached open. Integration
-tests pass for the new path; cross-recording search, retention controls, real
-cold-disk/product measurements and long-running acceptance are still open.
+tests cover cross-recording search, persistent age/capacity retention and Keep
+controls. External bundle ownership, directory durability, real cold-disk/product
+measurements and long-running acceptance are still open.
 
 ## Continuing runtime guardrails
 

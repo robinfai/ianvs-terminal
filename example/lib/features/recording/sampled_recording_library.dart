@@ -6,6 +6,8 @@ import 'dart:math';
 import 'package:ianvs_terminal/ianvs_terminal.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'recording_retention_policy.dart';
+
 /// Claims live in the UI isolate. Disk workers never open these lock files:
 /// POSIX process-scoped locks must not be accidentally closed by another owner.
 final Map<String, Object> _processClaims = <String, Object>{};
@@ -123,18 +125,24 @@ class SampledRecordingLibrary {
   SampledRecordingLibrary({
     required this.files,
     Future<Directory> Function()? directoryResolver,
-    this.maximumAge = const Duration(days: 30),
-    this.maximumBytes = 20 * 1024 * 1024 * 1024,
-  }) : _directoryResolver = directoryResolver ?? _defaultDirectory {
-    if (maximumAge <= Duration.zero || maximumBytes <= 0) {
-      throw ArgumentError('Recording retention limits must be positive');
+    Duration maximumAge = const Duration(days: 30),
+    int maximumBytes = 20 * 1024 * 1024 * 1024,
+  }) : _directoryResolver = directoryResolver ?? _defaultDirectory,
+       _defaultPolicy = RecordingRetentionPolicy(
+         maximumAgeDays: maximumAge.inDays,
+         maximumBytes: maximumBytes,
+       ) {
+    if (maximumAge != Duration(days: maximumAge.inDays)) {
+      throw ArgumentError('Recording retention age must use whole days');
     }
   }
 
   final RecordingFileApi files;
   final Future<Directory> Function() _directoryResolver;
-  final Duration maximumAge;
-  final int maximumBytes;
+  final RecordingRetentionPolicy _defaultPolicy;
+  RecordingRetentionPolicy? _lastReadPolicy;
+  Duration get maximumAge => (_lastReadPolicy ?? _defaultPolicy).maximumAge;
+  int get maximumBytes => (_lastReadPolicy ?? _defaultPolicy).maximumBytes;
   Future<Directory>? _rootFuture;
   Future<void> _tail = Future<void>.value();
   final Map<String, SampledRecordingClaim> _active =
@@ -393,7 +401,7 @@ class SampledRecordingLibrary {
       shared: true,
     );
     try {
-      var entry = await _read(root, File('${root.path}/entries/$id.json'));
+      await _read(root, File('${root.path}/entries/$id.json'));
       final file = await SampledRecordingFile.open(
         path,
         api: files,
@@ -402,8 +410,17 @@ class SampledRecordingLibrary {
       if (file.info.id != id) {
         throw const FormatException('Recording manifest identity mismatch');
       }
-      entry = _fromInfo(file.info, entry);
-      await _write(root, entry);
+      // Shared readers may overlap a Keep change. Re-read and publish metadata
+      // under the library mutation lock so a late inspect cannot restore old Keep.
+      final entry = await _withLibraryLock((lockedRoot) async {
+        final latest = await _read(
+          lockedRoot,
+          File('${lockedRoot.path}/entries/$id.json'),
+        );
+        final updated = _fromInfo(file.info, latest);
+        await _write(lockedRoot, updated);
+        return updated;
+      });
       return SampledOpenedRecording._(entry, file, lease);
     } on Object {
       await lease.close();
@@ -477,7 +494,10 @@ class SampledRecordingLibrary {
     root,
   ) async {
     final id = _ownedId(root, path);
-    final lease = await _Lease.acquire('${root.path}/claims/$id.lock');
+    final lease = await _Lease.acquire(
+      '${root.path}/claims/$id.lock',
+      shared: true,
+    );
     try {
       final entry = await _read(root, File('${root.path}/entries/$id.json'));
       await _write(root, entry.copyWith(keep: keep, error: entry.error));
@@ -496,14 +516,44 @@ class SampledRecordingLibrary {
       await lease.close();
     }
   });
+  Future<RecordingRetentionPolicy> loadRetentionPolicy() =>
+      _withLibraryLock(_readPolicy);
+
+  /// Saving is an explicit apply: eligible ordinary recordings may be deleted.
+  /// An unreadable/unknown persisted policy never falls back during auto-cleanup.
+  Future<void> saveRetentionPolicy(RecordingRetentionPolicy policy) =>
+      _withLibraryLock((root) async {
+        await _writeJson(File('${root.path}/retention.json'), policy.toJson());
+        _lastReadPolicy = policy;
+        await _retain(root);
+      });
+
+  Future<int> storageBytes() => _withLibraryLock(_libraryBytes);
+  Future<void> drain() => _tail;
+
+  Future<RecordingRetentionPolicy> _readPolicy(Directory root) async {
+    final file = File('${root.path}/retention.json');
+    final type = await FileSystemEntity.type(file.path, followLinks: false);
+    if (type == FileSystemEntityType.notFound) {
+      return _lastReadPolicy = _defaultPolicy;
+    }
+    if (type != FileSystemEntityType.file || await file.length() > 4096) {
+      throw const FormatException('Invalid recording retention policy file');
+    }
+    return _lastReadPolicy = RecordingRetentionPolicy.fromJson(
+      jsonDecode(await file.readAsString()),
+    );
+  }
+
   Future<void> applyRetention() => _withLibraryLock(_retain);
   Future<void> _retain(Directory root) async {
+    final policy = await _readPolicy(root);
     var total = await _libraryBytes(root);
-    final cutoff = DateTime.now().toUtc().subtract(maximumAge);
+    final cutoff = DateTime.now().toUtc().subtract(policy.maximumAge);
     final entries = (await _list(root)).reversed;
     for (final entry in entries) {
       if (entry.keep || entry.isActive || !entry.isReadable) continue;
-      if (!entry.createdAtUtc.isBefore(cutoff) && total < maximumBytes) {
+      if (!entry.createdAtUtc.isBefore(cutoff) && total < policy.maximumBytes) {
         continue;
       }
       _Lease? lease;
@@ -672,12 +722,18 @@ class SampledRecordingLibrary {
   }
 
   Future<void> _write(Directory root, SampledRecordingEntry entry) async {
-    final destination = File('${root.path}/entries/${entry.id}.json');
+    await _writeJson(
+      File('${root.path}/entries/${entry.id}.json'),
+      entry.toJson(),
+    );
+  }
+
+  Future<void> _writeJson(File destination, Map<String, Object?> value) async {
     final temporary = File(
       '${destination.path}.${Random.secure().nextInt(1 << 32)}.tmp',
     );
     try {
-      await temporary.writeAsString(jsonEncode(entry.toJson()), flush: true);
+      await temporary.writeAsString(jsonEncode(value), flush: true);
       await temporary.rename(destination.path);
     } finally {
       if (await temporary.exists()) await temporary.delete();

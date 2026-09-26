@@ -87,7 +87,7 @@ Future<SampledRecordingEntry> seedSampledRecording(
     id: id,
     path: '${root.path}/$id.trailrec',
     displayName: 'Saved work',
-    createdAtUtc: DateTime.utc(2026, 9, 27),
+    createdAtUtc: DateTime.now().toUtc(),
     duration: const Duration(seconds: 10),
     state: 'finished',
     sessionId: null,

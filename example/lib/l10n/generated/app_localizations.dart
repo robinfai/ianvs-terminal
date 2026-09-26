@@ -8551,6 +8551,120 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Page {page}'**
   String recordingSearchPage(int page);
+
+  /// No description provided for @recordingRetentionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Recording retention'**
+  String get recordingRetentionTitle;
+
+  /// No description provided for @recordingRetentionExplanation.
+  ///
+  /// In en, this message translates to:
+  /// **'Ordinary recordings are cleaned up by both age and total storage. Kept, active and open recordings are protected. If protected files fill the budget, new recording cannot start.'**
+  String get recordingRetentionExplanation;
+
+  /// No description provided for @recordingRetentionUsage.
+  ///
+  /// In en, this message translates to:
+  /// **'Library currently uses {gib} GiB.'**
+  String recordingRetentionUsage(String gib);
+
+  /// No description provided for @recordingRetentionDays.
+  ///
+  /// In en, this message translates to:
+  /// **'Retention days'**
+  String get recordingRetentionDays;
+
+  /// No description provided for @recordingRetentionCapacity.
+  ///
+  /// In en, this message translates to:
+  /// **'Storage budget (GiB)'**
+  String get recordingRetentionCapacity;
+
+  /// No description provided for @recordingRetentionDaysError.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a whole number from 1 to 36500.'**
+  String get recordingRetentionDaysError;
+
+  /// No description provided for @recordingRetentionCapacityError.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a positive storage limit below 8388608 GiB.'**
+  String get recordingRetentionCapacityError;
+
+  /// No description provided for @recordingRetentionApplyWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'Saving applies cleanup immediately. Deleted recordings cannot be recovered. Existing NDJSON files are not managed by this policy.'**
+  String get recordingRetentionApplyWarning;
+
+  /// No description provided for @recordingRetentionSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Save and apply'**
+  String get recordingRetentionSave;
+
+  /// No description provided for @recordingRetentionApplying.
+  ///
+  /// In en, this message translates to:
+  /// **'Applying…'**
+  String get recordingRetentionApplying;
+
+  /// No description provided for @recordingRetentionLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not read settings or storage usage. Review the displayed values before saving to replace the settings. {detail}'**
+  String recordingRetentionLoadError(String detail);
+
+  /// No description provided for @recordingRetentionApplyError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not finish applying cleanup. Settings may already be saved; retry after resolving this problem. {detail}'**
+  String recordingRetentionApplyError(String detail);
+
+  /// No description provided for @recordingKeep.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep recording'**
+  String get recordingKeep;
+
+  /// No description provided for @recordingUnkeep.
+  ///
+  /// In en, this message translates to:
+  /// **'Allow automatic cleanup'**
+  String get recordingUnkeep;
+
+  /// No description provided for @recordingKept.
+  ///
+  /// In en, this message translates to:
+  /// **'Kept'**
+  String get recordingKept;
+
+  /// No description provided for @recordingDeleteTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete recording?'**
+  String get recordingDeleteTitle;
+
+  /// No description provided for @recordingDeleteWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'Permanently delete “{name}”, including its recorded screens, commands and assets? This cannot be undone.'**
+  String recordingDeleteWarning(String name);
+
+  /// No description provided for @recordingDeleteInUse.
+  ///
+  /// In en, this message translates to:
+  /// **'Close replay before deleting'**
+  String get recordingDeleteInUse;
+
+  /// No description provided for @recordingManageError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not update the recording: {detail}'**
+  String recordingManageError(String detail);
 }
 
 class _AppLocalizationsDelegate

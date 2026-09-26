@@ -1,6 +1,42 @@
 part of 'shell_screen.dart';
 
 extension _ShellScreenRecordingLibraryState on _ShellScreenState {
+  Widget _buildRecordingShelf({
+    required AppThemeTokens palette,
+    required SessionController sessionController,
+    required String? activeSessionId,
+  }) => _SavedRecordingsShelf(
+    palette: palette,
+    entries: _recordingEntries,
+    mutationPaths: _recordingMutationPaths,
+    selectedPath: _selectedRecordingEntry?.path,
+    loading: _recordingLibraryLoading,
+    selectionLoading: _recordingSelectionLoading,
+    error: _recordingLibraryError,
+    onRefresh: () => unawaited(_loadRecordingLibrary()),
+    onOpenFile: () => unawaited(_openRecordingFromPicker()),
+    onSearch: () => unawaited(_searchSavedRecordings()),
+    onRetention: () => unawaited(_editRecordingRetention()),
+    onKeep: (entry) => unawaited(_setRecordingKeep(entry)),
+    onDelete: (entry) => unawaited(_deleteSavedRecording(entry)),
+    onRecent: activeSessionId == null
+        ? null
+        : () => unawaited(_openInstantReplay(_sessionState)),
+    onToggleRecording:
+        activeSessionId == null ||
+            _sessionState.recordingBusySessionIds.contains(activeSessionId)
+        ? null
+        : () => unawaited(
+            _toggleActiveSessionRecording(sessionController, activeSessionId),
+          ),
+    recording: _sessionState.recordingSessionIds.contains(activeSessionId),
+    pendingSave: _sessionState.recordingPendingSaveSessionIds.contains(
+      activeSessionId,
+    ),
+    onSelect: (entry) => unawaited(_selectRecording(entry)),
+    onClose: _closeRecordingLibrary,
+  );
+
   Future<void> _openRecordingLibrary({FocusNode? returnFocus}) async {
     if (_recordingShelfOpen) return;
     _recordingReturnFocus = returnFocus ?? FocusManager.instance.primaryFocus;
@@ -218,6 +254,74 @@ extension _ShellScreenRecordingLibraryState on _ShellScreenState {
       _recordingOpenFailed(error, generation);
     } finally {
       _finishRecordingOpen(generation);
+    }
+  }
+
+  Future<void> _editRecordingRetention() async {
+    final applied = await showRecordingRetention(
+      context: context,
+      library: ref.read(sampledRecordingLibraryProvider),
+    );
+    if (mounted && applied == true) await _loadRecordingLibrary();
+  }
+
+  Future<void> _setRecordingKeep(SampledRecordingEntry entry) =>
+      _mutateRecording(
+        entry,
+        () => ref
+            .read(sampledRecordingLibraryProvider)
+            .setKeep(entry.path, !entry.keep),
+      );
+
+  Future<void> _deleteSavedRecording(SampledRecordingEntry entry) async {
+    if (_selectedRecordingEntry?.path == entry.path) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(context.l10n.recordingDeleteTitle),
+        content: SingleChildScrollView(
+          child: Text(context.l10n.recordingDeleteWarning(entry.displayName)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(context.l10n.cancel),
+          ),
+          FilledButton(
+            key: const Key('recording-delete-confirm'),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(context.l10n.delete),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || confirmed != true) return;
+    await _mutateRecording(
+      entry,
+      () =>
+          ref.read(sampledRecordingLibraryProvider).deleteRecording(entry.path),
+    );
+  }
+
+  Future<void> _mutateRecording(
+    SampledRecordingEntry entry,
+    Future<void> Function() action,
+  ) async {
+    if (_recordingMutationPaths.contains(entry.path)) return;
+    _mutateState(() => _recordingMutationPaths.add(entry.path));
+    try {
+      await action();
+      if (mounted) await _loadRecordingLibrary();
+    } on Object catch (error) {
+      if (mounted) {
+        final message = context.l10n.recordingManageError('$error');
+        _mutateState(() => _recordingLibraryError = message);
+        _showShellSnackBar(message);
+      }
+    } finally {
+      if (mounted) {
+        _mutateState(() => _recordingMutationPaths.remove(entry.path));
+      }
     }
   }
 

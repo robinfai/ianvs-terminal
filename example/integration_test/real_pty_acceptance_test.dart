@@ -25,6 +25,7 @@ import '../test/support/macos_integration_test_lifecycle.dart';
 import '../test/support/memory_app_preferences_repository.dart';
 import '../test/support/memory_local_terminal_config_repository.dart';
 import '../test/support/memory_profile_repository.dart';
+import '../test/support/no_io_sampled_recording_library.dart';
 
 const _frameWait = Duration(seconds: 20);
 const _pollStep = Duration(milliseconds: 100);
@@ -2806,6 +2807,9 @@ Future<_RealPtyHarness> _pumpRealPtyApp(
       : NativePtyBackend.load(emitRuntimeEventGapDiagnostics: true);
   final container = ProviderContainer(
     overrides: [
+      sampledRecordingLibraryProvider.overrideWithValue(
+        noIoSampledRecordingLibrary(),
+      ),
       ptySessionBackendProvider.overrideWithValue(ptyBackend),
       profileRepositoryProvider.overrideWithValue(
         MemoryProfileRepository(TerminalProfilesDocument(profiles: profiles)),

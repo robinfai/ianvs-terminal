@@ -305,3 +305,39 @@ focused rerun. The full gate did not reach Keychain, release packaging or native
 Xcode tests; complete verification still needs a final rerun. Logs are
 `/private/tmp/adaptive-recording-search-make-verify.log` and
 `/private/tmp/adaptive-recording-download-feedback-test.log` on this host.
+
+
+## Implementation checkpoint — persistent protected retention
+
+The library now persists configurable age/capacity limits with strict policy
+validation. Startup and five-minute maintenance apply both limits; invalid or
+unknown settings prevent cleanup and new capture instead of resetting defaults.
+Explicit Save and apply warns about immediate deletion. Keep can be changed while
+a replay is open, and a late inspect cannot overwrite a newly saved Keep flag.
+Deletion requires confirmation and removes the managed bundle, indexes and
+manifest. Reader/writer claims and old NDJSON remain protected.
+
+The settings surface has light/dark and compact 2x-text previews, input validation,
+usage reporting, retry/error feedback, keyboard navigation and busy-state controls.
+Four captures at 1,100x740 and 390x700 were inspected. Six surface tests and four
+library-management widget tests pass; the latter include real filesystem settings
+persistence, Keep during replay, cancel/confirm deletion and shutdown waiting for
+pending periodic cleanup. That shutdown test exposed unsafe late tab-color and
+resize access to a gated runtime; optional viewport reads and shutdown guards
+now prevent those exceptions. Controller widget fixtures dispose owned providers
+before Flutter timer invariants. All 133 session/startup/shutdown tests and 39
+native roundtrip/library/search/replay/architecture tests pass.
+
+Current logs: `/private/tmp/adaptive-recording-retention-management.log`,
+`/private/tmp/adaptive-recording-retention-lifecycle.log`,
+`/private/tmp/adaptive-recording-retention-integration.log`, and
+`/private/tmp/adaptive-recording-retention-visual.log`. Captures are under
+`example/build/recording_bench/adaptive/retention-*.png`. The complete application
+suite passed 1,990 tests with two conditional skips; fatal-infos analysis and all
+12 documentation contract tests passed. Full-repository verification is being
+rerun and is not established by these focused/application passes.
+
+Still open: safe external new-format bundle ownership, directory durability and
+system-failure checks, actual macOS/local/installed-shell/SSH product review,
+whole-pipeline performance and more than 24 actual hours on the final pipeline.
+No batch is declared fully accepted by this checkpoint.

@@ -5431,4 +5431,75 @@ class AppLocalizationsEn extends AppLocalizations {
   String recordingSearchPage(int page) {
     return 'Page $page';
   }
+
+  @override
+  String get recordingRetentionTitle => 'Recording retention';
+
+  @override
+  String get recordingRetentionExplanation =>
+      'Ordinary recordings are cleaned up by both age and total storage. Kept, active and open recordings are protected. If protected files fill the budget, new recording cannot start.';
+
+  @override
+  String recordingRetentionUsage(String gib) {
+    return 'Library currently uses $gib GiB.';
+  }
+
+  @override
+  String get recordingRetentionDays => 'Retention days';
+
+  @override
+  String get recordingRetentionCapacity => 'Storage budget (GiB)';
+
+  @override
+  String get recordingRetentionDaysError =>
+      'Enter a whole number from 1 to 36500.';
+
+  @override
+  String get recordingRetentionCapacityError =>
+      'Enter a positive storage limit below 8388608 GiB.';
+
+  @override
+  String get recordingRetentionApplyWarning =>
+      'Saving applies cleanup immediately. Deleted recordings cannot be recovered. Existing NDJSON files are not managed by this policy.';
+
+  @override
+  String get recordingRetentionSave => 'Save and apply';
+
+  @override
+  String get recordingRetentionApplying => 'Applying…';
+
+  @override
+  String recordingRetentionLoadError(String detail) {
+    return 'Could not read settings or storage usage. Review the displayed values before saving to replace the settings. $detail';
+  }
+
+  @override
+  String recordingRetentionApplyError(String detail) {
+    return 'Could not finish applying cleanup. Settings may already be saved; retry after resolving this problem. $detail';
+  }
+
+  @override
+  String get recordingKeep => 'Keep recording';
+
+  @override
+  String get recordingUnkeep => 'Allow automatic cleanup';
+
+  @override
+  String get recordingKept => 'Kept';
+
+  @override
+  String get recordingDeleteTitle => 'Delete recording?';
+
+  @override
+  String recordingDeleteWarning(String name) {
+    return 'Permanently delete “$name”, including its recorded screens, commands and assets? This cannot be undone.';
+  }
+
+  @override
+  String get recordingDeleteInUse => 'Close replay before deleting';
+
+  @override
+  String recordingManageError(String detail) {
+    return 'Could not update the recording: $detail';
+  }
 }

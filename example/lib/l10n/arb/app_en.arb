@@ -4137,5 +4137,59 @@
         "type": "int"
       }
     }
+  },
+  "recordingRetentionTitle": "Recording retention",
+  "recordingRetentionExplanation": "Ordinary recordings are cleaned up by both age and total storage. Kept, active and open recordings are protected. If protected files fill the budget, new recording cannot start.",
+  "recordingRetentionUsage": "Library currently uses {gib} GiB.",
+  "recordingRetentionDays": "Retention days",
+  "recordingRetentionCapacity": "Storage budget (GiB)",
+  "recordingRetentionDaysError": "Enter a whole number from 1 to 36500.",
+  "recordingRetentionCapacityError": "Enter a positive storage limit below 8388608 GiB.",
+  "recordingRetentionApplyWarning": "Saving applies cleanup immediately. Deleted recordings cannot be recovered. Existing NDJSON files are not managed by this policy.",
+  "recordingRetentionSave": "Save and apply",
+  "recordingRetentionApplying": "Applying…",
+  "recordingRetentionLoadError": "Could not read settings or storage usage. Review the displayed values before saving to replace the settings. {detail}",
+  "recordingRetentionApplyError": "Could not finish applying cleanup. Settings may already be saved; retry after resolving this problem. {detail}",
+  "recordingKeep": "Keep recording",
+  "recordingUnkeep": "Allow automatic cleanup",
+  "recordingKept": "Kept",
+  "recordingDeleteTitle": "Delete recording?",
+  "recordingDeleteWarning": "Permanently delete “{name}”, including its recorded screens, commands and assets? This cannot be undone.",
+  "recordingDeleteInUse": "Close replay before deleting",
+  "recordingManageError": "Could not update the recording: {detail}",
+  "@recordingRetentionUsage": {
+    "placeholders": {
+      "gib": {
+        "type": "String"
+      }
+    }
+  },
+  "@recordingRetentionLoadError": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
+  "@recordingRetentionApplyError": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
+  "@recordingDeleteWarning": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "@recordingManageError": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
   }
 }

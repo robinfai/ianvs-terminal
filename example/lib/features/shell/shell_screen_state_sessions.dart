@@ -7,14 +7,20 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     Size viewportSize,
     double devicePixelRatio,
   ) {
-    if (!mounted || !_sessionExists(sessionId)) {
+    if (!mounted ||
+        sessionController.isShuttingDown ||
+        !_sessionExists(sessionId)) {
       return;
     }
     final selection = _selectionControllers[sessionId];
     void applyResize() {
       // Selection can be cleared during a build (for example closing a pane).
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || !_sessionExists(sessionId)) return;
+        if (!mounted ||
+            sessionController.isShuttingDown ||
+            !_sessionExists(sessionId)) {
+          return;
+        }
         if (_scheduledViewportSizes[sessionId] != viewportSize) return;
         if (selection?.selection != null) {
           _selectionResizeGuards[sessionId]?.resize(applyResize);
@@ -649,8 +655,8 @@ extension _ShellScreenStateSessions on _ShellScreenState {
   Color? _tabProfileColor(SessionState sessionState, TerminalTab tab) {
     final dynamicColor = ref
         .read(sessionControllerProvider.notifier)
-        .viewportFor(tab.activePane.sessionId)
-        .frame
+        .existingViewportFor(tab.activePane.sessionId)
+        ?.frame
         .tabColor;
     if (dynamicColor != null) {
       return dynamicColor;

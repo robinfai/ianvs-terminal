@@ -5078,4 +5078,73 @@ class AppLocalizationsZh extends AppLocalizations {
   String recordingSearchPage(int page) {
     return '第 $page 页';
   }
+
+  @override
+  String get recordingRetentionTitle => '录制保留设置';
+
+  @override
+  String get recordingRetentionExplanation =>
+      '普通录制按保留时间和总容量自动清理。已标记保留、正在录制或读取的内容受到保护；受保护内容占满容量时，无法开始新录制。';
+
+  @override
+  String recordingRetentionUsage(String gib) {
+    return '录制库当前占用 $gib GiB。';
+  }
+
+  @override
+  String get recordingRetentionDays => '保留天数';
+
+  @override
+  String get recordingRetentionCapacity => '容量上限（GiB）';
+
+  @override
+  String get recordingRetentionDaysError => '请输入 1 到 36500 之间的整数。';
+
+  @override
+  String get recordingRetentionCapacityError => '请输入大于 0、小于 8388608 GiB 的容量。';
+
+  @override
+  String get recordingRetentionApplyWarning =>
+      '保存后立即执行清理，删除的录制无法恢复。此策略不管理已有 NDJSON 文件。';
+
+  @override
+  String get recordingRetentionSave => '保存并应用';
+
+  @override
+  String get recordingRetentionApplying => '正在应用…';
+
+  @override
+  String recordingRetentionLoadError(String detail) {
+    return '无法读取设置或占用空间。保存会替换设置，请先检查当前显示的数值。$detail';
+  }
+
+  @override
+  String recordingRetentionApplyError(String detail) {
+    return '清理未能完成，设置可能已经保存。请解决问题后重试。$detail';
+  }
+
+  @override
+  String get recordingKeep => '保留录制';
+
+  @override
+  String get recordingUnkeep => '允许自动清理';
+
+  @override
+  String get recordingKept => '已保留';
+
+  @override
+  String get recordingDeleteTitle => '删除录制？';
+
+  @override
+  String recordingDeleteWarning(String name) {
+    return '永久删除“$name”及其录制画面、命令和资源？此操作无法撤销。';
+  }
+
+  @override
+  String get recordingDeleteInUse => '请先关闭回放再删除';
+
+  @override
+  String recordingManageError(String detail) {
+    return '无法更新录制：$detail';
+  }
 }

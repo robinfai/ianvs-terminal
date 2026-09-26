@@ -75,6 +75,7 @@ class _SavedRecordingsShelf extends StatelessWidget {
   const _SavedRecordingsShelf({
     required this.palette,
     required this.entries,
+    required this.mutationPaths,
     required this.selectedPath,
     required this.loading,
     required this.selectionLoading,
@@ -82,6 +83,9 @@ class _SavedRecordingsShelf extends StatelessWidget {
     required this.onRefresh,
     required this.onOpenFile,
     required this.onSearch,
+    required this.onRetention,
+    required this.onKeep,
+    required this.onDelete,
     required this.onRecent,
     required this.onToggleRecording,
     required this.recording,
@@ -92,6 +96,7 @@ class _SavedRecordingsShelf extends StatelessWidget {
 
   final AppThemeTokens palette;
   final List<SampledRecordingEntry> entries;
+  final Set<String> mutationPaths;
   final String? selectedPath;
   final bool loading;
   final bool selectionLoading;
@@ -99,6 +104,9 @@ class _SavedRecordingsShelf extends StatelessWidget {
   final VoidCallback onRefresh;
   final VoidCallback onOpenFile;
   final VoidCallback onSearch;
+  final VoidCallback onRetention;
+  final ValueChanged<SampledRecordingEntry> onKeep;
+  final ValueChanged<SampledRecordingEntry> onDelete;
   final VoidCallback? onRecent;
   final VoidCallback? onToggleRecording;
   final bool recording;
@@ -291,6 +299,12 @@ class _SavedRecordingsShelf extends StatelessWidget {
           label: Text(l10n.recordingSearchTitle),
         ),
         OutlinedButton.icon(
+          key: const Key('recording-library-retention'),
+          onPressed: selectionLoading ? null : onRetention,
+          icon: const Icon(Icons.auto_delete_outlined),
+          label: Text(l10n.recordingRetentionTitle),
+        ),
+        OutlinedButton.icon(
           key: const Key('recording-library-open-file'),
           onPressed: selectionLoading ? null : onOpenFile,
           icon: const Icon(Icons.folder_open_rounded),
@@ -354,12 +368,18 @@ class _SavedRecordingsShelf extends StatelessWidget {
     final details = entry.isReadable
         ? '${material.formatCompactDate(date)} · ${material.formatTimeOfDay(TimeOfDay.fromDateTime(date))} · ${_formatRecordingDuration(entry.duration)}'
         : context.l10n.replayRecordingUnavailable;
+    final enabled =
+        entry.isReadable &&
+        !selectionLoading &&
+        !mutationPaths.contains(entry.path);
     return ListTile(
       key: ValueKey('recording-entry-${entry.path}'),
       selected: selectedPath == entry.path,
-      enabled: entry.isReadable && !selectionLoading,
+      enabled: enabled,
       leading: Icon(
-        entry.isReadable
+        entry.keep
+            ? Icons.bookmark_rounded
+            : entry.isReadable
             ? Icons.play_circle_outline_rounded
             : Icons.error_outline_rounded,
       ),
@@ -368,14 +388,40 @@ class _SavedRecordingsShelf extends StatelessWidget {
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
       ),
-      subtitle: Text(details),
+      subtitle: Text(
+        entry.keep ? '$details · ${context.l10n.recordingKept}' : details,
+      ),
+      trailing: PopupMenuButton<String>(
+        key: ValueKey('recording-actions-${entry.path}'),
+        enabled: enabled,
+        tooltip: context.l10n.recordingActions,
+        onSelected: (action) =>
+            action == 'keep' ? onKeep(entry) : onDelete(entry),
+        itemBuilder: (context) => [
+          PopupMenuItem(
+            value: 'keep',
+            child: Text(
+              entry.keep
+                  ? context.l10n.recordingUnkeep
+                  : context.l10n.recordingKeep,
+            ),
+          ),
+          PopupMenuItem(
+            value: 'delete',
+            enabled: selectedPath != entry.path,
+            child: Text(
+              selectedPath == entry.path
+                  ? context.l10n.recordingDeleteInUse
+                  : context.l10n.delete,
+            ),
+          ),
+        ],
+      ),
       contentPadding: EdgeInsets.symmetric(
         horizontal: palette.spacing.lg,
         vertical: palette.spacing.xs,
       ),
-      onTap: entry.isReadable && !selectionLoading
-          ? () => onSelect(entry)
-          : null,
+      onTap: enabled ? () => onSelect(entry) : null,
     );
   }
 }

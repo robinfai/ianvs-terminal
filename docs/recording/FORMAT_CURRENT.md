@@ -25,7 +25,11 @@ This is the development implementation, not completed release acceptance.
 The writer publishes incremental seek/command indexes and a bounded summary
 cache for normal opens; changed files fall back to a recovery scan. Cross-recording
 command/screen search with host/date filters and result-to-replay navigation is
-implemented with cancellable, bounded pages. Retention controls and more-than-24-hour
-system/product validation remain open in the [delivery task](../tasks/adaptive-session-recording.md). The application
-recording tests and isolated review entrypoints use the new product contract;
+implemented with cancellable, bounded pages. The library exposes persistent
+age/capacity settings, Keep and explicit deletion; cleanup runs at startup, every
+five minutes and after an explicit settings apply. Active/read files remain
+protected. External bundle ownership, directory durability and more-than-24-hour
+system/product validation remain open in the
+[delivery task](../tasks/adaptive-session-recording.md). The application recording
+tests and isolated review entrypoints use the new product contract;
 full release acceptance is still pending.

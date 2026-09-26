@@ -32,6 +32,7 @@ import '../profiles/profile_editor.dart';
 import '../profiles/profile_models.dart';
 import '../profiles/profiles_sheet.dart';
 import '../recording/mobile_replay_player.dart';
+import '../recording/recording_retention_dialog.dart';
 import '../recording/replay_viewport_layout.dart';
 import '../recording/sampled_recording_library.dart';
 import '../recording/sampled_recording_player.dart';
@@ -349,6 +350,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   bool _recordingSelectionLoading = false;
   String? _recordingLibraryError;
   List<SampledRecordingEntry> _recordingEntries = const [];
+  final Set<String> _recordingMutationPaths = {};
   bool _recordingShelfOpen = false;
   bool _mobileConnectionsOpen = false;
   int _recordingOpenGeneration = 0;
@@ -1595,43 +1597,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                       ),
                                     ),
                             ),
-                            shelf: _SavedRecordingsShelf(
+                            shelf: _buildRecordingShelf(
                               palette: palette,
-                              entries: _recordingEntries,
-                              selectedPath: _selectedRecordingEntry?.path,
-                              loading: _recordingLibraryLoading,
-                              selectionLoading: _recordingSelectionLoading,
-                              error: _recordingLibraryError,
-                              onRefresh: () =>
-                                  unawaited(_loadRecordingLibrary()),
-                              onOpenFile: () =>
-                                  unawaited(_openRecordingFromPicker()),
-                              onSearch: () =>
-                                  unawaited(_searchSavedRecordings()),
-                              onRecent: activeSessionId == null
-                                  ? null
-                                  : () => unawaited(
-                                      _openInstantReplay(_sessionState),
-                                    ),
-                              onToggleRecording:
-                                  activeSessionId == null ||
-                                      _sessionState.recordingBusySessionIds
-                                          .contains(activeSessionId)
-                                  ? null
-                                  : () => unawaited(
-                                      _toggleActiveSessionRecording(
-                                        sessionController,
-                                        activeSessionId,
-                                      ),
-                                    ),
-                              recording: _sessionState.recordingSessionIds
-                                  .contains(activeSessionId),
-                              pendingSave: _sessionState
-                                  .recordingPendingSaveSessionIds
-                                  .contains(activeSessionId),
-                              onSelect: (entry) =>
-                                  unawaited(_selectRecording(entry)),
-                              onClose: _closeRecordingLibrary,
+                              sessionController: sessionController,
+                              activeSessionId: activeSessionId,
                             ),
                           ),
                         ),

@@ -12,6 +12,7 @@ import 'package:integration_test/integration_test.dart';
 import '../test/support/macos_integration_test_lifecycle.dart';
 import '../test/support/memory_app_preferences_repository.dart';
 import '../test/support/memory_profile_repository.dart';
+import '../test/support/no_io_sampled_recording_library.dart';
 
 const _frameWait = Duration(seconds: 20);
 const _pollStep = Duration(milliseconds: 100);
@@ -34,6 +35,9 @@ void main() {
     );
     final container = ProviderContainer(
       overrides: [
+        sampledRecordingLibraryProvider.overrideWithValue(
+          noIoSampledRecordingLibrary(),
+        ),
         profileRepositoryProvider.overrideWithValue(
           MemoryProfileRepository(
             TerminalProfilesDocument(profiles: [profile]),

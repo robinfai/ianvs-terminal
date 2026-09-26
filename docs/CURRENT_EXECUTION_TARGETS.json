@@ -876,11 +876,34 @@
           "contains": [
             "search hits seek to their time"
           ]
+        },
+        {
+          "path": "example/lib/features/recording/recording_retention_policy.dart",
+          "contains": [
+            "class RecordingRetentionPolicy",
+            "maximum_age_days",
+            "maximum_bytes"
+          ]
+        },
+        {
+          "path": "example/lib/features/recording/recording_retention_maintenance.dart",
+          "contains": [
+            "class RecordingRetentionMaintenance",
+            "Future<void> stop()"
+          ]
+        },
+        {
+          "path": "example/test/shell/shell_recording_management_test.dart",
+          "contains": [
+            "Keep can change during replay",
+            "shutdown waits for pending periodic cleanup"
+          ]
         }
       ],
       "verification_commands": [
         "cargo test --manifest-path native/core/Cargo.toml --test sampled_recording_test --test sampled_recording_storage_test --test sampled_recording_timeline_test --test sampled_recording_session_test",
         "flutter test example/test/sessions/session_recording_lifecycle_test.dart example/test/recording/sampled_native_roundtrip_test.dart example/test/sampled_recording_library_test.dart example/test/sampled_replay_controller_test.dart example/test/sampled_replay_surface_test.dart",
+        "flutter test example/test/recording_retention_maintenance_test.dart example/test/recording_retention_surface_test.dart example/test/shell/shell_recording_management_test.dart",
         "dart test test/docs_contract_test.dart",
         "make verify"
       ],

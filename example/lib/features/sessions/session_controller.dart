@@ -22,6 +22,7 @@ import '../preferences/app_preferences_repository.dart';
 import '../profiles/profile_models.dart';
 import '../profiles/profile_repository.dart';
 import '../pty/pty.dart';
+import '../recording/recording_retention_maintenance.dart';
 import '../recording/sampled_recording_library.dart';
 import '../ssh/ssh_feature_access.dart';
 import '../terminal/terminal.dart' hide TerminalEmulation;
@@ -464,6 +465,7 @@ class SessionController extends Notifier<SessionState> {
   final Map<String, Future<bool>> _recordingStarts = {};
   final Map<String, TerminalSessionExitClaim> _recordingExitClaims = {};
   Timer? _recordingTimer;
+  RecordingRetentionMaintenance? _recordingMaintenance;
   bool _recordingPollRunning = false;
   Future<void>? _bootstrapFuture;
   Future<void>? _recordingShutdownFuture;
@@ -596,6 +598,7 @@ class SessionController extends Notifier<SessionState> {
       }
       _layoutPersistenceTimer?.cancel();
       _layoutRetryTimer?.cancel();
+      unawaited(_recordingMaintenance?.stop());
       _runtimeEventAttachment?.detach();
       for (final timer in _progressGraceTimers.values) {
         timer.cancel();
@@ -752,9 +755,9 @@ class SessionController extends Notifier<SessionState> {
 
     String? recordingRecoveryError;
     try {
-      final recovery = await ref
-          .read(sampledRecordingLibraryProvider)
-          .recover();
+      final recordingLibrary = ref.read(sampledRecordingLibraryProvider);
+      final recovery = await recordingLibrary.recover();
+      await recordingLibrary.applyRetention();
       if (recovery.errors.isNotEmpty) {
         recordingRecoveryError =
             'Recording recovery found ${recovery.errors.length} unavailable recording(s): ${recovery.errors.first}';
@@ -895,6 +898,17 @@ class SessionController extends Notifier<SessionState> {
       lastError:
           layoutRestoreError ?? recordingRecoveryError ?? state.lastError,
     );
+    _recordingMaintenance ??= RecordingRetentionMaintenance(
+      run: ref.read(sampledRecordingLibraryProvider).applyRetention,
+      onError: (error) {
+        if (ref.mounted && !_isShuttingDown) {
+          state = state.copyWith(
+            lastError: _recordingError('Recording cleanup failed', error),
+          );
+        }
+      },
+    );
+    _recordingMaintenance!.start();
     _syncRuntimeSessionActivation();
     final activePane = initialSessionId == null
         ? null
@@ -2036,6 +2050,7 @@ class SessionController extends Notifier<SessionState> {
     }
 
     _isShuttingDown = true;
+    unawaited(_recordingMaintenance?.stop());
     final bootstrapSettlement = _bootstrapFuture ?? Future<void>.value();
     final runtimeEventsCancellation = terminalEventCoordinator.beginShutdown();
     _runtimeEventAttachment?.detach();
@@ -2114,6 +2129,8 @@ class SessionController extends Notifier<SessionState> {
   ) async {
     _recordingTimer?.cancel();
     _recordingTimer = null;
+    await _recordingMaintenance?.stop();
+    await library.drain();
     await Future.wait(_recordingStarts.values.toList(growable: false));
     for (final claim in library.activeClaims.toList(growable: false)) {
       if (!claim.dispatched) {
@@ -2578,6 +2595,7 @@ class SessionController extends Notifier<SessionState> {
     Size viewportSize,
     double devicePixelRatio,
   ) {
+    if (_isShuttingDown || !ref.mounted) return;
     if (ref.read(sessionDemoFixtureProvider) != null) {
       return;
     }

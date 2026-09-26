@@ -16,6 +16,9 @@ class NoIoSampledRecordingLibrary extends SampledRecordingLibrary {
       );
 
   @override
+  Future<void> applyRetention() async {}
+
+  @override
   Future<SampledRecordingRecovery> recover() async =>
       const SampledRecordingRecovery(0, 0, []);
 }

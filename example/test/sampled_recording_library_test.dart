@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:app/features/recording/recording_retention_policy.dart';
 import 'package:app/features/recording/sampled_recording_library.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_pty/ianvs_pty.dart';
@@ -10,6 +11,7 @@ import 'package:ianvs_terminal/ianvs_terminal.dart';
 final class _Files implements RecordingFileApi {
   final List<String> calls = [];
   Completer<void>? reading;
+  Completer<void>? inspecting;
   @override
   Future<Map<String, Object?>> run(
     String operation,
@@ -17,6 +19,7 @@ final class _Files implements RecordingFileApi {
     RecordingFileCancellation? cancellation,
   }) async {
     calls.add(operation);
+    if (operation == 'inspect') await inspecting?.future;
     if (operation == 'seek') {
       await reading?.future;
       return {'screen': null};
@@ -285,6 +288,122 @@ void main() {
         bounded.reserve(sessionId: '2', sessionEpoch: 1, title: 'blocked'),
         throwsStateError,
       );
+    },
+  );
+
+  test(
+    'policy survives recreation and enforces age and total capacity without replacing active claims',
+    () async {
+      final old = 'a' * 32;
+      final kept = 'b' * 32;
+      final claim = await library.reserve(
+        sessionId: '1',
+        sessionEpoch: 1,
+        title: 'active',
+      );
+      await _seed(root, old, ageDays: 30);
+      await _seed(root, kept, keep: true);
+      final policy = RecordingRetentionPolicy(
+        maximumAgeDays: 14,
+        maximumBytes: 1,
+      );
+      await library.saveRetentionPolicy(policy);
+      expect(library.activeClaims.single, same(claim));
+      expect(await Directory('${root.path}/$old.trailrec').exists(), isFalse);
+      expect(await Directory('${root.path}/$kept.trailrec').exists(), isTrue);
+      final reopened = SampledRecordingLibrary(
+        files: files,
+        directoryResolver: () async => root,
+      );
+      final loaded = await reopened.loadRetentionPolicy();
+      expect(loaded.toJson(), policy.toJson());
+      await expectLater(
+        reopened.reserve(sessionId: '2', sessionEpoch: 1, title: 'blocked'),
+        throwsStateError,
+      );
+      expect(library.activeClaims.single, same(claim));
+      await library.abandonUndispatched(claim);
+    },
+  );
+
+  test(
+    'capacity evicts the oldest ordinary recording including its search cache',
+    () async {
+      final old = 'a' * 32;
+      final recent = 'b' * 32;
+      await _seed(root, old, ageDays: 2);
+      await _seed(root, recent, ageDays: 1);
+      await File(
+        '${root.path}/$old.trailrec/search.index',
+      ).writeAsString('fixture index');
+      final before = await library.storageBytes();
+      await library.saveRetentionPolicy(
+        RecordingRetentionPolicy(maximumAgeDays: 365, maximumBytes: before - 1),
+      );
+      expect(await Directory('${root.path}/$old.trailrec').exists(), isFalse);
+      expect(await File('${root.path}/entries/$old.json').exists(), isFalse);
+      expect(await Directory('${root.path}/$recent.trailrec').exists(), isTrue);
+      expect((await library.listRecordings()).single.id, recent);
+      expect(await library.storageBytes(), lessThan(before - 1));
+    },
+  );
+
+  test(
+    'unknown or corrupt policy blocks automatic deletion and new capture',
+    () async {
+      final id = 'a' * 32;
+      await _seed(root, id, ageDays: 30);
+      for (final raw in [
+        'not JSON',
+        '{"schema_version":3,"maximum_age_days":1,"maximum_bytes":1}',
+        '{"schema_version":2,"maximum_age_days":0,"maximum_bytes":1}',
+        '{"schema_version":2,"maximum_age_days":1,"maximum_bytes":1,"unknown":true}',
+      ]) {
+        await File('${root.path}/retention.json').writeAsString(raw);
+        await expectLater(library.applyRetention(), throwsFormatException);
+        await expectLater(
+          library.reserve(sessionId: '1', sessionEpoch: 1, title: 'blocked'),
+          throwsFormatException,
+        );
+        expect(await Directory('${root.path}/$id.trailrec').exists(), isTrue);
+      }
+      // Explicitly reviewed values can replace unusable settings.
+      await library.saveRetentionPolicy(
+        RecordingRetentionPolicy(
+          maximumAgeDays: 365,
+          maximumBytes: 1024 * 1024,
+        ),
+      );
+      expect((await library.loadRetentionPolicy()).maximumAgeDays, 365);
+      expect(await Directory('${root.path}/$id.trailrec').exists(), isTrue);
+    },
+  );
+
+  test(
+    'late inspect preserves Keep changed while a replay is opening',
+    () async {
+      final id = 'a' * 32;
+      await _seed(root, id, ageDays: 30);
+      final path = '${root.path}/$id.trailrec';
+      files.inspecting = Completer<void>();
+      final pending = library.openRecording(path);
+      final deadline = DateTime.now().add(const Duration(seconds: 5));
+      while (!files.calls.contains('inspect')) {
+        if (DateTime.now().isAfter(deadline)) fail('Inspect did not start');
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+      await library.setKeep(path, true);
+      files.inspecting!.complete();
+      final viewer = await pending;
+      expect(viewer.entry.keep, isTrue);
+      expect((await library.listRecordings()).single.keep, isTrue);
+      await library.applyRetention();
+      await viewer.close();
+      await library.applyRetention();
+      expect(await Directory(path).exists(), isTrue);
+      await library.setKeep(path, false);
+      await library.applyRetention();
+      expect(await Directory(path).exists(), isFalse);
     },
   );
 

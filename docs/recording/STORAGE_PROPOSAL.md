@@ -8,8 +8,9 @@ Native sampling, writing, recovery, disk seek, hook tracking and bounded Dart
 file workers are connected to the application library and player. This does not
 establish completed delivery. Incremental indexes and bounded cached opens are
 implemented, along with cross-recording command/screen search and host/date
-filters. Real cold-disk measurements, retention controls and long-running
-validation remain open in the
+filters. Persistent retention settings and Keep controls are connected. External
+bundle ownership, directory durability, real cold-disk measurements and
+long-running validation remain open in the
 [delivery task](../tasks/adaptive-session-recording.md).
 
 ## Fidelity and scope

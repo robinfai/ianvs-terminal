@@ -18,7 +18,7 @@
 - benchmark smoke 覆盖正确性和轻量时延门槛；CPU/RSS 阈值需要安静宿主运行，尚无跨机器长期对比基线。
 - SSH 自动化覆盖认证、ProxyJump、host-key 与转发；更宽的服务器版本、发行版和真实网络环境仍需验证。
 - 字体/DPI、Unicode cluster、Powerline / Nerd Font 的实际观感，以及 trackpad 和宿主快捷键，需要[人工检查](compatibility/MANUAL_VERIFICATION.md)。
-- 长录制的容量、内存与快照恢复改进见[录制存储提案](recording/STORAGE_PROPOSAL.md)，正在分批实施。产品入口已切换为新格式，已增加录制时增量索引、缓存快速打开、跨录制搜索及主机/日期筛选；保留设置、完整应用性能及超过 24 小时验收尚未完成。
+- 长录制的容量、内存与快照恢复改进见[录制存储提案](recording/STORAGE_PROPOSAL.md)，正在分批实施。产品入口已切换为新格式，已增加录制时增量索引、缓存快速打开、跨录制搜索、主机/日期筛选及可持久化的保留设置；外部新格式文件的所有权处理、目录同步与系统故障验证、完整应用性能及超过 24 小时验收尚未完成。
 
 ## 当前门禁阻塞
 

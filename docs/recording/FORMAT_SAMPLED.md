@@ -199,8 +199,24 @@ lock files are never unlinked. Viewer leases also survive cancellation until all
 file reads settle. Keep, active, unknown-schema and corrupt-manifest entries are
 excluded from automatic retention. Orphan new-format bundles recover as Keep;
 legacy NDJSON and directories outside this library are never cleanup candidates.
-Manifest writes use flushed temporary files and rename; directory durability and
-system-failure acceptance are still outstanding.
+The library persists `retention.json` with exactly `schema_version: 2`,
+`maximum_age_days` (integer 1..36500), and `maximum_bytes` (integer
+1..9007199254740991). Both limits apply to ordinary recordings. Defaults are
+30 days and 20 GiB until explicitly saved. Unknown, malformed, oversized or
+non-regular policy files block automatic cleanup and new capture; they never
+silently reset to defaults. A deliberate settings save replaces the policy and
+applies cleanup immediately, so a cleanup error can occur after settings were
+saved. The UI reports that distinction and allows retry.
+
+Cleanup runs at startup and every five minutes, with at most one periodic run
+in flight. Shutdown stops scheduling and waits for ongoing cleanup/library
+mutations. Keep can be changed during replay or search; metadata refreshes and
+Keep changes are serialized so late reads cannot restore an old flag. Deletion
+is disabled for the selected replay, requires confirmation otherwise, and removes
+its bundle/indexes and manifest while retaining the permanent claim file.
+
+Manifest and policy writes use flushed temporary files and rename; directory
+durability and system-failure acceptance are still outstanding.
 
 
 ## Retained text search
