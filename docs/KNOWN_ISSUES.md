@@ -22,7 +22,7 @@
 
 ## 当前门禁阻塞
 
-- 新录制专项、会话/界面测试与启动依赖替身已迁移。签名夹具、iPhone 键盘高度读取和旧标题栏 golden 已修复；读取器的传输层依赖已归入 runtime 组合边界。完整 verification 曾发现新增文件接口遗漏 iOS 导出项，已补齐且 12 项 Apple 合同测试通过；完整 gate 需要在当前搜索实现上重跑，不能以专项通过代替完整 gate。
+- 新录制专项、会话/界面测试与启动依赖替身已迁移。签名夹具、iPhone 键盘高度读取和旧标题栏 golden 已修复；读取器的传输层依赖已归入 runtime 组合边界。完整 verification 曾发现新增文件接口遗漏 iOS 导出项，已补齐且 12 项 Apple 合同测试通过；当前完整运行已通过应用测试，随后在真实 PTY 下载反馈断言失败：测试仍依赖旧 SnackBar。断言已改为准确的本地化通知文字，真实 PTY 专项重跑通过；完整 macOS 构建、Keychain 和 Xcode 阶段仍待验证，不能以专项通过代替完整 gate。
 
 - 本机 CLT 27 SDK 与链接器不匹配。命令级指定 Xcode 26.2 的 `SDKROOT` 可避开该链接错误，不需改项目配置。
 - 工作区 iOS Bundle ID / signing 设置与 Apple identity 合同不一致；Runner simulator destination 匹配失败使本地优先启动 gate 尚未运行到断言。

@@ -286,3 +286,22 @@ Remaining: configurable persistent retention and Keep controls, external bundle
 ownership/import, real macOS/local/installed-shell/SSH review, whole-pipeline and
 system-failure measurements, >24 actual hours on the final pipeline, and a green
 complete repository gate. No batch is declared complete solely by this checkpoint.
+
+
+### Complete-gate result after search
+
+The full gate passed 1,020 canonical native tests (5 conditional skips), 39 PTY
+package tests, 702 canonical terminal tests (1 skip), 746 standalone tests
+(1 skip), 43 root contract tests, smoke benchmarks, and 1,973 application tests
+(1 skip). Full-tree formatting, fatal-infos analysis, strict Clippy and generated
+mirrors also passed. The four actual macOS smoke tests passed.
+
+The real-PTY suite passed 44 cases and failed the pre-existing OSC 1337 download
+feedback check: exact saved bytes had succeeded, but the assertion required a
+SnackBar even though the desktop host renders notification cards. The saved and
+upload-denied checks now assert their exact localized visible text, allowing
+independent notifications to coexist. That actual macOS/PTY test passed in a
+focused rerun. The full gate did not reach Keychain, release packaging or native
+Xcode tests; complete verification still needs a final rerun. Logs are
+`/private/tmp/adaptive-recording-search-make-verify.log` and
+`/private/tmp/adaptive-recording-download-feedback-test.log` on this host.
