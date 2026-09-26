@@ -43,6 +43,14 @@ impl RecordingIndex {
     /// Stream recovery/reindexing to a temporary file and publish atomically.
     /// Cancellation, source growth or scan I/O errors leave the prior cache intact.
     pub fn rebuild(path: &Path, mut cancelled: impl FnMut() -> bool) -> StorageResult<ScanReport> {
+        Self::rebuild_with_visitor(path, &mut cancelled, |_| Ok(()))
+    }
+
+    pub(super) fn rebuild_with_visitor(
+        path: &Path,
+        mut cancelled: impl FnMut() -> bool,
+        mut visit: impl FnMut(&super::LocatedRecord) -> StorageResult<()>,
+    ) -> StorageResult<ScanReport> {
         let reader = ContainerReader::open(path)?;
         let fingerprint = metadata_fingerprint(&reader.metadata)?;
         let source_bytes = fs::metadata(path.join("records.bin"))?.len();
@@ -50,6 +58,7 @@ impl RecordingIndex {
         temporary.write_all(&[0; HEADER_BYTES as usize])?;
         let mut entries = 0u64;
         let report = reader.scan(&mut cancelled, |record| {
+            visit(record)?;
             if let StoredRecord::Visual { sample, .. } = &record.record
                 && sample.base_sequence.is_none()
             {
@@ -244,7 +253,7 @@ impl RecordingIndex {
 fn read_u64(bytes: &[u8]) -> u64 {
     u64::from_le_bytes(bytes.try_into().unwrap())
 }
-fn metadata_fingerprint(metadata: &RecordingMetadata) -> StorageResult<[u8; 32]> {
+pub(super) fn metadata_fingerprint(metadata: &RecordingMetadata) -> StorageResult<[u8; 32]> {
     Ok(Sha256::digest(serde_json::to_vec(metadata)?).into())
 }
 fn encode_entry(entry: KeyframeEntry) -> [u8; ENTRY_BYTES as usize] {

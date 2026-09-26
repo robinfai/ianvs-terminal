@@ -7,10 +7,12 @@ export 'package:ianvs_pty/ianvs_pty.dart'
         NativePtyBackend,
         PtyBindings,
         PtyEvent,
+        PtyRuntimeCapabilityBackend,
         PtySessionBackend,
         PtySessionConfigV1Backend,
         PtySessionFramePacketV1Backend,
-        PtySessionRequestV1Backend;
+        PtySessionRequestV1Backend,
+        ptyRuntimeFeatureSessionRecordingV2;
 
 export 'ios_sandbox_shell_backend.dart' show IosSandboxShellBackend;
 

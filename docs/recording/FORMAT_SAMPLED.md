@@ -1,9 +1,8 @@
 # Sampled recording container, implementation draft
 
-This describes the native implementation under development, **not the current
-app entrypoint**. The app still uses [FORMAT_CURRENT](FORMAT_CURRENT.md) until its
-Dart/UI/library integration switches. This is not a claim of completed batch 2,
-power-loss durability, production performance or 24-hour acceptance.
+This describes the schema 2 format now used by the application's capture and
+saved-replay entrypoints. It remains under development; current acceptance gaps
+are tracked in the [delivery task](../tasks/adaptive-session-recording.md).
 
 ## Bundle and ownership
 
@@ -106,9 +105,10 @@ then streams the selected dependency group, checking cancellation between record
 It does not open a PTY or execute historical host actions. Interrupted prefixes
 can be indexed; stale or corrupted indexes fail and can be rebuilt by streaming.
 
-The current index builder scans the primary file. Incremental index publication
-during capture, app-owned asynchronous jobs and UI seek cancellation remain
-integration work; rebuilding an entire long file on each open is not the target.
+The current index builder scans the primary file on open. File work runs on
+bounded Dart worker isolates and has native cancellation, including UI seek
+replacement. Incremental index publication during capture and fast cold-open
+remain required; rebuilding an entire long file on each open is not the target.
 
 Native Session capture has its own snapshot extraction and 100 ms observation
 timer; it does not consume UI damage/acknowledgements or require frontend polling.
@@ -122,9 +122,9 @@ output capture and does not claim an exact intermediate screen for every command
 
 ## Capture control during app integration
 
-The staged `terminal.sampled_recording_start/status/stop/release` operations use
-Session Request v1 with a strict schema 2 operation payload. They do not change
-the advertised recording capability or replace the app's legacy path yet.
+The `terminal.sampled_recording_start/status/stop/release` operations use
+Session Request v1 with a strict schema 2 operation payload. The application uses
+these operations and advertises `session-recording.v2` with format version 2.
 The application must persist its library reservation and filesystem claim before
 start. It generates a 32-character lowercase hexadecimal capture ID and reserves
 an absolute path whose final component is `<capture_id>.trailrec`.
@@ -153,3 +153,34 @@ It never deletes or renames recording files. Unknown entries, malformed replies,
 identity conflicts, transport errors and polling timeouts are not settlement.
 The Dart client validates the correlated identity, exact fields, counts and state
 relationships and preserves these distinctions for the application repository.
+
+
+## File requests and application ownership
+
+`ianvs_recording_file_request_v2_json` accepts a strict JSON object containing
+`schema_version: 2`, `operation`, `job_id` and `payload`. The returned UTF-8 string
+is released with `ianvs_string_free`. Reserve returns a decimal job ID; cancel
+sets an atomic flag; release is rejected while a read is running. At most eight
+native read jobs exist concurrently. Requests are at most 64 KiB; responses are
+at most 48 MiB. The Dart API limits itself to two workers and 256 queued requests.
+
+Read operations are `inspect`, `metadata`, `seek`, `timeline` and `asset`.
+Inspect streams the primary file and publishes seek and command caches. Metadata
+only verifies the native header and recording identity. Seek returns one complete
+Protobuf screen plus asset bindings. Timeline returns up to 128 semantic events
+and a byte cursor. Asset returns verified RGBA pixels. Binary payloads are base64
+on this JSON boundary and decoded on the worker isolate; no session is created.
+
+`commands.index` starts with `TRLCMD02`, the primary source length (`u64`), a
+32-byte metadata fingerprint and a SHA-256 checksum of those 48 header bytes.
+Each entry contains a `u32` length, 32-byte SHA-256 and semantic-event JSON. The
+cache is replaceable and must match the primary file length and metadata.
+
+The application reserves `recordings-v2/entries/<id>.json` before dispatching
+capture and retains `claims/<id>.lock` until actual native settlement. Permanent
+lock files are never unlinked. Viewer leases also survive cancellation until all
+file reads settle. Keep, active, unknown-schema and corrupt-manifest entries are
+excluded from automatic retention. Orphan new-format bundles recover as Keep;
+legacy NDJSON and directories outside this library are never cleanup candidates.
+Manifest writes use flushed temporary files and rename; directory durability and
+system-failure acceptance are still outstanding.

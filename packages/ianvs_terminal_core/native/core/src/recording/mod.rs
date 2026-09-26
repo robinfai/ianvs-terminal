@@ -4,6 +4,7 @@
 
 mod assets;
 mod background;
+pub mod file_service;
 mod frame_state;
 mod index;
 mod replay;

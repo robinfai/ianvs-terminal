@@ -11,7 +11,7 @@ import 'package:flutter_test/flutter_test.dart';
 import '../support/fake_pty_backend.dart';
 import '../support/memory_local_terminal_config_repository.dart';
 import '../support/memory_profile_repository.dart';
-import '../support/no_io_local_session_recording_repository.dart';
+import '../support/no_io_sampled_recording_library.dart';
 
 Future<void> _pumpApp(
   WidgetTester tester, {
@@ -30,8 +30,8 @@ Future<void> _pumpApp(
           ),
         ),
         localTerminalConfigRepositoryProvider.overrideWithValue(repository),
-        localSessionRecordingRepositoryProvider.overrideWithValue(
-          noIoLocalSessionRecordingRepository(),
+        sampledRecordingLibraryProvider.overrideWithValue(
+          noIoSampledRecordingLibrary(),
         ),
       ],
       child: const IanvsTerminalApp(),

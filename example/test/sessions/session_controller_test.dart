@@ -11,7 +11,7 @@ import 'package:app/features/preferences/app_preferences_models.dart';
 import 'package:app/features/preferences/app_preferences_repository.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/profiles/profile_repository.dart';
-import 'package:app/features/recording/local_session_recording_repository.dart';
+import 'package:app/features/recording/sampled_recording_library.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/sessions/session_ports.dart';
 import 'package:app/features/sessions/session_shutdown.dart';
@@ -26,6 +26,7 @@ import 'package:ianvs_pty/ianvs_pty.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
 
 import '../support/fake_pty_backend.dart';
+import '../support/no_io_sampled_recording_library.dart';
 
 Future<void> _waitForCondition({
   required bool Function() condition,
@@ -268,38 +269,26 @@ class _TransientLocalTerminalLayoutRepository
   }
 }
 
-class _EmptyLocalSessionRecordingRepository
-    extends LocalSessionRecordingRepository {
+class _EmptySampledRecordingLibrary extends NoIoSampledRecordingLibrary {
   @override
-  Future<LocalSessionRecordingRecoveryResult> recoverNativeRecordings() async {
-    return const LocalSessionRecordingRecoveryResult(
-      recoveredPaths: <String>[],
-      pendingJobIds: <String>[],
-      orphanPaths: <String>[],
-      failures: <LocalSessionRecordingRecoveryFailure>[],
-    );
+  Future<SampledRecordingRecovery> recover() async {
+    return const SampledRecordingRecovery(0, 0, []);
   }
 }
 
-class _BlockingRecoveryRecordingRepository
-    extends LocalSessionRecordingRepository {
+class _BlockingRecoveryRecordingRepository extends NoIoSampledRecordingLibrary {
   final Completer<void> recoveryStarted = Completer<void>();
   final Completer<void> allowRecovery = Completer<void>();
   int recoveryAttempts = 0;
 
   @override
-  Future<LocalSessionRecordingRecoveryResult> recoverNativeRecordings() async {
+  Future<SampledRecordingRecovery> recover() async {
     recoveryAttempts += 1;
     if (!recoveryStarted.isCompleted) {
       recoveryStarted.complete();
     }
     await allowRecovery.future;
-    return const LocalSessionRecordingRecoveryResult(
-      recoveredPaths: <String>[],
-      pendingJobIds: <String>[],
-      orphanPaths: <String>[],
-      failures: <LocalSessionRecordingRecoveryFailure>[],
-    );
+    return const SampledRecordingRecovery(0, 0, []);
   }
 }
 
@@ -653,8 +642,8 @@ void main() {
           localTerminalLayoutRepositoryProvider.overrideWithValue(
             _TestLocalTerminalLayoutRepository(null),
           ),
-          localSessionRecordingRepositoryProvider.overrideWithValue(
-            _EmptyLocalSessionRecordingRepository(),
+          sampledRecordingLibraryProvider.overrideWithValue(
+            _EmptySampledRecordingLibrary(),
           ),
           sessionPollingEnabledProvider.overrideWithValue(false),
         ],
@@ -725,7 +714,7 @@ void main() {
           localTerminalLayoutRepositoryProvider.overrideWithValue(
             _TestLocalTerminalLayoutRepository(null),
           ),
-          localSessionRecordingRepositoryProvider.overrideWithValue(
+          sampledRecordingLibraryProvider.overrideWithValue(
             recordingRepository,
           ),
           sessionPollingEnabledProvider.overrideWithValue(false),
@@ -796,8 +785,8 @@ void main() {
           localTerminalLayoutRepositoryProvider.overrideWithValue(
             _TestLocalTerminalLayoutRepository(null),
           ),
-          localSessionRecordingRepositoryProvider.overrideWithValue(
-            _EmptyLocalSessionRecordingRepository(),
+          sampledRecordingLibraryProvider.overrideWithValue(
+            _EmptySampledRecordingLibrary(),
           ),
           sessionPollingEnabledProvider.overrideWithValue(false),
           driverWarmUpRefreshEnabledProvider.overrideWithValue(false),
@@ -859,8 +848,8 @@ void main() {
           localTerminalLayoutRepositoryProvider.overrideWithValue(
             _TestLocalTerminalLayoutRepository(null),
           ),
-          localSessionRecordingRepositoryProvider.overrideWithValue(
-            _EmptyLocalSessionRecordingRepository(),
+          sampledRecordingLibraryProvider.overrideWithValue(
+            _EmptySampledRecordingLibrary(),
           ),
           sessionPollingEnabledProvider.overrideWithValue(false),
           driverWarmUpRefreshEnabledProvider.overrideWithValue(false),
@@ -936,8 +925,8 @@ void main() {
     final coreClient = FakePtyBackend();
     final container = ProviderContainer(
       overrides: [
-        localSessionRecordingRepositoryProvider.overrideWithValue(
-          _EmptyLocalSessionRecordingRepository(),
+        sampledRecordingLibraryProvider.overrideWithValue(
+          _EmptySampledRecordingLibrary(),
         ),
         localTerminalConfigRepositoryProvider.overrideWithValue(
           _TestLocalTerminalConfigRepository(null),
@@ -3182,8 +3171,8 @@ void main() {
         localTerminalLayoutRepositoryProvider.overrideWithValue(
           _TestLocalTerminalLayoutRepository(null),
         ),
-        localSessionRecordingRepositoryProvider.overrideWithValue(
-          _EmptyLocalSessionRecordingRepository(),
+        sampledRecordingLibraryProvider.overrideWithValue(
+          _EmptySampledRecordingLibrary(),
         ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
@@ -3258,8 +3247,8 @@ void main() {
         localTerminalLayoutRepositoryProvider.overrideWithValue(
           _TestLocalTerminalLayoutRepository(null),
         ),
-        localSessionRecordingRepositoryProvider.overrideWithValue(
-          _EmptyLocalSessionRecordingRepository(),
+        sampledRecordingLibraryProvider.overrideWithValue(
+          _EmptySampledRecordingLibrary(),
         ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
@@ -3356,8 +3345,8 @@ void main() {
         localTerminalLayoutRepositoryProvider.overrideWithValue(
           _TestLocalTerminalLayoutRepository(null),
         ),
-        localSessionRecordingRepositoryProvider.overrideWithValue(
-          _EmptyLocalSessionRecordingRepository(),
+        sampledRecordingLibraryProvider.overrideWithValue(
+          _EmptySampledRecordingLibrary(),
         ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
@@ -3497,8 +3486,8 @@ void main() {
           localTerminalLayoutRepositoryProvider.overrideWithValue(
             _TestLocalTerminalLayoutRepository(null),
           ),
-          localSessionRecordingRepositoryProvider.overrideWithValue(
-            _EmptyLocalSessionRecordingRepository(),
+          sampledRecordingLibraryProvider.overrideWithValue(
+            _EmptySampledRecordingLibrary(),
           ),
           sessionPollingEnabledProvider.overrideWithValue(false),
         ],
@@ -3577,8 +3566,8 @@ void main() {
           localTerminalLayoutRepositoryProvider.overrideWithValue(
             _TestLocalTerminalLayoutRepository(null),
           ),
-          localSessionRecordingRepositoryProvider.overrideWithValue(
-            _EmptyLocalSessionRecordingRepository(),
+          sampledRecordingLibraryProvider.overrideWithValue(
+            _EmptySampledRecordingLibrary(),
           ),
           sessionPollingEnabledProvider.overrideWithValue(false),
         ],
@@ -3656,8 +3645,8 @@ void main() {
         localTerminalLayoutRepositoryProvider.overrideWithValue(
           _TestLocalTerminalLayoutRepository(null),
         ),
-        localSessionRecordingRepositoryProvider.overrideWithValue(
-          _EmptyLocalSessionRecordingRepository(),
+        sampledRecordingLibraryProvider.overrideWithValue(
+          _EmptySampledRecordingLibrary(),
         ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
@@ -3765,8 +3754,8 @@ void main() {
         localTerminalLayoutRepositoryProvider.overrideWithValue(
           _TestLocalTerminalLayoutRepository(null),
         ),
-        localSessionRecordingRepositoryProvider.overrideWithValue(
-          _EmptyLocalSessionRecordingRepository(),
+        sampledRecordingLibraryProvider.overrideWithValue(
+          _EmptySampledRecordingLibrary(),
         ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
@@ -3829,8 +3818,8 @@ void main() {
           localTerminalLayoutRepositoryProvider.overrideWithValue(
             _TestLocalTerminalLayoutRepository(null),
           ),
-          localSessionRecordingRepositoryProvider.overrideWithValue(
-            _EmptyLocalSessionRecordingRepository(),
+          sampledRecordingLibraryProvider.overrideWithValue(
+            _EmptySampledRecordingLibrary(),
           ),
           sessionPollingEnabledProvider.overrideWithValue(false),
         ],
@@ -3893,8 +3882,8 @@ void main() {
         localTerminalLayoutRepositoryProvider.overrideWithValue(
           _TestLocalTerminalLayoutRepository(null),
         ),
-        localSessionRecordingRepositoryProvider.overrideWithValue(
-          _EmptyLocalSessionRecordingRepository(),
+        sampledRecordingLibraryProvider.overrideWithValue(
+          _EmptySampledRecordingLibrary(),
         ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
@@ -4002,8 +3991,8 @@ void main() {
           localTerminalLayoutRepositoryProvider.overrideWithValue(
             _TestLocalTerminalLayoutRepository(null),
           ),
-          localSessionRecordingRepositoryProvider.overrideWithValue(
-            _EmptyLocalSessionRecordingRepository(),
+          sampledRecordingLibraryProvider.overrideWithValue(
+            _EmptySampledRecordingLibrary(),
           ),
           sessionPollingEnabledProvider.overrideWithValue(false),
         ],
@@ -4217,8 +4206,8 @@ void main() {
         localTerminalLayoutRepositoryProvider.overrideWithValue(
           _TestLocalTerminalLayoutRepository(null),
         ),
-        localSessionRecordingRepositoryProvider.overrideWithValue(
-          _EmptyLocalSessionRecordingRepository(),
+        sampledRecordingLibraryProvider.overrideWithValue(
+          _EmptySampledRecordingLibrary(),
         ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
@@ -4313,8 +4302,8 @@ void main() {
         localTerminalLayoutRepositoryProvider.overrideWithValue(
           _TestLocalTerminalLayoutRepository(null),
         ),
-        localSessionRecordingRepositoryProvider.overrideWithValue(
-          _EmptyLocalSessionRecordingRepository(),
+        sampledRecordingLibraryProvider.overrideWithValue(
+          _EmptySampledRecordingLibrary(),
         ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
@@ -4510,8 +4499,8 @@ void main() {
         localTerminalLayoutRepositoryProvider.overrideWithValue(
           _TestLocalTerminalLayoutRepository(null),
         ),
-        localSessionRecordingRepositoryProvider.overrideWithValue(
-          _EmptyLocalSessionRecordingRepository(),
+        sampledRecordingLibraryProvider.overrideWithValue(
+          _EmptySampledRecordingLibrary(),
         ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
@@ -4669,8 +4658,8 @@ void main() {
           localTerminalLayoutRepositoryProvider.overrideWithValue(
             _TestLocalTerminalLayoutRepository(null),
           ),
-          localSessionRecordingRepositoryProvider.overrideWithValue(
-            _EmptyLocalSessionRecordingRepository(),
+          sampledRecordingLibraryProvider.overrideWithValue(
+            _EmptySampledRecordingLibrary(),
           ),
           sessionPollingEnabledProvider.overrideWithValue(false),
         ],
@@ -5436,8 +5425,8 @@ void main() {
     );
     final container = ProviderContainer(
       overrides: [
-        localSessionRecordingRepositoryProvider.overrideWithValue(
-          _EmptyLocalSessionRecordingRepository(),
+        sampledRecordingLibraryProvider.overrideWithValue(
+          _EmptySampledRecordingLibrary(),
         ),
         localTerminalConfigRepositoryProvider.overrideWithValue(
           _TestLocalTerminalConfigRepository(null),
@@ -5837,8 +5826,8 @@ void main() {
     final layoutRepository = _TestLocalTerminalLayoutRepository(null);
     final container = ProviderContainer(
       overrides: [
-        localSessionRecordingRepositoryProvider.overrideWithValue(
-          _EmptyLocalSessionRecordingRepository(),
+        sampledRecordingLibraryProvider.overrideWithValue(
+          _EmptySampledRecordingLibrary(),
         ),
         localTerminalConfigRepositoryProvider.overrideWithValue(
           _TestLocalTerminalConfigRepository(null),
@@ -5896,8 +5885,8 @@ void main() {
     );
     final container = ProviderContainer(
       overrides: [
-        localSessionRecordingRepositoryProvider.overrideWithValue(
-          _EmptyLocalSessionRecordingRepository(),
+        sampledRecordingLibraryProvider.overrideWithValue(
+          _EmptySampledRecordingLibrary(),
         ),
         localTerminalConfigRepositoryProvider.overrideWithValue(
           _TestLocalTerminalConfigRepository(null),
@@ -5996,8 +5985,8 @@ void main() {
       );
       final container = ProviderContainer(
         overrides: [
-          localSessionRecordingRepositoryProvider.overrideWithValue(
-            _EmptyLocalSessionRecordingRepository(),
+          sampledRecordingLibraryProvider.overrideWithValue(
+            _EmptySampledRecordingLibrary(),
           ),
           localTerminalConfigRepositoryProvider.overrideWithValue(
             _TestLocalTerminalConfigRepository(null),
@@ -6052,8 +6041,8 @@ void main() {
     final coreClient = coreBindings;
     final container = ProviderContainer(
       overrides: [
-        localSessionRecordingRepositoryProvider.overrideWithValue(
-          _EmptyLocalSessionRecordingRepository(),
+        sampledRecordingLibraryProvider.overrideWithValue(
+          _EmptySampledRecordingLibrary(),
         ),
         localTerminalConfigRepositoryProvider.overrideWithValue(
           _TestLocalTerminalConfigRepository(null),
@@ -6097,8 +6086,8 @@ void main() {
       final coreClient = coreBindings;
       final container = ProviderContainer(
         overrides: [
-          localSessionRecordingRepositoryProvider.overrideWithValue(
-            _EmptyLocalSessionRecordingRepository(),
+          sampledRecordingLibraryProvider.overrideWithValue(
+            _EmptySampledRecordingLibrary(),
           ),
           localTerminalConfigRepositoryProvider.overrideWithValue(
             _TestLocalTerminalConfigRepository(null),
@@ -6146,8 +6135,8 @@ void main() {
       final coreClient = coreBindings;
       final container = ProviderContainer(
         overrides: [
-          localSessionRecordingRepositoryProvider.overrideWithValue(
-            _EmptyLocalSessionRecordingRepository(),
+          sampledRecordingLibraryProvider.overrideWithValue(
+            _EmptySampledRecordingLibrary(),
           ),
           localTerminalConfigRepositoryProvider.overrideWithValue(
             _TestLocalTerminalConfigRepository(null),
@@ -6182,8 +6171,8 @@ void main() {
       final coreClient = coreBindings;
       final container = ProviderContainer(
         overrides: [
-          localSessionRecordingRepositoryProvider.overrideWithValue(
-            _EmptyLocalSessionRecordingRepository(),
+          sampledRecordingLibraryProvider.overrideWithValue(
+            _EmptySampledRecordingLibrary(),
           ),
           localTerminalConfigRepositoryProvider.overrideWithValue(
             _TestLocalTerminalConfigRepository(null),
@@ -6742,8 +6731,8 @@ void main() {
       );
       final container = ProviderContainer(
         overrides: [
-          localSessionRecordingRepositoryProvider.overrideWithValue(
-            _EmptyLocalSessionRecordingRepository(),
+          sampledRecordingLibraryProvider.overrideWithValue(
+            _EmptySampledRecordingLibrary(),
           ),
           localTerminalConfigRepositoryProvider.overrideWithValue(
             _TestLocalTerminalConfigRepository(null),

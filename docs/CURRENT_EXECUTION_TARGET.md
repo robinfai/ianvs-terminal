@@ -11,8 +11,9 @@ The single active lane is **`adaptive-session-recording`**.
 Implement and accept the four batches in
 [`tasks/adaptive-session-recording.md`](tasks/adaptive-session-recording.md): scheme
 validation, durable capture/replay, library/search/retention and real long-running
-acceptance. The app remains on its documented current recording format until the
-new path is integrated. None of the prototype evidence implies completed delivery.
+acceptance. The application now uses schema 2 sampled capture and structured
+replay. Integration tests pass for the new path; cross-recording search, fast
+cold-open, retention controls and long-running acceptance are still open.
 
 ## Continuing runtime guardrails
 
@@ -47,7 +48,7 @@ The authority is [TERMINAL_PRODUCT_SCOPE.md](TERMINAL_PRODUCT_SCOPE.md) and
 4. Environment values and recording paths never enter Relaunch Spec.
 5. Live SSH session creation uses the same exact SessionConfig v1 route and also
    requires the current native SSH capability. Replaying an SSH recording uses
-   the isolated replay backend and does not open an SSH connection.
+   the structured file reader and does not create a PTY or an SSH connection.
 6. Optional API configuration sync is an existing capability. A managed team
    cloud, collaboration, plugin runtime/marketplace, project explorer and
    Git/IDE context remain outside the active lane.

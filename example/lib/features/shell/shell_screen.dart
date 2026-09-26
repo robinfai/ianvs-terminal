@@ -31,10 +31,10 @@ import '../policies/local_terminal_policy_models.dart';
 import '../profiles/profile_editor.dart';
 import '../profiles/profile_models.dart';
 import '../profiles/profiles_sheet.dart';
-import '../recording/local_session_recording_repository.dart';
 import '../recording/mobile_replay_player.dart';
-import '../recording/recording_replay_search_index.dart';
 import '../recording/replay_viewport_layout.dart';
+import '../recording/sampled_recording_library.dart';
+import '../recording/sampled_recording_player.dart';
 import '../sessions/session_controller.dart';
 import '../sessions/session_state.dart';
 import '../sessions/shell_capabilities_dialog.dart';
@@ -69,8 +69,6 @@ import 'shell_shortcut_bridge.dart';
 import 'window_bridge.dart';
 
 part 'shell_screen_chrome.dart';
-part 'shell_screen_window_title_bar.dart';
-part 'shell_screen_sidebar.dart';
 part 'shell_screen_chrome_empty_states.dart';
 part 'shell_screen_command_menu.dart';
 part 'shell_screen_instant_replay.dart';
@@ -80,13 +78,13 @@ part 'shell_screen_models.dart';
 part 'shell_screen_recording_library.dart';
 part 'shell_screen_replay_timeline.dart';
 part 'shell_screen_search.dart';
+part 'shell_screen_sftp.dart';
 part 'shell_screen_shared_buttons.dart';
 part 'shell_screen_sheets.dart';
-part 'shell_screen_sftp.dart';
+part 'shell_screen_sidebar.dart';
 part 'shell_screen_ssh_empty_state.dart';
 part 'shell_screen_state_clipboard.dart';
 part 'shell_screen_state_command_actions.dart';
-part 'shell_screen_state_triggers.dart';
 part 'shell_screen_state_events.dart';
 part 'shell_screen_state_folders.dart';
 part 'shell_screen_state_instant_replay.dart';
@@ -97,6 +95,8 @@ part 'shell_screen_state_search_completion.dart';
 part 'shell_screen_state_sessions.dart';
 part 'shell_screen_state_shortcuts_status.dart';
 part 'shell_screen_state_terminal_layout.dart';
+part 'shell_screen_state_triggers.dart';
+part 'shell_screen_window_title_bar.dart';
 
 typedef ShellFileDownloadWriter =
     Future<void> Function(String path, List<int> bytes);
@@ -347,15 +347,17 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   bool _recordingLibraryLoading = false;
   bool _recordingSelectionLoading = false;
   String? _recordingLibraryError;
-  List<LocalSessionRecordingEntry> _recordingEntries = const [];
+  List<SampledRecordingEntry> _recordingEntries = const [];
   bool _recordingShelfOpen = false;
   bool _mobileConnectionsOpen = false;
   int _recordingOpenGeneration = 0;
   int _recordingPlaybackGeneration = 0;
   FocusNode? _recordingReturnFocus;
   bool _recordingLibraryReloadRequested = false;
-  LocalSessionRecordingEntry? _selectedRecordingEntry;
-  terminal.TerminalRecording? _selectedRecording;
+  SampledRecordingEntry? _selectedRecordingEntry;
+  terminal.SampledRecordingFile? _selectedRecording;
+  SampledOpenedRecording? _selectedRecordingOwner;
+  terminal.RecordingFileCancellation? _recordingOpenCancellation;
 
   int _nextAnnotationId = 0;
 
@@ -424,6 +426,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
 
   @override
   void dispose() {
+    _recordingOpenCancellation?.cancel();
+    _releaseSelectedRecording();
     WindowBridge.setNativeMenuHandlers();
     _appLifecycleListener.dispose();
     unawaited(_osc72DragDropController.dispose());
@@ -1195,6 +1199,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       }
     }
 
+    // Scaffold removes viewInsets from its resized body. Read keyboard state
+    // here so the input toolbar still sees the original window obstruction.
+    final mobileKeyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
     final mobileNavigation = context.usesMobileNavigation && !referenceDemoMode;
     final mobileHome =
         mobileNavigation && (_mobileConnectionsOpen || activeSessionId == null);
@@ -1426,20 +1433,13 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                               child:
                                   _selectedRecordingEntry != null &&
                                       _selectedRecording != null
-                                  ? _RecordingReplayLayout(
-                                      mobile: mobileNavigation,
+                                  ? SampledRecordingPlayer(
                                       key: ValueKey((
                                         _selectedRecordingEntry!.path,
                                         _recordingPlaybackGeneration,
                                       )),
-                                      palette: palette,
-                                      entry: _selectedRecordingEntry!,
                                       recording: _selectedRecording!,
-                                      delegate: ref.read(
-                                        ptySessionBackendProvider,
-                                      ),
-                                      sessionConfig: recordingReplayConfig,
-                                      terminalColors: instantReplayColors,
+                                      colors: instantReplayColors,
                                       font: recordingReplayConfig.display.font,
                                       cursor:
                                           recordingReplayConfig.display.cursor,
@@ -1642,7 +1642,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     _selectedRecording == null &&
                     instantReplaySession == null &&
                     activeSessionId != null)
-                  if (MediaQuery.viewInsetsOf(context).bottom == 0)
+                  if (!mobileKeyboardVisible)
                     _MobileTerminalToolbar(
                       onKeyboard: () => _focusSession(activeSessionId),
                       onSearch: _openSearch,
@@ -1668,8 +1668,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     IosTerminalInputBar(
                       key: const Key('ios-terminal-input-bar'),
                       palette: palette,
-                      keyboardVisible:
-                          MediaQuery.viewInsetsOf(context).bottom > 0,
+                      keyboardVisible: mobileKeyboardVisible,
                       onSendBytes: (bytes) =>
                           _sendMobileTerminalBytes(activeSessionId, bytes),
                       onDismissKeyboard: () =>

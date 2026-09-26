@@ -13,7 +13,7 @@ pub const GRAPHIC_ASSET_PACKET_SCHEMA_VERSION: u32 = 1;
 pub const GRAPHIC_ASSET_PACKET_CONTRACT: &str = "ianvs-graphic-asset-packet-v1";
 pub const GRAPHIC_ASSET_PACKET_MAX_RGBA_BYTES: usize = 100 * 1024 * 1024;
 
-const RECORDING_SCHEMA_VERSION: u32 = 1;
+const RECORDING_SCHEMA_VERSION: u32 = 2;
 const FEATURES: &[&str] = &[
     "diagnostic-event.json.v1",
     "event-envelope.json.v1",
@@ -25,7 +25,7 @@ const FEATURES: &[&str] = &[
     "replay-checkpoint.v1",
     "replay-session.v1",
     "session-config.json.v1",
-    "session-recording.v1",
+    "session-recording.v2",
     "session-request-envelope.json.v1",
     "ssh-session.v1",
     "ssh-sftp-directory-listing.v1",

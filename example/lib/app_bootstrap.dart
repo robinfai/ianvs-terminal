@@ -120,8 +120,8 @@ Widget buildIanvsTerminalRoot({
         persistenceRepositories.pasteHistory,
       ),
       if (runtimeGraph != null)
-        localSessionRecordingRepositoryProvider.overrideWithValue(
-          runtimeGraph.recordingRepository,
+        sampledRecordingLibraryProvider.overrideWithValue(
+          runtimeGraph.sampledRecordings,
         ),
       if (effectiveDataApiConfigurationRepository != null)
         dataApiConfigurationRepositoryProvider.overrideWithValue(

@@ -18,7 +18,7 @@ import '../support/memory_app_preferences_repository.dart';
 import '../support/memory_local_terminal_config_repository.dart';
 import '../support/memory_paste_history_repository.dart';
 import '../support/memory_profile_repository.dart';
-import '../support/no_io_local_session_recording_repository.dart';
+import '../support/no_io_sampled_recording_library.dart';
 
 const String _configuredOutDir = String.fromEnvironment(
   'PS1_DIAG_OUT_DIR',
@@ -427,8 +427,8 @@ Future<_ShellExport> _captureShellExport(
         localTerminalConfigRepositoryProvider.overrideWithValue(
           MemoryLocalTerminalConfigRepository(null),
         ),
-        localSessionRecordingRepositoryProvider.overrideWithValue(
-          noIoLocalSessionRecordingRepository(),
+        sampledRecordingLibraryProvider.overrideWithValue(
+          noIoSampledRecordingLibrary(),
         ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],

@@ -1295,7 +1295,13 @@
   "shellCapabilityUnchecked": "此能力未提供注册检查",
   "shellConnectionChain": "连接链路",
   "shellChainJumpCount": "{count} 次 SSH 跳转",
-  "@shellChainJumpCount": {"placeholders": {"count": {"type": "int"}}},
+  "@shellChainJumpCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "shellChainScope": "下方能力对应当前 Shell。",
   "shellChainIntermediate": "中间层",
   "shellConnectionChainHelp": "显示已识别的 Shell 层级和配置中的跳板。下方能力属于当前 Shell，转发跳板不运行其 Hook。",
@@ -1427,5 +1433,22 @@
     }
   },
   "mobileCapabilitiesPendingHelp": "待确认表示尚无初始化检查或实际事件证据。",
-  "mobileExternalKeyboardHelp": "连接外接键盘后可使用这些快捷键。点按组合键可修改，作用范围在录制时设置。"
+  "mobileExternalKeyboardHelp": "连接外接键盘后可使用这些快捷键。点按组合键可修改，作用范围在录制时设置。",
+  "sampledRecordingDisclosure": "保存采样画面和已捕获命令；短暂输出及无 hook 的命令可能未被记录。",
+  "sampledRecordingInterrupted": "录制已中断",
+  "sampledTimelineFirst": "命令首页",
+  "sampledTimelinePrevious": "上一页命令",
+  "sampledTimelineNext": "下一页命令",
+  "sampledTimelineEmpty": "当前页没有命令事件。缺少 shell hook 时仍可查看采样画面。",
+  "sampledHookUnavailable": "命令追踪不可用",
+  "sampledHookAvailable": "命令追踪已恢复",
+  "sampledCommandStarted": "开始执行",
+  "sampledCommandExit": "退出状态 {code}",
+  "@sampledCommandExit": {
+    "placeholders": {
+      "code": {
+        "type": "int"
+      }
+    }
+  }
 }

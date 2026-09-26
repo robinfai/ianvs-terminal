@@ -17,8 +17,8 @@ import '../support/memory_app_preferences_repository.dart';
 import '../support/memory_local_terminal_config_repository.dart';
 import '../support/memory_paste_history_repository.dart';
 import '../support/memory_profile_repository.dart';
-import '../support/no_io_local_session_recording_repository.dart';
 import '../support/no_io_local_terminal_layout_repository.dart';
+import '../support/no_io_sampled_recording_library.dart';
 import 'configuration_capture_binding.dart';
 import 'visual_capture_fonts.dart';
 
@@ -85,8 +85,8 @@ void main() {
             localTerminalLayoutRepositoryProvider.overrideWithValue(
               noIoLocalTerminalLayoutRepository(),
             ),
-            localSessionRecordingRepositoryProvider.overrideWithValue(
-              noIoLocalSessionRecordingRepository(),
+            sampledRecordingLibraryProvider.overrideWithValue(
+              noIoSampledRecordingLibrary(),
             ),
           ],
           child: RepaintBoundary(

@@ -159,11 +159,11 @@
         {
           "path": "example/macos/Runner/MainFlutterWindow.swift",
           "contains": [
-            "Open Terminal at Folder\u2026",
+            "Open Terminal at Folder…",
             "bindNativeTerminalFolderMenuItem"
           ],
           "not_contains": [
-            "Open Project\u2026",
+            "Open Project…",
             "bindNativeWorkspaceMenuItems"
           ]
         },
@@ -215,14 +215,12 @@
           ]
         },
         {
-          "path": "example/lib/features/recording/local_session_recording_repository.dart",
+          "path": "example/lib/features/recording/sampled_recording_library.dart",
           "contains": [
-            "class LocalSessionRecordingRepository",
-            "_destinationSidecarBucketCount = 256",
-            "_maximumOrphanDestinationSidecarsPerPass = 32",
-            "ianvs_recordings",
-            "writeStringAtomically",
-            "TerminalRecordingCodec"
+            "class SampledRecordingLibrary",
+            "recordings-v2",
+            "SampledRecordingClaim",
+            "recover"
           ]
         },
         {
@@ -517,8 +515,8 @@
     },
     {
       "id": "recording-replay-mvp",
-      "status": "achieved",
-      "goal": "Create a deterministic, privacy-explicit session recording event stream and a ReplayBackend compatible with the current runtime boundary.",
+      "status": "deferred",
+      "goal": "Retain historical schema 1 codec and replay helpers as internal code while the product moves to sampled schema 2 recordings.",
       "evidence": [
         {
           "path": "packages/ianvs_terminal/lib/src/recording/terminal_recording.dart",
@@ -536,14 +534,6 @@
             "redacted input never serializes sensitive bytes",
             "reports truncated JSON with a structured error",
             "rejects missing sequence entries and decreasing timestamps"
-          ]
-        },
-        {
-          "path": "docs/recording/FORMAT_CURRENT.md",
-          "contains": [
-            "Terminal Recording Current Format",
-            "Input And Output Privacy",
-            "Single Current Schema"
           ]
         },
         {
@@ -645,15 +635,6 @@
           ]
         },
         {
-          "path": "docs/recording/FORMAT_CURRENT.md",
-          "contains": [
-            "Terminal Recording Current Format",
-            "checkpoint",
-            "32 MiB",
-            "schema_version: 1"
-          ]
-        },
-        {
           "path": "packages/ianvs_terminal/lib/src/recording/terminal_replay_backend.dart",
           "contains": [
             "class TerminalReplaySeekResult",
@@ -714,19 +695,7 @@
         "cd packages/ianvs_terminal && flutter test",
         "make verify"
       ],
-      "exit_criteria": [
-        "Recording metadata and events have an explicit schema version, session id, sequence and monotonic offset.",
-        "Session start, raw PTY output, user input, resize and exit are captured under a documented input privacy policy.",
-        "ReplayBackend implements the current backend abstraction and supports realtime and no-delay playback.",
-        "Realtime replay validates a bounded speed and scales absolute recording offsets without cumulative interval-rounding drift.",
-        "Bounded applied-viewport Frame hash comparison reports the first hash or frame-count divergence without changing current recording schema.",
-        "Current recording checkpoint markers materialize bounded native terminal snapshots only at safe control-sequence boundaries.",
-        "Replay seek restores the latest materialized checkpoint at or before an inclusive target, fast-forwards deterministically and preserves monotonic Runtime Event ordering.",
-        "The current recording schema stores bounded content-addressed graphic assets, rejects corrupt or missing blobs and lets ReplayBackend prefer exact bundled identities before native fallback.",
-        "Repeated fixture playback produces a stable event sequence.",
-        "Truncated, corrupt and unsupported recordings return structured errors.",
-        "The complete repository verification entrypoint passes after live recording and replay are connected."
-      ]
+      "reason": "The schema 1 product path is superseded by adaptive-session-recording. Existing NDJSON is preserved but is not read, migrated or deleted by the application. Internal helper coverage does not establish schema 2 delivery."
     },
     {
       "id": "cross-platform-host-evidence",
@@ -736,9 +705,9 @@
         {
           "path": "docs/KNOWN_ISSUES.md",
           "contains": [
-            "macOS \u662f\u5f53\u524d\u4e3b\u4ea4\u4ed8\u5e73\u53f0",
-            "\u5c1a\u672a\u5b8c\u6210\u5b9e\u4f53\u8bbe\u5907\u4e0a\u7684\u5b8c\u6574\u4ea7\u54c1\u9a8c\u6536",
-            "\u8fd8\u6ca1\u6709\u8de8\u5e73\u53f0\u9a8c\u8bc1"
+            "macOS 是当前主交付平台",
+            "尚未完成实体设备上的完整产品验收",
+            "还没有跨平台验证"
           ]
         }
       ],
@@ -757,8 +726,8 @@
         {
           "path": "docs/KNOWN_ISSUES.md",
           "contains": [
-            "\u8fd8\u6ca1\u6709\u63d2\u4ef6\u7cfb\u7edf",
-            "\u5f53\u524d\u6ca1\u6709 native renderer"
+            "还没有插件系统",
+            "当前没有 native renderer"
           ]
         }
       ],
@@ -827,10 +796,57 @@
             "abrupt_process_kill_preserves_synced_records_as_interrupted",
             "disk_index_cold_seek_matches_sequential_replay_during_dense_hook_bursts"
           ]
+        },
+        {
+          "path": "docs/recording/FORMAT_CURRENT.md",
+          "contains": [
+            "schema 2",
+            ".trailrec",
+            "recordings-v2",
+            "session-recording.v2"
+          ]
+        },
+        {
+          "path": "native/core/src/recording/file_service.rs",
+          "contains": [
+            "pub fn",
+            "timeline",
+            "metadata"
+          ]
+        },
+        {
+          "path": "example/lib/features/recording/sampled_recording_library.dart",
+          "contains": [
+            "class SampledRecordingLibrary",
+            "activeClaims",
+            "applyRetention"
+          ]
+        },
+        {
+          "path": "example/lib/features/recording/sampled_recording_player.dart",
+          "contains": [
+            "class SampledRecordingPlayer",
+            "SampledReplayController"
+          ]
+        },
+        {
+          "path": "example/lib/features/recording/sampled_replay_controller.dart",
+          "contains": [
+            "class SampledReplayController",
+            "RecordingFileCancellation"
+          ]
+        },
+        {
+          "path": "example/test/recording/sampled_native_roundtrip_test.dart",
+          "contains": [
+            "SampledRecordingLibrary",
+            "SampledRecordingCaptureClient"
+          ]
         }
       ],
       "verification_commands": [
         "cargo test --manifest-path native/core/Cargo.toml --test sampled_recording_test --test sampled_recording_storage_test --test sampled_recording_timeline_test --test sampled_recording_session_test",
+        "flutter test example/test/sessions/session_recording_lifecycle_test.dart example/test/recording/sampled_native_roundtrip_test.dart example/test/sampled_recording_library_test.dart example/test/sampled_replay_controller_test.dart example/test/sampled_replay_surface_test.dart",
         "dart test test/docs_contract_test.dart",
         "make verify"
       ],

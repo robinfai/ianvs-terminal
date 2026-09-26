@@ -11,7 +11,7 @@ fn runtime_capabilities_v1_is_deterministic_and_matches_the_ffi_export() {
     assert_eq!(expected.schema_version, RUNTIME_CAPABILITIES_SCHEMA_VERSION);
     assert_eq!(expected.runtime_contract, RUNTIME_CONTRACT);
     assert_eq!(expected.frame_schema_versions, ["terminal-frame-diff-v1"]);
-    assert_eq!(expected.recording_schema_versions, [1]);
+    assert_eq!(expected.recording_schema_versions, [2]);
     assert!(!expected.features.is_empty());
     assert!(expected.features.windows(2).all(|pair| pair[0] < pair[1]));
     assert!(

@@ -2451,7 +2451,9 @@
   "terminalPaneCount": "{count} panes",
   "@terminalPaneCount": {
     "placeholders": {
-      "count": {"type": "int"}
+      "count": {
+        "type": "int"
+      }
     }
   },
   "panePosition": "Pane {index}/{count}",
@@ -3938,7 +3940,13 @@
   "shellCapabilityUnchecked": "No registration check for this capability",
   "shellConnectionChain": "Connection chain",
   "shellChainJumpCount": "{count} SSH hops",
-  "@shellChainJumpCount": {"placeholders": {"count": {"type": "int"}}},
+  "@shellChainJumpCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "shellChainScope": "Capabilities below apply to the current shell.",
   "shellChainIntermediate": "Intermediate shell",
   "shellConnectionChainHelp": "Shows detected shell layers and configured jump hosts. Capabilities below belong to the current shell; forwarding hops do not run its hooks.",
@@ -4070,5 +4078,22 @@
     }
   },
   "mobileCapabilitiesPendingHelp": "Pending capabilities have no initialization check or observed event evidence yet.",
-  "mobileExternalKeyboardHelp": "Use these shortcuts with an external keyboard. Tap a binding to edit it and choose its scope while recording."
+  "mobileExternalKeyboardHelp": "Use these shortcuts with an external keyboard. Tap a binding to edit it and choose its scope while recording.",
+  "sampledRecordingDisclosure": "Sampled screens and observed commands; brief output or commands without hooks may be missing.",
+  "sampledRecordingInterrupted": "Recording interrupted",
+  "sampledTimelineFirst": "First command page",
+  "sampledTimelinePrevious": "Previous command page",
+  "sampledTimelineNext": "Next command page",
+  "sampledTimelineEmpty": "No command events on this page. Screens remain available when shell hooks are missing.",
+  "sampledHookUnavailable": "Command tracking unavailable",
+  "sampledHookAvailable": "Command tracking available",
+  "sampledCommandStarted": "Started",
+  "sampledCommandExit": "Exit {code}",
+  "@sampledCommandExit": {
+    "placeholders": {
+      "code": {
+        "type": "int"
+      }
+    }
+  }
 }

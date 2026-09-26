@@ -8383,6 +8383,66 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Use these shortcuts with an external keyboard. Tap a binding to edit it and choose its scope while recording.'**
   String get mobileExternalKeyboardHelp;
+
+  /// No description provided for @sampledRecordingDisclosure.
+  ///
+  /// In en, this message translates to:
+  /// **'Sampled screens and observed commands; brief output or commands without hooks may be missing.'**
+  String get sampledRecordingDisclosure;
+
+  /// No description provided for @sampledRecordingInterrupted.
+  ///
+  /// In en, this message translates to:
+  /// **'Recording interrupted'**
+  String get sampledRecordingInterrupted;
+
+  /// No description provided for @sampledTimelineFirst.
+  ///
+  /// In en, this message translates to:
+  /// **'First command page'**
+  String get sampledTimelineFirst;
+
+  /// No description provided for @sampledTimelinePrevious.
+  ///
+  /// In en, this message translates to:
+  /// **'Previous command page'**
+  String get sampledTimelinePrevious;
+
+  /// No description provided for @sampledTimelineNext.
+  ///
+  /// In en, this message translates to:
+  /// **'Next command page'**
+  String get sampledTimelineNext;
+
+  /// No description provided for @sampledTimelineEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No command events on this page. Screens remain available when shell hooks are missing.'**
+  String get sampledTimelineEmpty;
+
+  /// No description provided for @sampledHookUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Command tracking unavailable'**
+  String get sampledHookUnavailable;
+
+  /// No description provided for @sampledHookAvailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Command tracking available'**
+  String get sampledHookAvailable;
+
+  /// No description provided for @sampledCommandStarted.
+  ///
+  /// In en, this message translates to:
+  /// **'Started'**
+  String get sampledCommandStarted;
+
+  /// No description provided for @sampledCommandExit.
+  ///
+  /// In en, this message translates to:
+  /// **'Exit {code}'**
+  String sampledCommandExit(int code);
 }
 
 class _AppLocalizationsDelegate

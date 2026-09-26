@@ -23,7 +23,7 @@
 - [Frame Packet](protocols/TERMINAL_FRAME_PACKET_V1.md)、[Graphic Asset Packet](protocols/GRAPHIC_ASSET_PACKET_V1.md)。
 - [OSC 支持矩阵](protocols/osc_support_matrix.md)、[ZMODEM](protocols/ZMODEM_V1.md)、[Shell integration](protocols/shell_integration_capabilities.md)。
 - [Frame Diff](FRAME_DIFF.md)、[xterm API 对齐](TERMINAL_XTERM_API_ALIGNMENT.md)。
-- [当前录制格式](recording/FORMAT_CURRENT.md)、[录制存储提案](recording/STORAGE_PROPOSAL.md)（新方案分批实施中，产品入口尚未切换）。
+- [当前录制格式](recording/FORMAT_CURRENT.md)、[录制存储提案](recording/STORAGE_PROPOSAL.md)（产品入口已切换，新方案仍在分批验收）。
 - [架构决策](DECISIONS/README.md)。
 
 ## 验证与维护

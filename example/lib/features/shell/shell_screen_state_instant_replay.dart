@@ -283,6 +283,7 @@ extension _ShellScreenStateInstantReplay on _ShellScreenState {
     _mutateState(() {
       _recordingShelfOpen = false;
       _recordingReturnFocus = null;
+      _releaseSelectedRecording();
       _selectedRecordingEntry = null;
       _selectedRecording = null;
       _instantReplayLayoutSession = _InstantReplayLayoutSession(

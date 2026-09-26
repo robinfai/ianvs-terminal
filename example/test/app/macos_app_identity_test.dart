@@ -355,6 +355,14 @@ void main() {
         hasLength(1),
       );
 
+      final invalidLibrary = await _runSignerFixture(
+        signature: 'adhoc',
+        entitlements: validEntitlements,
+        nativeLibraryValid: false,
+      );
+      expect(invalidLibrary.result.exitCode, isNonZero);
+      expect(invalidLibrary.codesignLog, isEmpty);
+
       final certificate = await _runSignerFixture(
         signature: 'certificate',
         entitlements: validEntitlements,
@@ -589,6 +597,7 @@ Future<_SignerFixtureResult> _runSignerFixture({
   String authority = 'Apple Development: developer@example.test (FIXTURE123)',
   bool runtimeFlag = true,
   bool verifySucceeds = true,
+  bool nativeLibraryValid = true,
 }) async {
   final repositoryRoot = _exampleRoot().parent;
   final directory = Directory.systemTemp.createTempSync(
@@ -596,12 +605,33 @@ Future<_SignerFixtureResult> _runSignerFixture({
   );
   try {
     final app = Directory('${directory.path}/Fixture.app')..createSync();
+    final library = File(
+      '${app.path}/Contents/Frameworks/ianvs_core.framework/ianvs_core',
+    );
+    library.parent.createSync(recursive: true);
+    library.writeAsStringSync('native gate fixture');
+    final pythonPath = await Process.run('python3', [
+      '-c',
+      'import sys; print(sys.executable)',
+    ]);
+    expect(pythonPath.exitCode, 0, reason: pythonPath.stderr as String?);
     final bin = Directory('${directory.path}/bin')..createSync();
     final codesignLog = File('${directory.path}/codesign.log')..createSync();
     final finalEntitlements = File('${directory.path}/entitlements.plist')
       ..writeAsStringSync(entitlements);
     final uname = File('${bin.path}/uname')
       ..writeAsStringSync('#!/usr/bin/env bash\necho Darwin\n');
+    final python = File('${bin.path}/python3')
+      ..writeAsStringSync(r'''
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "$1" == */verify_macos_native_library.py ]]; then
+  [[ "$2" == "$FAKE_NATIVE_LIBRARY_PATH" && -f "$2" ]]
+  [[ "$FAKE_NATIVE_LIBRARY_VALID" == "true" ]]
+  exit
+fi
+exec "$REAL_PYTHON" "$@"
+''');
     final codesign = File('${bin.path}/codesign')
       ..writeAsStringSync(r'''
 #!/usr/bin/env bash
@@ -637,6 +667,7 @@ fi
       '+x',
       uname.path,
       codesign.path,
+      python.path,
     ]);
     expect(chmod.exitCode, 0, reason: chmod.stderr as String?);
 
@@ -649,6 +680,9 @@ fi
       ],
       environment: <String, String>{
         'PATH': '${bin.path}:$parentPath',
+        'REAL_PYTHON': (pythonPath.stdout as String).trim(),
+        'FAKE_NATIVE_LIBRARY_PATH': library.path,
+        'FAKE_NATIVE_LIBRARY_VALID': nativeLibraryValid.toString(),
         'FAKE_SIGNATURE': signature,
         'FAKE_AUTHORITY': authority,
         'FAKE_RUNTIME_FLAG': runtimeFlag.toString(),

@@ -1,90 +1,28 @@
 # Terminal Recording Current Format
 
-The current recording format is newline-delimited JSON. It is intentionally separate from
-the live Frame Packet v1 transport: a recording describes an ordered session event stream,
-while a Frame describes current render state.
+The application now captures and opens schema 2 `.trailrec` bundles. The complete
+byte layout, validation rules, bounds and recovery behavior are described in
+[the sampled recording specification](FORMAT_SAMPLED.md).
 
-## File Structure
+A bundle contains `records.bin`, content-addressed RGBA assets and rebuildable
+seek/command indexes. Visual records retain adaptively sampled structured screen
+state; semantic records retain independently observed hook commands, arguments,
+context and status. Raw keystrokes and lossless PTY output are not recorded.
+A sample can omit short-lived output; commands without observed hooks are absent.
 
-Line 1 is the required metadata record:
+The native capability is `session-recording.v2`, with
+`recording_schema_versions: [2]`. Live Frame Packet v1 and Session Request v1
+remain separate versioned envelopes. Sampled capture operations carry strict
+schema 2 payloads. The file reader has its own `ianvs_recording_file_request_v2_json`
+entrypoint and never creates a PTY or dispatches historical host actions.
 
-```json
-{"record_type":"metadata","schema_version":1,"session_id":"session-1","created_at_utc":"2026-07-21T00:00:00.000Z","input_policy":"redact"}
-```
+The app owns a separate `recordings-v2` library. It persists a reservation before
+native start, retains its filesystem claim until the writer settles, and marks
+recovered prefixes as interrupted. Existing schema 1 NDJSON files and indexes are
+left untouched. The application does not read, migrate, rewrite or delete them.
 
-Every following line is an event record:
-
-```json
-{"record_type":"event","schema_version":1,"session_id":"session-1","sequence":0,"monotonic_offset_micros":0,"event_kind":"session_started","payload":{"terminal_emulation":"xterm256","cols":80,"rows":24}}
-```
-
-The current event kinds are:
-
-- `session_started`: terminal emulation plus initial rows and columns.
-- `pty_output`: raw PTY output bytes encoded as Base64.
-- `user_input`: Base64 bytes when metadata uses `record`, or only `byte_length` plus
-  `redacted: true` when metadata uses `redact`.
-- `resize`: rows, columns, pixel dimensions and optional cell pixel dimensions.
-- `session_exited`: an integer exit code or `null`.
-- `checkpoint`: a bounded deterministic replay checkpoint marker.
-- `shell_semantic`: bounded shell-integration command, directory, prompt and
-  remote-session metadata.
-
-Content-addressed `graphic_asset_blob` and `graphic_asset` records may appear
-between metadata and events. They use the same schema version as metadata and
-events and retain the existing 128-asset / 32 MiB decoded-byte bounds.
-
-Checkpoint planning inserts an initial marker after `session_started`, then
-bounded periodic/final markers only at safe parser boundaries. Native replay
-retains at most 64 materialized checkpoints and 32 MiB of estimated checkpoint
-state per session. Seek restores the latest materialized marker at or before
-the target and deterministically replays forward. Graphic blobs are SHA-256
-content-addressed, sorted canonically and rejected on missing/corrupt identity.
-
-`sequence` starts at zero and is contiguous. `monotonic_offset_micros` is non-negative and cannot
-decrease. Every event must use the metadata session id and schema version. These invariants make
-loss, cross-session mixing and event reordering explicit decoding failures.
-
-## Validation And Errors
-
-- Additive unknown object fields are ignored and removed by canonical re-encoding.
-- Unsupported schema versions and event kinds are rejected; the current format does not silently guess their
-  semantics.
-- Invalid JSON, truncated records, invalid payloads, sequence gaps, decreasing monotonic offsets
-  and session mismatches produce `TerminalRecordingFormatException` with a stable error code and
-  source line number.
-- The fixed contract fixture is
-  `packages/ianvs_terminal/test/fixtures/recording/basic_current.ndjson`.
-
-## Input And Output Privacy
-
-Input policy is required metadata rather than an implicit recorder default:
-
-- `redact` records only the input byte count. It is the recommended policy for live capture
-  because typed passwords, tokens and pasted secrets are not stored as input events.
-- `record` stores exact input bytes and must require an explicit product/user decision before a
-  live recorder enables it.
-
-Redacting input does not make the whole recording non-sensitive. PTY output may contain commands,
-paths, environment values, file contents or credentials echoed by a child process. Recordings
-must remain local unless a separate explicit export/upload action is approved.
-
-## Live Capture Boundary
-
-Live capture uses an explicitly started native recorder. Raw output is copied at the
-PTY reader before parser or Frame processing; successful user writes, resizes and observed child
-exits share the same ordered recording boundary. The capture buffer is limited to 4,096 events and
-8 MiB of raw payload. Capacity overflow returns `capacity_exceeded` and discards the recording at
-stop instead of silently evicting events or exporting a partial stream.
-
-`TerminalLiveRecorder` uses Session Request/Response v1 for start, stop and cancel.
-It validates stopped native NDJSON through `TerminalRecordingCodec` before exposing the recording.
-Capture does not add raw output to the normal product event queue and does not change Frame
-Packet v1.
-
-## Single Current Schema
-
-The project is not released, and only the current recording contract is
-accepted. Native capture, Dart construction, checkpoint planning, semantic
-merging, graphics bundling, repository metadata and replay all emit and accept
-exactly `schema_version: 1`. Any other value fails closed.
+This is the development implementation, not completed release acceptance.
+Incremental index publication, cross-recording search, retention controls and
+more-than-24-hour system/product validation remain open in the
+[delivery task](../tasks/adaptive-session-recording.md). The application recording tests and isolated review entrypoints now use the new
+product contract; full release acceptance is still pending.

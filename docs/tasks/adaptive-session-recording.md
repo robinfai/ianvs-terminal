@@ -93,7 +93,7 @@ passes; current-format/product/architecture documentation matches shipped code.
   and latency gates are provisional until representative measurements establish
   them. Record device/OS and workload alongside any numeric gate.
 - Ten-second recovery is a target, not proof of power-loss durability.
-- The app still runs schema 1 capture until batch 2 replaces its entrypoints.
+- The app and its recording tests now use schema 2; full product acceptance remains open.
 - Prototype correctness must cover scrollback eviction at 8,000 lines, Unicode,
   boundary frames, metadata-only updates, hyperlinks and graphics versions.
 
@@ -141,3 +141,64 @@ Flutter replay and cancellable seek jobs, incremental index publication, durable
 failure UI, representative whole-container/asset/RSS/input-latency measurements.
 Batch 3 library/search/retention and batch 4 real >24-hour/product/SSH/system
 failure validation remain open. Legacy app entrypoints are unchanged so far.
+
+
+## Application integration checkpoint — in progress
+
+The app now routes manual capture, state polling, stop, observed exit, rejected
+close continuation and shutdown through sampled capture identities. Saved replay
+uses complete structured screens, one in-flight/coalesced seek, retained graphics
+and bounded command pages; it never creates a replay PTY or executes host actions.
+Native capabilities now advertise recording schema 2.
+
+A separate `recordings-v2` library persists reservations before native dispatch,
+retains writer/viewer leases until actual completion, isolates corrupt/unknown
+manifests and recovers orphan bundles protected by Keep. Native metadata checks
+protect deletion identity. Age/capacity retention is implemented at the repository
+level with provisional 30-day/20-GiB defaults; settings and library controls remain.
+Only managed bundle paths can currently be opened by the application picker.
+
+Verification so far: 24 new Dart/application tests passed, including an actual PTY
+capture → stop → close → reopen → seek/command round trip; four layout tests also
+passed with repository fonts at 1,100 px and 390 px/2× text in both themes. Screenshots
+under `build/recording_bench/adaptive/replay-*.png` were visually inspected. Three
+native file-service tests plus ABI/capabilities checks passed; strict native Clippy
+passed. These are focused checks, not full `make verify` evidence.
+
+Before batch 2 acceptance, port the old session/shell recording tests to the new
+contracts, exercise the actual full macOS app/player and installed shell/SSH hooks,
+finish fast open/incremental cache publication and validate whole-pipeline resource
+cost. The file reader currently scans on every open. External new-format bundle
+open/import still needs a defined safe ownership path. Keep/capacity settings,
+cross-recording search, system-failure evidence and real >24-hour acceptance remain.
+
+
+## Application regression checkpoint
+
+The session/shell tests now exercise schema 2. Coverage includes simultaneous
+starts, strict capture identity, retries after lost replies, transfer/close races,
+split-pane continuations, shutdown settlement, cancellation that retains file
+ownership until reads finish, keyboard focus, copy and command navigation.
+Forty-five canonical recording/application tests passed. Five standalone file
+reader tests and thirteen shell architecture checks also passed. Native regression
+passed 1,010 tests with five conditional tests ignored; documentation contracts
+passed fifteen tests. Full-tree Dart analysis is clean.
+
+Legacy UI-side semantic merging and old handoff tests are replaced by the native
+hook/control tests and current lifecycle tests; cross-recording search acceptance
+is still required rather than inferred from the retired NDJSON search tests.
+Non-recording widget tests now override the new library with an I/O-free fixture.
+Device design-review and isolated macOS acceptance entrypoints use sampled files;
+compilation is not a claim that these device entrypoints were executed.
+
+Two existing verification failures were repaired: the signing fixture now controls
+its native-library gate while retaining entitlement checks and fail-before-signing
+coverage; the iPhone toolbar reads keyboard visibility outside Scaffold's inset-
+consuming body. Both relevant test files passed (12 tests). Six old title-bar
+goldens were visually checked and regenerated for the existing unified-menu UI;
+strict pixel comparison is retained. A complete verification rerun is pending.
+
+Remaining work: native incremental cache publication/fast open, external bundle
+ownership/import, library search and host/date filters, Keep/settings/retention UI,
+real macOS and installed-shell/SSH review, whole-pipeline performance and failure
+measurements, and more than 24 actual hours of acceptance on the final code.

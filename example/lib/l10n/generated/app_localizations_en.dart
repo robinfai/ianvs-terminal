@@ -5334,4 +5334,38 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get mobileExternalKeyboardHelp =>
       'Use these shortcuts with an external keyboard. Tap a binding to edit it and choose its scope while recording.';
+
+  @override
+  String get sampledRecordingDisclosure =>
+      'Sampled screens and observed commands; brief output or commands without hooks may be missing.';
+
+  @override
+  String get sampledRecordingInterrupted => 'Recording interrupted';
+
+  @override
+  String get sampledTimelineFirst => 'First command page';
+
+  @override
+  String get sampledTimelinePrevious => 'Previous command page';
+
+  @override
+  String get sampledTimelineNext => 'Next command page';
+
+  @override
+  String get sampledTimelineEmpty =>
+      'No command events on this page. Screens remain available when shell hooks are missing.';
+
+  @override
+  String get sampledHookUnavailable => 'Command tracking unavailable';
+
+  @override
+  String get sampledHookAvailable => 'Command tracking available';
+
+  @override
+  String get sampledCommandStarted => 'Started';
+
+  @override
+  String sampledCommandExit(int code) {
+    return 'Exit $code';
+  }
 }

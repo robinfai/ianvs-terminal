@@ -5,7 +5,7 @@ import 'package:app/app.dart';
 import 'package:app/features/preferences/app_preferences_models.dart';
 import 'package:app/features/profiles/profile_editor.dart';
 import 'package:app/features/profiles/profile_models.dart';
-import 'package:app/features/recording/local_session_recording_repository.dart';
+import 'package:app/features/recording/sampled_recording_library.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/sftp/sftp_side_panel.dart';
 import 'package:app/features/shell/instant_replay_store.dart';
@@ -23,40 +23,10 @@ import 'package:integration_test/integration_test.dart';
 import '../test/support/fake_pty_backend.dart';
 import '../test/support/memory_app_preferences_repository.dart';
 import '../test/support/memory_profile_repository.dart';
-import '../test/support/no_io_local_session_recording_repository.dart';
+import '../test/support/sampled_recording_files.dart';
+import 'support/sampled_recording_review_fixture.dart';
 
-class _IosMobileReviewPtyBackend extends FakePtyBackend
-    implements PtyReplaySessionBackend, PtyReplaySessionConfigV1Backend {
-  @override
-  String createReplaySessionV1(String config) => createSessionV1(config);
-  @override
-  void replayExit(String sessionId, {int? exitCode}) {}
-  @override
-  void replayOutput(String sessionId, List<int> bytes) {
-    final output = utf8.decode(bytes, allowMalformed: true);
-    setFrame(sessionId, <String, Object?>{
-      'rows': <Object?>[
-        for (final (i, line) in output.split('\n').indexed)
-          <String, Object?>{
-            'index': i,
-            'text': line,
-            'style_runs': <Object?>[],
-          },
-      ],
-      'cursor': <String, Object?>{'row': 3, 'col': 0, 'visible': false},
-      'selection': null,
-      'viewport_rows': 24,
-      'viewport_cols': 80,
-      'dirty_ranges': <Object?>[
-        <String, Object?>{'start': 0, 'end': 24},
-      ],
-      'scrollback_offset': 0,
-      'scrollback_max_offset': 0,
-      'window_title': null,
-      'window_icon_name': null,
-    });
-  }
-
+class _IosMobileReviewPtyBackend extends FakePtyBackend {
   @override
   PtyRuntimeCapabilities get runtimeCapabilities =>
       PtyRuntimeCapabilities.fromJson(<String, Object?>{
@@ -71,63 +41,6 @@ class _IosMobileReviewPtyBackend extends FakePtyBackend
           ptyRuntimeFeatureSftpFileOperationsV1,
         ],
       });
-}
-
-class _ReviewRecordings extends LocalSessionRecordingRepository
-    with NoIoLocalSessionRecordingRecovery {
-  _ReviewRecordings()
-    : super(directoryResolver: () async => Directory.systemTemp);
-  final entry = LocalSessionRecordingEntry(
-    path: '/review/mobile-session.ndjson',
-    displayName: 'Deployment check',
-    createdAtUtc: DateTime.utc(2026, 9, 11, 2),
-    duration: const Duration(seconds: 30),
-    fileSizeBytes: 2048,
-    sessionId: 'review-recording',
-    schemaVersion: 1,
-    inputPolicy: terminal.TerminalRecordingInputPolicy.redact,
-  );
-  terminal.TerminalRecording
-  get recording => const terminal.TerminalRecordingCodec().decode(
-    [
-      {
-        'record_type': 'metadata',
-        'schema_version': 1,
-        'session_id': 'review-recording',
-        'created_at_utc': '2026-09-11T02:00:00.000Z',
-        'input_policy': 'redact',
-      },
-      {
-        'record_type': 'event',
-        'schema_version': 1,
-        'session_id': 'review-recording',
-        'sequence': 0,
-        'monotonic_offset_micros': 0,
-        'event_kind': 'session_started',
-        'payload': {'terminal_emulation': 'xterm256', 'cols': 80, 'rows': 24},
-      },
-      for (final (i, seconds) in [1, 15, 30].indexed)
-        {
-          'record_type': 'event',
-          'schema_version': 1,
-          'session_id': 'review-recording',
-          'sequence': i + 1,
-          'monotonic_offset_micros': seconds * 1000000,
-          'event_kind': 'pty_output',
-          'payload': {
-            'bytes_base64': base64Encode(
-              utf8.encode(
-                'reviewer@server:~\$ deploy --check\nConnection verified\nStep ${i + 1} complete\nAll services healthy',
-              ),
-            ),
-          },
-        },
-    ].map(jsonEncode).join('\n'),
-  );
-  @override
-  Future<List<LocalSessionRecordingEntry>> listRecordings() async => [entry];
-  @override
-  Future<terminal.TerminalRecording> load(String path) async => recording;
 }
 
 class _ReviewDirectorySource implements SftpDirectoryDataSource {
@@ -244,7 +157,15 @@ void main() {
     final backend = _IosMobileReviewPtyBackend();
     var now = DateTime(2026, 8, 19, 14, 30);
     final replayStore = InstantReplayStore(now: () => now);
-    final reviewRecordings = _ReviewRecordings();
+    final recordingDirectory = await Directory.systemTemp.createTemp(
+      'sampled-ios-review-',
+    );
+    final reviewRecordings = SampledRecordingLibrary(
+      files: SampledTestFiles(fixture: sampledRecordingReviewFixture()),
+      directoryResolver: () async => recordingDirectory,
+    );
+    final savedEntry = await seedSampledRecording(reviewRecordings);
+    addTearDown(() => recordingDirectory.delete(recursive: true));
     final profile = TerminalProfile(
       id: 'ios-mobile-review',
       name: 'Trail UI Review',
@@ -271,9 +192,7 @@ void main() {
             MemoryAppPreferencesRepository(null),
           ),
           instantReplayStoreProvider.overrideWithValue(replayStore),
-          localSessionRecordingRepositoryProvider.overrideWithValue(
-            reviewRecordings,
-          ),
+          sampledRecordingLibraryProvider.overrideWithValue(reviewRecordings),
         ],
         child: const IanvsTerminalApp(),
       ),
@@ -423,17 +342,20 @@ void main() {
     await capture(tester, '16-replay-search');
     await tapKey(tester, 'mobile-replay-close-search');
     await tapKey(tester, 'mobile-replay-close');
-    await tapKey(tester, 'recording-entry-/review/mobile-session.ndjson');
+    await tapKey(tester, 'recording-entry-${savedEntry.path}');
     await _waitForWidget(
       tester,
-      find.byKey(const Key('mobile-replay-player')),
+      find.byKey(const Key('recording-replay-layout')),
       description: 'saved recording player',
     );
-    await tapKey(tester, 'mobile-replay-forward-ten');
+    await tester.tap(find.byIcon(Icons.forward_10));
+    await tester.pumpAndSettle();
     await capture(tester, '17-saved-replay');
-    await tapKey(tester, 'mobile-replay-content-only');
-    await capture(tester, '18-saved-replay-content');
-    await tapKey(tester, 'mobile-replay-show-controls');
+    await tester.tap(find.byIcon(Icons.list_alt));
+    await tester.pumpAndSettle();
+    await capture(tester, '18-saved-replay-commands');
+    await tester.tap(find.byIcon(Icons.list_alt));
+    await tester.pumpAndSettle();
 
     if (const bool.fromEnvironment('IANVS_MOBILE_LAYOUT_REVIEW')) {
       final previousPolicy = binding.framePolicy;

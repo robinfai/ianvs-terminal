@@ -1,14 +1,14 @@
 # Adaptive structured recording plan
 
-Status: selected product direction, implementation in progress. This document
-specifies the new recording work; it does not claim that the app entrypoint has
-switched. [FORMAT_CURRENT](FORMAT_CURRENT.md) remains the existing schema 1
-implementation description until the new capture/replay flow is integrated.
+Status: selected product direction, implementation in progress. The application
+now uses the new capture and structured replay path described in
+[FORMAT_CURRENT](FORMAT_CURRENT.md) and [FORMAT_SAMPLED](FORMAT_SAMPLED.md).
 
-The native sampler, writer, recovery scan, disk seek and Session hook/timer
-integration now exist. Their current envelope and limits are described in the
-[implementation draft](FORMAT_SAMPLED.md); Dart/UI/library integration remains
-open. Native tests do not establish app delivery or the long-running targets.
+Native sampling, writing, recovery, disk seek, hook tracking and bounded Dart
+file workers are connected to the application library and player. This does not
+establish completed delivery: fast cold-open, cross-recording search, retention
+controls, legacy application test replacement and long-running validation remain
+open in the [delivery task](../tasks/adaptive-session-recording.md).
 
 ## Fidelity and scope
 

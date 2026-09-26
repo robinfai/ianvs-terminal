@@ -4984,4 +4984,37 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get mobileExternalKeyboardHelp =>
       '连接外接键盘后可使用这些快捷键。点按组合键可修改，作用范围在录制时设置。';
+
+  @override
+  String get sampledRecordingDisclosure =>
+      '保存采样画面和已捕获命令；短暂输出及无 hook 的命令可能未被记录。';
+
+  @override
+  String get sampledRecordingInterrupted => '录制已中断';
+
+  @override
+  String get sampledTimelineFirst => '命令首页';
+
+  @override
+  String get sampledTimelinePrevious => '上一页命令';
+
+  @override
+  String get sampledTimelineNext => '下一页命令';
+
+  @override
+  String get sampledTimelineEmpty => '当前页没有命令事件。缺少 shell hook 时仍可查看采样画面。';
+
+  @override
+  String get sampledHookUnavailable => '命令追踪不可用';
+
+  @override
+  String get sampledHookAvailable => '命令追踪已恢复';
+
+  @override
+  String get sampledCommandStarted => '开始执行';
+
+  @override
+  String sampledCommandExit(int code) {
+    return '退出状态 $code';
+  }
 }
