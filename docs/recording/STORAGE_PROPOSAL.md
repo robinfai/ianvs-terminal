@@ -1,101 +1,95 @@
-# Recording storage proposal
+# Adaptive structured recording plan
 
-Status: proposed, not implemented. This consolidates the useful design questions
-from the September 2026 storage experiments. It is not a supported file format,
-performance promise, or replacement for [FORMAT_CURRENT.md](FORMAT_CURRENT.md).
-The product still uses current schema 1 NDJSON and bounded native capture.
+Status: selected product direction, implementation in progress. This document
+specifies the new recording work; it does not claim that the app entrypoint has
+switched. [FORMAT_CURRENT](FORMAT_CURRENT.md) remains the existing schema 1
+implementation description until the new capture/replay flow is integrated.
 
-## Problem and format decision
+The native sampler, writer, recovery scan, disk seek and Session hook/timer
+integration now exist. Their current envelope and limits are described in the
+[implementation draft](FORMAT_SAMPLED.md); Dart/UI/library integration remains
+open. Native tests do not establish app delivery or the long-running targets.
 
-The current capture budget is a whole-recording limit, not a writer queue.
-Compressing only at stop cannot make capture longer. Saving, opening, indexing,
-and seeking also need bounded streaming work; moving whole-file processing to
-an isolate alone does not remove its peak memory cost.
+## Fidelity and scope
 
-Choose the fidelity requirement before the storage representation:
+Persist adaptively sampled **structured visible terminal state** and an
+independent hook timeline. Preserve text, styles, cursor, geometry, links and
+graphics references/assets. This is sampled visual history, not lossless raw
+output and not bitmap video. Intermediate output can be absent. Commands and
+their arguments come from hooks; raw input bytes are never part of the new format.
+Unavailable hook coverage must be explicit.
 
-- Complete output history needs the original output bytes, order, and timing.
-  A compact event stream with independent compressed chunks is the candidate.
-- Visual playback of repetitive TUI redraws may benefit from storage-specific
-  FrameDiff encoding, line deduplication, changed-field masks, and keyframes.
-- Sampling at 10–30 Hz is a separate fidelity tradeoff. It can omit intermediate
-  screens and lines that scroll out between samples; it is not lossless log
-  compression. Do not compare it with complete event history as equivalent data.
+Recording is manually started per Session, targets more than 24 hours, and uses
+one monotonic timeline. The initial sample includes the visible state already
+present at start. Semantic events preserve ordering independently of visual
+sampling. Boundary frames and command IDs/context IDs permit navigation without
+pretending to capture unobserved output. Replay must never run commands, open
+connections or dispatch historical host side effects.
 
-The earlier synthetic and macOS `top` probes justify comparing both routes,
-not selecting one universal winner. They do not establish mobile performance,
-random-seek latency, image fidelity, or a production compression ratio. Do not
-switch formats by program name: one session can move between shell, logs, and TUI.
-Avoid storing two complete histories by default without measuring their cost.
+## Sampling and state correctness
 
-## Candidate implementation
+Apply every live delta before selecting stored samples. Build each storage delta
+against the preceding **stored** screen, not the preceding live transport frame.
+Do not drop an intermediate live delta and then apply a later relative delta.
 
-1. Measure capture/queue/asset bytes, overflow feedback, save/open peak memory,
-   first-frame time, and seek cost before fixing budgets or latency targets.
-2. Prototype a versioned container with metadata, independent Zstd event chunks,
-   time/sequence directory, checksums, and a finalized footer. Container version,
-   event schema, and snapshot format must remain separate contracts. Test roughly
-   256 KiB–1 MiB chunks; these are starting points, not chosen product defaults.
-3. Write from a bounded native background queue while recording. Bound all
-   sessions together; handle disk-full, queue-full, cancellation, and crashes
-   explicitly. An incomplete but verified prefix must be distinguishable from
-   a finalized recording. Retain existing handoff/path ownership and atomic
-   commit responsibilities instead of adding a second recovery system.
-4. Read, search, and replay incrementally with cancellable asynchronous seek.
-   UTF-8, ANSI, and search matching need state across event/chunk boundaries.
-   A compressed chunk can be independently decoded without being independently
-   replayable: earlier parser and terminal state still matter.
-5. Define persistent restoration state only if cold seek requires it. Event
-   replay needs versioned terminal/parser state, screens, scrollback, modes,
-   and assets; pure FrameDiff playback instead needs a complete render keyframe.
-   Do not serialize Rust memory layouts. Indexing alone cannot skip prior state.
-6. Collect graphics at recording start and as versions appear, before cache
-   eviction. Reuse content identity, compare lossless RGBA compression against
-   alternatives, and verify decoded pixels. Do not remove image protocol bytes
-   until an explicit asset replay contract preserves their effect.
+The state assembler must preserve unchanged rows/hyperlinks through scrolling,
+replace metadata and graphics correctly, reject unbased deltas, and force
+self-contained keyframes for initial state, resize, alternate-screen transitions
+and a measured seek cadence. A stable screen need not create duplicate periodic
+records. Frame shape version, storage/container version and metadata version are
+separate contracts even if the initial implementation reuses frame model types.
 
-Instant replay is a separate in-memory optimization: share immutable rows and
-assets, keep bounded keyframe/delta groups, apply every incoming frame before
-sampling, and preserve a usable base when evicting old history.
+Sampling intervals respond to measured visual activity and writer pressure;
+semantic events are not dropped for visual-rate control. Queue admission failure
+must visibly stop capture while preserving verified data, rather than claiming
+an intact timeline. Initial 100 ms–1 s sampling and 5 s keyframe eligibility in
+the prototype are calibration inputs, not fixed product defaults.
 
-## Correctness gate and open issue
+## Storage, reading and recovery
 
-The earlier `scroll_burst` experiment reported a delta-versus-snapshot mismatch
-when 8,000 scrollback lines were exhausted: a negative viewport shift left
-retained rows offset by one. This remains a reproduction question for the
-current engine; historical measurements are not proof that it still fails or
-has been fixed. A 40,000-line benchmark avoids that boundary and cannot close it.
-Keep the 8,000-line check in any FrameDiff storage evaluation:
+Use independently validated bounded chunks, explicit lengths and checksums,
+time/sequence indexes and self-contained keyframes. Finalization distinguishes
+completed files from verified interrupted prefixes. The new format must be
+identifiable without parsing old NDJSON; unknown formats are rejected intact.
 
-```bash
-python3 tools/recording_bench/scenario-storage-benchmark.py \
-  --only scroll_burst --scrollback 8000 \
-  --output build/recording_bench/scrollback-boundary
-```
+Continuous background writing and all-session queue limits bound memory.
+Durable commits target a maximum ten-second uncommitted tail. A flush to a
+language/runtime buffer is not proof of durable storage. Test process kill,
+partial chunk/index/footer, corrupt length/checksum, cancellation, queue/disk
+exhaustion and system restart separately. Recovery must not race a live writer.
 
-Before adoption, validate event byte/time roundtrips, Unicode/control sequences
-split across chunks, resize, alternate screen, nonempty initial state, semantic
-ordering, input redaction, image versions, and seek-versus-from-start equivalence.
-Historical input and host side effects must never execute during replay.
-Exercise truncated chunks/footer, corrupt lengths/checksums, incompatible state,
-disk/queue exhaustion, and restart recovery. Bound decoded sizes as well as
-compressed sizes.
+Open/seek/search are incremental and cancellable. Indexes may be rebuilt; they
+must not require loading an entire recording into memory. Assets needed by a
+retained sample must be captured before eviction, content-identified, bounded
+in decoded size and available at independent cold seek positions.
 
-Compare full-fidelity and sampled modes separately, counting indexes, keyframes,
-assets, and retained offscreen history. Report bytes, write CPU, queue/peak RSS,
-stop latency, cold/warm first frame, seek P50/P95, UI responsiveness, and device
-power on representative workloads. Fixed numeric targets need a device and
-workload specification before becoming acceptance criteria.
+## Library and retention
 
-## Scope of a future implementation
+First-release scope includes cross-recording search of commands and retained
+screen text with host/date filters. Do not report unsampled output as searchable.
+Maintain index/file consistency through rename, recovery and deletion.
 
-Canonical ownership remains in `native/core`, `packages/ianvs_terminal`, and
-`example/lib/features/recording` with session and replay UI integration.
-Regenerate `ianvs_terminal_core` through the existing sync tool. Only after an
-implementation and its gates pass should the current-format document change.
-Any future NDJSON import/export or migration policy must be explicit, preserve
-the source until verification, and reject unsupported mandatory capabilities.
+Ordinary recordings are eligible for automatic removal under **both** configurable
+age and aggregate capacity limits. Keep-marked and active recordings are protected.
+If protected contents exhaust the budget, report the condition and prevent new
+capture. Never select old NDJSON files or unknown schemas for cleanup. Disabling
+or replacing this library does not delete legacy files.
 
-Reusable experiments and their limitations are documented in
-[tools/recording_bench/README.md](../../tools/recording_bench/README.md).
-Generated results belong in ignored `build/recording_bench/`, not in `docs/`.
+## Validation and delivery
+
+The four delivery batches and complete acceptance requirements live in the
+[active task](../tasks/adaptive-session-recording.md) and [roadmap](../ROADMAP.md).
+Canonical implementation remains in native/core, terminal packages and the app
+recording feature; regenerate standalone package mirrors using the existing tool.
+
+Compare sampled states with independently forced native snapshots, including
+8,000-line scrollback eviction, split Unicode/control sequences, hyperlinks,
+resize, alternate screen, nonempty initial state, metadata-only frames and asset
+version changes. Seek from keyframes must equal sequential replay at stored
+positions. Include all metadata/index/asset/keyframe bytes in size reports.
+
+Measure capture cost, retained/queue/peak RSS, write CPU, disk growth, stop time,
+cold/warm first frame, seek/search P50/P95 and input/render responsiveness on
+identified hardware. Separate synthetic logical-duration tests from more-than-
+24-hour wall-clock acceptance. Historical storage experiments are reference
+tools, not adoption evidence; see [benchmarks](../../tools/recording_bench/README.md).

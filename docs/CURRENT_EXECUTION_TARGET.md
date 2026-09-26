@@ -6,9 +6,17 @@ explains the active lane and the product boundary that all new work must keep.
 
 ## Active lane
 
-The single active lane is **`runtime-contract-stability`**.
+The single active lane is **`adaptive-session-recording`**.
 
-Its purpose is to keep one exact current native/Dart boundary. Each wire slice
+Implement and accept the four batches in
+[`tasks/adaptive-session-recording.md`](tasks/adaptive-session-recording.md): scheme
+validation, durable capture/replay, library/search/retention and real long-running
+acceptance. The app remains on its documented current recording format until the
+new path is integrated. None of the prototype evidence implies completed delivery.
+
+## Continuing runtime guardrails
+
+All recording slices must keep one exact current native/Dart boundary. Each wire slice
 has explicit size/version bounds, rejects missing, unknown, case-aliased and
 unsupported shapes, and has no predecessor symbol or downgrade route.
 
@@ -48,8 +56,8 @@ The authority is [TERMINAL_PRODUCT_SCOPE.md](TERMINAL_PRODUCT_SCOPE.md) and
 ## Execution order
 
 1. Preserve the exact-current architecture and real-PTY gates.
-2. Implement one bounded runtime-contract slice per task without a downgrade
-   route.
+2. Implement one bounded recording delivery slice per task, keeping runtime
+   contracts exact-current and old NDJSON intact.
 3. Share negative shape corpora across Dart, Rust and FFI boundaries.
 4. Keep the Terminal Layout/Relaunch/Recording separation protected by source,
    repository, controller and Widget tests.

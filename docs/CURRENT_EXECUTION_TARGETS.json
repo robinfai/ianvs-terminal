@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "calibrated_at": "2026-09-22",
+  "calibrated_at": "2026-09-27",
   "source_of_truth": "docs/ROADMAP.md",
-  "current_target": "runtime-contract-stability",
+  "current_target": "adaptive-session-recording",
   "lanes": [
     {
       "id": "documentation-contracts",
@@ -159,11 +159,11 @@
         {
           "path": "example/macos/Runner/MainFlutterWindow.swift",
           "contains": [
-            "Open Terminal at Folder…",
+            "Open Terminal at Folder\u2026",
             "bindNativeTerminalFolderMenuItem"
           ],
           "not_contains": [
-            "Open Project…",
+            "Open Project\u2026",
             "bindNativeWorkspaceMenuItems"
           ]
         },
@@ -250,7 +250,7 @@
     },
     {
       "id": "runtime-contract-stability",
-      "status": "active",
+      "status": "deferred",
       "goal": "Keep one exact current native/Dart runtime boundary: versioned SessionConfig, Session Request/Response, Runtime Event, Diagnostic Event, Frame Packet and Graphic Asset Packet contracts with no predecessor wire fallback.",
       "evidence": [
         {
@@ -435,7 +435,7 @@
         "The public terminal facade exposes one ordered runtime signal stream and contextual callbacks only.",
         "The complete repository verification entrypoint passes after every cross-boundary slice."
       ],
-      "reason": "The active lane requires one current versioned ABI and Dart contracts, protected by architecture and protocol tests. Predecessor symbols and downgrade routes are unsupported."
+      "reason": "Dedicated protocol expansion is deferred while adaptive recording is implemented. Existing exact-current contracts and verification remain mandatory; this does not claim that all runtime/platform acceptance blockers are closed."
     },
     {
       "id": "frame-pipeline-modularity",
@@ -736,9 +736,9 @@
         {
           "path": "docs/KNOWN_ISSUES.md",
           "contains": [
-            "macOS 是当前主交付平台",
-            "尚未完成实体设备上的完整产品验收",
-            "还没有跨平台验证"
+            "macOS \u662f\u5f53\u524d\u4e3b\u4ea4\u4ed8\u5e73\u53f0",
+            "\u5c1a\u672a\u5b8c\u6210\u5b9e\u4f53\u8bbe\u5907\u4e0a\u7684\u5b8c\u6574\u4ea7\u54c1\u9a8c\u6536",
+            "\u8fd8\u6ca1\u6709\u8de8\u5e73\u53f0\u9a8c\u8bc1"
           ]
         }
       ],
@@ -752,18 +752,95 @@
     {
       "id": "remote-plugin-renderer-expansion",
       "status": "deferred",
-      "goal": "Keep plugins, cloud/collaboration and renderer replacement outside the active runtime-contract lane and current terminal product surface.",
+      "goal": "Keep plugins, cloud/collaboration and renderer replacement outside the active recording lane and current terminal product surface.",
       "evidence": [
         {
           "path": "docs/KNOWN_ISSUES.md",
           "contains": [
-            "还没有插件系统",
-            "当前没有 native renderer"
+            "\u8fd8\u6ca1\u6709\u63d2\u4ef6\u7cfb\u7edf",
+            "\u5f53\u524d\u6ca1\u6709 native renderer"
           ]
         }
       ],
       "verification_commands": [],
       "reason": "SSH is delivered through the existing Profile/Session and tab/pane model; project/remote Workspace, plugin infrastructure, cloud collaboration and renderer replacement remain outside the current terminal product."
+    },
+    {
+      "id": "adaptive-session-recording",
+      "status": "active",
+      "goal": "Deliver manually started per-session adaptive structured screen recordings with independent hook timelines, bounded durable storage, cross-recording search, protected retention and more-than-24-hour acceptance.",
+      "evidence": [
+        {
+          "path": "docs/tasks/adaptive-session-recording.md",
+          "contains": [
+            "Scheme validation",
+            "Capture and replay",
+            "Library and search",
+            "Long-running acceptance"
+          ]
+        },
+        {
+          "path": "native/core/src/recording/sampler.rs",
+          "contains": [
+            "pub struct AdaptiveSampler",
+            "pub fn observe_semantic"
+          ]
+        },
+        {
+          "path": "native/core/tests/sampled_recording_test.rs",
+          "contains": [
+            "unsampled_deltas_are_included_in_the_next_stored_frame",
+            "sampled_scrolling_matches_snapshots_after_eight_thousand_line_eviction"
+          ]
+        },
+        {
+          "path": "native/core/src/session/sampled_recording.rs",
+          "contains": [
+            "pub fn start_sampled_recording",
+            "observe_sampled_hook"
+          ]
+        },
+        {
+          "path": "native/core/src/recording/storage.rs",
+          "contains": [
+            "pub struct ContainerWriter",
+            "pub struct ContainerReader"
+          ]
+        },
+        {
+          "path": "native/core/src/recording/index.rs",
+          "contains": [
+            "pub struct RecordingIndex",
+            "pub fn rebuild"
+          ]
+        },
+        {
+          "path": "native/core/tests/sampled_recording_session_test.rs",
+          "contains": [
+            "hidden_session_keeps_recording_without_consuming_ui_damage",
+            "real_pty_hook_bytes_reach_timeline_without_ui_event_polling"
+          ]
+        },
+        {
+          "path": "native/core/tests/sampled_recording_storage_test.rs",
+          "contains": [
+            "abrupt_process_kill_preserves_synced_records_as_interrupted",
+            "disk_index_cold_seek_matches_sequential_replay_during_dense_hook_bursts"
+          ]
+        }
+      ],
+      "verification_commands": [
+        "cargo test --manifest-path native/core/Cargo.toml --test sampled_recording_test --test sampled_recording_storage_test --test sampled_recording_timeline_test --test sampled_recording_session_test",
+        "dart test test/docs_contract_test.dart",
+        "make verify"
+      ],
+      "exit_criteria": [
+        "All four delivery batches in docs/tasks/adaptive-session-recording.md are implemented and verified.",
+        "Actual macOS local/SSH capture, restart/replay, command navigation, cross-recording search and protected retention work in the product UI.",
+        "Real-duration acceptance exceeds 24 hours with bounded memory and validated ten-second recovery target; logical-time tests alone do not satisfy it.",
+        "Old NDJSON is not replayed, migrated, modified or deleted by the new library.",
+        "Full repository verification and generated package mirrors pass on the final implementation."
+      ]
     }
   ]
 }

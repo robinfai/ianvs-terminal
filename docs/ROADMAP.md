@@ -1,29 +1,44 @@
 # Trail Roadmap
 
-当前主线是 **`runtime-contract-stability`**。机器可读目标见
-[CURRENT_EXECUTION_TARGETS.json](CURRENT_EXECUTION_TARGETS.json)，范围与执行约束见
-[CURRENT_EXECUTION_TARGET.md](CURRENT_EXECUTION_TARGET.md)。这里仅列当前优先级，不保留已完成阶段流水。
+当前主线是 **`adaptive-session-recording`**。机器可读目标见
+[CURRENT_EXECUTION_TARGETS.json](CURRENT_EXECUTION_TARGETS.json)，现行工程边界见
+[CURRENT_EXECUTION_TARGET.md](CURRENT_EXECUTION_TARGET.md)。
 
-## 当前能力
+## 产品目标与已确认范围
 
-- macOS 本地 shell 与 SSH、iOS SSH，使用 Profile/Session 和 tab/pane 模型。
-- 本机 Terminal Layout 仅保存拓扑、Profile 引用和 cwd；录制库独立保存。
-- 本地优先配置持久化；API 是可选同步目标。
-- 原生边界只保留当前版本的配置、请求、事件、帧与图形资产合同。
+优先让 Trail 成为 macOS 日常主力终端，并能保存、检索和复盘一次完整工作过程。
+持久录制先于近期回看扩展；日常输入、显示、SSH 与生命周期的阻塞随主线解决。
 
-具体能力以 [产品范围](TERMINAL_PRODUCT_SCOPE.md)、[架构](ARCHITECTURE.md) 与
-[协议清单](protocols/RUNTIME_WIRE_INVENTORY.md) 为准。实现存在不代表当前构建已通过所有平台验收。
+- 每个 Session 独立、手动开启录制；目标覆盖 24 小时以上真实连续使用。
+- 自适应采样结构化终端画面：字符、样式、光标、布局与图形资源引用。
+- hook 旁路保存已执行命令及参数、时间和可获得的状态；不记录原始按键流。
+- 支持时间/命令定位、复制，以及整个录制库的命令和已保存画面文字检索、主机/日期筛选。
+- 普通录制按时间和容量双限制清理；Keep 与正在录制的文件受到保护。
+- 异常恢复目标为最多约十秒未持久化尾部丢失，恢复结果标记为中断。
+- 新格式不读取、迁移、重写或清理旧 NDJSON；旧文件保持原样。
 
-## 执行顺序
+“完整工作过程”覆盖录制时段，包含采样画面和实际捕获的命令事件。
+采样间闪过的输出、hook 未捕获的命令没有完整性承诺；搜索仅覆盖保留内容。
 
-1. 守住 current-only 协议、严格输入校验、发布包镜像一致性和真实 PTY 行为。
-2. 修复 [KNOWN_ISSUES.md](KNOWN_ISSUES.md) 中的门禁阻塞，运行聚焦回归及完整 `make verify`。
-3. 补齐 iOS 实体设备、可选 API 跨设备同步、辅助访问和发布验收。
-4. 按目标机证据推进 Linux / Windows；本机或 Ubuntu package 测试不能代替桌面验收。
-5. 录制存储改进先评估 [存储提案](recording/STORAGE_PROPOSAL.md)，明确保真、内存和恢复合同后再实现。
+## 四批交付与验收
 
-## 延期边界
+1. **验证方案**：每次实时增量均先进入完整状态，存储增量基于上次已保存画面；
+   验证自适应采样、关键帧、独立命令时间线，以及 shell/log/TUI 的开销和正确性。
+2. **录制与回放**：持续写盘、有界总队列、停止保存、重启打开、异步 seek、命令定位、
+   图形资源保留、异常前缀恢复，形成单会话完整流程。
+3. **录制库与检索**：增量跨录制索引、条件筛选、Keep、时间/容量清理与索引同步。
+4. **长期与日常验收**：超过 24 小时真实运行、CPU/RSS/磁盘、输入影响、SSH、故障注入、
+   十秒恢复目标及完整 `make verify`。加速逻辑时间测试不能代替真实长时运行。
 
-Project Workspace、团队云/协作、插件市场和替换 renderer 不在当前主线。
-新功能分为有界任务，按 [验收标准](ACCEPTANCE.md) 和 [测试入口](TESTING.md) 检查；
-执行产物写入 `build/`，当前文档只保留结论、现行合同与未解决问题。
+四批共同构成首版交付。当前实现进度、测试入口和尚未关闭条件见
+[活动任务](tasks/adaptive-session-recording.md)；方案见
+[录制存储提案](recording/STORAGE_PROPOSAL.md)。原型参数须经测量校准，不能作为性能承诺。
+
+## 持续工程要求与后置范围
+
+current-only native/Dart 协议、严格校验、发布包镜像一致性、真实 PTY、基础辅助访问
+和 macOS 日常可用性继续作为门禁。新增录制行为不恢复 Project Workspace。
+
+iOS/同步扩展、多 pane 联合回放、旧格式兼容、团队云、插件市场与替换 renderer 后置。
+Linux/Windows 仍需要真实目标机证据。实现存在不代表已经通过产品或发布验收。
+产物写入 `build/`，完成标准见 [ACCEPTANCE](ACCEPTANCE.md)。

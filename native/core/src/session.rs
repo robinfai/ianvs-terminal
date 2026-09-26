@@ -58,6 +58,11 @@ mod protocol_callbacks;
 mod protocol_host;
 mod pty_reader;
 mod recording;
+mod recording_snapshot;
+mod sampled_recording;
+pub use sampled_recording::{
+    sampled_recording_status, start_sampled_recording, stop_sampled_recording,
+};
 
 pub use product_requests::request_session;
 #[cfg(test)]
@@ -748,6 +753,8 @@ pub struct TerminalSession {
     is_replay: bool,
     events: Mutex<PendingEventQueue>,
     recording: Mutex<SessionRecording>,
+    sampled_capture: Mutex<Option<sampled_recording::SampledCapture>>,
+    recording_timeline: Mutex<crate::recording::HookTimeline>,
     replay_checkpoints: Mutex<ReplayCheckpointStore>,
     diagnostic_events: Mutex<VecDeque<TerminalDiagnosticEvent>>,
     diagnostic_wire_sequence: Mutex<u64>,
@@ -1255,6 +1262,15 @@ impl TerminalSession {
                 payload: None,
             })),
             recording: Mutex::new(SessionRecording::bounded()),
+            sampled_capture: Mutex::new(None),
+            recording_timeline: Mutex::new(
+                crate::recording::HookTimeline::new(crate::recording::TimelineContext {
+                    id: "root".into(),
+                    cwd: None,
+                    hostname: None,
+                })
+                .expect("static root recording context is valid"),
+            ),
             replay_checkpoints: Mutex::new(ReplayCheckpointStore::default()),
             diagnostic_events: Mutex::new(VecDeque::from([TerminalDiagnosticEvent {
                 timestamp_micros: unix_timestamp_micros(),
@@ -2992,6 +3008,7 @@ impl TerminalSession {
         // external filesystem returning.
         self.terminate_zmodem_transport();
         self.join_worker_threads();
+        let _ = self.stop_sampled_capture();
         if let Some(mut zmodem) = self.zmodem.try_lock() {
             zmodem.reset();
             self.remember_zmodem_state(&zmodem);
@@ -4542,6 +4559,7 @@ impl TerminalSession {
         self.recording
             .lock()
             .record_session_exited(pending.exit_code);
+        let _ = self.stop_sampled_capture();
         self.push_event("exit", Some(pending.payload));
         crate::zmodem::tombstone_recovery_session(self.session_id);
     }
@@ -4939,8 +4957,12 @@ impl TerminalSession {
             CallbackEvent::ClipboardMimeError { payload } => {
                 self.push_event("clipboard_mime_error", Some(payload))
             }
-            CallbackEvent::ShellHook { payload } => self.push_event("shell_hook", Some(payload)),
+            CallbackEvent::ShellHook { payload } => {
+                self.observe_sampled_hook(&payload, false);
+                self.push_event("shell_hook", Some(payload));
+            }
             CallbackEvent::ShellContext { payload } => {
+                self.observe_sampled_hook(&payload, true);
                 self.push_event("shell_context", Some(payload))
             }
             CallbackEvent::ShellCommand { payload } => {

@@ -18,9 +18,11 @@
 - benchmark smoke 覆盖正确性和轻量时延门槛；CPU/RSS 阈值需要安静宿主运行，尚无跨机器长期对比基线。
 - SSH 自动化覆盖认证、ProxyJump、host-key 与转发；更宽的服务器版本、发行版和真实网络环境仍需验证。
 - 字体/DPI、Unicode cluster、Powerline / Nerd Font 的实际观感，以及 trackpad 和宿主快捷键，需要[人工检查](compatibility/MANUAL_VERIFICATION.md)。
-- 长录制的容量、内存与快照恢复改进见[录制存储提案](recording/STORAGE_PROPOSAL.md)，尚未实施。
+- 长录制的容量、内存与快照恢复改进见[录制存储提案](recording/STORAGE_PROPOSAL.md)，正在分批实施，当前产品入口仍使用原捕获格式。
 
 ## 当前门禁阻塞
+
+- 新录制工作区完整 verification 在 example 测试阶段仍有失败：macOS signer 夹具缺少实际 bundle 内容、iPhone 键盘输入栏断言，以及六个视觉 golden 差异。需要定位和修复后重跑完整 gate，不能以新录制单测替代。
 
 - 本机 CLT 27 SDK 与链接器不匹配。命令级指定 Xcode 26.2 的 `SDKROOT` 可避开该链接错误，不需改项目配置。
 - 工作区 iOS Bundle ID / signing 设置与 Apple identity 合同不一致；Runner simulator destination 匹配失败使本地优先启动 gate 尚未运行到断言。

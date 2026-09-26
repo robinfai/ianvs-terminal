@@ -60,3 +60,23 @@ Limitations:
 The scripts read committed contract fixtures but never replace or remove them.
 Results include local environment/library metadata where relevant; comparisons
 must use the same source stream, fidelity, and compression settings.
+
+## Adaptive structured-screen prototype
+
+The selected new recording direction has an independent native sampler and
+side-effect-free keyframe/delta replay model. Run its real-VT comparison before
+changing sampling or frame materialization:
+
+```bash
+cargo test --manifest-path native/core/Cargo.toml --test sampled_recording_test
+cargo run --release --manifest-path native/core/Cargo.toml \
+  --example sampled_recording_bench -- build/recording_bench/adaptive/results.json
+```
+
+The report compares seven deterministic workloads with independently forced
+snapshots, including 8,000-line eviction, resize, TUI, metadata and idle. It
+reports sampled frame payload bytes, equivalent sampled snapshot bytes, hook
+fixture counts, sampler timings and retained-model encoded sizes. Encoded sizes
+are not heap/RSS; payload bytes exclude the implemented container, indexes, compression
+and image blobs. Semantic fixtures do not prove real hook delivery. This is
+accelerated logical time and never substitutes for 24-hour wall-clock acceptance.
