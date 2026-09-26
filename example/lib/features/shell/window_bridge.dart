@@ -126,6 +126,18 @@ class WindowBridge {
     }
   }
 
+  /// Keep native window dragging clear of the movable sidebar controls.
+  static Future<void> setTitleBarLayout({double? sidebarWidth}) async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.macOS) return;
+    try {
+      await _channel.invokeMethod<void>('setTitleBarLayout', {
+        'sidebarWidth': sidebarWidth,
+      });
+    } on MissingPluginException {
+      return;
+    }
+  }
+
   static Future<void> requestQuitConfirmation() async {
     try {
       await _channel.invokeMethod<void>('requestQuitConfirmation');

@@ -5185,6 +5185,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get showSessionSidebar => 'Show session sidebar';
 
   @override
+  String get switchToTopTabs => 'Switch to top tabs';
+
+  @override
+  String get switchToSidebarTabs => 'Switch to sidebar tabs';
+
+  @override
+  String get resizeSessionSidebar => 'Resize session sidebar';
+
+  @override
   String get hideSessionSidebar => 'Hide session sidebar';
 
   @override

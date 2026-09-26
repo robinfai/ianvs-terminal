@@ -4839,6 +4839,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get showSessionSidebar => '显示会话侧边栏';
 
   @override
+  String get switchToTopTabs => '切换到顶部标签';
+
+  @override
+  String get switchToSidebarTabs => '切换到侧边标签';
+
+  @override
+  String get resizeSessionSidebar => '调整会话侧栏宽度';
+
+  @override
   String get hideSessionSidebar => '隐藏会话侧边栏';
 
   @override

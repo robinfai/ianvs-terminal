@@ -11,6 +11,7 @@ class _ShellChromeBar extends ConsumerWidget {
   const _ShellChromeBar({
     required this.palette,
     this.sidebarOpen = false,
+    required this.sidebarWidth,
     this.onToggleSidebar,
     required this.terminalBackgroundColor,
     required this.tabStripKey,
@@ -37,11 +38,10 @@ class _ShellChromeBar extends ConsumerWidget {
     required this.onShowTabContextMenu,
     required this.onShowCommandMenu,
     this.onOpenReplay,
-    this.onOpenSettings,
-    this.onSearch,
   });
 
   final bool sidebarOpen;
+  final double sidebarWidth;
   final VoidCallback? onToggleSidebar;
   final AppThemeTokens palette;
   final Color terminalBackgroundColor;
@@ -72,8 +72,6 @@ class _ShellChromeBar extends ConsumerWidget {
   final void Function(TerminalTab tab, Offset position) onShowTabContextMenu;
   final VoidCallback onShowCommandMenu;
   final VoidCallback? onOpenReplay;
-  final VoidCallback? onOpenSettings;
-  final VoidCallback? onSearch;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -130,13 +128,12 @@ class _ShellChromeBar extends ConsumerWidget {
                 _ShellWindowTitleBar(
                   height: titleHeight,
                   sidebarOpen: sidebarOpen,
+                  sidebarWidth: sidebarWidth,
                   onToggleSidebar: onToggleSidebar,
-                  onOpenReplay: onOpenReplay,
-                  onOpenSettings: onOpenSettings,
-                  onSearch: onSearch,
                   palette: palette,
                   tone: chromeTone,
                   backgroundColor: chromeSurface,
+                  terminalBackgroundColor: terminalBackgroundColor,
                   onShowCommandMenu: referenceDemoMode
                       ? null
                       : onShowCommandMenu,

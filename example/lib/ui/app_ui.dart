@@ -10,6 +10,7 @@ export 'components/app_mobile_header.dart';
 export 'components/app_notifications.dart';
 export 'components/app_panel.dart';
 export 'components/app_section_header.dart';
+export 'components/app_tab_layout_icon.dart';
 export 'components/app_toolbar.dart';
 export 'foundation/app_terminal_colors.dart';
 export 'foundation/app_theme.dart';

@@ -282,7 +282,11 @@ void main() {
       ).viewport.canvasBackground,
     );
     expect(
-      _decoratedBoxColor(tester, const Key('shell-chrome-title-surface')),
+      tester
+          .widget<ColoredBox>(
+            find.byKey(const Key('shell-chrome-title-surface')),
+          )
+          .color,
       tester
           .element(find.byKey(const Key('shell-chrome-bar')))
           .appTheme

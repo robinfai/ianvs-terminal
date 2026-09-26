@@ -5,6 +5,37 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets(
+    'title bar layout sends sidebar width and clears it in top-tabs mode',
+    (tester) async {
+      const channel = MethodChannel('app/window_bridge');
+      final calls = <MethodCall>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+        call,
+      ) async {
+        calls.add(call);
+        return null;
+      });
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          channel,
+          null,
+        ),
+      );
+      await WindowBridge.setTitleBarLayout(sidebarWidth: 320);
+      await WindowBridge.setTitleBarLayout();
+      expect(calls.map((call) => call.method), [
+        'setTitleBarLayout',
+        'setTitleBarLayout',
+      ]);
+      expect(calls.map((call) => call.arguments), [
+        {'sidebarWidth': 320.0},
+        {'sidebarWidth': null},
+      ]);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
   setUp(() {
     WindowBridge.debugZmodemFileDialogPlatformOverride = TargetPlatform.macOS;
     addTearDown(

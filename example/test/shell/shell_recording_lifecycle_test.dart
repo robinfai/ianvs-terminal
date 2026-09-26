@@ -20,6 +20,7 @@ import '../support/fake_pty_backend.dart';
 import '../support/memory_app_preferences_repository.dart';
 import '../support/memory_profile_repository.dart';
 import '../support/no_io_local_session_recording_repository.dart';
+import '../support/shell_command_actions.dart';
 
 class _RecordingShellBackend extends FakePtyBackend
     implements PtySessionRequestV1Backend {
@@ -491,7 +492,7 @@ void main() {
       expect(recordingBackend.recordingStartCount, 1);
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byKey(const Key('shell-toolbar-replay')));
+      await openShellCommand(tester, 'shell-open-recording');
       await _pumpUntil(
         tester,
         () => find

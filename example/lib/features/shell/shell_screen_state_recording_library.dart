@@ -1,9 +1,9 @@
 part of 'shell_screen.dart';
 
 extension _ShellScreenRecordingLibraryState on _ShellScreenState {
-  Future<void> _openRecordingLibrary() async {
+  Future<void> _openRecordingLibrary({FocusNode? returnFocus}) async {
     if (_recordingShelfOpen) return;
-    _recordingReturnFocus = FocusManager.instance.primaryFocus;
+    _recordingReturnFocus = returnFocus ?? FocusManager.instance.primaryFocus;
     _recordingReturnFocus?.unfocus();
     _mutateState(() {
       _invalidateRecordingOpen();

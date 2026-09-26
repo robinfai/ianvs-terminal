@@ -19,6 +19,7 @@ import '../support/memory_paste_history_repository.dart';
 import '../support/memory_profile_repository.dart';
 import '../support/no_io_local_session_recording_repository.dart';
 import '../support/no_io_local_terminal_layout_repository.dart';
+import '../support/shell_command_actions.dart';
 
 Future<void> pumpShellScreen(
   WidgetTester tester, {
@@ -98,9 +99,11 @@ void main() {
       expect(
         tester.getCenter(find.byKey(const Key('shell-chrome-window-title'))).dx,
         closeTo(
-          tester
-              .getCenter(find.byKey(const Key('shell-chrome-title-surface')))
-              .dx,
+          (tester.getCenter(find.byKey(const Key('shell-toggle-sidebar'))).dx +
+                  tester
+                      .getCenter(find.byKey(const Key('shell-chrome-menu')))
+                      .dx) /
+              2,
           0.5,
         ),
       );
@@ -118,7 +121,9 @@ void main() {
     },
   );
 
-  testWidgets('toolbar opens settings and terminal search', (tester) async {
+  testWidgets('gear command palette opens settings and terminal search', (
+    tester,
+  ) async {
     await pumpShellScreen(
       tester,
       fakeBindings: FakePtyBackend(),
@@ -126,13 +131,13 @@ void main() {
         TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
       ),
     );
-    await tester.tap(find.byKey(const Key('shell-toolbar-settings')));
+    await openShellCommand(tester, 'shell-command-defaults');
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('defaults-dialog')), findsOneWidget);
     await tester.sendKeyEvent(LogicalKeyboardKey.escape);
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('defaults-dialog')), findsNothing);
-    await tester.tap(find.byKey(const Key('shell-toolbar-search')));
+    await openShellCommand(tester, 'shell-search-scrollback-top');
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('terminal-search-field')), findsOneWidget);
     expect(tester.takeException(), isNull);

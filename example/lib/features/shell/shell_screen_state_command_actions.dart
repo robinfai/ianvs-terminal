@@ -42,6 +42,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
     if (_isCommandMenuOpen) {
       return;
     }
+    final focusBeforeMenu = FocusManager.instance.primaryFocus;
 
     _mutateState(() {
       _isCommandMenuOpen = true;
@@ -723,7 +724,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         }
         return;
       case TerminalActionId.openRecording:
-        await _openRecordingLibrary();
+        await _openRecordingLibrary(returnFocus: focusBeforeMenu);
         return;
       case TerminalActionId.openTerminalAtFolder:
         await _openTerminalAtFolderFromPicker();

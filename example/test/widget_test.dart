@@ -878,7 +878,7 @@ void main() {
     expect(find.bySemanticsIdentifier('shell-tab-1'), findsOneWidget);
     expect(
       tester.getSize(find.byKey(const Key('shell-chrome-menu'))),
-      const Size(28, 20),
+      const Size.square(28),
     );
     expect(
       tester.getSize(find.byKey(const Key('shell-chrome-new-tab'))),
@@ -2772,7 +2772,7 @@ void main() {
       instantReplayStore.record(sessionId, frame('second replay frame'));
       await tester.tap(find.byType(TerminalViewport));
       await tester.pump();
-      await tester.tap(find.byKey(const Key('shell-toolbar-replay')));
+      await tester.tap(find.byKey(const Key('shell-open-recording')));
       await tester.pumpAndSettle();
       final replayAction = find.byKey(
         const Key('shell-replay-recent-activity'),

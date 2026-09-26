@@ -25,6 +25,7 @@ import '../support/memory_app_preferences_repository.dart';
 import '../support/memory_paste_history_repository.dart';
 import '../support/memory_profile_repository.dart';
 import '../support/no_io_local_session_recording_repository.dart';
+import '../support/shell_command_actions.dart';
 
 class _ReplayShellBackend extends FakePtyBackend
     implements
@@ -588,7 +589,7 @@ void main() {
     expect(find.byKey(const Key('recording-replay-layout')), findsNothing);
     expect(find.byKey(const Key('shell-chrome-bar')), findsOneWidget);
 
-    await tester.tap(find.byKey(const Key('shell-toolbar-replay')));
+    await openShellCommand(tester, 'shell-open-recording');
     await _pumpUntil(
       tester,
       () =>
@@ -626,7 +627,7 @@ void main() {
       textScaler: const TextScaler.linear(1.5),
     );
 
-    await tester.tap(find.byKey(const Key('shell-toolbar-replay')));
+    await openShellCommand(tester, 'shell-open-recording');
     await _pumpUntil(
       tester,
       () => find
@@ -663,7 +664,7 @@ void main() {
       themeMode: ThemeMode.dark,
     );
 
-    await tester.tap(find.byKey(const Key('shell-toolbar-replay')));
+    await openShellCommand(tester, 'shell-open-recording');
     await _pumpUntil(
       tester,
       () => find
@@ -710,7 +711,7 @@ void main() {
         repository: firstRepository,
         themeMode: ThemeMode.dark,
       );
-      await tester.tap(find.byKey(const Key('shell-toolbar-replay')));
+      await openShellCommand(tester, 'shell-open-recording');
       await _pumpUntil(
         tester,
         () => find
@@ -727,7 +728,7 @@ void main() {
         directoryResolver: () async => fixture.directory,
       );
       await _pumpRecordingLibraryShell(tester, repository: rebuiltRepository);
-      await tester.tap(find.byKey(const Key('shell-toolbar-replay')));
+      await openShellCommand(tester, 'shell-open-recording');
       final rebuiltEntry = find.byKey(
         ValueKey<String>('recording-entry-$recordingPath'),
       );
@@ -795,7 +796,7 @@ void main() {
       picker: ({initialDirectory}) => pickerResult.future,
     );
 
-    await tester.tap(find.byKey(const Key('shell-toolbar-replay')));
+    await openShellCommand(tester, 'shell-open-recording');
     await _pumpUntil(
       tester,
       () => find
@@ -872,7 +873,7 @@ void main() {
     await tester.pump();
     final replaySearchFocus = FocusManager.instance.primaryFocus;
     expect(replaySearchFocus, isNotNull);
-    await tester.tap(find.byKey(const Key('shell-toolbar-replay')));
+    await openShellCommand(tester, 'shell-open-recording');
     await _pumpUntil(
       tester,
       () =>
@@ -951,8 +952,13 @@ void main() {
         tester.semantics.tap(find.semantics.byLabel('Close replay'));
         await tester.pumpAndSettle();
         expect(find.byKey(const Key('recording-replay-layout')), findsNothing);
-        expect(find.semantics.byLabel('Replay'), findsOne);
-        tester.semantics.tap(find.semantics.byLabel('Replay'));
+        tester.semantics.tap(find.semantics.byLabel('Open command palette'));
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(
+          find.byKey(const Key('shell-open-recording')),
+        );
+        await tester.pumpAndSettle();
+        tester.semantics.tap(find.semantics.byLabel(RegExp('^Replay\n')));
         await tester.pumpAndSettle();
         tester.semantics.tap(find.semantics.byLabel('Refresh recordings'));
         await tester.pumpAndSettle();
@@ -1071,8 +1077,8 @@ Future<void> _pumpRecordingLibraryShell(
   );
   await _pumpUntil(
     tester,
-    () => find.byKey(const Key('shell-toolbar-replay')).evaluate().isNotEmpty,
-    phase: 'replay toolbar control',
+    () => find.byKey(const Key('shell-chrome-menu')).evaluate().isNotEmpty,
+    phase: 'command palette control',
   );
 }
 
@@ -1080,7 +1086,7 @@ Future<void> _openFirstSavedRecording(
   WidgetTester tester,
   String recordingPath,
 ) async {
-  await tester.tap(find.byKey(const Key('shell-toolbar-replay')));
+  await openShellCommand(tester, 'shell-open-recording');
   final entry = find.byKey(ValueKey<String>('recording-entry-$recordingPath'));
   await _pumpUntil(
     tester,

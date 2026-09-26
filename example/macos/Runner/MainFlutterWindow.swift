@@ -45,16 +45,15 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
   }
 
   private static let chromeBarHeight: CGFloat = 44
-  // Keep the search, settings and command controls out of the drag region.
-  private static let trailingWindowControlWidth: CGFloat = 120
-  // Matches the Flutter title bar's 90 pt inset and 48 pt IconButton target.
-  private static let sidebarControlRange: ClosedRange<CGFloat> = 90...138
+  // Matches Flutter's 90 pt inset, 28 pt buttons and 12 pt trailing padding.
+  private static let sidebarControlRange: ClosedRange<CGFloat> = 90...118
   private static let maxOsc72DropBytes = 64 * 1024 * 1024
   private static let mimePasteboardTypePrefix = "dev.ianvs.terminal.mime."
   static let mainWindowFrameAutosaveName = "IanvsTerminalMainWindow"
 
   private var windowBridgeChannel: FlutterMethodChannel?
   private var shutdownChannel: FlutterMethodChannel?
+  private var sidebarChromeWidth: CGFloat?
   private var trafficLightCenteringWorkItem: DispatchWorkItem?
   private var notificationExpiryWorkItems: [String: DispatchWorkItem] = [:]
   private var attentionRequestIds: Set<Int> = []
@@ -62,20 +61,32 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
   private var osc72DropPayloads: [String: Osc72DropPayload] = [:]
   private var osc72DropDecision: NSDragOperation = []
 
+  private static func isTitleBarControl(
+    x: CGFloat,
+    windowWidth: CGFloat,
+    sidebarWidth: CGFloat?
+  ) -> Bool {
+    let headerWidth = min(sidebarWidth ?? windowWidth, windowWidth)
+    let commandRange = (headerWidth - 40)...(headerWidth - 12)
+    // The divider is draggable over the title bar as well as the sidebar body.
+    let onDivider = sidebarWidth != nil && x >= headerWidth - 8 && x <= headerWidth
+    return sidebarControlRange.contains(x) || commandRange.contains(x) || onDivider
+  }
+
   static func shouldStartNativeWindowDrag(
     at point: NSPoint,
     contentSize: NSSize,
-    standardButtonFrames: [NSRect] = []
+    standardButtonFrames: [NSRect] = [],
+    sidebarWidth: CGFloat? = nil
   ) -> Bool {
     guard contentSize.width > 0, contentSize.height > 0 else {
       return false
     }
 
-    let dragWidth = max(0, contentSize.width - trailingWindowControlWidth)
     guard
       point.x >= 0,
-      !sidebarControlRange.contains(point.x),
-      point.x <= dragWidth,
+      !isTitleBarControl(x: point.x, windowWidth: contentSize.width, sidebarWidth: sidebarWidth),
+      point.x <= contentSize.width,
       point.y >= contentSize.height - chromeBarHeight,
       point.y <= contentSize.height
     else {
@@ -88,7 +99,8 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
   static func shouldStartNativeWindowDrag(
     atMouseLocation mouseLocation: NSPoint,
     windowFrame: NSRect,
-    standardButtonFrames: [NSRect] = []
+    standardButtonFrames: [NSRect] = [],
+    sidebarWidth: CGFloat? = nil
   ) -> Bool {
     guard windowFrame.width > 0, windowFrame.height > 0 else {
       return false
@@ -96,11 +108,10 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
 
     let xFromLeft = mouseLocation.x - windowFrame.minX
     let yFromTop = windowFrame.maxY - mouseLocation.y
-    let dragWidth = max(0, windowFrame.width - trailingWindowControlWidth)
     guard
       xFromLeft >= 0,
-      !sidebarControlRange.contains(xFromLeft),
-      xFromLeft <= dragWidth,
+      !isTitleBarControl(x: xFromLeft, windowWidth: windowFrame.width, sidebarWidth: sidebarWidth),
+      xFromLeft <= windowFrame.width,
       yFromTop >= 0,
       yFromTop <= chromeBarHeight
     else {
@@ -266,6 +277,21 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
       }
 
       switch call.method {
+      case "setTitleBarLayout":
+        guard let arguments = call.arguments as? [String: Any] else {
+          result(FlutterMethodNotImplemented)
+          return
+        }
+        if let width = arguments["sidebarWidth"] as? Double {
+          guard width.isFinite, width > 0 else {
+            result(FlutterError(code: "invalid_width", message: "Invalid sidebar width", details: nil))
+            return
+          }
+          self.sidebarChromeWidth = CGFloat(width)
+        } else {
+          self.sidebarChromeWidth = nil
+        }
+        result(nil)
       case "resizeBy":
         guard
           let arguments = call.arguments as? [String: Any],
@@ -1180,7 +1206,8 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
     Self.shouldStartNativeWindowDrag(
       atMouseLocation: mouseLocation,
       windowFrame: frame,
-      standardButtonFrames: standardWindowButtonFramesInScreenCoordinates()
+      standardButtonFrames: standardWindowButtonFramesInScreenCoordinates(),
+      sidebarWidth: sidebarChromeWidth
     )
   }
 

@@ -520,7 +520,7 @@ class RunnerTests: XCTestCase {
         contentSize: contentSize
       )
     )
-    for x in [800.0, 830.0, 860.0] {
+    for x in [860.0, 874.0, 888.0] {
       XCTAssertFalse(
         MainFlutterWindow.shouldStartNativeWindowDrag(
           at: NSPoint(x: x, y: 580),
@@ -544,7 +544,7 @@ class RunnerTests: XCTestCase {
   }
 
   func testSidebarControlReceivesMouseClicksInBothCoordinateSpaces() {
-    for x in [90.0, 110.0, 137.0] {
+    for x in [90.0, 104.0, 117.0] {
       XCTAssertFalse(
         MainFlutterWindow.shouldStartNativeWindowDrag(
           at: NSPoint(x: x, y: 580),
@@ -557,6 +557,30 @@ class RunnerTests: XCTestCase {
           windowFrame: NSRect(x: 100, y: 200, width: 900, height: 600)
         )
       )
+    }
+  }
+
+  func testSidebarHeaderControlsFollowResizedWidth() {
+    let size = NSSize(width: 1200, height: 700)
+    let frame = NSRect(x: 100, y: 200, width: size.width, height: size.height)
+    for width in [240.0, 280.0, 480.0] {
+      for x in [104.0, width - 26, width - 4] {
+        XCTAssertFalse(MainFlutterWindow.shouldStartNativeWindowDrag(
+          at: NSPoint(x: x, y: 678), contentSize: size, sidebarWidth: width
+        ))
+        XCTAssertFalse(MainFlutterWindow.shouldStartNativeWindowDrag(
+          atMouseLocation: NSPoint(x: 100 + x, y: 878), windowFrame: frame,
+          sidebarWidth: width
+        ))
+      }
+      for x in [170.0, width + 40, 1174.0] {
+        XCTAssertTrue(MainFlutterWindow.shouldStartNativeWindowDrag(
+          at: NSPoint(x: x, y: 678), contentSize: size, sidebarWidth: width
+        ))
+      }
+      XCTAssertTrue(MainFlutterWindow.shouldStartNativeWindowDrag(
+        at: NSPoint(x: width - 26, y: 678), contentSize: size
+      ), "The old sidebar gear position becomes draggable in top-tabs mode")
     }
   }
 

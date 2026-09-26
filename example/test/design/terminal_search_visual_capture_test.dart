@@ -18,6 +18,7 @@ import '../support/memory_paste_history_repository.dart';
 import '../support/memory_profile_repository.dart';
 import '../support/no_io_local_session_recording_repository.dart';
 import '../support/no_io_local_terminal_layout_repository.dart';
+import '../support/shell_command_actions.dart';
 import 'configuration_capture_binding.dart';
 import 'visual_capture_fonts.dart';
 
@@ -27,7 +28,8 @@ const _modeKey = Key('terminal-search-mode');
 
 // Optional local HIG review uses installed Apple fonts without copying or
 // redistributing them. Normal test runs retain the pinned portable fixtures.
-final String? _systemFontPath = Platform.environment['SEARCH_REVIEW_SYSTEM_FONT'];
+final String? _systemFontPath =
+    Platform.environment['SEARCH_REVIEW_SYSTEM_FONT'];
 
 Future<void> _loadReviewFonts() async {
   if (_systemFontPath == null) {
@@ -120,7 +122,7 @@ Future<FakePtyBackend> _pumpSearch(
     tester.element(find.byType(ShellScreen)),
   ).read(terminalRuntimeControllerProvider).refreshSession('1');
   await tester.pumpAndSettle();
-  await tester.tap(find.byKey(const Key('shell-toolbar-search')));
+  await openShellCommand(tester, 'shell-search-scrollback-top');
   await tester.pumpAndSettle();
   return backend;
 }

@@ -1,9 +1,167 @@
 part of 'shell_screen.dart';
 
+class _SessionSidebarLayout extends StatefulWidget {
+  const _SessionSidebarLayout({required this.visible, required this.builder});
+
+  final bool visible;
+  final Widget Function(BuildContext context, double sidebarWidth) builder;
+
+  @override
+  State<_SessionSidebarLayout> createState() => _SessionSidebarLayoutState();
+}
+
+class _SessionSidebarLayoutState extends State<_SessionSidebarLayout> {
+  static const _minimumWidth = 240.0;
+  static const _maximumWidth = 480.0;
+  static const _resizeTargetWidth = 8.0;
+  static const _keyboardStep = 10.0;
+
+  final _focusNode = FocusNode(debugLabel: 'session-sidebar-resize');
+  double _preferredWidth = 280;
+  double _availableWidth = 0;
+  double? _dragStartX;
+  double _dragStartWidth = 0;
+  bool _hovered = false;
+  bool _focused = false;
+
+  // Keep most of a narrow window available to the terminal without losing the
+  // user's preferred width when the window grows again.
+  double get _maxWidth => math.min(_maximumWidth, _availableWidth * 0.45);
+  double get _minWidth => math.min(_minimumWidth, _maxWidth);
+  double get _width => _preferredWidth.clamp(_minWidth, _maxWidth);
+
+  void _resize(double width) {
+    final next = width.clamp(_minWidth, _maxWidth);
+    if (next != _preferredWidth) {
+      setState(() => _preferredWidth = next);
+    }
+  }
+
+  void _endDrag() => setState(() => _dragStartX = null);
+
+  @override
+  void didUpdateWidget(_SessionSidebarLayout oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!widget.visible && oldWidget.visible) {
+      _hovered = false;
+      _focused = false;
+      _dragStartX = null;
+      _focusNode.unfocus();
+    }
+  }
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.appTheme;
+    final dragging = _dragStartX != null;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        _availableWidth = constraints.maxWidth;
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            widget.builder(context, _width),
+            if (widget.visible)
+              Positioned(
+                top: 0,
+                bottom: 0,
+                left: _width - _resizeTargetWidth,
+                width: _resizeTargetWidth,
+                child: CallbackShortcuts(
+                  bindings: {
+                    const SingleActivator(LogicalKeyboardKey.arrowLeft): () =>
+                        _resize(_width - _keyboardStep),
+                    const SingleActivator(LogicalKeyboardKey.arrowRight): () =>
+                        _resize(_width + _keyboardStep),
+                    const SingleActivator(LogicalKeyboardKey.home): () =>
+                        _resize(_minWidth),
+                    const SingleActivator(LogicalKeyboardKey.end): () =>
+                        _resize(_maxWidth),
+                  },
+                  child: Focus(
+                    key: const Key('session-sidebar-resize-focus'),
+                    focusNode: _focusNode,
+                    canRequestFocus: widget.visible,
+                    onFocusChange: (value) => setState(() => _focused = value),
+                    child: MouseRegion(
+                      key: const Key('session-sidebar-resize-handle'),
+                      cursor: SystemMouseCursors.resizeLeftRight,
+                      onEnter: (_) => setState(() => _hovered = true),
+                      onExit: (_) => setState(() => _hovered = false),
+                      child: Semantics(
+                        label: context.l10n.resizeSessionSidebar,
+                        value: '${_width.round()}',
+                        increasedValue: _width < _maxWidth
+                            ? '${math.min(_width + _keyboardStep, _maxWidth).round()}'
+                            : null,
+                        decreasedValue: _width > _minWidth
+                            ? '${math.max(_width - _keyboardStep, _minWidth).round()}'
+                            : null,
+                        onIncrease: _width < _maxWidth
+                            ? () => _resize(_width + _keyboardStep)
+                            : null,
+                        onDecrease: _width > _minWidth
+                            ? () => _resize(_width - _keyboardStep)
+                            : null,
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          dragStartBehavior: DragStartBehavior.down,
+                          onHorizontalDragStart: (details) => setState(() {
+                            _dragStartX = details.globalPosition.dx;
+                            _dragStartWidth = _width;
+                          }),
+                          onHorizontalDragUpdate: (details) {
+                            final start = _dragStartX;
+                            if (start != null) {
+                              _resize(
+                                _dragStartWidth +
+                                    details.globalPosition.dx -
+                                    start,
+                              );
+                            }
+                          },
+                          onHorizontalDragEnd: (_) => _endDrag(),
+                          onHorizontalDragCancel: _endDrag,
+                          child: AnimatedOpacity(
+                            key: const Key('session-sidebar-divider'),
+                            duration: MediaQuery.disableAnimationsOf(context)
+                                ? Duration.zero
+                                : const Duration(milliseconds: 90),
+                            opacity: _hovered || dragging || _focused ? 1 : 0,
+                            child: Align(
+                              alignment: Alignment.centerRight,
+                              child: Container(
+                                width: 2,
+                                color: dragging || _focused
+                                    ? palette.accent
+                                    : palette.borderStrong,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
 class _SessionGroupNode {
   _SessionGroupNode(this.label, this.path);
   final String label;
   final String path;
+  bool hasActiveSession = false;
   final children = <String, _SessionGroupNode>{};
   final tabs = <TerminalTab>[];
 }
@@ -152,6 +310,7 @@ class _SessionSidebarState extends ConsumerState<_SessionSidebar> {
       int depth = 0,
       bool pathLabel = false,
       bool section = false,
+      bool active = false,
     }) {
       rows.add(
         Padding(
@@ -172,13 +331,39 @@ class _SessionSidebarState extends ConsumerState<_SessionSidebar> {
                   palette.spacing.sm + math.min(depth, 5) * palette.spacing.sm,
               right: palette.spacing.sm,
             ),
+            leading: pathLabel
+                ? Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        _collapsed.contains(id)
+                            ? Icons.chevron_right
+                            : Icons.expand_more,
+                        size: 14,
+                        color: colors.onSurfaceVariant,
+                      ),
+                      SizedBox(width: palette.spacing.sm),
+                      Icon(
+                        Icons.folder_outlined,
+                        key: ValueKey('session-folder-$id'),
+                        size: 16,
+                        color: active ? palette.accent : colors.onSurface,
+                      ),
+                    ],
+                  )
+                : null,
             title: Row(
               children: [
                 Flexible(
                   child: Tooltip(
                     message: label,
                     child: pathLabel
-                        ? _SessionPathLabel(path: label, style: rowText)
+                        ? _SessionPathLabel(
+                            path: label,
+                            style: rowText?.copyWith(
+                              color: active ? palette.accent : colors.onSurface,
+                            ),
+                          )
                         : Text(
                             label,
                             maxLines: 1,
@@ -193,11 +378,15 @@ class _SessionSidebarState extends ConsumerState<_SessionSidebar> {
                 ],
               ],
             ),
-            trailing: Icon(
-              _collapsed.contains(id) ? Icons.chevron_right : Icons.expand_more,
-              size: 14,
-              color: colors.onSurfaceVariant,
-            ),
+            trailing: pathLabel
+                ? null
+                : Icon(
+                    _collapsed.contains(id)
+                        ? Icons.chevron_right
+                        : Icons.expand_more,
+                    size: 14,
+                    color: colors.onSurfaceVariant,
+                  ),
             onTap: () => setState(() {
               if (!_collapsed.add(id)) _collapsed.remove(id);
             }),
@@ -214,6 +403,9 @@ class _SessionSidebarState extends ConsumerState<_SessionSidebar> {
       bool pathLabel = false,
     }) {
       final selected = tab.containsSession(widget.activeSessionId ?? '');
+      final sessionText = rowText?.copyWith(
+        color: selected ? palette.accent : colors.onSurfaceVariant,
+      );
       final started = tab.activePane.shellIntegration.commandStartedAt;
       rows.add(
         Padding(
@@ -234,7 +426,7 @@ class _SessionSidebarState extends ConsumerState<_SessionSidebar> {
                 minLeadingWidth: 18,
                 horizontalTitleGap: palette.spacing.sm,
                 selected: selected,
-                selectedColor: colors.onSurface,
+                selectedColor: palette.accent,
                 selectedTileColor: palette.selected,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(palette.spacing.sm),
@@ -252,16 +444,22 @@ class _SessionSidebarState extends ConsumerState<_SessionSidebar> {
                             : Icons.mark_chat_unread_outlined,
                         size: 14,
                       )
-                    : null,
+                    : Icon(
+                        Icons.terminal,
+                        size: 16,
+                        color: selected
+                            ? palette.accent
+                            : colors.onSurfaceVariant,
+                      ),
                 title: Tooltip(
                   message: '${tab.activePane.title}\n${directory(tab)}',
                   child: pathLabel
-                      ? _SessionPathLabel(path: label, style: rowText)
+                      ? _SessionPathLabel(path: label, style: sessionText)
                       : Text(
                           label,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: rowText,
+                          style: sessionText,
                         ),
                 ),
                 trailing: Row(
@@ -388,6 +586,7 @@ class _SessionSidebarState extends ConsumerState<_SessionSidebar> {
       } else {
         final root = _SessionGroupNode('', '');
         for (final tab in members) {
+          final active = tab.containsSession(widget.activeSessionId ?? '');
           final path = directory(tab);
           final segments = [
             if (path.startsWith('/')) '/',
@@ -400,6 +599,7 @@ class _SessionSidebarState extends ConsumerState<_SessionSidebar> {
               segment,
               () => _SessionGroupNode(segment, key),
             );
+            node.hasActiveSession |= active;
           }
           node.tabs.add(tab);
         }
@@ -413,7 +613,13 @@ class _SessionSidebarState extends ConsumerState<_SessionSidebar> {
                 : '$label/${node.label}';
           }
           final id = 'directory:${node.path}';
-          header(id, label, depth: depth, pathLabel: true);
+          header(
+            id,
+            label,
+            depth: depth,
+            pathLabel: true,
+            active: node.hasActiveSession,
+          );
           if (_collapsed.contains(id)) return;
           for (final tab in node.tabs) {
             session(tab, label: tab.activePane.title, depth: depth + 1);

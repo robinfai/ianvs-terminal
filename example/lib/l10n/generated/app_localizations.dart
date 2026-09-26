@@ -8144,6 +8144,24 @@ abstract class AppLocalizations {
   /// **'Show session sidebar'**
   String get showSessionSidebar;
 
+  /// No description provided for @switchToTopTabs.
+  ///
+  /// In en, this message translates to:
+  /// **'Switch to top tabs'**
+  String get switchToTopTabs;
+
+  /// No description provided for @switchToSidebarTabs.
+  ///
+  /// In en, this message translates to:
+  /// **'Switch to sidebar tabs'**
+  String get switchToSidebarTabs;
+
+  /// No description provided for @resizeSessionSidebar.
+  ///
+  /// In en, this message translates to:
+  /// **'Resize session sidebar'**
+  String get resizeSessionSidebar;
+
   /// No description provided for @hideSessionSidebar.
   ///
   /// In en, this message translates to:
