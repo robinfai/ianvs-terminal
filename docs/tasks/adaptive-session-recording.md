@@ -448,3 +448,51 @@ Remaining: actual macOS recording UI and installed-shell/SSH recording review,
 whole-pipeline resource and input measurements, system-failure evidence, more
 than 24 actual hours on the final pipeline, and a green final complete gate.
 All four delivery batches remain in scope.
+
+
+## Complete import gate and macOS window acceptance checkpoint
+
+The complete `make verify` on `7a12df68` exited 0. It passed canonical and
+standalone native/Dart contracts, strict static checks, 2,014 application tests
+(one conditional skip), all four actual macOS smoke cases, all 45 real-PTY cases,
+Keychain, strict Debug and repeated Debug signatures, Release and repeated Release
+packaging/signatures, and native Xcode tests. The log is retained in
+`build/recording_bench/adaptive/import-make-verify.log`. This establishes the
+complete import checkpoint and closes the previously observed incremental Debug
+signing gate; subsequent changes still require current final verification.
+
+A new real macOS window test exercises the production app/controller/native
+composition. It starts recording through the command menu while a populated TUI
+is already visible, records a resize, styles, Unicode, hyperlinks and a Kitty
+image, deletes the live image data, and verifies the retained RGBA bytes. It stops
+and opens through the product controls, clicks a recorded command and checks its
+exact seek time, seeks retained TUI/final frames, and types into replay without
+changing the live shell or creating another session. Pointer misses are fatal;
+menu motion/scrolling is settled before tapping and visible notices are dismissed
+through their controls. Theme checks wait for actual dark appearance before
+capture. The deterministic PTY fixture emits explicit hooks: it is not evidence
+for installed-shell bootstrap by itself.
+
+Image review exposed the sampled player's native fallback black background
+being used instead of the same application appearance as live/instant replay.
+The player now uses the configured default colors while retaining explicit cell
+styles. Four final captures were inspected at
+`build/recording_bench/adaptive/macos-ui/run-ngWn95/`: `live-tui.png`,
+`replay-initial-light.png`, `replay-tui-light.png`, and `replay-final-dark.png`.
+The strict window test passed on this host, and it is now included in the macOS
+verification script. Recording notices explicitly say raw keystrokes are not
+recorded, and command-palette search no longer advertises old NDJSON opening.
+
+A separate real installed-shell test captures actual Bash and Zsh hooks, checks
+exact quoted Unicode commands and exit codes, closes the PTY, and searches/seeks
+the saved file. Both installed shells passed; local Fish is explicitly skipped
+because `/opt/homebrew/bin/fish` is absent. The test isolates startup/history
+settings without changing the user's HOME or shell configuration. The recording
+library UI regression suite plus installed-shell tests passed 11 cases with that
+one conditional skip. Evidence is in `/private/tmp/adaptive-recording-macos-ui.log`
+and `/private/tmp/adaptive-recording-appearance-regression.log`.
+
+Remaining: recording-specific SSH/full-app evidence, restart/process and system
+failure evidence at the final product boundary, whole-pipeline resource/input
+measurements, more than 24 actual hours on the final implementation, and a green
+final complete gate. No batch is newly declared fully accepted by this checkpoint.

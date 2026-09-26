@@ -333,7 +333,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get recordingDescription =>
-      'Replay • Capture this session as a durable recording. Keystrokes are redacted; shell command metadata is included when available.';
+      'Replay • Capture this session as a durable recording. Keystrokes are not recorded; observed shell commands are included.';
 
   @override
   String get recordingOperationInProgress =>
@@ -2780,7 +2780,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get recordingReplayStarted =>
-      'Recording for Replay started. Keystrokes are redacted; shell command metadata is included when available.';
+      'Recording for Replay started. Keystrokes are not recorded; observed shell commands are included.';
 
   @override
   String recordingSavedNamed(String name) {

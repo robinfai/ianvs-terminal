@@ -458,7 +458,7 @@ const _commandMenuActionSearchEntries = <MapEntry<String, TerminalActionId>>[
     TerminalActionId.newTab,
   ),
   MapEntry(
-    'open recording in replay saved ndjson file',
+    'open recording in replay saved trailrec file',
     TerminalActionId.openRecording,
   ),
   MapEntry(

@@ -316,7 +316,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get recordingDescription =>
-      '回放 • 将此会话保存为持久录制。按键内容会被隐藏；如果可用，会包含 Shell 命令元数据。';
+      '回放 • 将此会话保存为持久录制。不记录按键内容；会包含已观测到的 Shell 命令。';
 
   @override
   String get recordingOperationInProgress => '录制操作正在进行。';
@@ -2655,7 +2655,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get clearRecentReplayHistoryWarning => '此窗格的近期活动帧会从回放中移除。此操作无法撤销。';
 
   @override
-  String get recordingReplayStarted => '已开始为回放录制。按键会被隐去；可用时会包含 Shell 命令元数据。';
+  String get recordingReplayStarted => '已开始为回放录制。不记录按键内容；会包含已观测到的 Shell 命令。';
 
   @override
   String recordingSavedNamed(String name) {

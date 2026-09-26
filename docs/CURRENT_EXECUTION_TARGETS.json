@@ -933,11 +933,28 @@
           "contains": [
             "external picker copies and replays without PTY side effects"
           ]
+        },
+        {
+          "path": "example/integration_test/sampled_recording_acceptance_test.dart",
+          "contains": [
+            "command tap seeks to its exact time",
+            "dark theme applied",
+            "TUI image must remain after deleting live image data"
+          ]
+        },
+        {
+          "path": "example/test/recording/installed_shell_recording_test.dart",
+          "contains": [
+            "hooks survive sampled recording and replay exactly",
+            "Shell is not installed on this host"
+          ]
         }
       ],
       "verification_commands": [
         "cargo test --manifest-path native/core/Cargo.toml --test sampled_recording_test --test sampled_recording_storage_test --test sampled_recording_timeline_test --test sampled_recording_session_test",
         "flutter test example/test/sessions/session_recording_lifecycle_test.dart example/test/recording/sampled_native_roundtrip_test.dart example/test/sampled_recording_library_test.dart example/test/sampled_replay_controller_test.dart example/test/sampled_replay_surface_test.dart",
+        "flutter test example/test/recording/installed_shell_recording_test.dart",
+        "cd example && flutter test -d macos integration_test/sampled_recording_acceptance_test.dart",
         "flutter test example/test/sampled_recording_import_test.dart example/test/shell/shell_recording_import_test.dart example/test/recording/sampled_native_roundtrip_test.dart",
         "flutter test example/test/recording_retention_maintenance_test.dart example/test/recording_retention_surface_test.dart example/test/shell/shell_recording_management_test.dart",
         "flutter test example/test/sampled_recording_library_test.dart example/test/sessions/recording_file_shutdown_test.dart",

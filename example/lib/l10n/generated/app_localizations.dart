@@ -641,7 +641,7 @@ abstract class AppLocalizations {
   /// Terminal recording action description
   ///
   /// In en, this message translates to:
-  /// **'Replay • Capture this session as a durable recording. Keystrokes are redacted; shell command metadata is included when available.'**
+  /// **'Replay • Capture this session as a durable recording. Keystrokes are not recorded; observed shell commands are included.'**
   String get recordingDescription;
 
   /// Disabled reason while recording work is in progress
@@ -4407,7 +4407,7 @@ abstract class AppLocalizations {
   /// No description provided for @recordingReplayStarted.
   ///
   /// In en, this message translates to:
-  /// **'Recording for Replay started. Keystrokes are redacted; shell command metadata is included when available.'**
+  /// **'Recording for Replay started. Keystrokes are not recorded; observed shell commands are included.'**
   String get recordingReplayStarted;
 
   /// No description provided for @recordingSavedNamed.

@@ -392,7 +392,7 @@
   "@startRecordingForReplay": {
     "description": "Action that starts terminal recording"
   },
-  "recordingDescription": "Replay • Capture this session as a durable recording. Keystrokes are redacted; shell command metadata is included when available.",
+  "recordingDescription": "Replay • Capture this session as a durable recording. Keystrokes are not recorded; observed shell commands are included.",
   "@recordingDescription": {
     "description": "Terminal recording action description"
   },
@@ -2302,7 +2302,7 @@
   },
   "clearRecentReplayHistoryQuestion": "Clear recent replay history?",
   "clearRecentReplayHistoryWarning": "Recent activity frames for this pane will be removed from Replay. This action cannot be undone.",
-  "recordingReplayStarted": "Recording for Replay started. Keystrokes are redacted; shell command metadata is included when available.",
+  "recordingReplayStarted": "Recording for Replay started. Keystrokes are not recorded; observed shell commands are included.",
   "recordingSavedNamed": "Recording saved · {name}",
   "@recordingSavedNamed": {
     "placeholders": {

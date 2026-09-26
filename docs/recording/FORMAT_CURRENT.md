@@ -10,6 +10,11 @@ state; semantic records retain independently observed hook commands, arguments,
 context and status. Raw keystrokes and lossless PTY output are not recorded.
 A sample can omit short-lived output; commands without observed hooks are absent.
 
+Replay retains explicit sampled cell styles, links and graphic assets. Default
+foreground/background colors, font and cursor presentation follow the current
+application appearance, consistently with live and instant replay; the native
+parser's fallback black canvas must not override the selected light theme.
+
 The native capability is `session-recording.v2`, with
 `recording_schema_versions: [2]`. Live Frame Packet v1 and Session Request v1
 remain separate versioned envelopes. Sampled capture operations carry strict

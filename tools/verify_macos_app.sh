@@ -94,6 +94,9 @@ PROFILE=debug "$ROOT_DIR/tools/build_core.sh"
     flutter test -d macos integration_test/ianvs_terminal_smoke_test.dart
   IANVS_CORE_LIB="$CORE_DIR/target/debug/libianvs_core.dylib" \
     flutter test -d macos integration_test/real_pty_acceptance_test.dart
+  IANVS_CORE_LIB="$CORE_DIR/target/debug/libianvs_core.dylib" \
+    flutter test -d macos integration_test/sampled_recording_acceptance_test.dart \
+      "--dart-define=IANVS_RECORDING_ACCEPTANCE_OUTPUT=$ROOT_DIR/build/recording_bench/adaptive/macos-ui"
   flutter test -d macos \
     integration_test/macos_keychain_profile_secret_test.dart
   flutter build macos --debug

@@ -150,7 +150,9 @@ class _SampledRecordingPlayerState extends State<SampledRecordingPlayer> {
                 font: widget.font,
                 cursor: widget.cursor,
                 altClickMovesCursor: false,
-                useFrameDefaultColors: true,
+                // Match live and instant replay: appearance owns default colors,
+                // while explicit sampled cell styles still come from the frame.
+                useFrameDefaultColors: false,
                 graphicsCache: _replay.graphics,
                 onScrollLines: (_) {},
                 onScrollToOffset: (_) {},
