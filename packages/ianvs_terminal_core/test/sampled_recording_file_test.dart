@@ -194,6 +194,16 @@ void main() {
       }
       final api = NativeRecordingFileApi(libraryPath: library!.absolute.path);
       try {
+        expect(
+          await api.run('sync_directory', {'directory_path': bundle.path}),
+          isEmpty,
+        );
+        await expectLater(
+          api.run('sync_directory', {
+            'directory_path': '${bundle.path}/records.bin',
+          }),
+          throwsFormatException,
+        );
         final file = await SampledRecordingFile.open(bundle.path, api: api);
         for (final seconds in <int>[8, 1, 10, 0, 6]) {
           final frame = (await file.seek(Duration(seconds: seconds)))!;

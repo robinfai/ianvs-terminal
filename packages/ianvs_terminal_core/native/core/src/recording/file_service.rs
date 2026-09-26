@@ -62,6 +62,11 @@ struct Inspect {
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct DirectorySyncRequest {
+    directory_path: String,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct MetadataRequest {
     bundle_path: String,
     recording_id: String,
@@ -178,7 +183,7 @@ fn dispatch(request: &Request, response_id: &mut Option<String>) -> StorageResul
             jobs.remove(&id);
             return Ok(json!({}));
         }
-        "inspect" | "metadata" | "seek" | "timeline" | "asset" | "search" => {}
+        "inspect" | "metadata" | "seek" | "timeline" | "asset" | "search" | "sync_directory" => {}
         _ => {
             return Err(StorageError::Invalid(
                 "unsupported recording file operation",
@@ -192,6 +197,7 @@ fn dispatch(request: &Request, response_id: &mut Option<String>) -> StorageResul
     let _completion = Completion(job.clone());
     job.check()?;
     let result = match request.operation.as_str() {
+        "sync_directory" => sync_directory(serde_json::from_value(request.payload.clone())?),
         "inspect" => inspect(serde_json::from_value(request.payload.clone())?, &job),
         "metadata" => {
             let input: MetadataRequest = serde_json::from_value(request.payload.clone())?;
@@ -215,6 +221,34 @@ fn dispatch(request: &Request, response_id: &mut Option<String>) -> StorageResul
     }?;
     job.check()?;
     Ok(result)
+}
+
+// Library metadata uses the same bounded worker pool as recording reads. A
+// success acknowledges the directory publication, never only an enqueued job.
+fn sync_directory(request: DirectorySyncRequest) -> StorageResult<Value> {
+    let path = Path::new(&request.directory_path);
+    if request.directory_path.len() > 4096
+        || request.directory_path.contains('\0')
+        || !path.is_absolute()
+    {
+        return Err(StorageError::Invalid(
+            "expected an absolute library directory",
+        ));
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        fs::OpenOptions::new()
+            .read(true)
+            .custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC)
+            .open(path)?
+            .sync_all()?;
+        Ok(json!({}))
+    }
+    #[cfg(not(unix))]
+    Err(StorageError::Invalid(
+        "directory durability is unavailable on this platform",
+    ))
 }
 
 fn reader(path: &str, expected_id: Option<&str>) -> StorageResult<ContainerReader> {

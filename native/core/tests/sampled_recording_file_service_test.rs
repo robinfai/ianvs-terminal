@@ -284,3 +284,46 @@ fn optional_summary_publication_failure_does_not_lose_a_finished_recording() {
     assert_eq!(info["result"]["completion"], "finished", "{info}");
     assert_eq!(info["result"]["summary"]["duration_micros"], 42);
 }
+
+#[cfg(unix)]
+#[test]
+fn library_directory_sync_is_strict_and_never_treats_other_file_types_as_durable() {
+    let temporary = tempfile::tempdir().unwrap();
+    let directory = temporary.path().join("library");
+    std::fs::create_dir(&directory).unwrap();
+    let metadata = directory.join("retention.json");
+    std::fs::write(&metadata, b"preserve metadata").unwrap();
+    let original = std::fs::read(&metadata).unwrap();
+    let result = run("sync_directory", json!({"directory_path":directory}));
+    assert_eq!(result["ok"], true, "{result}");
+    assert_eq!(result["result"], json!({}));
+    assert_eq!(std::fs::read(&metadata).unwrap(), original);
+
+    let alias = temporary.path().join("alias");
+    std::os::unix::fs::symlink(&directory, &alias).unwrap();
+    let missing = temporary.path().join("missing");
+    for input in [
+        json!({"directory_path":metadata}),
+        json!({"directory_path":alias}),
+        json!({"directory_path":missing}),
+        json!({"directory_path":"relative"}),
+        json!({"directory_path":directory,"unknown":true}),
+        json!({"directory_path":null}),
+        json!({}),
+    ] {
+        assert_eq!(run("sync_directory", input)["ok"], false);
+    }
+    assert!(!missing.exists());
+    assert_eq!(std::fs::read(&metadata).unwrap(), original);
+    let ticket = request("reserve", None, json!({}));
+    let id = ticket["job_id"].as_str().unwrap();
+    assert_eq!(request("cancel", Some(id), json!({}))["ok"], true);
+    let cancelled = request(
+        "sync_directory",
+        Some(id),
+        json!({"directory_path":directory}),
+    );
+    assert_eq!(cancelled["ok"], false);
+    assert!(cancelled["error"].as_str().unwrap().contains("cancelled"));
+    assert_eq!(request("release", Some(id), json!({}))["ok"], true);
+}

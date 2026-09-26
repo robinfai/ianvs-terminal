@@ -898,12 +898,25 @@
             "Keep can change during replay",
             "shutdown waits for pending periodic cleanup"
           ]
+        },
+        {
+          "path": "native/core/tests/sampled_recording_file_service_test.rs",
+          "contains": [
+            "library_directory_sync_is_strict_and_never_treats_other_file_types_as_durable"
+          ]
+        },
+        {
+          "path": "example/test/sessions/recording_file_shutdown_test.dart",
+          "contains": [
+            "application persistence before closing workers"
+          ]
         }
       ],
       "verification_commands": [
         "cargo test --manifest-path native/core/Cargo.toml --test sampled_recording_test --test sampled_recording_storage_test --test sampled_recording_timeline_test --test sampled_recording_session_test",
         "flutter test example/test/sessions/session_recording_lifecycle_test.dart example/test/recording/sampled_native_roundtrip_test.dart example/test/sampled_recording_library_test.dart example/test/sampled_replay_controller_test.dart example/test/sampled_replay_surface_test.dart",
         "flutter test example/test/recording_retention_maintenance_test.dart example/test/recording_retention_surface_test.dart example/test/shell/shell_recording_management_test.dart",
+        "flutter test example/test/sampled_recording_library_test.dart example/test/sessions/recording_file_shutdown_test.dart",
         "dart test test/docs_contract_test.dart",
         "make verify"
       ],

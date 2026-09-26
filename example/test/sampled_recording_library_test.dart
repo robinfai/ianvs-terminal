@@ -12,6 +12,8 @@ final class _Files implements RecordingFileApi {
   final List<String> calls = [];
   Completer<void>? reading;
   Completer<void>? inspecting;
+  String? failingSyncPath;
+  int syncFailures = 0;
   @override
   Future<Map<String, Object?>> run(
     String operation,
@@ -19,6 +21,14 @@ final class _Files implements RecordingFileApi {
     RecordingFileCancellation? cancellation,
   }) async {
     calls.add(operation);
+    if (operation == 'sync_directory') {
+      final path = payload['directory_path']! as String;
+      if (syncFailures > 0 && path == failingSyncPath) {
+        syncFailures--;
+        throw FileSystemException('Injected directory sync failure', path);
+      }
+      return {};
+    }
     if (operation == 'inspect') await inspecting?.future;
     if (operation == 'seek') {
       await reading?.future;
@@ -147,6 +157,193 @@ void main() {
     root = await library.ensureRecordingDirectory();
   });
   tearDown(() async => root.delete(recursive: true));
+
+  test(
+    'failed directory preparation can be retried on the same library',
+    () async {
+      final path = '${root.path}/nested/library';
+      files
+        ..failingSyncPath = path
+        ..syncFailures = 1;
+      final nested = SampledRecordingLibrary(
+        files: files,
+        directoryResolver: () async => Directory(path),
+      );
+      await expectLater(
+        nested.ensureRecordingDirectory(),
+        throwsA(isA<FileSystemException>()),
+      );
+      final prepared = await nested.ensureRecordingDirectory();
+      expect(prepared.path, path);
+      expect(await Directory('$path/entries').exists(), isTrue);
+      expect(await Directory('$path/claims').exists(), isTrue);
+    },
+  );
+
+  test(
+    'failed reservation publication never hands capture ownership to a caller',
+    () async {
+      files
+        ..failingSyncPath = '${root.path}/entries'
+        ..syncFailures = 1;
+      await expectLater(
+        library.reserve(
+          sessionId: '1',
+          sessionEpoch: 1,
+          title: 'not dispatched',
+        ),
+        throwsA(isA<FileSystemException>()),
+      );
+      expect(library.activeClaims, isEmpty);
+      final pending = (await library.listRecordings()).single;
+      expect(pending.state, 'reserved');
+      expect((await library.recover()).busy, 0);
+      expect((await library.listRecordings()).single.state, 'unavailable');
+      expect(await Directory(pending.path).exists(), isFalse);
+    },
+  );
+
+  test(
+    'a failed final directory sync retains native and file ownership until retry succeeds',
+    () async {
+      final claim = await library.reserve(
+        sessionId: '1',
+        sessionEpoch: 1,
+        title: 'durable stop',
+      );
+      final backend = _Backend();
+      final client = SampledRecordingCaptureClient(backend: backend);
+      await library.start(claim, client);
+      backend
+        ..phase = 'finished'
+        ..settled = true;
+      files
+        ..failingSyncPath = '${root.path}/entries'
+        ..syncFailures = 1;
+      await expectLater(
+        library.finish(claim, client),
+        throwsA(isA<FileSystemException>()),
+      );
+      expect(library.activeClaims.single, same(claim));
+      expect(claim.settled, isFalse);
+      expect(backend.calls.where((op) => op.endsWith('_release')), isEmpty);
+      await expectLater(
+        library.deleteRecording(claim.entry.path),
+        throwsA(isA<RecordingLibraryBusy>()),
+      );
+      await library.finish(claim, client);
+      expect(library.activeClaims, isEmpty);
+      expect(
+        backend.calls.where((op) => op.endsWith('_release')),
+        hasLength(1),
+      );
+      expect((await library.listRecordings()).single.state, 'finished');
+    },
+  );
+
+  test(
+    'reservation cleanup retries its directory sync after the manifest is unlinked',
+    () async {
+      final claim = await library.reserve(
+        sessionId: '1',
+        sessionEpoch: 1,
+        title: 'undispatched',
+      );
+      files
+        ..failingSyncPath = '${root.path}/entries'
+        ..syncFailures = 1;
+      await expectLater(
+        library.abandonUndispatched(claim),
+        throwsA(isA<FileSystemException>()),
+      );
+      expect(library.activeClaims.single, same(claim));
+      expect(await library.listRecordings(), isEmpty);
+      await library.abandonUndispatched(claim);
+      expect(library.activeClaims, isEmpty);
+    },
+  );
+
+  test(
+    'policy sync failure reports an error without beginning retention deletion',
+    () async {
+      final old = 'a' * 32;
+      await _seed(root, old, ageDays: 30);
+      files
+        ..failingSyncPath = root.path
+        ..syncFailures = 1;
+      final policy = RecordingRetentionPolicy(
+        maximumAgeDays: 14,
+        maximumBytes: 1024 * 1024,
+      );
+      await expectLater(
+        library.saveRetentionPolicy(policy),
+        throwsA(isA<FileSystemException>()),
+      );
+      expect(await Directory('${root.path}/$old.trailrec').exists(), isTrue);
+      expect((await library.loadRetentionPolicy()).maximumAgeDays, 14);
+      await library.saveRetentionPolicy(policy);
+      expect(await Directory('${root.path}/$old.trailrec').exists(), isFalse);
+    },
+  );
+
+  test(
+    'delete failure retains its manifest and a retry synchronizes the already removed bundle',
+    () async {
+      final id = 'a' * 32;
+      await _seed(root, id);
+      final path = '${root.path}/$id.trailrec';
+      final manifest = File('${root.path}/entries/$id.json');
+      files
+        ..failingSyncPath = root.path
+        ..syncFailures = 1;
+      await expectLater(
+        library.deleteRecording(path),
+        throwsA(isA<FileSystemException>()),
+      );
+      expect(await Directory(path).exists(), isFalse);
+      expect(await manifest.exists(), isTrue);
+      files.calls.clear();
+      await library.deleteRecording(path);
+      expect(files.calls, everyElement('sync_directory'));
+      expect(files.calls.length, greaterThanOrEqualTo(2));
+      expect(await manifest.exists(), isFalse);
+    },
+  );
+
+  test(
+    'delete retries after its final manifest unlink acknowledgement fails',
+    () async {
+      final id = 'b' * 32;
+      await _seed(root, id);
+      final path = '${root.path}/$id.trailrec';
+      final manifest = File('${root.path}/entries/$id.json');
+      files
+        ..failingSyncPath = '${root.path}/entries'
+        ..syncFailures = 1;
+      await expectLater(
+        library.deleteRecording(path),
+        throwsA(isA<FileSystemException>()),
+      );
+      expect(await Directory(path).exists(), isFalse);
+      expect(await manifest.exists(), isFalse);
+      files.syncFailures = 1;
+      await expectLater(
+        library.deleteRecording(path),
+        throwsA(isA<FileSystemException>()),
+      );
+      await library.deleteRecording(path);
+      expect(await library.listRecordings(), isEmpty);
+
+      // A missing manifest alone does not authorize deleting the remaining bundle.
+      await _seed(root, id);
+      await manifest.delete();
+      await expectLater(
+        library.deleteRecording(path),
+        throwsA(isA<FileSystemException>()),
+      );
+      expect(await File('$path/payload').length(), 100);
+    },
+  );
 
   test(
     'reservation persists before dispatch and cannot be recovered by a competing owner',
@@ -278,7 +475,9 @@ void main() {
       expect(await Directory('${root.path}/$keep.trailrec').exists(), isTrue);
       expect(await Directory('${root.path}/$active.trailrec').exists(), isTrue);
       expect(await legacy.readAsString(), 'preserve legacy');
-      expect(files.calls, ['metadata']);
+      expect(files.calls.where((call) => call != 'sync_directory'), [
+        'metadata',
+      ]);
       final bounded = SampledRecordingLibrary(
         files: files,
         directoryResolver: () async => root,

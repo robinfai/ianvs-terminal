@@ -341,3 +341,45 @@ Still open: safe external new-format bundle ownership, directory durability and
 system-failure checks, actual macOS/local/installed-shell/SSH product review,
 whole-pipeline performance and more than 24 actual hours on the final pipeline.
 No batch is declared fully accepted by this checkpoint.
+
+
+## Complete gate and directory publication checkpoint
+
+The full `make verify` run on commit `80a7f6e6` exited successfully on this
+macOS 27.0 arm64 host. It passed 1,020 canonical native tests (five conditional
+skips), strict Clippy, formatting, full-tree fatal-infos analysis, generated
+mirrors, canonical/standalone package and documentation contracts, smoke
+benchmarks, 1,990 application tests (one conditional skip), four actual macOS
+smoke tests, all 45 real-PTY cases, the actual Keychain test, Debug/Release and
+incremental Release packaging/library checks, and native Xcode tests. The earlier
+OSC 1337 feedback blocker is closed on that checkpoint. The log is retained at
+`build/recording_bench/adaptive/retention-make-verify.log` (ignored local output).
+
+A subsequent slice adds bounded native directory synchronization for library
+metadata publication and deletion. Reservations are returned only after directory
+acknowledgement; failed stop publication retains native/file ownership. Failed
+initialization and interrupted unlink acknowledgement can be retried, including
+when both bundle and manifest are already absent. A remaining orphan bundle is
+never removed merely because its manifest is absent. The default file provider
+now closes after application persistence during shutdown.
+
+Focused verification passed 25 native storage/file-service tests, strict Clippy,
+six actual Dart/native-worker file tests, 58 application recording/library/search/
+replay/shutdown tests, 15 documentation contracts, and full-tree fatal-infos
+analysis. Fault injection covers
+initial directory preparation, reservation publication, final stop, abandoned
+reservation cleanup, policy save, and both stages of deletion. These syscall and
+failure-path checks do not establish hardware power-loss durability. The changed
+slice still requires a fresh complete gate.
+
+The repository's production SSH bootstrap acceptance also passed in a dedicated
+Colima Docker context. It exercised real Bash/Zsh/Fish hooks, shell switching,
+nested SSH/ControlMaster/SFTP, endpoint isolation, and history checks using local
+disposable OpenSSH containers and temporary fixture credentials. Artifacts are
+under `build/recording_bench/adaptive/ssh-product/`. This is production transport
+and hook evidence, not full Flutter recording/player or 24-hour acceptance.
+
+Remaining work: external new-format bundle ownership/opening, actual macOS
+recording UI and installed-shell/SSH recording review, whole-pipeline resource
+and input measurements, system-failure evidence, and more than 24 actual hours
+on the final pipeline. All four delivery batches remain in scope.

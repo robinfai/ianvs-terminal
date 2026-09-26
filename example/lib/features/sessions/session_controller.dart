@@ -280,7 +280,17 @@ final terminalLayoutRetryDelayProvider = Provider<TerminalLayoutRetryDelay>(
 
 final sampledRecordingFileApiProvider = Provider<NativeRecordingFileApi>((ref) {
   final api = NativeRecordingFileApi();
-  ref.onDispose(api.dispose);
+  final shutdown = ref.read(appShutdownCoordinatorProvider);
+  shutdown.registerTask(
+    'sampled-recording-file-provider',
+    () async => api.dispose(),
+    phase: AppShutdownPhase.infrastructure,
+  );
+  ref.onDispose(() {
+    if (!shutdown.hasStarted) {
+      unawaited(shutdown.shutdown(bounded: false));
+    }
+  });
   return api;
 });
 

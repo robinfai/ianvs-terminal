@@ -11,7 +11,10 @@ class NoSampledFileReads implements RecordingFileApi {
     String operation,
     Map<String, Object?> payload, {
     RecordingFileCancellation? cancellation,
-  }) => throw StateError('Unexpected file read: $operation');
+  }) async {
+    if (operation == 'sync_directory') return {};
+    throw StateError('Unexpected file read: $operation');
+  }
 }
 
 class SampledTestBackend extends FakePtyBackend {

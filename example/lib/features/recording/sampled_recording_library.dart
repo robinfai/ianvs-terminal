@@ -153,14 +153,58 @@ class SampledRecordingLibrary {
     '${(await getApplicationSupportDirectory()).path}/recordings-v2',
   );
 
-  Future<Directory> ensureRecordingDirectory() => _rootFuture ??= () async {
-    final directory = await _directoryResolver();
-    await directory.create(recursive: true);
+  Future<Directory> ensureRecordingDirectory() =>
+      _rootFuture ??= _prepareDirectory().onError<Object>((error, stack) {
+        _rootFuture = null;
+        Error.throwWithStackTrace(error, stack);
+      });
+
+  Future<Directory> _prepareDirectory() async {
+    final directory = (await _directoryResolver()).absolute;
+    await _createDirectoryDurably(directory);
     final root = Directory(await directory.resolveSymbolicLinks());
-    await Directory('${root.path}/entries').create();
-    await Directory('${root.path}/claims').create();
+    await _createDirectoryDurably(Directory('${root.path}/entries'));
+    await _createDirectoryDurably(Directory('${root.path}/claims'));
     return root;
-  }();
+  }
+
+  Future<void> _createDirectoryDurably(Directory directory) async {
+    if (!await directory.exists()) {
+      final parent = directory.parent;
+      if (parent.path == directory.path) {
+        throw FileSystemException(
+          'Recording directory is unavailable',
+          directory.path,
+        );
+      }
+      await _createDirectoryDurably(parent);
+      await directory.create();
+    }
+    // Repeating both syncs also repairs a prior mkdir whose acknowledgement failed.
+    await _syncDirectory(directory);
+    await _syncDirectory(directory.parent);
+  }
+
+  Future<void> _syncDirectory(Directory directory) async {
+    try {
+      final result = await files.run('sync_directory', {
+        'directory_path': await directory.resolveSymbolicLinks(),
+      });
+      if (result.isNotEmpty) {
+        throw const FormatException('Invalid directory sync acknowledgement');
+      }
+    } on Object {
+      // A failed unlink sync may leave no manifest to revisit. Re-establish all
+      // directory publications before a later operation can report success.
+      _rootFuture = null;
+      rethrow;
+    }
+  }
+
+  Future<void> _removeManifest(File manifest) async {
+    if (await manifest.exists()) await manifest.delete();
+    await _syncDirectory(manifest.parent);
+  }
 
   Future<T> _serial<T>(Future<T> Function() action) {
     final result = _tail.then((_) => action());
@@ -304,7 +348,7 @@ class SampledRecordingLibrary {
       throw StateError('Cannot abandon native capture ownership');
     }
     final root = await ensureRecordingDirectory();
-    await File('${root.path}/entries/${claim.entry.id}.json').delete();
+    await _removeManifest(File('${root.path}/entries/${claim.entry.id}.json'));
     _active.remove(claim.handle.sessionId);
     await claim._lease.close();
   }
@@ -509,7 +553,19 @@ class SampledRecordingLibrary {
     final id = _ownedId(root, path);
     final lease = await _Lease.acquire('${root.path}/claims/$id.lock');
     try {
-      final entry = await _read(root, File('${root.path}/entries/$id.json'));
+      final manifest = File('${root.path}/entries/$id.json');
+      if (await FileSystemEntity.type(manifest.path, followLinks: false) ==
+              FileSystemEntityType.notFound &&
+          await FileSystemEntity.type(path, followLinks: false) ==
+              FileSystemEntityType.notFound) {
+        // The previous deletion may have unlinked both paths before its final
+        // directory acknowledgement failed. Never infer this for a remaining
+        // bundle without a manifest; recovery must establish its ownership.
+        await _syncDirectory(root);
+        await _syncDirectory(manifest.parent);
+        return;
+      }
+      final entry = await _read(root, manifest);
       if (entry.isActive) throw RecordingLibraryBusy(path);
       await _delete(root, entry);
     } finally {
@@ -613,8 +669,9 @@ class SampledRecordingLibrary {
       }
       await directory.delete(recursive: true);
     }
-    final manifest = File('${root.path}/entries/${entry.id}.json');
-    if (await manifest.exists()) await manifest.delete();
+    // Retry the parent sync even when an earlier attempt already unlinked the bundle.
+    await _syncDirectory(root);
+    await _removeManifest(File('${root.path}/entries/${entry.id}.json'));
     // Lock files are permanent: unlinking them could split lock authority.
   }
 
@@ -735,6 +792,7 @@ class SampledRecordingLibrary {
     try {
       await temporary.writeAsString(jsonEncode(value), flush: true);
       await temporary.rename(destination.path);
+      await _syncDirectory(destination.parent);
     } finally {
       if (await temporary.exists()) await temporary.delete();
     }

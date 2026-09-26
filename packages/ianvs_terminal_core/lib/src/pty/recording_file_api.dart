@@ -51,7 +51,7 @@ abstract interface class RecordingFileApi {
   });
 }
 
-/// A separate file reader: never creates a terminal session or forwards host
+/// Recording file work never creates a terminal session or forwards host
 /// actions. Two workers per instance and a bounded queue prevent seek storms
 /// and graphics loading from spawning an unbounded number of isolates.
 final class NativeRecordingFileApi implements RecordingFileApi {
@@ -79,6 +79,7 @@ final class NativeRecordingFileApi implements RecordingFileApi {
       'timeline',
       'asset',
       'search',
+      'sync_directory',
     }.contains(operation)) {
       return Future.error(ArgumentError.value(operation, 'operation'));
     }

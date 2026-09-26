@@ -177,8 +177,8 @@ relationships and preserves these distinctions for the application repository.
 `ianvs_recording_file_request_v2_json` accepts a strict JSON object containing
 `schema_version: 2`, `operation`, `job_id` and `payload`. The returned UTF-8 string
 is released with `ianvs_string_free`. Reserve returns a decimal job ID; cancel
-sets an atomic flag; release is rejected while a read is running. At most eight
-native read jobs exist concurrently. Requests are at most 64 KiB; responses are
+sets an atomic flag; release is rejected while a file operation is running. At most eight
+native file jobs exist concurrently. Requests are at most 64 KiB; responses are
 at most 48 MiB. The Dart API limits itself to two workers and 256 queued requests.
 
 Read operations are `inspect`, `metadata`, `seek`, `timeline`, `asset` and `search`.
@@ -215,8 +215,23 @@ Keep changes are serialized so late reads cannot restore an old flag. Deletion
 is disabled for the selected replay, requires confirmation otherwise, and removes
 its bundle/indexes and manifest while retaining the permanent claim file.
 
-Manifest and policy writes use flushed temporary files and rename; directory
-durability and system-failure acceptance are still outstanding.
+Manifest and policy writes use flushed temporary files, rename, then a native
+`sync_directory` request. Its payload is exactly `directory_path`, an absolute
+path to an existing directory; Unix opens it with `O_DIRECTORY | O_NOFOLLOW`
+and calls `sync_all` before acknowledging an empty result. Symlink leaves,
+non-directories, unknown fields and unsupported non-Unix platforms fail explicitly.
+The same bounded worker/job registry keeps blocking sync work off the UI isolate.
+
+Directory creation synchronizes each new directory and its parent. Bundle deletion
+synchronizes the library root before removing and synchronizing the manifest.
+Failed directory acknowledgement invalidates prepared-directory state, so a retry
+re-establishes publication even if the old unlink already removed the manifest.
+A missing manifest never authorizes deletion of a remaining orphan bundle.
+Capture reservation is not returned before publication; capture settlement retains
+its file/native claim until the final manifest write succeeds. The file-worker
+provider closes in the infrastructure shutdown phase after application persistence.
+Actual process-kill evidence is separate from hardware power-loss/system-failure
+acceptance, which remains outstanding.
 
 
 ## Retained text search

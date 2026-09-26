@@ -37,6 +37,7 @@ class SampledTestFiles implements RecordingFileApi {
     RecordingFileCancellation? cancellation,
   }) async {
     operations.add(operation);
+    if (operation == 'sync_directory') return {};
     if (operation == 'search') searchRequests.add(Map.of(payload));
     if (operation == 'inspect') {
       inspectCancellation = cancellation;
