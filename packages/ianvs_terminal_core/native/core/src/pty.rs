@@ -745,6 +745,7 @@ __ianvs_install_shell_hooks() {
   typeset -g __IANVS_SHELL_INTEGRATION_LOADED=1
   typeset -g __ianvs_command_active=0
   typeset -g __ianvs_last_command=""
+  typeset -g __ianvs_hostname="$(command hostname 2>/dev/null || true)"
   typeset -g __ianvs_prompt_sp_suppressed=0
   typeset -g __ianvs_prompt_sp_was_set=0
   typeset -g __ianvs_startup_prompt_sp_checked=0
@@ -838,7 +839,8 @@ __ianvs_install_shell_hooks() {
     fi
     __ianvs_emit_shell_hook '{"hook":"precmd","shell":"zsh"}'
     local __ianvs_pwd="$(__ianvs_json_escape "${PWD:-}")"
-    __ianvs_emit_shell_hook "{\"hook\":\"precmd.pwd\",\"pwd\":\"$__ianvs_pwd\",\"shell\":\"zsh\"}"
+    local __ianvs_host="$(__ianvs_json_escape "${__ianvs_hostname:-}")"
+    __ianvs_emit_shell_hook "{\"hook\":\"precmd.pwd\",\"pwd\":\"$__ianvs_pwd\",\"hostname\":\"$__ianvs_host\",\"shell\":\"zsh\"}"
     return $__ianvs_status
   }
 
@@ -886,6 +888,7 @@ __ianvs_install_shell_hooks() {
   __IANVS_SHELL_INTEGRATION_LOADED=1
   __ianvs_command_active=0
   __ianvs_last_command=""
+  __ianvs_hostname="$(command hostname 2>/dev/null || true)"
   __ianvs_inside_prompt=0
 
   if [[ "$(declare -p PROMPT_COMMAND 2>/dev/null)" == declare\ -a* ]]; then
@@ -941,7 +944,8 @@ __ianvs_install_shell_hooks() {
     fi
     __ianvs_emit_shell_hook '{"hook":"precmd","shell":"bash"}'
     local __ianvs_pwd="$(__ianvs_json_escape "${PWD:-}")"
-    __ianvs_emit_shell_hook "{\"hook\":\"precmd.pwd\",\"pwd\":\"$__ianvs_pwd\",\"shell\":\"bash\"}"
+    local __ianvs_host="$(__ianvs_json_escape "${__ianvs_hostname:-}")"
+    __ianvs_emit_shell_hook "{\"hook\":\"precmd.pwd\",\"pwd\":\"$__ianvs_pwd\",\"hostname\":\"$__ianvs_host\",\"shell\":\"bash\"}"
     __ianvs_inside_prompt=0
     return "$__ianvs_status"
   }
@@ -967,6 +971,7 @@ if test -n "$IANVS_SHELL_INTEGRATION"; and not set -q __IANVS_SHELL_INTEGRATION_
   set -g __IANVS_SHELL_INTEGRATION_LOADED 1
   set -g __ianvs_command_active 0
   set -g __ianvs_last_command ''
+  set -g __ianvs_hostname (command hostname 2>/dev/null)
 
   function __ianvs_json_escape
     set -l __ianvs_value ''
@@ -1011,7 +1016,8 @@ if test -n "$IANVS_SHELL_INTEGRATION"; and not set -q __IANVS_SHELL_INTEGRATION_
   function __ianvs_prompt --on-event fish_prompt
     __ianvs_emit_shell_hook '{"hook":"precmd","shell":"fish"}'
     set -l __ianvs_pwd (__ianvs_json_escape "$PWD")
-    __ianvs_emit_shell_hook "{\"hook\":\"precmd.pwd\",\"pwd\":\"$__ianvs_pwd\",\"shell\":\"fish\"}"
+    set -l __ianvs_host (__ianvs_json_escape "$__ianvs_hostname")
+    __ianvs_emit_shell_hook "{\"hook\":\"precmd.pwd\",\"pwd\":\"$__ianvs_pwd\",\"hostname\":\"$__ianvs_host\",\"shell\":\"fish\"}"
   end
 end
 "#;

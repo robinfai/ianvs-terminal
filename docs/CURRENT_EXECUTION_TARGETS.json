@@ -954,7 +954,10 @@
           "contains": [
             "real-duration full-application recording soak",
             "qualifies_long_duration",
-            "maximum_heartbeat_gap_micros"
+            "maximum_heartbeat_gap_micros",
+            "process_kill_recovery",
+            "cross_recording_nested_host_search",
+            "reopen_only"
           ]
         },
         {
@@ -962,7 +965,15 @@
           "contains": [
             "--probe",
             "source_sha256",
-            "fixture_cleanup_complete"
+            "fixture_cleanup_complete",
+            "--crash-probe",
+            "primary_files_unchanged"
+          ]
+        },
+        {
+          "path": "native/core/src/pty.rs",
+          "contains": [
+            "__ianvs_hostname"
           ]
         }
       ],
@@ -976,6 +987,7 @@
         "flutter test example/test/sampled_recording_library_test.dart example/test/sessions/recording_file_shutdown_test.dart",
         "dart test test/docs_contract_test.dart",
         "python3 tools/ssh_boundary_lab/recording_soak.py --seconds 90000 --output build/recording_bench/adaptive/soak-25h-new",
+        "python3 tools/ssh_boundary_lab/recording_soak.py --probe --crash-probe --seconds 120 --output build/recording_bench/adaptive/crash-probe-new",
         "make verify"
       ],
       "exit_criteria": [

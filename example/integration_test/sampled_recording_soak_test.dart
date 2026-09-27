@@ -7,8 +7,12 @@ import 'package:app/features/config/local_terminal_config_models.dart';
 import 'package:app/features/layout/local_terminal_layout_repository.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/recording/sampled_recording_library.dart';
+import 'package:app/features/recording/sampled_recording_search_controller.dart';
+import 'package:app/features/recording/sampled_recording_search_models.dart';
+import 'package:app/features/recording/sampled_replay_surface.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/shell/shell_screen.dart';
+import 'package:app/features/terminal/terminal_viewport.dart';
 import 'package:app/platform/app_shutdown_coordinator.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
@@ -30,6 +34,7 @@ const _output = String.fromEnvironment('IANVS_RECORDING_SOAK_OUTPUT');
 const _fixture = String.fromEnvironment('IANVS_RECORDING_SSH_FIXTURE');
 const _revision = String.fromEnvironment('IANVS_RECORDING_SOAK_REVISION');
 const _standalone = bool.fromEnvironment('IANVS_RECORDING_STANDALONE');
+final _reopenOnly = Platform.environment['IANVS_RECORDING_REOPEN_ONLY'] == '1';
 
 // Fixed histograms avoid a growing collection of per-frame/per-input metrics.
 class _Histogram {
@@ -90,6 +95,189 @@ String _workload(String phase) => switch (phase) {
     r"printf '\033[?1049h'; i=0; while [ $i -lt 20 ]; do printf '\033[2J\033[H\033[32mTUI frame %d 雪\033[0m\n' $i; j=0; while [ $j -lt 16 ]; do printf 'row %02d progress=%03d\n' $j $i; j=$((j+1)); done; i=$((i+1)); sleep 0.05; done; printf '\033[?1049l'",
   _ => r"pwd; printf 'quoted argument: %s\n' '保留 雪 spaces'",
 };
+
+Future<void> _verifyReopenedRecordings(
+  WidgetTester tester,
+  ProviderContainer container,
+  SampledRecordingLibrary library,
+  Directory directory,
+  Map<String, Object?> report,
+) async {
+  final crashFile = File('${directory.path}/crash.json');
+  final interrupted = await crashFile.exists();
+  final prior =
+      jsonDecode(
+            await File(
+              '${directory.path}/${interrupted ? 'crash' : 'result'}.json',
+            ).readAsString(),
+          )
+          as Map<String, dynamic>;
+  if (!interrupted) {
+    expect(prior['passed'], isTrue);
+    expect(prior['safe_to_terminate'], isTrue);
+  }
+  expect(prior['pid'], isNot(pid), reason: 'reopen must use a new app process');
+  final recovery = await library.recover();
+  expect(recovery.errors, isEmpty);
+  expect(recovery.busy, 0);
+  final entries = await library.listRecordings();
+  expect(entries, hasLength(2));
+  final saved = <Map<String, dynamic>>[];
+  final markers = interrupted
+      ? <String, dynamic>{}
+      : prior['final_marker_by_session'] as Map<String, dynamic>;
+  if (interrupted) {
+    expect(prior['signal'], 'SIGKILL');
+    final cut = DateTime.parse(prior['at_utc'] as String);
+    final heartbeat = prior['heartbeat'] as Map<String, dynamic>;
+    final captures = heartbeat['captures'] as List<dynamic>;
+    for (final entry in entries) {
+      final committed =
+          (captures.singleWhere(
+                    (value) =>
+                        (value as Map<String, dynamic>)['capture_id'] ==
+                        entry.id,
+                  )
+                  as Map<String, dynamic>)['committed_records']
+              as int;
+      final opened = await library.openRecording(entry.path);
+      try {
+        final info = opened.recording.info;
+        expect(
+          info.completion,
+          isNot(terminal.SampledRecordingCompletion.finished),
+        );
+        expect(
+          info.visualCount + info.semanticCount,
+          greaterThanOrEqualTo(committed),
+        );
+        final lossUpperMicros =
+            cut.difference(info.startedAtUtc).inMicroseconds -
+            info.duration.inMicroseconds;
+        expect(
+          lossUpperMicros,
+          inInclusiveRange(0, 10000000),
+          reason:
+              'active-output process-kill recovery must retain a prefix within ten seconds of the kill',
+        );
+        final frame = (await opened.recording.seek(info.duration))!;
+        saved.add({
+          'id': info.id,
+          'hostname': info.hostname,
+          'duration_micros': info.duration.inMicroseconds,
+          'rows': frame.frame.rows.map((row) => row.text).toList(),
+          'committed_records_before_kill': committed,
+          'recovered_records': info.visualCount + info.semanticCount,
+          'process_tail_loss_upper_bound_micros': lossUpperMicros,
+        });
+      } finally {
+        await opened.close();
+      }
+    }
+    report['process_kill_recovery'] = true;
+  } else {
+    saved.addAll(
+      (prior['recordings'] as List<dynamic>).cast<Map<String, dynamic>>(),
+    );
+  }
+  expect(container.read(sessionControllerProvider).tabs, hasLength(1));
+  final verified = <Map<String, Object?>>[];
+  final oldHitTestPolicy = WidgetController.hitTestWarningShouldBeFatal;
+  WidgetController.hitTestWarningShouldBeFatal = true;
+  try {
+    for (final value in saved) {
+      final original = value;
+      final entry = entries.singleWhere((entry) => entry.id == original['id']);
+      expect(
+        entry.state,
+        interrupted ? isIn(['interrupted', 'damaged_tail']) : 'finished',
+      );
+      if (!interrupted) expect(entry.keep, isTrue);
+      expect(entry.hostname, original['hostname']);
+      for (var notice = 0; notice < 6; notice++) {
+        final close = find.byTooltip('Close').hitTestable();
+        if (close.evaluate().isEmpty) break;
+        await tester.tap(close.first);
+        await tester.pump();
+      }
+      await tester.tap(find.byKey(const Key('shell-chrome-menu')));
+      await tester.pumpAndSettle();
+      final open = find.byKey(const Key('shell-open-recording'));
+      await tester.ensureVisible(open);
+      await tester.pumpAndSettle();
+      await tester.tap(open);
+      final selected = find.byKey(ValueKey('recording-entry-${entry.path}'));
+      await _until(
+        () => selected.evaluate().isNotEmpty,
+        'recovered shelf entry',
+      );
+      await tester.ensureVisible(selected);
+      await tester.pumpAndSettle();
+      await tester.tap(selected);
+      final player = find.byType(SampledReplaySurface);
+      await _until(
+        () =>
+            player.evaluate().isNotEmpty &&
+            !tester.widget<SampledReplaySurface>(player).loading,
+        'reopened saved replay',
+      );
+      final duration = Duration(
+        microseconds: original['duration_micros'] as int,
+      );
+      expect(tester.widget<SampledReplaySurface>(player).duration, duration);
+      tester.widget<SampledReplaySurface>(player).onSeek(duration);
+      await _until(
+        () =>
+            !tester.widget<SampledReplaySurface>(player).loading &&
+            tester.widget<SampledReplaySurface>(player).position == duration,
+        'reopened recording final frame',
+      );
+      final viewport = tester.widget<TerminalViewport>(
+        find.byKey(const Key('recording-replay-viewport')),
+      );
+      final expected = interrupted ? null : markers[original['name']] as String;
+      if (interrupted) {
+        expect(
+          viewport.controller.frame.rows.map((row) => row.text).toList(),
+          original['rows'],
+        );
+      } else {
+        expect(
+          viewport.controller.frame.rows.any(
+            (row) => row.text.contains(expected!),
+          ),
+          isTrue,
+        );
+      }
+      expect(
+        container.read(sessionControllerProvider).tabs,
+        hasLength(1),
+        reason: 'opening SSH replay must not create an SSH session',
+      );
+      verified.add({
+        'id': entry.id,
+        'hostname': entry.hostname,
+        'final_marker': expected,
+        if (interrupted) ...{
+          'committed_records_before_kill':
+              original['committed_records_before_kill'],
+          'recovered_records': original['recovered_records'],
+          'process_tail_loss_upper_bound_micros':
+              original['process_tail_loss_upper_bound_micros'],
+        },
+        'duration_micros': duration.inMicroseconds,
+      });
+      tester.widget<SampledReplaySurface>(player).onClose();
+      await _until(() => player.evaluate().isEmpty, 'close reopened replay');
+    }
+    expect(tester.takeException(), isNull);
+    report['previous_pid'] = prior['pid'];
+    report['reopened_recordings'] = verified;
+    report['passed'] = true;
+  } finally {
+    WidgetController.hitTestWarningShouldBeFatal = oldHitTestPolicy;
+  }
+}
 
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -189,6 +377,8 @@ void main() {
       );
       final report = <String, Object?>{
         'requested_seconds': _seconds,
+        'pid': pid,
+        'reopen_only': _reopenOnly,
         'revision': _revision,
         'os': Platform.operatingSystemVersion,
         'release_mode': kReleaseMode,
@@ -200,13 +390,14 @@ void main() {
             'fullyLive; no forced pumps or manual runtime refresh during workloads',
       };
       final metrics = await File(
-        '${directory.path}/metrics.jsonl',
+        '${directory.path}/${_reopenOnly ? 'reopen-metrics' : 'metrics'}.jsonl',
       ).open(mode: FileMode.append);
       final buildTimes = <String, _Histogram>{};
       final rasterTimes = <String, _Histogram>{};
       final inputTimes = <String, _Histogram>{};
       final workloadTimes = <String, _Histogram>{};
       final markers = <String, String>{};
+      final markerHosts = <String, String?>{};
       var phase = 'setup';
       var sequence = 0;
       var maximumHeartbeatGapMicros = 0;
@@ -237,6 +428,16 @@ void main() {
         );
         final controller = container.read(sessionControllerProvider.notifier);
         final runtime = container.read(terminalRuntimeControllerProvider);
+        if (_reopenOnly) {
+          await _verifyReopenedRecordings(
+            tester,
+            container,
+            library,
+            directory,
+            report,
+          );
+          return;
+        }
         final local = container
             .read(sessionControllerProvider)
             .activeSessionId!;
@@ -244,6 +445,13 @@ void main() {
         final ssh = container.read(sessionControllerProvider).activeSessionId!;
         expect(ssh, isNot(local));
         final sessions = {'local': local, 'ssh': ssh};
+        String? observedHost(String id) => container
+            .read(sessionControllerProvider)
+            .tabs
+            .firstWhere((tab) => tab.containsSession(id))
+            .paneFor(id)!
+            .shellIntegration
+            .hostname;
         final client = container.read(sampledRecordingCaptureClientProvider)!;
         String text(String id) => runtime
             .viewportFor(id)
@@ -289,7 +497,10 @@ void main() {
           // Bash DEBUG hooks may report only the first simple command of a
           // compound input line. Search the independent echo command, whose
           // complete text is actually supplied by the shell hook.
-          if (retainMarker) markers['$name/$phase'] = echoTag;
+          if (retainMarker) {
+            markers['$name/$phase'] = echoTag;
+            markerHosts['$name/$phase'] = observedHost(id);
+          }
         }
 
         Future<void> metric() async {
@@ -348,6 +559,7 @@ void main() {
           final sample = {
             'utc': DateTime.now().toUtc().toIso8601String(),
             'elapsed_micros': now,
+            'pid': pid,
             'phase': phase,
             'rss_bytes': ProcessInfo.currentRss,
             'max_rss_bytes': ProcessInfo.maxRss,
@@ -407,6 +619,35 @@ void main() {
         report['capture_started_utc'] = DateTime.now()
             .toUtc()
             .toIso8601String();
+        final transitions = <Map<String, Object?>>[];
+        Future<void> transition(String input, String host) async {
+          runtime.sendInput(ssh, utf8.encode('$input\n'));
+          await _until(() => observedHost(ssh) == host, 'SSH context $host');
+          final pane = container
+              .read(sessionControllerProvider)
+              .tabs
+              .firstWhere((tab) => tab.containsSession(ssh))
+              .paneFor(ssh)!;
+          transitions.add({
+            'command': input,
+            'hostname': host,
+            'context_id': pane.shellIntegration.contextId,
+          });
+        }
+
+        await transition('ssh b', 'b');
+        phase = 'recording/nested-b';
+        await command('ssh', 'hostname');
+        await transition('ssh c', 'c');
+        phase = 'recording/nested-c';
+        await command('ssh', 'hostname');
+        await transition('exit', 'b');
+        phase = 'recording/resumed-b';
+        await command('ssh', 'hostname');
+        await transition('exit', 'a');
+        phase = 'recording/resumed-a';
+        await command('ssh', 'hostname');
+        report['ssh_context_transitions'] = transitions;
         await runPhases(_seconds, 'recording');
         phase = 'recording/final';
         await command('local', 'pwd');
@@ -459,9 +700,17 @@ void main() {
               seekTimes.add(seekWatch.elapsedMicroseconds);
             }
             final searchTimes = <int>[];
+            final recordedHosts = <String>{};
+            final entryHost = name == 'ssh' ? 'a' : info.hostname;
+            expect(entryHost, isNotNull);
+            expect(entryHost, isNotEmpty);
+            expect(info.hostname, entryHost);
             for (final item in markers.entries.where(
               (entry) => entry.key.startsWith('$name/recording/'),
             )) {
+              final expectedHost = markerHosts[item.key];
+              expect(expectedHost, isNotNull);
+              expect(expectedHost, isNotEmpty);
               final searchWatch = Stopwatch()..start();
               var cursor = 0;
               var found = false;
@@ -470,8 +719,14 @@ void main() {
                   query: item.value,
                   kind: terminal.SampledRecordingSearchKind.command,
                   cursor: cursor,
+                  hostname: expectedHost,
                 );
                 if (page.hits.isNotEmpty) {
+                  expect(
+                    page.hits.every((hit) => hit.hostname == expectedHost),
+                    isTrue,
+                  );
+                  recordedHosts.addAll(page.hits.map((hit) => hit.hostname!));
                   found = true;
                   break;
                 }
@@ -493,6 +748,8 @@ void main() {
               'duration_micros': info.duration.inMicroseconds,
               'visual_count': info.visualCount,
               'semantic_count': info.semanticCount,
+              'hostname': info.hostname,
+              'searched_hosts': recordedHosts.toList(),
               'open_micros': openMicros,
               'seek_micros': seekTimes,
               'command_search_micros': searchTimes,
@@ -501,7 +758,40 @@ void main() {
             await opened.close();
           }
         }
+        final crossSearch = RecordingSearchController(
+          library,
+          debounce: Duration.zero,
+        );
+        try {
+          crossSearch.setQuery(
+            RecordingSearchQuery(
+              text: markers['ssh/recording/nested-b']!,
+              hostname: 'b',
+              scope: RecordingSearchScope.command,
+            ),
+          );
+          await _until(
+            () => !crossSearch.loading,
+            'cross-recording nested host search',
+          );
+          expect(crossSearch.error, isNull);
+          expect(crossSearch.warning, isNull);
+          expect(crossSearch.results, isNotEmpty);
+          expect(
+            crossSearch.results.every(
+              (hit) => hit.path == paths['ssh'] && hit.hostname == 'b',
+            ),
+            isTrue,
+          );
+          report['cross_recording_nested_host_search'] = true;
+        } finally {
+          crossSearch.dispose();
+        }
         report['recordings'] = verification;
+        report['final_marker_by_session'] = {
+          for (final name in sessions.keys)
+            name: 'IANVS-${markers['$name/recording/final']}',
+        };
         report['qualifies_long_duration'] =
             _seconds > 86400 &&
             recordingClock.elapsed.inSeconds > 86400 &&
@@ -540,7 +830,9 @@ void main() {
         container.dispose();
         files.dispose();
         await metrics.close();
-        await File('${directory.path}/result.json').writeAsString(
+        await File(
+          '${directory.path}/${_reopenOnly ? 'reopen-result' : 'result'}.json',
+        ).writeAsString(
           const JsonEncoder.withIndent('  ').convert(report),
           flush: true,
         );

@@ -33,6 +33,10 @@ void main() {
     test(
       'installed $shell hooks survive sampled recording and replay exactly',
       () async {
+        final hostResult = await Process.run('/bin/hostname', const <String>[]);
+        expect(hostResult.exitCode, 0);
+        final expectedHost = hostResult.stdout.toString().trim();
+        expect(expectedHost, isNotEmpty);
         final root = await Directory.systemTemp.createTemp('recorded-shell-');
         final settings = await Directory(
           '${root.path}/shell-settings',
@@ -125,7 +129,8 @@ void main() {
                 timeline.events.where(
                   (event) =>
                       event.kind == SampledTimelineKind.commandStarted &&
-                      event.command == command,
+                      event.command == command &&
+                      event.hostname == expectedHost,
                 ),
                 hasLength(1),
                 reason: '$shell must preserve exact command text',
@@ -153,6 +158,7 @@ void main() {
             final search = await opened.recording.search(
               query: 'quoted 雪 argument',
               kind: SampledRecordingSearchKind.command,
+              hostname: expectedHost,
             );
             expect(search.hits, isNotEmpty);
             expect(runtime.hasSession(session), isFalse);

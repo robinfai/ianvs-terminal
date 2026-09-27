@@ -12,7 +12,10 @@ A sample can omit short-lived output; commands without observed hooks are absent
 The current Bash DEBUG adapter may report only the first simple command of a
 compound input line. The recorder preserves that observed hook text; it does not
 reconstruct missing shell source from keystrokes or rendered output. Host filters
-can match only host metadata actually supplied by the shell/context.
+can match only host metadata actually supplied by the shell/context. Built-in
+Bash, Zsh and Fish adapters now report the hostname observed when their hooks
+are installed, alongside directory changes; an unavailable hostname command
+leaves that metadata unavailable.
 
 Replay retains explicit sampled cell styles, links and graphic assets. Default
 foreground/background colors, font and cursor presentation follow the current

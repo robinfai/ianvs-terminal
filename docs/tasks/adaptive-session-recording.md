@@ -532,3 +532,61 @@ metrics and reports are retained; `qualifies_long_duration` is explicitly false.
 The 25-hour run remains a separate required measurement. Final product restart,
 process/filesystem/system failure, full host-context coverage and release
 acceptance remain open.
+
+
+## Host metadata and process-reopen checkpoint
+
+Real probe inspection found that root Bash/SSH hook records lacked hostname.
+The first 25-hour runner (`soak-25h-20260927`) was deliberately superseded and
+stopped after verifying its owned live process; its data, metrics and stop reason
+remain retained. It did not establish long-duration acceptance. The final
+implementation requires a fresh run after this correction.
+
+Built-in Bash, Zsh and Fish adapters now observe `hostname` once during hook
+installation and include it in directory hook events. No keystrokes or screen
+text are used to infer it. Real Bash/Zsh recording tests failed before the fix
+and pass after it, checking exact recorded command host and host-filtered search;
+local Fish remains explicitly unavailable on this machine. Product SSH transport
+acceptance also passes with nonempty directory-hook hostname assertions across
+Bash/Zsh/Fish, nested contexts, ControlMaster and SFTP; its evidence is retained in
+`build/recording_bench/adaptive/ssh-product-hosts/`.
+
+The Release runner now requires actual host-filtered command results and a
+second, distinct application process which opens both saved recordings through
+the library UI, verifies the final marker/duration/Keep/hostname and creates no
+SSH session for replay. The corresponding Release probe passed; clean
+restart evidence is not equivalent to abrupt-process or system durability proof.
+
+
+The strengthened full-app probe passed under
+`build/recording_bench/adaptive/nested-host-reopen-probe/`. Recording continued
+through actual `a -> b -> c -> b -> a` SSH transitions with distinct/reused
+context IDs as appropriate, preserved per-command host metadata and passed
+cross-recording search for the nested host. Both finished recordings reopened
+through the library UI in a distinct application process with their expected
+final markers, durations and Keep flags.
+
+An additional Release probe deliberately sent SIGKILL only after checking the
+owned app's PID/executable and observing two active, committed writers during
+sustained logs. A new app process recovered both interrupted prefixes through the
+product library and opened their final verified frames. All acknowledged records
+survived (174 -> 198 for local, 269 -> 293 for SSH). Conservative time from the
+retained prefix to the kill, including metadata/start overhead, was 397,514 and
+131,396 microseconds respectively. SHA-256 hashes confirmed both primary files
+were unchanged by recovery/replay. Evidence and actual PID/UTC timing are in
+`build/recording_bench/adaptive/process-kill-reopen-probe/`. This is process-kill
+acceptance, not system/power-loss evidence and not a universal ten-second bound.
+The runner's `--probe --crash-probe` mode reproduces it with owned fixtures.
+
+Remaining: controlled filesystem/system durability evidence, >24 actual hours
+on the final implementation and measured resource/latency review, plus a green
+final full gate. No prior short probe or superseded long run satisfies that
+real-duration requirement.
+
+
+After adding the abrupt-termination branch, the final normal-mode Release probe
+also passed (`build/recording_bench/adaptive/final-host-reopen-probe/`): 60 seconds
+requested plus nested-context checks, 66.076 seconds measured, successful new-PID
+UI reopen and unchanged primary hashes. Fatal-infos analysis and documentation
+contracts pass. Full repository verification and a fresh 25-hour run follow this
+checkpoint; neither has yet been declared successful for this final revision.
