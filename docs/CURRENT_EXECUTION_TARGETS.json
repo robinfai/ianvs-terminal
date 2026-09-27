@@ -737,7 +737,7 @@
     {
       "id": "adaptive-session-recording",
       "status": "active",
-      "goal": "Deliver manually started per-session adaptive structured screen recordings with independent hook timelines, bounded durable storage, cross-recording search, protected retention and more-than-24-hour acceptance.",
+      "goal": "Deliver manually started per-session adaptive structured screen recordings with independent hook timelines, bounded durable storage, cross-recording search, protected retention and user-approved two-hour real-duration acceptance.",
       "evidence": [
         {
           "path": "docs/tasks/adaptive-session-recording.md",
@@ -1035,7 +1035,7 @@
         "flutter test example/test/recording_retention_maintenance_test.dart example/test/recording_retention_surface_test.dart example/test/shell/shell_recording_management_test.dart",
         "flutter test example/test/sampled_recording_library_test.dart example/test/sessions/recording_file_shutdown_test.dart",
         "dart test test/docs_contract_test.dart",
-        "python3 tools/ssh_boundary_lab/recording_soak.py --seconds 90000 --output build/recording_bench/adaptive/soak-25h-new",
+        "python3 tools/ssh_boundary_lab/recording_soak.py --probe --seconds 7200 --output build/recording_bench/adaptive/soak-2h-new",
         "python3 tools/ssh_boundary_lab/recording_soak.py --probe --crash-probe --seconds 120 --output build/recording_bench/adaptive/crash-probe-new",
         "make verify",
         "python3 -B tools/tests/test_recording_resource_review.py"
@@ -1043,10 +1043,11 @@
       "exit_criteria": [
         "All four delivery batches in docs/tasks/adaptive-session-recording.md are implemented and verified.",
         "Actual macOS local/SSH capture, restart/replay, command navigation, cross-recording search and protected retention work in the product UI.",
-        "Real-duration acceptance exceeds 24 hours with bounded memory and validated ten-second recovery target; logical-time tests alone do not satisfy it.",
+        "The user revised duration acceptance on 2026-09-27 to approximately two actual hours with bounded memory and the validated ten-second recovery target; logical-time tests alone do not satisfy it. Do not claim 24-hour stability.",
         "Old NDJSON is not replayed, migrated, modified or deleted by the new library.",
         "Full repository verification and generated package mirrors pass on the final implementation."
-      ]
+      ],
+      "reason": "The user replaced the 25-hour requirement with approximately two hours. Actual capture reached 1h54m43s; independent replay/search and resource review passed. Resolve the final input timeout without relabeling failed original reports or requiring another 25-hour run."
     }
   ]
 }

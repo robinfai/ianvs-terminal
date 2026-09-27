@@ -96,6 +96,157 @@ String _workload(String phase) => switch (phase) {
   _ => r"pwd; printf 'quoted argument: %s\n' '保留 雪 spaces'",
 };
 
+// Inspect files safely saved after a harness timeout without relabeling the
+// capture as passed. This branch verifies files, not duration or timeout cause.
+Future<List<Map<String, dynamic>>> _verifySavedRunFiles(
+  SampledRecordingLibrary library,
+  Map<String, dynamic> stop,
+  Map<String, Object?> report,
+) async {
+  final seconds = stop['required_seconds'] as int;
+  expect(seconds, greaterThanOrEqualTo(60));
+  final heartbeat = stop['heartbeat'] as Map<String, dynamic>;
+  final captures = (heartbeat['captures'] as List<dynamic>)
+      .cast<Map<String, dynamic>>();
+  expect(captures, hasLength(2));
+  final saved = <Map<String, dynamic>>[];
+  for (final entry in await library.listRecordings()) {
+    final before = captures.singleWhere((c) => c['capture_id'] == entry.id);
+    final openWatch = Stopwatch()..start();
+    final opened = await library.openRecording(entry.path);
+    final openMicros = openWatch.elapsedMicroseconds;
+    try {
+      final info = opened.recording.info;
+      expect(info.completion, terminal.SampledRecordingCompletion.finished);
+      expect(info.duration.inSeconds, greaterThanOrEqualTo(seconds));
+      expect(
+        info.visualCount + info.semanticCount,
+        greaterThanOrEqualTo(before['committed_records'] as int),
+      );
+      final name =
+          (stop['session_names'] as Map<String, dynamic>)[before['session_id']]
+              as String;
+      final seekTimes = <int>[];
+      for (var sample = 0; sample < 13; sample++) {
+        final watch = Stopwatch()..start();
+        expect(
+          await opened.recording.seek(
+            Duration(microseconds: info.duration.inMicroseconds * sample ~/ 12),
+          ),
+          isNotNull,
+        );
+        seekTimes.add(watch.elapsedMicroseconds);
+      }
+      final searches = <Map<String, Object?>>[];
+      Future<void> search(
+        String query,
+        terminal.SampledRecordingSearchKind kind,
+        String? host,
+      ) async {
+        final watch = Stopwatch()..start();
+        var cursor = 0;
+        var found = false;
+        while (true) {
+          final page = await opened.recording.search(
+            query: query,
+            kind: kind,
+            hostname: host,
+            cursor: cursor,
+          );
+          if (page.hits.isNotEmpty) {
+            if (host != null) {
+              expect(page.hits.every((hit) => hit.hostname == host), isTrue);
+            }
+            found = true;
+            break;
+          }
+          if (page.nextCursor == null) break;
+          cursor = page.nextCursor!;
+        }
+        expect(
+          found,
+          isTrue,
+          reason: '$name retained ${kind.name} $query at $host',
+        );
+        searches.add({
+          'query': query,
+          'kind': kind.name,
+          'hostname': host,
+          'elapsed_micros': watch.elapsedMicroseconds,
+        });
+      }
+
+      await search(
+        'ping_',
+        terminal.SampledRecordingSearchKind.command,
+        info.hostname,
+      );
+      await search('log', terminal.SampledRecordingSearchKind.screen, null);
+      await search(
+        'TUI frame',
+        terminal.SampledRecordingSearchKind.screen,
+        null,
+      );
+      if (name == 'ssh') {
+        expect(info.hostname, 'a');
+        for (final host in ['a', 'b', 'c']) {
+          await search(
+            'hostname',
+            terminal.SampledRecordingSearchKind.command,
+            host,
+          );
+        }
+      }
+      final frame = (await opened.recording.seek(info.duration))!;
+      saved.add({
+        'name': name,
+        'id': info.id,
+        'path': info.path,
+        'hostname': info.hostname,
+        'started_at_utc': info.startedAtUtc.toIso8601String(),
+        'duration_micros': info.duration.inMicroseconds,
+        'source_bytes': info.sourceBytes,
+        'visual_count': info.visualCount,
+        'semantic_count': info.semanticCount,
+        'rows': frame.frame.rows.map((row) => row.text).toList(),
+        'open_micros': openMicros,
+        'seek_micros': seekTimes,
+        'searches': searches,
+        'committed_records_before_stop': before['committed_records'],
+      });
+    } finally {
+      await opened.close();
+    }
+  }
+  expect(saved.map((r) => r['name']).toSet(), {'local', 'ssh'});
+  final cross = RecordingSearchController(library, debounce: Duration.zero);
+  try {
+    cross.setQuery(
+      const RecordingSearchQuery(
+        text: 'hostname',
+        hostname: 'b',
+        scope: RecordingSearchScope.command,
+      ),
+    );
+    await _until(() => !cross.loading, 'saved-run cross-recording search');
+    expect(cross.error, isNull);
+    expect(cross.warning, isNull);
+    expect(cross.results, isNotEmpty);
+    final sshPath = saved.singleWhere((r) => r['name'] == 'ssh')['path'];
+    expect(
+      cross.results.every((hit) => hit.path == sshPath && hit.hostname == 'b'),
+      isTrue,
+    );
+    report['cross_recording_nested_host_search'] = true;
+  } finally {
+    cross.dispose();
+  }
+  report['verification_minimum_seconds'] = seconds;
+  // Historical artifact key; this is a saved-run review, not a user-stop claim.
+  report['user_stopped_recordings'] = saved;
+  return saved;
+}
+
 Future<void> _verifyReopenedRecordings(
   WidgetTester tester,
   ProviderContainer container,
@@ -103,6 +254,8 @@ Future<void> _verifyReopenedRecordings(
   Directory directory,
   Map<String, Object?> report,
 ) async {
+  final savedReviewFile = File('${directory.path}/saved-run-review.json');
+  final savedReview = await savedReviewFile.exists();
   final crashFile = File('${directory.path}/crash.json');
   final interrupted = await crashFile.exists();
   final prior =
@@ -113,7 +266,7 @@ Future<void> _verifyReopenedRecordings(
           )
           as Map<String, dynamic>;
   if (!interrupted) {
-    expect(prior['passed'], isTrue);
+    if (!savedReview) expect(prior['passed'], isTrue);
     expect(prior['safe_to_terminate'], isTrue);
   }
   expect(prior['pid'], isNot(pid), reason: 'reopen must use a new app process');
@@ -123,7 +276,7 @@ Future<void> _verifyReopenedRecordings(
   final entries = await library.listRecordings();
   expect(entries, hasLength(2));
   final saved = <Map<String, dynamic>>[];
-  final markers = interrupted
+  final markers = interrupted || savedReview
       ? <String, dynamic>{}
       : prior['final_marker_by_session'] as Map<String, dynamic>;
   if (interrupted) {
@@ -175,6 +328,15 @@ Future<void> _verifyReopenedRecordings(
       }
     }
     report['process_kill_recovery'] = true;
+  } else if (savedReview) {
+    final stop =
+        jsonDecode(await savedReviewFile.readAsString())
+            as Map<String, dynamic>;
+    expect(stop['pid'], prior['pid']);
+    expect(stop['purpose'], 'inspect safely saved run after harness timeout');
+    saved.addAll(await _verifySavedRunFiles(library, stop, report));
+    report['original_capture_report_passed'] = prior['passed'];
+    report['original_capture_report_error'] = prior['error'];
   } else {
     saved.addAll(
       (prior['recordings'] as List<dynamic>).cast<Map<String, dynamic>>(),
@@ -192,7 +354,7 @@ Future<void> _verifyReopenedRecordings(
         entry.state,
         interrupted ? isIn(['interrupted', 'damaged_tail']) : 'finished',
       );
-      if (!interrupted) expect(entry.keep, isTrue);
+      if (!interrupted && !savedReview) expect(entry.keep, isTrue);
       expect(entry.hostname, original['hostname']);
       for (var notice = 0; notice < 6; notice++) {
         final close = find.byTooltip('Close').hitTestable();
@@ -235,8 +397,10 @@ Future<void> _verifyReopenedRecordings(
       final viewport = tester.widget<TerminalViewport>(
         find.byKey(const Key('recording-replay-viewport')),
       );
-      final expected = interrupted ? null : markers[original['name']] as String;
-      if (interrupted) {
+      final expected = interrupted || savedReview
+          ? null
+          : markers[original['name']] as String;
+      if (interrupted || savedReview) {
         expect(
           viewport.controller.frame.rows.map((row) => row.text).toList(),
           original['rows'],

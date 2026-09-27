@@ -17,7 +17,7 @@ manually started, per-session sampled visual recordings with command timelines.
 3. **Library and search**: index commands and retained screen text across files;
    filter by host/date/command; protect recordings marked Keep and active files;
    apply both age and aggregate capacity retention limits to ordinary files.
-4. **Long-running acceptance**: more than 24 actual hours with shell, sustained
+4. **Long-running acceptance**: approximately two actual hours with shell, sustained
    logs, TUI, idle intervals and SSH; measure memory, CPU, disk, seek/search,
    failure recovery and impact on normal input/rendering.
 
@@ -83,8 +83,8 @@ files for retention/failure cases. Store logs/screenshots/metrics under `build/`
 
 ## Done When
 
-All four batches pass relevant automated and real UI checks; more-than-24-hour
-wall-clock evidence exists on the final implementation; full `make verify`
+All four batches pass relevant automated and real UI checks; the user-approved
+approximately two-hour wall-clock evidence exists on the final implementation; full `make verify`
 passes; current-format/product/architecture documentation matches shipped code.
 
 ## Risks / Follow-ups
@@ -691,3 +691,45 @@ bounds, missing evidence/CLI exit and synthetic complete/corrupted fixtures.
 These tools/documentation changes do not alter the frozen product implementation.
 Final work remains: actual duration, continuity, resource/latency interpretation,
 new-process final playback and the complete requirement audit.
+
+
+## User duration revision — 2026-09-27
+
+The user explicitly requested: “测两个小时差不多了，不用跑完25小时”.
+This replaces the earlier more-than-24-hour release requirement with approximately
+two actual hours. Historical checkpoints above preserve the original plan; they
+do not override this revision. The frozen Release capture ended after 1 h 54 min 43 s when the harness
+timed out waiting for a local command, and then saved safely during shutdown.
+Independent file seek/search, cross-host search and new-process UI replay passed.
+Original runner and application failure reports are preserved. This was not a
+planned normal stop, and the command timeout cause remains unresolved.
+No two-hour result is described as proof of day-long stability. All other batch
+requirements remain in force.
+
+
+## Revised-duration review — remaining input-timeout investigation
+
+The two finished files contain 6,883.085 and 6,883.214 seconds respectively.
+Continuous metrics span 6,856.750 seconds, with no reviewer integrity errors and
+a maximum gap of 15.367 seconds. The first seven complete quarter-hour RSS
+medians are 275.66–282.27 MiB, without sustained growth. Peak process RSS is
+303.94 MiB; the library reaches 257.86 MiB. Local/SSH echo latency P95 bounds
+remain 50/100 ms across ordinary workloads, excluding the failed last command.
+
+A new Release process opened both files, performed 13 seeks per file, searched
+commands and retained screen text, checked nested hosts a/b/c and cross-library
+search, and matched the native final screens through the actual player UI.
+All previously acknowledged records remain; primary-file hashes are unchanged.
+Cached opens took about 7 ms and seeks 0.58–6.62 ms. First searches including
+index preparation took 8.97/12.41 s; later searches took 3.37–66.11 ms.
+
+The final missing command was `soak_21164_local_end`. Native menu inspection
+preceded its timeout, but causation is not established. A 126-second diagnostic
+capture with the same interaction passed its recording/file checks and did not
+reproduce that timeout; its runner failed Flutter's end-of-test semantics-handle
+check after external accessibility inspection. Preserve both failures. No claim
+of a fully green final soak, strict 7,200 seconds or day-long stability is made.
+The current remaining issue is timeout diagnosis, not waiting for 25 hours.
+Evidence: `soak-25h-ui-final/revised-duration-review.json`,
+`reopen-result.json`, original reports and `menu-diagnostic-probe/` under
+`build/recording_bench/adaptive/`.

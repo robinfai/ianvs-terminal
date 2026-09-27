@@ -1,5 +1,12 @@
 # Real-duration application recording acceptance
 
+Current release duration: the user changed the requirement on 2026-09-27 to
+approximately two actual hours (“测两个小时差不多了，不用跑完25小时”).
+The 25-hour runner below remains available for future extended testing. Its
+original reports must not be rewritten as passed when stopped early; preserve
+them and report the revised-duration verification separately. File integrity,
+resource review, search/seek and new-process replay still require evidence.
+
 The executable entrypoint is `tools/ssh_boundary_lab/recording_soak.py`. It runs
 the production Flutter application, native core, session controller and recording
 library in an isolated Release integration-test application. It creates a local
@@ -130,3 +137,54 @@ Separate real APFS full/disconnect and Linux guest-kernel crash evidence is reco
 in [durability acceptance](DURABILITY_ACCEPTANCE.md), including its platform and
 timing limits. See the [delivery task](../tasks/adaptive-session-recording.md)
 for remaining acceptance.
+
+
+## User-revised duration result — 2026-09-27
+
+The user requested approximately two hours instead of 25. The frozen production
+implementation at `6c232b9b` captured local Bash and SSH continuously from
+02:02:17 UTC until approximately 03:57:00 UTC: **1 h 54 min 43 s**. Both finished
+files were safely saved. The last local command timed out following external
+native-menu inspection; its cause is not established. The original application
+and runner reports remain failed. This is not evidence of 7,200 full seconds or
+day-long stability, and the run was not stopped by a planned user-close action.
+
+A separate Release verifier with the same native-core hash and unchanged
+production source opened both files in a new process. Actual player screens
+matched native final frames; 13 seeks per recording, command/screen search and
+nested/cross-recording host filters passed. Previously acknowledged records were
+preserved, primary hashes were unchanged, and replay created no SSH connection.
+The saved-run review branch can inspect a safely saved failed run without changing
+its capture result; its minimum file-duration assertion is not a release-duration
+acceptance gate.
+
+| Observation | Actual result |
+| --- | --- |
+| Local / SSH duration | 6,883.085 / 6,883.214 s |
+| Continuous metric span / maximum gap | 6,856.750 / 15.367 s |
+| First seven quarter-hour RSS medians | 275.66–282.27 MiB; no sustained growth |
+| Process peak RSS / library size | 303.94 / 257.86 MiB |
+| CPU median, baseline → recording, % of one core | shell 18.70 → 20.66; logs 23.14 → 24.06; TUI 17.36 → 17.45; idle 22.44 → 19.49 |
+| Echo-to-visible-marker P95 bounds | local 50 ms; SSH 50–100 ms across ordinary phases |
+| Open / seek | about 7 ms / 0.58–6.62 ms |
+| First command search, including index preparation | local 8.97 s; SSH 12.41 s |
+| Later searches | 3.37–66.11 ms |
+
+The baseline included warm-up and separate VM build activity, so CPU differences
+are observations, not a causal overhead estimate. Last-command timeout is excluded
+from successful-input histograms and must not be hidden by their percentiles.
+The final RSS quarter is partial and affected by external inspection.
+
+A separate 126-second diagnostic reproduced a menu remaining open after Escape;
+the exposed native Cancel action closed it. Its capture/file checks passed and
+the command timeout did not recur, but external accessibility inspection left a
+Flutter test semantics handle active and the runner failed at teardown. This
+confirms test interference, not the cause of the original timeout.
+
+Retained artifacts are under `build/recording_bench/adaptive/`: original
+`soak-25h-ui-final/result.json` and `runner.json`; independent
+`reopen-result.json`; `user-duration-acceptance.json` (strict 7,200-second checks
+correctly remain false); `revised-duration-review.json`; and
+`menu-diagnostic-probe/`. Overall acceptance remains open only for the unresolved
+input-timeout investigation and any correction it requires; a 25-hour run is no
+longer required.

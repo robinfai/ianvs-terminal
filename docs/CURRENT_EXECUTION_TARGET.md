@@ -19,9 +19,14 @@ acknowledgements. External new-format bundles are copied into protected library
 entries with cancellable staging and restart cleanup. Actual macOS app tests
 cover disk-full recovery and retention protection. APFS failure and isolated
 Linux guest kernel-crash evidence have explicit platform limits in
-[durability acceptance](recording/DURABILITY_ACCEPTANCE.md). Final long-file
-resource/latency review and >24 actual hours on the corrected application remain
-open. Its complete gate passed at `6c232b9b`; the frozen Release run is in progress.
+[durability acceptance](recording/DURABILITY_ACCEPTANCE.md). The user shortened the original 25-hour requirement on 2026-09-27. The
+frozen Release run ended after 1 h 54 min 43 s of capture, with safe shutdown.
+Independent new-process replay, seek, command/screen/host search and primary-file
+hash checks passed; resource trends were reviewed. No more day-long run is
+required. The final local command timed out following external native-menu
+inspection; its cause remains unresolved, so overall acceptance is still open.
+The full production gate passed at `6c232b9b`; subsequent edits only affect
+acceptance tools and documentation. See the [actual result and limits](recording/REAL_DURATION_ACCEPTANCE.md#user-revised-duration-result--2026-09-27).
 
 ## Continuing runtime guardrails
 
