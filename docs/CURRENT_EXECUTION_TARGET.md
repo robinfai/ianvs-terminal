@@ -16,8 +16,12 @@ replay with incrementally published indexes and bounded cached open. Integration
 tests cover cross-recording search, persistent age/capacity retention and Keep
 controls. Directory publication and metadata writes wait for native durability
 acknowledgements. External new-format bundles are copied into protected library
-entries with cancellable staging and restart cleanup. Real system-failure,
-cold-disk/product measurements and long-running acceptance are still open.
+entries with cancellable staging and restart cleanup. Actual macOS app tests
+cover disk-full recovery and retention protection. APFS failure and isolated
+Linux guest kernel-crash evidence have explicit platform limits in
+[durability acceptance](recording/DURABILITY_ACCEPTANCE.md). Final long-file
+resource/latency review, >24 actual hours on the corrected application and its
+fresh complete gate are still open.
 
 ## Continuing runtime guardrails
 

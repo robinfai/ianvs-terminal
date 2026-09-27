@@ -644,3 +644,24 @@ its runner records exit 143 and fixture cleanup. Its roughly 21 minutes do not
 qualify as day-long evidence. Production code has changed, so both a fresh full
 gate and >24 actual hours are required. Retention/Keep composition and final
 resource/latency audit remain in scope.
+
+
+## Full-application retention checkpoint
+
+The actual macOS application scenario passed at
+`build/recording_bench/adaptive/macos-retention/run-z0MApy/`, with four real
+native recordings and inspected screenshots. Through product controls it marked
+one recording Keep, searched an ordinary recording, opened a third in the player,
+and applied a one-byte test budget while a fourth was still recording. Cleanup
+removed the ordinary bundle and its search results while preserving Keep, the
+open reader and the active writer. A newly constructed library read the persisted
+14-day/one-byte policy. Closing the player made that bundle eligible for cleanup.
+
+After stopping the active capture, the protected budget visibly rejected a new
+recording and the terminal still accepted text/Enter through the framework input
+path to its real PTY. Removing Keep and reapplying the policy emptied only the
+owned fixture library. Shutdown was safe. This test is now part of the macOS
+gate; age cutoff boundaries retain separate explicit-timestamp library tests,
+not a claim that this short test waited fourteen days. No product change was
+needed for these retention scenarios. The full final gate and >24 actual hours
+on the corrected implementation still remain to be completed.
