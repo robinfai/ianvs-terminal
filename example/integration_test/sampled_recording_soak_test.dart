@@ -456,6 +456,23 @@ void main() {
       }),
     );
   }
+  // Native accessibility inspection can acquire an engine semantics handle.
+  // Let an explicitly requested diagnostic attach before WidgetTester records
+  // its initial handle count; never relax the end-of-test leak assertion.
+  if (Platform.environment['IANVS_RECORDING_WAIT_FOR_START'] == '1') {
+    setUpAll(() async {
+      final ready = File('$_output/awaiting-start.json');
+      await ready.writeAsString(jsonEncode({'pid': pid}), flush: true);
+      final gate = File('$_output/start.signal');
+      final watch = Stopwatch()..start();
+      while (!await gate.exists()) {
+        if (watch.elapsed > const Duration(minutes: 2)) {
+          fail('Diagnostic start signal was not supplied within two minutes');
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      }
+    });
+  }
   testWidgets(
     'real-duration full-application recording soak',
     (tester) async {
@@ -562,6 +579,24 @@ void main() {
       final workloadTimes = <String, _Histogram>{};
       final markers = <String, String>{};
       final markerHosts = <String, String?>{};
+      // Test-owned diagnostics only. Keep bounded tails and subscribe once;
+      // this does not change product recording or record user keystrokes there.
+      final diagnosticTail = <Map<String, Object?>>[];
+      void diagnostic(String kind, Map<String, Object?> details) {
+        diagnosticTail.add({
+          'utc': DateTime.now().toUtc().toIso8601String(),
+          'kind': kind,
+          ...details,
+        });
+        if (diagnosticTail.length > 32) diagnosticTail.removeAt(0);
+      }
+
+      StreamSubscription<terminal.TerminalSessionInputEvent>? inputSubscription;
+      StreamSubscription<terminal.TerminalRuntimeSignal>? signalSubscription;
+      terminal.TerminalRuntimeController? diagnosticRuntime;
+      Map<String, String> diagnosticSessions = const {};
+      Map<String, Object?>? pendingCommand;
+      var acceptedInputCount = 0;
       var phase = 'setup';
       var sequence = 0;
       var maximumHeartbeatGapMicros = 0;
@@ -592,6 +627,38 @@ void main() {
         );
         final controller = container.read(sessionControllerProvider.notifier);
         final runtime = container.read(terminalRuntimeControllerProvider);
+        diagnosticRuntime = runtime;
+        inputSubscription = runtime.inputEvents.listen((event) {
+          acceptedInputCount++;
+          final text = utf8.decode(event.bytes, allowMalformed: true);
+          diagnostic('input_accepted_by_backend', {
+            'session_id': event.sessionId,
+            'byte_count': event.bytes.length,
+            'suffix': text.length <= 160
+                ? text
+                : text.substring(text.length - 160),
+          });
+        });
+        signalSubscription = runtime.runtimeSignals.listen((signal) {
+          final event = signal.payload;
+          if (event is terminal.TerminalSessionBackendErrorEvent) {
+            diagnostic('backend_error', {
+              'session_id': event.sessionId,
+              'operation': event.operation,
+              'error': '${event.error}',
+            });
+          } else if (event is terminal.TerminalSessionExitEvent) {
+            diagnostic('session_exit', {
+              'session_id': event.sessionId,
+              'exit_code': event.exitCode,
+            });
+          } else if (signal is terminal.TerminalRuntimeZmodemEventSignal) {
+            diagnostic('zmodem', {
+              'session_id': signal.sessionId,
+              'event_kind': signal.payload.kind?.name,
+            });
+          }
+        });
         if (_reopenOnly) {
           await _verifyReopenedRecordings(
             tester,
@@ -609,6 +676,7 @@ void main() {
         final ssh = container.read(sessionControllerProvider).activeSessionId!;
         expect(ssh, isNot(local));
         final sessions = {'local': local, 'ssh': ssh};
+        diagnosticSessions = sessions;
         String? observedHost(String id) => container
             .read(sessionControllerProvider)
             .tabs
@@ -637,6 +705,13 @@ void main() {
           final tag = 'soak_${sequence++}_${name}_end';
           final line = "$body; printf 'IANVS-%s\\n' '$tag'";
           final latency = Stopwatch()..start();
+          pendingCommand = {
+            'session_id': id,
+            'name': name,
+            'tag': tag,
+            'phase': phase,
+          };
+          diagnostic('command_dispatch', pendingCommand!);
           runtime.sendInput(id, utf8.encode('$line\n'));
           await _until(
             () => text(id).contains('IANVS-$tag'),
@@ -647,6 +722,13 @@ void main() {
           );
           final echoTag = 'ping_${sequence++}_${name}_end';
           final echoClock = Stopwatch()..start();
+          pendingCommand = {
+            'session_id': id,
+            'name': name,
+            'tag': echoTag,
+            'phase': phase,
+          };
+          diagnostic('command_dispatch', pendingCommand!);
           runtime.sendInput(
             id,
             utf8.encode("printf 'IANVS-%s\\n' '$echoTag'\n"),
@@ -658,6 +740,7 @@ void main() {
           (inputTimes['$phase/$name'] ??= _Histogram()).add(
             echoClock.elapsedMicroseconds,
           );
+          pendingCommand = null;
           // Bash DEBUG hooks may report only the first simple command of a
           // compound input line. Search the independent echo command, whose
           // complete text is actually supplied by the shell hook.
@@ -963,6 +1046,29 @@ void main() {
         report['passed'] = true;
       } on Object catch (error) {
         report['error'] = '$error';
+        report['pending_command'] = pendingCommand;
+        final runtime = diagnosticRuntime;
+        if (runtime != null) {
+          report['failure_viewports'] = {
+            for (final session in diagnosticSessions.entries)
+              session.key: {
+                'session_id': session.value,
+                'has_session': runtime.hasSession(session.value),
+                if (runtime.hasSession(session.value)) ...{
+                  'scrollback_offset': runtime
+                      .viewportFor(session.value)
+                      .frame
+                      .scrollbackOffset,
+                  'rows': runtime
+                      .viewportFor(session.value)
+                      .frame
+                      .rows
+                      .map((row) => row.text)
+                      .toList(),
+                },
+              },
+          };
+        }
         rethrow;
       } finally {
         SchedulerBinding.instance.removeTimingsCallback(timings);
@@ -991,6 +1097,10 @@ void main() {
           report['passed'] = false;
           report['shutdown_error'] = '$error';
         }
+        await inputSubscription?.cancel();
+        await signalSubscription?.cancel();
+        report['accepted_input_count'] = acceptedInputCount;
+        report['diagnostic_tail'] = diagnosticTail;
         container.dispose();
         files.dispose();
         await metrics.close();

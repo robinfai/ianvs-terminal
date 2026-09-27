@@ -33,7 +33,8 @@ native start, retains its filesystem claim until the writer settles, and marks
 recovered prefixes as interrupted. Existing schema 1 NDJSON files and indexes are
 left untouched. The application does not read, migrate, rewrite or delete them.
 
-This is the development implementation, not completed release acceptance.
+This implementation passed the four-batch macOS recording acceptance under the
+user-revised duration scope; see [ACCEPTANCE_RESULT](ACCEPTANCE_RESULT.md).
 The writer publishes incremental seek/command indexes and a bounded summary
 cache for normal opens; changed files fall back to a recovery scan. Cross-recording
 command/screen search with host/date filters and result-to-replay navigation is
@@ -42,8 +43,9 @@ age/capacity settings, Keep and explicit deletion; cleanup runs at startup, ever
 five minutes and after an explicit settings apply. Active/read files remain
 protected. Opening an external new-format bundle copies it into the library and
 marks it Keep; the original stays untouched. Directory publications await native
-synchronization. System-failure, whole-product measurements and more-than-24-hour
-validation remain open in the
-[delivery task](../tasks/adaptive-session-recording.md). The application recording
+synchronization. Failure-injection evidence, full-product measurements and the
+user-revised approximately two-hour run are documented in the
+[delivery task](../tasks/adaptive-session-recording.md). The final timeout was reproduced as external test-input interference; original
+failed reports are preserved. The application recording
 tests and isolated review entrypoints use the new product contract;
-full release acceptance is still pending.
+broader platform claims remain limited to the actual validation evidence.

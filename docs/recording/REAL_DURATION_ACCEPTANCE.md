@@ -145,7 +145,7 @@ The user requested approximately two hours instead of 25. The frozen production
 implementation at `6c232b9b` captured local Bash and SSH continuously from
 02:02:17 UTC until approximately 03:57:00 UTC: **1 h 54 min 43 s**. Both finished
 files were safely saved. The last local command timed out following external
-native-menu inspection; its cause is not established. The original application
+native-menu inspection; its cause was unresolved at initial review (resolved below). The original application
 and runner reports remain failed. This is not evidence of 7,200 full seconds or
 day-long stability, and the run was not stopped by a planned user-close action.
 
@@ -185,6 +185,39 @@ Retained artifacts are under `build/recording_bench/adaptive/`: original
 `soak-25h-ui-final/result.json` and `runner.json`; independent
 `reopen-result.json`; `user-duration-acceptance.json` (strict 7,200-second checks
 correctly remain false); `revised-duration-review.json`; and
-`menu-diagnostic-probe/`. Overall acceptance remains open only for the unresolved
-input-timeout investigation and any correction it requires; a 25-hour run is no
-longer required.
+`menu-diagnostic-probe/`. The initial review left input-timeout diagnosis open. The resolution below
+closes that condition; a 25-hour run is no longer required.
+
+
+## Input interference resolution — 2026-09-27
+
+The same File-menu/Escape action was reproduced with bounded input/backend-error
+tracing in `input-diagnostic-probe/`. At 04:19:00.470 UTC the local backend accepted
+one byte, `0x1b` (Escape), from the external UI operation. At 04:19:00.890 UTC it
+accepted the next `pwd; ... soak_288_local_end` command without a backend error.
+That command did not execute or enter Bash history, and the original timeout and
+saved-screen signature recurred. The original long run lacks byte-level tracing;
+its attribution rests on this controlled reproduction of the same known action.
+
+The installed Bash reports `Esc+p` as `non-incremental-reverse-search-history`.
+The next workload begins with `p` (`printf` or `pwd`), so Escape changes shell
+editing state and consumes that line as a history query. The maintained real-PTY
+test `tools/tests/test_recording_soak_interference.py` proves the command's file
+side effect occurs without Escape, is absent with Escape, and fresh input works
+after explicitly cancelling shell editing. No recorder or application is involved
+in that independent reproduction.
+
+The corrected procedure uses the menu's exposed native **Cancel** action without
+sending a key into the session. `menu-cancel-control/` passed 185.837 seconds of
+capture, normal stop, file/host search, a new-process actual-player reopen, primary
+hash verification and fixture cleanup. Accessibility attaches before WidgetTester
+records its initial semantics-handle count using the explicitly requested
+`IANVS_RECORDING_WAIT_FOR_START=1` gate and `start.signal`. This prevents the
+separate externally acquired semantics handle from being misreported as a test
+leak; no teardown assertion was removed or weakened.
+
+No production input or recording change was needed. The original long-run
+failure, strict 7,200-second review failure and exploratory failures remain
+preserved. The combined duration/resource/file evidence and successful control
+satisfy the user's revised acceptance scope, without claiming that the original
+25-hour runner passed. See [the final requirement audit](ACCEPTANCE_RESULT.md).

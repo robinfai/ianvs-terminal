@@ -1022,6 +1022,14 @@
             "metrics_match_application_and_files",
             "--require-duration"
           ]
+        },
+        {
+          "path": "docs/recording/ACCEPTANCE_RESULT.md",
+          "contains": [
+            "Requirement audit",
+            "External test interference reproduced and removed",
+            "6c232b9b"
+          ]
         }
       ],
       "verification_commands": [
@@ -1038,7 +1046,8 @@
         "python3 tools/ssh_boundary_lab/recording_soak.py --probe --seconds 7200 --output build/recording_bench/adaptive/soak-2h-new",
         "python3 tools/ssh_boundary_lab/recording_soak.py --probe --crash-probe --seconds 120 --output build/recording_bench/adaptive/crash-probe-new",
         "make verify",
-        "python3 -B tools/tests/test_recording_resource_review.py"
+        "python3 -B tools/tests/test_recording_resource_review.py",
+        "python3 -B tools/tests/test_recording_soak_interference.py"
       ],
       "exit_criteria": [
         "All four delivery batches in docs/tasks/adaptive-session-recording.md are implemented and verified.",
@@ -1047,7 +1056,8 @@
         "Old NDJSON is not replayed, migrated, modified or deleted by the new library.",
         "Full repository verification and generated package mirrors pass on the final implementation."
       ],
-      "reason": "The user replaced the 25-hour requirement with approximately two hours. Actual capture reached 1h54m43s; independent replay/search and resource review passed. Resolve the final input timeout without relabeling failed original reports or requiring another 25-hour run."
+      "reason": "The four agreed batches are accepted on the user-revised approximately two-hour scope. The active lane remains the product direction pending the next roadmap choice. Failed historical reports are preserved; final timeout reproduced as externally injected Escape entering Bash history search; menu Cancel control passed.",
+      "delivery_status": "accepted_2026-09-27"
     }
   ]
 }

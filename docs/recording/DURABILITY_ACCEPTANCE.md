@@ -6,8 +6,12 @@ bug: failed metadata writes left a stopped capture displayed as active. The
 controller now clears the active indicator before attempting publication, retains
 the pending-save claim, and reports the underlying native failure. Native storage
 is unchanged. The earlier 25-hour run was deliberately stopped and superseded;
-the corrected application passed a fresh complete gate at `6c232b9b`. Its new
-frozen Release run is `soak-25h-ui-final`; >24-hour acceptance remains pending.
+the corrected application passed a fresh complete gate at `6c232b9b`. Its
+frozen Release run `soak-25h-ui-final` captured 1 h 54 min 43 s before a final
+input timeout and safe shutdown. The user revised the duration requirement to
+approximately two hours; independent replay and resource review are complete,
+and the final timeout was reproduced as external Escape/Bash history-search
+interference; the menu Cancel control passed. See [actual duration results](REAL_DURATION_ACCEPTANCE.md).
 
 ## Evidence and limits
 
@@ -102,5 +106,6 @@ The disposable guest is stopped after evidence collection; its data is preserved
 These cases supplement existing bounded-queue, commit-acknowledgement, asset
 ordering, interruption and read-only recovery tests. They do not establish
 physical-device power-loss durability or a guarantee across every storage stack.
-The more-than-24-hour continuous capture and whole-application resource review
-remain separate acceptance requirements.
+Continuous capture and whole-application resource review remain separate from
+durability evidence; the user revised their duration to approximately two hours
+on 2026-09-27. This does not reduce the failure-recovery requirements.

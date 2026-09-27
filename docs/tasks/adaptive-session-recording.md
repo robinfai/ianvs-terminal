@@ -1,5 +1,9 @@
 # Adaptive session recording delivery
 
+Status: accepted on 2026-09-27 under the user-revised approximately two-hour
+acceptance scope. See the [final requirement audit](../recording/ACCEPTANCE_RESULT.md).
+Historical checkpoints below do not override this result.
+
 ## Goal
 
 Deliver the four user-approved batches for macOS daily use and durable,
@@ -93,7 +97,8 @@ passes; current-format/product/architecture documentation matches shipped code.
   and latency gates are provisional until representative measurements establish
   them. Record device/OS and workload alongside any numeric gate.
 - Ten-second recovery is a target, not proof of power-loss durability.
-- The app and its recording tests now use schema 2; full product acceptance remains open.
+- Schema 2 recording delivery is accepted within the measured platform/scope;
+  cross-platform and hardware power-loss claims remain outside this evidence.
 - Prototype correctness must cover scrollback eviction at 8,000 lines, Unicode,
   boundary frames, metadata-only updates, hyperlinks and graphics versions.
 
@@ -733,3 +738,22 @@ The current remaining issue is timeout diagnosis, not waiting for 25 hours.
 Evidence: `soak-25h-ui-final/revised-duration-review.json`,
 `reopen-result.json`, original reports and `menu-diagnostic-probe/` under
 `build/recording_bench/adaptive/`.
+
+
+## Final disposition — four batches accepted
+
+Bounded input diagnostics reproduced the final timeout: external Escape was
+accepted by the local PTY immediately before a p-prefixed command. The installed
+Bash interprets `Esc+p` as history search, so the command is consumed as editing
+input. An independent real-PTY regression confirms the missing execution through
+an exact file side effect. The original run did not have byte-level tracing;
+its attribution is based on reproducing the same action and failure signature.
+
+Using the native menu Cancel action instead of sending Escape passed a complete
+185.837-second control, including normal stop, searches, new-process player
+reopen, unchanged file hashes and fixture cleanup. No production code changed.
+The approximately two-hour run's recorded files, resource review and independent
+verification remain valid evidence; its failed original reports remain intact.
+All four requested batches are accepted under the user's revised duration scope.
+See [ACCEPTANCE_RESULT](../recording/ACCEPTANCE_RESULT.md) for the complete mapping,
+actual measurements and limits. No further 25-hour run is required.

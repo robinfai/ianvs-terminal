@@ -1,22 +1,26 @@
 # Adaptive structured recording plan
 
-Status: selected product direction, implementation in progress. The application
+Status: four-batch delivery accepted on 2026-09-27 under the user-revised
+approximately two-hour acceptance scope. The application
 now uses the new capture and structured replay path described in
 [FORMAT_CURRENT](FORMAT_CURRENT.md) and [FORMAT_SAMPLED](FORMAT_SAMPLED.md).
 
 Native sampling, writing, recovery, disk seek, hook tracking and bounded Dart
-file workers are connected to the application library and player. This does not
-establish completed delivery. Incremental indexes and bounded cached opens are
+file workers are connected to the application library and player.
+The [requirement audit](ACCEPTANCE_RESULT.md) records the completed delivery. Incremental indexes and bounded cached opens are
 implemented, along with cross-recording command/screen search and host/date
 filters. Persistent retention settings and Keep controls are connected. Library
 metadata and directory publication now await native synchronization acknowledgements.
 External new-format bundles use cancellable owned staging, protected publication
 and restart cleanup. Actual macOS disk-full/retention UI and bounded APFS/Linux
 guest-crash evidence are recorded in
-[DURABILITY_ACCEPTANCE](DURABILITY_ACCEPTANCE.md). Final long-file resource and
-latency review and >24 actual hours on the corrected application remain open in
-the [delivery task](../tasks/adaptive-session-recording.md). Current file timings
-do not establish OS-cold-cache performance.
+[DURABILITY_ACCEPTANCE](DURABILITY_ACCEPTANCE.md). The user revised actual-duration acceptance to approximately two hours on
+2026-09-27. The corrected application captured 1 h 54 min 43 s; resource review
+and independent new-process file verification are recorded in
+[REAL_DURATION_ACCEPTANCE](REAL_DURATION_ACCEPTANCE.md). The final timeout was reproduced as external Escape/Bash history-search
+interference; the corrected menu Cancel control passed. See the
+[delivery task](../tasks/adaptive-session-recording.md).
+Current file timings do not establish OS-cold-cache performance.
 
 ## Fidelity and scope
 
@@ -27,8 +31,9 @@ output and not bitmap video. Intermediate output can be absent. Commands and
 their arguments come from hooks; raw input bytes are never part of the new format.
 Unavailable hook coverage must be explicit.
 
-Recording is manually started per Session, targets more than 24 hours, and uses
-one monotonic timeline. The initial sample includes the visible state already
+Recording is manually started per Session and uses one monotonic timeline.
+The release acceptance run now targets approximately two hours by user request;
+the implementation does not impose a two-hour recording limit. The initial sample includes the visible state already
 present at start. Semantic events preserve ordering independently of visual
 sampling. Boundary frames and command IDs/context IDs permit navigation without
 pretending to capture unobserved output. Replay must never run commands, open
@@ -98,6 +103,6 @@ positions. Include all metadata/index/asset/keyframe bytes in size reports.
 
 Measure capture cost, retained/queue/peak RSS, write CPU, disk growth, stop time,
 cold/warm first frame, seek/search P50/P95 and input/render responsiveness on
-identified hardware. Separate synthetic logical-duration tests from more-than-
-24-hour wall-clock acceptance. Historical storage experiments are reference
+identified hardware. Separate synthetic logical-duration tests from the
+user-approved approximately two-hour wall-clock acceptance. Historical storage experiments are reference
 tools, not adoption evidence; see [benchmarks](../../tools/recording_bench/README.md).

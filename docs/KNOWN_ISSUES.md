@@ -18,13 +18,13 @@
 - benchmark smoke 覆盖正确性和轻量时延门槛；CPU/RSS 阈值需要安静宿主运行，尚无跨机器长期对比基线。
 - SSH 自动化覆盖认证、ProxyJump、host-key 与转发；更宽的服务器版本、发行版和真实网络环境仍需验证。
 - 字体/DPI、Unicode cluster、Powerline / Nerd Font 的实际观感，以及 trackpad 和宿主快捷键，需要[人工检查](compatibility/MANUAL_VERIFICATION.md)。
-- 录制四批次实现及完整门禁已完成；用户于 2026-09-27 将长测改为约两小时。冻结 Release 实际录制 1 小时 54 分 43 秒后，在本地命令等待超时的异常收尾中安全保存。独立进程回放、搜索、定位、主机筛选、已确认记录及文件哈希校验通过，资源未呈持续增长；首次搜索准备约需 9–12 秒。尾部超时紧随原生菜单检查，原因尚未确定；短复现未再现命令超时，但外部辅助功能检查触发了 Flutter 测试收尾的 semantics handle 错误。原始失败报告保留，尚不宣称最终验收全绿，也不再要求跑满 25 小时。详见[实际长测结果](recording/REAL_DURATION_ACCEPTANCE.md#user-revised-duration-result--2026-09-27)及[故障验收的平台边界](recording/DURABILITY_ACCEPTANCE.md)。
+- 录制四批次已按用户修订的约两小时范围完成验收：连续录制 1 小时 54 分 43 秒，独立回放、搜索、定位、文件校验及资源审查通过。末尾超时已复现为测试工具发送的 Escape 进入 Bash，与下一条命令首字母 p 触发历史搜索；改用菜单 Cancel 后，短对照的录制、正常保存与新进程重开全部通过。原始失败报告保留，不宣称 24 小时稳定性。首次搜索准备约需 9–12 秒；详见[验收结果及限制](recording/ACCEPTANCE_RESULT.md)。
 
-- Bash 的 DEBUG hook 可能只报告复合输入行的首个简单命令；录制不会从按键或画面补造其余命令。内置 Bash/Zsh/Fish hook 已补充安装时获取的主机名；未提供主机元数据的其他 hook 仍无法按主机筛选，完整应用短测已覆盖实际嵌套 SSH 主机切换及跨录制主机筛选；实际约两小时录制与独立重开已结束，尾部输入超时仍待定位。
+- Bash 的 DEBUG hook 可能只报告复合输入行的首个简单命令；录制不会从按键或画面补造其余命令。内置 Bash/Zsh/Fish hook 已补充安装时获取的主机名；未提供主机元数据的其他 hook 仍无法按主机筛选，完整应用短测已覆盖实际嵌套 SSH 主机切换及跨录制主机筛选；实际约两小时录制与独立重开已结束，尾部超时已复现并归因为外部测试按键干扰。
 
-## 当前门禁阻塞
+## 环境与其他平台限制
 
-- 本机 CLT 27 SDK 与链接器不匹配。命令级指定 Xcode 26.2 的 `SDKROOT` 可避开该链接错误，不需改项目配置。
+- 本机 CLT 27 SDK 与链接器不匹配。命令级指定 Xcode 26.2 的 `SDKROOT` 可避开该链接错误，不需改项目配置。 当前录制实现的完整 macOS 门禁已通过，见录制验收结果。
 - 工作区 iOS Bundle ID / signing 设置与 Apple identity 合同不一致；Runner simulator destination 匹配失败使本地优先启动 gate 尚未运行到断言。
 - macOS 视觉 golden 位于 `example/test/design/goldens/`，使用共享字体配置与精确像素比较；运行环境的 Flutter 和系统字体版本差异仍可能影响结果。
 

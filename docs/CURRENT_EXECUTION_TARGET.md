@@ -19,14 +19,16 @@ acknowledgements. External new-format bundles are copied into protected library
 entries with cancellable staging and restart cleanup. Actual macOS app tests
 cover disk-full recovery and retention protection. APFS failure and isolated
 Linux guest kernel-crash evidence have explicit platform limits in
-[durability acceptance](recording/DURABILITY_ACCEPTANCE.md). The user shortened the original 25-hour requirement on 2026-09-27. The
-frozen Release run ended after 1 h 54 min 43 s of capture, with safe shutdown.
-Independent new-process replay, seek, command/screen/host search and primary-file
-hash checks passed; resource trends were reviewed. No more day-long run is
-required. The final local command timed out following external native-menu
-inspection; its cause remains unresolved, so overall acceptance is still open.
-The full production gate passed at `6c232b9b`; subsequent edits only affect
-acceptance tools and documentation. See the [actual result and limits](recording/REAL_DURATION_ACCEPTANCE.md#user-revised-duration-result--2026-09-27).
+[durability acceptance](recording/DURABILITY_ACCEPTANCE.md). The four batches are accepted on the user's revised approximately two-hour
+scope. Actual continuous capture was 1 h 54 min 43 s, with independent replay,
+search, integrity and resource review. The final timeout was reproduced as an
+external Escape entering Bash history-search mode; a menu Cancel control passed
+capture, normal save and new-process replay. Original failed reports remain
+preserved. Production `make verify` passed at `6c232b9b` and production source is
+unchanged. See [the requirement audit](recording/ACCEPTANCE_RESULT.md).
+
+The active lane remains the current product direction; this requested four-batch
+delivery is complete. A subsequent roadmap direction has not been selected.
 
 ## Continuing runtime guardrails
 

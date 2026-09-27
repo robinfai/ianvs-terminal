@@ -1,7 +1,7 @@
-# Sampled recording container, implementation draft
+# Sampled recording container, schema 2
 
 This describes the schema 2 format now used by the application's capture and
-saved-replay entrypoints. It remains under development; current acceptance gaps
+saved-replay entrypoints. The four-batch acceptance result and measured limits
 are tracked in the [delivery task](../tasks/adaptive-session-recording.md).
 
 ## Bundle and ownership
