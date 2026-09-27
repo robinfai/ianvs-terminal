@@ -262,7 +262,7 @@ class Lab:
     def exec(self, node, command, *, user='lab', **kwargs):
         return self.docker_run('exec', '-u', user, self.nodes[node]['name'], '/bin/bash', '-c', command, **kwargs)
 
-    def setup(self):
+    def setup(self, *, roles=None):
         for key in ['client', 'wrong']:
             run(['ssh-keygen', '-q', '-t', 'ed25519', '-N', '', '-f', str(self.scratch / key)])
         (self.scratch / 'bash-hook').write_text('IANVS_SHELL_INTEGRATION=1\nIANVS_SKIP_ORIGINAL_BASHRC=1\n' + repository_hook('BASH_RCFILE'))
@@ -289,6 +289,10 @@ class Lab:
             'sh': {'LAB_SHELL': 'dash', 'LAB_SFTP': 'no'},
             'nohelpers': {'LAB_STARTUP': 'nohelpers', 'LAB_SFTP': 'no'},
         }
+        if roles is not None:
+            if not roles or 'a' not in roles or len(set(roles)) != len(roles) or any(role not in variants for role in roles):
+                raise ValueError('roles must be unique known fixture roles including a')
+            variants = {role: variants[role] for role in roles}
         for role, env in variants.items():
             name = f'{self.prefix}-{role}'
             options = ['create', '--name', name, '--hostname', role, '--network', self.prefix,

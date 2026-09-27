@@ -9,6 +9,10 @@ seek/command/text indexes. Visual records retain adaptively sampled structured s
 state; semantic records retain independently observed hook commands, arguments,
 context and status. Raw keystrokes and lossless PTY output are not recorded.
 A sample can omit short-lived output; commands without observed hooks are absent.
+The current Bash DEBUG adapter may report only the first simple command of a
+compound input line. The recorder preserves that observed hook text; it does not
+reconstruct missing shell source from keystrokes or rendered output. Host filters
+can match only host metadata actually supplied by the shell/context.
 
 Replay retains explicit sampled cell styles, links and graphic assets. Default
 foreground/background colors, font and cursor presentation follow the current

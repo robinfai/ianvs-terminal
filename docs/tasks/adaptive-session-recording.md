@@ -496,3 +496,39 @@ Remaining: recording-specific SSH/full-app evidence, restart/process and system
 failure evidence at the final product boundary, whole-pipeline resource/input
 measurements, more than 24 actual hours on the final implementation, and a green
 final complete gate. No batch is newly declared fully accepted by this checkpoint.
+
+
+## Real-duration Release runner checkpoint
+
+The complete gate on `f78dc28e` exited 0, including the new actual-window test,
+Debug/Release repeated build/signature checks and Xcode tests. Its log is retained
+in `build/recording_bench/adaptive/window-make-verify.log`.
+
+A dedicated Release integration entrypoint and owned-SSH fixture runner now
+exercise simultaneous local Bash/SSH captures. The runner freezes a signed app
+copy, records source/binary provenance and uses real monotonic time. Baseline and
+recording workloads cover shell, repeated logs, TUI and idle phases; bounded
+histograms and flushed metrics cover frame time, input echo, RSS, CPU, storage
+and writer commit progress. See [run procedure and interpretation](../recording/REAL_DURATION_ACCEPTANCE.md).
+
+The first 120-second probe completed both recordings but failed its final search
+assertion. Inspection showed that the Bash DEBUG adapter reported the first
+simple command of each compound line, while the test searched for a trailing
+marker. The revised test searches an independent simple echo command and keeps
+this hook coverage limitation explicit. The failed probe is retained under
+`build/recording_bench/adaptive/soak-probe-20260927-0801/`; it is not accepted.
+No real-duration acceptance is established by preparing or launching this runner.
+
+
+The corrected Release probe passed at
+`build/recording_bench/adaptive/soak-probe-20260927-0809/`. Actual capture ran
+120.407 seconds; local and SSH bundles reported 120.475 and 120.548 seconds.
+Both files contained 548 semantic events; each passed 13 seeks and four real-hook
+command searches. Measured open was 8.068/6.599 ms; seeks ranged 0.424–1.655 ms.
+These are short, warm-cache observations on macOS 27.0 / arm64 Mac16,7 (48 GiB),
+not performance guarantees. The standalone test exited successfully, shutdown
+reported safe, and owned SSH fixture cleanup completed. Source/binary hashes,
+metrics and reports are retained; `qualifies_long_duration` is explicitly false.
+The 25-hour run remains a separate required measurement. Final product restart,
+process/filesystem/system failure, full host-context coverage and release
+acceptance remain open.

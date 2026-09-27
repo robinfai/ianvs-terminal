@@ -948,6 +948,22 @@
             "hooks survive sampled recording and replay exactly",
             "Shell is not installed on this host"
           ]
+        },
+        {
+          "path": "example/integration_test/sampled_recording_soak_test.dart",
+          "contains": [
+            "real-duration full-application recording soak",
+            "qualifies_long_duration",
+            "maximum_heartbeat_gap_micros"
+          ]
+        },
+        {
+          "path": "tools/ssh_boundary_lab/recording_soak.py",
+          "contains": [
+            "--probe",
+            "source_sha256",
+            "fixture_cleanup_complete"
+          ]
         }
       ],
       "verification_commands": [
@@ -959,6 +975,7 @@
         "flutter test example/test/recording_retention_maintenance_test.dart example/test/recording_retention_surface_test.dart example/test/shell/shell_recording_management_test.dart",
         "flutter test example/test/sampled_recording_library_test.dart example/test/sessions/recording_file_shutdown_test.dart",
         "dart test test/docs_contract_test.dart",
+        "python3 tools/ssh_boundary_lab/recording_soak.py --seconds 90000 --output build/recording_bench/adaptive/soak-25h-new",
         "make verify"
       ],
       "exit_criteria": [
