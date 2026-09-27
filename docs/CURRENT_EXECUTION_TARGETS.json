@@ -975,6 +975,28 @@
           "contains": [
             "__ianvs_hostname"
           ]
+        },
+        {
+          "path": "native/core/examples/sampled_recording_durability_probe.rs",
+          "contains": [
+            "BackgroundWriter",
+            "screen_and_asset_verified=true"
+          ]
+        },
+        {
+          "path": "tools/recording_bench/filesystem-acceptance.py",
+          "contains": [
+            "ENOSPC",
+            "recovery_attach"
+          ]
+        },
+        {
+          "path": "docs/recording/DURABILITY_ACCEPTANCE.md",
+          "contains": [
+            "Guest-system case",
+            "Linux/ext4",
+            "power-loss"
+          ]
         }
       ],
       "verification_commands": [

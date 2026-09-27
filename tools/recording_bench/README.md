@@ -100,3 +100,14 @@ per-page and whole-query latency are reported. Filesystem caches are warm and
 timestamps are accelerated logical time. It excludes Flutter cross-file queries,
 live PTY, images, input latency and power loss, and never establishes >24-hour
 endurance.
+
+
+## Real filesystem failure acceptance
+
+Unlike the earlier storage experiments, `filesystem-acceptance.py` exercises the
+production native writer/reader with real APFS ENOSPC or disconnection. It requires
+macOS, a built `sampled_recording_durability_probe` example and an explicit **new**
+output directory; it never replaces an existing output directory. It does not
+require libzstd or Python protobuf. See the [reproduction commands and evidence
+limits](../../docs/recording/DURABILITY_ACCEPTANCE.md). Only the newly created
+128 MiB test image is filled or disconnected; reports and recovered files remain.

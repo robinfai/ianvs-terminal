@@ -100,5 +100,7 @@ primary-file SHA-256 before and after recovery/replay. The crash mode is always
 non-qualifying for the duration requirement.
 
 Process-kill acceptance does not establish system/power-loss durability.
-Controlled filesystem/system failures remain separate required evidence. See the
-[delivery task](../tasks/adaptive-session-recording.md) for remaining acceptance.
+Separate real APFS full/disconnect and Linux guest-kernel crash evidence is recorded
+in [durability acceptance](DURABILITY_ACCEPTANCE.md), including its platform and
+timing limits. See the [delivery task](../tasks/adaptive-session-recording.md)
+for remaining acceptance.

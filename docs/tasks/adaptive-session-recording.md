@@ -590,3 +590,34 @@ requested plus nested-context checks, 66.076 seconds measured, successful new-PI
 UI reopen and unchanged primary hashes. Fatal-infos analysis and documentation
 contracts pass. Full repository verification and a fresh 25-hour run follow this
 checkpoint; neither has yet been declared successful for this final revision.
+
+
+## Filesystem/system failure and final-implementation gate checkpoint
+
+The complete `make verify` passed for `4250a384`; the guarded runner then froze
+that implementation and started `soak-25h-hosts-final`. The actual Release app
+completed baseline collection and is now continuously recording local and SSH
+sessions. No duration or resource acceptance is claimed until more than 86,400
+actual seconds, the final seek/search/reopen checks and resource review pass.
+
+A maintained native example and `tools/recording_bench/filesystem-acceptance.py`
+now reproduce actual APFS ENOSPC and volume disconnection with owned 128 MiB
+images. Both final runs passed: native writers visibly failed, settled and rejected
+finish; remount recovery retained all acknowledged records, structured screen and
+image without modifying primary files. The isolated Linux/ext4 guest kernel-crash
+case also passed, with changed boot identity and all 50 acknowledged records
+recovered. See [durability acceptance](../recording/DURABILITY_ACCEPTANCE.md) for
+exact scope, artifacts, failed harness attempts and timing limitations.
+
+These additions are acceptance tools and documentation only; production source
+and the frozen long-run binary are unchanged. Strict Clippy for the new helper,
+mirror verification, Python parsing and documentation contracts passed. Temporary
+system-crash VM resources are stopped after preserving evidence; the separate SSH
+VM remains in use by the long run. Baseline/early recording overlapped the bounded
+2-CPU guest build; account for this external load in the resource review and use
+a fresh control observation if it affects the comparison.
+
+Still required: finish the >24-hour run, inspect continuity and full-app resource/
+latency trends, complete the requirement-by-requirement product audit and run any
+final checks necessitated by subsequent changes. No scope is removed by recording
+this checkpoint.
