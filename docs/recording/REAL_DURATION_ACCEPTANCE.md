@@ -79,6 +79,32 @@ than 10 GiB of test library data fails the running test. Failures preserve files
 and reports. Normal completion, interruption and timeout clean up the owned
 process group and fixture containers/network/keys; they do not remove reports.
 
+## Review the results
+
+The read-only reviewer summarizes each workload's RSS, CPU derived from cumulative
+process time, hourly RSS distribution, histogram percentile upper bounds and
+open/seek/search measurements:
+
+```bash
+python3 -B tools/recording_bench/review-soak.py \
+  build/recording_bench/adaptive/soak-25h-new --require-duration \
+  > build/recording_bench/adaptive/soak-25h-new/resource-review.json
+python3 -B tools/tests/test_recording_resource_review.py
+```
+
+Without `--require-duration`, partial runs produce observations with explicit
+failed/missing checks. With that option, incomplete, short, superseded or internally
+inconsistent evidence exits nonzero. The reviewer checks actual monotonic/UTC
+duration, heartbeat coverage, stable PID/writer identity and increasing progress,
+matching source revisions, new-process reopen and reported fixture cleanup.
+It consumes the runner's unchanged-file hash report; it does not rehash live files.
+A successful duration check still requires human/model review of resource and
+latency trends against the baseline; it does not invent performance thresholds.
+Phase CPU comparisons omit intervals crossing workload boundaries. Histogram
+quantiles are bucket upper bounds. File timings do not establish an OS-cold cache.
+Tests use clearly synthetic, temporary data to reject malformed and incomplete
+reports; they never establish actual-duration acceptance.
+
 ## Interpretation
 
 Only a successful Release run with measured recording time strictly greater

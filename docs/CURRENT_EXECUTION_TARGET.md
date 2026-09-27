@@ -20,8 +20,8 @@ entries with cancellable staging and restart cleanup. Actual macOS app tests
 cover disk-full recovery and retention protection. APFS failure and isolated
 Linux guest kernel-crash evidence have explicit platform limits in
 [durability acceptance](recording/DURABILITY_ACCEPTANCE.md). Final long-file
-resource/latency review, >24 actual hours on the corrected application and its
-fresh complete gate are still open.
+resource/latency review and >24 actual hours on the corrected application remain
+open. Its complete gate passed at `6c232b9b`; the frozen Release run is in progress.
 
 ## Continuing runtime guardrails
 

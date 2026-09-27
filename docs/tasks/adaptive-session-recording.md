@@ -665,3 +665,29 @@ gate; age cutoff boundaries retain separate explicit-timestamp library tests,
 not a claim that this short test waited fourteen days. No product change was
 needed for these retention scenarios. The full final gate and >24 actual hours
 on the corrected implementation still remain to be completed.
+
+
+## Corrected-application full gate and fresh duration run
+
+The complete `make verify` passed at `6c232b9b` on macOS 27.0 arm64. It included
+strict native checks, generated/package/documentation contracts, formatting,
+full-tree fatal-infos analysis, 2,018 application tests (two conditional skips),
+four macOS smoke tests, all 45 actual PTY cases, all three recording UI scenarios,
+Keychain, Debug/Release incremental packaging/signature checks and native Xcode
+tests. Evidence is `ui-final-make-verify.log` and `ui-final-gate.json` under
+`build/recording_bench/adaptive/`.
+
+The guarded command confirmed an unchanged clean tracked checkout, built and
+froze that Release implementation, and started `soak-25h-ui-final` at
+2026-09-27 01:58:13 UTC. Initial heartbeat confirms the actual application PID
+and baseline workloads. Recording follows the measured baseline and must run
+90,000 actual seconds; launch is not duration acceptance. Prior stopped runs
+remain superseded.
+
+The read-only `tools/recording_bench/review-soak.py` now summarizes per-workload
+resource and latency evidence and fails `--require-duration` for partial, short,
+superseded or inconsistent runs. Four reviewer tests cover units, histogram
+bounds, missing evidence/CLI exit and synthetic complete/corrupted fixtures.
+These tools/documentation changes do not alter the frozen product implementation.
+Final work remains: actual duration, continuity, resource/latency interpretation,
+new-process final playback and the complete requirement audit.

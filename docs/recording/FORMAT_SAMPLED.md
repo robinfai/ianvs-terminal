@@ -230,8 +230,10 @@ A missing manifest never authorizes deletion of a remaining orphan bundle.
 Capture reservation is not returned before publication; capture settlement retains
 its file/native claim until the final manifest write succeeds. The file-worker
 provider closes in the infrastructure shutdown phase after application persistence.
-Actual process-kill evidence is separate from hardware power-loss/system-failure
-acceptance, which remains outstanding.
+Actual process-kill evidence is separate from system/power-loss behavior.
+[DURABILITY_ACCEPTANCE](DURABILITY_ACCEPTANCE.md) records actual APFS
+full/disconnect and isolated Linux guest-kernel crash recovery, with explicit
+platform/timing limits; it does not establish macOS hardware power-loss behavior.
 
 
 ## External new-format bundles

@@ -1013,6 +1013,15 @@
             "protected budget rejects new recording",
             "terminal still usable"
           ]
+        },
+        {
+          "path": "tools/recording_bench/review-soak.py",
+          "contains": [
+            "duration_and_continuity_verified",
+            "continuous_metrics_cover_run",
+            "metrics_match_application_and_files",
+            "--require-duration"
+          ]
         }
       ],
       "verification_commands": [
@@ -1028,7 +1037,8 @@
         "dart test test/docs_contract_test.dart",
         "python3 tools/ssh_boundary_lab/recording_soak.py --seconds 90000 --output build/recording_bench/adaptive/soak-25h-new",
         "python3 tools/ssh_boundary_lab/recording_soak.py --probe --crash-probe --seconds 120 --output build/recording_bench/adaptive/crash-probe-new",
-        "make verify"
+        "make verify",
+        "python3 -B tools/tests/test_recording_resource_review.py"
       ],
       "exit_criteria": [
         "All four delivery batches in docs/tasks/adaptive-session-recording.md are implemented and verified.",

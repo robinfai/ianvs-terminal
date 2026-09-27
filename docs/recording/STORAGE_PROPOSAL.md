@@ -11,9 +11,12 @@ implemented, along with cross-recording command/screen search and host/date
 filters. Persistent retention settings and Keep controls are connected. Library
 metadata and directory publication now await native synchronization acknowledgements.
 External new-format bundles use cancellable owned staging, protected publication
-and restart cleanup. Real system-failure/cold-disk measurements and long-running
-validation remain open in the
-[delivery task](../tasks/adaptive-session-recording.md).
+and restart cleanup. Actual macOS disk-full/retention UI and bounded APFS/Linux
+guest-crash evidence are recorded in
+[DURABILITY_ACCEPTANCE](DURABILITY_ACCEPTANCE.md). Final long-file resource and
+latency review and >24 actual hours on the corrected application remain open in
+the [delivery task](../tasks/adaptive-session-recording.md). Current file timings
+do not establish OS-cold-cache performance.
 
 ## Fidelity and scope
 

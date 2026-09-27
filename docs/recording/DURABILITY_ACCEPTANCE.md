@@ -6,7 +6,8 @@ bug: failed metadata writes left a stopped capture displayed as active. The
 controller now clears the active indicator before attempting publication, retains
 the pending-save claim, and reports the underlying native failure. Native storage
 is unchanged. The earlier 25-hour run was deliberately stopped and superseded;
-a fresh full gate and >24-hour run are required for the corrected application.
+the corrected application passed a fresh complete gate at `6c232b9b`. Its new
+frozen Release run is `soak-25h-ui-final`; >24-hour acceptance remains pending.
 
 ## Evidence and limits
 
