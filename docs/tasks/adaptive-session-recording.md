@@ -621,3 +621,26 @@ Still required: finish the >24-hour run, inspect continuity and full-app resourc
 latency trends, complete the requirement-by-requirement product audit and run any
 final checks necessitated by subsequent changes. No scope is removed by recording
 this checkpoint.
+
+
+## Full-application disk-full checkpoint
+
+The actual macOS ENOSPC case exposed a product bug which native-only durability
+checks could not reveal: metadata publication threw before the controller updated
+the recording indicator. The native writer had stopped while the UI still showed
+active recording. Two new lifecycle regressions failed before the correction and
+all 17 lifecycle tests pass afterward. Stopped capture now immediately becomes
+pending save; publication failures retain ownership and preserve the native error.
+
+The actual app test passed in `macos-disk-full/run-5LVgV8`: OS error 28, truthful
+indicator, visible Retry saving action, live PTY response to framework keyboard
+and macOS text-commit inputs, automatic settlement after deleting the owned filler,
+106 recovered records and explicit interruption disclosure in the player.
+Both screenshots were inspected. The maintained test now participates in the
+macOS gate. Earlier test-driver failures remain retained and unaccepted.
+
+The `4250a384` long run was deliberately stopped after finding the product bug;
+its runner records exit 143 and fixture cleanup. Its roughly 21 minutes do not
+qualify as day-long evidence. Production code has changed, so both a fresh full
+gate and >24 actual hours are required. Retention/Keep composition and final
+resource/latency audit remain in scope.

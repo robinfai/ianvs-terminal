@@ -1834,8 +1834,15 @@ class SessionController extends Notifier<SessionState> {
         if (!claim.dispatched || state.recordingBusySessionIds.contains(id)) {
           continue;
         }
+        SampledCaptureStatus? observedStatus;
         try {
-          final status = client.status(claim.handle);
+          final status = observedStatus = client.status(claim.handle);
+          if (status.settled || status.phase == SampledCapturePhase.failed) {
+            // Native capture has stopped even if the disk cannot publish that
+            // fact. Keep ownership pending until metadata is durable, while
+            // making the live recording indicator truthful immediately.
+            _setRecordingStatus(id, active: false, pendingSave: true);
+          }
           await library.update(claim, status);
           if (_isShuttingDown || !ref.mounted) break;
           if (!identical(_recordingClaims[id], claim)) continue;
@@ -1853,7 +1860,16 @@ class SessionController extends Notifier<SessionState> {
           if (ref.mounted && !_isShuttingDown) {
             _setRecordingStatus(
               id,
-              lastError: _recordingError('Recording state unavailable', error),
+              lastError: _recordingError(
+                observedStatus?.phase == SampledCapturePhase.failed
+                    ? 'Recording stopped; save needs attention'
+                    : observedStatus == null
+                    ? 'Recording state unavailable'
+                    : 'Recording save needs attention',
+                observedStatus?.phase == SampledCapturePhase.failed
+                    ? observedStatus!.error ?? error
+                    : error,
+              ),
             );
           }
         }

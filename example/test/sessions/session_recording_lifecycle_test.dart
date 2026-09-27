@@ -18,6 +18,21 @@ import '../support/memory_app_preferences_repository.dart';
 import '../support/memory_profile_repository.dart';
 import '../support/sampled_recording_backend.dart';
 
+class _MetadataFiles extends NoSampledFileReads {
+  bool failPublication = false;
+  @override
+  Future<Map<String, Object?>> run(
+    String operation,
+    Map<String, Object?> payload, {
+    RecordingFileCancellation? cancellation,
+  }) async {
+    if (failPublication && operation == 'sync_directory') {
+      throw const FileSystemException('metadata publication failed');
+    }
+    return super.run(operation, payload, cancellation: cancellation);
+  }
+}
+
 class _Config extends LocalTerminalConfigRepository {
   @override
   Future<LocalTerminalConfigDocument?> load() async =>
@@ -39,14 +54,16 @@ Future<void> _wait(bool Function() ready) async {
 void main() {
   late Directory directory;
   late SampledTestBackend backend;
+  late _MetadataFiles files;
   late SampledRecordingLibrary library;
   late ProviderContainer container;
   late AppShutdownCoordinator shutdown;
   setUp(() async {
     directory = await Directory.systemTemp.createTemp('sampled-session-test-');
     backend = SampledTestBackend();
+    files = _MetadataFiles();
     library = SampledRecordingLibrary(
-      files: NoSampledFileReads(),
+      files: files,
       directoryResolver: () async =>
           Directory('${directory.path}/recordings-v2'),
     );
@@ -78,6 +95,7 @@ void main() {
     await _wait(() => container.read(sessionControllerProvider).isReady);
   });
   tearDown(() async {
+    files.failPublication = false;
     backend
       ..loseStop = false
       ..loseStatus = false
@@ -112,6 +130,51 @@ void main() {
       );
     },
   );
+
+  for (final phase in ['failed', 'finished']) {
+    test(
+      'native $phase stops the recording indicator even if metadata cannot persist',
+      () async {
+        final controller = container.read(sessionControllerProvider.notifier);
+        final id = container.read(sessionControllerProvider).activeSessionId!;
+        expect(await controller.startSessionRecording(id), isTrue);
+        final claim = library.activeClaims.single;
+        files.failPublication = true;
+        backend.terminalPhase = phase;
+        backend.finished.add(claim.handle.captureId);
+        await _wait(
+          () => container.read(sessionControllerProvider).lastError != null,
+        );
+        final failedState = container.read(sessionControllerProvider);
+        expect(failedState.recordingSessionIds, isNot(contains(id)));
+        expect(failedState.recordingPendingSaveSessionIds, contains(id));
+        expect(failedState.lastError, contains('save needs attention'));
+        if (phase == 'failed') {
+          expect(failedState.lastError, contains('disk full'));
+        }
+        expect(library.activeClaims, hasLength(1));
+        expect(backend.actions.where((op) => op.endsWith('_release')), isEmpty);
+        expect(backend.closedSessionIds, isEmpty);
+        files.failPublication = false;
+        await _wait(() => library.activeClaims.isEmpty);
+        expect(
+          container
+              .read(sessionControllerProvider)
+              .recordingPendingSaveSessionIds,
+          isEmpty,
+        );
+        expect(
+          (await library.listRecordings()).single.state,
+          phase == 'finished' ? 'finished' : 'interrupted',
+        );
+        expect(
+          backend.actions.where((op) => op.endsWith('_release')),
+          hasLength(1),
+        );
+        expect(backend.closedSessionIds, isEmpty);
+      },
+    );
+  }
 
   test(
     'a lost start reply retains ownership and user can finish using the saved identity',

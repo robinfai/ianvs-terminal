@@ -55,7 +55,10 @@ def attach(key):
     parsed = plistlib.loads(run(['hdiutil', 'attach', '-nobrowse', '-mountpoint', str(mount), '-plist', str(image)], key))
     mounted = [entry for entry in parsed['system-entities'] if entry.get('mount-point') == str(mount)]
     assert len(mounted) == 1, parsed
-    device = parsed['system-entities'][0]['dev-entry']
+    disks = [entry['dev-entry'] for entry in parsed['system-entities']
+             if entry.get('content-hint') == 'GUID_partition_scheme']
+    assert len(disks) == 1, parsed
+    device = disks[0]
     assert device.startswith('/dev/disk')
     report[key] = parsed
 
