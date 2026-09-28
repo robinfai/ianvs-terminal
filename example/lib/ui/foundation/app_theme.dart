@@ -67,19 +67,21 @@ ThemeData buildIanvsTerminalTheme(
       lg: design.panelRadius,
       xl: design.panelRadius,
     ),
-    // Desktop chrome follows the same semantic surfaces as mobile pages.
-    shellChrome: AppShellChromeColors(
-      base: design.canvas,
-      surface: design.raised,
-      rail: design.chrome,
-      tabActiveBackground: design.field,
-      tabTrackBackground: design.chrome,
-      tabHoverBackground: design.raised,
-      tabBorder: design.separator,
-      tabTextPrimary: design.text,
-      tabTextMuted: design.muted,
-      tabTextSubtle: design.subtle,
-    ),
+    // Desktop navigation shares a neutral selection across both tab layouts.
+    shellChrome: touch
+        ? AppShellChromeColors(
+            base: design.canvas,
+            surface: design.raised,
+            rail: design.chrome,
+            tabActiveBackground: design.field,
+            tabTrackBackground: design.chrome,
+            tabHoverBackground: design.raised,
+            tabBorder: design.separator,
+            tabTextPrimary: design.text,
+            tabTextMuted: design.muted,
+            tabTextSubtle: design.subtle,
+          )
+        : AppThemeTokens.fallbackFor(brightness).shellChrome,
     controls: AppThemeControls(
       dense: design.controlHeight,
       compact: design.controlHeight,

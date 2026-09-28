@@ -265,11 +265,11 @@ class AppThemeTokens extends ThemeExtension<AppThemeTokens> {
   );
 
   static const _darkShellChrome = AppShellChromeColors(
-    base: Color(0xFF242424),
-    surface: Color(0xFF292929),
-    rail: Color(0xFF242424),
-    tabActiveBackground: Color(0xFF454545),
-    tabTrackBackground: Color(0xFF242424),
+    base: Color(0xFF1B1C1D),
+    surface: Color(0xFF333436),
+    rail: Color(0xFF222324),
+    tabActiveBackground: Color(0xFF383A3C),
+    tabTrackBackground: Color(0xFF222324),
     tabHoverBackground: Color(0xFF2F3032),
     tabBorder: Color(0xFF778286),
     tabTextPrimary: Color(0xFFF3F5F6),

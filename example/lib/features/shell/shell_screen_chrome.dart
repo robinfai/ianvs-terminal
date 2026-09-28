@@ -3034,17 +3034,11 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
                             }
                             return Colors.transparent;
                           }),
-                          side: WidgetStatePropertyAll(
-                            widget.isActive
-                                ? BorderSide(
-                                    color: tone.border.withValues(alpha: 0.34),
-                                  )
-                                : BorderSide.none,
-                          ),
+                          side: const WidgetStatePropertyAll(BorderSide.none),
                           shape: WidgetStatePropertyAll(
                             RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(
-                                widget.palette.radius.md,
+                                widget.palette.spacing.sm,
                               ),
                             ),
                           ),
@@ -3058,6 +3052,16 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
+                                if (!widget.compact) ...[
+                                  Icon(
+                                    Icons.terminal,
+                                    size: 16,
+                                    color: widget.isActive
+                                        ? tone.primaryText
+                                        : tone.mutedText,
+                                  ),
+                                  const SizedBox(width: 8),
+                                ],
                                 if (indicatorColor != null) ...[
                                   Tooltip(
                                     message:

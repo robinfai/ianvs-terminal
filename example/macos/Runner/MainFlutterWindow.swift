@@ -67,7 +67,7 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
     sidebarWidth: CGFloat?
   ) -> Bool {
     let headerWidth = min(sidebarWidth ?? windowWidth, windowWidth)
-    let commandRange = (headerWidth - 40)...(headerWidth - 12)
+    let commandRange = (windowWidth - 40)...(windowWidth - 12)
     // The divider is draggable over the title bar as well as the sidebar body.
     let onDivider = sidebarWidth != nil && x >= headerWidth - 8 && x <= headerWidth
     return sidebarControlRange.contains(x) || commandRange.contains(x) || onDivider

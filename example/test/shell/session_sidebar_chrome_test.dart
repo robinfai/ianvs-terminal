@@ -42,7 +42,13 @@ void _expectCenteredTitle(WidgetTester tester) {
   final title = tester.getCenter(
     find.byKey(const Key('shell-chrome-window-title')),
   );
-  expect(title.dx, closeTo((toggle.dx + gear.dx) / 2, 0.1));
+  expect(
+    title.dx,
+    closeTo(
+      tester.getCenter(find.byKey(const Key('shell-chrome-title-surface'))).dx,
+      0.1,
+    ),
+  );
   expect(toggle.dy, gear.dy);
   expect(title.dy, closeTo(gear.dy, 0.1));
 }
@@ -89,7 +95,7 @@ void main() {
       expect(find.byKey(const Key('shell-toolbar-settings')), findsNothing);
       expect(find.byKey(const Key('shell-toolbar-search')), findsNothing);
       expect(find.byKey(const Key('shell-toolbar-replay')), findsNothing);
-      expect(tester.getRect(find.byKey(_gear)).right, lessThan(_width(tester)));
+      expect(tester.getRect(find.byKey(_gear)).right, 1188);
       _expectCenteredTitle(tester);
       await tester.drag(find.byKey(_handle), const Offset(100, 0));
       await tester.pumpAndSettle();
@@ -108,7 +114,7 @@ void main() {
         tester
             .getSize(find.byKey(const Key('shell-chrome-title-surface')))
             .width,
-        400,
+        1200,
       );
       expect(nativeLayouts.last, {'sidebarWidth': 400.0});
       await tester.tap(find.byKey(_toggle));

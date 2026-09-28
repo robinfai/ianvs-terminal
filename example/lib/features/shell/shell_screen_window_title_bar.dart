@@ -62,9 +62,8 @@ class _ShellWindowTitleBarState extends State<_ShellWindowTitleBar> {
     return SizedBox(
       height: widget.height,
       child: ColoredBox(
-        color: widget.sidebarOpen
-            ? widget.terminalBackgroundColor
-            : widget.backgroundColor,
+        key: const Key('shell-chrome-title-surface'),
+        color: widget.backgroundColor,
         child: Stack(
           children: [
             const Positioned.fill(
@@ -73,83 +72,67 @@ class _ShellWindowTitleBarState extends State<_ShellWindowTitleBar> {
                 child: SizedBox.expand(),
               ),
             ),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: SizedBox(
-                width: widget.sidebarOpen
-                    ? widget.sidebarWidth
-                    : double.infinity,
-                height: widget.height,
-                child: ColoredBox(
-                  key: const Key('shell-chrome-title-surface'),
-                  color: widget.sidebarOpen
-                      ? Theme.of(context).colorScheme.surfaceContainerLow
-                      : widget.backgroundColor,
-                  child: Padding(
-                    padding: EdgeInsets.only(left: leadingInset, right: 12),
-                    child: Row(
-                      children: [
-                        if (widget.onToggleSidebar != null)
-                          SizedBox.square(
-                            dimension: buttonExtent,
-                            child: _buildChromeIconButton(
-                              key: const Key('shell-toggle-sidebar'),
-                              tooltip: widget.sidebarOpen
-                                  ? context.l10n.switchToTopTabs
-                                  : context.l10n.switchToSidebarTabs,
-                              onPressed: widget.onToggleSidebar,
-                              iconSize: 18,
-                              hoverBackgroundColor: widget.tone.hoverBackground,
-                              icon: AppTabLayoutIcon(
-                                layout: widget.sidebarOpen
-                                    ? AppTabLayout.top
-                                    : AppTabLayout.sidebar,
-                                color: widget.tone.mutedText,
-                              ),
-                            ),
-                          )
-                        else
-                          SizedBox(width: buttonExtent),
-                        Expanded(
-                          child: Center(
-                            child: Text(
-                              context.l10n.appTitle,
-                              key: const Key('shell-chrome-window-title'),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.center,
-                              style: Theme.of(context).textTheme.titleMedium
-                                  ?.copyWith(
-                                    color: widget.palette.textPrimary,
-                                    fontSize: 13.5,
-                                    fontWeight: FontWeight.w600,
-                                  ),
+            Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: leadingInset + buttonExtent + 12,
+                ),
+                child: Text(
+                  context.l10n.appTitle,
+                  key: const Key('shell-chrome-window-title'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: widget.tone.primaryText,
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+            Positioned.fill(
+              child: Padding(
+                padding: EdgeInsets.only(left: leadingInset, right: 12),
+                child: Row(
+                  children: [
+                    if (widget.onToggleSidebar != null)
+                      SizedBox.square(
+                        dimension: buttonExtent,
+                        child: _buildChromeIconButton(
+                          key: const Key('shell-toggle-sidebar'),
+                          tooltip: widget.sidebarOpen
+                              ? context.l10n.switchToTopTabs
+                              : context.l10n.switchToSidebarTabs,
+                          onPressed: widget.onToggleSidebar,
+                          iconSize: 18,
+                          hoverBackgroundColor: widget.tone.hoverBackground,
+                          icon: AppTabLayoutIcon(
+                            layout: widget.sidebarOpen
+                                ? AppTabLayout.top
+                                : AppTabLayout.sidebar,
+                            color: widget.tone.mutedText,
+                          ),
+                        ),
+                      ),
+                    const Spacer(),
+                    if (widget.onShowCommandMenu != null)
+                      SizedBox.square(
+                        dimension: buttonExtent,
+                        child: TextFieldTapRegion(
+                          child: _buildChromeIconButton(
+                            key: const Key('shell-chrome-menu'),
+                            tooltip: context.l10n.openCommandPalette,
+                            onPressed: widget.onShowCommandMenu,
+                            iconSize: 18,
+                            hoverBackgroundColor: widget.tone.hoverBackground,
+                            icon: Icon(
+                              Icons.settings_outlined,
+                              color: widget.tone.mutedText,
                             ),
                           ),
                         ),
-                        if (widget.onShowCommandMenu != null)
-                          SizedBox.square(
-                            dimension: buttonExtent,
-                            child: TextFieldTapRegion(
-                              child: _buildChromeIconButton(
-                                key: const Key('shell-chrome-menu'),
-                                tooltip: context.l10n.openCommandPalette,
-                                onPressed: widget.onShowCommandMenu,
-                                iconSize: 18,
-                                hoverBackgroundColor:
-                                    widget.tone.hoverBackground,
-                                icon: Icon(
-                                  Icons.settings_outlined,
-                                  color: widget.tone.mutedText,
-                                ),
-                              ),
-                            ),
-                          )
-                        else
-                          SizedBox(width: buttonExtent),
-                      ],
-                    ),
-                  ),
+                      ),
+                  ],
                 ),
               ),
             ),

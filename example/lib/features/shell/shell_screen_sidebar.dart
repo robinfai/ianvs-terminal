@@ -395,7 +395,9 @@ class _SessionSidebarState extends ConsumerState<_SessionSidebar> {
     }) {
       final selected = tab.containsSession(widget.activeSessionId ?? '');
       final sessionText = rowText?.copyWith(
-        color: selected ? palette.accent : colors.onSurfaceVariant,
+        color: selected
+            ? palette.shellChrome.tabTextPrimary
+            : palette.shellChrome.tabTextMuted,
       );
       final started = tab.activePane.shellIntegration.commandStartedAt;
       rows.add(
@@ -417,8 +419,8 @@ class _SessionSidebarState extends ConsumerState<_SessionSidebar> {
                 minLeadingWidth: 18,
                 horizontalTitleGap: palette.spacing.sm,
                 selected: selected,
-                selectedColor: palette.accent,
-                selectedTileColor: palette.selected,
+                selectedColor: palette.shellChrome.tabTextPrimary,
+                selectedTileColor: palette.shellChrome.tabActiveBackground,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(palette.spacing.sm),
                 ),
@@ -439,8 +441,8 @@ class _SessionSidebarState extends ConsumerState<_SessionSidebar> {
                         Icons.terminal,
                         size: 16,
                         color: selected
-                            ? palette.accent
-                            : colors.onSurfaceVariant,
+                            ? palette.shellChrome.tabTextPrimary
+                            : palette.shellChrome.tabTextMuted,
                       ),
                 title: Tooltip(
                   message: '${tab.activePane.title}\n${directory(tab)}',
@@ -631,7 +633,7 @@ class _SessionSidebarState extends ConsumerState<_SessionSidebar> {
     }
     return Material(
       key: const Key('session-sidebar'),
-      color: colors.surfaceContainerLow,
+      color: palette.shellChrome.rail,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

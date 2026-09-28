@@ -560,11 +560,11 @@ class RunnerTests: XCTestCase {
     }
   }
 
-  func testSidebarHeaderControlsFollowResizedWidth() {
+  func testWindowSettingsStayAtTrailingEdgeWhenSidebarResizes() {
     let size = NSSize(width: 1200, height: 700)
     let frame = NSRect(x: 100, y: 200, width: size.width, height: size.height)
     for width in [240.0, 280.0, 480.0] {
-      for x in [104.0, width - 26, width - 4] {
+      for x in [104.0, 1174.0, width - 4] {
         XCTAssertFalse(MainFlutterWindow.shouldStartNativeWindowDrag(
           at: NSPoint(x: x, y: 678), contentSize: size, sidebarWidth: width
         ))
@@ -573,7 +573,7 @@ class RunnerTests: XCTestCase {
           sidebarWidth: width
         ))
       }
-      for x in [170.0, width + 40, 1174.0] {
+      for x in [170.0, width + 40, width - 26] {
         XCTAssertTrue(MainFlutterWindow.shouldStartNativeWindowDrag(
           at: NSPoint(x: x, y: 678), contentSize: size, sidebarWidth: width
         ))
