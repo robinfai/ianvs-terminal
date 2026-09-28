@@ -285,21 +285,12 @@ class _SessionSidebarState extends ConsumerState<_SessionSidebar> {
           .add(tab);
     }
     String directory(TerminalTab tab) {
-      final metadata = tab.activePane.shellIntegration;
-      var path = metadata.currentDirectory?.trim();
-      if (path == null || path.isEmpty) return l10n.sessionUnknownDirectory;
-      final home = Platform.environment['HOME'];
-      if (metadata.sshHost == null && home != null && home.isNotEmpty) {
-        if (path == home) {
-          path = '~';
-        } else if (path.startsWith('$home/')) {
-          path = '~${path.substring(home.length)}';
-        }
-      }
-      final host = metadata.sshHost;
-      return host == null || host.isEmpty
-          ? path
-          : '${metadata.sshUser ?? metadata.username ?? ''}@$host:$path';
+      return sessionSidebarDirectory(
+        tab.activePane,
+        localHostname: Platform.localHostname,
+        localHome: Platform.environment['HOME'],
+        unknownDirectory: l10n.sessionUnknownDirectory,
+      );
     }
 
     final rows = <Widget>[];
