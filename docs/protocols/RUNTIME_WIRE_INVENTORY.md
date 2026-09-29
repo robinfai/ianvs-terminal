@@ -41,6 +41,9 @@ rather than JSON Runtime Envelopes.
   remains outside this wire.
 - Search, selection, recording and other generic commands use Session Request/Response v1;
   operation-specific clients own payload semantics.
+- [Composer V1](COMPOSER_V1.md) carries pure completion, optional bounded local
+  suggestions and lease-bound submission through that same request envelope.
+  PTY output and OSC metadata cannot grant permission to submit.
 - OSC 52 text clipboard reads use Runtime Event `host_request` and correlated Host Response v1.
   One-way URL, attention, notification and asset-transfer events remain separate. Other terminal
   protocol replies use the explicit byte channel so ZMODEM ordering remains authoritative.

@@ -1452,6 +1452,13 @@ class TerminalRuntimeController implements TerminalInputSink {
     );
   }
 
+  /// Current, correlated Composer operations. Payloads never use the raw PTY.
+  Map<String, Object?>? composerRequest(
+    String sessionId,
+    String operation,
+    Map<String, Object?> payload,
+  ) => _jsonRequestClient.composerRequest(sessionId, operation, payload);
+
   final PtySessionBackend _backend;
   late final PtySessionRefreshHintBackend? _refreshHintBackend;
   late final PtyHostResponseV1Backend? _hostResponseBackend;

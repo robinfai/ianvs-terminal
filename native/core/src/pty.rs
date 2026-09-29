@@ -23,6 +23,7 @@ pub struct PtyRuntime {
     pub writer: Box<dyn Write + Send>,
     pub child: Box<dyn portable_pty::Child + Send + Sync>,
     pub child_pid: Option<u32>,
+    pub(crate) composer_bridge: Option<std::sync::Arc<crate::composer_bridge::ComposerBridge>>,
     pub(crate) shell_integration: ShellIntegrationPlanStatus,
     pub(crate) shell_integration_proxy: Option<ShellIntegrationProxy>,
     pub(crate) ssh_auth: Option<crate::ssh::SshAuthClient>,
@@ -72,11 +73,15 @@ fn duplicate_reader_poll_handle(raw_fd: Option<RawFd>) -> anyhow::Result<fs::Fil
 
 pub(crate) struct ShellIntegrationProxy {
     path: PathBuf,
+    composer: Option<std::sync::Arc<crate::composer_bridge::ComposerBridge>>,
 }
 
 impl ShellIntegrationProxy {
     fn new(path: PathBuf) -> Self {
-        Self { path }
+        Self {
+            path,
+            composer: None,
+        }
     }
 
     fn path(&self) -> &Path {
@@ -238,6 +243,7 @@ pub fn spawn_terminal_transport(
                 writer: runtime.writer,
                 child: runtime.child,
                 child_pid: None,
+                composer_bridge: None,
                 shell_integration,
                 shell_integration_proxy: None,
                 ssh_auth: Some(runtime.auth),
@@ -331,6 +337,10 @@ where
         writer,
         child,
         child_pid,
+        composer_bridge: plan
+            .shell_integration_proxy
+            .as_ref()
+            .and_then(|p| p.composer.clone()),
         shell_integration: plan.shell_integration,
         shell_integration_proxy: plan.shell_integration_proxy,
         ssh_auth: None,
@@ -572,7 +582,17 @@ fn create_shell_integration_proxy(
     profile: &TerminalProfile,
     _program: &str,
 ) -> std::io::Result<ShellIntegrationProxy> {
-    let proxy = create_shell_integration_proxy_in(kind, &std::env::temp_dir())?;
+    let mut proxy = create_shell_integration_proxy_in(kind, &std::env::temp_dir())?;
+    if cfg!(target_os = "macos")
+        && kind == ShellIntegrationKind::Zsh
+        && let Ok((bridge, script)) = crate::composer_bridge::ComposerBridge::create(proxy.path())
+    {
+        fs::OpenOptions::new()
+            .append(true)
+            .open(proxy.path().join(".zshrc"))?
+            .write_all(script.as_bytes())?;
+        proxy.composer = Some(bridge);
+    }
     if let Some(nonce) = profile.launch.env.get("IANVS_BOOTSTRAP_TOKEN") {
         let file = match kind {
             ShellIntegrationKind::Bash => ".bashrc",

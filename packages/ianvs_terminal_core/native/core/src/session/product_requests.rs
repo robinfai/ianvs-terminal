@@ -42,6 +42,102 @@ pub fn request_session(
     }
 
     match operation {
+        "completion.query" => {
+            let _session = STORE.get(session_id)?;
+            let Ok(query) =
+                serde_json::from_value::<ianvs_completion_core::CompletionQuery>(request.clone())
+            else {
+                return Ok(None);
+            };
+            if query.target_id != session_id.to_string() {
+                return Ok(None);
+            }
+            let Ok(batch) = ianvs_completion_core::query(query) else {
+                return Ok(None);
+            };
+            request_json_response(serde_json::to_value(batch).expect("completion serialization"))
+        }
+        "composer.state" => {
+            if !request.as_object().is_some_and(|o| o.is_empty()) {
+                return Ok(None);
+            }
+            let session = STORE.get(session_id)?;
+            let bridge = session.composer_bridge.lock();
+            let value = bridge.as_ref().map_or_else(|| serde_json::json!({"state":"draft","lease":null,"cwd":"","dialect":"generic","submissionId":null,"outcome":"none"}), |b| b.snapshot());
+            if bridge.as_ref().is_some_and(|b| b.take_wakeup()) {
+                session.write_non_zmodem_ordered(&[0], true, false)?;
+            }
+            request_json_response(value)
+        }
+        "completion.local_start" => {
+            let Ok(start) =
+                serde_json::from_value::<crate::completion_host::Start>(request.clone())
+            else {
+                return Ok(None);
+            };
+            if start.query.target_id != session_id.to_string() || start.query.validate().is_err() {
+                return Ok(None);
+            }
+            let session = STORE.get(session_id)?;
+            let state = session
+                .composer_bridge
+                .lock()
+                .as_ref()
+                .map(|b| b.snapshot());
+            let state = state.as_ref();
+            if state.and_then(|s| s["state"].as_str()) != Some("ready")
+                || state.and_then(|s| s["lease"].as_str()) != Some(start.lease.as_str())
+            {
+                return request_json_response(serde_json::json!({"status":"denied"}));
+            }
+            let Some(cwd) = state
+                .and_then(|s| s["cwd"].as_str())
+                .filter(|s| !s.is_empty())
+            else {
+                return Ok(None);
+            };
+            let response = session.local_completions.lock().start(start, cwd.into());
+            request_json_response(response)
+        }
+        "completion.local_poll" | "completion.local_cancel" => {
+            let Ok(job) =
+                serde_json::from_value::<crate::completion_host::JobRequest>(request.clone())
+            else {
+                return Ok(None);
+            };
+            if job.job_id.len() > 20 || job.job_id.parse::<u64>().is_err() {
+                return Ok(None);
+            }
+            let session = STORE.get(session_id)?;
+            let response = if operation == "completion.local_cancel" {
+                session.local_completions.lock().cancel(&job.job_id)
+            } else {
+                let state = session
+                    .composer_bridge
+                    .lock()
+                    .as_ref()
+                    .map(|b| b.snapshot());
+                let lease = state
+                    .as_ref()
+                    .filter(|s| s["state"] == "ready")
+                    .and_then(|s| s["lease"].as_str());
+                session.local_completions.lock().poll(&job.job_id, lease)
+            };
+            request_json_response(response)
+        }
+        "composer.submit" => {
+            let Ok(submit) =
+                serde_json::from_value::<crate::composer_bridge::Submit>(request.clone())
+            else {
+                return Ok(None);
+            };
+            let session = STORE.get(session_id)?;
+            let bridge = session.composer_bridge.lock();
+            request_json_response(bridge.as_ref().map_or_else(
+                || serde_json::json!({"outcome":"rejected"}),
+                |b| b.submit(submit),
+            ))
+        }
         "ssh.sftp.list_directory_start" => {
             let Some(path) = request
                 .get("path")

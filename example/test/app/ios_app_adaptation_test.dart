@@ -483,6 +483,7 @@ void _resetIphoneTestSurface(WidgetTester tester) {
   debugDefaultTargetPlatformOverride = null;
   tester.view.resetDevicePixelRatio();
   tester.view.resetPhysicalSize();
+  tester.view.resetViewInsets();
 }
 
 Future<void> _pumpUntilReady(WidgetTester tester) async {

@@ -498,6 +498,7 @@ Iterable<File> _allowedShellExternalDependencies(Directory libDirectory) {
     'features/terminal/terminal_painter_models.dart',
     'features/terminal/terminal_viewport.dart',
     'features/terminal/terminal_viewport_colors.dart',
+    'features/terminal_composer/composer_pane.dart',
     'features/visual/local_terminal_diagnostics_exporter.dart',
     'features/visual/local_terminal_layout_template_applier.dart',
     'features/visual/local_terminal_scrollback_exporter.dart',

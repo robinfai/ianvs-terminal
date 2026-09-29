@@ -51,6 +51,7 @@ import '../terminal/terminal.dart' as terminal;
 import '../terminal/terminal_input_controller.dart';
 import '../terminal/terminal_viewport.dart';
 import '../terminal/terminal_viewport_colors.dart';
+import '../terminal_composer/composer_pane.dart';
 import '../visual/local_terminal_diagnostics_exporter.dart';
 import '../visual/local_terminal_scrollback_exporter.dart';
 import '../visual/local_terminal_visual_models.dart';
@@ -69,8 +70,6 @@ import 'shell_shortcut_bridge.dart';
 import 'window_bridge.dart';
 
 part 'shell_screen_chrome.dart';
-part 'shell_screen_window_title_bar.dart';
-part 'shell_screen_sidebar.dart';
 part 'shell_screen_chrome_empty_states.dart';
 part 'shell_screen_command_menu.dart';
 part 'shell_screen_instant_replay.dart';
@@ -80,13 +79,13 @@ part 'shell_screen_models.dart';
 part 'shell_screen_recording_library.dart';
 part 'shell_screen_replay_timeline.dart';
 part 'shell_screen_search.dart';
+part 'shell_screen_sftp.dart';
 part 'shell_screen_shared_buttons.dart';
 part 'shell_screen_sheets.dart';
-part 'shell_screen_sftp.dart';
+part 'shell_screen_sidebar.dart';
 part 'shell_screen_ssh_empty_state.dart';
 part 'shell_screen_state_clipboard.dart';
 part 'shell_screen_state_command_actions.dart';
-part 'shell_screen_state_triggers.dart';
 part 'shell_screen_state_events.dart';
 part 'shell_screen_state_folders.dart';
 part 'shell_screen_state_instant_replay.dart';
@@ -97,6 +96,8 @@ part 'shell_screen_state_search_completion.dart';
 part 'shell_screen_state_sessions.dart';
 part 'shell_screen_state_shortcuts_status.dart';
 part 'shell_screen_state_terminal_layout.dart';
+part 'shell_screen_state_triggers.dart';
+part 'shell_screen_window_title_bar.dart';
 
 typedef ShellFileDownloadWriter =
     Future<void> Function(String path, List<int> bytes);
@@ -221,6 +222,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   static const _osc1337MaxOutstandingAttentionRequests = 8;
 
   final Map<String, SelectionController> _selectionControllers = {};
+  final Map<String, ComposerPaneSession> _composerSessions = {};
   final Map<String, SelectionResizeGuard> _selectionResizeGuards = {};
   final Map<String, FocusNode> _terminalFocusNodes = {};
   final FocusNode _searchFocusNode = FocusNode(debugLabel: 'shell-search');
@@ -464,6 +466,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       focusNode.dispose();
     }
     _searchFocusNode.dispose();
+    for (final session in _composerSessions.values) {
+      session.dispose();
+    }
+    _composerSessions.clear();
 
     super.dispose();
   }
@@ -1204,6 +1210,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
             instantReplaySession != null ||
             _selectedRecording != null ||
             _isSftpPanelOpen);
+    // Scaffold consumes body insets; read the keyboard above that boundary.
+    final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
 
     return Focus(
       canRequestFocus: false,
@@ -1642,7 +1650,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     _selectedRecording == null &&
                     instantReplaySession == null &&
                     activeSessionId != null)
-                  if (MediaQuery.viewInsetsOf(context).bottom == 0)
+                  if (!keyboardVisible)
                     _MobileTerminalToolbar(
                       onKeyboard: () => _focusSession(activeSessionId),
                       onSearch: _openSearch,
@@ -1668,8 +1676,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     IosTerminalInputBar(
                       key: const Key('ios-terminal-input-bar'),
                       palette: palette,
-                      keyboardVisible:
-                          MediaQuery.viewInsetsOf(context).bottom > 0,
+                      keyboardVisible: keyboardVisible,
                       onSendBytes: (bytes) =>
                           _sendMobileTerminalBytes(activeSessionId, bytes),
                       onDismissKeyboard: () =>

@@ -254,6 +254,21 @@
       "goal": "Keep one exact current native/Dart runtime boundary: versioned SessionConfig, Session Request/Response, Runtime Event, Diagnostic Event, Frame Packet and Graphic Asset Packet contracts with no predecessor wire fallback.",
       "evidence": [
         {
+          "path": "native/completion_core/src/lib.rs",
+          "contains": ["CompletionQuery", "deny_unknown_fields", "local_context"]
+        },
+        {
+          "path": "native/core/tests/composer_integration_test.rs",
+          "contains": [
+            "composer_current_request_contract_static_and_replay_denial",
+            "composer_real_session_commits_once_in_current_zsh"
+          ]
+        },
+        {
+          "path": "example/integration_test/composer_acceptance_test.dart",
+          "contains": ["Composer edits locally, accepts candidates, submits and recovers focus"]
+        },
+        {
           "path": "native/core/src/runtime_contract.rs",
           "contains": [
             "RUNTIME_CAPABILITIES_SCHEMA_VERSION",
@@ -416,6 +431,8 @@
       ],
       "verification_commands": [
         "cargo test --manifest-path native/core/Cargo.toml --test runtime_capabilities_test",
+        "make test-composer",
+        "make test-composer-ui",
         "cargo test --manifest-path native/core/Cargo.toml --test runtime_event_envelope_test",
         "cargo test --manifest-path native/core/Cargo.toml --test runtime_session_config_test",
         "cargo test --manifest-path native/core/Cargo.toml --test runtime_session_request_test",

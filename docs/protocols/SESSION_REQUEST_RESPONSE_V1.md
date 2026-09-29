@@ -66,3 +66,10 @@ return Response v1, including structured protocol/runtime errors. Runtime Capabi
 Operation-specific clients supply an operation name and its payload separately. Native dispatches
 the validated operation and payload directly; no `{kind, ...payload}` compatibility object crosses
 this contract. No application Profile fields or undeclared native internals cross it either.
+
+Composer uses the same correlated envelope for `completion.query`,
+`completion.local_start`, `completion.local_poll`, `completion.local_cancel`,
+`composer.state` and `composer.submit`. Their payloads are closed shapes and
+reject unknown fields. See [Composer V1](COMPOSER_V1.md) for identity, limits,
+local-read policy, lease checks and submission outcomes. These operations add no
+exported FFI symbol or predecessor completion ABI.

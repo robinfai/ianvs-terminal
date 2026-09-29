@@ -1,5 +1,9 @@
 import 'dart:convert';
 
+const String ptyRuntimeFeatureLocalCompletionV1 = 'completion-local.json.v1';
+const String ptyRuntimeFeatureStaticCompletionV1 = 'completion-static.json.v1';
+const String ptyRuntimeFeatureLocalZshComposerV1 = 'composer-zsh-local.v1';
+
 const int ptyRuntimeCapabilitiesSchemaVersion = 1;
 const String ptyRuntimeContractV1 = 'ianvs-runtime-contract-v1';
 const String ptyRuntimeFeatureSftpDirectoryListingV1 =

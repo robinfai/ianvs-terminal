@@ -10,7 +10,7 @@ current UI. Update a baseline only when an intentional UI change has been
 reviewed. The capture suites target macOS rendering with fixed font assets;
 follow the platform requirements in each test.
 
-All six capture suites share `../visual_capture_fonts.dart`, which loads Roboto
+The capture suites share `../visual_capture_fonts.dart`, which loads Roboto
 (regular, medium, bold, italic and bold italic) and Material Icons from the
 pinned Flutter SDK, Noto Sans SC from `../fonts/`, and JetBrains Mono from the
 repository's native screenshot renderer. See `../fonts/README.md` for the CJK
@@ -23,7 +23,10 @@ Sans SC supplies Chinese glyphs; JetBrains Mono also supplies shortcut symbols
 missing from Roboto and Noto Sans SC. The fixtures do not use the production
 terminal's system-font fallback chain. Production themes remain unchanged.
 
-Each reviewed OS baseline contains 44 PNGs covering 42 capture tests. Run all
+The existing OS baselines contain 44 PNGs covering 42 capture tests. Composer
+adds three captures on macOS 27. Its three new baselines and six affected app
+surface/layout baselines still require a capture/review on macOS 26; that CI
+comparison is not yet accepted for this branch. Run all
 suites and the comparator contract tests with `flutter test test/design`.
 Use Flutter 3.44.2 (Dart 3.12.2) for these baselines; CI pins the same SDK and
 engine. The package's minimum supported SDK is a separate compatibility floor.

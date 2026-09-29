@@ -28,6 +28,16 @@ python3 "$ROOT_DIR/tools/validate_osc_protocol_corpus.py"
 python3 "$ROOT_DIR/tools/osc_semantic_probe.py" --self-test
 
 (
+  cd "$ROOT_DIR/native/completion_core"
+  cargo fmt --check
+  cargo clippy --locked --all-targets -- -D warnings
+  cargo test --locked
+)
+if [ "$(uname -s)" = "Darwin" ]; then
+  python3 "$ROOT_DIR/tools/composer/run_shell_matrix.py" --required --shell zsh
+fi
+
+(
   cd "$BACKEND_DIR"
   test -z "$(gofmt -l .)"
   go vet ./...

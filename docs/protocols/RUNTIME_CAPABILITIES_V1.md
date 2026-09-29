@@ -17,6 +17,9 @@ The JSON object has this shape:
     1
   ],
   "features": [
+    "completion-local.json.v1",
+    "completion-static.json.v1",
+    "composer-zsh-local.v1",
     "diagnostic-event.json.v1",
     "event-envelope.json.v1",
     "file-download.v1",
@@ -54,6 +57,11 @@ The native producer emits feature ids in sorted order without duplicates. Dart a
 unknown object fields and retains unknown feature ids so a v1 consumer can inspect a newer v1
 producer. It rejects malformed fields, unsupported schema versions, the wrong contract id,
 duplicate entries and values outside the documented bounds.
+
+`completion-static.json.v1`, `completion-local.json.v1` and `composer-zsh-local.v1`
+describe [Composer request operations](COMPOSER_V1.md). The current product only
+bootstraps the trusted Run adapter for local macOS zsh; a feature id alone never
+authorizes a filesystem read or command. Other sessions remain draft-only.
 
 `ianvs_runtime_capabilities_json` returns a library-owned UTF-8 JSON string. Callers release a
 non-null result with `ianvs_string_free`. `NativePtyBindings` requires this symbol and the

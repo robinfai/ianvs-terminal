@@ -28,7 +28,7 @@ INSTALL_DIR ?= /Applications
 INSTALLED_APP := $(INSTALL_DIR)/$(APP_NAME).app
 
 .PHONY: \
-	help bootstrap format format-check analyze test test-profiles verify \
+	help bootstrap format format-check analyze test test-profiles test-composer test-composer-ui verify \
 	acceptance-cross-platform-sync \
 	terminal-core-sync terminal-core-check \
 	run run-macos build build-macos sign-macos install install-macos \
@@ -48,6 +48,8 @@ help: ## Show the available commands.
 		'  analyze             Analyze the PTY, terminal, and example packages' \
 		'  test                Run workspace unit and widget tests' \
 		'  test-profiles       Run only the Profile Editor test suite' \
+		'  test-composer       Run Composer core, component and zsh contract gates' \
+		'  test-composer-ui    Run the real macOS Composer application gate' \
 		'  verify              Run the repository verification script' \
 		'  acceptance-cross-platform-sync  Verify macOS ↔ iOS remote sync' \
 		'  terminal-core-sync   Regenerate the standalone published package' \
@@ -113,6 +115,18 @@ terminal-core-check: ## Verify the standalone package matches canonical sources.
 
 test-profiles: ## Run only the Profile Editor tests.
 	cd "$(EXAMPLE_DIR)" && $(FLUTTER) test test/profiles
+
+test-composer: ## Verify isolated editing, bounded completion and local zsh leases.
+	cd "$(ROOT_DIR)" && cargo test --locked --manifest-path native/completion_core/Cargo.toml
+	cd "$(ROOT_DIR)" && cargo test --locked --manifest-path native/core/Cargo.toml --lib composer_bridge
+	cd "$(ROOT_DIR)" && cargo test --locked --manifest-path native/core/Cargo.toml --lib completion_host
+	cd "$(ROOT_DIR)" && cargo test --locked --manifest-path native/core/Cargo.toml --test composer_integration_test
+	cd "$(TERMINAL_DIR)" && $(FLUTTER) test test/composer/composer_test.dart
+	cd "$(ROOT_DIR)" && python3 tools/composer/run_shell_matrix.py --required --shell zsh
+	cd "$(ROOT_DIR)" && $(DART) run tools/sync_terminal_core.dart --check
+
+test-composer-ui: ## Verify the Composer through the real macOS application.
+	cd "$(EXAMPLE_DIR)" && $(FLUTTER) test -d macos integration_test/composer_acceptance_test.dart
 
 verify: ## Run the repository's complete verification entrypoint.
 	"$(ROOT_DIR)/tools/verify_flutter_terminal.sh"

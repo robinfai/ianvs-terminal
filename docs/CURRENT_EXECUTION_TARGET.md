@@ -26,6 +26,9 @@ Event, Terminal Frame Packet and Graphic Asset Packet v1. Previous wire versions
 - Unsupported Workspace structures are outside the runtime contract: the app
   neither imports nor deletes them.
 - Toolbelt/completion panels are retired; user diagnostics export remains supported.
+- The independent, optional [Composer](composer/README.md) selectively reuses the
+  static matcher inside the current Session Request contract. Its lease-bound
+  local zsh path is a bounded part of this lane, not restoration of retired wiring.
 
 The authority is [TERMINAL_PRODUCT_SCOPE.md](TERMINAL_PRODUCT_SCOPE.md) and
 [ADR-0003](DECISIONS/ADR-0003-terminal-scope-convergence.md).

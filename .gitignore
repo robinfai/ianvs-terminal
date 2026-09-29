@@ -28,3 +28,5 @@ backend/*.db
 backend/*.db-*
 backend/bin/
 .worktrees/
+native/completion_core/target/
+packages/ianvs_terminal_core/native/completion_core/target/

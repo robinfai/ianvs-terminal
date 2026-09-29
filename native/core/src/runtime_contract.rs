@@ -15,6 +15,9 @@ pub const GRAPHIC_ASSET_PACKET_MAX_RGBA_BYTES: usize = 100 * 1024 * 1024;
 
 const RECORDING_SCHEMA_VERSION: u32 = 1;
 const FEATURES: &[&str] = &[
+    "completion-local.json.v1",
+    "completion-static.json.v1",
+    "composer-zsh-local.v1",
     "diagnostic-event.json.v1",
     "event-envelope.json.v1",
     "file-download.v1",

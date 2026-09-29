@@ -1,3 +1,6 @@
+export 'src/composer/completion_models.dart';
+export 'src/composer/terminal_composer_controller.dart';
+export 'src/composer/terminal_composer_view.dart';
 export 'src/config/terminal_config.dart';
 export 'src/config/terminal_defaults.dart';
 export 'src/config/terminal_session_config_v1.dart';

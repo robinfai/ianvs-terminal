@@ -25,6 +25,7 @@ void main(List<String> arguments) {
 
   final mirrors = <_DirectoryMirror>[
     for (final directory in const <String>[
+      'composer',
       'config',
       'contracts',
       'proto',
@@ -43,6 +44,10 @@ void main(List<String> arguments) {
     _DirectoryMirror(
       source: Directory('${repository.path}/packages/ianvs_pty/lib/src'),
       destination: Directory('${core.path}/lib/src/pty'),
+    ),
+    _DirectoryMirror(
+      source: Directory('${repository.path}/native/completion_core'),
+      destination: Directory('${core.path}/native/completion_core'),
     ),
     _DirectoryMirror(
       source: Directory('${repository.path}/native/core'),

@@ -10,6 +10,7 @@
 - 本机 Terminal Layout 仅保存拓扑、Profile 引用和 cwd；录制库独立保存。
 - 本地优先配置持久化；API 是可选同步目标。
 - 原生边界只保留当前版本的配置、请求、事件、帧与图形资产合同。
+- 可选 [Composer](composer/README.md) 在当前 Session 内提供独立命令草稿、静态补全、按需本地候选和受租约约束的本机 zsh 提交；其合同与镜像验证纳入当前 runtime-contract-stability 主线。
 
 具体能力以 [产品范围](TERMINAL_PRODUCT_SCOPE.md)、[架构](ARCHITECTURE.md) 与
 [协议清单](protocols/RUNTIME_WIRE_INVENTORY.md) 为准。实现存在不代表当前构建已通过所有平台验收。

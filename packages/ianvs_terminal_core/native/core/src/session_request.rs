@@ -274,7 +274,13 @@ fn valid_operation(value: &str) -> bool {
 fn supported_operation(value: &str) -> bool {
     matches!(
         value,
-        "ssh.auth_response"
+        "completion.query"
+            | "completion.local_start"
+            | "completion.local_poll"
+            | "completion.local_cancel"
+            | "composer.state"
+            | "composer.submit"
+            | "ssh.auth_response"
             | "ssh.host_key_response"
             | "ssh.sftp.list_directory_start"
             | "ssh.sftp.list_directory_poll"

@@ -1,3 +1,5 @@
+mod completion_host;
+mod composer_bridge;
 pub mod ffi;
 pub mod frame_diff_proto;
 pub mod graphic_asset_proto;

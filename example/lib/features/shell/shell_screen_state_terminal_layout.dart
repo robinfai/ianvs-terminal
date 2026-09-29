@@ -565,7 +565,8 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
             final shouldMiddlePaste =
                 frame.modes.mouseMode == 'off' &&
                 (event.buttons & kMiddleMouseButton) != 0;
-            if (shouldMiddlePaste) {
+            if (shouldMiddlePaste &&
+                !(_composerSessions[sessionId]?.enabled ?? false)) {
               unawaited(_pasteToSession(sessionId));
             }
           },
@@ -880,6 +881,21 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                     },
                   ),
                 ),
+                if (!context.usesMobileNavigation && !sessionReadOnly)
+                  ComposerPane(
+                    key: ValueKey('composer-$sessionId'),
+                    session: _composerSessions.putIfAbsent(
+                      sessionId,
+                      () => ComposerPaneSession(
+                        sessionId: sessionId,
+                        runtime: ref.read(terminalRuntimeControllerProvider),
+                      ),
+                    ),
+                    targetLabel: pane.title,
+                    active: isActive,
+                    available: !pane.isExited && !sessionReadOnly,
+                    onTerminalFocus: focusNode.requestFocus,
+                  ),
               ],
             ),
           ),

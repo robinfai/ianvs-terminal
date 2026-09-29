@@ -15,6 +15,10 @@
 - `TerminalSessionShellHookEvent`
 - `TerminalViewport`
 - `TerminalViewportController`
+- `TerminalComposerController`、`TerminalComposerView`、`CompletionQuery/Batch/Edit`
+
+Composer 是可选的会话内草稿编辑器，支持静态补全和受租约约束的本机 zsh 提交。
+接入和限制见 [Composer](../../docs/composer/README.md)；本地文件与 scripts 候选需单独开启。
 
 ## 当前运行合同
 

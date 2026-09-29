@@ -61,6 +61,13 @@ written back.
 
 ## Explicit non-goals
 
+The optional [Composer](composer/README.md) is a pane-local command draft within
+an existing Session. It follows the current request contract and leaves Profile,
+Layout and Relaunch Spec persistence unchanged. Drafts are memory-only and are
+discarded when their Session closes; copy is available before switching back to
+raw input. This selectively reuses the retired static matcher without restoring
+the old completion panel, toolbelt, history collection or Project Workspace.
+
 The current product does not define:
 
 - Project Workspace identity, Recent Workspace or project switching;
