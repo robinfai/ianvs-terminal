@@ -65,9 +65,25 @@ final class ComposerTheme extends ThemeExtension<ComposerTheme> {
       TargetPlatform.fuchsia => true,
       _ => false,
     };
-    final surface = colors.surfaceContainerLow;
-    final muted = highContrast ? colors.onSurface : colors.onSurfaceVariant;
-    final border = highContrast ? colors.outline : colors.outlineVariant;
+    // A clean editing surface stays stable across focus changes. Small
+    // controls carry the accent; the dock itself never becomes a state layer.
+    final surface = colors.surfaceContainerLowest;
+    final foreground = Color.alphaBlend(
+      colors.primary.withValues(alpha: .22),
+      colors.onSurface,
+    );
+    final muted = highContrast
+        ? colors.onSurface
+        : Color.alphaBlend(
+            colors.primary.withValues(alpha: .16),
+            colors.onSurfaceVariant,
+          );
+    final border = highContrast
+        ? colors.outline
+        : Color.alphaBlend(
+            colors.primary.withValues(alpha: .05),
+            colors.outlineVariant,
+          );
     final hover = Color.alphaBlend(
       colors.onSurface.withValues(alpha: highContrast ? .10 : .05),
       colors.surfaceContainer,
@@ -76,7 +92,7 @@ final class ComposerTheme extends ThemeExtension<ComposerTheme> {
         (base ?? const TextStyle()).copyWith(
           fontSize: size,
           height: height,
-          color: colors.onSurface,
+          color: foreground,
           letterSpacing: 0,
         );
     final command = uiStyle(text.bodyMedium, 16, 1.5).copyWith(
@@ -95,12 +111,15 @@ final class ComposerTheme extends ThemeExtension<ComposerTheme> {
     final value = ComposerTheme(
       surface: surface,
       border: border,
-      foreground: colors.onSurface,
+      foreground: foreground,
       muted: muted,
       accent: colors.primary,
       chip: colors.surfaceContainerHighest,
-      selection: colors.secondaryContainer,
-      onSelection: colors.onSecondaryContainer,
+      selection: Color.alphaBlend(
+        colors.primaryContainer.withValues(alpha: .55),
+        surface,
+      ),
+      onSelection: colors.onPrimaryContainer,
       popover: colors.surfaceContainer,
       contextSurface: colors.surfaceContainerHighest,
       hover: hover,
@@ -111,12 +130,12 @@ final class ComposerTheme extends ThemeExtension<ComposerTheme> {
       primaryAction: colors.primary,
       onPrimaryAction: colors.onPrimary,
       disabledSurface: Color.alphaBlend(
-        colors.onSurface.withValues(alpha: .06),
+        colors.primary.withValues(alpha: .06),
         surface,
       ),
       disabledForeground: highContrast
           ? muted
-          : Color.alphaBlend(colors.onSurface.withValues(alpha: .38), surface),
+          : Color.alphaBlend(muted.withValues(alpha: .60), surface),
       divider: border,
       shadow: colors.shadow.withValues(alpha: highContrast ? 0 : .12),
       commandStyle: command,

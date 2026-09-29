@@ -19,6 +19,101 @@ void main() {
   ConfigurationCaptureBinding();
   setUpAll(loadVisualCaptureFonts);
 
+  for (final scale in [1.0, 2.0]) {
+    _testMacWidgets(
+      'placeholder and single-line input keep the same height at ${scale}x',
+      (tester) async {
+        final fixture = ComposerRedesignFixture(ComposerRedesignScenario.empty);
+        await _mount(tester, fixture, textScale: scale);
+        final editor = find.byKey(const Key('composer-editor'));
+        final surface = find.byKey(const Key('composer-surface'));
+        final emptyEditor = tester.getSize(editor);
+        final emptySurface = tester.getSize(surface);
+        for (final text in ['pwd', '中文', 'echo 中文 😀', '']) {
+          await tester.enterText(editor, text);
+          await tester.pump();
+          expect(tester.getSize(editor), emptyEditor, reason: 'input: $text');
+          expect(tester.getSize(surface), emptySurface, reason: 'input: $text');
+          await tester.pump(const Duration(milliseconds: 300));
+          expect(tester.getSize(editor), emptyEditor, reason: 'settled: $text');
+          expect(
+            tester.getSize(surface),
+            emptySurface,
+            reason: 'settled: $text',
+          );
+        }
+        await tester.enterText(editor, 'echo first\necho second');
+        await tester.pump(const Duration(milliseconds: 300));
+        expect(tester.getSize(editor).height, greaterThan(emptyEditor.height));
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  for (final scale in [1.0, 2.0]) {
+    _testMacWidgets(
+      'busy states keep the multiline height and disable controls at ${scale}x',
+      (tester) async {
+        final fixture = ComposerRedesignFixture(
+          ComposerRedesignScenario.submitting,
+        );
+        await _mount(
+          tester,
+          fixture,
+          size: scale == 1 ? const Size(856, 460) : const Size(360, 740),
+          textScale: scale,
+          activate: false,
+        );
+        final editor = find.byKey(const Key('composer-editor'));
+        final surface = find.byKey(const Key('composer-surface'));
+        await tester.enterText(editor, 'echo first\necho second\necho third');
+        await tester.pump(const Duration(milliseconds: 300));
+        final sizeBefore = tester.getSize(surface);
+        await tester.tap(find.byKey(const Key('composer-primary-action')));
+        await tester.pump();
+        expect(fixture.controller.ownership, ComposerOwnership.submitting);
+        expect(tester.getSize(surface), sizeBefore);
+        expect(tester.widget<TextField>(editor).enabled, isFalse);
+        fixture.finish();
+        await tester.pump();
+        expect(fixture.controller.ownership, ComposerOwnership.running);
+        expect(tester.getSize(surface), sizeBefore);
+        expect(tester.widget<TextField>(editor).enabled, isFalse);
+        final suggestions = find.byKey(
+          const Key('composer-automatic-suggestions-toggle'),
+        );
+        await tester.tap(suggestions);
+        await tester.pump();
+        expect(fixture.controller.localSuggestions, isFalse);
+        await tester.tap(find.byKey(const Key('composer-more-actions')));
+        await tester.pump();
+        expect(find.byKey(const Key('composer-copy-draft')), findsNothing);
+        fixture.controller.updateShell(
+          contextKey: 'terminal-input',
+          cwd: fixture.controller.cwd,
+          dialect: 'zsh',
+          ownership: ComposerOwnership.suspended,
+        );
+        await tester.pump();
+        expect(tester.getSize(surface), sizeBefore);
+        expect(tester.widget<TextField>(editor).enabled, isFalse);
+        fixture.controller.updateShell(
+          contextKey: 'returned-ready',
+          cwd: fixture.controller.cwd,
+          lease: 'next-lease',
+          dialect: 'zsh',
+          ownership: ComposerOwnership.ready,
+        );
+        await tester.pump();
+        expect(tester.widget<TextField>(editor).enabled, isTrue);
+        await tester.enterText(editor, 'pwd');
+        await tester.pump(const Duration(milliseconds: 300));
+        expect(fixture.controller.editor.text, 'pwd');
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   _testMacWidgets(
     'primary action accepts a candidate before executing a command',
     (tester) async {
@@ -309,6 +404,7 @@ Future<void> _mount(
   ComposerRedesignFixture fixture, {
   Size size = const Size(856, 460),
   double textScale = 1,
+  bool activate = true,
   FocusNode? focus,
   VoidCallback? onUseTerminal,
 }) async {
@@ -349,7 +445,7 @@ Future<void> _mount(
       ),
     ),
   );
-  fixture.activate();
+  if (activate) fixture.activate();
   await tester.pump(const Duration(milliseconds: 150));
   fixture.revealSelection();
   await tester.pump(const Duration(milliseconds: 150));

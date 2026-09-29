@@ -125,6 +125,14 @@ void main() {
         closeTo(commandWidth('WWWWWWWW'), .01),
         reason: 'Native Composer command text must resolve to a monospace font',
       );
+      final surface = find.byKey(const Key('composer-surface'));
+      final emptyHeight = tester.getSize(surface).height;
+      for (final text in ['pwd', '中文', 'echo 中文 😀', '']) {
+        await tester.enterText(editor, text);
+        await tester.pump(const Duration(milliseconds: 300));
+        expect(tester.getSize(surface).height, closeTo(emptyHeight, .01));
+      }
+
       // History comes from this shell, before Composer has submitted anything.
       final initialLease = model.readyLease;
       await tester.enterText(editor, 'printf');
@@ -236,7 +244,14 @@ void main() {
       expect(model.items.every((item) => item.kind == 'directory'), isTrue);
       await tester.enterText(editor, 'cd ../../../docu');
       await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-      await until(tester, () => model.editor.text == 'cd ../../../documents/');
+      await until(
+        tester,
+        () => model.editor.text == 'cd ../../../documents/',
+        diagnostics: () =>
+            'text=${model.editor.text}; status=${model.status}; owner=${model.ownership}; '
+            'loading=${model.loading}; focus=${tester.widget<TextField>(editor).focusNode!.hasFocus}; '
+            'candidates=${model.items.map((item) => item.label).join(', ')}',
+      );
       expect(model.readyLease, pathLease);
       await tester.enterText(editor, 'cd ${home.path}/docu');
       await tester.sendKeyEvent(LogicalKeyboardKey.tab);
@@ -338,6 +353,37 @@ void main() {
         findsOneWidget,
       );
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      // Keep the real dock mounted at its submitted multiline height while
+      // the PTY owns input. Ctrl+C must reach the running shell, then return
+      // focus to the same editor once a new ready lease arrives.
+      await tester.enterText(
+        editor,
+        'sleep 30;\nprint composer-layout-complete',
+      );
+      await tester.pump(const Duration(milliseconds: 300));
+      final submittedHeight = tester.getSize(surface).height;
+      expect(submittedHeight, greaterThan(emptyHeight));
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await until(tester, () => model.ownership == ComposerOwnership.running);
+      await tester.pump();
+      expect(find.byKey(Key('composer-toggle-$id')), findsNothing);
+      expect(tester.getSize(surface).height, closeTo(submittedHeight, .01));
+      expect(tester.widget<TextField>(editor).enabled, isFalse);
+      expect(tester.widget<TextField>(editor).focusNode!.hasFocus, isFalse);
+      await tester.tap(
+        find.byKey(const Key('composer-automatic-suggestions-toggle')),
+      );
+      await tester.pump();
+      expect(model.localSuggestions, isFalse);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyC);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await until(tester, () => model.ownership == ComposerOwnership.ready);
+      await tester.pump();
+      expect(tester.widget<TextField>(editor).enabled, isTrue);
+      expect(tester.widget<TextField>(editor).focusNode!.hasFocus, isTrue);
+      expect(tester.getSize(surface).height, closeTo(emptyHeight, .01));
+
       await tester.enterText(editor, 'saved draft');
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pump();

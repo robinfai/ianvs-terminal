@@ -570,15 +570,8 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
               unawaited(_pasteToSession(sessionId));
             }
           },
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              border: Border.all(
-                color: isActive
-                    ? palette.focusRing.withValues(alpha: 0.78)
-                    : Colors.transparent,
-                width: 1.5,
-              ),
-            ),
+          child: ColoredBox(
+            color: palette.panel,
             child: Column(
               children: [
                 ?paneHeader,
@@ -864,6 +857,23 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                                 child: _ShellLayoutCue(
                                   title: _layoutCueTitle,
                                   palette: palette,
+                                ),
+                              ),
+                            ),
+                          // Split-pane focus stays in the terminal area;
+                          // no colored rail extends beside the composer.
+                          if (isActive && showsPaneHeader)
+                            Positioned.fill(
+                              child: IgnorePointer(
+                                child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    border: Border.all(
+                                      color: palette.focusRing.withValues(
+                                        alpha: 0.78,
+                                      ),
+                                      width: 1.5,
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),

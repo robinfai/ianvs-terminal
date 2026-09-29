@@ -35,7 +35,7 @@ This document records source-based findings and a proposed system. It does not c
 The Composer should read as a compact command workbench with three aligned regions:
 
 1. **Context and ownership.** Target identity followed by a shortened cwd breadcrumb. Keep the full path in its tooltip/semantics and use actual cwd as the source of truth. Show a short textual ownership badge at the trailing edge. Context metadata is visually quiet, while unknown outcome or unavailable input receives explicit text.
-2. **Command document.** A generous, clean editor with a visible caret, monospaced command text and a subdued ghost continuation. Preserve native selection and IME. Editor height follows content up to its configured limit; the document scrolls beyond that limit.
+2. **Command document.** A generous, clean editor with a visible caret, monospaced command text and a subdued ghost continuation. Preserve native selection and IME. The placeholder and document share a forced strut so CJK/Latin/emoji fallback fonts do not change single-line height. Editor height follows content up to its configured limit; the document scrolls beyond that limit. Sending, running and terminal-input states keep the dock mounted at its last editing height with controls disabled. Window or text-size changes still reflow, and shell readiness restores editing and focus.
 3. **Action rail.** History and Completion are discoverable controls. Less frequent editing actions share a More menu. A short contextual key legend is flexible. The stable trailing primary control is labelled **Accept** while a candidate is active and **Run** when it will execute, so its visual promise agrees with Enter. Context menus must not require the command draft to be cleared.
 
 The popover is part of the same family: a quiet labelled header, results, optional details and a small footer. It aligns with the relevant token/caret where possible and stays inside its usable viewport. Pointer hover and keyboard selection must remain distinguishable from keyboard focus. Selecting a result only edits the draft; executing remains an explicit second action.
@@ -46,20 +46,20 @@ Introduce `composer_theme.dart` as a package-local semantic adapter or `ThemeExt
 
 | Role | Default source / behavior |
 | --- | --- |
-| `surface` / `onSurface` | `surfaceContainerLow` / `onSurface` |
+| `surface` / `onSurface` | `surfaceContainerLowest` / opaque, lightly primary-tinted `onSurface` |
 | `popover` / `onPopover` | `surfaceContainer` / `onSurface` |
 | `contextSurface` / `onContext` | `surfaceContainerHighest` / `onSurfaceVariant`; no transparent text |
-| `muted` | `onSurfaceVariant`; do not lower text opacity to simulate hierarchy |
-| `border` | `outlineVariant` normally, `outline` for high contrast |
-| `focus` | `primary`, opaque; stronger width in high contrast |
-| `selected` / `onSelected` | `secondaryContainer` / `onSecondaryContainer` |
+| `muted` | Opaque, lightly primary-tinted `onSurfaceVariant`; full foreground in high contrast |
+| `border` | Lightly primary-tinted `outlineVariant`, strengthened in high contrast; identical for focused and unfocused editor |
+| `focus` | `primary` for caret/control focus; no editor-wide focus ring |
+| `selected` / `onSelected` | `primaryContainer` blended over the editing surface / `onPrimaryContainer` |
 | `primaryAction` / `onPrimaryAction` | `primary` / `onPrimary` |
 | `error` / `onErrorContainer` | Paired `errorContainer` / `onErrorContainer` for actionable execution errors |
 | `hover` | A token computed centrally from foreground/surface; keep it distinct from selected |
 | `disabled` | A central role suitable for inactive controls, never reused for useful explanatory text |
 | `shadow` | Host `shadow`; subtle at normal contrast, rely on clear border in high contrast |
 
-Suggested geometry (logical pixels) is 4/8/12/16/24 spacing, panel radius 12, popover 10, control 6, row 6. Use 12 panel inset with 8–12 between regions. Desktop icon hit area 32 with a 16–18 glyph; touch density may grow to 44 without growing the glyph proportionally. Keep a 1 px ordinary border and 1.5–2 px focus outline. These are centrally defined defaults, not literals copied into components.
+Suggested geometry (logical pixels) is 4/8/12/16/24 spacing, panel radius 12, popover 10, control 6, row 6. Use 12 panel inset with 8–12 between regions. Desktop icon hit area 32 with a 16–18 glyph; touch density may grow to 44 without growing the glyph proportionally. Following the approved caret-only refinement, keep the dock's 1 px ordinary border unchanged during focus (1.5 px in high contrast); only the caret marks editor focus. Toolbar/menu keyboard focus remains visible. The command label has a rounded selection capsule, and the suggestion button contains a filled-track toggle indicator with a contrasting thumb and a single focus/semantics target.
 
 Use host `textTheme` as the base and centralize Composer variants:
 
@@ -89,7 +89,7 @@ Reuse the project's existing Material Symbols Outlined font at 16–18 logical p
 | Undo / redo | Curved backward/forward arrows | Disabled when unavailable, shortcuts shown in menu. |
 | Terminal input | Terminal prompt plus return/focus direction | Text clarifies “Use terminal input”; avoid a generic return key as the only clue. |
 | Accept / Run | Return arrow for adopt, play or forward arrow for execute | Stable primary position; label and action both change with candidate versus execution state. |
-| Ready | Small check in circle | Label “Ready”, never “Succeeded”. |
+| Ready | Small muted dot | Label “Shell ready” / “Shell 就绪”, never “Succeeded”; independent of editor focus. |
 | Sending | Progress arc | Label “Sending”; prevent duplicate submit. |
 | Running | Activity indicator | Label “Running”; route interactive input to terminal. |
 | Suspended/unavailable | Terminal/cursor indicator | Text explains who owns input; no disabled-looking editor if drafts remain editable. |

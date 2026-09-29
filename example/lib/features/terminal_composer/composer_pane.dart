@@ -259,7 +259,7 @@ class _ComposerPaneState extends State<ComposerPane> {
     final running =
         controller.ownership == ComposerOwnership.running ||
         controller.ownership == ComposerOwnership.suspended;
-    if (!session.enabled || !widget.available || running) {
+    if (!session.enabled || !widget.available) {
       return Align(
         alignment: Alignment.centerLeft,
         child: TextButton.icon(

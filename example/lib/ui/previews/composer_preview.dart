@@ -103,6 +103,45 @@ Widget composerRedesignLightPreview() => const _ComposerRedesignPreview(
 );
 
 @Preview(
+  name: 'Composer · Default light',
+  group: 'Composer focus states',
+  size: Size(856, 280),
+)
+Widget composerDefaultLightPreview() => const _ComposerRedesignPreview(
+  scenario: ComposerRedesignScenario.empty,
+  autofocus: false,
+);
+
+@Preview(
+  name: 'Composer · Caret only light',
+  group: 'Composer focus states',
+  size: Size(856, 280),
+)
+Widget composerCaretLightPreview() =>
+    const _ComposerRedesignPreview(scenario: ComposerRedesignScenario.empty);
+
+@Preview(
+  name: 'Composer · Default dark',
+  group: 'Composer focus states',
+  size: Size(856, 280),
+)
+Widget composerDefaultDarkPreview() => const _ComposerRedesignPreview(
+  brightness: Brightness.dark,
+  scenario: ComposerRedesignScenario.empty,
+  autofocus: false,
+);
+
+@Preview(
+  name: 'Composer · Caret only dark',
+  group: 'Composer focus states',
+  size: Size(856, 280),
+)
+Widget composerCaretDarkPreview() => const _ComposerRedesignPreview(
+  brightness: Brightness.dark,
+  scenario: ComposerRedesignScenario.empty,
+);
+
+@Preview(
   name: 'Composer redesign · Reference dark',
   group: 'Composer redesign',
   size: Size(856, 460),
@@ -236,12 +275,14 @@ class _ComposerRedesignPreview extends StatefulWidget {
     this.brightness = Brightness.light,
     this.textScale = 1,
     this.highContrast = false,
+    this.autofocus = true,
   });
 
   final ComposerRedesignScenario scenario;
   final Brightness brightness;
   final double textScale;
   final bool highContrast;
+  final bool autofocus;
 
   @override
   State<_ComposerRedesignPreview> createState() =>
@@ -283,7 +324,7 @@ class _ComposerRedesignPreviewState extends State<_ComposerRedesignPreview> {
           padding: const EdgeInsets.all(12),
           child: TerminalComposerView(
             controller: fixture.controller,
-            autofocus: true,
+            autofocus: widget.autofocus,
             targetLabel: fixture.targetLabel,
             chinese: true,
             onUseTerminal: () {},

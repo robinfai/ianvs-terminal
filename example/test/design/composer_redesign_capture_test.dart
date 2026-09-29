@@ -47,6 +47,22 @@ const _contrastScenes = <ComposerRedesignScenario>[
 ];
 
 const _variants = [
+  _Variant(
+    'idle-light',
+    Brightness.light,
+    Size(856, 280),
+    pixelRatio: 2,
+    autofocus: false,
+    scenarios: [ComposerRedesignScenario.empty],
+  ),
+  _Variant(
+    'idle-dark',
+    Brightness.dark,
+    Size(856, 280),
+    pixelRatio: 2,
+    autofocus: false,
+    scenarios: [ComposerRedesignScenario.empty],
+  ),
   _Variant('light', Brightness.light, Size(920, 560)),
   _Variant('dark', Brightness.dark, Size(920, 560)),
   _Variant('narrow-2x', Brightness.dark, Size(360, 740), textScale: 2),
@@ -122,6 +138,7 @@ void main() {
               'textScale': variant.textScale,
               'brightness': variant.brightness.name,
               'highContrast': variant.highContrast,
+              'autofocus': variant.autofocus,
               'scenarios': variant.scenarios.map((s) => s.name).toList(),
             },
         ],
@@ -182,7 +199,7 @@ void main() {
                       child: TerminalComposerView(
                         controller: controller,
                         targetLabel: fixture.targetLabel,
-                        autofocus: true,
+                        autofocus: variant.autofocus,
                         chinese: true,
                         onUseTerminal: () {},
                       ),
@@ -371,6 +388,7 @@ class _Variant {
     this.pixelRatio = 1,
     this.textScale = 1,
     this.highContrast = false,
+    this.autofocus = true,
     this.scenarios = ComposerRedesignScenario.values,
   });
 
@@ -380,5 +398,6 @@ class _Variant {
   final double pixelRatio;
   final double textScale;
   final bool highContrast;
+  final bool autofocus;
   final List<ComposerRedesignScenario> scenarios;
 }

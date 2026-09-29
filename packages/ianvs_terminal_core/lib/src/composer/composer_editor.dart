@@ -15,6 +15,7 @@ class ComposerEditor extends StatefulWidget {
     required this.hint,
     required this.maxLines,
     required this.autofocus,
+    this.enabled = true,
     super.key,
   });
 
@@ -26,6 +27,7 @@ class ComposerEditor extends StatefulWidget {
   final String hint;
   final int maxLines;
   final bool autofocus;
+  final bool enabled;
 
   @override
   State<ComposerEditor> createState() => ComposerEditorState();
@@ -79,7 +81,13 @@ class ComposerEditorState extends State<ComposerEditor> {
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
-      final strut = StrutStyle.fromTextStyle(widget.style);
+      // Hint glyphs and entered text may use different fallback fonts (CJK,
+      // emoji, Latin). Give both the same line box and baseline so replacing
+      // the placeholder never changes the dock's height.
+      final strut = StrutStyle.fromTextStyle(
+        widget.style,
+        forceStrutHeight: true,
+      );
       final scaler = MediaQuery.textScalerOf(context);
       var lines = 1;
       if (widget.suggestion.isNotEmpty) {
@@ -114,6 +122,7 @@ class ComposerEditorState extends State<ComposerEditor> {
             focusNode: widget.focusNode,
             scrollController: _scroll,
             autofocus: widget.autofocus,
+            enabled: widget.enabled,
             minLines: lines,
             maxLines: widget.maxLines,
             textDirection: TextDirection.ltr,
@@ -126,10 +135,15 @@ class ComposerEditorState extends State<ComposerEditor> {
             style: widget.style,
             strutStyle: strut,
             decoration: InputDecoration(
-              hintText: widget.hint,
-              hintMaxLines: 1,
-              hintStyle: widget.style.copyWith(color: widget.suggestionColor),
+              hint: Text(
+                widget.hint,
+                maxLines: 1,
+                overflow: TextOverflow.clip,
+                style: widget.style.copyWith(color: widget.suggestionColor),
+                strutStyle: strut,
+              ),
               border: InputBorder.none,
+              disabledBorder: InputBorder.none,
               enabledBorder: InputBorder.none,
               focusedBorder: InputBorder.none,
               filled: false,

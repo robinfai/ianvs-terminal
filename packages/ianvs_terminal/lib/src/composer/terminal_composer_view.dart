@@ -49,7 +49,15 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
   String _copyFeedback = '';
   Timer? _feedbackTimer;
   int _selectionNavigationRevision = -1;
+  double? _busyHeight;
+  (double, Size, TextScaler)? _layoutSize;
   TerminalComposerController get model => widget.controller;
+  bool get _disabled => switch (model.ownership) {
+    ComposerOwnership.submitting ||
+    ComposerOwnership.running ||
+    ComposerOwnership.suspended => true,
+    _ => false,
+  };
   String tr(String en, String zh) => widget.chinese ? zh : en;
   double get _menuWidth => (_width - ComposerTheme.inset * 2).clamp(0, 760);
 
@@ -88,12 +96,22 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
       oldWidget.controller.removeListener(_changed);
       model.addListener(_changed);
       _selectionNavigationRevision = -1;
+      _busyHeight = null;
     }
   }
 
   void _changed() {
     if (!mounted) return;
+    if (_disabled) {
+      // Read the last laid-out height before an accepted submission clears the
+      // draft. Keep the footer and terminal viewport in place while busy.
+      final box = _anchorKey.currentContext?.findRenderObject() as RenderBox?;
+      if (box != null && box.hasSize) _busyHeight ??= box.size.height;
+    } else {
+      _busyHeight = null;
+    }
     final show =
+        !_disabled &&
         (_focus.hasFocus || _resultsFocus.hasFocus) &&
         (model.completionMenuOpen || model.historyOpen) &&
         model.editor.value.composing.isCollapsed;
@@ -148,6 +166,7 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
   }
 
   KeyEventResult _key(FocusNode node, KeyEvent event) {
+    if (_disabled) return KeyEventResult.ignored;
     final key = event.logicalKey;
     final hardware = HardwareKeyboard.instance;
     final composing = !model.editor.value.composing.isCollapsed;
@@ -269,6 +288,11 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
     return LayoutBuilder(
       builder: (context, constraints) {
         _width = constraints.maxWidth;
+        final layoutSize = (_width, MediaQuery.sizeOf(context), scaler);
+        // A real window/text-size change should reflow rather than retain an
+        // obsolete height from a wider or shorter layout.
+        if (_layoutSize != layoutSize) _busyHeight = null;
+        _layoutSize = layoutSize;
         final compact =
             constraints.maxWidth - ComposerTheme.inset * 2 <
             math.max(scaler.scale(520), _toolbarMinimumWidth(tokens));
@@ -277,6 +301,29 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
           ((MediaQuery.sizeOf(context).height * .25) /
                   scaler.scale(tokens.commandStyle.fontSize! * 1.5))
               .floor(),
+        );
+        final editor = Focus(
+          onKeyEvent: _key,
+          child: ComposerEditor(
+            key: _editorKey,
+            controller: model.editor,
+            focusNode: _focus,
+            autofocus: widget.autofocus,
+            enabled: !_disabled,
+            maxLines: math.min(widget.maxLines, lineBudget),
+            suggestion: !_disabled && _focus.hasFocus
+                ? model.inlineSuggestion
+                : '',
+            suggestionColor: _disabled
+                ? tokens.disabledForeground
+                : tokens.muted,
+            hint: model.historyOpen
+                ? tr('Filter command history…', '筛选历史命令…')
+                : tr('Type a command…', '输入命令…'),
+            style: _disabled
+                ? tokens.commandStyle.copyWith(color: tokens.disabledForeground)
+                : tokens.commandStyle,
+          ),
         );
         return TextFieldTapRegion(
           child: KeyedSubtree(
@@ -331,61 +378,56 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
                 );
               },
               child: Material(
+                key: const Key('composer-surface'),
                 color: tokens.surface,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(ComposerTheme.radius),
                   side: BorderSide(
-                    color: _focus.hasFocus ? tokens.focus : tokens.border,
-                    width: _focus.hasFocus
-                        ? tokens.focusWidth
-                        : tokens.borderWidth,
+                    color: tokens.border,
+                    width: tokens.borderWidth,
                   ),
                 ),
-                child: Padding(
-                  padding: const EdgeInsets.all(ComposerTheme.inset),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      _context(tokens, compact: compact),
-                      SizedBox(height: short ? 8 : 12),
-                      Focus(
-                        onKeyEvent: _key,
-                        child: ComposerEditor(
-                          key: _editorKey,
-                          controller: model.editor,
-                          focusNode: _focus,
-                          autofocus: widget.autofocus,
-                          maxLines: math.min(widget.maxLines, lineBudget),
-                          suggestion: _focus.hasFocus
-                              ? model.inlineSuggestion
-                              : '',
-                          suggestionColor: tokens.muted,
-                          hint: model.historyOpen
-                              ? tr('Filter command history…', '筛选历史命令…')
-                              : tr('Type a command…', '输入命令…'),
-                          style: tokens.commandStyle,
-                        ),
-                      ),
-                      SizedBox(height: short ? 8 : 12),
-                      _actions(tokens, compact: compact),
-                      if (model.executionStatus.isNotEmpty)
-                        _executionFeedback(tokens),
-                      if (model.loading || model.completionStatus.isNotEmpty)
-                        _completionFeedback(tokens),
-                      if (_copyFeedback.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: Semantics(
-                            key: const Key('composer-feedback'),
-                            liveRegion: true,
-                            child: Text(
-                              _copyFeedback,
-                              style: tokens.statusStyle,
+                child: SizedBox(
+                  height: _busyHeight,
+                  child: Padding(
+                    padding: const EdgeInsets.all(ComposerTheme.inset),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _context(tokens, compact: compact),
+                        SizedBox(height: short ? 8 : 12),
+                        if (_busyHeight != null)
+                          Expanded(
+                            child: Align(
+                              alignment: Alignment.topLeft,
+                              child: editor,
+                            ),
+                          )
+                        else
+                          editor,
+                        SizedBox(height: short ? 8 : 12),
+                        _actions(tokens, compact: compact),
+                        if (!_disabled && model.executionStatus.isNotEmpty)
+                          _executionFeedback(tokens),
+                        if (!_disabled &&
+                            (model.loading ||
+                                model.completionStatus.isNotEmpty))
+                          _completionFeedback(tokens),
+                        if (!_disabled && _copyFeedback.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Semantics(
+                              key: const Key('composer-feedback'),
+                              liveRegion: true,
+                              child: Text(
+                                _copyFeedback,
+                                style: tokens.statusStyle,
+                              ),
                             ),
                           ),
-                        ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -516,7 +558,7 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
   }
 
   String get _ownershipLabel => switch (model.ownership) {
-    ComposerOwnership.ready => tr('Ready', '就绪'),
+    ComposerOwnership.ready => tr('Shell ready', 'Shell 就绪'),
     ComposerOwnership.submitting => tr('Sending…', '发送中…'),
     ComposerOwnership.running => tr('Running', '运行中'),
     ComposerOwnership.unknown => tr('Result unknown', '结果未知'),
@@ -527,8 +569,6 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
   Widget _ownership(ComposerTheme tokens) {
     final color = model.ownership == ComposerOwnership.unknown
         ? tokens.error
-        : model.ownership == ComposerOwnership.ready
-        ? tokens.accent
         : tokens.muted;
     return Semantics(
       key: const Key('composer-status'),
@@ -543,6 +583,11 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
               dimension: 14,
               child: CircularProgressIndicator(strokeWidth: 1.5, color: color),
             )
+          else if (model.ownership == ComposerOwnership.ready)
+            DecoratedBox(
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+              child: const SizedBox.square(dimension: 7),
+            )
           else
             Icon(
               ComposerIcons.forOwnership(model.ownership),
@@ -555,7 +600,7 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
             style: tokens.statusStyle.copyWith(
               color: model.ownership == ComposerOwnership.unknown
                   ? tokens.error
-                  : tokens.foreground,
+                  : tokens.muted,
             ),
           ),
         ],
@@ -588,13 +633,31 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
       if (!compact)
         Padding(
           padding: const EdgeInsets.only(right: 8),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(ComposerIcons.terminal, size: 18, color: tokens.accent),
-              const SizedBox(width: 6),
-              Text(tr('Command', '命令'), style: tokens.actionStyle),
-            ],
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: tokens.selection,
+              borderRadius: BorderRadius.circular(tokens.controlHeight / 2),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    ComposerIcons.terminal,
+                    size: ComposerTheme.iconSize,
+                    color: tokens.onSelection,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    tr('Command', '命令'),
+                    style: tokens.actionStyle.copyWith(
+                      color: tokens.onSelection,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       Semantics(
@@ -677,6 +740,7 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
   ButtonStyle _utilityStyle(ComposerTheme tokens, {bool selected = false}) =>
       TextButton.styleFrom(
         foregroundColor: selected ? tokens.onSelection : tokens.muted,
+        disabledForegroundColor: tokens.disabledForeground,
         backgroundColor: selected ? tokens.selection : null,
         minimumSize: Size(32, tokens.controlHeight),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
@@ -706,22 +770,57 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
           hint: help,
           toggled: model.localSuggestions,
           button: true,
-          onTap: model.toggleLocalSuggestions,
+          enabled: !_disabled,
+          onTap: _disabled ? null : model.toggleLocalSuggestions,
           excludeSemantics: true,
           child: TextButton(
-            onPressed: model.toggleLocalSuggestions,
+            onPressed: _disabled ? null : model.toggleLocalSuggestions,
             style: _utilityStyle(tokens),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Library glyphs retain the native outline family and avoid a
-                // second independently focusable switch inside this control.
-                Icon(
-                  model.localSuggestions
-                      ? ComposerIcons.automaticSuggestionsOn
-                      : ComposerIcons.automaticSuggestionsOff,
-                  size: 28,
-                  color: model.localSuggestions ? tokens.accent : tokens.muted,
+                // This is a visual indicator inside the labelled button, not
+                // a second focus stop or independently announced switch.
+                SizedBox.square(
+                  dimension: 28,
+                  child: Center(
+                    child: Container(
+                      width: 26,
+                      height: 14,
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        color: _disabled
+                            ? tokens.disabledSurface
+                            : model.localSuggestions
+                            ? tokens.primaryAction
+                            : tokens.chip,
+                        border: Border.all(
+                          color: _disabled
+                              ? tokens.border
+                              : model.localSuggestions
+                              ? tokens.primaryAction
+                              : tokens.border,
+                        ),
+                        borderRadius: BorderRadius.circular(7),
+                      ),
+                      child: Align(
+                        alignment: model.localSuggestions
+                            ? AlignmentDirectional.centerEnd
+                            : AlignmentDirectional.centerStart,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: _disabled
+                                ? tokens.disabledForeground
+                                : model.localSuggestions
+                                ? tokens.onPrimaryAction
+                                : tokens.muted,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const SizedBox.square(dimension: 8),
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
                 const SizedBox(width: 6),
                 Flexible(child: Text(label)),
@@ -780,6 +879,8 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
         ? tr('No history result to accept', '没有可采用的历史命令')
         : model.ownership == ComposerOwnership.ready
         ? tr('Enter a complete command to run', '请输入完整命令后执行')
+        : _disabled
+        ? tr('Wait for the shell to be ready', '等待 Shell 恢复就绪')
         : tr(
             'A ready shell is required to run; the draft is preserved',
             'Shell 未就绪，草稿仍可编辑',
@@ -825,18 +926,22 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
     final mac = defaultTargetPlatform == TargetPlatform.macOS;
     return PopupMenuButton<_ComposerMenuAction>(
       key: const Key('composer-more-actions'),
+      enabled: !_disabled,
       tooltip: tr('More command actions', '更多命令操作'),
       requestFocus: true,
       icon: Icon(
         ComposerIcons.more,
         size: ComposerTheme.iconSize,
-        color: tokens.muted,
+        color: _disabled ? tokens.disabledForeground : tokens.muted,
         semanticLabel: tr('More command actions', '更多命令操作'),
       ),
       padding: EdgeInsets.zero,
       position: PopupMenuPosition.over,
-      onCanceled: _focus.requestFocus,
+      onCanceled: () {
+        if (!_disabled) _focus.requestFocus();
+      },
       onSelected: (action) {
+        if (_disabled) return;
         switch (action) {
           case _ComposerMenuAction.copy:
             unawaited(_copyDraft());
