@@ -43,7 +43,7 @@ pub fn request_session(
 
     match operation {
         "completion.query" => {
-            let _session = STORE.get(session_id)?;
+            let session = STORE.get(session_id)?;
             let Ok(query) =
                 serde_json::from_value::<ianvs_completion_core::CompletionQuery>(request.clone())
             else {
@@ -52,7 +52,12 @@ pub fn request_session(
             if query.target_id != session_id.to_string() {
                 return Ok(None);
             }
-            let Ok(batch) = ianvs_completion_core::query(query) else {
+            let aliases = session
+                .composer_bridge
+                .lock()
+                .as_ref()
+                .map_or_else(Vec::new, |bridge| bridge.aliases());
+            let Ok(batch) = ianvs_completion_core::query_with_aliases(query, &aliases) else {
                 return Ok(None);
             };
             request_json_response(serde_json::to_value(batch).expect("completion serialization"))

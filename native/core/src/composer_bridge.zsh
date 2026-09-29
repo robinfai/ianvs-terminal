@@ -24,6 +24,46 @@
       REPLY+=$byte
     done
   }
+  # Read the shell's own history, including commands entered through raw ZLE.
+  # No history file is opened and no command is evaluated. A complete snapshot
+  # is bounded below the private channel's frame budget and published atomically.
+  __ic_history() {
+    emulate -L zsh
+    zmodload zsh/parameter || return 0
+    local LC_ALL=C entry command
+    local -i count=0 bytes=0
+    local -a events
+    events=( ${(Onk)history} )
+    builtin print -r -u $__ic_fd -- history-begin
+    for entry in ${events[1,200]}; do
+      command=$history[$entry]
+      [[ -n $command && $command != [[:space:]]* ]] || continue
+      (( ${#command} <= 4096 )) || continue
+      (( bytes + ${#command} <= 8192 && count < 100 )) || break
+      __ic_hex "$command"
+      builtin print -r -u $__ic_fd -- $'history\t'"$REPLY"
+      (( bytes += ${#command}, ++count ))
+    done
+    builtin print -r -u $__ic_fd -- history-end
+  }
+  __ic_aliases() {
+    emulate -L zsh
+    zmodload zsh/parameter || return 0
+    local LC_ALL=C name value name_hex
+    local -i count=0 bytes=0
+    builtin print -r -u $__ic_fd -- aliases-begin
+    for name in ${(ok)aliases}; do
+      value=$aliases[$name]
+      (( ${#name} <= 128 && ${#value} <= 1024 )) || continue
+      (( bytes + ${#name} + ${#value} <= 2048 && count < 64 )) || break
+      __ic_hex "$name"
+      name_hex=$REPLY
+      __ic_hex "$value"
+      builtin print -r -u $__ic_fd -- $'alias\t'"$name_hex"$'\t'"$REPLY"
+      (( bytes += ${#name} + ${#value}, ++count ))
+    done
+    builtin print -r -u $__ic_fd -- aliases-end
+  }
   __ic_init() {
     emulate -L zsh
     (( __ic_fd >= 0 )) || return 0
@@ -31,6 +71,8 @@
     if [[ $CONTEXT == start && -z $BUFFER && ${ZLE_RECURSIVE:-0} == 0 ]]; then
       (( ++__ic_epoch ))
       __ic_available=1
+      __ic_history
+      __ic_aliases
       __ic_hex "$PWD"
       builtin print -r -u $__ic_fd -- $'ready\t'"$__ic_epoch"$'\t'"$REPLY"
     else

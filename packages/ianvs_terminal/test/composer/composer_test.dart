@@ -542,7 +542,13 @@ void main() {
         await tester.pumpAndSettle();
         expect(controller.editor.text, 'ls ./');
         expect(controller.selectedIndex, 0);
-        expect(find.text('./documents/'), findsOneWidget);
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('composer-completion-list')),
+            matching: find.text('./documents/', findRichText: true),
+          ),
+          findsOneWidget,
+        );
         expect(find.text('./downloads/'), findsOneWidget);
         await tester.sendKeyRepeatEvent(LogicalKeyboardKey.tab);
         await tester.sendKeyUpEvent(LogicalKeyboardKey.tab);

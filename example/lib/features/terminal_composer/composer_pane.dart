@@ -85,6 +85,7 @@ final class ComposerPaneSession {
   bool enabled = false;
   Timer? _pollTimer;
   bool _disposed = false;
+  int? _historyRevision;
 
   void setVisible(bool visible) {
     if (_disposed) return;
@@ -116,6 +117,15 @@ final class ComposerPaneSession {
       dialect: json?['dialect'] as String? ?? 'generic',
       ownership: ownership,
     );
+    final historyRevision = json?['historyRevision'];
+    final history = json?['history'];
+    if (historyRevision is int &&
+        historyRevision != _historyRevision &&
+        history is List &&
+        history.every((entry) => entry is String)) {
+      _historyRevision = historyRevision;
+      controller.updateHistory(history.cast<String>());
+    }
   }
 
   Future<ComposerSubmissionOutcome> _submit(

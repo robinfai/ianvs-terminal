@@ -231,6 +231,15 @@ pub fn quote_literal(value: &str, force: bool) -> String {
 
 /// Query only the reviewed static catalog. Templates never cause host IO.
 pub fn query(query: CompletionQuery) -> Result<CompletionBatch, &'static str> {
+    query_with_aliases(query, &[])
+}
+
+/// Alias names are inserted literally. Their descriptions are display data,
+/// never parsed, evaluated, or used to infer an effective working directory.
+pub fn query_with_aliases(
+    query: CompletionQuery,
+    aliases: &[(String, String)],
+) -> Result<CompletionBatch, &'static str> {
     query.validate()?;
     let Some(CompletionContext {
         parsed,
@@ -270,7 +279,41 @@ pub fn query(query: CompletionQuery) -> Result<CompletionBatch, &'static str> {
     );
     let mut items = vec![];
     if is_boundary(&query.text, start) && is_boundary(&query.text, end) {
+        if parsed.context_tokens.is_empty() && query.dialect == "zsh" {
+            for (name, value) in aliases.iter().take(64) {
+                if !name.starts_with(&parsed.current_token.value)
+                    || name.is_empty()
+                    || name.len() > 128
+                    || value.len() > 1024
+                    || !name
+                        .chars()
+                        .all(|c| c.is_alphanumeric() || "_-".contains(c))
+                    || value.chars().any(char::is_control)
+                {
+                    continue;
+                }
+                let new_text = quote_literal(name, quoted);
+                items.push(CompletionEdit {
+                    item_id: format!("shell:zsh:{start}:{end}:{name}"),
+                    label: name.clone(),
+                    detail: value.clone(),
+                    kind: "alias".into(),
+                    source: "shell:zsh".into(),
+                    replace_start_utf16: start,
+                    replace_end_utf16: end,
+                    final_cursor_utf16: start + utf16_len(&new_text),
+                    new_text,
+                    risk_hint: false,
+                });
+            }
+        }
         for item in response.items {
+            if items.len() >= 100 {
+                break;
+            }
+            if items.iter().any(|existing| existing.label == item.name) {
+                continue;
+            }
             if after_double_dash && item.kind.as_deref() == Some("option") {
                 continue;
             }
@@ -328,6 +371,35 @@ mod contract_tests {
         let batch = query(q("git che --help", 7)).unwrap();
         let edit = batch.items.iter().find(|i| i.label == "checkout").unwrap();
         assert_eq!((edit.replace_start_utf16, edit.replace_end_utf16), (4, 7));
+    }
+    #[test]
+    fn aliases_are_literal_command_candidates_with_source_and_description() {
+        let aliases = vec![
+            ("gc".into(), "git checkout".into()),
+            ("git".into(), "git --no-pager".into()),
+        ];
+        let batch = query_with_aliases(q("g --help", 1), &aliases).unwrap();
+        let item = batch.items.iter().find(|i| i.label == "gc").unwrap();
+        assert_eq!(
+            (&*item.kind, &*item.detail, &*item.new_text),
+            ("alias", "git checkout", "gc")
+        );
+        assert_eq!((item.replace_start_utf16, item.replace_end_utf16), (0, 1));
+        assert_eq!(batch.items.iter().filter(|i| i.label == "git").count(), 1);
+        let args = query_with_aliases(q("echo g", 6), &aliases).unwrap();
+        assert!(!args.items.iter().any(|i| i.kind == "alias"));
+        // No alias body expansion or evaluation, including shell expressions.
+        let expressions = vec![("go".into(), "$(touch /tmp/never-execute)".into())];
+        assert_eq!(
+            query_with_aliases(q("go", 2), &expressions).unwrap().items[0].new_text,
+            "go"
+        );
+        assert!(
+            query_with_aliases(q("go --", 5), &expressions)
+                .unwrap()
+                .items
+                .is_empty()
+        );
     }
     #[test]
     fn completes_inside_token_and_quotes() {

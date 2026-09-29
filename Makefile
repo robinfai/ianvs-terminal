@@ -121,7 +121,7 @@ test-composer: ## Verify isolated editing, bounded completion and local zsh leas
 	cd "$(ROOT_DIR)" && cargo test --locked --manifest-path native/core/Cargo.toml --lib composer_bridge
 	cd "$(ROOT_DIR)" && cargo test --locked --manifest-path native/core/Cargo.toml --lib completion_host
 	cd "$(ROOT_DIR)" && cargo test --locked --manifest-path native/core/Cargo.toml --test composer_integration_test
-	cd "$(TERMINAL_DIR)" && $(FLUTTER) test test/composer/composer_test.dart
+	cd "$(TERMINAL_PACKAGE_DIR)" && $(FLUTTER) test test/composer
 	cd "$(ROOT_DIR)" && python3 tools/composer/run_shell_matrix.py --required --shell zsh
 	cd "$(ROOT_DIR)" && $(DART) run tools/sync_terminal_core.dart --check
 

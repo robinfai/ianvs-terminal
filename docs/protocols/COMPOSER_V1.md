@@ -31,6 +31,13 @@ valid grapheme boundaries, a cursor inside the inserted text, and no insertion
 controls. A batch is limited to 100 items / 256 KiB. Candidate selection survives
 incremental updates only by item id. Accepting a candidate only edits the draft.
 
+For local zsh, the host also passes its authenticated, in-memory alias snapshot
+to the pure matcher. Alias names appear only in command position, with kind
+`alias`, source `shell:zsh`, and the shell definition as display-only detail.
+An alias shadows a catalog command with the same name. Acceptance inserts the
+literal alias name; definitions are never evaluated or expanded for argument
+completion. No filesystem or subprocess is involved in this enrichment.
+
 ## Optional local suggestions
 
 `completion.local_start`: `{query, lease, policy: {files: bool, scripts: bool}}`.
@@ -42,7 +49,8 @@ status is denied/unsupported/busy/unavailable, or `{status:"pending",jobId}`.
 `{status:"complete",batch}` in the same completion-batch shape. Context change
 invalidates the job; cancel is idempotent. No host pathname enters diagnostics.
 
-Automatic local suggestions start disabled; static results appear immediately.
+Automatic menus/local IO start disabled; static results can appear as inline
+suggestions without opening a menu. History suggestions take precedence.
 Tab grants local permissions for that exact live request without changing the
 session-only automatic-suggestions switch. A unique final result is inserted;
 multiple results open for selection and a subsequent Tab accepts the selection.
@@ -66,6 +74,8 @@ completion and draft editing remain available.
 ## Shell ownership and submission
 
 `composer.state` accepts `{}`. Payload: `{state,lease,cwd,dialect,submissionId,outcome}`.
+An authenticated local zsh adapter additionally returns `history` (newest first)
+and `historyRevision` (changes only when the complete snapshot changes).
 States: draft, ready, submitting, running, suspended. A missing adapter returns
 draft, null lease, empty cwd, generic dialect and none outcome. The UI additionally
 holds an unknown state after an ambiguous result. Polling ready cannot unlock it.
@@ -84,6 +94,25 @@ monotonic lease only at top-level, empty, nonrecursive line editing. PTY output,
 OSC 7/133 and screen contents never create that lease. Raw input revokes it.
 The trusted boundary includes the user's shell startup files and plugins; this
 is not a sandbox against hostile processes with the same OS user.
+
+At each empty top-level prompt the adapter reads the shell's `history` and
+ordinary `aliases` parameters over the same private channel. History examines
+the newest 200 events, publishes at most 100 commands / 8 KiB total, and skips
+leading whitespace and commands over 4 KiB. Alias snapshots are at most 64
+entries / 2 KiB total, with 128-byte names and 1 KiB definitions. Each snapshot
+is committed atomically. Invalid display controls are ignored; invalid frames
+or exceeded budgets close the channel. Normal history permits tab/newline.
+No separate history file is opened, written, or scraped from terminal output.
+The editor retains history only in its session's memory and deduplicates it.
+
+The history overlay filters by all whitespace-separated input words, case
+insensitively; oldest entries are above newest entries. Esc and Down beyond the
+newest result restore the exact pre-search draft and selection. Accepting a
+history item edits the draft and can be undone; it does not submit. The editor's
+ghost suffix is painted separately from `TextEditingValue`, clipboard and
+submission. It is suppressed for selections, composition, nonterminal cursor
+positions, menus and inactive/running sessions. Right/Ctrl+F/Ctrl+E accept the
+suffix, Ctrl+Right accepts the next whitespace-delimited part.
 
 ZLE's fd callback cannot itself leave its input read loop. The adapter therefore
 prepares the payload on the private channel, temporarily binds NUL in its active

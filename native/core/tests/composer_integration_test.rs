@@ -72,13 +72,28 @@ fn composer_real_session_commits_once_in_current_zsh() {
     );
     let home = tempfile::tempdir().unwrap();
     std::fs::write(home.path().join("hello world.txt"), "fixture").unwrap();
-    std::fs::write(home.path().join(".zshrc"), "PROMPT='test> '\nRPROMPT=''\n").unwrap();
+    std::fs::write(
+        home.path().join(".zshrc"),
+        "PROMPT='test> '\nRPROMPT=''\nHISTSIZE=100\nalias gc='git checkout'\n",
+    )
+    .unwrap();
     let mut config = config();
     config["config"]["launch"] = json!({"program":"/bin/zsh", "args":[],
         "cwd": home.path(), "env": {"HOME":home.path(), "ZDOTDIR":home.path(), "LANG":"en_US.UTF-8"}});
     let session = Session(session::create_session_v1(&config.to_string()).unwrap());
     let initial = wait_ready(session.0, None);
     let lease = initial["lease"].as_str().unwrap();
+    let alias_query = json!({"schemaVersion":1,"sessionEpoch":1,"targetId":session.0.to_string(),"contextRevision":1,"editorRevision":1,"selectionRevision":1,"catalogRevision":"ianvs-20260929-v1","policyRevision":0,"text":"g","cursorUtf16":1,"dialect":"zsh"});
+    let aliases = request(session.0, "completion.query", alias_query);
+    let alias = aliases["payload"]["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|item| item["label"] == "gc")
+        .expect("live shell alias");
+    assert_eq!(alias["kind"], "alias");
+    assert_eq!(alias["detail"], "git checkout");
+    assert_eq!(alias["newText"], "gc");
     let local_query = json!({"schemaVersion":1,"sessionEpoch":1,"targetId":session.0.to_string(),"contextRevision":1,"editorRevision":1,"selectionRevision":1,"catalogRevision":"ianvs-20260929-v1","policyRevision":1,"text":"cat he","cursorUtf16":6,"dialect":"zsh"});
     let start = request(
         session.0,
@@ -107,6 +122,11 @@ fn composer_real_session_commits_once_in_current_zsh() {
     );
     let after = wait_ready(session.0, Some(lease));
     assert_eq!(after["outcome"], "accepted");
+    assert_eq!(
+        after["history"][0],
+        "export COMPOSER_TEST=retained; cd /tmp"
+    );
+    assert!(after["historyRevision"].as_u64().unwrap() > 0);
     assert!(matches!(
         after["cwd"].as_str(),
         Some("/tmp" | "/private/tmp")
@@ -121,7 +141,8 @@ fn composer_real_session_commits_once_in_current_zsh() {
         request(session.0, "composer.submit", submit)["payload"]["outcome"],
         "pending"
     );
-    wait_ready(session.0, Some(lease));
+    let second = wait_ready(session.0, Some(lease));
+    assert_eq!(second["history"][0], "print COMPOSER_VALUE:$COMPOSER_TEST");
     let history: Value = serde_json::from_str(
         &session::search_session(session.0, "COMPOSER_VALUE:retained").unwrap(),
     )
@@ -132,4 +153,7 @@ fn composer_real_session_commits_once_in_current_zsh() {
         request(session.0, "composer.state", json!({}))["payload"]["state"],
         "ready"
     );
+    session::write_session(session.0, " 中文 😀\r".as_bytes()).unwrap();
+    let raw = wait_ready(session.0, second["lease"].as_str());
+    assert_eq!(raw["history"][0], "echo raw 中文 😀");
 }

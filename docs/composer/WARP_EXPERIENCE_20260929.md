@@ -2,6 +2,10 @@
 
 状态：**已补充官方视频观察；本机 Warp 对照与对齐验收仍未完成**。记录日期：2026-09-29。
 
+用户随后把当前目标改为按已观察的视频实现交互与 UI；该轮实现和 Composer 验证
+见[视频对齐实现](WARP_VIDEO_ALIGNMENT_20260929.md)。本文件保留此前本机 Warp 对照的
+完整矩阵与访问限制，不把旧目标的访问阻塞当成新实现工作的阻塞。
+
 目标是通过真实 Warp 操作记录来改进 Composer。当前准备的用例、官方文档和
 Composer 测试不能代替 Warp 实测，也不能据此宣称两者交互一致。
 
@@ -81,10 +85,10 @@ python3 tools/composer/create_experience_fixture.py --parent /private/tmp
 | 08 | `ls ./dcm` → Tab | 非连续字符匹配、匹配高亮、排序 | 本地 provider 仅前缀匹配，尚无路径模糊匹配 |
 | 09 | `git st`、`git --v` 分别 Tab | 子命令/选项说明、可用宽度、接受后空格 | 静态 catalog 已有；显示与插入细节待实测 |
 | 10 | `git checkout feat` → Tab | 分支名称、分支类型、是否需要网络 | 当前仅迁移静态 catalog，没有动态 Git 分支 provider |
-| 11 | 执行 `alias ll='ls -l'`，再输入 `ll ./` → Tab | alias 展开后是否仍有相同候选 | 当前根命令只查 catalog，无会话 alias 解析 |
+| 11 | 执行 `alias ll='ls -l'`，再输入 `ll ./` → Tab | alias 展开后是否仍有相同候选 | 已有会话 alias 名称和定义说明；仍不展开 alias 参数上下文 |
 | 12 | `npm run te` → Tab | script 名称、说明、候选接受 | 已有有界 package.json 读取；需与 Warp 同状态对比 |
 | 13 | 输入 `git sta --short`，将光标放在 `sta` 后 Tab | 中间替换、右侧参数保留、撤销后光标 | 已有组件/应用回归；需 Warp 对照 |
-| 14 | 依次执行 `printf 'first\n'`、`printf 'second\n'`，↑/↓/Ctrl+R | 历史顺序、按前缀过滤、退出后恢复原草稿 | Composer 未实现命令历史召回；原终端输出搜索不等于历史输入 |
+| 14 | 依次执行 `printf 'first\n'`、`printf 'second\n'`，↑/↓/Ctrl+R | 历史顺序、按前缀过滤、退出后恢复原草稿 | 已有会话历史、过滤、选择、取消恢复及真实应用回归；Warp 同条件对照仍待完成 |
 | 15 | `printf 'one\n'`，Shift+Enter，再输入 `printf 'two\n'` | 多行高度、换行键、粘贴换行、一次提交、撤销 | 有多行/IME/提交回归；真实输入与视觉仍待对照 |
 | 16 | 编辑中 Ctrl+C；执行 `sleep 10` 后 Ctrl+C | 清空草稿与中断运行如何区分、焦点落点 | Composer Ctrl+C 仅清草稿；运行输入需回原终端，需对齐体验 |
 | 17 | 执行不存在的 `composer_fixture_missing`；执行 `printf 'line %s\n' {1..40}` | 错误、输出滚动、输入区是否遮挡、恢复编辑 | 保留原终端输出；尚无同状态 Warp 比较 |

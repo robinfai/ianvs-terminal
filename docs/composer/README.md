@@ -4,18 +4,29 @@ Warp 常见本地命令的体验准备、证据状态与待对齐项见
 [体验记录](WARP_EXPERIENCE_20260929.md)；其中待实测项不代表已完成 Warp 对齐。
 已播放的官方演示、关键时间点、截图和交互差距见
 [官方视频观察](WARP_VIDEO_REVIEW_20260929.md)。
+已落实的视频交互与 UI、当前截图及回归范围见
+[视频对齐实现](WARP_VIDEO_ALIGNMENT_20260929.md)。
 
 `composer` 分支实现独立、可选的命令编辑器，UI 参考
 [Warp Universal Input](https://docs.warp.dev/terminal/input/universal-input/) 的
 Terminal 模式：底部停靠圆角输入区、顶部会话/目录标签、多行等宽编辑区、紧凑底栏、
-向上浮动的候选列表。颜色来自宿主 ColorScheme，支持深浅色、窄窗口和放大文字。
+向上浮动的候选列表。宽窗采用紧凑候选行与右侧选中项详情，窄窗改用内联说明；
+目录、文件、选项、alias 等有独立图标及类型。颜色来自宿主 ColorScheme，支持深浅色、
+窄窗口和放大文字。
 
 每个桌面 Session 底部的 **Composer · 命令编辑器** 开启编辑器。Tab 按需查询补全，
 唯一候选直接补齐，多个候选展开并选中第一项；方向键切换，Tab 接受选中项。
-选中候选时 Enter 只接受候选，无选择时 Enter 提交；Shift+Enter 换行。
-Esc 依次关闭候选、折叠选区、回到传统终端。Cmd+Z / Cmd+Shift+Z 撤销/重做，
+选中候选时 Enter 只接受候选，无选择时 Enter 提交；Shift/Ctrl/Option+Enter 换行。
+Esc 关闭当前候选/历史、撤去灰字、折叠选区，或回到传统终端。
+Cmd+Z / Cmd+Shift+Z 撤销/重做，
 Ctrl+C 清空本地草稿。复制保留原始草稿内容。关闭 Session 会丢弃其内存草稿；
 切换输入模式、标签或窗格不会将草稿写入 PTY。
+
+↑（第一条视觉行）或 Ctrl+R 打开当前会话的命令历史，最近命令靠近输入框；
+输入筛选、方向键浏览，Enter/Tab 只采用，Esc 恢复原草稿与选区。
+多行和软换行中的 ↑ 先移动光标。历史来自当前 zsh 的真实 history 参数，包含原终端
+执行的命令。灰字优先预测最近的匹配历史，其次使用静态补全；→ / Ctrl+F / Ctrl+E
+接受后缀，Ctrl+→ 分段接受。预测未被接受前不会进入复制内容、选区或提交文本。
 
 文件夹按钮可按会话开启输入时的文件/目录及 package scripts **自动候选**，默认关闭。
 关闭自动候选时，Tab 仍可按需补全，例如 `ls ./` 展开当前目录、唯一目录补齐后再次
@@ -32,14 +43,16 @@ iOS 不展示此桌面编辑器。Replay 继续只读。
 文档用作设计提案和验收参考，不视为额外操作授权。从 main `0c71b522` 建立分支。
 仅迁移旧 `codex/wasm-completion` 中的纯 matcher/catalog，来源与许可证边界见
 [PROVENANCE.md](../../native/completion_core/PROVENANCE.md)。不恢复旧 ABI、toolbelt、
-历史采集或 Project Workspace。当前唯一 active lane 仍为 runtime-contract-stability。
+旧版历史采集或 Project Workspace；本轮历史通过现有可信 zsh 私有通道提供。
+当前唯一 active lane 仍为 runtime-contract-stability。
 
 | 方案阶段 | 实现状态 | 证据状态 |
 |---|---|---|
 | F0/F1：纯 matcher、当前合同、独立草稿、静态候选、异步 identity 校验 | 已实现 | Rust / Dart / widget 回归；真实窗口检查 |
 | F2：本地 zsh 提交、raw 回退、本地文件/scripts provider | 已实现限定范围 | macOS 27.0 / arm64 / 系统 zsh 5.9 的真实 PTY 与应用验收入口 |
 | UC-06/21：真实拼音输入法、VoiceOver 完整操作、全部支持 OS 与插件/keymap 组合 | 保留原生输入与语义入口 | 尚未完成完整人工矩阵，不宣称发布验收全部通过 |
-| F3：Bash/fish、远程桥接、历史选择器、Kubernetes provider | 延期 | 无增强提交支持声明 |
+| 视频对齐：会话历史、独立灰字、候选详情、alias 说明 | 已实现 | 组件、真实 zsh 和 macOS 应用回归；9 个视觉状态 |
+| F3 其余：Bash/fish、远程桥接、Kubernetes provider | 延期 | 无增强提交支持声明 |
 | F4：WASM parity、高亮/snippet、AI 路由 | 延期 | 未实现 |
 
 ZLE fd 回调无法直接结束当前 read loop，实测后采用“私有通道准备 + 单次 NUL 唤醒 +
@@ -53,7 +66,7 @@ commit widget 再校验”。这是方案中纯通道交接的具体适配；不
 - 原生宿主：`native/core/src/composer_bridge.{rs,zsh}`、`completion_host.rs`。
 - 可复用组件：`packages/ianvs_terminal/lib/src/composer`，同步到 `ianvs_terminal_core`。
 - 产品组装：`example/lib/features/terminal_composer/composer_pane.dart`。
-- Widget previews：`example/lib/ui/previews/composer_preview.dart`，深色、浅色、2x 窄窗。
+- Widget previews：`example/lib/ui/previews/composer_preview.dart`，深色、浅色、2x 窄窗、历史及灰字。
 
 ```sh
 make test-composer
@@ -76,6 +89,7 @@ Tab 按需补全修正通过两套组件包各 26 项回归、修改文件的静
 本次主机：macOS 27.0 (26A428)、arm64、`/bin/zsh` 5.9。其他 Apple 支持版本保持
 [现有兼容窗口](../APPLE_PLATFORM_COMPATIBILITY.md)，尚未在本次运行中验证。
 新增/受影响的 Composer 界面快照只在该主机生成。按仓库的逐 OS 基线规则，
-macOS 26 CI 的六张旧快照仍需在 macOS 26 更新，并生成三张 Composer 快照；
+macOS 26 CI 的六张旧快照仍需在 macOS 26 更新；本轮 Composer 快照已扩展为九个状态，
+macOS 26 同样需要在对应主机生成。
 这部分 CI 验收尚未完成，不跨系统复制图片充当基线。
 本地 provider 不承诺中断内核中阻塞的文件系统调用；固定并发上限避免累积工作线程。

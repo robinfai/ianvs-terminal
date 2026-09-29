@@ -46,6 +46,13 @@ struct BridgeState {
     wake_issued: bool,
     submitted_at: Option<Instant>,
     outcomes: VecDeque<(String, String)>,
+    history: Vec<String>,
+    history_revision: u64,
+    pending_history: Option<Vec<String>>,
+    pending_history_bytes: usize,
+    aliases: Vec<(String, String)>,
+    pending_aliases: Option<Vec<(String, String)>>,
+    pending_alias_bytes: usize,
 }
 
 impl ComposerBridge {
@@ -78,6 +85,13 @@ impl ComposerBridge {
                     wake_issued: false,
                     submitted_at: None,
                     outcomes: VecDeque::new(),
+                    history: Vec::new(),
+                    history_revision: 0,
+                    pending_history: None,
+                    pending_history_bytes: 0,
+                    aliases: Vec::new(),
+                    pending_aliases: None,
+                    pending_alias_bytes: 0,
                 }),
             }),
             script,
@@ -96,7 +110,17 @@ impl ComposerBridge {
         let mut state = self.inner.lock().unwrap();
         self.poll(&mut state);
         json!({"state": state.state, "lease": state.epoch.as_ref().map(|e| format!("{}.{e}", self.nonce)),
-            "cwd": state.cwd, "dialect": "zsh", "submissionId": state.submission_id, "outcome": state.outcome})
+            "cwd": state.cwd, "dialect": "zsh", "submissionId": state.submission_id, "outcome": state.outcome,
+            "history": state.history, "historyRevision": state.history_revision})
+    }
+
+    pub(crate) fn aliases(&self) -> Vec<(String, String)> {
+        let mut state = self.inner.lock().unwrap();
+        self.poll(&mut state);
+        if state.closed {
+            return vec![];
+        }
+        state.aliases.clone()
     }
 
     /// Consume the single harmless wake byte only after ZLE has acknowledged
@@ -205,6 +229,8 @@ impl ComposerBridge {
             state.stream = None;
         }
         state.input.clear();
+        state.pending_history = None;
+        state.pending_aliases = None;
     }
 
     fn expire(&self, state: &mut BridgeState) {
@@ -270,6 +296,68 @@ impl ComposerBridge {
                 continue;
             }
             match fields.as_slice() {
+                ["history-begin"] if state.pending_history.is_none() => {
+                    state.pending_history = Some(Vec::new());
+                    state.pending_history_bytes = 0;
+                }
+                ["history", hex] if state.pending_history.is_some() => {
+                    let Some(command) = decode_hex(hex) else {
+                        Self::close(state);
+                        return;
+                    };
+                    state.pending_history_bytes += command.len();
+                    let history = state.pending_history.as_mut().unwrap();
+                    if history.len() >= 100 || state.pending_history_bytes > 8192 {
+                        Self::close(state);
+                        return;
+                    }
+                    // Optional shell data must not disable submission merely
+                    // because history contains literal terminal controls.
+                    if !command.trim().is_empty()
+                        && !command.starts_with(char::is_whitespace)
+                        && !command
+                            .chars()
+                            .any(|c| c.is_control() && c != '\n' && c != '\t')
+                    {
+                        history.push(command);
+                    }
+                }
+                ["history-end"] if state.pending_history.is_some() => {
+                    let history = state.pending_history.take().unwrap();
+                    if state.history != history {
+                        state.history = history;
+                        state.history_revision += 1;
+                    }
+                }
+                ["aliases-begin"] if state.pending_aliases.is_none() => {
+                    state.pending_aliases = Some(Vec::new());
+                    state.pending_alias_bytes = 0;
+                }
+                ["alias", name, value] if state.pending_aliases.is_some() => {
+                    let (Some(name), Some(value)) = (decode_hex(name), decode_hex(value)) else {
+                        Self::close(state);
+                        return;
+                    };
+                    state.pending_alias_bytes += name.len() + value.len();
+                    let aliases = state.pending_aliases.as_mut().unwrap();
+                    if aliases.len() >= 64 || state.pending_alias_bytes > 2048 {
+                        Self::close(state);
+                        return;
+                    }
+                    if !name.is_empty()
+                        && name.len() <= 128
+                        && value.len() <= 1024
+                        && name
+                            .chars()
+                            .all(|c| c.is_alphanumeric() || "_-".contains(c))
+                        && !value.chars().any(char::is_control)
+                    {
+                        aliases.push((name, value));
+                    }
+                }
+                ["aliases-end"] if state.pending_aliases.is_some() => {
+                    state.aliases = state.pending_aliases.take().unwrap();
+                }
                 ["ready", epoch, cwd] if epoch.parse::<u64>().is_ok() && epoch.len() <= 20 => {
                     let Some(cwd) = decode_hex(cwd).filter(|v| {
                         v.len() <= 4096 && v.starts_with('/') && !v.chars().any(char::is_control)
@@ -397,5 +485,40 @@ mod tests {
             "rejected"
         );
         assert_eq!(bridge.snapshot()["state"], "ready");
+    }
+    #[test]
+    fn history_is_atomic_and_optional_controls_are_ignored() {
+        let (bridge, mut shell) = connected();
+        shell
+            .write_all(b"history-begin\nhistory\t6563686f206f6b\n")
+            .unwrap();
+        assert_eq!(bridge.snapshot()["history"], json!([]));
+        shell.write_all(b"history\t1b5b6d\nhistory-end\n").unwrap();
+        let snapshot = bridge.snapshot();
+        assert_eq!(snapshot["state"], "ready");
+        assert_eq!(snapshot["history"], json!(["echo ok"]));
+        assert_eq!(snapshot["historyRevision"], 1);
+        shell
+            .write_all(b"history-begin\nhistory\t6563686f206f6b\nhistory-end\n")
+            .unwrap();
+        assert_eq!(bridge.snapshot()["historyRevision"], 1);
+        shell
+            .write_all(b"aliases-begin\nalias\t6763\t67697420636865636b6f7574\naliases-end\n")
+            .unwrap();
+        assert_eq!(bridge.aliases(), vec![("gc".into(), "git checkout".into())]);
+    }
+    #[test]
+    fn oversized_history_snapshot_revokes_the_channel() {
+        let (bridge, mut shell) = connected();
+        let command = "61".repeat(3000);
+        shell.write_all(b"history-begin\n").unwrap();
+        for _ in 0..3 {
+            shell
+                .write_all(format!("history\t{command}\n").as_bytes())
+                .unwrap();
+            bridge.snapshot();
+        }
+        assert_ne!(bridge.snapshot()["state"], "ready");
+        assert_eq!(bridge.snapshot()["history"], json!([]));
     }
 }

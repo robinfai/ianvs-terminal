@@ -24,9 +24,9 @@ void main() {
     (tester) async {
       ensureMacosIntegrationTestFramesEnabled(tester.binding);
       final home = await Directory.systemTemp.createTemp('composer-ui-');
-      await File(
-        '${home.path}/.zshrc',
-      ).writeAsString("PROMPT='composer> '\nRPROMPT=''\n");
+      await File('${home.path}/.zshrc').writeAsString(
+        "PROMPT='composer> '\nRPROMPT=''\nHISTSIZE=100\nalias gc='git checkout'\nprint -s -- 'printf history-example'\n",
+      );
       await File('${home.path}/hello world.txt').writeAsString('fixture');
       await Directory(
         '${home.path}/documents/nested folder',
@@ -88,6 +88,40 @@ void main() {
           .widget<TerminalComposerView>(find.byType(TerminalComposerView))
           .controller;
       await until(tester, () => model.ownership == ComposerOwnership.ready);
+      // History comes from this shell, before Composer has submitted anything.
+      final initialLease = model.readyLease;
+      await tester.enterText(editor, 'printf');
+      await until(tester, () => model.inlineSuggestion == ' history-example');
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      expect(model.editor.text, 'printf history-example');
+      expect(model.readyLease, initialLease);
+      await tester.enterText(editor, 'history-example');
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyR);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pump();
+      expect(model.historyItems, ['printf history-example']);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      expect(model.editor.text, 'history-example');
+      await tester.enterText(editor, 'printf');
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      expect(model.editor.text, 'printf history-example');
+      expect(model.readyLease, initialLease);
+      await tester.enterText(editor, 'g');
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await until(
+        tester,
+        () => model.items.any(
+          (item) => item.kind == 'alias' && item.label == 'gc',
+        ),
+      );
+      final alias = model.items.firstWhere((item) => item.label == 'gc');
+      expect(alias.detail, 'git checkout');
+      model.highlightCompletion(alias);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      expect(model.editor.text, 'gc');
+      expect(model.readyLease, initialLease);
       await tester.enterText(editor, 'git che --help');
       model.editor.selection = const TextSelection.collapsed(offset: 7);
       await until(tester, () => model.items.any((e) => e.label == 'checkout'));

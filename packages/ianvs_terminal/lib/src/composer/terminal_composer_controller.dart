@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import 'completion_models.dart';
@@ -27,6 +28,7 @@ typedef _CompletionRequest = ({
   CompletionQuery query,
   bool localSuggestions,
   bool fromTab,
+  bool showMenu,
 });
 
 /// A pane-scoped local document. It deliberately has no terminal input sink.
@@ -77,6 +79,174 @@ final class TerminalComposerController extends ChangeNotifier {
   String cwd = '';
   ComposerOwnership ownership = ComposerOwnership.draft;
   ComposerSubmission? pendingSubmission;
+  bool _completionMenuOpen = false;
+  List<String> _history = const [];
+  List<String> _historyItems = const [];
+  TextEditingValue? _historyDraft;
+  String? _selectedHistory;
+  CompletionQuery? _dismissedInline;
+
+  bool get completionMenuOpen => _completionMenuOpen && items.isNotEmpty;
+  bool get historyOpen => _historyDraft != null;
+  List<String> get historyItems => _historyItems;
+  int get historySelectedIndex => _historyItems.indexOf(_selectedHistory ?? '');
+  String get historyFilter => editor.text;
+  bool get _canSuggest =>
+      !_disposed &&
+      _active &&
+      (ownership == ComposerOwnership.ready ||
+          ownership == ComposerOwnership.draft);
+
+  /// Newest first, per session, and never persisted by the editor. Hosts may
+  /// supply the live shell's history, including commands entered through ZLE.
+  void updateHistory(Iterable<String> commands) {
+    if (_disposed) return;
+    final unique = <String>{};
+    var size = 0;
+    for (final command in commands.take(200)) {
+      if (command.trim().isEmpty ||
+          command.startsWith(RegExp(r'\s')) ||
+          command.length > 65536 ||
+          command.codeUnits.any(
+            (c) => (c < 32 && c != 10 && c != 9) || (c >= 127 && c <= 159),
+          )) {
+        continue;
+      }
+      if (size + command.length > 131072) break;
+      if (unique.add(command)) size += command.length;
+    }
+    final next = unique.toList(growable: false);
+    if (listEquals(next, _history)) return;
+    _history = List.unmodifiable(next);
+    if (historyOpen) _filterHistory();
+    notifyListeners();
+  }
+
+  void openHistory() {
+    if (!_canSuggest || !editor.value.composing.isCollapsed) return;
+    if (!historyOpen) _historyDraft = editor.value;
+    dismissCompletions(notify: false);
+    _filterHistory();
+    notifyListeners();
+  }
+
+  void _filterHistory() {
+    final words = editor.text.toLowerCase().trim().split(RegExp(r'\s+'));
+    // Oldest above, newest nearest the input, so repeated Up goes back in time.
+    _historyItems = List.unmodifiable(
+      _history.reversed.where((command) {
+        final text = command.toLowerCase();
+        return words.every(text.contains);
+      }),
+    );
+    if (!_historyItems.contains(_selectedHistory)) {
+      _selectedHistory = _historyItems.isEmpty ? null : _historyItems.last;
+    }
+  }
+
+  void selectHistory(int delta) {
+    if (!historyOpen) {
+      openHistory();
+      return;
+    }
+    if (_historyItems.isEmpty) return;
+    final next = historySelectedIndex + delta;
+    if (next >= _historyItems.length) {
+      dismissHistory();
+      return;
+    }
+    _selectedHistory = _historyItems[next.clamp(0, _historyItems.length - 1)];
+    notifyListeners();
+  }
+
+  void highlightHistory(String command) {
+    if (historyOpen && _historyItems.contains(command)) {
+      _selectedHistory = command;
+      notifyListeners();
+    }
+  }
+
+  bool acceptHistory([String? command]) {
+    final selected = command ?? _selectedHistory;
+    if (!historyOpen ||
+        !editor.value.composing.isCollapsed ||
+        selected == null ||
+        !_historyItems.contains(selected)) {
+      return false;
+    }
+    dismissHistory(notify: false);
+    editor.value = TextEditingValue(
+      text: selected,
+      selection: TextSelection.collapsed(offset: selected.length),
+    );
+    dismissCompletions(notify: false);
+    _dismissedInline = snapshot;
+    notifyListeners();
+    return true;
+  }
+
+  void dismissHistory({bool notify = true}) {
+    final draft = _historyDraft;
+    if (draft == null) return;
+    _restoring = true;
+    editor.value = draft;
+    _restoring = false;
+    _historyDraft = null;
+    _historyItems = const [];
+    _selectedHistory = null;
+    _dismissedInline = snapshot;
+    if (notify) notifyListeners();
+  }
+
+  /// A preview suffix, never part of TextEditingValue, clipboard or submission.
+  String get inlineSuggestion {
+    final value = editor.value;
+    if (!_canSuggest ||
+        historyOpen ||
+        completionMenuOpen ||
+        !snapshot.canComplete ||
+        value.text.isEmpty ||
+        value.selection.end != value.text.length ||
+        _dismissedInline?.matches(snapshot) == true) {
+      return '';
+    }
+    for (final command in _history) {
+      if (command.length > value.text.length &&
+          command.startsWith(value.text)) {
+        return command.substring(value.text.length);
+      }
+    }
+    if (_batch?.query.matches(snapshot) != true) return '';
+    for (final item in items) {
+      final result = _completionValue(item);
+      if (result != null &&
+          result.selection.end == result.text.length &&
+          result.text.startsWith(value.text) &&
+          result.text.length > value.text.length) {
+        return result.text.substring(value.text.length);
+      }
+    }
+    return '';
+  }
+
+  bool acceptInline({bool partial = false}) {
+    final suffix = inlineSuggestion;
+    if (suffix.isEmpty) return false;
+    final part = partial
+        ? (RegExp(r'^\s*\S+\s*').firstMatch(suffix)?.group(0) ?? suffix)
+        : suffix;
+    final result = editor.text + part;
+    editor.value = TextEditingValue(
+      text: result,
+      selection: TextSelection.collapsed(offset: result.length),
+    );
+    return true;
+  }
+
+  void dismissInline() {
+    _dismissedInline = snapshot;
+    notifyListeners();
+  }
 
   List<CompletionEdit> get items => _batch?.items ?? const [];
   int get selectedIndex =>
@@ -87,6 +257,7 @@ final class TerminalComposerController extends ChangeNotifier {
       ownership == ComposerOwnership.ready &&
       _lease != null &&
       submit != null &&
+      !historyOpen &&
       editor.text.trim().isNotEmpty &&
       editor.value.composing.isCollapsed;
   bool get canUndo => _undo.isNotEmpty;
@@ -110,7 +281,9 @@ final class TerminalComposerController extends ChangeNotifier {
     _localSuggestions = !_localSuggestions;
     _policyRevision++;
     dismissCompletions();
-    if (_active && editor.text.isNotEmpty) requestCompletions();
+    if (_active && editor.text.isNotEmpty) {
+      _requestCompletions(fromTab: false, showMenu: _localSuggestions);
+    }
   }
 
   CompletionQuery get snapshot => CompletionQuery(
@@ -129,7 +302,7 @@ final class TerminalComposerController extends ChangeNotifier {
     if (next == _previous) return;
     if (next.text != _previous.text) {
       _editorRevision++;
-      if (!_restoring && _previous.composing.isCollapsed) {
+      if (!_restoring && !historyOpen && _previous.composing.isCollapsed) {
         _undo.add(_previous);
         if (_undo.length > 200) _undo.removeAt(0);
         _redo.clear();
@@ -142,8 +315,13 @@ final class TerminalComposerController extends ChangeNotifier {
     _previous = next;
     if (status == 'no_completions') status = '';
     dismissCompletions(notify: false);
-    if (_active && snapshot.canComplete && next.text.isNotEmpty) {
-      _timer = Timer(debounce, requestCompletions);
+    if (historyOpen) {
+      _filterHistory();
+    } else if (_active && snapshot.canComplete && next.text.isNotEmpty) {
+      _timer = Timer(
+        debounce,
+        () => _requestCompletions(fromTab: false, showMenu: _localSuggestions),
+      );
     }
     notifyListeners();
   }
@@ -161,6 +339,7 @@ final class TerminalComposerController extends ChangeNotifier {
         _contextKey != contextKey || this.cwd != cwd || _dialect != dialect;
     if (!changed && this.ownership == ownership && _lease == lease) return;
     if (changed) {
+      dismissHistory(notify: false);
       _contextRevision++;
       dismissCompletions(notify: false);
     }
@@ -180,7 +359,10 @@ final class TerminalComposerController extends ChangeNotifier {
     if (_disposed) return;
     if (_active == active) return;
     _active = active;
-    if (!active) dismissCompletions();
+    if (!active) {
+      dismissHistory(notify: false);
+      dismissCompletions();
+    }
   }
 
   /// Providers may publish static candidates before optional IO completes.
@@ -197,6 +379,8 @@ final class TerminalComposerController extends ChangeNotifier {
       return;
     }
     _batch = result;
+    _completionMenuOpen =
+        _completionMenuOpen || _currentRequest?.showMenu == true;
     if (!items.any((item) => item.itemId == _selectedId)) _selectedId = null;
     status = result.status == 'unsupported_context'
         ? 'unsupported_context'
@@ -204,11 +388,16 @@ final class TerminalComposerController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void requestCompletions() => _requestCompletions(fromTab: false);
+  void requestCompletions() =>
+      _requestCompletions(fromTab: false, showMenu: true);
 
   /// Tab completes once or opens the final candidate list for selection.
   /// Ignore a second Tab while the first is still waiting on local IO.
   void completeOnTab() {
+    if (historyOpen) {
+      acceptHistory();
+      return;
+    }
     if (_disposed ||
         !_active ||
         !snapshot.canComplete ||
@@ -223,14 +412,15 @@ final class TerminalComposerController extends ChangeNotifier {
       accept();
       return;
     }
-    _requestCompletions(fromTab: true);
+    _requestCompletions(fromTab: true, showMenu: true);
   }
 
-  void _requestCompletions({required bool fromTab}) {
+  void _requestCompletions({required bool fromTab, required bool showMenu}) {
     _timer?.cancel();
     final query = snapshot;
     if (_disposed ||
         !_active ||
+        historyOpen ||
         !query.canComplete ||
         ownership == ComposerOwnership.running ||
         ownership == ComposerOwnership.suspended ||
@@ -242,6 +432,7 @@ final class TerminalComposerController extends ChangeNotifier {
       query: query,
       localSuggestions: _localSuggestions || fromTab,
       fromTab: fromTab,
+      showMenu: showMenu,
     );
     if (!_inFlight) unawaited(_drain());
   }
@@ -302,12 +493,21 @@ final class TerminalComposerController extends ChangeNotifier {
       return;
     }
     final index = selectedIndex;
+    _completionMenuOpen = true;
     _selectedId =
         items[(index < 0
                 ? (delta > 0 ? 0 : items.length - 1)
                 : (index + delta) % items.length)]
             .itemId;
     notifyListeners();
+  }
+
+  void highlightCompletion(CompletionEdit item) {
+    if (_batch?.query.matches(snapshot) == true && items.contains(item)) {
+      _selectedId = item.itemId;
+      _completionMenuOpen = true;
+      notifyListeners();
+    }
   }
 
   bool accept([CompletionEdit? edit]) {
@@ -321,6 +521,14 @@ final class TerminalComposerController extends ChangeNotifier {
         !snapshot.canComplete) {
       return false;
     }
+    final result = _completionValue(candidate);
+    if (result == null) return false;
+    editor.value = result;
+    dismissCompletions();
+    return true;
+  }
+
+  TextEditingValue? _completionValue(CompletionEdit candidate) {
     final text = editor.text;
     if (candidate.start < 0 ||
         candidate.end < candidate.start ||
@@ -330,7 +538,7 @@ final class TerminalComposerController extends ChangeNotifier {
         candidate.newText.codeUnits.any(
           (c) => c < 32 || (c >= 127 && c <= 159),
         )) {
-      return false;
+      return null;
     }
     final result = text.replaceRange(
       candidate.start,
@@ -340,14 +548,12 @@ final class TerminalComposerController extends ChangeNotifier {
     if (candidate.cursor < candidate.start ||
         candidate.cursor > candidate.start + candidate.newText.length ||
         !_boundary(result, candidate.cursor)) {
-      return false;
+      return null;
     }
-    editor.value = TextEditingValue(
+    return TextEditingValue(
       text: result,
       selection: TextSelection.collapsed(offset: candidate.cursor),
     );
-    dismissCompletions();
-    return true;
   }
 
   static bool _boundary(String text, int offset) {
@@ -365,6 +571,7 @@ final class TerminalComposerController extends ChangeNotifier {
     _queued = null;
     _batch = null;
     _selectedId = null;
+    _completionMenuOpen = false;
     if (notify && !_disposed) notifyListeners();
   }
 
@@ -409,6 +616,7 @@ final class TerminalComposerController extends ChangeNotifier {
     if (_disposed) return;
     switch (outcome) {
       case ComposerSubmissionOutcome.accepted:
+        updateHistory([submission.query.value.text, ..._history]);
         if (editor.text == submission.query.value.text &&
             _editorRevision == submission.query.editorRevision) {
           editor.clear();
