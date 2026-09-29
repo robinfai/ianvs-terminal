@@ -58,6 +58,7 @@ final class TerminalComposerController extends ChangeNotifier {
   final List<TextEditingValue> _redo = [];
   int _editorRevision = 0;
   int _selectionRevision = 0;
+  int _selectionNavigationRevision = 0;
   int _contextRevision = 0;
   int _submissionSerial = 0;
   int _policyRevision = 0;
@@ -91,6 +92,10 @@ final class TerminalComposerController extends ChangeNotifier {
   List<String> get historyItems => _historyItems;
   int get historySelectedIndex => _historyItems.indexOf(_selectedHistory ?? '');
   String get historyFilter => editor.text;
+
+  /// Explicit navigation/filtering requests that should reveal the selection.
+  /// Pointer highlighting and background updates must not interrupt scrolling.
+  int get selectionNavigationRevision => _selectionNavigationRevision;
   bool get _canSuggest =>
       !_disposed &&
       _active &&
@@ -127,6 +132,7 @@ final class TerminalComposerController extends ChangeNotifier {
     if (!historyOpen) _historyDraft = editor.value;
     dismissCompletions(notify: false);
     _filterHistory();
+    _selectionNavigationRevision++;
     notifyListeners();
   }
 
@@ -156,11 +162,14 @@ final class TerminalComposerController extends ChangeNotifier {
       return;
     }
     _selectedHistory = _historyItems[next.clamp(0, _historyItems.length - 1)];
+    _selectionNavigationRevision++;
     notifyListeners();
   }
 
   void highlightHistory(String command) {
-    if (historyOpen && _historyItems.contains(command)) {
+    if (historyOpen &&
+        _selectedHistory != command &&
+        _historyItems.contains(command)) {
       _selectedHistory = command;
       notifyListeners();
     }
@@ -319,6 +328,7 @@ final class TerminalComposerController extends ChangeNotifier {
     dismissCompletions(notify: false);
     if (historyOpen) {
       _filterHistory();
+      _selectionNavigationRevision++;
     } else if (_active && snapshot.canComplete && next.text.isNotEmpty) {
       _timer = Timer(
         debounce,
@@ -510,11 +520,14 @@ final class TerminalComposerController extends ChangeNotifier {
                 ? (delta > 0 ? 0 : items.length - 1)
                 : (index + delta) % items.length)]
             .itemId;
+    _selectionNavigationRevision++;
     notifyListeners();
   }
 
   void highlightCompletion(CompletionEdit item) {
-    if (_batch?.query.matches(snapshot) == true && items.contains(item)) {
+    if (_batch?.query.matches(snapshot) == true &&
+        (_selectedId != item.itemId || !_completionMenuOpen) &&
+        items.contains(item)) {
       _selectedId = item.itemId;
       _completionMenuOpen = true;
       notifyListeners();

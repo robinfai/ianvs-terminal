@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -324,6 +325,121 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  for (final history in [true, false]) {
+    testWidgets(
+      '${history ? 'history' : 'completion'} trackpad scrolling survives hover and model updates',
+      (tester) async {
+        final model = TerminalComposerController(
+          targetId: 'scroll-session',
+          text: history ? '' : 'git ',
+          debounce: Duration.zero,
+          provider: (q, _) async => CompletionBatch(q, [
+            for (var i = 0; i < 80; i++)
+              CompletionEdit(
+                itemId: 'item-$i',
+                label: 'item-$i',
+                detail: '',
+                kind: 'subcommand',
+                source: 'test',
+                start: 4,
+                end: 4,
+                newText: 'item-$i',
+                cursor: 4 + 'item-$i'.length,
+              ),
+          ]),
+        );
+        addTearDown(model.dispose);
+        model.updateHistory(List.generate(80, (i) => 'command-$i'));
+        await show(tester, model);
+        if (history) {
+          model.openHistory();
+        } else {
+          model.requestCompletions();
+        }
+        await tester.pumpAndSettle();
+        if (!history) {
+          model.selectNext(-1);
+          await tester.pumpAndSettle();
+        }
+        final list = find.byKey(
+          Key(history ? 'composer-history-list' : 'composer-completion-list'),
+        );
+        final scroll = tester.widget<ListView>(list).controller!;
+        final point = tester.getCenter(list);
+        final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+        await mouse.addPointer(location: point);
+        await mouse.moveTo(point + const Offset(1, 0));
+        await tester.pumpAndSettle();
+        final selected = history
+            ? model.historySelectedIndex
+            : model.selectedIndex;
+        final trackpad = await tester.createGesture(
+          kind: PointerDeviceKind.trackpad,
+        );
+        await trackpad.panZoomStart(point);
+        await trackpad.panZoomUpdate(
+          point,
+          pan: const Offset(0, 40),
+          timeStamp: const Duration(milliseconds: 16),
+        );
+        await tester.pump(const Duration(milliseconds: 16));
+        final first = scroll.offset;
+        // Model notifications and rows moving under a stationary cursor must
+        // neither restore the keyboard selection nor cancel the active drag.
+        model.dismissInline();
+        await tester.pump(const Duration(milliseconds: 16));
+        expect(scroll.offset, closeTo(first, .01));
+        await trackpad.panZoomUpdate(
+          point,
+          pan: const Offset(0, 160),
+          timeStamp: const Duration(milliseconds: 48),
+        );
+        await tester.pump(const Duration(milliseconds: 16));
+        expect(scroll.offset, lessThan(first - 80));
+        expect(
+          history ? model.historySelectedIndex : model.selectedIndex,
+          selected,
+        );
+        await trackpad.panZoomEnd(timeStamp: const Duration(milliseconds: 64));
+        await tester.pumpAndSettle();
+        // Wheel-style trackpad deltas must also scroll freely with the pointer
+        // parked over the list, without snapping back to the selected row.
+        for (var i = 0; i < 3; i++) {
+          final before = scroll.offset;
+          await tester.sendEventToBinding(
+            PointerScrollEvent(
+              position: point,
+              scrollDelta: const Offset(0, 36),
+            ),
+          );
+          model.dismissInline();
+          await tester.pumpAndSettle();
+          expect(scroll.offset, closeTo(before + 36, .01));
+        }
+        expect(
+          history ? model.historySelectedIndex : model.selectedIndex,
+          selected,
+        );
+        await mouse.removePointer();
+        // Explicit keyboard navigation reclaims the viewport after scrolling.
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+        await tester.pumpAndSettle();
+        final index = history
+            ? model.historySelectedIndex
+            : model.selectedIndex;
+        final label = history
+            ? model.historyItems[index]
+            : model.items[index].label;
+        expect(
+          find.text(label, findRichText: true).hitTestable(),
+          findsWidgets,
+        );
+        expect(model.editor.text, history ? '' : 'git ');
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 
   testWidgets(
     'automatic menu stays closed while static suggestions remain inline',

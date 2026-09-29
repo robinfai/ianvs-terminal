@@ -4,6 +4,7 @@ import 'package:app/app.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/shell/shell_screen.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -25,7 +26,9 @@ void main() {
       ensureMacosIntegrationTestFramesEnabled(tester.binding);
       final home = await Directory.systemTemp.createTemp('composer-ui-');
       await File('${home.path}/.zshrc').writeAsString(
-        "PROMPT='composer> '\nRPROMPT=''\nHISTSIZE=100\nalias gc='git checkout'\nprint -s -- 'printf history-example'\n",
+        "PROMPT='composer> '\nRPROMPT=''\nHISTSIZE=100\nalias gc='git checkout'\n"
+        'for i in {1..60}; do print -s -- "echo scroll-fixture-\$i"; done\n'
+        "print -s -- 'printf history-example'\n",
       );
       await File('${home.path}/hello world.txt').writeAsString('fixture');
       await Directory(
@@ -262,6 +265,58 @@ void main() {
         () => terminalText().contains('COMPOSER_VALUE:retained'),
       );
       await until(tester, () => model.ownership == ComposerOwnership.ready);
+      await tester.enterText(editor, '');
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyR);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pumpAndSettle();
+      expect(model.historyItems.length, greaterThan(50));
+      final historyList = find.byKey(const Key('composer-history-list'));
+      final historyScroll = tester.widget<ListView>(historyList).controller!;
+      final historyPoint = tester.getCenter(historyList);
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: historyPoint);
+      await mouse.moveTo(historyPoint + const Offset(1, 0));
+      await tester.pumpAndSettle();
+      final historySelection = model.historySelectedIndex;
+      final trackpad = await tester.createGesture(
+        kind: PointerDeviceKind.trackpad,
+      );
+      await trackpad.panZoomStart(historyPoint);
+      await trackpad.panZoomUpdate(
+        historyPoint,
+        pan: const Offset(0, 40),
+        timeStamp: const Duration(milliseconds: 16),
+      );
+      await tester.pump(const Duration(milliseconds: 16));
+      var previousOffset = historyScroll.offset;
+      for (var step = 1; step <= 3; step++) {
+        await trackpad.panZoomUpdate(
+          historyPoint,
+          pan: Offset(0, 40.0 + 60 * step),
+          timeStamp: Duration(milliseconds: 16 + 16 * step),
+        );
+        await tester.pump(const Duration(milliseconds: 16));
+        expect(historyScroll.offset, lessThan(previousOffset - 40));
+        previousOffset = historyScroll.offset;
+      }
+      expect(model.historySelectedIndex, historySelection);
+      expect(model.editor.text, isEmpty);
+      await trackpad.panZoomEnd(timeStamp: const Duration(milliseconds: 80));
+      await mouse.removePointer();
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      await tester.pumpAndSettle();
+      expect(
+        find
+            .text(
+              model.historyItems[model.historySelectedIndex],
+              findRichText: true,
+            )
+            .hitTestable(),
+        findsOneWidget,
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.enterText(editor, 'saved draft');
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pump();

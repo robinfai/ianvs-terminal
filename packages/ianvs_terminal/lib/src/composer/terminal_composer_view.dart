@@ -78,6 +78,7 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
   final GlobalKey _anchorKey = GlobalKey();
   late FocusNode _focus;
   double _width = 320;
+  int _selectionNavigationRevision = -1;
   TerminalComposerController get model => widget.controller;
   String tr(String en, String zh) => widget.chinese ? zh : en;
   double get _menuWidth => (_width - ComposerTheme.inset * 2).clamp(0, 720);
@@ -115,6 +116,7 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
     if (oldWidget.controller != model) {
       oldWidget.controller.removeListener(_changed);
       model.addListener(_changed);
+      _selectionNavigationRevision = -1;
     }
   }
 
@@ -124,15 +126,23 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
         _focus.hasFocus &&
         (model.completionMenuOpen || model.historyOpen) &&
         model.editor.value.composing.isCollapsed;
-    if (show && !_overlay.isShowing) _overlay.show();
+    final opening = show && !_overlay.isShowing;
+    final navigation =
+        _selectionNavigationRevision != model.selectionNavigationRevision;
+    _selectionNavigationRevision = model.selectionNavigationRevision;
+    if (opening) _overlay.show();
     if (!show && _overlay.isShowing) _overlay.hide();
     setState(() {});
     final index = model.historyOpen
         ? model.historySelectedIndex
         : model.selectedIndex;
-    if (index >= 0) {
+    if (show && index >= 0 && (opening || navigation)) {
+      final revision = model.selectionNavigationRevision;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && _scroll.hasClients) {
+        if (mounted &&
+            _overlay.isShowing &&
+            _scroll.hasClients &&
+            model.selectionNavigationRevision == revision) {
           _revealSelection();
         }
       });
@@ -160,7 +170,9 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
         : bottom > position.pixels + position.viewportDimension
         ? bottom - position.viewportDimension
         : position.pixels;
-    _scroll.jumpTo(target.clamp(0, position.maxScrollExtent));
+    final offset = target.clamp(0.0, position.maxScrollExtent);
+    // Even a jump to the current offset cancels the trackpad drag/inertia.
+    if (offset != position.pixels) _scroll.jumpTo(offset);
   }
 
   KeyEventResult _key(FocusNode node, KeyEvent event) {

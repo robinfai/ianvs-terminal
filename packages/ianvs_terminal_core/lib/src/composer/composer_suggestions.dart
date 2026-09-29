@@ -313,7 +313,9 @@ class ComposerSuggestions extends StatelessWidget {
       label: semantic,
       child: ExcludeSemantics(
         child: MouseRegion(
-          onEnter: (_) => onHover(),
+          // A stationary pointer also receives enter events as rows scroll
+          // underneath it. Only actual pointer motion changes the selection.
+          onHover: (_) => onHover(),
           child: InkWell(
             canRequestFocus: false,
             onTap: onTap,
