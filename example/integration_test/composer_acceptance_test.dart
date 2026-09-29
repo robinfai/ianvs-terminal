@@ -104,6 +104,27 @@ void main() {
           .widget<TerminalComposerView>(find.byType(TerminalComposerView))
           .controller;
       await until(tester, () => model.ownership == ComposerOwnership.ready);
+      // Golden fixtures register a font named "monospace"; a native macOS
+      // host need not provide that alias. Verify the actual fallback remains
+      // fixed-width, rather than silently rendering shell text as UI prose.
+      final commandStyle = ComposerTheme.of(
+        tester.element(find.byType(TerminalComposerView)),
+      ).commandStyle;
+      double commandWidth(String text) {
+        final painter = TextPainter(
+          text: TextSpan(text: text, style: commandStyle),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        final width = painter.width;
+        painter.dispose();
+        return width;
+      }
+
+      expect(
+        commandWidth('iiiiiiii'),
+        closeTo(commandWidth('WWWWWWWW'), .01),
+        reason: 'Native Composer command text must resolve to a monospace font',
+      );
       // History comes from this shell, before Composer has submitted anything.
       final initialLease = model.readyLease;
       await tester.enterText(editor, 'printf');

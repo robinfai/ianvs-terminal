@@ -1,4 +1,6 @@
 export 'src/composer/completion_models.dart';
+export 'src/composer/composer_icons.dart';
+export 'src/composer/composer_theme.dart';
 export 'src/composer/terminal_composer_controller.dart';
 export 'src/composer/terminal_composer_view.dart';
 export 'src/config/terminal_config.dart';

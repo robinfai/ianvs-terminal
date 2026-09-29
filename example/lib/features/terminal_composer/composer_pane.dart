@@ -225,13 +225,25 @@ class _ComposerPaneState extends State<ComposerPane> {
       if (owner == ComposerOwnership.running ||
           owner == ComposerOwnership.suspended) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) widget.onTerminalFocus();
+          if (mounted &&
+              widget.active &&
+              widget.available &&
+              session.enabled &&
+              session.controller.ownership == owner) {
+            widget.onTerminalFocus();
+          }
         });
       } else if (owner == ComposerOwnership.ready &&
           (_lastOwnership == ComposerOwnership.running ||
               _lastOwnership == ComposerOwnership.suspended)) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _focus.requestFocus();
+          if (mounted &&
+              widget.active &&
+              widget.available &&
+              session.enabled &&
+              session.controller.ownership == ComposerOwnership.ready) {
+            _focus.requestFocus();
+          }
         });
       }
     }
@@ -243,6 +255,7 @@ class _ComposerPaneState extends State<ComposerPane> {
   Widget build(BuildContext context) {
     final zh = Localizations.localeOf(context).languageCode == 'zh';
     final controller = session.controller;
+    final tokens = ComposerTheme.of(context);
     final running =
         controller.ownership == ComposerOwnership.running ||
         controller.ownership == ComposerOwnership.suspended;
@@ -255,17 +268,30 @@ class _ComposerPaneState extends State<ComposerPane> {
           onPressed: !widget.available
               ? null
               : () {
+                  if (running) {
+                    widget.onTerminalFocus();
+                    return;
+                  }
                   session.enabled = !session.enabled;
                   session.setVisible(widget.active);
                   setState(() {});
                   if (session.enabled) _focus.requestFocus();
                 },
-          icon: const Icon(Icons.edit_note_rounded, size: 16),
+          icon: Icon(
+            running
+                ? ComposerIcons.forOwnership(controller.ownership)
+                : ComposerIcons.draft,
+            size: ComposerTheme.rowIconSize,
+          ),
           label: Text(
             running
-                ? (zh ? '运行中 · 传统输入' : 'Running · terminal input')
+                ? controller.ownership == ComposerOwnership.running
+                      ? (zh
+                            ? '命令运行中 · 终端输入'
+                            : 'Command running · terminal input')
+                      : (zh ? '终端正在接收输入' : 'Terminal has input')
                 : (zh ? 'Composer · 命令编辑器' : 'Composer · command editor'),
-            style: const TextStyle(fontSize: 11),
+            style: tokens.contextStyle,
           ),
         ),
       );

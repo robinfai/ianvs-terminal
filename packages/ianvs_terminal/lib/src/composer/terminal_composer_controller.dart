@@ -9,6 +9,8 @@ enum ComposerOwnership { draft, ready, submitting, running, suspended, unknown }
 
 enum ComposerSubmissionOutcome { accepted, rejected, unknown }
 
+enum ComposerPrimaryAction { disabled, acceptHistory, acceptCompletion, run }
+
 @immutable
 final class ComposerSubmission {
   const ComposerSubmission({
@@ -76,7 +78,8 @@ final class TerminalComposerController extends ChangeNotifier {
   String? _lease;
   String _contextKey = '';
   String _dialect = 'generic';
-  String status = '';
+  String _executionStatus = '';
+  String _completionStatus = '';
   String cwd = '';
   ComposerOwnership ownership = ComposerOwnership.draft;
   ComposerSubmission? pendingSubmission;
@@ -89,9 +92,39 @@ final class TerminalComposerController extends ChangeNotifier {
 
   bool get completionMenuOpen => _completionMenuOpen && items.isNotEmpty;
   bool get historyOpen => _historyDraft != null;
+  bool get canOpenHistory => _canSuggest && editor.value.composing.isCollapsed;
+  bool get hasHistory => _history.isNotEmpty;
   List<String> get historyItems => _historyItems;
   int get historySelectedIndex => _historyItems.indexOf(_selectedHistory ?? '');
   String get historyFilter => editor.text;
+  String get dialect => _dialect;
+
+  /// Submission feedback survives editing and completion requests. An unknown
+  /// transaction stays visible until explicitly recovered, even while polling.
+  String get executionStatus => ownership == ComposerOwnership.unknown
+      ? 'unknown_outcome'
+      : _executionStatus;
+
+  /// Transient feedback for the current document, separate from execution.
+  String get completionStatus => _completionStatus;
+
+  /// Compatibility for hosts displaying one feedback line. Submission results
+  /// take precedence; writing a completion status cannot erase those results.
+  String get status =>
+      executionStatus.isNotEmpty ? executionStatus : completionStatus;
+  set status(String value) {
+    if (value == 'unknown_outcome' || value == 'submission_rejected') {
+      _executionStatus = value;
+    } else {
+      _completionStatus = value;
+    }
+  }
+
+  bool get canRecoverDraft =>
+      !_disposed &&
+      ownership == ComposerOwnership.unknown &&
+      pendingSubmission != null &&
+      editor.value.composing.isCollapsed;
 
   /// Explicit navigation/filtering requests that should reveal the selection.
   /// Pointer highlighting and background updates must not interrupt scrolling.
@@ -128,12 +161,17 @@ final class TerminalComposerController extends ChangeNotifier {
   }
 
   void openHistory() {
-    if (!_canSuggest || !editor.value.composing.isCollapsed) return;
+    if (!canOpenHistory) return;
     if (!historyOpen) _historyDraft = editor.value;
     dismissCompletions(notify: false);
     _filterHistory();
     _selectionNavigationRevision++;
     notifyListeners();
+  }
+
+  void toggleHistory() {
+    if (_disposed || !_active || !editor.value.composing.isCollapsed) return;
+    historyOpen ? dismissHistory() : openHistory();
   }
 
   void _filterHistory() {
@@ -262,6 +300,7 @@ final class TerminalComposerController extends ChangeNotifier {
       items.indexWhere((item) => item.itemId == _selectedId);
   bool get loading => _inFlight && _cancellation?.isCancelled == false;
   bool get canRun =>
+      !_disposed &&
       _active &&
       ownership == ComposerOwnership.ready &&
       _lease != null &&
@@ -274,6 +313,46 @@ final class TerminalComposerController extends ChangeNotifier {
   String? get readyLease =>
       ownership == ComposerOwnership.ready ? _lease : null;
   bool get localSuggestions => _localSuggestions;
+
+  /// A single decision for the primary button and Enter. Predictions are not
+  /// included: accepting grey text remains a distinct, explicit edit action.
+  ComposerPrimaryAction get primaryAction {
+    if (_disposed ||
+        !_active ||
+        !editor.value.composing.isCollapsed ||
+        ownership == ComposerOwnership.submitting ||
+        ownership == ComposerOwnership.running ||
+        ownership == ComposerOwnership.suspended) {
+      return ComposerPrimaryAction.disabled;
+    }
+    if (historyOpen) {
+      return historySelectedIndex >= 0
+          ? ComposerPrimaryAction.acceptHistory
+          : ComposerPrimaryAction.disabled;
+    }
+    if (selectedIndex >= 0) {
+      return _batch?.query.matches(snapshot) == true && snapshot.canComplete
+          ? ComposerPrimaryAction.acceptCompletion
+          : ComposerPrimaryAction.disabled;
+    }
+    return canRun ? ComposerPrimaryAction.run : ComposerPrimaryAction.disabled;
+  }
+
+  bool get canPerformPrimaryAction =>
+      primaryAction != ComposerPrimaryAction.disabled;
+
+  Future<void> performPrimaryAction() async {
+    switch (primaryAction) {
+      case ComposerPrimaryAction.disabled:
+        return;
+      case ComposerPrimaryAction.acceptHistory:
+        acceptHistory();
+      case ComposerPrimaryAction.acceptCompletion:
+        accept();
+      case ComposerPrimaryAction.run:
+        await run();
+    }
+  }
 
   /// Local IO is allowed only for the live request: automatic suggestions or
   /// an explicit Tab. A Tab never changes the session's automatic preference.
@@ -322,9 +401,7 @@ final class TerminalComposerController extends ChangeNotifier {
       _selectionRevision++;
     }
     _previous = next;
-    if (status == 'no_completions' || status == 'completion_selection') {
-      status = '';
-    }
+    _completionStatus = '';
     dismissCompletions(notify: false);
     if (historyOpen) {
       _filterHistory();
@@ -394,7 +471,7 @@ final class TerminalComposerController extends ChangeNotifier {
     _completionMenuOpen =
         _completionMenuOpen || _currentRequest?.showMenu == true;
     if (!items.any((item) => item.itemId == _selectedId)) _selectedId = null;
-    status = result.status == 'unsupported_context'
+    _completionStatus = result.status == 'unsupported_context'
         ? 'unsupported_context'
         : '';
     notifyListeners();
@@ -415,7 +492,7 @@ final class TerminalComposerController extends ChangeNotifier {
         editor.value.composing.isCollapsed &&
         editor.selection.isValid &&
         !editor.selection.isCollapsed) {
-      status = 'completion_selection';
+      _completionStatus = 'completion_selection';
       notifyListeners();
       return;
     }
@@ -449,6 +526,7 @@ final class TerminalComposerController extends ChangeNotifier {
       return;
     }
     _cancellation?.cancel();
+    _completionStatus = '';
     _queued = (
       query: query,
       localSuggestions: _localSuggestions || fromTab,
@@ -488,7 +566,7 @@ final class TerminalComposerController extends ChangeNotifier {
             } else if (items.isNotEmpty && selectedIndex < 0) {
               selectNext(1);
             } else if (items.isEmpty && result.status == 'ok') {
-              status = 'no_completions';
+              _completionStatus = 'no_completions';
             }
           }
         }
@@ -496,7 +574,7 @@ final class TerminalComposerController extends ChangeNotifier {
         if (!_disposed &&
             !cancellation.isCancelled &&
             query.matches(snapshot)) {
-          status = 'completion_unavailable';
+          _completionStatus = 'completion_unavailable';
           _batch = null;
         }
       } finally {
@@ -596,6 +674,7 @@ final class TerminalComposerController extends ChangeNotifier {
     _batch = null;
     _selectedId = null;
     _completionMenuOpen = false;
+    _completionStatus = '';
     if (notify && !_disposed) notifyListeners();
   }
 
@@ -613,6 +692,18 @@ final class TerminalComposerController extends ChangeNotifier {
 
   void undo() => _restore(_undo, _redo);
   void redo() => _restore(_redo, _undo);
+
+  /// Clears only this local draft and remains undoable. A history filter is
+  /// cancelled first so undo restores the draft, not a temporary search string.
+  void clearDraft() {
+    if (_disposed || !_active || !editor.value.composing.isCollapsed) return;
+    dismissHistory(notify: false);
+    dismissCompletions(notify: false);
+    _completionStatus = '';
+    editor.clear();
+    notifyListeners();
+  }
+
   void _restore(List<TextEditingValue> from, List<TextEditingValue> to) {
     if (from.isEmpty || !editor.value.composing.isCollapsed) return;
     to.add(editor.value);
@@ -629,6 +720,8 @@ final class TerminalComposerController extends ChangeNotifier {
       query: snapshot,
     );
     pendingSubmission = submission;
+    _executionStatus = '';
+    _completionStatus = '';
     ownership = ComposerOwnership.submitting;
     dismissCompletions();
     ComposerSubmissionOutcome outcome;
@@ -640,6 +733,7 @@ final class TerminalComposerController extends ChangeNotifier {
     if (_disposed) return;
     switch (outcome) {
       case ComposerSubmissionOutcome.accepted:
+        pendingSubmission = null;
         updateHistory([submission.query.value.text, ..._history]);
         if (editor.text == submission.query.value.text &&
             _editorRevision == submission.query.editorRevision) {
@@ -648,13 +742,13 @@ final class TerminalComposerController extends ChangeNotifier {
           _redo.clear();
         }
         ownership = ComposerOwnership.running;
-        status = '';
       case ComposerSubmissionOutcome.rejected:
+        pendingSubmission = null;
         ownership = ComposerOwnership.draft;
-        status = 'submission_rejected';
+        _executionStatus = 'submission_rejected';
       case ComposerSubmissionOutcome.unknown:
         ownership = ComposerOwnership.unknown;
-        status = 'unknown_outcome';
+        _executionStatus = 'unknown_outcome';
     }
     _lease = null;
     notifyListeners();
@@ -662,12 +756,14 @@ final class TerminalComposerController extends ChangeNotifier {
 
   /// Explicit recovery never resubmits; the user must inspect the terminal.
   void recoverDraft() {
-    final pending = pendingSubmission;
-    if (pending == null) return;
+    if (!canRecoverDraft) return;
+    final pending = pendingSubmission!;
     if (editor.text.isEmpty) editor.value = pending.query.value;
     pendingSubmission = null;
+    _lease = null;
     ownership = ComposerOwnership.draft;
-    status = '';
+    _executionStatus = '';
+    _completionStatus = '';
     notifyListeners();
   }
 

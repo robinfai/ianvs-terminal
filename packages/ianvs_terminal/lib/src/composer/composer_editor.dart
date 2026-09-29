@@ -127,6 +127,7 @@ class ComposerEditorState extends State<ComposerEditor> {
             strutStyle: strut,
             decoration: InputDecoration(
               hintText: widget.hint,
+              hintMaxLines: 1,
               hintStyle: widget.style.copyWith(color: widget.suggestionColor),
               border: InputBorder.none,
               enabledBorder: InputBorder.none,

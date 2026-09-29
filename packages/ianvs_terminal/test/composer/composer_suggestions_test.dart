@@ -193,10 +193,10 @@ void main() {
             .text,
         'git',
       );
-      await tester.tap(
-        find.byTooltip('Copy draft · kept only in this session'),
-      );
-      await tester.pump();
+      await tester.tap(find.byKey(const Key('composer-more-actions')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('composer-copy-draft')));
+      await tester.pumpAndSettle();
       expect(copied, 'git');
       await tester.tap(find.byKey(const Key('composer-editor')));
       model.editor.selection = const TextSelection.collapsed(offset: 3);
@@ -321,7 +321,10 @@ void main() {
         'missing',
       );
       await tester.pumpAndSettle();
-      expect(find.text('No matching commands'), findsOneWidget);
+      expect(
+        find.text('No matching commands. Try a different filter.'),
+        findsOneWidget,
+      );
       expect(tester.takeException(), isNull);
     },
   );

@@ -55,7 +55,7 @@ void main() {
                     padding: const EdgeInsets.all(12),
                     child: TerminalComposerView(
                       controller: controller,
-                      targetLabel: 'Local · zsh',
+                      targetLabel: 'Local Shell',
                       autofocus: true,
                       onUseTerminal: () {},
                     ),
