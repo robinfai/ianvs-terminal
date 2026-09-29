@@ -565,6 +565,10 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
       '补全暂不可用，可继续编辑。',
     ),
     'no_completions' => tr('No matching completions.', '没有匹配的补全项。'),
+    'completion_selection' => tr(
+      'Move the cursor to the completion position first. → collapses the selection.',
+      '请先将光标移到要补全的位置；按 → 可取消选区。',
+    ),
     'unsupported_context' => tr(
       'No completions for this shell expression.',
       '此 shell 表达式暂不提供补全。',

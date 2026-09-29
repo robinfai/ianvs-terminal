@@ -170,6 +170,7 @@ pub struct LocalContext {
     pub start: usize,
     pub end: usize,
     pub quoted: bool,
+    pub expand_tilde: bool,
 }
 
 pub fn local_context(query: &CompletionQuery) -> Option<LocalContext> {
@@ -212,6 +213,8 @@ pub fn local_context(query: &CompletionQuery) -> Option<LocalContext> {
         start: ctx.start,
         end: ctx.end,
         quoted: ctx.quoted,
+        expand_tilde: query.text[byte_index_for_utf16_offset(&query.text, ctx.start)..]
+            .starts_with('~'),
     })
 }
 
@@ -371,6 +374,21 @@ mod contract_tests {
         let batch = query(q("git che --help", 7)).unwrap();
         let edit = batch.items.iter().find(|i| i.label == "checkout").unwrap();
         assert_eq!((edit.replace_start_utf16, edit.replace_end_utf16), (4, 7));
+    }
+    #[test]
+    fn local_paths_preserve_tilde_quoting_context_and_utf16_ranges() {
+        for (text, expands) in [
+            ("cd ~/Doc", true),
+            ("cd '~/'", false),
+            (r"cd \~/Doc", false),
+            ("cd ~/'My files/'", true),
+            ("cd ../../../", false),
+        ] {
+            let plan = local_context(&q(text, utf16_len(text))).unwrap();
+            assert_eq!(plan.expand_tilde, expands, "{text}");
+            assert_eq!(plan.start, 3);
+            assert_eq!(plan.end, utf16_len(text));
+        }
     }
     #[test]
     fn aliases_are_literal_command_candidates_with_source_and_description() {

@@ -31,6 +31,10 @@ void main() {
       await Directory(
         '${home.path}/documents/nested folder',
       ).create(recursive: true);
+      await Directory(
+        '${home.path}/pkg/application/handlers',
+      ).create(recursive: true);
+      await Directory('${home.path}/My files/中文目录').create(recursive: true);
       final profile = TerminalProfile(
         id: 'composer-test',
         name: 'Composer Test',
@@ -59,6 +63,15 @@ void main() {
         ],
       );
       addTearDown(() async {
+        await tester.pumpWidget(const SizedBox.shrink());
+        final sessionId = container
+            .read(sessionControllerProvider)
+            .activeSessionId;
+        if (sessionId != null) {
+          await container
+              .read(sessionControllerProvider.notifier)
+              .closeSession(sessionId);
+        }
         container.dispose();
         await home.delete(recursive: true);
       });
@@ -159,6 +172,69 @@ void main() {
         () => model.items.any((e) => e.label == 'hello world.txt'),
       );
       expect(model.items.first.source, 'local:files');
+      model.toggleLocalSuggestions();
+      await tester.enterText(editor, 'cd pkg/application/handlers');
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await until(
+        tester,
+        () =>
+            model.ownership == ComposerOwnership.ready &&
+            model.editor.text.isEmpty &&
+            model.cwd.endsWith('/pkg/application/handlers'),
+      );
+      final pathLease = model.readyLease;
+      await tester.enterText(editor, 'cd ../../../');
+      model.editor.selection = const TextSelection(
+        baseOffset: 0,
+        extentOffset: 12,
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      expect(model.status, 'completion_selection');
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      // Integration-test key events do not pass through NSTextInputContext.
+      // Deliver the native macOS selector as the platform would for this key.
+      tester
+          .state<EditableTextState>(
+            find.descendant(of: editor, matching: find.byType(EditableText)),
+          )
+          .performSelector('moveRight:');
+      expect(model.editor.selection, const TextSelection.collapsed(offset: 12));
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await until(
+        tester,
+        () =>
+            !model.loading &&
+            model.items.any((item) => item.label == '../../../documents/'),
+        diagnostics: () =>
+            'text=${model.editor.text}; selection=${model.editor.selection}; status=${model.status}; owner=${model.ownership}; candidates=${model.items.map((i) => i.label).join(', ')}',
+      );
+      expect(model.items.every((item) => item.kind == 'directory'), isTrue);
+      await tester.enterText(editor, 'cd ../../../docu');
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await until(tester, () => model.editor.text == 'cd ../../../documents/');
+      expect(model.readyLease, pathLease);
+      await tester.enterText(editor, 'cd ${home.path}/docu');
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await until(
+        tester,
+        () => model.editor.text == 'cd ${home.path}/documents/',
+      );
+      expect(model.readyLease, pathLease);
+      await tester.enterText(editor, 'cd ~/My');
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await until(tester, () => model.editor.text == "cd ~/'My files/'");
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await until(tester, () => model.editor.text == "cd ~/'My files/中文目录/'");
+      expect(model.localSuggestions, isFalse);
+      expect(model.readyLease, pathLease);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await until(
+        tester,
+        () =>
+            model.ownership == ComposerOwnership.ready &&
+            model.cwd.endsWith('/My files/中文目录'),
+      );
       await tester.enterText(
         editor,
         "export COMPOSER_TEST=retained; print 'Composer 中文 😀'",
@@ -200,10 +276,16 @@ void main() {
   );
 }
 
-Future<void> until(WidgetTester tester, bool Function() ready) async {
+Future<void> until(
+  WidgetTester tester,
+  bool Function() ready, {
+  String Function()? diagnostics,
+}) async {
   final deadline = DateTime.now().add(const Duration(seconds: 15));
   while (!ready()) {
-    if (DateTime.now().isAfter(deadline)) fail('Composer state did not settle');
+    if (DateTime.now().isAfter(deadline)) {
+      fail('Composer state did not settle: ${diagnostics?.call() ?? ''}');
+    }
     await tester.pump(const Duration(milliseconds: 50));
   }
 }

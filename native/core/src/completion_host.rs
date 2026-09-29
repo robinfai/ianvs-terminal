@@ -3,7 +3,7 @@ use ianvs_completion_core::{CompletionBatch, CompletionEdit, CompletionQuery, Lo
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::io::Read;
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 use std::sync::{
     Arc, Mutex,
     atomic::{AtomicBool, AtomicUsize, Ordering},
@@ -66,7 +66,7 @@ impl Drop for Permit {
 }
 
 impl LocalCompletions {
-    pub fn start(&mut self, request: Start, cwd: PathBuf) -> Value {
+    pub fn start(&mut self, request: Start, cwd: PathBuf, home: Option<PathBuf>) -> Value {
         if !request.policy.files && !request.policy.scripts {
             return json!({"status":"denied"});
         }
@@ -107,7 +107,7 @@ impl LocalCompletions {
             .name("composer-local".into())
             .spawn(move || {
                 let _permit = permit;
-                let items = collect(&cwd, &plan, &request.policy, &cancelled);
+                let items = collect(&cwd, home.as_deref(), &plan, &request.policy, &cancelled);
                 if !cancelled.load(Ordering::Relaxed) {
                     *result.lock().unwrap() = Some(
                         serde_json::to_value(CompletionBatch {
@@ -163,6 +163,7 @@ fn clean(value: &str) -> bool {
 
 fn collect(
     cwd: &Path,
+    home: Option<&Path>,
     plan: &LocalContext,
     policy: &LocalPolicy,
     cancelled: &AtomicBool,
@@ -173,9 +174,6 @@ fn collect(
     if stopped() || !clean(&plan.prefix) {
         return items;
     }
-    let Ok(root) = cwd.canonicalize() else {
-        return items;
-    };
     if policy.files
         && plan
             .templates
@@ -184,19 +182,24 @@ fn collect(
     {
         let (parent, prefix) = plan
             .prefix
-            .rsplit_once('/')
-            .map_or(("", plan.prefix.as_str()), |(a, b)| (a, b));
-        // No process cwd fallback, tilde expansion, ancestor search, or traversal
-        // through a symlink outside this session's current directory.
-        let relative = Path::new(parent);
-        if !plan.prefix.starts_with(['/', '~'])
-            && relative
-                .components()
-                .all(|c| matches!(c, Component::Normal(_) | Component::CurDir))
-        {
-            let folder = root.join(relative).canonicalize();
-            if let Ok(folder) = folder
-                && folder.starts_with(&root)
+            .rfind('/')
+            .map_or(("", plan.prefix.as_str()), |index| {
+                plan.prefix.split_at(index + 1)
+            });
+        let expand_home = plan.expand_tilde && plan.prefix.starts_with("~/");
+        let folder = if expand_home {
+            home.filter(|path| path.is_absolute())
+                .map(|path| path.join(&parent[2..]))
+        } else if plan.expand_tilde {
+            // Named-user and named-directory expansion need shell semantics.
+            None
+        } else {
+            // join preserves absolute inputs; relative paths use this session's
+            // cwd, including explicitly typed ../ and directory symlinks.
+            Some(cwd.join(parent))
+        };
+        if let Some(folder) = folder {
+            if let Ok(folder) = folder.canonicalize()
                 && !stopped()
                 && let Ok(entries) = std::fs::read_dir(folder)
             {
@@ -216,10 +219,16 @@ fn collect(
                     {
                         continue;
                     }
-                    let Ok(kind) = entry.file_type() else {
+                    let Ok(mut kind) = entry.file_type() else {
                         continue;
                     };
-                    if kind.is_symlink() || (!kind.is_dir() && !kind.is_file()) {
+                    if kind.is_symlink() {
+                        let Ok(target) = std::fs::metadata(entry.path()) else {
+                            continue;
+                        };
+                        kind = target.file_type();
+                    }
+                    if !kind.is_dir() && !kind.is_file() {
                         continue;
                     }
                     let directories_only = plan.templates.iter().all(|t| t == "folders");
@@ -227,11 +236,7 @@ fn collect(
                         continue;
                     }
                     // Directories remain navigable in a file argument.
-                    let mut value = if parent.is_empty() {
-                        name.clone()
-                    } else {
-                        format!("{parent}/{name}")
-                    };
+                    let mut value = format!("{parent}{name}");
                     if value.starts_with('-') {
                         value.insert_str(0, "./");
                     }
@@ -243,6 +248,7 @@ fn collect(
                         &value,
                         if kind.is_dir() { "directory" } else { "file" },
                         "local:files",
+                        expand_home,
                     ));
                 }
             }
@@ -251,7 +257,7 @@ fn collect(
     if policy.scripts && plan.templates.iter().any(|t| t == "packageScripts") && !stopped() {
         // Read only the regular package.json in this exact cwd; never run npm,
         // evaluate scripts, follow config symlinks, or climb through ancestors.
-        let path = root.join("package.json");
+        let path = cwd.join("package.json");
         if let Ok(meta) = path.symlink_metadata()
             && meta.is_file()
             && meta.len() <= MAX_PACKAGE
@@ -285,7 +291,7 @@ fn collect(
                             && !name.starts_with('-')
                             && name.starts_with(&plan.prefix)
                         {
-                            items.push(edit(plan, name, "script", "local:packageScripts"));
+                            items.push(edit(plan, name, "script", "local:packageScripts", false));
                         }
                     }
                 }
@@ -301,8 +307,22 @@ fn collect(
     items
 }
 
-fn edit(plan: &LocalContext, value: &str, kind: &str, source: &str) -> CompletionEdit {
-    let new_text = ianvs_completion_core::quote_literal(value, plan.quoted);
+fn edit(
+    plan: &LocalContext,
+    value: &str,
+    kind: &str,
+    source: &str,
+    expand_home: bool,
+) -> CompletionEdit {
+    let new_text = if expand_home {
+        // Quoting the entire ~/path would turn the tilde into a literal folder.
+        format!(
+            "~/{}",
+            ianvs_completion_core::quote_literal(&value[2..], false)
+        )
+    } else {
+        ianvs_completion_core::quote_literal(value, plan.quoted)
+    };
     CompletionEdit {
         item_id: format!("{source}:{}:{}:{new_text}", plan.start, plan.end),
         label: value.into(),
@@ -331,28 +351,93 @@ mod tests {
             start: 4,
             end: 4 + prefix.len(),
             quoted: false,
+            expand_tilde: prefix.starts_with('~'),
         }
     }
     #[test]
-    fn files_are_bounded_quoted_and_scoped() {
+    fn files_keep_quoting_filters_and_cancellation() {
         let dir = tempfile::tempdir().unwrap();
         for name in ["normal", "a b;echo nope", "line\nbreak", "\u{1b}escape"] {
             std::fs::write(dir.path().join(name), "").unwrap();
         }
-        #[cfg(unix)]
-        std::os::unix::fs::symlink("/", dir.path().join("escape")).unwrap();
         let policy = LocalPolicy {
             files: true,
             scripts: false,
         };
         let cancel = AtomicBool::new(false);
-        let items = collect(dir.path(), &plan("files", ""), &policy, &cancel);
+        let items = collect(dir.path(), None, &plan("files", ""), &policy, &cancel);
         assert_eq!(items.len(), 2);
         assert!(items.iter().any(|i| i.new_text == "'a b;echo nope'"));
-        assert!(collect(dir.path(), &plan("files", "../"), &policy, &cancel).is_empty());
-        assert!(collect(dir.path(), &plan("files", "escape/"), &policy, &cancel).is_empty());
         cancel.store(true, Ordering::Relaxed);
-        assert!(collect(dir.path(), &plan("files", ""), &policy, &cancel).is_empty());
+        assert!(collect(dir.path(), None, &plan("files", ""), &policy, &cancel).is_empty());
+    }
+    #[test]
+    fn parent_absolute_home_and_literal_tilde_paths_complete() {
+        let home = tempfile::tempdir().unwrap();
+        let cwd = home.path().join("pkg/application/handlers");
+        for path in [
+            &cwd,
+            &home.path().join("Documents"),
+            &home.path().join("My files/child"),
+            &cwd.join("~/literal"),
+        ] {
+            std::fs::create_dir_all(path).unwrap();
+        }
+        std::fs::write(home.path().join("Documents-file"), "").unwrap();
+        let policy = LocalPolicy {
+            files: true,
+            scripts: false,
+        };
+        let cancel = AtomicBool::new(false);
+        let get = |p: &LocalContext| collect(&cwd, Some(home.path()), p, &policy, &cancel);
+        let parents = get(&plan("folders", "../../../"));
+        assert!(
+            parents
+                .iter()
+                .any(|item| item.new_text == "../../../Documents/")
+        );
+        assert!(
+            !parents
+                .iter()
+                .any(|item| item.label.ends_with("Documents-file"))
+        );
+        let prefix = get(&plan("folders", "../../../Doc"));
+        assert_eq!(prefix.len(), 1);
+        assert_eq!(prefix[0].new_text, "../../../Documents/");
+        let absolute = format!("{}/Doc", home.path().display());
+        assert_eq!(
+            get(&plan("folders", &absolute))[0].new_text,
+            format!("{}/Documents/", home.path().display())
+        );
+        let root = get(&plan("folders", "/"));
+        assert!(!root.is_empty());
+        assert!(
+            root.iter()
+                .all(|item| item.label.starts_with('/') && !item.label.starts_with("//"))
+        );
+        assert_eq!(get(&plan("folders", "~/Doc"))[0].new_text, "~/Documents/");
+        assert_eq!(get(&plan("folders", "~/My"))[0].new_text, "~/'My files/'");
+        assert_eq!(
+            get(&plan("folders", "~/My files/"))[0].new_text,
+            "~/'My files/child/'"
+        );
+        assert!(collect(&cwd, None, &plan("folders", "~/"), &policy, &cancel).is_empty());
+        assert!(get(&plan("folders", "~someone/Doc")).is_empty());
+        let mut literal = plan("folders", "~/li");
+        literal.quoted = true;
+        literal.expand_tilde = false;
+        assert_eq!(get(&literal)[0].new_text, "'~/literal/'");
+        literal.quoted = false; // Escaped tilde is also a literal cwd-relative path.
+        assert_eq!(get(&literal)[0].new_text, "'~/literal/'");
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(home.path().join("My files"), cwd.join("linked")).unwrap();
+            assert_eq!(get(&plan("folders", "lin"))[0].new_text, "linked/");
+            assert_eq!(
+                get(&plan("folders", "linked/"))[0].new_text,
+                "linked/child/"
+            );
+        }
     }
     #[test]
     fn script_contents_never_execute_and_policy_is_required() {
@@ -363,6 +448,7 @@ mod tests {
         assert!(
             collect(
                 dir.path(),
+                None,
                 &plan,
                 &LocalPolicy {
                     files: false,
@@ -374,6 +460,7 @@ mod tests {
         );
         let items = collect(
             dir.path(),
+            None,
             &plan,
             &LocalPolicy {
                 files: false,

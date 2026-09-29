@@ -101,7 +101,14 @@ pub fn request_session(
             else {
                 return Ok(None);
             };
-            let response = session.local_completions.lock().start(start, cwd.into());
+            let home = state
+                .and_then(|s| s["home"].as_str())
+                .filter(|path| path.starts_with('/'))
+                .map(std::path::PathBuf::from);
+            let response = session
+                .local_completions
+                .lock()
+                .start(start, cwd.into(), home);
             request_json_response(response)
         }
         "completion.local_poll" | "completion.local_cancel" => {

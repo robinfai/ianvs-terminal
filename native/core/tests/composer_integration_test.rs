@@ -36,6 +36,83 @@ fn wait_ready(id: u64, previous: Option<&str>) -> Value {
         std::thread::sleep(Duration::from_millis(20));
     }
 }
+fn local_paths(id: u64, state: &Value, text: &str) -> Vec<Value> {
+    let query = json!({"schemaVersion":1,"sessionEpoch":1,"targetId":id.to_string(),"contextRevision":1,"editorRevision":1,"selectionRevision":1,"catalogRevision":"ianvs-20260929-v1","policyRevision":0,"text":text,"cursorUtf16":text.encode_utf16().count(),"dialect":"zsh"});
+    let deadline = Instant::now() + Duration::from_secs(2);
+    let job = loop {
+        let start = request(
+            id,
+            "completion.local_start",
+            json!({"query":query,"lease":state["lease"],"policy":{"files":true,"scripts":false}}),
+        );
+        if let Some(job) = start["payload"]["jobId"].as_str() {
+            break job.to_owned();
+        }
+        assert_eq!(start["payload"]["status"], "busy", "{start}");
+        assert!(Instant::now() < deadline);
+        std::thread::sleep(Duration::from_millis(5));
+    };
+    loop {
+        let response = request(id, "completion.local_poll", json!({"jobId":job}));
+        if response["payload"]["status"] == "complete" {
+            assert_eq!(response["payload"]["batch"]["query"], query);
+            return response["payload"]["batch"]["items"]
+                .as_array()
+                .unwrap()
+                .clone();
+        }
+        assert!(Instant::now() < deadline, "{response}");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
+
+#[test]
+fn composer_paths_use_shell_cwd_and_home_and_keep_expansion_when_accepted() {
+    let fixture = tempfile::tempdir().unwrap();
+    let home = fixture.path().join("shell-home");
+    let cwd = home.join("pkg/application/handlers");
+    let destination = home.join("My files/中文目录");
+    std::fs::create_dir_all(&cwd).unwrap();
+    std::fs::create_dir_all(&destination).unwrap();
+    std::fs::write(home.join(".zshrc"), "PROMPT='paths> '\nRPROMPT=''\n").unwrap();
+    let mut config = config();
+    config["config"]["launch"] = json!({"program":"/bin/zsh","args":[],"cwd":cwd,"env":{"HOME":home,"ZDOTDIR":home,"LANG":"en_US.UTF-8"}});
+    let session = Session(session::create_session_v1(&config.to_string()).unwrap());
+    let ready = wait_ready(session.0, None);
+    assert_eq!(ready["home"], home.to_str().unwrap());
+    let relative = local_paths(session.0, &ready, "cd ../../../");
+    assert!(
+        relative
+            .iter()
+            .any(|i| i["newText"] == "'../../../My files/'")
+    );
+    let absolute = format!("cd '{}/My'", home.display());
+    assert!(
+        local_paths(session.0, &ready, &absolute)
+            .iter()
+            .any(|i| i["newText"] == format!("'{}/My files/'", home.display()))
+    );
+    let query = "cd ~/My";
+    let completed = local_paths(session.0, &ready, query);
+    assert_eq!(completed.len(), 1);
+    assert_eq!(completed[0]["newText"], "~/'My files/'");
+    let nested = local_paths(session.0, &ready, "cd ~/'My files/'");
+    assert_eq!(nested.len(), 1);
+    assert_eq!(nested[0]["newText"], "~/'My files/中文目录/'");
+    let result = request(
+        session.0,
+        "composer.submit",
+        json!({"lease":ready["lease"],"submissionId":"path-accept","text":format!("cd {}", nested[0]["newText"].as_str().unwrap())}),
+    );
+    assert_eq!(result["payload"]["outcome"], "pending");
+    let after = wait_ready(session.0, ready["lease"].as_str());
+    assert_eq!(
+        std::path::Path::new(after["cwd"].as_str().unwrap())
+            .canonicalize()
+            .unwrap(),
+        destination.canonicalize().unwrap()
+    );
+}
 #[test]
 fn composer_current_request_contract_static_and_replay_denial() {
     let session = Session(session::create_replay_session_v1(&config().to_string()).unwrap());

@@ -414,6 +414,48 @@ void main() {
   }
 
   group('Tab completion', () {
+    testWidgets(
+      'Tab explains a selection and completes after collapsing it',
+      (tester) async {
+        var queries = 0;
+        final controller = create(
+          text: 'cd ../../../',
+          provider: (q, _) async {
+            queries++;
+            return CompletionBatch(q, [
+              completion(start: 3, end: 12, text: '../../../Documents/'),
+            ]);
+          },
+        );
+        addTearDown(controller.dispose);
+        ready(controller);
+        await show(tester, controller);
+        controller.editor.selection = const TextSelection(
+          baseOffset: 0,
+          extentOffset: 12,
+        );
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pumpAndSettle();
+        expect(queries, 0);
+        expect(controller.status, 'completion_selection');
+        expect(
+          find.text(
+            'Move the cursor to the completion position first. → collapses the selection.',
+          ),
+          findsOneWidget,
+        );
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+        expect(controller.status, isEmpty);
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pumpAndSettle();
+        expect(controller.editor.text, 'cd ../../../Documents/');
+        expect(controller.localSuggestions, isFalse);
+      },
+      variant: const TargetPlatformVariant({
+        TargetPlatform.macOS,
+        TargetPlatform.linux,
+      }),
+    );
     test('local IO is scoped to the live Tab request', () async {
       final permissions = <bool>[];
       final cancellations = <CompletionCancellation>[];

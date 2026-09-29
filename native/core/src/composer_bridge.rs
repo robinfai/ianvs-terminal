@@ -39,6 +39,7 @@ struct BridgeState {
     input: Vec<u8>,
     epoch: Option<String>,
     cwd: String,
+    home: String,
     state: String,
     submission_id: Option<String>,
     outcome: String,
@@ -78,6 +79,7 @@ impl ComposerBridge {
                     input: vec![],
                     epoch: None,
                     cwd: String::new(),
+                    home: String::new(),
                     state: "draft".into(),
                     submission_id: None,
                     outcome: "none".into(),
@@ -110,7 +112,7 @@ impl ComposerBridge {
         let mut state = self.inner.lock().unwrap();
         self.poll(&mut state);
         json!({"state": state.state, "lease": state.epoch.as_ref().map(|e| format!("{}.{e}", self.nonce)),
-            "cwd": state.cwd, "dialect": "zsh", "submissionId": state.submission_id, "outcome": state.outcome,
+            "cwd": state.cwd, "home": state.home, "dialect": "zsh", "submissionId": state.submission_id, "outcome": state.outcome,
             "history": state.history, "historyRevision": state.history_revision})
     }
 
@@ -274,7 +276,7 @@ impl ComposerBridge {
                     return;
                 }
             }
-            if state.input.len() > 32768 {
+            if state.input.len() > 49152 {
                 Self::close(state);
                 return;
             }
@@ -358,7 +360,9 @@ impl ComposerBridge {
                 ["aliases-end"] if state.pending_aliases.is_some() => {
                     state.aliases = state.pending_aliases.take().unwrap();
                 }
-                ["ready", epoch, cwd] if epoch.parse::<u64>().is_ok() && epoch.len() <= 20 => {
+                ["ready", epoch, cwd] | ["ready", epoch, cwd, _]
+                    if epoch.parse::<u64>().is_ok() && epoch.len() <= 20 =>
+                {
                     let Some(cwd) = decode_hex(cwd).filter(|v| {
                         v.len() <= 4096 && v.starts_with('/') && !v.chars().any(char::is_control)
                     }) else {
@@ -367,6 +371,15 @@ impl ComposerBridge {
                     };
                     state.epoch = Some((*epoch).into());
                     state.cwd = cwd;
+                    // HOME belongs to this live shell, never the GUI process.
+                    // A missing or unusable HOME only disables tilde completion.
+                    state.home = fields
+                        .get(3)
+                        .and_then(|value| decode_hex(value))
+                        .filter(|value| {
+                            value.starts_with('/') && !value.chars().any(char::is_control)
+                        })
+                        .unwrap_or_default();
                     state.state = "ready".into();
                 }
                 ["prepared", id]

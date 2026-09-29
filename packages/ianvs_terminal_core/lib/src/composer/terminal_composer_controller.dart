@@ -313,7 +313,9 @@ final class TerminalComposerController extends ChangeNotifier {
       _selectionRevision++;
     }
     _previous = next;
-    if (status == 'no_completions') status = '';
+    if (status == 'no_completions' || status == 'completion_selection') {
+      status = '';
+    }
     dismissCompletions(notify: false);
     if (historyOpen) {
       _filterHistory();
@@ -396,6 +398,15 @@ final class TerminalComposerController extends ChangeNotifier {
   void completeOnTab() {
     if (historyOpen) {
       acceptHistory();
+      return;
+    }
+    if (!_disposed &&
+        _active &&
+        editor.value.composing.isCollapsed &&
+        editor.selection.isValid &&
+        !editor.selection.isCollapsed) {
+      status = 'completion_selection';
+      notifyListeners();
       return;
     }
     if (_disposed ||

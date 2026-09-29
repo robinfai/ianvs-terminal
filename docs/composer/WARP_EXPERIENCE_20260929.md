@@ -81,7 +81,7 @@ python3 tools/composer/create_experience_fixture.py --parent /private/tmp
 | 04 | `cd do` → Tab | 目录与普通文件的筛选、多个候选 | provider 只接受 folders；需 UI 实测 |
 | 05 | `cat he` → Tab；`cat 中` → Tab | 空格和 Unicode 的显示、插入、光标位置 | 空格文件已有应用用例；中文路径需实测 |
 | 06 | `ls ./` 与 `ls ./.` 分别 Tab | 隐藏目录何时出现 | provider 根据输入前缀决定隐藏项；需 UI 实测 |
-| 07 | `ls ../`、`ls /private/tmp/`、`ls ~/` 分别 Tab | 父级、绝对、home 路径的范围和反馈 | 当前 provider 明确不支持这三种范围，尚未对齐 |
+| 07 | `ls ../`、`ls /private/tmp/`、`ls ~/` 分别 Tab | 父级、绝对、home 路径的范围和反馈 | 后续补全修复已支持这三种范围；HOME 来自当前 shell，原生和应用均有回归；Warp 对照待完成 |
 | 08 | `ls ./dcm` → Tab | 非连续字符匹配、匹配高亮、排序 | 本地 provider 仅前缀匹配，尚无路径模糊匹配 |
 | 09 | `git st`、`git --v` 分别 Tab | 子命令/选项说明、可用宽度、接受后空格 | 静态 catalog 已有；显示与插入细节待实测 |
 | 10 | `git checkout feat` → Tab | 分支名称、分支类型、是否需要网络 | 当前仅迁移静态 catalog，没有动态 Git 分支 provider |

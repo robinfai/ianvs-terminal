@@ -74,7 +74,9 @@
       __ic_history
       __ic_aliases
       __ic_hex "$PWD"
-      builtin print -r -u $__ic_fd -- $'ready\t'"$__ic_epoch"$'\t'"$REPLY"
+      local cwd_hex=$REPLY
+      __ic_hex "$HOME"
+      builtin print -r -u $__ic_fd -- $'ready\t'"$__ic_epoch"$'\t'"$cwd_hex"$'\t'"$REPLY"
     else
       builtin print -r -u $__ic_fd -- continuation
     fi

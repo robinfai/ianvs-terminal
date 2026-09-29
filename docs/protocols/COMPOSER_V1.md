@@ -55,9 +55,14 @@ Tab grants local permissions for that exact live request without changing the
 session-only automatic-suggestions switch. A unique final result is inserted;
 multiple results open for selection and a subsequent Tab accepts the selection.
 Edits, context changes and cancellation revoke the request's permissions.
-The worker reads only the actual cwd and explicitly typed descendant
-directories. Parent/absolute/tilde
-paths, symlink entries and paths resolving outside cwd are excluded. Script
+The worker reads the explicitly requested directory: relative and parent paths
+resolve against the bound shell's cwd, absolute paths remain absolute, and an
+unquoted `~/` uses that shell's authenticated HOME. There is no GUI-process cwd
+or HOME fallback, recursive traversal, or implicit ancestor search. Directory
+and file symlinks are completed according to their resolved type; broken links
+are skipped. Quoted/escaped tildes stay literal, and named-user/named-directory
+tilde expansion is unsupported. Acceptance preserves an expandable `~/` outside
+any quoted suffix, including spaces and Unicode. Script
 names come from the regular, no-follow `package.json` in that exact cwd; script
 bodies are never exposed or executed. No ancestor search, process or network API
 is used. Cwd-changing command prefixes and multi-command expressions disable
@@ -74,8 +79,11 @@ completion and draft editing remain available.
 ## Shell ownership and submission
 
 `composer.state` accepts `{}`. Payload: `{state,lease,cwd,dialect,submissionId,outcome}`.
-An authenticated local zsh adapter additionally returns `history` (newest first)
+An authenticated local zsh adapter additionally returns `home`, `history` (newest first)
 and `historyRevision` (changes only when the complete snapshot changes).
+The ready frame carries cwd and HOME together. Missing or invalid HOME disables
+only tilde completion. Each path is limited to 4 KiB; the private receive buffer
+is bounded at 48 KiB to accommodate paths, history and aliases.
 States: draft, ready, submitting, running, suspended. A missing adapter returns
 draft, null lease, empty cwd, generic dialect and none outcome. The UI additionally
 holds an unknown state after an ambiguous result. Polling ready cannot unlock it.
