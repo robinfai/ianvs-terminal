@@ -2,6 +2,8 @@
 
 Warp 常见本地命令的体验准备、证据状态与待对齐项见
 [体验记录](WARP_EXPERIENCE_20260929.md)；其中待实测项不代表已完成 Warp 对齐。
+已播放的官方演示、关键时间点、截图和交互差距见
+[官方视频观察](WARP_VIDEO_REVIEW_20260929.md)。
 
 `composer` 分支实现独立、可选的命令编辑器，UI 参考
 [Warp Universal Input](https://docs.warp.dev/terminal/input/universal-input/) 的
