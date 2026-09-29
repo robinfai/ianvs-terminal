@@ -28,6 +28,9 @@ void main() {
         '${home.path}/.zshrc',
       ).writeAsString("PROMPT='composer> '\nRPROMPT=''\n");
       await File('${home.path}/hello world.txt').writeAsString('fixture');
+      await Directory(
+        '${home.path}/documents/nested folder',
+      ).create(recursive: true);
       final profile = TerminalProfile(
         id: 'composer-test',
         name: 'Composer Test',
@@ -92,6 +95,29 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       expect(model.editor.text, 'git checkout --help');
       expect(model.ownership, ComposerOwnership.ready);
+
+      // Explicit Tab works with automatic local suggestions still disabled.
+      final lease = model.readyLease;
+      expect(model.localSuggestions, isFalse);
+      await tester.enterText(editor, 'ls ./');
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await until(tester, () => !model.loading && model.selectedIndex >= 0);
+      expect(model.editor.text, 'ls ./');
+      expect(model.items.any((e) => e.label == './documents/'), isTrue);
+      expect(model.items.any((e) => e.label == './hello world.txt'), isTrue);
+      while (model.items[model.selectedIndex].label != './documents/') {
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      }
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      expect(model.editor.text, 'ls ./documents/');
+      // A unique nested directory inserts immediately, including safe quoting.
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await until(tester, () => model.editor.text.contains('nested'));
+      expect(model.editor.text, "ls './documents/nested folder/'");
+      expect(model.localSuggestions, isFalse);
+      expect(model.ownership, ComposerOwnership.ready);
+      expect(model.readyLease, lease);
+
       model.toggleLocalSuggestions();
       await tester.enterText(editor, 'cat he');
       await until(

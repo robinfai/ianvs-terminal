@@ -5,14 +5,17 @@
 Terminal 模式：底部停靠圆角输入区、顶部会话/目录标签、多行等宽编辑区、紧凑底栏、
 向上浮动的候选列表。颜色来自宿主 ColorScheme，支持深浅色、窄窗口和放大文字。
 
-每个桌面 Session 底部的 **Composer · 命令编辑器** 开启编辑器。Tab 选择/接受候选；
+每个桌面 Session 底部的 **Composer · 命令编辑器** 开启编辑器。Tab 按需查询补全，
+唯一候选直接补齐，多个候选展开并选中第一项；方向键切换，Tab 接受选中项。
 选中候选时 Enter 只接受候选，无选择时 Enter 提交；Shift+Enter 换行。
 Esc 依次关闭候选、折叠选区、回到传统终端。Cmd+Z / Cmd+Shift+Z 撤销/重做，
 Ctrl+C 清空本地草稿。复制保留原始草稿内容。关闭 Session 会丢弃其内存草稿；
 切换输入模式、标签或窗格不会将草稿写入 PTY。
 
-文件夹按钮可按会话开启本地文件/目录及 package scripts 候选，默认关闭。
-它只读取受当前 shell 租约约束的 cwd 和输入的子目录，不执行脚本、不查询集群。
+文件夹按钮可按会话开启输入时的文件/目录及 package scripts **自动候选**，默认关闭。
+关闭自动候选时，Tab 仍可按需补全，例如 `ls ./` 展开当前目录、唯一目录补齐后再次
+按 Tab 查询其子目录。每次 Tab 只授权当前请求，不改变自动候选开关。
+本地补全只读取受当前 shell 租约约束的 cwd 和输入的子目录，不执行脚本、不查询集群。
 长命令运行、续行和密码输入使用原终端；shell 回到空顶层提示符后可恢复 Composer。
 SSH、Bash、fish 或未提供可信适配器的宿主仅有草稿和静态候选，Run 不可用。
 iOS 不展示此桌面编辑器。Replay 继续只读。
@@ -60,8 +63,10 @@ make terminal-core-check
 
 2026-09-29 本机 `make verify` 通过，包含 1,968 项示例应用测试、45 项真实 PTY 用例、
 Composer 应用验收、Debug/Release 构建、签名和原生 Xcode 测试。
-最后的候选取消/滚动修正另通过 canonical 与 standalone 各 18 项回归、3 张快照比较、
+候选取消/滚动修正另通过 canonical 与 standalone 各 18 项回归、3 张快照比较、
 真实 Composer 应用测试及重新构建的 Release 签名检查。
+Tab 按需补全修正通过两套组件包各 26 项回归、修改文件的静态分析和真实应用测试，
+覆盖关闭自动候选时的 `ls ./`、目录选择、连续子目录补全和带空格目录名。
 
 本次主机：macOS 27.0 (26A428)、arm64、`/bin/zsh` 5.9。其他 Apple 支持版本保持
 [现有兼容窗口](../APPLE_PLATFORM_COMPATIBILITY.md)，尚未在本次运行中验证。

@@ -413,6 +413,192 @@ void main() {
     await tester.pump();
   }
 
+  group('Tab completion', () {
+    test('local IO is scoped to the live Tab request', () async {
+      final permissions = <bool>[];
+      final cancellations = <CompletionCancellation>[];
+      late TerminalComposerController controller;
+      controller = create(
+        text: 'ls ./',
+        provider: (query, cancellation) async {
+          permissions.add(controller.allowsLocalSuggestions(cancellation));
+          cancellations.add(cancellation);
+          return CompletionBatch(query, const []);
+        },
+      );
+      addTearDown(controller.dispose);
+      ready(controller);
+      controller.requestCompletions();
+      await drain();
+      controller.completeOnTab();
+      await drain();
+      expect(permissions, [false, true]);
+      expect(controller.localSuggestions, isFalse);
+      expect(controller.status, 'no_completions');
+      expect(controller.allowsLocalSuggestions(cancellations.last), isFalse);
+      controller.editor.value = const TextEditingValue(
+        text: 'ls ./d',
+        selection: TextSelection.collapsed(offset: 6),
+      );
+      expect(controller.status, isEmpty);
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      expect(permissions, [false, true, false]);
+      controller.toggleLocalSuggestions();
+      await drain();
+      expect(permissions, [false, true, false, true]);
+    });
+
+    for (final change in ['edit', 'dismiss', 'context', 'inactive']) {
+      test('late Tab result is discarded after $change', () async {
+        final gate = Completer<CompletionBatch>();
+        late CompletionCancellation cancellation;
+        final controller = create(
+          text: 'ls ./',
+          provider: (query, token) {
+            cancellation = token;
+            return gate.future;
+          },
+        );
+        addTearDown(controller.dispose);
+        ready(controller);
+        final query = controller.snapshot;
+        controller.completeOnTab();
+        expect(controller.allowsLocalSuggestions(cancellation), isTrue);
+        switch (change) {
+          case 'edit':
+            controller.editor.value = const TextEditingValue(
+              text: 'ls ./new',
+              selection: TextSelection.collapsed(offset: 8),
+            );
+          case 'dismiss':
+            controller.dismissCompletions();
+          case 'context':
+            controller.updateShell(
+              contextKey: 'prompt-2',
+              cwd: '/tmp/other',
+              ownership: ComposerOwnership.ready,
+              lease: 'lease-2',
+              dialect: 'zsh',
+            );
+          case 'inactive':
+            controller.setActive(false);
+        }
+        expect(controller.allowsLocalSuggestions(cancellation), isFalse);
+        gate.complete(
+          CompletionBatch(query, [
+            completion(start: 3, end: 5, text: './documents/'),
+          ]),
+        );
+        await drain();
+        expect(controller.editor.text, change == 'edit' ? 'ls ./new' : 'ls ./');
+        expect(controller.items, isEmpty);
+      });
+    }
+
+    testWidgets(
+      'fills a unique directory without running or enabling automatic IO',
+      (tester) async {
+        var submissions = 0;
+        final controller = create(
+          text: 'ls ./',
+          provider: (q, _) async => CompletionBatch(q, [
+            completion(start: 3, end: 5, text: './documents/'),
+          ]),
+          submit: (_) async {
+            submissions++;
+            return ComposerSubmissionOutcome.accepted;
+          },
+        );
+        addTearDown(controller.dispose);
+        ready(controller);
+        await show(tester, controller);
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pumpAndSettle();
+        expect(controller.editor.text, 'ls ./documents/');
+        expect(controller.localSuggestions, isFalse);
+        expect(submissions, 0);
+        expect(controller.ownership, ComposerOwnership.ready);
+      },
+    );
+
+    testWidgets(
+      'multiple directories open for selection; held Tab does not accept',
+      (tester) async {
+        var calls = 0;
+        final controller = create(
+          text: 'ls ./',
+          provider: (q, _) async {
+            calls++;
+            return CompletionBatch(q, [
+              completion(start: 3, end: 5, text: './documents/'),
+              completion(start: 3, end: 5, text: './downloads/'),
+            ]);
+          },
+        );
+        addTearDown(controller.dispose);
+        ready(controller);
+        await show(tester, controller);
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.tab);
+        await tester.pumpAndSettle();
+        expect(controller.editor.text, 'ls ./');
+        expect(controller.selectedIndex, 0);
+        expect(find.text('./documents/'), findsOneWidget);
+        expect(find.text('./downloads/'), findsOneWidget);
+        await tester.sendKeyRepeatEvent(LogicalKeyboardKey.tab);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.tab);
+        expect(controller.editor.text, 'ls ./');
+        expect(calls, 1);
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pumpAndSettle();
+        expect(controller.editor.text, 'ls ./downloads/');
+        expect(controller.localSuggestions, isFalse);
+        expect(controller.ownership, ComposerOwnership.ready);
+      },
+    );
+
+    testWidgets(
+      'Tab waits for local alternatives before accepting a static match',
+      (tester) async {
+        final gate = Completer<CompletionBatch>();
+        var calls = 0;
+        late CompletionCancellation cancellation;
+        final controller = create(
+          text: 'ls ./',
+          provider: (q, token) {
+            calls++;
+            cancellation = token;
+            return gate.future;
+          },
+        );
+        addTearDown(controller.dispose);
+        ready(controller);
+        await show(tester, controller);
+        final query = controller.snapshot;
+        final first = completion(start: 3, end: 5, text: './documents/');
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        controller.publishCompletions(
+          CompletionBatch(query, [first]),
+          cancellation: cancellation,
+        );
+        await tester.pump();
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        expect(controller.editor.text, 'ls ./');
+        expect(calls, 1);
+        gate.complete(
+          CompletionBatch(query, [
+            first,
+            completion(start: 3, end: 5, text: './downloads/'),
+          ]),
+        );
+        await tester.pumpAndSettle();
+        expect(controller.editor.text, 'ls ./');
+        expect(controller.items, hasLength(2));
+        expect(controller.selectedIndex, 0);
+      },
+    );
+  });
+
   testWidgets(
     'Enter accepts selected completion only; next Enter submits once',
     (tester) async {

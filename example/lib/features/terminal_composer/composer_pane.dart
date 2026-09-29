@@ -20,7 +20,9 @@ final class ComposerPaneSession {
         if (cancellation.isCancelled) return staticBatch;
         controller.publishCompletions(staticBatch, cancellation: cancellation);
         final lease = controller.readyLease;
-        if (!controller.localSuggestions || lease == null) return staticBatch;
+        if (!controller.allowsLocalSuggestions(cancellation) || lease == null) {
+          return staticBatch;
+        }
         final start = runtime.composerRequest(
           sessionId,
           'completion.local_start',

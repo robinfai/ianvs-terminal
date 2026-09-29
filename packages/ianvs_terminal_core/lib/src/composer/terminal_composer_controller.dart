@@ -23,6 +23,12 @@ final class ComposerSubmission {
 typedef ComposerSubmit =
     Future<ComposerSubmissionOutcome> Function(ComposerSubmission submission);
 
+typedef _CompletionRequest = ({
+  CompletionQuery query,
+  bool localSuggestions,
+  bool fromTab,
+});
+
 /// A pane-scoped local document. It deliberately has no terminal input sink.
 final class TerminalComposerController extends ChangeNotifier {
   TerminalComposerController({
@@ -59,7 +65,8 @@ final class TerminalComposerController extends ChangeNotifier {
   bool _active = true;
   Timer? _timer;
   CompletionCancellation? _cancellation;
-  CompletionQuery? _queued;
+  _CompletionRequest? _queued;
+  _CompletionRequest? _currentRequest;
   bool _inFlight = false;
   CompletionBatch? _batch;
   String? _selectedId;
@@ -87,6 +94,17 @@ final class TerminalComposerController extends ChangeNotifier {
   String? get readyLease =>
       ownership == ComposerOwnership.ready ? _lease : null;
   bool get localSuggestions => _localSuggestions;
+
+  /// Local IO is allowed only for the live request: automatic suggestions or
+  /// an explicit Tab. A Tab never changes the session's automatic preference.
+  bool allowsLocalSuggestions(CompletionCancellation cancellation) =>
+      !_disposed &&
+      _active &&
+      identical(_cancellation, cancellation) &&
+      !cancellation.isCancelled &&
+      _currentRequest?.localSuggestions == true &&
+      _currentRequest!.query.matches(snapshot) &&
+      readyLease != null;
 
   void toggleLocalSuggestions() {
     _localSuggestions = !_localSuggestions;
@@ -122,6 +140,7 @@ final class TerminalComposerController extends ChangeNotifier {
       _selectionRevision++;
     }
     _previous = next;
+    if (status == 'no_completions') status = '';
     dismissCompletions(notify: false);
     if (_active && snapshot.canComplete && next.text.isNotEmpty) {
       _timer = Timer(debounce, requestCompletions);
@@ -185,7 +204,29 @@ final class TerminalComposerController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void requestCompletions() {
+  void requestCompletions() => _requestCompletions(fromTab: false);
+
+  /// Tab completes once or opens the final candidate list for selection.
+  /// Ignore a second Tab while the first is still waiting on local IO.
+  void completeOnTab() {
+    if (_disposed ||
+        !_active ||
+        !snapshot.canComplete ||
+        ownership == ComposerOwnership.running ||
+        ownership == ComposerOwnership.suspended ||
+        ownership == ComposerOwnership.submitting ||
+        _queued?.fromTab == true ||
+        (loading && _currentRequest?.fromTab == true)) {
+      return;
+    }
+    if (selectedIndex >= 0) {
+      accept();
+      return;
+    }
+    _requestCompletions(fromTab: true);
+  }
+
+  void _requestCompletions({required bool fromTab}) {
     _timer?.cancel();
     final query = snapshot;
     if (_disposed ||
@@ -197,17 +238,23 @@ final class TerminalComposerController extends ChangeNotifier {
       return;
     }
     _cancellation?.cancel();
-    _queued = query;
+    _queued = (
+      query: query,
+      localSuggestions: _localSuggestions || fromTab,
+      fromTab: fromTab,
+    );
     if (!_inFlight) unawaited(_drain());
   }
 
   Future<void> _drain() async {
     _inFlight = true;
     while (!_disposed && _queued != null) {
-      final query = _queued!;
+      final request = _queued!;
+      final query = request.query;
       _queued = null;
       final cancellation = CompletionCancellation();
       _cancellation = cancellation;
+      _currentRequest = request;
       notifyListeners();
       try {
         final result = await provider(
@@ -219,6 +266,19 @@ final class TerminalComposerController extends ChangeNotifier {
             query.matches(snapshot) &&
             result.query.matches(query)) {
           publishCompletions(result, cancellation: cancellation);
+          // Incremental static results may still gain local alternatives. Only
+          // the final result can justify accepting a unique match on Tab.
+          if (request.fromTab &&
+              !cancellation.isCancelled &&
+              query.matches(snapshot)) {
+            if (items.length == 1) {
+              accept(items.single);
+            } else if (items.isNotEmpty && selectedIndex < 0) {
+              selectNext(1);
+            } else if (items.isEmpty && result.status == 'ok') {
+              status = 'no_completions';
+            }
+          }
         }
       } on Object {
         if (!_disposed &&
@@ -229,6 +289,7 @@ final class TerminalComposerController extends ChangeNotifier {
         }
       } finally {
         cancellation.cancel();
+        _currentRequest = null;
       }
     }
     _inFlight = false;

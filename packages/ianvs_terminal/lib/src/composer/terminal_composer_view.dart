@@ -175,14 +175,12 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.tab) {
-      if (hardware.isShiftPressed) {
-        FocusScope.of(context).previousFocus();
-      } else if (model.selectedIndex >= 0) {
-        model.accept();
-      } else if (model.items.isNotEmpty) {
-        model.selectNext(1);
-      } else {
-        model.requestCompletions();
+      if (event is KeyDownEvent) {
+        if (hardware.isShiftPressed) {
+          FocusScope.of(context).previousFocus();
+        } else {
+          model.completeOnTab();
+        }
       }
       return KeyEventResult.handled;
     }
@@ -370,12 +368,12 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
                               : Icons.folder_outlined,
                           model.localSuggestions
                               ? tr(
-                                  'Disable local file and script suggestions',
-                                  '关闭本地文件与脚本补全',
+                                  'Disable automatic file and script suggestions',
+                                  '关闭文件与脚本自动补全',
                                 )
                               : tr(
-                                  'Enable local suggestions · reads current folder and package.json',
-                                  '启用本地补全 · 读取当前目录与 package.json',
+                                  'Enable automatic suggestions · Tab always completes on demand',
+                                  '启用自动补全 · Tab 始终可按需补全',
                                 ),
                           model.toggleLocalSuggestions,
                           filled: model.localSuggestions,
@@ -467,6 +465,7 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
       'Completions unavailable. You can continue editing.',
       '补全暂不可用，可继续编辑。',
     ),
+    'no_completions' => tr('No matching completions.', '没有匹配的补全项。'),
     'unsupported_context' => tr(
       'No completions for this shell expression.',
       '此 shell 表达式暂不提供补全。',

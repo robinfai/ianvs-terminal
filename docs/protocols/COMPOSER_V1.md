@@ -42,9 +42,13 @@ status is denied/unsupported/busy/unavailable, or `{status:"pending",jobId}`.
 `{status:"complete",batch}` in the same completion-batch shape. Context change
 invalidates the job; cancel is idempotent. No host pathname enters diagnostics.
 
-The UI starts with both permissions disabled, shows static results immediately,
-and offers a session-only local-suggestions switch. The worker reads only the
-actual cwd and explicitly typed descendant directories. Parent/absolute/tilde
+Automatic local suggestions start disabled; static results appear immediately.
+Tab grants local permissions for that exact live request without changing the
+session-only automatic-suggestions switch. A unique final result is inserted;
+multiple results open for selection and a subsequent Tab accepts the selection.
+Edits, context changes and cancellation revoke the request's permissions.
+The worker reads only the actual cwd and explicitly typed descendant
+directories. Parent/absolute/tilde
 paths, symlink entries and paths resolving outside cwd are excluded. Script
 names come from the regular, no-follow `package.json` in that exact cwd; script
 bodies are never exposed or executed. No ancestor search, process or network API
