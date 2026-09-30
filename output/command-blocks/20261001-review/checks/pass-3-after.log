@@ -1,0 +1,19 @@
+package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/test/design/command_blocks_review_test.dart
+00:00 +0: (setUpAll)
+00:00 +0: round 1 distinguishes waiting from completed empty output
+00:00 +1: round 1 distinguishes no matches from an empty command
+00:00 +2: round 2 filter fits landscape above the keyboard
+00:01 +3: round 2 filter fits landscape-2x above the keyboard
+00:01 +4: round 2 filter fits phone-2x above the keyboard
+00:01 +5: round 2 compact filter options preserve valid output on errors
+00:01 +6: round 3 latest action never covers output while reading
+00:01 +7: round 3 following survives viewport resize but manual reading wins
+00:01 +8: continued review filter remains usable small-phone
+00:02 +9: continued review filter remains usable phone-safe-area
+00:02 +10: continued review filter remains usable landscape-safe-area
+00:02 +11: continued review export fits small phone at large text
+00:02 +12: continued review invalid filter survives reopening the reader
+00:02 +13: continued review context selector exposes a touchable menu
+00:02 +14: (tearDownAll)
+00:02 +14: All tests passed!

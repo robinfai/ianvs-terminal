@@ -35,11 +35,16 @@ class _CommandBlockReaderState extends State<_CommandBlockReader> {
   Size? _cell;
   double _rowHeight = 1;
   late bool _followTail;
+  bool _hasMoreBelow = false;
   String t(String en, String zh) => widget.chinese ? zh : en;
   CommandBlockController get c => widget.controller;
   bool get _filtered => c.filtering.contains(widget.id);
   int get _lineCount =>
       _filtered ? _block?.matchingLines ?? 0 : _block?.totalLines ?? 0;
+  bool get _showLatest =>
+      !_followTail &&
+      _lineCount > 0 &&
+      (_hasMoreBelow || _block?.running == true);
   int? _sourceBase(CommandBlock? block) {
     final first = block?.lines.firstOrNull;
     return first?.sourceRow == null ? null : first!.sourceRow! - first.index;
@@ -50,7 +55,12 @@ class _CommandBlockReaderState extends State<_CommandBlockReader> {
     super.initState();
     _followTail = widget.followTail;
     _readMetadata();
-    _scroll.addListener(() => widget.onSaveRow(_scroll.offset / _rowHeight));
+    _scroll.addListener(() {
+      widget.onSaveRow(_scroll.offset / _rowHeight);
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _updateScrollStatus(),
+      );
+    });
     c.addListener(_changed);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_followTail) {
@@ -106,6 +116,24 @@ class _CommandBlockReaderState extends State<_CommandBlockReader> {
     if ((_scroll.offset - end).abs() > .1) _scroll.jumpTo(end);
   }
 
+  void _updateScrollStatus() {
+    if (!mounted || !_scroll.hasClients) return;
+    final more = _scroll.position.extentAfter > .1;
+    if (more != _hasMoreBelow) setState(() => _hasMoreBelow = more);
+  }
+
+  bool _metricsChanged(ScrollMetricsNotification notification) {
+    // The vertical list is inside the horizontal viewport, so its metrics
+    // notification has already crossed a viewport by the time it arrives here.
+    if (notification.metrics.axis == Axis.vertical) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _tail();
+        _updateScrollStatus();
+      });
+    }
+    return false;
+  }
+
   bool _scrollNotification(ScrollNotification notification) {
     if (notification.metrics.axis == Axis.vertical &&
         _followTail &&
@@ -151,7 +179,7 @@ class _CommandBlockReaderState extends State<_CommandBlockReader> {
         'id': widget.id,
         'offset': offset,
         'limit': end - offset,
-        if (_filtered) ...?c.filters[widget.id]?.toJson(),
+        if (_filtered) ...?c.appliedFilter(widget.id)?.toJson(),
       });
       source = CommandBlock.fromJson(result?['block']);
       if (source == null || source.lines.isEmpty) break;
@@ -241,222 +269,293 @@ class _CommandBlockReaderState extends State<_CommandBlockReader> {
     _rowHeight =
         _cell?.height ?? scale.scale(widget.font.size) * widget.font.lineHeight;
     final width = _cell?.width ?? scale.scale(widget.font.size) * .61;
-    final failed = block?.exitCode != null && block?.exitCode != 0;
+    final textSize = tokens.resultStyle.fontSize ?? 14;
+    // The full header and filter reserve several lines of UI text. Include
+    // their growth in the height budget; fixed control heights alone miss
+    // short windows at accessibility text sizes.
+    final textGrowth = (scale.scale(textSize) - textSize).clamp(
+      0,
+      double.infinity,
+    );
     return Scaffold(
       key: const Key('block-reader'),
       backgroundColor: tokens.surface,
       resizeToAvoidBottomInset: true,
       body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            DecoratedBox(
-              decoration: BoxDecoration(
-                border: Border(bottom: BorderSide(color: tokens.divider)),
-              ),
-              child: Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 4,
-                      vertical: 8,
+        child: LayoutBuilder(
+          builder: (context, constraints) => _body(
+            tokens,
+            block,
+            width,
+            compact:
+                constraints.maxHeight <
+                tokens.controlHeight * 7 + textGrowth * 6,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _body(
+    ComposerTheme tokens,
+    CommandBlock? block,
+    double width, {
+    required bool compact,
+  }) {
+    final failed = block?.exitCode != null && block?.exitCode != 0;
+    final status = block?.running == true
+        ? t('Running', '运行中')
+        : t('Exit ${block?.exitCode ?? "?"}', '退出码 ${block?.exitCode ?? "?"}');
+    final historyNotice = t(
+      'Earlier output has left scrollback',
+      '较早的输出已超出滚动历史保留范围',
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        DecoratedBox(
+          decoration: BoxDecoration(
+            border: Border(bottom: BorderSide(color: tokens.divider)),
+          ),
+          child: Column(
+            children: [
+              Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: 4,
+                  vertical: compact ? 4 : 8,
+                ),
+                child: Row(
+                  children: [
+                    BackButton(
+                      key: const Key('block-reader-close'),
+                      color: tokens.foreground,
                     ),
-                    child: Row(
-                      children: [
-                        BackButton(
-                          key: const Key('block-reader-close'),
-                          color: tokens.foreground,
-                        ),
-                        Expanded(
-                          child: Text(
-                            block?.command ?? t('Command output', '命令输出'),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: tokens.resultStyle.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
+                    Expanded(
+                      child: Tooltip(
+                        message: compact
+                            ? '${block?.command ?? ""}\n${block?.cwd ?? ""}\n$status'
+                            : block?.command ?? '',
+                        child: Text(
+                          block?.command ?? t('Command output', '命令输出'),
+                          maxLines: compact ? 1 : 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: tokens.resultStyle.copyWith(
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
-                        PopupMenuButton<String>(
-                          key: const Key('block-reader-actions'),
-                          tooltip: t('Block actions', '命令块操作'),
-                          icon: Icon(Icons.more_horiz, color: tokens.muted),
-                          onSelected: _action,
-                          itemBuilder: (_) => [
-                            PopupMenuItem(
-                              value: 'command',
-                              child: Text(t('Copy command', '复制命令')),
-                            ),
-                            PopupMenuItem(
-                              value: 'output',
-                              child: Text(t('Copy output', '复制输出')),
-                            ),
-                            PopupMenuItem(
-                              value: 'reinput',
-                              child: Text(
-                                t('Insert into Composer', '放入 Composer 编辑'),
-                              ),
-                            ),
-                            CheckedPopupMenuItem(
-                              value: 'filter',
-                              checked: _filtered,
-                              enabled: block?.running == false,
-                              child: Text(t('Filter output', '过滤输出')),
-                            ),
-                          ],
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            block?.cwd ?? '',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: tokens.metadataStyle,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
-                          block?.running == true
-                              ? t('Running', '运行中')
-                              : t(
-                                  'Exit ${block?.exitCode ?? "?"}',
-                                  '退出码 ${block?.exitCode ?? "?"}',
-                                ),
-                          style: tokens.metadataStyle.copyWith(
+                    if (compact && block?.evicted == true)
+                      Tooltip(
+                        key: const Key('block-reader-history-notice'),
+                        message: '$status\n$historyNotice',
+                        triggerMode: TooltipTriggerMode.tap,
+                        child: SizedBox.square(
+                          dimension: tokens.controlHeight,
+                          child: Icon(
+                            failed ? Icons.error_outline : Icons.info_outline,
+                            size: 18,
                             color: failed ? tokens.error : tokens.muted,
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (_filtered)
-              _BlockFilterEditor(
-                value: c.filters[widget.id] ?? const CommandBlockFilter(),
-                chinese: widget.chinese,
-                error: c.errors[widget.id],
-                onChanged: (value) => c.filter(widget.id, value),
-                onClose: () => c.toggleFilter(widget.id),
-              ),
-            if (block?.evicted == true)
-              Padding(
-                padding: const EdgeInsets.all(8),
-                child: Text(
-                  t('Earlier output has left scrollback', '较早的输出已超出滚动历史保留范围'),
-                  style: tokens.metadataStyle,
-                ),
-              ),
-            Expanded(
-              child: block == null || _lineCount == 0
-                  ? Center(
-                      child: Text(
-                        t(
-                          block == null
-                              ? 'Output is no longer available'
-                              : 'No output',
-                          block == null ? '输出已不可用' : '无输出',
+                      )
+                    else if (compact && block != null) ...[
+                      const SizedBox(width: 8),
+                      Tooltip(
+                        message: status,
+                        child: Icon(
+                          block.running
+                              ? Icons.schedule
+                              : failed
+                              ? Icons.error_outline
+                              : Icons.check,
+                          size: 16,
+                          color: failed ? tokens.error : tokens.muted,
                         ),
-                        style: tokens.metadataStyle,
                       ),
-                    )
-                  : LayoutBuilder(
-                      builder: (context, constraints) => Stack(
-                        children: [
-                          NotificationListener<ScrollNotification>(
-                            onNotification: _scrollNotification,
-                            child: SingleChildScrollView(
-                              scrollDirection: Axis.horizontal,
-                              controller: _horizontal,
-                              child: SizedBox(
-                                width: (block.columns * width + 32).clamp(
-                                  constraints.maxWidth,
-                                  double.infinity,
-                                ),
-                                height: constraints.maxHeight,
-                                child: Scrollbar(
-                                  controller: _scroll,
-                                  child: ListView.builder(
-                                    key: const Key('block-reader-scroll'),
-                                    controller: _scroll,
-                                    primary: false,
-                                    padding: const EdgeInsets.fromLTRB(
-                                      16,
-                                      8,
-                                      16,
-                                      12,
-                                    ),
-                                    itemCount: (_lineCount / _pageRows).ceil(),
-                                    itemExtentBuilder: (index, _) =>
-                                        (_lineCount - index * _pageRows).clamp(
-                                          0,
-                                          _pageRows,
-                                        ) *
-                                        _rowHeight,
-                                    itemBuilder: (context, index) {
-                                      final page = _page(index);
-                                      return page == null
-                                          ? Text(
-                                              t(
-                                                'Output is no longer available',
-                                                '输出已不可用',
-                                              ),
-                                              style: tokens.metadataStyle,
-                                            )
-                                          : CommandBlockTerminal(
-                                              key: ValueKey(page.id),
-                                              block: page,
-                                              font: widget.font,
-                                              scrollOutput: false,
-                                              scrollHorizontally: false,
-                                              requestLiveFocus: false,
-                                              onMeasuredCellSizeChanged:
-                                                  _measured,
-                                              onOpenLinkTarget:
-                                                  widget.onOpenLinkTarget,
-                                            );
-                                    },
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                          if (!_followTail &&
-                              (block.running ||
-                                  _lineCount * _rowHeight >
-                                      constraints.maxHeight))
-                            Positioned(
-                              bottom: 12,
-                              right: 16,
-                              child: FilledButton.tonalIcon(
+                    ],
+                    if (block != null && _lineCount > 0)
+                      // Keep the title width stable when scrolling toggles the
+                      // action, so revealing it cannot reflow the command.
+                      SizedBox.square(
+                        dimension: tokens.controlHeight,
+                        child: _showLatest
+                            ? IconButton(
                                 key: const Key('block-reader-latest'),
+                                tooltip: block.running
+                                    ? t('Resume following output', '继续跟随输出')
+                                    : t('Latest output', '回到最新'),
                                 onPressed: () {
                                   setState(() => _followTail = true);
                                   WidgetsBinding.instance.addPostFrameCallback(
                                     (_) => _tail(),
                                   );
                                 },
-                                icon: const Icon(
-                                  Icons.arrow_downward,
-                                  size: 18,
+                                icon: Icon(
+                                  Icons.vertical_align_bottom,
+                                  size: 20,
+                                  color: tokens.muted,
                                 ),
-                                label: Text(t('Latest output', '回到最新')),
+                              )
+                            : null,
+                      ),
+                    PopupMenuButton<String>(
+                      key: const Key('block-reader-actions'),
+                      tooltip: t('Block actions', '命令块操作'),
+                      icon: Icon(Icons.more_horiz, color: tokens.muted),
+                      onSelected: _action,
+                      itemBuilder: (_) => [
+                        PopupMenuItem(
+                          value: 'command',
+                          child: Text(t('Copy command', '复制命令')),
+                        ),
+                        PopupMenuItem(
+                          value: 'output',
+                          child: Text(t('Copy output', '复制输出')),
+                        ),
+                        PopupMenuItem(
+                          value: 'reinput',
+                          child: Text(
+                            t('Insert into Composer', '放入 Composer 编辑'),
+                          ),
+                        ),
+                        CheckedPopupMenuItem(
+                          value: 'filter',
+                          checked: _filtered,
+                          enabled: block?.running == false,
+                          child: Text(t('Filter output', '过滤输出')),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              if (!compact)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          block?.cwd ?? '',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: tokens.metadataStyle,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        status,
+                        style: tokens.metadataStyle.copyWith(
+                          color: failed ? tokens.error : tokens.muted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+        if (_filtered)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: _BlockFilterEditor(
+              value: c.filters[widget.id] ?? const CommandBlockFilter(),
+              chinese: widget.chinese,
+              error: c.errors[widget.id],
+              compact: compact,
+              onChanged: (value) => c.filter(widget.id, value),
+              onClose: () => c.toggleFilter(widget.id),
+            ),
+          ),
+        if (!compact && block?.evicted == true)
+          Padding(
+            padding: const EdgeInsets.all(8),
+            child: Text(historyNotice, style: tokens.metadataStyle),
+          ),
+        Expanded(
+          child: block == null || _lineCount == 0
+              ? Center(
+                  child: Semantics(
+                    liveRegion: true,
+                    child: Text(
+                      block == null
+                          ? t('Output is no longer available', '输出已不可用')
+                          : block.running
+                          ? t('Waiting for output…', '等待输出…')
+                          : _filtered && block.totalLines > 0
+                          ? t('No matches', '无匹配结果')
+                          : t('No output', '无输出'),
+                      style: tokens.metadataStyle,
+                    ),
+                  ),
+                )
+              : LayoutBuilder(
+                  builder: (context, constraints) =>
+                      NotificationListener<ScrollMetricsNotification>(
+                        onNotification: _metricsChanged,
+                        child: NotificationListener<ScrollNotification>(
+                          onNotification: _scrollNotification,
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            controller: _horizontal,
+                            child: SizedBox(
+                              width: (block.columns * width + 32).clamp(
+                                constraints.maxWidth,
+                                double.infinity,
+                              ),
+                              height: constraints.maxHeight,
+                              child: Scrollbar(
+                                controller: _scroll,
+                                child: ListView.builder(
+                                  key: const Key('block-reader-scroll'),
+                                  controller: _scroll,
+                                  primary: false,
+                                  padding: const EdgeInsets.fromLTRB(
+                                    16,
+                                    8,
+                                    16,
+                                    12,
+                                  ),
+                                  itemCount: (_lineCount / _pageRows).ceil(),
+                                  itemExtentBuilder: (index, _) =>
+                                      (_lineCount - index * _pageRows).clamp(
+                                        0,
+                                        _pageRows,
+                                      ) *
+                                      _rowHeight,
+                                  itemBuilder: (context, index) {
+                                    final page = _page(index);
+                                    return page == null
+                                        ? Text(
+                                            t(
+                                              'Output is no longer available',
+                                              '输出已不可用',
+                                            ),
+                                            style: tokens.metadataStyle,
+                                          )
+                                        : CommandBlockTerminal(
+                                            key: ValueKey(page.id),
+                                            block: page,
+                                            font: widget.font,
+                                            scrollOutput: false,
+                                            scrollHorizontally: false,
+                                            requestLiveFocus: false,
+                                            onMeasuredCellSizeChanged:
+                                                _measured,
+                                            onOpenLinkTarget:
+                                                widget.onOpenLinkTarget,
+                                          );
+                                  },
+                                ),
                               ),
                             ),
-                        ],
+                          ),
+                        ),
                       ),
-                    ),
-            ),
-          ],
+                ),
         ),
-      ),
+      ],
     );
   }
 }

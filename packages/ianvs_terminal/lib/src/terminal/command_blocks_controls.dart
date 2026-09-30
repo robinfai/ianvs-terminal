@@ -1,5 +1,35 @@
 part of 'command_blocks_view.dart';
 
+String? _blockRequestError(
+  String? error,
+  bool chinese, {
+  bool retained = false,
+}) {
+  return switch (error) {
+    'Invalid regular expression' =>
+      retained
+          ? (chinese ? '正则无效，未更新结果' : 'Invalid regex; results unchanged')
+          : (chinese ? '正则表达式无效' : 'Invalid regular expression'),
+    'Output is no longer available' => chinese ? '输出已不可用' : error,
+    _ => error,
+  };
+}
+
+Widget _blockErrorMessage(BuildContext context, String? message) {
+  if (message == null) return const SizedBox.shrink();
+  final tokens = ComposerTheme.of(context);
+  return Padding(
+    padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+    child: Semantics(
+      liveRegion: true,
+      child: Text(
+        message,
+        style: tokens.metadataStyle.copyWith(color: tokens.error),
+      ),
+    ),
+  );
+}
+
 extension _CommandBlocksControls on _CommandBlocksViewState {
   Widget _icon(IconData icon, String label, VoidCallback action) => IconButton(
     tooltip: label,
@@ -325,7 +355,7 @@ extension _CommandBlocksControls on _CommandBlocksViewState {
                   isDense: true,
                   hintText: t('Find commands and output', '查找命令和输出'),
                   prefixIcon: const Icon(Icons.search, size: 17),
-                  errorText: _findError,
+                  error: _findError == null ? null : const SizedBox.shrink(),
                 ),
                 style: tokens.resultStyle,
               ),
@@ -335,6 +365,10 @@ extension _CommandBlocksControls on _CommandBlocksViewState {
               _focus.requestFocus();
             }),
           ],
+        ),
+        _blockErrorMessage(
+          context,
+          _blockRequestError(_findError, widget.chinese),
         ),
         Wrap(
           spacing: 4,
@@ -428,12 +462,14 @@ class _BlockFilterEditor extends StatefulWidget {
     required this.onChanged,
     required this.onClose,
     this.error,
+    this.compact = false,
   });
   final CommandBlockFilter value;
   final bool chinese;
   final ValueChanged<CommandBlockFilter> onChanged;
   final VoidCallback onClose;
   final String? error;
+  final bool compact;
   @override
   State<_BlockFilterEditor> createState() => _BlockFilterEditorState();
 }
@@ -464,7 +500,9 @@ class _BlockFilterEditorState extends State<_BlockFilterEditor> {
                 decoration: InputDecoration(
                   isDense: true,
                   hintText: t('Filter output', '过滤输出'),
-                  errorText: widget.error,
+                  // The full-width message below must not shift the adjacent
+                  // actions when it wraps at accessibility text sizes.
+                  error: widget.error == null ? null : const SizedBox.shrink(),
                   prefixIcon: const Icon(Icons.filter_list, size: 17),
                 ),
                 onChanged: (query) {
@@ -476,6 +514,7 @@ class _BlockFilterEditorState extends State<_BlockFilterEditor> {
                 },
               ),
             ),
+            if (widget.compact) _optionsMenu(),
             IconButton(
               tooltip: t('Close filter', '关闭过滤'),
               onPressed: widget.onClose,
@@ -483,53 +522,108 @@ class _BlockFilterEditorState extends State<_BlockFilterEditor> {
             ),
           ],
         ),
-        Wrap(
-          spacing: 4,
-          runSpacing: 2,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            FilterChip(
-              label: const Text('Aa'),
-              tooltip: t('Case sensitive', '区分大小写'),
-              selected: widget.value.caseSensitive,
-              onSelected: (v) =>
-                  widget.onChanged(widget.value.copyWith(caseSensitive: v)),
-            ),
-            FilterChip(
-              label: const Text('.*'),
-              tooltip: t('Regular expression', '正则表达式'),
-              selected: widget.value.regex,
-              onSelected: (v) =>
-                  widget.onChanged(widget.value.copyWith(regex: v)),
-            ),
-            FilterChip(
-              label: Text(t('Invert', '反向')),
-              selected: widget.value.invert,
-              onSelected: (v) =>
-                  widget.onChanged(widget.value.copyWith(invert: v)),
-            ),
-            PopupMenuButton<int>(
-              tooltip: t('Context lines', '上下文行数'),
-              onSelected: (v) =>
-                  widget.onChanged(widget.value.copyWith(contextLines: v)),
-              itemBuilder: (_) => [
-                for (final n in [0, 1, 2, 3, 5, 10, 20])
-                  PopupMenuItem(value: n, child: Text('$n')),
-              ],
-              child: Padding(
-                padding: const EdgeInsets.all(8),
-                child: Text(
-                  t(
-                    'Context ${widget.value.contextLines}',
-                    '上下文 ${widget.value.contextLines}',
+        _blockErrorMessage(
+          context,
+          _blockRequestError(widget.error, widget.chinese, retained: true),
+        ),
+        if (!widget.compact)
+          Wrap(
+            spacing: 4,
+            runSpacing: 2,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              FilterChip(
+                label: const Text('Aa'),
+                tooltip: t('Case sensitive', '区分大小写'),
+                selected: widget.value.caseSensitive,
+                onSelected: (v) =>
+                    widget.onChanged(widget.value.copyWith(caseSensitive: v)),
+              ),
+              FilterChip(
+                label: const Text('.*'),
+                tooltip: t('Regular expression', '正则表达式'),
+                selected: widget.value.regex,
+                onSelected: (v) =>
+                    widget.onChanged(widget.value.copyWith(regex: v)),
+              ),
+              FilterChip(
+                label: Text(t('Invert', '反向')),
+                selected: widget.value.invert,
+                onSelected: (v) =>
+                    widget.onChanged(widget.value.copyWith(invert: v)),
+              ),
+              PopupMenuButton<int>(
+                tooltip: t('Context lines', '上下文行数'),
+                onSelected: (v) =>
+                    widget.onChanged(widget.value.copyWith(contextLines: v)),
+                itemBuilder: (_) => [
+                  for (final n in [0, 1, 2, 3, 5, 10, 20])
+                    PopupMenuItem(value: n, child: Text('$n')),
+                ],
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minHeight: ComposerTheme.of(context).controlHeight,
+                    minWidth: ComposerTheme.of(context).controlHeight,
                   ),
-                  style: ComposerTheme.of(context).actionStyle,
+                  child: Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          t(
+                            'Context ${widget.value.contextLines}',
+                            '上下文 ${widget.value.contextLines}',
+                          ),
+                          style: ComposerTheme.of(context).actionStyle,
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.arrow_drop_down,
+                          size: 18,
+                          color: ComposerTheme.of(context).muted,
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
       ],
     ),
+  );
+
+  Widget _optionsMenu() => PopupMenuButton<CommandBlockFilter>(
+    key: const Key('block-filter-options'),
+    tooltip: t('Filter options', '过滤选项'),
+    icon: Icon(Icons.tune, size: 17, color: ComposerTheme.of(context).muted),
+    onSelected: widget.onChanged,
+    itemBuilder: (_) => [
+      CheckedPopupMenuItem(
+        value: widget.value.copyWith(
+          caseSensitive: !widget.value.caseSensitive,
+        ),
+        checked: widget.value.caseSensitive,
+        child: Text(t('Case sensitive', '区分大小写')),
+      ),
+      CheckedPopupMenuItem(
+        value: widget.value.copyWith(regex: !widget.value.regex),
+        checked: widget.value.regex,
+        child: Text(t('Regular expression', '正则表达式')),
+      ),
+      CheckedPopupMenuItem(
+        value: widget.value.copyWith(invert: !widget.value.invert),
+        checked: widget.value.invert,
+        child: Text(t('Invert', '反向')),
+      ),
+      const PopupMenuDivider(),
+      for (final n in [0, 1, 2, 3, 5, 10, 20])
+        CheckedPopupMenuItem(
+          value: widget.value.copyWith(contextLines: n),
+          checked: widget.value.contextLines == n,
+          child: Text(t('Context $n lines', '上下文 $n 行')),
+        ),
+    ],
   );
 }

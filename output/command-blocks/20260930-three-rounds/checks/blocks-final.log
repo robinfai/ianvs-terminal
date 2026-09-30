@@ -1,0 +1,23 @@
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_test.dart
+00:00 +0: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_test.dart: whole block fits one third, uses full rows and expands at (font: Instance of 'TerminalFontConfig', scale: 1.0, size: Size(900.0, 900.0))
+00:00 +1: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_test.dart: whole block fits one third, uses full rows and expands at (font: Instance of 'TerminalFontConfig', scale: 1.0, size: Size(900.0, 900.0))
+00:00 +2: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_mobile_test.dart: viewport resize follows the preview tail only before manual reading (variant: TargetPlatform.iOS)
+00:00 +3: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_test.dart: whole block fits one third, uses full rows and expands at (font: Instance of 'TerminalFontConfig', scale: 1.0, size: Size(640.0, 620.0))
+00:00 +4: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_mobile_test.dart: touch reader crosses native pages without jumping or opening IME (variant: TargetPlatform.iOS)
+00:00 +5: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_mobile_test.dart: touch reader crosses native pages without jumping or opening IME (variant: TargetPlatform.iOS)
+00:01 +6: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_mobile_test.dart: touch reader crosses native pages without jumping or opening IME (variant: TargetPlatform.iOS)
+00:01 +7: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_mobile_test.dart: touch reader crosses native pages without jumping or opening IME (variant: TargetPlatform.iOS)
+00:01 +8: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_test.dart: short-window find remains reachable and Escape closes it
+00:01 +9: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_test.dart: short-window find remains reachable and Escape closes it
+00:01 +10: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_mobile_test.dart: large dark text supports compact previews and reader at Size(360.0, 640.0) (variant: TargetPlatform.iOS)
+00:01 +11: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_test.dart: offscreen bookmarks reveal lazily built blocks and wheel scroll is not pulled back
+00:01 +12: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_test.dart: offscreen bookmarks reveal lazily built blocks and wheel scroll is not pulled back
+00:01 +13: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_test.dart: offscreen bookmarks reveal lazily built blocks and wheel scroll is not pulled back
+00:03 +14: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_test.dart: block output passes pixel wheel deltas to vertical and horizontal scrollables (variant: TargetPlatform.macOS)
+00:03 +15: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_test.dart: one trackpad gesture crosses block boundaries and survives source refreshes (running: false) (variant: TargetPlatform.macOS)
+00:03 +16: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_test.dart: one trackpad gesture crosses block boundaries and survives source refreshes (running: true) (variant: TargetPlatform.macOS)
+00:04 +17: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_test.dart: range selection, bookmarks, paging and eviction stay session-local
+00:04 +18: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_test.dart: copy ignores filters and joins soft wraps across pages
+00:04 +19: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_test.dart: running block owns focus and PTY input; completed terminal is read-only
+00:04 +20: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_test.dart: re-input edits only, folding preserves terminal source
+00:04 +21: All tests passed!

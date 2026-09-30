@@ -213,3 +213,46 @@ iOS / Android（包括平板）的未配置默认值为 Blocks，桌面保持 No
 - 修改的规范源码及宿主测试静态分析均无问题；发布镜像同步检查和差异空白检查通过。[组件分析](../../output/command-blocks/20260930-design-audit/checks/analysis-components.log)、[宿主分析](../../output/command-blocks/20260930-design-audit/checks/analysis-host.log)、[同步检查](../../output/command-blocks/20260930-design-audit/checks/sync-final.log)。
 
 证据范围：本轮截图来自 macOS 宿主上的生产 Flutter 组件、固定测试数据与仓库字体，键盘只模拟 inset，空白区域不包含系统键盘。另采集了当前已安装 macOS 应用的 [tab 菜单](../../output/command-blocks/20260930-design-audit/before/desktop/native-tab-menu.png)，用于检查原有切换入口。上述五项整改尚未重新安装到 iPhone／本机，也未在真机上复验；上一节的 iPhone 验收属于整改前版本。其他 Apple OS 版本和 Android 真机覆盖没有扩大。
+
+## 2026-09-30 追加三轮检查与整改
+
+从 `dc152e64` 开始，按「采集新截图 → imagegen 标注 → 实现修复 → 同场景复验」连续完成三轮。沿用既有颜色、字体和细分隔线，检查重点为阅读状态、过滤过程和滚动导航。
+
+| 轮次与检查流程 | 问题、整改与结果 | 标注和最终截图 |
+| --- | --- | --- |
+| 1. 运行命令 → 空输出阅读 → 输入无匹配的过滤条件 | 「仍在等待」与「过滤无匹配」都误显示为「无输出」。现分别显示「等待输出…」「无匹配结果」，结束后确实没有内容才显示「无输出」；状态变更提供辅助功能播报标记。两项回归通过 | [标注](../../output/command-blocks/20260930-three-rounds/round-1/annotated.png)、[等待输出](../../output/command-blocks/20260930-three-rounds/final/reader/01-waiting.png)、[无匹配](../../output/command-blocks/20260930-three-rounds/final/reader/03-filter-empty.png) |
+| 2. 打开过滤 → 横屏键盘／两倍字号 → 正则错误与修正 | 原普通横屏只给输出留下 14px，两倍字号底部溢出 27px。现按实际剩余高度收紧标题，保留状态图标，把过滤选项收入可触摸菜单；过滤输入与正文使用同一左边距。进一步修复无效正则让结果误报「输出已不可用」的问题，保留上次有效条件对应的内容和后续分页，修正后刷新。四项回归通过 | [标注](../../output/command-blocks/20260930-three-rounds/round-2/annotated-v2.png)、[横屏过滤](../../output/command-blocks/20260930-three-rounds/final/reader/01-filter-landscape-2x.png)、[错误时保留内容](../../output/command-blocks/20260930-three-rounds/final/reader/02-invalid-regex.png) |
+| 3. 回看宽输出 → 回到最新 → 缩放阅读区域 → 手动回看持续输出 | 原浮动按钮遮盖正文；跟随尾部时缩小视口仍停在旧位置，测试中距新尾部相差 344px。现把入口移到标题栏，保留触控尺寸和说明，并预留宽度避免按钮显隐使标题换行。视口变化只在跟随状态下贴合新尾部，手动回看与后台输出更新保持位置。两项回归通过 | [标注](../../output/command-blocks/20260930-three-rounds/round-3/annotated.png)、[正文无遮挡](../../output/command-blocks/20260930-three-rounds/final/reader/01-reading-wide.png)、[缩小后跟随末行](../../output/command-blocks/20260930-three-rounds/final/reader/02-live-resize.png)、[暂停跟随](../../output/command-blocks/20260930-three-rounds/final/reader/03-live-paused.png) |
+
+每轮的 `before/` 是该轮整改前的新采集，`after/` 是该轮完成时的截图。第二轮的 `before-error/` 记录布局修复后继续操作时发现的正则错误问题。`final/` 是三轮所有改动完成后的统一采集，应以它作为最终实现证据。三张最终标注均使用内置 imagegen；提示词：[第一轮](../../output/command-blocks/20260930-three-rounds/round-1/annotation.prompt.md)、[第二轮](../../output/command-blocks/20260930-three-rounds/round-2/annotation.prompt.md)及其[补充修订](../../output/command-blocks/20260930-three-rounds/round-2/annotation-final.prompt.md)、[第三轮](../../output/command-blocks/20260930-three-rounds/round-3/annotation.prompt.md)。生成像素不充当实现截图。
+
+最终检查共 67 项通过：
+
+- 宿主界面 25 项：新增三轮 8 项加原有桌面 6 项、移动端 11 项，覆盖键盘、横屏、两倍字号、iPad、菜单、模式协商回退和偏好。[日志](../../output/command-blocks/20260930-three-rounds/checks/ui-final.log)。
+- 规范组件 21 项与独立发布包 21 项：原有滚动、惯性、跨页、阅读位置、复制、折叠、运行输入及只读行为均通过。[规范组件](../../output/command-blocks/20260930-three-rounds/checks/blocks-final.log)、[发布包](../../output/command-blocks/20260930-three-rounds/checks/mirror-final.log)。
+- 修改组件及新增测试静态分析无问题；发布包同步检查通过。结果和源码 SHA-256 见 [results.json](../../output/command-blocks/20260930-three-rounds/checks/results.json)，逐轮修复前失败和修复后通过的日志保存在同一目录。
+
+本次验收使用生产 Flutter 组件、仓库字体和确定性后端数据，键盘通过实际布局 inset 模拟。检查了可见状态、控件可点击范围、布局边界和滚动偏移；未做 VoiceOver 实机操作，也不据此宣称完整无障碍合规。没有扩大上一节的真机／OS 覆盖范围，本轮未重新安装到 iPhone 或本机。
+
+## 2026-10-01 持续复审至无新增可见问题
+
+在前述三轮整改基础上继续检查，共调用内置 imagegen 五次，使用截图编辑／标注模式，生成审阅板。先采集生产组件的新截图，再核实图像审阅提出的问题；可见问题通过交互、布局断言和代码确认后才修改。第五轮结论为「本轮未发现新的可见问题（限所示组件场景）」：[最终审阅板](../../output/command-blocks/20261001-review/pass-5/audit.png)。这是已覆盖场景的停止条件，不代表整个应用或所有真机状态没有缺陷。
+
+| 核实的问题 | 最终整改 | 原始证据与回归 |
+| --- | --- | --- |
+| 320px 小屏、两倍字号、键盘与安全区同时存在时，完整过滤控件和历史提示挤掉正文，底部溢出 91px；另两种视口正文仅剩 43px／30px | 紧凑布局阈值计入 UI 字号增长；短视口将历史提示收进 44px 可点击的信息入口，状态和完整提示仍可查阅。三种尺寸均保留至少 44px 正文，过滤关闭入口可点击 | [修复前](../../output/command-blocks/20261001-review/pass-2/before/04-small-phone.png)、[修复后](../../output/command-blocks/20261001-review/final/reader/04-small-phone.png)、[失败日志](../../output/command-blocks/20261001-review/checks/pass-2-before.log) |
+| 无效正则提示直接使用英文，且没有说明保留结果；退出再打开阅读页后，有效筛选结果被替换成未筛选的前 11 行 | 本地化错误提示并说明结果未更新；最后一次有效条件由会话控制器保存，重开阅读页及后续分页继续使用同一条件，关闭过滤或删除块时清理 | [重开前](../../output/command-blocks/20261001-review/pass-3/before/06-error-before-return.png)、[错误的重开结果](../../output/command-blocks/20261001-review/pass-3/before/07-error-after-return.png)、[修复后的重开结果](../../output/command-blocks/20261001-review/final/reader/07-error-after-return.png)、[失败日志](../../output/command-blocks/20261001-review/checks/pass-3-before.log) |
+| 「上下文 0」外观像普通文字，触控入口不明显 | 增加下拉箭头，最小高度使用平台控件 token；手机验证不小于 44px，打开菜单并选择 3 行后状态正确更新 | [选择后的截图](../../output/command-blocks/20261001-review/final/reader/08-context-selector.png) |
+| 英文错误在小屏两倍字号下换成三行，旁边操作按钮相对输入内容向下偏移约 53px | 错误说明占用输入和操作行下方的完整宽度，使用随系统字号缩放的元数据样式及辅助功能播报；查找栏使用相同处理，操作按钮始终留在输入旁 | [修复前](../../output/command-blocks/20261001-review/pass-4/before/09-error-english-small.png)、[修复后](../../output/command-blocks/20261001-review/final/reader/09-error-english-small.png)、[查找栏复验](../../output/command-blocks/20261001-review/final/reader/10-search-error-small.png)、[失败日志](../../output/command-blocks/20261001-review/checks/pass-4-before.log) |
+
+审阅轮次及判断：
+
+- 第一轮检查既有移动／桌面截图：[审阅板](../../output/command-blocks/20261001-review/pass-1/audit.png)、[提示词](../../output/command-blocks/20261001-review/pass-1/audit.prompt.md)。采纳错误说明问题；「没有占位提示」是误报，输入框已有文本时占位提示正常隐藏。终端列间距、横向裁切和现有尾部预览文案未被证实为缺陷，没有为满足审阅图而改写终端内容。
+- 第二轮扩展小屏、安全区、历史提示和导出：[审阅板](../../output/command-blocks/20261001-review/pass-2/audit.png)、[提示词](../../output/command-blocks/20261001-review/pass-2/audit.prompt.md)。图像把黄黑溢出条误解为产品提示；实际是 Flutter 布局溢出，按失败断言修复。历史内容已被淘汰，不提供虚假的「跳转找回」入口。上下文菜单可发现性建议被采纳。
+- 第三轮复验修复及重开阅读页：[审阅板](../../output/command-blocks/20261001-review/pass-3/audit.png)、[提示词](../../output/command-blocks/20261001-review/pass-3/audit.prompt.md)，五个所示场景无新增可见问题。额外操作验证了导出弹窗能够滚动至目录选项、勾选后预览包含目录，底部复制／取消始终可达。
+- 第四轮继续扩展英文错误、桌面深色和横屏 Composer：[审阅板](../../output/command-blocks/20261001-review/pass-4/audit.png)、[提示词](../../output/command-blocks/20261001-review/pass-4/audit.prompt.md)。没有照搬含糊的间距建议；独立位置断言确认错误文字把过滤按钮推离输入框，进行了上述修复。
+- 第五轮复验中英文错误、重开结果、小屏历史入口和导出：[审阅板](../../output/command-blocks/20261001-review/pass-5/audit.png)、[提示词](../../output/command-blocks/20261001-review/pass-5/audit.prompt.md)，无新增可见问题。生成图只作审阅说明，实施证据以 `final/` 原始截图和测试日志为准。
+
+最终验证 75 项通过：宿主界面 33 项、规范组件 21 项、独立发布包 21 项。新增八项覆盖三种安全区／键盘尺寸、导出滚动、无效过滤重开、上下文菜单、英文错误和查找错误；原有惯性滚动、跨页、手动阅读位置、复制、模式协商回退与桌面／移动端矩阵均通过。[界面日志](../../output/command-blocks/20261001-review/checks/ui-final.log)、[规范组件](../../output/command-blocks/20261001-review/checks/blocks-final.log)、[发布包](../../output/command-blocks/20261001-review/checks/mirror-final.log)。组件与测试静态分析无问题，发布镜像同步检查通过；结果、生成方式与最终源码 SHA-256 记录在 [results.json](../../output/command-blocks/20261001-review/checks/results.json)。
+
+上述检查针对提交前的工作区，覆盖范围仍为 macOS 宿主的生产 Flutter 组件、仓库字体、确定性后端数据和模拟键盘 inset。没有新增 iPhone／macOS 安装、实际系统键盘或 VoiceOver 验收。原来的真机验收记录不能作为这些新增改动的真机验证。

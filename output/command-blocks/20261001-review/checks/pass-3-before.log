@@ -1,0 +1,46 @@
+package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/test/design/command_blocks_review_test.dart
+00:00 +0: (setUpAll)
+00:00 +0: continued review invalid filter survives reopening the reader
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: contains 'output line 18'
+  Actual: MappedIterable<TerminalRow, String>:[
+            'output line 1',
+            'output line 2',
+            'output line 3',
+            'output line 4',
+            'output line 5',
+            'output line 6',
+            'output line 7',
+            'output line 8',
+            'output line 9',
+            'output line 10',
+            'output line 11'
+          ]
+   Which: does not contain 'output line 18'
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/design/command_blocks_review_test.dart:488:5)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/design/command_blocks_review_test.dart line 488
+The test description was:
+  continued review invalid filter survives reopening the reader
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:01 +0 -1: continued review invalid filter survives reopening the reader [E]
+  Test failed. See exception logs above.
+  The test description was: continued review invalid filter survives reopening the reader
+
+00:01 +0 -1: (tearDownAll)
+00:01 +0 -1: Some tests failed.
+
+Failing tests:
+  /Users/robinfai/flutter_projects/ianvs-terminal/example/test/design/command_blocks_review_test.dart: continued review invalid filter survives reopening the reader

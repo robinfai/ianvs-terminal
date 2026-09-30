@@ -1,0 +1,89 @@
+{
+  "date": "2026-10-01",
+  "branch": "composer",
+  "baseCommit": "dc152e649699204da22c8893f179cf687797614f",
+  "imageGeneration": {
+    "tool": "built-in image_gen.imagegen",
+    "mode": "edit / screenshot annotation",
+    "passes": [
+      {
+        "pass": 1,
+        "prompt": "../pass-1/audit.prompt.md",
+        "image": "../pass-1/audit.png",
+        "original": "/Users/robinfai/.codex/generated_images/01a0ed0d-0c29-7352-b227-05bf31aee38a/exec-0a172eef-1b7e-4590-8ad4-13f60565e869.png"
+      },
+      {
+        "pass": 2,
+        "prompt": "../pass-2/audit.prompt.md",
+        "image": "../pass-2/audit.png",
+        "original": "/Users/robinfai/.codex/generated_images/01a0ed0d-0c29-7352-b227-05bf31aee38a/exec-8779f303-3412-4b76-a927-0ade4fd5e884.png"
+      },
+      {
+        "pass": 3,
+        "prompt": "../pass-3/audit.prompt.md",
+        "image": "../pass-3/audit.png",
+        "original": "/Users/robinfai/.codex/generated_images/01a0ed0d-0c29-7352-b227-05bf31aee38a/exec-4485f80f-1758-418e-b2f8-f53ee2af4244.png"
+      },
+      {
+        "pass": 4,
+        "prompt": "../pass-4/audit.prompt.md",
+        "image": "../pass-4/audit.png",
+        "original": "/Users/robinfai/.codex/generated_images/01a0ed0d-0c29-7352-b227-05bf31aee38a/exec-8c2272eb-587c-412e-aeda-23089564edd6.png"
+      },
+      {
+        "pass": 5,
+        "prompt": "../pass-5/audit.prompt.md",
+        "image": "../pass-5/audit.png",
+        "original": "/Users/robinfai/.codex/generated_images/01a0ed0d-0c29-7352-b227-05bf31aee38a/exec-20c10612-d5b2-4745-b25c-68859f503c0a.png"
+      }
+    ],
+    "finalVerdict": "No new visible issues in the supplied component scenes; not a whole-app or device certification"
+  },
+  "checks": {
+    "ui-final": {
+      "passed": 33,
+      "log": "ui-final.log"
+    },
+    "blocks-final": {
+      "passed": 21,
+      "log": "blocks-final.log"
+    },
+    "mirror-final": {
+      "passed": 21,
+      "log": "mirror-final.log"
+    },
+    "analysis-components": {
+      "passed": true,
+      "log": "analysis-components.log"
+    },
+    "analysis-host": {
+      "passed": true,
+      "log": "analysis-host.log"
+    },
+    "sync-check": {
+      "passed": true,
+      "log": "sync-check.log"
+    }
+  },
+  "totalPassed": 75,
+  "physicalDeviceValidation": false,
+  "installed": false,
+  "committed": false,
+  "pushed": false,
+  "scope": "Production Flutter widgets, fixed backend data, repository fonts, simulated keyboard insets on the macOS host",
+  "finalScreenshotCount": 36,
+  "sha256": {
+    "packages/ianvs_terminal/lib/src/terminal/command_block_controller.dart": "6d140be047529fa75edfb45fedf22a54d7a9b52f9c1781d6860a6f263ad980e0",
+    "packages/ianvs_terminal/lib/src/terminal/command_block_reader.dart": "69f485349c1370b10b2b7860e72d141cf113a478876c922591bd1214122d651d",
+    "packages/ianvs_terminal/lib/src/terminal/command_blocks_controls.dart": "99be806a4dc35ee8f0f743a21359b3beebac5e547942d070fa15556d8274350c",
+    "packages/ianvs_terminal_core/lib/src/terminal/command_block_controller.dart": "6d140be047529fa75edfb45fedf22a54d7a9b52f9c1781d6860a6f263ad980e0",
+    "packages/ianvs_terminal_core/lib/src/terminal/command_block_reader.dart": "69f485349c1370b10b2b7860e72d141cf113a478876c922591bd1214122d651d",
+    "packages/ianvs_terminal_core/lib/src/terminal/command_blocks_controls.dart": "99be806a4dc35ee8f0f743a21359b3beebac5e547942d070fa15556d8274350c",
+    "example/test/design/command_blocks_review_test.dart": "83b22b580b1ab9b203801685a22b930ee0ff1d54902c40b7534d11a24c3d2e04"
+  },
+  "regressionsBefore": {
+    "pass-2-before.log": "91px overflow; 43px and 30px output height",
+    "pass-3-before.log": "reader reopening showed unfiltered rows 1–11 instead of 18,180–189",
+    "pass-4-before.log": "filter action center shifted 53.21335029602051px from input"
+  }
+}

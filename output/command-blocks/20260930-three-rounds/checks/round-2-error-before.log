@@ -1,0 +1,41 @@
+package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/test/design/command_blocks_review_test.dart
+00:00 +0: (setUpAll)
+00:00 +0: round 2 compact filter options preserve valid output on errors
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: no matching candidates
+  Actual: _TextWidgetFinder:<Found 1 widget with text "输出已不可用": [
+            Text("输出已不可用", debugLabel: (((englishLike bodySmall
+2021).merge(unknown)).copyWith).copyWith, inherit: false, color: Color(alpha: 1.0000, red: 0.6144,
+green: 0.6921, blue: 0.7856, colorSpace: ColorSpace.sRGB), family: VisualCaptureSans,
+familyFallback: [VisualCaptureCjk, VisualCaptureMono], size: 11.0, weight: 400, letterSpacing: 0.0,
+baseline: alphabetic, height: 1.4x, leadingDistribution: even, dependencies: [DefaultSelectionStyle,
+DefaultTextStyle, MediaQuery]),
+          ]>
+   Which: means one was found but none were expected
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/design/command_blocks_review_test.dart:277:5)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/design/command_blocks_review_test.dart line 277
+The test description was:
+  round 2 compact filter options preserve valid output on errors
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:01 +0 -1: round 2 compact filter options preserve valid output on errors [E]
+  Test failed. See exception logs above.
+  The test description was: round 2 compact filter options preserve valid output on errors
+
+00:01 +0 -1: (tearDownAll)
+00:01 +0 -1: Some tests failed.
+
+Failing tests:
+  /Users/robinfai/flutter_projects/ianvs-terminal/example/test/design/command_blocks_review_test.dart: round 2 compact filter options preserve valid output on errors

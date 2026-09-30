@@ -22,6 +22,7 @@ class CommandBlockController extends ChangeNotifier {
   final filtering = <String>{};
   final errors = <String, String>{};
   final _pages = <String, CommandBlock>{};
+  final _appliedFilters = <String, CommandBlockFilter>{};
   String? activeId;
   String? _anchor;
   String? _signature;
@@ -34,6 +35,10 @@ class CommandBlockController extends ChangeNotifier {
 
   CommandBlock displayBlock(CommandBlock block) =>
       block.running ? block : _pages[block.id] ?? block;
+
+  /// The condition behind the last successful result, even if the current
+  /// draft is invalid or its reader has been closed and opened again.
+  CommandBlockFilter? appliedFilter(String id) => _appliedFilters[id];
   CommandBlock? get active =>
       _blocks.where((b) => b.id == activeId).firstOrNull;
 
@@ -58,6 +63,7 @@ class CommandBlockController extends ChangeNotifier {
     filters.removeWhere((id, _) => !retained.contains(id));
     errors.removeWhere((id, _) => !retained.contains(id));
     _pages.removeWhere((id, _) => !retained.contains(id));
+    _appliedFilters.removeWhere((id, _) => !retained.contains(id));
     if (!retained.contains(activeId)) activeId = null;
     if (!retained.contains(_anchor)) _anchor = null;
     for (final block in _blocks) {
@@ -153,6 +159,7 @@ class CommandBlockController extends ChangeNotifier {
   void toggleFilter(String id) {
     if (filtering.remove(id)) {
       _pages.remove(id);
+      _appliedFilters.remove(id);
       errors.remove(id);
     } else {
       filtering.add(id);
@@ -182,6 +189,11 @@ class CommandBlockController extends ChangeNotifier {
         case final CommandBlock block) {
       errors.remove(id);
       _pages[id] = block;
+      if (filtering.contains(id)) {
+        _appliedFilters[id] = filters[id] ?? const CommandBlockFilter();
+      } else {
+        _appliedFilters.remove(id);
+      }
     } else {
       errors[id] = 'Output is no longer available';
     }
