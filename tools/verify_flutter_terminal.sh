@@ -12,73 +12,95 @@ EXAMPLE_DIR="$ROOT_DIR/example"
 BACKEND_DIR="$ROOT_DIR/backend"
 VERIFY_FLUTTER_TERMINAL_SKIP_MACOS_INTEGRATION="${VERIFY_FLUTTER_TERMINAL_SKIP_MACOS_INTEGRATION:-0}"
 VERIFY_FLUTTER_TERMINAL_RUN_NIGHTLY_BENCH="${VERIFY_FLUTTER_TERMINAL_RUN_NIGHTLY_BENCH:-0}"
+VERIFY_FLUTTER_TERMINAL_SKIP_BACKEND="${VERIFY_FLUTTER_TERMINAL_SKIP_BACKEND:-0}"
+VERIFY_FLUTTER_TERMINAL_SKIP_NATIVE="${VERIFY_FLUTTER_TERMINAL_SKIP_NATIVE:-0}"
+VERIFY_FLUTTER_TERMINAL_SKIP_VENDOR="${VERIFY_FLUTTER_TERMINAL_SKIP_VENDOR:-0}"
+VERIFY_FLUTTER_TERMINAL_SKIP_STATIC="${VERIFY_FLUTTER_TERMINAL_SKIP_STATIC:-0}"
+VERIFY_FLUTTER_TERMINAL_SKIP_VISUAL="${VERIFY_FLUTTER_TERMINAL_SKIP_VISUAL:-0}"
 
-if ! command -v rustup >/dev/null 2>&1 || \
-  ! rustup target list --installed | grep -Fqx -- 'thumbv7em-none-eabihf' >/dev/null; then
-  echo "Missing Rust target thumbv7em-none-eabihf." >&2
-  echo "Install it with: rustup target add thumbv7em-none-eabihf" >&2
-  exit 1
-fi
+verify_vendor() {
+  if ! command -v rustup >/dev/null 2>&1 || \
+    ! rustup target list --installed | grep -Fqx -- 'thumbv7em-none-eabihf' >/dev/null; then
+    echo "Missing Rust target thumbv7em-none-eabihf." >&2
+    echo "Install it with: rustup target add thumbv7em-none-eabihf" >&2
+    exit 1
+  fi
 
+  (
+    cd "$VENDORED_TERMINAL_CORE_DIR"
+    cargo fmt --check
+    # Preserve the upstream release snapshot without rewriting hundreds of
+    # format calls to inline captured arguments; all other warnings stay denied.
+    cargo clippy --locked --all-targets -- \
+      -D warnings \
+      -A clippy::uninlined_format_args
+    cargo test --locked -- --test-threads=1
+  )
+
+  (
+    cd "$VENDORED_ZMODEM_DIR"
+    cargo fmt --check
+    cargo clippy --locked --all-targets --all-features -- -D warnings
+    cargo check --locked --no-default-features --lib --target thumbv7em-none-eabihf
+    # The integration tests spawn host `rz`/`sz`; real GNU lrzsz interoperability
+    # is covered by the dedicated Docker/OpenSSH CI job below the generic gates.
+    cargo test --locked --all-features --lib
+    cargo test --locked --no-default-features --lib
+  )
+}
+
+case "${1:-}" in
+  --vendor-only) verify_vendor; exit 0 ;;
+  '') ;;
+  *) echo "Usage: $0 [--vendor-only]" >&2; exit 64 ;;
+esac
+
+# Local invocation remains complete; CI delegates these suites to separate jobs.
 "$ROOT_DIR/tools/build_core.sh"
-"$ROOT_DIR/tools/verify_generated_contracts.sh"
 dart run "$ROOT_DIR/tools/sync_terminal_core.dart" --check
-
 python3 "$ROOT_DIR/tools/validate_osc_protocol_corpus.py"
 python3 "$ROOT_DIR/tools/osc_semantic_probe.py" --self-test
 
-(
-  cd "$BACKEND_DIR"
-  test -z "$(gofmt -l .)"
-  go vet ./...
-  go test -race ./...
-)
+if [ "$VERIFY_FLUTTER_TERMINAL_SKIP_BACKEND" != "1" ]; then
+  (
+    cd "$BACKEND_DIR"
+    test -z "$(gofmt -l .)"
+    go vet ./...
+    go test -race ./...
+  )
+fi
+if [ "$VERIFY_FLUTTER_TERMINAL_SKIP_NATIVE" != "1" ]; then
+  "$ROOT_DIR/tools/verify_generated_contracts.sh"
+  if [ "$VERIFY_FLUTTER_TERMINAL_SKIP_VENDOR" != "1" ]; then
+    verify_vendor
+  fi
 
-(
-  cd "$VENDORED_TERMINAL_CORE_DIR"
-  cargo fmt --check
-  # Preserve the upstream release snapshot without rewriting hundreds of
-  # format calls to inline captured arguments; all other warnings stay denied.
-  cargo clippy --locked --all-targets -- \
-    -D warnings \
-    -A clippy::uninlined_format_args
-  cargo test --locked -- --test-threads=1
-)
+  (
+    cd "$CORE_DIR"
+    cargo fmt --check
+    cargo clippy --locked --all-targets -- -D warnings
+    # Set IANVS_REQUIRE_POSIX_SHM_TESTS=1 on hosts where Kitty POSIX shared memory
+    # support must be verified instead of skipped when the OS blocks shm_open.
+    cargo test --locked -- --test-threads=1
+  )
 
-(
-  cd "$VENDORED_ZMODEM_DIR"
-  cargo fmt --check
-  cargo clippy --locked --all-targets --all-features -- -D warnings
-  cargo check --locked --no-default-features --lib --target thumbv7em-none-eabihf
-  # The integration tests spawn host `rz`/`sz`; real GNU lrzsz interoperability
-  # is covered by the dedicated Docker/OpenSSH CI job below the generic gates.
-  cargo test --locked --all-features --lib
-  cargo test --locked --no-default-features --lib
-)
+  # The standalone pub.dev artifact mirrors the canonical ABI and must remain
+  # independently buildable from its packaged source tree.
+  (
+    cd "$TERMINAL_CORE_DIR/native/core"
+    cargo test --locked \
+      --test ffi_abi_manifest_test \
+      --test session_architecture_test
+  )
+fi
 
-(
-  cd "$CORE_DIR"
-  cargo fmt --check
-  cargo clippy --locked --all-targets -- -D warnings
-  # Set IANVS_REQUIRE_POSIX_SHM_TESTS=1 on hosts where Kitty POSIX shared memory
-  # support must be verified instead of skipped when the OS blocks shm_open.
-  cargo test --locked -- --test-threads=1
-)
-
-# The standalone pub.dev artifact mirrors the canonical ABI and must remain
-# independently buildable from its packaged source tree.
-(
-  cd "$TERMINAL_CORE_DIR/native/core"
-  cargo test --locked \
-    --test ffi_abi_manifest_test \
-    --test session_architecture_test
-)
-
-(
-  cd "$ROOT_DIR"
-  dart format --output=none --set-exit-if-changed .
-  dart analyze --fatal-infos
-)
+if [ "$VERIFY_FLUTTER_TERMINAL_SKIP_STATIC" != "1" ]; then
+  (
+    cd "$ROOT_DIR"
+    dart format --output=none --set-exit-if-changed .
+    dart analyze --fatal-infos
+  )
+fi
 
 (
   cd "$PTY_DIR"
@@ -96,18 +118,20 @@ python3 "$ROOT_DIR/tools/osc_semantic_probe.py" --self-test
   flutter test
 )
 
-(
-  cd "$ROOT_DIR"
-  dart test test/docs_contract_test.dart
-  dart test test/runtime_documentation_contract_test.dart
-  dart test \
-    test/backend_makefile_contract_test.dart \
-    test/terminal_core_publish_contract_test.dart \
-    test/apple_build_environment_contract_test.dart \
-    test/install_ios_simulator_contract_test.dart \
-    test/select_physical_ios_device_test.dart \
-    test/openapi_document_test.dart
-)
+if [ "$VERIFY_FLUTTER_TERMINAL_SKIP_STATIC" != "1" ]; then
+  (
+    cd "$ROOT_DIR"
+    dart test test/docs_contract_test.dart
+    dart test test/runtime_documentation_contract_test.dart
+    dart test \
+      test/backend_makefile_contract_test.dart \
+      test/terminal_core_publish_contract_test.dart \
+      test/apple_build_environment_contract_test.dart \
+      test/install_ios_simulator_contract_test.dart \
+      test/select_physical_ios_device_test.dart \
+      test/openapi_document_test.dart
+  )
+fi
 
 (
   cd "$ROOT_DIR"
@@ -137,6 +161,10 @@ fi
   cd "$EXAMPLE_DIR"
   EXAMPLE_CI_TEST_TARGETS=()
   while IFS= read -r test_target; do
+    # CI already runs the entire design directory with failure artifacts.
+    if [ "$VERIFY_FLUTTER_TERMINAL_SKIP_VISUAL" = "1" ] && [[ "$test_target" == test/design/* ]]; then
+      continue
+    fi
     EXAMPLE_CI_TEST_TARGETS+=("$test_target")
   done < <(
     find test -type f -name '*_test.dart' \

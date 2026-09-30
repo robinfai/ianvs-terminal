@@ -1,8 +1,10 @@
 name: macOS Release
 
 on:
-  push:
+  workflow_run:
+    workflows: [Verify]
     branches: [main]
+    types: [completed]
   workflow_dispatch:
 
 permissions:
@@ -15,21 +17,30 @@ concurrency:
 
 jobs:
   release:
-    if: github.ref == 'refs/heads/main'
+    # Enable automatic publishing only after the signing configuration exists.
+    # Manual runs still validate credentials and fail explicitly if incomplete.
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (vars.MACOS_RELEASE_ENABLED == 'true' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.conclusion == 'success'))
     runs-on: macos-15
     timeout-minutes: 90
     permissions:
       contents: write
     env:
+      RELEASE_COMMIT: ${{ github.event.workflow_run.head_sha || github.sha }}
       RELEASE_REPOSITORY: ${{ github.repository }}
       SPARKLE_PUBLIC_KEY: ${{ vars.SPARKLE_PUBLIC_KEY }}
       MACOS_SIGNING_IDENTITY: ${{ vars.MACOS_SIGNING_IDENTITY }}
       NOTARY_KEY_ID: ${{ vars.NOTARY_KEY_ID }}
       NOTARY_ISSUER_ID: ${{ vars.NOTARY_ISSUER_ID }}
     steps:
-      - name: Check out the merged commit
+      - name: Check out the verified commit
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
         with:
+          ref: ${{ env.RELEASE_COMMIT }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -76,11 +87,7 @@ jobs:
 
       - name: Set up Flutter
         if: steps.version.outputs.publish == 'true'
-        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
-        with:
-          flutter-version: '3.44.0'
-          channel: stable
-          cache: false
+        uses: ./.github/actions/setup-flutter
 
       - name: Set up Rust
         if: steps.version.outputs.publish == 'true'
@@ -89,9 +96,15 @@ jobs:
           toolchain: '1.88.0'
           targets: aarch64-apple-darwin,x86_64-apple-darwin
 
+      - name: Cache Rust dependencies
+        if: steps.version.outputs.publish == 'true'
+        uses: Swatinem/rust-cache@23869a5bd66c73db3c0ac40331f3206eb23791dc # v2.9.1
+        with:
+          workspaces: native/core -> target
+
       - name: Set up Go
         if: steps.version.outputs.publish == 'true'
-        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: '1.23.x'
           cache-dependency-path: backend/go.sum
@@ -148,9 +161,9 @@ jobs:
           if gh release view "$tag" --json isDraft --jq .isDraft > "$RUNNER_TEMP/existing-release" 2>/dev/null; then
             test "$(cat "$RUNNER_TEMP/existing-release")" = true
             # A rerun may resume its own draft, but never replace another commit.
-            test "$(gh release view "$tag" --json targetCommitish --jq .targetCommitish)" = "$GITHUB_SHA"
+            test "$(gh release view "$tag" --json targetCommitish --jq .targetCommitish)" = "$RELEASE_COMMIT"
           else
-            gh release create "$tag" --draft --target "$GITHUB_SHA" --title "Trail $RELEASE_VERSION" --generate-notes
+            gh release create "$tag" --draft --target "$RELEASE_COMMIT" --title "Trail $RELEASE_VERSION" --generate-notes
           fi
           gh release upload "$tag" "$RELEASE_OUTPUT/Trail-$RELEASE_VERSION-macOS-universal.zip" \
             "$RELEASE_OUTPUT/appcast.xml" "$RELEASE_OUTPUT/SHA256SUMS" --clobber

@@ -16,8 +16,10 @@ requires PRs, prohibits force pushes and deletion, and has no bypass actors.
 It requires resolving review threads, but no mandatory second reviewer, so the
 owner can merge their own PRs. Ruleset ID: `23715048`.
 
-`macos-release.yml` runs on a push to protected main (a PR merge), or a manual run
-on main. Each merged revision is versioned `1.1.<git rev-list --count HEAD>`;
+`macos-release.yml` automatically publishes only when `MACOS_RELEASE_ENABLED`
+is `true` and the **Verify** push run on main succeeds. It checks out and publishes
+that exact verified commit, even if main advances while the run is queued.
+A manual run on main is also available. Each merged revision is versioned `1.1.<git rev-list --count HEAD>`;
 its build number is that same commit count. Full git history and no history
 rewrites are required. No version-bump commits or writes to main are needed.
 This series follows the existing `v1.0.0` release; it does not change iOS versions.
@@ -36,7 +38,9 @@ manual installation of the first updater-enabled release.
 ## One-time credentials
 
 Configure in **Settings → Secrets and variables → Actions**. Never commit keys.
-The workflow fails before building/publishing if credentials are missing; it does
+Automatic publication is opt-in: leave `MACOS_RELEASE_ENABLED` unset until all
+eight credentials below are configured. Then set it to `true`. Manual runs and
+enabled automatic runs fail before building/publishing if credentials are missing; they do
 not silently downgrade public releases to ad-hoc or Apple Development signing.
 
 Repository secrets:
@@ -56,6 +60,7 @@ Repository variables:
 | `NOTARY_KEY_ID` | Apple API key ID |
 | `NOTARY_ISSUER_ID` | Apple API issuer ID (team API key) |
 | `SPARKLE_PUBLIC_KEY` | Public key corresponding to `SPARKLE_PRIVATE_KEY` |
+| `MACOS_RELEASE_ENABLED` | Set to `true` after configuring the four secrets and four signing variables above |
 
 Use Sparkle's `generate_keys --account trail-production` once, then export and
 back up the key securely. Keep this key across releases. Production CI verifies
@@ -71,9 +76,14 @@ staples the ticket, runs Gatekeeper assessment, then packages/signs the final
 archive bytes. It uploads the ZIP, signed `appcast.xml`, and `SHA256SUMS`.
 The ZIP can be extracted and Trail.app moved to Applications for first install.
 
-PR checks run release helper tests, real EdDSA validation/tampering tests, build
-the macOS client, and run RunnerTests (including safe shutdown and update config).
-The existing general Verify workflow remains separate.
+**macOS Update Checks** runs release helper tests and real EdDSA
+validation/tampering tests on macOS 15. **Verify / macos-app** owns the macOS
+build, Sparkle framework assertion and RunnerTests (including safe shutdown and
+update config) on macOS 26; these expensive checks run once per affected revision.
+Manually dispatch **macOS Update Checks** before a release to also run the
+Debug/Sparkle build and RunnerTests on macOS 15. This compatibility check is
+available on demand rather than repeated on every related PR.
+This does not establish runtime coverage of all four supported macOS versions.
 
 ## Isolated end-to-end acceptance
 
