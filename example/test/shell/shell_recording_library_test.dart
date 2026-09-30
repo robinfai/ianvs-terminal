@@ -100,8 +100,8 @@ class _ReplayShellBackend extends FakePtyBackend
   }
 }
 
-// Exercise real local files/indexes without spawning worker isolates inside
-// the widget fake clock. Background codec workers have repository coverage.
+// Read real files/indexes in runAsync before the widget consumes the listing.
+// Fixed pump counts cannot bound disk I/O reliably on a busy CI runner.
 class _PersistentWidgetRecordingRepository
     extends LocalSessionRecordingRepository
     with NoIoLocalSessionRecordingRecovery {
@@ -112,6 +112,18 @@ class _PersistentWidgetRecordingRepository
         decoder: (source) async =>
             const TerminalRecordingCodec().decode(source),
       );
+
+  List<LocalSessionRecordingEntry>? _preparedListing;
+
+  Future<void> prepareListing() async {
+    _preparedListing = await super.listRecordings();
+  }
+
+  @override
+  Future<List<LocalSessionRecordingEntry>> listRecordings() async {
+    return _preparedListing ??
+        (throw StateError('Prepare the real listing with tester.runAsync.'));
+  }
 }
 
 class _RecordingLibraryConfigRepository extends LocalTerminalConfigRepository {
@@ -701,6 +713,7 @@ void main() {
           fixture.recording,
           displayName: 'Persisted recording',
         );
+        await repository.prepareListing();
         return (repository, path);
       }))!;
       final firstRepository = seeded.$1;
@@ -724,9 +737,13 @@ void main() {
 
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pumpAndSettle();
-      final rebuiltRepository = _PersistentWidgetRecordingRepository(
-        directoryResolver: () async => fixture.directory,
-      );
+      final rebuiltRepository = (await tester.runAsync(() async {
+        final repository = _PersistentWidgetRecordingRepository(
+          directoryResolver: () async => fixture.directory,
+        );
+        await repository.prepareListing();
+        return repository;
+      }))!;
       await _pumpRecordingLibraryShell(tester, repository: rebuiltRepository);
       await openShellCommand(tester, 'shell-open-recording');
       final rebuiltEntry = find.byKey(

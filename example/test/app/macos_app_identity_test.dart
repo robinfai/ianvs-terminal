@@ -447,6 +447,8 @@ void main() {
       );
       expect(failedVerify.result.exitCode, isNonZero);
     },
+    // The signer now validates and loads a real Mach-O before codesigning.
+    skip: !Platform.isMacOS,
   );
 }
 
@@ -596,6 +598,20 @@ Future<_SignerFixtureResult> _runSignerFixture({
   );
   try {
     final app = Directory('${directory.path}/Fixture.app')..createSync();
+    final library = File(
+      '${app.path}/Contents/Frameworks/ianvs_core.framework/ianvs_core',
+    );
+    library.parent.createSync(recursive: true);
+    final source = File('${directory.path}/fixture.c')
+      ..writeAsStringSync('int fixture_answer(void) { return 42; }\n');
+    final compile = await Process.run('xcrun', <String>[
+      'clang',
+      '-dynamiclib',
+      source.path,
+      '-o',
+      library.path,
+    ]);
+    expect(compile.exitCode, 0, reason: compile.stderr as String?);
     final bin = Directory('${directory.path}/bin')..createSync();
     final codesignLog = File('${directory.path}/codesign.log')..createSync();
     final finalEntitlements = File('${directory.path}/entitlements.plist')

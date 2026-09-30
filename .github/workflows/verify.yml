@@ -39,8 +39,6 @@ jobs:
     steps:
       - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
       - uses: ./.github/actions/setup-flutter
-        with:
-          platform: analyze
       - run: echo "TMPDIR=$RUNNER_TEMP" >> "$GITHUB_ENV"
       - run: flutter pub get --enforce-lockfile
       - run: python3 -m unittest discover -s tools/ci -p 'test_*.py'
@@ -213,7 +211,7 @@ jobs:
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
 
       - name: Set up Go
-        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: "1.23.x"
           cache-dependency-path: backend/go.sum
@@ -271,6 +269,7 @@ jobs:
           workspaces: |
             native/core -> target
             packages/ianvs_terminal_core/native/core -> target
+          cache-on-failure: true
 
       - name: Set up Flutter
         uses: ./.github/actions/setup-flutter
@@ -280,7 +279,8 @@ jobs:
         run: echo "version=$(xcodebuild -version | shasum -a 256 | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
 
       - name: Cache native hook compilation
-        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        id: hook_cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           # Restore Cargo outputs only; hooks still validate inputs and emit assets.
           path: .dart_tool/hooks_runner/shared/**/cargo-target
@@ -350,6 +350,13 @@ jobs:
         if: ${{ !cancelled() && steps.dependencies.outcome == 'success' }}
         run: ./tools/verify_flutter_terminal.sh
 
+      - name: Save native hook compilation
+        if: ${{ !cancelled() && steps.dependencies.outcome == 'success' && steps.hook_cache.outcome == 'success' && steps.hook_cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .dart_tool/hooks_runner/shared/**/cargo-target
+          key: ${{ steps.hook_cache.outputs.cache-primary-key }}
+
   macos-app:
     needs: changes
     if: needs.changes.outputs.macos == 'true'
@@ -363,7 +370,7 @@ jobs:
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
 
       - name: Set up Go
-        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: "1.23.x"
           cache-dependency-path: backend/go.sum
@@ -389,7 +396,7 @@ jobs:
         run: echo "version=$(xcodebuild -version | shasum -a 256 | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
 
       - name: Cache native hook compilation
-        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           # Restore Cargo outputs only; hooks still validate inputs and emit assets.
           path: .dart_tool/hooks_runner/shared/**/cargo-target
@@ -410,7 +417,9 @@ jobs:
           uname -m
 
       - name: Verify macOS integration, packaging, signature and native tests
-        run: ./tools/verify_macos_app.sh
+        run: |
+          python3 -B -m unittest discover -s tools/tests -p 'test_macos_native_library.py'
+          ./tools/verify_macos_app.sh
 
       - name: Save native test results
         if: always()
@@ -448,8 +457,6 @@ jobs:
 
       - name: Set up Flutter
         uses: ./.github/actions/setup-flutter
-        with:
-          platform: ios
 
       - name: Enable iOS build targets
         run: |

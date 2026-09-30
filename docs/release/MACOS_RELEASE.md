@@ -80,6 +80,9 @@ The ZIP can be extracted and Trail.app moved to Applications for first install.
 validation/tampering tests on macOS 15. **Verify / macos-app** owns the macOS
 build, Sparkle framework assertion and RunnerTests (including safe shutdown and
 update config) on macOS 26; these expensive checks run once per affected revision.
+Manually dispatch **macOS Update Checks** before a release to also run the
+Debug/Sparkle build and RunnerTests on macOS 15. This compatibility check is
+available on demand rather than repeated on every related PR.
 This does not establish runtime coverage of all four supported macOS versions.
 
 ## Isolated end-to-end acceptance

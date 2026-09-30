@@ -173,6 +173,7 @@ void main() {
       tester.view.viewInsets = const FakeViewPadding(bottom: 300);
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('ios-terminal-input-bar')), findsOne);
+      expect(find.byKey(const Key('mobile-show-keyboard')), findsNothing);
       expect(find.byKey(const Key('ios-terminal-text-size')), findsNothing);
       nativeBackend.writes.clear();
       await tester.tap(find.byKey(const Key('ios-terminal-key-Control C')));
@@ -483,6 +484,7 @@ void _resetIphoneTestSurface(WidgetTester tester) {
   debugDefaultTargetPlatformOverride = null;
   tester.view.resetDevicePixelRatio();
   tester.view.resetPhysicalSize();
+  tester.view.resetViewInsets();
 }
 
 Future<void> _pumpUntilReady(WidgetTester tester) async {

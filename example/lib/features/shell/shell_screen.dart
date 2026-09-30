@@ -688,6 +688,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Scaffold removes the bottom inset from its body's MediaQuery.
+    final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
     ref.listen<bool>(
       localFirstSyncProvider.select(
         (sync) => sync?.enabledButUnavailable ?? false,
@@ -1642,7 +1644,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     _selectedRecording == null &&
                     instantReplaySession == null &&
                     activeSessionId != null)
-                  if (MediaQuery.viewInsetsOf(context).bottom == 0)
+                  if (!keyboardVisible)
                     _MobileTerminalToolbar(
                       onKeyboard: () => _focusSession(activeSessionId),
                       onSearch: _openSearch,
@@ -1668,8 +1670,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     IosTerminalInputBar(
                       key: const Key('ios-terminal-input-bar'),
                       palette: palette,
-                      keyboardVisible:
-                          MediaQuery.viewInsetsOf(context).bottom > 0,
+                      keyboardVisible: keyboardVisible,
                       onSendBytes: (bytes) =>
                           _sendMobileTerminalBytes(activeSessionId, bytes),
                       onDismissKeyboard: () =>
