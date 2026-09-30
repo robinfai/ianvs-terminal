@@ -1,0 +1,22 @@
+package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/test/design/command_blocks_capture_test.dart
+00:00 +0: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/design/command_blocks_capture_test.dart: (setUpAll)
+00:00 +0: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/design/command_blocks_capture_test.dart: command blocks light
+00:00 +1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:00 +2: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +3: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +4: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +5: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +6: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:02 +7: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: android negotiates Blocks and preserves manual Normal
+00:03 +8: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH hop and fullscreen fall back; restore remains manual
+00:04 +9: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: main-screen application modes fall back without an alternate buffer
+00:05 +10: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: mobile Block input fits phone with the keyboard
+00:05 +11: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: mobile Block input fits landscape with the keyboard
+00:06 +12: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: mobile Block input fits large-text-dark with the keyboard
+00:06 +13: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: mobile Block input fits landscape-large-text with the keyboard
+00:06 +14: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: mobile Block input fits ipad with the keyboard
+00:07 +15: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: mobile settings save Normal for new sessions only
+00:08 +16: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: explicit Normal preference overrides the mobile default
+00:08 +17: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: (tearDownAll)
+00:08 +17: All tests passed!

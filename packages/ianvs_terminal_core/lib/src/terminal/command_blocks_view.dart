@@ -411,10 +411,12 @@ class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
             _readerLayout =
                 tokens.controlHeight >= 44 &&
                 (bounds.maxWidth < 600 ||
-                    MediaQuery.sizeOf(context).shortestSide < 600);
+                    MediaQuery.sizeOf(context).shortestSide < 600 ||
+                    bounds.maxHeight < tokens.controlHeight * 7);
             return Column(
               children: [
-                if (bounds.maxHeight >= tokens.controlHeight + 24)
+                if (bounds.maxHeight >=
+                    tokens.controlHeight * (_readerLayout ? 3 : 1) + 24)
                   _toolbar(tokens),
                 if (_finding)
                   Flexible(
@@ -435,37 +437,52 @@ class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
                             ),
                           )
                         else
-                          NotificationListener<ScrollNotification>(
+                          NotificationListener<ScrollMetricsNotification>(
                             onNotification: (notification) {
-                              if (notification is ScrollStartNotification &&
-                                      notification.dragDetails != null ||
-                                  notification is UserScrollNotification &&
-                                      notification.direction !=
-                                          ScrollDirection.idle) {
-                                _follow = false;
-                                ++_revealSerial;
+                              // A keyboard/viewport resize should reveal the
+                              // tail only while the user is still following it.
+                              if (notification.depth == 0 &&
+                                  notification.metrics.axis == Axis.vertical &&
+                                  _follow &&
+                                  c.selected.isEmpty) {
+                                WidgetsBinding.instance.addPostFrameCallback(
+                                  (_) => _tail(),
+                                );
                               }
                               return false;
                             },
-                            child: Scrollbar(
-                              controller: _scroll,
-                              child: ListView.builder(
-                                key: _listKey,
+                            child: NotificationListener<ScrollNotification>(
+                              onNotification: (notification) {
+                                if (notification is ScrollStartNotification &&
+                                        notification.dragDetails != null ||
+                                    notification is UserScrollNotification &&
+                                        notification.direction !=
+                                            ScrollDirection.idle) {
+                                  _follow = false;
+                                  ++_revealSerial;
+                                }
+                                return false;
+                              },
+                              child: Scrollbar(
                                 controller: _scroll,
-                                padding: const EdgeInsets.fromLTRB(
-                                  10,
-                                  0,
-                                  10,
-                                  16,
+                                child: ListView.builder(
+                                  key: _listKey,
+                                  controller: _scroll,
+                                  padding: EdgeInsets.fromLTRB(
+                                    10,
+                                    0,
+                                    10,
+                                    _readerLayout ? 0 : 16,
+                                  ),
+                                  itemCount: c.blocks.length,
+                                  itemBuilder: (context, index) => _readerLayout
+                                      ? _compactBlock(c.blocks[index], tokens)
+                                      : _block(
+                                          c.displayBlock(c.blocks[index]),
+                                          tokens,
+                                          constraints.maxHeight / 3,
+                                        ),
                                 ),
-                                itemCount: c.blocks.length,
-                                itemBuilder: (context, index) => _readerLayout
-                                    ? _compactBlock(c.blocks[index], tokens)
-                                    : _block(
-                                        c.displayBlock(c.blocks[index]),
-                                        tokens,
-                                        constraints.maxHeight / 3,
-                                      ),
                               ),
                             ),
                           ),
@@ -962,6 +979,13 @@ class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
                       t('Expand block', '扩大命令块'),
                       () => _toggleOutputHeight(block.id),
                     ),
+                  ),
+                  PopupMenuButton<String>(
+                    key: ValueKey('block-actions-${block.id}'),
+                    tooltip: t('Block actions', '命令块操作'),
+                    icon: Icon(Icons.more_horiz, size: 17, color: tokens.muted),
+                    onSelected: (action) => _action(block, action),
+                    itemBuilder: (_) => _menuItems(block),
                   ),
                 ],
               ),

@@ -500,6 +500,13 @@ void main() {
       brightness: Brightness.dark,
     ),
     (
+      name: 'landscape-large-text',
+      size: const Size(844, 390),
+      keyboard: 180.0,
+      scale: 2.0,
+      brightness: Brightness.dark,
+    ),
+    (
       name: 'ipad',
       size: const Size(1024, 768),
       keyboard: 280.0,
@@ -520,6 +527,7 @@ void main() {
       );
       expect(_mode(container).mode, TerminalViewMode.blocks);
       if (scene.name == 'phone') {
+        expect(find.text('末尾 6 / 12 行 · 查看全部'), findsOneWidget);
         await _capture(tester, 'ios-block');
         expect(
           find.byKey(const ValueKey('block-output-scroll-1')),
@@ -528,6 +536,12 @@ void main() {
         await tester.tap(find.byKey(const ValueKey('block-expand-1')));
         await _settle(tester);
         expect(find.byKey(const Key('block-reader-scroll')), findsOneWidget);
+        final readerBack = find.byKey(const Key('block-reader-close'));
+        expect(tester.getSize(readerBack).height, greaterThanOrEqualTo(44));
+        expect(tester.getSize(readerBack).width, greaterThanOrEqualTo(44));
+        final readerActions = find.byKey(const Key('block-reader-actions'));
+        expect(tester.getSize(readerActions).height, greaterThanOrEqualTo(44));
+        expect(readerActions.hitTestable(), findsOneWidget);
         await _capture(tester, 'ios-reader');
         await tester.tap(find.byKey(const Key('block-reader-close')));
         await _settle(tester);
@@ -549,6 +563,32 @@ void main() {
         tester.getBottomRight(run).dy,
         lessThanOrEqualTo(scene.size.height - scene.keyboard),
       );
+      final surface = tester.getRect(find.byKey(const Key('composer-surface')));
+      expect(surface.top, greaterThanOrEqualTo(0));
+      expect(
+        surface.bottom,
+        lessThanOrEqualTo(scene.size.height - scene.keyboard),
+        reason: 'The complete input surface must remain above the keyboard.',
+      );
+      if (scene.name.startsWith('landscape')) {
+        final editable = find.descendant(
+          of: find.byKey(const Key('composer-editor')),
+          matching: find.byType(EditableText),
+        );
+        expect(
+          tester.getRect(editable).center.dy,
+          closeTo(tester.getRect(run).center.dy, 2),
+          reason: 'Inline command text should align with the action row.',
+        );
+      }
+      if (scene.name.startsWith('landscape') || scene.name == 'ipad') {
+        expect(
+          find.byKey(const ValueKey('block-expand-1')).hitTestable(),
+          findsOneWidget,
+          reason: 'Full output remains reachable with the keyboard open.',
+        );
+        expect(find.text('末尾 6 / 12 行 · 查看全部'), findsOneWidget);
+      }
       await _capture(tester, 'ios-${scene.name}-keyboard');
       if (scene.name == 'ipad') {
         tester.view.viewInsets = FakeViewPadding.zero;

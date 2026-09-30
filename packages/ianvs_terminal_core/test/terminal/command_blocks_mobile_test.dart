@@ -108,6 +108,35 @@ void main() {
   );
 
   testWidgets(
+    'viewport resize follows the preview tail only before manual reading',
+    (tester) async {
+      final output = _Output();
+      final controller = CommandBlockController(request: output.snapshot)
+        ..refresh();
+      await _mount(tester, controller);
+      tester.view.physicalSize = const Size(390, 200);
+      await tester.pumpAndSettle();
+      final list = find.byType(ListView);
+      final scroll = tester.widget<ListView>(list).controller!;
+      expect(scroll.offset, scroll.position.maxScrollExtent);
+      expect(
+        find.byKey(const ValueKey('block-expand-long')).hitTestable(),
+        findsOneWidget,
+      );
+      await tester.drag(list, const Offset(0, 100));
+      await tester.pumpAndSettle();
+      final reading = scroll.offset;
+      tester.view.physicalSize = const Size(390, 180);
+      await tester.pumpAndSettle();
+      expect(scroll.offset, closeTo(reading, .1));
+      expect(scroll.offset, lessThan(scroll.position.maxScrollExtent));
+      await tester.pumpWidget(const SizedBox.shrink());
+      controller.dispose();
+    },
+    variant: const TargetPlatformVariant({TargetPlatform.iOS}),
+  );
+
+  testWidgets(
     'touch reader crosses native pages without jumping or opening IME',
     (tester) async {
       final output = _Output();

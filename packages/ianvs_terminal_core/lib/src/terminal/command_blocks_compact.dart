@@ -161,10 +161,15 @@ extension _CommandBlocksCompact on _CommandBlocksViewState {
                   ),
                   icon: const Icon(Icons.open_in_full, size: 14),
                   label: Text(
-                    t(
-                      'View all · ${block.totalLines} lines',
-                      '查看全部 · ${block.totalLines} 行',
-                    ),
+                    !folded && block.totalLines > 6 && block.lines.isNotEmpty
+                        ? t(
+                            'Last ${block.lines.length.clamp(1, 6)} of ${block.totalLines} lines · View all',
+                            '末尾 ${block.lines.length.clamp(1, 6)} / ${block.totalLines} 行 · 查看全部',
+                          )
+                        : t(
+                            'View all · ${block.totalLines} lines',
+                            '查看全部 · ${block.totalLines} 行',
+                          ),
                   ),
                 ),
               ),

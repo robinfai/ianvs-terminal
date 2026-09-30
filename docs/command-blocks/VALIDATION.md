@@ -188,3 +188,28 @@ iOS / Android（包括平板）的未配置默认值为 Blocks，桌面保持 No
 最终结果：[results.json](../../output/command-blocks/20260930-mobile-reader/iphone/results.json)。真机截图：[六行预览](../../output/command-blocks/20260930-mobile-reader/iphone/list-preview.png)、[全屏阅读](../../output/command-blocks/20260930-mobile-reader/iphone/expanded-after-scroll.png)、[持续输出时回看](../../output/command-blocks/20260930-mobile-reader/iphone/live-reading-paused.png)、[top](../../output/command-blocks/20260930-mobile-reader/iphone/fullscreen-top.png)、[vim 编辑](../../output/command-blocks/20260930-mobile-reader/iphone/fullscreen-vim.png)。其他 iOS 版本与 Android 仍未完成真机验证；横屏和大字号覆盖来自上述组件测试。
 
 验收完成后，iPhone 已保留数据更新回正常 `lib/main.dart` 入口的 Release，并成功启动；签名验证通过。本机 `/Applications/Trail.app` 同步更新并重启，三个本地 Shell 会话正常恢复。两端安装记录见 [install.json](../../output/command-blocks/20260930-mobile-reader/install.json)。
+
+## 2026-09-30 设计细节标注与整改
+
+本轮先重新采集生产组件截图，再使用内置 imagegen 标注可验证的问题，最后以相同场景重新渲染验收。延续已确认的白色表面、冷蓝灰文字、细分隔线和仅光标焦点；没有新增装饰色条或卡片描边。
+
+标注图：[四项界面细节](../../output/command-blocks/20260930-design-audit/annotated-review.png)、[iPad 键盘状态](../../output/command-blocks/20260930-design-audit/annotated-ipad.png)。完整提示词和纠正文案分别保存在 [主图提示词](../../output/command-blocks/20260930-design-audit/annotation.prompt.md) 与 [iPad 提示词](../../output/command-blocks/20260930-design-audit/ipad-annotation.prompt.md)。生成图仅用于解释问题，原始 `before/` 和 `after/` 截图才是实现证据。
+
+| 检查步骤 | 发现与整改 | 前后对照 |
+| --- | --- | --- |
+| 1. 手机横屏打开键盘并输入 | 原 Composer 下边缘落到键盘区域内；短且足够宽的触控布局改为单行输入和操作，文字与执行按钮垂直对齐，整块边框完整保留 | [修改前](../../output/command-blocks/20260930-design-audit/before/mobile/ios-landscape-keyboard.png) / [修改后](../../output/command-blocks/20260930-design-audit/after/mobile/ios-landscape-keyboard.png) |
+| 2. 打开全屏输出阅读页 | 标题贴近顶部，正文与目录左边距不一致；增加标题上下留白，标题允许两行，正文和目录统一为 16px 左边距 | [修改前](../../output/command-blocks/20260930-design-audit/before/mobile/ios-reader.png) / [修改后](../../output/command-blocks/20260930-design-audit/after/mobile/ios-reader.png) |
+| 3. 阅读长输出预览 | 原入口仅显示总行数，未说明当前是末尾预览；改为「末尾 6 / 12 行 · 查看全部」，折叠或短输出仍使用适合其状态的文案 | [修改前](../../output/command-blocks/20260930-design-audit/before/mobile/ios-block.png) / [修改后](../../output/command-blocks/20260930-design-audit/after/mobile/ios-block.png) |
+| 4. 缩短桌面窗口并操作命令块 | 紧凑摘要没有可见的更多菜单；恢复与完整块相同的操作入口，复制输出等功能可直接发现 | [修改前](../../output/command-blocks/20260930-design-audit/before/desktop/short.png) / [修改后](../../output/command-blocks/20260930-design-audit/after/desktop/short.png) |
+| 5. iPad 打开键盘 | 宽屏继续套用桌面 1/3 限制，12 行输出只剩标题；触控窗口按实际可用高度启用六行预览和全屏阅读入口，键盘打开后可看到输出尾部并打开完整内容 | [修改前](../../output/command-blocks/20260930-design-audit/before/mobile/ios-ipad-keyboard.png) / [修改后](../../output/command-blocks/20260930-design-audit/after/mobile/ios-ipad-keyboard.png) |
+
+高度很短时，列表收起工具栏并减少末尾留白，让输出和「查看全部」可达。键盘或窗口改变尺寸时，仅在用户仍跟随最新输出且没有选择内容时滚动到尾部；手动回看后继续保持阅读位置。预览自身最多六行，极短视口通过外层列表滚动查看，不再添加内层纵向滚动。
+
+最终验证：
+
+- 界面矩阵 17 项通过，覆盖桌面深浅色、运行中、窄窗口／2 倍字号、高对比、短窗口，以及移动端菜单、回退、偏好、手机／iPad 键盘和横屏／2 倍字号。完整 Composer 边界保持在键盘上方，横屏输入与执行按钮中心差不超过 2px；短视口的「查看全部」可命中，桌面紧凑菜单能打开「复制输出」。[日志](../../output/command-blocks/20260930-design-audit/checks/ui-final.log)。
+- 同步后的独立发布包命令块、手机阅读与 Composer 共 97 项通过；新增回归验证缩小视口时跟随预览尾部、手动滑动后再次缩小时不回拉。[日志](../../output/command-blocks/20260930-design-audit/checks/components-final.log)。
+- 新增几何和菜单断言在修改前复现两项失败：[修复前回归](../../output/command-blocks/20260930-design-audit/checks/regressions-before.log)。阅读页返回和更多操作的触控高度原本已不小于 44px，本轮继续验证，没有把它们误报为尺寸不足。
+- 修改的规范源码及宿主测试静态分析均无问题；发布镜像同步检查和差异空白检查通过。[组件分析](../../output/command-blocks/20260930-design-audit/checks/analysis-components.log)、[宿主分析](../../output/command-blocks/20260930-design-audit/checks/analysis-host.log)、[同步检查](../../output/command-blocks/20260930-design-audit/checks/sync-final.log)。
+
+证据范围：本轮截图来自 macOS 宿主上的生产 Flutter 组件、固定测试数据与仓库字体，键盘只模拟 inset，空白区域不包含系统键盘。另采集了当前已安装 macOS 应用的 [tab 菜单](../../output/command-blocks/20260930-design-audit/before/desktop/native-tab-menu.png)，用于检查原有切换入口。上述五项整改尚未重新安装到 iPhone／本机，也未在真机上复验；上一节的 iPhone 验收属于整改前版本。其他 Apple OS 版本和 Android 真机覆盖没有扩大。

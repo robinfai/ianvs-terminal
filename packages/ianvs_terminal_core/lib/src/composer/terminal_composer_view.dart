@@ -314,6 +314,10 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
         final compact =
             constraints.maxWidth - ComposerTheme.inset * 2 <
             math.max(scaler.scale(520), _toolbarMinimumWidth(tokens));
+        final inlineEditor =
+            short &&
+            _touchCompact &&
+            _width >= scaler.scale(240) + tokens.controlHeight * 4;
         final lineBudget = math.max(
           1,
           ((MediaQuery.sizeOf(context).height * .25) /
@@ -328,6 +332,7 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
             focusNode: _focus,
             autofocus: widget.autofocus,
             enabled: !_disabled,
+            centerVertically: inlineEditor,
             maxLines: short && _touchCompact
                 ? 1
                 : math.min(widget.maxLines, lineBudget),
@@ -424,17 +429,27 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
                           _context(tokens, compact: compact),
                           SizedBox(height: short ? 8 : 12),
                         ],
-                        if (_busyHeight != null)
-                          Expanded(
-                            child: Align(
-                              alignment: Alignment.topLeft,
-                              child: editor,
-                            ),
+                        if (inlineEditor)
+                          Row(
+                            children: [
+                              Expanded(child: editor),
+                              const SizedBox(width: 8),
+                              _actions(tokens, compact: compact, inline: true),
+                            ],
                           )
-                        else
-                          editor,
-                        SizedBox(height: short ? 6 : 12),
-                        _actions(tokens, compact: compact),
+                        else ...[
+                          if (_busyHeight != null)
+                            Expanded(
+                              child: Align(
+                                alignment: Alignment.topLeft,
+                                child: editor,
+                              ),
+                            )
+                          else
+                            editor,
+                          SizedBox(height: short ? 6 : 12),
+                          _actions(tokens, compact: compact),
+                        ],
                         if (!_disabled && model.executionStatus.isNotEmpty)
                           _executionFeedback(tokens),
                         if (!_disabled &&
@@ -668,50 +683,58 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
     return width;
   }
 
-  Widget _actions(ComposerTheme tokens, {required bool compact}) {
+  Widget _actions(
+    ComposerTheme tokens, {
+    required bool compact,
+    bool inline = false,
+  }) {
     if (_touchCompact) {
+      final actions = <Widget>[
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              key: const Key('composer-history-toggle'),
+              tooltip: tr('Command history', '命令历史'),
+              color: tokens.muted,
+              isSelected: model.historyOpen,
+              onPressed: !model.canOpenHistory
+                  ? null
+                  : () {
+                      model.toggleHistory();
+                      _focus.requestFocus();
+                    },
+              icon: const Icon(ComposerIcons.history),
+            ),
+            _moreActions(tokens),
+            if (_focus.hasFocus)
+              IconButton(
+                key: const Key('composer-dismiss-keyboard'),
+                tooltip: tr('Hide keyboard', '收起键盘'),
+                color: tokens.muted,
+                onPressed: () {
+                  _focus.unfocus();
+                  unawaited(
+                    SystemChannels.textInput.invokeMethod<void>(
+                      'TextInput.hide',
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.keyboard_hide_outlined),
+              ),
+          ],
+        ),
+        _primary(tokens),
+      ];
+      if (inline) {
+        return Row(mainAxisSize: MainAxisSize.min, children: actions);
+      }
       return OverflowBar(
         spacing: 4,
         overflowSpacing: 4,
         alignment: MainAxisAlignment.spaceBetween,
         overflowAlignment: OverflowBarAlignment.end,
-        children: [
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              IconButton(
-                key: const Key('composer-history-toggle'),
-                tooltip: tr('Command history', '命令历史'),
-                color: tokens.muted,
-                isSelected: model.historyOpen,
-                onPressed: !model.canOpenHistory
-                    ? null
-                    : () {
-                        model.toggleHistory();
-                        _focus.requestFocus();
-                      },
-                icon: const Icon(ComposerIcons.history),
-              ),
-              _moreActions(tokens),
-              if (_focus.hasFocus)
-                IconButton(
-                  key: const Key('composer-dismiss-keyboard'),
-                  tooltip: tr('Hide keyboard', '收起键盘'),
-                  color: tokens.muted,
-                  onPressed: () {
-                    _focus.unfocus();
-                    unawaited(
-                      SystemChannels.textInput.invokeMethod<void>(
-                        'TextInput.hide',
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.keyboard_hide_outlined),
-                ),
-            ],
-          ),
-          _primary(tokens),
-        ],
+        children: actions,
       );
     }
     final utilities = <Widget>[

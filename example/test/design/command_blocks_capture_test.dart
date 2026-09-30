@@ -94,6 +94,15 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.byType(TerminalViewport), findsWidgets);
       expect(find.byType(TerminalComposerView), findsOneWidget);
+      if (scene.name == 'short') {
+        final actions = find.byKey(const ValueKey('block-actions-1'));
+        expect(actions.hitTestable(), findsOneWidget);
+        await tester.tap(actions);
+        await tester.pumpAndSettle();
+        expect(find.text('复制输出'), findsOneWidget);
+        await tester.tapAt(const Offset(10, 300));
+        await tester.pumpAndSettle();
+      }
       if (evidence.isNotEmpty) {
         await tester.runAsync(() async {
           await Directory(evidence).create(recursive: true);

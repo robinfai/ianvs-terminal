@@ -16,6 +16,7 @@ class ComposerEditor extends StatefulWidget {
     required this.maxLines,
     required this.autofocus,
     this.enabled = true,
+    this.centerVertically = false,
     super.key,
   });
 
@@ -28,6 +29,7 @@ class ComposerEditor extends StatefulWidget {
   final int maxLines;
   final bool autofocus;
   final bool enabled;
+  final bool centerVertically;
 
   @override
   State<ComposerEditor> createState() => ComposerEditorState();
@@ -147,7 +149,10 @@ class ComposerEditorState extends State<ComposerEditor> {
               enabledBorder: InputBorder.none,
               focusedBorder: InputBorder.none,
               filled: false,
-              isDense: true,
+              // The normal input container centers a single line within its
+              // touch height; a dense container leaves inherited extra height
+              // below the text and misaligns the inline action row.
+              isDense: !widget.centerVertically,
               contentPadding: EdgeInsets.zero,
             ),
           ),

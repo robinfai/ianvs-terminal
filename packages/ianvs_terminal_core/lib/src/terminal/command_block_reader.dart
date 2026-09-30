@@ -256,50 +256,57 @@ class _CommandBlockReaderState extends State<_CommandBlockReader> {
               ),
               child: Column(
                 children: [
-                  Row(
-                    children: [
-                      BackButton(
-                        key: const Key('block-reader-close'),
-                        color: tokens.foreground,
-                      ),
-                      Expanded(
-                        child: Text(
-                          block?.command ?? t('Command output', '命令输出'),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: tokens.resultStyle.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 8,
+                    ),
+                    child: Row(
+                      children: [
+                        BackButton(
+                          key: const Key('block-reader-close'),
+                          color: tokens.foreground,
                         ),
-                      ),
-                      PopupMenuButton<String>(
-                        tooltip: t('Block actions', '命令块操作'),
-                        icon: Icon(Icons.more_horiz, color: tokens.muted),
-                        onSelected: _action,
-                        itemBuilder: (_) => [
-                          PopupMenuItem(
-                            value: 'command',
-                            child: Text(t('Copy command', '复制命令')),
-                          ),
-                          PopupMenuItem(
-                            value: 'output',
-                            child: Text(t('Copy output', '复制输出')),
-                          ),
-                          PopupMenuItem(
-                            value: 'reinput',
-                            child: Text(
-                              t('Insert into Composer', '放入 Composer 编辑'),
+                        Expanded(
+                          child: Text(
+                            block?.command ?? t('Command output', '命令输出'),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: tokens.resultStyle.copyWith(
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
-                          CheckedPopupMenuItem(
-                            value: 'filter',
-                            checked: _filtered,
-                            enabled: block?.running == false,
-                            child: Text(t('Filter output', '过滤输出')),
-                          ),
-                        ],
-                      ),
-                    ],
+                        ),
+                        PopupMenuButton<String>(
+                          key: const Key('block-reader-actions'),
+                          tooltip: t('Block actions', '命令块操作'),
+                          icon: Icon(Icons.more_horiz, color: tokens.muted),
+                          onSelected: _action,
+                          itemBuilder: (_) => [
+                            PopupMenuItem(
+                              value: 'command',
+                              child: Text(t('Copy command', '复制命令')),
+                            ),
+                            PopupMenuItem(
+                              value: 'output',
+                              child: Text(t('Copy output', '复制输出')),
+                            ),
+                            PopupMenuItem(
+                              value: 'reinput',
+                              child: Text(
+                                t('Insert into Composer', '放入 Composer 编辑'),
+                              ),
+                            ),
+                            CheckedPopupMenuItem(
+                              value: 'filter',
+                              checked: _filtered,
+                              enabled: block?.running == false,
+                              child: Text(t('Filter output', '过滤输出')),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
@@ -369,7 +376,7 @@ class _CommandBlockReaderState extends State<_CommandBlockReader> {
                               scrollDirection: Axis.horizontal,
                               controller: _horizontal,
                               child: SizedBox(
-                                width: (block.columns * width + 24).clamp(
+                                width: (block.columns * width + 32).clamp(
                                   constraints.maxWidth,
                                   double.infinity,
                                 ),
@@ -380,8 +387,11 @@ class _CommandBlockReaderState extends State<_CommandBlockReader> {
                                     key: const Key('block-reader-scroll'),
                                     controller: _scroll,
                                     primary: false,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
+                                    padding: const EdgeInsets.fromLTRB(
+                                      16,
+                                      8,
+                                      16,
+                                      12,
                                     ),
                                     itemCount: (_lineCount / _pageRows).ceil(),
                                     itemExtentBuilder: (index, _) =>
