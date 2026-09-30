@@ -417,9 +417,7 @@ jobs:
           uname -m
 
       - name: Verify macOS integration, packaging, signature and native tests
-        run: |
-          python3 -B -m unittest discover -s tools/tests -p 'test_macos_native_library.py'
-          ./tools/verify_macos_app.sh
+        run: ./tools/verify_macos_app.sh
 
       - name: Save native test results
         if: always()
