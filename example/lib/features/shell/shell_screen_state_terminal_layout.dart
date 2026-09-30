@@ -795,6 +795,8 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                                     input: inputController,
                                     terminalFocus: focusNode,
                                     active: isActive,
+                                    onAskAi: (block) =>
+                                        _openAi(sessionId, block: block),
                                     font: effectiveTerminalFont,
                                     onMeasuredCellSizeChanged: measureCell,
                                     onOpenLinkTarget: (target) => unawaited(
@@ -910,12 +912,21 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                                 ),
                               ),
                             ),
+                          if (isActive && !pane.isExited)
+                            Positioned.fill(
+                              child: _aiOverlay(
+                                sessionId,
+                                terminalConstraints.biggest,
+                                palette,
+                              ),
+                            ),
                         ],
                       );
                     },
                   ),
                 ),
-                if (composerSession != null)
+                if (composerSession != null &&
+                    !_openAiSessions.contains(sessionId))
                   ConstrainedBox(
                     constraints: BoxConstraints(
                       maxHeight: context.usesTouchControlDensity
@@ -930,6 +941,7 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                         targetLabel: pane.title,
                         active: isActive,
                         available: !pane.isExited && !sessionReadOnly,
+                        onAskAi: (prompt) => _openAi(sessionId, prompt: prompt),
                         onTerminalFocus: focusNode.requestFocus,
                       ),
                     ),

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart';
 
+import '../ai/ai_models.dart';
 import '../preferences/app_preferences_models.dart';
 import '../sessions/session_state.dart';
 import 'terminal_mode.dart';
@@ -302,6 +303,7 @@ class ComposerPane extends StatefulWidget {
     required this.onTerminalFocus,
     required this.active,
     required this.available,
+    this.onAskAi,
     super.key,
   });
   final ComposerPaneSession session;
@@ -309,6 +311,7 @@ class ComposerPane extends StatefulWidget {
   final VoidCallback onTerminalFocus;
   final bool active;
   final bool available;
+  final ValueChanged<String>? onAskAi;
   @override
   State<ComposerPane> createState() => _ComposerPaneState();
 }
@@ -402,6 +405,8 @@ class _ComposerPaneState extends State<ComposerPane> {
             session.navigateBlocks?.call(delta) ?? false,
         chinese: zh,
         autofocus: widget.active,
+        onAskAi: widget.onAskAi,
+        isNaturalLanguage: looksLikeNaturalLanguage,
       ),
     );
   }

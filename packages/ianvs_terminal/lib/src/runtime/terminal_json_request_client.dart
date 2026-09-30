@@ -39,6 +39,9 @@ final class TerminalJsonRequestClient {
     Map<String, Object?> payload,
   ) => _requestJsonObject(sessionId, 'terminal.command_blocks', payload);
 
+  Map<String, Object?>? liveScreen(String sessionId) =>
+      _requestJsonObject(sessionId, 'terminal.live_screen', const {});
+
   Map<String, Object?>? composerRequest(
     String sessionId,
     String operation,

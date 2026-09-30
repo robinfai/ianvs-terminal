@@ -422,6 +422,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
     final activeSessionIdBeforeOpen = sessionState.activeSessionId;
     Widget buildDefaults(BuildContext dialogContext) {
       return DefaultsAndAppearanceDialog(
+        aiSettings: ref.read(aiSettingsProvider),
         profiles: sessionState.profiles,
         configuredDefaultProfileId: sessionState.configuredDefaultProfileId,
         effectiveDefaultProfileId: sessionState.defaultProfileId,

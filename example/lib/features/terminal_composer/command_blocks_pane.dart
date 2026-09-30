@@ -18,6 +18,7 @@ class CommandBlocksPane extends StatefulWidget {
     required this.onMeasuredCellSizeChanged,
     required this.child,
     required this.onOpenLinkTarget,
+    this.onAskAi,
   });
   final ComposerPaneSession session;
   final TerminalViewportController viewport;
@@ -28,6 +29,7 @@ class CommandBlocksPane extends StatefulWidget {
   final ValueChanged<Size> onMeasuredCellSizeChanged;
   final Widget child;
   final ValueChanged<TerminalLinkTarget> onOpenLinkTarget;
+  final ValueChanged<CommandBlock>? onAskAi;
 
   @override
   State<CommandBlocksPane> createState() => _CommandBlocksPaneState();
@@ -167,6 +169,7 @@ class _CommandBlocksPaneState extends State<CommandBlocksPane> {
       font: widget.font,
       onMeasuredCellSizeChanged: widget.onMeasuredCellSizeChanged,
       onOpenLinkTarget: widget.onOpenLinkTarget,
+      onAskAi: widget.onAskAi,
       onReturnToInput: widget.session.editorFocus.requestFocus,
       onReinput: (command) {
         widget.session.controller.editor.value = TextEditingValue(

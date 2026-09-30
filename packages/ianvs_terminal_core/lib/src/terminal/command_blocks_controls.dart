@@ -149,6 +149,16 @@ extension _CommandBlocksControls on _CommandBlocksViewState {
       ),
     ),
     const PopupMenuDivider(),
+    if (widget.onAskAi != null)
+      PopupMenuItem(
+        value: 'ai',
+        enabled: !block.running,
+        child: Text(
+          block.exitCode != null && block.exitCode != 0
+              ? t('Correct with AI', '用 AI 纠正')
+              : t('Ask AI about this block', '向 AI 询问此命令块'),
+        ),
+      ),
     PopupMenuItem(
       value: 'reinput',
       enabled: block.command.isNotEmpty,
@@ -201,6 +211,8 @@ extension _CommandBlocksControls on _CommandBlocksViewState {
 
   void _action(CommandBlock block, String action) {
     switch (action) {
+      case 'ai':
+        widget.onAskAi?.call(block);
       case 'command':
       case 'output':
       case 'both':

@@ -35,6 +35,7 @@ class TerminalCommandBlocksView extends StatefulWidget {
     this.font = const TerminalFontConfig(),
     this.onMeasuredCellSizeChanged,
     this.onOpenLinkTarget,
+    this.onAskAi,
     super.key,
   });
   final CommandBlockController controller;
@@ -48,6 +49,7 @@ class TerminalCommandBlocksView extends StatefulWidget {
   final TerminalFontConfig font;
   final ValueChanged<Size>? onMeasuredCellSizeChanged;
   final ValueChanged<TerminalLinkTarget>? onOpenLinkTarget;
+  final ValueChanged<CommandBlock>? onAskAi;
 
   @override
   State<TerminalCommandBlocksView> createState() => _CommandBlocksViewState();

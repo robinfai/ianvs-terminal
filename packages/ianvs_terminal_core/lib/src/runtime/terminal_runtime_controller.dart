@@ -1282,10 +1282,13 @@ final class TerminalSessionResizeEvent {
 }
 
 final class TerminalSessionInputEvent {
-  const TerminalSessionInputEvent(this.sessionId, this.bytes);
+  const TerminalSessionInputEvent(this.sessionId, this.bytes, {this.origin});
 
   final String sessionId;
   final Uint8List bytes;
+
+  /// Opaque local owner; enables automation to distinguish manual takeover.
+  final Object? origin;
 }
 
 class TerminalRuntimeController implements TerminalInputSink {
@@ -1839,6 +1842,14 @@ class TerminalRuntimeController implements TerminalInputSink {
     _sendInput(sessionId, bytes);
   }
 
+  bool trySendInput(String sessionId, Uint8List bytes, {Object? origin}) =>
+      _sendInput(sessionId, bytes, origin: origin);
+
+  Map<String, Object?>? liveScreen(String sessionId) =>
+      _productSessionAvailable(sessionId)
+      ? _jsonRequestClient.liveScreen(sessionId)
+      : null;
+
   bool acceptZmodemReceive(
     TerminalSessionZmodemEvent event, {
     required String destination,
@@ -2106,6 +2117,7 @@ class TerminalRuntimeController implements TerminalInputSink {
     int? sessionEpoch,
     bool revealLiveCursor = true,
     bool deferProtocolReplyDuringZmodem = false,
+    Object? origin,
   }) {
     if (!_productOperationsAllowed) {
       return false;
@@ -2166,7 +2178,9 @@ class TerminalRuntimeController implements TerminalInputSink {
     if (sessionEpoch != null && !_isCurrentSession(sessionId, sessionEpoch)) {
       return false;
     }
-    _inputEvents.add(TerminalSessionInputEvent(sessionId, copiedBytes));
+    _inputEvents.add(
+      TerminalSessionInputEvent(sessionId, copiedBytes, origin: origin),
+    );
     _framePumpController.reset(
       sessionId,
       now: _monotonicNow,

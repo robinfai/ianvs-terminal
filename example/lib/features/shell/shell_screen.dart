@@ -23,6 +23,11 @@ import '../../data/sync/local_first_sync.dart';
 import '../../platform/clipboard_bridge.dart';
 import '../../platform/terminal_graphic_image_actions.dart';
 import '../../ui/app_ui.dart';
+import '../ai/ai_settings.dart';
+import '../ai/ai_settings_dialog.dart';
+import '../ai/terminal_ai_controller.dart';
+import '../ai/terminal_ai_panel.dart';
+import '../ai/terminal_ai_runtime.dart';
 import '../config/local_terminal_config_bootstrap.dart';
 import '../config/local_terminal_config_models.dart';
 import '../config/shortcut_editor.dart';
@@ -74,6 +79,7 @@ import 'shell_shortcut_bridge.dart';
 import 'window_bridge.dart';
 
 part 'shell_screen_chrome.dart';
+part 'shell_screen_ai.dart';
 part 'shell_screen_chrome_empty_states.dart';
 part 'shell_screen_command_menu.dart';
 part 'shell_screen_instant_replay.dart';
@@ -227,6 +233,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
 
   final Map<String, SelectionController> _selectionControllers = {};
   final Map<String, ComposerPaneSession> _composerSessions = {};
+  final Map<String, TerminalAiController> _aiSessions = {};
+  final Set<String> _openAiSessions = {};
   final Map<String, SelectionResizeGuard> _selectionResizeGuards = {};
   final Map<String, FocusNode> _terminalFocusNodes = {};
   final FocusNode _searchFocusNode = FocusNode(debugLabel: 'shell-search');
@@ -474,6 +482,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       session.dispose();
     }
     _composerSessions.clear();
+    for (final ai in _aiSessions.values) {
+      ai.dispose();
+    }
+    _aiSessions.clear();
 
     super.dispose();
   }
@@ -813,6 +825,18 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     KeyEventResult handleShellShortcut(KeyEvent event) {
       if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
         return KeyEventResult.ignored;
+      }
+      if (event is KeyDownEvent &&
+          activeSessionId != null &&
+          !_shellModalInputBlocked &&
+          event.logicalKey == LogicalKeyboardKey.keyI &&
+          (defaultTargetPlatform == TargetPlatform.macOS
+              ? HardwareKeyboard.instance.isMetaPressed
+              : HardwareKeyboard.instance.isControlPressed)) {
+        _openAiSessions.contains(activeSessionId)
+            ? _closeAi(activeSessionId)
+            : _openAi(activeSessionId);
+        return KeyEventResult.handled;
       }
       final editor = focusedEditableTextForCurrentRoute();
       if (editor != null) {

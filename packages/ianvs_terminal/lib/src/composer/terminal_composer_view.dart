@@ -25,6 +25,8 @@ class TerminalComposerView extends StatefulWidget {
     this.chinese = false,
     this.maxLines = 6,
     this.onNavigateBlocks,
+    this.onAskAi,
+    this.isNaturalLanguage,
     super.key,
   });
   final TerminalComposerController controller;
@@ -35,6 +37,8 @@ class TerminalComposerView extends StatefulWidget {
   final bool chinese;
   final int maxLines;
   final bool Function(int delta)? onNavigateBlocks;
+  final ValueChanged<String>? onAskAi;
+  final bool Function(String)? isNaturalLanguage;
 
   @override
   State<TerminalComposerView> createState() => _TerminalComposerViewState();
@@ -49,6 +53,23 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
   late FocusNode _focus;
   double _width = 320;
   String _copyFeedback = '';
+  bool _forceCommand = false;
+  bool get _asksAi =>
+      widget.onAskAi != null &&
+      !_forceCommand &&
+      !model.historyOpen &&
+      model.selectedIndex < 0 &&
+      widget.isNaturalLanguage?.call(model.editor.text) == true;
+
+  void _performPrimary() {
+    if (_asksAi && model.canPerformPrimaryAction) {
+      model.dismissCompletions();
+      widget.onAskAi!(model.editor.text);
+    } else {
+      unawaited(model.performPrimaryAction());
+    }
+  }
+
   Timer? _feedbackTimer;
   int _selectionNavigationRevision = -1;
   double? _busyHeight;
@@ -201,7 +222,7 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
             hardware.isControlPressed) {
           model.insertNewline();
         } else {
-          unawaited(model.performPrimaryAction());
+          _performPrimary();
         }
       }
       return KeyEventResult.handled;
@@ -976,12 +997,16 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
         model.primaryAction == ComposerPrimaryAction.acceptCompletion;
     final label = accepting
         ? tr('Accept', '采用')
+        : _asksAi
+        ? tr('Ask AI', '询问 AI')
         : model.ownership == ComposerOwnership.submitting
         ? tr('Sending', '发送中')
         : tr('Run', '执行');
     final tooltip = model.canPerformPrimaryAction
         ? accepting
               ? tr('Accept into draft · Enter', '采用到草稿 · Enter')
+              : _asksAi
+              ? tr('Send to AI · Enter', '发送给 AI · Enter')
               : tr('Run command · Enter', '执行命令 · Enter')
         : model.historyOpen
         ? tr('No history result to accept', '没有可采用的历史命令')
@@ -999,8 +1024,8 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
         key: const Key('composer-primary-action'),
         onPressed: model.canPerformPrimaryAction
             ? () {
-                unawaited(model.performPrimaryAction());
-                _focus.requestFocus();
+                _performPrimary();
+                if (!_asksAi) _focus.requestFocus();
               }
             : null,
         style: FilledButton.styleFrom(
@@ -1051,6 +1076,11 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
       onSelected: (action) {
         if (_disabled) return;
         switch (action) {
+          case _ComposerMenuAction.askAi:
+            widget.onAskAi?.call(model.editor.text);
+            return;
+          case _ComposerMenuAction.forceCommand:
+            setState(() => _forceCommand = !_forceCommand);
           case _ComposerMenuAction.copy:
             unawaited(_copyDraft());
           case _ComposerMenuAction.undo:
@@ -1073,6 +1103,18 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
         _focus.requestFocus();
       },
       itemBuilder: (context) => [
+        if (widget.onAskAi != null) ...[
+          PopupMenuItem(
+            value: _ComposerMenuAction.askAi,
+            child: Text(tr('Ask AI about this draft', '把草稿发给 AI')),
+          ),
+          CheckedPopupMenuItem(
+            value: _ComposerMenuAction.forceCommand,
+            checked: _forceCommand,
+            child: Text(tr('Always submit as a command', '始终作为命令提交')),
+          ),
+          const PopupMenuDivider(),
+        ],
         if (_touchCompact)
           CheckedPopupMenuItem(
             value: _ComposerMenuAction.suggestions,
@@ -1368,6 +1410,8 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
 }
 
 enum _ComposerMenuAction {
+  askAi,
+  forceCommand,
   copy,
   undo,
   redo,

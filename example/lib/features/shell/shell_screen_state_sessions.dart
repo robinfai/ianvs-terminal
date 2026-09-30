@@ -102,6 +102,8 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     _clearInstantReplayHistory(sessionId);
 
     _composerSessions.remove(sessionId)?.dispose();
+    _aiSessions.remove(sessionId)?.dispose();
+    _openAiSessions.remove(sessionId);
     _selectionResizeGuards.remove(sessionId)?.dispose();
     final selectionController = _selectionControllers.remove(sessionId);
     if (selectionController != null) {

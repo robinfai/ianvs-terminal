@@ -8,6 +8,8 @@ import '../../data/services/data_api_auth_contract.dart';
 import '../../data/services/portable_master_key.dart';
 import '../../data/sync/api_sync_panel.dart';
 import '../../ui/app_ui.dart';
+import '../ai/ai_settings.dart';
+import '../ai/ai_settings_dialog.dart';
 import '../config/local_terminal_config_models.dart';
 import '../config/local_terminal_keybinding_resolver.dart';
 import '../config/shortcut_editor.dart';
@@ -146,6 +148,7 @@ class DefaultsAndAppearanceDialog extends StatefulWidget {
     this.localSessionsEnabled = true,
     this.masterKeyRepository,
     this.openDataServiceInitially = false,
+    this.aiSettings,
   });
 
   final List<TerminalProfile> profiles;
@@ -170,6 +173,7 @@ class DefaultsAndAppearanceDialog extends StatefulWidget {
   final bool localSessionsEnabled;
   final PortableMasterKeyRepository? masterKeyRepository;
   final bool openDataServiceInitially;
+  final AiSettingsController? aiSettings;
 
   @override
   State<DefaultsAndAppearanceDialog> createState() =>
@@ -990,6 +994,19 @@ class _DefaultsAndAppearanceDialogState
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const _DefaultsSectionMarker(_DefaultsSection.general),
+                      if (widget.aiSettings != null)
+                        ListTile(
+                          key: const Key('defaults-ai-settings'),
+                          title: const Text('AI'),
+                          subtitle: Text(
+                            Localizations.localeOf(context).languageCode == 'zh'
+                                ? 'Endpoint、API Key 与模型'
+                                : 'Endpoint, API key and model',
+                          ),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: () =>
+                              showAiSettings(context, widget.aiSettings!),
+                        ),
                       _buildGeneralSettings(
                         context,
                         desktopPresentation: showSectionNavigation,
