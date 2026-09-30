@@ -65,7 +65,12 @@ function ssh {
   printf '\033]6973;@@NONCE@@;%s;resume;done\007' "$__iv_parent"
   if [ "$__iv_owned" = 1 ]; then
     # Do not stop the master: in-flight SFTP channels own their lifetime.
-    (command sleep 65; command rmdir "$__iv_dir" 2>/dev/null) </dev/null >/dev/null 2>&1 &
+    # Schedule cleanup outside the interactive job table. Redirection alone
+    # cannot silence the parent shell's job-start/completion notifications.
+    (
+      set +m
+      (command sleep 65; command rmdir "$__iv_dir" 2>/dev/null) &
+    ) </dev/null >/dev/null 2>&1
   fi
   return "$__iv_status"
 }

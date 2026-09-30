@@ -48,6 +48,8 @@
 
 Hook 注入本身不依赖 ControlMaster。命令包装会优先复用配置中仍存活的 master；没有可用 master 时，创建只包含 socket 的目录并使用 `ControlMaster=auto`、`ControlPersist=60`。已有 master 不由本功能停止。自建 master 空闲后由 OpenSSH 退出，包装函数尝试回收空目录；这些是连接元数据，不包含注入脚本。
 
+目录回收由独立子 Shell 在关闭自身任务控制后调度，等待 65 秒再用 `rmdir` 尝试删除空目录，不阻塞交互提示符，也不登记到调用者的后台任务表。仅重定向清理进程的输出无法阻止交互 Shell 打印 `[n] PID` 和 `done` 通知；子 Shell 隔离同时避免更改用户的任务控制选项。仍在使用的 socket 目录保留，SSH 退出码原样返回。
+
 如果 socket 目录无法创建，或 socket 路径过长、不是绝对路径、含控制协议不支持的字符，包装连接仍使用与配置连接相同的启动命令、用户配置加载、Hook 检查和内存注入流程，只禁用该次连接的复用 socket。对应 SSH context 仍正常进入和恢复，文件服务不可用；后续子 Shell 或嵌套 SSH 的文件请求不能跳过这一层转到其他主机。
 
 SFTP 请求携带 `contextId`，由原生层解析到已验证的 socket 链。在协议连接上新增 exec channel，在本地通过 OpenSSH 子进程建立二进制流。中间层只需要 SSH exec；最后一层才需要 SFTP subsystem。每一步都禁用重新建网连接的回退，socket 消失即失败，不会重新认证或切到其他主机。
