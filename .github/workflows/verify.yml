@@ -2,16 +2,58 @@ name: Verify
 
 on:
   pull_request:
+  workflow_dispatch:
   push:
     branches:
       - main
+
+permissions:
+  contents: read
 
 concurrency:
   group: verify-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: Select affected checks
+    runs-on: ubuntu-24.04
+    outputs:
+      flutter: ${{ steps.paths.outputs.flutter }}
+      native: ${{ steps.paths.outputs.native }}
+      backend: ${{ steps.paths.outputs.backend }}
+      macos: ${{ steps.paths.outputs.macos }}
+      ios: ${{ steps.paths.outputs.ios }}
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: paths
+        run: python3 tools/ci/changed_jobs.py
+
+  contracts:
+    name: Formatting, analysis and repository contracts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+      - uses: ./.github/actions/setup-flutter
+        with:
+          platform: analyze
+      - run: echo "TMPDIR=$RUNNER_TEMP" >> "$GITHUB_ENV"
+      - run: flutter pub get --enforce-lockfile
+      - run: python3 -m unittest discover -s tools/ci -p 'test_*.py'
+      - run: dart format --output=none --set-exit-if-changed .
+      - run: dart analyze --fatal-infos
+      - run: dart run tools/sync_terminal_core.dart --check
+      - run: python3 tools/validate_osc_protocol_corpus.py
+      - run: python3 tools/osc_semantic_probe.py --self-test
+      - run: dart test
+
   ssh-openssh:
+    needs: changes
+    if: needs.changes.outputs.native == 'true'
     name: Rust SSH authentication, jumps, and forwarding
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -25,10 +67,19 @@ jobs:
         with:
           toolchain: "1.88.0"
 
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@23869a5bd66c73db3c0ac40331f3206eb23791dc # v2.9.1
+        with:
+          key: ${{ runner.os }}-${{ runner.arch }}
+          workspaces: |
+            native/core -> target
+
       - name: Verify auth, two-hop jumps, ports, agent, and X11
         run: ./tools/ssh_e2e/run.sh
 
   zmodem-openssh:
+    needs: changes
+    if: needs.changes.outputs.native == 'true'
     name: ZMODEM OpenSSH round trip (${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
@@ -49,6 +100,13 @@ jobs:
         uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master; Rust version pinned below
         with:
           toolchain: "1.88.0"
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@23869a5bd66c73db3c0ac40331f3206eb23791dc # v2.9.1
+        with:
+          key: ${{ runner.os }}-${{ runner.arch }}
+          workspaces: |
+            native/core -> target
 
       - name: Build fixture and verify two-file batches in both directions
         shell: bash
@@ -79,7 +137,7 @@ jobs:
           touch -d @1700000456 "$send_file"
 
           test_name=zmodem_round_trips_files_over_real_openssh_pty
-          test_list="$(cargo test --manifest-path native/core/Cargo.toml \
+          test_list="$(cargo test --locked --manifest-path native/core/Cargo.toml \
             --test zmodem_ssh_test -- --ignored --list)"
           if ! grep -Fqx -- "$test_name: test" <<<"$test_list"; then
             echo "required ignored test is missing: $test_name" >&2
@@ -89,11 +147,13 @@ jobs:
           IANVS_ZMODEM_SSH_PORT="$fixture_port" \
           IANVS_ZMODEM_SSH_IDENTITY="$fixture_dir/id_ed25519" \
           IANVS_ZMODEM_SSH_SEND_FILE="$send_file" \
-            cargo test --manifest-path native/core/Cargo.toml \
+            cargo test --locked --manifest-path native/core/Cargo.toml \
               --test zmodem_ssh_test -- \
               --ignored --exact "$test_name" --nocapture
 
   zmodem-unsupported-platform:
+    needs: changes
+    if: needs.changes.outputs.native == 'true'
     name: ZMODEM fail closed (Windows)
     runs-on: windows-latest
     timeout-minutes: 20
@@ -107,22 +167,31 @@ jobs:
         with:
           toolchain: "1.88.0"
 
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@23869a5bd66c73db3c0ac40331f3206eb23791dc # v2.9.1
+        with:
+          key: ${{ runner.os }}-${{ runner.arch }}
+          workspaces: |
+            native/core -> target
+
       - name: Verify unsupported-platform capability and request contract
         shell: bash
         run: |
           set -euo pipefail
           test_name=unsupported_platform_zmodem_contract_is_fail_closed
-          test_list="$(cargo test --manifest-path native/core/Cargo.toml \
+          test_list="$(cargo test --locked --manifest-path native/core/Cargo.toml \
             --test runtime_session_request_test -- --list)"
           if ! grep -Fqx -- "$test_name: test" <<<"$test_list"; then
             echo "required Windows fail-closed test is missing: $test_name" >&2
             exit 1
           fi
-          cargo test --manifest-path native/core/Cargo.toml \
+          cargo test --locked --manifest-path native/core/Cargo.toml \
             --test runtime_session_request_test \
             "$test_name" -- --exact
 
   backend-mysql-contract:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     name: Go API and store contracts (MySQL)
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -149,6 +218,13 @@ jobs:
           go-version: "1.23.x"
           cache-dependency-path: backend/go.sum
 
+      - name: Verify Go formatting, vet and SQLite contracts
+        working-directory: backend
+        run: |
+          test -z "$(gofmt -l .)"
+          go vet ./...
+          go test -race ./...
+
       - name: Verify MySQL contracts under the race detector
         working-directory: backend
         env:
@@ -159,6 +235,8 @@ jobs:
           go test -race -p 1 ./...
 
   flutter-terminal:
+    needs: changes
+    if: needs.changes.outputs.flutter == 'true'
     name: Flutter terminal (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
@@ -169,35 +247,45 @@ jobs:
             skip_macos_integration: "1"
 
     env:
+      VERIFY_FLUTTER_TERMINAL_SKIP_BACKEND: "1"
+      VERIFY_FLUTTER_TERMINAL_SKIP_NATIVE: ${{ needs.changes.outputs.native == 'true' && '0' || '1' }}
+      VERIFY_FLUTTER_TERMINAL_SKIP_VENDOR: "1"
+      VERIFY_FLUTTER_TERMINAL_SKIP_STATIC: "1"
+      VERIFY_FLUTTER_TERMINAL_SKIP_VISUAL: "1"
       VERIFY_FLUTTER_TERMINAL_SKIP_MACOS_INTEGRATION: ${{ matrix.skip_macos_integration }}
 
     steps:
       - name: Check out repository
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
 
-      - name: Set up Go
-        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
-        with:
-          go-version: "1.23.x"
-          cache-dependency-path: backend/go.sum
-
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master; Rust version pinned below
         with:
           toolchain: "1.88.0"
           components: clippy,rustfmt
-          targets: thumbv7em-none-eabihf
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@23869a5bd66c73db3c0ac40331f3206eb23791dc # v2.9.1
+        with:
+          key: ${{ runner.os }}-${{ runner.arch }}
+          workspaces: |
+            native/core -> target
+            packages/ianvs_terminal_core/native/core -> target
 
       - name: Set up Flutter
-        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        uses: ./.github/actions/setup-flutter
+
+      - name: Identify native compiler for the hook cache
+        id: native_compiler
+        run: echo "version=$(xcodebuild -version | shasum -a 256 | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache native hook compilation
+        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
         with:
-          # Match the SDK/engine used by example/test/design/goldens.
-          flutter-version: "3.44.2"
-          channel: stable
-          # flutter-action's cache=true path currently invokes a transitive
-          # mutable actions/cache tag. Keep it disabled until upstream pins
-          # that dependency; pub/cargo locks still make resolution repeatable.
-          cache: false
+          # Restore Cargo outputs only; hooks still validate inputs and emit assets.
+          path: .dart_tool/hooks_runner/shared/**/cargo-target
+          key: hooks-v1-${{ runner.os }}-${{ runner.arch }}-${{ github.job }}-1.88.0-3.44.2-${{ steps.native_compiler.outputs.version }}-${{ hashFiles('native/core/src/**', 'native/core/build.rs', 'native/vendor/*/src/**', 'native/**/Cargo.toml', 'native/**/Cargo.lock', 'packages/*/hook/*.dart') }}
+          restore-keys: hooks-v1-${{ runner.os }}-${{ runner.arch }}-${{ github.job }}-1.88.0-3.44.2-${{ steps.native_compiler.outputs.version }}-
 
       - name: Enable macOS build targets
         if: runner.os == 'macOS'
@@ -223,7 +311,8 @@ jobs:
             "$FLUTTER_ROOT/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf"
 
       - name: Resolve workspace dependencies
-        run: flutter pub get
+        id: dependencies
+        run: flutter pub get --enforce-lockfile
 
       - name: Verify visual baselines
         id: visual_baselines
@@ -254,12 +343,16 @@ jobs:
           retention-days: 7
 
       - name: Verify standalone pub archive
+        if: ${{ !cancelled() && steps.dependencies.outcome == 'success' }}
         run: dart run tools/verify_terminal_core_publish.dart
 
       - name: Run repository verification
+        if: ${{ !cancelled() && steps.dependencies.outcome == 'success' }}
         run: ./tools/verify_flutter_terminal.sh
 
   macos-app:
+    needs: changes
+    if: needs.changes.outputs.macos == 'true'
     name: macOS app integration and release (macos-26)
     runs-on: macos-26
     timeout-minutes: 60
@@ -281,12 +374,27 @@ jobs:
           toolchain: "1.88.0"
           targets: aarch64-apple-darwin,x86_64-apple-darwin
 
-      - name: Set up Flutter
-        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@23869a5bd66c73db3c0ac40331f3206eb23791dc # v2.9.1
         with:
-          flutter-version: "3.44.2"
-          channel: stable
-          cache: false
+          key: ${{ runner.os }}-${{ runner.arch }}
+          workspaces: |
+            native/core -> target
+
+      - name: Set up Flutter
+        uses: ./.github/actions/setup-flutter
+
+      - name: Identify native compiler for the hook cache
+        id: native_compiler
+        run: echo "version=$(xcodebuild -version | shasum -a 256 | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache native hook compilation
+        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+        with:
+          # Restore Cargo outputs only; hooks still validate inputs and emit assets.
+          path: .dart_tool/hooks_runner/shared/**/cargo-target
+          key: hooks-v1-${{ runner.os }}-${{ runner.arch }}-${{ github.job }}-1.88.0-3.44.2-${{ steps.native_compiler.outputs.version }}-${{ hashFiles('native/core/src/**', 'native/core/build.rs', 'native/vendor/*/src/**', 'native/**/Cargo.toml', 'native/**/Cargo.lock', 'packages/*/hook/*.dart') }}
+          restore-keys: hooks-v1-${{ runner.os }}-${{ runner.arch }}-${{ github.job }}-1.88.0-3.44.2-${{ steps.native_compiler.outputs.version }}-
 
       - name: Enable macOS build target
         run: flutter config --enable-macos-desktop
@@ -304,7 +412,18 @@ jobs:
       - name: Verify macOS integration, packaging, signature and native tests
         run: ./tools/verify_macos_app.sh
 
+      - name: Save native test results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: macos-native-test-results
+          path: ${{ runner.temp }}/TrailNativeTests-*.xcresult
+          if-no-files-found: ignore
+          retention-days: 7
+
   ios-terminal:
+    needs: changes
+    if: needs.changes.outputs.ios == 'true'
     name: iOS simulator and device (macos-26)
     runs-on: macos-26
     timeout-minutes: 60
@@ -320,12 +439,17 @@ jobs:
         with:
           toolchain: "1.88.0"
 
-      - name: Set up Flutter
-        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@23869a5bd66c73db3c0ac40331f3206eb23791dc # v2.9.1
         with:
-          flutter-version: "3.44.2"
-          channel: stable
-          cache: false
+          key: ${{ runner.os }}-${{ runner.arch }}
+          workspaces: |
+            native/core -> target
+
+      - name: Set up Flutter
+        uses: ./.github/actions/setup-flutter
+        with:
+          platform: ios
 
       - name: Enable iOS build targets
         run: |
@@ -344,7 +468,45 @@ jobs:
           uname -m
 
       - name: Resolve workspace dependencies
-        run: flutter pub get
+        run: flutter pub get --enforce-lockfile
 
       - name: Verify iOS simulator and device static linkage and sandbox shell
         run: ./tools/verify_ios_simulator.sh
+
+  rust-vendors:
+    name: Vendored Rust lint, tests and no_std
+    needs: changes
+    if: needs.changes.outputs.native == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772
+        with:
+          toolchain: '1.88.0'
+          components: clippy,rustfmt
+          targets: thumbv7em-none-eabihf
+      - uses: Swatinem/rust-cache@23869a5bd66c73db3c0ac40331f3206eb23791dc # v2.9.1
+        with:
+          workspaces: |
+            native/vendor/par-term-emu-core-rust -> target
+            native/vendor/zmodem2 -> target
+      - run: ./tools/verify_flutter_terminal.sh --vendor-only
+
+  verify:
+    name: Verify required checks
+    if: always()
+    needs: [changes, contracts, ssh-openssh, zmodem-openssh, zmodem-unsupported-platform, backend-mysql-contract, flutter-terminal, macos-app, ios-terminal, rust-vendors]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require all selected checks to pass
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          results = json.loads(os.environ['RESULTS'])
+          failed = [name for name, job in results.items() if job['result'] not in ('success', 'skipped')]
+          if failed:
+              raise SystemExit('Checks did not pass: ' + ', '.join(failed))
+          PY

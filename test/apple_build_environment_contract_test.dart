@@ -251,6 +251,23 @@ echo 'subject=C=US,O=Ianvs,OU=RIGHT12345,CN=Apple Development'
     );
   });
 
+  test('iOS run scheme supports simulators while archives remain Release', () {
+    final scheme = File(
+      'example/ios/Runner.xcodeproj/xcshareddata/xcschemes/Runner.xcscheme',
+    ).readAsStringSync();
+    expect(
+      scheme,
+      matches(RegExp(r'<LaunchAction\s+buildConfiguration = "Debug"')),
+      reason:
+          'Xcode resolves simulator destinations from the run configuration; '
+          'Release is device-only in Flutter.',
+    );
+    expect(
+      scheme,
+      matches(RegExp(r'<ArchiveAction\s+buildConfiguration = "Release"')),
+    );
+  });
+
   test('iOS ABI verification ignores the Xcode debug stub executable', () {
     final source = File('tools/verify_ios_simulator.sh').readAsStringSync();
 

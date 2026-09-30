@@ -11,6 +11,7 @@ import 'package:app/features/sessions/session_state.dart';
 import 'package:app/features/shell/shell_screen.dart';
 import 'package:app/features/shell/window_bridge.dart';
 import 'package:app/features/terminal/render_terminal_viewport.dart';
+import 'package:app/l10n/generated/app_localizations.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -2154,12 +2155,14 @@ sleep 5
       );
       expect(savedPath, '/virtual/osc-phase28.txt');
       expect(savedBytes, utf8.encode('hello phase 28'));
+      final l10n = AppLocalizations.of(
+        tester.element(find.byType(ShellScreen)),
+      )!;
       await _waitFor(
         tester,
         description: 'OSC 1337 real PTY saved feedback',
         condition: () =>
-            find.byType(SnackBar).evaluate().isNotEmpty &&
-            find.textContaining('osc-phase28.txt').evaluate().isNotEmpty,
+            find.text(l10n.savedFile('osc-phase28.txt')).evaluate().isNotEmpty,
       );
 
       _signal(uploadFile);
@@ -2167,8 +2170,7 @@ sleep 5
         tester,
         description: 'OSC 1337 real PTY upload denial',
         condition: () =>
-            find.byType(SnackBar).evaluate().isNotEmpty &&
-            find.textContaining('osc-phase28.txt').evaluate().isEmpty &&
+            find.text(l10n.fileUploadRequestBlocked).evaluate().isNotEmpty &&
             _terminalText(
               harness.container,
             ).contains('OSC1337-FILE-TRANSFER-DONE'),
@@ -2966,7 +2968,7 @@ while [ ! -f "$RELEASE_FILE" ]; do sleep 0.05; done
     pollStep: const Duration(milliseconds: 5),
     description: 'a current ${state.name} refresh result newer than history',
     condition: () {
-      final latest = _latestRefreshEvent(runtimeEvents, sessionId);
+      final latest = _latestRefreshResult(runtimeEvents, sessionId);
       if (latest == null ||
           latest['event'] != 'refresh_result' ||
           latest['refresh_id'] is! int ||
@@ -2979,7 +2981,7 @@ while [ ! -f "$RELEASE_FILE" ]; do sleep 0.05; done
       return true;
     },
     onTimeout: () {
-      final latest = _latestRefreshEvent(runtimeEvents, sessionId);
+      final latest = _latestRefreshResult(runtimeEvents, sessionId);
       return 'History refresh_id: $historyRefreshId\nLatest event: $latest';
     },
   );
@@ -3127,7 +3129,7 @@ while [ ! -f "$RELEASE_FILE" ]; do sleep 0.05; done
     pollStep: const Duration(milliseconds: 5),
     description: 'a current ${state.name} refresh result newer than history',
     condition: () {
-      final latest = _latestRefreshEvent(runtimeEvents, sessionId);
+      final latest = _latestRefreshResult(runtimeEvents, sessionId);
       if (latest == null ||
           latest['event'] != 'refresh_result' ||
           latest['refresh_id'] is! int ||
@@ -3141,7 +3143,7 @@ while [ ! -f "$RELEASE_FILE" ]; do sleep 0.05; done
       return true;
     },
     onTimeout: () {
-      final latest = _latestRefreshEvent(runtimeEvents, sessionId);
+      final latest = _latestRefreshResult(runtimeEvents, sessionId);
       return 'History refresh_id: $historyRefreshId\nLatest event: $latest';
     },
   );
@@ -3317,13 +3319,16 @@ int _latestRefreshId(List<Map<String, Object?>> events, String sessionId) {
   return latest;
 }
 
-Map<String, Object?>? _latestRefreshEvent(
+// Poll ticks can be emitted between the result and the tester's next pump.
+// Keep the latest completed result observable until another result arrives.
+Map<String, Object?>? _latestRefreshResult(
   List<Map<String, Object?>> events,
   String sessionId,
 ) {
   for (final event in events.reversed) {
     if (event['schema_version'] == 'ianvs-terminal-refresh-policy-v1' &&
-        event['session_id'] == sessionId) {
+        event['session_id'] == sessionId &&
+        event['event'] == 'refresh_result') {
       return event;
     }
   }

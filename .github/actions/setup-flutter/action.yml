@@ -1,0 +1,29 @@
+name: Pinned Flutter with SDK and pub caches
+description: Cache the baseline SDK without mutable cache actions.
+inputs:
+  platform:
+    description: Separate platform engine artifacts in the SDK cache.
+    default: macos
+runs:
+  using: composite
+  steps:
+    - name: Cache Flutter SDK
+      uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+      with:
+        path: ${{ runner.tool_cache }}/ianvs-flutter
+        key: flutter-3.44.2-${{ runner.os }}-${{ runner.arch }}-${{ inputs.platform }}-v1
+    - name: Cache pub dependencies
+      uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
+      with:
+        path: ${{ runner.tool_cache }}/ianvs-pub
+        key: pub-3.44.2-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pubspec.lock') }}
+        restore-keys: pub-3.44.2-${{ runner.os }}-${{ runner.arch }}-
+    - name: Set up Flutter
+      uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+      with:
+        flutter-version: '3.44.2'
+        channel: stable
+        cache: false
+        pub-cache: false
+        cache-path: ${{ runner.tool_cache }}/ianvs-flutter
+        pub-cache-path: ${{ runner.tool_cache }}/ianvs-pub

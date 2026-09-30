@@ -98,6 +98,7 @@ PROFILE=debug "$ROOT_DIR/tools/build_core.sh"
     integration_test/macos_keychain_profile_secret_test.dart
   flutter build macos --debug
   debug_app="$EXAMPLE_DIR/build/macos/Build/Products/Debug/Trail Development.app"
+  test -d "$debug_app/Contents/Frameworks/Sparkle.framework"
   codesign --verify --deep --strict "$debug_app"
   flutter build macos --release
   release_app="$EXAMPLE_DIR/build/macos/Build/Products/Release/Trail.app"
@@ -128,6 +129,8 @@ PROFILE=debug "$ROOT_DIR/tools/build_core.sh"
     -workspace macos/Runner.xcworkspace \
     -scheme Runner \
     -configuration Debug \
+    -derivedDataPath build/macos \
+    -resultBundlePath "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/TrailNativeTests-$(date +%s).xcresult" \
     -destination 'platform=macOS' \
     CODE_SIGNING_ALLOWED=NO
 )
