@@ -1,0 +1,196 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:ianvs_terminal/ianvs_terminal.dart';
+
+import 'composer_pane.dart';
+
+/// Keeps command presentation attached to the same native PTY as the raw view.
+class CommandBlocksPane extends StatefulWidget {
+  const CommandBlocksPane({
+    super.key,
+    required this.session,
+    required this.viewport,
+    required this.input,
+    required this.terminalFocus,
+    required this.active,
+    required this.font,
+    required this.onMeasuredCellSizeChanged,
+    required this.child,
+    required this.onOpenLinkTarget,
+  });
+  final ComposerPaneSession session;
+  final TerminalViewportController viewport;
+  final TerminalInputController input;
+  final FocusNode terminalFocus;
+  final bool active;
+  final TerminalFontConfig font;
+  final ValueChanged<Size> onMeasuredCellSizeChanged;
+  final Widget child;
+  final ValueChanged<TerminalLinkTarget> onOpenLinkTarget;
+
+  @override
+  State<CommandBlocksPane> createState() => _CommandBlocksPaneState();
+}
+
+class _CommandBlocksPaneState extends State<CommandBlocksPane> {
+  late final CommandBlockController _blocks;
+  Timer? _refresh;
+  bool _richOutput = false;
+  bool _mainScreenApplication = false;
+  TerminalFrameDiff? _lastFrame;
+  ComposerOwnership? _lastOwnership;
+  bool _lastEnabled = false;
+  String? _readyLease;
+  String? _readyText;
+
+  @override
+  void initState() {
+    super.initState();
+    _blocks = widget.session.blocks;
+    widget.session.addListener(_changed);
+    widget.session.controller.addListener(_changed);
+    widget.viewport.addListener(_changed);
+    widget.session.navigateBlocks = (delta) {
+      if (!_showBlocks || _blocks.blocks.isEmpty) return false;
+      _blocks.move(delta);
+      return true;
+    };
+    _changed();
+  }
+
+  void _changed() {
+    if (_refresh != null) return;
+    _refresh = Timer(const Duration(milliseconds: 80), () {
+      _refresh = null;
+      if (!mounted) return;
+      final frame = widget.viewport.frame;
+      // Keep graphics and protocol-specific widgets in the full renderer. The
+      // flag is session-local because a graphic can leave the visible frame.
+      _richOutput |=
+          frame.graphics.isNotEmpty ||
+          frame.inlineImages.isNotEmpty ||
+          frame.sizedText.isNotEmpty ||
+          frame.blocks.isNotEmpty ||
+          frame.inlineButtons.isNotEmpty;
+      final ownership = widget.session.controller.ownership;
+      final commandActive =
+          ownership == ComposerOwnership.running ||
+          ownership == ComposerOwnership.submitting ||
+          ownership == ComposerOwnership.suspended;
+      if (!commandActive) {
+        _mainScreenApplication = false;
+      } else if (frame.modes.applicationCursor &&
+          frame.modes.applicationKeypad &&
+          frame.modes.hideCursor) {
+        // procps top redraws the main buffer using application keys and a
+        // hidden cursor, without entering the alternate screen. Keep the full
+        // terminal until the command ends, including its visible-cursor input
+        // prompts. Merely hiding a progress cursor does not activate this.
+        _mainScreenApplication = true;
+      }
+      final fullScreen =
+          frame.modes.alternateScreen ||
+          frame.modes.mouseMode != 'off' ||
+          _mainScreenApplication;
+      final enabled = widget.session.enabled && widget.active;
+      final previousBlock = _blocks.blocks.lastOrNull?.id;
+      if (enabled &&
+          (!identical(frame, _lastFrame) ||
+              ownership != _lastOwnership ||
+              enabled != _lastEnabled)) {
+        _blocks.refresh();
+      }
+      final lease = widget.session.controller.readyLease;
+      final text = frame.rows.map((row) => row.text).join('\n');
+      if (enabled &&
+          ownership == ComposerOwnership.ready &&
+          _lastOwnership == ComposerOwnership.ready &&
+          lease == _readyLease &&
+          previousBlock == _blocks.blocks.lastOrNull?.id &&
+          _readyText != null &&
+          text != _readyText &&
+          frame.viewportCols == _lastFrame?.viewportCols &&
+          frame.viewportRows == _lastFrame?.viewportRows &&
+          frame.scrollbackOffset == _lastFrame?.scrollbackOffset) {
+        // Unattributed bytes must remain visible. This shell protocol has no
+        // prompt-end marker, so do not guess that a prompt redraw is a job's
+        // output or silently omit it from the command-only projection.
+        widget.session.updateOutput(
+          fullScreen: fullScreen,
+          richOutput: _richOutput,
+          unattributedOutput: true,
+        );
+      }
+      widget.session.updateOutput(
+        fullScreen: fullScreen,
+        richOutput: _richOutput,
+      );
+      _readyLease = lease;
+      _readyText = text;
+      _lastFrame = frame;
+      _lastOwnership = ownership;
+      _lastEnabled = enabled;
+      setState(() {});
+    });
+  }
+
+  @override
+  void didUpdateWidget(CommandBlocksPane oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.active != widget.active) _changed();
+  }
+
+  @override
+  void dispose() {
+    _refresh?.cancel();
+    widget.session.removeListener(_changed);
+    widget.session.controller.removeListener(_changed);
+    widget.viewport.removeListener(_changed);
+    widget.session.navigateBlocks = null;
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final modes = widget.viewport.frame.modes;
+    if (!_showBlocks) {
+      return widget.child;
+    }
+    return TerminalCommandBlocksView(
+      key: ValueKey('command-blocks-${widget.session.sessionId}'),
+      controller: _blocks,
+      chinese: Localizations.localeOf(context).languageCode == 'zh',
+      liveInput: widget.active ? widget.input : null,
+      liveFocus: widget.active ? widget.terminalFocus : null,
+      liveModes: modes,
+      font: widget.font,
+      onMeasuredCellSizeChanged: widget.onMeasuredCellSizeChanged,
+      onOpenLinkTarget: widget.onOpenLinkTarget,
+      onReturnToInput: widget.session.editorFocus.requestFocus,
+      onReinput: (command) {
+        widget.session.controller.editor.value = TextEditingValue(
+          text: command,
+          selection: TextSelection.collapsed(offset: command.length),
+        );
+        if (widget.session.controller.ownership == ComposerOwnership.ready) {
+          widget.session.editorFocus.requestFocus();
+        }
+      },
+    );
+  }
+
+  bool get _showBlocks {
+    final modes = widget.viewport.frame.modes;
+    final owner = widget.session.controller.ownership;
+    return widget.session.enabled &&
+        _blocks.available &&
+        !_richOutput &&
+        !_mainScreenApplication &&
+        !modes.alternateScreen &&
+        modes.mouseMode == 'off' &&
+        (owner == ComposerOwnership.ready ||
+            owner == ComposerOwnership.running ||
+            owner == ComposerOwnership.submitting);
+  }
+}

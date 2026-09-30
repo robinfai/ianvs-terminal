@@ -4070,5 +4070,25 @@
     }
   },
   "mobileCapabilitiesPendingHelp": "Pending capabilities have no initialization check or observed event evidence yet.",
-  "mobileExternalKeyboardHelp": "Use these shortcuts with an external keyboard. Tap a binding to edit it and choose its scope while recording."
+  "mobileExternalKeyboardHelp": "Use these shortcuts with an external keyboard. Tap a binding to edit it and choose its scope while recording.",
+  "terminalModeNormal": "Normal terminal",
+  "terminalModeBlocks": "Command Blocks",
+  "preferredTerminalMode": "Preferred terminal mode",
+  "preferredTerminalModeHelp": "Applies to new sessions. Command Blocks requires a supported shell. Right-click a tab to switch.",
+  "blockUnavailableChecking": "Checking shell support…",
+  "blockUnavailableShell": "The current shell does not support Command Blocks.",
+  "blockUnavailableRemote": "Command Block negotiation is not ready for the current SSH node.",
+  "blockUnavailableNested": "The current nested shell does not support Command Blocks.",
+  "blockUnavailableInput": "The terminal is handling shell input.",
+  "blockUnavailableFullScreen": "The current application needs the normal terminal.",
+  "blockUnavailableRichOutput": "This session contains output that needs the normal terminal.",
+  "blockUnavailableUnattributed": "This session contains output outside command blocks.",
+  "blockUnavailableExited": "This session has ended.",
+  "blockUnavailableReadOnly": "This session is read-only.",
+  "blockModeAvailableNotice": "Command Blocks is available. Right-click this tab to switch.",
+  "blockModeRestoredNotice": "Command Blocks is available again. Right-click this tab to switch back.",
+  "normalModeFallbackNotice": "Switched to Normal terminal. Right-click this tab for modes.",
+  "mobileBlocksAvailable": "Command Blocks is available. Switch in Session actions.",
+  "mobileBlocksRestored": "Command Blocks is available again. Switch back in Session actions.",
+  "mobileNormalFallback": "Switched to Normal terminal."
 }

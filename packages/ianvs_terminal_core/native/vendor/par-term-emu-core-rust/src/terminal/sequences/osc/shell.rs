@@ -63,6 +63,113 @@ struct Osc133Metadata {
 }
 
 impl Terminal {
+    /// Observe the existing Ianvs DCS hook at its exact parser position. The
+    /// host still owns hook delivery; this only builds terminal-local zones.
+    pub(crate) fn capture_ianvs_shell_hook(&mut self) {
+        if self.alt_screen_active || self.disable_insecure_sequences {
+            return;
+        }
+        let Some(hex) = self.dcs_buffer.strip_prefix(b"ook;") else {
+            return;
+        };
+        if hex.len() % 2 != 0 {
+            return;
+        }
+        let mut bytes = Vec::with_capacity(hex.len() / 2);
+        for pair in hex.chunks_exact(2) {
+            let (Some(a), Some(b)) = (
+                (pair[0] as char).to_digit(16),
+                (pair[1] as char).to_digit(16),
+            ) else {
+                return;
+            };
+            bytes.push(((a << 4) | b) as u8);
+        }
+        let Ok(value) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
+            return;
+        };
+        let Some(hook) = value["hook"].as_str() else {
+            return;
+        };
+        let event_start = self.terminal_events.len();
+        let source = ShellIntegrationSource::Osc133;
+        match hook {
+            "precmd.pwd" => {
+                if let Some(cwd) = value["pwd"]
+                    .as_str()
+                    .filter(|s| s.len() <= 4096 && !s.chars().any(char::is_control))
+                {
+                    self.shell_integration.set_cwd(cwd.to_owned());
+                }
+            }
+            "precmd" => {
+                self.handle_shell_marker(source, ShellIntegrationMarker::PromptStart, None, None)
+            }
+            "preexec" => {
+                let Some(command) = value["command"].as_str().filter(|s| {
+                    !s.trim().is_empty()
+                        && s.len() <= 16 * 1024
+                        && !s.chars().any(|c| c.is_control() && c != '\n' && c != '\t')
+                }) else {
+                    return;
+                };
+                if self.shell_integration.state() != ShellIntegrationState::CommandOutput {
+                    if self.shell_integration.state() != ShellIntegrationState::CommandInput {
+                        self.handle_shell_marker(
+                            source,
+                            ShellIntegrationMarker::PromptStart,
+                            None,
+                            None,
+                        );
+                        self.handle_shell_marker(
+                            source,
+                            ShellIntegrationMarker::CommandStart,
+                            None,
+                            None,
+                        );
+                    }
+                    self.shell_integration.set_command(command.to_owned());
+                    self.handle_shell_marker(
+                        source,
+                        ShellIntegrationMarker::CommandExecuted,
+                        None,
+                        None,
+                    );
+                } else if let Some(zone) = self
+                    .grid
+                    .zones_mut()
+                    .iter_mut()
+                    .rev()
+                    .find(|z| z.is_open() && z.zone_type == ZoneType::Output)
+                {
+                    // Another integration may have already emitted C.
+                    zone.command = Some(command.to_owned());
+                }
+            }
+            "command_finished" => {
+                let code = value["exit_code"]
+                    .as_i64()
+                    .and_then(|n| i32::try_from(n).ok());
+                self.handle_shell_marker(
+                    source,
+                    ShellIntegrationMarker::CommandFinished,
+                    None,
+                    code,
+                );
+            }
+            _ => return,
+        }
+        // DCS hooks already have a host event. Do not duplicate command/replay
+        // notifications or mislabel a DCS event as OSC 133.
+        let mut index = 0;
+        self.terminal_events.retain(|event| {
+            let keep = index < event_start
+                || !matches!(event, TerminalEvent::ShellIntegrationEvent { .. });
+            index += 1;
+            keep
+        });
+    }
+
     /// Configure the optional VS Code OSC 633 command-line correlation nonce.
     ///
     /// The nonce validates shell metadata only. It is never surfaced as an
@@ -531,6 +638,8 @@ impl Terminal {
         self.next_zone_id += 1;
         let mut zone = Zone::new(zone_id, zone_type, abs_row, Some(timestamp));
         zone.command = command;
+        zone.start_col = self.cursor.col;
+        zone.cwd = self.shell_integration.cwd().map(str::to_owned);
         self.grid.push_zone(zone);
         self.terminal_events.push(TerminalEvent::ZoneOpened {
             zone_id,
@@ -558,6 +667,26 @@ impl Terminal {
         if !self.grid.close_zone(zone_id, abs_row) {
             return;
         }
+        let current_abs_row = self
+            .grid
+            .total_lines_scrolled()
+            .saturating_add(self.cursor.row);
+        let end_col = if abs_row == current_abs_row {
+            // CR and cursor movement can leave visible cells to the right of
+            // the cursor. A full last column also leaves pending_wrap set.
+            let content_end = self
+                .grid
+                .row(self.cursor.row)
+                .and_then(|cells| {
+                    cells
+                        .iter()
+                        .rposition(|cell| cell.c != ' ' || cell.flags.wide_char_spacer())
+                })
+                .map_or(0, |column| column + 1);
+            self.cursor.col.max(content_end)
+        } else {
+            self.grid.cols()
+        };
         if expected_type == ZoneType::Output {
             if let Some(zone) = self
                 .grid
@@ -566,6 +695,8 @@ impl Terminal {
                 .find(|zone| zone.id == zone_id)
             {
                 zone.exit_code = exit_code;
+                zone.end_col = Some(end_col);
+                zone.finished_at = Some(crate::terminal::unix_millis());
             }
         }
         let abs_row_end = self

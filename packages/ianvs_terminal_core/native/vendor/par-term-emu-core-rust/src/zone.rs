@@ -54,6 +54,12 @@ pub struct Zone {
     pub exit_code: Option<i32>,
     /// Timestamp in Unix milliseconds when this zone was created
     pub timestamp: Option<u64>,
+    /// Cell boundaries used by command-block copy. The end column is exclusive.
+    pub start_col: usize,
+    pub end_col: Option<usize>,
+    /// Execution context captured at the boundary, rather than the current cwd.
+    pub cwd: Option<String>,
+    pub finished_at: Option<u64>,
 }
 
 impl Zone {
@@ -68,6 +74,10 @@ impl Zone {
             command: None,
             exit_code: None,
             timestamp,
+            start_col: 0,
+            end_col: None,
+            cwd: None,
+            finished_at: None,
         }
     }
 

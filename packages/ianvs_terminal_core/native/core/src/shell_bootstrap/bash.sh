@@ -17,7 +17,8 @@ __iv_source=installed
 __iv_debug=$(trap -p DEBUG)
 if __iv_valid; then
   __iv_source=reused
-elif [[ -z "$__iv_debug" || "$__iv_debug" == "trap -- '__ianvs_preexec' DEBUG" ]] &&
+elif [[ -z "$__iv_debug" || "$__iv_debug" == "trap -- '__ianvs_preexec' DEBUG" ||
+        "$__iv_debug" == 'trap -- '\''__bp_preexec_invoke_exec "$_"'\'' DEBUG' ]] &&
      [[ "${PROMPT_COMMAND[*]}" != *"__ianvs_prompt_command"* ]]; then
   # Repair our own partial installation, but preserve unrelated DEBUG traps.
   # Reinstalling over an existing reference to our prompt callback would capture
@@ -36,13 +37,25 @@ __IANVS_PROTOCOL_VERSION=1
 # Stamp all subsequent events with their actual shell context.
 __ianvs_emit_shell_hook() {
   [[ "$__iv_registered" = 1 ]] || return 0
+  if declare -F __ianvs_composer_emit >/dev/null; then
+    case "$1" in
+      *'"hook":"preexec"'*) __ianvs_cavailable=0; __ianvs_composer_emit busy ;;
+    esac
+  fi
   local __iv_hex __iv_json="${1%\}}"
   __iv_hex=$(printf '%s,"context_id":"%s"}' "$__iv_json" "$__IANVS_CONTEXT" | command od -An -tx1 -v | command tr -d ' \n')
   printf '\033Phook;%s\033\\' "$__iv_hex"
+  # Publish readiness after the hook's external encoders finish. Otherwise an
+  # immediate Ctrl+C can interrupt those processes before Readline starts and
+  # leave the host with a revoked lease but no subsequent prompt notification.
+  if [[ "$1" == *'"hook":"precmd.pwd"'* ]] && declare -F __ianvs_composer_ready >/dev/null; then
+    __ianvs_composer_ready
+  fi
 }
 @@WRAPPER@@
 __ianvs_command_active=0
 __ianvs_last_command=''
+@@COMPOSER@@
 __iv_ready() { printf '\033]6973;@@NONCE@@;@@CONTEXT@@;ready;%s;%s;bash\007' "$__iv_source" "$__iv_registered"; }
 __iv_ready
 unset -f __iv_valid

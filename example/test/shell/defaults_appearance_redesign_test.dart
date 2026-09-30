@@ -10,6 +10,28 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
 
 void main() {
+  testWidgets('preferred terminal mode saves independently', (tester) async {
+    final profile = defaultTerminalProfile();
+    DefaultsAndAppearanceSelection? selection;
+    await _pumpDefaultsDialogLauncher(
+      tester,
+      profiles: [profile],
+      configuredDefaultProfileId: profile.id,
+      effectiveDefaultProfileId: profile.id,
+      onSelection: (value) => selection = value,
+    );
+    final modes = find.byKey(const Key('defaults-terminal-mode-options'));
+    await tester.ensureVisible(modes);
+    await tester.tap(modes);
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const Key('default-terminal-mode-blocks')).last,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('defaults-save')));
+    await tester.pumpAndSettle();
+    expect(selection?.preferredTerminalMode, TerminalViewMode.blocks);
+  });
   testWidgets('global SSH switches save independently', (tester) async {
     final profile = defaultTerminalProfile();
     DefaultsAndAppearanceSelection? selection;

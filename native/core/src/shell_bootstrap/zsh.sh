@@ -38,4 +38,5 @@ __ianvs_emit_shell_hook() {
 @@WRAPPER@@
 __ianvs_command_active=0
 __ianvs_last_command=''
+@@COMPOSER@@
 printf '\033]6973;@@NONCE@@;@@CONTEXT@@;ready;%s;%s;zsh\007' "$__iv_source" "$__iv_registered"

@@ -7,7 +7,8 @@ use std::sync::{Arc, Mutex};
 
 pub(crate) const TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
 const PREFIX: &[u8] = b"\x1b]6973;";
-const MAX_FRAME: usize = 8192;
+// Two independently bounded 4 KiB paths encoded as hex, plus the envelope.
+const MAX_FRAME: usize = 18 * 1024;
 
 pub(crate) fn token() -> String {
     let mut bytes = [0u8; 16];
@@ -167,7 +168,19 @@ pub(crate) fn local_ready(nonce: &str, shell: &str) -> String {
     }
 }
 
+#[cfg(test)]
 fn body(nonce: &str, context: &str, shell: &str, wrap: bool, login: bool) -> String {
+    body_with_composer(nonce, context, shell, wrap, login, "")
+}
+
+fn body_with_composer(
+    nonce: &str,
+    context: &str,
+    shell: &str,
+    wrap: bool,
+    login: bool,
+    composer: &str,
+) -> String {
     let source = match shell {
         "bash" => include_str!("shell_bootstrap/bash.sh")
             .replace("@@INSTALLER@@", crate::pty::bash_hook_source()),
@@ -180,6 +193,7 @@ fn body(nonce: &str, context: &str, shell: &str, wrap: bool, login: bool) -> Str
     let wrapper = wrapper(nonce, shell, wrap);
     let source = source
         .replace("@@CHECK@@", registration_check(shell))
+        .replace("@@COMPOSER@@", composer)
         .replace("@@NONCE@@", nonce)
         .replace("@@CONTEXT@@", context)
         .replace("@@LOGIN@@", if login { "1" } else { "0" })
@@ -247,6 +261,7 @@ pub(crate) struct Bootstrap {
     pub(crate) ready: bool,
     local_root: bool,
     input: Vec<u8>,
+    pub(crate) composer: Arc<crate::remote_composer::RemoteComposer>,
 }
 pub(crate) struct Processed {
     pub output: Vec<u8>,
@@ -293,6 +308,18 @@ fn valid_id(value: &str) -> bool {
 }
 impl Bootstrap {
     pub(crate) fn new(nonce: String, wrap: bool) -> Self {
+        Self::with_composer(
+            nonce,
+            wrap,
+            Arc::new(crate::remote_composer::RemoteComposer::default()),
+        )
+    }
+    pub(crate) fn with_composer(
+        nonce: String,
+        wrap: bool,
+        composer: Arc<crate::remote_composer::RemoteComposer>,
+    ) -> Self {
+        composer.activate("root", false);
         Self {
             nonce,
             wrap,
@@ -302,6 +329,7 @@ impl Bootstrap {
             ready: false,
             local_root: false,
             input: Vec::new(),
+            composer,
         }
     }
     pub(crate) fn checking(&self) -> bool {
@@ -336,6 +364,9 @@ impl Bootstrap {
                 && self.route_for(&context.host_context).is_ok()})
     }
     fn finish(&mut self, ctx: &str, source: &str, registered: bool, shell: &str) -> Vec<u8> {
+        if !registered {
+            self.composer.retire(&[ctx.into()]);
+        }
         self.contexts.get_mut(ctx).unwrap().completed = true;
         if ctx == "root" {
             self.ready = true;
@@ -386,6 +417,12 @@ impl Bootstrap {
             let fields: Vec<_> = text.split(';').collect();
             if fields.len() < 4 {
                 result.output.extend(frame);
+                continue;
+            }
+            if fields[2] == "composer" {
+                // This credential is independent from the public context id
+                // and the bootstrap token. Never pass receipts to VT/logging.
+                self.composer.receive(fields[0], fields[1], &fields[3..]);
                 continue;
             }
             let authority = if matches!(fields[2], "enter" | "enter_shell") {
@@ -443,6 +480,7 @@ impl Bootstrap {
                         },
                     );
                     self.active = ctx.into();
+                    self.composer.activate(ctx, self.local_root);
                     result
                         .output
                         .extend(hook(self.event(ctx, "bootstrap.checking")));
@@ -468,6 +506,7 @@ impl Bootstrap {
                         },
                     );
                     self.active = ctx.into();
+                    self.composer.activate(ctx, self.local_root);
                     result
                         .output
                         .extend(hook(self.event(ctx, "bootstrap.checking")));
@@ -481,13 +520,15 @@ impl Bootstrap {
                         result
                             .output
                             .extend(hook(self.event(ctx, "bootstrap.checking")));
+                        let composer = self.composer.script(ctx, fields[3]);
                         result.replies.push(
-                            body(
+                            body_with_composer(
                                 self.context_token(ctx),
                                 ctx,
                                 fields[3],
                                 self.wrap,
                                 self.contexts[ctx].kind != "shell",
+                                &composer,
                             )
                             .into_bytes(),
                         );
@@ -524,6 +565,8 @@ impl Bootstrap {
                         self.contexts.get_mut(id).unwrap().available = false;
                     }
                     self.active = ctx.into();
+                    self.composer.activate(ctx, self.local_root);
+                    self.composer.retire(&leaving);
                     let mut event = self.event(ctx, "bootstrap.resume");
                     event["retired_contexts"] = json!(leaving);
                     result.output.extend(hook(event));
@@ -642,7 +685,9 @@ struct BootstrapReader {
 }
 impl Drop for BootstrapReader {
     fn drop(&mut self) {
-        self.state.lock().unwrap().contexts.clear();
+        let mut state = self.state.lock().unwrap();
+        state.contexts.clear();
+        state.composer.close();
     }
 }
 impl Read for BootstrapReader {
@@ -667,6 +712,7 @@ impl Read for BootstrapReader {
                     self.queued.extend(self.state.lock().unwrap().expire_due())
                 }
                 Err(_) => {
+                    self.state.lock().unwrap().composer.close();
                     self.queued
                         .extend(std::mem::take(&mut self.state.lock().unwrap().pending));
                     if self.queued.is_empty() {
@@ -691,6 +737,7 @@ type LocalShellTransport = (
     Box<dyn Read + Send>,
     Box<dyn Write + Send>,
     crate::ssh::SshSftpClient,
+    Arc<crate::remote_composer::RemoteComposer>,
 );
 
 pub(crate) fn wrap_local(
@@ -702,6 +749,8 @@ pub(crate) fn wrap_local(
     let writer = Arc::new(Mutex::new(writer));
     let mut bootstrap = Bootstrap::new(nonce, wrap_ssh);
     bootstrap.local_root = true;
+    bootstrap.composer.activate("root", true);
+    let composer = bootstrap.composer.clone();
     bootstrap.contexts.get_mut("root").unwrap().started = Some(std::time::Instant::now());
     let initial = hook(bootstrap.event("root", "bootstrap.checking"));
     let state = Arc::new(Mutex::new(bootstrap));
@@ -739,6 +788,7 @@ pub(crate) fn wrap_local(
             state,
         }),
         sftp,
+        composer,
     ))
 }
 

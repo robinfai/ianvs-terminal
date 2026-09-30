@@ -56,6 +56,13 @@ extension _ShellScreenMobileInput on _ShellScreenState {
     if (bytes.isEmpty || _isSessionReadOnly(sessionId)) {
       return;
     }
+    // Raw terminal shortcuts belong to the live PTY. The Block editor owns
+    // ready-shell input and must never invalidate its lease through this bar.
+    final composer = _composerSessions[sessionId];
+    if (composer?.enabled == true &&
+        composer!.controller.ownership == terminal.ComposerOwnership.ready) {
+      return;
+    }
     ref
         .read(terminalRuntimeControllerProvider)
         .sendInput(sessionId, Uint8List.fromList(bytes));
@@ -63,6 +70,7 @@ extension _ShellScreenMobileInput on _ShellScreenState {
   }
 
   void _dismissMobileTerminalKeyboard(String sessionId) {
+    _composerSessions[sessionId]?.editorFocus.unfocus();
     _focusNodeFor(sessionId).unfocus();
     unawaited(SystemChannels.textInput.invokeMethod<void>('TextInput.hide'));
   }

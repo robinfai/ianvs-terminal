@@ -25,6 +25,7 @@ import '../pty/pty.dart';
 import '../recording/local_session_recording_repository.dart';
 import '../ssh/ssh_feature_access.dart';
 import '../terminal/terminal.dart' hide TerminalEmulation;
+import '../terminal_composer/terminal_mode.dart';
 import 'session_bootstrap.dart';
 import 'session_ports.dart';
 import 'session_shutdown.dart';
@@ -911,6 +912,7 @@ class SessionController extends Notifier<SessionState> {
       configurationWarnings: preparation.configurationWarnings
           .where((warning) => runtimeProfileIds.contains(warning.profileId))
           .toList(growable: false),
+      preferredTerminalMode: _appPreferences.appearance.preferredTerminalMode,
       themeMode: _appPreferences.appearance.themeMode,
       languageMode: _appPreferences.appearance.languageMode,
       terminalViewportPadding:
@@ -1624,6 +1626,7 @@ class SessionController extends Notifier<SessionState> {
       isExited: sourcePane.isExited,
       exitCode: sourcePane.exitCode,
       shellIntegration: sourcePane.shellIntegration,
+      terminalMode: sourcePane.terminalMode,
       oscBadge: sourcePane.oscBadge,
       tabStatus: sourcePane.tabStatus,
       progress: sourcePane.progress,
@@ -1671,6 +1674,7 @@ class SessionController extends Notifier<SessionState> {
           : nextActiveSessionId,
       splitAxis: sourceTab.splitAxis,
       shellIntegration: replacementRoot.shellIntegration,
+      terminalMode: replacementRoot.terminalMode,
       oscBadge: replacementRoot.oscBadge,
       tabStatus: replacementRoot.tabStatus,
       progress: replacementRoot.progress,
@@ -5458,6 +5462,7 @@ class SessionController extends Notifier<SessionState> {
         defaultProfileId: _effectiveDefaultProfileIdFor(profiles),
         configuredDefaultProfileId: _configuredDefaultProfileIdForUi(),
         configurationWarnings: preparation.configurationWarnings,
+        preferredTerminalMode: _appPreferences.appearance.preferredTerminalMode,
         themeMode: _appPreferences.appearance.themeMode,
         languageMode: _appPreferences.appearance.languageMode,
         terminalViewportPadding:
@@ -5516,6 +5521,25 @@ class SessionController extends Notifier<SessionState> {
       defaultProfileId: _effectiveDefaultProfileIdFor(state.profiles),
       configuredDefaultProfileId: _configuredDefaultProfileIdForUi(),
     );
+  }
+
+  void updateTerminalMode(String sessionId, TerminalModeState mode) {
+    final pane = _paneForSession(sessionId);
+    if (pane == null || pane.terminalMode == mode) return;
+    _replaceSessionPane(sessionId, pane.copyWith(terminalMode: mode));
+  }
+
+  Future<void> setPreferredTerminalMode(TerminalViewMode mode) async {
+    _appPreferences = _appPreferences.copyWith(
+      appearance: _appPreferences.appearance.copyWith(
+        preferredTerminalMode: mode,
+      ),
+    );
+    await _savePreferences(
+      localConfigUpdater: (config) =>
+          config.copyWith(appearance: _appPreferences.appearance),
+    );
+    state = state.copyWith(preferredTerminalMode: mode);
   }
 
   Future<void> setThemeMode(TerminalThemeMode themeMode) async {

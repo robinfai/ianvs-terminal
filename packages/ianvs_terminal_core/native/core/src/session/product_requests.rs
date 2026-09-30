@@ -32,6 +32,30 @@ fn sftp_context(request: &serde_json::Value) -> Result<String, SessionError> {
     }
 }
 
+fn remote_composer_state(session: &TerminalSession) -> Option<serde_json::Value> {
+    session
+        .remote_composer
+        .lock()
+        .as_ref()
+        .and_then(|bridge| bridge.snapshot())
+}
+
+fn composer_receipt(session: &TerminalSession, state: &mut serde_json::Value) {
+    let receipt = match *session.composer_submission_remote.lock() {
+        Some(true) => session.remote_composer.lock().as_ref().map(|b| b.receipt()),
+        Some(false) => session
+            .composer_bridge
+            .lock()
+            .as_ref()
+            .map(|b| b.snapshot()),
+        None => None,
+    };
+    if let Some(receipt) = receipt {
+        state["submissionId"] = receipt["submissionId"].clone();
+        state["outcome"] = receipt["outcome"].clone();
+    }
+}
+
 pub fn request_session(
     session_id: u64,
     operation: &str,
@@ -42,6 +66,11 @@ pub fn request_session(
     }
 
     match operation {
+        "terminal.command_blocks" => {
+            let session = STORE.get(session_id)?;
+            let state = session.state.lock();
+            request_json_response(command_blocks::snapshot(&state.terminal, request))
+        }
         "completion.query" => {
             let session = STORE.get(session_id)?;
             let Ok(query) =
@@ -52,11 +81,15 @@ pub fn request_session(
             if query.target_id != session_id.to_string() {
                 return Ok(None);
             }
-            let aliases = session
-                .composer_bridge
-                .lock()
-                .as_ref()
-                .map_or_else(Vec::new, |bridge| bridge.aliases());
+            let aliases = if remote_composer_state(&session).is_some() {
+                vec![]
+            } else {
+                session
+                    .composer_bridge
+                    .lock()
+                    .as_ref()
+                    .map_or_else(Vec::new, |bridge| bridge.aliases())
+            };
             let Ok(batch) = ianvs_completion_core::query_with_aliases(query, &aliases) else {
                 return Ok(None);
             };
@@ -67,11 +100,20 @@ pub fn request_session(
                 return Ok(None);
             }
             let session = STORE.get(session_id)?;
+            let _composer_gate = session.composer_input_gate.lock();
+            if let Some(mut state) = remote_composer_state(&session) {
+                composer_receipt(&session, &mut state);
+                return request_json_response(state);
+            }
             let bridge = session.composer_bridge.lock();
-            let value = bridge.as_ref().map_or_else(|| serde_json::json!({"state":"draft","lease":null,"cwd":"","dialect":"generic","submissionId":null,"outcome":"none"}), |b| b.snapshot());
+            let mut value = bridge.as_ref().map_or_else(|| serde_json::json!({"state":"draft","lease":null,"cwd":"","dialect":"generic","submissionId":null,"outcome":"none"}), |b| b.snapshot());
+            value["contextId"] = serde_json::json!("root");
+            value["transport"] = serde_json::json!("local");
             if bridge.as_ref().is_some_and(|b| b.take_wakeup()) {
                 session.write_non_zmodem_ordered(&[0], true, false)?;
             }
+            drop(bridge);
+            composer_receipt(&session, &mut value);
             request_json_response(value)
         }
         "completion.local_start" => {
@@ -84,6 +126,9 @@ pub fn request_session(
                 return Ok(None);
             }
             let session = STORE.get(session_id)?;
+            if remote_composer_state(&session).is_some() {
+                return request_json_response(serde_json::json!({"status":"denied"}));
+            }
             let state = session
                 .composer_bridge
                 .lock()
@@ -124,11 +169,15 @@ pub fn request_session(
             let response = if operation == "completion.local_cancel" {
                 session.local_completions.lock().cancel(&job.job_id)
             } else {
-                let state = session
-                    .composer_bridge
-                    .lock()
-                    .as_ref()
-                    .map(|b| b.snapshot());
+                let state = if remote_composer_state(&session).is_some() {
+                    None
+                } else {
+                    session
+                        .composer_bridge
+                        .lock()
+                        .as_ref()
+                        .map(|b| b.snapshot())
+                };
                 let lease = state
                     .as_ref()
                     .filter(|s| s["state"] == "ready")
@@ -144,11 +193,47 @@ pub fn request_session(
                 return Ok(None);
             };
             let session = STORE.get(session_id)?;
+            let _composer_gate = session.composer_input_gate.lock();
+            let remote = session.remote_composer.lock().clone();
+            if let Some(remote) =
+                remote.filter(|r| submit.lease.starts_with("remote.") || r.snapshot().is_some())
+            {
+                // A local `ssh` command can enter its child before the UI polls
+                // the acceptance receipt. Report that receipt without ever
+                // granting the parent's lease to the child.
+                if !submit.lease.starts_with("remote.") {
+                    if let Some(local) = session
+                        .composer_bridge
+                        .lock()
+                        .as_ref()
+                        .map(|b| b.snapshot())
+                        && local["submissionId"].as_str() == Some(&submit.submission_id)
+                    {
+                        return request_json_response(
+                            serde_json::json!({"outcome":local["outcome"]}),
+                        );
+                    }
+                    return request_json_response(serde_json::json!({"outcome":"rejected"}));
+                }
+                let (response, wire) = remote.submit(submit);
+                if let Some(wire) = wire {
+                    *session.composer_submission_remote.lock() = Some(true);
+                    if let Err(error) = session.write_non_zmodem_ordered(&wire, false, false) {
+                        remote.invalidate();
+                        return Err(error);
+                    }
+                }
+                return request_json_response(response);
+            }
             let bridge = session.composer_bridge.lock();
-            request_json_response(bridge.as_ref().map_or_else(
+            let response = bridge.as_ref().map_or_else(
                 || serde_json::json!({"outcome":"rejected"}),
                 |b| b.submit(submit),
-            ))
+            );
+            if response["outcome"] == "pending" {
+                *session.composer_submission_remote.lock() = Some(false);
+            }
+            request_json_response(response)
         }
         "ssh.sftp.list_directory_start" => {
             let Some(path) = request

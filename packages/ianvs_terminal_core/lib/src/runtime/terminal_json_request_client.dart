@@ -34,6 +34,11 @@ final class TerminalJsonRequestClient {
   final TerminalSessionRequestTransport _transport;
   final TerminalBackendRequestErrorHandler? _onRequestError;
 
+  Map<String, Object?>? commandBlocks(
+    String sessionId,
+    Map<String, Object?> payload,
+  ) => _requestJsonObject(sessionId, 'terminal.command_blocks', payload);
+
   Map<String, Object?>? composerRequest(
     String sessionId,
     String operation,

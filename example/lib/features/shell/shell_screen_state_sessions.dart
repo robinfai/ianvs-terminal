@@ -1188,15 +1188,15 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     if (sessionId == null) {
       return;
     }
-    final focusNode = _focusNodeFor(sessionId);
-    if (!focusNode.canRequestFocus) {
-      return;
-    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !focusNode.canRequestFocus) {
-        return;
-      }
-      focusNode.requestFocus();
+      if (!mounted) return;
+      final composer = _composerSessions[sessionId];
+      final focusNode =
+          composer?.enabled == true &&
+              composer!.controller.ownership == terminal.ComposerOwnership.ready
+          ? composer.editorFocus
+          : _focusNodeFor(sessionId);
+      if (focusNode.canRequestFocus) focusNode.requestFocus();
     });
   }
 

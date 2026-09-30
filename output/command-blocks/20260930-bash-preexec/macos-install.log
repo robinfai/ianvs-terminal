@@ -1,0 +1,135 @@
+IANVS_MACOS_BUNDLE_ID="work.ianvs.trail" \
+		"/Users/robinfai/flutter_projects/ianvs-terminal/tools/build_signed_apple_release.sh" macos "/Users/robinfai/development/flutter/bin/flutter"
+Resolving dependencies in `/Users/robinfai/flutter_projects/ianvs-terminal`...
+Downloading packages...
+  _fe_analyzer_shared 96.0.0 (108.0.0 available)
+  analyzer 10.2.0 (14.4.0 available)
+  clock 1.1.2 (1.1.3 available)
+  code_assets 1.0.0 (2.1.0 available)
+  coverage 1.15.0 (1.15.1 available)
+  cross_file 0.3.5+4 (0.4.0 available)
+  cupertino_icons 1.0.9 (2.0.0 available)
+  file_selector_android 0.5.2+6 (0.5.2+11 available)
+  file_selector_ios 0.5.3+5 (0.5.3+6 available)
+  file_selector_linux 0.9.4 (0.9.4+1 available)
+  file_selector_macos 0.9.5 (0.9.5+1 available)
+  file_selector_windows 0.9.3+5 (0.9.3+6 available)
+  flutter_riverpod 3.3.1 (3.4.3 available)
+  flutter_secure_storage 10.3.1 (11.2.0 available)
+  flutter_secure_storage_darwin 0.3.2 (0.4.3 available)
+  flutter_secure_storage_linux 3.0.2 (3.0.3 available)
+  flutter_secure_storage_platform_interface 2.0.3 (2.1.1 available)
+  glob 2.1.3 (2.2.0 available)
+  hooks 1.0.3 (2.2.0 available)
+  ianvs_design 0.4.0 (0.4.1 available)
+  intl 0.20.2 (0.20.3 available)
+  io 1.0.5 (1.1.0 available)
+  jni 1.0.0 (1.0.3 available)
+  jni_flutter 1.0.1 (1.0.3 available)
+  matcher 0.12.19 (0.12.20 available)
+  material_color_utilities 0.13.0 (0.13.1 available)
+  meta 1.18.0 (1.19.0 available)
+  mime 2.0.0 (2.1.0 available)
+  native_toolchain_c 0.17.6 (0.19.5 available)
+  objective_c 9.3.0 (9.6.0 available)
+  package_config 2.2.0 (3.0.0 available)
+  path_provider 2.1.5 (2.1.6 available)
+  path_provider_linux 2.2.1 (2.2.2 available)
+  path_provider_platform_interface 2.1.2 (2.1.3 available)
+  platform 3.1.6 (3.2.0 available)
+  pool 1.5.2 (1.5.3 available)
+  process 5.0.5 (5.0.6 available)
+  protobuf 6.0.0 (6.1.0 available)
+  pub_semver 2.2.0 (2.2.1 available)
+  record_use 0.6.0 (1.1.1 available)
+  riverpod 3.2.1 (3.4.3 available)
+  source_maps 0.10.13 (0.10.14 available)
+  stack_trace 1.12.1 (1.12.2 available)
+  test 1.31.0 (1.32.0 available)
+  test_api 0.7.11 (0.7.14 available)
+  test_core 0.6.17 (0.6.20 available)
+  vector_math 2.2.0 (2.4.3 available)
+  very_good_analysis 10.3.0 (11.0.0 available)
+  vm_service 15.1.0 (15.3.0 available)
+  webdriver 3.1.0 (3.2.0 available)
+  yaml 3.1.3 (3.1.4 available)
+Got dependencies in `/Users/robinfai/flutter_projects/ianvs-terminal`!
+51 packages have newer versions incompatible with dependency constraints.
+Try `flutter pub outdated` for more information.
+--- xcodebuild: WARNING: Using the first of multiple matching destinations:
+{ platform:macOS, arch:arm64, id:00006040-0008299A3C7A801C, name:My Mac }
+{ platform:macOS, arch:x86_64, id:00006040-0008299A3C7A801C, name:My Mac }
+{ platform:macOS, name:Any Mac }
+warning: Code asset "package:objective_c/objective_c.dylib" has different framework names for different architectures. Picking "objective_c.framework" and ignoring "objective_c1.framework". This is likely an issue in the package providing the asset. Please report this to the package maintainers and ensure the "build.dart" hook produces consistent filenames.
+warning: Code asset "package:ianvs_pty/libianvs_core.dylib" has different framework names for different architectures. Picking "ianvs_core.framework" and ignoring "ianvs_core1.framework". This is likely an issue in the package providing the asset. Please report this to the package maintainers and ensure the "build.dart" hook produces consistent filenames.
+package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+Project /Users/robinfai/flutter_projects/ianvs-terminal/example built and packaged successfully.
+/Users/robinfai/.pub-cache/hosted/pub.dev/file_selector_macos-0.9.5/macos/file_selector_macos/Sources/file_selector_macos/FileSelectorPlugin.swift:127:17: warning: 'allowedFileTypes' was deprecated in macOS 12.0: Use -allowedContentTypes instead [#DeprecatedDeclaration]
+125 |         allowedTypes.append(contentsOf: acceptedTypes.utis.map({ $0 }))
+126 |         if !allowedTypes.isEmpty {
+127 |           panel.allowedFileTypes = allowedTypes
+    |                 `- warning: 'allowedFileTypes' was deprecated in macOS 12.0: Use -allowedContentTypes instead [#DeprecatedDeclaration]
+128 |         }
+129 |       }
+
+[#DeprecatedDeclaration]: <https://docs.swift.org/compiler/documentation/diagnostics/deprecated-declaration>
+/Users/robinfai/.pub-cache/hosted/pub.dev/file_selector_macos-0.9.5/macos/file_selector_macos/Sources/file_selector_macos/FileSelectorPlugin.swift:127:17: warning: 'allowedFileTypes' was deprecated in macOS 12.0: Use -allowedContentTypes instead [#DeprecatedDeclaration]
+125 |         allowedTypes.append(contentsOf: acceptedTypes.utis.map({ $0 }))
+126 |         if !allowedTypes.isEmpty {
+127 |           panel.allowedFileTypes = allowedTypes
+    |                 `- warning: 'allowedFileTypes' was deprecated in macOS 12.0: Use -allowedContentTypes instead [#DeprecatedDeclaration]
+128 |         }
+129 |       }
+
+[#DeprecatedDeclaration]: <https://docs.swift.org/compiler/documentation/diagnostics/deprecated-declaration>
+note: Using codesigning identity override: Apple Development
+note: Run script build phase 'Run Script' will be run during every build because the option to run the script phase "Based on dependency analysis" is unchecked. (in target 'Runner' from project 'Runner')
+note: Run script build phase 'Bundle Data API' will be run during every build because the option to run the script phase "Based on dependency analysis" is unchecked. (in target 'Runner' from project 'Runner')
+Verified Mach-O alignment and host dlopen: /Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app/Contents/Frameworks/ianvs_core.framework/ianvs_core
+--prepared:/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app/Contents/Frameworks/objective_c.framework/Versions/Current/.
+--validated:/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app/Contents/Frameworks/objective_c.framework/Versions/Current/.
+--prepared:/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app/Contents/Frameworks/Sparkle.framework/Versions/Current/.
+--prepared:/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app/Contents/Frameworks/Sparkle.framework/Versions/Current/Autoupdate
+--validated:/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app/Contents/Frameworks/Sparkle.framework/Versions/Current/Autoupdate
+--prepared:/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app/Contents/Frameworks/Sparkle.framework/Versions/Current/Updater.app
+--prepared:/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app/Contents/Frameworks/Sparkle.framework/Versions/Current/XPCServices/Downloader.xpc
+--prepared:/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app/Contents/Frameworks/Sparkle.framework/Versions/Current/XPCServices/Installer.xpc
+--validated:/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app/Contents/Frameworks/Sparkle.framework/Versions/Current/Updater.app
+--validated:/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app/Contents/Frameworks/Sparkle.framework/Versions/Current/XPCServices/Downloader.xpc
+--validated:/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app/Contents/Frameworks/Sparkle.framework/Versions/Current/XPCServices/Installer.xpc
+--validated:/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app/Contents/Frameworks/Sparkle.framework/Versions/Current/.
+--prepared:/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app/Contents/Frameworks/App.framework/Versions/Current/.
+--prepared:/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app/Contents/Frameworks/FlutterMacOS.framework/Versions/Current/.
+--prepared:/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app/Contents/Frameworks/ianvs_core.framework/Versions/Current/.
+--validated:/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app/Contents/Frameworks/App.framework/Versions/Current/.
+--validated:/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app/Contents/Frameworks/ianvs_core.framework/Versions/Current/.
+--validated:/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app/Contents/Frameworks/FlutterMacOS.framework/Versions/Current/.
+/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app: valid on disk
+/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app: satisfies its Designated Requirement
+Built profile-signed macOS development app: work.ianvs.trail
+Built: /Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app
+IANVS_APP_BUNDLE_ID="work.ianvs.trail" \
+		"/Users/robinfai/flutter_projects/ianvs-terminal/tools/sign_local_macos_release.sh" "/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app"
+Verified Mach-O alignment and host dlopen: /Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app/Contents/Frameworks/ianvs_core.framework/ianvs_core
+--prepared:/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app/Contents/Frameworks/objective_c.framework/Versions/Current/.
+--validated:/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app/Contents/Frameworks/objective_c.framework/Versions/Current/.
+--prepared:/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app/Contents/Frameworks/Sparkle.framework/Versions/Current/.
+--prepared:/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app/Contents/Frameworks/Sparkle.framework/Versions/Current/Autoupdate
+--validated:/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app/Contents/Frameworks/Sparkle.framework/Versions/Current/Autoupdate
+--prepared:/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app/Contents/Frameworks/Sparkle.framework/Versions/Current/Updater.app
+--prepared:/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app/Contents/Frameworks/Sparkle.framework/Versions/Current/XPCServices/Downloader.xpc
+--prepared:/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app/Contents/Frameworks/Sparkle.framework/Versions/Current/XPCServices/Installer.xpc
+--validated:/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app/Contents/Frameworks/Sparkle.framework/Versions/Current/Updater.app
+--validated:/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app/Contents/Frameworks/Sparkle.framework/Versions/Current/XPCServices/Downloader.xpc
+--validated:/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app/Contents/Frameworks/Sparkle.framework/Versions/Current/XPCServices/Installer.xpc
+--validated:/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app/Contents/Frameworks/Sparkle.framework/Versions/Current/.
+--prepared:/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app/Contents/Frameworks/ianvs_core.framework/Versions/Current/.
+--validated:/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app/Contents/Frameworks/ianvs_core.framework/Versions/Current/.
+--prepared:/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app/Contents/Frameworks/App.framework/Versions/Current/.
+--prepared:/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app/Contents/Frameworks/FlutterMacOS.framework/Versions/Current/.
+--validated:/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app/Contents/Frameworks/App.framework/Versions/Current/.
+--validated:/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app/Contents/Frameworks/FlutterMacOS.framework/Versions/Current/.
+/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app: valid on disk
+/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app: satisfies its Designated Requirement
+Local macOS release signing verified: /Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app
+Installed: /Applications/Trail.app

@@ -20,6 +20,7 @@ class DefaultsAndAppearanceSelection {
   const DefaultsAndAppearanceSelection({
     required this.configuredDefaultProfileId,
     required this.themeMode,
+    this.preferredTerminalMode = TerminalViewMode.normal,
     required this.languageMode,
     required this.terminalViewportPadding,
     required this.restoreLayout,
@@ -40,6 +41,7 @@ class DefaultsAndAppearanceSelection {
 
   final String? configuredDefaultProfileId;
   final TerminalThemeMode themeMode;
+  final TerminalViewMode preferredTerminalMode;
   final TerminalLanguageMode languageMode;
   final double terminalViewportPadding;
   final bool restoreLayout;
@@ -126,6 +128,7 @@ class DefaultsAndAppearanceDialog extends StatefulWidget {
     required this.configuredDefaultProfileId,
     required this.effectiveDefaultProfileId,
     required this.themeMode,
+    this.preferredTerminalMode = TerminalViewMode.normal,
     this.languageMode = TerminalLanguageMode.system,
     required this.terminalViewportPadding,
     required this.restoreLayout,
@@ -149,6 +152,7 @@ class DefaultsAndAppearanceDialog extends StatefulWidget {
   final String? configuredDefaultProfileId;
   final String? effectiveDefaultProfileId;
   final TerminalThemeMode themeMode;
+  final TerminalViewMode preferredTerminalMode;
   final TerminalLanguageMode languageMode;
   final double terminalViewportPadding;
   final bool restoreLayout;
@@ -181,6 +185,7 @@ class _DefaultsAndAppearanceDialogState
   late String? _selectedProfileId;
   late String? _selectedTerminalPresetId;
   late TerminalThemeMode _selectedThemeMode;
+  late TerminalViewMode _selectedTerminalMode;
   late TerminalLanguageMode _selectedLanguageMode;
   late double _selectedTerminalViewportPadding;
   late bool _selectedRestoreLayout;
@@ -219,6 +224,7 @@ class _DefaultsAndAppearanceDialogState
         ? _DefaultsSection.data
         : _DefaultsSection.general;
     _selectedThemeMode = widget.themeMode;
+    _selectedTerminalMode = widget.preferredTerminalMode;
     _selectedLanguageMode = widget.languageMode;
     _selectedTerminalViewportPadding = widget.terminalViewportPadding;
     _selectedRestoreLayout = widget.restoreLayout;
@@ -482,6 +488,7 @@ class _DefaultsAndAppearanceDialogState
     return widget.dataApiConfigurationRecoveryRequired ||
         _selectedProfileId != widget.configuredDefaultProfileId ||
         _selectedThemeMode != widget.themeMode ||
+        _selectedTerminalMode != widget.preferredTerminalMode ||
         _selectedLanguageMode != widget.languageMode ||
         _selectedTerminalViewportPadding != widget.terminalViewportPadding ||
         _selectedRestoreLayout != widget.restoreLayout ||
@@ -619,6 +626,7 @@ class _DefaultsAndAppearanceDialogState
                             DefaultsAndAppearanceSelection(
                               configuredDefaultProfileId: _selectedProfileId,
                               themeMode: _selectedThemeMode,
+                              preferredTerminalMode: _selectedTerminalMode,
                               languageMode: _selectedLanguageMode,
                               terminalViewportPadding:
                                   _selectedTerminalViewportPadding,
@@ -672,6 +680,40 @@ class _DefaultsAndAppearanceDialogState
               onChanged: (value) {
                 if (value != null) {
                   setState(() => _selectedLanguageMode = value);
+                }
+              },
+            ),
+          ),
+        ),
+        SizedBox(height: theme.spacing.lg),
+        _DefaultsSettingsGroup(
+          groupKey: const Key('defaults-terminal-mode-group'),
+          decorated: desktopPresentation,
+          title: context.l10n.preferredTerminalMode,
+          child: AppConfigurationField(
+            labelWidth: 112,
+            breakpoint: desktopPresentation ? 420 : 520,
+            label: context.l10n.preferredTerminalMode,
+            helper: context.l10n.preferredTerminalModeHelp,
+            child: AppDropdownFormField<TerminalViewMode>(
+              key: const Key('defaults-terminal-mode-options'),
+              initialValue: _selectedTerminalMode,
+              isExpanded: true,
+              items: [
+                for (final mode in TerminalViewMode.values)
+                  DropdownMenuItem(
+                    key: Key('default-terminal-mode-${mode.name}'),
+                    value: mode,
+                    child: Text(
+                      mode == TerminalViewMode.blocks
+                          ? context.l10n.terminalModeBlocks
+                          : context.l10n.terminalModeNormal,
+                    ),
+                  ),
+              ],
+              onChanged: (value) {
+                if (value != null) {
+                  setState(() => _selectedTerminalMode = value);
                 }
               },
             ),
@@ -2090,6 +2132,8 @@ class _DefaultsAndAppearanceDialogState
                                     configuredDefaultProfileId:
                                         _selectedProfileId,
                                     themeMode: _selectedThemeMode,
+                                    preferredTerminalMode:
+                                        _selectedTerminalMode,
                                     languageMode: _selectedLanguageMode,
                                     terminalViewportPadding:
                                         _selectedTerminalViewportPadding,

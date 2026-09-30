@@ -24,6 +24,7 @@ pub struct PtyRuntime {
     pub child: Box<dyn portable_pty::Child + Send + Sync>,
     pub child_pid: Option<u32>,
     pub(crate) composer_bridge: Option<std::sync::Arc<crate::composer_bridge::ComposerBridge>>,
+    pub(crate) remote_composer: Option<std::sync::Arc<crate::remote_composer::RemoteComposer>>,
     pub(crate) shell_integration: ShellIntegrationPlanStatus,
     pub(crate) shell_integration_proxy: Option<ShellIntegrationProxy>,
     pub(crate) ssh_auth: Option<crate::ssh::SshAuthClient>,
@@ -229,7 +230,7 @@ pub fn spawn_terminal_transport(
             } else {
                 ShellIntegrationPlanStatus::remote_auto()
             };
-            let runtime = crate::ssh::spawn_ssh_with_shell_integration(
+            let (runtime, composer) = crate::ssh::spawn_ssh_with_shell_integration(
                 profile.connection.clone(),
                 rows,
                 cols,
@@ -244,6 +245,7 @@ pub fn spawn_terminal_transport(
                 child: runtime.child,
                 child_pid: None,
                 composer_bridge: None,
+                remote_composer: Some(composer),
                 shell_integration,
                 shell_integration_proxy: None,
                 ssh_auth: Some(runtime.auth),
@@ -315,18 +317,18 @@ where
     #[cfg(not(unix))]
     let mut reader_poll_handle = None;
     let writer = pair.master.take_writer()?;
-    let (reader, writer, ssh_sftp) =
+    let (reader, writer, ssh_sftp, remote_composer) =
         if profile.shell_integration.enabled && plan.shell_integration.status == "enabled" {
             reader_poll_handle = None;
-            let (reader, writer, sftp) = crate::shell_bootstrap::wrap_local(
+            let (reader, writer, sftp, composer) = crate::shell_bootstrap::wrap_local(
                 reader,
                 writer,
                 bootstrap_nonce,
                 profile.shell_integration.ssh_wrapper,
             )?;
-            (reader, writer, Some(sftp))
+            (reader, writer, Some(sftp), Some(composer))
         } else {
-            (reader, writer, None)
+            (reader, writer, None, None)
         };
     let child = child_guard.take();
 
@@ -345,6 +347,7 @@ where
         shell_integration_proxy: plan.shell_integration_proxy,
         ssh_auth: None,
         ssh_sftp,
+        remote_composer,
     })
 }
 
@@ -901,7 +904,20 @@ __ianvs_install_shell_hooks() {
   [[ -z "${__IANVS_SHELL_INTEGRATION_LOADED:-}" ]] || return 0
   command -v od >/dev/null 2>&1 || return 0
   command -v tr >/dev/null 2>&1 || return 0
-  [[ -z "${__ianvs_existing_debug_trap:-}" ]] || return 0
+  __ianvs_bash_hook_backend=debug
+  if [[ -n "${bash_preexec_imported:-${__bp_imported:-}}" && "${PROMPT_COMMAND[*]}" == *__bp_* ]] &&
+     declare -F __bp_preexec_invoke_exec >/dev/null &&
+     declare -F __bp_precmd_invoke_cmd >/dev/null &&
+     declare -F __bp_interactive_mode >/dev/null; then
+    [[ -z "${__ianvs_existing_debug_trap:-}" ||
+       "$__ianvs_existing_debug_trap" == 'trap -- '\''__bp_preexec_invoke_exec "$_"'\'' DEBUG' ]] || return 0
+    # bash-preexec may install its DEBUG trap at the first prompt, after rc
+    # loading. Join its public callback arrays instead of wrapping that deferred
+    # installer in our own PROMPT_COMMAND (which loses its trap and callbacks).
+    __ianvs_bash_hook_backend=bash-preexec
+  else
+    [[ -z "${__ianvs_existing_debug_trap:-}" ]] || return 0
+  fi
 
   __IANVS_SHELL_INTEGRATION_LOADED=1
   __ianvs_command_active=0
@@ -938,7 +954,10 @@ __ianvs_install_shell_hooks() {
     [[ "${__ianvs_inside_prompt:-0}" == "1" ]] && return 0
     [[ "${__ianvs_command_active:-0}" == "1" ]] && return 0
 
-    local __ianvs_command="${BASH_COMMAND:-}"
+    # Older bash-preexec releases also invoke callbacks for bind -x dispatch.
+    # The Composer adapter rearms interactive mode after its private keybinds.
+    [[ ${READLINE_LINE+x} != x ]] || return 0
+    local __ianvs_command="${1:-${BASH_COMMAND:-}}"
     [[ -n "$__ianvs_command" ]] || return 0
     case "$__ianvs_command" in __ianvs_*|__iv_*|unset\ __ianvs_*|unset\ -f\ __iv_*) return 0 ;; esac
 
@@ -952,7 +971,9 @@ __ianvs_install_shell_hooks() {
   __ianvs_prompt_command() {
     local __ianvs_status=$?
     __ianvs_inside_prompt=1
-    __ianvs_run_original_prompt_command "$__ianvs_status" || true
+    if [[ "$__ianvs_bash_hook_backend" != bash-preexec ]]; then
+      __ianvs_run_original_prompt_command "$__ianvs_status" || true
+    fi
     if [[ "${__ianvs_command_active:-0}" == "1" ]]; then
       local __ianvs_escaped_command="$(__ianvs_json_escape "${__ianvs_last_command:-}")"
       __ianvs_emit_shell_hook "{\"hook\":\"command_finished\",\"command\":\"$__ianvs_escaped_command\",\"exit_code\":$__ianvs_status,\"shell\":\"bash\"}"
@@ -966,11 +987,16 @@ __ianvs_install_shell_hooks() {
     return "$__ianvs_status"
   }
 
-  trap '__ianvs_preexec' DEBUG
-  if [[ "${__ianvs_original_prompt_command_is_array:-0}" == "1" ]]; then
-    PROMPT_COMMAND=(__ianvs_prompt_command)
+  if [[ "$__ianvs_bash_hook_backend" == bash-preexec ]]; then
+    [[ " ${preexec_functions[*]} " == *' __ianvs_preexec '* ]] || preexec_functions+=(__ianvs_preexec)
+    [[ " ${precmd_functions[*]} " == *' __ianvs_prompt_command '* ]] || precmd_functions+=(__ianvs_prompt_command)
   else
-    PROMPT_COMMAND=__ianvs_prompt_command
+    trap '__ianvs_preexec' DEBUG
+    if [[ "${__ianvs_original_prompt_command_is_array:-0}" == "1" ]]; then
+      PROMPT_COMMAND=(__ianvs_prompt_command)
+    else
+      PROMPT_COMMAND=__ianvs_prompt_command
+    fi
   fi
 }
 

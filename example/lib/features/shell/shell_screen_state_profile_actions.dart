@@ -426,6 +426,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
         configuredDefaultProfileId: sessionState.configuredDefaultProfileId,
         effectiveDefaultProfileId: sessionState.defaultProfileId,
         themeMode: sessionState.themeMode,
+        preferredTerminalMode: sessionState.preferredTerminalMode,
         languageMode: sessionState.languageMode,
         terminalViewportPadding: sessionState.terminalViewportPadding,
         restoreLayout: _notificationLocalConfig.layout.restoreLayout,
@@ -513,6 +514,12 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
             selection.configuredDefaultProfileId!,
           );
         }
+      }
+      if (selection.preferredTerminalMode !=
+          stateBeforeSave.preferredTerminalMode) {
+        await sessionController.setPreferredTerminalMode(
+          selection.preferredTerminalMode,
+        );
       }
       if (selection.themeMode != stateBeforeSave.themeMode) {
         await sessionController.setThemeMode(selection.themeMode);

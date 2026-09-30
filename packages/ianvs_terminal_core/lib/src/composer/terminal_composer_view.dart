@@ -19,20 +19,22 @@ class TerminalComposerView extends StatefulWidget {
   const TerminalComposerView({
     required this.controller,
     required this.targetLabel,
-    required this.onUseTerminal,
+    this.onUseTerminal,
     this.focusNode,
     this.autofocus = false,
     this.chinese = false,
     this.maxLines = 6,
+    this.onNavigateBlocks,
     super.key,
   });
   final TerminalComposerController controller;
   final String targetLabel;
-  final VoidCallback onUseTerminal;
+  final VoidCallback? onUseTerminal;
   final FocusNode? focusNode;
   final bool autofocus;
   final bool chinese;
   final int maxLines;
+  final bool Function(int delta)? onNavigateBlocks;
 
   @override
   State<TerminalComposerView> createState() => _TerminalComposerViewState();
@@ -60,6 +62,10 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
   };
   String tr(String en, String zh) => widget.chinese ? zh : en;
   double get _menuWidth => (_width - ComposerTheme.inset * 2).clamp(0, 760);
+  bool get _touchCompact =>
+      (_width < 600 || MediaQuery.sizeOf(context).height < 400) &&
+      (Theme.of(context).platform == TargetPlatform.iOS ||
+          Theme.of(context).platform == TargetPlatform.android);
 
   Offset get _menuOffset {
     final anchor = _anchorKey.currentContext?.findRenderObject() as RenderBox?;
@@ -175,6 +181,18 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
         hardware.isMetaPressed ||
         (defaultTargetPlatform != TargetPlatform.macOS &&
             hardware.isControlPressed);
+    if (command &&
+        (key == LogicalKeyboardKey.arrowUp ||
+            key == LogicalKeyboardKey.arrowDown) &&
+        (event is KeyDownEvent || event is KeyRepeatEvent) &&
+        widget.onNavigateBlocks?.call(
+              key == LogicalKeyboardKey.arrowUp ? -1 : 1,
+            ) ==
+            true) {
+      model.dismissHistory();
+      model.dismissCompletions();
+      return KeyEventResult.handled;
+    }
     if (key == LogicalKeyboardKey.enter ||
         key == LogicalKeyboardKey.numpadEnter) {
       if (event is KeyDownEvent) {
@@ -269,7 +287,7 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
           offset: model.editor.selection.extentOffset,
         );
       } else {
-        widget.onUseTerminal();
+        widget.onUseTerminal?.call();
       }
       return KeyEventResult.handled;
     }
@@ -310,7 +328,9 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
             focusNode: _focus,
             autofocus: widget.autofocus,
             enabled: !_disabled,
-            maxLines: math.min(widget.maxLines, lineBudget),
+            maxLines: short && _touchCompact
+                ? 1
+                : math.min(widget.maxLines, lineBudget),
             suggestion: !_disabled && _focus.hasFocus
                 ? model.inlineSuggestion
                 : '',
@@ -390,13 +410,20 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
                 child: SizedBox(
                   height: _busyHeight,
                   child: Padding(
-                    padding: const EdgeInsets.all(ComposerTheme.inset),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: ComposerTheme.inset,
+                      vertical: short && _touchCompact
+                          ? 6
+                          : ComposerTheme.inset,
+                    ),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        _context(tokens, compact: compact),
-                        SizedBox(height: short ? 8 : 12),
+                        if (!(short && _touchCompact)) ...[
+                          _context(tokens, compact: compact),
+                          SizedBox(height: short ? 8 : 12),
+                        ],
                         if (_busyHeight != null)
                           Expanded(
                             child: Align(
@@ -406,7 +433,7 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
                           )
                         else
                           editor,
-                        SizedBox(height: short ? 8 : 12),
+                        SizedBox(height: short ? 6 : 12),
                         _actions(tokens, compact: compact),
                         if (!_disabled && model.executionStatus.isNotEmpty)
                           _executionFeedback(tokens),
@@ -453,6 +480,15 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
       key: const Key('composer-context-path'),
       path: true,
     );
+    if (_touchCompact) {
+      return Row(
+        children: [
+          Expanded(child: model.cwd.isEmpty ? target : path),
+          const SizedBox(width: 8),
+          Flexible(child: _ownership(tokens)),
+        ],
+      );
+    }
     if (compact) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -595,12 +631,16 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
               color: color,
             ),
           const SizedBox(width: 6),
-          Text(
-            _ownershipLabel,
-            style: tokens.statusStyle.copyWith(
-              color: model.ownership == ComposerOwnership.unknown
-                  ? tokens.error
-                  : tokens.muted,
+          Flexible(
+            child: Text(
+              _ownershipLabel,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: tokens.statusStyle.copyWith(
+                color: model.ownership == ComposerOwnership.unknown
+                    ? tokens.error
+                    : tokens.muted,
+              ),
             ),
           ),
         ],
@@ -629,6 +669,51 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
   }
 
   Widget _actions(ComposerTheme tokens, {required bool compact}) {
+    if (_touchCompact) {
+      return OverflowBar(
+        spacing: 4,
+        overflowSpacing: 4,
+        alignment: MainAxisAlignment.spaceBetween,
+        overflowAlignment: OverflowBarAlignment.end,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                key: const Key('composer-history-toggle'),
+                tooltip: tr('Command history', '命令历史'),
+                color: tokens.muted,
+                isSelected: model.historyOpen,
+                onPressed: !model.canOpenHistory
+                    ? null
+                    : () {
+                        model.toggleHistory();
+                        _focus.requestFocus();
+                      },
+                icon: const Icon(ComposerIcons.history),
+              ),
+              _moreActions(tokens),
+              if (_focus.hasFocus)
+                IconButton(
+                  key: const Key('composer-dismiss-keyboard'),
+                  tooltip: tr('Hide keyboard', '收起键盘'),
+                  color: tokens.muted,
+                  onPressed: () {
+                    _focus.unfocus();
+                    unawaited(
+                      SystemChannels.textInput.invokeMethod<void>(
+                        'TextInput.hide',
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.keyboard_hide_outlined),
+                ),
+            ],
+          ),
+          _primary(tokens),
+        ],
+      );
+    }
     final utilities = <Widget>[
       if (!compact)
         Padding(
@@ -954,15 +1039,23 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
           case _ComposerMenuAction.clear:
             model.clearDraft();
           case _ComposerMenuAction.terminal:
-            widget.onUseTerminal();
+            widget.onUseTerminal?.call();
             return;
           case _ComposerMenuAction.shortcuts:
             unawaited(_showShortcuts());
             return;
+          case _ComposerMenuAction.suggestions:
+            model.toggleLocalSuggestions();
         }
         _focus.requestFocus();
       },
       itemBuilder: (context) => [
+        if (_touchCompact)
+          CheckedPopupMenuItem(
+            value: _ComposerMenuAction.suggestions,
+            checked: model.localSuggestions,
+            child: Text(tr('Automatic suggestions', '自动建议')),
+          ),
         _menuItem(
           tokens,
           _ComposerMenuAction.copy,
@@ -995,13 +1088,14 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
           enabled: model.editor.text.isNotEmpty,
         ),
         const PopupMenuDivider(),
-        _menuItem(
-          tokens,
-          _ComposerMenuAction.terminal,
-          ComposerIcons.useTerminal,
-          tr('Use terminal input', '使用终端输入'),
-          shortcut: 'Esc',
-        ),
+        if (widget.onUseTerminal != null)
+          _menuItem(
+            tokens,
+            _ComposerMenuAction.terminal,
+            ComposerIcons.useTerminal,
+            tr('Use terminal input', '使用终端输入'),
+            shortcut: 'Esc',
+          ),
         _menuItem(
           tokens,
           _ComposerMenuAction.shortcuts,
@@ -1074,10 +1168,12 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
       ('Ctrl+→', tr('Accept the next suggestion segment', '接受下一段建议')),
       (
         'Esc',
-        tr(
-          'Close results / dismiss suggestion / return to terminal',
-          '关闭候选／取消建议／返回终端',
-        ),
+        widget.onUseTerminal == null
+            ? tr('Close results / dismiss suggestion', '关闭候选／取消建议')
+            : tr(
+                'Close results / dismiss suggestion / return to terminal',
+                '关闭候选／取消建议／返回终端',
+              ),
       ),
       ('Shift+Tab', tr('Move focus to controls', '将焦点移到操作控件')),
     ];
@@ -1164,11 +1260,14 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
                   style: TextButton.styleFrom(foregroundColor: tokens.onError),
                   child: Text(tr('Recover draft', '恢复草稿')),
                 ),
-                TextButton(
-                  onPressed: widget.onUseTerminal,
-                  style: TextButton.styleFrom(foregroundColor: tokens.onError),
-                  child: Text(tr('Check terminal', '查看终端')),
-                ),
+                if (widget.onUseTerminal != null)
+                  TextButton(
+                    onPressed: widget.onUseTerminal,
+                    style: TextButton.styleFrom(
+                      foregroundColor: tokens.onError,
+                    ),
+                    child: Text(tr('Check terminal', '查看终端')),
+                  ),
               ],
             ),
           ),
@@ -1245,4 +1344,12 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
   }
 }
 
-enum _ComposerMenuAction { copy, undo, redo, clear, terminal, shortcuts }
+enum _ComposerMenuAction {
+  copy,
+  undo,
+  redo,
+  clear,
+  terminal,
+  shortcuts,
+  suggestions,
+}

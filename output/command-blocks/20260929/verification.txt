@@ -1,0 +1,35 @@
+Verified 2026-09-29 on macOS 27.0 (26A428), arm64.
+Branch: composer
+
+Native core, complete unit suite
+test result: ok. 407 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 1.62s
+
+Native command blocks, final pagination revision
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 401 filtered out; finished in 0.01s
+
+Vendor shell semantic regression
+test result: ok. 27 passed; 0 failed; 0 ignored; 0 measured; 1715 filtered out; finished in 0.42s
+
+Flutter command blocks and Composer
+00:02 +82: All tests passed!
+
+Flutter command blocks, final wheel/focus revision
+00:01 +6: All tests passed!
+
+Visual capture matrix
+00:01 +6: All tests passed!
+
+macOS app, default bundled native library
+Failed to foreground app; open returned 1
+00:10 +1: All tests passed!
+
+Dart analysis, canonical + standalone + host + tests
+No issues found!
+
+The macOS launch foreground warning did not prevent integration execution; all end-to-end assertions passed.
+Native-source mirror: sync_terminal_core.dart --check passed.
+
+Standalone package, public barrel and mirrored tests
+00:02 +6: All tests passed!
+
+Final native integration also covers alternate-screen focus/restoration and asynchronous background-output fallback.

@@ -139,3 +139,49 @@ submission and any newer draft. A fresh shell session is needed after channel
 failure. Acknowledgement clears only the submitted editor revision. Drafts,
 candidates, request payloads and private channel data are not separately logged
 or persisted. Normal terminal echo/output still follows existing recording policy.
+
+## SSH and nested-shell negotiation
+
+The controlled SSH bootstrap installs an in-memory editor adapter for Bash 4+
+and Zsh when shell-hook registration succeeds. No agent, script file, dotfile
+change, ControlMaster or SFTP subsystem is required for submission. Fish, older
+Bash, failed/conflicting hooks and disabled injection remain Normal. Existing
+shells need a new connection to receive the adapter.
+
+Each injected shell receives a random adapter secret independent of its context
+id and bootstrap credential. Authenticated `composer` receipts are consumed
+before VT rendering/recording. A primary prompt grants a strictly increasing
+epoch; cwd and HOME are each bounded to 4 KiB. The frame budget is 18 KiB for
+their hex encoding and envelope. Ordinary OSC 133, output content and public
+context ids cannot grant input ownership.
+
+`composer.state` also returns `contextId` and `transport` (`local` or `shell`).
+Only the active context can issue a ready lease. Enter, resume, raw input,
+timeout and disconnect revoke ownership; returning to a parent waits for its
+next prompt. The app requires native and displayed context ids to agree. It
+returns to Normal while capability is lost and offers manual restoration.
+
+Submission is one serialized PTY/SSH write: a context-private editor key sequence
+and `epoch:id:hex!`. The wire contains no literal command, CR/LF or Enter. The
+ZLE/Readline widget consumes the frame, validates the epoch, empty editing buffer
+and payload bounds, then assigns literal BUFFER/READLINE_LINE. Zsh invokes builtin
+accept-line; Bash arms the accept step of its private macro only after validation.
+Rejection leaves that step a no-op. Emacs and vi insertion maps are supported.
+No submitted payload is evaluated by a helper or separate SSH exec, so cd/export
+execute in the user's current interactive remote shell.
+
+The session retains submission receipts across local→SSH, SSH→SSH and return
+transitions independently of current input ownership. IDs are deduplicated (64
+remembered outcomes); unknown outcomes are retained and never automatically
+retried. The native deadline is 5 seconds and the UI waits up to 6. Raw input is
+serialized against submission. Retired/stale leases cannot target another node.
+
+Remote history/alias collection and remote filesystem completion are separate
+work. Remote contexts use static completion and never consult the local cwd/HOME
+provider. The trust boundary includes the remote user's shell, startup files and
+plugins; it does not isolate against that remote OS user.
+
+`tools/ssh_boundary_lab/composer.py` verifies a temporary loopback OpenSSH server
+with strict host verification, disposable keys/homes, the session API, both
+keymaps, protocol/local-ssh entrypoints and two nested hops. `--ui` also runs the
+macOS app, including Tab switching and real top/vim.

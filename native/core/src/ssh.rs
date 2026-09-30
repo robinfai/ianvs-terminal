@@ -1285,6 +1285,7 @@ pub fn spawn_ssh(
     cols: u16,
 ) -> Result<SshRuntime> {
     spawn_ssh_with_shell_integration(connection, rows, cols, false, false)
+        .map(|(runtime, _)| runtime)
 }
 
 pub(crate) fn spawn_ssh_with_shell_integration(
@@ -1293,7 +1294,7 @@ pub(crate) fn spawn_ssh_with_shell_integration(
     cols: u16,
     shell_integration_enabled: bool,
     ssh_wrapper: bool,
-) -> Result<SshRuntime> {
+) -> Result<(SshRuntime, Arc<crate::remote_composer::RemoteComposer>)> {
     let auth = SshAuthClient::default();
     let cancellation = SshCancellation::default();
     let (command_sender, command_receiver) = mpsc::unbounded_channel();
@@ -1322,6 +1323,8 @@ pub(crate) fn spawn_ssh_with_shell_integration(
 
     let thread_auth = auth.clone();
     let thread_cancellation = cancellation;
+    let composer = Arc::new(crate::remote_composer::RemoteComposer::default());
+    let thread_composer = composer.clone();
 
     thread::Builder::new()
         .name(format!("ianvs-ssh-{}", connection.host))
@@ -1338,6 +1341,7 @@ pub(crate) fn spawn_ssh_with_shell_integration(
                         SshShellIntegrationOptions {
                             enabled: shell_integration_enabled,
                             wrap_ssh: ssh_wrapper,
+                            composer: thread_composer.clone(),
                         },
                         command_receiver,
                         output_sender.clone(),
@@ -1345,6 +1349,7 @@ pub(crate) fn spawn_ssh_with_shell_integration(
                         thread_cancellation,
                     ))
                 });
+            thread_composer.close();
             let exit_code = match result {
                 Ok(code) => code,
                 Err(error) => {
@@ -1361,16 +1366,19 @@ pub(crate) fn spawn_ssh_with_shell_integration(
         })
         .context("could not start SSH transport thread")?;
 
-    Ok(SshRuntime {
-        master,
-        reader,
-        writer,
-        child,
-        auth,
-        sftp: SshSftpClient {
-            sender: command_sender,
+    Ok((
+        SshRuntime {
+            master,
+            reader,
+            writer,
+            child,
+            auth,
+            sftp: SshSftpClient {
+                sender: command_sender,
+            },
         },
-    })
+        composer,
+    ))
 }
 
 struct PreparedSshSession {
@@ -1405,8 +1413,7 @@ async fn teardown_ssh_network(
 async fn prepare_ssh_session(
     connection: &TerminalProfileConnection,
     initial_size: PtySize,
-    shell_integration_enabled: bool,
-    ssh_wrapper: bool,
+    shell_options: SshShellIntegrationOptions,
     auth: &SshAuthClient,
     cancellation: &SshCancellation,
     forward_runtime: &ForwardRuntime,
@@ -1433,8 +1440,12 @@ async fn prepare_ssh_session(
         start_local_forward_listeners(connection, forward_sender, forward_runtime.clone()).await?;
     request_remote_forwards(&session, connection).await?;
 
-    let shell_integration = shell_integration_enabled.then(|| {
-        crate::shell_bootstrap::Bootstrap::new(crate::shell_bootstrap::token(), ssh_wrapper)
+    let shell_integration = shell_options.enabled.then(|| {
+        crate::shell_bootstrap::Bootstrap::with_composer(
+            crate::shell_bootstrap::token(),
+            shell_options.wrap_ssh,
+            shell_options.composer,
+        )
     });
 
     let channel = session.channel_open_session().await?;
@@ -1533,6 +1544,7 @@ where
 struct SshShellIntegrationOptions {
     enabled: bool,
     wrap_ssh: bool,
+    composer: Arc<crate::remote_composer::RemoteComposer>,
 }
 
 async fn run_ssh_session(
@@ -1550,8 +1562,7 @@ async fn run_ssh_session(
         prepare_ssh_session(
             &connection,
             initial_size,
-            shell_integration.enabled,
-            shell_integration.wrap_ssh,
+            shell_integration,
             &auth,
             &cancellation,
             &forward_runtime,

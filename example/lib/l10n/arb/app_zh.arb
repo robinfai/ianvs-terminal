@@ -1427,5 +1427,25 @@
     }
   },
   "mobileCapabilitiesPendingHelp": "待确认表示尚无初始化检查或实际事件证据。",
-  "mobileExternalKeyboardHelp": "连接外接键盘后可使用这些快捷键。点按组合键可修改，作用范围在录制时设置。"
+  "mobileExternalKeyboardHelp": "连接外接键盘后可使用这些快捷键。点按组合键可修改，作用范围在录制时设置。",
+  "terminalModeNormal": "普通终端",
+  "terminalModeBlocks": "命令块",
+  "preferredTerminalMode": "优先终端模式",
+  "preferredTerminalModeHelp": "用于新会话。命令块需要当前 Shell 支持，可右键标签页手动切换。",
+  "blockUnavailableChecking": "正在检测 Shell 支持…",
+  "blockUnavailableShell": "当前 Shell 不支持命令块。",
+  "blockUnavailableRemote": "当前 SSH 节点尚未完成命令块协商。",
+  "blockUnavailableNested": "当前子 Shell 不支持命令块。",
+  "blockUnavailableInput": "终端正在处理 Shell 输入。",
+  "blockUnavailableFullScreen": "当前应用需要使用普通终端。",
+  "blockUnavailableRichOutput": "此会话包含需要普通终端展示的内容。",
+  "blockUnavailableUnattributed": "此会话包含命令块之外的输出。",
+  "blockUnavailableExited": "会话已结束。",
+  "blockUnavailableReadOnly": "当前会话为只读。",
+  "blockModeAvailableNotice": "命令块可用，右键此标签页切换。",
+  "blockModeRestoredNotice": "命令块已恢复可用，右键此标签页手动切回。",
+  "normalModeFallbackNotice": "已切换为普通终端，右键此标签页查看模式。",
+  "mobileBlocksAvailable": "命令块可用，可在会话选项中切换。",
+  "mobileBlocksRestored": "命令块已恢复可用，可在会话选项中手动切回。",
+  "mobileNormalFallback": "已切换为普通终端。"
 }

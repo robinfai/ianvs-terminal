@@ -4984,4 +4984,64 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get mobileExternalKeyboardHelp =>
       '连接外接键盘后可使用这些快捷键。点按组合键可修改，作用范围在录制时设置。';
+
+  @override
+  String get terminalModeNormal => '普通终端';
+
+  @override
+  String get terminalModeBlocks => '命令块';
+
+  @override
+  String get preferredTerminalMode => '优先终端模式';
+
+  @override
+  String get preferredTerminalModeHelp => '用于新会话。命令块需要当前 Shell 支持，可右键标签页手动切换。';
+
+  @override
+  String get blockUnavailableChecking => '正在检测 Shell 支持…';
+
+  @override
+  String get blockUnavailableShell => '当前 Shell 不支持命令块。';
+
+  @override
+  String get blockUnavailableRemote => '当前 SSH 节点尚未完成命令块协商。';
+
+  @override
+  String get blockUnavailableNested => '当前子 Shell 不支持命令块。';
+
+  @override
+  String get blockUnavailableInput => '终端正在处理 Shell 输入。';
+
+  @override
+  String get blockUnavailableFullScreen => '当前应用需要使用普通终端。';
+
+  @override
+  String get blockUnavailableRichOutput => '此会话包含需要普通终端展示的内容。';
+
+  @override
+  String get blockUnavailableUnattributed => '此会话包含命令块之外的输出。';
+
+  @override
+  String get blockUnavailableExited => '会话已结束。';
+
+  @override
+  String get blockUnavailableReadOnly => '当前会话为只读。';
+
+  @override
+  String get blockModeAvailableNotice => '命令块可用，右键此标签页切换。';
+
+  @override
+  String get blockModeRestoredNotice => '命令块已恢复可用，右键此标签页手动切回。';
+
+  @override
+  String get normalModeFallbackNotice => '已切换为普通终端，右键此标签页查看模式。';
+
+  @override
+  String get mobileBlocksAvailable => '命令块可用，可在会话选项中切换。';
+
+  @override
+  String get mobileBlocksRestored => '命令块已恢复可用，可在会话选项中手动切回。';
+
+  @override
+  String get mobileNormalFallback => '已切换为普通终端。';
 }

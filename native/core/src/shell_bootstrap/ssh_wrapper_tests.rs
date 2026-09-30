@@ -20,6 +20,7 @@ fn decode_launcher(command: &str) -> String {
 
 #[test]
 fn wrapped_ssh_and_profile_connections_use_the_same_initialization() {
+    let adapter_secret = regex::Regex::new("[0-9a-f]{32}").unwrap();
     for shell in ["/bin/bash", "/bin/zsh", "/opt/homebrew/bin/fish"] {
         if !std::path::Path::new(shell).exists() {
             continue;
@@ -102,13 +103,19 @@ printf %s "$last" > "$IANVS_TEST_COMMAND"
                 // Context lengths shift Zsh's 256-character wire chunks; join
                 // those chunks before comparing the actual payload contents.
                 assert_eq!(
-                    String::from_utf8(reply.replies[0].clone())
-                        .unwrap()
-                        .replace("'\\\n'", "")
-                        .replace(id, "root"),
-                    String::from_utf8(expected.replies[0].clone())
-                        .unwrap()
-                        .replace("'\\\n'", ""),
+                    adapter_secret.replace_all(
+                        &String::from_utf8(reply.replies[0].clone())
+                            .unwrap()
+                            .replace("'\\\n'", "")
+                            .replace(id, "root"),
+                        "ADAPTER_SECRET"
+                    ),
+                    adapter_secret.replace_all(
+                        &String::from_utf8(expected.replies[0].clone())
+                            .unwrap()
+                            .replace("'\\\n'", ""),
+                        "ADAPTER_SECRET"
+                    ),
                     "{shell} -> {target}: {socket}"
                 );
             }

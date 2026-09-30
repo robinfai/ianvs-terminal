@@ -1,5 +1,15 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
+
+enum TerminalViewMode {
+  normal,
+  blocks;
+
+  static TerminalViewMode fromJsonValue(Object? value) =>
+      value == 'blocks' ? TerminalViewMode.blocks : TerminalViewMode.normal;
+}
+
 enum TerminalThemeMode {
   system,
   light,
@@ -61,25 +71,40 @@ class TerminalAppDefaults {
 
 class TerminalAppAppearance {
   const TerminalAppAppearance({
+    TerminalViewMode? preferredTerminalMode,
     this.themeMode = TerminalThemeMode.system,
     this.languageMode = TerminalLanguageMode.system,
     this.terminalViewportPadding = defaultTerminalViewportPadding,
-  });
+    // Preserve the public constructor name while storing an optional override.
+    // ignore: prefer_initializing_formals
+  }) : _preferredTerminalMode = preferredTerminalMode;
 
   static const double defaultTerminalViewportPadding = 8;
   static const double minTerminalViewportPadding = 0;
   static const double maxTerminalViewportPadding = 48;
 
   final TerminalThemeMode themeMode;
+  final TerminalViewMode? _preferredTerminalMode;
+
+  // Keep an unset preference unset on disk, including when other appearance
+  // settings change. A saved choice always takes precedence over the platform.
+  TerminalViewMode get preferredTerminalMode =>
+      _preferredTerminalMode ??
+      switch (defaultTargetPlatform) {
+        TargetPlatform.iOS || TargetPlatform.android => TerminalViewMode.blocks,
+        _ => TerminalViewMode.normal,
+      };
   final TerminalLanguageMode languageMode;
   final double terminalViewportPadding;
 
   TerminalAppAppearance copyWith({
+    TerminalViewMode? preferredTerminalMode,
     TerminalThemeMode? themeMode,
     TerminalLanguageMode? languageMode,
     double? terminalViewportPadding,
   }) {
     return TerminalAppAppearance(
+      preferredTerminalMode: preferredTerminalMode ?? _preferredTerminalMode,
       themeMode: themeMode ?? this.themeMode,
       languageMode: languageMode ?? this.languageMode,
       terminalViewportPadding: normalizeTerminalViewportPadding(
@@ -91,6 +116,8 @@ class TerminalAppAppearance {
   Map<String, Object?> toJson() {
     return {
       'themeMode': themeMode.name,
+      if (_preferredTerminalMode != null)
+        'preferredTerminalMode': _preferredTerminalMode.name,
       'languageMode': languageMode.name,
       'terminalViewportPadding': normalizeTerminalViewportPadding(
         terminalViewportPadding,
@@ -100,6 +127,9 @@ class TerminalAppAppearance {
 
   static TerminalAppAppearance fromJson(Map<Object?, Object?>? json) {
     return TerminalAppAppearance(
+      preferredTerminalMode: json?['preferredTerminalMode'] == null
+          ? null
+          : TerminalViewMode.fromJsonValue(json?['preferredTerminalMode']),
       themeMode: TerminalThemeMode.fromJsonValue(json?['themeMode']),
       languageMode: TerminalLanguageMode.fromJsonValue(json?['languageMode']),
       terminalViewportPadding: normalizeTerminalViewportPadding(

@@ -8383,6 +8383,126 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Use these shortcuts with an external keyboard. Tap a binding to edit it and choose its scope while recording.'**
   String get mobileExternalKeyboardHelp;
+
+  /// No description provided for @terminalModeNormal.
+  ///
+  /// In en, this message translates to:
+  /// **'Normal terminal'**
+  String get terminalModeNormal;
+
+  /// No description provided for @terminalModeBlocks.
+  ///
+  /// In en, this message translates to:
+  /// **'Command Blocks'**
+  String get terminalModeBlocks;
+
+  /// No description provided for @preferredTerminalMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Preferred terminal mode'**
+  String get preferredTerminalMode;
+
+  /// No description provided for @preferredTerminalModeHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Applies to new sessions. Command Blocks requires a supported shell. Right-click a tab to switch.'**
+  String get preferredTerminalModeHelp;
+
+  /// No description provided for @blockUnavailableChecking.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking shell support…'**
+  String get blockUnavailableChecking;
+
+  /// No description provided for @blockUnavailableShell.
+  ///
+  /// In en, this message translates to:
+  /// **'The current shell does not support Command Blocks.'**
+  String get blockUnavailableShell;
+
+  /// No description provided for @blockUnavailableRemote.
+  ///
+  /// In en, this message translates to:
+  /// **'Command Block negotiation is not ready for the current SSH node.'**
+  String get blockUnavailableRemote;
+
+  /// No description provided for @blockUnavailableNested.
+  ///
+  /// In en, this message translates to:
+  /// **'The current nested shell does not support Command Blocks.'**
+  String get blockUnavailableNested;
+
+  /// No description provided for @blockUnavailableInput.
+  ///
+  /// In en, this message translates to:
+  /// **'The terminal is handling shell input.'**
+  String get blockUnavailableInput;
+
+  /// No description provided for @blockUnavailableFullScreen.
+  ///
+  /// In en, this message translates to:
+  /// **'The current application needs the normal terminal.'**
+  String get blockUnavailableFullScreen;
+
+  /// No description provided for @blockUnavailableRichOutput.
+  ///
+  /// In en, this message translates to:
+  /// **'This session contains output that needs the normal terminal.'**
+  String get blockUnavailableRichOutput;
+
+  /// No description provided for @blockUnavailableUnattributed.
+  ///
+  /// In en, this message translates to:
+  /// **'This session contains output outside command blocks.'**
+  String get blockUnavailableUnattributed;
+
+  /// No description provided for @blockUnavailableExited.
+  ///
+  /// In en, this message translates to:
+  /// **'This session has ended.'**
+  String get blockUnavailableExited;
+
+  /// No description provided for @blockUnavailableReadOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'This session is read-only.'**
+  String get blockUnavailableReadOnly;
+
+  /// No description provided for @blockModeAvailableNotice.
+  ///
+  /// In en, this message translates to:
+  /// **'Command Blocks is available. Right-click this tab to switch.'**
+  String get blockModeAvailableNotice;
+
+  /// No description provided for @blockModeRestoredNotice.
+  ///
+  /// In en, this message translates to:
+  /// **'Command Blocks is available again. Right-click this tab to switch back.'**
+  String get blockModeRestoredNotice;
+
+  /// No description provided for @normalModeFallbackNotice.
+  ///
+  /// In en, this message translates to:
+  /// **'Switched to Normal terminal. Right-click this tab for modes.'**
+  String get normalModeFallbackNotice;
+
+  /// No description provided for @mobileBlocksAvailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Command Blocks is available. Switch in Session actions.'**
+  String get mobileBlocksAvailable;
+
+  /// No description provided for @mobileBlocksRestored.
+  ///
+  /// In en, this message translates to:
+  /// **'Command Blocks is available again. Switch back in Session actions.'**
+  String get mobileBlocksRestored;
+
+  /// No description provided for @mobileNormalFallback.
+  ///
+  /// In en, this message translates to:
+  /// **'Switched to Normal terminal.'**
+  String get mobileNormalFallback;
 }
 
 class _AppLocalizationsDelegate

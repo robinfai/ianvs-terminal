@@ -1,0 +1,7 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.15s
+     Running tests/remote_composer_ssh_test.rs (native/core/target/debug/deps/remote_composer_ssh_test-442d122354809749)
+
+running 1 test
+test remote_composer_ssh_negotiation_and_multihop ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.03s

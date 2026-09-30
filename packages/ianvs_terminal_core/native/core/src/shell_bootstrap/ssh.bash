@@ -66,6 +66,10 @@ function ssh {
   if [ "$__iv_owned" = 1 ]; then
     # Do not stop the master: in-flight SFTP channels own their lifetime.
     (command sleep 65; command rmdir "$__iv_dir" 2>/dev/null) </dev/null >/dev/null 2>&1 &
+    # This housekeeping job must not make the next `exit` warn about jobs.
+    # It is the new current job in both Bash and Zsh (Zsh disown expects a job
+    # spec, not a PID). No other job is launched between these two operations.
+    disown %+ 2>/dev/null || true
   fi
   return "$__iv_status"
 }

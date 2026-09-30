@@ -83,10 +83,14 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         isActiveSessionRecording: isActiveSessionRecording,
         isActiveRecordingPendingSave: isActiveRecordingPendingSave,
         isActiveRecordingBusy: isActiveRecordingBusy,
+        modeSelection:
+            context.usesTouchControlDensity && activeSessionIdBeforeOpen != null
+            ? _MobileTerminalModes(sessionId: activeSessionIdBeforeOpen)
+            : null,
       );
     }
 
-    final commandMenuRoute = RawDialogRoute<TerminalActionId>(
+    final commandMenuRoute = RawDialogRoute<Object>(
       barrierDismissible: true,
       barrierLabel: l10n.closeCommandPalette,
       barrierColor: Colors.black.withValues(alpha: 0.42),
@@ -124,26 +128,26 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         );
       },
     );
-    final TerminalActionId? action;
+    final Object? selection;
     if (context.usesMobileNavigation) {
       FocusManager.instance.primaryFocus?.unfocus();
-      action = await showModalBottomSheet<TerminalActionId>(
+      selection = await showModalBottomSheet<Object>(
         context: context,
         useRootNavigator: true,
         useSafeArea: true,
         isScrollControlled: true,
         showDragHandle: true,
         builder: (_) => _MobileSessionMenu(
-          hasSession: hasActiveSession,
+          sessionId: activeSessionIdBeforeOpen,
           readOnly: isActiveSessionReadOnly,
           canReopen: sessionController.canReopenClosedTab,
         ),
       );
     } else {
-      action = await Navigator.of(
+      selection = await Navigator.of(
         context,
         rootNavigator: true,
-      ).push<TerminalActionId>(commandMenuRoute);
+      ).push<Object>(commandMenuRoute);
       await commandMenuRoute.completed;
     }
 
@@ -160,6 +164,17 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
       return;
     }
 
+    if (selection is TerminalViewMode) {
+      if (activeSessionIdBeforeOpen != null) {
+        _selectTerminalMode(
+          sessionController,
+          activeSessionIdBeforeOpen,
+          selection,
+        );
+      }
+      return;
+    }
+    final action = selection as TerminalActionId?;
     final currentState = ref.read(sessionControllerProvider);
     final currentSessionId = currentState.activeSessionId;
     final productionMenuAdapter = _buildScopedProductionActionAdapter(
@@ -939,13 +954,48 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
       );
     }
 
-    final action = await showMenu<TerminalActionId>(
+    final modeState =
+        _composerSessions[targetSessionId]?.mode.state ??
+        targetPane?.terminalMode ??
+        const TerminalModeState();
+    final action = await showMenu<Object>(
       context: context,
       position: RelativeRect.fromRect(
         Rect.fromLTWH(position.dx, position.dy, 1, 1),
         Offset.zero & overlaySize,
       ),
       items: [
+        if (!context.usesMobileNavigation) ...[
+          for (final mode in TerminalViewMode.values)
+            CheckedPopupMenuItem<Object>(
+              key: Key('terminal-mode-${mode.name}-$targetSessionId'),
+              value: mode,
+              checked: modeState.mode == mode,
+              enabled:
+                  mode == TerminalViewMode.normal || modeState.canUseBlocks,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    mode == TerminalViewMode.blocks
+                        ? context.l10n.terminalModeBlocks
+                        : context.l10n.terminalModeNormal,
+                  ),
+                  if (mode == TerminalViewMode.blocks &&
+                      !modeState.canUseBlocks)
+                    Text(
+                      blockUnavailableMessage(
+                        context.l10n,
+                        modeState.unavailableReason,
+                      ),
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                ],
+              ),
+            ),
+          const PopupMenuDivider(),
+        ],
         item(
           action: TerminalActionId.duplicateCurrentCwd,
           icon: Icons.create_new_folder_rounded,
@@ -1023,12 +1073,33 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
     if (!mounted || action == null) {
       return;
     }
+    if (action is TerminalViewMode) {
+      _selectTerminalMode(sessionController, targetSessionId, action);
+      return;
+    }
     await _runTabContextAction(
       sessionController,
-      action,
+      action as TerminalActionId,
       targetTabSessionId: tab.sessionId,
       targetPaneSessionId: paneSessionId,
     );
+  }
+
+  void _selectTerminalMode(
+    SessionController sessionController,
+    String sessionId,
+    TerminalViewMode mode,
+  ) {
+    final session = _composerSessions[sessionId];
+    final pane = _paneForSession(
+      ref.read(sessionControllerProvider),
+      sessionId,
+    );
+    if (session == null || pane == null) return;
+    session.updateEnvironment(pane, readOnly: _isSessionReadOnly(sessionId));
+    if (!session.selectMode(mode)) return;
+    _activateSession(sessionController, sessionId);
+    _focusSession(sessionId);
   }
 
   Future<void> _runTabContextAction(

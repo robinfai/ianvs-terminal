@@ -465,6 +465,14 @@ class _SessionSidebarState extends ConsumerState<_SessionSidebar> {
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    if (tab.activePane.terminalMode.notice != null)
+                      TerminalModeIndicator(
+                        key: Key('terminal-mode-notice-${tab.activeSessionId}'),
+                        state: tab.activePane.terminalMode,
+                        color: colors.onSurfaceVariant,
+                        onOpenMenu: (position) =>
+                            widget.onContextMenu(tab, position),
+                      ),
                     if (elapsed && started != null)
                       Text(
                         sessionSidebarElapsed(

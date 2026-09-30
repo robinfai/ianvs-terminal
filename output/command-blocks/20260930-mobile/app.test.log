@@ -1,0 +1,178 @@
+package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart
+00:00 +0: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: (setUpAll)
+00:00 +1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: (setUpAll)
+00:00 +2: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: (setUpAll)
+00:00 +3: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: (setUpAll)
+00:00 +4: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: (setUpAll)
+00:00 +5: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: (setUpAll)
+00:00 +6: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: (setUpAll)
+00:00 +7: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: (setUpAll)
+00:00 +8: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: (setUpAll)
+00:00 +9: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: (setUpAll)
+00:00 +9: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/terminal_composer/terminal_mode_test.dart: Blocks preference waits for capability and never automatically restores after SSH
+00:00 +10: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:00 +11: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:00 +12: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:00 +13: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:00 +14: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:00 +15: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:00 +16: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:00 +17: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:00 +18: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:00 +19: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:00 +20: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:00 +21: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:00 +22: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:00 +23: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:00 +24: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:00 +25: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:00 +26: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:00 +27: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:00 +28: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:00 +29: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:00 +30: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +31: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +32: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +33: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +34: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +35: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +36: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +37: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +38: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +39: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +40: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +41: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +42: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +43: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +44: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +45: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +46: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +47: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +48: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +49: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +50: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +51: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +52: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +53: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +54: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +55: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +56: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +57: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +58: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +59: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +60: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +61: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +62: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +63: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +64: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +65: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +66: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +67: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +68: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +69: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +70: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +71: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +72: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +73: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +74: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +75: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +76: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +77: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +78: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +79: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +80: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +81: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +82: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +83: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +84: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +85: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +86: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +87: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +88: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +89: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +90: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +91: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +92: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +93: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:02 +94: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:02 +95: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:02 +96: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:02 +97: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:02 +98: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:02 +99: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:02 +100: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:02 +101: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:02 +102: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:02 +103: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:02 +104: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:02 +105: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:02 +106: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:02 +107: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:02 +108: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:02 +109: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:02 +110: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:02 +111: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:02 +112: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:02 +113: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:02 +114: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:02 +115: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1a_test.dart: gear command palette opens settings and terminal search
+00:02 +116: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1a_test.dart: gear command palette opens settings and terminal search
+00:03 +117: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1a_test.dart: gear command palette opens settings and terminal search
+00:03 +118: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1a_test.dart: gear command palette opens settings and terminal search
+00:03 +119: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1a_test.dart: gear command palette opens settings and terminal search
+00:03 +120: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1a_test.dart: gear command palette opens settings and terminal search
+00:03 +121: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1a_test.dart: gear command palette opens settings and terminal search
+00:03 +122: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: android negotiates Blocks and preserves manual Normal
+00:03 +123: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: android negotiates Blocks and preserves manual Normal
+00:03 +124: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: android negotiates Blocks and preserves manual Normal
+00:03 +125: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: android negotiates Blocks and preserves manual Normal
+00:03 +126: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: android negotiates Blocks and preserves manual Normal
+00:03 +127: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: android negotiates Blocks and preserves manual Normal
+00:03 +128: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: android negotiates Blocks and preserves manual Normal
+00:03 +129: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: android negotiates Blocks and preserves manual Normal
+00:03 +130: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: android negotiates Blocks and preserves manual Normal
+00:03 +131: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: android negotiates Blocks and preserves manual Normal
+00:03 +132: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: android negotiates Blocks and preserves manual Normal
+00:03 +133: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: android negotiates Blocks and preserves manual Normal
+00:03 +134: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: android negotiates Blocks and preserves manual Normal
+00:03 +135: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: android negotiates Blocks and preserves manual Normal
+00:03 +136: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: android negotiates Blocks and preserves manual Normal
+00:03 +137: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: android negotiates Blocks and preserves manual Normal
+00:03 +138: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/defaults_appearance_redesign_test.dart: iPhone settings sections remain reachable at Size(402.0, 874.0) and 2.0x
+00:03 +139: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/defaults_appearance_redesign_test.dart: iPhone settings sections remain reachable at Size(402.0, 874.0) and 2.0x
+00:03 +140: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH hop and fullscreen fall back; restore remains manual
+00:03 +141: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH hop and fullscreen fall back; restore remains manual
+00:04 +142: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH hop and fullscreen fall back; restore remains manual
+00:04 +143: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH hop and fullscreen fall back; restore remains manual
+00:04 +144: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH hop and fullscreen fall back; restore remains manual
+00:04 +145: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH hop and fullscreen fall back; restore remains manual
+00:04 +146: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH hop and fullscreen fall back; restore remains manual
+00:04 +147: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH hop and fullscreen fall back; restore remains manual
+00:04 +148: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH hop and fullscreen fall back; restore remains manual
+00:04 +149: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH hop and fullscreen fall back; restore remains manual
+00:04 +150: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH hop and fullscreen fall back; restore remains manual
+00:04 +151: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH hop and fullscreen fall back; restore remains manual
+00:04 +152: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH hop and fullscreen fall back; restore remains manual
+00:04 +153: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH hop and fullscreen fall back; restore remains manual
+00:04 +154: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/defaults_appearance_redesign_test.dart: iPhone settings sections remain reachable at Size(874.0, 402.0) and 3.0x
+00:04 +155: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/defaults_appearance_redesign_test.dart: iPhone settings sections remain reachable at Size(874.0, 402.0) and 3.0x
+00:04 +156: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: mobile Block input fits phone with the keyboard
+00:04 +157: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: mobile Block input fits phone with the keyboard
+00:04 +158: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: mobile Block input fits phone with the keyboard
+00:04 +159: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: mobile Block input fits phone with the keyboard
+00:04 +160: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: mobile Block input fits phone with the keyboard
+00:04 +161: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: mobile Block input fits phone with the keyboard
+00:04 +162: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: mobile Block input fits phone with the keyboard
+00:05 +163: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: mobile Block input fits phone with the keyboard
+00:05 +164: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: mobile Block input fits phone with the keyboard
+00:05 +165: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: mobile Block input fits phone with the keyboard
+00:05 +166: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/defaults_appearance_redesign_test.dart: small Mac settings stays navigable in Brightness.light
+00:05 +167: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: mobile Block input fits landscape with the keyboard
+00:05 +168: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: mobile Block input fits landscape with the keyboard
+00:05 +169: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: mobile Block input fits large-text-dark with the keyboard
+00:05 +170: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: mobile Block input fits ipad with the keyboard
+00:06 +171: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: mobile settings save Normal for new sessions only
+00:06 +172: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: explicit Normal preference overrides the mobile default
+00:07 +173: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: (tearDownAll)
+00:07 +173: All tests passed!

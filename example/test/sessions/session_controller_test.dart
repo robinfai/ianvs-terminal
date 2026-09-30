@@ -6237,6 +6237,7 @@ void main() {
         appearance: TerminalAppAppearance(
           themeMode: TerminalThemeMode.dark,
           terminalViewportPadding: 18,
+          preferredTerminalMode: TerminalViewMode.blocks,
         ),
       ),
     );
@@ -6260,6 +6261,7 @@ void main() {
     expect(state.tabs.single.profileId, 'ssh');
     expect(state.themeMode, TerminalThemeMode.dark);
     expect(state.terminalViewportPadding, 18);
+    expect(state.preferredTerminalMode, TerminalViewMode.blocks);
   });
 
   test('local config can globally disable shell integration', () async {
@@ -6663,8 +6665,11 @@ void main() {
       await container
           .read(sessionControllerProvider.notifier)
           .setTerminalViewportPadding(22);
+      await container
+          .read(sessionControllerProvider.notifier)
+          .setPreferredTerminalMode(TerminalViewMode.blocks);
 
-      expect(localConfigRepository.savedDocuments, hasLength(2));
+      expect(localConfigRepository.savedDocuments, hasLength(3));
       expect(
         localConfigRepository.savedDocuments.last.appearance.themeMode,
         TerminalThemeMode.dark,
@@ -6681,9 +6686,18 @@ void main() {
         localConfigRepository.savedDocuments.last.notifications.enabled,
         isFalse,
       );
+      expect(
+        localConfigRepository
+            .savedDocuments
+            .last
+            .appearance
+            .preferredTerminalMode,
+        TerminalViewMode.blocks,
+      );
       final state = container.read(sessionControllerProvider);
       expect(state.themeMode, TerminalThemeMode.dark);
       expect(state.terminalViewportPadding, 22);
+      expect(state.preferredTerminalMode, TerminalViewMode.blocks);
     },
   );
 

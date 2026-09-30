@@ -73,3 +73,13 @@ Composer uses the same correlated envelope for `completion.query`,
 reject unknown fields. See [Composer V1](COMPOSER_V1.md) for identity, limits,
 local-read policy, lease checks and submission outcomes. These operations add no
 exported FFI symbol or predecessor completion ABI.
+
+`terminal.command_blocks` is an additive, read-only operation on this same
+envelope. An empty payload returns bounded command previews; `id`, `offset`
+and `limit` page retained terminal rows. Optional `query`, `regex`,
+`caseSensitive`, `invert`, `contextLines` and `tail` select a view without
+modifying terminal output. Responses carry native cell styles, hyperlinks,
+execution metadata and scrollback-eviction status. Unsupported runtimes keep
+using the full terminal view. See [Command Blocks](../command-blocks/WARP_COMMAND_BLOCKS_RESEARCH.md)
+for bounds and presentation behavior. This operation grants no PTY write
+capability and adds no FFI symbol.

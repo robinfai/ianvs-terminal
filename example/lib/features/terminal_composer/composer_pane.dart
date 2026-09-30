@@ -3,9 +3,17 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart';
 
+import '../preferences/app_preferences_models.dart';
+import '../sessions/session_state.dart';
+import 'terminal_mode.dart';
+
 /// App lifecycle and runtime assembly. Drafts remain in memory per session.
-final class ComposerPaneSession {
-  ComposerPaneSession({required this.sessionId, required this.runtime}) {
+final class ComposerPaneSession extends ChangeNotifier {
+  ComposerPaneSession({
+    required this.sessionId,
+    required this.runtime,
+    TerminalViewMode preferredMode = TerminalViewMode.normal,
+  }) : mode = TerminalModeController(preferredMode: preferredMode) {
     controller = TerminalComposerController(
       targetId: sessionId,
       provider: (query, cancellation) async {
@@ -77,46 +85,151 @@ final class ComposerPaneSession {
       },
       submit: _submit,
     );
+    mode.addListener(_modeChanged);
   }
 
   final String sessionId;
   final TerminalRuntimeController runtime;
   late final TerminalComposerController controller;
-  bool enabled = false;
+  late final CommandBlockController blocks = CommandBlockController(
+    request: (request) => runtime.commandBlocks(sessionId, request),
+  );
+  final TerminalModeController mode;
+  TerminalPane? _pane;
+  bool _readOnly = false;
+  bool _visible = false;
+  bool _fullScreen = false;
+  bool _richOutput = false;
+  bool _unattributedOutput = false;
+  final editorFocus = FocusNode(debugLabel: 'Pane composer');
+  bool get enabled => mode.state.mode == TerminalViewMode.blocks;
+  bool Function(int delta)? navigateBlocks;
   Timer? _pollTimer;
   bool _disposed = false;
   int? _historyRevision;
+  String? _composerContextId;
+  String? _composerTransport;
 
   void setVisible(bool visible) {
     if (_disposed) return;
+    _visible = visible;
     _pollTimer?.cancel();
     controller.setActive(visible && enabled);
-    if (visible && enabled) {
-      _poll();
+    if (_pane?.isExited != true) {
+      // Hiding can run while widgets are unmounting. Only the timer may poll
+      // inactive sessions, so backend events never fire during that teardown.
+      if (visible) _poll();
       _pollTimer = Timer.periodic(
-        const Duration(milliseconds: 150),
+        Duration(milliseconds: visible ? 150 : 500),
         (_) => _poll(),
       );
     }
   }
 
+  void updateEnvironment(TerminalPane pane, {required bool readOnly}) {
+    _pane = pane;
+    _readOnly = readOnly;
+    if (pane.isExited) _pollTimer?.cancel();
+    _updateMode();
+  }
+
+  void updateOutput({
+    required bool fullScreen,
+    required bool richOutput,
+    bool unattributedOutput = false,
+  }) {
+    _fullScreen = fullScreen;
+    _richOutput |= richOutput;
+    _unattributedOutput |= unattributedOutput;
+    _updateMode();
+  }
+
+  bool selectMode(TerminalViewMode value) => mode.select(value);
+
+  void _modeChanged() {
+    controller.setActive(_visible && enabled);
+    notifyListeners();
+  }
+
+  void _updateMode() {
+    final pane = _pane;
+    final shell = pane?.shellIntegration;
+    final remoteCommand = _startsRemoteCommand(shell?.runningCommand);
+    final remote =
+        shell?.contextKind == 'ssh' ||
+        (pane?.shellConnectionChain.any(
+              (hop) => hop.kind == ShellConnectionHopKind.sshShell,
+            ) ??
+            false) ||
+        remoteCommand;
+    final negotiated =
+        _composerTransport == 'shell' &&
+        _composerContextId == (shell?.contextId ?? 'root') &&
+        (!remoteCommand || controller.ownership == ComposerOwnership.ready);
+    final reason = _readOnly
+        ? BlockUnavailableReason.readOnly
+        : pane?.isExited == true
+        ? BlockUnavailableReason.exited
+        : _composerContextId != null &&
+              shell?.contextId != null &&
+              _composerContextId != shell!.contextId
+        ? BlockUnavailableReason.checking
+        : remote && !negotiated
+        ? BlockUnavailableReason.remoteShell
+        : shell?.contextId != null && shell!.contextId != 'root' && !negotiated
+        ? BlockUnavailableReason.nestedShell
+        : _fullScreen
+        ? BlockUnavailableReason.fullScreen
+        : _richOutput
+        ? BlockUnavailableReason.richOutput
+        : _unattributedOutput
+        ? BlockUnavailableReason.unattributedOutput
+        : switch (controller.ownership) {
+            ComposerOwnership.ready when controller.readyLease != null => null,
+            ComposerOwnership.running || ComposerOwnership.submitting => null,
+            ComposerOwnership.suspended => BlockUnavailableReason.terminalInput,
+            _ => BlockUnavailableReason.unsupportedShell,
+          };
+    mode.updateAvailability(reason);
+  }
+
+  // The bootstrap context is authoritative once available. Also cover a plain
+  // ssh invocation while its wrapper is disabled or still connecting.
+  static bool _startsRemoteCommand(String? command) => RegExp(
+    r'^(?:(?:command|exec|sudo)\s+)*(?:/\S*/)?(?:ssh|mosh|telnet)(?:\s|$)',
+  ).hasMatch(command?.trim() ?? '');
+
   void _poll() {
     if (_disposed) return;
     final json = runtime.composerRequest(sessionId, 'composer.state', const {});
+    final contextId = json?['contextId'] as String?;
+    final transport = json?['transport'] as String?;
+    if (_composerContextId != contextId || _composerTransport != transport) {
+      if (_composerContextId != null) {
+        mode.updateAvailability(BlockUnavailableReason.checking);
+      }
+      _historyRevision = null;
+      controller.updateHistory(const []);
+    }
+    _composerContextId = contextId;
+    _composerTransport = transport;
     final state = json?['state'];
     final ownership = switch (state) {
       'ready' => ComposerOwnership.ready,
       'running' => ComposerOwnership.running,
+      'submitting' => ComposerOwnership.submitting,
       'suspended' => ComposerOwnership.suspended,
       _ => ComposerOwnership.draft,
     };
     controller.updateShell(
-      contextKey: '${json?['lease'] ?? state ?? 'unavailable'}',
+      contextKey:
+          '$transport:$contextId:${json?['lease'] ?? state ?? 'unavailable'}',
       cwd: json?['cwd'] as String? ?? '',
       lease: json?['lease'] as String?,
       dialect: json?['dialect'] as String? ?? 'generic',
       ownership: ownership,
     );
+    _updateMode();
     final historyRevision = json?['historyRevision'];
     final history = json?['history'];
     if (historyRevision is int &&
@@ -145,7 +258,9 @@ final class ComposerPaneSession {
     if (response?['outcome'] != 'pending') {
       return ComposerSubmissionOutcome.unknown;
     }
-    final deadline = DateTime.now().add(const Duration(seconds: 2));
+    final deadline = DateTime.now().add(
+      Duration(seconds: _composerTransport == 'shell' ? 6 : 2),
+    );
     while (!_disposed && DateTime.now().isBefore(deadline)) {
       await Future<void>.delayed(const Duration(milliseconds: 30));
       if (_disposed) break;
@@ -167,10 +282,16 @@ final class ComposerPaneSession {
     return ComposerSubmissionOutcome.unknown;
   }
 
+  @override
   void dispose() {
     _disposed = true;
     _pollTimer?.cancel();
+    mode.removeListener(_modeChanged);
+    mode.dispose();
     controller.dispose();
+    blocks.dispose();
+    editorFocus.dispose();
+    super.dispose();
   }
 }
 
@@ -193,14 +314,16 @@ class ComposerPane extends StatefulWidget {
 }
 
 class _ComposerPaneState extends State<ComposerPane> {
-  final _focus = FocusNode(debugLabel: 'Pane composer');
+  FocusNode get _focus => session.editorFocus;
   ComposerOwnership? _lastOwnership;
+  bool _lastEnabled = false;
   ComposerPaneSession get session => widget.session;
 
   @override
   void initState() {
     super.initState();
     session.controller.addListener(_changed);
+    session.addListener(_changed);
     // Defer notification until after the first layout.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) session.setVisible(widget.available && widget.active);
@@ -220,6 +343,14 @@ class _ComposerPaneState extends State<ComposerPane> {
 
   void _changed() {
     if (!mounted) return;
+    if (_lastEnabled && !session.enabled && widget.active) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && widget.active && !session.enabled) {
+          widget.onTerminalFocus();
+        }
+      });
+    }
+    _lastEnabled = session.enabled;
     final owner = session.controller.ownership;
     if (_lastOwnership != owner && session.enabled && widget.active) {
       if (owner == ComposerOwnership.running ||
@@ -255,61 +386,22 @@ class _ComposerPaneState extends State<ComposerPane> {
   Widget build(BuildContext context) {
     final zh = Localizations.localeOf(context).languageCode == 'zh';
     final controller = session.controller;
-    final tokens = ComposerTheme.of(context);
-    final running =
-        controller.ownership == ComposerOwnership.running ||
-        controller.ownership == ComposerOwnership.suspended;
     if (!session.enabled || !widget.available) {
-      return Align(
-        alignment: Alignment.centerLeft,
-        child: TextButton.icon(
-          key: Key('composer-toggle-${session.sessionId}'),
-          style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
-          onPressed: !widget.available
-              ? null
-              : () {
-                  if (running) {
-                    widget.onTerminalFocus();
-                    return;
-                  }
-                  session.enabled = !session.enabled;
-                  session.setVisible(widget.active);
-                  setState(() {});
-                  if (session.enabled) _focus.requestFocus();
-                },
-          icon: Icon(
-            running
-                ? ComposerIcons.forOwnership(controller.ownership)
-                : ComposerIcons.draft,
-            size: ComposerTheme.rowIconSize,
-          ),
-          label: Text(
-            running
-                ? controller.ownership == ComposerOwnership.running
-                      ? (zh
-                            ? '命令运行中 · 终端输入'
-                            : 'Command running · terminal input')
-                      : (zh ? '终端正在接收输入' : 'Terminal has input')
-                : (zh ? 'Composer · 命令编辑器' : 'Composer · command editor'),
-            style: tokens.contextStyle,
-          ),
-        ),
-      );
+      return const SizedBox.shrink();
     }
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      padding: EdgeInsets.symmetric(
+        horizontal: 10,
+        vertical: MediaQuery.sizeOf(context).height < 400 ? 4 : 8,
+      ),
       child: TerminalComposerView(
         controller: controller,
         targetLabel: widget.targetLabel,
         focusNode: _focus,
+        onNavigateBlocks: (delta) =>
+            session.navigateBlocks?.call(delta) ?? false,
         chinese: zh,
         autofocus: widget.active,
-        onUseTerminal: () {
-          session.enabled = false;
-          session.setVisible(false);
-          setState(() {});
-          widget.onTerminalFocus();
-        },
       ),
     );
   }
@@ -317,8 +409,8 @@ class _ComposerPaneState extends State<ComposerPane> {
   @override
   void dispose() {
     session.controller.removeListener(_changed);
+    session.removeListener(_changed);
     session.setVisible(false);
-    _focus.dispose();
     super.dispose();
   }
 }

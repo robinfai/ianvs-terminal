@@ -275,6 +275,7 @@ fn supported_operation(value: &str) -> bool {
     matches!(
         value,
         "completion.query"
+            | "terminal.command_blocks"
             | "completion.local_start"
             | "completion.local_poll"
             | "completion.local_cancel"

@@ -1,0 +1,18 @@
+{
+  "branch": "composer",
+  "ios": {
+    "bundleId": "work.ianvs.trail",
+    "entrypoint": "lib/main.dart",
+    "build": "Release",
+    "preservedData": true,
+    "signatureVerified": true,
+    "launch": "success"
+  },
+  "macos": {
+    "path": "/Applications/Trail.app",
+    "build": "Release",
+    "installed": true,
+    "restarted": true,
+    "shellsRestored": true
+  }
+}

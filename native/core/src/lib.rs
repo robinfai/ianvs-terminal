@@ -8,6 +8,7 @@ pub mod model;
 pub mod platform;
 pub mod proto;
 pub mod pty;
+mod remote_composer;
 pub mod runtime_contract;
 pub mod session;
 pub mod session_config;

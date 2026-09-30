@@ -2368,6 +2368,20 @@ impl Terminal {
         self.grid.zones()
     }
 
+    /// Preserve wall-clock execution metadata after width replay. Physical
+    /// ranges always come from the newly parsed terminal, never the old grid.
+    pub fn restore_zone_metadata(&mut self, previous: &[crate::zone::Zone]) {
+        for zone in self.grid.zones_mut() {
+            if let Some(old) = previous.iter().find(|old| {
+                old.id == zone.id && old.zone_type == zone.zone_type && old.command == zone.command
+            }) {
+                zone.timestamp = old.timestamp;
+                zone.finished_at = old.finished_at;
+                zone.cwd.clone_from(&old.cwd);
+            }
+        }
+    }
+
     /// Get the zone containing the given global absolute row.
     ///
     /// Visible row `n` is addressed as `total_lines_scrolled + n`.

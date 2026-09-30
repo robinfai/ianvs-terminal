@@ -14,6 +14,7 @@ class _ShellCommandMenu extends StatefulWidget {
     required this.isActiveSessionRecording,
     required this.isActiveRecordingPendingSave,
     required this.isActiveRecordingBusy,
+    this.modeSelection,
   });
 
   final String launcherShortcutLabel;
@@ -28,6 +29,7 @@ class _ShellCommandMenu extends StatefulWidget {
   final bool isActiveSessionRecording;
   final bool isActiveRecordingPendingSave;
   final bool isActiveRecordingBusy;
+  final Widget? modeSelection;
 
   @override
   State<_ShellCommandMenu> createState() => _ShellCommandMenuState();
@@ -167,6 +169,7 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                           ],
                         ),
                       ),
+                      ?widget.modeSelection,
                       Padding(
                         padding: const EdgeInsets.fromLTRB(6, 3, 6, 5),
                         child: Semantics(

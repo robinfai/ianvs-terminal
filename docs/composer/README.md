@@ -70,7 +70,8 @@ Composer 使用干净的主题编辑底色与统一细边框；聚焦只显示�
 | UC-06/21：真实拼音输入法、VoiceOver 完整操作、全部支持 OS 与插件/keymap 组合 | 保留原生输入与语义入口 | 尚未完成完整人工矩阵，不宣称发布验收全部通过 |
 | 视频对齐：会话历史、独立灰字、候选详情、alias 说明 | 已实现 | 组件、真实 zsh 和 macOS 应用回归；9 个视觉状态 |
 | 方案 1 重设计：统一 tokens/图标、明确主操作、完整工具菜单、状态生命周期与响应式 | 已实现 | 127 个渲染场景、组件/布局/原生回归与独立视觉 QA；详情见重设计记录 |
-| F3 其余：Bash/fish、远程桥接、Kubernetes provider | 延期 | 无增强提交支持声明 |
+| SSH 提交：远端 Bash 4+ / Zsh、内存注入、逐节点协商 | 已实现 | 真实 OpenSSH 的协议/本地 ssh 入口、两层跳转、emacs/vi；macOS App 的 SSH Block 与 top/vim |
+| F3 其余：Fish 提交、远端文件补全/历史、Kubernetes provider | 延期 | 静态补全可用，远端不会访问本地文件 provider |
 | F4：WASM parity、高亮/snippet、AI 路由 | 延期 | 未实现 |
 
 ZLE fd 回调无法直接结束当前 read loop，实测后采用“私有通道准备 + 单次 NUL 唤醒 +

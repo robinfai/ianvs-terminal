@@ -9,6 +9,7 @@ class _MobileShellHeader extends StatelessWidget {
     this.onSessions,
     this.onFiles,
     this.onMore,
+    this.mode,
   });
   final String title;
   final VoidCallback onReplay;
@@ -17,6 +18,7 @@ class _MobileShellHeader extends StatelessWidget {
   final VoidCallback? onSessions;
   final VoidCallback? onFiles;
   final VoidCallback? onMore;
+  final TerminalModeState? mode;
 
   @override
   Widget build(BuildContext context) => AppMobileHeader(
@@ -71,11 +73,20 @@ class _MobileShellHeader extends StatelessWidget {
             onPressed: onFiles,
             icon: const Icon(Icons.folder_outlined),
           ),
-        IconButton(
-          key: const Key('shell-chrome-menu'),
-          tooltip: context.l10n.mobileSessionActions,
-          onPressed: onMore,
-          icon: const Icon(Icons.more_horiz_rounded),
+        Semantics(
+          liveRegion: mode?.notice != null,
+          label: mode == null ? null : _mobileModeNotice(context, mode!),
+          child: IconButton(
+            key: const Key('shell-chrome-menu'),
+            tooltip: context.l10n.mobileSessionActions,
+            onPressed: onMore,
+            icon: Badge(
+              key: const Key('mobile-terminal-mode-notice'),
+              isLabelVisible: mode?.notice != null,
+              backgroundColor: context.appTheme.accent,
+              child: const Icon(Icons.more_horiz_rounded),
+            ),
+          ),
         ),
       ],
     ],
@@ -171,18 +182,95 @@ class _MobileTerminalToolbar extends StatelessWidget {
   }
 }
 
-class _MobileSessionMenu extends StatelessWidget {
+String _mobileModeNotice(BuildContext context, TerminalModeState mode) =>
+    terminalModeNoticeMessage(context.l10n, mode, mobile: true);
+
+class _MobileTerminalModes extends ConsumerWidget {
+  const _MobileTerminalModes({required this.sessionId});
+  final String sessionId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final mode = ref.watch(
+      sessionControllerProvider.select(
+        (state) => state.tabs
+            .expand((tab) => tab.effectivePanes)
+            .where((pane) => pane.sessionId == sessionId)
+            .firstOrNull
+            ?.terminalMode,
+      ),
+    );
+    if (mode == null) return const SizedBox.shrink();
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (mode.notice != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            child: Semantics(
+              liveRegion: true,
+              child: Text(
+                _mobileModeNotice(context, mode),
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+          ),
+        for (final value in TerminalViewMode.values)
+          ListTile(
+            key: Key('terminal-mode-${value.name}-$sessionId'),
+            leading: Icon(
+              value == TerminalViewMode.blocks
+                  ? Icons.view_agenda_outlined
+                  : Icons.terminal_rounded,
+            ),
+            title: Text(
+              value == TerminalViewMode.blocks
+                  ? context.l10n.terminalModeBlocks
+                  : context.l10n.terminalModeNormal,
+            ),
+            subtitle: value == TerminalViewMode.blocks && !mode.canUseBlocks
+                ? Text(
+                    blockUnavailableMessage(
+                      context.l10n,
+                      mode.unavailableReason,
+                    ),
+                  )
+                : null,
+            selected: mode.mode == value,
+            trailing: mode.mode == value
+                ? const Icon(Icons.check_rounded)
+                : null,
+            enabled: value == TerminalViewMode.normal || mode.canUseBlocks,
+            onTap: () => Navigator.pop(context, value),
+          ),
+        const Divider(),
+      ],
+    );
+  }
+}
+
+class _MobileSessionMenu extends ConsumerWidget {
   const _MobileSessionMenu({
-    required this.hasSession,
+    required this.sessionId,
     required this.readOnly,
     required this.canReopen,
   });
-  final bool hasSession;
+  final String? sessionId;
   final bool readOnly;
   final bool canReopen;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final mode = ref.watch(
+      sessionControllerProvider.select(
+        (state) => state.tabs
+            .expand((tab) => tab.effectivePanes)
+            .where((pane) => pane.sessionId == sessionId)
+            .firstOrNull
+            ?.terminalMode,
+      ),
+    );
+    final hasSession = mode != null;
     Widget action(
       String key,
       TerminalActionId action,
@@ -224,6 +312,7 @@ class _MobileSessionMenu extends StatelessWidget {
               ],
             ),
             if (hasSession) ...[
+              _MobileTerminalModes(sessionId: sessionId!),
               action(
                 'shell-capabilities',
                 TerminalActionId.showShellCapabilities,

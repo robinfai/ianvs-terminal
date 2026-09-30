@@ -28,6 +28,7 @@ import '../config/local_terminal_config_models.dart';
 import '../config/shortcut_editor.dart';
 import '../policies/local_terminal_paste_decision.dart';
 import '../policies/local_terminal_policy_models.dart';
+import '../preferences/app_preferences_models.dart' show TerminalViewMode;
 import '../profiles/profile_editor.dart';
 import '../profiles/profile_models.dart';
 import '../profiles/profiles_sheet.dart';
@@ -51,7 +52,10 @@ import '../terminal/terminal.dart' as terminal;
 import '../terminal/terminal_input_controller.dart';
 import '../terminal/terminal_viewport.dart';
 import '../terminal/terminal_viewport_colors.dart';
+import '../terminal_composer/command_blocks_pane.dart';
 import '../terminal_composer/composer_pane.dart';
+import '../terminal_composer/terminal_mode.dart';
+import '../terminal_composer/terminal_mode_indicator.dart';
 import '../visual/local_terminal_diagnostics_exporter.dart';
 import '../visual/local_terminal_scrollback_exporter.dart';
 import '../visual/local_terminal_visual_models.dart';
@@ -484,6 +488,14 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   SessionState get _sessionState => ref.read(sessionControllerProvider);
 
   void _handleSessionStateChanged(SessionState? previous, SessionState next) {
+    for (final tab in next.tabs) {
+      for (final pane in tab.effectivePanes) {
+        _composerSessions[pane.sessionId]?.updateEnvironment(
+          pane,
+          readOnly: _isSessionReadOnly(pane.sessionId),
+        );
+      }
+    }
     _syncPresentationState(next);
     _publishAcceptanceSnapshot(next);
     final newRuntimeError = _newRuntimeError(previous, next);
@@ -1317,6 +1329,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     onMore: () => unawaited(
                       _openCommandMenu(sessionController, _sessionState),
                     ),
+                    mode: mobileHome || activeSessionId == null
+                        ? null
+                        : _paneForSession(
+                            _sessionState,
+                            activeSessionId,
+                          )?.terminalMode,
                   ),
                 if (_sessionState.configurationWarnings.isNotEmpty)
                   _ShellConfigurationWarningsBanner(
@@ -1673,14 +1691,27 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                           .contains(activeSessionId),
                     )
                   else
-                    IosTerminalInputBar(
-                      key: const Key('ios-terminal-input-bar'),
-                      palette: palette,
-                      keyboardVisible: keyboardVisible,
-                      onSendBytes: (bytes) =>
-                          _sendMobileTerminalBytes(activeSessionId, bytes),
-                      onDismissKeyboard: () =>
-                          _dismissMobileTerminalKeyboard(activeSessionId),
+                    ListenableBuilder(
+                      listenable:
+                          _composerSessions[activeSessionId]?.controller ??
+                          _focusNodeFor(activeSessionId),
+                      builder: (context, _) {
+                        final composer = _composerSessions[activeSessionId];
+                        if (composer?.enabled == true &&
+                            composer!.controller.ownership ==
+                                terminal.ComposerOwnership.ready) {
+                          return const SizedBox.shrink();
+                        }
+                        return IosTerminalInputBar(
+                          key: const Key('ios-terminal-input-bar'),
+                          palette: palette,
+                          keyboardVisible: keyboardVisible,
+                          onSendBytes: (bytes) =>
+                              _sendMobileTerminalBytes(activeSessionId, bytes),
+                          onDismissKeyboard: () =>
+                              _dismissMobileTerminalKeyboard(activeSessionId),
+                        );
+                      },
                     ),
               ],
             ),

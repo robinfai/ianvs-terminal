@@ -1452,6 +1452,12 @@ class TerminalRuntimeController implements TerminalInputSink {
     );
   }
 
+  /// Read-only, paged command metadata and native terminal cells.
+  Map<String, Object?>? commandBlocks(
+    String sessionId, [
+    Map<String, Object?> payload = const {},
+  ]) => _jsonRequestClient.commandBlocks(sessionId, payload);
+
   /// Current, correlated Composer operations. Payloads never use the raw PTY.
   Map<String, Object?>? composerRequest(
     String sessionId,

@@ -285,6 +285,8 @@ class TerminalViewport extends StatefulWidget {
     this.cursor = const TerminalCursorConfig(),
     this.copyOnSelect = false,
     this.altClickMovesCursor = true,
+    this.handleScrollGestures = true,
+    this.readOnly = false,
     this.showLineTimestamps = false,
     this.optionDragMode = TerminalOptionDragMode.blockSelection,
     this.focusNode,
@@ -336,6 +338,16 @@ class TerminalViewport extends StatefulWidget {
   /// Enables best-effort Alt/Option-click navigation through synthetic arrows.
   /// Disable for read-only/replay views. Alt-drag keeps its selection behavior.
   final bool altClickMovesCursor;
+
+  /// Whether the viewport handles wheel, trackpad and touch pan/scale gestures.
+  ///
+  /// Disable for content-sized terminals inside a [Scrollable], so that its
+  /// scroll position owns the gesture and inertia. Selection and keyboard/IME
+  /// input remain enabled; [onScrollLines] still handles selection auto-scroll.
+  final bool handleScrollGestures;
+
+  /// Selectable output that must never attach an IME or summon a keyboard.
+  final bool readOnly;
   final bool showLineTimestamps;
   final TerminalOptionDragMode optionDragMode;
   final FocusNode? focusNode;
@@ -534,6 +546,11 @@ class _TerminalViewportState extends State<TerminalViewport>
   @override
   void didUpdateWidget(covariant TerminalViewport oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.handleScrollGestures && !widget.handleScrollGestures) {
+      _stopScrollMomentum();
+      _touchScrollGestureActive = false;
+      _pinchGestureActive = false;
+    }
     if (oldWidget.inputController != widget.inputController ||
         oldWidget.controller != widget.controller) {
       _altClickDownTime = null;
@@ -706,6 +723,10 @@ class _TerminalViewportState extends State<TerminalViewport>
   }
 
   void _syncTextInputConnection() {
+    if (widget.readOnly) {
+      if (_textInputConnection != null) _closeTextInputConnection();
+      return;
+    }
     if (_focusNode.hasFocus) {
       _openTextInputConnection();
       _scheduleTextInputGeometrySync();
@@ -735,6 +756,7 @@ class _TerminalViewportState extends State<TerminalViewport>
   }
 
   void _openTextInputConnection() {
+    if (widget.readOnly) return;
     final existingConnection = _textInputConnection;
     if (existingConnection != null && existingConnection.attached) {
       existingConnection.updateConfig(_mobileTextInputConfiguration);
@@ -1695,6 +1717,7 @@ class _TerminalViewportState extends State<TerminalViewport>
   }
 
   Future<void> _pasteClipboardFromMobileTap() async {
+    if (widget.readOnly) return;
     final pasteClipboard = widget.onPasteClipboard;
     if (pasteClipboard == null) {
       await widget.inputController.pasteClipboard();
@@ -2645,7 +2668,7 @@ class _TerminalViewportState extends State<TerminalViewport>
     _scheduleTextInputGeometrySync();
     final colors = _resolvedColors(context);
     final terminal = Focus(
-      autofocus: true,
+      autofocus: !widget.readOnly,
       focusNode: _focusNode,
       onKeyEvent: (_, event) => _handleTerminalKeyEvent(event),
       child: GestureDetector(
@@ -2655,9 +2678,9 @@ class _TerminalViewportState extends State<TerminalViewport>
         onLongPressStart: _handleTerminalLongPressStart,
         onLongPressMoveUpdate: _handleTerminalLongPressMoveUpdate,
         onLongPressEnd: _handleTerminalLongPressEnd,
-        onScaleStart: _handleScaleStart,
-        onScaleUpdate: _handleScaleUpdate,
-        onScaleEnd: _handleScaleEnd,
+        onScaleStart: widget.handleScrollGestures ? _handleScaleStart : null,
+        onScaleUpdate: widget.handleScrollGestures ? _handleScaleUpdate : null,
+        onScaleEnd: widget.handleScrollGestures ? _handleScaleEnd : null,
         child: MouseRegion(
           cursor: _effectivePointerCursor,
           onExit: (_) {
@@ -2671,10 +2694,18 @@ class _TerminalViewportState extends State<TerminalViewport>
             onPointerHover: _handlePointerHover,
             onPointerUp: _handlePointerUp,
             onPointerCancel: _handlePointerCancel,
-            onPointerSignal: _handlePointerSignal,
-            onPointerPanZoomStart: _handlePanZoomStart,
-            onPointerPanZoomUpdate: _handlePanZoomUpdate,
-            onPointerPanZoomEnd: _handlePanZoomEnd,
+            onPointerSignal: widget.handleScrollGestures
+                ? _handlePointerSignal
+                : null,
+            onPointerPanZoomStart: widget.handleScrollGestures
+                ? _handlePanZoomStart
+                : null,
+            onPointerPanZoomUpdate: widget.handleScrollGestures
+                ? _handlePanZoomUpdate
+                : null,
+            onPointerPanZoomEnd: widget.handleScrollGestures
+                ? _handlePanZoomEnd
+                : null,
             child: AnimatedBuilder(
               animation: widget.controller,
               builder: (context, _) {

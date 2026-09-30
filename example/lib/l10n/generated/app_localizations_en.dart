@@ -5334,4 +5334,76 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get mobileExternalKeyboardHelp =>
       'Use these shortcuts with an external keyboard. Tap a binding to edit it and choose its scope while recording.';
+
+  @override
+  String get terminalModeNormal => 'Normal terminal';
+
+  @override
+  String get terminalModeBlocks => 'Command Blocks';
+
+  @override
+  String get preferredTerminalMode => 'Preferred terminal mode';
+
+  @override
+  String get preferredTerminalModeHelp =>
+      'Applies to new sessions. Command Blocks requires a supported shell. Right-click a tab to switch.';
+
+  @override
+  String get blockUnavailableChecking => 'Checking shell support…';
+
+  @override
+  String get blockUnavailableShell =>
+      'The current shell does not support Command Blocks.';
+
+  @override
+  String get blockUnavailableRemote =>
+      'Command Block negotiation is not ready for the current SSH node.';
+
+  @override
+  String get blockUnavailableNested =>
+      'The current nested shell does not support Command Blocks.';
+
+  @override
+  String get blockUnavailableInput => 'The terminal is handling shell input.';
+
+  @override
+  String get blockUnavailableFullScreen =>
+      'The current application needs the normal terminal.';
+
+  @override
+  String get blockUnavailableRichOutput =>
+      'This session contains output that needs the normal terminal.';
+
+  @override
+  String get blockUnavailableUnattributed =>
+      'This session contains output outside command blocks.';
+
+  @override
+  String get blockUnavailableExited => 'This session has ended.';
+
+  @override
+  String get blockUnavailableReadOnly => 'This session is read-only.';
+
+  @override
+  String get blockModeAvailableNotice =>
+      'Command Blocks is available. Right-click this tab to switch.';
+
+  @override
+  String get blockModeRestoredNotice =>
+      'Command Blocks is available again. Right-click this tab to switch back.';
+
+  @override
+  String get normalModeFallbackNotice =>
+      'Switched to Normal terminal. Right-click this tab for modes.';
+
+  @override
+  String get mobileBlocksAvailable =>
+      'Command Blocks is available. Switch in Session actions.';
+
+  @override
+  String get mobileBlocksRestored =>
+      'Command Blocks is available again. Switch back in Session actions.';
+
+  @override
+  String get mobileNormalFallback => 'Switched to Normal terminal.';
 }

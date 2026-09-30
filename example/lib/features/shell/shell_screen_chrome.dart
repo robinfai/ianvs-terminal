@@ -677,7 +677,12 @@ class _ReferenceDemoTab extends StatelessWidget {
     final title = _shellTabDisplayTitle(tab);
     return Semantics(
       identifier: _shellTabSemanticsIdentifier(tab),
-      label: _shellTabSemanticsLabel(context.l10n, tab, shortcutIndex),
+      label: _shellTabSemanticsLabel(
+        context.l10n,
+        tab,
+        shortcutIndex,
+        mobile: context.usesTouchControlDensity,
+      ),
       selected: isActive,
       button: true,
       child: TextButton(
@@ -2882,6 +2887,13 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
     final details = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (widget.tab.activePane.terminalMode.notice != null)
+          TerminalModeIndicator(
+            key: Key('terminal-mode-notice-${widget.tab.activeSessionId}'),
+            state: widget.tab.activePane.terminalMode,
+            color: tone.mutedText,
+            onOpenMenu: widget.onShowContextMenu,
+          ),
         if (!widget.compact && widget.tab.effectivePanes.length > 1) ...[
           const SizedBox(width: 6),
           Tooltip(
@@ -2989,6 +3001,7 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
                     context.l10n,
                     widget.tab,
                     widget.shortcutIndex,
+                    mobile: context.usesTouchControlDensity,
                     hasNewOutput: widget.hasNewOutput,
                   ),
                   selected: widget.isActive,
@@ -3199,8 +3212,18 @@ String _shellTabSemanticsLabel(
   TerminalTab tab,
   int? shortcutIndex, {
   bool hasNewOutput = false,
+  bool mobile = false,
 }) {
   final parts = <String>[l10n.terminalTabSemantics(_shellTabDisplayTitle(tab))];
+  if (tab.activePane.terminalMode.notice != null) {
+    parts.add(
+      terminalModeNoticeMessage(
+        l10n,
+        tab.activePane.terminalMode,
+        mobile: mobile,
+      ),
+    );
+  }
   final tabStatus = tab.activePane.tabStatus;
   final statusText = _normalizedShellTabStatusText(tabStatus.status);
   if (statusText != null) {
