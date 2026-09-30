@@ -348,6 +348,7 @@
 			);
 			inputPaths = (
 				Flutter/ephemeral/tripwire,
+				"$(PROJECT_DIR)/../../tools/apple_toolchain/lipo",
 			);
 			outputFileListPaths = (
 				Flutter/ephemeral/FlutterOutputs.xcfilelist,
@@ -356,7 +357,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "\"$FLUTTER_ROOT\"/packages/flutter_tools/bin/macos_assemble.sh && touch Flutter/ephemeral/tripwire";
+			shellScript = "PATH=\"$PROJECT_DIR/../../tools/apple_toolchain:$PATH\" \"$FLUTTER_ROOT\"/packages/flutter_tools/bin/macos_assemble.sh && touch Flutter/ephemeral/tripwire";
 		};
 /* End PBXShellScriptBuildPhase section */
 
