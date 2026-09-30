@@ -173,6 +173,7 @@ void main() {
     final resolved = resolveNativePtyLibraryPath(
       environment: const <String, String>{},
       executableDirectory: executableDirectory,
+      operatingSystem: 'macos',
       isProduct: true,
     );
 

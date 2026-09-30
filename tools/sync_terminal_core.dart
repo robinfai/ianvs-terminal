@@ -24,6 +24,12 @@ void main(List<String> arguments) {
   }
 
   final mirrors = <_DirectoryMirror>[
+    _DirectoryMirror(
+      source: Directory(
+        '${repository.path}/packages/ianvs_terminal/assets/fonts',
+      ),
+      destination: Directory('${core.path}/assets/fonts'),
+    ),
     for (final directory in const <String>[
       'config',
       'contracts',
@@ -71,6 +77,24 @@ void main(List<String> arguments) {
   ];
 
   final expectedFiles = <String, Uint8List>{};
+  // Keep the standalone manifest tied to the canonical assets as well as
+  // mirroring their bytes; other standalone pubspec settings remain hand-owned.
+  final fontSection = RegExp(
+    r'# BEGIN terminal font assets[^\n]*\n[\s\S]*?# END terminal font assets\n',
+  );
+  final canonicalPubspec = File(
+    '${repository.path}/packages/ianvs_terminal/pubspec.yaml',
+  ).readAsStringSync();
+  final corePubspec = File('${core.path}/pubspec.yaml');
+  final corePubspecText = corePubspec.readAsStringSync();
+  final canonicalFonts = fontSection.firstMatch(canonicalPubspec)?.group(0);
+  if (canonicalFonts == null || !fontSection.hasMatch(corePubspecText)) {
+    throw StateError('Missing terminal font asset manifest section');
+  }
+  expectedFiles[corePubspec.absolute.path] = Uint8List.fromList(
+    utf8.encode(corePubspecText.replaceFirst(fontSection, canonicalFonts)),
+  );
+
   for (final mirror in mirrors) {
     if (!mirror.source.existsSync()) {
       throw StateError('Missing canonical source: ${mirror.source.path}');
@@ -257,10 +281,12 @@ bool _excludeHandOwnedCoreTests(String relative) =>
     relative == 'current_only_architecture_test.dart';
 
 String _rewriteTerminalDart(String source, String _) {
-  return source.replaceAll(
-    'package:ianvs_pty/ianvs_pty.dart',
-    'package:ianvs_terminal_core/src/pty/ianvs_pty.dart',
-  );
+  return source
+      .replaceAll(
+        'package:ianvs_pty/ianvs_pty.dart',
+        'package:ianvs_terminal_core/src/pty/ianvs_pty.dart',
+      )
+      .replaceAll('packages/ianvs_terminal/', 'packages/ianvs_terminal_core/');
 }
 
 String _rewriteTerminalTest(String source, String _) {
@@ -274,6 +300,7 @@ String _rewriteTerminalTest(String source, String _) {
         'package:ianvs_terminal_core/ianvs_terminal_core.dart',
       )
       .replaceAll('package:ianvs_terminal/', 'package:ianvs_terminal_core/')
+      .replaceAll('packages/ianvs_terminal/', 'packages/ianvs_terminal_core/')
       .replaceAll(
         'packages/ianvs_pty/lib/src/native_pty_backend.dart',
         'packages/ianvs_terminal_core/lib/src/pty/native_pty_backend.dart',
@@ -314,20 +341,14 @@ String _rewritePtyTest(String source, String _) {
           'package:ianvs_pty/ianvs_pty.dart',
           'package:ianvs_terminal_core/ianvs_terminal_core.dart',
         )
-        .replaceAll(
-          '../hook/native_dependencies.dart',
-          '../../hook/native_dependencies.dart',
-        ),
+        .replaceAll('../hook/', '../../hook/'),
   );
 }
 
 String _rewritePtyBuildHook(String source) {
   return source
       .replaceAll('ianvs_pty requires', 'ianvs_terminal_core requires')
-      .replaceAll(
-        'Unsupported ianvs_pty macOS architecture:',
-        'Unsupported ianvs_terminal_core macOS architecture:',
-      )
+      .replaceAll('Unsupported ianvs_pty ', 'Unsupported ianvs_terminal_core ')
       .replaceAll(
         "input.packageRoot.resolve('../../native/')",
         "input.packageRoot.resolve('native/')",

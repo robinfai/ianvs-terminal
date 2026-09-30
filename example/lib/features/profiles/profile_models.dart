@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import '../../platform/default_terminal_shell.dart';
 import '../terminal/terminal.dart' as terminal_pkg;
 
 typedef TerminalEmulation = terminal_pkg.TerminalEmulation;
@@ -494,10 +495,7 @@ TerminalProfile defaultTerminalProfile() {
   return TerminalProfile(
     id: 'default',
     name: 'Local Shell',
-    shell: const String.fromEnvironment(
-      'IANVS_DEFAULT_SHELL',
-      defaultValue: '/bin/zsh',
-    ),
+    shell: resolveDefaultTerminalShell(),
     args: const ['-l'],
   );
 }
@@ -506,10 +504,7 @@ TerminalProfile vt220TerminalProfile() {
   return TerminalProfile(
     id: 'vt220',
     name: 'Strict VT220',
-    shell: const String.fromEnvironment(
-      'IANVS_DEFAULT_SHELL',
-      defaultValue: '/bin/zsh',
-    ),
+    shell: resolveDefaultTerminalShell(),
     args: const ['-l'],
     terminalEmulation: TerminalEmulation.vt220,
   );

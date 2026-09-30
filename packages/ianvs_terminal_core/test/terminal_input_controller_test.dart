@@ -876,9 +876,11 @@ void main() {
           _KeyHandlerHarness(onKeyEvent: controller.handle),
         );
         await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
         await tester.sendKeyDownEvent(LogicalKeyboardKey.keyV);
         await tester.pump();
         await tester.sendKeyUpEvent(LogicalKeyboardKey.keyV);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
         await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
         await tester.pump();
 
@@ -1384,9 +1386,11 @@ void main() {
           _KeyHandlerHarness(onKeyEvent: controller.handle),
         );
         await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
         await tester.sendKeyDownEvent(LogicalKeyboardKey.keyV);
         await tester.pump();
         await tester.sendKeyUpEvent(LogicalKeyboardKey.keyV);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
         await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
         await tester.pump();
 
@@ -1460,9 +1464,11 @@ void main() {
         _KeyHandlerHarness(onKeyEvent: firstController.handle),
       );
       await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
       await tester.sendKeyDownEvent(LogicalKeyboardKey.keyV);
       await tester.pump();
       await tester.sendKeyUpEvent(LogicalKeyboardKey.keyV);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
       await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
 
       expect(clipboardReads, 1);
@@ -3656,11 +3662,13 @@ void main() {
         );
 
         await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
         await tester.sendKeyDownEvent(LogicalKeyboardKey.keyV);
         await tester.pump();
         await tester.sendKeyRepeatEvent(LogicalKeyboardKey.keyV);
         await tester.pump();
         await tester.sendKeyUpEvent(LogicalKeyboardKey.keyV);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
         await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
 
         expect(clipboardReads, 1);

@@ -1192,7 +1192,10 @@ extension _ShellScreenStateSessions on _ShellScreenState {
       return;
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !focusNode.canRequestFocus) {
+      if (!mounted ||
+          !focusNode.canRequestFocus ||
+          ref.read(sessionControllerProvider).activeSessionId != sessionId ||
+          _shellModalInputBlocked) {
         return;
       }
       focusNode.requestFocus();

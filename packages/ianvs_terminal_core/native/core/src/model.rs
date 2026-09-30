@@ -942,6 +942,10 @@ fn default_terminal_font_fallback() -> Vec<String> {
         "JetBrainsMono Nerd Font".to_string(),
         "SF Mono".to_string(),
         "Monaco".to_string(),
+        "DejaVu Sans Mono".to_string(),
+        "Liberation Mono".to_string(),
+        "Noto Sans Mono".to_string(),
+        "monospace".to_string(),
         "Apple Symbols".to_string(),
     ]
 }

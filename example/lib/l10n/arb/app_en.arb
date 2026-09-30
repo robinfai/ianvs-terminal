@@ -3470,6 +3470,12 @@
   "newOutputLower": "new output",
   "newOutputInSplitPaneLower": "new output in split pane",
   "commandShortcut": "Command {index}",
+  "controlShortcut": "Control {index}",
+  "@controlShortcut": {
+    "placeholders": {
+      "index": {"type": "int"}
+    }
+  },
   "otherPaneBadges": "Other pane badges:",
   "terminalBadgeValue": "Terminal badge: {badge}",
   "otherPaneBadgeCount": "{count, plural, =1{1 other pane badge} other{{count} other pane badges}}",

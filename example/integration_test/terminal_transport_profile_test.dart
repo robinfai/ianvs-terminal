@@ -87,7 +87,9 @@ void main() {
 
       writeTerminalRenderProfileAggregateSummary(outputRoot, summaries);
     },
-    skip: _configuredOutputDir.isEmpty || !Platform.isMacOS,
+    skip:
+        _configuredOutputDir.isEmpty ||
+        (!Platform.isMacOS && !Platform.isLinux),
   );
 }
 

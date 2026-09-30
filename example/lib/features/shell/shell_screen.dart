@@ -479,6 +479,14 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
 
   void _handleSessionStateChanged(SessionState? previous, SessionState next) {
     _syncPresentationState(next);
+    if ((defaultTargetPlatform == TargetPlatform.linux ||
+            defaultTargetPlatform == TargetPlatform.macOS) &&
+        next.activeSessionId != null &&
+        previous?.activeSessionId != next.activeSessionId) {
+      // Restored splits mount several auto-focusing viewports at once. The
+      // persisted active pane, not widget insertion order, owns initial input.
+      _focusSession(next.activeSessionId);
+    }
     _publishAcceptanceSnapshot(next);
     final newRuntimeError = _newRuntimeError(previous, next);
     if (newRuntimeError != null) {
@@ -688,6 +696,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Scaffold removes the consumed bottom inset from its body's MediaQuery.
+    // Capture keyboard visibility before entering the nested layout builder.
+    final softwareKeyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
     ref.listen<bool>(
       localFirstSyncProvider.select(
         (sync) => sync?.enabledButUnavailable ?? false,
@@ -1170,7 +1181,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         case TerminalActionId.requestQuitConfirmation:
           return KeyEventResult.handled;
         case TerminalActionId.copy:
-          return KeyEventResult.ignored;
+          return _copySelectionShortcut(sessionController, activeSessionId);
         case TerminalActionId.paste:
           if (activeSessionId == null) {
             return KeyEventResult.handled;
@@ -1642,7 +1653,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     _selectedRecording == null &&
                     instantReplaySession == null &&
                     activeSessionId != null)
-                  if (MediaQuery.viewInsetsOf(context).bottom == 0)
+                  if (!softwareKeyboardVisible)
                     _MobileTerminalToolbar(
                       onKeyboard: () => _focusSession(activeSessionId),
                       onSearch: _openSearch,
@@ -1668,8 +1679,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     IosTerminalInputBar(
                       key: const Key('ios-terminal-input-bar'),
                       palette: palette,
-                      keyboardVisible:
-                          MediaQuery.viewInsetsOf(context).bottom > 0,
+                      keyboardVisible: softwareKeyboardVisible,
                       onSendBytes: (bytes) =>
                           _sendMobileTerminalBytes(activeSessionId, bytes),
                       onDismissKeyboard: () =>

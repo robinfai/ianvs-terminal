@@ -824,7 +824,7 @@ void main() {
         }
       },
       skip: _workspaceCoreLibraryPath == null
-          ? 'libianvs_core.dylib is unavailable for this test run.'
+          ? 'libianvs_core is unavailable for this test run.'
           : false,
     );
   });
@@ -833,21 +833,14 @@ void main() {
 final String? _workspaceCoreLibraryPath = _resolveWorkspaceCoreLibraryPath();
 
 String? _resolveWorkspaceCoreLibraryPath() {
-  if (!Platform.isMacOS) {
+  if (!Platform.isMacOS && !Platform.isLinux) {
     return null;
   }
-  const candidates = <String>[
-    'native/core/target/debug/libianvs_core.dylib',
-    '../native/core/target/debug/libianvs_core.dylib',
-    '../../native/core/target/debug/libianvs_core.dylib',
-  ];
-  for (final candidate in candidates) {
-    final file = File(candidate);
-    if (file.existsSync()) {
-      return file.absolute.path;
-    }
+  try {
+    return resolveNativePtyLibraryPath();
+  } on StateError {
+    return null;
   }
-  return null;
 }
 
 TerminalRecording _recording() {

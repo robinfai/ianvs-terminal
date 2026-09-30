@@ -350,7 +350,7 @@ where
     F: Fn(ShellIntegrationKind, &TerminalProfile, &str) -> std::io::Result<ShellIntegrationProxy>,
 {
     let program = if profile.launch.program.is_empty() {
-        crate::platform::macos::default_shell()
+        crate::platform::default_shell()
     } else {
         profile.launch.program.clone()
     };

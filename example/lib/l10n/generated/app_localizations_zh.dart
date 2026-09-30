@@ -4096,6 +4096,11 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String controlShortcut(int index) {
+    return 'Control $index';
+  }
+
+  @override
   String get otherPaneBadges => '其他窗格徽章：';
 
   @override

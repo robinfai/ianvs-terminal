@@ -45,8 +45,10 @@ AppStartupCoordinator createProductionAppStartupCoordinator({
   final effectiveMasterKeyRepository =
       masterKeyRepository ??
       PortableMasterKeyRepository(
-        // macOS is the single creator. iOS only consumes the synchronized
-        // item, so a temporarily empty iCloud read can never replace it.
+        // Desktop hosts may create a platform-vault key. iOS only consumes the
+        // synchronized Apple item, so a temporarily empty iCloud read cannot
+        // replace it. Linux retains secure storage and never falls back to a
+        // plaintext or ephemeral encryption key.
         allowCreation: targetPlatform != TargetPlatform.iOS,
         allowLegacyMigration: environment == AppEnvironment.production,
         storage: environment == AppEnvironment.development
@@ -73,9 +75,11 @@ AppStartupCoordinator createProductionAppStartupCoordinator({
             final fileRepository = FileDataApiConfigurationRepository(
               appSupportDirectory: paths.appSupportDirectory,
             );
-            // A fresh development installation always starts its own sidecar.
-            // Never overwrite a saved choice or a corruption recovery lock.
+            // Only macOS bundles the local sidecar. Linux development keeps the
+            // same local-first repositories without selecting an unavailable
+            // API. Never overwrite a saved choice or a corruption recovery lock.
             if (environment == AppEnvironment.development &&
+                targetPlatform == TargetPlatform.macOS &&
                 !await fileRepository.configurationFile.exists() &&
                 !await fileRepository.recoverySentinelFile.exists()) {
               await fileRepository.save(const DataApiConfiguration.local());
@@ -538,6 +542,8 @@ AppStartupDataSetupRequirement? resolveInitialDataApiSetupRequirement({
     TargetPlatform.macOS when !hasPersistedConfiguration =>
       AppStartupDataSetupRequirement.optional,
     TargetPlatform.iOS when !hasPersistedConfiguration =>
+      AppStartupDataSetupRequirement.optional,
+    TargetPlatform.linux when !hasPersistedConfiguration =>
       AppStartupDataSetupRequirement.optional,
     _ => null,
   };

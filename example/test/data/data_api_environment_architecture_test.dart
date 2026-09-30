@@ -106,12 +106,22 @@ void read() {
   final escaped = Platform.environment['IANVS_SECRET'];
 }
 ''';
+    const shellSource = '''
+import 'dart:io';
+void read() {
+  const allowedBuild = String.fromEnvironment('IANVS_DEFAULT_SHELL');
+  const escapedBuild = String.fromEnvironment('IANVS_SECRET');
+  final allowed = Platform.environment['SHELL'];
+  final escaped = Platform.environment['IANVS_SECRET'];
+}
+''';
     final violations = <String>[];
     for (final fixture in <(String, String)>[
       ('lib/features/profiles/profile_models.dart', profileSource),
       ('lib/features/sessions/session_controller.dart', sessionSource),
       ('lib/features/ssh/ssh_profile_import_service.dart', sshImportSource),
       ('lib/features/shell/shell_screen_sidebar.dart', sshImportSource),
+      ('lib/platform/default_terminal_shell.dart', shellSource),
     ]) {
       final result = parseString(
         path: fixture.$1,
@@ -122,7 +132,7 @@ void read() {
       result.unit.accept(_ForbiddenEnvironmentVisitor(fixture.$1, violations));
     }
 
-    expect(violations, hasLength(4));
+    expect(violations, hasLength(6));
     expect(
       violations,
       contains(contains('features/profiles/profile_models.dart')),
@@ -273,7 +283,8 @@ bool _isAllowedNonDataEnvironmentUse(String path, AstNode node) {
       return false;
     }
     final key = invocation.$2;
-    if (path.endsWith('features/profiles/profile_models.dart')) {
+    if (path.endsWith('features/profiles/profile_models.dart') ||
+        path.endsWith('platform/default_terminal_shell.dart')) {
       return key == 'IANVS_DEFAULT_SHELL';
     }
     if (path.endsWith('features/sessions/session_controller.dart')) {
@@ -292,6 +303,11 @@ bool _isAllowedNonDataEnvironmentUse(String path, AstNode node) {
     return false;
   }
   final key = (access.index as StringLiteral).stringValue;
+  if (path.endsWith('platform/default_terminal_shell.dart')) {
+    // Only login-shell discovery reads SHELL. API endpoints and credentials
+    // still cannot come from process or compile-time environment.
+    return key == 'SHELL';
+  }
   if (path.endsWith('features/sessions/session_controller.dart')) {
     return key == 'IANVS_TERMINAL_GRAPHICS_TRACE';
   }

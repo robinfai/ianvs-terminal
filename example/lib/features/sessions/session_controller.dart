@@ -1346,9 +1346,9 @@ class SessionController extends Notifier<SessionState> {
     try {
       return _runtime.createSession(
         launchProfile.toSessionConfig().copyWith(
-          // The macOS example installs the native OSC 72 bridge. Other
-          // platforms retain the package's deny-by-default behavior.
-          dragDropEnabled: Platform.isMacOS,
+          // The macOS and Linux runners install native OSC 72 drop bridges.
+          // Other platforms retain the package's deny-by-default behavior.
+          dragDropEnabled: Platform.isMacOS || Platform.isLinux,
         ),
       );
     } on Object catch (error) {

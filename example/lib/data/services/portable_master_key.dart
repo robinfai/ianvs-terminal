@@ -102,7 +102,8 @@ abstract interface class PortableMasterKeyStorage {
   Future<void> write(String portableValue);
 }
 
-/// The synchronized production master-key item owned by Ianvs Terminal.
+/// The production master-key item in the platform vault. Apple platforms use a
+/// synchronized Keychain item; Linux uses its native secure-storage backend.
 final class FlutterSecurePortableMasterKeyStorage
     implements PortableMasterKeyStorage {
   const FlutterSecurePortableMasterKeyStorage({

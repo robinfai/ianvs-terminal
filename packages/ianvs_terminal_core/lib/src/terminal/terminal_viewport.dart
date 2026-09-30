@@ -13,6 +13,7 @@ import '../runtime/terminal_benchmarking.dart';
 import 'render_terminal_viewport.dart';
 import 'selection_controller.dart';
 import 'terminal_focus_reporter.dart';
+import 'terminal_font_fallback.dart';
 import 'terminal_graphics_cache.dart';
 import 'terminal_graphics_diagnostics.dart';
 import 'terminal_graphics_sync.dart';
@@ -401,6 +402,7 @@ class _TerminalViewportState extends State<TerminalViewport>
   FocusNode? _ownedFocusNode;
   FocusNode? _listenedFocusNode;
   final GlobalKey _surfaceKey = GlobalKey();
+  final Set<PhysicalKeyboardKey> _hostConsumedKeys = <PhysicalKeyboardKey>{};
   double _pendingScrollLines = 0.0;
   double _scrollMomentumLinesPerSecond = 0.0;
   bool _scrollMomentumIgnoresTerminalMouseMode = false;
@@ -2391,6 +2393,21 @@ class _TerminalViewportState extends State<TerminalViewport>
   }
 
   KeyEventResult _handleTerminalKeyEvent(KeyEvent event) {
+    // A host shortcut owns the entire physical key lifecycle, even if its
+    // modifiers change before release. Otherwise Kitty can see a release for
+    // a press that never reached the terminal, or a repeat can insert text.
+    if (event is KeyDownEvent) {
+      // A release may have gone to another focus owner; never suppress a new
+      // physical press because of that stale entry.
+      _hostConsumedKeys.remove(event.physicalKey);
+    } else if (event is KeyUpEvent) {
+      if (_hostConsumedKeys.remove(event.physicalKey)) {
+        return KeyEventResult.handled;
+      }
+    } else if (event is KeyRepeatEvent &&
+        _hostConsumedKeys.contains(event.physicalKey)) {
+      return KeyEventResult.handled;
+    }
     if ((event.logicalKey == LogicalKeyboardKey.tab &&
             widget.onActivateInlineButton != null &&
             widget.controller.frame.inlineButtons.isNotEmpty) ||
@@ -2420,6 +2437,9 @@ class _TerminalViewportState extends State<TerminalViewport>
     if (!terminalFirst) {
       final hostResult = widget.onHostKeyEvent?.call(event);
       if (hostResult == KeyEventResult.handled) {
+        if (event is KeyDownEvent || event is KeyRepeatEvent) {
+          _hostConsumedKeys.add(event.physicalKey);
+        }
         return KeyEventResult.handled;
       }
     }
@@ -2636,7 +2656,9 @@ class _TerminalViewportState extends State<TerminalViewport>
 
   TerminalFontConfig get _effectiveFont {
     final family = widget.controller.frame.fontFamily;
-    return family == null ? widget.font : widget.font.copyWith(family: family);
+    return terminalFontForRendering(
+      family == null ? widget.font : widget.font.copyWith(family: family),
+    );
   }
 
   @override

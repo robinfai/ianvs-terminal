@@ -343,3 +343,14 @@ flutter test test/widget_test.dart --plain-name "shell search"
 ```
 
 这些检查验证当前代码，不依赖历史审计报告中的通过描述。
+
+## Linux GTK acceptance
+
+Linux build/package instructions and platform boundaries are documented in
+[LINUX_RELEASE.md](release/LINUX_RELEASE.md). Run actual native host gates with
+`flutter test -d linux integration_test/linux_platform_bridge_test.dart`,
+`flutter test -d linux integration_test/linux_desktop_acceptance_test.dart`, and
+`flutter test -d linux integration_test/real_pty_acceptance_test.dart` from
+`example/`. These require a display and an unlocked Secret Service. Linux
+font/compositor/physical input-method acceptance remains a separate manual
+record; passing component tests alone is not desktop release acceptance.

@@ -873,9 +873,9 @@ class LocalSessionRecordingRepository {
 
   /// Creates one process-private native handoff directory.
   ///
-  /// [Directory.createTemp] uses the platform's secure temporary-directory
-  /// primitive (0700 on Unix). Rust independently validates mode, owner, and
-  /// symlink status before accepting this directory.
+  /// Linux temporary-directory creation may retain the process umask. Protect
+  /// the newly created empty directory before it can contain recording data.
+  /// Rust independently validates mode, owner, and symlink status.
   Future<Directory> ensureNativeHandoffDirectory() async {
     return _handoffDirectoryFuture ??= _createNativeHandoffDirectory();
   }
@@ -883,6 +883,16 @@ class LocalSessionRecordingRepository {
   Future<Directory> _createNativeHandoffDirectory() async {
     final root = await ensureRecordingDirectory();
     final created = await root.createTemp(_recordingHandoffDirectoryPrefix);
+    if (Platform.isLinux) {
+      final result = await Process.run('/bin/chmod', ['0700', created.path]);
+      if (result.exitCode != 0 ||
+          (await created.stat()).mode & 0x1ff != 0x1c0) {
+        throw FileSystemException(
+          'Unable to make the native recording handoff directory private',
+          created.path,
+        );
+      }
+    }
     return _canonicalHandoffDirectory(created, jobId: 'unallocated');
   }
 

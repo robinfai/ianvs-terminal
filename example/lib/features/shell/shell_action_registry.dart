@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -140,6 +141,32 @@ class TerminalActionDescriptor {
 
 class ShellActionRegistry {
   const ShellActionRegistry._();
+
+  /// Linux reserves unshifted Ctrl letters for the terminal (interrupt, EOF,
+  /// line editing and flow control). Explicit user bindings are never passed
+  /// through this default-only adaptation.
+  static TerminalKeyBinding? platformDefaultBinding({
+    required TerminalActionId actionId,
+    required TerminalKeyBinding? binding,
+    TargetPlatform? platform,
+  }) {
+    if ((platform ?? defaultTargetPlatform) != TargetPlatform.linux ||
+        binding == null ||
+        !binding.meta) {
+      return binding;
+    }
+    return TerminalKeyBinding(
+      scope: binding.scope,
+      key: switch (actionId) {
+        TerminalActionId.newSshSession => LogicalKeyboardKey.keyN,
+        TerminalActionId.splitDown => LogicalKeyboardKey.keyE,
+        _ => binding.key,
+      },
+      control: true,
+      shift: actionId != TerminalActionId.openDefaults || binding.shift,
+      alt: binding.alt,
+    );
+  }
 
   static const Map<TerminalActionId, TerminalActionDescriptor> actions = {
     TerminalActionId.newTab: TerminalActionDescriptor(

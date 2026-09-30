@@ -1,13 +1,13 @@
 name: ianvs_terminal_core
-description: Embeddable macOS Flutter terminal with a native PTY runtime, viewport, themed bottom panel, and session lifecycle APIs.
+description: Embeddable macOS and Linux Flutter terminal with a native PTY runtime, viewport, themed bottom panel, and session lifecycle APIs.
 version: 0.1.0
 repository: https://github.com/robinfai/ianvs-terminal
 issue_tracker: https://github.com/robinfai/ianvs-terminal/issues
 topics:
   - terminal
   - macos
+  - linux
   - pty
-  - emulator
   - flutter
 
 environment:
@@ -17,6 +17,7 @@ resolution: workspace
 
 platforms:
   macos:
+  linux:
 
 dependencies:
   code_assets: ^1.0.0
@@ -33,3 +34,25 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   test: ^1.26.0
+
+# BEGIN terminal font assets (mirrored by tools/sync_terminal_core.dart)
+flutter:
+  assets:
+    - assets/fonts/OFL.txt
+    - assets/fonts/JETBRAINS-OFL.txt
+    - assets/fonts/NERD-FONTS-LICENSE.txt
+    - assets/fonts/SOURCES.md
+  fonts:
+    - family: JetBrainsMono Nerd Font Mono
+      fonts:
+        - asset: assets/fonts/JetBrainsMonoNerdFontMono-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/JetBrainsMonoNerdFontMono-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/JetBrainsMonoNerdFontMono-Italic.ttf
+          weight: 400
+          style: italic
+        - asset: assets/fonts/JetBrainsMonoNerdFontMono-BoldItalic.ttf
+          weight: 700
+          style: italic
+# END terminal font assets

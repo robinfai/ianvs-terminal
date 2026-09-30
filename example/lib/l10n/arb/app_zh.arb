@@ -1111,6 +1111,7 @@
   "newOutputLower": "新输出",
   "newOutputInSplitPaneLower": "分屏窗格中有新输出",
   "commandShortcut": "Command {index}",
+  "controlShortcut": "Control {index}",
   "otherPaneBadges": "其他窗格徽章：",
   "terminalBadgeValue": "终端徽章：{badge}",
   "otherPaneBadgeCount": "其他 {count} 个窗格徽章",

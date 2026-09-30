@@ -4334,6 +4334,11 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String controlShortcut(int index) {
+    return 'Control $index';
+  }
+
+  @override
   String get otherPaneBadges => 'Other pane badges:';
 
   @override

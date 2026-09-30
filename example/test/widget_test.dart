@@ -427,14 +427,27 @@ Future<void> _sendControlShortcut(
   WidgetTester tester,
   LogicalKeyboardKey key, {
   required String platform,
+  bool shift = false,
 }) async {
   await tester.sendKeyDownEvent(
     LogicalKeyboardKey.controlLeft,
     platform: platform,
   );
+  if (shift) {
+    await tester.sendKeyDownEvent(
+      LogicalKeyboardKey.shiftLeft,
+      platform: platform,
+    );
+  }
   await tester.sendKeyDownEvent(key, platform: platform);
   await tester.pumpAndSettle();
   await tester.sendKeyUpEvent(key, platform: platform);
+  if (shift) {
+    await tester.sendKeyUpEvent(
+      LogicalKeyboardKey.shiftLeft,
+      platform: platform,
+    );
+  }
   await tester.sendKeyUpEvent(
     LogicalKeyboardKey.controlLeft,
     platform: platform,
@@ -3808,7 +3821,7 @@ void main() {
   });
 
   testWidgets(
-    'control-t on non-macOS still opens another tab',
+    'Linux Ctrl Shift T opens a tab and tab hints describe Control',
     (tester) async {
       final fakeBindings = FakePtyBackend();
 
@@ -3822,10 +3835,17 @@ void main() {
 
       expect(find.bySemanticsIdentifier('shell-tab-1'), findsOneWidget);
 
+      expect(find.text('Ctrl+1'), findsOneWidget);
+      expect(
+        tester.getSemantics(find.bySemanticsIdentifier('shell-tab-1')).label,
+        contains('Control 1'),
+      );
+
       await _sendControlShortcut(
         tester,
         LogicalKeyboardKey.keyT,
         platform: 'linux',
+        shift: true,
       );
       await _chooseDefaultLocalSession(tester);
 

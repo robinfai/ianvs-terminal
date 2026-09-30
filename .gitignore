@@ -28,3 +28,7 @@ backend/*.db
 backend/*.db-*
 backend/bin/
 .worktrees/
+
+# Python validation helpers
+__pycache__/
+*.py[cod]

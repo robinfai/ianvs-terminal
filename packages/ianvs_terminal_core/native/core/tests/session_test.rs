@@ -320,7 +320,7 @@ fn prompt_like_profile() -> TerminalProfile {
         "/bin/sh",
         vec![
             "-lc".to_string(),
-            r"printf '\x1b[38;5;196m\x1b[48;5;46mabc   \x1b[0m\n'".to_string(),
+            r"printf '\033[38;5;196m\033[48;5;46mabc   \033[0m\n'".to_string(),
         ],
         BTreeMap::new(),
         TerminalEmulation::Xterm256,
@@ -334,7 +334,7 @@ fn sgr_colon_truecolor_profile() -> TerminalProfile {
         "/bin/sh",
         vec![
             "-lc".to_string(),
-            r"printf '\x1b[38:2::255:0:0mR\x1b[0m\x1b[48:2::0:0:255mB\x1b[0m\n'".to_string(),
+            r"printf '\033[38:2::255:0:0mR\033[0m\033[48:2::0:0:255mB\033[0m\n'".to_string(),
         ],
         BTreeMap::new(),
         TerminalEmulation::Xterm256,

@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import '../shell/shell_action_registry.dart';
 import 'local_terminal_config_models.dart';
 
@@ -32,6 +34,7 @@ class LocalTerminalKeyBindingResolver {
     required LocalTerminalKeybindingsConfig config,
     Map<TerminalActionId, TerminalActionDescriptor> registry =
         ShellActionRegistry.actions,
+    TargetPlatform? platform,
   }) {
     final resolved = <ResolvedLocalTerminalKeyBinding>[];
 
@@ -63,7 +66,11 @@ class LocalTerminalKeyBindingResolver {
         }
       }
 
-      final defaultBinding = entry.value.defaultKeyBinding;
+      final defaultBinding = ShellActionRegistry.platformDefaultBinding(
+        actionId: actionId,
+        binding: entry.value.defaultKeyBinding,
+        platform: platform,
+      );
       if (defaultBinding == null) {
         continue;
       }

@@ -1,6 +1,20 @@
 part of 'shell_screen.dart';
 
 extension _ShellScreenStateClipboard on _ShellScreenState {
+  KeyEventResult _copySelectionShortcut(
+    SessionController sessionController,
+    String? sessionId,
+  ) {
+    final selectionController = _selectionControllers[sessionId];
+    if (sessionId == null || selectionController?.selection == null) {
+      return KeyEventResult.ignored;
+    }
+    unawaited(
+      _copySelection(sessionController, sessionId, selectionController!),
+    );
+    return KeyEventResult.handled;
+  }
+
   Future<void> _copySelection(
     SessionController sessionController,
     String sessionId,

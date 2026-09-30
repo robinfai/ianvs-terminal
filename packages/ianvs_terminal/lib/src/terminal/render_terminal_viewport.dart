@@ -7,6 +7,7 @@ import 'package:flutter/rendering.dart';
 import '../config/terminal_config.dart';
 import '../runtime/terminal_benchmarking.dart';
 import 'selection_controller.dart';
+import 'terminal_font_fallback.dart';
 import 'terminal_models.dart';
 import 'terminal_text_document_style.dart';
 import 'terminal_viewport.dart';
@@ -156,7 +157,7 @@ class RenderTerminalViewport extends RenderBox {
   }) : _controller = controller,
        _selectionController = selectionController,
        _cursorVisible = cursorVisible,
-       _font = font,
+       _font = terminalFontForRendering(font),
        _cursor = cursor,
        _devicePixelRatio = devicePixelRatio,
        _colors = colors,
@@ -264,10 +265,11 @@ class RenderTerminalViewport extends RenderBox {
   }
 
   set font(TerminalFontConfig value) {
-    if (_sameFontConfig(value, _font)) {
+    final renderedFont = terminalFontForRendering(value);
+    if (_sameFontConfig(renderedFont, _font)) {
       return;
     }
-    _font = value;
+    _font = renderedFont;
     _invalidateVisualCaches();
     _glyphParagraphCache.clear();
     _cachedCellMetrics = null;

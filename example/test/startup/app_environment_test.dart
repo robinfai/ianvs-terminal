@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('only non-release macOS builds select development', () {
+  test('non-release macOS and Linux builds select development', () {
     for (final platform in TargetPlatform.values) {
       expect(
         AppEnvironment.forBuild(platform: platform, releaseMode: true),
@@ -12,7 +12,7 @@ void main() {
       );
       expect(
         AppEnvironment.forBuild(platform: platform, releaseMode: false),
-        platform == TargetPlatform.macOS
+        platform == TargetPlatform.macOS || platform == TargetPlatform.linux
             ? AppEnvironment.development
             : AppEnvironment.production,
       );

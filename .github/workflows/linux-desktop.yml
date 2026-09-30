@@ -1,0 +1,76 @@
+name: Linux desktop
+
+on:
+  push:
+    branches: [main, codex/linux]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: linux-desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux-desktop:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772
+        with:
+          toolchain: '1.88.0'
+          components: clippy,rustfmt
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          flutter-version: '3.44.2'
+          channel: stable
+          cache: false
+      - name: Install desktop build and test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev libsecret-1-dev xvfb dbus-x11 gnome-keyring libgl1-mesa-dri python3-venv lrzsz
+      - name: Resolve and analyze
+        run: |
+          flutter pub get
+          make analyze
+          dart run tools/sync_terminal_core.dart --check
+      - name: Verify Rust core
+        working-directory: native/core
+        run: |
+          cargo fmt --check
+          cargo clippy --locked --all-targets -- -D warnings
+          cargo test --locked -- --test-threads=1
+      - name: Verify native SSH SFTP and ZMODEM with an independent peer
+        run: |
+          python3 -m venv "$RUNNER_TEMP/ianvs-loopback-venv"
+          "$RUNNER_TEMP/ianvs-loopback-venv/bin/pip" install -r tools/linux_e2e/requirements.txt
+          IANVS_LOOPBACK_PYTHON="$RUNNER_TEMP/ianvs-loopback-venv/bin/python" tools/linux_e2e/run.sh
+      - name: Verify Dart packages and self-contained widgets
+        run: |
+          dart test
+          (cd packages/ianvs_pty && dart test)
+          (cd packages/ianvs_terminal && flutter test)
+          (cd packages/ianvs_terminal_core && flutter test)
+          cd example
+          mapfile -t tests < <(find test -name '*_test.dart' ! -path 'test/benchmarks/cat_log_benchmark_test.dart' | LC_ALL=C sort)
+          flutter test "${tests[@]}"
+      - name: Verify real GTK, PTY, clipboard and secure storage
+        env:
+          LIBGL_ALWAYS_SOFTWARE: '1'
+        run: |
+          xvfb-run -a dbus-run-session -- bash -eu -c '
+            openssl rand -hex 32 | gnome-keyring-daemon --unlock --components=secrets
+            cd example
+            flutter test -d linux integration_test/linux_platform_bridge_test.dart
+            flutter test -d linux integration_test/linux_desktop_acceptance_test.dart
+            flutter test -d linux integration_test/linux_font_rendering_test.dart
+            flutter test -d linux integration_test/real_pty_acceptance_test.dart
+          '
+      - name: Build release packages
+        run: make package-linux
+      - name: Upload Linux packages
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: trail-linux-x64
+          path: build/linux-packages/
+          retention-days: 14

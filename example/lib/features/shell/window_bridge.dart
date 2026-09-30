@@ -30,12 +30,13 @@ class WindowBridge {
   @visibleForTesting
   static TargetPlatform? debugZmodemFileDialogPlatformOverride;
 
-  // The example runner currently implements these native dialogs on macOS.
-  // The runtime core remains independently usable on supported Linux hosts.
+  // Both desktop runners implement the directory and multi-file picker
+  // contract. Other platforms must not authorize a transfer without a picker.
   static bool get supportsZmodemFileDialogs =>
       !kIsWeb &&
-      (debugZmodemFileDialogPlatformOverride ?? defaultTargetPlatform) ==
-          TargetPlatform.macOS;
+      const {TargetPlatform.macOS, TargetPlatform.linux}.contains(
+        debugZmodemFileDialogPlatformOverride ?? defaultTargetPlatform,
+      );
 
   static bool get supportsPathReveal => !kIsWeb;
 

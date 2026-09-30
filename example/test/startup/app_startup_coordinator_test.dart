@@ -16,6 +16,7 @@ import 'package:app/features/recording/local_session_recording_repository.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/persistence_repository_composition.dart';
 import 'package:app/platform/app_shutdown_coordinator.dart';
+import 'package:app/startup/app_environment.dart';
 import 'package:app/startup/app_startup_coordinator.dart';
 import 'package:app/startup/app_startup_models.dart';
 import 'package:app/startup/production_app_startup.dart';
@@ -820,6 +821,47 @@ void main() {
       );
     }
 
+    test(
+      'Linux development is local-first and cannot select the Apple sidecar',
+      () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'ianvs-linux-startup-',
+        );
+        addTearDown(() => directory.delete(recursive: true));
+        final coordinator = createProductionAppStartupCoordinator(
+          platform: TargetPlatform.linux,
+          environment: AppEnvironment.development,
+          appSupportDirectoryResolver: () async => directory,
+          appDocumentsDirectoryResolver: () async => directory,
+          nativePtyLoader: () async => _FakePtyBackend(),
+          masterKeyRepository: PortableMasterKeyRepository(
+            storage: _MemoryMasterKeyStorage(),
+            allowLegacyMigration: false,
+          ),
+        );
+        addTearDown(coordinator.dispose);
+        await coordinator.start();
+        final setup = coordinator.state as AppStartupDataSetupRequired;
+        expect(setup.canSkip, isTrue);
+        expect(setup.settings.localDataApiAvailable, isFalse);
+        expect(setup.settings.saveLocal, throwsUnsupportedError);
+        await setup.settings.saveDisabled();
+        await coordinator.retry();
+        final graph = _readyGraph(coordinator);
+        expect(
+          graph.paths.appSupportDirectory.path,
+          '${directory.path}/development',
+        );
+        expect(graph.dataApiRuntime, isNull);
+        expect(graph.dataApiStartupWarning, isNull);
+        expect(graph.persistenceRepositories.usesDataApi, isFalse);
+        expect(graph.ptySessionBackend, isA<_FakePtyBackend>());
+        expect(graph.localMigrationRuntimeStarter, isNull);
+        expect(graph.remoteFallbackSnapshotRuntimeStarter, isNull);
+        expect((await coordinator.close()).safeToTerminate, isTrue);
+      },
+    );
+
     test('production initial Data API policy is platform specific', () {
       const disabled = DataApiConfiguration.disabled();
       final remote = DataApiConfiguration.remote('https://sync.example.com/');
@@ -861,6 +903,22 @@ void main() {
           platform: TargetPlatform.iOS,
           hasPersistedConfiguration: true,
           configuration: remote,
+        ),
+        isNull,
+      );
+      expect(
+        resolveInitialDataApiSetupRequirement(
+          platform: TargetPlatform.linux,
+          hasPersistedConfiguration: false,
+          configuration: disabled,
+        ),
+        AppStartupDataSetupRequirement.optional,
+      );
+      expect(
+        resolveInitialDataApiSetupRequirement(
+          platform: TargetPlatform.linux,
+          hasPersistedConfiguration: true,
+          configuration: disabled,
         ),
         isNull,
       );

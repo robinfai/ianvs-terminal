@@ -677,7 +677,12 @@ class _ReferenceDemoTab extends StatelessWidget {
     final title = _shellTabDisplayTitle(tab);
     return Semantics(
       identifier: _shellTabSemanticsIdentifier(tab),
-      label: _shellTabSemanticsLabel(context.l10n, tab, shortcutIndex),
+      label: _shellTabSemanticsLabel(
+        context.l10n,
+        tab,
+        shortcutIndex,
+        forceMetaShortcuts: true,
+      ),
       selected: isActive,
       button: true,
       child: TextButton(
@@ -3049,93 +3054,104 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
                           alignment: AlignmentDirectional.centerStart,
                           child: KeyedSubtree(
                             key: Key('shell-tab-title-${widget.tab.sessionId}'),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (!widget.compact) ...[
-                                  Icon(
-                                    Icons.terminal,
-                                    size: 16,
-                                    color: widget.isActive
-                                        ? tone.primaryText
-                                        : tone.mutedText,
-                                  ),
-                                  const SizedBox(width: 8),
-                                ],
-                                if (indicatorColor != null) ...[
-                                  Tooltip(
-                                    message:
-                                        context.l10n.osc21337StatusIndicator,
-                                    child: DecoratedBox(
-                                      key: Key(
-                                        'shell-tab-status-indicator-${widget.tab.sessionId}',
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: indicatorColor,
-                                        shape: BoxShape.circle,
-                                        border: Border.all(
-                                          color: tone.primaryText.withValues(
-                                            alpha: 0.28,
+                            child: LayoutBuilder(
+                              builder: (context, constraints) => Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (!widget.compact) ...[
+                                    Icon(
+                                      Icons.terminal,
+                                      size: 16,
+                                      color: widget.isActive
+                                          ? tone.primaryText
+                                          : tone.mutedText,
+                                    ),
+                                    const SizedBox(width: 8),
+                                  ],
+                                  if (indicatorColor != null) ...[
+                                    Tooltip(
+                                      message:
+                                          context.l10n.osc21337StatusIndicator,
+                                      child: DecoratedBox(
+                                        key: Key(
+                                          'shell-tab-status-indicator-${widget.tab.sessionId}',
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: indicatorColor,
+                                          shape: BoxShape.circle,
+                                          border: Border.all(
+                                            color: tone.primaryText.withValues(
+                                              alpha: 0.28,
+                                            ),
                                           ),
                                         ),
-                                      ),
-                                      child: const SizedBox.square(
-                                        dimension: 8,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 6),
-                                ],
-                                if (runtimeError != null) ...[
-                                  _ShellTabRuntimeErrorIcon(
-                                    key: Key(
-                                      'shell-tab-error-${widget.tab.sessionId}',
-                                    ),
-                                    palette: widget.palette,
-                                    error: runtimeError,
-                                  ),
-                                  const SizedBox(width: 6),
-                                ],
-                                Flexible(
-                                  child: AnimatedDefaultTextStyle(
-                                    duration: const Duration(milliseconds: 140),
-                                    style: tabTextStyle,
-                                    child: Text(
-                                      title,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                ),
-                                if (badgeInfos.isNotEmpty ||
-                                    paneSignalInfo != null ||
-                                    statusText != null)
-                                  Flexible(
-                                    child: SingleChildScrollView(
-                                      scrollDirection: Axis.horizontal,
-                                      child: details,
-                                    ),
-                                  )
-                                else
-                                  details,
-                                if (widget.shortcutIndex != null &&
-                                    !widget.compact &&
-                                    badgeInfos.isEmpty &&
-                                    paneSignalInfo == null &&
-                                    statusText == null) ...[
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    '⌘${widget.shortcutIndex}',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .labelSmall
-                                        ?.copyWith(
-                                          color: tone.subtleText,
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w600,
+                                        child: const SizedBox.square(
+                                          dimension: 8,
                                         ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                  ],
+                                  if (runtimeError != null) ...[
+                                    _ShellTabRuntimeErrorIcon(
+                                      key: Key(
+                                        'shell-tab-error-${widget.tab.sessionId}',
+                                      ),
+                                      palette: widget.palette,
+                                      error: runtimeError,
+                                    ),
+                                    const SizedBox(width: 6),
+                                  ],
+                                  Flexible(
+                                    child: AnimatedDefaultTextStyle(
+                                      duration: const Duration(
+                                        milliseconds: 140,
+                                      ),
+                                      style: tabTextStyle,
+                                      child: Text(
+                                        title,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
                                   ),
+                                  if (badgeInfos.isNotEmpty ||
+                                      paneSignalInfo != null ||
+                                      statusText != null)
+                                    Flexible(
+                                      child: SingleChildScrollView(
+                                        scrollDirection: Axis.horizontal,
+                                        child: details,
+                                      ),
+                                    )
+                                  else
+                                    details,
+                                  if (widget.shortcutIndex != null &&
+                                      !widget.compact &&
+                                      badgeInfos.isEmpty &&
+                                      paneSignalInfo == null &&
+                                      statusText == null &&
+                                      (defaultTargetPlatform ==
+                                              TargetPlatform.macOS ||
+                                          defaultTargetPlatform ==
+                                              TargetPlatform.iOS ||
+                                          constraints.maxWidth >= 110)) ...[
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      _shellTabShortcutLabel(
+                                        widget.shortcutIndex!,
+                                      ),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .labelSmall
+                                          ?.copyWith(
+                                            color: tone.subtleText,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                    ),
+                                  ],
                                 ],
-                              ],
+                              ),
                             ),
                           ),
                         ),
@@ -3203,6 +3219,7 @@ String _shellTabSemanticsLabel(
   TerminalTab tab,
   int? shortcutIndex, {
   bool hasNewOutput = false,
+  bool forceMetaShortcuts = false,
 }) {
   final parts = <String>[l10n.terminalTabSemantics(_shellTabDisplayTitle(tab))];
   final tabStatus = tab.activePane.tabStatus;
@@ -3276,10 +3293,21 @@ String _shellTabSemanticsLabel(
   }
 
   if (shortcutIndex != null) {
-    parts.add(l10n.commandShortcut(shortcutIndex));
+    parts.add(
+      forceMetaShortcuts ||
+              defaultTargetPlatform == TargetPlatform.macOS ||
+              defaultTargetPlatform == TargetPlatform.iOS
+          ? l10n.commandShortcut(shortcutIndex)
+          : l10n.controlShortcut(shortcutIndex),
+    );
   }
   return parts.join(', ');
 }
+
+String _shellTabShortcutLabel(int index) => switch (defaultTargetPlatform) {
+  TargetPlatform.macOS || TargetPlatform.iOS => '⌘$index',
+  _ => 'Ctrl+$index',
+};
 
 TerminalPaneRuntimeErrorState? _shellTabRuntimeError(TerminalTab tab) {
   final activeError = tab.activePane.runtimeError;

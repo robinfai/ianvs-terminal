@@ -1520,11 +1520,23 @@ void _checkNativeStatus(String operation, String sessionId, int statusCode) {
   }
 }
 
+/// Finds the package's native library in a desktop application bundle.
+///
+/// Product builds only load a bundled library. Development builds also accept
+/// `IANVS_CORE_LIB` and native debug builds in ancestor source directories.
 String resolveNativePtyLibraryPath({
   Map<String, String>? environment,
   Directory? executableDirectory,
+  Directory? workingDirectory,
+  String? operatingSystem,
   bool isProduct = const bool.fromEnvironment('dart.vm.product'),
 }) {
+  final os = operatingSystem ?? Platform.operatingSystem;
+  final libraryName = switch (os) {
+    'macos' => 'libianvs_core.dylib',
+    'linux' => 'libianvs_core.so',
+    _ => throw UnsupportedError('Unsupported native PTY platform: $os'),
+  };
   final env = environment ?? Platform.environment;
   final executableDir =
       executableDirectory ?? File(Platform.resolvedExecutable).parent;
@@ -1534,11 +1546,19 @@ String resolveNativePtyLibraryPath({
   }
 
   final candidates = <String>[
-    '${executableDir.path}/../Frameworks/ianvs_core.framework/ianvs_core',
-    '${executableDir.path}/../Frameworks/libianvs_core.dylib',
-    '${executableDir.path}/../Resources/libianvs_core.dylib',
-    if (!isProduct) '../native/core/target/debug/libianvs_core.dylib',
-    if (!isProduct) '../../native/core/target/debug/libianvs_core.dylib',
+    if (os == 'macos') ...<String>[
+      '${executableDir.path}/../Frameworks/ianvs_core.framework/ianvs_core',
+      '${executableDir.path}/../Frameworks/$libraryName',
+      '${executableDir.path}/../Resources/$libraryName',
+    ] else ...<String>[
+      // Flutter's Linux bundle installs native code assets beside libflutter.
+      '${executableDir.path}/lib/$libraryName',
+      '${executableDir.path}/$libraryName',
+    ],
+    // flutter_tester lives in the SDK, but each test package receives its own
+    // hook-built code assets. Never let a product process load test outputs.
+    if (!isProduct)
+      '${(workingDirectory ?? Directory.current).path}/build/native_assets/$os/$libraryName',
   ];
 
   for (final candidate in candidates) {
@@ -1549,15 +1569,24 @@ String resolveNativePtyLibraryPath({
   }
 
   if (!isProduct) {
-    var directory = executableDir;
-    for (var index = 0; index < 10; index += 1) {
-      final candidate = File(
-        '${directory.path}/../../../../../../../../native/core/target/debug/libianvs_core.dylib',
-      );
-      if (candidate.existsSync()) {
-        return candidate.absolute.path;
+    for (final root in <Directory>[
+      workingDirectory ?? Directory.current,
+      executableDir,
+    ]) {
+      var directory = root.absolute;
+      for (var index = 0; index < 10; index += 1) {
+        final candidate = File(
+          '${directory.path}/native/core/target/debug/$libraryName',
+        );
+        if (candidate.existsSync()) {
+          return candidate.absolute.path;
+        }
+        final parent = directory.parent;
+        if (parent.path == directory.path) {
+          break;
+        }
+        directory = parent;
       }
-      directory = directory.parent;
     }
   }
 
@@ -1568,7 +1597,7 @@ String resolveNativePtyLibraryPath({
       ? ''
       : ' Set IANVS_CORE_LIB to an absolute path.';
   throw StateError(
-    'Unable to locate libianvs_core.dylib.$productOverrideNote'
+    'Unable to locate $libraryName.$productOverrideNote'
     '$debugOverrideHint',
   );
 }

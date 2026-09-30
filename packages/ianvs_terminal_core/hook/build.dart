@@ -5,7 +5,6 @@ import 'package:hooks/hooks.dart';
 
 import 'native_dependencies.dart';
 
-const _assetName = 'libianvs_core.dylib';
 const _cargoBuildJobs = '2';
 
 void main(List<String> args) async {
@@ -14,22 +13,21 @@ void main(List<String> args) async {
       return;
     }
     final code = input.config.code;
-    if (code.targetOS != OS.macOS) {
+    if (code.targetOS != OS.macOS && code.targetOS != OS.linux) {
       return;
     }
     if (code.linkModePreference == LinkModePreference.static) {
       throw UnsupportedError(
-        'ianvs_terminal_core requires dynamic linking on macOS.',
+        'ianvs_terminal_core requires dynamic linking on ${code.targetOS}.',
       );
     }
 
-    final target = switch (code.targetArchitecture) {
-      Architecture.arm64 => 'aarch64-apple-darwin',
-      Architecture.x64 => 'x86_64-apple-darwin',
-      final architecture => throw UnsupportedError(
-        'Unsupported ianvs_terminal_core macOS architecture: $architecture',
-      ),
-    };
+    final buildTarget = nativeBuildTarget(
+      code.targetOS,
+      code.targetArchitecture,
+    );
+    final target = buildTarget.triple;
+    final assetName = buildTarget.libraryName;
     final nativeRoot = input.packageRoot.resolve('native/');
     final coreRoot = nativeRoot.resolve('core/');
     final manifest = coreRoot.resolve('Cargo.toml');
@@ -40,7 +38,6 @@ void main(List<String> args) async {
     }
 
     final cargoTargetDirectory = input.outputDirectory.resolve('cargo-target/');
-    final macOSSDKRoot = await _macOSSDKRoot();
     final environment = <String, String>{
       ..._rustToolchainEnvironment(Platform.environment),
       // A cold native build links several host build scripts before compiling
@@ -49,12 +46,17 @@ void main(List<String> args) async {
       // exit code. Keep the hook deterministic and bounded.
       'CARGO_BUILD_JOBS': _cargoBuildJobs,
       'CARGO_TARGET_DIR': cargoTargetDirectory.toFilePath(),
-      'MACOSX_DEPLOYMENT_TARGET': '${code.macOS.targetVersion}.0',
-      // Flutter provides clang/ld/ar as absolute Xcode paths. Unlike
-      // /usr/bin/cc, that clang does not discover the active macOS SDK on its
-      // own, so Rust host build scripts otherwise fail to link libSystem.
-      'SDKROOT': macOSSDKRoot,
     };
+    if (code.targetOS == OS.macOS) {
+      final macOSSDKRoot = await _macOSSDKRoot();
+      environment.addAll(<String, String>{
+        'MACOSX_DEPLOYMENT_TARGET': '${code.macOS.targetVersion}.0',
+        // Flutter provides clang/ld/ar as absolute Xcode paths. Unlike
+        // /usr/bin/cc, that clang does not discover the active macOS SDK on its
+        // own, so Rust host build scripts otherwise fail to link libSystem.
+        'SDKROOT': macOSSDKRoot,
+      });
+    }
     final cCompiler = code.cCompiler;
     if (cCompiler != null) {
       final cargoTarget = target.toUpperCase().replaceAll('-', '_');
@@ -93,22 +95,24 @@ void main(List<String> args) async {
     }
 
     final builtLibrary = cargoTargetDirectory.resolve(
-      '$target/release/$_assetName',
+      '$target/release/$assetName',
     );
-    final asset = input.outputDirectory.resolve(_assetName);
+    final asset = input.outputDirectory.resolve(assetName);
     await File.fromUri(builtLibrary).copy(asset.toFilePath());
-    final installName = await Process.run('install_name_tool', <String>[
-      '-id',
-      '@rpath/$_assetName',
-      asset.toFilePath(),
-    ]);
-    if (installName.exitCode != 0) {
-      throw ProcessException(
-        'install_name_tool',
-        <String>['-id', '@rpath/$_assetName', asset.toFilePath()],
-        '${installName.stdout}\n${installName.stderr}',
-        installName.exitCode,
-      );
+    if (code.targetOS == OS.macOS) {
+      final installName = await Process.run('install_name_tool', <String>[
+        '-id',
+        '@rpath/$assetName',
+        asset.toFilePath(),
+      ]);
+      if (installName.exitCode != 0) {
+        throw ProcessException(
+          'install_name_tool',
+          <String>['-id', '@rpath/$assetName', asset.toFilePath()],
+          '${installName.stdout}\n${installName.stderr}',
+          installName.exitCode,
+        );
+      }
     }
 
     for (final dependency in nativeBuildDependencies(nativeRoot)) {
@@ -117,12 +121,36 @@ void main(List<String> args) async {
     output.assets.code.add(
       CodeAsset(
         package: input.packageName,
-        name: _assetName,
+        name: assetName,
         file: asset,
         linkMode: DynamicLoadingBundled(),
       ),
     );
   });
+}
+
+/// The supported desktop Rust targets and their bundled shared libraries.
+///
+/// Linux uses the GNU ABI, matching Flutter's glibc-based desktop runner.
+({String triple, String libraryName}) nativeBuildTarget(
+  OS targetOS,
+  Architecture architecture,
+) {
+  final triple = switch ((targetOS, architecture)) {
+    (OS.macOS, Architecture.arm64) => 'aarch64-apple-darwin',
+    (OS.macOS, Architecture.x64) => 'x86_64-apple-darwin',
+    (OS.linux, Architecture.arm64) => 'aarch64-unknown-linux-gnu',
+    (OS.linux, Architecture.x64) => 'x86_64-unknown-linux-gnu',
+    _ => throw UnsupportedError(
+      'Unsupported ianvs_terminal_core $targetOS architecture: $architecture',
+    ),
+  };
+  return (
+    triple: triple,
+    libraryName: targetOS == OS.macOS
+        ? 'libianvs_core.dylib'
+        : 'libianvs_core.so',
+  );
 }
 
 Future<String> _macOSSDKRoot() async {

@@ -6024,7 +6024,7 @@ void main() {
       );
       expect(coreBindings.lastCreatedSessionPayload, isNotNull);
       expect(coreBindings.lastCreatedSessionPayload!['launch'], {
-        'program': defaultTerminalProfile().shell,
+        'program': recoveredDocument.profiles.single.shell,
         'args': const ['-l'],
         'env': const {
           'TERM': 'xterm-256color',

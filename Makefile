@@ -68,6 +68,11 @@ help: ## Show the available commands.
 		'  install              Build, sign, and install into /Applications' \
 		'  build-install-macos  Alias for install-macos' \
 		'' \
+		'Linux:' \
+		'  run-linux            Run the GTK desktop app' \
+		'  build-linux          Build the Linux release bundle' \
+		'  package-linux        Build tar.gz and Debian packages' \
+		'' \
 		'iPhone:' \
 		'  install-iphone       Install on a physical iPhone, or fall back to a simulator' \
 		'  install-iphone-physical  Require and install on a physical iPhone' \
@@ -232,3 +237,13 @@ install-iphone-simulator: ## Build, install, and launch on an iPhone simulator.
 
 clean: ## Clean example Flutter build outputs.
 	cd "$(EXAMPLE_DIR)" && $(FLUTTER) clean
+
+.PHONY: run-linux build-linux package-linux
+run-linux: ## Run the Linux desktop app.
+	cd "$(EXAMPLE_DIR)" && $(FLUTTER) run -d linux
+
+build-linux: ## Build the Linux desktop release bundle.
+	cd "$(EXAMPLE_DIR)" && $(FLUTTER) build linux --release
+
+package-linux: ## Build relocatable tar.gz and Debian packages.
+	FLUTTER="$(FLUTTER)" "$(ROOT_DIR)/tools/package_linux.sh"

@@ -6782,6 +6782,12 @@ abstract class AppLocalizations {
   /// **'Command {index}'**
   String commandShortcut(int index);
 
+  /// No description provided for @controlShortcut.
+  ///
+  /// In en, this message translates to:
+  /// **'Control {index}'**
+  String controlShortcut(int index);
+
   /// No description provided for @otherPaneBadges.
   ///
   /// In en, this message translates to:

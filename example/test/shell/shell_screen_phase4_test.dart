@@ -11,6 +11,7 @@ import 'package:app/features/sessions/session_state.dart';
 import 'package:app/features/shell/shell_action_registry.dart';
 import 'package:app/features/shell/shell_screen.dart';
 import 'package:app/features/shell/window_bridge.dart';
+import 'package:app/features/terminal/terminal.dart' as terminal;
 import 'package:app/features/terminal/terminal_viewport.dart';
 import 'package:app/ui/components/app_notifications.dart';
 import 'package:flutter/foundation.dart';
@@ -5019,6 +5020,280 @@ void main() {
       );
     },
   );
+
+  testWidgets(
+    'Linux sends raw Ctrl letters to the PTY without app actions',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
+      fakeBindings.writes.clear();
+      for (final key in [
+        LogicalKeyboardKey.keyC,
+        LogicalKeyboardKey.keyD,
+        LogicalKeyboardKey.keyZ,
+        LogicalKeyboardKey.keyL,
+        LogicalKeyboardKey.keyW,
+        LogicalKeyboardKey.keyT,
+        LogicalKeyboardKey.keyF,
+        LogicalKeyboardKey.keyK,
+        LogicalKeyboardKey.keyV,
+        LogicalKeyboardKey.keyQ,
+        LogicalKeyboardKey.keyE,
+      ]) {
+        await tester.sendKeyDownEvent(
+          LogicalKeyboardKey.controlLeft,
+          platform: 'linux',
+        );
+        await tester.sendKeyDownEvent(key, platform: 'linux');
+        await tester.sendKeyUpEvent(key, platform: 'linux');
+        await tester.sendKeyUpEvent(
+          LogicalKeyboardKey.controlLeft,
+          platform: 'linux',
+        );
+        await tester.pump();
+      }
+      expect(fakeBindings.writes.expand((bytes) => bytes), [
+        3,
+        4,
+        26,
+        12,
+        23,
+        20,
+        6,
+        11,
+        22,
+        17,
+        5,
+      ]);
+      expect(find.byType(TerminalViewport), findsOneWidget);
+      expect(find.byKey(const Key('shell-command-menu-overlay')), findsNothing);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.linux),
+  );
+
+  testWidgets(
+    'Linux Ctrl Shift V pastes without leaking Ctrl V to the PTY',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      var clipboardReads = 0;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'Clipboard.getData') {
+            clipboardReads += 1;
+            return {'text': 'linux-paste-fixture'};
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
+      fakeBindings.writes.clear();
+      await tester.sendKeyDownEvent(
+        LogicalKeyboardKey.controlLeft,
+        platform: 'linux',
+      );
+      await tester.sendKeyDownEvent(
+        LogicalKeyboardKey.shiftLeft,
+        platform: 'linux',
+      );
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.keyV, platform: 'linux');
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.keyV, platform: 'linux');
+      await tester.sendKeyUpEvent(
+        LogicalKeyboardKey.shiftLeft,
+        platform: 'linux',
+      );
+      await tester.sendKeyUpEvent(
+        LogicalKeyboardKey.controlLeft,
+        platform: 'linux',
+      );
+      await tester.pumpAndSettle();
+      expect(
+        fakeBindings.writes.expand((bytes) => bytes),
+        utf8.encode('linux-paste-fixture'),
+      );
+      expect(clipboardReads, 1);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.linux),
+  );
+
+  for (final kittyKeyboardFlags in [0, 3, 11]) {
+    for (final customBinding in [false, true]) {
+      for (final releaseModifiersFirst in [false, true]) {
+        testWidgets(
+          'Shell Copy consumes press repeat release with Kitty flags '
+          '$kittyKeyboardFlags and custom binding $customBinding '
+          'modifier-first release $releaseModifiersFirst',
+          (tester) async {
+            final platform = defaultTargetPlatform.name.toLowerCase();
+            final linux = defaultTargetPlatform == TargetPlatform.linux;
+            final fakeBindings = FakePtyBackend();
+            final copiedTexts = <String>[];
+            tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+              SystemChannels.platform,
+              (call) async {
+                if (call.method == 'Clipboard.setData') {
+                  copiedTexts.add((call.arguments as Map)['text'] as String);
+                }
+                return null;
+              },
+            );
+            addTearDown(
+              () => tester.binding.defaultBinaryMessenger
+                  .setMockMethodCallHandler(SystemChannels.platform, null),
+            );
+            await _pumpShellScreen(
+              tester,
+              fakeBindings: fakeBindings,
+              localConfigRepository: _MemoryLocalTerminalConfigRepository(
+                customBinding
+                    ? LocalTerminalConfigDocument(
+                        keybindings: LocalTerminalKeybindingsConfig(
+                          overrides: {
+                            TerminalActionId
+                                .copy: LocalTerminalKeyBindingOverride(
+                              binding: LocalTerminalKeyBinding(
+                                scope: TerminalKeyBindingScope.terminalFocused,
+                                key: 'Key Y',
+                                control: linux,
+                                shift: linux,
+                                meta: !linux,
+                              ),
+                            ),
+                          },
+                        ),
+                      )
+                    : null,
+              ),
+            );
+            fakeBindings.setFrame(1, <String, Object?>{
+              'rows': <Object?>[
+                <String, Object?>{
+                  'index': 0,
+                  'text': 'ianvs terminal ready',
+                  'style_runs': <Object?>[],
+                },
+              ],
+              'cursor': <String, Object?>{'row': 0, 'col': 4, 'visible': true},
+              'viewport_rows': 24,
+              'viewport_cols': 80,
+              'dirty_ranges': <Object?>[
+                <String, Object?>{'start': 0, 'end': 1},
+              ],
+              'modes': <String, Object?>{
+                'kitty_keyboard_flags': kittyKeyboardFlags,
+              },
+            });
+            await tester.pump(const Duration(milliseconds: 40));
+            await tester.tap(find.byType(TerminalViewport));
+            await tester.pump();
+            final viewport = tester.widget<TerminalViewport>(
+              find.byType(TerminalViewport),
+            );
+            expect(
+              viewport.controller.frame.modes.kittyKeyboardFlags,
+              kittyKeyboardFlags,
+            );
+            viewport.selectionController.setSelection(
+              const terminal.TerminalSelection(
+                startRow: 0,
+                startCol: 0,
+                endRow: 0,
+                endCol: 5,
+              ),
+            );
+            await tester.pump();
+            fakeBindings.writes.clear();
+            final modifiers = linux
+                ? [LogicalKeyboardKey.controlLeft, LogicalKeyboardKey.shiftLeft]
+                : [LogicalKeyboardKey.metaLeft];
+            final key = customBinding
+                ? LogicalKeyboardKey.keyY
+                : LogicalKeyboardKey.keyC;
+            for (final modifier in modifiers) {
+              await tester.sendKeyDownEvent(modifier, platform: platform);
+            }
+            await tester.sendKeyDownEvent(key, platform: platform);
+            await tester.sendKeyRepeatEvent(key, platform: platform);
+            if (!releaseModifiersFirst) {
+              await tester.sendKeyUpEvent(key, platform: platform);
+            }
+            // The key still belongs to the host if modifiers are released first.
+            for (final modifier in modifiers.reversed) {
+              await tester.sendKeyUpEvent(modifier, platform: platform);
+            }
+            if (releaseModifiersFirst) {
+              await tester.sendKeyRepeatEvent(key, platform: platform);
+              await tester.sendKeyUpEvent(key, platform: platform);
+            }
+            await tester.pumpAndSettle();
+            expect(copiedTexts, ['ianvs']);
+            expect(
+              fakeBindings.writes.map(utf8.decode),
+              kittyKeyboardFlags == 11 && linux
+                  ? [
+                      '\x1B[57442;5u',
+                      '\x1B[57441;6u',
+                      '\x1B[57441;5:3u',
+                      '\x1B[57442;1:3u',
+                    ]
+                  : isEmpty,
+            );
+            fakeBindings.writes.clear();
+
+            // The next physical press is terminal input, not stale suppression.
+            await tester.sendKeyDownEvent(
+              LogicalKeyboardKey.controlLeft,
+              platform: platform,
+            );
+            await tester.sendKeyDownEvent(
+              LogicalKeyboardKey.keyC,
+              platform: platform,
+            );
+            await tester.sendKeyRepeatEvent(
+              LogicalKeyboardKey.keyC,
+              platform: platform,
+            );
+            await tester.sendKeyUpEvent(
+              LogicalKeyboardKey.keyC,
+              platform: platform,
+            );
+            await tester.sendKeyUpEvent(
+              LogicalKeyboardKey.controlLeft,
+              platform: platform,
+            );
+            await tester.pump();
+            expect(
+              fakeBindings.writes.map(utf8.decode),
+              kittyKeyboardFlags == 0
+                  ? ['\x03', '\x03']
+                  : [
+                      if (kittyKeyboardFlags == 11) '\x1B[57442;5u',
+                      '\x1B[99;5u',
+                      '\x1B[99;5:2u',
+                      '\x1B[99;5:3u',
+                      if (kittyKeyboardFlags == 11) '\x1B[57442;1:3u',
+                    ],
+            );
+            expect(copiedTexts, ['ianvs']);
+          },
+          variant: const TargetPlatformVariant({
+            TargetPlatform.linux,
+            TargetPlatform.macOS,
+          }),
+        );
+      }
+    }
+  }
 
   testWidgets('shell shortcuts honor local config keybinding overrides', (
     tester,

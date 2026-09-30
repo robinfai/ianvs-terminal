@@ -3,6 +3,28 @@ import 'package:ianvs_terminal_core/ianvs_terminal_core.dart';
 
 void main() {
   test(
+    'default font fallbacks retain Apple priority and portable monospace',
+    () {
+      const font = TerminalFontConfig();
+      expect(font.family, terminalPrimaryFontFamily);
+      expect(font.fallback.first, 'Menlo');
+      expect(
+        font.fallback,
+        containsAllInOrder(<String>[
+          'Monaco',
+          'DejaVu Sans Mono',
+          'Liberation Mono',
+          'Noto Sans Mono',
+          'monospace',
+          'Apple Color Emoji',
+        ]),
+      );
+      final decoded = TerminalFontConfig.fromJson(font.toJson());
+      expect(decoded.fallback, font.fallback);
+    },
+  );
+
+  test(
     'SSH injection overrides preserve inheritance and false on round trip',
     () {
       const inherited = TerminalShellIntegrationConfig();

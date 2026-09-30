@@ -71,8 +71,9 @@ class LocalTerminalShortcutFormatter {
 
   static LocalTerminalKeyBinding? currentBinding(
     TerminalActionId actionId,
-    LocalTerminalKeybindingsConfig config,
-  ) {
+    LocalTerminalKeybindingsConfig config, {
+    TargetPlatform? platform,
+  }) {
     if (config.disabledDefaultActions.contains(actionId)) {
       return null;
     }
@@ -85,8 +86,11 @@ class LocalTerminalShortcutFormatter {
         return override.binding;
       }
     }
-    final defaultBinding =
-        ShellActionRegistry.actions[actionId]?.defaultKeyBinding;
+    final defaultBinding = ShellActionRegistry.platformDefaultBinding(
+      actionId: actionId,
+      binding: ShellActionRegistry.actions[actionId]?.defaultKeyBinding,
+      platform: platform,
+    );
     if (defaultBinding == null) {
       return null;
     }

@@ -8,6 +8,7 @@ import 'package:app/features/sessions/session_state.dart';
 import 'package:app/features/shell/reference_demo.dart';
 import 'package:app/features/shell/shell_screen.dart';
 import 'package:app/ui/app_ui.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -115,31 +116,38 @@ Future<void> openNewShellTab(WidgetTester tester) async {
 }
 
 void main() {
-  testWidgets('shell screen exposes a selected tab in the hyper-style strip', (
-    tester,
-  ) async {
-    await pumpShellScreen(
-      tester,
-      fakeBindings: FakePtyBackend(),
-      repository: MemoryProfileRepository(
-        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
-      ),
-    );
+  testWidgets(
+    'shell screen exposes a selected tab in the hyper-style strip',
+    (tester) async {
+      await pumpShellScreen(
+        tester,
+        fakeBindings: FakePtyBackend(),
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
 
-    expect(find.byKey(const Key('shell-tab-strip')), findsOneWidget);
-    expect(find.bySemanticsIdentifier('shell-tab-1'), findsOneWidget);
-    expect(
-      tester.getSemantics(find.bySemanticsIdentifier('shell-tab-1')),
-      matchesSemantics(
-        label: 'Local Shell tab, Command 1',
-        hasSelectedState: true,
-        isButton: true,
-        isSelected: true,
-      ),
-    );
-    expect(find.bySemanticsLabel('New tab'), findsOneWidget);
-    expect(find.bySemanticsLabel('Open command palette'), findsOneWidget);
-  });
+      expect(find.byKey(const Key('shell-tab-strip')), findsOneWidget);
+      expect(find.bySemanticsIdentifier('shell-tab-1'), findsOneWidget);
+      expect(
+        tester.getSemantics(find.bySemanticsIdentifier('shell-tab-1')),
+        matchesSemantics(
+          label: defaultTargetPlatform == TargetPlatform.linux
+              ? 'Local Shell tab, Control 1'
+              : 'Local Shell tab, Command 1',
+          hasSelectedState: true,
+          isButton: true,
+          isSelected: true,
+        ),
+      );
+      expect(find.bySemanticsLabel('New tab'), findsOneWidget);
+      expect(find.bySemanticsLabel('Open command palette'), findsOneWidget);
+    },
+    variant: const TargetPlatformVariant({
+      TargetPlatform.linux,
+      TargetPlatform.macOS,
+    }),
+  );
 
   testWidgets(
     'shell screen keeps tab hierarchy clear after opening a second tab',

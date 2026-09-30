@@ -68,14 +68,19 @@ class TerminalInputController {
     final usesAppModifier = _platformAppModifierPressed(
       isMetaPressed: isMetaPressed,
       isControlPressed: isControlPressed,
+      isShiftPressed: isShiftPressed,
+      isAltPressed: HardwareKeyboard.instance.isAltPressed,
     );
+    final usesCopyModifier = defaultTargetPlatform == TargetPlatform.linux
+        ? usesAppModifier
+        : isMetaPressed;
 
     if (event is KeyUpEvent && _suppressedKeyUps.remove(event.logicalKey)) {
       return KeyEventResult.handled;
     }
 
     if (isKeyPress &&
-        isMetaPressed &&
+        usesCopyModifier &&
         event.logicalKey == LogicalKeyboardKey.keyC) {
       _suppressKeyUp(event.logicalKey);
       if (isRepeated) {
@@ -612,7 +617,16 @@ bool _platformUsesMetaAppModifier() {
 bool _platformAppModifierPressed({
   required bool isMetaPressed,
   required bool isControlPressed,
+  required bool isShiftPressed,
+  required bool isAltPressed,
 }) {
+  if (defaultTargetPlatform == TargetPlatform.linux) {
+    // Keep unshifted Control-C/V available to terminal applications.
+    return isControlPressed &&
+        isShiftPressed &&
+        !isMetaPressed &&
+        !isAltPressed;
+  }
   if (_platformUsesMetaAppModifier()) {
     return isMetaPressed && !isControlPressed;
   }

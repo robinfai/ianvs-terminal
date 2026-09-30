@@ -11,6 +11,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_pty/ianvs_pty.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart';
 import 'package:ianvs_terminal/src/terminal/render_terminal_viewport.dart';
+import 'package:ianvs_terminal/src/terminal/terminal_font_fallback.dart';
 import 'package:ianvs_terminal/src/terminal/terminal_text_document_style.dart';
 
 void main() {
@@ -1873,17 +1874,73 @@ void main() {
     }
   });
 
-  testWidgets('OSC 50 frame family overrides the profile render font', (
-    tester,
-  ) async {
-    const profileFont = TerminalFontConfig(
-      family: 'Profile Mono',
-      fallback: <String>['Fallback Mono'],
-      size: 15,
-      lineHeight: 1.3,
-    );
-    final controller = TerminalViewportController()
-      ..updateFrame(
+  testWidgets(
+    'OSC 50 frame family overrides the profile render font',
+    (tester) async {
+      const profileFont = TerminalFontConfig(
+        family: 'Profile Mono',
+        fallback: <String>['Fallback Mono'],
+        size: 15,
+        lineHeight: 1.3,
+      );
+      final controller = TerminalViewportController()
+        ..updateFrame(
+          const TerminalFrameDiff(
+            rows: [TerminalRow(index: 0, text: 'font')],
+            cursor: TerminalCursor(row: 0, col: 0, visible: false),
+            viewportRows: 1,
+            viewportCols: 20,
+            dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 0,
+          ),
+        );
+      final selectionController = SelectionController();
+      final runtime = TerminalRuntimeController(
+        backend: _NoopPtyBackend(),
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      final inputController = TerminalInputController(
+        sessionId: '1',
+        runtime: runtime,
+        readFrame: () => controller.frame,
+        readSelection: () => '',
+        copySelection: (_) async {},
+        readClipboard: () async => '',
+      );
+      addTearDown(controller.dispose);
+      addTearDown(selectionController.dispose);
+      addTearDown(runtime.dispose);
+
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: SizedBox(
+            width: 320,
+            height: 48,
+            child: TerminalViewport(
+              controller: controller,
+              selectionController: selectionController,
+              inputController: inputController,
+              onScrollLines: (_) {},
+              onScrollToOffset: (_) {},
+              font: profileFont,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final surface = find.byWidgetPredicate(
+        (widget) => widget.runtimeType.toString() == '_TerminalViewportSurface',
+      );
+      expect(surface, findsOneWidget);
+      var renderObject = tester.renderObject<RenderTerminalViewport>(surface);
+      expect(renderObject.debugFont.family, 'Profile Mono');
+
+      controller.updateFrame(
         const TerminalFrameDiff(
           rows: [TerminalRow(index: 0, text: 'font')],
           cursor: TerminalCursor(row: 0, col: 0, visible: false),
@@ -1892,73 +1949,26 @@ void main() {
           dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
           scrollbackOffset: 0,
           scrollbackMaxOffset: 0,
+          fontFamily: 'Courier Prime',
         ),
       );
-    final selectionController = SelectionController();
-    final runtime = TerminalRuntimeController(
-      backend: _NoopPtyBackend(),
-      copyToClipboard: (_) async {},
-      readClipboard: () async => '',
-      enableSessionPolling: false,
-    );
-    final inputController = TerminalInputController(
-      sessionId: '1',
-      runtime: runtime,
-      readFrame: () => controller.frame,
-      readSelection: () => '',
-      copySelection: (_) async {},
-      readClipboard: () async => '',
-    );
-    addTearDown(controller.dispose);
-    addTearDown(selectionController.dispose);
-    addTearDown(runtime.dispose);
+      await tester.pump();
 
-    await tester.pumpWidget(
-      Directionality(
-        textDirection: TextDirection.ltr,
-        child: SizedBox(
-          width: 320,
-          height: 48,
-          child: TerminalViewport(
-            controller: controller,
-            selectionController: selectionController,
-            inputController: inputController,
-            onScrollLines: (_) {},
-            onScrollToOffset: (_) {},
-            font: profileFont,
-          ),
-        ),
-      ),
-    );
-    await tester.pump();
-
-    final surface = find.byWidgetPredicate(
-      (widget) => widget.runtimeType.toString() == '_TerminalViewportSurface',
-    );
-    expect(surface, findsOneWidget);
-    var renderObject = tester.renderObject<RenderTerminalViewport>(surface);
-    expect(renderObject.debugFont.family, 'Profile Mono');
-
-    controller.updateFrame(
-      const TerminalFrameDiff(
-        rows: [TerminalRow(index: 0, text: 'font')],
-        cursor: TerminalCursor(row: 0, col: 0, visible: false),
-        viewportRows: 1,
-        viewportCols: 20,
-        dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
-        scrollbackOffset: 0,
-        scrollbackMaxOffset: 0,
-        fontFamily: 'Courier Prime',
-      ),
-    );
-    await tester.pump();
-
-    renderObject = tester.renderObject<RenderTerminalViewport>(surface);
-    expect(renderObject.debugFont.family, 'Courier Prime');
-    expect(renderObject.debugFont.fallback, profileFont.fallback);
-    expect(renderObject.debugFont.size, profileFont.size);
-    expect(renderObject.debugFont.lineHeight, profileFont.lineHeight);
-  });
+      renderObject = tester.renderObject<RenderTerminalViewport>(surface);
+      expect(renderObject.debugFont.family, 'Courier Prime');
+      expect(
+        renderObject.debugFont.fallback,
+        terminalFontForRendering(profileFont).fallback,
+      );
+      expect(profileFont.fallback, <String>['Fallback Mono']);
+      expect(renderObject.debugFont.size, profileFont.size);
+      expect(renderObject.debugFont.lineHeight, profileFont.lineHeight);
+    },
+    variant: const TargetPlatformVariant(<TargetPlatform>{
+      TargetPlatform.macOS,
+      TargetPlatform.linux,
+    }),
+  );
 
   testWidgets('terminal viewport renders resolved graphic placements', (
     tester,

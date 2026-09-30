@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import '../config/local_terminal_config_models.dart';
@@ -18,8 +19,15 @@ class ShellShortcutBridge {
     required TerminalKeyBindingScope scope,
     LocalTerminalKeybindingsConfig config =
         const LocalTerminalKeybindingsConfig(),
+    TargetPlatform? platform,
   }) {
-    final bindings = LocalTerminalKeyBindingResolver.resolve(config: config);
+    final targetPlatform = usesMetaShortcuts
+        ? TargetPlatform.macOS
+        : platform ?? defaultTargetPlatform;
+    final bindings = LocalTerminalKeyBindingResolver.resolve(
+      config: config,
+      platform: targetPlatform,
+    );
     final exactSnapshot = LocalTerminalKeyEventSnapshot(
       key: key,
       scope: scope,
@@ -28,6 +36,16 @@ class ShellShortcutBridge {
       shift: isShiftPressed,
       alt: isAltPressed,
     );
+    final exactOverride = LocalTerminalKeyEventResolver.resolve(
+      event: exactSnapshot,
+      bindings: bindings
+          .where(
+            (binding) =>
+                binding.source == LocalTerminalKeyBindingSource.userOverride,
+          )
+          .toList(growable: false),
+    );
+    if (exactOverride != null) return exactOverride;
     final exactAction = LocalTerminalKeyEventResolver.resolve(
       event: exactSnapshot,
       bindings: bindings,
@@ -35,6 +53,11 @@ class ShellShortcutBridge {
     if (exactAction != null) {
       return exactAction;
     }
+
+    // Linux defaults are already physical Ctrl+Shift bindings. Translating a
+    // remaining Ctrl event to Meta would steal raw terminal input and would
+    // also give an explicitly configured Meta binding an unintended alias.
+    if (targetPlatform == TargetPlatform.linux) return null;
 
     final platformSnapshot = LocalTerminalKeyEventSnapshot(
       key: key,

@@ -446,6 +446,14 @@ void main() {
         verifySucceeds: false,
       );
       expect(failedVerify.result.exitCode, isNonZero);
+
+      final invalidLibrary = await _runSignerFixture(
+        signature: 'adhoc',
+        entitlements: validEntitlements,
+        nativeLibraryValid: false,
+      );
+      expect(invalidLibrary.result.exitCode, isNonZero);
+      expect(invalidLibrary.codesignLog, isEmpty);
     },
   );
 }
@@ -466,7 +474,10 @@ List<String> _nativeCorePackagingViolations({
       violations.add('Runner project contains $forbidden');
     }
   }
-  if (!hook.contains("const _assetName = 'libianvs_core.dylib';")) {
+  if (!hook.contains("const _assetName = 'libianvs_core.dylib';") &&
+      !RegExp(
+        r"libraryName:\s*targetOS == OS\.macOS\s*\?\s*'libianvs_core\.dylib'",
+      ).hasMatch(hook)) {
     violations.add('ianvs_pty hook has the wrong native asset name');
   }
   if (RegExp(r'\bCodeAsset\(').allMatches(hook).length != 1) {
@@ -589,6 +600,7 @@ Future<_SignerFixtureResult> _runSignerFixture({
   String authority = 'Apple Development: developer@example.test (FIXTURE123)',
   bool runtimeFlag = true,
   bool verifySucceeds = true,
+  bool nativeLibraryValid = true,
 }) async {
   final repositoryRoot = _exampleRoot().parent;
   final directory = Directory.systemTemp.createTempSync(
@@ -602,6 +614,23 @@ Future<_SignerFixtureResult> _runSignerFixture({
       ..writeAsStringSync(entitlements);
     final uname = File('${bin.path}/uname')
       ..writeAsStringSync('#!/usr/bin/env bash\necho Darwin\n');
+    final pythonLocation = await Process.run('python3', [
+      '-c',
+      'import sys; print(sys.executable)',
+    ]);
+    expect(pythonLocation.exitCode, 0);
+    // The signing fixture stubs platform commands. Mach-O structure/dlopen is
+    // covered by the native verifier's own gate, not a fake empty app bundle.
+    final python = File('${bin.path}/python3')
+      ..writeAsStringSync(r'''
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "$1" == */verify_macos_native_library.py ]]; then
+  [[ "$FAKE_NATIVE_LIBRARY_VALID" == "true" ]] || exit 43
+  exit 0
+fi
+exec "$FAKE_REAL_PYTHON" "$@"
+''');
     final codesign = File('${bin.path}/codesign')
       ..writeAsStringSync(r'''
 #!/usr/bin/env bash
@@ -637,6 +666,7 @@ fi
       '+x',
       uname.path,
       codesign.path,
+      python.path,
     ]);
     expect(chmod.exitCode, 0, reason: chmod.stderr as String?);
 
@@ -653,6 +683,8 @@ fi
         'FAKE_AUTHORITY': authority,
         'FAKE_RUNTIME_FLAG': runtimeFlag.toString(),
         'FAKE_VERIFY_SUCCEEDS': verifySucceeds.toString(),
+        'FAKE_NATIVE_LIBRARY_VALID': nativeLibraryValid.toString(),
+        'FAKE_REAL_PYTHON': (pythonLocation.stdout as String).trim(),
         'FAKE_CODESIGN_LOG': codesignLog.path,
         'FAKE_ENTITLEMENTS_FILE': finalEntitlements.path,
       },

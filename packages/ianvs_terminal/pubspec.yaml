@@ -20,3 +20,25 @@ dev_dependencies:
   analyzer: ^10.0.1
   flutter_test:
     sdk: flutter
+
+# BEGIN terminal font assets (mirrored by tools/sync_terminal_core.dart)
+flutter:
+  assets:
+    - assets/fonts/OFL.txt
+    - assets/fonts/JETBRAINS-OFL.txt
+    - assets/fonts/NERD-FONTS-LICENSE.txt
+    - assets/fonts/SOURCES.md
+  fonts:
+    - family: JetBrainsMono Nerd Font Mono
+      fonts:
+        - asset: assets/fonts/JetBrainsMonoNerdFontMono-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/JetBrainsMonoNerdFontMono-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/JetBrainsMonoNerdFontMono-Italic.ttf
+          weight: 400
+          style: italic
+        - asset: assets/fonts/JetBrainsMonoNerdFontMono-BoldItalic.ttf
+          weight: 700
+          style: italic
+# END terminal font assets

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:app/data/configuration/data_api_configuration.dart';
 import 'package:app/features/config/local_terminal_config_models.dart';
 import 'package:app/features/preferences/app_preferences_models.dart';
@@ -94,6 +96,10 @@ Future<void> _captureTab(
 }
 
 void main() {
+  if (!Platform.isMacOS) {
+    test('settings final captures require macOS rendering', () {}, skip: true);
+    return;
+  }
   ConfigurationCaptureBinding();
   setUpAll(loadVisualCaptureFonts);
   for (final brightness in Brightness.values) {

@@ -1,17 +1,22 @@
 # ianvs_terminal_core
 
-`ianvs_terminal_core` is an embeddable macOS terminal for Flutter desktop apps.
+`ianvs_terminal_core` is an embeddable macOS and Linux terminal for Flutter desktop apps.
 It ships the Dart/Flutter terminal runtime, viewport, tabbed bottom panel, and
 the Rust-backed native PTY implementation as one package.
 
 ## Requirements
 
-- macOS on Apple silicon or Intel
+- macOS on Apple silicon or Intel, or GNU/Linux on x64 or arm64
 - Flutter 3.41 or newer
 - Rust 1.88 or newer with Cargo available during the application build
+- On Linux, Flutter desktop build dependencies (Clang, CMake, Ninja,
+  pkg-config, GTK 3 development headers, and a C++ standard library)
 
-The package build hook compiles and bundles `libianvs_core.dylib`; host apps do
-not need to add a custom Xcode build phase.
+The package build hook compiles and bundles `libianvs_core.dylib` on macOS
+and `libianvs_core.so` on Linux; host apps do not need a custom native build
+step. Linux release distributions must include the entire Flutter bundle,
+including its `lib/` directory. Product builds load the bundled runtime and
+ignore `IANVS_CORE_LIB`; this environment override is for development only.
 
 ## Install
 

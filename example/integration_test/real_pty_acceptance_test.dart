@@ -1589,7 +1589,7 @@ sleep 1
   );
 
   testWidgets(
-    'real PTY OSC 72 query and target lifecycle reach the macOS bridge',
+    'real PTY OSC 72 query and target lifecycle reach the desktop bridge',
     (tester) async {
       final goFile = _tempSignalFile('osc72-drop-target');
       final profile = _scriptProfile(
@@ -2085,6 +2085,7 @@ sleep 1
       final uploadFile = _tempSignalFile('osc1337-file-upload');
       String? savedPath;
       List<int>? savedBytes;
+      var saveCount = 0;
       final profile = _scriptProfile(
         id: 'osc1337-file-transfer',
         name: 'OSC 1337 File Transfer',
@@ -2108,6 +2109,7 @@ sleep 5
         tester,
         profiles: [profile],
         fileDownloadWriter: (path, bytes) async {
+          saveCount += 1;
           savedPath = path;
           savedBytes = List<int>.from(bytes);
         },
@@ -2157,9 +2159,10 @@ sleep 5
       await _waitFor(
         tester,
         description: 'OSC 1337 real PTY saved feedback',
+        // Desktop feedback is an AppNotificationHost card, not a SnackBar
+        // widget. Assert the product message rather than its host container.
         condition: () =>
-            find.byType(SnackBar).evaluate().isNotEmpty &&
-            find.textContaining('osc-phase28.txt').evaluate().isNotEmpty,
+            find.text('Saved osc-phase28.txt').evaluate().isNotEmpty,
       );
 
       _signal(uploadFile);
@@ -2167,13 +2170,13 @@ sleep 5
         tester,
         description: 'OSC 1337 real PTY upload denial',
         condition: () =>
-            find.byType(SnackBar).evaluate().isNotEmpty &&
-            find.textContaining('osc-phase28.txt').evaluate().isEmpty &&
+            find.text('File upload request blocked').evaluate().isNotEmpty &&
             _terminalText(
               harness.container,
             ).contains('OSC1337-FILE-TRANSFER-DONE'),
         onTimeout: () => 'Terminal text: ${_terminalText(harness.container)}',
       );
+      expect(saveCount, 1);
     },
     skip: _skipNonRefreshPolicyGateTests,
   );
@@ -2762,7 +2765,7 @@ void _enableStandaloneReleaseTestGate(
   );
 }
 
-bool get _skipRealPtyTests => !Platform.isMacOS;
+bool get _skipRealPtyTests => !Platform.isMacOS && !Platform.isLinux;
 
 bool get _skipNonRefreshPolicyGateTests =>
     _skipRealPtyTests || _refreshPolicyGateOnly;
@@ -2792,6 +2795,7 @@ Future<_RealPtyHarness> _pumpRealPtyApp(
   List<int?>? notificationExpiries,
   List<String>? closedNotifications,
   List<Map<String, Object?>>? runtimeEvents,
+  void Function(Map<String, Object?> event)? onRuntimeEvent,
   bool maskRefreshHints = false,
   SessionClipboardTextWrite? clipboardTextWrite,
   ShellFileDownloadWriter? fileDownloadWriter,
@@ -2799,7 +2803,7 @@ Future<_RealPtyHarness> _pumpRealPtyApp(
   LocalTerminalConfigDocument? localConfig,
   ShellUserAttentionBridge? userAttentionBridge,
 }) async {
-  ensureMacosIntegrationTestFramesEnabled(tester.binding);
+  ensureDesktopIntegrationTestFramesEnabled(tester.binding);
   final PtySessionBackend ptyBackend = maskRefreshHints
       ? _MaskedRefreshHintPtyBackend(NativePtyBackend.load())
       : NativePtyBackend.load(emitRuntimeEventGapDiagnostics: true);
@@ -2824,8 +2828,11 @@ Future<_RealPtyHarness> _pumpRealPtyApp(
         shellExternalUrlOpenerProvider.overrideWithValue(externalUrlOpener),
       if (userAttentionBridge != null)
         shellUserAttentionBridgeProvider.overrideWithValue(userAttentionBridge),
-      if (runtimeEvents != null)
-        terminalGraphicsTraceSinkProvider.overrideWithValue(runtimeEvents.add),
+      if (runtimeEvents != null || onRuntimeEvent != null)
+        terminalGraphicsTraceSinkProvider.overrideWithValue((event) {
+          runtimeEvents?.add(event);
+          onRuntimeEvent?.call(event);
+        }),
       shellNotificationSenderProvider.overrideWithValue(({
         required title,
         body,
@@ -2884,6 +2891,7 @@ Future<void> _verifyIdleWakeBaseline(
 }) async {
   final fixture = _createIdleWakeFixture(state.name);
   final runtimeEvents = <Map<String, Object?>>[];
+  void Function(Map<String, Object?> event)? observeRefresh;
   final profile = _scriptProfile(
     id: 'idle-wake-${state.name}',
     name: 'Idle Wake ${state.name}',
@@ -2905,6 +2913,7 @@ while [ ! -f "$RELEASE_FILE" ]; do sleep 0.05; done
     tester,
     profiles: <TerminalProfile>[profile],
     runtimeEvents: runtimeEvents,
+    onRuntimeEvent: (event) => observeRefresh?.call(event),
     maskRefreshHints: true,
   );
 
@@ -2956,35 +2965,63 @@ while [ ! -f "$RELEASE_FILE" ]; do sleep 0.05; done
     ),
   };
 
+  Map<String, Object?>? preparedResult;
+  terminal.TerminalRefreshSnapshot? preparedSnapshot;
+  final token = '${state.name}-${DateTime.now().microsecondsSinceEpoch}';
+  final stopwatch = Stopwatch();
+  Future<void>? wakeWrite;
+  Object? wakeWriteError;
+  StackTrace? wakeWriteStack;
+  observeRefresh = (event) {
+    if (preparedResult != null ||
+        event['schema_version'] != 'ianvs-terminal-refresh-policy-v1' ||
+        event['session_id'] != sessionId ||
+        event['event'] != 'refresh_result' ||
+        event['refresh_id'] is! int ||
+        (event['refresh_id']! as int) <= historyRefreshId ||
+        event['current_delay_micros'] != delayMicros ||
+        event['backoff_skip_ticks'] != skipTicks) {
+      return;
+    }
+    // The 264ms stage is transient. Capture its result synchronously rather
+    // than polling the last log item, which may already be a later skipped
+    // tick. Start the real FIFO write at this exact policy state, not after a
+    // frame-pump wait that could advance the policy to its 396ms cap.
+    preparedResult = event;
+    preparedSnapshot = runtime.refreshPolicySnapshotFor(sessionId);
+    stopwatch.start();
+    wakeWrite = fixture.wakeFifo
+        .writeAsString('$token\n')
+        .then<void>(
+          (_) {},
+          onError: (Object error, StackTrace stack) {
+            wakeWriteError = error;
+            wakeWriteStack = stack;
+          },
+        );
+  };
   if (resetBeforeSignal) {
     runtime.sendInput(sessionId, Uint8List(0));
   }
 
-  Map<String, Object?>? preparedResult;
   await _waitFor(
     tester,
     pollStep: const Duration(milliseconds: 5),
     description: 'a current ${state.name} refresh result newer than history',
-    condition: () {
-      final latest = _latestRefreshEvent(runtimeEvents, sessionId);
-      if (latest == null ||
-          latest['event'] != 'refresh_result' ||
-          latest['refresh_id'] is! int ||
-          (latest['refresh_id']! as int) <= historyRefreshId ||
-          latest['current_delay_micros'] != delayMicros ||
-          latest['backoff_skip_ticks'] != skipTicks) {
-        return false;
-      }
-      preparedResult = latest;
-      return true;
-    },
+    condition: () => preparedResult != null,
     onTimeout: () {
       final latest = _latestRefreshEvent(runtimeEvents, sessionId);
       return 'History refresh_id: $historyRefreshId\nLatest event: $latest';
     },
   );
+  observeRefresh = null;
 
   expect(preparedResult, isNotNull);
+  expect(
+    preparedSnapshot!.pumpMetrics.currentDelay.inMicroseconds,
+    delayMicros,
+  );
+  expect(preparedSnapshot!.pumpMetrics.backoffSkipTicks, skipTicks);
   if (state == _BaselineIdleWakeState.maximumBackoff) {
     expect(
       preparedResult!['current_delay_micros'],
@@ -2993,9 +3030,12 @@ while [ ! -f "$RELEASE_FILE" ]; do sleep 0.05; done
     );
   }
 
-  final token = '${state.name}-${DateTime.now().microsecondsSinceEpoch}';
-  final stopwatch = Stopwatch()..start();
-  await fixture.wakeFifo.writeAsString('$token\n', flush: true);
+  // Closing the completed write delivers the pipe token. Linux does not
+  // support fsync on FIFOs (EINVAL); this is not a durable regular file.
+  await wakeWrite!;
+  if (wakeWriteError case final Object error) {
+    Error.throwWithStackTrace(error, wakeWriteStack!);
+  }
   await _waitFor(
     tester,
     pollStep: const Duration(milliseconds: 5),
@@ -3169,7 +3209,8 @@ while [ ! -f "$RELEASE_FILE" ]; do sleep 0.05; done
   final token =
       '${state.name}-${path.name}-${DateTime.now().microsecondsSinceEpoch}';
   final stopwatch = Stopwatch()..start();
-  await fixture.wakeFifo.writeAsString('$token\n', flush: true);
+  // FIFO delivery requires a completed write, never a regular-file fsync.
+  await fixture.wakeFifo.writeAsString('$token\n');
   await _waitFor(
     tester,
     pollStep: const Duration(milliseconds: 5),

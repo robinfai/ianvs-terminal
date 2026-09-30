@@ -190,7 +190,10 @@ extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
     if (binding == null) {
       return 'Not assigned';
     }
-    if (!_usesMetaShortcuts && binding.meta && !binding.control) {
+    if (!_usesMetaShortcuts &&
+        defaultTargetPlatform != TargetPlatform.linux &&
+        binding.meta &&
+        !binding.control) {
       return LocalTerminalShortcutFormatter.bindingLabel(
         LocalTerminalKeyBinding(
           scope: binding.scope,

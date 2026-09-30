@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Trail
+Comment=Ianvs terminal emulator
+Exec=trail
+Icon=work.ianvs.trail
+Terminal=false
+Categories=System;TerminalEmulator;
+StartupWMClass=work.ianvs.trail

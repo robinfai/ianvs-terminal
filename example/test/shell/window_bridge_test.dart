@@ -43,16 +43,58 @@ void main() {
     );
   });
 
-  test(
-    'ZMODEM dialogs are advertised only by the implemented macOS runner',
-    () {
-      WindowBridge.debugZmodemFileDialogPlatformOverride = TargetPlatform.linux;
-      expect(WindowBridge.supportsZmodemFileDialogs, isFalse);
+  test('ZMODEM dialogs are advertised only by implemented desktop runners', () {
+    for (final platform in TargetPlatform.values) {
+      WindowBridge.debugZmodemFileDialogPlatformOverride = platform;
+      expect(
+        WindowBridge.supportsZmodemFileDialogs,
+        platform == TargetPlatform.macOS || platform == TargetPlatform.linux,
+      );
+    }
+  });
 
-      WindowBridge.debugZmodemFileDialogPlatformOverride = TargetPlatform.macOS;
-      expect(WindowBridge.supportsZmodemFileDialogs, isTrue);
-    },
-  );
+  testWidgets('Linux ZMODEM routes native pickers and preserves cancellation', (
+    tester,
+  ) async {
+    WindowBridge.debugZmodemFileDialogPlatformOverride = TargetPlatform.linux;
+    const channel = MethodChannel('app/window_bridge');
+    final calls = <String>[];
+    var cancel = false;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+      call,
+    ) async {
+      calls.add(call.method);
+      if (cancel) return null;
+      return switch (call.method) {
+        'chooseZmodemReceiveDirectory' => '/tmp/linux-receive',
+        'chooseZmodemSendFiles' => ['/tmp/one', '/tmp/one', '', '/tmp/two'],
+        _ => throw MissingPluginException(),
+      };
+    });
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        channel,
+        null,
+      ),
+    );
+    expect(
+      await WindowBridge.chooseZmodemReceiveDirectory(),
+      '/tmp/linux-receive',
+    );
+    expect(await WindowBridge.chooseZmodemSendFiles(), [
+      '/tmp/one',
+      '/tmp/two',
+    ]);
+    cancel = true;
+    expect(await WindowBridge.chooseZmodemReceiveDirectory(), isNull);
+    expect(await WindowBridge.chooseZmodemSendFiles(), isNull);
+    expect(calls, [
+      'chooseZmodemReceiveDirectory',
+      'chooseZmodemSendFiles',
+      'chooseZmodemReceiveDirectory',
+      'chooseZmodemSendFiles',
+    ]);
+  });
 
   test('platform calls are not gated by debug-only binding state', () {
     final source = File(

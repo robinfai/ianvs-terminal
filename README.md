@@ -16,6 +16,12 @@ CodeAsset build hook 自动编译并随应用打包；宿主 Xcode 工程不得�
 拷贝 phase。具体依赖、`TerminalSessionHandle.runtimeSignals` 和嵌入生命周期示例见
 [packages/ianvs_terminal_core/README.md](packages/ianvs_terminal_core/README.md)。
 
+## Linux 桌面
+
+Linux GTK runner 支持 `make run-linux`、`make build-linux` 和 `make package-linux`。
+打包输出包含原生 PTY `.so`；本地敏感信息通过桌面 Secret Service 加密保存。
+依赖、验证入口、发行格式与平台边界见 [Linux 发布说明](docs/release/LINUX_RELEASE.md)。
+
 ## Apple 平台兼容范围
 
 macOS 和 iOS 默认仅要求兼容最近 4 个已正式发布的大版本，按实际发布顺序滚动，
