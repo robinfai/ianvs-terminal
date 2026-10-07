@@ -1,0 +1,277 @@
+{
+  "created_at": "2026-10-03T06:51:07.332436+00:00",
+  "dataset": "terminal-bench/terminal-bench-2-1",
+  "commit": "7131e4375048a0e408a8fb404b5f499d726b695b",
+  "tasks": [
+    {
+      "name": "large-scale-text-editing",
+      "coverage": "files",
+      "representative": false,
+      "instruction_sha256": "2746a16369b28b2e368ca168bc85222811cbe570f3b315f1b1c432afad07ddc8",
+      "task_tree": "c2f519a7011d73ba8a775265081405a4d1cdb98b",
+      "agent_timeout_sec": 1200.0,
+      "verifier_timeout_sec": 1200.0,
+      "environment": {
+        "build_timeout_sec": 600.0,
+        "docker_image": "alexgshaw/large-scale-text-editing:20251031",
+        "cpus": 1,
+        "memory_mb": 2048,
+        "storage_mb": 10240,
+        "gpus": 0,
+        "allow_internet": true,
+        "mcp_servers": [],
+        "env": {}
+      }
+    },
+    {
+      "name": "log-summary-date-ranges",
+      "coverage": "files",
+      "representative": true,
+      "instruction_sha256": "c1d4516ad4ec2238209740eaf01291df9ab48b0028a3fc5df383c6f831453484",
+      "task_tree": "5ede3a7233c599672ed632f4ecd1f7cc9ea28139",
+      "agent_timeout_sec": 900.0,
+      "verifier_timeout_sec": 900.0,
+      "environment": {
+        "build_timeout_sec": 600.0,
+        "docker_image": "alexgshaw/log-summary-date-ranges:20251031",
+        "cpus": 1,
+        "memory_mb": 2048,
+        "storage_mb": 10240,
+        "gpus": 0,
+        "allow_internet": true,
+        "mcp_servers": [],
+        "env": {}
+      }
+    },
+    {
+      "name": "multi-source-data-merger",
+      "coverage": "files",
+      "representative": false,
+      "instruction_sha256": "d1d28bb6e37f7a255a1b7f78aae8591f35c0494f33e4913392424ad954aab944",
+      "task_tree": "c367ccf88eb5368c4b92d64e23fb1b8f4c97e48f",
+      "agent_timeout_sec": 900.0,
+      "verifier_timeout_sec": 900.0,
+      "environment": {
+        "build_timeout_sec": 600.0,
+        "docker_image": "alexgshaw/multi-source-data-merger:20251031",
+        "cpus": 1,
+        "memory_mb": 2048,
+        "storage_mb": 10240,
+        "gpus": 0,
+        "allow_internet": true,
+        "mcp_servers": [],
+        "env": {}
+      }
+    },
+    {
+      "name": "fix-git",
+      "coverage": "debugging",
+      "representative": false,
+      "instruction_sha256": "f98174e47ba5ce040f6fad22ef3cbca4dd27b3192868ea5d082077222c3ec4e8",
+      "task_tree": "d46ee4917dc83bb69df73db134a8626c3251cf33",
+      "agent_timeout_sec": 900.0,
+      "verifier_timeout_sec": 900.0,
+      "environment": {
+        "build_timeout_sec": 600.0,
+        "docker_image": "alexgshaw/fix-git:20260403",
+        "cpus": 1,
+        "memory_mb": 2048,
+        "storage_mb": 10240,
+        "gpus": 0,
+        "allow_internet": true,
+        "mcp_servers": [],
+        "env": {}
+      }
+    },
+    {
+      "name": "merge-diff-arc-agi-task",
+      "coverage": "debugging",
+      "representative": false,
+      "instruction_sha256": "2d826479873e5ac1c94c1f802763bf85c22bb04624384685ebdf6b153fe0278e",
+      "task_tree": "ac678c4abf5d521f929df873355a7542866f9b51",
+      "agent_timeout_sec": 900.0,
+      "verifier_timeout_sec": 900.0,
+      "environment": {
+        "build_timeout_sec": 600.0,
+        "docker_image": "alexgshaw/merge-diff-arc-agi-task:20251031",
+        "cpus": 1,
+        "memory_mb": 4096,
+        "storage_mb": 10240,
+        "gpus": 0,
+        "allow_internet": true,
+        "mcp_servers": [],
+        "env": {}
+      }
+    },
+    {
+      "name": "sqlite-db-truncate",
+      "coverage": "debugging",
+      "representative": false,
+      "instruction_sha256": "465c135cd80be49023ea3ecf8f1d840c679b3a960efe425d510894e417b9d802",
+      "task_tree": "7e074d9daad0d274f2a6ae3f62598a81c3a379bd",
+      "agent_timeout_sec": 900.0,
+      "verifier_timeout_sec": 900.0,
+      "environment": {
+        "build_timeout_sec": 600.0,
+        "docker_image": "alexgshaw/sqlite-db-truncate:20251031",
+        "cpus": 1,
+        "memory_mb": 2048,
+        "storage_mb": 10240,
+        "gpus": 0,
+        "allow_internet": true,
+        "mcp_servers": [],
+        "env": {}
+      }
+    },
+    {
+      "name": "build-pmars",
+      "coverage": "build",
+      "representative": true,
+      "instruction_sha256": "dd4a3aa762e6b3c09e67bd7f61d9b6afbe379dcd7297c2c0ebe2e9bd0082215e",
+      "task_tree": "a453c55c8ad94ff02c3d95c8028b81f11c34d069",
+      "agent_timeout_sec": 900.0,
+      "verifier_timeout_sec": 900.0,
+      "environment": {
+        "build_timeout_sec": 600.0,
+        "docker_image": "alexgshaw/build-pmars:20251031",
+        "cpus": 1,
+        "memory_mb": 2048,
+        "storage_mb": 10240,
+        "gpus": 0,
+        "allow_internet": true,
+        "mcp_servers": [],
+        "env": {}
+      }
+    },
+    {
+      "name": "compile-compcert",
+      "coverage": "build",
+      "representative": false,
+      "instruction_sha256": "d6efce07c47484fcd13c7918f68bd4af6314392de43751c4cad1e62530c2ad06",
+      "task_tree": "c91f1208acb9c5b29afb99098a8fcae8de59c3f2",
+      "agent_timeout_sec": 2400.0,
+      "verifier_timeout_sec": 2400.0,
+      "environment": {
+        "build_timeout_sec": 600.0,
+        "docker_image": "alexgshaw/compile-compcert:20260403",
+        "cpus": 2,
+        "memory_mb": 4096,
+        "storage_mb": 10240,
+        "gpus": 0,
+        "allow_internet": true,
+        "mcp_servers": [],
+        "env": {}
+      }
+    },
+    {
+      "name": "sqlite-with-gcov",
+      "coverage": "build",
+      "representative": false,
+      "instruction_sha256": "b6ba9acf62292bc2a0bab40d4805b3abceededbb0ccd4477a1ce9ccc42c14dd9",
+      "task_tree": "444713ae2f03788ea2f04d8f6ef8a1f8e2106c21",
+      "agent_timeout_sec": 900.0,
+      "verifier_timeout_sec": 900.0,
+      "environment": {
+        "build_timeout_sec": 600.0,
+        "docker_image": "alexgshaw/sqlite-with-gcov:20251031",
+        "cpus": 1,
+        "memory_mb": 2048,
+        "storage_mb": 10240,
+        "gpus": 0,
+        "allow_internet": true,
+        "mcp_servers": [],
+        "env": {}
+      }
+    },
+    {
+      "name": "nginx-request-logging",
+      "coverage": "operations",
+      "representative": true,
+      "instruction_sha256": "26a7ac98aced6107f147206790ada77bbf8ed3c25fb360cf323d5fc6889edf99",
+      "task_tree": "868b31c1ccf43ed998364891ff26a4cd54c423b0",
+      "agent_timeout_sec": 900.0,
+      "verifier_timeout_sec": 900.0,
+      "environment": {
+        "build_timeout_sec": 600.0,
+        "docker_image": "alexgshaw/nginx-request-logging:20251031",
+        "cpus": 1,
+        "memory_mb": 2048,
+        "storage_mb": 10240,
+        "gpus": 0,
+        "allow_internet": true,
+        "mcp_servers": [],
+        "env": {}
+      }
+    },
+    {
+      "name": "openssl-selfsigned-cert",
+      "coverage": "operations",
+      "representative": false,
+      "instruction_sha256": "38054a3371f7c2c853478a2f9af0bff858437d5b28a9a07483238f06e566921f",
+      "task_tree": "4c5b1214db4b807f2bc4c1bff8803402e36b648b",
+      "agent_timeout_sec": 900.0,
+      "verifier_timeout_sec": 900.0,
+      "environment": {
+        "build_timeout_sec": 600.0,
+        "docker_image": "alexgshaw/openssl-selfsigned-cert:20251031",
+        "cpus": 1,
+        "memory_mb": 2048,
+        "storage_mb": 10240,
+        "gpus": 0,
+        "allow_internet": true,
+        "mcp_servers": [],
+        "env": {}
+      }
+    },
+    {
+      "name": "configure-git-webserver",
+      "coverage": "operations",
+      "representative": false,
+      "instruction_sha256": "62151b7371bc364277a3c118bba755334c640fb0cefc7a5af106e6e763cf1d97",
+      "task_tree": "fb0e15322941d35e121ef1f85dca262bcc67b43d",
+      "agent_timeout_sec": 900.0,
+      "verifier_timeout_sec": 900.0,
+      "environment": {
+        "build_timeout_sec": 600.0,
+        "docker_image": "alexgshaw/configure-git-webserver:20251031",
+        "cpus": 1,
+        "memory_mb": 2048,
+        "storage_mb": 10240,
+        "gpus": 0,
+        "allow_internet": true,
+        "mcp_servers": [],
+        "env": {}
+      }
+    }
+  ],
+  "model": "gpt-5.6-sol",
+  "attempts_per_task": 1,
+  "reasoning_effort": "high",
+  "adapter": "@agentclientprotocol/codex-acp@2.1.1",
+  "scope": "production controller / ACP / MCP / native SSH command blocks",
+  "approvals": "harness approves each request inside the pinned disposable container",
+  "source_hashes": {
+    "example/lib/features/ai/acp/acp_rpc.dart": "c2d6c4b2571dbda67c28e363274c8c11c08f31ec3ca89f832f87473a3bd9f91d",
+    "example/lib/features/ai/acp/agent_backend.dart": "f79dcdc9e32cca6414b1983c9be2cedae736e2e78aa4701b377996b26af62af0",
+    "example/lib/features/ai/acp/bridge_permissions.dart": "a5cd06b370600385ce786d09556b2d801fec877b0f183976d8ac6c7d4e2dd63b",
+    "example/lib/features/ai/acp/codex_acp_backend.dart": "3fe715f8acd18da5381f474e59ccd115309330b313e132925689a5f146f9ff78",
+    "example/lib/features/ai/acp/terminal_mcp_server.dart": "931b9f1b5858579114fb5a93ec30d41dbdd111ce4059507c1f852dfff6c422cd",
+    "example/lib/features/ai/ai_api_client.dart": "ee3f35cc6051cfd75f6e905a2e300de0b1451352a352dc81501adcc286110d08",
+    "example/lib/features/ai/ai_models.dart": "502f3b1ce333299f69be88c89fa7048366fd3bbc584ef58400d45d7340a12a3e",
+    "example/lib/features/ai/ai_settings.dart": "bb275dc08b7bab36cfc27cfa8fc01faf953201e3f764e5b84b5889996186a2bd",
+    "example/lib/features/ai/ai_settings_dialog.dart": "4f6c2d461fcf355f51fbbbd91697db670672870868b1c6dfc215a1a934bf8f37",
+    "example/lib/features/ai/ai_strings.dart": "29f2c6033ebd177bda38d8ea1f0adff0cadbdafbcb4ab97c169cc60eedc2d9f3",
+    "example/lib/features/ai/terminal_ai_acp.dart": "ccdc46da2da7271be0a2bc75b48cff347f405a46c9e7b893dc42e7e49f5bed26",
+    "example/lib/features/ai/terminal_ai_connections.dart": "a10f04394998ddeeded9665e7495f52a3b8996f097158e3b63438e76e5db2a0d",
+    "example/lib/features/ai/terminal_ai_controller.dart": "c63f99156fb202c2dd8c89708e45abf9e4a8b032cdb490d4574d0d541f4e52c8",
+    "example/lib/features/ai/terminal_ai_message.dart": "b08e03e953a4fbbaa2aee15596d74239e34c5f3d74d54dbe5da7f3f43cd9be38",
+    "example/lib/features/ai/terminal_ai_panel.dart": "66838f57d582f062afbae79fa486e92ec62d5ced32f5d91cb17ee901603c92a4",
+    "example/lib/features/ai/terminal_ai_retained_timeline.dart": "fda166661f9c2060a55f20a7459c03761373b374216deeed11912cf2911ed5ca",
+    "example/lib/features/ai/terminal_ai_runtime.dart": "4cd74c64667992155ac9df980f119ab1ecedfdada1e44abc17ce8d3a58b9b66a",
+    "example/lib/features/ai/terminal_ai_target_notice.dart": "94f969fdfa276e9d120e2f8433da0bf3342f78f0fd351f31e8e8fce1263db0a0",
+    "example/lib/features/ai/terminal_ai_workspace.dart": "00f621cb2f9e61e1b5f5ecd1ddab03d7fc8b70adba8498d5106af230d55c5c3f",
+    "example/tool/acp_terminal_bench_test.dart": "d878e0854932fd39b206edffd08a6a10bd004a1642726a28b3fa30e486f8851d",
+    "native/core/target/debug/libianvs_core.dylib": "1aa1d1bbae299f9037eed788cc2d7af405286d7d82ccc649c6d1dec2605407c2",
+    "tools/terminal_bench/acp_agent.py": "d08cfe6dd502d98be6f272d270c293689e17b72d8efe63706d4e7540494cf5fe"
+  }
+}

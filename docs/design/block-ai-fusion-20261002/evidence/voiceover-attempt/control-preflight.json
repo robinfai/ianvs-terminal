@@ -1,0 +1,14 @@
+{
+  "ownership": {
+    "pid": 75161,
+    "expected_title": "Trail Accessibility Fixture · 75161",
+    "native_title_verified": true,
+    "foreground": true,
+    "stage": "proposal",
+    "verified_at_epoch": 1790999841.9957461,
+    "voiceover_accessed": false,
+    "speech_verified": false
+  },
+  "probe_timeout": true,
+  "speech_read": false
+}

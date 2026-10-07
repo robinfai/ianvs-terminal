@@ -1,0 +1,19 @@
+   Compiling ianvs_core v0.1.0 (/Users/robinfai/flutter_projects/ianvs-terminal/native/core)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.99s
+     Running unittests src/lib.rs (native/core/target/debug/deps/ianvs_core-aace0d3be1a44b38)
+
+running 1 test
+
+thread 'session::command_blocks::tests::main_screen_tui_clear_preserves_completed_blocks_without_repeating_history' panicked at src/session/command_blocks.rs:352:56:
+range end index 2 out of range for slice of length 0
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test session::command_blocks::tests::main_screen_tui_clear_preserves_completed_blocks_without_repeating_history ... FAILED
+
+failures:
+
+failures:
+    session::command_blocks::tests::main_screen_tui_clear_preserves_completed_blocks_without_repeating_history
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 418 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `--lib`

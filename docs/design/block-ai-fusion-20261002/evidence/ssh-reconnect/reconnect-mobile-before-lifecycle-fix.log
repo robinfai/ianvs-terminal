@@ -1,0 +1,171 @@
+package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart
+00:00 +0: (setUpAll)
+00:00 +0: SSH failure keeps AI draft and output on macOS
+00:01 +1: SSH failure keeps AI draft and output on iOS
+══╡ EXCEPTION CAUGHT BY WIDGETS LIBRARY ╞═══════════════════════════════════════════════════════════
+The following assertion was thrown building TerminalViewport-[GlobalKey#74606
+terminal-viewport-2-2](dependencies: [_LocalizationsScope-[GlobalKey#51702]]):
+A TerminalViewportController was used after being disposed.
+Once you have called dispose() on a TerminalViewportController, it can no longer be used.
+
+When the exception was thrown, this was the stack:
+#0      ChangeNotifier.debugAssertNotDisposed.<anonymous closure> (package:flutter/src/foundation/change_notifier.dart:184:9)
+#1      ChangeNotifier.debugAssertNotDisposed (package:flutter/src/foundation/change_notifier.dart:191:6)
+#2      ChangeNotifier.addListener (package:flutter/src/foundation/change_notifier.dart:273:27)
+#3      _TerminalViewportState.initState (package:ianvs_terminal/src/terminal/terminal_viewport.dart:575:23)
+#4      StatefulElement._firstBuild (package:flutter/src/widgets/framework.dart:5950:55)
+#5      ComponentElement.mount (package:flutter/src/widgets/framework.dart:5793:5)
+...     Normal element mounting (7 frames)
+#12     Element.inflateWidget (package:flutter/src/widgets/framework.dart:4587:20)
+#13     Element.updateChild (package:flutter/src/widgets/framework.dart:4053:20)
+#14     ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#15     StatefulElement.performRebuild (package:flutter/src/widgets/framework.dart:5982:11)
+#16     Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#17     StatefulElement.update (package:flutter/src/widgets/framework.dart:6007:5)
+#18     Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#19     ComponentElement.performRebuild (package:flutter/src/widgets/framework.dart:5841:16)
+#20     Element.rebuild (package:flutter/src/widgets/framework.dart:5529:7)
+#21     ProxyElement.update (package:flutter/src/widgets/framework.dart:6149:5)
+#22     Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#23     Element.updateChildren (package:flutter/src/widgets/framework.dart:4191:32)
+#24     MultiChildRenderObjectElement.update (package:flutter/src/widgets/framework.dart:7295:17)
+#25     Element.updateChild (package:flutter/src/widgets/framework.dart:4037:15)
+#26     _LayoutBuilderElement._rebuildWithConstraints.updateChildCallback (package:flutter/src/widgets/layout_builder.dart:247:18)
+#27     BuildOwner.buildScope (package:flutter/src/widgets/framework.dart:3101:19)
+#28     _LayoutBuilderElement._rebuildWithConstraints (package:flutter/src/widgets/layout_builder.dart:270:12)
+#29     RenderAbstractLayoutBuilderMixin.layoutCallback (package:flutter/src/widgets/layout_builder.dart:333:38)
+#30     RenderObjectWithLayoutCallbackMixin.runLayoutCallback.<anonymous closure> (package:flutter/src/rendering/object.dart:4302:33)
+#31     RenderObject.invokeLayoutCallback.<anonymous closure> (package:flutter/src/rendering/object.dart:3026:17)
+#32     PipelineOwner._enableMutationsToDirtySubtrees (package:flutter/src/rendering/object.dart:1223:15)
+#33     RenderObject.invokeLayoutCallback (package:flutter/src/rendering/object.dart:3025:14)
+#34     RenderObjectWithLayoutCallbackMixin.runLayoutCallback (package:flutter/src/rendering/object.dart:4302:5)
+#35     _RenderLayoutBuilder.performLayout (package:flutter/src/widgets/layout_builder.dart:447:5)
+#36     RenderObject.layout (package:flutter/src/rendering/object.dart:2907:7)
+#37     ChildLayoutHelper.layoutChild (package:flutter/src/rendering/layout_helper.dart:62:11)
+#38     RenderFlex._computeSizes (package:flutter/src/rendering/flex.dart:1275:26)
+#39     RenderFlex.performLayout (package:flutter/src/rendering/flex.dart:1329:32)
+#40     RenderObject.layout (package:flutter/src/rendering/object.dart:2907:7)
+#41     RenderProxyBoxMixin.performLayout (package:flutter/src/rendering/proxy_box.dart:118:18)
+#42     RenderObject.layout (package:flutter/src/rendering/object.dart:2907:7)
+#43     RenderProxyBoxMixin.performLayout (package:flutter/src/rendering/proxy_box.dart:118:18)
+#44     RenderObject.layout (package:flutter/src/rendering/object.dart:2907:7)
+#45     ChildLayoutHelper.layoutChild (package:flutter/src/rendering/layout_helper.dart:62:11)
+#46     RenderStack._computeSize (package:flutter/src/rendering/stack.dart:647:43)
+#47     RenderStack.performLayout (package:flutter/src/rendering/stack.dart:682:12)
+#48     RenderObject.layout (package:flutter/src/rendering/object.dart:2907:7)
+#49     RenderProxyBoxMixin.performLayout (package:flutter/src/rendering/proxy_box.dart:118:18)
+#50     RenderObject.layout (package:flutter/src/rendering/object.dart:2907:7)
+#51     RenderProxyBoxMixin.performLayout (package:flutter/src/rendering/proxy_box.dart:118:18)
+#52     RenderObject.layout (package:flutter/src/rendering/object.dart:2907:7)
+#53     _RenderLayoutBuilder.performLayout (package:flutter/src/widgets/layout_builder.dart:449:14)
+#54     RenderObject.layout (package:flutter/src/rendering/object.dart:2907:7)
+#55     RenderProxyBoxMixin.performLayout (package:flutter/src/rendering/proxy_box.dart:118:18)
+#56     RenderObject.layout (package:flutter/src/rendering/object.dart:2907:7)
+#57     RenderProxyBoxMixin.performLayout (package:flutter/src/rendering/proxy_box.dart:118:18)
+#58     RenderObject.layout (package:flutter/src/rendering/object.dart:2907:7)
+#59     ChildLayoutHelper.layoutChild (package:flutter/src/rendering/layout_helper.dart:62:11)
+#60     RenderFlex._computeSizes (package:flutter/src/rendering/flex.dart:1275:26)
+#61     RenderFlex.performLayout (package:flutter/src/rendering/flex.dart:1329:32)
+#62     RenderObject._layoutWithoutResize (package:flutter/src/rendering/object.dart:2755:7)
+#63     PipelineOwner.flushLayout (package:flutter/src/rendering/object.dart:1174:18)
+#64     PipelineOwner.flushLayout (package:flutter/src/rendering/object.dart:1187:15)
+#65     AutomatedTestWidgetsFlutterBinding.drawFrame (package:flutter_test/src/binding.dart:2433:27)
+#66     RendererBinding._handlePersistentFrameCallback (package:flutter/src/rendering/binding.dart:509:5)
+#67     SchedulerBinding._invokeFrameCallback (package:flutter/src/scheduler/binding.dart:1430:15)
+#68     SchedulerBinding.handleDrawFrame (package:flutter/src/scheduler/binding.dart:1345:9)
+#69     AutomatedTestWidgetsFlutterBinding.pump.<anonymous closure> (package:flutter_test/src/binding.dart:2260:9)
+#72     TestAsyncUtils.guard (package:flutter_test/src/test_async_utils.dart:74:41)
+#73     AutomatedTestWidgetsFlutterBinding.pump (package:flutter_test/src/binding.dart:2249:27)
+#74     WidgetTester.pump.<anonymous closure> (package:flutter_test/src/widget_tester.dart:652:53)
+#77     TestAsyncUtils.guard (package:flutter_test/src/test_async_utils.dart:74:41)
+#78     WidgetTester.pump (package:flutter_test/src/widget_tester.dart:652:27)
+#79     _settle (file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart:126:18)
+#80     main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart:392:13)
+<asynchronous suspension>
+#81     testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#82     TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided 5 frames from dart:async and package:stack_trace)
+
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:02 +1 -1: SSH failure keeps AI draft and output on iOS [E]
+  Test failed. See exception logs above.
+  The test description was: SSH failure keeps AI draft and output on iOS
+  
+══╡ EXCEPTION CAUGHT BY WIDGET INSPECTOR ╞══════════════════════════════════════════════════════════
+The following assertion was thrown:
+Looking up a deactivated widget's ancestor is unsafe.
+At this point the state of the widget's element tree is no longer stable.
+To safely refer to a widget's ancestor in its dispose() method, save a reference to the ancestor by
+calling dependOnInheritedWidgetOfExactType() in the widget's didChangeDependencies() method.
+
+When the exception was thrown, this was the stack:
+#0      Element._debugCheckStateIsActiveForAncestorLookup.<anonymous closure> (package:flutter/src/widgets/framework.dart:5049:9)
+#1      Element._debugCheckStateIsActiveForAncestorLookup (package:flutter/src/widgets/framework.dart:5063:6)
+#2      Element.visitAncestorElements (package:flutter/src/widgets/framework.dart:5174:12)
+#3      _describeRelevantUserCode (package:flutter/src/widgets/widget_inspector.dart:4242:13)
+#4      _parseDiagnosticsNode (package:flutter/src/widgets/widget_inspector.dart:4161:12)
+#5      debugTransformDebugCreator (package:flutter/src/widgets/widget_inspector.dart:4140:21)
+#6      _FlutterErrorDetailsNode.builder (package:flutter/src/foundation/assertions.dart:1300:31)
+#7      DiagnosticableNode.getProperties (package:flutter/src/foundation/diagnostics.dart:2943:68)
+#8      TextTreeRenderer._debugRender (package:flutter/src/foundation/diagnostics.dart:1270:63)
+#9      TextTreeRenderer.render (package:flutter/src/foundation/diagnostics.dart:1137:14)
+#10     FlutterError.dumpErrorToConsole (package:flutter/src/foundation/assertions.dart:1030:13)
+#11     _defaultTestExceptionReporter (package:flutter_test/src/test_exception_reporter.dart:29:16)
+#12     TestWidgetsFlutterBinding._createTestCompletionHandler.<anonymous closure> (package:flutter_test/src/binding.dart:1713:28)
+<asynchronous suspension>
+(elided 8 frames from dart:async and package:stack_trace)
+
+This exception was caught while trying to describe the user-relevant code of another error.
+════════════════════════════════════════════════════════════════════════════════════════════════════
+══╡ EXCEPTION CAUGHT BY WIDGET INSPECTOR ╞══════════════════════════════════════════════════════════
+The following assertion was thrown:
+Looking up a deactivated widget's ancestor is unsafe.
+At this point the state of the widget's element tree is no longer stable.
+To safely refer to a widget's ancestor in its dispose() method, save a reference to the ancestor by
+calling dependOnInheritedWidgetOfExactType() in the widget's didChangeDependencies() method.
+
+When the exception was thrown, this was the stack:
+#0      Element._debugCheckStateIsActiveForAncestorLookup.<anonymous closure> (package:flutter/src/widgets/framework.dart:5049:9)
+#1      Element._debugCheckStateIsActiveForAncestorLookup (package:flutter/src/widgets/framework.dart:5063:6)
+#2      Element.visitAncestorElements (package:flutter/src/widgets/framework.dart:5174:12)
+#3      _describeRelevantUserCode (package:flutter/src/widgets/widget_inspector.dart:4242:13)
+#4      _parseDiagnosticsNode (package:flutter/src/widgets/widget_inspector.dart:4161:12)
+#5      debugTransformDebugCreator (package:flutter/src/widgets/widget_inspector.dart:4140:21)
+#6      _FlutterErrorDetailsNode.builder (package:flutter/src/foundation/assertions.dart:1300:31)
+#7      DiagnosticableNode.emptyBodyDescription (package:flutter/src/foundation/diagnostics.dart:2939:45)
+#8      TextTreeRenderer._debugRender (package:flutter/src/foundation/diagnostics.dart:1307:14)
+#9      TextTreeRenderer.render (package:flutter/src/foundation/diagnostics.dart:1137:14)
+#10     FlutterError.dumpErrorToConsole (package:flutter/src/foundation/assertions.dart:1030:13)
+#11     _defaultTestExceptionReporter (package:flutter_test/src/test_exception_reporter.dart:29:16)
+#12     TestWidgetsFlutterBinding._createTestCompletionHandler.<anonymous closure> (package:flutter_test/src/binding.dart:1713:28)
+<asynchronous suspension>
+(elided 8 frames from dart:async and package:stack_trace)
+
+This exception was caught while trying to describe the user-relevant code of another error.
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:02 +1 -1: phone can recheck current support without changing mode or task
+00:03 +2 -1: phone reader touch selection returns to the retained AI task
+00:04 +3 -1: phone TUI grid and input ownership portrait
+00:05 +4 -1: phone TUI grid and input ownership landscape
+00:05 +5 -1: phone TUI grid and input ownership short-dark
+00:06 +6 -1: phone session menu preserves the AI task through capability changes
+00:06 +7 -1: iOS negotiates Blocks and preserves manual Normal
+00:07 +8 -1: android negotiates Blocks and preserves manual Normal
+00:07 +9 -1: SSH hop and fullscreen fall back; restore remains manual
+00:08 +10 -1: main-screen application modes fall back without an alternate buffer
+00:08 +11 -1: mobile Block input fits phone with the keyboard
+00:08 +12 -1: mobile Block input fits landscape with the keyboard
+00:09 +13 -1: mobile Block input fits fixed-text-dark with the keyboard
+00:09 +14 -1: mobile Block input fits landscape-dark with the keyboard
+00:09 +15 -1: mobile Block input fits ipad with the keyboard
+00:09 +16 -1: mobile settings save Normal for new sessions only
+00:10 +17 -1: explicit Normal preference overrides the mobile default
+00:10 +18 -1: (tearDownAll)
+00:10 +18 -1: Some tests failed.
+
+Failing tests:
+  /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on iOS

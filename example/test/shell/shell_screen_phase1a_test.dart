@@ -99,10 +99,10 @@ void main() {
       expect(
         tester.getCenter(find.byKey(const Key('shell-chrome-window-title'))).dx,
         closeTo(
-          (tester.getCenter(find.byKey(const Key('shell-toggle-sidebar'))).dx +
+          (tester.getRect(find.byKey(const Key('shell-toggle-sidebar'))).right +
                   tester
-                      .getCenter(find.byKey(const Key('shell-chrome-menu')))
-                      .dx) /
+                      .getRect(find.byKey(const Key('terminal-ai-open-1')))
+                      .left) /
               2,
           0.5,
         ),

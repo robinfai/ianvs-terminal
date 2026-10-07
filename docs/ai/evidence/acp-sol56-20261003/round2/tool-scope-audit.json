@@ -1,0 +1,68 @@
+[
+  {
+    "task": "large-scale-text-editing",
+    "tool_calls": 10,
+    "non_trail_tool_calls": []
+  },
+  {
+    "task": "log-summary-date-ranges",
+    "tool_calls": 2,
+    "non_trail_tool_calls": []
+  },
+  {
+    "task": "multi-source-data-merger",
+    "tool_calls": 3,
+    "non_trail_tool_calls": []
+  },
+  {
+    "task": "fix-git",
+    "tool_calls": 11,
+    "non_trail_tool_calls": []
+  },
+  {
+    "task": "merge-diff-arc-agi-task",
+    "tool_calls": 27,
+    "non_trail_tool_calls": []
+  },
+  {
+    "task": "sqlite-db-truncate",
+    "tool_calls": 4,
+    "non_trail_tool_calls": []
+  },
+  {
+    "task": "build-pmars",
+    "tool_calls": 16,
+    "non_trail_tool_calls": []
+  },
+  {
+    "task": "compile-compcert",
+    "tool_calls": 73,
+    "non_trail_tool_calls": [
+      {
+        "id": "01a100cb-ac49-7742-a310-7872d82f62c2",
+        "kind": "think",
+        "title": "Compact conversation"
+      }
+    ]
+  },
+  {
+    "task": "sqlite-with-gcov",
+    "tool_calls": 36,
+    "non_trail_tool_calls": []
+  },
+  {
+    "task": "nginx-request-logging",
+    "tool_calls": 8,
+    "non_trail_tool_calls": []
+  },
+  {
+    "task": "openssl-selfsigned-cert",
+    "tool_calls": 2,
+    "non_trail_tool_calls": []
+  },
+  {
+    "task": "configure-git-webserver",
+    "tool_calls": 9,
+    "non_trail_tool_calls": []
+  }
+]

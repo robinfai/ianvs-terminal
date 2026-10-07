@@ -7061,7 +7061,7 @@ abstract class AppLocalizations {
   /// No description provided for @developmentMasterKeyStorageDescription.
   ///
   /// In en, this message translates to:
-  /// **'The development master key stays in this Mac’s local Keychain. It does not sync to iCloud or share storage with the release app.'**
+  /// **'The development master key is stored in a local file accessible only to your user account. It does not access Keychain, sync to iCloud, or share storage with the release app.'**
   String get developmentMasterKeyStorageDescription;
 
   /// No description provided for @syncLocalOnly.
@@ -8396,16 +8396,58 @@ abstract class AppLocalizations {
   /// **'Command Blocks'**
   String get terminalModeBlocks;
 
+  /// Read the current session capability without reconnecting or changing display mode.
+  ///
+  /// In en, this message translates to:
+  /// **'Recheck Command Block support'**
+  String get terminalModeRecheck;
+
+  /// Result of a user-requested capability check; this does not switch terminal mode.
+  ///
+  /// In en, this message translates to:
+  /// **'The current node supports Command Blocks.'**
+  String get terminalModeSupportAvailable;
+
   /// No description provided for @preferredTerminalMode.
   ///
   /// In en, this message translates to:
   /// **'Preferred terminal mode'**
   String get preferredTerminalMode;
 
+  /// No description provided for @terminalModePlatformDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Follow platform default'**
+  String get terminalModePlatformDefault;
+
+  /// No description provided for @aiConfigurationLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading saved configuration…'**
+  String get aiConfigurationLoading;
+
+  /// No description provided for @aiConfigurationUnreadable.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved configuration could not be read. Terminal features remain available.'**
+  String get aiConfigurationUnreadable;
+
+  /// No description provided for @aiConfigurationMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'Not configured. Terminal features work independently.'**
+  String get aiConfigurationMissing;
+
+  /// No description provided for @aiConfigurationSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Configuration saved. Open to edit or test the connection.'**
+  String get aiConfigurationSaved;
+
   /// No description provided for @preferredTerminalModeHelp.
   ///
   /// In en, this message translates to:
-  /// **'Applies to new sessions. Command Blocks requires a supported shell. Right-click a tab to switch.'**
+  /// **'New sessions only. Platform defaults: Blocks on phones, Normal on desktop. Blocks requires shell support; after support returns, switch back manually from the tab or session menu.'**
   String get preferredTerminalModeHelp;
 
   /// No description provided for @blockUnavailableChecking.

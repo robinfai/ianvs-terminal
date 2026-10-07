@@ -22,33 +22,6 @@ void main() {
     expect(called, isFalse);
   });
 
-  test(
-    'development Keychain uses its own non-synchronizing namespace',
-    () async {
-      final previous = FlutterSecureStoragePlatform.instance;
-      final recorder = _RecordingSecureStoragePlatform();
-      FlutterSecureStoragePlatform.instance = recorder;
-      debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
-      addTearDown(() {
-        FlutterSecureStoragePlatform.instance = previous;
-        debugDefaultTargetPlatformOverride = null;
-      });
-      await const FlutterSecurePortableMasterKeyStorage.development().write(
-        'test',
-      );
-      expect(recorder.writes.single['synchronizable'], 'false');
-      expect(recorder.writes.single['usesDataProtectionKeychain'], 'false');
-      expect(
-        recorder.writes.single['accountName'],
-        FlutterSecurePortableMasterKeyStorage.developmentAccountName,
-      );
-      expect(
-        recorder.keys.single,
-        FlutterSecurePortableMasterKeyStorage.developmentStorageKey,
-      );
-    },
-  );
-
   test('portable representation preserves the exact Data API secret', () {
     final key = PortableMasterKey.fromSecret('  密钥 with spaces  ');
 

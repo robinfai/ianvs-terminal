@@ -282,6 +282,7 @@ fn supported_operation(value: &str) -> bool {
             | "completion.local_cancel"
             | "composer.state"
             | "composer.submit"
+            | "composer.receipt"
             | "ssh.auth_response"
             | "ssh.host_key_response"
             | "ssh.sftp.list_directory_start"

@@ -64,6 +64,12 @@ fn completed_block(id: u64, previous: Option<&str>, command: &str, output: &str)
             })
         {
             assert_eq!(block["exitCode"], 0, "{block}");
+            let submission = block["submissionId"]
+                .as_str()
+                .expect("shell command provenance");
+            let receipt = request(id, "composer.receipt", json!({"submissionId":submission}));
+            assert_eq!(receipt["outcome"], "accepted");
+            assert_eq!(receipt["blockId"], block["id"]);
             let text = block["lines"]
                 .as_array()
                 .unwrap()
@@ -137,6 +143,37 @@ fn remote_composer_ssh_negotiation_and_multihop() {
     // Command acceptance and bytes in the raw screen are insufficient: each
     // execution needs its own completed output zone, including duplicate input.
     let mut previous_block = None;
+    initial = submit(
+        session.0,
+        &initial,
+        "intent-alias",
+        "alias intentcheck='printf alias-ok'; intentfunction() { printf fn-ok; }",
+    );
+    assert!(initial["aliases"]["intentcheck"].is_string(), "{initial}");
+    for name in ["ls", "cd", "intentcheck", "intentfunction"] {
+        assert!(
+            initial["commandNames"]
+                .as_array()
+                .unwrap()
+                .contains(&json!(name)),
+            "missing {name}"
+        );
+    }
+    initial = submit(
+        session.0,
+        &initial,
+        "remove-intent",
+        "unalias intentcheck; unset -f intentfunction",
+    );
+    for name in ["intentcheck", "intentfunction"] {
+        assert!(
+            !initial["commandNames"]
+                .as_array()
+                .unwrap()
+                .contains(&json!(name)),
+            "stale {name}"
+        );
+    }
     for index in 0..2 {
         initial = submit(session.0, &initial, &format!("list-{index}"), "ls");
         previous_block = Some(completed_block(
@@ -146,12 +183,10 @@ fn remote_composer_ssh_negotiation_and_multihop() {
             "block-fixture.txt",
         ));
     }
-    let parent = submit(
-        session.0,
-        &initial,
-        "parent",
-        "export COMPOSER_SSH_VALUE=parent; cd /tmp\nprintf '%s\\n' 'SSH_UNICODE_中文_😀'",
-    );
+    let parent_command =
+        "export COMPOSER_SSH_VALUE=parent; cd /tmp\nprintf '%s\\n' 'SSH_UNICODE_中文_😀'";
+    let parent = submit(session.0, &initial, "parent", parent_command);
+    completed_block(session.0, None, parent_command, "SSH_UNICODE_中文_😀");
     assert!(
         !serde_json::from_str::<Value>(
             &session::search_session(session.0, "SSH_UNICODE_中文_😀").unwrap()
@@ -183,12 +218,9 @@ fn remote_composer_ssh_negotiation_and_multihop() {
         )["outcome"],
         "rejected"
     );
-    let child = submit(
-        session.0,
-        &child,
-        "child-value",
-        "printf 'SSH_CHILD:%s\\n' \"${COMPOSER_SSH_VALUE:-empty}\"; export COMPOSER_SSH_VALUE=child",
-    );
+    let child_command = "printf 'SSH_CHILD:%s\\n' \"${COMPOSER_SSH_VALUE:-empty}\"; export COMPOSER_SSH_VALUE=child";
+    let child = submit(session.0, &child, "child-value", child_command);
+    completed_block(session.0, None, child_command, "SSH_CHILD:empty");
     assert!(
         !serde_json::from_str::<Value>(
             &session::search_session(session.0, "SSH_CHILD:empty").unwrap()
@@ -277,5 +309,60 @@ fn remote_composer_ssh_negotiation_and_multihop() {
         std::thread::sleep(Duration::from_millis(20));
     }
     session::write_session(session.0, b"\x03").unwrap();
-    ready(session.0, recovered["lease"].as_str());
+    let cancelled = ready(session.0, recovered["lease"].as_str());
+    // Cancelling an accepted but incomplete line must not attach the following
+    // raw command to that submission or replace its title with the stale input.
+    session::write_session(session.0, b"printf 'AFTER_CANCEL\\n'\r").unwrap();
+    let mut state = ready(session.0, cancelled["lease"].as_str());
+    let blocks = request(session.0, "terminal.command_blocks", json!({}));
+    let raw_block = blocks["blocks"].as_array().unwrap().last().unwrap();
+    assert_eq!(raw_block["command"], "printf 'AFTER_CANCEL\\n'");
+    assert!(raw_block["submissionId"].is_null(), "{raw_block}");
+    assert!(
+        request(
+            session.0,
+            "composer.receipt",
+            json!({"submissionId":"continuation"})
+        )["blockId"]
+            .is_null()
+    );
+    // Repeated pipelines/conditionals keep the exact reviewed input and distinct
+    // canonical blocks, even though DEBUG initially sees only the first printf.
+    let command = "  printf '%s\\n' 'QUOTE_\"中文😀' | cat && printf '\\tCOMPOUND_END\\n'\n";
+    let mut previous = None;
+    for index in 0..2 {
+        state = submit(session.0, &state, &format!("compound-{index}"), command);
+        previous = Some(completed_block(
+            session.0,
+            previous.as_deref(),
+            command,
+            "COMPOUND_END",
+        ));
+    }
+    // Exercise both fragmented host hooks and the former 16 KiB title limit
+    // through real Readline/ZLE, not only an in-memory terminal parser.
+    let long_command = format!(": '{}'; printf 'LONG_COMMAND_END\\n'", "x".repeat(17_000));
+    submit(session.0, &state, "long-command", &long_command);
+    completed_block(session.0, None, &long_command, "LONG_COMMAND_END");
+    if fixture["local"] != true {
+        // Real OpenSSH can send EOF before exit-status. Preserve a nonzero
+        // remote result instead of manufacturing success or transport failure.
+        session::write_session(session.0, b"exit 7\r").unwrap();
+        let deadline = Instant::now() + Duration::from_secs(8);
+        loop {
+            let events: Value =
+                serde_json::from_str(&session::poll_events(session.0).unwrap()).unwrap();
+            if let Some(exit) = events
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|e| e["kind"] == "exit")
+            {
+                assert_eq!(exit["payload"]["code"], 7, "{exit}");
+                break;
+            }
+            assert!(Instant::now() < deadline, "SSH shell exit was not reported");
+            std::thread::sleep(Duration::from_millis(20));
+        }
+    }
 }

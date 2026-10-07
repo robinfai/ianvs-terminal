@@ -9,6 +9,7 @@ import 'composer_editor.dart';
 import 'composer_icons.dart';
 import 'composer_suggestions.dart';
 import 'composer_theme.dart';
+import 'input_intent.dart';
 import 'terminal_composer_controller.dart';
 
 export 'composer_icons.dart' show ComposerIcons;
@@ -26,6 +27,7 @@ class TerminalComposerView extends StatefulWidget {
     this.maxLines = 6,
     this.onNavigateBlocks,
     this.onAskAi,
+    this.onOpenAi,
     this.isNaturalLanguage,
     super.key,
   });
@@ -38,6 +40,7 @@ class TerminalComposerView extends StatefulWidget {
   final int maxLines;
   final bool Function(int delta)? onNavigateBlocks;
   final ValueChanged<String>? onAskAi;
+  final VoidCallback? onOpenAi;
   final bool Function(String)? isNaturalLanguage;
 
   @override
@@ -53,18 +56,20 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
   late FocusNode _focus;
   double _width = 320;
   String _copyFeedback = '';
-  bool _forceCommand = false;
   bool get _asksAi =>
       widget.onAskAi != null &&
-      !_forceCommand &&
       !model.historyOpen &&
       model.selectedIndex < 0 &&
-      widget.isNaturalLanguage?.call(model.editor.text) == true;
+      (model.inputIntent.choice == InputIntentChoice.automatic &&
+              widget.isNaturalLanguage != null
+          ? widget.isNaturalLanguage!(model.editor.text)
+          : model.intentDecision.intent == InputIntent.ai);
 
   void _performPrimary() {
     if (_asksAi && model.canPerformPrimaryAction) {
       model.dismissCompletions();
       widget.onAskAi!(model.editor.text);
+      model.chooseInputIntent(InputIntentChoice.automatic);
     } else {
       unawaited(model.performPrimaryAction());
     }
@@ -233,6 +238,14 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
     if (command && key == LogicalKeyboardKey.keyZ) {
       model.dismissHistory();
       hardware.isShiftPressed ? model.redo() : model.undo();
+      return KeyEventResult.handled;
+    }
+    if (command && key == LogicalKeyboardKey.keyI && widget.onAskAi != null) {
+      if (event is KeyDownEvent) {
+        model.chooseInputIntent(
+          _asksAi ? InputIntentChoice.command : InputIntentChoice.ai,
+        );
+      }
       return KeyEventResult.handled;
     }
     if (hardware.isControlPressed && key == LogicalKeyboardKey.keyR) {
@@ -714,6 +727,8 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (widget.onOpenAi != null || widget.onAskAi != null)
+              _intent(tokens, compact: true),
             IconButton(
               key: const Key('composer-history-toggle'),
               tooltip: tr('Command history', '命令历史'),
@@ -818,6 +833,7 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
         ),
       ),
       _automaticSuggestions(tokens),
+      if (widget.onOpenAi != null || widget.onAskAi != null) _intent(tokens),
       _moreActions(tokens),
     ];
     if (compact) {
@@ -1024,8 +1040,9 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
         key: const Key('composer-primary-action'),
         onPressed: model.canPerformPrimaryAction
             ? () {
+                final asksAi = _asksAi;
                 _performPrimary();
-                if (!_asksAi) _focus.requestFocus();
+                if (!asksAi) _focus.requestFocus();
               }
             : null,
         style: FilledButton.styleFrom(
@@ -1055,6 +1072,60 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
     );
   }
 
+  Widget _intent(
+    ComposerTheme tokens, {
+    bool compact = false,
+  }) => PopupMenuButton<String>(
+    key: const Key('composer-input-intent'),
+    tooltip: tr('Input intent', '输入意图'),
+    onSelected: (intent) {
+      if (intent == 'ai' && widget.onAskAi == null) {
+        widget.onOpenAi?.call();
+        return;
+      }
+      model.chooseInputIntent(InputIntentChoice.values.byName(intent));
+      _focus.requestFocus();
+    },
+    itemBuilder: (_) => [
+      CheckedPopupMenuItem(
+        value: 'automatic',
+        checked: model.inputIntent.choice == InputIntentChoice.automatic,
+        child: Text(tr('Automatic', '自动识别')),
+      ),
+      CheckedPopupMenuItem(
+        value: 'command',
+        checked: model.inputIntent.choice == InputIntentChoice.command,
+        child: Text(tr('Command', '命令')),
+      ),
+      CheckedPopupMenuItem(
+        value: 'ai',
+        checked: model.inputIntent.choice == InputIntentChoice.ai,
+        child: Text(tr('Ask AI', 'AI 提问')),
+      ),
+    ],
+    child: ConstrainedBox(
+      constraints: BoxConstraints(minHeight: compact ? 44 : 32),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            _asksAi ? Icons.auto_awesome_outlined : Icons.terminal_outlined,
+            size: 18,
+            color: tokens.muted,
+          ),
+          if (!compact) ...[
+            const SizedBox(width: 6),
+            Text(
+              '${_asksAi ? tr('Ask AI', 'AI 提问') : tr('Command', '命令')}${model.inputIntent.choice == InputIntentChoice.automatic ? tr(' · Auto', ' · 自动') : ''}',
+              style: tokens.metadataStyle,
+            ),
+          ],
+          Icon(Icons.expand_more, size: 16, color: tokens.muted),
+        ],
+      ),
+    ),
+  );
+
   Widget _moreActions(ComposerTheme tokens) {
     final mac = defaultTargetPlatform == TargetPlatform.macOS;
     return PopupMenuButton<_ComposerMenuAction>(
@@ -1078,9 +1149,14 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
         switch (action) {
           case _ComposerMenuAction.askAi:
             widget.onAskAi?.call(model.editor.text);
+            model.chooseInputIntent(InputIntentChoice.automatic);
             return;
           case _ComposerMenuAction.forceCommand:
-            setState(() => _forceCommand = !_forceCommand);
+            model.chooseInputIntent(
+              model.inputIntent.choice == InputIntentChoice.command
+                  ? InputIntentChoice.automatic
+                  : InputIntentChoice.command,
+            );
           case _ComposerMenuAction.copy:
             unawaited(_copyDraft());
           case _ComposerMenuAction.undo:
@@ -1110,8 +1186,8 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
           ),
           CheckedPopupMenuItem(
             value: _ComposerMenuAction.forceCommand,
-            checked: _forceCommand,
-            child: Text(tr('Always submit as a command', '始终作为命令提交')),
+            checked: model.inputIntent.choice == InputIntentChoice.command,
+            child: Text(tr('Submit this draft as a command', '此草稿作为命令提交')),
           ),
           const PopupMenuDivider(),
         ],

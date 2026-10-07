@@ -1,0 +1,13 @@
+{
+  "scenario": "delayed persistent-shell directory",
+  "path": "tmp/terminal-bench/acp-2-1/smoke-directory-20261003T083205",
+  "model": "gpt-5.6-sol",
+  "approvals": 2,
+  "final_cwd": "/tmp/trail-acp-cwd",
+  "final_exit_code": 0,
+  "block_ids": [
+    "1791016350536-2",
+    "1791016363934-5"
+  ],
+  "error": null
+}

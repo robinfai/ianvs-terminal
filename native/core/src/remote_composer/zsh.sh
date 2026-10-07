@@ -5,15 +5,27 @@ __ianvs_composer_install() {
   autoload -Uz add-zle-hook-widget || return
   typeset -gi __ianvs_cepoch=0 __ianvs_cavailable=0
   __ianvs_composer_emit() { builtin printf '\033]6973;@@SECRET@@;@@CONTEXT@@;composer;%s\007' "$1" }
+  __ianvs_inventory_emit() { __ianvs_composer_emit "$1" }
+  @@COMMAND_INVENTORY@@
   __ianvs_composer_ready() {
     emulate -L zsh
     __ianvs_cavailable=0
     if [[ $CONTEXT == start && -z $BUFFER && ${ZLE_RECURSIVE:-0} == 0 ]]; then
+      unset __ianvs_pending_submission __ianvs_pending_command
       (( ++__ianvs_cepoch ))
       __ianvs_cavailable=1
       local cwd=$(builtin printf %s "$PWD" | command od -An -tx1 -v | command tr -d ' \n')
       local home=$(builtin printf %s "$HOME" | command od -An -tx1 -v | command tr -d ' \n')
-      __ianvs_composer_emit "ready;$__ianvs_cepoch;$cwd;$home"
+      local name names='' LC_ALL=C
+      local -i count=0
+      for name in ${(ok)aliases}; do
+        [[ -n $name && $name != *[^a-zA-Z0-9_.-]* && ${#name} -le 128 ]] || continue
+        (( count < 64 && ${#names} + ${#name} + 1 <= 2048 )) || break
+        names+="${names:+,}$name"
+        (( ++count ))
+      done
+      __ianvs_command_inventory "$__ianvs_cepoch"
+      __ianvs_composer_emit "ready;$__ianvs_cepoch;$cwd;$home;$names"
     else
       __ianvs_composer_emit suspended
     fi
@@ -56,6 +68,8 @@ __ianvs_composer_install() {
     builtin printf -v BUFFER '%b' "$escaped"
     CURSOR=${#BUFFER}
     __ianvs_cavailable=0
+    typeset -g __ianvs_pending_submission=$id
+    typeset -g __ianvs_pending_command=$BUFFER
     __ianvs_composer_emit "accepted;$id"
     zle .accept-line
   }

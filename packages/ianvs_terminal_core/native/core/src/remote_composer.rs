@@ -20,12 +20,14 @@ struct State {
 }
 
 struct Adapter {
+    command_inventory: crate::command_inventory::CommandInventory,
     secret: String,
     shell: String,
     epoch: u64,
     state: &'static str,
     cwd: String,
     home: String,
+    aliases: BTreeMap<String, String>,
 }
 
 struct Submission {
@@ -71,15 +73,25 @@ impl RemoteComposer {
         self.0.lock().contexts.insert(
             context.into(),
             Adapter {
+                command_inventory: Default::default(),
                 secret: secret.clone(),
                 shell: shell.into(),
                 epoch: 0,
                 state: "draft",
                 cwd: String::new(),
                 home: String::new(),
+                aliases: BTreeMap::new(),
             },
         );
         source
+            .replace(
+                "@@COMMAND_INVENTORY@@",
+                if shell == "zsh" {
+                    include_str!("command_inventory.zsh")
+                } else {
+                    include_str!("command_inventory.bash")
+                },
+            )
             .replace("@@SECRET@@", &secret)
             .replace("@@CONTEXT@@", context)
     }
@@ -102,7 +114,9 @@ impl RemoteComposer {
             "home":adapter.map_or("", |a| a.home.as_str()), "dialect":adapter.map_or("generic", |a| a.shell.as_str()),
             "submissionId":state.submission.as_ref().map(|s| &s.id),
             "outcome":state.submission.as_ref().map_or("none", |s| s.outcome),
-            "history":[], "historyRevision":0}),
+            "history":[], "historyRevision":0,
+            "commandNames": adapter.map(|a| &a.command_inventory.names),
+            "aliases": adapter.map(|a| &a.aliases)}),
         )
     }
 
@@ -115,6 +129,22 @@ impl RemoteComposer {
         Self::expire(&mut state);
         json!({"submissionId":state.submission.as_ref().map(|s| &s.id),
             "outcome":state.submission.as_ref().map_or("none", |s| s.outcome)})
+    }
+
+    pub(crate) fn receipt_for(&self, id: &str) -> Option<String> {
+        let mut state = self.0.lock();
+        Self::expire(&mut state);
+        if let Some(submission) = &state.submission
+            && submission.id == id
+        {
+            return Some(submission.outcome.into());
+        }
+        state
+            .outcomes
+            .iter()
+            .rev()
+            .find(|(key, _)| key == id)
+            .map(|(_, outcome)| outcome.clone())
     }
 
     fn invalidate_locked(state: &mut State) {
@@ -222,7 +252,10 @@ impl RemoteComposer {
             return;
         }
         match fields {
-            ["ready", epoch, cwd, home] => {
+            ["commands" | "commands-end", ..] => {
+                adapter.command_inventory.receive(fields, adapter.epoch);
+            }
+            ["ready", epoch, cwd, home] | ["ready", epoch, cwd, home, _] => {
                 let Ok(epoch) = epoch.parse::<u64>() else {
                     return;
                 };
@@ -232,7 +265,29 @@ impl RemoteComposer {
                 let (Some(cwd), Some(home)) = (path(cwd), path(home)) else {
                     return;
                 };
+                // Only names are needed for local intent detection. Do not
+                // transport alias bodies (which may contain credentials).
+                let names = fields.get(4).copied().unwrap_or("");
+                if names.len() > 2048 {
+                    return;
+                }
+                let aliases: Vec<_> = names.split(',').filter(|n| !n.is_empty()).collect();
+                if aliases.len() > 64
+                    || aliases.iter().any(|name| {
+                        name.len() > 128
+                            || !name
+                                .bytes()
+                                .all(|b| b.is_ascii_alphanumeric() || b"_.-".contains(&b))
+                    })
+                {
+                    return;
+                }
+                adapter.aliases = aliases
+                    .iter()
+                    .map(|name| (name.to_string(), name.to_string()))
+                    .collect();
                 adapter.epoch = epoch;
+                adapter.command_inventory.commit(epoch);
                 adapter.cwd = cwd;
                 adapter.home = home;
                 adapter.state = "ready";
@@ -309,6 +364,72 @@ mod tests {
     }
 
     #[test]
+    fn command_names_require_the_current_nodes_secret_and_prompt() {
+        let bridge = RemoteComposer::default();
+        bridge.activate("a", false);
+        bridge.script("a", "zsh");
+        let secret = bridge.0.lock().contexts["a"].secret.clone();
+        bridge.receive(&secret, "a", &["commands", "1", "ls,帮助,fn"]);
+        assert_eq!(bridge.snapshot().unwrap()["commandNames"], json!([]));
+        bridge.receive(&secret, "a", &["commands-end", "1"]);
+        ready(&bridge, "a", 1);
+        assert_eq!(
+            bridge.snapshot().unwrap()["commandNames"],
+            json!(["fn", "ls", "帮助"])
+        );
+        bridge.receive("forged", "a", &["commands", "2", "fake"]);
+        bridge.receive("forged", "a", &["commands-end", "2"]);
+        ready(&bridge, "a", 2);
+        assert_eq!(bridge.snapshot().unwrap()["commandNames"], json!([]));
+        bridge.activate("b", false);
+        bridge.script("b", "bash");
+        bridge.receive(&secret, "a", &["commands", "3", "wrong-node"]);
+        bridge.receive(&secret, "a", &["commands-end", "3"]);
+        ready(&bridge, "b", 1);
+        assert_eq!(bridge.snapshot().unwrap()["commandNames"], json!([]));
+        bridge.activate("a", false);
+        ready(&bridge, "a", 3);
+        assert_eq!(bridge.snapshot().unwrap()["commandNames"], json!([]));
+    }
+
+    #[test]
+    fn aliases_are_bounded_authenticated_and_never_follow_another_node() {
+        let bridge = RemoteComposer::default();
+        bridge.activate("a", false);
+        bridge.script("a", "zsh");
+        let secret = bridge.0.lock().contexts["a"].secret.clone();
+        bridge.receive(
+            &secret,
+            "a",
+            &["ready", "1", "2f746d70", "2f746d70", "ll,describe"],
+        );
+        assert_eq!(
+            bridge.snapshot().unwrap()["aliases"]["describe"],
+            "describe"
+        );
+        bridge.receive(
+            "forged",
+            "a",
+            &["ready", "2", "2f746d70", "2f746d70", "fake"],
+        );
+        assert!(bridge.snapshot().unwrap()["aliases"]["fake"].is_null());
+        bridge.receive(
+            &secret,
+            "a",
+            &["ready", "2", "2f746d70", "2f746d70", "bad;name"],
+        );
+        assert!(bridge.snapshot().unwrap()["aliases"]["describe"].is_string());
+        bridge.activate("b", false);
+        bridge.script("b", "bash");
+        ready(&bridge, "b", 1);
+        assert_eq!(bridge.snapshot().unwrap()["aliases"], json!({}));
+        bridge.activate("a", false);
+        // An older peer which omits alias metadata clears previous names.
+        ready(&bridge, "a", 2);
+        assert_eq!(bridge.snapshot().unwrap()["aliases"], json!({}));
+    }
+
+    #[test]
     fn only_active_authenticated_fresh_prompt_grants_a_lease() {
         let bridge = RemoteComposer::default();
         bridge.activate("a", false);
@@ -365,6 +486,8 @@ mod tests {
             "accepted"
         );
         bridge.submit(request(&lease, "two", "false"));
+        assert_eq!(bridge.receipt_for("one").as_deref(), Some("accepted"));
+        assert_eq!(bridge.receipt_for("missing"), None);
         bridge.0.lock().submission.as_mut().unwrap().started =
             Instant::now() - Duration::from_secs(6);
         assert_eq!(bridge.snapshot().unwrap()["outcome"], "unknown");
@@ -391,7 +514,7 @@ mod tests {
         let home = tempfile::tempdir().unwrap();
         std::fs::write(
             home.path().join(".zshrc"),
-            "PROMPT='remote> '\nRPROMPT=''\n",
+            "PROMPT='remote> '\nRPROMPT=''\nalias 帮助='echo help'\nmyfixture() { echo UNEXPECTED_INVOCATION; }\n",
         )
         .unwrap();
         let mut bootstrap =
@@ -448,6 +571,11 @@ mod tests {
                 }
             };
             let initial = wait(None);
+            let names = initial["commandNames"].as_array().unwrap();
+            for name in ["ls", "cd", "帮助", "myfixture"] {
+                assert!(names.contains(&json!(name)), "missing {name}");
+            }
+            assert!(!String::from_utf8_lossy(&output).contains("UNEXPECTED_INVOCATION"));
             let lease = initial["lease"].as_str().unwrap();
             let (_, wire) = bridge.submit(request(
                 lease,

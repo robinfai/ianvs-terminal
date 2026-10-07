@@ -2,6 +2,8 @@
 .omx-last.txt
 .omx-run.log
 .DS_Store
+__pycache__/
+*.pyc
 /.dart_tool/
 /.tmp-home/
 /.pnpm-store/

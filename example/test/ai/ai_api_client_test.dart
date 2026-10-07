@@ -35,6 +35,9 @@ void main() {
         request.response.headers.contentType = ContentType.json;
         request.response.write(
           jsonEncode({
+            'id': 'response-123',
+            'model': 'test-model',
+            'usage': {'prompt_tokens': 10, 'completion_tokens': 5},
             'choices': [
               {
                 'message': {
@@ -66,9 +69,21 @@ void main() {
       expect(length, greaterThan(0));
       expect(authorization, 'Bearer test-secret');
       expect(body!['model'], 'test-model');
-      expect(body!['tools'], hasLength(3));
+      final tools = (body!['tools']! as List).cast<Map<String, Object?>>();
+      expect(
+        tools.map((tool) => (tool['function']! as Map)['name']),
+        unorderedEquals([
+          'run_command',
+          'send_keys',
+          'read_screen',
+          'read_block',
+        ]),
+      );
       expect(body!['parallel_tool_calls'], false);
       expect(reply.action!.command, 'ls -la');
+      expect(reply.requestId, 'response-123');
+      expect(reply.responseModel, 'test-model');
+      expect(reply.usage?['prompt_tokens'], 10);
     },
   );
 
@@ -95,6 +110,133 @@ void main() {
         throwsA(isA<AiFailure>()),
       );
     }
+  });
+
+  test(
+    'review-only requests advertise no tools and reject returned tool calls',
+    () async {
+      Map<String, Object?>? payload;
+      server.listen((request) async {
+        payload = (jsonDecode(await utf8.decodeStream(request)) as Map)
+            .cast<String, Object?>();
+        request.response.headers.contentType = ContentType.json;
+        request.response.write(
+          jsonEncode({
+            'choices': [
+              {
+                'message': {
+                  'content': '{}',
+                  'tool_calls': [
+                    {'id': 'unwanted'},
+                  ],
+                },
+              },
+            ],
+          }),
+        );
+        await request.response.close();
+      });
+      await expectLater(
+        const AiApiClient(toolsEnabled: false).complete(configuration, [
+          {'role': 'user', 'content': 'review'},
+        ], AiCancellation()),
+        throwsA(
+          isA<AiFailure>().having((e) => e.code, 'code', 'review_tool_call'),
+        ),
+      );
+      expect(payload, isNot(contains('tools')));
+      expect(payload, isNot(contains('tool_choice')));
+    },
+  );
+
+  test(
+    'oversized proposal preserves diagnostics and accounting without retry',
+    () async {
+      var requests = 0;
+      server.listen((request) async {
+        requests++;
+        await request.drain<void>();
+        request.response.write(
+          jsonEncode({
+            'id': 'rejected-response',
+            'model': 'test-model',
+            'usage': {'prompt_tokens': 40, 'completion_tokens': 50},
+            'choices': [
+              {
+                'message': {
+                  'role': 'assistant',
+                  'tool_calls': [
+                    {
+                      'id': 'large',
+                      'type': 'function',
+                      'function': {
+                        'name': 'send_keys',
+                        'arguments': jsonEncode({
+                          'reason': 'Write a file',
+                          'keys': [
+                            {'text': 'x' * 4097},
+                          ],
+                        }),
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          }),
+        );
+        await request.response.close();
+      });
+      await expectLater(
+        const AiApiClient().complete(configuration, [], AiCancellation()),
+        throwsA(
+          isA<AiInvalidAction>()
+              .having((e) => e.detail, 'diagnostic', contains('4096'))
+              .having((e) => e.requestId, 'request id', 'rejected-response')
+              .having((e) => e.usage?['completion_tokens'], 'usage', 50)
+              .having(
+                (e) => e.responseMessage?['tool_calls'],
+                'rejected call',
+                hasLength(1),
+              ),
+        ),
+      );
+      expect(requests, 1);
+    },
+  );
+
+  test('UTF-8 input budget applies across individually valid text chunks', () {
+    expect(
+      () => AiAction.fromToolCall({
+        'id': 'multibyte',
+        'function': {
+          'name': 'send_keys',
+          'arguments': jsonEncode({
+            'reason': 'Write text',
+            'keys': [
+              {'text': '中' * 3000},
+            ],
+          }),
+        },
+      }),
+      throwsA(
+        isA<AiInvalidAction>().having(
+          (e) => e.detail,
+          'diagnostic',
+          contains('8192 UTF-8 bytes'),
+        ),
+      ),
+    );
+  });
+
+  test('invalid argument JSON is a rejected proposal, not a network error', () {
+    expect(
+      () => AiAction.fromToolCall({
+        'id': 'malformed',
+        'function': {'name': 'send_keys', 'arguments': '{'},
+      }),
+      throwsA(isA<AiInvalidAction>()),
+    );
   });
 
   test(

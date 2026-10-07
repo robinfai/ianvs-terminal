@@ -1,0 +1,29 @@
+package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart
+00:00 +0: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/terminal_composer/terminal_mode_test.dart: explicit first check preserves Normal even with a Blocks preference
+00:00 +1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone can recheck current support without changing mode or task
+00:00 +2: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone can recheck current support without changing mode or task
+00:00 +3: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone can recheck current support without changing mode or task
+00:00 +4: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone can recheck current support without changing mode or task
+00:00 +5: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone can recheck current support without changing mode or task
+00:01 +6: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone can recheck current support without changing mode or task
+00:01 +7: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone can recheck current support without changing mode or task
+00:01 +8: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: tab mode switching follows SSH context and preserves the draft
+00:02 +9: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:02 +10: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:02 +11: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership portrait
+00:03 +12: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership landscape
+00:03 +13: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership short-dark
+00:04 +14: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone session menu preserves the AI task through capability changes
+00:04 +15: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:05 +16: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: android negotiates Blocks and preserves manual Normal
+00:05 +17: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH hop and fullscreen fall back; restore remains manual
+00:05 +18: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: main-screen application modes fall back without an alternate buffer
+00:06 +19: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: mobile Block input fits phone with the keyboard
+00:06 +20: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: mobile Block input fits landscape with the keyboard
+00:06 +21: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: mobile Block input fits fixed-text-dark with the keyboard
+00:06 +22: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: mobile Block input fits landscape-dark with the keyboard
+00:06 +23: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: mobile Block input fits ipad with the keyboard
+00:07 +24: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: mobile settings save Normal for new sessions only
+00:07 +25: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: explicit Normal preference overrides the mobile default
+00:07 +26: All tests passed!

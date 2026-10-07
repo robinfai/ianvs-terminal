@@ -1,5 +1,5 @@
 import 'dart:math' as math;
-import 'dart:ui' show PointerDeviceKind;
+import 'dart:ui' show PointerDeviceKind, SemanticsAction;
 
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/sessions/session_controller.dart';
@@ -115,6 +115,64 @@ Future<void> openNewShellTab(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets(
+    'tab accessibility actions activate and close the named tab',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      try {
+        await pumpShellScreen(
+          tester,
+          fakeBindings: FakePtyBackend(),
+          repository: MemoryProfileRepository(
+            TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+          ),
+        );
+        await openNewShellTab(tester);
+        final container = ProviderScope.containerOf(
+          tester.element(find.byType(ShellScreen)),
+        );
+        expect(container.read(sessionControllerProvider).activeSessionId, '2');
+
+        final tab = tester.getSemantics(
+          find.bySemanticsIdentifier('shell-tab-1'),
+        );
+        tester.binding.renderViews.single.owner!.semanticsOwner!.performAction(
+          tab.id,
+          SemanticsAction.tap,
+        );
+        await tester.pumpAndSettle();
+        expect(container.read(sessionControllerProvider).activeSessionId, '1');
+
+        final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+        await mouse.addPointer(location: Offset.zero);
+        addTearDown(mouse.removePointer);
+        await mouse.moveTo(
+          tester.getCenter(find.byKey(const Key('shell-tab-1'))),
+        );
+        await tester.pumpAndSettle();
+        final close = tester.getSemantics(
+          find.byKey(const Key('shell-tab-close-1')),
+        );
+        tester.binding.renderViews.single.owner!.semanticsOwner!.performAction(
+          close.id,
+          SemanticsAction.tap,
+        );
+        await tester.pumpAndSettle();
+        expect(
+          container
+              .read(sessionControllerProvider)
+              .tabs
+              .map((tab) => tab.sessionId),
+          ['2'],
+        );
+        expect(container.read(sessionControllerProvider).activeSessionId, '2');
+      } finally {
+        semantics.dispose();
+      }
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
   testWidgets('shell screen exposes a selected tab in the hyper-style strip', (
     tester,
   ) async {
@@ -133,6 +191,7 @@ void main() {
       matchesSemantics(
         label: 'Local Shell tab, Command 1',
         hasSelectedState: true,
+        hasTapAction: true,
         isButton: true,
         isSelected: true,
       ),
@@ -160,13 +219,18 @@ void main() {
         tester.getSemantics(find.bySemanticsIdentifier('shell-tab-2')),
         matchesSemantics(
           hasSelectedState: true,
+          hasTapAction: true,
           isButton: true,
           isSelected: true,
         ),
       );
       expect(
         tester.getSemantics(find.bySemanticsIdentifier('shell-tab-1')),
-        matchesSemantics(hasSelectedState: true, isButton: true),
+        matchesSemantics(
+          hasSelectedState: true,
+          hasTapAction: true,
+          isButton: true,
+        ),
       );
     },
   );
@@ -912,6 +976,7 @@ void main() {
         tester.getSemantics(find.bySemanticsIdentifier('shell-tab-3')),
         matchesSemantics(
           hasSelectedState: true,
+          hasTapAction: true,
           isButton: true,
           isSelected: true,
         ),

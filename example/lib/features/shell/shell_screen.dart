@@ -25,9 +25,11 @@ import '../../platform/terminal_graphic_image_actions.dart';
 import '../../ui/app_ui.dart';
 import '../ai/ai_settings.dart';
 import '../ai/ai_settings_dialog.dart';
+import '../ai/terminal_ai_connections.dart';
 import '../ai/terminal_ai_controller.dart';
-import '../ai/terminal_ai_panel.dart';
+import '../ai/terminal_ai_retained_timeline.dart';
 import '../ai/terminal_ai_runtime.dart';
+import '../ai/terminal_ai_workspace.dart';
 import '../config/local_terminal_config_bootstrap.dart';
 import '../config/local_terminal_config_models.dart';
 import '../config/shortcut_editor.dart';
@@ -693,6 +695,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     final filename = event.recoverablePartialName ?? l10n.preservedZmodemFile;
     final confirmed = await showDialog<bool>(
       context: context,
+      animationStyle: appDialogAnimation(context),
       barrierDismissible: false,
       builder: (dialogContext) => AlertDialog(
         title: Text(dialogContext.l10n.permanentlyDiscardFileQuestion),
@@ -760,15 +763,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     final referenceDemoMode = ref.watch(referenceDemoModeProvider);
     final animationsEnabled = ref.watch(shellAnimationsEnabledProvider);
     final dataApiStartupWarning = ref.watch(dataApiStartupWarningProvider);
-    TerminalTab? activeTab;
-    if (activeSessionId != null) {
-      for (final tab in _sessionState.tabs) {
-        if (tab.containsSession(activeSessionId)) {
-          activeTab = tab;
-          break;
-        }
-      }
-    }
+    final activeTab = _tabForSession(_sessionState, activeSessionId);
     final displayedSessionId = _displayedSessionIdFor(
       sessionController,
       _sessionState,
@@ -826,16 +821,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
         return KeyEventResult.ignored;
       }
-      if (event is KeyDownEvent &&
-          activeSessionId != null &&
-          !_shellModalInputBlocked &&
-          event.logicalKey == LogicalKeyboardKey.keyI &&
-          (defaultTargetPlatform == TargetPlatform.macOS
-              ? HardwareKeyboard.instance.isMetaPressed
-              : HardwareKeyboard.instance.isControlPressed)) {
-        _openAiSessions.contains(activeSessionId)
-            ? _closeAi(activeSessionId)
-            : _openAi(activeSessionId);
+      if (_handleAiShortcut(event, activeSessionId)) {
         return KeyEventResult.handled;
       }
       final editor = focusedEditableTextForCurrentRoute();
@@ -1249,6 +1235,14 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     // Scaffold consumes body insets; read the keyboard above that boundary.
     final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
 
+    final mobileTerminalControls = _mobileControlsFor(
+      sessionController,
+      activeSessionId,
+      palette,
+      keyboardVisible: keyboardVisible,
+      visible: !referenceDemoMode && !mobileHome,
+    );
+
     return Focus(
       canRequestFocus: false,
       onKeyEvent: (_, event) => handleShellShortcut(event),
@@ -1265,6 +1259,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
               children: [
                 if (!mobileNavigation)
                   _ShellChromeBar(
+                    aiAction: referenceDemoMode || activeSessionId == null
+                        ? null
+                        : _aiChromeAction(activeSessionId),
                     sidebarOpen: _sessionSidebarOpen,
                     sidebarWidth: sidebarWidth,
                     onOpenReplay: referenceDemoMode
@@ -1322,6 +1319,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                   )
                 else if (!mobileDetail)
                   _MobileShellHeader(
+                    aiAction: mobileHome || activeSessionId == null
+                        ? null
+                        : _aiChromeAction(activeSessionId),
                     title: mobileHome
                         ? context.l10n.mobileConnections
                         : (activeTab?.title ?? context.l10n.terminal),
@@ -1468,7 +1468,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                             shelfOpen: _recordingShelfOpen,
                             onClose: _closeRecordingLibrary,
                             layout: AnimatedSwitcher(
-                              duration: animationsEnabled
+                              duration: _useAnimations(animationsEnabled)
                                   ? const Duration(milliseconds: 160)
                                   : Duration.zero,
                               switchInCurve: Curves.easeOutCubic,
@@ -1634,6 +1634,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                                 palette: palette,
                                                 onHostKeyEvent:
                                                     handleShellShortcut,
+                                                mobileControls:
+                                                    mobileTerminalControls,
                                               ),
                                             ),
                                           ],
@@ -1683,60 +1685,6 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     ),
                   ),
                 ),
-                if (!referenceDemoMode &&
-                    defaultTargetPlatform == TargetPlatform.iOS &&
-                    !_recordingShelfOpen &&
-                    !_isSftpPanelOpen &&
-                    !_isSearchOpen &&
-                    !mobileHome &&
-                    _selectedRecording == null &&
-                    instantReplaySession == null &&
-                    activeSessionId != null)
-                  if (!keyboardVisible)
-                    _MobileTerminalToolbar(
-                      onKeyboard: () => _focusSession(activeSessionId),
-                      onSearch: _openSearch,
-                      onReplay: () => unawaited(_openRecordingLibrary()),
-                      onRecording:
-                          _sessionState.recordingBusySessionIds.contains(
-                            activeSessionId,
-                          )
-                          ? null
-                          : () => unawaited(
-                              _toggleActiveSessionRecording(
-                                sessionController,
-                                activeSessionId,
-                              ),
-                            ),
-                      recording: _sessionState.recordingSessionIds.contains(
-                        activeSessionId,
-                      ),
-                      pendingSave: _sessionState.recordingPendingSaveSessionIds
-                          .contains(activeSessionId),
-                    )
-                  else
-                    ListenableBuilder(
-                      listenable:
-                          _composerSessions[activeSessionId]?.controller ??
-                          _focusNodeFor(activeSessionId),
-                      builder: (context, _) {
-                        final composer = _composerSessions[activeSessionId];
-                        if (composer?.enabled == true &&
-                            composer!.controller.ownership ==
-                                terminal.ComposerOwnership.ready) {
-                          return const SizedBox.shrink();
-                        }
-                        return IosTerminalInputBar(
-                          key: const Key('ios-terminal-input-bar'),
-                          palette: palette,
-                          keyboardVisible: keyboardVisible,
-                          onSendBytes: (bytes) =>
-                              _sendMobileTerminalBytes(activeSessionId, bytes),
-                          onDismissKeyboard: () =>
-                              _dismissMobileTerminalKeyboard(activeSessionId),
-                        );
-                      },
-                    ),
               ],
             ),
           ),

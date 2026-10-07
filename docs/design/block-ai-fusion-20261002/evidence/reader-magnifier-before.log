@@ -1,0 +1,116 @@
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart
+00:00 +0: reader drags and copies across pages (phone true, reverse false, filtered false) (variant: TargetPlatform.iOS)
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: a numeric value within <0.01> of <237.5999999999999>
+  Actual: <171.5999999999999>
+   Which:  differs by <66.0>
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart:165:15)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart line 165
+The test description was:
+  reader drags and copies across pages (phone true, reverse false, filtered false) (variant:
+  TargetPlatform.iOS)
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:00 +0 -1: reader drags and copies across pages (phone true, reverse false, filtered false) (variant: TargetPlatform.iOS) [E]
+  Test failed. See exception logs above.
+  The test description was: reader drags and copies across pages (phone true, reverse false, filtered false) (variant: TargetPlatform.iOS)
+  
+00:00 +0 -1: reader drags and copies across pages (phone true, reverse false, filtered true) (variant: TargetPlatform.iOS)
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: a numeric value within <0.01> of <755.0>
+  Actual: <689.0>
+   Which:  differs by <66.0>
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart:165:15)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart line 165
+The test description was:
+  reader drags and copies across pages (phone true, reverse false, filtered true) (variant:
+  TargetPlatform.iOS)
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:00 +0 -2: reader drags and copies across pages (phone true, reverse false, filtered true) (variant: TargetPlatform.iOS) [E]
+  Test failed. See exception logs above.
+  The test description was: reader drags and copies across pages (phone true, reverse false, filtered true) (variant: TargetPlatform.iOS)
+  
+00:00 +0 -2: reader drags and copies across pages (phone true, reverse true, filtered false) (variant: TargetPlatform.iOS)
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: a numeric value within <0.01> of <149.5999999999999>
+  Actual: <193.5999999999999>
+   Which:  differs by <44.0>
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart:165:15)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart line 165
+The test description was:
+  reader drags and copies across pages (phone true, reverse true, filtered false) (variant:
+  TargetPlatform.iOS)
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:00 +0 -3: reader drags and copies across pages (phone true, reverse true, filtered false) (variant: TargetPlatform.iOS) [E]
+  Test failed. See exception logs above.
+  The test description was: reader drags and copies across pages (phone true, reverse true, filtered false) (variant: TargetPlatform.iOS)
+  
+00:00 +0 -3: reader drags and copies across pages (phone true, reverse true, filtered true) (variant: TargetPlatform.iOS)
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: a numeric value within <0.01> of <667.0>
+  Actual: <711.0>
+   Which:  differs by <44.0>
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart:165:15)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart line 165
+The test description was:
+  reader drags and copies across pages (phone true, reverse true, filtered true) (variant:
+  TargetPlatform.iOS)
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:01 +0 -4: reader drags and copies across pages (phone true, reverse true, filtered true) (variant: TargetPlatform.iOS) [E]
+  Test failed. See exception logs above.
+  The test description was: reader drags and copies across pages (phone true, reverse true, filtered true) (variant: TargetPlatform.iOS)
+  
+00:01 +0 -4: Some tests failed.
+
+Failing tests:
+  /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader drags and copies across pages (phone true, reverse false, filtered false) (variant: TargetPlatform.iOS)
+  /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader drags and copies across pages (phone true, reverse false, filtered true) (variant: TargetPlatform.iOS)
+  /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader drags and copies across pages (phone true, reverse true, filtered false) (variant: TargetPlatform.iOS)
+  /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader drags and copies across pages (phone true, reverse true, filtered true) (variant: TargetPlatform.iOS)

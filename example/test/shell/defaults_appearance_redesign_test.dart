@@ -1,3 +1,7 @@
+import 'dart:async';
+
+import 'package:app/features/ai/ai_models.dart';
+import 'package:app/features/ai/ai_settings.dart';
 import 'package:app/features/config/local_terminal_config_models.dart';
 import 'package:app/features/preferences/app_preferences_models.dart';
 import 'package:app/features/profiles/profile_models.dart';
@@ -9,7 +13,159 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
 
+import '../ai/terminal_ai_test.dart' show MemoryAiStore;
+
+class _LoadingAiStore implements AiConfigurationStore {
+  final pending = Completer<AiConfiguration?>();
+  @override
+  Future<AiConfiguration?> read() => pending.future;
+  @override
+  Future<void> write(AiConfiguration? value) async {}
+}
+
 void main() {
+  testWidgets('AI settings distinguishes loading from unreadable configuration', (
+    tester,
+  ) async {
+    final store = _LoadingAiStore();
+    final settings = AiSettingsController(store);
+    addTearDown(settings.dispose);
+    await _pumpDefaultsDialogLauncher(
+      tester,
+      profiles: [],
+      configuredDefaultProfileId: null,
+      effectiveDefaultProfileId: null,
+      aiSettings: settings,
+      onSelection: (_) {},
+    );
+    expect(find.text('Loading saved configuration…'), findsOneWidget);
+    store.pending.completeError(StateError('unreadable fixture'));
+    await tester.pumpAndSettle();
+    expect(
+      find.text(
+        'Saved configuration could not be read. Terminal features remain available.',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Not configured. Terminal features work independently.'),
+      findsNothing,
+    );
+    await tester.tap(find.byKey(const Key('defaults-ai-settings')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('ai-settings-dialog')), findsOneWidget);
+    expect(
+      find.textContaining('Could not access saved configuration'),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'AI settings status follows saved configuration, not cancelled edits',
+    (tester) async {
+      final store = MemoryAiStore(null);
+      final settings = AiSettingsController(store);
+      await settings.loaded;
+      addTearDown(settings.dispose);
+      final profile = defaultTerminalProfile();
+      await _pumpDefaultsDialogLauncher(
+        tester,
+        profiles: [profile],
+        configuredDefaultProfileId: profile.id,
+        effectiveDefaultProfileId: profile.id,
+        aiSettings: settings,
+        onSelection: (_) {},
+      );
+      final entry = find.byKey(const Key('defaults-ai-settings'));
+      const missing = 'Not configured. Terminal features work independently.';
+      const saved = 'Configuration saved. Open to edit or test the connection.';
+      expect(find.text(missing), findsOneWidget);
+      await tester.tap(entry);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('ai-use-mock')));
+      await tester.tap(find.byKey(const Key('ai-save-settings')));
+      await tester.pumpAndSettle();
+      expect(find.text(saved), findsOneWidget);
+      expect(find.text(missing), findsNothing);
+      await tester.tap(entry);
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('ai-model')),
+        'unsaved-model',
+      );
+      await tester.tap(
+        find.descendant(
+          of: find.byKey(const Key('ai-settings-dialog')),
+          matching: find.text('Cancel'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(settings.configuration!.model, 'trail-mock');
+      expect(find.text(saved), findsOneWidget);
+      await tester.tap(entry);
+      await tester.pumpAndSettle();
+      store.fail = true;
+      await tester.tap(find.text('Disconnect'));
+      await tester.pumpAndSettle();
+      expect(settings.configuration!.model, 'trail-mock');
+      expect(
+        find.text(
+          'Could not remove configuration. Your saved configuration is unchanged.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('ai-settings-dialog')), findsOneWidget);
+      store.fail = false;
+      await tester.tap(find.byKey(const Key('ai-remove-settings')));
+      await tester.pumpAndSettle();
+      expect(settings.configuration, isNull);
+      expect(find.text(missing), findsOneWidget);
+      expect(find.text('trail-local-mock'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  for (final save in [true, false]) {
+    testWidgets(
+      'platform terminal preference stages and ${save ? 'saves' : 'cancels'} explicitly',
+      (tester) async {
+        final profile = defaultTerminalProfile();
+        DefaultsAndAppearanceSelection? selection;
+        await _pumpDefaultsDialogLauncher(
+          tester,
+          profiles: [profile],
+          configuredDefaultProfileId: profile.id,
+          effectiveDefaultProfileId: profile.id,
+          preferredTerminalMode: TerminalViewMode.blocks,
+          onSelection: (value) => selection = value,
+        );
+        final modes = find.byKey(const Key('defaults-terminal-mode-options'));
+        await tester.ensureVisible(modes);
+        await tester.tap(modes);
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.byKey(const Key('default-terminal-mode-platform')).last,
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Follow platform default'), findsOneWidget);
+        expect(find.text('Unsaved changes'), findsOneWidget);
+        expect(selection, isNull);
+        await tester.tap(
+          find.byKey(Key(save ? 'defaults-save' : 'defaults-cancel')),
+        );
+        await tester.pumpAndSettle();
+        if (save) {
+          expect(selection, isNotNull);
+          expect(selection!.preferredTerminalMode, isNull);
+          expect(selection!.themeMode, TerminalThemeMode.system);
+        } else {
+          expect(selection, isNull);
+        }
+      },
+    );
+  }
+
   testWidgets('preferred terminal mode saves independently', (tester) async {
     final profile = defaultTerminalProfile();
     DefaultsAndAppearanceSelection? selection;
@@ -655,6 +811,8 @@ Future<void> _pumpDefaultsDialogLauncher(
   required String? configuredDefaultProfileId,
   required String? effectiveDefaultProfileId,
   required ValueChanged<DefaultsAndAppearanceSelection?> onSelection,
+  TerminalViewMode? preferredTerminalMode,
+  AiSettingsController? aiSettings,
 }) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = const Size(1200, 900);
@@ -667,30 +825,34 @@ Future<void> _pumpDefaultsDialogLauncher(
         platform: TargetPlatform.macOS,
       ),
       home: Builder(
-        builder: (context) => TextButton(
-          key: const Key('open-defaults-profile-test'),
-          onPressed: () async {
-            onSelection(
-              await showDialog<DefaultsAndAppearanceSelection>(
-                context: context,
-                builder: (_) => DefaultsAndAppearanceDialog(
-                  profiles: profiles,
-                  configuredDefaultProfileId: configuredDefaultProfileId,
-                  effectiveDefaultProfileId: effectiveDefaultProfileId,
-                  themeMode: TerminalThemeMode.system,
-                  terminalViewportPadding:
-                      TerminalAppAppearance.defaultTerminalViewportPadding,
-                  restoreLayout: false,
-                  osc52Policy: LocalTerminalOsc52Policy.profile,
-                  openUrlPolicy: LocalTerminalOpenUrlPolicy.ask,
-                  requestAttentionPolicy:
-                      LocalTerminalRequestAttentionPolicy.disabled,
-                  reportVariableDecisions: const {},
+        builder: (context) => Scaffold(
+          body: TextButton(
+            key: const Key('open-defaults-profile-test'),
+            onPressed: () async {
+              onSelection(
+                await showDialog<DefaultsAndAppearanceSelection>(
+                  context: context,
+                  builder: (_) => DefaultsAndAppearanceDialog(
+                    aiSettings: aiSettings,
+                    preferredTerminalMode: preferredTerminalMode,
+                    profiles: profiles,
+                    configuredDefaultProfileId: configuredDefaultProfileId,
+                    effectiveDefaultProfileId: effectiveDefaultProfileId,
+                    themeMode: TerminalThemeMode.system,
+                    terminalViewportPadding:
+                        TerminalAppAppearance.defaultTerminalViewportPadding,
+                    restoreLayout: false,
+                    osc52Policy: LocalTerminalOsc52Policy.profile,
+                    openUrlPolicy: LocalTerminalOpenUrlPolicy.ask,
+                    requestAttentionPolicy:
+                        LocalTerminalRequestAttentionPolicy.disabled,
+                    reportVariableDecisions: const {},
+                  ),
                 ),
-              ),
-            );
-          },
-          child: const Text('Open'),
+              );
+            },
+            child: const Text('Open'),
+          ),
         ),
       ),
     ),

@@ -1,0 +1,47 @@
+package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/test/preferences/app_preferences_models_test.dart
+00:00 +0: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/preferences/app_preferences_models_test.dart: platform preference clears the override and follows the receiving platform
+00:00 +1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/preferences/app_preferences_models_test.dart: mobile defaults to Blocks without persisting an implicit choice
+00:00 +2: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/preferences/app_preferences_models_test.dart: preferred terminal mode roundtrips and unknown values keep Normal
+00:00 +3: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/preferences/app_preferences_models_test.dart: app preferences copyWith and toJson normalize schema versions
+00:00 +4: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/preferences/app_preferences_models_test.dart: app defaults copyWith normalizes default profile ids
+00:00 +5: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/preferences/app_preferences_models_test.dart: app defaults toJson normalizes invalid direct default profile ids
+00:00 +6: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/preferences/app_preferences_models_test.dart: app appearance copyWith normalizes terminal viewport padding
+00:00 +7: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/preferences/app_preferences_models_test.dart: app appearance language mode defaults and roundtrips through json
+00:00 +8: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/preferences/app_preferences_models_test.dart: app appearance toJson normalizes invalid direct padding
+00:00 +9: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/preferences/app_preferences_models_test.dart: app appearance normalizes finite padding into supported range
+00:00 +10: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/defaults_appearance_redesign_test.dart: platform terminal preference stages and saves explicitly
+00:00 +11: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: reset platform preference affects only new sessions TargetPlatform.macOS
+00:00 +12: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: reset platform preference affects only new sessions TargetPlatform.macOS
+00:00 +13: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: reset platform preference affects only new sessions TargetPlatform.macOS
+00:01 +14: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: reset platform preference affects only new sessions TargetPlatform.macOS
+00:01 +15: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: reset platform preference affects only new sessions TargetPlatform.macOS
+00:01 +16: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: reset platform preference affects only new sessions TargetPlatform.macOS
+00:01 +17: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: reset platform preference affects only new sessions TargetPlatform.macOS
+00:01 +18: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/defaults_appearance_redesign_test.dart: all desktop sections reflow at 680 px and 2x text in Brightness.dark
+00:01 +19: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: reset platform preference affects only new sessions TargetPlatform.iOS
+00:02 +20: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/defaults_appearance_redesign_test.dart: all desktop sections reflow at 680 px and 2x text in Brightness.light
+00:02 +21: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: open tab menu follows capability recovery and loss
+00:02 +22: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: open tab menu follows capability recovery and loss
+00:02 +23: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: open tab menu follows capability recovery and loss
+00:02 +24: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/defaults_appearance_redesign_test.dart: iPhone settings sections remain reachable at Size(375.0, 667.0) and 3.0x
+00:02 +25: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: desktop tab recheck preserves Normal, draft and the same session
+00:02 +26: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: desktop tab recheck preserves Normal, draft and the same session
+00:03 +27: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/defaults_appearance_redesign_test.dart: iPhone settings sections remain reachable at Size(402.0, 874.0) and 2.0x
+00:03 +28: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: output checks refresh ownership before falling back
+00:03 +29: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: output checks refresh ownership before falling back
+00:03 +30: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/defaults_appearance_redesign_test.dart: iPhone settings sections remain reachable at Size(874.0, 402.0) and 1.0x
+00:03 +31: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: tab mode switching follows SSH context and preserves the draft
+00:03 +32: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: tab mode switching follows SSH context and preserves the draft
+00:03 +33: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: tab mode switching follows SSH context and preserves the draft
+00:03 +34: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/defaults_appearance_redesign_test.dart: wide defaults dialog navigates to compact permission controls
+00:03 +35: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: new session preference and manual choices survive pane moves
+00:03 +36: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: new session preference and manual choices survive pane moves
+00:03 +37: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: new session preference and manual choices survive pane moves
+00:04 +38: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: new session preference and manual choices survive pane moves
+00:04 +39: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: new session preference and manual choices survive pane moves
+00:04 +40: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/defaults_appearance_redesign_test.dart: long SSH option fits compact enlarged text
+00:04 +41: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/defaults_appearance_redesign_test.dart: small Mac settings stays navigable in Brightness.dark
+00:04 +42: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/defaults_appearance_redesign_test.dart: small Mac settings stays navigable in Brightness.light
+00:04 +43: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/defaults_appearance_redesign_test.dart: compact defaults dialog keeps the touch-friendly radio layout
+00:04 +44: All tests passed!

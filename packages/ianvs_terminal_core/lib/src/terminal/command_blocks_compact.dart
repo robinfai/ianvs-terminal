@@ -19,18 +19,19 @@ extension _CommandBlocksCompact on _CommandBlocksViewState {
       return;
     }
     final reinput = await Navigator.of(context).push<String>(
-      MaterialPageRoute(
+      _CommandBlockReaderRoute(
+        allowBackGesture: Theme.of(context).platform != TargetPlatform.macOS,
         builder: (_) => _CommandBlockReader(
           controller: c,
           id: id,
           font: widget.font,
           chinese: widget.chinese,
-          initialRow: bottom ? null : row ?? _readingRows[id],
+          initialRow: bottom ? null : row,
           followTail:
               bottom ||
-              row == null && block.running && !_readingRows.containsKey(id),
-          onSaveRow: (row) => _readingRows[id] = row,
+              row == null && block.running && !c.readingStates.containsKey(id),
           onOpenLinkTarget: widget.onOpenLinkTarget,
+          onAttachRange: widget.onAttachRange,
         ),
       ),
     );
@@ -107,7 +108,18 @@ extension _CommandBlocksCompact on _CommandBlocksViewState {
                     color: failed ? tokens.error : tokens.muted,
                   ),
                 ),
+                if (block.durationMs != null ||
+                    block.running && block.startedAt != null)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 6),
+                    child: _CommandBlockElapsed(
+                      block: block,
+                      style: tokens.metadataStyle,
+                      chinese: widget.chinese,
+                    ),
+                  ),
                 PopupMenuButton<String>(
+                  popUpAnimationStyle: ComposerTheme.overlayAnimation(context),
                   tooltip: t('Block actions', '命令块操作'),
                   icon: Icon(Icons.more_horiz, size: 18, color: tokens.muted),
                   onSelected: (action) => _action(block, action),

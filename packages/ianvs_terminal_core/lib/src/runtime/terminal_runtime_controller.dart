@@ -1466,7 +1466,14 @@ class TerminalRuntimeController implements TerminalInputSink {
     String sessionId,
     String operation,
     Map<String, Object?> payload,
-  ) => _jsonRequestClient.composerRequest(sessionId, operation, payload);
+  ) {
+    if (_retainedExitedSessions.contains(sessionId) &&
+        operation != 'composer.state' &&
+        operation != 'composer.receipt') {
+      return null;
+    }
+    return _jsonRequestClient.composerRequest(sessionId, operation, payload);
+  }
 
   final PtySessionBackend _backend;
   late final PtySessionRefreshHintBackend? _refreshHintBackend;
@@ -1567,6 +1574,11 @@ class TerminalRuntimeController implements TerminalInputSink {
   bool _disposeRetryScheduled = false;
   Timer? _disposeRetryTimer;
   bool _disposed = false;
+  final _retainExitCodes = <String, Set<int>>{};
+  final _retainedExitedSessions = <String>{};
+  bool isSessionRetainedAfterExit(String sessionId) =>
+      _retainedExitedSessions.contains(sessionId);
+
   int _wireSessionSeed = 0;
   int _benchmarkFrameId = 0;
   int _sessionEpochSeed = 0;
@@ -1661,7 +1673,13 @@ class TerminalRuntimeController implements TerminalInputSink {
   String? activeZmodemTransferIdFor(String sessionId) =>
       _activeZmodemTransferIds[sessionId];
 
-  String createSession(TerminalSessionConfig config) {
+  /// Exit codes opted into by the owning application retain native output and
+  /// receipts for inspection. Retained sessions reject input until explicitly
+  /// closed; they never reconnect or replay commands automatically.
+  String createSession(
+    TerminalSessionConfig config, {
+    Set<int> retainExitCodes = const {},
+  }) {
     _requireProductOperationsAllowed();
     final resolvedConfig = _resolveColorsForRuntime(config);
     _wireSessionSeed += 1;
@@ -1698,6 +1716,7 @@ class TerminalRuntimeController implements TerminalInputSink {
       ).toJsonString(),
     );
     _sessions.register(sessionId);
+    _retainExitCodes[sessionId] = Set.unmodifiable(retainExitCodes);
     _sessionEpochSeed += 1;
     _sessionEpochs[sessionId] = _sessionEpochSeed;
     _framePumpController.reset(
@@ -2125,7 +2144,7 @@ class TerminalRuntimeController implements TerminalInputSink {
     if (sessionEpoch != null && !_isCurrentSession(sessionId, sessionEpoch)) {
       return false;
     }
-    if (!hasSession(sessionId)) {
+    if (!hasSession(sessionId) || _retainedExitedSessions.contains(sessionId)) {
       return false;
     }
     final copiedBytes = Uint8List.fromList(bytes);
@@ -2860,7 +2879,8 @@ class TerminalRuntimeController implements TerminalInputSink {
     Size viewportSize,
     double devicePixelRatio,
   ) {
-    if (!_productSessionAvailable(sessionId)) {
+    if (!_productSessionAvailable(sessionId) ||
+        _retainedExitedSessions.contains(sessionId)) {
       return false;
     }
     final plan = _resizeCoordinator.planViewportResize(
@@ -2917,7 +2937,8 @@ class TerminalRuntimeController implements TerminalInputSink {
     double devicePixelRatio = 1,
     Size? cellSize,
   }) {
-    if (!_productSessionAvailable(sessionId)) {
+    if (!_productSessionAvailable(sessionId) ||
+        _retainedExitedSessions.contains(sessionId)) {
       return false;
     }
     final plan = _resizeCoordinator.planCellResize(
@@ -2993,7 +3014,8 @@ class TerminalRuntimeController implements TerminalInputSink {
   }
 
   void _requestPollingRefreshSession(String sessionId) {
-    if (!_productOperationsAllowed) {
+    if (!_productOperationsAllowed ||
+        _retainedExitedSessions.contains(sessionId)) {
       return;
     }
     final now = _monotonicNow;
@@ -4051,7 +4073,8 @@ class TerminalRuntimeController implements TerminalInputSink {
   }
 
   void _emitExitIfCurrent(String sessionId, int sessionEpoch, int? exitCode) {
-    if (!_productEventWorkAllowed(sessionId, sessionEpoch)) {
+    if (!_productEventWorkAllowed(sessionId, sessionEpoch) ||
+        _retainedExitedSessions.contains(sessionId)) {
       return;
     }
     final preCloseOutcome = _runPreCloseDecision(
@@ -4067,6 +4090,8 @@ class TerminalRuntimeController implements TerminalInputSink {
       return;
     }
     final finalFrame = _sessions.existingViewportFor(sessionId)?.frame;
+    final retain = _retainExitCodes[sessionId]?.contains(exitCode) ?? false;
+    if (retain) _retainedExitedSessions.add(sessionId);
     _emitRuntimeSignal(
       sessionId,
       sessionEpoch,
@@ -4076,7 +4101,7 @@ class TerminalRuntimeController implements TerminalInputSink {
         finalFrame: finalFrame,
       ),
     );
-    _closeExitedSessionIfCurrent(sessionId, sessionEpoch);
+    if (!retain) _closeExitedSessionIfCurrent(sessionId, sessionEpoch);
   }
 
   TerminalSessionPreCloseOutcome _runPreCloseDecision(
@@ -6017,6 +6042,8 @@ class TerminalRuntimeController implements TerminalInputSink {
   }
 
   void _removeSessionState(String sessionId) {
+    _retainExitCodes.remove(sessionId);
+    _retainedExitedSessions.remove(sessionId);
     _frameTransportCoordinator.removeSession(sessionId);
     _refreshScheduler.remove(sessionId);
     _framePumpController.remove(sessionId);

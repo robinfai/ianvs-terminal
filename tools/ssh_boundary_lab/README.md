@@ -83,3 +83,32 @@ The preceding prototype observations describe `run.py` only. The production
 implementation has its own authenticated control protocol and context-aware
 capability and SFTP state. `product.py` checks those native transport paths,
 while Flutter regression tests check the corresponding state and panel wiring.
+
+## Composer and application recovery
+
+`composer.py` is a separate production runner using host OpenSSH, disposable
+keys/HOME and loopback sockets. It requires Bash 4+ and a macOS Flutter toolchain
+for its optional UI flow. It does not use the Docker prototype above.
+
+```sh
+python3 tools/ssh_boundary_lab/composer.py --bash /path/to/bash \
+  --disconnect-ui --output build/composer-ssh-recovery
+python3 -m unittest discover -s tools/ssh_boundary_lab \
+  -p test_disconnect_relay.py -v
+```
+
+The recovery flow retains old native sessions through repeated transport loss,
+public-key rejection and explicit SSH settings recovery. Its final fault pauses
+server-to-client reads while client commands still reach the shell. An independent
+proof file establishes actual execution while the application's receipt remains
+pending. Disconnecting then discards the withheld response. Reconnecting and
+checking the original submission must leave its result unknown, with exactly one
+execution and no additional model request. The deterministic model fixture does
+not evaluate model reasoning quality.
+
+`disconnect-result.json` includes original and recovered source IDs, raw receipts,
+execution proof and request counts. The relay acknowledges atomically published
+`pause-output`, `resume-output` and `disconnect` markers; pausing applies socket
+backpressure instead of accumulating encrypted payloads in memory. Only this
+disposable service observes those markers. Personal SSH configuration and keys
+are not modified.

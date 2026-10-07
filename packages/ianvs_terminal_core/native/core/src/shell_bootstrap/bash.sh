@@ -43,6 +43,16 @@ __ianvs_emit_shell_hook() {
     esac
   fi
   local __iv_hex __iv_json="${1%\}}"
+  if [[ "$1" == *'"hook":"preexec"'* && -n ${__ianvs_pending_submission:-} ]]; then
+    # DEBUG reports only the first simple command. Use the literal accepted
+    # Readline buffer, including when the bootstrap reused older shell hooks.
+    if [[ -n ${__ianvs_pending_command+x} ]]; then
+      __ianvs_last_command=$__ianvs_pending_command
+      __iv_json="{\"hook\":\"preexec\",\"command\":\"$(__ianvs_json_escape "$__ianvs_pending_command")\",\"shell\":\"bash\""
+    fi
+    __iv_json+=",\"submission_id\":\"$__ianvs_pending_submission\""
+    unset __ianvs_pending_submission __ianvs_pending_command
+  fi
   __iv_hex=$(printf '%s,"context_id":"%s"}' "$__iv_json" "$__IANVS_CONTEXT" | command od -An -tx1 -v | command tr -d ' \n')
   printf '\033Phook;%s\033\\' "$__iv_hex"
   # Publish readiness after the hook's external encoders finish. Otherwise an

@@ -4590,7 +4590,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get developmentMasterKeyStorageDescription =>
-      'The development master key stays in this Mac’s local Keychain. It does not sync to iCloud or share storage with the release app.';
+      'The development master key is stored in a local file accessible only to your user account. It does not access Keychain, sync to iCloud, or share storage with the release app.';
 
   @override
   String get syncLocalOnly => 'Saved on this device. API sync is optional.';
@@ -5342,11 +5342,36 @@ class AppLocalizationsEn extends AppLocalizations {
   String get terminalModeBlocks => 'Command Blocks';
 
   @override
+  String get terminalModeRecheck => 'Recheck Command Block support';
+
+  @override
+  String get terminalModeSupportAvailable =>
+      'The current node supports Command Blocks.';
+
+  @override
   String get preferredTerminalMode => 'Preferred terminal mode';
 
   @override
+  String get terminalModePlatformDefault => 'Follow platform default';
+
+  @override
+  String get aiConfigurationLoading => 'Loading saved configuration…';
+
+  @override
+  String get aiConfigurationUnreadable =>
+      'Saved configuration could not be read. Terminal features remain available.';
+
+  @override
+  String get aiConfigurationMissing =>
+      'Not configured. Terminal features work independently.';
+
+  @override
+  String get aiConfigurationSaved =>
+      'Configuration saved. Open to edit or test the connection.';
+
+  @override
   String get preferredTerminalModeHelp =>
-      'Applies to new sessions. Command Blocks requires a supported shell. Right-click a tab to switch.';
+      'New sessions only. Platform defaults: Blocks on phones, Normal on desktop. Blocks requires shell support; after support returns, switch back manually from the tab or session menu.';
 
   @override
   String get blockUnavailableChecking => 'Checking shell support…';

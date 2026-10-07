@@ -1,6 +1,9 @@
 part of 'shell_screen.dart';
 
 extension _ShellScreenStateCommandActions on _ShellScreenState {
+  bool _useAnimations(bool enabled) =>
+      enabled && !MediaQuery.disableAnimationsOf(context);
+
   Future<bool> _executeProductionActionIfBound({
     required ShellActionProductionRuntimeAdapter adapter,
     required TerminalActionId action,
@@ -38,7 +41,9 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
       sessionState.profiles,
       sessionState.defaultProfileId,
     );
-    final animationsEnabled = ref.read(shellAnimationsEnabledProvider);
+    final animationsEnabled = _useAnimations(
+      ref.read(shellAnimationsEnabledProvider),
+    );
     if (_isCommandMenuOpen) {
       return;
     }
@@ -133,6 +138,9 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
       FocusManager.instance.primaryFocus?.unfocus();
       selection = await showModalBottomSheet<Object>(
         context: context,
+        sheetAnimationStyle: animationsEnabled
+            ? null
+            : AnimationStyle.noAnimation,
         useRootNavigator: true,
         useSafeArea: true,
         isScrollControlled: true,
@@ -164,6 +172,12 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
       return;
     }
 
+    if (selection == _TerminalModeMenuAction.recheck) {
+      if (activeSessionIdBeforeOpen != null) {
+        _recheckTerminalSupport(activeSessionIdBeforeOpen);
+      }
+      return;
+    }
     if (selection is TerminalViewMode) {
       if (activeSessionIdBeforeOpen != null) {
         _selectTerminalMode(
@@ -954,12 +968,9 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
       );
     }
 
-    final modeState =
-        _composerSessions[targetSessionId]?.mode.state ??
-        targetPane?.terminalMode ??
-        const TerminalModeState();
     final action = await showMenu<Object>(
       context: context,
+      popUpAnimationStyle: appDialogAnimation(context),
       position: RelativeRect.fromRect(
         Rect.fromLTWH(position.dx, position.dy, 1, 1),
         Offset.zero & overlaySize,
@@ -967,33 +978,11 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
       items: [
         if (!context.usesMobileNavigation) ...[
           for (final mode in TerminalViewMode.values)
-            CheckedPopupMenuItem<Object>(
-              key: Key('terminal-mode-${mode.name}-$targetSessionId'),
-              value: mode,
-              checked: modeState.mode == mode,
-              enabled:
-                  mode == TerminalViewMode.normal || modeState.canUseBlocks,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    mode == TerminalViewMode.blocks
-                        ? context.l10n.terminalModeBlocks
-                        : context.l10n.terminalModeNormal,
-                  ),
-                  if (mode == TerminalViewMode.blocks &&
-                      !modeState.canUseBlocks)
-                    Text(
-                      blockUnavailableMessage(
-                        context.l10n,
-                        modeState.unavailableReason,
-                      ),
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                ],
-              ),
-            ),
+            TerminalModeMenuEntry(sessionId: targetSessionId, value: mode),
+          TerminalModeMenuEntry(
+            sessionId: targetSessionId,
+            value: _TerminalModeMenuAction.recheck,
+          ),
           const PopupMenuDivider(),
         ],
         item(
@@ -1073,6 +1062,10 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
     if (!mounted || action == null) {
       return;
     }
+    if (action == _TerminalModeMenuAction.recheck) {
+      _recheckTerminalSupport(targetSessionId);
+      return;
+    }
     if (action is TerminalViewMode) {
       _selectTerminalMode(sessionController, targetSessionId, action);
       return;
@@ -1098,8 +1091,26 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
     if (session == null || pane == null) return;
     session.updateEnvironment(pane, readOnly: _isSessionReadOnly(sessionId));
     if (!session.selectMode(mode)) return;
-    _activateSession(sessionController, sessionId);
-    _focusSession(sessionId);
+    _activateSession(sessionController, sessionId, requestFocus: false);
+    // A manual terminal choice also leaves the AI workspace that covers it.
+    // Keep its task/draft, revoke pending agent input, then focus the chosen view.
+    _closeAi(sessionId);
+  }
+
+  void _recheckTerminalSupport(String sessionId) {
+    final session = _composerSessions[sessionId];
+    final pane = _paneForSession(
+      ref.read(sessionControllerProvider),
+      sessionId,
+    );
+    if (session == null ||
+        pane == null ||
+        pane.isExited ||
+        _isSessionReadOnly(sessionId)) {
+      return;
+    }
+    session.updateEnvironment(pane, readOnly: false);
+    session.refreshShellState(recheckSupport: true);
   }
 
   Future<void> _runTabContextAction(

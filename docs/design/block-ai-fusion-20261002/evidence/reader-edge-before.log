@@ -1,0 +1,116 @@
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart
+00:00 +0: reader edge drag scrolls beyond its starting page (phone false, upward false) (variant: TargetPlatform.macOS)
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: a value greater than <2728.4>
+  Actual: <2728.4>
+   Which: is not a value greater than <2728.4>
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart:284:11)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart line 284
+The test description was:
+  reader edge drag scrolls beyond its starting page (phone false, upward false) (variant:
+  TargetPlatform.macOS)
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:00 +0 -1: reader edge drag scrolls beyond its starting page (phone false, upward false) (variant: TargetPlatform.macOS) [E]
+  Test failed. See exception logs above.
+  The test description was: reader edge drag scrolls beyond its starting page (phone false, upward false) (variant: TargetPlatform.macOS)
+  
+00:00 +0 -1: reader edge drag scrolls beyond its starting page (phone false, upward true) (variant: TargetPlatform.macOS)
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: a value less than <2728.4>
+  Actual: <2728.4>
+   Which: is not a value less than <2728.4>
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart:284:11)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart line 284
+The test description was:
+  reader edge drag scrolls beyond its starting page (phone false, upward true) (variant:
+  TargetPlatform.macOS)
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:00 +0 -2: reader edge drag scrolls beyond its starting page (phone false, upward true) (variant: TargetPlatform.macOS) [E]
+  Test failed. See exception logs above.
+  The test description was: reader edge drag scrolls beyond its starting page (phone false, upward true) (variant: TargetPlatform.macOS)
+  
+00:00 +0 -2: reader edge drag scrolls beyond its starting page (phone true, upward false) (variant: TargetPlatform.iOS)
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: a value greater than <2728.4>
+  Actual: <2728.4>
+   Which: is not a value greater than <2728.4>
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart:284:11)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart line 284
+The test description was:
+  reader edge drag scrolls beyond its starting page (phone true, upward false) (variant:
+  TargetPlatform.iOS)
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:00 +0 -3: reader edge drag scrolls beyond its starting page (phone true, upward false) (variant: TargetPlatform.iOS) [E]
+  Test failed. See exception logs above.
+  The test description was: reader edge drag scrolls beyond its starting page (phone true, upward false) (variant: TargetPlatform.iOS)
+  
+00:00 +0 -3: reader edge drag scrolls beyond its starting page (phone true, upward true) (variant: TargetPlatform.iOS)
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: a value less than <2728.4>
+  Actual: <2728.4>
+   Which: is not a value less than <2728.4>
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart:284:11)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart line 284
+The test description was:
+  reader edge drag scrolls beyond its starting page (phone true, upward true) (variant:
+  TargetPlatform.iOS)
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:00 +0 -4: reader edge drag scrolls beyond its starting page (phone true, upward true) (variant: TargetPlatform.iOS) [E]
+  Test failed. See exception logs above.
+  The test description was: reader edge drag scrolls beyond its starting page (phone true, upward true) (variant: TargetPlatform.iOS)
+  
+00:00 +0 -4: Some tests failed.
+
+Failing tests:
+  /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader edge drag scrolls beyond its starting page (phone false, upward false) (variant: TargetPlatform.macOS)
+  /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader edge drag scrolls beyond its starting page (phone false, upward true) (variant: TargetPlatform.macOS)
+  /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader edge drag scrolls beyond its starting page (phone true, upward false) (variant: TargetPlatform.iOS)
+  /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader edge drag scrolls beyond its starting page (phone true, upward true) (variant: TargetPlatform.iOS)

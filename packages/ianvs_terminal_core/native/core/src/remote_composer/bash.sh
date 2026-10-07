@@ -6,6 +6,8 @@ __ianvs_composer_install() {
   __ianvs_cepoch=0
   __ianvs_cavailable=0
   __ianvs_composer_emit() { builtin printf '\033]6973;@@SECRET@@;@@CONTEXT@@;composer;%s\007' "$1"; }
+  __ianvs_inventory_emit() { __ianvs_composer_emit "$1"; }
+  @@COMMAND_INVENTORY@@
   __ianvs_composer_resume_preexec() {
     # bash-preexec < 0.6 can consume its interactive flag for a bind -x command.
     # Restore it after our keybind so the accepted line reaches the real
@@ -19,12 +21,23 @@ __ianvs_composer_install() {
     bind -m "$__ianvs_cmap" -x '"\e[6975;@@SECRET@@~":__ianvs_composer_noop'
   }
   __ianvs_composer_ready() {
+    # A syntax error or Ctrl+C in PS2 can return without any preexec hook.
+    # The next manually entered command must not inherit that submission.
+    unset __ianvs_pending_submission __ianvs_pending_command
     __ianvs_composer_disarm
     ((__ianvs_cepoch+=1))
     __ianvs_cavailable=1
     local cwd=$(builtin printf %s "$PWD" | command od -An -tx1 -v | command tr -d ' \n')
     local home=$(builtin printf %s "$HOME" | command od -An -tx1 -v | command tr -d ' \n')
-    __ianvs_composer_emit "ready;$__ianvs_cepoch;$cwd;$home"
+    local name names='' count=0 LC_ALL=C
+    while IFS= builtin read -r name; do
+      [[ -n $name && $name != *[^a-zA-Z0-9_.-]* && ${#name} -le 128 ]] || continue
+      (( count < 64 && ${#names} + ${#name} + 1 <= 2048 )) || break
+      names+="${names:+,}$name"
+      ((count+=1))
+    done < <(builtin compgen -A alias)
+    __ianvs_command_inventory "$__ianvs_cepoch"
+    __ianvs_composer_emit "ready;$__ianvs_cepoch;$cwd;$home;$names"
   }
   __ianvs_composer_receive() {
     local wire epoch id hex escaped='' pair i
@@ -49,6 +62,8 @@ __ianvs_composer_install() {
     # Only a validated receive can arm the next key in our private macro.
     # Rejection leaves a no-op; it never accepts an existing user's line.
     bind -m "$__ianvs_cmap" '"\e[6975;@@SECRET@@~":accept-line'
+    __ianvs_pending_submission=$id
+    __ianvs_pending_command=$READLINE_LINE
     __ianvs_composer_emit "accepted;$id"
   }
   __ianvs_composer_dispatch() {

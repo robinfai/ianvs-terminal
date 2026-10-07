@@ -1,0 +1,52 @@
+{
+  "recorded_at": "2026-10-03T01:18:35.017588+00:00",
+  "scope": "D05 historical evidence identity, retention, eviction and precise source routing",
+  "environment": {
+    "macOS": "27.0.1",
+    "build": "26A434"
+  },
+  "limits": "Deterministic AI reply and local native zsh; no external model, real cloud SSH or physical iPhone. Counts overlap, do not sum.",
+  "source_note": "After native and application runs, three redundant boolean/null comparisons in reader status were simplified; clean analyzer and 76 terminal regressions ran after this mechanical change.",
+  "artifacts": {
+    "evidence-eviction-native-second.log": "123763b234b4ccd61129de4bb42c30fcb9e7153fcb9de64c46400f6159671351",
+    "evidence-eviction-native-verified.log": "bdc4e93ceb527598b275fbc323897c78c70188f0e209878ff5070b48d5420134",
+    "evidence-eviction-native.log": "366c86d2cde571f9456df3afccba08ebed4aa0a5992f97a1e781f99c0fff7a0b",
+    "evidence-source-analyze-clean.log": "2b61c7e230d4e3456785b0f163245378f5ec292f8b0321ee1de59b9cb90718c8",
+    "evidence-source-analyze-complete.log": "7719eaa69973f3e6a93b5fa0d512ef33a9be50c9fb608ecc5b3d1133f4cd9407",
+    "evidence-source-app-complete.log": "80214be34abc77dc8c72dd07019830dde80cf0da17005a3239e4ae5d969091eb",
+    "evidence-source-app.log": "d2e66d2289ac94cb4b6204b4a9c2504b6dfd1b0c972c672a9a50f379e4f09049",
+    "evidence-source-copy-fixed.log": "f72266cda8f2a880190cd47e43325f9ab5cbd273cb8d1e169ce667a96367980b",
+    "evidence-source-mirror-complete.log": "79ea62ba85fd4366e859c4e3b3c6cd1cab711eb9ccbd38df713e6530698f52a1",
+    "evidence-source-navigation-verified.log": "4276120bdeb2f900a44a8a3d34e9c412e0f7b13c7ee3b628e9b363fd765cc08d",
+    "evidence-source-terminal-complete.log": "3ae58ee8ceb584252f66d65e182b777566bd14b07513411d78b0e4e2c81b4647",
+    "evidence-source-terminal.log": "71ba1e15a68eed004054cbcbf69c7fbc1e199eb3162b7cdd7e64cde5205e4dd8",
+    "evidence-source-workspace-verified.log": "3576fe77b8cf5188e0cef3616fed10334748ffae35567f2077bea4bb28ccc82a",
+    "fixture-polling-failure.json": "888bfc1ce66ab5ee17170e54edefb206d27b16fe2375840b2b02159579ccb859",
+    "native/D05-released-native-source.png": "5a7f77ec3f9dcd75b2242e11384796ded61ce35e71a47736655da045ca32325b",
+    "native/D05-retained-native-source.png": "ac7fae9b42d2658d21ac6abae5230311dd19c0f6a6cd8f5c37f0f8623db1c120",
+    "native/result.json": "830accac901b14008a3906f4a9a4e5357be90b92d3738164bc40e66d41bbb32b",
+    "workspace/D05-native-block-evidence.png": "1f01e6c7e46af6400cf652a88da2d0a8e97cb1ce68124b34ddbd647dee52aebe",
+    "workspace/D08-native-reader-find.png": "52f9cac57f5c413e5b21b2725a06f27da5e970ee978a081b0d7dba133f0bed0c",
+    "workspace/D08-original-output-reader.png": "4a80b8fae9b19b1d82d3bb4167329431a027b111b973c5c0515976729a640219",
+    "workspace/D12-vim-return-normal.png": "eac5b2a4bc3cf5b55bc9025b316866e29ff83cc4df82a5e0c575287bb1cfda6d",
+    "workspace/D12-vim-review-overlay.png": "5015b82e33c37026fcfca41e3e9604b0631e7745f6cedfaa798c246d50c6f7d9",
+    "workspace/result.json": "23a25b01d98ed26d3c16009f6f035e38bb6f073a49861ec4e329e24a50e687a5"
+  },
+  "sources": {
+    "example/lib/features/ai/ai_models.dart": "34e39e39da2f1d6d09f4a9f494fd8f83bf838335cf9e4bddf63337a80bab3b32",
+    "example/lib/features/ai/terminal_ai_workspace.dart": "5f91f4ed631451302cc00c9c52f135ee199d6e481274ff6497bccec37e5b721d",
+    "example/lib/features/ai/terminal_ai_retained_timeline.dart": "51a2bd133f7080ad48227cca0a906f61203671bce8e398f2e0d62a1c1b074290",
+    "example/lib/features/shell/shell_screen.dart": "a566a3e415d50b6dd5444e7a6d4a5073c44739454227638218e78590f4ebafa6",
+    "example/lib/features/shell/shell_screen_ai.dart": "cc972c0b234bd003392266826b241cb42c8ce52aae7ad6e984b26f77eb7c0572",
+    "example/lib/features/shell/shell_screen_state_terminal_layout.dart": "05612a378d4fc3dc96d653d72cfbb39ddb7576821b28b0e5060b917da8ac132f",
+    "example/lib/ui/previews/terminal_ai_workspace_preview.dart": "56baf74bcb4d9bf3aac5cb83e03488e70809ab00d08aa41605b23be4773e4370",
+    "example/test/ai/terminal_ai_evidence_navigation_test.dart": "afd9bf36d2c8c4035e5b9dd58b17e6f558e8d5c31a9ffc26a535a8aa4f5b2089",
+    "example/test/ai/terminal_ai_context_test.dart": "b74e18b64b632d6114098b7cf551de4494b2b88710987e527f9391d1dd6548be",
+    "example/test/ai/terminal_ai_workspace_test.dart": "184c658c125516b99d3de534251c13a3d2608f270ea22c3067793ac7bf03f16f",
+    "example/integration_test/terminal_ai_evidence_eviction_test.dart": "41a412f7e2eda18514ea4b318948f9c51c5294c0fac555bbc00a8597b1e174d6",
+    "example/integration_test/terminal_ai_workspace_acceptance_test.dart": "7f7cf575dea95920ac07a1f3edfd7b20d9ff64c49106562764f00498ff575ccd",
+    "packages/ianvs_terminal/lib/src/terminal/command_block.dart": "0431ae4947c5b5a98bc72979974772862b1d9d16cf063c25cdd8de68ecbd439d",
+    "packages/ianvs_terminal/lib/src/terminal/command_block_reader.dart": "18e983e7a001a6b2a0bb66b281b97f71fbe1470aee376b7266603ce6c93632fe",
+    "packages/ianvs_terminal/lib/src/terminal/command_block_reader_tools.dart": "16db50f014ff5907c06351588233f60afbc46ee40337cd9dcc8c46db506b8b8d"
+  }
+}

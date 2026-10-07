@@ -1,15 +1,60 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:path_provider/path_provider.dart';
 
+import '../../platform/development_secret_file.dart';
+import '../../startup/app_environment.dart';
 import 'ai_models.dart';
 
 abstract interface class AiConfigurationStore {
   Future<AiConfiguration?> read();
   Future<void> write(AiConfiguration? configuration);
+}
+
+AiConfigurationStore createAiConfigurationStore({
+  AppEnvironment? environment,
+  Future<Directory> Function() appSupportDirectoryResolver =
+      getApplicationSupportDirectory,
+}) {
+  final selectedEnvironment = environment ?? AppEnvironment.current;
+  return selectedEnvironment == AppEnvironment.development
+      ? DevelopmentAiConfigurationStore(
+          directoryResolver: () async => selectedEnvironment.supportDirectory(
+            await appSupportDirectoryResolver(),
+          ),
+        )
+      : SecureAiConfigurationStore();
+}
+
+final class DevelopmentAiConfigurationStore implements AiConfigurationStore {
+  DevelopmentAiConfigurationStore({
+    required Future<Directory> Function() directoryResolver,
+  }) : _file = DevelopmentSecretFile(
+         directoryResolver: directoryResolver,
+         name: 'ai-configuration.v1.json',
+       );
+
+  final DevelopmentSecretFile _file;
+
+  @override
+  Future<AiConfiguration?> read() async {
+    final raw = await _file.read();
+    return raw == null
+        ? null
+        : AiConfiguration.fromJson(
+            (jsonDecode(raw) as Map).cast<String, Object?>(),
+          );
+  }
+
+  @override
+  Future<void> write(AiConfiguration? configuration) => _file.write(
+    configuration == null ? null : jsonEncode(configuration.toJson()),
+  );
 }
 
 class SecureAiConfigurationStore implements AiConfigurationStore {
@@ -65,7 +110,7 @@ class AiSettingsController extends ChangeNotifier {
 
   Future<void> save(AiConfiguration? value) async {
     await loaded;
-    value?.completionsUri;
+    value?.validate();
     try {
       await store.write(value);
     } on Object catch (_) {
@@ -85,7 +130,7 @@ class AiSettingsController extends ChangeNotifier {
 }
 
 final aiSettingsProvider = Provider<AiSettingsController>((ref) {
-  final controller = AiSettingsController(SecureAiConfigurationStore());
+  final controller = AiSettingsController(createAiConfigurationStore());
   ref.onDispose(controller.dispose);
   return controller;
 });

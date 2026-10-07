@@ -1,50 +1,185 @@
 part of 'shell_screen.dart';
 
 extension _ShellScreenAi on _ShellScreenState {
+  ComposerPaneSession _composerFor(String sessionId) =>
+      _composerSessions.putIfAbsent(
+        sessionId,
+        () =>
+            ComposerPaneSession(
+              sessionId: sessionId,
+              runtime: ref.read(terminalRuntimeControllerProvider),
+              preferredMode: ref
+                  .read(sessionControllerProvider)
+                  .preferredTerminalMode,
+            )..addListener(() {
+              scheduleMicrotask(() {
+                if (!mounted) return;
+                final session = _composerSessions[sessionId];
+                if (session != null) {
+                  ref
+                      .read(sessionControllerProvider.notifier)
+                      .updateTerminalMode(sessionId, session.mode.state);
+                }
+              });
+            }),
+      );
+  bool _handleAiShortcut(KeyEvent event, String? activeSessionId) {
+    if (event is KeyDownEvent &&
+        activeSessionId != null &&
+        !_shellModalInputBlocked &&
+        event.logicalKey == LogicalKeyboardKey.keyI &&
+        (defaultTargetPlatform == TargetPlatform.macOS
+            ? HardwareKeyboard.instance.isMetaPressed
+            : HardwareKeyboard.instance.isControlPressed)) {
+      _openAiSessions.contains(activeSessionId)
+          ? _closeAi(activeSessionId)
+          : _openAi(activeSessionId);
+      return true;
+    }
+    return false;
+  }
+
   TerminalAiController _aiFor(String sessionId) => _aiSessions.putIfAbsent(
     sessionId,
     () => TerminalAiController(
       settings: ref.read(aiSettingsProvider),
-      terminal: TerminalAiRuntime(
+      terminal: TerminalAiConnections(
         sessionId: sessionId,
-        runtime: ref.read(terminalRuntimeControllerProvider),
-        readPane: () =>
-            _paneForSession(ref.read(sessionControllerProvider), sessionId),
-        isReadOnly: () => _isSessionReadOnly(sessionId),
+        terminal: _aiEndpoint(sessionId),
+        requestBlocks: (source, request) => ref
+            .read(terminalRuntimeControllerProvider)
+            .commandBlocks(source, request),
       ),
     ),
   );
+
+  TerminalAiRuntime _aiEndpoint(String sessionId) => TerminalAiRuntime(
+    sessionId: sessionId,
+    runtime: ref.read(terminalRuntimeControllerProvider),
+    readPane: () =>
+        _paneForSession(ref.read(sessionControllerProvider), sessionId),
+    isReadOnly: () => _isSessionReadOnly(sessionId),
+  );
+
+  Future<void> _reconnectAi(
+    String sessionId, {
+    TerminalProfile? editedProfile,
+  }) async {
+    final ai = _aiSessions[sessionId];
+    if (ai == null || ai.checkingTerminal) return;
+    ai.takeOver();
+    await ai.refreshContext(); // Finish inspecting original receipts first.
+    if (!mounted || !identical(_aiSessions[sessionId], ai)) return;
+    final next = ref
+        .read(sessionControllerProvider.notifier)
+        .reconnectSession(sessionId, editedProfile: editedProfile);
+    if (next == null) return;
+    final connections = ai.terminal as TerminalAiConnections;
+    ai.prepareForConnectionChange();
+    connections.reconnect(
+      sessionId: next,
+      terminal: _aiEndpoint(next),
+      originalBlocks: _composerSessions[sessionId]?.blocks,
+    );
+    final draft = _composerSessions[sessionId]?.controller.editor.value;
+    if (draft != null) _composerFor(next).controller.editor.value = draft;
+    _mutateState(() {
+      _aiSessions.remove(sessionId);
+      _aiSessions[next] = ai;
+      _openAiSessions.remove(sessionId);
+      _openAiSessions.add(next);
+    });
+    await ai.refreshContext(); // No inference, approval, or command replay.
+  }
+
+  Future<void> _configureAiConnection(String sessionId) async {
+    final ai = _aiSessions[sessionId];
+    final pane = _paneForSession(
+      ref.read(sessionControllerProvider),
+      sessionId,
+    );
+    final profile = pane?.profileSnapshot;
+    if (_isProfilesOpen ||
+        ai == null ||
+        pane?.isExited != true ||
+        profile?.isSsh != true) {
+      return;
+    }
+    ai.takeOver();
+    _mutateState(() => _isProfilesOpen = true);
+    final SshProfileEditorResult? result;
+    try {
+      await releaseTerminalInputForModal();
+      if (!mounted) return;
+      result = await showDialog<SshProfileEditorResult>(
+        context: context,
+        animationStyle: appDialogAnimation(context),
+        useSafeArea: !context.usesMobileNavigation,
+        builder: (_) => SshProfileEditorDialog(
+          initialValue: profile!,
+          allowSaveChoice: true,
+          saveProfileAvailable: _customSshProfilesEnabled,
+        ),
+      );
+    } finally {
+      if (mounted) _mutateState(() => _isProfilesOpen = false);
+    }
+    if (!mounted || result == null || !identical(_aiSessions[sessionId], ai)) {
+      return;
+    }
+    final sessions = ref.read(sessionControllerProvider.notifier);
+    if (result.saveProfile &&
+        !await _saveProfileWithFeedback(
+          sessions,
+          result.profile,
+          clearSecrets: result.clearSecrets,
+        )) {
+      return;
+    }
+    if (mounted) await _reconnectAi(sessionId, editedProfile: result.profile);
+  }
 
   void _openAi(
     String sessionId, {
     String? prompt,
     terminal.CommandBlock? block,
+    terminal.CommandBlock? range,
+    List<terminal.CommandBlock> blocks = const [],
   }) {
     final ai = _aiFor(sessionId);
+    FocusManager.instance.primaryFocus?.unfocus();
+    final runtime =
+        (ai.terminal as TerminalAiConnections).active as TerminalAiRuntime;
+    if (range != null) {
+      ai.attachContext(runtime.blockContext(range, useSnapshot: true));
+    }
+    for (final selected in [?block, ...blocks]) {
+      ai.attachContext(runtime.blockContext(selected));
+    }
+    if (prompt != null) ai.setDraft(prompt);
+    if (block != null && ai.draft.isEmpty) {
+      final chinese = Localizations.localeOf(context).languageCode == 'zh';
+      ai.setDraft(
+        block.exitCode != null && block.exitCode != 0
+            ? (chinese
+                  ? '解释这条命令失败的原因，并提出修正。'
+                  : 'Explain this failure and suggest a correction.')
+            : (chinese ? '解释这个命令块。' : 'Explain this command block.'),
+      );
+    }
     _mutateState(() => _openAiSessions.add(sessionId));
     unawaited(() async {
       await ai.refreshContext();
       if (!mounted) return;
-      if (prompt == null && block == null) return;
+      if (prompt == null) return;
       await ai.settings.loaded;
       if (!mounted) return;
       if (ai.settings.configuration == null) {
         await showAiSettings(context, ai.settings);
-        if (!mounted || ai.settings.configuration == null) return;
+        return; // Saving settings does not submit a retained draft.
       }
       if (!_openAiSessions.contains(sessionId)) return;
-      final runtime = ai.terminal as TerminalAiRuntime;
-      final selected = block == null ? null : runtime.blockContext(block);
-      final query =
-          prompt ??
-          (block?.exitCode != null && block!.exitCode != 0
-              ? '请解释这条命令失败的原因并提出修正。Explain and correct this failed command.'
-              : '请解释这个命令块。Explain this command block.');
-      unawaited(ai.ask(query, block: selected));
-      final composer = _composerSessions[sessionId]?.controller;
-      if (prompt != null && composer?.editor.text == prompt) {
-        composer?.clearDraft();
-      }
+      unawaited(ai.ask(prompt));
     }());
   }
 
@@ -54,40 +189,130 @@ extension _ShellScreenAi on _ShellScreenState {
     _focusSession(sessionId);
   }
 
-  Widget _aiOverlay(String sessionId, Size available, AppThemeTokens palette) {
-    if (_openAiSessions.contains(sessionId)) {
-      return Align(
-        alignment: Alignment.bottomRight,
-        child: Padding(
-          padding: const EdgeInsets.all(8),
-          child: SizedBox(
-            width: math.min(460.0, math.max(0.0, available.width - 16)),
-            height: math
-                .min(520.0, math.max(180.0, available.height * .72))
-                .clamp(0.0, math.max(0.0, available.height - 16)),
-            child: TerminalAiPanel(
-              controller: _aiFor(sessionId),
-              onClose: () => _closeAi(sessionId),
+  Widget _aiChromeAction(String sessionId) => ListenableBuilder(
+    listenable: _aiFor(sessionId),
+    builder: (context, _) {
+      final ai = _aiFor(sessionId);
+      final chinese = Localizations.localeOf(context).languageCode == 'zh';
+      final label = ai.canApprove
+          ? (chinese ? 'AI · 有待确认命令' : 'AI · action needs review')
+          : ai.busy
+          ? (chinese ? 'AI · 任务进行中' : 'AI · task in progress')
+          : (chinese ? 'AI 任务' : 'AI task');
+      return Tooltip(
+        message: label,
+        child: TextButton(
+          key: Key('terminal-ai-open-$sessionId'),
+          style: TextButton.styleFrom(
+            minimumSize: const Size(44, 44),
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+          ),
+          onPressed: () => _openAiSessions.contains(sessionId)
+              ? _closeAi(sessionId)
+              : _openAi(sessionId),
+          child: Semantics(
+            label: label,
+            child: Badge(
+              backgroundColor: context.appTheme.accent,
+              isLabelVisible: ai.canApprove || ai.busy,
+              child: const Text('AI'),
             ),
           ),
         ),
       );
+    },
+  );
+
+  Widget _aiOverlay(
+    String sessionId,
+    AppThemeTokens palette, {
+    required String targetLabel,
+    AiTimelineBuilder? timelineBuilder,
+    ValueChanged<AiEvidenceReference>? onShowEvidence,
+    bool fullScreenTerminal = false,
+    terminal.TerminalFontConfig font = const terminal.TerminalFontConfig(),
+  }) {
+    if (_openAiSessions.contains(sessionId)) {
+      final connections = _aiFor(sessionId).terminal as TerminalAiConnections;
+      final retained = connections.hasRetainedSources;
+      return TerminalAiWorkspace(
+        key: ValueKey('ai-workspace-$sessionId'),
+        controller: _aiFor(sessionId),
+        targetLabel: targetLabel,
+        onOpenLink: (url) =>
+            unawaited(_openTerminalLink(url, sourceSessionId: sessionId)),
+        timelineBuilder: retained && !fullScreenTerminal
+            ? (items, scroll, followTail) => TerminalAiRetainedTimeline(
+                controller: _aiFor(sessionId),
+                items: items,
+                scroll: scroll,
+                followTail: followTail,
+                font: font,
+                onReinput: (command) {
+                  _composerFor(sessionId).controller.editor.text = command;
+                  _closeAi(sessionId);
+                },
+                onOpenLinkTarget: (target) =>
+                    unawaited(_openTerminalLinkTarget(sessionId, target)),
+              )
+            : timelineBuilder,
+        onShowEvidence: retained
+            ? (reference) =>
+                  unawaited(_showRetainedEvidence(sessionId, reference, font))
+            : onShowEvidence,
+        fullScreenTerminal: fullScreenTerminal,
+        onClose: () => _closeAi(sessionId),
+        onInspectOriginalTarget: retained
+            ? () {
+                final original = _aiFor(sessionId).originalTarget?.sessionId;
+                _closeAi(sessionId);
+                if (original != null) {
+                  ref
+                      .read(sessionControllerProvider.notifier)
+                      .activateSession(original);
+                }
+              }
+            : null,
+        onReconnect:
+            _paneForSession(
+                      ref.read(sessionControllerProvider),
+                      sessionId,
+                    )?.isExited ==
+                    true &&
+                _paneForSession(
+                      ref.read(sessionControllerProvider),
+                      sessionId,
+                    )?.profileSnapshot?.isSsh ==
+                    true
+            ? () => _reconnectAi(sessionId)
+            : null,
+        onConfigureTerminal:
+            _paneForSession(
+                  ref.read(sessionControllerProvider),
+                  sessionId,
+                )?.profileSnapshot?.isSsh ==
+                true
+            ? () => _configureAiConnection(sessionId)
+            : null,
+      );
     }
-    return Align(
-      alignment: Alignment.topRight,
-      child: Padding(
-        padding: const EdgeInsets.all(8),
-        child: TextButton(
-          key: Key('terminal-ai-open-$sessionId'),
-          style: TextButton.styleFrom(
-            backgroundColor: palette.panel,
-            foregroundColor: palette.textMuted,
-            minimumSize: const Size(44, 44),
-          ),
-          onPressed: () => _openAi(sessionId),
-          child: const Text('AI'),
-        ),
-      ),
+    return const SizedBox.shrink();
+  }
+
+  Future<void> _showRetainedEvidence(
+    String sessionId,
+    AiEvidenceReference reference,
+    terminal.TerminalFontConfig font,
+  ) async {
+    final command = await showRetainedAiEvidence(
+      context,
+      controller: _aiFor(sessionId),
+      reference: reference,
+      font: font,
     );
+    if (command != null && mounted) {
+      _composerFor(sessionId).controller.editor.text = command;
+      _closeAi(sessionId);
+    }
   }
 }

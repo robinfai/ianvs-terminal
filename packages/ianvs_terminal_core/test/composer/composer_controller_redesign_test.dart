@@ -55,6 +55,65 @@ CompletionEdit candidate(CompletionQuery query, String text) => CompletionEdit(
 
 void main() {
   group('submission feedback', () {
+    test(
+      'external AI submission does not lock the composer after shell recovery',
+      () {
+        var submits = 0;
+        final model = create(
+          submit: (_) async {
+            submits++;
+            return ComposerSubmissionOutcome.accepted;
+          },
+        );
+        addTearDown(model.dispose);
+        ready(model);
+        final draft = model.editor.value;
+        model.updateShell(
+          contextKey: 'external-submit',
+          cwd: '/tmp/composer-redesign',
+          ownership: ComposerOwnership.submitting,
+        );
+        expect(model.canRun, false);
+        expect(model.pendingSubmission, isNull);
+        ready(model, lease: 'after-ai');
+        expect(model.canRun, true);
+        expect(model.readyLease, 'after-ai');
+        expect(model.editor.value, draft);
+        expect(submits, 0);
+      },
+    );
+
+    test(
+      'shell polling cannot unlock the composer own pending receipt',
+      () async {
+        final receipt = Completer<ComposerSubmissionOutcome>();
+        var submits = 0;
+        final model = create(
+          submit: (_) {
+            submits++;
+            return receipt.future;
+          },
+        );
+        addTearDown(model.dispose);
+        ready(model);
+        final run = model.run();
+        final pending = model.pendingSubmission;
+        ready(model, lease: 'new-shell-lease');
+        expect(model.ownership, ComposerOwnership.submitting);
+        expect(model.canRun, false);
+        expect(model.pendingSubmission, same(pending));
+        await model.run();
+        expect(submits, 1);
+        receipt.complete(ComposerSubmissionOutcome.unknown);
+        await run;
+        ready(model, lease: 'newer-shell-lease');
+        expect(model.ownership, ComposerOwnership.unknown);
+        expect(model.canRun, false);
+        expect(model.pendingSubmission, same(pending));
+        expect(submits, 1);
+      },
+    );
+
     for (final outcome in [
       ComposerSubmissionOutcome.accepted,
       ComposerSubmissionOutcome.rejected,

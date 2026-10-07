@@ -264,6 +264,7 @@ Future<SshProfileEditorResult?> showCreateSshProfileDialog(
 }) {
   return showDialog<SshProfileEditorResult>(
     context: context,
+    animationStyle: appDialogAnimation(context),
     useSafeArea: !context.usesMobileNavigation,
     builder: (context) => SshProfileEditorDialog(
       initialValue: defaultTerminalProfile().copyWith(

@@ -304,6 +304,41 @@ pub fn request_session(
             }
             request_json_response(response)
         }
+        "composer.receipt" => {
+            let Some(id) = request["submissionId"].as_str().filter(|id| {
+                !id.is_empty()
+                    && id.len() <= 80
+                    && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
+            }) else {
+                return Ok(None);
+            };
+            let session = STORE.get(session_id)?;
+            let local = session
+                .composer_bridge
+                .lock()
+                .as_ref()
+                .and_then(|b| b.receipt_for(id));
+            let remote = session
+                .remote_composer
+                .lock()
+                .as_ref()
+                .and_then(|b| b.receipt_for(id));
+            let outcome = local.or(remote).unwrap_or_else(|| "unknown".into());
+            let state = session.state.lock();
+            // Terminal metadata is evidence, not an input capability. A block
+            // reference also requires the independent adapter's acceptance.
+            let block = (outcome == "accepted")
+                .then(|| {
+                    state.terminal.get_zones().iter().find(|z| {
+                        z.zone_type == par_term_emu_core_rust::zone::ZoneType::Output
+                            && z.submission_id.as_deref() == Some(id)
+                    })
+                })
+                .flatten();
+            request_json_response(serde_json::json!({"submissionId":id, "outcome":outcome,
+                "blockId":block.map(command_blocks::identity),
+                "running":block.map(|z| z.is_open()), "exitCode":block.and_then(|z| z.exit_code)}))
+        }
         "ssh.sftp.list_directory_start" => {
             let Some(path) = request
                 .get("path")

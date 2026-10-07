@@ -1,0 +1,30 @@
+[
+  {
+    "sessionUpdate": "trail_connection",
+    "agent": {
+      "name": "@agentclientprotocol/codex-acp",
+      "title": "Codex",
+      "version": "2.1.1"
+    },
+    "session_id": "01a10082-1355-7693-992c-a0d3900020ec",
+    "model": "gpt-5.6-sol",
+    "reasoning_effort": "high",
+    "reconnected": false
+  },
+  {
+    "sessionUpdate": "trail_connection",
+    "agent": {
+      "name": "@agentclientprotocol/codex-acp",
+      "title": "Codex",
+      "version": "2.1.1"
+    },
+    "session_id": "01a10082-1355-7693-992c-a0d3900020ec",
+    "model": "gpt-5.6-sol",
+    "reasoning_effort": "high",
+    "reconnected": true
+  },
+  {
+    "cancel_resume": "passed",
+    "same_session": true
+  }
+]

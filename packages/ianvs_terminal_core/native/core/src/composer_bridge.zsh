@@ -16,6 +16,8 @@
   fi
   exec {__ic_socket}<&-
   builtin print -r -u $__ic_fd -- $'hello\t@@NONCE@@'
+  __ianvs_inventory_emit() { builtin print -r -u $__ic_fd -- $'inventory\t'"$1" }
+  @@COMMAND_INVENTORY@@
   __ic_hex() {
     local LC_ALL=C char byte
     REPLY=''
@@ -69,10 +71,12 @@
     (( __ic_fd >= 0 )) || return 0
     __ic_available=0
     if [[ $CONTEXT == start && -z $BUFFER && ${ZLE_RECURSIVE:-0} == 0 ]]; then
+      unset __ianvs_pending_submission __ianvs_pending_command
       (( ++__ic_epoch ))
       __ic_available=1
       __ic_history
       __ic_aliases
+      __ianvs_command_inventory "$__ic_epoch"
       __ic_hex "$PWD"
       local cwd_hex=$REPLY
       __ic_hex "$HOME"
@@ -95,7 +99,8 @@
   __ic_receive() {
     emulate -L zsh
     setopt extendedglob
-    local i wire action epoch id hex escaped='' pair
+    local i wire action epoch id hex escaped='' chunk
+    local -a match mbegin mend
     if [[ -n $2 ]] || ! IFS= builtin read -r -t 1 wire <&$__ic_fd; then
       zle -F $__ic_fd
       if [[ -n ${__ic_payload+x} ]]; then
@@ -115,9 +120,12 @@
       return
     fi
     [[ $hex == [0-9a-f]## && ${#hex} -le 131072 && $(( ${#hex} % 2 )) == 0 ]] || return
-    for (( i=1; i <= ${#hex}; i+=2 )); do
-      pair=$hex[i,i+1]
-      escaped+="\x$pair"
+    # Per-byte slicing/appending is quadratic in zsh and can exceed the
+    # preparation deadline for valid long commands. Bound each replacement
+    # to an even-sized chunk; the result is still literal printf escapes.
+    for (( i=1; i <= ${#hex}; i+=1024 )); do
+      chunk=$hex[i,i+1023]
+      escaped+=${chunk//(#b)(??)/\\x$match[1]}
     done
     typeset -g __ic_payload=$escaped __ic_id=$id __ic_claim_epoch=$epoch __ic_keymap=$KEYMAP
     local binding
@@ -143,6 +151,8 @@
     CURSOR=${#BUFFER}
     __ic_available=0
     unset __ic_payload
+    typeset -g __ianvs_pending_submission=$__ic_id
+    typeset -g __ianvs_pending_command=$BUFFER
     builtin print -r -u $__ic_fd -- $'accepted\t'"$__ic_id"
     zle .accept-line
   }

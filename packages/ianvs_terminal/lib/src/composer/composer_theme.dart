@@ -41,6 +41,7 @@ final class ComposerTheme extends ThemeExtension<ComposerTheme> {
     required this.statusStyle,
     required this.controlHeight,
     required this.highContrast,
+    this.readerTopInset = 0,
   });
 
   factory ComposerTheme.of(BuildContext context) {
@@ -169,6 +170,12 @@ final class ComposerTheme extends ThemeExtension<ComposerTheme> {
   static const maxMenuWidth = 760.0;
   static const stateDuration = Duration(milliseconds: 120);
 
+  /// Overlay motion follows the system even when hosted outside the Trail app.
+  static AnimationStyle? overlayAnimation(BuildContext context) =>
+      MediaQuery.disableAnimationsOf(context)
+      ? AnimationStyle.noAnimation
+      : null;
+
   final Color surface;
   final Color border;
   final Color foreground;
@@ -198,6 +205,11 @@ final class ComposerTheme extends ThemeExtension<ComposerTheme> {
   final TextStyle statusStyle;
   final double controlHeight;
   final bool highContrast;
+
+  /// Host-owned window chrome above a full-window output reader. Defaults to
+  /// zero for embedded terminals and hosts with a system-provided safe area.
+  /// Combined with MediaQuery padding by maximum, never added twice.
+  final double readerTopInset;
 
   Color get onSurface => foreground;
   Color get selected => selection;
@@ -267,6 +279,7 @@ final class ComposerTheme extends ThemeExtension<ComposerTheme> {
     TextStyle? statusStyle,
     double? controlHeight,
     bool? highContrast,
+    double? readerTopInset,
   }) => ComposerTheme(
     surface: surface ?? this.surface,
     border: border ?? this.border,
@@ -297,6 +310,7 @@ final class ComposerTheme extends ThemeExtension<ComposerTheme> {
     statusStyle: statusStyle ?? this.statusStyle,
     controlHeight: controlHeight ?? this.controlHeight,
     highContrast: highContrast ?? this.highContrast,
+    readerTopInset: readerTopInset ?? this.readerTopInset,
   );
 
   @override
@@ -336,6 +350,8 @@ final class ComposerTheme extends ThemeExtension<ComposerTheme> {
       statusStyle: TextStyle.lerp(statusStyle, other.statusStyle, t)!,
       controlHeight: lerpDouble(controlHeight, other.controlHeight, t)!,
       highContrast: t < .5 ? highContrast : other.highContrast,
+      // Window hit-test boundaries must not animate through native controls.
+      readerTopInset: t < .5 ? readerTopInset : other.readerTopInset,
     );
   }
 }

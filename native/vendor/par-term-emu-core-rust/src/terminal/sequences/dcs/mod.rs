@@ -10,7 +10,10 @@ use vte::Params;
 /// Non-Sixel payloads retain only a bounded prefix. Ianvs shell hooks use a
 /// separate bound to accommodate hex-encoded command/context metadata.
 pub(crate) const MAX_NON_SIXEL_DCS_BYTES: usize = 4 * 1024;
-const MAX_SHELL_HOOK_DCS_BYTES: usize = 64 * 1024;
+// Composer accepts 64 KiB of literal UTF-8. JSON can double each permitted
+// byte (quotes, backslashes, tabs/newlines), then the hook hex-encodes it.
+// Leave bounded space for hook, shell, context and submission metadata.
+const MAX_SHELL_HOOK_DCS_BYTES: usize = 4 * 64 * 1024 + 1024;
 
 fn sixel_display_width_for_pixel_aspect(
     width: usize,

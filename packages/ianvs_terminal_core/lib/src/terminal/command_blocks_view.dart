@@ -2,12 +2,14 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollDirection;
+import 'package:flutter/scheduler.dart' show SchedulerPhase;
 import 'package:flutter/services.dart';
 
 import '../composer/composer_theme.dart';
 import '../config/terminal_config.dart';
 import 'command_block.dart';
 import 'command_block_controller.dart';
+import 'command_timeline.dart';
 import 'selection_controller.dart';
 import 'terminal_input_controller.dart';
 import 'terminal_input_sink.dart';
@@ -19,6 +21,30 @@ part 'command_blocks_controls.dart';
 part 'command_blocks_output.dart';
 part 'command_blocks_compact.dart';
 part 'command_block_reader.dart';
+part 'command_block_reader_tools.dart';
+part 'command_block_elapsed.dart';
+part 'command_tail_follow.dart';
+
+/// Host messages and canonical block references share one scrollable timeline.
+/// The host supplies no copied terminal output; blocks resolve through the
+/// existing controller and retain its selection, paging and rendering behavior.
+class CommandBlockTimelineItem {
+  const CommandBlockTimelineItem.content(this.id, this.builder)
+    : blockId = null,
+      sourceSessionId = null;
+  const CommandBlockTimelineItem.block(
+    this.blockId, {
+    String? id,
+    this.sourceSessionId,
+  }) : id = id ?? 'block-$blockId',
+       builder = null;
+  final String id;
+  final String? blockId;
+
+  /// Hosts with retained connections resolve each block against this source.
+  final String? sourceSessionId;
+  final WidgetBuilder? builder;
+}
 
 /// A selectable, session-local command transcript. The host retains its native
 /// terminal for PTY input and switches back for alternate-screen/mouse apps.
@@ -36,6 +62,12 @@ class TerminalCommandBlocksView extends StatefulWidget {
     this.onMeasuredCellSizeChanged,
     this.onOpenLinkTarget,
     this.onAskAi,
+    this.onAttachBlocks,
+    this.onAttachRange,
+    this.timeline,
+    this.scrollController,
+    this.showToolbar = true,
+    this.followTail,
     super.key,
   });
   final CommandBlockController controller;
@@ -50,13 +82,19 @@ class TerminalCommandBlocksView extends StatefulWidget {
   final ValueChanged<Size>? onMeasuredCellSizeChanged;
   final ValueChanged<TerminalLinkTarget>? onOpenLinkTarget;
   final ValueChanged<CommandBlock>? onAskAi;
+  final ValueChanged<List<CommandBlock>>? onAttachBlocks;
+  final ValueChanged<CommandBlock>? onAttachRange;
+  final List<CommandBlockTimelineItem>? timeline;
+  final ScrollController? scrollController;
+  final bool showToolbar;
+  final ValueNotifier<bool>? followTail;
 
   @override
   State<TerminalCommandBlocksView> createState() => _CommandBlocksViewState();
 }
 
 class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
-  final _scroll = ScrollController();
+  late final ScrollController _scroll;
   final _focus = FocusNode(debugLabel: 'Command blocks');
   final GlobalKey<State<StatefulWidget>> _listKey = GlobalKey();
   final _keys = <String, GlobalKey>{};
@@ -67,7 +105,14 @@ class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
   String? _stickyId;
   String? _feedback;
   Timer? _feedbackTimer;
-  bool _follow = true;
+  bool _localFollow = true;
+  final _tailFollow = _CommandTailFollow();
+  bool get _follow => widget.followTail?.value ?? _localFollow;
+  set _follow(bool value) {
+    _localFollow = value;
+    widget.followTail?.value = value;
+  }
+
   bool _finding = false;
   bool _findRegex = false;
   bool _findCase = false;
@@ -81,14 +126,19 @@ class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
   double? _cellHeight;
   bool _readerLayout = false;
   bool _readerOpen = false;
-  final _readingRows = <String, double>{};
   CommandBlockController get c => widget.controller;
+  List<CommandBlockTimelineItem> get _items =>
+      widget.timeline ??
+      [for (final block in c.blocks) CommandBlockTimelineItem.block(block.id)];
   String t(String en, String zh) => widget.chinese ? zh : en;
   void _update(VoidCallback action) => setState(action);
 
   @override
   void initState() {
     super.initState();
+    _scroll = widget.scrollController ?? ScrollController();
+    if (widget.followTail == null) _follow = _scroll.initialScrollOffset == 0;
+    widget.followTail?.addListener(_followingChanged);
     // Mounting an already-running transcript is not a new execution. Its
     // first refresh must not re-enable tail following during a user's scroll.
     _runningId = c.blocks.where((block) => block.running).lastOrNull?.id;
@@ -100,16 +150,25 @@ class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
   @override
   void didUpdateWidget(TerminalCommandBlocksView oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.followTail != widget.followTail) {
+      oldWidget.followTail?.removeListener(_followingChanged);
+      widget.followTail?.addListener(_followingChanged);
+    }
     if (oldWidget.controller != c) {
       oldWidget.controller.removeListener(_changed);
       c.addListener(_changed);
+    }
+    if (oldWidget.timeline?.length != widget.timeline?.length && _follow) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _tail());
     }
   }
 
   @override
   void dispose() {
+    widget.followTail?.removeListener(_followingChanged);
     c.removeListener(_changed);
-    _scroll.dispose();
+    _scroll.removeListener(_scrolled);
+    if (widget.scrollController == null) _scroll.dispose();
     _focus.dispose();
     _find.dispose();
     _findFocus.dispose();
@@ -118,16 +177,18 @@ class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
     super.dispose();
   }
 
+  void _followingChanged() {
+    if (_follow) WidgetsBinding.instance.addPostFrameCallback((_) => _tail());
+  }
+
   void _changed() {
     if (!mounted) return;
     final ids = c.blocks.map((b) => b.id).toSet();
     _keys.removeWhere((id, _) => !ids.contains(id));
     _commandKeys.removeWhere((id, _) => !ids.contains(id));
-    _readingRows.removeWhere((id, _) => !ids.contains(id));
     final runningId = c.blocks.where((b) => b.running).lastOrNull?.id;
     if (runningId != null && runningId != _runningId) {
-      _follow = true;
-      c.selected.clear();
+      if (_follow) c.selected.clear();
     }
     _runningId = runningId;
     setState(() {});
@@ -135,7 +196,7 @@ class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
       _revealed = c.revealRevision;
       _focus.requestFocus();
       unawaited(_reveal(c.activeId, bottom: c.revealBottom));
-    } else if (_follow && c.selected.isEmpty) {
+    } else if (_follow && _selectedTimelineBlocks.isEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _tail());
     }
   }
@@ -148,6 +209,22 @@ class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
     if (remaining > 0) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _tail(remaining - 1));
     }
+  }
+
+  double get _tailDistance =>
+      (_cellHeight ??
+          MediaQuery.textScalerOf(context).scale(widget.font.size) *
+              widget.font.lineHeight) *
+      2;
+
+  void _detachTail() {
+    _follow = false;
+    ++_revealSerial;
+  }
+
+  void _attachTail() {
+    _follow = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _tail());
   }
 
   void _scrolled() {
@@ -189,12 +266,13 @@ class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
         await Scrollable.ensureVisible(context, alignment: bottom ? 1 : 0);
         return;
       }
-      final target = c.blocks.indexWhere((b) => b.id == id);
+      final items = _items;
+      final target = items.indexWhere((item) => item.blockId == id);
       if (target < 0) return;
       final mountedIndices = <int>[];
       var sum = 0.0;
-      for (var i = 0; i < c.blocks.length; i++) {
-        final box = _keys[c.blocks[i].id]?.currentContext?.findRenderObject();
+      for (var i = 0; i < items.length; i++) {
+        final box = _keys[items[i].blockId]?.currentContext?.findRenderObject();
         if (box is RenderBox && box.attached && box.hasSize) {
           mountedIndices.add(i);
           sum += box.size.height;
@@ -223,6 +301,7 @@ class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
       toggle: Theme.of(context).platform == TargetPlatform.macOS
           ? keys.isMetaPressed
           : keys.isControlPressed && keys.isShiftPressed,
+      orderedIds: _timelineBlockIds,
     );
     _focus.requestFocus();
   }
@@ -257,7 +336,9 @@ class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
       return KeyEventResult.handled;
     }
     if (_findFocus.hasFocus) return KeyEventResult.ignored;
-    if (app && key == LogicalKeyboardKey.keyC && c.selected.isNotEmpty) {
+    if (app &&
+        key == LogicalKeyboardKey.keyC &&
+        _selectedTimelineBlocks.isNotEmpty) {
       unawaited(_copy('both'));
       return KeyEventResult.handled;
     }
@@ -286,11 +367,14 @@ class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
           delta,
           extend: keys.isShiftPressed,
           bookmarked: keys.isAltPressed,
+          orderedIds: _timelineBlockIds,
         );
       }
       return KeyEventResult.handled;
     }
-    if (key == LogicalKeyboardKey.enter && c.active != null) {
+    if (key == LogicalKeyboardKey.enter &&
+        c.active != null &&
+        (_timelineBlockIds?.contains(c.active!.id) ?? true)) {
       widget.onReinput(c.active!.command);
       return KeyEventResult.handled;
     }
@@ -308,7 +392,14 @@ class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
                 (key == LogicalKeyboardKey.pageUp ? -1 : 1) *
                     position.viewportDimension *
                     .9;
+      _detachTail();
       _scroll.jumpTo(next.clamp(0.0, position.maxScrollExtent));
+      if ((key == LogicalKeyboardKey.end ||
+              key == LogicalKeyboardKey.pageDown) &&
+          position.extentAfter <= _tailDistance &&
+          _selectedTimelineBlocks.isEmpty) {
+        _attachTail();
+      }
       return KeyEventResult.handled;
     }
     return KeyEventResult.ignored;
@@ -324,9 +415,9 @@ class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
   }
 
   Future<void> _copy(String kind, {String? id}) async {
-    final blocks = c.blocks
-        .where((b) => id != null ? b.id == id : c.selected.contains(b.id))
-        .toList();
+    final blocks = id == null
+        ? _selectedTimelineBlocks
+        : c.blocks.where((b) => b.id == id).toList();
     try {
       final values = <String>[];
       for (final block in blocks) {
@@ -417,9 +508,14 @@ class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
                     bounds.maxHeight < tokens.controlHeight * 7);
             return Column(
               children: [
-                if (bounds.maxHeight >=
-                    tokens.controlHeight * (_readerLayout ? 3 : 1) + 24)
+                if (widget.showToolbar &&
+                    bounds.maxHeight >=
+                        tokens.controlHeight * (_readerLayout ? 3 : 1) + 24)
                   _toolbar(tokens),
+                if (!widget.showToolbar &&
+                    _selectedTimelineBlocks.isNotEmpty &&
+                    widget.onAttachBlocks != null)
+                  _selectionToolbar(tokens),
                 if (_finding)
                   Flexible(
                     child: SingleChildScrollView(child: _findBar(tokens)),
@@ -428,7 +524,7 @@ class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
                   child: LayoutBuilder(
                     builder: (context, constraints) => Stack(
                       children: [
-                        if (c.blocks.isEmpty)
+                        if (_items.isEmpty)
                           Center(
                             child: Text(
                               t(
@@ -446,7 +542,7 @@ class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
                               if (notification.depth == 0 &&
                                   notification.metrics.axis == Axis.vertical &&
                                   _follow &&
-                                  c.selected.isEmpty) {
+                                  _selectedTimelineBlocks.isEmpty) {
                                 WidgetsBinding.instance.addPostFrameCallback(
                                   (_) => _tail(),
                                 );
@@ -454,36 +550,59 @@ class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
                               return false;
                             },
                             child: NotificationListener<ScrollNotification>(
-                              onNotification: (notification) {
-                                if (notification is ScrollStartNotification &&
-                                        notification.dragDetails != null ||
-                                    notification is UserScrollNotification &&
-                                        notification.direction !=
-                                            ScrollDirection.idle) {
-                                  _follow = false;
-                                  ++_revealSerial;
-                                }
-                                return false;
-                              },
+                              onNotification: (notification) =>
+                                  _tailFollow.handle(
+                                    notification,
+                                    distance: _tailDistance,
+                                    detach: _detachTail,
+                                    attach: _attachTail,
+                                    canAttach: _selectedTimelineBlocks.isEmpty,
+                                  ),
                               child: Scrollbar(
                                 controller: _scroll,
-                                child: ListView.builder(
+                                child: CommandTimelineView(
                                   key: _listKey,
                                   controller: _scroll,
+                                  followTail: () =>
+                                      _follow &&
+                                      _selectedTimelineBlocks.isEmpty,
                                   padding: EdgeInsets.fromLTRB(
                                     10,
                                     0,
                                     10,
                                     _readerLayout ? 0 : 16,
                                   ),
-                                  itemCount: c.blocks.length,
-                                  itemBuilder: (context, index) => _readerLayout
-                                      ? _compactBlock(c.blocks[index], tokens)
-                                      : _block(
-                                          c.displayBlock(c.blocks[index]),
-                                          tokens,
-                                          constraints.maxHeight / 3,
-                                        ),
+                                  itemIds: [for (final item in _items) item.id],
+                                  itemBuilder: (context, index) {
+                                    final item = _items[index];
+                                    final block = c.blocks
+                                        .where((b) => b.id == item.blockId)
+                                        .firstOrNull;
+                                    return KeyedSubtree(
+                                      key: ValueKey(item.id),
+                                      child:
+                                          item.builder?.call(context) ??
+                                          (block == null
+                                              ? Padding(
+                                                  padding: const EdgeInsets.all(
+                                                    12,
+                                                  ),
+                                                  child: Text(
+                                                    t(
+                                                      'Output is no longer retained',
+                                                      '输出已不再保留',
+                                                    ),
+                                                  ),
+                                                )
+                                              : _readerLayout
+                                              ? _compactBlock(block, tokens)
+                                              : _block(
+                                                  c.displayBlock(block),
+                                                  tokens,
+                                                  constraints.maxHeight / 3,
+                                                )),
+                                    );
+                                  },
                                 ),
                               ),
                             ),
@@ -701,6 +820,8 @@ class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
                                 () => c.toggleCollapsed(block.id),
                               ),
                             PopupMenuButton<String>(
+                              popUpAnimationStyle:
+                                  ComposerTheme.overlayAnimation(context),
                               tooltip: t('Block actions', '命令块操作'),
                               icon: Icon(
                                 Icons.more_horiz,
@@ -880,12 +1001,12 @@ class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
                                 ),
                               ],
                             ),
-                            if (block.durationMs case final int duration)
-                              Text(
-                                duration < 1000
-                                    ? '${duration}ms'
-                                    : '${(duration / 1000).toStringAsFixed(1)}s',
+                            if (block.durationMs != null ||
+                                block.running && block.startedAt != null)
+                              _CommandBlockElapsed(
+                                block: block,
                                 style: tokens.metadataStyle,
+                                chinese: widget.chinese,
                               ),
                             if (folded)
                               Text(
@@ -983,6 +1104,9 @@ class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
                     ),
                   ),
                   PopupMenuButton<String>(
+                    popUpAnimationStyle: ComposerTheme.overlayAnimation(
+                      context,
+                    ),
                     key: ValueKey('block-actions-${block.id}'),
                     tooltip: t('Block actions', '命令块操作'),
                     icon: Icon(Icons.more_horiz, size: 17, color: tokens.muted),

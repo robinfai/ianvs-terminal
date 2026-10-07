@@ -1004,6 +1004,7 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     try {
       await showDialog<void>(
         context: context,
+        animationStyle: appDialogAnimation(context),
         builder: (dialogContext) => Consumer(
           builder: (context, ref, _) {
             final sessions = ref.watch(sessionControllerProvider);

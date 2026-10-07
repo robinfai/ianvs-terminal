@@ -1,0 +1,16 @@
+package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_architecture_test.dart
+00:00 +0: DartLibraryGraphScanner counts a part after it is migrated to a real import
+00:00 +1: DartLibraryGraphScanner rejects an unregistered owned real library as an orphan
+00:00 +2: DartLibraryGraphScanner counts multiline conditional imports and recursive export chains
+00:00 +3: DartLibraryGraphScanner counts non-prefixed relative package and conditional libraries
+00:00 +4: DartLibraryGraphScanner counts LF CRLF and CR physical lines identically
+00:00 +5: DartLibraryGraphScanner ignores metadata strings and finds the following directives
+00:00 +6: DartLibraryGraphScanner counts a large library after generic named metadata designations
+00:00 +7: DartLibraryGraphScanner rejects a cross-directory dependency without an allowlist entry
+00:00 +8: DartLibraryGraphScanner rejects a missing local directive target
+00:00 +9: DartLibraryGraphScanner rejects duplicate local directive targets
+00:00 +10: DartLibraryGraphScanner counts each library once when import and export cycles exist
+00:00 +11: DartLibraryGraphScanner rejects a part-of directive naming a different owner
+00:00 +12: shell screen architecture budget bounds the complete owned library graph without a part count
+00:00 +13: All tests passed!

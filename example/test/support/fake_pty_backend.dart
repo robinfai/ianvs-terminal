@@ -214,6 +214,9 @@ class FakePtyBackend
     final request = jsonDecode(requestJson) as Map<String, Object?>;
     jsonRequests.add(request);
     return switch (request['kind']) {
+      'composer.state' => jsonEncode(const <String, Object?>{
+        'state': 'unknown',
+      }),
       'terminal.search_text' => _searchTextJson(
         sessionId,
         request['query'] as String? ?? '',

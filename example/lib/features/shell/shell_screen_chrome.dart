@@ -1,6 +1,6 @@
 part of 'shell_screen.dart';
 
-const double _shellChromeTitleHeight = 44;
+const double _shellChromeTitleHeight = appWindowTitleBarHeight;
 const double _shellChromeTabRailHeight = 38;
 const double _iosShellChromeTitleHeight = 44;
 const double _iosShellChromeTabRailHeight = 52;
@@ -38,6 +38,7 @@ class _ShellChromeBar extends ConsumerWidget {
     required this.onShowTabContextMenu,
     required this.onShowCommandMenu,
     this.onOpenReplay,
+    this.aiAction,
   });
 
   final bool sidebarOpen;
@@ -72,6 +73,7 @@ class _ShellChromeBar extends ConsumerWidget {
   final void Function(TerminalTab tab, Offset position) onShowTabContextMenu;
   final VoidCallback onShowCommandMenu;
   final VoidCallback? onOpenReplay;
+  final Widget? aiAction;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -137,6 +139,7 @@ class _ShellChromeBar extends ConsumerWidget {
                   onShowCommandMenu: referenceDemoMode
                       ? null
                       : onShowCommandMenu,
+                  aiAction: aiAction,
                 ),
               if (!sidebarOpen)
                 SizedBox(
@@ -237,6 +240,7 @@ class _ShellChromeBar extends ConsumerWidget {
                           ),
                           if (usesCompactMobileChrome &&
                               !referenceDemoMode) ...[
+                            ?aiAction,
                             if (onOpenReplay != null)
                               TextFieldTapRegion(
                                 child: _buildChromeIconButton(
@@ -402,6 +406,7 @@ class _ShellRuntimeErrorBanner extends StatelessWidget {
                   icon: const Icon(Icons.info_outline_rounded),
                   onPressed: () => showDialog<void>(
                     context: context,
+                    animationStyle: appDialogAnimation(context),
                     builder: (context) => AlertDialog(
                       title: Text(context.l10n.terminalRuntimeError),
                       content: SingleChildScrollView(
@@ -2531,6 +2536,7 @@ class _ShellTabPaneSignalChip extends StatelessWidget {
         ),
       ),
       child: PopupMenuButton<_ShellNotificationInteraction>(
+        popUpAnimationStyle: appDialogAnimation(context),
         key: itemKey,
         tooltip: tooltip,
         padding: EdgeInsets.zero,
@@ -2825,6 +2831,7 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
       label: context.l10n.closeNamedTab(title),
       button: true,
       excludeSemantics: true,
+      onTap: widget.onClose,
       child: Tooltip(
         message: context.l10n.closeNamed(title),
         child: GestureDetector(
@@ -3007,6 +3014,7 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
                   selected: widget.isActive,
                   button: true,
                   excludeSemantics: true,
+                  onTap: widget.onActivate,
                   child: widget.dragRegionBuilder(
                     SizedBox.expand(
                       child: TextButton(

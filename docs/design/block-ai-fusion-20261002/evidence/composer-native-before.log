@@ -1,0 +1,38 @@
+package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/integration_test/terminal_ai_workspace_acceptance_test.dart
+Building macOS application...                                   
+✓ Built build/macos/Build/Products/Debug/Trail Development.app
+00:00 +0: Main AI timeline submits once and returns unchanged TUI grid
+{"composerOwnership":"submitting","composerStatus":"","draft":"","expectedCommand":"ls '/var/folders/k2/8qbf3nrs7t1749d198rw0df40000gn/T/trail-fusion-ui-chKNHt/missing-source'","shell":{"contextId":"root","cwd":"/private/var/folders/k2/8qbf3nrs7t1749d198rw0df40000gn/T/trail-fusion-ui-chKNHt","dialect":"zsh","history":["printf 'FUSION_OK\\n'; printf x >> '/var/folders/k2/8qbf3nrs7t1749d198rw0df40000gn/T/trail-fusion-ui-chKNHt/once.txt'"],"historyRevision":1,"home":"/var/folders/k2/8qbf3nrs7t1749d198rw0df40000gn/T/trail-fusion-ui-chKNHt","lease":"25925240ee46f3db6925d8a8d5fcf2b0.2","outcome":"accepted","state":"ready","submissionId":"ai-1790955685608404-0","transport":"local"},"blocks":{"alternateScreen":false,"blocks":[{"columns":203,"command":"printf 'FUSION_OK\\n'; printf x >> '/var/folders/k2/8qbf3nrs7t1749d198rw0df40000gn/T/trail-fusion-ui-chKNHt/once.txt'","commandMatch":false,"contextId":null,"cursorColumn":0,"cursorLine":0,"cwd":"/private/var/folders/k2/8qbf3nrs7t1749d198rw0df40000gn/T/trail-fusion-ui-chKNHt","evicted":false,"exitCode":0,"finishedAt":1790955685671,"hyperlinks":[],"id":"1790955685666-2","lines":[{"index":0,"source_end_row":1,"source_row":1,"style_runs":[{"background":null,"blink":false,"bold":false,"dim":false,"end":203,"foreground":null,"inverse":false,"italic":false,"start":0,"underline":false}],"text":"FUSION_OK","wrapped":false}],"matchingLines":1,"nextOffset":null,"offset":0,"running":false,"startedAt":1790955685666,"submissionId":"ai-1790955685608404-0","totalLines":1}],"omittedBlocks":0}}
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: 'ls
+\'/var/folders/k2/8qbf3nrs7t1749d198rw0df40000gn/T/trail-fusion-ui-chKNHt/missing-source\''
+  Actual: ''
+   Which: is different. Both strings start the same, but the actual value is missing the following
+trailing characters: ls '/var/f ...
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/example/integration_test/terminal_ai_workspace_acceptance_test.dart:313:9)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Users/robinfai/flutter_projects/ianvs-terminal/example/integration_test/terminal_ai_workspace_acceptance_test.dart line 313
+The test description was:
+  Main AI timeline submits once and returns unchanged TUI grid
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:05 +0 -1: Main AI timeline submits once and returns unchanged TUI grid [E]
+  Test failed. See exception logs above.
+  The test description was: Main AI timeline submits once and returns unchanged TUI grid
+  
+00:05 +0 -1: (tearDownAll)
+00:05 +0 -1: Some tests failed.
+
+Failing tests:
+  /Users/robinfai/flutter_projects/ianvs-terminal/example/integration_test/terminal_ai_workspace_acceptance_test.dart: Main AI timeline submits once and returns unchanged TUI grid

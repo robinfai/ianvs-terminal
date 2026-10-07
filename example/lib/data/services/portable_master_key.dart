@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+import '../../platform/development_secret_file.dart';
 import 'data_api_auth_contract.dart';
 
 bool get usesAutomaticallySynchronizedAppleKeychain =>
@@ -112,19 +114,6 @@ final class FlutterSecurePortableMasterKeyStorage
     ),
   }) : _key = storageKey;
 
-  const FlutterSecurePortableMasterKeyStorage.development()
-    : _storage = const FlutterSecureStorage(
-        mOptions: MacOsOptions(
-          accountName: developmentAccountName,
-          synchronizable: false,
-          usesDataProtectionKeychain: false,
-        ),
-      ),
-      _key = developmentStorageKey;
-
-  static const developmentAccountName = 'dev.ianvs.terminal.development';
-  static const developmentStorageKey = 'ianvs.development.master-key.v1';
-
   const FlutterSecurePortableMasterKeyStorage.legacyMacOs()
     : _storage = const FlutterSecureStorage(
         mOptions: MacOsOptions(usesDataProtectionKeychain: false),
@@ -145,6 +134,32 @@ final class FlutterSecurePortableMasterKeyStorage
   }
 
   Future<void> delete() => _storage.delete(key: _key);
+}
+
+final class DevelopmentPortableMasterKeyStorage
+    implements PortableMasterKeyStorage {
+  DevelopmentPortableMasterKeyStorage({
+    required Future<Directory> Function() directoryResolver,
+  }) : _file = DevelopmentSecretFile(
+         directoryResolver: directoryResolver,
+         name: 'master-key.v1',
+       );
+
+  final DevelopmentSecretFile _file;
+
+  @override
+  Future<String?> read() async {
+    final encoded = await _file.read();
+    // A damaged/empty existing file is not permission to replace its key.
+    if (encoded != null) PortableMasterKey.parsePortable(encoded);
+    return encoded;
+  }
+
+  @override
+  Future<void> write(String portableValue) {
+    PortableMasterKey.parsePortable(portableValue);
+    return _file.write(portableValue);
+  }
 }
 
 final class PortableMasterKeyConflictException implements Exception {

@@ -1,0 +1,59 @@
+{
+  "recorded_at": "2026-10-03T03:18:41.947641+00:00",
+  "scope": "Reduce Motion in block menus, internal reader routes and Shell overlays; isolated native accessibility fixture",
+  "environment": {
+    "macOS": "27.0.1",
+    "build": "26A434"
+  },
+  "limits": "No real VoiceOver speech captured. Native fixture uses only in-memory terminal/settings/model. Mobile is fixed-font production component validation, not a physical phone. Native window ownership separately verified with PID-preserving queries; this still does not verify or authorize VoiceOver speech reads.",
+  "results": {
+    "application_tests": 1025,
+    "shared_terminal_tests": 74,
+    "native_fixture_tests": 1,
+    "actual_speech_verified": false
+  },
+  "artifacts": {
+    "accessibility-fixture-analyze.log": "3d0f545e8f5a71023a020c1692e4020a170fa4ca41a13dbe8d2b5c00fc3ecd3d",
+    "accessibility-fixture-native.log": "4d1afad2d5bfef56dcc576365a55cfb8b16943e355de241d62ef1eadadcbb156",
+    "motion-analyze.log": "efaac2f99b8385786b2a33b578379acf8c253209fe74efe418be44081d342186",
+    "motion-block-reproduction.log": "7f46f6d1ffdf54bd1d1b7671d555e1fcb2ff00193c4903687eb4cfe7769fff3c",
+    "motion-block-tests.log": "4bc4380c093310def3eccfea9b150c439d05a581d28f41acd13526c9afad0f53",
+    "motion-mirror-check.log": "79ea62ba85fd4366e859c4e3b3c6cd1cab711eb9ccbd38df713e6530698f52a1",
+    "motion-regression.log": "ed9acdc726e0390134811af8d8ed0a30ffc076746ad87ad61568c951ccfabe11",
+    "motion-terminal-analyze.log": "82a3ec71ff6fbc80554478b3d845cd18fa30c978c6f8fe79db40fdbbc1b8bedc",
+    "motion-terminal-regression.log": "cfff9712e4a08a6d4adc9d9538ca986344a6ec03b11b2ffd8e543b3b4656ace6",
+    "native/disconnected.png": "312a3dd1a42e0846d50094c22e09a4f1872512a2e2f40d4136278de0cafbd473",
+    "native/observing.png": "e8ec4c55ebc7a497ec987825776ff972d1e004f9de48458e09f5e7ee93b2f893",
+    "native/output-updated.png": "2699bd9897b8ad5da601d84f9fa2994128d3cdca5aa1b6513b5442180de6a939",
+    "native/paused.png": "8e6b215427bb9fa39a0cfb1ece198b4a812cf4e0650307aa61e18ae8c35be69f",
+    "native/proposal.png": "b78b2d5cd625a9c4b5e377905a6bbc3cd5cb21ef18c0ca11132c542d3dba6e15",
+    "native/result.json": "e87fb7bffd06c8a196fc781be520f0fc03f6a24b825f3baf4bbfbbba00eacab1",
+    "native/scope.json": "cade689f1785659218c4ebde955c39a8eeb36033a695cba5aaccdb5d3f2ff42e",
+    "native/snapshot.png": "61a3414ac0135c2df68f31903c2286b5eddb16036686316080019ab708d4d306",
+    "scene-artifact-integrity.json": "220ff171665bf119b8958a1efc222976e4a9ae4ae9a839a5a2002286a69f642e",
+    "native-window-before.json": "d8b72fd76bcc9aa84a0c451929e49cab7269f2dc5108d30d5439037c2040d7f1",
+    "native-window-ownership.json": "2cd30c15a757470f2a6ba4ea75a238bb6f903698830ce6437c0200cbc027a36e",
+    "native-window-after-exit.log": "8f762a090f668d4afbb1a9fab98cf8932d5d91630807ee610f475c7f58b6a0c8",
+    "native-window-run.log": "ecd5b801d0a32ceb060ee2a657fbb991ce07a98c805dcbf8aae1e46747b2c8b5",
+    "native-window-result.json": "2f331bb2f05105050c502e60f853643fa9cc8b6453516396cc98909845ba92c2"
+  },
+  "sources": {
+    "example/integration_test/terminal_ai_accessibility_acceptance_test.dart": "208615bbbb5b853b6790a6af026fa79a8eafa55039bde8b996712001e13ea658",
+    "packages/ianvs_terminal/lib/src/composer/composer_theme.dart": "a8cfa8516b835c1e74bbd4880db833630d3ce67f18dc6ca2a4de08799f3806c5",
+    "packages/ianvs_terminal/lib/src/terminal/command_block_reader.dart": "fb946f460af8e079cc0645d39efa4ee9bbf49f8c8e5a7c8136deeca89e328ce7",
+    "packages/ianvs_terminal/lib/src/terminal/command_blocks_compact.dart": "84289b08407ba730bd801abec505336af177843b0cfa1c980ef416f1b1c20034",
+    "packages/ianvs_terminal/lib/src/terminal/command_blocks_controls.dart": "c53bdc25ab85f392c9c8a5964840bf5576651284060b4f47840f483173140010",
+    "packages/ianvs_terminal/lib/src/terminal/command_blocks_view.dart": "d3d03ca7af8f541d01855b087232b06bb2eabc0cab62ad0813a8ffd62712f760",
+    "packages/ianvs_terminal/test/terminal/command_blocks_motion_test.dart": "6bf5de878d68df23e242d87de9804dd93877ac7f24bd7989cc0bac6f84456790",
+    "example/test/shell/mobile_terminal_modes_test.dart": "07e2003d4d278116f3f580cd42f34b9df3b890281e49182394a4934a2ea0b17d",
+    "example/lib/features/shell/shell_screen_state_command_actions.dart": "034857f04d3285b3e9f7736bb8d21b890e212e8c9524976ea84b11d2fb83ae85",
+    "example/lib/features/shell/defaults_appearance_dialog.dart": "295a5f1676ec52404ffee6b9b05284d67da35378ffd370bc6fd07c3991a17cd1",
+    "example/lib/features/shell/shell_screen_state_profile_actions.dart": "3e1d9238930db85e77c9ef1fd9e08aa7578df76987bd6a98b8dadb7dc8da74ac",
+    "example/lib/features/shell/shell_screen.dart": "12295ba633a26c66a07d93c431bd647baba2720f63b0688f578de92c9f40db58",
+    "example/lib/features/shell/shell_screen_mobile_navigation.dart": "d62bdfec927420c1facc3b166d06e62e6743329ea09ee75a30f13bf0884e2685",
+    "example/lib/features/shell/shell_screen_ai.dart": "78a2995023efa784933e80a315556e56434700d370f8a67901832e6d4a270b11",
+    "example/lib/features/ssh/new_session_launcher.dart": "e1c25995518f37126d0468d04aca0d6b3cbe941856ff64de153da54922c897a8",
+    "example/lib/ui/foundation/app_motion.dart": "b826ba4c54ddadbfd72502eb2c0e8ed95bc3ed569e908d7d1ff913971bce0f26",
+    "example/tool/verify_accessibility_fixture.py": "f5c1af209003ac81d8b381caa0a37bb6525ce3ec95f122b292b972460a57f926"
+  }
+}

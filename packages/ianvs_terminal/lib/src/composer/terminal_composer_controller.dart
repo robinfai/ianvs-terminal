@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import 'completion_models.dart';
+import 'input_intent.dart';
 
 enum ComposerOwnership { draft, ready, submitting, running, suspended, unknown }
 
@@ -55,6 +56,35 @@ final class TerminalComposerController extends ChangeNotifier {
   final ComposerSubmit? submit;
   final Duration debounce;
   final TextEditingController editor;
+  final inputIntent = InputIntentState();
+  InputIntentContext _intentContext = const InputIntentContext();
+
+  InputIntentDecision get intentDecision => inputIntent.update(
+    editor.text,
+    context: InputIntentContext(
+      scope: _intentContext.scope,
+      aliases: _intentContext.aliases,
+      commandNames: _intentContext.commandNames,
+    ),
+    composing: !editor.value.composing.isCollapsed,
+  );
+
+  void chooseInputIntent(InputIntentChoice choice) {
+    dismissHistory(notify: false);
+    inputIntent.choice = choice;
+    dismissCompletions(notify: false);
+    notifyListeners();
+  }
+
+  void updateIntentContext(InputIntentContext context) {
+    final before = inputIntent.decision;
+    _intentContext = context;
+    final after = intentDecision;
+    if (before.intent != after.intent || before.source != after.source) {
+      notifyListeners();
+    }
+  }
+
   late TextEditingValue _previous;
   final List<TextEditingValue> _undo = [];
   final List<TextEditingValue> _redo = [];
@@ -228,6 +258,7 @@ final class TerminalComposerController extends ChangeNotifier {
     );
     dismissCompletions(notify: false);
     _dismissedInline = snapshot;
+    inputIntent.choice = InputIntentChoice.command;
     notifyListeners();
     return true;
   }
@@ -388,6 +419,7 @@ final class TerminalComposerController extends ChangeNotifier {
   void _edited() {
     final next = editor.value;
     if (next == _previous) return;
+    intentDecision;
     if (next.text != _previous.text) {
       _editorRevision++;
       if (!_restoring && !historyOpen && _previous.composing.isCollapsed) {
@@ -435,9 +467,13 @@ final class TerminalComposerController extends ChangeNotifier {
     _contextKey = contextKey;
     this.cwd = cwd;
     _dialect = dialect;
-    // A polling frame cannot unlock an in-flight or indeterminate transaction.
-    if (this.ownership != ComposerOwnership.submitting &&
-        this.ownership != ComposerOwnership.unknown) {
+    // Only this editor's unresolved receipt owns the lock. A transient submit
+    // observed from AI or another surface must follow subsequent shell state.
+    final ownsPendingReceipt =
+        pendingSubmission != null &&
+        (this.ownership == ComposerOwnership.submitting ||
+            this.ownership == ComposerOwnership.unknown);
+    if (!ownsPendingReceipt) {
       this.ownership = ownership;
       _lease = lease;
     }
@@ -626,6 +662,7 @@ final class TerminalComposerController extends ChangeNotifier {
     final result = _completionValue(candidate);
     if (result == null) return false;
     editor.value = result;
+    inputIntent.choice = InputIntentChoice.command;
     dismissCompletions();
     return true;
   }

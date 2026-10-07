@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../ui/app_ui.dart';
+import 'ai_approval_notice.dart';
 import 'ai_models.dart';
 import 'ai_settings_dialog.dart';
 import 'ai_strings.dart';
@@ -31,6 +32,30 @@ class _TerminalAiPanelState extends State<TerminalAiPanel> {
   TerminalAiController get c => widget.controller;
   bool get zh => Localizations.localeOf(context).languageCode == 'zh';
   String t(String en, String cn) => zh ? cn : en;
+
+  String get _status => switch (c.phase) {
+    AiPhase.thinking => t('Thinking…', '正在思考…'),
+    AiPhase.reviewing => t('Reviewing command safety…', '正在审核命令…'),
+    AiPhase.executing => t('Checking command result…', '正在获取命令结果…'),
+    AiPhase.observing => t('Waiting for terminal state…', '正在等待终端状态更新…'),
+    AiPhase.awaitingApproval => t('Review the proposed input', '请确认待执行内容'),
+    AiPhase.failed =>
+      c.error == 'step_limit'
+          ? t('Turn paused at step limit', '本轮已达上限，可继续任务')
+          : t('Needs attention', '需要处理'),
+    AiPhase.idle =>
+      c.takenOver
+          ? t('AI paused · terminal keeps running', 'AI 已暂停 · 终端继续运行')
+          : c.transcript.isEmpty
+          ? t('Ready for your task', '等待你的任务')
+          : t('Response received', '已收到回复'),
+  };
+
+  void _showLatest() {
+    if (_scroll.hasClients) {
+      _scroll.jumpTo(_scroll.position.maxScrollExtent);
+    }
+  }
 
   @override
   void initState() {
@@ -99,9 +124,36 @@ class _TerminalAiPanelState extends State<TerminalAiPanel> {
                 child: Row(
                   children: [
                     Expanded(
-                      child: Text(
-                        t('Terminal AI', '终端 AI'),
-                        style: Theme.of(context).textTheme.titleSmall,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Semantics(
+                            liveRegion: constraints.maxHeight < 360,
+                            child: Text(
+                              constraints.maxHeight < 360
+                                  ? _status
+                                  : t('Terminal AI', '终端 AI'),
+                              key: constraints.maxHeight < 360
+                                  ? const Key('ai-task-status')
+                                  : null,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: constraints.maxHeight < 360
+                                  ? Theme.of(context).textTheme.bodySmall
+                                  : Theme.of(context).textTheme.titleSmall,
+                            ),
+                          ),
+                          if (c.settings.configuration case final config?
+                              when constraints.maxHeight >= 360)
+                            Text(
+                              config.model,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.labelSmall
+                                  ?.copyWith(color: palette.textMuted),
+                            ),
+                        ],
                       ),
                     ),
                     IconButton(
@@ -117,7 +169,7 @@ class _TerminalAiPanelState extends State<TerminalAiPanel> {
                     ),
                     IconButton(
                       key: const Key('ai-close'),
-                      tooltip: t('Close and take over', '关闭并接管'),
+                      tooltip: t('Close and pause AI', '关闭并暂停 AI'),
                       onPressed: widget.onClose,
                       icon: const Icon(Icons.close, size: 19),
                     ),
@@ -146,8 +198,8 @@ class _TerminalAiPanelState extends State<TerminalAiPanel> {
                       ],
                       Text(
                         t(
-                          'Context: current screen and latest command · ${c.context?.contextId ?? ''}',
-                          '上下文：当前屏幕与最近命令 · ${c.context?.contextId ?? ''}',
+                          'Current terminal · ${c.context?.cwd ?? ''}',
+                          '当前终端 · ${c.context?.cwd ?? ''}',
                         ),
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: palette.textMuted,
@@ -188,10 +240,18 @@ class _TerminalAiPanelState extends State<TerminalAiPanel> {
                                       )
                                     : null,
                               ),
+                              if (entry.approvalReview case final review?)
+                                AiApprovalNotice(
+                                  review: review,
+                                  confirmed:
+                                      entry.state == AiEntryState.accepted ||
+                                      entry.state == AiEntryState.submitted,
+                                ),
                             ],
                           ),
                         ),
-                      if (c.pending case final AiAction action)
+                      if (c.pending case final AiAction action
+                          when c.canApprove)
                         Padding(
                           padding: const EdgeInsets.only(top: 16),
                           child: Column(
@@ -238,36 +298,13 @@ class _TerminalAiPanelState extends State<TerminalAiPanel> {
                             ],
                           ),
                         ),
-                      if (c.busy)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 12),
-                          child: Row(
-                            children: [
-                              const SizedBox(
-                                width: 14,
-                                height: 14,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 1.5,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  c.phase == AiPhase.executing
-                                      ? t('Observing terminal…', '正在观察终端…')
-                                      : t('Thinking…', '正在思考…'),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
                       if (c.takenOver)
                         Padding(
                           padding: const EdgeInsets.only(top: 12),
                           child: Text(
                             t(
-                              'You have control. Send a new request to continue.',
-                              '已由你接管。发送新请求可继续。',
+                              'AI is paused. A running command is not interrupted. Continue when ready; new input still needs approval.',
+                              'AI 已暂停，正在运行的命令不会被中断。可继续任务，新的输入仍需确认。',
                             ),
                           ),
                         ),
@@ -278,7 +315,9 @@ class _TerminalAiPanelState extends State<TerminalAiPanel> {
                             aiErrorText(c.error!, zh),
                             key: const Key('ai-error'),
                             style: TextStyle(
-                              color: Theme.of(context).colorScheme.error,
+                              color: c.error == 'step_limit'
+                                  ? palette.textMuted
+                                  : Theme.of(context).colorScheme.error,
                             ),
                           ),
                         ),
@@ -287,6 +326,52 @@ class _TerminalAiPanelState extends State<TerminalAiPanel> {
                 ),
               ),
               Divider(height: 1, color: palette.borderStrong),
+              if (constraints.maxHeight >= 360)
+                Padding(
+                  padding: const EdgeInsets.only(left: 12, right: 4),
+                  child: Row(
+                    children: [
+                      if (c.busy) ...[
+                        const SizedBox(
+                          width: 12,
+                          height: 12,
+                          child: CircularProgressIndicator(strokeWidth: 1.5),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                      Expanded(
+                        child: Semantics(
+                          liveRegion: true,
+                          child: Text(
+                            _status,
+                            key: const Key('ai-task-status'),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ),
+                      ),
+                      if (c.canResume)
+                        TextButton(
+                          key: const Key('ai-resume'),
+                          onPressed: () =>
+                              c.resume(label: t('Continue task', '继续任务')),
+                          child: Text(t('Continue task', '继续任务')),
+                        ),
+                      IconButton(
+                        key: const Key('ai-show-latest'),
+                        tooltip: c.canApprove
+                            ? t('Review pending action', '查看待执行动作')
+                            : t('Show latest response', '查看最新回复'),
+                        onPressed: _showLatest,
+                        icon: const Icon(
+                          Icons.arrow_downward_rounded,
+                          size: 18,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 6, 6, 6),
                 child: Row(
@@ -324,6 +409,26 @@ class _TerminalAiPanelState extends State<TerminalAiPanel> {
                         tooltip: t('Take over', '接管终端'),
                         onPressed: c.takeOver,
                         icon: const Icon(Icons.stop_rounded),
+                      ),
+                    if (constraints.maxHeight < 360 && c.canResume)
+                      IconButton(
+                        key: const Key('ai-resume'),
+                        tooltip: t('Continue task', '继续任务'),
+                        onPressed: () =>
+                            c.resume(label: t('Continue task', '继续任务')),
+                        icon: const Icon(Icons.play_arrow_rounded),
+                      ),
+                    if (constraints.maxHeight < 360)
+                      IconButton(
+                        key: const Key('ai-show-latest'),
+                        tooltip: c.canApprove
+                            ? t('Review pending action', '查看待执行动作')
+                            : t('Show latest response', '查看最新回复'),
+                        onPressed: _showLatest,
+                        icon: const Icon(
+                          Icons.arrow_downward_rounded,
+                          size: 18,
+                        ),
                       ),
                     IconButton(
                       key: const Key('ai-send'),

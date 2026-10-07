@@ -1,0 +1,69 @@
+package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart
+00:00 +0: (setUpAll)
+00:00 +0: unknown submission explains possible execution after reconnect en desktop-light
+00:00 +1: unknown submission explains possible execution after reconnect en desktop-dark
+00:00 +2: unknown submission explains possible execution after reconnect en desktop-2x
+00:01 +3: unknown submission explains possible execution after reconnect en phone-light
+00:01 +4: unknown submission explains possible execution after reconnect en phone-dark
+00:01 +5: unknown submission explains possible execution after reconnect en phone-landscape
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following StateError was thrown running a test:
+Bad state: No element
+
+When the exception was thrown, this was the stack:
+#0      Iterable.single (dart:core/iterable.dart:694:25)
+#1      WidgetController.element (package:flutter_test/src/controller.dart:888:30)
+#2      WidgetController.ensureVisible (package:flutter_test/src/controller.dart:2389:32)
+#3      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart:1488:24)
+<asynchronous suspension>
+#4      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#5      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+The test description was:
+  unknown submission explains possible execution after reconnect en phone-landscape
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:01 +5 -1: unknown submission explains possible execution after reconnect en phone-landscape [E]
+  Test failed. See exception logs above.
+  The test description was: unknown submission explains possible execution after reconnect en phone-landscape
+  
+00:01 +5 -1: unknown submission explains possible execution after reconnect zh desktop-light
+00:01 +6 -1: unknown submission explains possible execution after reconnect zh desktop-dark
+00:01 +7 -1: unknown submission explains possible execution after reconnect zh desktop-2x
+00:02 +8 -1: unknown submission explains possible execution after reconnect zh phone-light
+00:02 +9 -1: unknown submission explains possible execution after reconnect zh phone-dark
+00:02 +10 -1: unknown submission explains possible execution after reconnect zh phone-landscape
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following StateError was thrown running a test:
+Bad state: No element
+
+When the exception was thrown, this was the stack:
+#0      Iterable.single (dart:core/iterable.dart:694:25)
+#1      WidgetController.element (package:flutter_test/src/controller.dart:888:30)
+#2      WidgetController.ensureVisible (package:flutter_test/src/controller.dart:2389:32)
+#3      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart:1488:24)
+<asynchronous suspension>
+#4      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#5      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+The test description was:
+  unknown submission explains possible execution after reconnect zh phone-landscape
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:02 +10 -2: unknown submission explains possible execution after reconnect zh phone-landscape [E]
+  Test failed. See exception logs above.
+  The test description was: unknown submission explains possible execution after reconnect zh phone-landscape
+  
+00:02 +10 -2: (tearDownAll)
+00:02 +10 -2: Some tests failed.
+
+Failing tests:
+  /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: unknown submission explains possible execution after reconnect en phone-landscape
+  /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: unknown submission explains possible execution after reconnect zh phone-landscape

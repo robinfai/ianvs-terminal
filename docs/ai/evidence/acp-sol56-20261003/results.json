@@ -1,0 +1,146 @@
+[
+  {
+    "task": "large-scale-text-editing",
+    "runner_exit": 0,
+    "rewards": null,
+    "exception": {
+      "exception_type": "RuntimeError",
+      "exception_message": "Trail ACP runner failed; inspect retained flutter.log",
+      "exception_traceback": "Traceback (most recent call last):\n  File \"/Users/robinfai/flutter_projects/ianvs-terminal/tmp/terminal-bench/venv/lib/python3.12/site-packages/harbor/trial/trial.py\", line 418, in run\n    await self._run()\n  File \"/Users/robinfai/flutter_projects/ianvs-terminal/tmp/terminal-bench/venv/lib/python3.12/site-packages/harbor/trial/single_step.py\", line 41, in _run\n    await self._run_agent()\n  File \"/Users/robinfai/flutter_projects/ianvs-terminal/tmp/terminal-bench/venv/lib/python3.12/site-packages/harbor/trial/single_step.py\", line 77, in _run_agent\n    await self._run_agent_phase(\n  File \"/Users/robinfai/flutter_projects/ianvs-terminal/tmp/terminal-bench/venv/lib/python3.12/site-packages/harbor/trial/trial.py\", line 554, in _run_agent_phase\n    await asyncio.wait_for(\n  File \"/Users/robinfai/.local/share/uv/python/cpython-3.12.11-macos-aarch64-none/lib/python3.12/asyncio/tasks.py\", line 520, in wait_for\n    return await fut\n           ^^^^^^^^^\n  File \"/Users/robinfai/flutter_projects/ianvs-terminal/tools/terminal_bench/acp_agent.py\", line 132, in run\n    raise RuntimeError(\"Trail ACP runner failed; inspect retained flutter.log\")\nRuntimeError: Trail ACP runner failed; inspect retained flutter.log\n",
+      "occurred_at": "2026-10-03T06:03:18.455498Z"
+    },
+    "started_at": "2026-10-03T05:57:04.349318Z",
+    "finished_at": "2026-10-03T06:03:29.070680Z",
+    "result_file": "tmp/terminal-bench/acp-2-1/sol56-round1/jobs/large-scale-text-editing/large-scale-text-editing__TdkAhb2/result.json"
+  },
+  {
+    "task": "log-summary-date-ranges",
+    "runner_exit": 0,
+    "rewards": {
+      "reward": 1.0
+    },
+    "exception": null,
+    "started_at": "2026-10-03T06:03:31.409574Z",
+    "finished_at": "2026-10-03T06:05:50.963907Z",
+    "result_file": "tmp/terminal-bench/acp-2-1/sol56-round1/jobs/log-summary-date-ranges/log-summary-date-ranges__jma6ghK/result.json"
+  },
+  {
+    "task": "multi-source-data-merger",
+    "runner_exit": 0,
+    "rewards": {
+      "reward": 1.0
+    },
+    "exception": null,
+    "started_at": "2026-10-03T06:05:53.321682Z",
+    "finished_at": "2026-10-03T06:11:02.642957Z",
+    "result_file": "tmp/terminal-bench/acp-2-1/sol56-round1/jobs/multi-source-data-merger/multi-source-data-merger__rzfvteq/result.json"
+  },
+  {
+    "task": "fix-git",
+    "runner_exit": 0,
+    "rewards": {
+      "reward": 1.0
+    },
+    "exception": null,
+    "started_at": "2026-10-03T06:11:04.499025Z",
+    "finished_at": "2026-10-03T06:14:56.490468Z",
+    "result_file": "tmp/terminal-bench/acp-2-1/sol56-round1/jobs/fix-git/fix-git__AMghB5o/result.json"
+  },
+  {
+    "task": "merge-diff-arc-agi-task",
+    "runner_exit": 0,
+    "rewards": {
+      "reward": 1.0
+    },
+    "exception": null,
+    "started_at": "2026-10-03T06:14:58.376144Z",
+    "finished_at": "2026-10-03T06:20:54.848289Z",
+    "result_file": "tmp/terminal-bench/acp-2-1/sol56-round1/jobs/merge-diff-arc-agi-task/merge-diff-arc-agi-task__WrLsc6Q/result.json"
+  },
+  {
+    "task": "sqlite-db-truncate",
+    "runner_exit": 0,
+    "rewards": {
+      "reward": 1.0
+    },
+    "exception": null,
+    "started_at": "2026-10-03T06:20:56.948566Z",
+    "finished_at": "2026-10-03T06:23:41.192524Z",
+    "result_file": "tmp/terminal-bench/acp-2-1/sol56-round1/jobs/sqlite-db-truncate/sqlite-db-truncate__eCMbvLe/result.json"
+  },
+  {
+    "task": "build-pmars",
+    "runner_exit": 0,
+    "rewards": null,
+    "exception": {
+      "exception_type": "RuntimeError",
+      "exception_message": "Trail ACP runner failed; inspect retained flutter.log",
+      "exception_traceback": "Traceback (most recent call last):\n  File \"/Users/robinfai/flutter_projects/ianvs-terminal/tmp/terminal-bench/venv/lib/python3.12/site-packages/harbor/trial/trial.py\", line 418, in run\n    await self._run()\n  File \"/Users/robinfai/flutter_projects/ianvs-terminal/tmp/terminal-bench/venv/lib/python3.12/site-packages/harbor/trial/single_step.py\", line 41, in _run\n    await self._run_agent()\n  File \"/Users/robinfai/flutter_projects/ianvs-terminal/tmp/terminal-bench/venv/lib/python3.12/site-packages/harbor/trial/single_step.py\", line 77, in _run_agent\n    await self._run_agent_phase(\n  File \"/Users/robinfai/flutter_projects/ianvs-terminal/tmp/terminal-bench/venv/lib/python3.12/site-packages/harbor/trial/trial.py\", line 554, in _run_agent_phase\n    await asyncio.wait_for(\n  File \"/Users/robinfai/.local/share/uv/python/cpython-3.12.11-macos-aarch64-none/lib/python3.12/asyncio/tasks.py\", line 520, in wait_for\n    return await fut\n           ^^^^^^^^^\n  File \"/Users/robinfai/flutter_projects/ianvs-terminal/tools/terminal_bench/acp_agent.py\", line 132, in run\n    raise RuntimeError(\"Trail ACP runner failed; inspect retained flutter.log\")\nRuntimeError: Trail ACP runner failed; inspect retained flutter.log\n",
+      "occurred_at": "2026-10-03T06:26:06.127845Z"
+    },
+    "started_at": "2026-10-03T06:23:43.274403Z",
+    "finished_at": "2026-10-03T06:26:16.835132Z",
+    "result_file": "tmp/terminal-bench/acp-2-1/sol56-round1/jobs/build-pmars/build-pmars__zqqcJek/result.json"
+  },
+  {
+    "task": "compile-compcert",
+    "runner_exit": 0,
+    "rewards": null,
+    "exception": {
+      "exception_type": "RuntimeError",
+      "exception_message": "Trail ACP runner failed; inspect retained flutter.log",
+      "exception_traceback": "Traceback (most recent call last):\n  File \"/Users/robinfai/flutter_projects/ianvs-terminal/tmp/terminal-bench/venv/lib/python3.12/site-packages/harbor/trial/trial.py\", line 418, in run\n    await self._run()\n  File \"/Users/robinfai/flutter_projects/ianvs-terminal/tmp/terminal-bench/venv/lib/python3.12/site-packages/harbor/trial/single_step.py\", line 41, in _run\n    await self._run_agent()\n  File \"/Users/robinfai/flutter_projects/ianvs-terminal/tmp/terminal-bench/venv/lib/python3.12/site-packages/harbor/trial/single_step.py\", line 77, in _run_agent\n    await self._run_agent_phase(\n  File \"/Users/robinfai/flutter_projects/ianvs-terminal/tmp/terminal-bench/venv/lib/python3.12/site-packages/harbor/trial/trial.py\", line 554, in _run_agent_phase\n    await asyncio.wait_for(\n  File \"/Users/robinfai/.local/share/uv/python/cpython-3.12.11-macos-aarch64-none/lib/python3.12/asyncio/tasks.py\", line 520, in wait_for\n    return await fut\n           ^^^^^^^^^\n  File \"/Users/robinfai/flutter_projects/ianvs-terminal/tools/terminal_bench/acp_agent.py\", line 132, in run\n    raise RuntimeError(\"Trail ACP runner failed; inspect retained flutter.log\")\nRuntimeError: Trail ACP runner failed; inspect retained flutter.log\n",
+      "occurred_at": "2026-10-03T06:29:38.918053Z"
+    },
+    "started_at": "2026-10-03T06:26:18.897747Z",
+    "finished_at": "2026-10-03T06:29:49.724792Z",
+    "result_file": "tmp/terminal-bench/acp-2-1/sol56-round1/jobs/compile-compcert/compile-compcert__bNEr87L/result.json"
+  },
+  {
+    "task": "sqlite-with-gcov",
+    "runner_exit": 0,
+    "rewards": null,
+    "exception": {
+      "exception_type": "RuntimeError",
+      "exception_message": "Trail ACP runner failed; inspect retained flutter.log",
+      "exception_traceback": "Traceback (most recent call last):\n  File \"/Users/robinfai/flutter_projects/ianvs-terminal/tmp/terminal-bench/venv/lib/python3.12/site-packages/harbor/trial/trial.py\", line 418, in run\n    await self._run()\n  File \"/Users/robinfai/flutter_projects/ianvs-terminal/tmp/terminal-bench/venv/lib/python3.12/site-packages/harbor/trial/single_step.py\", line 41, in _run\n    await self._run_agent()\n  File \"/Users/robinfai/flutter_projects/ianvs-terminal/tmp/terminal-bench/venv/lib/python3.12/site-packages/harbor/trial/single_step.py\", line 77, in _run_agent\n    await self._run_agent_phase(\n  File \"/Users/robinfai/flutter_projects/ianvs-terminal/tmp/terminal-bench/venv/lib/python3.12/site-packages/harbor/trial/trial.py\", line 554, in _run_agent_phase\n    await asyncio.wait_for(\n  File \"/Users/robinfai/.local/share/uv/python/cpython-3.12.11-macos-aarch64-none/lib/python3.12/asyncio/tasks.py\", line 520, in wait_for\n    return await fut\n           ^^^^^^^^^\n  File \"/Users/robinfai/flutter_projects/ianvs-terminal/tools/terminal_bench/acp_agent.py\", line 132, in run\n    raise RuntimeError(\"Trail ACP runner failed; inspect retained flutter.log\")\nRuntimeError: Trail ACP runner failed; inspect retained flutter.log\n",
+      "occurred_at": "2026-10-03T06:30:30.804084Z"
+    },
+    "started_at": "2026-10-03T06:29:52.023249Z",
+    "finished_at": "2026-10-03T06:30:41.407641Z",
+    "result_file": "tmp/terminal-bench/acp-2-1/sol56-round1/jobs/sqlite-with-gcov/sqlite-with-gcov__GQ9uQ45/result.json"
+  },
+  {
+    "task": "nginx-request-logging",
+    "runner_exit": 0,
+    "rewards": {
+      "reward": 1.0
+    },
+    "exception": null,
+    "started_at": "2026-10-03T06:30:43.697055Z",
+    "finished_at": "2026-10-03T06:35:14.190193Z",
+    "result_file": "tmp/terminal-bench/acp-2-1/sol56-round1/jobs/nginx-request-logging/nginx-request-logging__kvCpzX3/result.json"
+  },
+  {
+    "task": "openssl-selfsigned-cert",
+    "runner_exit": 0,
+    "rewards": {
+      "reward": 1.0
+    },
+    "exception": null,
+    "started_at": "2026-10-03T06:35:16.311438Z",
+    "finished_at": "2026-10-03T06:36:55.621440Z",
+    "result_file": "tmp/terminal-bench/acp-2-1/sol56-round1/jobs/openssl-selfsigned-cert/openssl-selfsigned-cert__Jf4iVvo/result.json"
+  },
+  {
+    "task": "configure-git-webserver",
+    "runner_exit": 0,
+    "rewards": {
+      "reward": 1.0
+    },
+    "exception": null,
+    "started_at": "2026-10-03T06:36:57.428904Z",
+    "finished_at": "2026-10-03T06:41:00.696983Z",
+    "result_file": "tmp/terminal-bench/acp-2-1/sol56-round1/jobs/configure-git-webserver/configure-git-webserver__EpdoSaR/result.json"
+  }
+]

@@ -15,6 +15,8 @@ import subprocess
 import tempfile
 import time
 
+from disconnect_relay import DisconnectRelay
+
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -25,8 +27,19 @@ def main():
     parser.add_argument('--sshd', type=Path, default=Path('/usr/sbin/sshd'))
     parser.add_argument('--output', type=Path, default=ROOT / 'build/composer-ssh')
     parser.add_argument('--ui', action='store_true', help='Also validate the macOS app on Bash/emacs')
+    parser.add_argument('--disconnect-ui', action='store_true', help='Also drop the app SSH transport through a disposable loopback relay')
     parser.add_argument('--bash-preexec', type=Path, help='Source a local upstream bash-preexec fixture in each Bash login')
+    parser.add_argument('--history-off', action='store_true', help='Disable in-memory shell history to verify literal submission titles independently')
     args = parser.parse_args()
+    if args.disconnect_ui:
+        args.ui = True
+    for label, executable in [('Bash', args.bash), ('zsh', args.zsh), ('sshd', args.sshd)]:
+        if not executable.is_file() or not os.access(executable, os.X_OK):
+            parser.error(f'{label} executable is unavailable: {executable}')
+    bash_version = subprocess.run([str(args.bash), '-c', 'printf "%s" "${BASH_VERSINFO[0]}"'],
+                                  check=True, capture_output=True, text=True).stdout
+    if not bash_version.isdigit() or int(bash_version) < 4:
+        parser.error('Composer SSH acceptance requires Bash 4+ (bind -x Readline editing).')
     args.output.mkdir(parents=True, exist_ok=True)
     (args.output / 'results.json').write_text(json.dumps({'passed': False, 'status': 'not_completed'}) + '\n')
     with tempfile.TemporaryDirectory(prefix='ianvs-composer-ssh-', dir='/tmp') as directory:
@@ -79,9 +92,9 @@ LogLevel ERROR
                 name = f'{shell}-{keymap}' + ('-local-ssh' if local else '')
                 print(f'OpenSSH Composer: {name}', flush=True)
                 fixture_path = f'export PATH={shlex.quote(str(bin_dir))}:"$PATH"\n'
-                (home / '.zshrc').write_text(fixture_path + "PROMPT='fixture> '\nRPROMPT=''\nHISTFILE=''\n" + ('bindkey -v\n' if keymap == 'vi' else 'bindkey -e\n'))
+                (home / '.zshrc').write_text(fixture_path + "PROMPT='fixture> '\nRPROMPT=''\nHISTFILE=''\n" + ('bindkey -v\n' if keymap == 'vi' else 'bindkey -e\n') + ('HISTSIZE=0\nSAVEHIST=0\n' if args.history_off else ''))
                 bash_preexec = '' if args.bash_preexec is None else f'source {shlex.quote(str(args.bash_preexec.resolve(strict=True)))}\n'
-                (home / '.bash_profile').write_text(fixture_path + "PS1='fixture> '\nHISTFILE=''\n" + f'set -o {keymap}\n' + bash_preexec)
+                (home / '.bash_profile').write_text(fixture_path + "PS1='fixture> '\nHISTFILE=''\n" + f'set -o {keymap}\n' + bash_preexec + ('set +o history\n' if args.history_off else ''))
                 forced.write_text('#!/bin/sh\n' + '\n'.join(f'export {key}={shlex.quote(str(value))}' for key, value in {
                     'HOME': home, 'ZDOTDIR': home, 'SHELL': executable,
                     'PATH': f'{bin_dir}:/usr/bin:/bin:/usr/sbin:/sbin', 'LC_ALL':'en_US.UTF-8',
@@ -105,12 +118,26 @@ LogLevel ERROR
                             raise RuntimeError(f'{name} failed')
                         assert not (home / 'WRONG_ENDPOINT').exists()
                         if args.ui and name == 'bash-emacs':
-                            with (args.output / 'app.test.log').open('w') as log:
-                                result = subprocess.run(['flutter', 'test', '--no-pub', '-d', 'macos',
-                                    f'--dart-define=COMPOSER_SSH_FIXTURE={fixture}',
-                                    f'--dart-define=BLOCKS_NATIVE_EVIDENCE_DIR={args.output.resolve()}',
-                                    'integration_test/ssh_composer_acceptance_test.dart'], cwd=ROOT / 'example',
-                                    stdout=log, stderr=subprocess.STDOUT, timeout=360)
+                            relay = None
+                            try:
+                                if args.disconnect_ui:
+                                    marker = scratch / 'disconnect.request'
+                                    relay = DisconnectRelay(port, marker)
+                                    with (scratch / 'known_hosts').open('a') as known:
+                                        known.write(f'[127.0.0.1]:{relay.port} {host_key}\n')
+                                    app_fixture = json.loads(fixture.read_text())
+                                    app_fixture['connection']['port'] = relay.port
+                                    app_fixture['disconnectPath'] = str(marker)
+                                    fixture.write_text(json.dumps(app_fixture))
+                                with (args.output / 'app.test.log').open('w') as log:
+                                    result = subprocess.run(['flutter', 'test', '--no-pub', '-d', 'macos',
+                                        f'--dart-define=COMPOSER_SSH_FIXTURE={fixture}',
+                                        f'--dart-define=BLOCKS_NATIVE_EVIDENCE_DIR={args.output.resolve()}',
+                                        'integration_test/ssh_composer_acceptance_test.dart'], cwd=ROOT / 'example',
+                                        stdout=log, stderr=subprocess.STDOUT, timeout=360)
+                            finally:
+                                if relay is not None:
+                                    relay.close()
                             if result.returncode:
                                 print((args.output / 'app.test.log').read_text()[-10000:])
                                 raise RuntimeError('macOS SSH Composer acceptance failed')
@@ -118,7 +145,7 @@ LogLevel ERROR
                     finally:
                         server.terminate()
                         server.wait(timeout=10)
-        (args.output / 'results.json').write_text(json.dumps({'passed':True,'appPassed':args.ui,'bashPreexec':args.bash_preexec is not None,'shells':['zsh','bash'],'keymaps':['emacs','vi'],'scope':'real loopback SSH, native session API, consecutive command blocks, multi-hop and parent restoration'}, indent=2) + '\n')
+        (args.output / 'results.json').write_text(json.dumps({'passed':True,'appPassed':args.ui,'disconnectPassed':args.disconnect_ui,'bashPreexec':args.bash_preexec is not None,'historyOff':args.history_off,'shells':['zsh','bash'],'keymaps':['emacs','vi'],'scope':'real loopback SSH, native session API, exact compound and long command titles, cancellation provenance, consecutive command blocks, multi-hop and parent restoration; optional real transport loss retains AI task and native history'}, indent=2) + '\n')
 
 
 if __name__ == '__main__':

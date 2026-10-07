@@ -1,0 +1,10 @@
+Analyzing ianvs-terminal...                                     
+
+   info • Unnecessary comparison to a boolean literal. Remove the comparison and use the negate `!` operator if necessary • packages/ianvs_terminal/lib/src/terminal/command_block_reader.dart:891:28 • no_literal_bool_comparisons
+warning • The receiver can't be null, so the null-aware operator '?.' is unnecessary. Try replacing the operator '?.' with '.' • packages/ianvs_terminal/lib/src/terminal/command_block_reader.dart:893:26 • invalid_null_aware_operator
+warning • The receiver can't be null, so the null-aware operator '?.' is unnecessary. Try replacing the operator '?.' with '.' • packages/ianvs_terminal/lib/src/terminal/command_block_reader.dart:893:59 • invalid_null_aware_operator
+   info • Unnecessary comparison to a boolean literal. Remove the comparison and use the negate `!` operator if necessary • packages/ianvs_terminal_core/lib/src/terminal/command_block_reader.dart:891:28 • no_literal_bool_comparisons
+warning • The receiver can't be null, so the null-aware operator '?.' is unnecessary. Try replacing the operator '?.' with '.' • packages/ianvs_terminal_core/lib/src/terminal/command_block_reader.dart:893:26 • invalid_null_aware_operator
+warning • The receiver can't be null, so the null-aware operator '?.' is unnecessary. Try replacing the operator '?.' with '.' • packages/ianvs_terminal_core/lib/src/terminal/command_block_reader.dart:893:59 • invalid_null_aware_operator
+
+6 issues found. (ran in 12.5s)

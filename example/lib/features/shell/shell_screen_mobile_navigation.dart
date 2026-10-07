@@ -10,6 +10,7 @@ class _MobileShellHeader extends StatelessWidget {
     this.onFiles,
     this.onMore,
     this.mode,
+    this.aiAction,
   });
   final String title;
   final VoidCallback onReplay;
@@ -19,6 +20,7 @@ class _MobileShellHeader extends StatelessWidget {
   final VoidCallback? onFiles;
   final VoidCallback? onMore;
   final TerminalModeState? mode;
+  final Widget? aiAction;
 
   @override
   Widget build(BuildContext context) => AppMobileHeader(
@@ -66,6 +68,7 @@ class _MobileShellHeader extends StatelessWidget {
           icon: const Icon(Icons.settings_outlined),
         ),
       ] else ...[
+        ?aiAction,
         if (onFiles != null)
           IconButton(
             key: const Key('shell-open-sftp-panel'),
@@ -243,6 +246,15 @@ class _MobileTerminalModes extends ConsumerWidget {
             enabled: value == TerminalViewMode.normal || mode.canUseBlocks,
             onTap: () => Navigator.pop(context, value),
           ),
+        ListTile(
+          key: Key('terminal-mode-recheck-$sessionId'),
+          leading: const Icon(Icons.refresh_rounded),
+          title: Text(context.l10n.terminalModeRecheck),
+          enabled:
+              mode.unavailableReason != BlockUnavailableReason.exited &&
+              mode.unavailableReason != BlockUnavailableReason.readOnly,
+          onTap: () => Navigator.pop(context, _TerminalModeMenuAction.recheck),
+        ),
         const Divider(),
       ],
     );
@@ -388,6 +400,7 @@ extension _ShellMobileNavigation on _ShellScreenState {
     FocusManager.instance.primaryFocus?.unfocus();
     final selected = await showModalBottomSheet<String>(
       context: context,
+      sheetAnimationStyle: appDialogAnimation(context),
       useSafeArea: true,
       isScrollControlled: true,
       showDragHandle: true,

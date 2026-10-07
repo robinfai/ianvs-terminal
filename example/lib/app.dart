@@ -46,6 +46,16 @@ class IanvsTerminalApp extends ConsumerWidget {
         Brightness.dark,
         platform: defaultTargetPlatform,
       ),
+      highContrastTheme: buildIanvsTerminalTheme(
+        Brightness.light,
+        platform: defaultTargetPlatform,
+        highContrast: true,
+      ),
+      highContrastDarkTheme: buildIanvsTerminalTheme(
+        Brightness.dark,
+        platform: defaultTargetPlatform,
+        highContrast: true,
+      ),
       builder: (context, child) => AppNotificationHost(
         topInset: ShellScreen.desktopChromeHeight,
         child: child!,

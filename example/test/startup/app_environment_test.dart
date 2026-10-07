@@ -23,7 +23,7 @@ void main() {
     expect(AppEnvironment.production.supportDirectory(root).path, root.path);
     expect(
       AppEnvironment.development.supportDirectory(root).path,
-      '${root.path}/development',
+      '${root.path}/development-file-v1',
     );
   });
 }

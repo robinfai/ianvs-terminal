@@ -3,7 +3,7 @@ import 'package:app/features/config/local_terminal_config_models.dart';
 import 'package:app/features/preferences/app_preferences_models.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/sessions/session_controller.dart';
-import 'package:app/l10n/l10n.dart';
+import 'package:app/ui/app_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -42,6 +42,47 @@ Future<void> _pumpApp(
 }
 
 void main() {
+  for (final mode in [TerminalThemeMode.light, TerminalThemeMode.dark]) {
+    testWidgets(
+      'system high contrast changes $mode without replacing the session',
+      (tester) async {
+        addTearDown(
+          tester.binding.platformDispatcher.clearAccessibilityFeaturesTestValue,
+        );
+        await _pumpApp(
+          tester,
+          config: LocalTerminalConfigDocument(
+            appearance: TerminalAppAppearance(themeMode: mode),
+          ),
+        );
+        final context = tester.element(find.text('Trail'));
+        final normal = Theme.of(context);
+        final container = ProviderScope.containerOf(context);
+        final session = container.read(sessionControllerProvider);
+        for (final enabled in [true, false]) {
+          tester.binding.platformDispatcher.accessibilityFeaturesTestValue =
+              FakeAccessibilityFeatures(highContrast: enabled);
+          await tester.pumpAndSettle();
+          final theme = Theme.of(tester.element(find.text('Trail')));
+          final tokens = theme.extension<AppThemeTokens>()!;
+          expect(theme.brightness, normal.brightness);
+          expect(
+            tokens.border,
+            enabled
+                ? isNot(normal.extension<AppThemeTokens>()!.border)
+                : normal.extension<AppThemeTokens>()!.border,
+          );
+          expect(
+            theme.textTheme.bodyMedium!.fontSize,
+            normal.textTheme.bodyMedium!.fontSize,
+          );
+          expect(container.read(sessionControllerProvider), same(session));
+          expect(tester.takeException(), isNull);
+        }
+      },
+    );
+  }
+
   test('system locale resolution supports regional Chinese locales', () {
     expect(
       resolveAppLocale(const <Locale>[

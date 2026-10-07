@@ -1,11 +1,18 @@
 import 'package:ianvs_design/ianvs_design.dart';
+import 'package:ianvs_terminal/ianvs_terminal.dart' show ComposerTheme;
 
+import 'app_high_contrast.dart';
+import 'app_motion.dart';
 import 'app_theme_tokens.dart';
+
+/// Matches MainFlutterWindow.chromeBarHeight, including its native drag region.
+const appWindowTitleBarHeight = 44.0;
 
 /// Shared Ianvs components and typography, plus Trail's terminal surfaces.
 ThemeData buildIanvsTerminalTheme(
   Brightness brightness, {
   TargetPlatform? platform,
+  bool highContrast = false,
 }) {
   final resolvedPlatform = platform ?? TargetPlatform.macOS;
   final touch = switch (resolvedPlatform) {
@@ -14,7 +21,7 @@ ThemeData buildIanvsTerminalTheme(
     TargetPlatform.iOS => true,
     _ => false,
   };
-  final shared = IanvsTheme.build(
+  final base = IanvsTheme.build(
     brightness: brightness,
     platform: resolvedPlatform,
     density: touch ? IanvsDensity.touch : IanvsDensity.compact,
@@ -22,6 +29,7 @@ ThemeData buildIanvsTerminalTheme(
         ? IanvsTouchVisualDensity.compact
         : IanvsTouchVisualDensity.standard,
   );
+  final shared = highContrast ? withAppHighContrast(base) : base;
   final design = shared.extension<IanvsTokens>()!;
   // The legacy names are an adapter for terminal/business surfaces. General
   // colors, spacing and control metrics all come from the shared design system.
@@ -98,11 +106,12 @@ ThemeData buildIanvsTerminalTheme(
           design.focus.withValues(alpha: .85),
           design.field,
         ),
-        width: 1.5,
+        width: highContrast ? 2 : 1.5,
       ),
     ),
   );
   return shared.copyWith(
+    pageTransitionsTheme: const AppPageTransitionsTheme(),
     inputDecorationTheme: touch ? input : desktopInput,
     dropdownMenuTheme: touch
         ? shared.dropdownMenuTheme
@@ -114,6 +123,14 @@ ThemeData buildIanvsTerminalTheme(
                   ?.suffixIconConstraints,
             ),
           ),
-    extensions: [...shared.extensions.values, terminal],
+    extensions: [
+      ...shared.extensions.values,
+      terminal,
+      ComposerTheme.fromTheme(shared, highContrast: highContrast).copyWith(
+        readerTopInset: resolvedPlatform == TargetPlatform.macOS
+            ? appWindowTitleBarHeight
+            : 0,
+      ),
+    ],
   );
 }

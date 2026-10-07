@@ -1,0 +1,233 @@
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal_runtime_controller_test.dart
+00:00 +0: terminal viewport controller normalizes delta fallback state as a snapshot
+00:00 +1: terminal viewport controller treats global bottom as frame-authoritative
+00:00 +2: terminal viewport controller treats incoming delta rows as dirty ranges
+00:00 +3: cursor-only deltas apply and clear protocol overrides
+00:00 +4: terminal viewport controller treats graphics as frame-authoritative
+00:00 +5: terminal viewport controller tracks graphics and asset revisions independently
+00:00 +6: terminal viewport controller rejects external graphics mutation without revision drift
+00:00 +7: terminal graphic placement equality covers every render field
+00:00 +8: terminal viewport controller timestamps changed rows
+00:00 +9: terminal viewport controller reuses unchanged rows across sparse deltas
+00:00 +10: terminal viewport controller preserves timestamps for repeated spinner frames
+00:00 +11: terminal viewport controller leaves whitespace-only rows untimestamped
+00:00 +12: terminal frame modes parse alternate screen hints
+00:00 +13: terminal viewport controller applies synchronized output mode deltas
+00:00 +14: terminal frame modes normalize mouse tokens
+00:00 +15: terminal frames parse row timestamp metadata
+00:00 +16: terminal frames ignore invalid numeric row timestamps
+00:00 +17: terminal pointer shapes decode only canonical wire names
+00:00 +18: terminal sized text validates bounds and fractional metadata
+00:00 +19: terminal sized text protobuf enforces the 4 KiB UTF-8 limit
+00:00 +20: terminal style runs normalize color strings
+00:00 +21: terminal rows cap style run batches
+00:00 +22: terminal frames bound viewport row and dirty range batches
+00:00 +23: terminal frames clamp row text to viewport columns
+00:00 +24: terminal frames omit partial wide glyphs when clamping rows
+00:00 +25: terminal frames cap hyperlink batches
+00:00 +26: terminal frames skip malformed collection entries
+00:00 +27: terminal frames scan valid collection entries past malformed prefixes
+00:00 +28: terminal frames default malformed scalar fields
+00:00 +29: terminal frames parse protobuf payloads
+00:00 +30: terminal render intent describes sparse delta repaint work
+00:00 +31: terminal viewport state retains and replaces OSC 50 font deltas
+00:00 +32: terminal render intent keeps full rebuild separate from dirty rows
+00:00 +33: terminal frame kind accepts only the canonical current token
+00:00 +34: terminal frames reject negative cursor and selection coordinates
+00:00 +35: terminal frames reject fractional coordinate fields
+00:00 +36: terminal frames clamp scalar bounds from native payloads
+00:00 +37: terminal viewport controller clamps direct scalar frame bounds
+00:00 +38: terminal viewport controller drops invalid direct coordinates
+00:00 +39: terminal frames default fractional scalar fields
+00:00 +40: terminal frames clamp dirty ranges to the viewport
+00:00 +41: terminal frames parse inline image payloads
+00:00 +42: terminal frames drop inline images that start past the right edge
+00:00 +43: terminal frames clamp inline image overlays to viewport bounds
+00:00 +44: terminal frames parse graphics placement payloads
+00:00 +45: terminal frames preserve multi-protocol graphics placements
+00:00 +46: terminal frames default optional graphics fields
+00:00 +47: terminal frames drop graphics that start past the right edge
+00:00 +48: terminal frames drop graphics with invalid horizontal clip
+00:00 +49: terminal viewport controller drops graphics with invalid vertical clip
+00:00 +50: terminal graphics cache retries after a missing asset
+00:00 +51: terminal graphics cache emits image lifecycle diagnostics
+00:00 +52: terminal graphics cache skips invalid assets without decoding
+00:00 +53: terminal graphics cache premultiplies alpha before decoding
+00:00 +54: terminal graphics cache evicts assets omitted by Rust frames
+00:00 +55: terminal graphics cache evicts old animation asset versions
+00:00 +56: terminal graphics cache drops pending image after eviction
+00:00 +57: terminal graphics cache drops pending image after dispose
+00:00 +58: terminal runtime loads graphic assets from the backend
+00:00 +59: terminal runtime reports graphic asset load failures
+00:00 +60: terminal runtime keeps graphics caches isolated across panes
+00:00 +61: terminal frames ignore malformed inline image payloads
+00:00 +62: terminal frames ignore oversized inline image payloads before decoding
+00:00 +63: terminal frames cap inline image batches
+00:00 +64: terminal viewport controller caps normalized overlay state
+00:00 +65: terminal viewport controller drops invalid direct hyperlinks
+00:00 +66: terminal runtime falls back when JSON requests are unsupported
+00:00 +67: ZMODEM recovery remains resolvable after the originating session closes
+00:00 +68: terminal runtime controller owns sessions and viewport state without demo imports
+00:00 +69: terminal runtime prefers protobuf frame bytes when available
+00:00 +70: terminal runtime skips malformed current frame packets
+00:00 +71: TerminalFrameTransportCoordinator requires and reads only current Frame Packet v1
+00:00 +72: TerminalFrameTransportCoordinator backend without Frame Packet v1 is rejected
+00:00 +73: TerminalFrameTransportCoordinator null and empty packets are idle
+00:00 +74: TerminalFrameTransportCoordinator packet exceptions report the current operation
+00:00 +75: terminal runtime controller refreshes after input and scrolling when polling is disabled
+00:00 +76: terminal runtime scrolls to the live cursor before non-empty input
+00:00 +77: terminal runtime controller refreshes immediately after polling idle
+00:00 +78: terminal runtime coalesces input bursts into one low-latency probe
+00:00 +79: terminal runtime consumes a delayed input hint before the 33ms tick
+00:00 +80: terminal runtime keeps refreshing when refresh diagnostics throw
+00:00 +81: terminal runtime isolates async refreshes when a session id is reused
+00:00 +82: terminal runtime ignores stale async event chains before a reused id exit
+00:00 +83: terminal runtime ignores stale clipboard paste continuations after id reuse
+00:00 +84: terminal runtime preserves new deferred refresh deduplication after id reuse
+00:00 +85: terminal runtime controller backs off repeated idle polling
+00:00 +86: terminal runtime controller expands idle polling backoff until activity
+00:00 +87: terminal runtime counts the creation full refresh request
+00:00 +88: terminal runtime counts a new explicit full refresh request once
+00:00 +89: terminal runtime traces skipped ticks and full refresh lifecycle monotonically
+00:00 +90: terminal runtime interactive modes keep full polling every 33ms
+00:00 +91: terminal runtime streaming keeps full polling every 33ms
+00:00 +92: terminal runtime native hint bypasses deadline with complete lifecycle
+00:00 +93: terminal runtime false and unknown hints preserve bounded deadline fallback
+00:00 +94: terminal runtime labels maximum idle fallback as idle deadline
+00:00 +95: terminal runtime disables throwing hints and falls back to full polling
+00:00 +96: terminal runtime isolates throwing hints with exact per-session counters
+00:00 +97: terminal runtime native hint keeps protobuf frame transport preferred
+00:00 +98: terminal runtime prefers native hint when deadline is also due
+00:00 +99: terminal runtime activation and focus update policy classes
+00:00 +100: terminal runtime input and resize update interactive policy state
+00:00 +101: terminal runtime applied frame updates alternate and mouse policy
+00:00 +102: terminal runtime continuous frames transition policy to streaming
+00:00 +103: terminal runtime background diagnostics use 264ms policy cadence
+00:00 +104: terminal runtime resets deadline state after input and resize
+00:00 +105: terminal runtime keeps synchronized output null frames hidden until final polling frame
+00:00 +106: terminal runtime keeps synchronized graphics clear frames hidden
+00:00 +107: terminal runtime controller schedules queued polling refresh after async events
+00:00 +108: terminal runtime controller cancels pending polling refresh on close
+00:00 +109: terminal runtime controller exposes explicit full refresh
+00:00 +110: terminal runtime controller ignores stale session operations
+00:00 +111: terminal runtime controller emits backend error events instead of success signals
+00:00 +112: terminal runtime controller releases permanent dispose failures
+00:00 +113: terminal runtime controller autonomously retries native busy disposal
+00:00 +114: close busy polling survives a late native transition publication
+00:00 +115: transient close busy probe stops without silently closing the pane
+00:00 +116: terminal runtime controller emits backend error events for JSON requests
+00:00 +117: terminal runtime controller emits backend error events for refresh reads
+00:00 +118: terminal runtime controller emits typed shell hook events
+00:00 +119: terminal shell hook payload ignores invalid numeric fields
+00:00 +120: terminal shell hook payload normalizes hook tokens
+00:00 +121: terminal runtime controller emits bell events
+00:00 +122: terminal runtime controller passes through unknown shell hooks
+00:00 +123: terminal runtime controller emits typed OSC session metadata events
+00:00 +124: OSC 1337 downloads stay metadata-only until one-shot take or discard
+00:00 +125: OSC 1337 OpenURL stays a typed validated request
+00:00 +126: OSC 1337 ReportVariable uses a one-shot session-bound exact reply
+00:00 +127: OSC 1337 ReportVariable validates names and emits denied empty reply
+00:00 +128: OSC 1337 ClearCapturedOutput stays session-scoped and typed
+00:00 +129: OSC 1337 RequestAttention stays a strict typed request
+00:00 +130: OSC 1337 cell-size query waits for and reports exact logical metrics
+00:00 +131: terminal runtime controller emits shell hooks before same-batch exits
+00:00 +132: terminal runtime owns search and selection JSON request shapes
+00:00 +133: terminal runtime toggles OSC 1337 blocks and refreshes frames
+00:00 +134: terminal runtime activates OSC 1337 buttons through the native bridge
+00:00 +135: terminal runtime synchronizes OSC 99 product dismissal by ID
+00:00 +136: terminal runtime delegates buffer clearing to the native core
+00:00 +137: terminal runtime degrades malformed JSON request responses
+00:00 +138: terminal runtime fallback selection preserves complex grapheme columns
+00:00 +139: terminal runtime skips malformed search match entries
+00:00 +140: terminal runtime scans search matches past malformed prefixes
+00:00 +141: terminal runtime caps oversized search match responses
+00:00 +142: terminal runtime normalizes search error text
+00:00 +143: terminal runtime skips malformed frame payloads
+00:00 +144: terminal runtime exports diagnostics with private defaults
+00:00 +145: terminal diagnostics export tolerates malformed summary fields
+00:00 +146: terminal diagnostics export caps decoded list fields
+00:00 +147: terminal diagnostics export scans list fields past malformed prefixes
+00:00 +148: terminal diagnostics export bounds decoded summary fields
+00:00 +149: terminal diagnostics export scans summary fields past invalids
+00:00 +150: terminal runtime degrades diagnostics export to null on bad backend data
+00:00 +151: terminal runtime returns null diagnostics for unsupported backend
+00:00 +152: terminal runtime controller ignores invalid viewport resize metrics
+00:00 +153: terminal runtime controller rejects invalid cell resize metrics
+00:00 +154: terminal runtime controller clamps oversized resize dimensions
+00:00 +155: terminal runtime controller does not keep started-only refreshes in flight
+00:00 +156: terminal runtime controller merges delta frames into stable viewport state
+00:00 +157: terminal runtime controller shifts viewport rows forward on scrolling delta frames
+00:00 +158: terminal runtime controller coalesces refreshes while event handling is still in flight
+00:00 +159: terminal runtime controller applies queued delta frames in order after a blocked refresh
+00:00 +160: terminal runtime controller lets a queued snapshot replace older blocked frames
+00:00 +161: terminal runtime controller applies visible frames before clipboard paste handling completes
+00:00 +162: terminal runtime controller applies resize before queued write frames
+00:00 +163: terminal runtime controller handles OSC 52 base64 copy edge cases
+00:00 +164: terminal runtime controller preserves iTerm2 clipboard protocol and named target
+00:00 +165: terminal runtime controller can block OSC 52 copy events
+00:00 +166: terminal runtime controller accepts an explicit clipboard policy adapter
+00:00 +167: terminal runtime controller blocks OSC 52 access without an explicit policy
+00:00 +168: terminal runtime controller reports malformed OSC 52 UTF-8
+00:00 +169: terminal runtime controller can block OSC 52 paste requests
+00:00 +170: terminal runtime responds to correlated OSC 52 Host Request v1 without a raw reply
+00:00 +171: shutdown drops a permission continuation and its pending exit
+00:00 +172: shutdown drops a clipboard-read continuation and its pending exit
+00:00 +173: saved contextual clipboard resolver rejects before reading after shutdown
+00:00 +174: terminal runtime returns structured Host Response v1 denial
+00:00 +175: terminal runtime controller skips oversized OSC 52 paste request responses
+00:00 +176: terminal runtime controller skips malformed event payload fields
+00:00 +177: terminal runtime controller ignores events for other sessions
+00:00 +178: terminal runtime controller keeps metadata events isolated across panes
+00:00 +179: terminal runtime controller dispose closes active sessions
+00:00 +180: beginShutdown freezes timers and events without closing backend sessions
+00:00 +181: viewport and graphics accessors require an active product session
+00:00 +182: retained exit preserves native reads but denies input and closes explicitly
+00:00 +183: terminal runtime controller continues to handle exit events
+00:00 +184: pre-close retries once before allowing native exit close
+00:00 +185: persistent pre-close failure retains session and reports error
+00:00 +186: beginShutdown cancels product exit-close retries until infra disposal
+00:00 +187: polling-disabled runtime follows a native pending-exit hint to completion
+00:00 +188: polling-disabled runtime follows exit tail after ZMODEM failure
+00:00 +189: terminal runtime controller applies the final frame before handling exit
+00:00 +190: terminal runtime controller continues to handle clipboard and resize events
+00:00 +191: terminal runtime emits benchmark stats only when a sink is provided
+00:00 +192: terminal runtime emits graphics diagnostics for synchronized skipped frames
+00:00 +193: terminal runtime emits Frame Packet benchmark decode stats
+00:00 +194: terminal runtime prefers Diagnostic Event v1 frame stats
+00:00 +195: OSC 5522 writes multiple binary MIME representations and replies DONE
+00:00 +196: OSC 5522 lists MIME types without permission and chunks allowed binary reads
+00:00 +197: OSC 5522 denies unauthorized MIME access and reports unsupported primary selection
+00:00 +198: OSC 5522 remembers an application password for later session access
+00:01 +199: OSC 5522 never remembers a password without an application name
+00:01 +200: OSC 5522 paste event advertises MIME types and consumes its token once
+00:01 +201: ZMODEM events lock terminal input and authorize only the active transfer
+00:01 +202: Runtime Event gaps preserve a standalone publish recovery token
+00:01 +203: ZMODEM detection racing input pauses without a backend error event
+00:01 +204: async terminal protocol reply waits for ZMODEM terminal state
+00:01 +205: deferred protocol reply waits across a contiguous successor transfer
+00:01 +206: fallback protocol reply survives detection racing its flush write
+00:01 +207: async protocol reply uses native ordered path before Dart observes ZMODEM
+00:01 +208: Repeated ZMODEM cancellation is one id-bound request
+00:01 +209: Runtime Event gaps retain the ZMODEM input lock during native drain
+00:01 +210: Gap cancellation suppresses stale authorization and retains drain lock
+00:01 +211: Known gap authority becomes unknown before a successor terminal
+00:01 +212: Old terminal plus successor gap retains unknown authority during drain
+00:01 +213: Gap recovery from an old transfer preserves the current native drain
+00:01 +214: Idle reconciliation lets a recovery terminal clear unknown authority
+00:01 +215: Runtime Event gap clears a known transfer when native is idle
+00:01 +216: Runtime Event gap does not create an unknown lock when native is idle
+00:01 +217: First-batch ZMODEM gap survivor establishes input lock when reconciliation fails
+00:01 +218: First-batch ZMODEM gap without survivors exposes a cancelable unknown lock
+00:01 +219: Unknown ZMODEM gap lock remains active while native is draining
+00:01 +220: Runtime Event gap does not lock a backend without ZMODEM capability
+00:01 +221: Terminal survivor clears unknown cancellation de-duplication for a later gap
+00:01 +222: Accepted ZMODEM transfer polls autonomously when session polling is disabled
+00:01 +223: Detected ZMODEM transfer polls before authorization is answered
+00:01 +224: Cancel during native drain waits for the authoritative completion event
+00:01 +225: ordered runtime signals preserve typed payload identity and total order
+00:01 +226: runtime signals reject stale epochs when a backend session id is reused
+00:01 +227: runtime signal stream closes without post-dispose leakage
+00:01 +228: SFTP cancellation stops polling and sends a native cancel request
+00:01 +229: SFTP API rejects runtimes that do not advertise the capability
+00:01 +230: SFTP file APIs preserve local paths outside the JSON payload data
+00:01 +231: All tests passed!

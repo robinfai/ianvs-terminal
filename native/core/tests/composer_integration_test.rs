@@ -142,6 +142,109 @@ fn composer_current_request_contract_static_and_replay_denial() {
 }
 #[test]
 #[cfg(target_os = "macos")]
+fn composer_long_literal_payload_commits_once_within_existing_deadline() {
+    let home = tempfile::tempdir().unwrap();
+    std::fs::write(home.path().join(".zshrc"), "PROMPT='long> '\nRPROMPT=''\n").unwrap();
+    let mut config = config();
+    config["config"]["launch"] = json!({"program":"/bin/zsh", "args":[],
+        "cwd":home.path(), "env":{"HOME":home.path(), "ZDOTDIR":home.path(), "LANG":"en_US.UTF-8"}});
+    let session = Session(session::create_session_v1(&config.to_string()).unwrap());
+    let mut state = wait_ready(session.0, None);
+    for length in [17_000, 65_536] {
+        // UTF-8 straddles the decoder's chunk boundary; backslashes stay literal.
+        // A quoted substitution must remain text, never adapter-side eval.
+        let prefix = format!(": '{}中文😀\\n$(touch WRONG_ENDPOINT)", "x".repeat(507));
+        let suffix = "'; printf x >> proof";
+        let command = format!(
+            "{prefix}{}{suffix}",
+            "y".repeat(length - prefix.len() - suffix.len())
+        );
+        assert_eq!(command.len(), length);
+        let id = format!("long-{length}");
+        let payload = json!({"lease":state["lease"],"submissionId":id,"text":command});
+        assert_eq!(
+            request(session.0, "composer.submit", payload.clone())["payload"]["outcome"],
+            "pending"
+        );
+        state = wait_ready(session.0, state["lease"].as_str());
+        assert_eq!(state["outcome"], "accepted", "{state}");
+        assert_eq!(
+            request(session.0, "composer.submit", payload)["payload"]["outcome"],
+            "accepted"
+        );
+        let receipt = request(session.0, "composer.receipt", json!({"submissionId":id}));
+        assert_eq!(receipt["payload"]["outcome"], "accepted");
+        assert_eq!(receipt["payload"]["exitCode"], 0);
+        let block = request(
+            session.0,
+            "terminal.command_blocks",
+            json!({"id":receipt["payload"]["blockId"]}),
+        );
+        assert_eq!(block["payload"]["block"]["command"], command);
+    }
+    assert_eq!(
+        std::fs::read_to_string(home.path().join("proof")).unwrap(),
+        "xx"
+    );
+    assert!(!home.path().join("WRONG_ENDPOINT").exists());
+}
+
+#[test]
+#[cfg(target_os = "macos")]
+fn composer_command_names_follow_live_shell_without_running_candidates() {
+    use std::os::unix::fs::PermissionsExt;
+    let home = tempfile::tempdir().unwrap();
+    let bin = home.path().join("bin");
+    std::fs::create_dir(&bin).unwrap();
+    let tool = bin.join("fixture-tool");
+    std::fs::write(&tool, "#!/bin/sh\ntouch MUST_NOT_RUN\n").unwrap();
+    std::fs::set_permissions(&tool, std::fs::Permissions::from_mode(0o755)).unwrap();
+    std::fs::write(home.path().join(".zshrc"),
+        "PROMPT='test> '\nRPROMPT=''\nPATH=\"$HOME/bin:$PATH\"\nalias 帮助='echo ok'\ncustom_fn() { touch MUST_NOT_RUN; }\n").unwrap();
+    let mut config = config();
+    config["config"]["launch"] = json!({"program":"/bin/zsh", "args":[],
+        "cwd": home.path(), "env": {"HOME":home.path(), "ZDOTDIR":home.path(), "LANG":"en_US.UTF-8"}});
+    let session = Session(session::create_session_v1(&config.to_string()).unwrap());
+    let mut state = wait_ready(session.0, None);
+    for name in ["fixture-tool", "帮助", "custom_fn", "ls", "cd"] {
+        assert!(
+            state["commandNames"]
+                .as_array()
+                .unwrap()
+                .contains(&json!(name)),
+            "missing {name}"
+        );
+    }
+    assert!(!home.path().join("MUST_NOT_RUN").exists());
+    std::fs::rename(&tool, bin.join("new-tool")).unwrap();
+    let response = request(
+        session.0,
+        "composer.submit",
+        json!({"lease": state["lease"],
+        "submissionId":"inventory-change", "text":"unalias 帮助; unset -f custom_fn"}),
+    );
+    assert_eq!(response["payload"]["outcome"], "pending");
+    state = wait_ready(session.0, state["lease"].as_str());
+    for name in ["fixture-tool", "帮助", "custom_fn"] {
+        assert!(
+            !state["commandNames"]
+                .as_array()
+                .unwrap()
+                .contains(&json!(name)),
+            "stale {name}"
+        );
+    }
+    assert!(
+        state["commandNames"]
+            .as_array()
+            .unwrap()
+            .contains(&json!("new-tool"))
+    );
+    assert!(!home.path().join("MUST_NOT_RUN").exists());
+}
+
+#[test]
+#[cfg(target_os = "macos")]
 fn composer_real_session_commits_once_in_current_zsh() {
     assert!(
         std::path::Path::new("/bin/zsh").exists(),
@@ -219,6 +322,41 @@ fn composer_real_session_commits_once_in_current_zsh() {
         "pending"
     );
     let second = wait_ready(session.0, Some(lease));
+    for (submission, command) in [
+        ("integration-1", "export COMPOSER_TEST=retained; cd /tmp"),
+        ("integration-2", "print COMPOSER_VALUE:$COMPOSER_TEST"),
+    ] {
+        let receipt = request(
+            session.0,
+            "composer.receipt",
+            json!({"submissionId":submission}),
+        );
+        let payload = &receipt["payload"];
+        assert_eq!(payload["outcome"], "accepted", "{receipt}");
+        let block_id = payload["blockId"]
+            .as_str()
+            .expect("canonical block reference");
+        let output = request(session.0, "terminal.command_blocks", json!({"id":block_id}));
+        assert_eq!(output["payload"]["block"]["submissionId"], submission);
+        assert_eq!(output["payload"]["block"]["command"], command);
+        assert_eq!(payload["exitCode"], 0);
+        assert_eq!(
+            request(
+                session.0,
+                "composer.receipt",
+                json!({"submissionId":submission})
+            )["payload"],
+            *payload
+        );
+    }
+    assert_eq!(
+        request(
+            session.0,
+            "composer.receipt",
+            json!({"submissionId":"never-submitted"})
+        )["payload"]["outcome"],
+        "unknown"
+    );
     assert_eq!(second["history"][0], "print COMPOSER_VALUE:$COMPOSER_TEST");
     let history: Value = serde_json::from_str(
         &session::search_session(session.0, "COMPOSER_VALUE:retained").unwrap(),
@@ -233,4 +371,13 @@ fn composer_real_session_commits_once_in_current_zsh() {
     session::write_session(session.0, " 中文 😀\r".as_bytes()).unwrap();
     let raw = wait_ready(session.0, second["lease"].as_str());
     assert_eq!(raw["history"][0], "echo raw 中文 😀");
+    let blocks = request(session.0, "terminal.command_blocks", json!({}));
+    assert!(
+        blocks["payload"]["blocks"]
+            .as_array()
+            .unwrap()
+            .last()
+            .unwrap()["submissionId"]
+            .is_null()
+    );
 }

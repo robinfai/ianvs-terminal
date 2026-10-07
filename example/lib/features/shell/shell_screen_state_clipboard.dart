@@ -175,6 +175,7 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
     final preview = _pasteConfirmationPreview(decision.text);
     final confirmed = await showDialog<bool>(
       context: context,
+      animationStyle: appDialogAnimation(context),
       builder: (dialogContext) {
         return AlertDialog(
           key: const Key('paste-confirmation-dialog'),

@@ -1,0 +1,21 @@
+    Blocking waiting for file lock on build directory
+   Compiling ianvs_core v0.1.0 (/Users/robinfai/flutter_projects/ianvs-terminal/native/core)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.79s
+     Running unittests src/lib.rs (native/core/target/debug/deps/ianvs_core-aace0d3be1a44b38)
+
+running 12 tests
+test shell_bootstrap::tests::a_child_cannot_forge_its_parents_control_frames ... ok
+test shell_bootstrap::tests::split_frames_reject_foreign_duplicate_and_late_init ... ok
+test shell_bootstrap::tests::nested_routes_resume_the_parent ... ok
+test shell_bootstrap::tests::stale_ready_cycles_and_closed_endpoints_are_rejected ... ok
+test shell_bootstrap::tests::child_shell_reuses_host_route_and_does_not_authorize_other_hosts ... ok
+test shell_bootstrap::tests::ssh_without_a_socket_initializes_but_cannot_route_files ... ok
+test shell_bootstrap::tests::bash_keeps_foreign_debug_trap ... ok
+test shell_bootstrap::tests::bash_rejects_ambiguous_prompt_chains_without_reinstalling ... ok
+test shell_bootstrap::tests::bash_reuses_server_hooks ... ok
+test shell_bootstrap::tests::bash_memory_bootstrap ... ok
+test shell_bootstrap::tests::bash_repairs_stale_flag ... ok
+test shell_bootstrap::tests::zsh_memory_bootstrap ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 403 filtered out; finished in 0.21s
+

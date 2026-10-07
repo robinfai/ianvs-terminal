@@ -1,0 +1,18 @@
+{
+  "passed": true,
+  "scope": "Actual loopback SSH transport loss and reconnect; original task and native evidence retained; explicit target choice and new command approval.",
+  "session_id": "1",
+  "reconnected_session_id": "2",
+  "task_id": "task-1",
+  "submission_id": "ai-1790969606991957-0",
+  "block_id": "1790969607001-23",
+  "native_command_executed_once": true,
+  "pending_approval_revoked": true,
+  "draft_and_attachment_retained": true,
+  "native_timeline_and_receipt_readable": true,
+  "terminal_read_only": true,
+  "no_model_request_or_resubmission_after_disconnect": true,
+  "reconnect_keeps_original_receipt_source": true,
+  "explicit_new_target_and_separate_approval": true,
+  "completed_at": "2026-10-02T19:33:30.033606Z"
+}

@@ -1,0 +1,12 @@
+OpenSSH Composer: zsh-emacs
+PASS zsh-emacs
+OpenSSH Composer: zsh-vi
+PASS zsh-vi
+OpenSSH Composer: zsh-emacs-local-ssh
+PASS zsh-emacs-local-ssh
+OpenSSH Composer: bash-emacs
+PASS bash-emacs
+OpenSSH Composer: bash-vi
+PASS bash-vi
+OpenSSH Composer: bash-emacs-local-ssh
+PASS bash-emacs-local-ssh

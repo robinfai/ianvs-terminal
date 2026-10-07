@@ -1,0 +1,53 @@
+{
+  "date": "2026-10-03",
+  "os": "macOS 27.0.1",
+  "scope": "Smart approval of low-risk operations and recoverable edits within the user task; uncertain or sensitive actions need manual confirmation.",
+  "passed": {
+    "aiTests": 291,
+    "nativeUiScenarios": 2,
+    "realAcpReviewCases": 3,
+    "staticAnalysis": true,
+    "diffCheck": true
+  },
+  "realReviewer": {
+    "model": "gpt-5.6-sol",
+    "modelReviewLatencyMs": [
+      12702,
+      12905
+    ],
+    "commandsExecuted": 0
+  },
+  "nativeUi": {
+    "automaticExecutions": 1,
+    "independentReviews": 1,
+    "sensitiveExecuted": false,
+    "screenshotsVisuallyInspected": true
+  },
+  "limitations": [
+    "The native UI uses a controlled loopback model/reviewer; real ACP classification was verified separately with no execution.",
+    "Three real examples are a smoke test, not a classification-accuracy benchmark or a safety guarantee.",
+    "No physical iPhone or Terminal-Bench rerun. The installed daily app was not replaced.",
+    "The final native run logged a foreground-app warning; both scenarios still completed and app-rendered screenshots were captured."
+  ],
+  "sources": {
+    "example/lib/features/ai/ai_models.dart": "709c542c4bcad5d28307159d835632473774b71aff14192ca742bb0fd39e829d",
+    "example/lib/features/ai/ai_settings_dialog.dart": "5a34ee371518f76f84cfa3858f48c79d1cf48f58b4f3fa2feddcb976dbe47601",
+    "example/lib/features/ai/ai_api_client.dart": "bd137c192b9a397953d230e1bed11478d6fdf71e4fdfd79f8dd0f2f0c0e3135c",
+    "example/lib/features/ai/ai_approval.dart": "61c6275828ba35ab3e40e590e31f91e5b45a7cf60ff0993178abe547fc530a87",
+    "example/lib/features/ai/ai_approval_notice.dart": "57cd51b779942bd8a8b5ef77ed25d8092d7211849c11d295a656c161f8aaba0a",
+    "example/lib/features/ai/acp/codex_acp_backend.dart": "cc32298ba7e9cdabdf90aea19a137d35a72f264618f68cf7266ec7006477029c",
+    "example/lib/features/ai/terminal_ai_controller.dart": "ce6d50bc5a989232976d2f046bb25b1245aa046d966e1001c9d7d6124938bff7",
+    "example/lib/features/ai/terminal_ai_approval.dart": "76bc2176832c32c618ad253d6f5dccb8bc08463a9452ea642a280d6c3bca36e0",
+    "example/lib/features/ai/terminal_ai_acp.dart": "66ef15560eb13b9c24583fa48969b007204df2878b95bb3dbccf56e2a59b5a8b",
+    "example/lib/features/ai/terminal_ai_panel.dart": "735b6b16b9347201f044f4ff0b2bbbeea6d2ead63c9493418968a289e6a9bb31",
+    "example/lib/features/ai/terminal_ai_workspace.dart": "7d2cc443fd25ed72444c3d01180415b5579b4611003fec8d209c0762a779efd1",
+    "example/test/ai/ai_approval_test.dart": "df2141127e1541116391a0c65fb55a965167425813dbaa1ea2c4a14aa4db746c",
+    "example/test/ai/ai_api_client_test.dart": "8dd63558ed3f42a8b8e2ba38b2169a08627e2393939369735dae8396906e650b",
+    "example/test/ai/ai_settings_discovery_test.dart": "f0ef8d3048ad3b956b7a457837ba1e1ceca298559687744254ba6b47dfed1a05",
+    "example/test/ai/terminal_ai_acp_test.dart": "cc2d3d773b7f910e1dc6c6714b46b2920b9aa9a91e17a647bf66cde3c6a6cb6c",
+    "example/test/ai/terminal_ai_widgets_test.dart": "b8ca32992158139710cd846eb34112b27a8dec4e204332b847c118bbad6e2030",
+    "example/test/ai/terminal_ai_workspace_test.dart": "30443ef4a0bdfec6156310e013377ed05e00cb1330d5041803ae568c3d978466",
+    "example/integration_test/input_intent_acceptance_test.dart": "0d0c96a094518d0a6b26955b02bfd89413c4a8b7255374d771ce4a1e9cd6914a",
+    "example/tool/approval_probe.dart": "63dbf0bd734331f6576f0dfbefcc5e99f38f1fd081c7cd87afb2d09387512cc1"
+  }
+}

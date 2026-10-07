@@ -27,6 +27,33 @@ Map<String, Object?> block(
 };
 
 void main() {
+  test('native list budget stays bounded unless the host composes sources', () {
+    final blocks = [for (var i = 0; i < 256; i++) block('block-$i')];
+    final native = CommandBlockController(request: (_) => {'blocks': blocks});
+    final composed = CommandBlockController(
+      request: (_) => {'blocks': blocks},
+      maximumBlocks: null,
+    );
+    addTearDown(native.dispose);
+    addTearDown(composed.dispose);
+    native.refresh();
+    composed.refresh();
+    expect(native.blocks, hasLength(128));
+    expect(composed.blocks, hasLength(256));
+  });
+  test('command decoding matches native 64 KiB UTF-8 limit', () {
+    for (final command in ['x' * 65536, '😀' * 16384]) {
+      final parsed = CommandBlock.fromJson({
+        ...block('long'),
+        'command': command,
+      });
+      expect(parsed?.command, command);
+      expect(
+        CommandBlock.fromJson({...block('long'), 'command': '${command}x'}),
+        isNull,
+      );
+    }
+  });
   for (final scene in [
     (size: const Size(900, 900), font: const TerminalFontConfig(), scale: 1.0),
     (
@@ -68,7 +95,8 @@ void main() {
         for (var i = 0; i < 8; i++) {
           await tester.pump();
         }
-        final budget = tester.getSize(find.byType(ListView)).height / 3;
+        final budget =
+            tester.getSize(find.byType(CommandTimelineView)).height / 3;
         final whole = find.byKey(const ValueKey('command-block-long'));
         final output = find.byKey(const ValueKey('block-terminal-long'));
         expect(tester.getSize(whole).height, lessThanOrEqualTo(budget));
@@ -136,8 +164,8 @@ void main() {
             )
             .controller!;
         final outer = tester
-            .widget<ListView>(find.byType(ListView))
-            .controller!;
+            .widget<CommandTimelineView>(find.byType(CommandTimelineView))
+            .controller;
         final point = tester.getCenter(output);
         final start = inner.offset;
         final outerStart = outer.offset;
@@ -249,8 +277,10 @@ void main() {
         await tester.pump(const Duration(milliseconds: 16));
       }
       expect(find.text('echo 99').hitTestable(), findsOneWidget);
-      final view = tester.widget<ListView>(find.byType(ListView));
-      final scroll = view.controller!;
+      final view = tester.widget<CommandTimelineView>(
+        find.byType(CommandTimelineView),
+      );
+      final scroll = view.controller;
       controller.clearSelection();
       final bottom = scroll.offset;
       await tester.sendEventToBinding(
@@ -298,8 +328,8 @@ void main() {
       for (var i = 0; i < 6; i++) {
         await tester.pump();
       }
-      final list = find.byType(ListView);
-      final scroll = tester.widget<ListView>(list).controller!;
+      final list = find.byType(CommandTimelineView);
+      final scroll = tester.widget<CommandTimelineView>(list).controller;
       final point = tester.getCenter(list);
       expect(
         tester.getRect(find.byType(TerminalViewport)).contains(point),
@@ -384,8 +414,8 @@ void main() {
           await tester.pump();
         }
         final scroll = tester
-            .widget<ListView>(find.byType(ListView))
-            .controller!;
+            .widget<CommandTimelineView>(find.byType(CommandTimelineView))
+            .controller;
         final terminal = find.byType(TerminalViewport).hitTestable().last;
         final point = tester.getCenter(terminal);
         final trackpad = await tester.createGesture(
@@ -400,6 +430,17 @@ void main() {
         await tester.pump(const Duration(milliseconds: 16));
         var previous = scroll.offset;
         for (var step = 1; step <= 16; step++) {
+          final visibleController = tester
+              .widget<TerminalViewport>(
+                find.byType(TerminalViewport).hitTestable().first,
+              )
+              .controller;
+          final visible = find.byWidgetPredicate(
+            (widget) =>
+                widget is TerminalViewport &&
+                widget.controller == visibleController,
+          );
+          final beforeY = tester.getTopLeft(visible).dy;
           await trackpad.panZoomUpdate(
             point,
             pan: Offset(0, 40 + 64.0 * step),
@@ -407,8 +448,8 @@ void main() {
           );
           await tester.pump(const Duration(milliseconds: 16));
           expect(
-            scroll.offset,
-            closeTo(previous - 64, .1),
+            tester.getTopLeft(visible).dy,
+            closeTo(beforeY + 64, .1),
             reason: 'step $step',
           );
           expect(scroll.position.isScrollingNotifier.value, isTrue);

@@ -1177,9 +1177,9 @@ class SessionController extends Notifier<SessionState> {
         );
   }
 
-  void createSession(TerminalProfile profile) {
+  String? createSession(TerminalProfile profile) {
     if (_isShuttingDown || ref.read(sessionDemoFixtureProvider) != null) {
-      return;
+      return null;
     }
     _ensureRuntimeSubscription();
     final environmentOverrides = ref.read(sessionEnvironmentOverridesProvider);
@@ -1189,7 +1189,7 @@ class SessionController extends Notifier<SessionState> {
     );
     final sessionId = _createRuntimeSession(launchProfile);
     if (sessionId == null) {
-      return;
+      return null;
     }
     _clearMatchingSshExitFailureForRetry(profile);
     final descriptor = _relaunchSpecForLaunch(
@@ -1211,6 +1211,24 @@ class SessionController extends Notifier<SessionState> {
     );
     _syncRuntimeSessionActivation();
     _setWindowTitle(launchProfile.name);
+    return sessionId;
+  }
+
+  /// A failed SSH endpoint stays available for read-only evidence. The new
+  /// connection has its own native identity and negotiates capabilities anew.
+  String? reconnectSession(String sessionId, {TerminalProfile? editedProfile}) {
+    final pane = _paneForSession(sessionId);
+    final profile = pane?.profileSnapshot;
+    if (pane?.isExited != true ||
+        profile?.isSsh != true ||
+        !_runtime.isSessionRetainedAfterExit(sessionId)) {
+      return null;
+    }
+    if (editedProfile != null &&
+        (!editedProfile.isSsh || editedProfile.id != profile!.id)) {
+      return null;
+    }
+    return createSession(editedProfile ?? profile!);
   }
 
   void splitActiveSession(TerminalProfile profile, TerminalSplitAxis axis) {
@@ -1352,6 +1370,7 @@ class SessionController extends Notifier<SessionState> {
           // platforms retain the package's deny-by-default behavior.
           dragDropEnabled: Platform.isMacOS,
         ),
+        retainExitCodes: launchProfile.isSsh ? const {255} : const {},
       );
     } on Object catch (error) {
       final detail = _boundedShellMetadata(error.toString(), 240);
@@ -3405,7 +3424,23 @@ class SessionController extends Notifier<SessionState> {
             exitClaim: exitClaim,
           ),
         );
-        _removeSessionState(event.sessionId, runtimeAlreadyClosed: true);
+        if (_runtime.isSessionRetainedAfterExit(event.sessionId)) {
+          final pane = _paneForSession(event.sessionId);
+          if (pane != null) {
+            _replaceSessionPane(
+              event.sessionId,
+              pane.copyWith(
+                isExited: true,
+                exitCode: event.exitCode,
+                terminalMode: const TerminalModeState(
+                  unavailableReason: BlockUnavailableReason.exited,
+                ),
+              ),
+            );
+          }
+        } else {
+          _removeSessionState(event.sessionId, runtimeAlreadyClosed: true);
+        }
         if (sshExitError != null) {
           if (failedProfileId != null) {
             _lastSshExitFailure = (
@@ -5529,17 +5564,23 @@ class SessionController extends Notifier<SessionState> {
     _replaceSessionPane(sessionId, pane.copyWith(terminalMode: mode));
   }
 
-  Future<void> setPreferredTerminalMode(TerminalViewMode mode) async {
+  TerminalViewMode? get preferredTerminalModeOverride =>
+      _appPreferences.appearance.preferredTerminalModeOverride;
+
+  Future<void> setPreferredTerminalMode(TerminalViewMode? mode) async {
     _appPreferences = _appPreferences.copyWith(
       appearance: _appPreferences.appearance.copyWith(
         preferredTerminalMode: mode,
+        resetPreferredTerminalMode: mode == null,
       ),
     );
     await _savePreferences(
       localConfigUpdater: (config) =>
           config.copyWith(appearance: _appPreferences.appearance),
     );
-    state = state.copyWith(preferredTerminalMode: mode);
+    state = state.copyWith(
+      preferredTerminalMode: _appPreferences.appearance.preferredTerminalMode,
+    );
   }
 
   Future<void> setThemeMode(TerminalThemeMode themeMode) async {

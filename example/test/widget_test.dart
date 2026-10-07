@@ -486,7 +486,12 @@ void _expectRectClose(Rect actual, Rect expected) {
 void _expectSelectedTab(WidgetTester tester, String sessionId) {
   expect(
     tester.getSemantics(find.bySemanticsIdentifier('shell-tab-$sessionId')),
-    matchesSemantics(hasSelectedState: true, isSelected: true, isButton: true),
+    matchesSemantics(
+      hasSelectedState: true,
+      isSelected: true,
+      isButton: true,
+      hasTapAction: true,
+    ),
   );
 }
 
@@ -499,6 +504,10 @@ void _expectActivePane(WidgetTester tester, String sessionId) {
 
 Future<void> _closePaneViaMenu(WidgetTester tester, String sessionId) async {
   await tester.tap(find.byKey(Key('shell-pane-action-more-$sessionId')));
+  await tester.pumpAndSettle();
+  await tester.ensureVisible(
+    find.byKey(Key('shell-pane-menu-closePane-$sessionId')),
+  );
   await tester.pumpAndSettle();
   await tester.tap(find.byKey(Key('shell-pane-menu-closePane-$sessionId')));
   await tester.pumpAndSettle();
@@ -600,6 +609,10 @@ void main() {
     await tester.pumpAndSettle();
     controller.activateSession('2');
     await tester.pump();
+    await tester.ensureVisible(
+      find.byKey(const Key('shell-pane-menu-closePane-1')),
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('shell-pane-menu-closePane-1')));
     await tester.pumpAndSettle();
     expect(backend.closedSessionIds, ['1']);
@@ -3726,6 +3739,7 @@ void main() {
           hasSelectedState: true,
           isSelected: true,
           isButton: true,
+          hasTapAction: true,
         ),
       );
       await _openCommandMenu(tester);
@@ -4998,7 +5012,7 @@ void main() {
     );
   });
 
-  testWidgets('SSH transport failure remains visible after its tab closes', (
+  testWidgets('SSH transport failure keeps history until its tab is closed', (
     tester,
   ) async {
     final eventfulBindings = _SshEventfulPtyBackend();
@@ -5043,8 +5057,16 @@ void main() {
     await tester.pump(const Duration(milliseconds: 40));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('shell-empty-state')), findsOneWidget);
-    expect(find.byType(TerminalViewport), findsNothing);
+    expect(find.byKey(const Key('shell-empty-state')), findsNothing);
+    expect(find.byType(TerminalViewport), findsOneWidget);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    expect(
+      container.read(sessionControllerProvider).tabs.single.activePane.isExited,
+      isTrue,
+    );
+    expect(eventfulBindings.closedSessionIds, isEmpty);
     expect(find.byKey(const Key('shell-runtime-error')), findsOneWidget);
     expect(
       find.textContaining(
@@ -5063,6 +5085,13 @@ void main() {
       findsOneWidget,
     );
     semantics.dispose();
+
+    await _hoverShellTab(tester, '1');
+    await tester.tap(find.byKey(const Key('shell-tab-close-1')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('shell-empty-state')), findsOneWidget);
+    expect(find.byType(TerminalViewport), findsNothing);
+    expect(eventfulBindings.closedSessionIds, ['1']);
   });
 
   testWidgets('shell terminal scrollbar drag sends absolute scroll requests', (

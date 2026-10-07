@@ -267,6 +267,14 @@ class TerminalViewportStrings {
   final String closeImagePreview;
 }
 
+/// A selection endpoint resolved by the owner of multiple terminal pages.
+typedef TerminalSelectionTarget = ({
+  TerminalFrameDiff frame,
+  TerminalCellPosition cell,
+  Rect globalBounds,
+  Rect globalCaretRect,
+});
+
 class TerminalViewport extends StatefulWidget {
   const TerminalViewport({
     super.key,
@@ -287,6 +295,10 @@ class TerminalViewport extends StatefulWidget {
     this.altClickMovesCursor = true,
     this.handleScrollGestures = true,
     this.readOnly = false,
+    this.autofocus,
+    this.selectionHitTest,
+    this.canScrollSelection,
+    this.captureSelectionText,
     this.showLineTimestamps = false,
     this.optionDragMode = TerminalOptionDragMode.blockSelection,
     this.focusNode,
@@ -348,6 +360,23 @@ class TerminalViewport extends StatefulWidget {
 
   /// Selectable output that must never attach an IME or summon a keyboard.
   final bool readOnly;
+
+  /// Defaults to false for readers. Hosts can retain keyboard navigation on a
+  /// disconnected, read-only terminal without opening its text input channel.
+  final bool? autofocus;
+
+  /// Resolves drag endpoints across pages in an enclosing output reader.
+  /// Returning null leaves the selection unchanged until content is available.
+  final TerminalSelectionTarget? Function(Offset globalPosition)?
+  selectionHitTest;
+
+  /// Lets a paged owner check its scroll extent. [onScrollLines] then scrolls
+  /// that owner's position; positive deltas move toward earlier output.
+  final bool Function(int deltaLines)? canScrollSelection;
+
+  /// Captures a shared selection before a touch Copy menu opens. The returned
+  /// text stays fixed while the menu is visible, even if output changes.
+  final Future<String> Function()? captureSelectionText;
   final bool showLineTimestamps;
   final TerminalOptionDragMode optionDragMode;
   final FocusNode? focusNode;
@@ -392,7 +421,7 @@ typedef _GraphicGeometryKey = ({
 });
 
 class _TerminalViewportState extends State<TerminalViewport>
-    with TextInputClient {
+    with AutomaticKeepAliveClientMixin<TerminalViewport>, TextInputClient {
   static const int _maxLockedItermGraphicScales = 256;
   // The iOS input client is hidden, so this character is never rendered or
   // forwarded. It only gives the software keyboard something to delete after
@@ -421,7 +450,22 @@ class _TerminalViewportState extends State<TerminalViewport>
   bool _cellSizeReportScheduled = false;
   int? _activeMouseButton;
   final TerminalFocusReporter _focusReporter = TerminalFocusReporter();
-  bool _isLocalSelectionActive = false;
+  bool _localSelectionActive = false;
+  bool get _isLocalSelectionActive => _localSelectionActive;
+  set _isLocalSelectionActive(bool value) {
+    if (_localSelectionActive == value) return;
+    _localSelectionActive = value;
+    updateKeepAlive();
+  }
+
+  int _touchSelectionMenus = 0;
+
+  @override
+  bool get wantKeepAlive =>
+      widget.selectionHitTest != null &&
+      (_isLocalSelectionActive ||
+          _touchSelectionMenus > 0 ||
+          _focusNode.hasFocus);
   Offset? _selectionPointerGlobalPosition;
   Duration? _altClickDownTime;
   int? _altClickPointer;
@@ -483,27 +527,21 @@ class _TerminalViewportState extends State<TerminalViewport>
         renderObject == null) {
       return;
     }
-    final cell = _selectionCellForGlobalPosition(position);
-    if (cell == null || Overlay.maybeOf(context, rootOverlay: true) == null) {
+    final target = _selectionTarget(position);
+    if (target == null || Overlay.maybeOf(context, rootOverlay: true) == null) {
       return;
     }
-    final origin = renderObject.localToGlobal(Offset.zero);
-    final cellSize = renderObject.debugCellSize;
-    final lineTop = origin.dy + cell.row * cellSize.height;
+    final bounds = target.globalBounds;
+    final caretRect = target.globalCaretRect;
     _selectionMagnifierInfo.value = MagnifierInfo(
       globalGesturePosition: position,
-      caretRect: Rect.fromLTWH(
-        origin.dx + cell.col * cellSize.width,
-        lineTop,
-        1,
-        cellSize.height,
-      ),
-      fieldBounds: origin & renderObject.size,
+      caretRect: caretRect,
+      fieldBounds: bounds,
       currentLineBoundaries: Rect.fromLTWH(
-        origin.dx,
-        lineTop,
-        renderObject.size.width,
-        cellSize.height,
+        bounds.left,
+        caretRect.top,
+        bounds.width,
+        caretRect.height,
       ),
     );
     if (_selectionMagnifier.overlayEntry == null) {
@@ -593,6 +631,10 @@ class _TerminalViewportState extends State<TerminalViewport>
     _syncTextInputConnection();
     _syncFocusTrackingReport();
     _syncCursorBlinkTimer();
+    if (oldWidget.selectionHitTest != widget.selectionHitTest ||
+        focusNodeChanged) {
+      updateKeepAlive();
+    }
   }
 
   @override
@@ -708,6 +750,7 @@ class _TerminalViewportState extends State<TerminalViewport>
     _syncTextInputConnection();
     _syncFocusTrackingReport();
     _syncCursorBlinkTimer();
+    updateKeepAlive();
   }
 
   void _focusTerminalFromTap() {
@@ -1801,13 +1844,38 @@ class _TerminalViewportState extends State<TerminalViewport>
   }
 
   Future<void> _showTouchSelectionMenu(Offset globalPosition) async {
-    if (widget.selectionController.selection == null) {
+    _touchSelectionMenus++;
+    updateKeepAlive();
+    try {
+      await _presentTouchSelectionMenu(globalPosition);
+    } finally {
+      _touchSelectionMenus--;
+      if (mounted) updateKeepAlive();
+    }
+  }
+
+  Future<void> _presentTouchSelectionMenu(Offset globalPosition) async {
+    final selection = widget.selectionController.selection;
+    final blockSelection = widget.selectionController.isBlockSelection;
+    if (selection == null) {
       return;
     }
     // Capture before opening a route: focus/keyboard changes or incoming
     // terminal output must not change what the user's Copy action means.
-    final selectedText = widget.inputController.readSelection();
-    if (selectedText.isEmpty) {
+    final capture = widget.captureSelectionText;
+    final selectedText = capture == null
+        ? widget.inputController.readSelection()
+        : await capture();
+    if (!mounted || selectedText.isEmpty) {
+      return;
+    }
+    final current = widget.selectionController.selection;
+    if (current == null ||
+        current.startRow != selection.startRow ||
+        current.startCol != selection.startCol ||
+        current.endRow != selection.endRow ||
+        current.endCol != selection.endCol ||
+        widget.selectionController.isBlockSelection != blockSelection) {
       return;
     }
     final navigator = Navigator.maybeOf(context, rootNavigator: true);
@@ -2243,36 +2311,62 @@ class _TerminalViewportState extends State<TerminalViewport>
     Offset globalPosition, {
     int? viewportStartRow,
   }) {
-    final cell = _selectionCellForGlobalPosition(globalPosition);
-    if (cell == null) {
+    final target = _selectionTarget(globalPosition);
+    if (target == null) {
       return;
     }
+    final frame = target.frame;
+    final cell = target.cell;
     final mappedSourceRow = viewportStartRow == null
-        ? widget.controller.frame.mappedSourceRowForViewportRow(cell.row)
+        ? frame.mappedSourceRowForViewportRow(cell.row)
         : null;
     if (viewportStartRow == null && mappedSourceRow == null) {
       return;
     }
     widget.selectionController.update(
       cell,
-      viewportStartRow:
-          viewportStartRow ?? widget.controller.frame.viewportStartRow,
+      viewportStartRow: viewportStartRow ?? frame.viewportStartRow,
       sourceRow: mappedSourceRow,
     );
   }
 
   void _updateWordSelectionFromPointer(Offset globalPosition) {
-    final cell = _selectionCellForGlobalPosition(globalPosition);
+    final target = _selectionTarget(globalPosition);
     final anchor = _wordSelectionAnchor;
-    if (cell == null || anchor == null) {
+    if (target == null || anchor == null) {
       return;
     }
-    final targetRange = _wordRangeAtCell(cell);
+    final targetRange = _wordRangeAtRelativeCell(
+      target.frame,
+      target.cell.row,
+      target.cell.col,
+    );
     if (targetRange == null) {
       return;
     }
     widget.selectionController.setSelection(
       _selectionForWordDrag(anchor, targetRange),
+    );
+  }
+
+  TerminalSelectionTarget? _selectionTarget(Offset globalPosition) {
+    final hitTest = widget.selectionHitTest;
+    if (hitTest != null) return hitTest(globalPosition);
+    final cell = _selectionCellForGlobalPosition(globalPosition);
+    final render = _renderViewport;
+    if (cell == null || render == null) return null;
+    final origin = render.localToGlobal(Offset.zero);
+    final size = render.debugCellSize;
+    return (
+      frame: widget.controller.frame,
+      cell: cell,
+      globalBounds: origin & render.size,
+      globalCaretRect: Rect.fromLTWH(
+        origin.dx + cell.col * size.width,
+        origin.dy + cell.row * size.height,
+        1,
+        size.height,
+      ),
     );
   }
 
@@ -2290,28 +2384,37 @@ class _TerminalViewportState extends State<TerminalViewport>
     if (pointer == null || renderObject == null) {
       return 0;
     }
-    final localPosition = renderObject.globalToLocal(pointer);
     final lineHeight = _lineHeight;
-    final visibleRowsHeight = math.min(
-      renderObject.size.height,
-      widget.controller.frame.viewportRows * lineHeight,
-    );
+    final external = widget.selectionHitTest?.call(pointer);
+    if (widget.selectionHitTest != null && external == null) return 0;
+    final localY = external == null
+        ? renderObject.globalToLocal(pointer).dy
+        : pointer.dy - external.globalBounds.top;
+    final visibleRowsHeight =
+        external?.globalBounds.height ??
+        math.min(
+          renderObject.size.height,
+          widget.controller.frame.viewportRows * lineHeight,
+        );
     if (visibleRowsHeight <= 0) {
       return 0;
     }
     final edgeExtent = math.min(lineHeight, visibleRowsHeight / 2);
-    if (localPosition.dy < edgeExtent) {
-      return _autoScrollLinesForOvershoot(math.max(0, -localPosition.dy));
+    if (localY < edgeExtent) {
+      return _autoScrollLinesForOvershoot(math.max(0, -localY));
     }
-    if (localPosition.dy > visibleRowsHeight - edgeExtent) {
+    if (localY > visibleRowsHeight - edgeExtent) {
       return -_autoScrollLinesForOvershoot(
-        math.max(0, localPosition.dy - visibleRowsHeight),
+        math.max(0, localY - visibleRowsHeight),
       );
     }
     return 0;
   }
 
   bool _canScrollSelection(int deltaLines) {
+    if (widget.canScrollSelection case final canScroll?) {
+      return canScroll(deltaLines);
+    }
     final frame = widget.controller.frame;
     if (deltaLines > 0) {
       return frame.scrollbackOffset < frame.scrollbackMaxOffset;
@@ -2363,8 +2466,11 @@ class _TerminalViewportState extends State<TerminalViewport>
     if (pointer != null) {
       _updateSelectionFromPointer(
         pointer,
-        viewportStartRow: _predictedViewportStartRow(deltaLines),
+        viewportStartRow: widget.selectionHitTest == null
+            ? _predictedViewportStartRow(deltaLines)
+            : null,
       );
+      _updateSelectionMagnifier();
     }
   }
 
@@ -2664,11 +2770,12 @@ class _TerminalViewportState extends State<TerminalViewport>
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     _scheduleMeasuredCellSizeReport();
     _scheduleTextInputGeometrySync();
     final colors = _resolvedColors(context);
     final terminal = Focus(
-      autofocus: !widget.readOnly,
+      autofocus: widget.autofocus ?? !widget.readOnly,
       focusNode: _focusNode,
       onKeyEvent: (_, event) => _handleTerminalKeyEvent(event),
       child: GestureDetector(

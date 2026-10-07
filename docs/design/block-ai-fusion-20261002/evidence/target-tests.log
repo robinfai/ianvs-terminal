@@ -1,0 +1,47 @@
+package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart
+00:00 +0: mobile review has full command and fixed footer; stale target revokes
+00:00 +1: target dialog never transfers approval and rechecks changed target
+00:01 +2: target resume double click opens one dialog and one model turn
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: non-empty
+  Actual: []
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart:932:7)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart line 932
+The test description was:
+  target resume double click opens one dialog and one model turn
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:01 +2 -1: target resume double click opens one dialog and one model turn [E]
+  Test failed. See exception logs above.
+  The test description was: target resume double click opens one dialog and one model turn
+  
+00:01 +2 -1: target choice cannot resume another task
+00:01 +3 -1: inline target choice rejects an unseen hop and preserves draft
+00:01 +4 -1: target long labels desktop dark
+00:01 +5 -1: target long labels desktop light
+00:02 +6 -1: target long labels desktop-zh dark
+00:02 +7 -1: target long labels desktop-zh light
+00:02 +8 -1: target long labels desktop-large dark
+00:02 +9 -1: target long labels desktop-large light
+00:02 +10 -1: target long labels phone dark
+00:02 +11 -1: target long labels phone light
+00:02 +12 -1: target long labels phone-short dark
+00:02 +13 -1: target long labels phone-short light
+00:02 +14 -1: target long labels phone-landscape dark
+00:02 +15 -1: target long labels phone-landscape light
+00:02 +16 -1: Some tests failed.
+
+Failing tests:
+  /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: target resume double click opens one dialog and one model turn

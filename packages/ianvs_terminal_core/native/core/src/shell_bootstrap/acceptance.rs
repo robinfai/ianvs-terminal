@@ -53,6 +53,11 @@ impl Terminal {
     ) -> Vec<serde_json::Value> {
         let deadline = Instant::now() + Duration::from_secs(15);
         loop {
+            // Match the host's composer.state polling: the private channel
+            // carries bounded inventories independently of PTY output.
+            if let Some(bridge) = &self.runtime.composer_bridge {
+                let _ = bridge.snapshot();
+            }
             let events = super::tests::events(&self.output[start..]);
             if predicate(&events, &self.output[start..]) {
                 return events;

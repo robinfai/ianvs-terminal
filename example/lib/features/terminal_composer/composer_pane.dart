@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart';
 
-import '../ai/ai_models.dart';
 import '../preferences/app_preferences_models.dart';
 import '../sessions/session_state.dart';
 import 'terminal_mode.dart';
@@ -104,6 +103,7 @@ final class ComposerPaneSession extends ChangeNotifier {
   bool _unattributedOutput = false;
   final editorFocus = FocusNode(debugLabel: 'Pane composer');
   bool get enabled => mode.state.mode == TerminalViewMode.blocks;
+  bool get fullScreen => _fullScreen;
   bool Function(int delta)? navigateBlocks;
   Timer? _pollTimer;
   bool _disposed = false;
@@ -134,6 +134,14 @@ final class ComposerPaneSession extends ChangeNotifier {
     _updateMode();
   }
 
+  /// Output can arrive before the periodic poll when another UI surface (for
+  /// example terminal AI) submits directly to the same negotiated shell.
+  void refreshShellState({bool recheckSupport = false}) {
+    if (!_disposed && _pane?.isExited != true) {
+      _poll(recheckSupport: recheckSupport);
+    }
+  }
+
   void updateOutput({
     required bool fullScreen,
     required bool richOutput,
@@ -152,7 +160,7 @@ final class ComposerPaneSession extends ChangeNotifier {
     notifyListeners();
   }
 
-  void _updateMode() {
+  void _updateMode({bool recheckSupport = false}) {
     final pane = _pane;
     final shell = pane?.shellIntegration;
     final remoteCommand = _startsRemoteCommand(shell?.runningCommand);
@@ -167,10 +175,10 @@ final class ComposerPaneSession extends ChangeNotifier {
         _composerTransport == 'shell' &&
         _composerContextId == (shell?.contextId ?? 'root') &&
         (!remoteCommand || controller.ownership == ComposerOwnership.ready);
-    final reason = _readOnly
-        ? BlockUnavailableReason.readOnly
-        : pane?.isExited == true
+    final reason = pane?.isExited == true
         ? BlockUnavailableReason.exited
+        : _readOnly
+        ? BlockUnavailableReason.readOnly
         : _composerContextId != null &&
               shell?.contextId != null &&
               _composerContextId != shell!.contextId
@@ -191,7 +199,7 @@ final class ComposerPaneSession extends ChangeNotifier {
             ComposerOwnership.suspended => BlockUnavailableReason.terminalInput,
             _ => BlockUnavailableReason.unsupportedShell,
           };
-    mode.updateAvailability(reason);
+    mode.updateAvailability(reason, rechecked: recheckSupport);
   }
 
   // The bootstrap context is authoritative once available. Also cover a plain
@@ -200,7 +208,7 @@ final class ComposerPaneSession extends ChangeNotifier {
     r'^(?:(?:command|exec|sudo)\s+)*(?:/\S*/)?(?:ssh|mosh|telnet)(?:\s|$)',
   ).hasMatch(command?.trim() ?? '');
 
-  void _poll() {
+  void _poll({bool recheckSupport = false}) {
     if (_disposed) return;
     final json = runtime.composerRequest(sessionId, 'composer.state', const {});
     final contextId = json?['contextId'] as String?;
@@ -214,6 +222,24 @@ final class ComposerPaneSession extends ChangeNotifier {
     }
     _composerContextId = contextId;
     _composerTransport = transport;
+    controller.updateIntentContext(
+      InputIntentContext(
+        scope: json == null ? '' : '$sessionId:$transport:$contextId',
+        commandNames: {
+          if (json?['commandNames'] case final List<Object?> names)
+            ...names.whereType<String>(),
+        },
+        aliases: {
+          if (json?['aliases'] case final Map<Object?, Object?> aliases)
+            for (final entry in aliases.entries)
+              if (entry case MapEntry(
+                key: final String name,
+                value: final String expansion,
+              ))
+                name: expansion,
+        },
+      ),
+    );
     final state = json?['state'];
     final ownership = switch (state) {
       'ready' => ComposerOwnership.ready,
@@ -230,7 +256,7 @@ final class ComposerPaneSession extends ChangeNotifier {
       dialect: json?['dialect'] as String? ?? 'generic',
       ownership: ownership,
     );
-    _updateMode();
+    _updateMode(recheckSupport: recheckSupport);
     final historyRevision = json?['historyRevision'];
     final history = json?['history'];
     if (historyRevision is int &&
@@ -304,6 +330,7 @@ class ComposerPane extends StatefulWidget {
     required this.active,
     required this.available,
     this.onAskAi,
+    this.onOpenAi,
     super.key,
   });
   final ComposerPaneSession session;
@@ -312,6 +339,7 @@ class ComposerPane extends StatefulWidget {
   final bool active;
   final bool available;
   final ValueChanged<String>? onAskAi;
+  final VoidCallback? onOpenAi;
   @override
   State<ComposerPane> createState() => _ComposerPaneState();
 }
@@ -406,7 +434,7 @@ class _ComposerPaneState extends State<ComposerPane> {
         chinese: zh,
         autofocus: widget.active,
         onAskAi: widget.onAskAi,
-        isNaturalLanguage: looksLikeNaturalLanguage,
+        onOpenAi: widget.onOpenAi,
       ),
     );
   }

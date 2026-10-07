@@ -1,0 +1,26 @@
+{
+  "recorded_at": "2026-10-02T23:54:08.314148+00:00",
+  "scope": "Current native D04 and D07 design comparison; confirmed D08 reader design gaps; full deterministic native flow and four phone component cases passed",
+  "artifacts": {
+    "D04-silent-command-ai-paused-elapsed.png": "ab9737bfde5b082cb4ac88468659aec49307c9ca665816832c642bcbb3a4f0ec",
+    "D04-streaming-one-native-block.png": "b089996e78c653c345f9e4ca9d8ab7b0c22e4d9c3c08ca6cd211d132f8762b04",
+    "D07-header-multi-selection.png": "60a1fba9df0548e266d0fe0c6236350789545d7b97fa8b69785174fb6d644bec",
+    "D07-pending-contexts.png": "27cb0f2b98cd2bca90b612efbd641118c4573e6213a1bb78284617dabbfe10b1",
+    "D07-sent-contexts.png": "f9678eda9fca9468b82abee34e675d4fb2c7d19f1cd55a0963a1398f4b188a4b",
+    "D08-native-reader-selected.png": "5eced559ca2a31e87d96b91f928e9f4fd187606a3c76ca8a3f6b90e773ab2750",
+    "result.json": "625e5a13a16d101e108cff75d7bc80e27bb2923b733ed5e3fdd672c00a2f756f",
+    "scene-review-analyze.log": "f1995e66fd62abf164e33d3bbac0111590ab90d88a320650e080ba267bd31f62",
+    "scene-review-final.log": "bb0951480652c20921951ab0211bdfd2d029ef630bd9d462539cf774cfbe0edf",
+    "scene-review-native.log": "7209959b5a9bb0299556cfd690ee96f5d2a9e3cee5e0a07e20be93e3e5312489"
+  },
+  "sources": {
+    "example/integration_test/terminal_ai_workspace_acceptance_test.dart": "aad058fce1f7d4a4398b78656bdc8812e2411387b63155a483f6ddb41284afda",
+    "example/integration_test/terminal_ai_stream_acceptance.dart": "a674516ac5c0d72f72d83edd6a4b7e1fcbf2a1541f4a2b9278f2a245c13b2446",
+    "example/lib/features/ai/terminal_ai_workspace.dart": "ac0216936ad5fa5914067bdb64b112cc3496093d31bfdc82818b60ed0529deb8",
+    "example/lib/features/ai/ai_models.dart": "2b2e6ab23b0421e681b81b448caceb3a91f3314b7208ba6858ce5605c9ed743c",
+    "packages/ianvs_terminal/lib/src/terminal/command_block_reader.dart": "13c6f5a47009f68e263004c5a6f736c3efb353ed7d9c5d3fe6a3f28e8e75c102",
+    "packages/ianvs_terminal/lib/src/terminal/command_blocks_view.dart": "b355471eb4edf8a7e45da230b79b09cb6362991a2a24c2aa729543d0caee2931",
+    "packages/ianvs_terminal/lib/src/terminal/command_blocks_output.dart": "fc846a5e97ac8b7eea9708774a256744102cb74f96db46f9d589f4e90bfb6f42",
+    "packages/ianvs_terminal/lib/src/terminal/command_blocks_compact.dart": "f821ddfe70ed267c0366603cb797b0ce324f25e3940776c6cad21d8b55c8a69d"
+  }
+}

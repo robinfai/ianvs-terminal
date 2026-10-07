@@ -22,7 +22,7 @@ class DefaultsAndAppearanceSelection {
   const DefaultsAndAppearanceSelection({
     required this.configuredDefaultProfileId,
     required this.themeMode,
-    this.preferredTerminalMode = TerminalViewMode.normal,
+    this.preferredTerminalMode,
     required this.languageMode,
     required this.terminalViewportPadding,
     required this.restoreLayout,
@@ -43,7 +43,7 @@ class DefaultsAndAppearanceSelection {
 
   final String? configuredDefaultProfileId;
   final TerminalThemeMode themeMode;
-  final TerminalViewMode preferredTerminalMode;
+  final TerminalViewMode? preferredTerminalMode;
   final TerminalLanguageMode languageMode;
   final double terminalViewportPadding;
   final bool restoreLayout;
@@ -63,6 +63,15 @@ class DefaultsAndAppearanceSelection {
 }
 
 enum _DefaultsSection { general, appearance, shortcuts, security, data }
+
+enum _TerminalModePreference {
+  platform(null),
+  normal(TerminalViewMode.normal),
+  blocks(TerminalViewMode.blocks);
+
+  const _TerminalModePreference(this.mode);
+  final TerminalViewMode? mode;
+}
 
 enum _TerminalPermissionKind { osc52, openUrl, requestAttention }
 
@@ -130,7 +139,7 @@ class DefaultsAndAppearanceDialog extends StatefulWidget {
     required this.configuredDefaultProfileId,
     required this.effectiveDefaultProfileId,
     required this.themeMode,
-    this.preferredTerminalMode = TerminalViewMode.normal,
+    this.preferredTerminalMode,
     this.languageMode = TerminalLanguageMode.system,
     required this.terminalViewportPadding,
     required this.restoreLayout,
@@ -155,7 +164,7 @@ class DefaultsAndAppearanceDialog extends StatefulWidget {
   final String? configuredDefaultProfileId;
   final String? effectiveDefaultProfileId;
   final TerminalThemeMode themeMode;
-  final TerminalViewMode preferredTerminalMode;
+  final TerminalViewMode? preferredTerminalMode;
   final TerminalLanguageMode languageMode;
   final double terminalViewportPadding;
   final bool restoreLayout;
@@ -189,7 +198,7 @@ class _DefaultsAndAppearanceDialogState
   late String? _selectedProfileId;
   late String? _selectedTerminalPresetId;
   late TerminalThemeMode _selectedThemeMode;
-  late TerminalViewMode _selectedTerminalMode;
+  late TerminalViewMode? _selectedTerminalMode;
   late TerminalLanguageMode _selectedLanguageMode;
   late double _selectedTerminalViewportPadding;
   late bool _selectedRestoreLayout;
@@ -699,25 +708,30 @@ class _DefaultsAndAppearanceDialogState
             breakpoint: desktopPresentation ? 420 : 520,
             label: context.l10n.preferredTerminalMode,
             helper: context.l10n.preferredTerminalModeHelp,
-            child: AppDropdownFormField<TerminalViewMode>(
+            child: AppDropdownFormField<_TerminalModePreference>(
               key: const Key('defaults-terminal-mode-options'),
-              initialValue: _selectedTerminalMode,
+              initialValue: _TerminalModePreference.values.firstWhere(
+                (value) => value.mode == _selectedTerminalMode,
+              ),
               isExpanded: true,
               items: [
-                for (final mode in TerminalViewMode.values)
+                for (final mode in _TerminalModePreference.values)
                   DropdownMenuItem(
                     key: Key('default-terminal-mode-${mode.name}'),
                     value: mode,
-                    child: Text(
-                      mode == TerminalViewMode.blocks
-                          ? context.l10n.terminalModeBlocks
-                          : context.l10n.terminalModeNormal,
-                    ),
+                    child: Text(switch (mode) {
+                      _TerminalModePreference.platform =>
+                        context.l10n.terminalModePlatformDefault,
+                      _TerminalModePreference.normal =>
+                        context.l10n.terminalModeNormal,
+                      _TerminalModePreference.blocks =>
+                        context.l10n.terminalModeBlocks,
+                    }),
                   ),
               ],
               onChanged: (value) {
                 if (value != null) {
-                  setState(() => _selectedTerminalMode = value);
+                  setState(() => _selectedTerminalMode = value.mode);
                 }
               },
             ),
@@ -867,6 +881,7 @@ class _DefaultsAndAppearanceDialogState
         actions: showStandaloneShortcutEditor && compactLayout
             ? [
                 PopupMenuButton<bool>(
+                  popUpAnimationStyle: appDialogAnimation(context),
                   key: const Key('shortcut-editor-mobile-menu'),
                   tooltip: context.l10n.moreShortcutActions,
                   icon: const Icon(Icons.more_vert_rounded),
@@ -995,17 +1010,28 @@ class _DefaultsAndAppearanceDialogState
                     children: [
                       const _DefaultsSectionMarker(_DefaultsSection.general),
                       if (widget.aiSettings != null)
-                        ListTile(
-                          key: const Key('defaults-ai-settings'),
-                          title: const Text('AI'),
-                          subtitle: Text(
-                            Localizations.localeOf(context).languageCode == 'zh'
-                                ? 'Endpoint、API Key 与模型'
-                                : 'Endpoint, API key and model',
+                        ListenableBuilder(
+                          listenable: widget.aiSettings!,
+                          builder: (context, _) => Material(
+                            type: MaterialType.transparency,
+                            child: ListTile(
+                              key: const Key('defaults-ai-settings'),
+                              title: const Text('AI'),
+                              subtitle: Text(
+                                widget.aiSettings!.loading
+                                    ? context.l10n.aiConfigurationLoading
+                                    : widget.aiSettings!.error != null
+                                    ? context.l10n.aiConfigurationUnreadable
+                                    : widget.aiSettings!.configuration == null
+                                    ? context.l10n.aiConfigurationMissing
+                                    : context.l10n.aiConfigurationSaved,
+                                key: const Key('defaults-ai-connection-status'),
+                              ),
+                              trailing: const Icon(Icons.chevron_right),
+                              onTap: () =>
+                                  showAiSettings(context, widget.aiSettings!),
+                            ),
                           ),
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: () =>
-                              showAiSettings(context, widget.aiSettings!),
                         ),
                       _buildGeneralSettings(
                         context,
@@ -2181,6 +2207,7 @@ class _DefaultsAndAppearanceDialogState
                       .cast<AppActionButton>()
                       .toList();
                   final resetMenu = PopupMenuButton<int>(
+                    popUpAnimationStyle: appDialogAnimation(context),
                     key: Key(
                       mobileNavigation
                           ? 'defaults-mobile-reset-menu'

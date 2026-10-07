@@ -1,3 +1,4 @@
+mod command_inventory;
 mod completion_host;
 mod composer_bridge;
 pub mod ffi;

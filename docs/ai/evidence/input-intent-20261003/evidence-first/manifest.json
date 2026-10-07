@@ -1,0 +1,48 @@
+{
+  "date": "2026-10-03",
+  "os": "macOS 27.0.1",
+  "routing": "unknown shell names go to the configured AI backend; training unchanged",
+  "passed": {
+    "composerTests": 168,
+    "aiTests": 254,
+    "inventoryUnitTests": 1,
+    "remoteComposerUnitTests": 5,
+    "localComposerIntegrationTests": 5,
+    "sshConfigurations": 6,
+    "nativeUiScenarios": 1,
+    "staticAnalysis": true,
+    "mirrorSync": true
+  },
+  "benchmarkMicroseconds": {
+    "samples": 1000,
+    "p50": 9,
+    "p95": 87,
+    "p99": 189,
+    "max": 467
+  },
+  "limitations": [
+    "Regression checks, not blind semantic classification accuracy.",
+    "UI agent fixture uses loopback HTTP; ACP transport covered by the existing AI suite.",
+    "No physical iPhone validation or installed production app replacement."
+  ],
+  "sources": {
+    "packages/ianvs_terminal/lib/src/composer/input_intent.dart": "e50ff7ad49d44dc55b171c69e2293e46bcd150bb9c5c7d6fb80158f3ffcb3c0c",
+    "packages/ianvs_terminal/lib/src/composer/terminal_composer_controller.dart": "cf6ae801af9714ed59d6abaf9ab5734fbbbd1bb63ef68e62fd74fc71b884c6a1",
+    "packages/ianvs_terminal/test/composer/input_intent_test.dart": "08c140d4ed3e00efb231d70ada636da18f06b4e1ec7705d8f6fbc9d664e2a993",
+    "example/lib/features/terminal_composer/composer_pane.dart": "7a5d4f8ee946e95f07dab3bb7ccaddd4ad2a12f2ab3c87e79ce12b69f3fab030",
+    "example/lib/features/ai/ai_models.dart": "cc01c9f8506c3e2894f66543277c9e4d52610cc7b72143ca8bfe6d96f891edbb",
+    "example/lib/features/ai/terminal_ai_runtime.dart": "5155a87bf46c5308ab3d612baca619f99b33eda67770c0409c0510989ec14401",
+    "example/lib/features/ai/terminal_ai_controller.dart": "610c6d66afadd76253d494639c0af27db635d04719c67b2ab32a7617e9462486",
+    "native/core/src/command_inventory.rs": "56bcdbea23e550310f5a775a00894aa1f1f4f022122969c6e59cf0d711b16d4a",
+    "native/core/src/command_inventory.bash": "e461ada6f7acbdd138f5468edaf799b29b0de1e8b338c2e619c6f7eb0e14baf7",
+    "native/core/src/command_inventory.zsh": "ec9138c251711efb49f3e4c29de452b3eb4379beb9d072124b02700d5cf54944",
+    "native/core/src/composer_bridge.rs": "8d48df7d8b61dce7007896bb64c4dbd2e08c8ca4d4726ae9c72ef3b06179be0b",
+    "native/core/src/composer_bridge.zsh": "327832a29f10af760d0e423decf42bd46d4c67d2b5d5f8ab2f5edf1409ef473d",
+    "native/core/src/remote_composer.rs": "eb0bf112bb8eedeed5067d6b40d8ca2b4d788823e24767bd4750ce57271390fc",
+    "native/core/src/remote_composer/bash.sh": "46fe4d57ca51583a888ed032fb2f2f65282f57a393971f403c12a5cfb180ff16",
+    "native/core/src/remote_composer/zsh.sh": "b88c1d46ff2840c59f858f13688bac1cdf750dc8f7c381db039b4d068ec1ab48",
+    "native/core/tests/composer_integration_test.rs": "9e6f8c6ca432becb6b7ec1e61107e8ad0b6a00587f78bd2341497886158f5ef9",
+    "native/core/tests/remote_composer_ssh_test.rs": "ba4fb80e390f6825708bd8aa568888cfcdfd6f11c9b74ca77dad6fcccc6c2094",
+    "example/integration_test/input_intent_acceptance_test.dart": "66acc0fe92e7e2e84f2373697b607359e95ed2428aae9a6a1d1a055dbea1d64d"
+  }
+}

@@ -1,0 +1,1017 @@
+package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_recovery_test.dart
+00:00 +0: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_recovery_test.dart: disconnect revokes approval; recovery keeps task, draft and attachments
+00:00 +1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_recovery_test.dart: disconnect cancels inference and ignores its late proposal
+00:00 +2: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_recovery_test.dart: terminal recovery cannot erase an independent authentication error
+00:00 +3: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_recovery_test.dart: unknown receipt blocks continuation until the original submission is checked
+00:00 +4: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_recovery_test.dart: disconnected native receipts can resolve acceptance without resuming
+00:00 +5: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_recovery_test.dart: simultaneous terminal checks share one read and do not send input
+00:00 +6: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_recovery_test.dart: terminal failure during explicit interrupt can be checked without retry
+00:00 +7: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_recovery_test.dart: late failed check cannot change the newly selected task
+00:00 +8: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_recovery_test.dart: takeover closes tool history and continues only after checking receipt
+00:00 +9: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:00 +10: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:00 +11: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:00 +12: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:00 +13: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:00 +14: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:00 +15: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:00 +16: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:00 +17: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:00 +18: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:00 +19: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:00 +20: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:00 +21: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:00 +22: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:00 +23: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:00 +24: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:00 +25: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:00 +26: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:00 +27: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:00 +28: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:00 +29: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:00 +30: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:00 +31: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:00 +32: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:00 +33: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:00 +34: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:00 +35: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:00 +36: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:00 +37: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:00 +38: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:00 +39: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:00 +40: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:00 +41: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:00 +42: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:00 +43: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:00 +44: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:00 +45: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:00 +46: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:00 +47: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:00 +48: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:00 +49: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:00 +50: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:00 +51: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:00 +52: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:00 +53: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:00 +54: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:00 +55: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:00 +56: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:00 +57: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:00 +58: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:01 +59: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: high contrast and reduced motion desktop dark
+00:01 +60: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: high contrast and reduced motion desktop dark
+00:01 +61: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: high contrast and reduced motion desktop dark
+00:01 +62: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: high contrast and reduced motion desktop dark
+00:01 +63: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: high contrast and reduced motion desktop dark
+00:01 +64: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: high contrast and reduced motion desktop dark
+00:01 +65: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: high contrast and reduced motion desktop dark
+00:01 +66: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: high contrast and reduced motion desktop dark
+00:01 +67: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: high contrast and reduced motion desktop dark
+00:01 +68: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: high contrast and reduced motion desktop dark
+00:01 +69: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: high contrast and reduced motion desktop dark
+00:01 +70: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: high contrast and reduced motion desktop dark
+00:01 +71: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: high contrast and reduced motion desktop dark
+00:01 +72: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: high contrast and reduced motion desktop dark
+00:01 +73: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: high contrast and reduced motion desktop dark
+00:01 +74: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: high contrast and reduced motion desktop dark
+00:01 +75: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: high contrast and reduced motion desktop dark
+00:01 +76: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: high contrast and reduced motion desktop dark
+00:01 +77: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: high contrast and reduced motion desktop dark
+00:01 +78: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: high contrast and reduced motion desktop dark
+00:01 +79: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: high contrast and reduced motion desktop dark
+00:01 +80: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: high contrast and reduced motion desktop dark
+00:01 +81: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: high contrast and reduced motion desktop dark
+00:01 +82: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: high contrast and reduced motion desktop dark
+00:01 +83: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: high contrast and reduced motion desktop dark
+00:01 +84: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: high contrast and reduced motion desktop dark
+00:01 +85: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: high contrast and reduced motion desktop dark
+00:01 +86: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: high contrast and reduced motion desktop dark
+00:01 +87: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_widgets_test.dart: AI panel macOS dark at narrow width and large text
+00:01 +88: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_widgets_test.dart: AI panel macOS dark at narrow width and large text
+00:01 +89: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: finished result preserves selected assistant text
+00:01 +90: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: finished result preserves selected assistant text
+00:01 +91: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: high contrast and reduced motion desktop-2x dark
+00:01 +92: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: high contrast and reduced motion desktop-2x dark
+00:01 +93: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: high contrast and reduced motion desktop-2x dark
+00:01 +94: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: finished result never moves focus out of connection settings
+00:01 +95: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: finished result never moves focus out of connection settings
+00:01 +96: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: high contrast and reduced motion phone-fixed dark
+00:01 +97: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: high contrast and reduced motion phone-fixed dark
+00:01 +98: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: high contrast and reduced motion phone-fixed dark
+00:01 +99: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: high contrast and reduced motion phone-fixed dark
+00:01 +100: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart: citation retains source row and bypasses saved filter (phone false)
+00:01 +101: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart: citation retains source row and bypasses saved filter (phone false)
+00:02 +102: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart: citation retains source row and bypasses saved filter (phone false)
+00:02 +103: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart: citation retains source row and bypasses saved filter (phone false)
+00:02 +104: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart: citation retains source row and bypasses saved filter (phone false)
+00:02 +105: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart: citation retains source row and bypasses saved filter (phone false)
+00:02 +106: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart: citation retains source row and bypasses saved filter (phone false)
+00:02 +107: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart: citation retains source row and bypasses saved filter (phone false)
+00:02 +108: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart: citation retains source row and bypasses saved filter (phone false)
+00:02 +109: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart: citation retains source row and bypasses saved filter (phone false)
+00:02 +110: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart: citation retains source row and bypasses saved filter (phone false)
+00:02 +111: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart: citation retains source row and bypasses saved filter (phone false)
+00:02 +112: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart: citation retains source row and bypasses saved filter (phone false)
+00:02 +113: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart: citation retains source row and bypasses saved filter (phone false)
+00:02 +114: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart: citation retains source row and bypasses saved filter (phone false)
+00:02 +115: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart: citation retains source row and bypasses saved filter (phone false)
+00:02 +116: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart: citation retains source row and bypasses saved filter (phone false)
+00:02 +117: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart: citation retains source row and bypasses saved filter (phone false)
+00:02 +118: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/session_sidebar_chrome_test.dart: sidebar resizing clamps, preserves width and keeps the terminal alive (variant: TargetPlatform.macOS)
+00:02 +119: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/session_sidebar_chrome_test.dart: sidebar resizing clamps, preserves width and keeps the terminal alive (variant: TargetPlatform.macOS)
+00:02 +120: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/session_sidebar_chrome_test.dart: sidebar resizing clamps, preserves width and keeps the terminal alive (variant: TargetPlatform.macOS)
+00:02 +121: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/session_sidebar_chrome_test.dart: sidebar resizing clamps, preserves width and keeps the terminal alive (variant: TargetPlatform.macOS)
+00:02 +122: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/session_sidebar_chrome_test.dart: sidebar resizing clamps, preserves width and keeps the terminal alive (variant: TargetPlatform.macOS)
+00:02 +123: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/session_sidebar_chrome_test.dart: sidebar resizing clamps, preserves width and keeps the terminal alive (variant: TargetPlatform.macOS)
+00:02 +124: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/session_sidebar_chrome_test.dart: sidebar resizing clamps, preserves width and keeps the terminal alive (variant: TargetPlatform.macOS)
+00:02 +125: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/session_sidebar_chrome_test.dart: sidebar resizing clamps, preserves width and keeps the terminal alive (variant: TargetPlatform.macOS)
+00:02 +126: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/session_sidebar_chrome_test.dart: sidebar resizing clamps, preserves width and keeps the terminal alive (variant: TargetPlatform.macOS)
+00:02 +127: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/session_sidebar_chrome_test.dart: sidebar resizing clamps, preserves width and keeps the terminal alive (variant: TargetPlatform.macOS)
+00:02 +128: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/session_sidebar_chrome_test.dart: sidebar resizing clamps, preserves width and keeps the terminal alive (variant: TargetPlatform.macOS)
+00:02 +129: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/session_sidebar_chrome_test.dart: sidebar resizing clamps, preserves width and keeps the terminal alive (variant: TargetPlatform.macOS)
+00:02 +130: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: tab accessibility actions activate and close the named tab (variant: TargetPlatform.macOS)
+00:03 +131: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: tab accessibility actions activate and close the named tab (variant: TargetPlatform.macOS)
+00:03 +132: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: tab accessibility actions activate and close the named tab (variant: TargetPlatform.macOS)
+00:03 +133: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: tab accessibility actions activate and close the named tab (variant: TargetPlatform.macOS)
+00:03 +134: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: tab accessibility actions activate and close the named tab (variant: TargetPlatform.macOS)
+00:03 +135: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: tab accessibility actions activate and close the named tab (variant: TargetPlatform.macOS)
+00:03 +136: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: tab accessibility actions activate and close the named tab (variant: TargetPlatform.macOS)
+00:03 +137: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: tab accessibility actions activate and close the named tab (variant: TargetPlatform.macOS)
+00:03 +138: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: tab accessibility actions activate and close the named tab (variant: TargetPlatform.macOS)
+00:03 +139: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: tab accessibility actions activate and close the named tab (variant: TargetPlatform.macOS)
+00:03 +140: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: tab accessibility actions activate and close the named tab (variant: TargetPlatform.macOS)
+00:03 +141: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: tab accessibility actions activate and close the named tab (variant: TargetPlatform.macOS)
+00:03 +142: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/session_sidebar_chrome_test.dart: divider appears on hover or drag and supports keyboard resizing
+00:03 +143: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/session_sidebar_chrome_test.dart: divider appears on hover or drag and supports keyboard resizing
+00:03 +144: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/session_sidebar_chrome_test.dart: divider appears on hover or drag and supports keyboard resizing
+00:03 +145: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/session_sidebar_chrome_test.dart: divider appears on hover or drag and supports keyboard resizing
+00:03 +146: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/session_sidebar_chrome_test.dart: divider appears on hover or drag and supports keyboard resizing
+00:03 +147: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/session_sidebar_chrome_test.dart: divider appears on hover or drag and supports keyboard resizing
+00:03 +148: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/session_sidebar_chrome_test.dart: divider appears on hover or drag and supports keyboard resizing
+00:03 +149: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/session_sidebar_chrome_test.dart: divider appears on hover or drag and supports keyboard resizing
+00:03 +150: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/session_sidebar_chrome_test.dart: divider appears on hover or drag and supports keyboard resizing
+00:03 +151: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/session_sidebar_chrome_test.dart: divider appears on hover or drag and supports keyboard resizing
+00:03 +152: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/session_sidebar_chrome_test.dart: divider appears on hover or drag and supports keyboard resizing
+00:03 +153: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart: retained citation recovers its target after a page changes version
+00:03 +154: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: new response preserves reading; latest and return are explicit
+00:03 +155: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: desktop tabs have equal capped widths with an adjacent new action (variant: TargetPlatform.macOS)
+00:03 +156: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: desktop tabs have equal capped widths with an adjacent new action (variant: TargetPlatform.macOS)
+00:03 +157: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: desktop tabs have equal capped widths with an adjacent new action (variant: TargetPlatform.macOS)
+00:03 +158: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: desktop tabs have equal capped widths with an adjacent new action (variant: TargetPlatform.macOS)
+00:03 +159: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: desktop tabs have equal capped widths with an adjacent new action (variant: TargetPlatform.macOS)
+00:03 +160: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: desktop tabs have equal capped widths with an adjacent new action (variant: TargetPlatform.macOS)
+00:03 +161: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: desktop tabs have equal capped widths with an adjacent new action (variant: TargetPlatform.macOS)
+00:03 +162: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: desktop tabs have equal capped widths with an adjacent new action (variant: TargetPlatform.macOS)
+00:03 +163: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: desktop tabs have equal capped widths with an adjacent new action (variant: TargetPlatform.macOS)
+00:03 +164: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: desktop tabs have equal capped widths with an adjacent new action (variant: TargetPlatform.macOS)
+00:03 +165: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: desktop tabs have equal capped widths with an adjacent new action (variant: TargetPlatform.macOS)
+00:03 +166: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: desktop tabs have equal capped widths with an adjacent new action (variant: TargetPlatform.macOS)
+00:03 +167: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: desktop tabs have equal capped widths with an adjacent new action (variant: TargetPlatform.macOS)
+00:03 +168: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: desktop tabs have equal capped widths with an adjacent new action (variant: TargetPlatform.macOS)
+00:03 +169: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: desktop tabs have equal capped widths with an adjacent new action (variant: TargetPlatform.macOS)
+00:03 +170: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: navigation labels fit and preserve pending reading desktop-2x
+00:03 +171: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell chrome background follows the application theme
+00:04 +172: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: navigation labels fit and preserve pending reading narrow-desktop-2x
+00:04 +173: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs overflow into a selector at readable widths
+00:04 +174: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs overflow into a selector at readable widths
+00:04 +175: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs overflow into a selector at readable widths
+00:04 +176: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs overflow into a selector at readable widths
+00:04 +177: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs overflow into a selector at readable widths
+00:04 +178: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs overflow into a selector at readable widths
+00:04 +179: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs overflow into a selector at readable widths
+00:04 +180: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs overflow into a selector at readable widths
+00:04 +181: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs overflow into a selector at readable widths
+00:04 +182: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs overflow into a selector at readable widths
+00:04 +183: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs overflow into a selector at readable widths
+00:04 +184: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs overflow into a selector at readable widths
+00:04 +185: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs overflow into a selector at readable widths
+00:04 +186: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs overflow into a selector at readable widths
+00:05 +187: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs overflow into a selector at readable widths
+00:05 +188: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs overflow into a selector at readable widths
+00:05 +189: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs overflow into a selector at readable widths
+00:05 +190: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs overflow into a selector at readable widths
+00:05 +191: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs overflow into a selector at readable widths
+00:05 +192: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs overflow into a selector at readable widths
+00:05 +193: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs overflow into a selector at readable widths
+00:05 +194: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs overflow into a selector at readable widths
+00:05 +195: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs overflow into a selector at readable widths
+00:05 +196: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs overflow into a selector at readable widths
+00:05 +197: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs overflow into a selector at readable widths
+00:05 +198: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs overflow into a selector at readable widths
+00:05 +199: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs overflow into a selector at readable widths
+00:05 +200: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs overflow into a selector at readable widths
+00:05 +201: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs overflow into a selector at readable widths
+00:05 +202: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs overflow into a selector at readable widths
+00:05 +203: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs overflow into a selector at readable widths
+00:05 +204: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs overflow into a selector at readable widths
+00:05 +205: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase2a_test.dart: shell screen opens and closes the hyper command menu
+00:05 +206: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase2a_test.dart: shell screen opens and closes the hyper command menu
+00:05 +207: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase3_test.dart: command menu opens the active session capability view and restores focus on close
+00:05 +208: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase3_test.dart: command menu opens the active session capability view and restores focus on close
+00:05 +209: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase3_test.dart: command menu opens the active session capability view and restores focus on close
+00:05 +210: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase3_test.dart: command menu opens the active session capability view and restores focus on close
+00:05 +211: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase3_test.dart: command menu opens the active session capability view and restores focus on close
+00:05 +212: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase3_test.dart: command menu opens the active session capability view and restores focus on close
+00:05 +213: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase3_test.dart: command menu opens the active session capability view and restores focus on close
+00:05 +214: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase3_test.dart: command menu opens the active session capability view and restores focus on close
+00:05 +215: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase3_test.dart: command menu opens the active session capability view and restores focus on close
+00:05 +216: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase3_test.dart: command menu opens the active session capability view and restores focus on close
+00:05 +217: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase3_test.dart: command menu opens the active session capability view and restores focus on close
+00:05 +218: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase3_test.dart: command menu opens the active session capability view and restores focus on close
+00:05 +219: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase3_test.dart: command menu opens the active session capability view and restores focus on close
+00:05 +220: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase3_test.dart: command menu opens the active session capability view and restores focus on close
+00:05 +221: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs keep compact overflow controls inside narrow chrome (variant: TargetPlatform.macOS)
+00:05 +222: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs keep compact overflow controls inside narrow chrome (variant: TargetPlatform.macOS)
+00:06 +223: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs keep compact overflow controls inside narrow chrome (variant: TargetPlatform.macOS)
+00:06 +224: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs keep compact overflow controls inside narrow chrome (variant: TargetPlatform.macOS)
+00:06 +225: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs keep compact overflow controls inside narrow chrome (variant: TargetPlatform.macOS)
+00:06 +226: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs keep compact overflow controls inside narrow chrome (variant: TargetPlatform.macOS)
+00:06 +227: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs keep compact overflow controls inside narrow chrome (variant: TargetPlatform.macOS)
+00:06 +228: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs keep compact overflow controls inside narrow chrome (variant: TargetPlatform.macOS)
+00:06 +229: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs keep compact overflow controls inside narrow chrome (variant: TargetPlatform.macOS)
+00:06 +230: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs keep compact overflow controls inside narrow chrome (variant: TargetPlatform.macOS)
+00:06 +231: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs keep compact overflow controls inside narrow chrome (variant: TargetPlatform.macOS)
+00:06 +232: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1b_test.dart: shell tabs keep compact overflow controls inside narrow chrome (variant: TargetPlatform.macOS)
+00:06 +233: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: live status announces phase changes without elapsed time or output (phone true)
+00:06 +234: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: live status announces phase changes without elapsed time or output (phone true)
+00:06 +235: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: live status announces phase changes without elapsed time or output (phone true)
+00:06 +236: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: live status announces phase changes without elapsed time or output (phone true)
+00:06 +237: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: live status announces phase changes without elapsed time or output (phone true)
+00:06 +238: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: live status announces phase changes without elapsed time or output (phone true)
+00:06 +239: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: live status announces phase changes without elapsed time or output (phone true)
+00:06 +240: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: live status announces phase changes without elapsed time or output (phone true)
+00:06 +241: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: live status announces phase changes without elapsed time or output (phone true)
+00:06 +242: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: live status announces phase changes without elapsed time or output (phone true)
+00:06 +243: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: live status announces phase changes without elapsed time or output (phone true)
+00:06 +244: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: live status announces phase changes without elapsed time or output (phone true)
+00:06 +245: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: live status announces phase changes without elapsed time or output (phone true)
+00:06 +246: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: live status announces phase changes without elapsed time or output (phone true)
+00:06 +247: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: live status announces phase changes without elapsed time or output (phone true)
+00:06 +248: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: live status announces phase changes without elapsed time or output (phone true)
+00:06 +249: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: live status announces phase changes without elapsed time or output (phone true)
+00:06 +250: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: live status announces phase changes without elapsed time or output (phone true)
+00:06 +251: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: live status announces phase changes without elapsed time or output (phone true)
+00:06 +252: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: live status announces phase changes without elapsed time or output (phone true)
+00:06 +253: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: live status announces phase changes without elapsed time or output (phone true)
+00:06 +254: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: live status announces phase changes without elapsed time or output (phone true)
+00:06 +255: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: live status announces phase changes without elapsed time or output (phone true)
+00:06 +256: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: live status announces phase changes without elapsed time or output (phone true)
+00:06 +257: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: live status announces phase changes without elapsed time or output (phone true)
+00:06 +258: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: live status announces phase changes without elapsed time or output (phone true)
+00:06 +259: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: live status announces phase changes without elapsed time or output (phone true)
+00:06 +260: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: live status announces phase changes without elapsed time or output (phone true)
+00:06 +261: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: live status announces phase changes without elapsed time or output (phone true)
+00:06 +262: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:06 +263: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:07 +264: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:07 +265: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:07 +266: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:07 +267: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:07 +268: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:07 +269: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:07 +270: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:07 +271: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:07 +272: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:07 +273: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:07 +274: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:07 +275: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:07 +276: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:07 +277: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:07 +278: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:07 +279: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:07 +280: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:07 +281: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:07 +282: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:07 +283: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:07 +284: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:07 +285: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:07 +286: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:07 +287: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:07 +288: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:07 +289: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+
+Warning: A call to tap() with finder "Found 1 widget with key [<'ai-terminal-settings'>]: [
+  TextButton-[<'ai-terminal-settings'>](dirty, dependencies: [IconTheme, InheritedCupertinoTheme, MediaQuery, _InheritedTheme, _LocalizationsScope-[GlobalKey#c11a9], _ScrollableScope], state: _ButtonStyleState#b9460),
+]" derived an Offset (Offset(524.0, 349.0)) that would not hit test on the specified widget.
+Maybe the widget is actually off-screen, or another widget is obscuring it, or the widget cannot receive pointer events.
+The finder corresponds to this RenderBox: RenderSemanticsAnnotations#02976 relayoutBoundary=up8 NEEDS-PAINT
+The hit test result at that offset is: HitTestResult(RenderPointerListener#db00d@Offset(524.0, 349.0), RenderSemanticsAnnotations#54552@Offset(524.0, 349.0), RenderSemanticsAnnotations#9f348@Offset(524.0, 349.0), RenderSemanticsAnnotations#bbb99@Offset(524.0, 349.0), RenderSemanticsAnnotations#183cc@Offset(524.0, 349.0), RenderTapRegionSurface#9762e@Offset(524.0, 349.0), RenderSemanticsAnnotations#9adae@Offset(524.0, 349.0), RenderSemanticsAnnotations#acff1@Offset(524.0, 349.0), RenderSemanticsAnnotations#d3a39@Offset(524.0, 349.0), RenderRepaintBoundary#5e8db@Offset(524.0, 349.0), HitTestEntry<HitTestTarget>#48da8(_ReusableRenderView#d0c62), HitTestEntry<HitTestTarget>#e4f6f(<ConfigurationCaptureBinding>))
+#0      WidgetController._getElementPoint (package:flutter_test/src/controller.dart:2165:25)
+#1      WidgetController.getCenter (package:flutter_test/src/controller.dart:1947:12)
+#2      WidgetController.tap (package:flutter_test/src/controller.dart:1080:7)
+#3      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart:357:20)
+<asynchronous suspension>
+#4      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#5      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+#6      StackZoneSpecification._registerCallback.<anonymous closure> (package:stack_trace/src/stack_zone_specification.dart:114:42)
+<asynchronous suspension>
+To silence this warning, pass "warnIfMissed: false" to "tap()".
+To make this warning fatal, set WidgetController.hitTestWarningShouldBeFatal to true.
+
+00:08 +290: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:08 +291: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:08 +292: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:08 +293: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:08 +294: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:08 +295: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:08 +296: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:08 +297: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:08 +298: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:08 +299: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:08 +300: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:08 +301: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:08 +302: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:08 +303: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:08 +304: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:08 +305: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:08 +306: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:08 +307: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:08 +308: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:08 +309: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:08 +310: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/ios_terminal_input_bar_test.dart: primary keys send terminal input and retain keyboard focus
+00:08 +311: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/ios_terminal_input_bar_test.dart: primary keys send terminal input and retain keyboard focus
+00:08 +312: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/ios_terminal_input_bar_test.dart: primary keys send terminal input and retain keyboard focus
+00:08 +313: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/ios_terminal_input_bar_test.dart: primary keys send terminal input and retain keyboard focus
+00:09 +314: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: defaults dialog saves OSC 52 ask policy
+00:09 +315: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: defaults dialog saves OSC 52 ask policy
+00:09 +316: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: defaults dialog saves OSC 52 ask policy
+00:09 +317: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: defaults dialog saves OSC 52 ask policy
+00:09 +318: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: defaults dialog saves OSC 52 ask policy
+00:09 +319: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: defaults dialog saves OSC 52 ask policy
+00:09 +320: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: defaults dialog saves OSC 52 ask policy
+00:09 +321: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: defaults dialog saves OSC 52 ask policy
+00:09 +322: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on iOS
+00:09 +323: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on iOS
+00:09 +324: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on iOS
+
+Warning: A call to tap() with finder "Found 1 widget with key [<'ai-terminal-settings'>]: [
+  TextButton-[<'ai-terminal-settings'>](dirty, dependencies: [IconTheme, InheritedCupertinoTheme, MediaQuery, _InheritedTheme, _LocalizationsScope-[GlobalKey#766ba], _ScrollableScope], state: _ButtonStyleState#9b98f),
+]" derived an Offset (Offset(253.0, 518.0)) that would not hit test on the specified widget.
+Maybe the widget is actually off-screen, or another widget is obscuring it, or the widget cannot receive pointer events.
+The finder corresponds to this RenderBox: RenderSemanticsAnnotations#3337f relayoutBoundary=up8 NEEDS-PAINT
+The hit test result at that offset is: HitTestResult(RenderPointerListener#234bc@Offset(253.0, 518.0), RenderSemanticsAnnotations#44138@Offset(253.0, 518.0), RenderSemanticsAnnotations#a0695@Offset(253.0, 518.0), RenderSemanticsAnnotations#955a2@Offset(253.0, 518.0), RenderSemanticsAnnotations#c5ead@Offset(253.0, 518.0), RenderTapRegionSurface#54192@Offset(253.0, 518.0), RenderSemanticsAnnotations#4cfda@Offset(253.0, 518.0), RenderSemanticsAnnotations#84023@Offset(253.0, 518.0), RenderSemanticsAnnotations#d34cb@Offset(253.0, 518.0), RenderRepaintBoundary#a799f@Offset(253.0, 518.0), HitTestEntry<HitTestTarget>#2b08b(_ReusableRenderView#d0c62), HitTestEntry<HitTestTarget>#9d927(<ConfigurationCaptureBinding>))
+#0      WidgetController._getElementPoint (package:flutter_test/src/controller.dart:2165:25)
+#1      WidgetController.getCenter (package:flutter_test/src/controller.dart:1947:12)
+#2      WidgetController.tap (package:flutter_test/src/controller.dart:1080:7)
+#3      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart:357:20)
+<asynchronous suspension>
+#4      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#5      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+#6      StackZoneSpecification._registerCallback.<anonymous closure> (package:stack_trace/src/stack_zone_specification.dart:114:42)
+<asynchronous suspension>
+To silence this warning, pass "warnIfMissed: false" to "tap()".
+To make this warning fatal, set WidgetController.hitTestWarningShouldBeFatal to true.
+
+00:09 +325: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on iOS
+00:09 +326: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on iOS
+00:09 +327: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on iOS
+00:09 +328: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on iOS
+00:09 +329: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on iOS
+00:09 +330: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on iOS
+00:09 +331: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on iOS
+00:09 +332: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on iOS
+00:09 +333: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on iOS
+00:09 +334: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on iOS
+00:10 +335: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on iOS
+00:10 +336: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on iOS
+00:10 +337: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_profile_save_feedback_test.dart: importing an OpenSSH profile saves without connecting
+00:10 +338: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_profile_save_feedback_test.dart: importing an OpenSSH profile saves without connecting
+00:10 +339: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_profile_save_feedback_test.dart: importing an OpenSSH profile saves without connecting
+00:10 +340: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_profile_save_feedback_test.dart: importing an OpenSSH profile saves without connecting
+00:10 +341: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_profile_save_feedback_test.dart: importing an OpenSSH profile saves without connecting
+00:10 +342: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_profile_save_feedback_test.dart: importing an OpenSSH profile saves without connecting
+00:10 +343: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_profile_save_feedback_test.dart: importing an OpenSSH profile saves without connecting
+00:10 +344: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_profile_save_feedback_test.dart: importing an OpenSSH profile saves without connecting
+00:10 +345: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_profile_save_feedback_test.dart: importing an OpenSSH profile saves without connecting
+00:10 +346: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_profile_save_feedback_test.dart: importing an OpenSSH profile saves without connecting
+00:10 +347: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_profile_save_feedback_test.dart: importing an OpenSSH profile saves without connecting
+00:10 +348: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_profile_save_feedback_test.dart: importing an OpenSSH profile saves without connecting
+00:10 +349: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_profile_save_feedback_test.dart: importing an OpenSSH profile saves without connecting
+00:10 +350: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_profile_save_feedback_test.dart: importing an OpenSSH profile saves without connecting
+00:10 +351: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_profile_save_feedback_test.dart: importing an OpenSSH profile saves without connecting
+00:10 +352: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_profile_save_feedback_test.dart: importing an OpenSSH profile saves without connecting
+00:10 +353: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_profile_save_feedback_test.dart: importing an OpenSSH profile saves without connecting
+00:10 +354: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_profile_save_feedback_test.dart: importing an OpenSSH profile saves without connecting
+00:10 +355: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_profile_save_feedback_test.dart: importing an OpenSSH profile saves without connecting
+00:10 +356: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_profile_save_feedback_test.dart: importing an OpenSSH profile saves without connecting
+00:10 +357: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_profile_save_feedback_test.dart: importing an OpenSSH profile saves without connecting
+00:10 +358: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_profile_save_feedback_test.dart: importing an OpenSSH profile saves without connecting
+00:11 +359: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_profile_save_feedback_test.dart: importing an OpenSSH profile saves without connecting
+00:11 +360: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_profile_save_feedback_test.dart: importing an OpenSSH profile saves without connecting
+00:11 +361: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_profile_save_feedback_test.dart: importing an OpenSSH profile saves without connecting
+00:11 +362: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_profile_save_feedback_test.dart: importing an OpenSSH profile saves without connecting
+00:11 +363: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase3_test.dart: editing a profile in the GUI only affects new sessions
+00:11 +364: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase3_test.dart: editing a profile in the GUI only affects new sessions
+00:11 +365: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase3_test.dart: editing a profile in the GUI only affects new sessions
+00:11 +366: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase3_test.dart: editing a profile in the GUI only affects new sessions
+00:11 +367: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase3_test.dart: editing a profile in the GUI only affects new sessions
+00:11 +368: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase3_test.dart: editing a profile in the GUI only affects new sessions
+00:11 +369: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase3_test.dart: editing a profile in the GUI only affects new sessions
+00:11 +370: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase3_test.dart: editing a profile in the GUI only affects new sessions
+00:11 +371: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase3_test.dart: editing a profile in the GUI only affects new sessions
+00:11 +372: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase3_test.dart: editing a profile in the GUI only affects new sessions
+00:11 +373: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase3_test.dart: editing a profile in the GUI only affects new sessions
+00:11 +374: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase3_test.dart: editing a profile in the GUI only affects new sessions
+00:11 +375: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase3_test.dart: editing a profile in the GUI only affects new sessions
+00:11 +376: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase3_test.dart: editing a profile in the GUI only affects new sessions
+00:11 +377: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_profile_save_feedback_test.dart: a failed SSH profile save requires an explicit one-time connection
+00:11 +378: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_profile_save_feedback_test.dart: a failed SSH profile save requires an explicit one-time connection
+00:11 +379: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_profile_save_feedback_test.dart: a failed SSH profile save requires an explicit one-time connection
+00:11 +380: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_profile_save_feedback_test.dart: a failed SSH profile save requires an explicit one-time connection
+00:11 +381: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_profile_save_feedback_test.dart: a failed SSH profile save requires an explicit one-time connection
+00:11 +382: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_profile_save_feedback_test.dart: a failed SSH profile save requires an explicit one-time connection
+00:11 +383: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_profile_save_feedback_test.dart: a failed SSH profile save requires an explicit one-time connection
+00:12 +384: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:12 +385: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:12 +386: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:12 +387: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:12 +388: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:12 +389: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:12 +390: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:12 +391: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:12 +392: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:12 +393: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:12 +394: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:12 +395: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:12 +396: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:12 +397: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:12 +398: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:12 +399: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:12 +400: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:12 +401: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:12 +402: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:12 +403: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:12 +404: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:12 +405: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:12 +406: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:12 +407: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:12 +408: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:12 +409: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:13 +410: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:13 +411: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:13 +412: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:13 +413: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:13 +414: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:13 +415: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:13 +416: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:13 +417: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: OSC 8 file links ask before opening
+00:13 +418: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership portrait
+00:13 +419: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership portrait
+00:13 +420: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership portrait
+00:13 +421: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership portrait
+00:13 +422: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership portrait
+00:13 +423: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership portrait
+00:13 +424: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership portrait
+00:13 +425: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership portrait
+00:13 +426: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership portrait
+00:13 +427: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership portrait
+00:13 +428: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership portrait
+00:13 +429: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership portrait
+00:13 +430: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership portrait
+00:13 +431: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership portrait
+00:13 +432: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership portrait
+00:13 +433: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership portrait
+00:13 +434: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership portrait
+00:13 +435: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership portrait
+00:13 +436: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership portrait
+00:13 +437: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership portrait
+00:13 +438: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership portrait
+00:13 +439: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership portrait
+00:13 +440: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership portrait
+00:13 +441: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership portrait
+00:13 +442: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership portrait
+00:13 +443: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership portrait
+00:13 +444: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership portrait
+00:14 +445: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership portrait
+00:14 +446: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership portrait
+00:14 +447: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership portrait
+00:14 +448: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership portrait
+00:14 +449: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership portrait
+00:14 +450: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership portrait
+00:14 +451: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: ZMODEM deferred write failure persists and suppresses same-poll success
+00:14 +452: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: ZMODEM deferred write failure persists and suppresses same-poll success
+00:14 +453: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: ZMODEM deferred write failure persists and suppresses same-poll success
+00:14 +454: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: ZMODEM deferred write failure persists and suppresses same-poll success
+00:14 +455: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership landscape
+00:14 +456: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership landscape
+00:14 +457: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership landscape
+00:14 +458: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership landscape
+00:14 +459: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership landscape
+00:14 +460: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership landscape
+00:14 +461: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership landscape
+00:14 +462: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership landscape
+00:14 +463: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership landscape
+00:14 +464: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership landscape
+00:14 +465: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership landscape
+00:14 +466: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership landscape
+00:14 +467: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership landscape
+00:14 +468: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership landscape
+00:14 +469: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership landscape
+00:14 +470: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership landscape
+00:14 +471: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership landscape
+00:14 +472: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership landscape
+00:14 +473: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership landscape
+00:14 +474: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership landscape
+00:14 +475: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership landscape
+00:14 +476: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership landscape
+00:14 +477: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: First-batch ZMODEM gap survivor exposes transfer UI and pauses input
+00:14 +478: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:15 +479: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:15 +480: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:15 +481: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:15 +482: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:15 +483: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:15 +484: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:15 +485: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:15 +486: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:15 +487: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:15 +488: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:15 +489: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:15 +490: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:15 +491: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:15 +492: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:15 +493: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:15 +494: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:15 +495: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:16 +496: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:16 +497: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:16 +498: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:16 +499: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:16 +500: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:16 +501: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:16 +502: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:16 +503: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:16 +504: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:16 +505: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:16 +506: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:16 +507: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:16 +508: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:16 +509: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:16 +510: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:16 +511: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:16 +512: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:16 +513: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:16 +514: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:16 +515: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:16 +516: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:16 +517: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:16 +518: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:16 +519: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:16 +520: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:16 +521: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:16 +522: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:17 +523: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:17 +524: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:17 +525: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:17 +526: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:17 +527: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:17 +528: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:17 +529: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:17 +530: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:17 +531: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:17 +532: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:17 +533: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:17 +534: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:17 +535: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:17 +536: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:17 +537: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:17 +538: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:17 +539: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:17 +540: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:17 +541: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:17 +542: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:17 +543: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:17 +544: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: recording panel opens a saved recording and a picked file
+00:17 +545: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1a_test.dart: gear command palette opens settings and terminal search
+00:17 +546: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1a_test.dart: gear command palette opens settings and terminal search
+00:17 +547: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1a_test.dart: gear command palette opens settings and terminal search
+00:17 +548: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1a_test.dart: gear command palette opens settings and terminal search
+00:17 +549: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1a_test.dart: gear command palette opens settings and terminal search
+00:18 +550: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1a_test.dart: gear command palette opens settings and terminal search
+00:18 +551: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1a_test.dart: gear command palette opens settings and terminal search
+00:18 +552: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1a_test.dart: gear command palette opens settings and terminal search
+00:18 +553: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1a_test.dart: gear command palette opens settings and terminal search
+00:18 +554: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1a_test.dart: gear command palette opens settings and terminal search
+00:18 +555: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1a_test.dart: gear command palette opens settings and terminal search
+00:18 +556: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1a_test.dart: gear command palette opens settings and terminal search
+00:18 +557: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1a_test.dart: gear command palette opens settings and terminal search
+00:18 +558: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase1a_test.dart: gear command palette opens settings and terminal search
+00:18 +559: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: reset platform preference affects only new sessions TargetPlatform.macOS
+00:18 +560: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: reset platform preference affects only new sessions TargetPlatform.macOS
+00:18 +561: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: reset platform preference affects only new sessions TargetPlatform.macOS
+00:18 +562: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: reset platform preference affects only new sessions TargetPlatform.macOS
+00:18 +563: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: reset platform preference affects only new sessions TargetPlatform.macOS
+00:18 +564: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: reset platform preference affects only new sessions TargetPlatform.macOS
+00:18 +565: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: reset platform preference affects only new sessions TargetPlatform.macOS
+00:18 +566: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: reset platform preference affects only new sessions TargetPlatform.macOS
+00:18 +567: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: reset platform preference affects only new sessions TargetPlatform.macOS
+00:19 +568: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: reset platform preference affects only new sessions TargetPlatform.macOS
+00:19 +569: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: reset platform preference affects only new sessions TargetPlatform.macOS
+00:19 +570: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: reset platform preference affects only new sessions TargetPlatform.macOS
+00:19 +571: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: reset platform preference affects only new sessions TargetPlatform.macOS
+00:19 +572: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: reset platform preference affects only new sessions TargetPlatform.macOS
+00:19 +573: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: reset platform preference affects only new sessions TargetPlatform.macOS
+00:19 +574: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: reset platform preference affects only new sessions TargetPlatform.macOS
+00:19 +575: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: reset platform preference affects only new sessions TargetPlatform.macOS
+00:19 +576: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: reset platform preference affects only new sessions TargetPlatform.macOS
+00:19 +577: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: reset platform preference affects only new sessions TargetPlatform.macOS
+00:19 +578: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: reset platform preference affects only new sessions TargetPlatform.macOS
+00:19 +579: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: reset platform preference affects only new sessions TargetPlatform.macOS
+00:19 +580: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: reset platform preference affects only new sessions TargetPlatform.macOS
+00:19 +581: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: reset platform preference affects only new sessions TargetPlatform.macOS
+00:19 +582: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: reset platform preference affects only new sessions TargetPlatform.macOS
+00:19 +583: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: reset platform preference affects only new sessions TargetPlatform.macOS
+00:20 +584: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: reset platform preference affects only new sessions TargetPlatform.macOS
+00:20 +585: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: reset platform preference affects only new sessions TargetPlatform.macOS
+00:20 +586: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: reset platform preference affects only new sessions TargetPlatform.macOS
+00:20 +587: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: reset platform preference affects only new sessions TargetPlatform.macOS
+00:20 +588: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: saved recording survives app rebuild and supports search and copy
+00:20 +589: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: saved recording survives app rebuild and supports search and copy
+00:20 +590: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: saved recording survives app rebuild and supports search and copy
+00:20 +591: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: saved recording survives app rebuild and supports search and copy
+00:20 +592: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: saved recording survives app rebuild and supports search and copy
+00:20 +593: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: saved recording survives app rebuild and supports search and copy
+00:20 +594: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: saved recording survives app rebuild and supports search and copy
+00:21 +595: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: saved recording survives app rebuild and supports search and copy
+00:21 +596: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: saved recording survives app rebuild and supports search and copy
+00:21 +597: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: saved recording survives app rebuild and supports search and copy
+00:21 +598: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: saved recording survives app rebuild and supports search and copy
+00:21 +599: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: saved recording survives app rebuild and supports search and copy
+00:21 +600: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: saved recording survives app rebuild and supports search and copy
+00:21 +601: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: saved recording survives app rebuild and supports search and copy
+00:21 +602: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: saved recording survives app rebuild and supports search and copy
+00:21 +603: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: saved recording survives app rebuild and supports search and copy
+00:21 +604: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: saved recording survives app rebuild and supports search and copy
+00:21 +605: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: saved recording survives app rebuild and supports search and copy
+00:21 +606: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: saved recording survives app rebuild and supports search and copy
+00:21 +607: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: saved recording survives app rebuild and supports search and copy
+00:21 +608: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: saved recording survives app rebuild and supports search and copy
+00:21 +609: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: saved recording survives app rebuild and supports search and copy
+00:21 +610: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: saved recording survives app rebuild and supports search and copy
+00:21 +611: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: saved recording survives app rebuild and supports search and copy
+00:21 +612: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: saved recording survives app rebuild and supports search and copy
+00:21 +613: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: saved recording survives app rebuild and supports search and copy
+00:21 +614: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: saved recording survives app rebuild and supports search and copy
+00:21 +615: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: saved recording survives app rebuild and supports search and copy
+00:21 +616: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: saved recording survives app rebuild and supports search and copy
+00:21 +617: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: saved recording survives app rebuild and supports search and copy
+00:21 +618: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: saved recording survives app rebuild and supports search and copy
+00:21 +619: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: saved recording survives app rebuild and supports search and copy
+00:21 +620: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: saved recording survives app rebuild and supports search and copy
+00:21 +621: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: saved recording survives app rebuild and supports search and copy
+00:21 +622: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: saved recording survives app rebuild and supports search and copy
+00:21 +623: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/defaults_appearance_redesign_test.dart: AI settings status follows saved configuration, not cancelled edits
+00:21 +624: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/defaults_appearance_redesign_test.dart: AI settings status follows saved configuration, not cancelled edits
+00:21 +625: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: desktop tab recheck preserves Normal, draft and the same session
+00:21 +626: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: desktop tab recheck preserves Normal, draft and the same session
+00:21 +627: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: desktop tab recheck preserves Normal, draft and the same session
+00:21 +628: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: desktop tab recheck preserves Normal, draft and the same session
+00:21 +629: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: desktop tab recheck preserves Normal, draft and the same session
+00:21 +630: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: desktop tab recheck preserves Normal, draft and the same session
+00:21 +631: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: desktop tab recheck preserves Normal, draft and the same session
+00:22 +632: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: desktop tab recheck preserves Normal, draft and the same session
+00:22 +633: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: closing the panel cancels a pending picked recording
+00:22 +634: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: closing the panel cancels a pending picked recording
+00:22 +635: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: closing the panel cancels a pending picked recording
+00:22 +636: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: closing the panel cancels a pending picked recording
+00:22 +637: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: closing the panel cancels a pending picked recording
+00:22 +638: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: closing the panel cancels a pending picked recording
+00:22 +639: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: closing the panel cancels a pending picked recording
+00:22 +640: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: closing the panel cancels a pending picked recording
+00:22 +641: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: closing the panel cancels a pending picked recording
+00:22 +642: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: output checks refresh ownership before falling back
+00:22 +643: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: output checks refresh ownership before falling back
+00:22 +644: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: form fields keep command and native paste out of the terminal (variant: TargetPlatform.macOS)
+00:22 +645: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: form fields keep command and native paste out of the terminal (variant: TargetPlatform.macOS)
+00:22 +646: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: form fields keep command and native paste out of the terminal (variant: TargetPlatform.macOS)
+00:22 +647: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: reselecting the same path rebuilds replay with new content
+00:22 +648: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: reselecting the same path rebuilds replay with new content
+00:22 +649: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: reselecting the same path rebuilds replay with new content
+00:22 +650: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: reselecting the same path rebuilds replay with new content
+00:22 +651: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: reselecting the same path rebuilds replay with new content
+00:22 +652: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: reselecting the same path rebuilds replay with new content
+00:23 +653: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: reselecting the same path rebuilds replay with new content
+00:23 +654: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: reselecting the same path rebuilds replay with new content
+00:23 +655: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: reselecting the same path rebuilds replay with new content
+00:23 +656: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: reselecting the same path rebuilds replay with new content
+00:23 +657: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: new session preference and manual choices survive pane moves
+00:23 +658: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: new session preference and manual choices survive pane moves
+00:23 +659: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/terminal_modes_test.dart: new session preference and manual choices survive pane moves
+00:23 +660: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: Escape from the panel restores replay search focus
+00:23 +661: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: Escape from the panel restores replay search focus
+00:23 +662: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: Escape from the panel restores replay search focus
+00:23 +663: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: Escape from the panel restores replay search focus
+00:23 +664: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: Escape from the panel restores replay search focus
+00:23 +665: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: Escape from the panel restores replay search focus
+00:24 +666: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: Escape from the panel restores replay search focus
+00:24 +667: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: Escape from the panel restores replay search focus
+00:24 +668: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: Escape from the panel restores replay search focus
+00:24 +669: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/defaults_appearance_redesign_test.dart: iPhone settings sections remain reachable at Size(375.0, 667.0) and 2.0x
+00:24 +670: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: defaults close restores the layout cue and keyboard path
+00:24 +671: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +672: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +673: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +674: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +675: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +676: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +677: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +678: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +679: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +680: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +681: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +682: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +683: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +684: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +685: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +686: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +687: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +688: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +689: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +690: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +691: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +692: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +693: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +694: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +695: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +696: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +697: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +698: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +699: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +700: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +701: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +702: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +703: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +704: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +705: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +706: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +707: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +708: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +709: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +710: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +711: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +712: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +713: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +714: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +715: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +716: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +717: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +718: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +719: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +720: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +721: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +722: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +723: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +724: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:24 +725: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:25 +726: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:25 +727: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:25 +728: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:25 +729: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:25 +730: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:25 +731: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:25 +732: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:25 +733: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:25 +734: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:25 +735: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:25 +736: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:25 +737: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:25 +738: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_recording_library_test.dart: compact recording replay remains accessible after closing its shelf
+00:25 +739: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:25 +740: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:25 +741: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:25 +742: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:25 +743: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:25 +744: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:25 +745: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:25 +746: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:25 +747: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:25 +748: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:25 +749: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:25 +750: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:25 +751: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:25 +752: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:25 +753: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:25 +754: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:25 +755: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:25 +756: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:25 +757: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:25 +758: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:25 +759: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:25 +760: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:25 +761: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:25 +762: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:25 +763: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:25 +764: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:25 +765: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:25 +766: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:25 +767: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:25 +768: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:25 +769: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:25 +770: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:25 +771: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:25 +772: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:25 +773: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:25 +774: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:25 +775: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:25 +776: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:25 +777: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:25 +778: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:25 +779: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:25 +780: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:25 +781: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:25 +782: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:25 +783: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:25 +784: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:25 +785: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:25 +786: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:25 +787: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:25 +788: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:25 +789: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +790: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +791: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +792: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +793: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +794: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +795: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +796: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +797: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +798: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +799: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +800: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +801: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +802: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +803: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +804: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +805: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +806: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +807: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +808: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +809: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +810: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +811: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +812: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +813: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +814: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +815: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +816: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +817: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +818: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +819: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +820: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +821: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +822: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +823: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +824: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +825: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +826: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +827: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +828: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +829: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +830: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +831: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +832: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +833: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +834: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +835: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +836: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +837: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +838: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +839: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +840: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +841: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +842: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +843: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +844: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +845: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +846: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +847: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +848: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:26 +849: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:27 +850: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:27 +851: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:27 +852: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:27 +853: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:27 +854: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:27 +855: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:27 +856: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:27 +857: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:27 +858: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:27 +859: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:27 +860: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:27 +861: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:27 +862: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:27 +863: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:27 +864: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:27 +865: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:27 +866: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:27 +867: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:27 +868: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:27 +869: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:27 +870: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:27 +871: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:27 +872: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:27 +873: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:27 +874: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:27 +875: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:27 +876: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:27 +877: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:27 +878: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:28 +879: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:28 +880: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:28 +881: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:28 +882: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:28 +883: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:28 +884: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:28 +885: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:28 +886: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:28 +887: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:28 +888: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:28 +889: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:28 +890: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:28 +891: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:28 +892: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:28 +893: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:28 +894: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:28 +895: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:28 +896: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:28 +897: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:28 +898: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:28 +899: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:28 +900: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:28 +901: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:28 +902: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:29 +903: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:29 +904: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:29 +905: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:29 +906: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:29 +907: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:29 +908: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:29 +909: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:29 +910: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:29 +911: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:29 +912: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:29 +913: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:29 +914: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:29 +915: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:29 +916: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:29 +917: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:29 +918: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:29 +919: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:29 +920: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:29 +921: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:29 +922: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:29 +923: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:29 +924: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:29 +925: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:29 +926: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:29 +927: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:29 +928: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:29 +929: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:29 +930: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:29 +931: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:29 +932: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:29 +933: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:30 +934: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:30 +935: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:30 +936: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:31 +937: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:31 +938: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:31 +939: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:31 +940: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:31 +941: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:31 +942: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:31 +943: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:31 +944: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:32 +945: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:32 +946: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:36 +947: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: all production features have one resolved runtime subscription
+00:37 +948: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/session_recording_lifecycle_test.dart: semantic flood stays bounded and preserves the latest command pair
+00:39 +949: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: resolved gate catches alias, tear-off, helper and directory escape
+00:42 +950: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/terminal_event_subscription_architecture_test.dart: resolved gate catches alias, tear-off, helper and directory escape
+00:42 +951: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/session_recording_lifecycle_test.dart: closeTab resumes recording when ZMODEM starts during recording save
+00:45 +952: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/session_recording_lifecycle_test.dart: closeTab resumes a saved sibling when the second recording save fails
+00:48 +953: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/session_recording_lifecycle_test.dart: opening a terminal at a folder keeps existing recording and PTY alive
+00:48 +954: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/session_recording_lifecycle_test.dart: observed process exit finalizes the active recording
+00:51 +955: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/session_recording_lifecycle_test.dart: pre-close resolves missing prepare from running status before PTY close
+00:52 +956: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/session_recording_lifecycle_test.dart: pre-close resolves malformed prepare from ready status before PTY close
+00:52 +957: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/session_recording_lifecycle_test.dart: pre-close resolves correlation prepare from failed status before PTY close
+00:52 +958: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/session_recording_lifecycle_test.dart: pre-close retries one rejected prepare before exit closes the PTY
+00:55 +959: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/session_recording_lifecycle_test.dart: persistent prepare rejection keeps PTY and recoverable recording active
+00:55 +960: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/session_recording_lifecycle_test.dart: shutdown coordinator finalizes active recording before disposal
+00:58 +961: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/session_recording_lifecycle_test.dart: shutdown keeps uncertain prepare claimed through late running then ready settlement
+00:58 +962: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/session_recording_lifecycle_test.dart: shutdown keeps uncertain prepare claimed through late running then failed settlement
+00:58 +963: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/session_recording_lifecycle_test.dart: explicit prepare rejection plus reject cancel poisons shutdown before PTY close
+00:59 +964: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/session_recording_lifecycle_test.dart: explicit prepare rejection plus terminationUnknown cancel poisons shutdown before PTY close
+00:59 +965: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/session_recording_lifecycle_test.dart: session shutdown orders recording, layout flush, then runtime close
+01:02 +966: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/session_recording_lifecycle_test.dart: shutdown crossing recording finalization leaves PTY close to infra
+01:05 +967: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/session_recording_lifecycle_test.dart: closeTab crossing recording finalization does not resume or rewrite UI
+01:08 +968: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/session_recording_lifecycle_test.dart: stop failure crossing shutdown preserves UI error and single release
+01:08 +969: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/session_recording_lifecycle_test.dart: direct stop after shutdown does not publish busy or clear the UI error
+01:11 +970: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/session_recording_lifecycle_test.dart: runtime-exit save failure crossing shutdown preserves UI and releases once
+01:12 +971: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/session_recording_lifecycle_test.dart: shutdown finalization never encodes in the disposal stack
+01:15 +972: All tests passed!

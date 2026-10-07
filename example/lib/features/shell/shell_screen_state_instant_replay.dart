@@ -352,6 +352,7 @@ extension _ShellScreenStateInstantReplay on _ShellScreenState {
   Future<void> _confirmClearInstantReplayHistory(String sessionId) async {
     final confirmed = await showDialog<bool>(
       context: context,
+      animationStyle: appDialogAnimation(context),
       builder: (dialogContext) => AlertDialog(
         title: Text(dialogContext.l10n.clearRecentReplayHistoryQuestion),
         content: Text(dialogContext.l10n.clearRecentReplayHistoryWarning),

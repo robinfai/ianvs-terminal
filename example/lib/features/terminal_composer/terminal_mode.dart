@@ -15,7 +15,12 @@ enum BlockUnavailableReason {
   readOnly,
 }
 
-enum TerminalModeNotice { blocksAvailable, normalFallback, blocksRestored }
+enum TerminalModeNotice {
+  blocksAvailable,
+  normalFallback,
+  blocksRestored,
+  supportChecked,
+}
 
 @immutable
 class TerminalModeState {
@@ -53,7 +58,12 @@ class TerminalModeController extends ChangeNotifier {
   bool _manualChoice = false;
   bool _offerRestore = false;
 
-  void updateAvailability(BlockUnavailableReason? reason) {
+  void updateAvailability(
+    BlockUnavailableReason? reason, {
+    bool rechecked = false,
+  }) {
+    // An explicit check reports capability; it does not choose a display mode.
+    if (rechecked) _initialChoiceApplied = true;
     var mode = _state.mode;
     var notice = _state.notice;
     if (reason != null) {
@@ -76,6 +86,11 @@ class TerminalModeController extends ChangeNotifier {
       } else {
         notice = null;
       }
+    }
+    if (rechecked ||
+        (_state.notice == TerminalModeNotice.supportChecked &&
+            _state.unavailableReason == reason)) {
+      notice = TerminalModeNotice.supportChecked;
     }
     _publish(
       TerminalModeState(mode: mode, unavailableReason: reason, notice: notice),

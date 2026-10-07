@@ -116,8 +116,8 @@ void main() {
       await _mount(tester, controller);
       tester.view.physicalSize = const Size(390, 200);
       await tester.pumpAndSettle();
-      final list = find.byType(ListView);
-      final scroll = tester.widget<ListView>(list).controller!;
+      final list = find.byType(CommandTimelineView);
+      final scroll = tester.widget<CommandTimelineView>(list).controller;
       expect(scroll.offset, scroll.position.maxScrollExtent);
       expect(
         find.byKey(const ValueKey('block-expand-long')).hitTestable(),

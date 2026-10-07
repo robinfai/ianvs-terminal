@@ -1,0 +1,18 @@
+{
+  "scope": {
+    "stage": "proposal",
+    "pid": 47963,
+    "window_title": "Trail Accessibility Fixture · 47963",
+    "fixture": "memory-only; no PTY, credentials, or network",
+    "phase": "awaitingApproval",
+    "semantic_status": "One action needs review",
+    "terminal_writes": 0,
+    "recorded_at": "2026-10-03T03:24:49.725638Z",
+    "speech_verified": false
+  },
+  "system_events_exit_code": 1,
+  "native_window_check": "",
+  "error": "442:479: execution error: Fixture native title does not match (-2700)",
+  "voiceover_enabled": false,
+  "speech_read": false
+}

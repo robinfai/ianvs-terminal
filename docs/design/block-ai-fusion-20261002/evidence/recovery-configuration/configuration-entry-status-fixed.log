@@ -1,0 +1,70 @@
+package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/defaults_appearance_redesign_test.dart
+00:00 +0: AI settings status follows saved configuration, not cancelled edits
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following assertion was thrown running a test:
+ScaffoldMessenger.showSnackBar was called, but there are currently no descendant Scaffolds to
+present to.
+'package:flutter/src/material/scaffold.dart':
+Failed assertion: line 319 pos 7: '_scaffolds.isNotEmpty'
+
+When the exception was thrown, this was the stack:
+#2      ScaffoldMessengerState.showSnackBar (package:flutter/src/material/scaffold.dart:319:7)
+#3      showAiSettings (package:app/features/ai/ai_settings_dialog.dart:25:39)
+<asynchronous suspension>
+(elided 2 frames from class _AssertionError)
+
+The test description was:
+  AI settings status follows saved configuration, not cancelled edits
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:00 +0 -1: AI settings status follows saved configuration, not cancelled edits [E]
+  Test failed. See exception logs above.
+  The test description was: AI settings status follows saved configuration, not cancelled edits
+  
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following assertion was thrown running a test (but after the test had completed):
+ScaffoldMessenger.showSnackBar was called, but there are currently no descendant Scaffolds to
+present to.
+'package:flutter/src/material/scaffold.dart':
+Failed assertion: line 319 pos 7: '_scaffolds.isNotEmpty'
+
+When the exception was thrown, this was the stack:
+#2      ScaffoldMessengerState.showSnackBar (package:flutter/src/material/scaffold.dart:319:7)
+#3      showAiSettings (package:app/features/ai/ai_settings_dialog.dart:25:39)
+<asynchronous suspension>
+(elided 2 frames from class _AssertionError)
+════════════════════════════════════════════════════════════════════════════════════════════════════
+  Test failed. See exception logs above.
+  The test description was: AI settings status follows saved configuration, not cancelled edits
+  
+00:00 +0 -1: platform terminal preference stages and saves explicitly
+00:01 +1 -1: platform terminal preference stages and cancels explicitly
+00:01 +2 -1: preferred terminal mode saves independently
+00:01 +3 -1: global SSH switches save independently
+00:01 +4 -1: shortcut empty results keep the list width
+00:01 +5 -1: change status clears when a selection is reverted
+00:01 +6 -1: reset menu stages a profile reset and cancel discards it
+00:01 +7 -1: all desktop sections reflow at 680 px and 2x text in Brightness.dark
+00:02 +8 -1: all desktop sections reflow at 680 px and 2x text in Brightness.light
+00:02 +9 -1: iPhone settings sections remain reachable at Size(375.0, 667.0) and 1.0x
+00:02 +10 -1: iPhone settings sections remain reachable at Size(375.0, 667.0) and 2.0x
+00:02 +11 -1: iPhone settings sections remain reachable at Size(375.0, 667.0) and 3.0x
+00:02 +12 -1: iPhone settings sections remain reachable at Size(402.0, 874.0) and 1.0x
+00:02 +13 -1: iPhone settings sections remain reachable at Size(402.0, 874.0) and 2.0x
+00:02 +14 -1: iPhone settings sections remain reachable at Size(402.0, 874.0) and 3.0x
+00:02 +15 -1: iPhone settings sections remain reachable at Size(874.0, 402.0) and 1.0x
+00:03 +16 -1: iPhone settings sections remain reachable at Size(874.0, 402.0) and 2.0x
+00:03 +17 -1: iPhone settings sections remain reachable at Size(874.0, 402.0) and 3.0x
+00:03 +18 -1: wide defaults dialog navigates to compact permission controls
+00:03 +19 -1: wide defaults dialog renders shortcuts as a persistent tab
+00:03 +20 -1: language selection is returned when defaults are saved
+00:03 +21 -1: stale configured profile saves automatic fallback
+00:03 +22 -1: fixed profile can be changed back to automatic fallback
+00:03 +23 -1: long SSH option fits compact enlarged text
+00:03 +24 -1: small Mac settings stays navigable in Brightness.dark
+00:03 +25 -1: small Mac settings stays navigable in Brightness.light
+00:03 +26 -1: compact defaults dialog keeps the touch-friendly radio layout
+00:03 +27 -1: Some tests failed.
+
+Failing tests:
+  /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/defaults_appearance_redesign_test.dart: AI settings status follows saved configuration, not cancelled edits

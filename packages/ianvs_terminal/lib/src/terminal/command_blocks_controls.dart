@@ -31,6 +31,49 @@ Widget _blockErrorMessage(BuildContext context, String? message) {
 }
 
 extension _CommandBlocksControls on _CommandBlocksViewState {
+  List<String>? get _timelineBlockIds => widget.timeline == null
+      ? null
+      : [
+          for (final item in _items)
+            if (item.blockId != null) item.blockId!,
+        ];
+
+  List<CommandBlock> get _selectedTimelineBlocks => [
+    for (final block in c.blocks)
+      if (c.selected.contains(block.id) &&
+          (_timelineBlockIds?.contains(block.id) ?? true))
+        block,
+  ];
+
+  Widget _selectionToolbar(ComposerTheme tokens) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 12),
+    child: Row(
+      children: [
+        Expanded(
+          child: Text(
+            t(
+              '${_selectedTimelineBlocks.length} selected',
+              '已选择 ${_selectedTimelineBlocks.length} 个',
+            ),
+            style: tokens.metadataStyle,
+          ),
+        ),
+        TextButton.icon(
+          key: const Key('blocks-attach-selection'),
+          onPressed: () => widget.onAttachBlocks!(_selectedTimelineBlocks),
+          icon: const Icon(Icons.attach_file, size: 17),
+          label: Text(t('Attach to AI', '附给 AI')),
+        ),
+        IconButton(
+          key: const Key('blocks-clear-selection'),
+          tooltip: t('Clear block selection', '取消命令块选择'),
+          onPressed: c.clearSelection,
+          icon: const Icon(Icons.close, size: 17),
+        ),
+      ],
+    ),
+  );
+
   Widget _icon(IconData icon, String label, VoidCallback action) => IconButton(
     tooltip: label,
     onPressed: action,
@@ -46,6 +89,15 @@ extension _CommandBlocksControls on _CommandBlocksViewState {
     padding: const EdgeInsets.fromLTRB(18, 4, 12, 2),
     child: Row(
       children: [
+        if (c.selected.isNotEmpty && widget.onAttachBlocks != null)
+          _icon(
+            Icons.attach_file,
+            t('Attach selected blocks to AI', '将所选命令块附给 AI'),
+            () => widget.onAttachBlocks!([
+              for (final block in c.blocks)
+                if (c.selected.contains(block.id)) block,
+            ]),
+          ),
         Expanded(
           child: Text(
             c.selected.length > 1
@@ -66,6 +118,7 @@ extension _CommandBlocksControls on _CommandBlocksViewState {
         ),
         if (c.bookmarks.isNotEmpty)
           PopupMenuButton<String>(
+            popUpAnimationStyle: ComposerTheme.overlayAnimation(context),
             tooltip: t('Bookmarks', '书签'),
             icon: Icon(Icons.bookmark_outline, size: 17, color: tokens.muted),
             onSelected: (id) => c.select(id, reveal: true),
@@ -92,6 +145,7 @@ extension _CommandBlocksControls on _CommandBlocksViewState {
           },
         ),
         PopupMenuButton<String>(
+          popUpAnimationStyle: ComposerTheme.overlayAnimation(context),
           tooltip: t('Block view options', '命令块显示选项'),
           icon: Icon(Icons.tune, size: 17, color: tokens.muted),
           onSelected: (value) {
@@ -165,6 +219,10 @@ extension _CommandBlocksControls on _CommandBlocksViewState {
       child: Text(t('Insert into Composer', '放入 Composer 编辑')),
     ),
     PopupMenuItem(value: 'find', child: Text(t('Find within block', '在此块中查找'))),
+    PopupMenuItem(
+      value: 'reader',
+      child: Text(t('Open output reader', '打开输出阅读器')),
+    ),
     CheckedPopupMenuItem(
       value: 'filter',
       enabled: !block.running,
@@ -200,6 +258,7 @@ extension _CommandBlocksControls on _CommandBlocksViewState {
         Overlay.of(context).context.findRenderObject()! as RenderBox;
     final value = await showMenu<String>(
       context: context,
+      popUpAnimationStyle: ComposerTheme.overlayAnimation(context),
       position: RelativeRect.fromRect(
         Rect.fromLTWH(point.dx, point.dy, 0, 0),
         Offset.zero & overlay.size,
@@ -211,6 +270,8 @@ extension _CommandBlocksControls on _CommandBlocksViewState {
 
   void _action(CommandBlock block, String action) {
     switch (action) {
+      case 'reader':
+        unawaited(_openReader(block.id));
       case 'ai':
         widget.onAskAi?.call(block);
       case 'command':
@@ -272,6 +333,7 @@ extension _CommandBlocksControls on _CommandBlocksViewState {
 
       await showDialog<void>(
         context: context,
+        animationStyle: ComposerTheme.overlayAnimation(context),
         builder: (dialogContext) => StatefulBuilder(
           builder: (context, setDialogState) => AlertDialog(
             title: Text(t('Export block', '导出命令块')),
@@ -565,6 +627,7 @@ class _BlockFilterEditorState extends State<_BlockFilterEditor> {
                     widget.onChanged(widget.value.copyWith(invert: v)),
               ),
               PopupMenuButton<int>(
+                popUpAnimationStyle: ComposerTheme.overlayAnimation(context),
                 tooltip: t('Context lines', '上下文行数'),
                 onSelected: (v) =>
                     widget.onChanged(widget.value.copyWith(contextLines: v)),
@@ -607,6 +670,7 @@ class _BlockFilterEditorState extends State<_BlockFilterEditor> {
   );
 
   Widget _optionsMenu() => PopupMenuButton<CommandBlockFilter>(
+    popUpAnimationStyle: ComposerTheme.overlayAnimation(context),
     key: const Key('block-filter-options'),
     tooltip: t('Filter options', '过滤选项'),
     icon: Icon(Icons.tune, size: 17, color: ComposerTheme.of(context).muted),

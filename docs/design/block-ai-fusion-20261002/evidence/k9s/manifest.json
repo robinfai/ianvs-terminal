@@ -1,0 +1,42 @@
+{
+  "recorded_at": "2026-10-02T23:50:12.605118+00:00",
+  "scope": "D12 actual k9s/native PTY with synthetic loopback Kubernetes API and AI; live desktop mode menu",
+  "artifacts": {
+    "k9s-analyze-final.log": "c9a681f2803330d4f777b0158d495be784f630fcd7ee3ebc30fd23a627bf09e3",
+    "k9s-app-regression.log": "174188eab725966aa06348c94a9c6b102c7ffe738bc294111053345a3762d52c",
+    "k9s-menu-after.log": "214102d58e22b92f2a9160e31d99b572d062f38bbd9db66ad3f8998ae9b3fec7",
+    "k9s-menu-before.log": "7a519c63f1b854a3165844db0c6d38975a0c093e25527b3f9299abd45706c5ce",
+    "k9s-native-dark.log": "a9c59d26cbdd1dbc5392229abab394d00b62751c7f7c93de5e040b4406ce9b48",
+    "k9s-native-first.log": "4e5a690d6baa728d9d69d4f2708228b66d1e12f8e38f9bdcf4f836b9a4fa9fb3",
+    "k9s-native-stable.log": "067c942654d4d00aa665662ab42c06de8e71b0ce3940234047fe1d82e314f867",
+    "menu-before-result.json": "1dc05220e22fd567bb3fe9427279612a5121cd3c4538c08e192d3402da2d029c",
+    "menu-before.png": "5886d4532b69283695b5696da312a58e5d1441f059f216084af56846f54e246a",
+    "native/D12-k9s-ai-draft-overlay.png": "61adfcdcd34d8c825a5e3fa4b84fb36274983347af219effb1f665e9aa22bda5",
+    "native/D12-k9s-exit-normal.png": "a0f2696205c0b2e1d96e4186140b2baa51a08e756173ce4d286ced1608188a9f",
+    "native/D12-k9s-full-terminal.png": "46b50205ba30fe8a75c56f67980834333d9b37eb51a3d9657521eaae4ec6eec4",
+    "native/D12-k9s-key-review.png": "2a0fbdd905a695a58f0af9c78a4b88ec312ffc970f48fc072c3ebc8b5d3c8acd",
+    "native/D12-k9s-manual-mode-menu.png": "0fb17b436473f565cdee97564667a5646da6a46e7f8a7f36a8f4883b7e81888e",
+    "native/D12-k9s-restored-blocks.png": "534bf4eca4d9e248500cb03fd5b4eddac28247f419f8adf940b2837287c5ba1d",
+    "native/ai-payloads.json": "91822a97cd4f1da759a879b659065af9cd5aa796d8f5f524ca5e13f1804ac0ee",
+    "native/input-bytes.json": "b996e41ed773b18393c0cec6b668cfd4782702df73e14284cb5fe195dd623ba2",
+    "native/k9s.log": "9855acb88d20b0efe9a3529c2e7e5c5a4ecc0aeda9fa219999c6a8d0738fd162",
+    "native/requests.json": "baf030d9005ea4557c2b40718878ea6517061473e7a4f6f1fca06f056bdcace5",
+    "native/result.json": "858e0342f70eb5cd35fe3d0f1aa3ccff5b8b24ff6f5480a839ab8b50ec4b513c"
+  },
+  "sources": {
+    "example/lib/features/terminal_composer/terminal_mode_indicator.dart": "45f8ef28317aed8f8c0c85df64ce5ac8ca1ff7996ec86df19a90365b9b5819dc",
+    "example/lib/features/terminal_composer/terminal_mode.dart": "d74dea57ddc52a65647579470b1d359a5025e215f5561ae7165d572537d95b4d",
+    "example/lib/features/terminal_composer/composer_pane.dart": "2101bba55aec2207e772711646df85985641dfd021df76fcb082ec185c90e51b",
+    "example/lib/features/shell/shell_screen_state_command_actions.dart": "db4f741039793e359f5b91a3e01b987750efaeef5991688caa0c3afdbaddb762",
+    "example/lib/features/shell/shell_screen_ai.dart": "8e2755c506f767cb6f2a8c2779ca6769e51e9ce4290c895ff1c00494a39287cd",
+    "example/lib/features/ai/terminal_ai_workspace.dart": "ac0216936ad5fa5914067bdb64b112cc3496093d31bfdc82818b60ed0529deb8",
+    "example/test/shell/terminal_modes_test.dart": "431604491634060ee6f93033f5279961aea0fabbfec06770586ee066a17be23f",
+    "example/integration_test/terminal_ai_k9s_acceptance_test.dart": "442c2b8a6e4d2c830edfb7a4b5761726891cb2d04c82dfbb5d87ddb2ef295516",
+    "example/integration_test/k9s_acceptance_fixture.dart": "42a833712a7b72196643d92e010a4770bf17f40f83e2beeec48f2f28140c4670"
+  },
+  "environment": {
+    "macOS": "27.0.1",
+    "build": "26A434",
+    "k9s": "0.50.16"
+  }
+}

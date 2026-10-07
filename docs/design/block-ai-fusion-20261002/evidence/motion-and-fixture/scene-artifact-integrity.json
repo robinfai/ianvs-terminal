@@ -1,0 +1,70 @@
+{
+  "scope": "Archived artifact integrity only; historical source hashes do not claim current execution.",
+  "manifests": [
+    {
+      "manifest": "docs/design/block-ai-fusion-20261002/evidence/accessibility/manifest.json",
+      "artifacts_checked": 33,
+      "failures": []
+    },
+    {
+      "manifest": "docs/design/block-ai-fusion-20261002/evidence/cloud-clear/manifest.json",
+      "artifacts_checked": 27,
+      "failures": []
+    },
+    {
+      "manifest": "docs/design/block-ai-fusion-20261002/evidence/evidence-identity/manifest.json",
+      "artifacts_checked": 23,
+      "failures": []
+    },
+    {
+      "manifest": "docs/design/block-ai-fusion-20261002/evidence/focus/manifest.json",
+      "artifacts_checked": 0,
+      "failures": []
+    },
+    {
+      "manifest": "docs/design/block-ai-fusion-20261002/evidence/k9s/manifest.json",
+      "artifacts_checked": 20,
+      "failures": []
+    },
+    {
+      "manifest": "docs/design/block-ai-fusion-20261002/evidence/mobile-current/manifest.json",
+      "artifacts_checked": 9,
+      "failures": []
+    },
+    {
+      "manifest": "docs/design/block-ai-fusion-20261002/evidence/model-scenes/manifest.json",
+      "artifacts_checked": 0,
+      "failures": []
+    },
+    {
+      "manifest": "docs/design/block-ai-fusion-20261002/evidence/motion-and-fixture/manifest.json",
+      "artifacts_checked": 17,
+      "failures": []
+    },
+    {
+      "manifest": "docs/design/block-ai-fusion-20261002/evidence/navigation-preferences/manifest.json",
+      "artifacts_checked": 33,
+      "failures": []
+    },
+    {
+      "manifest": "docs/design/block-ai-fusion-20261002/evidence/output-boundaries/manifest.json",
+      "artifacts_checked": 34,
+      "failures": []
+    },
+    {
+      "manifest": "docs/design/block-ai-fusion-20261002/evidence/reader-tools/manifest.json",
+      "artifacts_checked": 33,
+      "failures": []
+    },
+    {
+      "manifest": "docs/design/block-ai-fusion-20261002/evidence/recovery-configuration/manifest.json",
+      "artifacts_checked": 53,
+      "failures": []
+    },
+    {
+      "manifest": "docs/design/block-ai-fusion-20261002/evidence/scene-review/manifest.json",
+      "artifacts_checked": 10,
+      "failures": []
+    }
+  ]
+}

@@ -30,6 +30,7 @@ pub(crate) struct ComposerBridge {
 }
 
 struct BridgeState {
+    command_inventory: crate::command_inventory::CommandInventory,
     #[cfg(unix)]
     listener: UnixListener,
     #[cfg(unix)]
@@ -65,6 +66,10 @@ impl ComposerBridge {
         listener.set_nonblocking(true)?;
         let nonce = crate::shell_bootstrap::token();
         let script = include_str!("composer_bridge.zsh")
+            .replace(
+                "@@COMMAND_INVENTORY@@",
+                include_str!("command_inventory.zsh"),
+            )
             .replace("@@SOCKET@@", &path.to_string_lossy().replace('\'', "'\\''"))
             .replace("@@NONCE@@", &nonce);
         Ok((
@@ -72,6 +77,7 @@ impl ComposerBridge {
                 nonce,
                 _directory: directory,
                 inner: Mutex::new(BridgeState {
+                    command_inventory: Default::default(),
                     listener,
                     stream: None,
                     authenticated: false,
@@ -113,7 +119,9 @@ impl ComposerBridge {
         self.poll(&mut state);
         json!({"state": state.state, "lease": state.epoch.as_ref().map(|e| format!("{}.{e}", self.nonce)),
             "cwd": state.cwd, "home": state.home, "dialect": "zsh", "submissionId": state.submission_id, "outcome": state.outcome,
-            "history": state.history, "historyRevision": state.history_revision})
+            "history": state.history, "historyRevision": state.history_revision,
+            "commandNames": state.command_inventory.names,
+            "aliases": state.aliases.iter().cloned().collect::<std::collections::BTreeMap<_, _>>()})
     }
 
     pub(crate) fn aliases(&self) -> Vec<(String, String)> {
@@ -123,6 +131,21 @@ impl ComposerBridge {
             return vec![];
         }
         state.aliases.clone()
+    }
+
+    /// Inspect one original submission without waking ZLE or resending input.
+    pub(crate) fn receipt_for(&self, id: &str) -> Option<String> {
+        let mut state = self.inner.lock().unwrap();
+        self.poll(&mut state);
+        if state.submission_id.as_deref() == Some(id) {
+            return Some(state.outcome.clone());
+        }
+        state
+            .outcomes
+            .iter()
+            .rev()
+            .find(|(key, _)| key == id)
+            .map(|(_, outcome)| outcome.clone())
     }
 
     /// Consume the single harmless wake byte only after ZLE has acknowledged
@@ -233,6 +256,7 @@ impl ComposerBridge {
         state.input.clear();
         state.pending_history = None;
         state.pending_aliases = None;
+        state.command_inventory.clear();
     }
 
     fn expire(&self, state: &mut BridgeState) {
@@ -276,7 +300,7 @@ impl ComposerBridge {
                     return;
                 }
             }
-            if state.input.len() > 49152 {
+            if state.input.len() > 131072 {
                 Self::close(state);
                 return;
             }
@@ -298,6 +322,16 @@ impl ComposerBridge {
                 continue;
             }
             match fields.as_slice() {
+                ["inventory", frame] => {
+                    state.command_inventory.receive(
+                        &frame.split(';').collect::<Vec<_>>(),
+                        state
+                            .epoch
+                            .as_ref()
+                            .and_then(|e| e.parse().ok())
+                            .unwrap_or(0),
+                    );
+                }
                 ["history-begin"] if state.pending_history.is_none() => {
                     state.pending_history = Some(Vec::new());
                     state.pending_history_bytes = 0;
@@ -370,6 +404,7 @@ impl ComposerBridge {
                         return;
                     };
                     state.epoch = Some((*epoch).into());
+                    state.command_inventory.commit(epoch.parse().unwrap());
                     state.cwd = cwd;
                     // HOME belongs to this live shell, never the GUI process.
                     // A missing or unusable HOME only disables tilde completion.

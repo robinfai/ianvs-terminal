@@ -1,6 +1,7 @@
 export 'src/composer/completion_models.dart';
 export 'src/composer/composer_icons.dart';
 export 'src/composer/composer_theme.dart';
+export 'src/composer/input_intent.dart';
 export 'src/composer/terminal_composer_controller.dart';
 export 'src/composer/terminal_composer_view.dart';
 export 'src/config/terminal_config.dart';
@@ -21,6 +22,7 @@ export 'src/runtime/terminal_zmodem_recovery.dart';
 export 'src/terminal/command_block.dart';
 export 'src/terminal/command_block_controller.dart';
 export 'src/terminal/command_blocks_view.dart';
+export 'src/terminal/command_timeline.dart';
 export 'src/terminal/selection_controller.dart';
 export 'src/terminal/terminal_graphics_cache.dart';
 export 'src/terminal/terminal_input_controller.dart';

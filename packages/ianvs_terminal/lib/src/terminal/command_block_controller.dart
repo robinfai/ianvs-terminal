@@ -3,6 +3,29 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
 import 'command_block.dart';
+import 'terminal_models.dart';
+
+/// A reader's position belongs to the session, so closing a route or switching
+/// task views cannot discard it. Native row identity survives history eviction.
+@immutable
+class CommandBlockReadingState {
+  const CommandBlockReadingState({
+    required this.lineIndex,
+    required this.sourceRow,
+    required this.pixelOffset,
+    required this.horizontalOffset,
+    required this.selection,
+    required this.selectionSourceBase,
+    required this.blockSelection,
+  });
+  final int lineIndex;
+  final int? sourceRow;
+  final double pixelOffset;
+  final double horizontalOffset;
+  final TerminalSelection? selection;
+  final int? selectionSourceBase;
+  final bool blockSelection;
+}
 
 typedef CommandBlockRequest =
     Map<String, Object?>? Function(Map<String, Object?> request);
@@ -10,8 +33,17 @@ typedef CommandBlockRequest =
 /// Session-local presentation state. All requests are read-only; re-input is
 /// delegated to the host and never executes a command from a block.
 class CommandBlockController extends ChangeNotifier {
-  CommandBlockController({required this.request});
+  CommandBlockController({required this.request, this.maximumBlocks = 128})
+    : assert(
+        maximumBlocks == null || maximumBlocks > 0,
+        'maximumBlocks must be positive, or null for a host-bounded list',
+      );
   final CommandBlockRequest request;
+
+  /// Defaults to one native session's history budget. A host that combines
+  /// independently bounded sources may pass null, enforcing the budget on
+  /// each source before returning the combined list.
+  final int? maximumBlocks;
   List<CommandBlock> _blocks = const [];
   List<CommandBlock> get blocks => _blocks;
   final selected = <String>{};
@@ -20,6 +52,7 @@ class CommandBlockController extends ChangeNotifier {
   final expandedOutput = <String>{};
   final filters = <String, CommandBlockFilter>{};
   final filtering = <String>{};
+  final readingStates = <String, CommandBlockReadingState>{};
   final errors = <String, String>{};
   final _pages = <String, CommandBlock>{};
   final _appliedFilters = <String, CommandBlockFilter>{};
@@ -51,7 +84,7 @@ class CommandBlockController extends ChangeNotifier {
     available = result != null && result['alternateScreen'] != true;
     _blocks = List.unmodifiable([
       if (raw is List)
-        for (final entry in raw.take(128))
+        for (final entry in raw.take(maximumBlocks ?? raw.length))
           if (CommandBlock.fromJson(entry) case final CommandBlock block) block,
     ]);
     final retained = _blocks.map((b) => b.id).toSet();
@@ -61,6 +94,7 @@ class CommandBlockController extends ChangeNotifier {
     expandedOutput.removeWhere((id) => !retained.contains(id));
     filtering.removeWhere((id) => !retained.contains(id));
     filters.removeWhere((id, _) => !retained.contains(id));
+    readingStates.removeWhere((id, _) => !retained.contains(id));
     errors.removeWhere((id, _) => !retained.contains(id));
     _pages.removeWhere((id, _) => !retained.contains(id));
     _appliedFilters.removeWhere((id, _) => !retained.contains(id));
@@ -72,6 +106,7 @@ class CommandBlockController extends ChangeNotifier {
               block.running ||
               page.columns != block.columns ||
               page.totalLines != block.totalLines ||
+              page.sourceLineBase != block.sourceLineBase ||
               page.evicted != block.evicted) {
         _load(block.id, offset: page.offset, notify: false);
       }
@@ -84,17 +119,18 @@ class CommandBlockController extends ChangeNotifier {
     bool extend = false,
     bool toggle = false,
     bool reveal = false,
+    List<String>? orderedIds,
   }) {
-    final index = _blocks.indexWhere((b) => b.id == id);
+    final candidates = _orderedBlocks(orderedIds);
+    final index = candidates.indexWhere((b) => b.id == id);
     if (index < 0) return;
-    if (extend && _anchor != null) {
-      final anchor = _blocks.indexWhere((b) => b.id == _anchor);
-      if (anchor >= 0) {
-        selected.clear();
-        final a = index < anchor ? index : anchor;
-        final b = index > anchor ? index : anchor;
-        selected.addAll(_blocks.sublist(a, b + 1).map((b) => b.id));
-      }
+    if (orderedIds != null) selected.retainAll(orderedIds);
+    final anchor = candidates.indexWhere((b) => b.id == _anchor);
+    if (extend && anchor >= 0) {
+      selected.clear();
+      final a = index < anchor ? index : anchor;
+      final b = index > anchor ? index : anchor;
+      selected.addAll(candidates.sublist(a, b + 1).map((b) => b.id));
     } else {
       if (!toggle) selected.clear();
       if (!toggle || !selected.remove(id)) selected.add(id);
@@ -108,16 +144,31 @@ class CommandBlockController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void move(int delta, {bool extend = false, bool bookmarked = false}) {
+  List<CommandBlock> _orderedBlocks(List<String>? ids) => ids == null
+      ? _blocks
+      : [for (final id in ids) ..._blocks.where((b) => b.id == id)];
+
+  void move(
+    int delta, {
+    bool extend = false,
+    bool bookmarked = false,
+    List<String>? orderedIds,
+  }) {
+    final ordered = _orderedBlocks(orderedIds);
     final candidates = bookmarked
-        ? _blocks.where((b) => bookmarks.contains(b.id)).toList()
-        : _blocks;
+        ? ordered.where((b) => bookmarks.contains(b.id)).toList()
+        : ordered;
     if (candidates.isEmpty) return;
     final index = candidates.indexWhere((b) => b.id == activeId);
     final next = index < 0
         ? (delta < 0 ? candidates.length - 1 : 0)
         : (index + delta).clamp(0, candidates.length - 1);
-    select(candidates[next].id, extend: extend, reveal: true);
+    select(
+      candidates[next].id,
+      extend: extend,
+      reveal: true,
+      orderedIds: orderedIds,
+    );
   }
 
   void clearSelection() {
@@ -200,17 +251,29 @@ class CommandBlockController extends ChangeNotifier {
     if (notify) notifyListeners();
   }
 
-  /// Copy traverses retained source output, independent of a visible filter,
-  /// preview window or fold. Yield between bounded native pages.
-  Future<String> outputText(String id) async {
+  /// Copy traverses retained source output. Filters and selections must be
+  /// explicitly requested; a preview window or fold never limits default copy.
+  Future<String> outputText(
+    String id, {
+    CommandBlockFilter? filter,
+    TerminalSelection? selection,
+    bool blockSelection = false,
+    int? expectedSourceBase,
+  }) async {
     final buffer = StringBuffer();
-    var offset = 0;
+    var offset = filter == null ? selection?.startRow ?? 0 : 0;
     var joinNext = false;
     var previousLine = -1;
-    int? sourceBase;
+    var sourceBase = expectedSourceBase;
     int? columns;
+    var foundStart = selection == null;
+    var foundEnd = selection == null;
     while (offset >= 0) {
-      final result = request({'id': id, 'offset': offset});
+      final result = request({
+        'id': id,
+        'offset': offset,
+        ...?filter?.toJson(),
+      });
       final block = CommandBlock.fromJson(result?['block']);
       if (block == null) throw StateError('Output is no longer available');
       final first = block.lines.firstOrNull;
@@ -224,21 +287,42 @@ class CommandBlockController extends ChangeNotifier {
       columns = block.columns;
       sourceBase = base;
       for (final row in block.lines) {
+        if (selection != null &&
+            (row.index < selection.startRow || row.index > selection.endRow)) {
+          continue;
+        }
+        foundStart |= selection == null || row.index == selection.startRow;
+        foundEnd |= selection == null || row.index == selection.endRow;
         if (previousLine >= 0 && (!joinNext || row.index != previousLine + 1)) {
           buffer.writeln();
         }
-        buffer.write(row.text);
-        joinNext = row.wrapped;
+        if (selection == null) {
+          buffer.write(row.text);
+        } else {
+          final cells = TerminalTextCells.fromText(row.text);
+          final start = blockSelection || row.index == selection.startRow
+              ? selection.startCol
+              : 0;
+          final end = blockSelection || row.index == selection.endRow
+              ? selection.endCol
+              : cells.cellCount;
+          buffer.write(cells.sliceColumns(start, end));
+        }
+        joinNext = row.wrapped && !(selection != null && blockSelection);
         previousLine = row.index;
       }
       if (buffer.length > 16 * 1024 * 1024) {
         throw StateError('Output exceeds the 16 MiB clipboard limit');
       }
+      if (selection != null && foundEnd) break;
       final next = block.nextOffset;
       if (next == null) break;
       if (next <= offset) throw StateError('Output changed while copying');
       offset = next;
       await Future<void>.delayed(Duration.zero);
+    }
+    if (!foundStart || !foundEnd) {
+      throw StateError('The selected range is no longer available');
     }
     return buffer.toString();
   }

@@ -1,0 +1,52 @@
+package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/integration_test/terminal_ai_workspace_acceptance_test.dart
+Building macOS application...                                   
+✓ Built build/macos/Build/Products/Debug/Trail Development.app
+Failed to foreground app; open returned 1
+00:00 +0: Main AI timeline submits once and returns unchanged TUI grid
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: {
+            'backend': 'llm',
+            'approvalMode': 'manual',
+            'endpoint': 'http://127.0.0.1:64787/v1',
+            'apiKey': 'replacement-fixture-key',
+            'model': 'fixture'
+          }
+  Actual: {
+            'backend': 'llm',
+            'approvalMode': 'smart',
+            'endpoint': 'http://127.0.0.1:64787/v1',
+            'apiKey': 'replacement-fixture-key',
+            'model': 'fixture'
+          }
+   Which: at location ['approvalMode'] is 'smart' instead of 'manual'
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/example/integration_test/terminal_ai_workspace_acceptance_test.dart:1139:7)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Users/robinfai/flutter_projects/ianvs-terminal/example/integration_test/terminal_ai_workspace_acceptance_test.dart line 1139
+The test description was:
+  Main AI timeline submits once and returns unchanged TUI grid
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:43 +0 -1: Main AI timeline submits once and returns unchanged TUI grid [E]
+  Test failed. See exception logs above.
+  The test description was: Main AI timeline submits once and returns unchanged TUI grid
+  
+00:43 +0 -1: Production component preview M01-fixed-text
+00:45 +1 -1: Production component preview M01-keyboard-space
+00:46 +2 -1: Production component preview M03-dark-evidence
+00:47 +3 -1: Production component preview M01-landscape
+00:50 +4 -1: (tearDownAll)
+00:50 +4 -1: Some tests failed.
+
+Failing tests:
+  /Users/robinfai/flutter_projects/ianvs-terminal/example/integration_test/terminal_ai_workspace_acceptance_test.dart: Main AI timeline submits once and returns unchanged TUI grid

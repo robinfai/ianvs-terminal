@@ -11,6 +11,7 @@ class _ShellWindowTitleBar extends StatefulWidget {
     required this.backgroundColor,
     required this.terminalBackgroundColor,
     required this.onShowCommandMenu,
+    this.aiAction,
   });
 
   final bool sidebarOpen;
@@ -22,6 +23,7 @@ class _ShellWindowTitleBar extends StatefulWidget {
   final Color backgroundColor;
   final Color terminalBackgroundColor;
   final VoidCallback? onShowCommandMenu;
+  final Widget? aiAction;
 
   @override
   State<_ShellWindowTitleBar> createState() => _ShellWindowTitleBarState();
@@ -127,6 +129,7 @@ class _ShellWindowTitleBarState extends State<_ShellWindowTitleBar> {
                             ),
                           ),
                         ),
+                        if (widget.aiAction != null) widget.aiAction!,
                         if (widget.onShowCommandMenu != null)
                           SizedBox.square(
                             dimension: buttonExtent,

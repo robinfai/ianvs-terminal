@@ -19,6 +19,8 @@ class CommandBlocksPane extends StatefulWidget {
     required this.child,
     required this.onOpenLinkTarget,
     this.onAskAi,
+    this.onAttachBlocks,
+    this.onAttachRange,
   });
   final ComposerPaneSession session;
   final TerminalViewportController viewport;
@@ -30,6 +32,8 @@ class CommandBlocksPane extends StatefulWidget {
   final Widget child;
   final ValueChanged<TerminalLinkTarget> onOpenLinkTarget;
   final ValueChanged<CommandBlock>? onAskAi;
+  final ValueChanged<List<CommandBlock>>? onAttachBlocks;
+  final ValueChanged<CommandBlock>? onAttachRange;
 
   @override
   State<CommandBlocksPane> createState() => _CommandBlocksPaneState();
@@ -45,6 +49,13 @@ class _CommandBlocksPaneState extends State<CommandBlocksPane> {
   bool _lastEnabled = false;
   String? _readyLease;
   String? _readyText;
+  int? _readyColumns;
+  int? _readyRows;
+
+  bool get _sessionAvailable => identical(
+    widget.session.runtime.existingViewportFor(widget.session.sessionId),
+    widget.viewport,
+  );
 
   @override
   void initState() {
@@ -65,7 +76,13 @@ class _CommandBlocksPaneState extends State<CommandBlocksPane> {
     if (_refresh != null) return;
     _refresh = Timer(const Duration(milliseconds: 80), () {
       _refresh = null;
-      if (!mounted) return;
+      if (!mounted || !_sessionAvailable) return;
+      // Pair output attribution with current ownership. The 150 ms state
+      // timer may still report the previous ready lease when this 80 ms
+      // output callback observes an AI/native command's first bytes.
+      if (widget.session.enabled && widget.active) {
+        widget.session.refreshShellState();
+      }
       final frame = widget.viewport.frame;
       // Keep graphics and protocol-specific widgets in the full renderer. The
       // flag is session-local because a graphic can leave the visible frame.
@@ -104,16 +121,27 @@ class _CommandBlocksPaneState extends State<CommandBlocksPane> {
         _blocks.refresh();
       }
       final lease = widget.session.controller.readyLease;
-      final text = frame.rows.map((row) => row.text).join('\n');
+      // A decoded frame can lag behind the native ready receipt. Compare
+      // native output with native ownership so a late rendering update is
+      // not mistaken for new bytes outside a command.
+      final live = enabled
+          ? widget.session.runtime.liveScreen(widget.session.sessionId)
+          : null;
+      final text =
+          live?['text'] as String? ??
+          frame.rows.map((row) => row.text).join('\n');
+      final columns = live?['columns'] as int? ?? frame.viewportCols;
+      final rows = live?['rows'] as int? ?? frame.viewportRows;
       if (enabled &&
+          _lastEnabled &&
           ownership == ComposerOwnership.ready &&
           _lastOwnership == ComposerOwnership.ready &&
           lease == _readyLease &&
           previousBlock == _blocks.blocks.lastOrNull?.id &&
           _readyText != null &&
           text != _readyText &&
-          frame.viewportCols == _lastFrame?.viewportCols &&
-          frame.viewportRows == _lastFrame?.viewportRows &&
+          columns == _readyColumns &&
+          rows == _readyRows &&
           frame.scrollbackOffset == _lastFrame?.scrollbackOffset) {
         // Unattributed bytes must remain visible. This shell protocol has no
         // prompt-end marker, so do not guess that a prompt redraw is a job's
@@ -130,6 +158,8 @@ class _CommandBlocksPaneState extends State<CommandBlocksPane> {
       );
       _readyLease = lease;
       _readyText = text;
+      _readyColumns = columns;
+      _readyRows = rows;
       _lastFrame = frame;
       _lastOwnership = ownership;
       _lastEnabled = enabled;
@@ -155,6 +185,9 @@ class _CommandBlocksPaneState extends State<CommandBlocksPane> {
 
   @override
   Widget build(BuildContext context) {
+    // An outgoing AnimatedSwitcher child may rebuild after native teardown.
+    // Never mount its cached raw viewport with a disposed controller.
+    if (!_sessionAvailable) return const SizedBox.shrink();
     final modes = widget.viewport.frame.modes;
     if (!_showBlocks) {
       return widget.child;
@@ -170,6 +203,8 @@ class _CommandBlocksPaneState extends State<CommandBlocksPane> {
       onMeasuredCellSizeChanged: widget.onMeasuredCellSizeChanged,
       onOpenLinkTarget: widget.onOpenLinkTarget,
       onAskAi: widget.onAskAi,
+      onAttachBlocks: widget.onAttachBlocks,
+      onAttachRange: widget.onAttachRange,
       onReturnToInput: widget.session.editorFocus.requestFocus,
       onReinput: (command) {
         widget.session.controller.editor.value = TextEditingValue(

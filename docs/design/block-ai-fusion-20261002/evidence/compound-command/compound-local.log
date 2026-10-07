@@ -1,0 +1,11 @@
+   Compiling ianvs_core v0.1.0 (/Users/robinfai/flutter_projects/ianvs-terminal/native/core)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.32s
+     Running tests/composer_integration_test.rs (native/core/target/debug/deps/composer_integration_test-a1fd88c2ab5edce0)
+
+running 3 tests
+test composer_current_request_contract_static_and_replay_denial ... ok
+test composer_paths_use_shell_cwd_and_home_and_keep_expansion_when_accepted ... ok
+test composer_real_session_commits_once_in_current_zsh ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.27s
+

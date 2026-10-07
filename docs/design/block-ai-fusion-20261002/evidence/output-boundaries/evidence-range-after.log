@@ -1,0 +1,9 @@
+package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_context_test.dart
+00:00 +0: sparse native rows retain separate ranges and never serialize the gap
+00:00 +1: disjoint range text shares one bounded request budget
+00:00 +2: character truncation cites only retained native rows, including wraps
+00:00 +3: a single oversized native row is explicitly partial and valid Unicode
+00:00 +4: exhausted range budget cannot expose unsent lines as evidence
+00:00 +5: legacy output without a row map does not guess truncated line bounds
+00:00 +6: All tests passed!

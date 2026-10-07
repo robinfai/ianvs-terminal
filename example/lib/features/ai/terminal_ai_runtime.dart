@@ -9,7 +9,8 @@ import 'ai_models.dart';
 import 'terminal_ai_controller.dart';
 
 /// Bridges the agent to the existing PTY. It never creates a second shell.
-class TerminalAiRuntime implements AiTerminalPort {
+class TerminalAiRuntime
+    implements AiTerminalPort, AiBlockReader, AiSubmissionInspector {
   TerminalAiRuntime({
     required this.sessionId,
     required this.runtime,
@@ -32,12 +33,14 @@ class TerminalAiRuntime implements AiTerminalPort {
   late final StreamSubscription<TerminalSessionInputEvent> _subscription;
   int _manualInputEpoch = 0;
   int _submission = 0;
+  final _submissions = <String, String>{};
   bool _disposed = false;
 
   @override
   Stream<void> get userInput => _userInput.stream;
 
-  AiBlockContext blockContext(CommandBlock block) {
+  AiBlockContext blockContext(CommandBlock block, {bool useSnapshot = false}) {
+    if (useSnapshot) return _blockContext(block);
     // Filters in the block reader do not change the error context sent to AI.
     final raw = runtime.commandBlocks(sessionId, {
       'id': block.id,
@@ -45,12 +48,106 @@ class TerminalAiRuntime implements AiTerminalPort {
       'limit': 160,
     });
     final detail = CommandBlock.fromJson(raw?['block']) ?? block;
+    return _blockContext(detail);
+  }
+
+  AiBlockContext _blockContext(CommandBlock detail) =>
+      contextFromSnapshot(detail, sessionId: sessionId);
+
+  /// Converts retained cells without re-reading, filtering, or joining gaps.
+  static AiBlockContext contextFromSnapshot(
+    CommandBlock detail, {
+    required String sessionId,
+    String? blockId,
+  }) {
+    final first = detail.lines.firstOrNull;
+    final ranges = <AiBlockOutputRange>[];
+    var start = 0;
+    for (var end = 1; end <= detail.lines.length; end++) {
+      if (end < detail.lines.length &&
+          detail.lines[end].index == detail.lines[end - 1].index + 1) {
+        continue;
+      }
+      final rows = detail.lines.sublist(start, end);
+      final text = StringBuffer();
+      final offsets = <int>[];
+      for (var i = 0; i < rows.length; i++) {
+        offsets.add(text.length);
+        text.write(rows[i].text);
+        if (i < rows.length - 1 && !rows[i].wrapped) text.writeln();
+      }
+      ranges.add(
+        AiBlockOutputRange(
+          startLine: rows.first.index,
+          endLine: rows.last.index + 1,
+          output: text.toString(),
+          lineStartOffsets: List.unmodifiable(offsets),
+        ),
+      );
+      start = end;
+    }
     return AiBlockContext(
-      command: block.command,
+      id: blockId ?? detail.id,
+      command: detail.command,
       output: detail.visibleOutput,
-      exitCode: block.exitCode,
-      cwd: block.cwd,
+      exitCode: detail.exitCode,
+      cwd: detail.cwd,
+      sourceSessionId: sessionId,
+      sourceContextId: detail.contextId ?? 'root',
+      sourceLineBase: first?.sourceRow == null
+          ? null
+          : first!.sourceRow! - first.index,
+      running: detail.running,
+      totalLines: detail.totalLines,
+      outputStartLine: first?.index ?? detail.offset,
+      outputEndLine: detail.lines.isEmpty
+          ? detail.offset
+          : detail.lines.last.index + 1,
+      evicted: detail.evicted,
+      outputRanges: ranges.length > 1 ? List.unmodifiable(ranges) : const [],
+      lineStartOffsets: ranges.length == 1
+          ? ranges.single.lineStartOffsets
+          : const [],
     );
+  }
+
+  @override
+  String? submissionFor(String actionId) => _submissions[actionId];
+
+  @override
+  Future<Map<String, Object?>> inspectSubmission(String id) async =>
+      runtime.composerRequest(sessionId, 'composer.receipt', {
+        'submissionId': id,
+      }) ??
+      {'submissionId': id, 'outcome': 'unknown'};
+
+  @override
+  Future<AiBlockContext> readBlockRange(
+    String blockId, {
+    required int startLine,
+    required int lineCount,
+    required AiTerminalContext expected,
+  }) async {
+    if (startLine < 0 ||
+        startLine > 1 << 30 ||
+        lineCount < 1 ||
+        lineCount > 500) {
+      throw const AiFailure('invalid_range');
+    }
+    final current = await readContext();
+    if (expected.sessionId != sessionId ||
+        current.contextId != expected.contextId ||
+        current.cwd != expected.cwd) {
+      throw const AiFailure('stale_context');
+    }
+    final response = runtime.commandBlocks(sessionId, {
+      'id': blockId,
+      'offset': startLine,
+      'limit': lineCount,
+    });
+    final block = CommandBlock.fromJson(response?['block']);
+    if (block == null) throw const AiFailure('block_unavailable');
+    return _blockContext(block);
   }
 
   @override
@@ -86,6 +183,20 @@ class TerminalAiRuntime implements AiTerminalPort {
     return AiTerminalContext(
       sessionId: sessionId,
       contextId: contextId,
+      targetLabel: pane.title,
+      commandNames: {
+        if (state?['commandNames'] case final List<Object?> names)
+          ...names.whereType<String>(),
+      },
+      aliases: {
+        if (state?['aliases'] case final Map<Object?, Object?> aliases)
+          for (final entry in aliases.entries)
+            if (entry case MapEntry(
+              key: final String name,
+              value: final String expansion,
+            ))
+              name: expansion,
+      },
       guard: jsonEncode([
         sessionId,
         contextId,
@@ -121,6 +232,7 @@ class TerminalAiRuntime implements AiTerminalPort {
     AiCancellation cancellation,
   ) async {
     cancellation.check();
+    if (!action.writesInput) throw const AiFailure('invalid_action');
     final current = await readContext();
     cancellation.check();
     if (current.readOnly || runtime.isZmodemTransferActive(sessionId)) {
@@ -132,6 +244,7 @@ class TerminalAiRuntime implements AiTerminalPort {
         throw const AiFailure('shell_not_ready');
       }
       final id = 'ai-${DateTime.now().microsecondsSinceEpoch}-${_submission++}';
+      _submissions[action.id] = id;
       final result = runtime.composerRequest(sessionId, 'composer.submit', {
         'lease': current.readyLease,
         'submissionId': id,
@@ -202,7 +315,15 @@ class TerminalAiRuntime implements AiTerminalPort {
       if (fresh.guard != current.guard && fresh.canRunCommand) break;
       if (stable >= 3 && fresh.alternateScreen) break;
     } while (DateTime.now().isBefore(deadline));
-    return {'status': 'input_sent', 'terminal_context': fresh.toJson()};
+    final id = _submissions[action.id];
+    final receipt = id == null ? null : await inspectSubmission(id);
+    return {
+      'status': 'input_sent',
+      'terminal_context': fresh.toJson(),
+      'submission_id': ?id,
+      if (receipt?['blockId'] != null) 'block_id': receipt!['blockId'],
+      'submission_receipt': ?receipt,
+    };
   }
 
   @override

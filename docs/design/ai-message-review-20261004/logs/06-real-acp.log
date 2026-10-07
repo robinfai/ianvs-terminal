@@ -1,0 +1,30 @@
+package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/integration_test/terminal_ai_acp_design_test.dart
+Building macOS application...                                   
+integration_test/terminal_ai_acp_design_test.dart:159:25: Error: Undefined name 'CommandBlockReader'.
+        if (find.byType(CommandBlockReader).evaluate().isNotEmpty) {
+                        ^^^^^^^^^^^^^^^^^^
+Target kernel_snapshot_program failed: Exception
+Failed to package /Users/robinfai/flutter_projects/ianvs-terminal/example.
+Command PhaseScriptExecution failed with a nonzero exit code
+** BUILD FAILED **
+
+00:00 +0 -1: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/integration_test/terminal_ai_acp_design_test.dart [E]
+  Failed to load "/Users/robinfai/flutter_projects/ianvs-terminal/example/integration_test/terminal_ai_acp_design_test.dart": Build process failed
+  package:flutter_tools/src/base/common.dart 34:3                    throwToolExit
+  package:flutter_tools/src/macos/build_macos.dart 271:5             buildMacOS
+  ===== asynchronous gap ===========================
+  package:flutter_tools/src/macos/macos_device.dart 67:5             MacOSDevice.buildForDevice
+  ===== asynchronous gap ===========================
+  package:flutter_tools/src/desktop_device.dart 108:7                DesktopDevice.startApp
+  ===== asynchronous gap ===========================
+  package:flutter_tools/src/test/integration_test_device.dart 57:39  IntegrationTestTestDevice.start
+  ===== asynchronous gap ===========================
+  package:flutter_tools/src/test/flutter_platform.dart 680:51        FlutterPlatform._startTest.<fn>
+  ===== asynchronous gap ===========================
+  package:flutter_tools/src/base/async_guard.dart 108:24             asyncGuard.<fn>
+  
+00:00 +0 -1: Some tests failed.
+
+Failing tests:
+  /Users/robinfai/flutter_projects/ianvs-terminal/example/integration_test/terminal_ai_acp_design_test.dart: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/integration_test/terminal_ai_acp_design_test.dart

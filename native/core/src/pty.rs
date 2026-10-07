@@ -788,6 +788,14 @@ __ianvs_install_shell_hooks() {
   __ianvs_emit_shell_hook() {
     emulate -L zsh
     local __ianvs_json="$1"
+    if [[ "$1" == *'"hook":"preexec"'* && -n ${__ianvs_pending_submission:-} ]]; then
+      if [[ -n ${__ianvs_pending_command+x} ]]; then
+        __ianvs_last_command=$__ianvs_pending_command
+        __ianvs_json="{\"hook\":\"preexec\",\"command\":\"$(__ianvs_json_escape "$__ianvs_pending_command")\",\"shell\":\"zsh\"}"
+      fi
+      __ianvs_json="${__ianvs_json%\}},\"submission_id\":\"$__ianvs_pending_submission\"}"
+      unset __ianvs_pending_submission __ianvs_pending_command
+    fi
     local __ianvs_hex
     __ianvs_hex=$(builtin printf '%s' "$__ianvs_json" | command od -An -tx1 -v 2>/dev/null | command tr -d ' \n' 2>/dev/null) || return 0
     [[ -n "$__ianvs_hex" ]] || return 0
@@ -893,6 +901,14 @@ __ianvs_json_escape() {
 
 __ianvs_emit_shell_hook() {
   local __ianvs_json="$1"
+  if [[ "$1" == *'"hook":"preexec"'* && -n ${__ianvs_pending_submission:-} ]]; then
+    if [[ -n ${__ianvs_pending_command+x} ]]; then
+      __ianvs_last_command=$__ianvs_pending_command
+      __ianvs_json="{\"hook\":\"preexec\",\"command\":\"$(__ianvs_json_escape "$__ianvs_pending_command")\",\"shell\":\"bash\"}"
+    fi
+    __ianvs_json="${__ianvs_json%\}},\"submission_id\":\"$__ianvs_pending_submission\"}"
+    unset __ianvs_pending_submission __ianvs_pending_command
+  fi
   local __ianvs_hex
   __ianvs_hex=$(printf '%s' "$__ianvs_json" | command od -An -tx1 -v 2>/dev/null | command tr -d ' \n' 2>/dev/null) || return 0
   [[ -n "$__ianvs_hex" ]] || return 0

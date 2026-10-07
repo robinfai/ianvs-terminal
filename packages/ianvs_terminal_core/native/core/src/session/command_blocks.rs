@@ -55,7 +55,7 @@ pub(super) fn snapshot(terminal: &Terminal, request: &Value) -> Value {
     json!({"blocks": blocks, "omittedBlocks": omitted, "alternateScreen": false})
 }
 
-fn identity(zone: &Zone) -> String {
+pub(super) fn identity(zone: &Zone) -> String {
     format!("{}-{}", zone.timestamp.unwrap_or_default(), zone.id)
 }
 
@@ -214,6 +214,7 @@ fn read_block(
     }
     Ok(
         json!({"id": identity(zone), "command": zone.command, "cwd": zone.cwd,
+        "submissionId": zone.submission_id, "contextId": zone.context_id,
         "startedAt": zone.timestamp, "finishedAt": zone.finished_at,
         "exitCode": zone.exit_code, "running": zone.is_open(),
         "totalLines": count, "matchingLines": total, "offset": offset,
@@ -267,6 +268,40 @@ mod tests {
         assert_eq!(snap["blocks"][0]["lines"], json!([]));
     }
     #[test]
+    fn composer_limit_preserves_literal_command_after_json_and_hex_encoding() {
+        let mut term = Terminal::new(80, 24);
+        let text = format!("printf '%s' '{}'; true", "\\\"\t\n".repeat(16_379));
+        let text = format!("{text}{}", " ".repeat(65_536 - text.len()));
+        assert_eq!(text.len(), 65_536);
+        hook(&mut term, json!({"hook":"precmd"}));
+        hook(
+            &mut term,
+            json!({"hook":"preexec", "command":text,
+            "submission_id":"compound-limit", "context_id":"ssh-context"}),
+        );
+        term.process(b"done\r\n");
+        hook(&mut term, json!({"hook":"command_finished", "exit_code":0}));
+        let snap = snapshot(&term, &json!({}));
+        assert_eq!(snap["blocks"].as_array().unwrap().len(), 1);
+        assert_eq!(snap["blocks"][0]["command"], text);
+        assert_eq!(snap["blocks"][0]["submissionId"], "compound-limit");
+        let page = snapshot(&term, &json!({"id":snap["blocks"][0]["id"]}));
+        assert_eq!(page["block"]["command"], text);
+        assert_eq!(page["block"]["lines"][0]["text"], "done");
+    }
+    #[test]
+    fn oversized_command_and_hook_are_rejected_without_poisoning_next_block() {
+        let mut term = Terminal::new(80, 24);
+        for text in ["x".repeat(65_537), "\\".repeat(100_000)] {
+            hook(&mut term, json!({"hook":"preexec", "command":text}));
+            assert_eq!(snapshot(&term, &json!({}))["blocks"], json!([]));
+        }
+        command(&mut term, "printf recovered", b"recovered", 0);
+        let snap = snapshot(&term, &json!({}));
+        assert_eq!(snap["blocks"].as_array().unwrap().len(), 1);
+        assert_eq!(snap["blocks"][0]["command"], "printf recovered");
+    }
+    #[test]
     fn filtering_is_reversible_with_context_and_invalid_regex() {
         let mut term = Terminal::new(80, 24);
         command(
@@ -303,6 +338,69 @@ mod tests {
         assert_eq!(snapshot(&term, &json!({}))["blocks"][0]["running"], true);
         term.process(b"\x1b[?1049h");
         assert_eq!(snapshot(&term, &json!({}))["alternateScreen"], true);
+    }
+
+    #[test]
+    fn main_screen_tui_clear_preserves_completed_blocks_without_repeating_history() {
+        let mut term = Terminal::with_scrollback(80, 24, 100);
+        command(&mut term, "ls", b"first\r\n", 0);
+        command(&mut term, "ls", b"second\r\n", 0);
+        let before = snapshot(&term, &json!({}))["blocks"].clone();
+        hook(&mut term, json!({"hook":"preexec", "command":"top"}));
+        term.process(b"\x1b[H\x1b[2JTasks: initial");
+        let after = snapshot(&term, &json!({}));
+        assert_eq!(
+            &after["blocks"].as_array().unwrap()[..2],
+            before.as_array().unwrap()
+        );
+        let retained = term.grid().scrollback_len();
+        let absolute = term.grid().total_lines_scrolled();
+        for _ in 0..5 {
+            term.process(b"\x1b[H\x1b[2JTasks: redraw");
+            assert_eq!(term.grid().scrollback_len(), retained);
+            assert_eq!(term.grid().total_lines_scrolled(), absolute);
+            let current = snapshot(&term, &json!({}));
+            assert_eq!(
+                &current["blocks"].as_array().unwrap()[..2],
+                before.as_array().unwrap()
+            );
+        }
+        hook(&mut term, json!({"hook":"command_finished", "exit_code":0}));
+        term.process(b"\x1b[?1049h\x1b[2Jvim\x1b[?1049l");
+        let returned = snapshot(&term, &json!({}));
+        assert_eq!(
+            &returned["blocks"].as_array().unwrap()[..2],
+            before.as_array().unwrap()
+        );
+        assert_eq!(returned["blocks"][2]["command"], "top");
+        assert_eq!(returned["blocks"][2]["exitCode"], 0);
+    }
+
+    #[test]
+    fn display_clear_retention_obeys_history_limit_and_explicit_history_clear() {
+        let mut term = Terminal::with_scrollback(80, 6, 8);
+        for index in 0..8 {
+            command(&mut term, &format!("printf {index}"), b"output\r\n", 0);
+            term.process(b"\x1b[H\x1b[2J");
+            assert!(term.grid().scrollback_len() <= 8);
+            let floor = term.grid().total_lines_scrolled() - term.grid().scrollback_len();
+            assert!(
+                term.get_zones()
+                    .iter()
+                    .all(|z| z.is_open() || z.abs_row_end >= floor)
+            );
+        }
+        term.process(b"\x1b[3J");
+        assert_eq!(snapshot(&term, &json!({}))["blocks"], json!([]));
+
+        let mut raw = Terminal::with_scrollback(80, 24, 100);
+        raw.process(b"plain output\x1b[2J");
+        assert_eq!(raw.grid().scrollback_len(), 0);
+        let mut no_history = Terminal::with_scrollback(80, 24, 0);
+        command(&mut no_history, "ls", b"no retained output\r\n", 0);
+        no_history.process(b"\x1b[2J");
+        assert_eq!(no_history.grid().scrollback_len(), 0);
+        assert_eq!(snapshot(&no_history, &json!({}))["blocks"], json!([]));
     }
 
     #[test]

@@ -18,6 +18,12 @@ class CommandBlockTerminal extends StatefulWidget {
     this.scrollOutput = true,
     this.scrollHorizontally = true,
     this.requestLiveFocus = true,
+    this.selectionController,
+    this.onCopySelection,
+    this.selectionHitTest,
+    this.canScrollSelection,
+    this.captureSelectionText,
+    this.highlightedRow,
   });
   final CommandBlock block;
   final TerminalInputController? liveInput;
@@ -35,28 +41,36 @@ class CommandBlockTerminal extends StatefulWidget {
   final bool scrollOutput;
   final bool scrollHorizontally;
   final bool requestLiveFocus;
+  final SelectionController? selectionController;
+
+  /// Readers can resolve a shared selection across native output pages.
+  final Future<void> Function()? onCopySelection;
+  final TerminalSelectionTarget? Function(Offset globalPosition)?
+  selectionHitTest;
+  final bool Function(int deltaLines)? canScrollSelection;
+  final Future<String> Function()? captureSelectionText;
+
+  /// A reader's current find result, independent of its copy/attachment selection.
+  final int? highlightedRow;
   @override
   State<CommandBlockTerminal> createState() => _CommandBlockTerminalState();
 }
 
 class _CommandBlockTerminalState extends State<CommandBlockTerminal> {
   final _viewport = TerminalViewportController();
-  final _selection = SelectionController();
+  late final SelectionController _selection =
+      widget.selectionController ?? SelectionController();
   final _scroll = ScrollController();
+  final _tailFollow = _CommandTailFollow();
   bool _followTail = true;
   Size? _cell;
   late TerminalInputController _input;
   @override
   void initState() {
     super.initState();
-    _scroll.addListener(_scrolled);
     _updateFrame();
     _followOutput();
     if (widget.block.running) _focusRunning();
-  }
-
-  void _scrolled() {
-    if (_scroll.position.extentAfter >= 1) _followTail = false;
   }
 
   void _followOutput() => WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -71,7 +85,8 @@ class _CommandBlockTerminalState extends State<CommandBlockTerminal> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.block != widget.block ||
         oldWidget.modes != widget.modes ||
-        oldWidget.liveInput != widget.liveInput) {
+        oldWidget.liveInput != widget.liveInput ||
+        oldWidget.onCopySelection != widget.onCopySelection) {
       _updateFrame();
       _followOutput();
     }
@@ -151,6 +166,7 @@ class _CommandBlockTerminalState extends State<CommandBlockTerminal> {
     final live = block.running ? widget.liveInput : null;
     _input = live == null
         ? _ReadOnlyBlockInput(
+            copyRange: widget.onCopySelection,
             sessionId: block.id,
             runtime: const _ReadOnlyBlockSink(),
             readFrame: () => _viewport.frame,
@@ -173,7 +189,7 @@ class _CommandBlockTerminalState extends State<CommandBlockTerminal> {
   @override
   void dispose() {
     _viewport.dispose();
-    _selection.dispose();
+    if (widget.selectionController == null) _selection.dispose();
     _scroll.dispose();
     super.dispose();
   }
@@ -206,8 +222,23 @@ class _CommandBlockTerminalState extends State<CommandBlockTerminal> {
             child: TerminalViewport(
               controller: _viewport,
               selectionController: _selection,
+              searchMatches: [
+                for (var i = 0; i < widget.block.lines.length; i++)
+                  if (widget.block.lines[i].index == widget.highlightedRow)
+                    TerminalSearchMatch(
+                      row: widget.block.lines[i].index,
+                      startCol: 0,
+                      endCol: widget.block.columns,
+                      text: widget.block.lines[i].text,
+                      scrollbackOffset: 0,
+                    ),
+              ],
+              activeSearchMatchIndex: 0,
               inputController: _input,
               readOnly: widget.liveInput == null,
+              selectionHitTest: widget.selectionHitTest,
+              canScrollSelection: widget.canScrollSelection,
+              captureSelectionText: widget.captureSelectionText,
               focusNode: widget.block.running ? widget.liveFocus : null,
               onScrollLines: widget.onScrollLines ?? (_) {},
               onScrollToOffset: (_) {},
@@ -247,11 +278,16 @@ class _CommandBlockTerminalState extends State<CommandBlockTerminal> {
           );
         }
         if (widget.scrollOutput) {
-          output = NotificationListener<ScrollStartNotification>(
-            onNotification: (notification) {
-              if (notification.dragDetails != null) _followTail = false;
-              return false;
-            },
+          output = NotificationListener<ScrollNotification>(
+            onNotification: (notification) => _tailFollow.handle(
+              notification,
+              distance: cellHeight * 2,
+              detach: () => _followTail = false,
+              attach: () {
+                _followTail = true;
+                _followOutput();
+              },
+            ),
             child: Scrollbar(
               controller: _scroll,
               child: SingleChildScrollView(
@@ -280,6 +316,7 @@ class _ReadOnlyBlockSink implements TerminalInputSink {
 
 class _ReadOnlyBlockInput extends TerminalInputController {
   _ReadOnlyBlockInput({
+    this.copyRange,
     required super.sessionId,
     required super.runtime,
     required super.readFrame,
@@ -287,6 +324,9 @@ class _ReadOnlyBlockInput extends TerminalInputController {
     required super.copySelection,
     required super.readClipboard,
   });
+  final Future<void> Function()? copyRange;
+  @override
+  Future<void> copySelection() => copyRange?.call() ?? super.copySelection();
   @override
   KeyEventResult handle(KeyEvent event) {
     final keys = HardwareKeyboard.instance;

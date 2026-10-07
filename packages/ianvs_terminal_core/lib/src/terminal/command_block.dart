@@ -1,6 +1,34 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 
 import 'terminal_models.dart';
+
+/// An immutable range in an earlier native output snapshot. Bounds are
+/// zero-based and end-exclusive; the source base survives scrollback eviction.
+@immutable
+class CommandBlockReadRange {
+  const CommandBlockReadRange({
+    required this.startLine,
+    required this.endLine,
+    this.sourceLineBase,
+  });
+  final int startLine;
+  final int endLine;
+  final int? sourceLineBase;
+
+  int? resolveStart(CommandBlock? current) {
+    if (current == null || startLine < 0 || endLine <= startLine) return null;
+    final base = current.sourceLineBase;
+    if (sourceLineBase != null && base == null ||
+        sourceLineBase == null && current.evicted) {
+      return null;
+    }
+    final delta = sourceLineBase == null ? 0 : sourceLineBase! - base!;
+    final start = startLine + delta;
+    return start < 0 || endLine + delta > current.totalLines ? null : start;
+  }
+}
 
 @immutable
 class CommandBlock {
@@ -9,6 +37,8 @@ class CommandBlock {
     required this.command,
     this.cwd = '',
     this.exitCode,
+    this.submissionId,
+    this.contextId,
     this.startedAt,
     this.finishedAt,
     this.running = false,
@@ -28,6 +58,8 @@ class CommandBlock {
   final String command;
   final String cwd;
   final int? exitCode;
+  final String? submissionId;
+  final String? contextId;
   final int? startedAt;
   final int? finishedAt;
   final bool running;
@@ -41,6 +73,11 @@ class CommandBlock {
   final int columns;
   final int cursorLine;
   final int cursorColumn;
+
+  int? get sourceLineBase {
+    final first = lines.firstOrNull;
+    return first?.sourceRow == null ? null : first!.sourceRow! - first.index;
+  }
 
   int? get durationMs => startedAt == null || finishedAt == null
       ? null
@@ -65,7 +102,10 @@ class CommandBlock {
     if (id is! String ||
         id.isEmpty ||
         id.length > 128 ||
-        command != null && (command is! String || command.length > 16384)) {
+        command != null &&
+            (command is! String ||
+                command.length > 65536 ||
+                utf8.encode(command).length > 65536)) {
       return null;
     }
     int count(String key) => switch (value[key]) {
@@ -80,6 +120,8 @@ class CommandBlock {
       command: command as String? ?? '',
       cwd: value['cwd'] is String ? value['cwd']! as String : '',
       exitCode: optional('exitCode'),
+      submissionId: value['submissionId'] as String?,
+      contextId: value['contextId'] as String?,
       startedAt: optional('startedAt'),
       finishedAt: optional('finishedAt'),
       running: value['running'] == true,

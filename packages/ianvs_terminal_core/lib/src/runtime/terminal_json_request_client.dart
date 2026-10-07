@@ -54,6 +54,7 @@ final class TerminalJsonRequestClient {
       'completion.local_cancel',
       'composer.state',
       'composer.submit',
+      'composer.receipt',
     }.contains(operation)) {
       throw ArgumentError.value(operation, 'operation');
     }

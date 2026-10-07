@@ -1,0 +1,24 @@
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/composer/composer_theme_test.dart
+00:00 +0: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/composer/composer_theme_test.dart: paired roles are readable: Brightness.dark / false
+00:00 +1: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/composer/composer_theme_test.dart: paired roles are readable: Brightness.dark / true
+00:00 +2: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/composer/composer_theme_test.dart: paired roles are readable: Brightness.light / false
+00:00 +3: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/composer/composer_theme_test.dart: paired roles are readable: Brightness.light / true
+00:00 +4: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/composer/composer_theme_test.dart: host override follows contrast changes and preserves text scale
+00:00 +5: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_reader_tools_test.dart: find keeps context and selection across native pages
+00:00 +6: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_reader_tools_test.dart: find keeps context and selection across native pages
+00:00 +7: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_reader_tools_test.dart: find keeps context and selection across native pages
+00:00 +8: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_reader_tools_test.dart: find keeps context and selection across native pages
+00:00 +9: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_reader_tools_test.dart: find keeps context and selection across native pages
+00:00 +10: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_reader_tools_test.dart: find keeps context and selection across native pages
+00:01 +11: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_mobile_test.dart: touch reader crosses native pages without jumping or opening IME (variant: TargetPlatform.iOS)
+00:01 +12: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_mobile_test.dart: touch reader crosses native pages without jumping or opening IME (variant: TargetPlatform.iOS)
+00:01 +13: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_mobile_test.dart: touch reader crosses native pages without jumping or opening IME (variant: TargetPlatform.iOS)
+00:01 +14: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_mobile_test.dart: touch reader crosses native pages without jumping or opening IME (variant: TargetPlatform.iOS)
+00:01 +15: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_mobile_test.dart: touch reader crosses native pages without jumping or opening IME (variant: TargetPlatform.iOS)
+00:02 +16: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_mobile_test.dart: touch reader crosses native pages without jumping or opening IME (variant: TargetPlatform.iOS)
+00:02 +17: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_mobile_test.dart: touch reader crosses native pages without jumping or opening IME (variant: TargetPlatform.iOS)
+00:02 +18: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_mobile_test.dart: running output pauses follow on touch and resumes only explicitly (variant: TargetPlatform.iOS)
+00:03 +19: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_mobile_test.dart: large dark text supports compact previews and reader at Size(360.0, 640.0) (variant: TargetPlatform.iOS)
+00:03 +20: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_mobile_test.dart: large dark text supports compact previews and reader at Size(844.0, 390.0) (variant: TargetPlatform.iOS)
+00:03 +21: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_mobile_test.dart: large dark text supports compact previews and reader at Size(360.0, 330.0) (variant: TargetPlatform.iOS)
+00:03 +22: All tests passed!

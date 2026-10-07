@@ -4289,7 +4289,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get developmentMasterKeyStorageDescription =>
-      '开发版主密钥仅存储在此 Mac 的本机钥匙串中，不同步到 iCloud，也不与正式版共享。';
+      '开发版主密钥存储在仅当前用户可读写的本地文件中，不访问钥匙串，不同步到 iCloud，也不与正式版共享。';
 
   @override
   String get syncLocalOnly => '数据保存在本机，API 同步为可选功能。';
@@ -4992,10 +4992,32 @@ class AppLocalizationsZh extends AppLocalizations {
   String get terminalModeBlocks => '命令块';
 
   @override
+  String get terminalModeRecheck => '重新检查命令块支持情况';
+
+  @override
+  String get terminalModeSupportAvailable => '当前节点支持命令块。';
+
+  @override
   String get preferredTerminalMode => '优先终端模式';
 
   @override
-  String get preferredTerminalModeHelp => '用于新会话。命令块需要当前 Shell 支持，可右键标签页手动切换。';
+  String get terminalModePlatformDefault => '跟随平台默认';
+
+  @override
+  String get aiConfigurationLoading => '正在读取已保存的配置…';
+
+  @override
+  String get aiConfigurationUnreadable => '无法读取已保存的配置。终端功能仍可使用。';
+
+  @override
+  String get aiConfigurationMissing => '尚未配置。终端功能可以独立使用。';
+
+  @override
+  String get aiConfigurationSaved => '配置已保存。打开可编辑或测试连接。';
+
+  @override
+  String get preferredTerminalModeHelp =>
+      '仅用于新会话。平台默认：手机使用命令块，桌面使用普通终端。命令块需要当前 Shell 支持；能力恢复后需在标签页或会话菜单手动切回。';
 
   @override
   String get blockUnavailableChecking => '正在检测 Shell 支持…';

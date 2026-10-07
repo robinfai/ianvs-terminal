@@ -1,0 +1,139 @@
+[
+  {
+    "task": "large-scale-text-editing",
+    "runner_exit": 0,
+    "rewards": {
+      "reward": 1.0
+    },
+    "exception": null,
+    "started_at": "2026-10-03T06:51:08.058673Z",
+    "finished_at": "2026-10-03T07:02:21.968384Z",
+    "result_file": "tmp/terminal-bench/acp-2-1/sol56-postfix-round2/jobs/large-scale-text-editing/large-scale-text-editing__ySHHzw4/result.json"
+  },
+  {
+    "task": "log-summary-date-ranges",
+    "runner_exit": 0,
+    "rewards": {
+      "reward": 1.0
+    },
+    "exception": null,
+    "started_at": "2026-10-03T07:02:24.277941Z",
+    "finished_at": "2026-10-03T07:06:59.838047Z",
+    "result_file": "tmp/terminal-bench/acp-2-1/sol56-postfix-round2/jobs/log-summary-date-ranges/log-summary-date-ranges__jsF34kP/result.json"
+  },
+  {
+    "task": "multi-source-data-merger",
+    "runner_exit": 0,
+    "rewards": {
+      "reward": 1.0
+    },
+    "exception": null,
+    "started_at": "2026-10-03T07:07:01.806077Z",
+    "finished_at": "2026-10-03T07:09:49.623721Z",
+    "result_file": "tmp/terminal-bench/acp-2-1/sol56-postfix-round2/jobs/multi-source-data-merger/multi-source-data-merger__qUBoZcw/result.json"
+  },
+  {
+    "task": "fix-git",
+    "runner_exit": 0,
+    "rewards": {
+      "reward": 1.0
+    },
+    "exception": null,
+    "started_at": "2026-10-03T07:09:51.405927Z",
+    "finished_at": "2026-10-03T07:12:42.127530Z",
+    "result_file": "tmp/terminal-bench/acp-2-1/sol56-postfix-round2/jobs/fix-git/fix-git__tJJPxZL/result.json"
+  },
+  {
+    "task": "merge-diff-arc-agi-task",
+    "runner_exit": 0,
+    "rewards": {
+      "reward": 1.0
+    },
+    "exception": null,
+    "started_at": "2026-10-03T07:12:43.971663Z",
+    "finished_at": "2026-10-03T07:20:23.731438Z",
+    "result_file": "tmp/terminal-bench/acp-2-1/sol56-postfix-round2/jobs/merge-diff-arc-agi-task/merge-diff-arc-agi-task__L5bcRrE/result.json"
+  },
+  {
+    "task": "sqlite-db-truncate",
+    "runner_exit": 0,
+    "rewards": {
+      "reward": 1.0
+    },
+    "exception": null,
+    "started_at": "2026-10-03T07:20:25.515737Z",
+    "finished_at": "2026-10-03T07:22:49.340272Z",
+    "result_file": "tmp/terminal-bench/acp-2-1/sol56-postfix-round2/jobs/sqlite-db-truncate/sqlite-db-truncate__APhKMrD/result.json"
+  },
+  {
+    "task": "build-pmars",
+    "runner_exit": 0,
+    "rewards": {
+      "reward": 1.0
+    },
+    "exception": null,
+    "started_at": "2026-10-03T07:22:51.262855Z",
+    "finished_at": "2026-10-03T07:27:44.853206Z",
+    "result_file": "tmp/terminal-bench/acp-2-1/sol56-postfix-round2/jobs/build-pmars/build-pmars__VPh83SV/result.json"
+  },
+  {
+    "task": "compile-compcert",
+    "runner_exit": 0,
+    "rewards": {
+      "reward": 0.0
+    },
+    "exception": {
+      "exception_type": "AgentTimeoutError",
+      "exception_message": "Agent execution timed out after 2400.0 seconds",
+      "exception_traceback": "Traceback (most recent call last):\n  File \"/Users/robinfai/.local/share/uv/python/cpython-3.12.11-macos-aarch64-none/lib/python3.12/asyncio/tasks.py\", line 520, in wait_for\n    return await fut\n           ^^^^^^^^^\n  File \"/Users/robinfai/flutter_projects/ianvs-terminal/tools/terminal_bench/acp_agent.py\", line 124, in run\n    code = await process.wait()\n           ^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/robinfai/.local/share/uv/python/cpython-3.12.11-macos-aarch64-none/lib/python3.12/asyncio/subprocess.py\", line 137, in wait\n    return await self._transport._wait()\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/robinfai/.local/share/uv/python/cpython-3.12.11-macos-aarch64-none/lib/python3.12/asyncio/base_subprocess.py\", line 230, in _wait\n    return await waiter\n           ^^^^^^^^^^^^\nasyncio.exceptions.CancelledError\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/Users/robinfai/flutter_projects/ianvs-terminal/tmp/terminal-bench/venv/lib/python3.12/site-packages/harbor/trial/trial.py\", line 554, in _run_agent_phase\n    await asyncio.wait_for(\n  File \"/Users/robinfai/.local/share/uv/python/cpython-3.12.11-macos-aarch64-none/lib/python3.12/asyncio/tasks.py\", line 519, in wait_for\n    async with timeouts.timeout(timeout):\n               ^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/robinfai/.local/share/uv/python/cpython-3.12.11-macos-aarch64-none/lib/python3.12/asyncio/timeouts.py\", line 115, in __aexit__\n    raise TimeoutError from exc_val\nTimeoutError\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/Users/robinfai/flutter_projects/ianvs-terminal/tmp/terminal-bench/venv/lib/python3.12/site-packages/harbor/trial/single_step.py\", line 77, in _run_agent\n    await self._run_agent_phase(\n  File \"/Users/robinfai/flutter_projects/ianvs-terminal/tmp/terminal-bench/venv/lib/python3.12/site-packages/harbor/trial/trial.py\", line 563, in _run_agent_phase\n    raise AgentTimeoutError(\nharbor.trial.errors.AgentTimeoutError: Agent execution timed out after 2400.0 seconds\n",
+      "occurred_at": "2026-10-03T08:07:48.117118Z"
+    },
+    "started_at": "2026-10-03T07:27:46.643296Z",
+    "finished_at": "2026-10-03T08:08:39.426968Z",
+    "result_file": "tmp/terminal-bench/acp-2-1/sol56-postfix-round2/jobs/compile-compcert/compile-compcert__Z5REtZ7/result.json"
+  },
+  {
+    "task": "sqlite-with-gcov",
+    "runner_exit": 0,
+    "rewards": {
+      "reward": 0.0
+    },
+    "exception": null,
+    "started_at": "2026-10-03T08:08:42.024201Z",
+    "finished_at": "2026-10-03T08:17:04.539405Z",
+    "result_file": "tmp/terminal-bench/acp-2-1/sol56-postfix-round2/jobs/sqlite-with-gcov/sqlite-with-gcov__qv6R2GR/result.json"
+  },
+  {
+    "task": "nginx-request-logging",
+    "runner_exit": 0,
+    "rewards": {
+      "reward": 1.0
+    },
+    "exception": null,
+    "started_at": "2026-10-03T08:17:06.870521Z",
+    "finished_at": "2026-10-03T08:21:39.291298Z",
+    "result_file": "tmp/terminal-bench/acp-2-1/sol56-postfix-round2/jobs/nginx-request-logging/nginx-request-logging__YVmsW8M/result.json"
+  },
+  {
+    "task": "openssl-selfsigned-cert",
+    "runner_exit": 0,
+    "rewards": {
+      "reward": 1.0
+    },
+    "exception": null,
+    "started_at": "2026-10-03T08:21:41.735880Z",
+    "finished_at": "2026-10-03T08:26:01.858813Z",
+    "result_file": "tmp/terminal-bench/acp-2-1/sol56-postfix-round2/jobs/openssl-selfsigned-cert/openssl-selfsigned-cert__nWefzBC/result.json"
+  },
+  {
+    "task": "configure-git-webserver",
+    "runner_exit": 0,
+    "rewards": {
+      "reward": 0.0
+    },
+    "exception": null,
+    "started_at": "2026-10-03T08:26:04.207305Z",
+    "finished_at": "2026-10-03T08:29:32.754255Z",
+    "result_file": "tmp/terminal-bench/acp-2-1/sol56-postfix-round2/jobs/configure-git-webserver/configure-git-webserver__2BQhXwu/result.json"
+  }
+]

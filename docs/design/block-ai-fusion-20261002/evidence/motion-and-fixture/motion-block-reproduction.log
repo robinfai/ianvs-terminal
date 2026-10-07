@@ -1,0 +1,58 @@
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_motion_test.dart
+00:00 +0: block overlays respect motion and return focus: TargetPlatform.macOS / false
+00:00 +1: block overlays respect motion and return focus: TargetPlatform.macOS / true
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: Rect:<Rect.fromLTRB(0.0, 0.0, 960.0, 800.0)>
+  Actual: Rect:<Rect.fromLTRB(960.0, 0.0, 1920.0, 800.0)>
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_motion_test.dart:101:13)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_motion_test.dart line 101
+The test description was:
+  block overlays respect motion and return focus: TargetPlatform.macOS / true
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:01 +1 -1: block overlays respect motion and return focus: TargetPlatform.macOS / true [E]
+  Test failed. See exception logs above.
+  The test description was: block overlays respect motion and return focus: TargetPlatform.macOS / true
+  
+00:01 +1 -1: block overlays respect motion and return focus: TargetPlatform.iOS / false
+00:01 +2 -1: block overlays respect motion and return focus: TargetPlatform.iOS / true
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: Rect:<Rect.fromLTRB(0.0, 0.0, 390.0, 844.0)>
+  Actual: Rect:<Rect.fromLTRB(390.0, 0.0, 780.0, 844.0)>
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_motion_test.dart:101:13)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_motion_test.dart line 101
+The test description was:
+  block overlays respect motion and return focus: TargetPlatform.iOS / true
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:01 +2 -2: block overlays respect motion and return focus: TargetPlatform.iOS / true [E]
+  Test failed. See exception logs above.
+  The test description was: block overlays respect motion and return focus: TargetPlatform.iOS / true
+  
+00:01 +2 -2: Some tests failed.
+
+Failing tests:
+  /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_motion_test.dart: block overlays respect motion and return focus: TargetPlatform.iOS / true
+  /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_motion_test.dart: block overlays respect motion and return focus: TargetPlatform.macOS / true

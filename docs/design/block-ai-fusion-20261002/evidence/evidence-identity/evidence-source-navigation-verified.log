@@ -1,0 +1,11 @@
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart
+00:00 +0: citation retains source row and bypasses saved filter (phone false)
+00:00 +1: citation retains source row and bypasses saved filter (phone true)
+00:00 +2: citation cannot drift when source is evicted during before click
+00:00 +3: citation cannot drift when source is evicted during partial range
+00:00 +4: citation cannot drift when source is evicted during keyboard dismissal
+00:00 +5: citation cannot drift when source is evicted during native page
+00:00 +6: overlapping citations from different retained versions remain ambiguous
+00:01 +7: retained citation recovers its target after a page changes version
+00:01 +8: reconnected sessions with equal native IDs open the quoted source
+00:01 +9: All tests passed!

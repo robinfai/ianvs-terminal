@@ -106,12 +106,22 @@ void read() {
   final escaped = Platform.environment['IANVS_SECRET'];
 }
 ''';
+    const acpSource = '''
+import 'dart:io';
+void read() {
+  final home = Platform.environment['CODEX_HOME'];
+  final path = Platform.environment['PATH'];
+  final escaped = Platform.environment['OPENAI_BASE_URL'];
+  final all = Platform.environment;
+}
+''';
     final violations = <String>[];
     for (final fixture in <(String, String)>[
       ('lib/features/profiles/profile_models.dart', profileSource),
       ('lib/features/sessions/session_controller.dart', sessionSource),
       ('lib/features/ssh/ssh_profile_import_service.dart', sshImportSource),
       ('lib/features/shell/shell_screen_sidebar.dart', sshImportSource),
+      ('lib/features/ai/acp/codex_acp_backend.dart', acpSource),
     ]) {
       final result = parseString(
         path: fixture.$1,
@@ -122,7 +132,7 @@ void read() {
       result.unit.accept(_ForbiddenEnvironmentVisitor(fixture.$1, violations));
     }
 
-    expect(violations, hasLength(4));
+    expect(violations, hasLength(6));
     expect(
       violations,
       contains(contains('features/profiles/profile_models.dart')),
@@ -301,6 +311,20 @@ bool _isAllowedNonDataEnvironmentUse(String path, AstNode node) {
   if (path.endsWith('features/shell/shell_screen_sidebar.dart')) {
     // Local cwd display abbreviates HOME to ~; this cannot configure the API.
     return key == 'HOME';
+  }
+  if (path.endsWith('features/ai/acp/codex_acp_backend.dart')) {
+    // The local child process needs a narrow executable/locale environment
+    // and the existing Codex login path. None configure the application's
+    // Data API. Full environment copies and provider overrides remain banned.
+    return const {
+      'CODEX_HOME',
+      'HOME',
+      'PATH',
+      'USER',
+      'TMPDIR',
+      'LANG',
+      'LC_ALL',
+    }.contains(key);
   }
   return false;
 }

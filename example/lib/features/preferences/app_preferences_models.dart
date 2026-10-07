@@ -85,6 +85,7 @@ class TerminalAppAppearance {
 
   final TerminalThemeMode themeMode;
   final TerminalViewMode? _preferredTerminalMode;
+  TerminalViewMode? get preferredTerminalModeOverride => _preferredTerminalMode;
 
   // Keep an unset preference unset on disk, including when other appearance
   // settings change. A saved choice always takes precedence over the platform.
@@ -99,12 +100,15 @@ class TerminalAppAppearance {
 
   TerminalAppAppearance copyWith({
     TerminalViewMode? preferredTerminalMode,
+    bool resetPreferredTerminalMode = false,
     TerminalThemeMode? themeMode,
     TerminalLanguageMode? languageMode,
     double? terminalViewportPadding,
   }) {
     return TerminalAppAppearance(
-      preferredTerminalMode: preferredTerminalMode ?? _preferredTerminalMode,
+      preferredTerminalMode: resetPreferredTerminalMode
+          ? null
+          : preferredTerminalMode ?? _preferredTerminalMode,
       themeMode: themeMode ?? this.themeMode,
       languageMode: languageMode ?? this.languageMode,
       terminalViewportPadding: normalizeTerminalViewportPadding(

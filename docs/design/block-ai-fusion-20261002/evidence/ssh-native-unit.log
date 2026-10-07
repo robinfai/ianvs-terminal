@@ -1,0 +1,43 @@
+   Compiling ianvs_core v0.1.0 (/Users/robinfai/flutter_projects/ianvs-terminal/native/core)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 6.81s
+     Running unittests src/lib.rs (native/core/target/debug/deps/ianvs_core-aace0d3be1a44b38)
+
+running 35 tests
+test ssh::tests::a_reset_during_the_socks_success_reply_is_connection_scoped ... ok
+test ssh::tests::a_slow_socks_client_does_not_block_later_handshakes ... ok
+test ssh::tests::dropping_forward_listeners_releases_the_bound_port ... ok
+test ssh::tests::dropping_sftp_operation_receiver_cancels_queued_work ... ok
+test ssh::tests::dropping_sftp_receiver_cancels_queued_directory_work ... ok
+test ssh::tests::dynamic_listeners_share_one_handshake_cap_and_recover_after_rejection ... ok
+test ssh::tests::generated_x11_cookie_is_a_fresh_hex_token ... ok
+test ssh::tests::close_interrupts_a_hanging_ssh_handshake ... ok
+test ssh::tests::identity_tokens_are_expanded ... ok
+test ssh::tests::keyboard_interactive_timeout_matches_openssh_default_login_grace_time ... ok
+test ssh::tests::proxy_command_placeholders_cannot_inject_additional_arguments ... ok
+test ssh::tests::proxy_jump_defaults_user_and_port_and_parses_chains ... ok
+test ssh::tests::proxy_jump_rejects_implicit_destination_secrets ... ok
+test ssh::tests::proxy_jump_uses_only_its_independent_credentials ... ok
+test ssh::tests::relay_cap_exhaustion_is_isolated_and_cancellation_cleans_up ... ok
+test ssh::tests::sftp_client_enqueues_directory_work_without_blocking_the_caller ... ok
+test ssh::tests::sftp_directory_wire_budget_rejects_escape_amplification ... ok
+test ssh::tests::sftp_entry_names_cannot_escape_a_local_edit_directory ... ok
+test ssh::tests::host_key_policy_accepts_new_and_prompts_for_strict_or_changed ... ok
+test ssh::tests::sftp_operation_cancellation_interrupts_a_pending_step ... ok
+test ssh::tests::sftp_scope_errors_still_cancel_and_drain_running_operations ... ok
+test ssh::tests::sftp_session_cancellation_reaches_running_child_operations ... ok
+test ssh::tests::sftp_stream_preserves_a_frame_within_the_inbound_limit ... ok
+test ssh::tests::sftp_stream_rejects_oversized_frame_before_reading_its_payload ... ok
+test ssh::tests::sftp_file_transfer_round_trips_through_the_protocol ... ok
+test ssh::tests::ssh_setup_still_times_out_without_an_interactive_prompt ... ok
+test ssh::tests::unresolved_network_teardown_is_bounded_and_drops_its_future ... ok
+test ssh::tests::x11_display_resolves_tcp_and_unix_targets_like_tabby ... ok
+test ssh::tests::x11_forwarding_fails_closed_without_an_explicit_real_cookie ... ok
+test ssh::tests::x11_setup_proxy_rejects_invalid_order_lengths_protocol_and_cookie ... ok
+test ssh::tests::x11_setup_proxy_times_out_a_silent_remote_before_forwarding ... ok
+test ssh::tests::x11_setup_proxy_validates_fake_and_substitutes_real_cookie ... ok
+test ssh::tests::cancelling_proxy_command_terminates_the_child_process ... ok
+test ssh::tests::common_session_teardown_reaps_proxy_command_without_child_kill ... ok
+test ssh::tests::ssh_setup_timeout_restarts_after_an_interactive_prompt ... ok
+
+test result: ok. 35 passed; 0 failed; 0 ignored; 0 measured; 378 filtered out; finished in 0.28s
+

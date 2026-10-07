@@ -1,0 +1,16 @@
+package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/session_controller_test.dart
+00:00 +0: SSH failure retains its pane and native history until explicit close
+00:00 +0 -1: SSH failure retains its pane and native history until explicit close [E]
+  Expected: an object with length of <1>
+    Actual: []
+     Which: has length of <0>
+  
+  package:matcher                                     expect
+  package:flutter_test/src/widget_tester.dart 473:18  expect
+  test/sessions/session_controller_test.dart 7071:5   main.<fn>
+  
+00:00 +0 -1: Some tests failed.
+
+Failing tests:
+  /Users/robinfai/flutter_projects/ianvs-terminal/example/test/sessions/session_controller_test.dart: SSH failure retains its pane and native history until explicit close

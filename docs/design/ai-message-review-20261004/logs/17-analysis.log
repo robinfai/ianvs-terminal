@@ -1,0 +1,7 @@
+Analyzing ai, ai, terminal_ai_acp_design_test.dart, terminal_ai_workspace_acceptance_test.dart, mobile_terminal_modes_test.dart...
+
+   info - test/ai/terminal_ai_widgets_test.dart:2:1 - Sort directive sections alphabetically. Try sorting the directives. - directives_ordering
+   info - test/ai/terminal_mcp_server_test.dart:4:1 - Sort directive sections alphabetically. Try sorting the directives. - directives_ordering
+   info - test/ai/terminal_mcp_server_test.dart:98:26 - Method invocation or property access on a 'dynamic' target. Try giving the target a type. - avoid_dynamic_calls
+
+3 issues found.

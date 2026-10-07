@@ -9842,6 +9842,81 @@ void main() {
     },
   );
 
+  testWidgets(
+    'retained exit preserves native reads but denies input and closes explicitly',
+    (tester) async {
+      final backend = _FakePtyBackend();
+      var preCloses = 0;
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+        beforeSessionCloseOnExitSignal: (_) {
+          preCloses++;
+          return const TerminalSessionPreCloseOutcome.allowClose();
+        },
+      );
+      addTearDown(runtime.dispose);
+      final events = <TerminalSessionEvent>[];
+      final subscription = terminalSessionEvents(runtime).listen(events.add);
+      addTearDown(subscription.cancel);
+      final id = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+        retainExitCodes: {255},
+      );
+      final viewport = runtime.viewportFor(id);
+      backend.enqueueEvent(
+        id,
+        PtyEvent(kind: 'exit', sessionId: id, payload: {'code': 255}),
+      );
+      runtime.sendInput(id, Uint8List(0));
+      await tester.pump();
+      expect(runtime.hasSession(id), true);
+      expect(runtime.isSessionRetainedAfterExit(id), true);
+      expect(identical(runtime.viewportFor(id), viewport), true);
+      expect(preCloses, 1);
+      expect(events.whereType<TerminalSessionExitEvent>(), hasLength(1));
+      expect(backend.closeCalls, isEmpty);
+      backend.enqueueEvent(
+        id,
+        PtyEvent(kind: 'exit', sessionId: id, payload: {'code': 255}),
+      );
+      runtime.refreshSession(id);
+      await tester.pump();
+      expect(preCloses, 1);
+      expect(events.whereType<TerminalSessionExitEvent>(), hasLength(1));
+      backend.writeCalls.clear();
+      backend.jsonRequests.clear();
+      backend.resizeCalls.clear();
+      // Reading retained evidence must not resize an already-closed SSH
+      // transport or reflow its original grid when the window changes.
+      expect(runtime.resizeSession(id, const Size(800, 600), 2), false);
+      expect(runtime.resizeSessionCells(id, cols: 120, rows: 50), false);
+      expect(backend.resizeCalls, isEmpty);
+      expect(runtime.trySendInput(id, Uint8List.fromList([13])), false);
+      expect(
+        runtime.composerRequest(id, 'composer.submit', {'text': 'pwd'}),
+        isNull,
+      );
+      runtime.commandBlocks(id, {'offset': 128, 'limit': 128});
+      runtime.composerRequest(id, 'composer.receipt', {
+        'submissionId': 'original',
+      });
+      expect(backend.writeCalls, isEmpty);
+      expect(backend.jsonRequests.map((r) => r['kind']), [
+        'terminal.command_blocks',
+        'composer.receipt',
+      ]);
+      runtime.closeSession(id);
+      expect(backend.closeCalls, [id]);
+      expect(runtime.hasSession(id), false);
+      expect(runtime.isSessionRetainedAfterExit(id), false);
+    },
+  );
+
   testWidgets('terminal runtime controller continues to handle exit events', (
     tester,
   ) async {

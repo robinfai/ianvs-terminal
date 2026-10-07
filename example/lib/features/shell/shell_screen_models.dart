@@ -2,6 +2,8 @@ part of 'shell_screen.dart';
 
 enum _ShellZmodemRecoveryAction { authorization, cancel }
 
+enum _TerminalModeMenuAction { recheck }
+
 class _ShellZmodemPickerRequest {
   _ShellZmodemPickerRequest({
     required this.requestId,

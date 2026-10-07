@@ -113,6 +113,111 @@ void main() {
     );
   });
 
+  test(
+    'high contrast distinguishes boundaries and focus without resizing text',
+    () {
+      for (final brightness in Brightness.values) {
+        for (final platform in [TargetPlatform.macOS, TargetPlatform.iOS]) {
+          final normal = buildIanvsTerminalTheme(
+            brightness,
+            platform: platform,
+          );
+          final theme = buildIanvsTerminalTheme(
+            brightness,
+            platform: platform,
+            highContrast: true,
+          );
+          final tokens = theme.extension<AppThemeTokens>()!;
+          final surfaces = [
+            tokens.canvas,
+            tokens.chrome,
+            tokens.panel,
+            tokens.panelElevated,
+          ];
+          final focus = theme.inputDecorationTheme.focusedBorder!.borderSide;
+          for (final surface in surfaces) {
+            for (final boundary in [
+              tokens.border,
+              tokens.borderStrong,
+              focus.color,
+            ]) {
+              expect(
+                contrastRatio(boundary, surface),
+                greaterThanOrEqualTo(3),
+                reason: '$brightness / $platform / $boundary on $surface',
+              );
+            }
+            for (final text in [
+              tokens.textPrimary,
+              tokens.textMuted,
+              tokens.textSubtle,
+            ]) {
+              expect(contrastRatio(text, surface), greaterThanOrEqualTo(4.5));
+            }
+          }
+          expect(
+            tokens.border,
+            isNot(normal.extension<AppThemeTokens>()!.border),
+          );
+          expect(
+            focus.width,
+            greaterThan(
+              theme.inputDecorationTheme.enabledBorder!.borderSide.width,
+            ),
+          );
+          final button = theme.outlinedButtonTheme.style!;
+          expect(
+            button.side!.resolve({WidgetState.focused})!.width,
+            greaterThan(button.side!.resolve({})!.width),
+          );
+          expect(
+            theme
+                .dropdownMenuTheme
+                .inputDecorationTheme!
+                .enabledBorder!
+                .borderSide
+                .width,
+            greaterThan(
+              normal
+                  .dropdownMenuTheme
+                  .inputDecorationTheme!
+                  .enabledBorder!
+                  .borderSide
+                  .width,
+            ),
+          );
+          for (final shape in [
+            theme.dialogTheme.shape,
+            theme.popupMenuTheme.shape,
+          ]) {
+            final outlined = shape! as OutlinedBorder;
+            expect(outlined.side.width, greaterThanOrEqualTo(1.5));
+            expect(
+              contrastRatio(outlined.side.color, tokens.panelElevated),
+              greaterThanOrEqualTo(3),
+            );
+          }
+          expect(
+            theme.textTheme.bodyMedium!.fontSize,
+            normal.textTheme.bodyMedium!.fontSize,
+          );
+          expect(
+            theme.textTheme.bodySmall!.fontSize,
+            normal.textTheme.bodySmall!.fontSize,
+          );
+          expect(
+            theme.textTheme.labelSmall!.fontSize,
+            normal.textTheme.labelSmall!.fontSize,
+          );
+          expect(
+            tokens.controls.regular,
+            normal.extension<AppThemeTokens>()!.controls.regular,
+          );
+        }
+      }
+    },
+  );
+
   testWidgets(
     'terminal color bridge follows the app theme and keeps interaction overrides',
     (tester) async {

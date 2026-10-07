@@ -42,7 +42,11 @@ void _expectCenteredTitle(WidgetTester tester) {
   final title = tester.getCenter(
     find.byKey(const Key('shell-chrome-window-title')),
   );
-  expect(title.dx, closeTo((toggle.dx + gear.dx) / 2, 0.1));
+  final left = tester.getRect(find.byKey(_toggle)).right;
+  final right = tester
+      .getRect(find.byKey(const Key('terminal-ai-open-1')))
+      .left;
+  expect(title.dx, closeTo((left + right) / 2, 0.1));
   expect(toggle.dy, gear.dy);
   expect(title.dy, closeTo(gear.dy, 0.1));
 }

@@ -116,7 +116,17 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         _scheduleRenderableSessionSwap(sessionId);
       case terminal.TerminalSessionExitEvent():
         unawaited(_osc72DragDropController.resetSession(event.sessionId));
-        _clearPresentationStateForSession(event.sessionId);
+        if (ref
+            .read(terminalRuntimeControllerProvider)
+            .isSessionRetainedAfterExit(event.sessionId)) {
+          _sshAuthPromptPresenter.cancelSession(event.sessionId);
+          _sshHostKeyPromptPresenter.cancelSession(event.sessionId);
+          _composerSessions[event.sessionId]?.blocks.refresh();
+          final ai = _aiSessions[event.sessionId];
+          if (ai != null) unawaited(ai.refreshContext());
+        } else {
+          _clearPresentationStateForSession(event.sessionId);
+        }
         _notifySessionExit(
           event.sessionId,
           event.exitCode,
@@ -392,6 +402,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     try {
       approved = await showDialog<bool>(
         context: context,
+        animationStyle: appDialogAnimation(context),
         barrierDismissible: false,
         builder: (dialogContext) {
           final destination = scheme == 'file'
@@ -458,6 +469,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     try {
       decision = await showDialog<LocalTerminalReportVariablePolicy>(
         context: context,
+        animationStyle: appDialogAnimation(context),
         builder: (dialogContext) {
           final appTheme = dialogContext.appTheme;
           return AlertDialog(
@@ -1397,6 +1409,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     };
     final result = await showDialog<terminal.TerminalClipboardAuthorization>(
       context: context,
+      animationStyle: appDialogAnimation(context),
       builder: (context) {
         return AlertDialog(
           title: Text(promptTitle),

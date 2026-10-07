@@ -1,0 +1,70 @@
+{
+  "platform": "macOS 27.0.1 (26A434)",
+  "tests": {
+    "passed": 2417,
+    "failed": 0,
+    "skipped": 2
+  },
+  "analysis": "No issues found",
+  "macos_debug_build": "passed after directory fix",
+  "codesign_verify": "passed after directory fix",
+  "logs": {
+    "tmp/acp-runtime/application-final-after-directory-tests.log": {
+      "sha256": "b97959dcda0debd556a89efdf31f6e4893574718cd9d82dabaeb9b3d51b889c7",
+      "bytes": 463582
+    },
+    "tmp/acp-runtime/final-directory-analysis.log": {
+      "sha256": "22e270c6b163d54688a770fa943d0a69153007357cb1c67e0614f82ae4a5bd21",
+      "bytes": 96
+    },
+    "tmp/acp-runtime/acp-final-macos-build.log": {
+      "sha256": "100b698b967c5fa585898f380f4f8da63ef70b95b6bc47bb1726b8c3ac74ef0d",
+      "bytes": 130
+    },
+    "tmp/acp-runtime/directory-smoke.log": {
+      "sha256": "24283c5b60717e80ab009acad59ac7bbe20d044c904390bd30488b66d92f938c",
+      "bytes": 164
+    },
+    "tmp/acp-runtime/delayed-cwd-before-fix.log": {
+      "sha256": "8e562ed40e4d67b7f6af938bd48020b7d72d1bf273f4654d24c5f3d43a05a23a",
+      "bytes": 3946
+    },
+    "tmp/acp-runtime/delayed-cwd-stage-tests.log": {
+      "sha256": "970fab5b3b91d09ff7d6308dfb894b992083b4418138f1af070993f914797684",
+      "bytes": 13265
+    }
+  },
+  "benchmark_environment": {
+    "docker": "linux/aarch64",
+    "colima_cpus": 10,
+    "colima_memory_gib": 28,
+    "rosetta_enabled": true,
+    "observed_compcert_image": "linux/amd64",
+    "observed_compcert_image_id": "sha256:f60236a4fe55bbb3c573210fe0fcd91551f4ee97c417453cd4985be074b35411",
+    "task_resources": "official per-task limits unchanged"
+  },
+  "ui_regression_stage": {
+    "tests": {
+      "passed": 2412,
+      "failed": 0,
+      "skipped": 2
+    },
+    "logs": {
+      "tmp/acp-runtime/application-completion-tests.log": {
+        "sha256": "0df9e2411140b7a1d2236b288052564ae907a4cfc52d8ad029a6ba8b44cfa09a",
+        "bytes": 463072
+      },
+      "tmp/acp-runtime/application-completion-analysis.log": {
+        "sha256": "9980f4eb445d048a5d3506bbdc53c89c95abfc954c721f43c776c57730eadef5",
+        "bytes": 2521
+      },
+      "tmp/acp-runtime/acp-macos-build.log": {
+        "sha256": "100b698b967c5fa585898f380f4f8da63ef70b95b6bc47bb1726b8c3ac74ef0d",
+        "bytes": 130
+      }
+    }
+  },
+  "verified_at": "2026-10-03T08:38:05.255144+00:00",
+  "temporary_profiles_audited": 13,
+  "owned_temporary_profiles_remaining": 0
+}

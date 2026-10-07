@@ -4,6 +4,51 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test(
+    'explicit first check preserves Normal even with a Blocks preference',
+    () {
+      final mode = TerminalModeController(
+        preferredMode: TerminalViewMode.blocks,
+      );
+      addTearDown(mode.dispose);
+      mode.updateAvailability(null, rechecked: true);
+      expect(mode.state.mode, TerminalViewMode.normal);
+      expect(mode.state.canUseBlocks, true);
+      expect(mode.state.notice, TerminalModeNotice.supportChecked);
+      mode.updateAvailability(null);
+      expect(mode.state.mode, TerminalViewMode.normal);
+      expect(mode.state.notice, TerminalModeNotice.supportChecked);
+      mode.select(TerminalViewMode.blocks);
+      expect(mode.state.notice, isNull);
+    },
+  );
+
+  test(
+    'checked reason persists until capability changes and restoration is manual',
+    () {
+      final mode = TerminalModeController(
+        preferredMode: TerminalViewMode.blocks,
+      );
+      addTearDown(mode.dispose);
+      mode.updateAvailability(null);
+      mode.updateAvailability(
+        BlockUnavailableReason.remoteShell,
+        rechecked: true,
+      );
+      expect(mode.state.mode, TerminalViewMode.normal);
+      var notifications = 0;
+      mode.addListener(() => notifications++);
+      mode.updateAvailability(BlockUnavailableReason.remoteShell);
+      expect(notifications, 0);
+      expect(mode.state.notice, TerminalModeNotice.supportChecked);
+      mode.updateAvailability(null);
+      expect(mode.state.mode, TerminalViewMode.normal);
+      expect(mode.state.notice, TerminalModeNotice.blocksRestored);
+      mode.updateAvailability(null, rechecked: true);
+      expect(mode.state.mode, TerminalViewMode.normal);
+      expect(mode.state.notice, TerminalModeNotice.supportChecked);
+    },
+  );
+  test(
     'Blocks preference waits for capability and never automatically restores after SSH',
     () {
       final mode = TerminalModeController(

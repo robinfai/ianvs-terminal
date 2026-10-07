@@ -1603,7 +1603,7 @@ async fn run_ssh_session(
     tokio::pin!(bootstrap_deadline);
 
     let mut bootstrap_tick = tokio::time::interval(Duration::from_millis(100));
-    let mut exit_status = 0;
+    let mut exit_status = None;
     let session_result: Result<()> = async {
         let mut sftp_requests: FuturesUnordered<BoxFuture<'_, ()>> =
             FuturesUnordered::new();
@@ -1795,9 +1795,12 @@ async fn run_ssh_session(
                     }
                 }
                 Some(ChannelMsg::ExitStatus { exit_status: code }) => {
-                    exit_status = code;
+                    exit_status = Some(code);
                 }
-                Some(ChannelMsg::Eof) | Some(ChannelMsg::Close) | None => break,
+                // EOF ends the data stream, not the channel. The peer can
+                // still send exit-status before Close (RFC 4254, 5.3/6.10).
+                Some(ChannelMsg::Eof) => {},
+                Some(ChannelMsg::Close) | None => break,
                 _ => {}
             },
             accepted = forward_receiver.recv(), if !forward_listeners.is_empty() => {
@@ -1863,7 +1866,7 @@ async fn run_ssh_session(
     shutdown_ssh_resources(&cancellation, &forward_runtime).await;
     teardown_ssh_network(channel, session, jump_sessions).await;
     session_result?;
-    Ok(exit_status)
+    exit_status.context("SSH connection closed without a remote exit status")
 }
 
 async fn finish_sftp_request_scope<T>(
@@ -5121,7 +5124,7 @@ mod tests {
         let script = fixture_directory.join("normal-close-proxy-command");
         std::fs::write(
             &script,
-            "#!/bin/sh\nprintf '%s' \"$$\" > \"$1\"\nexec sleep 30\n",
+            "#!/bin/sh\nprintf '%s' \"$$\" > \"$1.tmp\"\nmv \"$1.tmp\" \"$1\"\nexec sleep 30\n",
         )
         .expect("proxy script");
         let mut permissions = std::fs::metadata(&script)
@@ -5186,7 +5189,7 @@ mod tests {
         let script = fixture_directory.join("proxy-command");
         std::fs::write(
             &script,
-            "#!/bin/sh\nprintf '%s' \"$$\" > \"$1\"\nexec sleep 30\n",
+            "#!/bin/sh\nprintf '%s' \"$$\" > \"$1.tmp\"\nmv \"$1.tmp\" \"$1\"\nexec sleep 30\n",
         )
         .expect("proxy script");
         let mut permissions = std::fs::metadata(&script)

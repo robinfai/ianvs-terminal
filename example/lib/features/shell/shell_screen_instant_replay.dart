@@ -1066,6 +1066,7 @@ class _ReplaySpeedControl extends StatelessWidget {
       label: context.l10n.playbackSpeedValue(speedLabel),
       button: true,
       child: PopupMenuButton<double>(
+        popUpAnimationStyle: appDialogAnimation(context),
         tooltip: context.l10n.playbackSpeed,
         onSelected: onSpeedChanged,
         itemBuilder: (context) => [
@@ -1125,6 +1126,7 @@ class _ReplayTimeModeControl extends StatelessWidget {
       label: context.l10n.replayTimingValue(label),
       button: true,
       child: PopupMenuButton<terminal.TerminalReplayTimeMode>(
+        popUpAnimationStyle: appDialogAnimation(context),
         tooltip: context.l10n.replayTiming,
         onSelected: onChanged,
         itemBuilder: (context) => [

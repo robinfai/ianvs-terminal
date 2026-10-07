@@ -7042,6 +7042,108 @@ void main() {
   );
 
   test(
+    'SSH failure retains its pane and native history until explicit close',
+    () async {
+      final bindings = _SshEventfulPtyBackend(FakePtyBackend());
+      final profile = TerminalProfile(
+        id: 'retained-ssh',
+        name: 'Retained SSH',
+        shell: '',
+        connection: const terminal.TerminalConnectionConfig.ssh(
+          host: 'fixture.example.test',
+          user: 'fixture',
+        ),
+      );
+      final container = ProviderContainer(
+        overrides: [
+          ptySessionBackendProvider.overrideWithValue(bindings),
+          sessionControllerProvider.overrideWith(_TestSessionController.new),
+          profileRepositoryProvider.overrideWithValue(
+            _TestProfileRepository(
+              TerminalProfilesDocument(profiles: [profile]),
+            ),
+          ),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            _TestAppPreferencesRepository(null),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      final controller = container.read(sessionControllerProvider.notifier);
+      controller.createSession(profile);
+      final id = container.read(sessionControllerProvider).activeSessionId!;
+      final viewport = controller.viewportFor(id);
+      bindings.enqueueExit(id, code: 255);
+      await _waitForCondition(
+        description: 'retained SSH transport failure',
+        condition: () =>
+            container.read(sessionControllerProvider).lastError != null,
+      );
+      final state = container.read(sessionControllerProvider);
+      expect(state.tabs, hasLength(1));
+      expect(state.activeSessionId, id);
+      expect(state.tabs.single.activePane.isExited, true);
+      expect(state.tabs.single.activePane.exitCode, 255);
+      expect(identical(controller.viewportFor(id), viewport), true);
+      expect(
+        container.read(terminalRuntimeControllerProvider).hasSession(id),
+        true,
+      );
+      final edited = profile.copyWith(
+        name: 'Edited SSH',
+        connection: const terminal.TerminalConnectionConfig.ssh(
+          host: 'updated-fixture.example.test',
+          user: 'fixture',
+        ),
+      );
+      expect(
+        controller.reconnectSession(
+          id,
+          editedProfile: edited.copyWith(id: 'other'),
+        ),
+        isNull,
+      );
+      final reconnected = controller.reconnectSession(
+        id,
+        editedProfile: edited,
+      );
+      expect(reconnected, isNotNull);
+      expect(reconnected, isNot(id));
+      final afterReconnect = container.read(sessionControllerProvider);
+      expect(afterReconnect.tabs, hasLength(2));
+      expect(afterReconnect.activeSessionId, reconnected);
+      expect(afterReconnect.tabs.first.activePane.isExited, true);
+      expect(
+        afterReconnect.tabs.last.activePane.profileSnapshot?.connection,
+        edited.connection,
+      );
+      expect(
+        afterReconnect.tabs.first.activePane.profileSnapshot?.connection,
+        profile.connection,
+      );
+      expect(identical(controller.viewportFor(id), viewport), true);
+      expect(controller.reconnectSession(reconnected!), isNull);
+      await controller.closeSession(id);
+      expect(
+        container.read(sessionControllerProvider).tabs.single.sessionId,
+        reconnected,
+      );
+      expect(
+        container
+            .read(terminalRuntimeControllerProvider)
+            .hasSession(reconnected),
+        true,
+      );
+      await controller.closeSession(reconnected);
+      expect(container.read(sessionControllerProvider).tabs, isEmpty);
+      expect(
+        container.read(terminalRuntimeControllerProvider).hasSession(id),
+        false,
+      );
+    },
+  );
+
+  test(
     'SSH retry clears its matching failure and preserves unrelated errors',
     () async {
       final bindings = _SshEventfulPtyBackend(FakePtyBackend());
@@ -7116,7 +7218,12 @@ void main() {
       bindings.enqueueExit(failedSessionId, code: 255);
       await _waitForCondition(
         description: 'SSH transport failure exit polling',
-        condition: () => container.read(sessionControllerProvider).tabs.isEmpty,
+        condition: () => container
+            .read(sessionControllerProvider)
+            .tabs
+            .single
+            .activePane
+            .isExited,
       );
 
       const expectedFailure =
@@ -7126,6 +7233,7 @@ void main() {
         container.read(sessionControllerProvider).lastError,
         expectedFailure,
       );
+      await controller.closeSession(failedSessionId);
 
       controller.createSession(otherSshProfile);
       expect(
@@ -7145,10 +7253,15 @@ void main() {
       bindings.enqueueExit(retryFailureSessionId, code: 255);
       await _waitForCondition(
         description: 'retried SSH transport failure exit polling',
-        condition: () =>
-            container.read(sessionControllerProvider).tabs.length == 1,
+        condition: () => container
+            .read(sessionControllerProvider)
+            .tabs
+            .last
+            .activePane
+            .isExited,
       );
       expect(container.read(sessionControllerProvider).lastError, isNotNull);
+      await controller.closeSession(retryFailureSessionId);
 
       controller.createSession(sshProfile);
       expect(container.read(sessionControllerProvider).lastError, isNull);

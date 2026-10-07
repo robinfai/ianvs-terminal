@@ -1,0 +1,136 @@
+{
+  "recorded_at": "2026-10-03T04:14:28.914763+00:00",
+  "branch": "composer",
+  "head": "050e344a844d1f277e49d74fbf078ab21d2f355a",
+  "scope_adjustment": {
+    "user_request": "VoiceOver 跳过",
+    "actual_voiceover": "skipped at user request; unverified, not passed",
+    "mobile": "fixed font; production component validation; physical iPhone excluded at user request"
+  },
+  "scene_requirement_index": "CURRENT_ACCEPTANCE.md",
+  "scenes": [
+    "D01",
+    "D02",
+    "D03",
+    "D04",
+    "D05",
+    "D06",
+    "D07",
+    "D08",
+    "D09",
+    "D10",
+    "D11",
+    "D12",
+    "D13",
+    "D14",
+    "M01",
+    "M02",
+    "M03",
+    "M04",
+    "M05",
+    "M06"
+  ],
+  "tests": {
+    "application": {
+      "test_count": 1025,
+      "passed": true,
+      "log": "evidence/motion-and-fixture/motion-regression.log",
+      "sha256": "ed9acdc726e0390134811af8d8ed0a30ffc076746ad87ad61568c951ccfabe11",
+      "rerun_during_document_only_closeout": false
+    },
+    "shared_terminal": {
+      "test_count": 74,
+      "passed": true,
+      "log": "evidence/motion-and-fixture/motion-terminal-regression.log",
+      "sha256": "cfff9712e4a08a6d4adc9d9538ca986344a6ec03b11b2ffd8e543b3b4656ace6",
+      "rerun_during_document_only_closeout": false
+    },
+    "native_fixture": {
+      "test_count": 1,
+      "passed": true,
+      "log": "evidence/voiceover-attempt/captions-native.log",
+      "sha256": "1617b7ad5cec46e1509dfea3d4e1715dc8b0cf0bc58711bbaed95adb2634844c",
+      "rerun_during_document_only_closeout": false
+    }
+  },
+  "latest_recorded_sources_changed": [],
+  "archived_artifact_integrity": [
+    {
+      "manifest": "evidence/accessibility/manifest.json",
+      "artifact_count": 33,
+      "failures": []
+    },
+    {
+      "manifest": "evidence/cloud-clear/manifest.json",
+      "artifact_count": 27,
+      "failures": []
+    },
+    {
+      "manifest": "evidence/evidence-identity/manifest.json",
+      "artifact_count": 23,
+      "failures": []
+    },
+    {
+      "manifest": "evidence/focus/manifest.json",
+      "artifact_count": 0,
+      "failures": []
+    },
+    {
+      "manifest": "evidence/k9s/manifest.json",
+      "artifact_count": 20,
+      "failures": []
+    },
+    {
+      "manifest": "evidence/mobile-current/manifest.json",
+      "artifact_count": 9,
+      "failures": []
+    },
+    {
+      "manifest": "evidence/model-scenes/manifest.json",
+      "artifact_count": 0,
+      "failures": []
+    },
+    {
+      "manifest": "evidence/motion-and-fixture/manifest.json",
+      "artifact_count": 23,
+      "failures": []
+    },
+    {
+      "manifest": "evidence/navigation-preferences/manifest.json",
+      "artifact_count": 33,
+      "failures": []
+    },
+    {
+      "manifest": "evidence/output-boundaries/manifest.json",
+      "artifact_count": 34,
+      "failures": []
+    },
+    {
+      "manifest": "evidence/reader-tools/manifest.json",
+      "artifact_count": 33,
+      "failures": []
+    },
+    {
+      "manifest": "evidence/recovery-configuration/manifest.json",
+      "artifact_count": 53,
+      "failures": []
+    },
+    {
+      "manifest": "evidence/scene-review/manifest.json",
+      "artifact_count": 10,
+      "failures": []
+    },
+    {
+      "manifest": "evidence/voiceover-attempt/manifest.json",
+      "artifact_count": 6,
+      "failures": []
+    }
+  ],
+  "local_document_links_broken": [],
+  "canonical_release_mirror": "ianvs_terminal_core generated sources are current.",
+  "diff_check_exit": 0,
+  "shell_screen_lines": 1699,
+  "errors": [],
+  "status": "complete within user-confirmed scope",
+  "limits": "Historical native, SSH, model and visual evidence retains its original runtime scope; artifact integrity does not represent a rerun. Actual VoiceOver has no passing evidence. No commit or push performed."
+}

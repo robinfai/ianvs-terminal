@@ -60,6 +60,9 @@ pub struct Zone {
     /// Execution context captured at the boundary, rather than the current cwd.
     pub cwd: Option<String>,
     pub finished_at: Option<u64>,
+    /// Shell-provided provenance; never grants input permission by itself.
+    pub submission_id: Option<String>,
+    pub context_id: Option<String>,
 }
 
 impl Zone {
@@ -78,6 +81,8 @@ impl Zone {
             end_col: None,
             cwd: None,
             finished_at: None,
+            submission_id: None,
+            context_id: None,
         }
     }
 
