@@ -189,7 +189,7 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
     });
     try {
       final installation =
-          await (widget.discoverAcp ?? AcpInstallationDiscovery().discover)()
+          await (widget.discoverAcp ?? CodexAcpBackend.discoverInstallation)()
               .timeout(const Duration(seconds: 8));
       if (!mounted || epoch != _detectionEpoch) return;
       setState(() {

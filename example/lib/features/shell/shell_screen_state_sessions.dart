@@ -1163,10 +1163,13 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     SessionState sessionState,
     String tabSessionId,
   ) async {
-    final target = _tabForSession(
-      ref.read(sessionControllerProvider),
-      tabSessionId,
-    );
+    // A tab keeps its stable ID after the original split pane has closed.
+    // Resolve the tab identity directly instead of looking for a live pane.
+    final target = ref
+        .read(sessionControllerProvider)
+        .tabs
+        .where((tab) => tab.sessionId == tabSessionId)
+        .firstOrNull;
     if (target == null) return;
     final closingSessionIds = target.effectivePanes
         .map((pane) => pane.sessionId)

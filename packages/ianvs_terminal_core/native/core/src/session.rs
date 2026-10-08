@@ -3216,6 +3216,12 @@ impl TerminalSession {
                 if resource_session.resource_sampler_should_stop() {
                     break;
                 }
+                // Keep the local ZLE control channel flowing even when no UI
+                // polls Composer. This only drains nonblocking socket data;
+                // command preparation/commit remains on the request path.
+                if let Some(bridge) = resource_session.composer_bridge.lock().as_ref() {
+                    bridge.poll_io();
+                }
                 resource_session.poll_zmodem_timeout();
                 let now = Instant::now();
                 if sampling_enabled && now >= next_resource_sample {

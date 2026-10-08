@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import '../ai_models.dart';
+import 'acp_environment.dart';
+import 'acp_installation.dart';
 import 'acp_rpc.dart';
 import 'agent_backend.dart';
 import 'bridge_permissions.dart';
@@ -25,6 +27,13 @@ class CodexAcpBackend implements AgentBackend {
   final _bridgePermissions = BridgePermissions();
   bool _disposed = false;
   Future<void>? _closing;
+
+  /// Discovery only reads installation paths; it does not start the agent or
+  /// read login credentials.
+  static Future<AcpInstallation> discoverInstallation() =>
+      AcpInstallationDiscovery(
+        environment: readAcpDiscoveryEnvironment(),
+      ).discover();
 
   static Map<String, Object?> profile(String model) => {
     'model': model,
@@ -75,9 +84,7 @@ class CodexAcpBackend implements AgentBackend {
     final directory = _directory!;
     final home = await Directory('${directory.path}/agent').create();
     final cwd = await Directory('${directory.path}/workspace').create();
-    final credentials = File(
-      '${Platform.environment['CODEX_HOME'] ?? '${Platform.environment['HOME'] ?? ''}/.codex'}/auth.json',
-    );
+    final credentials = File(readCodexAuthenticationPath());
     final isolatedAuth = File('${home.path}/auth.json');
     if (!await isolatedAuth.exists()) {
       if (!await credentials.exists()) {
@@ -96,22 +103,13 @@ class CodexAcpBackend implements AgentBackend {
           });
     _bridge = bridge;
     await bridge?.start();
-    final inherited = <String, String?>{
-      'PATH': Platform.environment['PATH'],
-      'HOME': Platform.environment['HOME'],
-      'USER': Platform.environment['USER'],
-      'TMPDIR': Platform.environment['TMPDIR'],
-      'LANG': Platform.environment['LANG'],
-      'LC_ALL': Platform.environment['LC_ALL'],
-    };
     final process = await Process.start(
       configuration.agentCommand,
       configuration.agentArguments,
       workingDirectory: cwd.path,
       environment: {
         // Do not inherit provider overrides, plugin config, or logging secrets.
-        for (final entry in inherited.entries)
-          if (entry.value != null) entry.key: entry.value!,
+        ...readAcpProcessEnvironment(),
         'CODEX_HOME': home.path,
         'CODEX_CONFIG': jsonEncode(profile(configuration.model)),
         'INITIAL_AGENT_MODE': 'read-only',

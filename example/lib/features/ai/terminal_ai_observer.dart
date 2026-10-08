@@ -19,6 +19,7 @@ class TerminalAiObserver extends StatefulWidget {
     required this.onScrollToOffset,
     required this.onTakeOver,
     this.onBack,
+    this.autofocus = false,
     this.font = const TerminalFontConfig(),
     this.colors,
     this.graphicsCache,
@@ -33,6 +34,7 @@ class TerminalAiObserver extends StatefulWidget {
   final ValueChanged<int> onScrollToOffset;
   final VoidCallback? onTakeOver;
   final VoidCallback? onBack;
+  final bool autofocus;
   final TerminalFontConfig font;
   final TerminalViewportColors? colors;
   final TerminalGraphicsCache? graphicsCache;
@@ -48,6 +50,18 @@ class _TerminalAiObserverState extends State<TerminalAiObserver> {
   final _focus = FocusNode(debugLabel: 'Read-only terminal observer');
 
   @override
+  void initState() {
+    super.initState();
+    if (widget.autofocus) _requestFocus();
+  }
+
+  void _requestFocus() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && widget.autofocus) _focus.requestFocus();
+    });
+  }
+
+  @override
   void dispose() {
     _selection.dispose();
     _focus.dispose();
@@ -57,6 +71,9 @@ class _TerminalAiObserverState extends State<TerminalAiObserver> {
   @override
   void didUpdateWidget(TerminalAiObserver oldWidget) {
     super.didUpdateWidget(oldWidget);
+    // Explicit navigation owns hardware shortcuts. A passive wide-screen
+    // projection must leave the AI draft's focus and IME selection untouched.
+    if (widget.autofocus && !oldWidget.autofocus) _requestFocus();
     if (oldWidget.sessionId != widget.sessionId ||
         oldWidget.viewport != widget.viewport) {
       _selection.clear();
@@ -179,7 +196,7 @@ class _TerminalAiObserverState extends State<TerminalAiObserver> {
               inputController: input,
               focusNode: _focus,
               readOnly: true,
-              autofocus: false,
+              autofocus: widget.autofocus,
               altClickMovesCursor: false,
               useFrameDefaultColors: false,
               colors: widget.colors,

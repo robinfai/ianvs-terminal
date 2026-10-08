@@ -345,6 +345,7 @@ Future<void> _capture(
     final boundary = tester.renderObject<RenderRepaintBoundary>(
       find.byKey(_captureKey),
     );
+    final capturedAt = DateTime.now().toUtc().toIso8601String();
     final image = await boundary.toImage(pixelRatio: 2);
     try {
       final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
@@ -359,6 +360,7 @@ Future<void> _capture(
           'evidence_type': 'widget_golden',
           'real_app_capture': false,
           'capture_phase': _capturePhase,
+          'captured_at': capturedAt,
           'fixture_id': fixtureId,
           'test_file':
               'example/test/terminal_composer/mobile_prd_composer_baseline_test.dart',

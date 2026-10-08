@@ -86,7 +86,11 @@ fi
 
 (
   cd "$ROOT_DIR"
-  dart format --output=none --set-exit-if-changed .
+  # Match the source scope of `make format-check`, including repository tools.
+  # Ignored scratch probes and old staged checkouts are not product sources.
+  dart format --output=none --set-exit-if-changed \
+    example/lib example/test example/integration_test example/test_driver \
+    example/test_http example/tool packages test tools
   dart analyze --fatal-infos
 )
 

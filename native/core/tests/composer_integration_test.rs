@@ -67,6 +67,48 @@ fn local_paths(id: u64, state: &Value, text: &str) -> Vec<Value> {
 }
 
 #[test]
+fn composer_does_not_block_raw_keyboard_without_ui_polling() {
+    let home = tempfile::tempdir().unwrap();
+    let marker = home.path().join("raw-keyboard-result");
+    std::fs::write(
+        home.path().join(".zshrc"),
+        "PROMPT='raw-keyboard> '\nHISTSIZE=100\n\
+         for index in {1..2048}; do functions[fixture_inventory_command_${index}]=:; done\n",
+    )
+    .unwrap();
+    let mut config = config();
+    config["config"]["launch"] = json!({
+        "program":"/bin/zsh", "args":[], "cwd":home.path(),
+        "env":{"HOME":home.path(), "ZDOTDIR":home.path(), "IANVS_RAW_RESULT":marker}
+    });
+    let session = Session(session::create_session_v1(&config.to_string()).unwrap());
+    session::write_session(
+        session.0,
+        b"builtin print -r -- raw-keyboard >| \"$IANVS_RAW_RESULT\"\n",
+    )
+    .unwrap();
+
+    // Normal keyboard input must progress even while the UI does not query
+    // Composer, terminal frames or events. The bounded inventory deliberately
+    // exceeds a socket write buffer and must be drained by session I/O.
+    let deadline = Instant::now() + Duration::from_secs(6);
+    loop {
+        if std::fs::read_to_string(&marker).ok().as_deref() == Some("raw-keyboard\n") {
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "raw keyboard input stalled without UI polling"
+        );
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    // Verify that progress did not come from disabling the local adapter.
+    let ready = wait_ready(session.0, None);
+    assert_eq!(ready["dialect"], "zsh");
+    assert_eq!(ready["transport"], "local");
+}
+
+#[test]
 fn composer_paths_use_shell_cwd_and_home_and_keep_expansion_when_accepted() {
     let fixture = tempfile::tempdir().unwrap();
     let home = fixture.path().join("shell-home");

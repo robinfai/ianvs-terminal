@@ -19,7 +19,7 @@ class AcpInstallation {
 
 class AcpInstallationDiscovery {
   AcpInstallationDiscovery({
-    Map<String, String>? environment,
+    required Map<String, String> environment,
     String? workingDirectory,
     String? executable,
     String? operatingSystem,
@@ -28,7 +28,7 @@ class AcpInstallationDiscovery {
       '/usr/local/bin',
       '/usr/bin',
     ],
-  }) : environment = environment ?? Platform.environment,
+  }) : environment = Map.unmodifiable(environment),
        workingDirectory = workingDirectory ?? Directory.current.path,
        executable = executable ?? Platform.resolvedExecutable,
        operatingSystem = operatingSystem ?? Platform.operatingSystem;

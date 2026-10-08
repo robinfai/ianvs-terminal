@@ -114,6 +114,14 @@ impl ComposerBridge {
         ))
     }
 
+    /// Drain the private socket independently of Composer UI requests. ZLE
+    /// publishes bounded history/inventory snapshots before accepting input;
+    /// leaving them unread can block the shell's ordinary keyboard path.
+    pub(crate) fn poll_io(&self) {
+        let mut state = self.inner.lock().unwrap();
+        self.poll(&mut state);
+    }
+
     pub(crate) fn snapshot(&self) -> Value {
         let mut state = self.inner.lock().unwrap();
         self.poll(&mut state);

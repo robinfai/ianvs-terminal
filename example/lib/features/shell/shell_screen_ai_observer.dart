@@ -83,6 +83,7 @@ extension _ShellScreenAiObserver on _ShellScreenState {
                     .read(terminalRuntimeControllerProvider)
                     .scrollViewportTo(source, offset),
                 onBack: dual ? null : back,
+                autofocus: observing,
                 onTakeOver: sourcePane == null || sourcePane.isExited
                     ? null
                     : () {

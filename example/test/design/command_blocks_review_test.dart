@@ -280,7 +280,27 @@ void main() {
       expect(find.text('正则无效，未更新结果'), findsOneWidget);
       expect(find.text('输出已不可用'), findsNothing);
       expect(find.byType(TerminalViewport), findsWidgets);
+      final reader = find.byKey(const Key('block-reader-scroll'));
+      expect(tester.getSize(reader).height, greaterThanOrEqualTo(44));
+      expect(find.text('正则无效，未更新结果').hitTestable(), findsOneWidget);
+      expect(
+        tester.getRect(find.text('正则无效，未更新结果')).bottom,
+        lessThanOrEqualTo(
+          tester
+              .getRect(find.byKey(const Key('block-reader-controls-scroll')))
+              .bottom,
+        ),
+      );
+      // The controls can scroll independently when an error grows above IME;
+      // revealing its full explanation must not scroll away retained output.
+      await tester.ensureVisible(find.text('正则无效，未更新结果'));
+      await tester.pumpAndSettle();
+      expect(find.text('正则无效，未更新结果').hitTestable(), findsOneWidget);
+      expect(tester.getSize(reader).height, greaterThanOrEqualTo(44));
+      await _capture(tester, boundary, '02-invalid-regex-visible');
       expect(tester.takeException(), isNull);
+      await tester.ensureVisible(find.byKey(const Key('block-reader-latest')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('block-reader-latest')));
       await tester.pumpAndSettle();
       final visibleRows = tester

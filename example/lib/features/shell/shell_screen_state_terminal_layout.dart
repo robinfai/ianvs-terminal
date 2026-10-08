@@ -1031,19 +1031,19 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                                     ? constraints.maxHeight * .65
                                     : double.infinity,
                               ),
-                              child: SingleChildScrollView(
-                                reverse: true,
-                                child: ComposerPane(
-                                  key: ValueKey('composer-$sessionId'),
-                                  session: composerSession,
-                                  targetLabel: pane.title,
-                                  active: isActive,
-                                  available: !pane.isExited && !sessionReadOnly,
-                                  onAskAi: (prompt) =>
-                                      _openAi(sessionId, prompt: prompt),
-                                  onOpenAi: () => _openAi(sessionId),
-                                  onTerminalFocus: focusNode.requestFocus,
-                                ),
+                              // The Composer uses the pane's actual height to
+                              // select its inline or scrollable short layout.
+                              // An outer scroll view would remove that bound.
+                              child: ComposerPane(
+                                key: ValueKey('composer-$sessionId'),
+                                session: composerSession,
+                                targetLabel: pane.title,
+                                active: isActive,
+                                available: !pane.isExited && !sessionReadOnly,
+                                onAskAi: (prompt) =>
+                                    _openAi(sessionId, prompt: prompt),
+                                onOpenAi: () => _openAi(sessionId),
+                                onTerminalFocus: focusNode.requestFocus,
                               ),
                             ),
                           if (!compactDisconnected) ?mobileControls,

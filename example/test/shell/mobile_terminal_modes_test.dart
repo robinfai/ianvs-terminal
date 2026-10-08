@@ -1063,7 +1063,14 @@ void main() {
       });
       await _settle(tester);
       expect(_mode(container).mode, TerminalViewMode.normal);
-      final viewport = find.byType(TerminalViewport);
+      // The read-only observer is a second projection of this same runtime.
+      // Keep checking the original PTY viewport's geometry throughout.
+      final viewport = find.byWidgetPredicate(
+        (widget) =>
+            widget is TerminalViewport &&
+            widget.key != const Key('ai-observer-viewport'),
+        description: 'original PTY viewport',
+      );
       final fullSize = tester.getSize(viewport);
       final fullGrid = List<int>.of(backend.resizeCalls.last);
       await tester.tap(find.byKey(Key('terminal-ai-open-$id')));
@@ -1132,10 +1139,21 @@ void main() {
         tester.widget<TextField>(prompt).controller!.text,
         'explain this TUI',
       );
-      for (final key in ['ai-close', 'ai-new-task', 'ai-send']) {
+      for (final key in ['ai-close', 'ai-send']) {
         final button = find.byKey(Key(key));
         expect(button.hitTestable(), findsOneWidget);
         expect(tester.getSize(button).height, greaterThanOrEqualTo(44));
+      }
+      final newTask = find.byKey(const Key('ai-new-task'));
+      if (newTask.hitTestable().evaluate().isEmpty) {
+        await tester.tap(find.byKey(const Key('ai-task-actions')));
+        await _settle(tester);
+        expect(newTask.hitTestable(), findsOneWidget);
+        expect(tester.getSize(newTask).height, greaterThanOrEqualTo(44));
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await _settle(tester);
+      } else {
+        expect(tester.getSize(newTask).height, greaterThanOrEqualTo(44));
       }
       expect(tester.takeException(), isNull);
       await _capture(tester, 'M06-${scene.name}-ai-keyboard');
@@ -1154,12 +1172,53 @@ void main() {
         'explain this TUI',
       );
       await _capture(tester, 'M06-${scene.name}-keyboard-dismissed');
+      final ai = tester
+          .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
+          .controller;
+      final taskId = ai.taskId;
+      final phase = ai.phase;
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await _settle(tester);
       expect(tester.getSize(viewport), fullSize);
       expect(backend.resizeCalls.last, fullGrid);
       expect(backend.writes, isEmpty);
       expect(find.byType(TerminalAiWorkspace), findsNothing);
+      final observer = find.byKey(const Key('ai-observer-viewport'));
+      expect(observer.hitTestable(), findsOneWidget);
+      final observed = tester.widget<TerminalViewport>(observer);
+      expect(observed.readOnly, isTrue);
+      expect(observed.focusNode!.hasFocus, isTrue);
+      expect(ai.phase, phase);
+      expect(ai.taskId, taskId);
+      expect(ai.draft, 'explain this TUI');
+      expect(
+        tester
+            .widget<TerminalAiWorkspace>(
+              find.byType(TerminalAiWorkspace, skipOffstage: false),
+            )
+            .controller,
+        same(ai),
+      );
+      observed.selectionController.setSelection(
+        const TerminalSelection(startRow: 0, startCol: 0, endRow: 0, endCol: 3),
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await _settle(tester);
+      expect(observed.selectionController.selection, isNull);
+      expect(observer.hitTestable(), findsOneWidget);
+      expect(ai.phase, phase);
+      expect(backend.writes, isEmpty);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await _settle(tester);
+      expect(observer.hitTestable(), findsNothing);
+      expect(find.byType(TerminalAiWorkspace), findsOneWidget);
+      expect(ai.phase, phase);
+      expect(ai.taskId, taskId);
+      expect(ai.draft, 'explain this TUI');
+      expect(backend.writes, isEmpty);
+      // Only the explicit takeover control returns raw keyboard ownership.
+      await tester.tap(find.byKey(const Key('ai-close')));
+      await _settle(tester);
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       expect(backend.writes, [
         orderedEquals([27]),

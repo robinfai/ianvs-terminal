@@ -3,7 +3,7 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:app/app.dart';
-import 'package:app/features/ai/acp/acp_installation.dart';
+import 'package:app/features/ai/acp/codex_acp_backend.dart';
 import 'package:app/features/ai/ai_models.dart';
 import 'package:app/features/ai/ai_settings.dart';
 import 'package:app/features/ai/terminal_ai_controller.dart';
@@ -43,7 +43,7 @@ void main() {
     'real ACP conversation proposes, executes and returns from evidence',
     (tester) async {
       ensureMacosIntegrationTestFramesEnabled(tester.binding);
-      final installation = await AcpInstallationDiscovery().discover();
+      final installation = await CodexAcpBackend.discoverInstallation();
       final configuration = AiConfiguration.acp(
         agentCommand: installation.command,
         agentArguments: installation.arguments,

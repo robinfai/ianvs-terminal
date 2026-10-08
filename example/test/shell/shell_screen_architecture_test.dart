@@ -460,6 +460,8 @@ Iterable<File> _allowedShellExternalDependencies(Directory libDirectory) {
     // AI owns connection/receipt routing and native evidence presentation;
     // Shell only creates sessions and assembles these feature boundaries.
     'features/ai/terminal_ai_connections.dart',
+    // The dedicated observer projects terminal state without a PTY write sink.
+    'features/ai/terminal_ai_observer.dart',
     'features/ai/terminal_ai_retained_timeline.dart',
     'features/ai/terminal_ai_runtime.dart',
     'features/ai/terminal_ai_workspace.dart',

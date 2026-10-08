@@ -108,8 +108,8 @@ void read() {
 ''';
     const acpSource = '''
 import 'dart:io';
-void read() {
-  final home = Platform.environment['CODEX_HOME'];
+void readAcpProcessEnvironment() {
+  final home = Platform.environment['HOME'];
   final path = Platform.environment['PATH'];
   final escaped = Platform.environment['OPENAI_BASE_URL'];
   final all = Platform.environment;
@@ -121,7 +121,7 @@ void read() {
       ('lib/features/sessions/session_controller.dart', sessionSource),
       ('lib/features/ssh/ssh_profile_import_service.dart', sshImportSource),
       ('lib/features/shell/shell_screen_sidebar.dart', sshImportSource),
-      ('lib/features/ai/acp/codex_acp_backend.dart', acpSource),
+      ('lib/features/ai/acp/acp_environment.dart', acpSource),
     ]) {
       final result = parseString(
         path: fixture.$1,
@@ -149,6 +149,73 @@ void read() {
       violations,
       contains(contains('features/shell/shell_screen_sidebar.dart')),
     );
+  });
+
+  test('ACP discovery-only keys cannot enter the child process boundary', () {
+    const source = '''
+import 'dart:io';
+void readAcpDiscoveryEnvironment() {
+  final fnm = Platform.environment['FNM_DIR'];
+  final nvm = Platform.environment['NVM_DIR'];
+  final volta = Platform.environment['VOLTA_HOME'];
+  final asdf = Platform.environment['ASDF_DATA_DIR'];
+  final npm = Platform.environment['npm_config_prefix'];
+  final upperNpm = Platform.environment['NPM_CONFIG_PREFIX'];
+  final escaped = Platform.environment['OPENAI_BASE_URL'];
+  final credentials = Platform.environment['CODEX_HOME'];
+}
+void readAcpProcessEnvironment() {
+  final fnm = Platform.environment['FNM_DIR'];
+  final nvm = Platform.environment['NVM_DIR'];
+  final volta = Platform.environment['VOLTA_HOME'];
+  final asdf = Platform.environment['ASDF_DATA_DIR'];
+  final npm = Platform.environment['npm_config_prefix'];
+  final upperNpm = Platform.environment['NPM_CONFIG_PREFIX'];
+}
+void readCodexAuthenticationPath() {
+  final codex = Platform.environment['CODEX_HOME'];
+  final home = Platform.environment['HOME'];
+  final escaped = Platform.environment['PATH'];
+}
+void unrelated() {
+  final path = Platform.environment['PATH'];
+}
+''';
+    final result = parseString(
+      content: source,
+      featureSet: FeatureSet.latestLanguageVersion(),
+      throwIfDiagnostics: false,
+    );
+    final violations = <String>[];
+    result.unit.accept(
+      _ForbiddenEnvironmentVisitor(
+        'lib/features/ai/acp/acp_environment.dart',
+        violations,
+      ),
+    );
+    expect(violations, hasLength(10));
+  });
+
+  test('ACP callers cannot retain their previous direct environment read', () {
+    const source = '''
+import 'dart:io';
+void readAcpProcessEnvironment() {
+  final path = Platform.environment['PATH'];
+}
+''';
+    for (final path in [
+      'lib/features/ai/acp/codex_acp_backend.dart',
+      'lib/features/ai/acp/acp_installation.dart',
+    ]) {
+      final result = parseString(
+        content: source,
+        featureSet: FeatureSet.latestLanguageVersion(),
+        throwIfDiagnostics: false,
+      );
+      final violations = <String>[];
+      result.unit.accept(_ForbiddenEnvironmentVisitor(path, violations));
+      expect(violations, hasLength(1));
+    }
   });
 }
 
@@ -312,19 +379,40 @@ bool _isAllowedNonDataEnvironmentUse(String path, AstNode node) {
     // Local cwd display abbreviates HOME to ~; this cannot configure the API.
     return key == 'HOME';
   }
-  if (path.endsWith('features/ai/acp/codex_acp_backend.dart')) {
-    // The local child process needs a narrow executable/locale environment
-    // and the existing Codex login path. None configure the application's
-    // Data API. Full environment copies and provider overrides remain banned.
-    return const {
-      'CODEX_HOME',
-      'HOME',
-      'PATH',
-      'USER',
-      'TMPDIR',
-      'LANG',
-      'LC_ALL',
-    }.contains(key);
+  if (path.endsWith('features/ai/acp/acp_environment.dart')) {
+    // One ACP host boundary, with separate installation, child-process and
+    // login readers. Discovery-only overrides must not leak into the child.
+    AstNode? declaration = node;
+    while (declaration != null && declaration is! FunctionDeclaration) {
+      declaration = declaration.parent;
+    }
+    if (declaration is! FunctionDeclaration ||
+        declaration.parent is! CompilationUnit) {
+      return false;
+    }
+    final keys = switch (declaration.name.lexeme) {
+      'readAcpDiscoveryEnvironment' => const {
+        'PATH',
+        'HOME',
+        'FNM_DIR',
+        'NVM_DIR',
+        'VOLTA_HOME',
+        'ASDF_DATA_DIR',
+        'npm_config_prefix',
+        'NPM_CONFIG_PREFIX',
+      },
+      'readAcpProcessEnvironment' => const {
+        'PATH',
+        'HOME',
+        'USER',
+        'TMPDIR',
+        'LANG',
+        'LC_ALL',
+      },
+      'readCodexAuthenticationPath' => const {'CODEX_HOME', 'HOME'},
+      _ => const <String>{},
+    };
+    return keys.contains(key);
   }
   return false;
 }

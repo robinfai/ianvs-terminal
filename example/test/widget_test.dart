@@ -1956,12 +1956,24 @@ void main() {
       expect(find.byKey(const Key('shell-status-badge')), findsNothing);
       expect(find.text('DEPLOY'), findsOneWidget);
       expect(container.read(sessionControllerProvider).activeSessionId, '2');
+      expect(
+        container.read(sessionControllerProvider).tabs.single.sessionId,
+        '1',
+      );
+      final runtime = container.read(terminalRuntimeControllerProvider);
+      expect(runtime.hasSession('1'), isFalse);
+      expect(runtime.hasSession('2'), isTrue);
+      expect(fakeBindings.closedSessionIds, <String>['1']);
 
       await _hoverShellTab(tester, '1');
       await tester.tap(find.byKey(const Key('shell-tab-close-1')));
       await tester.pumpAndSettle();
 
       expect(container.read(sessionControllerProvider).tabs, isEmpty);
+      expect(container.read(sessionControllerProvider).activeSessionId, isNull);
+      expect(runtime.hasSession('1'), isFalse);
+      expect(runtime.hasSession('2'), isFalse);
+      expect(fakeBindings.closedSessionIds, <String>['1', '2']);
       expect(find.byKey(const Key('shell-pane-2')), findsNothing);
       expect(find.byKey(const Key('shell-status-badge')), findsNothing);
       expect(fakeBindings.writes, isEmpty);

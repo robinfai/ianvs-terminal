@@ -89,10 +89,10 @@ bootstrap: ## Resolve workspace dependencies.
 	cd "$(ROOT_DIR)" && $(DART) pub get
 
 format: ## Format workspace Dart sources.
-	cd "$(ROOT_DIR)" && $(DART) format example/lib example/test example/integration_test packages test
+	cd "$(ROOT_DIR)" && $(DART) format example/lib example/test example/integration_test example/test_driver example/test_http example/tool packages test tools
 
 format-check: ## Check Dart formatting without changing files.
-	cd "$(ROOT_DIR)" && $(DART) format --output=none --set-exit-if-changed example/lib example/test example/integration_test packages test
+	cd "$(ROOT_DIR)" && $(DART) format --output=none --set-exit-if-changed example/lib example/test example/integration_test example/test_driver example/test_http example/tool packages test tools
 
 analyze: ## Analyze all Dart and Flutter packages with fatal infos.
 	cd "$(PTY_PACKAGE_DIR)" && $(DART) analyze --fatal-infos

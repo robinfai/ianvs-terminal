@@ -58,6 +58,60 @@ void main() {
   Matcher failure(String code) =>
       throwsA(isA<AiFailure>().having((e) => e.code, 'code', code));
 
+  group('injected installation environment', () {
+    test('keeps the supplied paths when the caller changes its map', () async {
+      final node = '$root/injected/bin/node';
+      await write(node, '#!/bin/sh\n', executable: true);
+      final entry = await adapter(
+        '$root/injected/lib/node_modules/@agentclientprotocol/codex-acp',
+      );
+      final paths = {'PATH': '$root/injected/bin'};
+      final lookup = discovery(environment: paths);
+      paths['PATH'] = '$root/unrelated/bin';
+      paths['HOME'] = '$root/unrelated/home';
+
+      final found = await lookup.discover();
+
+      expect(found.command, node);
+      expect(found.arguments, [entry]);
+    });
+
+    test('does not search an uninjected user installation', () async {
+      final home = '$root/home';
+      await write('$home/.local/bin/node', '#!/bin/sh\n', executable: true);
+      await adapter(
+        '$home/.local/lib/node_modules/@agentclientprotocol/codex-acp',
+      );
+
+      await expectLater(discovery().discover(), failure('acp_adapter_missing'));
+      final found = await discovery(environment: {'HOME': home}).discover();
+      expect(found.command, '$home/.local/bin/node');
+    });
+
+    for (final (key, versionPath) in [
+      ('FNM_DIR', 'node-versions/v22.0.0/installation'),
+      ('NVM_DIR', 'versions/node/v22.0.0'),
+      ('VOLTA_HOME', 'tools/image/node/v22.0.0'),
+      ('ASDF_DATA_DIR', 'installs/nodejs/22.0.0'),
+    ]) {
+      test('finds the adapter from a nonstandard $key location', () async {
+        final manager = '$root/custom manager';
+        final prefix = '$manager/$versionPath';
+        await write('$prefix/bin/node', '#!/bin/sh\n', executable: true);
+        final entry = await adapter(
+          '$prefix/lib/node_modules/@agentclientprotocol/codex-acp',
+        );
+
+        final found = await discovery(
+          environment: {'HOME': '$root/home', key: manager},
+        ).discover();
+
+        expect(found.command, '$prefix/bin/node');
+        expect(found.arguments, [entry]);
+      });
+    }
+  });
+
   test(
     'resolves npm and transient Node symlinks without executing them',
     () async {
@@ -123,19 +177,18 @@ void main() {
     expect(found.arguments, [entry]);
   });
 
-  test('honors npm prefix and keeps spaces in a single argument', () async {
-    await write('$root/bin/node', '#!/bin/sh\n', executable: true);
-    final entry = await adapter(
-      '$root/npm prefix/lib/node_modules/@agentclientprotocol/codex-acp',
-    );
-    final found = await discovery(
-      environment: {
-        'PATH': '$root/bin',
-        'npm_config_prefix': '$root/npm prefix',
-      },
-    ).discover();
-    expect(found.arguments, [entry]);
-  });
+  for (final key in ['npm_config_prefix', 'NPM_CONFIG_PREFIX']) {
+    test('honors $key and keeps spaces in a single argument', () async {
+      await write('$root/bin/node', '#!/bin/sh\n', executable: true);
+      final entry = await adapter(
+        '$root/npm prefix/lib/node_modules/@agentclientprotocol/codex-acp',
+      );
+      final found = await discovery(
+        environment: {'PATH': '$root/bin', key: '$root/npm prefix'},
+      ).discover();
+      expect(found.arguments, [entry]);
+    });
+  }
 
   test('native adapter does not require Node', () async {
     await write('$root/bin/codex-acp', '', executable: true);

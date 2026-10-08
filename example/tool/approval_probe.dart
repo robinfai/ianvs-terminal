@@ -1,13 +1,13 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:app/features/ai/acp/acp_installation.dart';
+import 'package:app/features/ai/acp/codex_acp_backend.dart';
 import 'package:app/features/ai/ai_approval.dart';
 import 'package:app/features/ai/ai_models.dart';
 
 /// Real tool-free ACP review. This never creates a terminal or executes input.
 Future<void> main(List<String> cases) async {
-  final installation = await AcpInstallationDiscovery().discover();
+  final installation = await CodexAcpBackend.discoverInstallation();
   final configuration = AiConfiguration.acp(
     agentCommand: installation.command,
     agentArguments: installation.arguments,
