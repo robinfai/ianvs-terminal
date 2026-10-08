@@ -1,4 +1,4 @@
-"""Local contract tests: every Flutter/Xcode/codesign invocation is a fake."""
+"""Local contract tests: every Flutter/Xcode/codesign/security invocation is a fake."""
 
 import hashlib
 import json
@@ -14,6 +14,7 @@ import unittest
 SCRIPT = Path(__file__).with_name("build_ios_fixture.sh")
 TEAM = "PRDTEAM123"
 PROFILE = "12345678-1234-1234-1234-123456789abc"
+CERTIFICATE = b"fake-public-development-certificate"
 GENERATED = (
     "ios/Flutter/Generated.xcconfig",
     "ios/Flutter/flutter_export_environment.sh",
@@ -22,7 +23,7 @@ GENERATED = (
 INFO_PLIST = "ios/Runner/Info.plist"
 
 FAKE_TOOL = r'''#!/usr/bin/env python3
-import json, os, pathlib, plistlib, sys
+import datetime, json, os, pathlib, plistlib, sys
 directory = pathlib.Path(__file__).parent
 plan = json.loads((directory / 'plan.json').read_text())
 name = pathlib.Path(sys.argv[0]).name
@@ -69,9 +70,34 @@ if name == 'xcodebuild':
         info.pop('NSLocalNetworkUsageDescription', None)
     (app / 'Info.plist').write_bytes(plistlib.dumps(info))
     (app / 'Runner').write_bytes(b'fake-built-binary')
-if name == 'codesign' and '--display' in args:
+    profile = {
+        'UUID': '12345678-1234-1234-1234-123456789abc',
+        'TeamIdentifier': ['PRDTEAM123'],
+        'Entitlements': {
+            'application-identifier': 'PRDTEAM123.work.ianvs.trail.mobileprd',
+            'com.apple.developer.team-identifier': 'PRDTEAM123',
+        },
+        'ExpirationDate': datetime.datetime(2099, 1, 1),
+        'DeveloperCertificates': [b'fake-public-development-certificate'],
+    }
+    if plan.get('wrong_profile_uuid'):
+        profile['UUID'] = 'ffffffff-ffff-ffff-ffff-ffffffffffff'
+    if plan.get('wrong_profile_team'):
+        profile['TeamIdentifier'] = ['OTHER12345']
+    if plan.get('wrong_profile_identity'):
+        profile['Entitlements']['application-identifier'] = 'PRDTEAM123.work.ianvs.trail'
+    if plan.get('expired_profile'):
+        profile['ExpirationDate'] = datetime.datetime(2000, 1, 1)
+    if plan.get('missing_profile_expiration'):
+        profile.pop('ExpirationDate')
+    if plan.get('missing_profile_certificates'):
+        profile.pop('DeveloperCertificates')
+    if not plan.get('missing_embedded_profile'):
+        (app / 'embedded.mobileprovision').write_bytes(plistlib.dumps(profile))
+if name == 'codesign' and '--entitlements' in args:
     group = 'PRDTEAM123.work.ianvs.trail.mobileprd'
-    signed = {'application-identifier': group, 'keychain-access-groups': [group]}
+    signed = {'application-identifier': group, 'keychain-access-groups': [group],
+              'com.apple.developer.team-identifier': 'PRDTEAM123'}
     if plan.get('shared_group'):
         signed['keychain-access-groups'].append('PRDTEAM123.work.ianvs.trail')
     if plan.get('wrong_group'):
@@ -80,7 +106,18 @@ if name == 'codesign' and '--display' in args:
         signed['application-identifier'] = 'PRDTEAM123.work.ianvs.trail'
     if plan.get('app_group'):
         signed['com.apple.security.application-groups'] = ['group.production']
+    if plan.get('wrong_signed_team'):
+        signed['com.apple.developer.team-identifier'] = 'OTHER12345'
     sys.stdout.buffer.write(plistlib.dumps(signed))
+if name == 'codesign':
+    prefix = next((value.split('=', 1)[1] for value in args
+                   if value.startswith('--extract-certificates=')), None)
+    if prefix:
+        certificate = b'other-public-certificate' if plan.get('wrong_signer') else b'fake-public-development-certificate'
+        pathlib.Path(prefix + '0').write_bytes(certificate)
+if name == 'security':
+    assert args[:3] == ['cms', '-D', '-i']
+    sys.stdout.buffer.write(pathlib.Path(args[3]).read_bytes())
 with (directory / 'calls.jsonl').open('a') as output:
     output.write(json.dumps(entry) + '\n')
 if plan.get(name + '_signal'):
@@ -124,7 +161,7 @@ class IosFixtureBuildTest(unittest.TestCase):
             self.original_generated[relative] = data
         self.bin = self.root / "fake-bin"
         self.bin.mkdir()
-        for name in ("flutter", "xcodebuild", "codesign"):
+        for name in ("flutter", "xcodebuild", "codesign", "security"):
             path = self.bin / name
             path.write_text(FAKE_TOOL)
             path.chmod(0o700)
@@ -145,10 +182,13 @@ class IosFixtureBuildTest(unittest.TestCase):
             "FLUTTER": str(self.bin / "flutter"),
             "XCODEBUILD": str(self.bin / "xcodebuild"),
             "CODESIGN": str(self.bin / "codesign"),
+            "SECURITY": str(self.bin / "security"),
             "PYTHON": shutil.which("python3"),
             "SHOULD_NOT_REACH_BUILDER": "private-environment-value",
             "XCODE_XCCONFIG_FILE": "/do-not-use/caller-production.xcconfig",
             "IANVS_IOS_BUNDLE_ID": "work.ianvs.trail",
+            "USER": "fixture-user", "LOGNAME": "fixture-user",
+            "SHELL": "/bin/zsh", "__CF_USER_TEXT_ENCODING": "0x0:0x0:0x0",
         }
 
     def set_plan(self, **values):
@@ -195,7 +235,7 @@ class IosFixtureBuildTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         calls = self.calls()
         self.assertEqual([c["tool"] for c in calls], ["flutter", "xcodebuild"] +
-                         (["codesign", "codesign"] if platform == "physical" else []))
+                         (["codesign", "codesign", "codesign", "security"] if platform == "physical" else []))
         flutter, xcode = calls[:2]
         target = "integration_test/mobile_prd_acceptance_test.dart" if entrypoint == "smoke" else "lib/main.dart"
         for expected in ("--" + mode, "--config-only", "--no-codesign", "--no-pub",
@@ -224,6 +264,13 @@ class IosFixtureBuildTest(unittest.TestCase):
                              ["keep", "exact", "contents"])
             if platform == "physical":
                 self.assertTrue(call["prepared_info"]["NSLocalNetworkUsageDescription"])
+                self.assertEqual(call["settings"]["CODE_SIGN_STYLE"], "Automatic")
+                self.assertEqual(call["settings"]["CODE_SIGN_IDENTITY"], "Apple Development")
+                self.assertEqual(call["settings"]["DEVELOPMENT_TEAM"], TEAM)
+                self.assertNotIn("PROVISIONING_PROFILE", call["settings"])
+                self.assertNotIn("PROVISIONING_PROFILE_SPECIFIER", call["settings"])
+                for variable in ("USER", "LOGNAME", "SHELL", "__CF_USER_TEXT_ENCODING"):
+                    self.assertIn(variable, call["environment_keys"])
         self.assertIn(mode.title(), xcode["args"])
         self.assertIn("iphonesimulator" if platform == "simulator" else "iphoneos", xcode["args"])
         self.assertFalse(any("allowProvisioning" in value for value in xcode["args"]))
@@ -243,6 +290,10 @@ class IosFixtureBuildTest(unittest.TestCase):
                          hashlib.sha256((self.example / target).read_bytes()).hexdigest())
         self.assertEqual(metadata["local_network_usage_declared"], platform == "physical")
         self.assertEqual(metadata["signed_keychain_isolation_verified"], platform == "physical")
+        self.assertEqual(metadata["embedded_profile_verified"], platform == "physical")
+        self.assertEqual(metadata["signing_style"], "automatic_offline" if platform == "physical" else None)
+        self.assertEqual(metadata["signing_certificate_sha1"],
+                         hashlib.sha1(CERTIFICATE).hexdigest().upper() if platform == "physical" else None)
         self.assertFalse(metadata["installed"])
         self.assertFalse(metadata["device_validated"])
         self.assertFalse(metadata["acceptance_passed"])
@@ -457,7 +508,7 @@ elif 'status' in sys.argv:
                 self.assert_cleaned()
 
     def test_signed_group_or_app_group_mismatch_fails_closed(self):
-        for key in ("shared_group", "wrong_group", "wrong_identifier", "app_group"):
+        for key in ("shared_group", "wrong_group", "wrong_identifier", "app_group", "wrong_signed_team"):
             with self.subTest(key=key):
                 self.set_plan(**{key: True})
                 result = self.run_build("physical")
@@ -465,6 +516,28 @@ elif 'status' in sys.argv:
                 self.assertFalse(list((self.root / "build/mobile-prd-v1.1/ios").glob("*/Products")))
                 self.assertFalse(list((self.root / "build/mobile-prd-v1.1/ios").glob("*/build-metadata.json")))
                 self.assert_cleaned()
+
+    def test_offline_automatic_must_embed_exact_requested_profile_and_authorized_signer(self):
+        for key in ("wrong_profile_uuid", "wrong_profile_team", "wrong_profile_identity",
+                    "expired_profile", "missing_profile_expiration", "missing_profile_certificates",
+                    "wrong_signer", "missing_embedded_profile"):
+            with self.subTest(key=key):
+                self.set_plan(**{key: True})
+                result = self.run_build("physical")
+                self.assertNotEqual(result.returncode, 0)
+                self.assertNotIn(PROFILE, result.stdout + result.stderr)
+                self.assertNotIn(TEAM, result.stdout + result.stderr)
+                self.assertFalse(list((self.root / "build/mobile-prd-v1.1/ios").glob("*/Products")))
+                self.assertFalse(list((self.root / "build/mobile-prd-v1.1/ios").glob("*/build-metadata.json")))
+                self.assert_cleaned()
+
+    def test_failed_profile_inspection_cannot_publish_success(self):
+        self.set_plan(security_exit=39)
+        result = self.run_build("physical")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse(list((self.root / "build/mobile-prd-v1.1/ios").glob("*/Products")))
+        self.assertFalse(list((self.root / "build/mobile-prd-v1.1/ios").glob("*/build-metadata.json")))
+        self.assert_cleaned()
 
 
 if __name__ == "__main__":

@@ -17,6 +17,7 @@ SIGNING_PROFILE=''
 FLUTTER_COMMAND="${FLUTTER:-flutter}"
 XCODE_COMMAND="${XCODEBUILD:-xcodebuild}"
 CODESIGN_COMMAND="${CODESIGN:-codesign}"
+SECURITY_COMMAND="${SECURITY:-security}"
 PYTHON_COMMAND="${PYTHON:-python3}"
 
 usage() {
@@ -30,13 +31,15 @@ Simulator supports debug only; --simulator-arch selects one explicit build slice
 Physical builds require an explicitly supplied
 team and an already installed provisioning profile UUID; no account discovery,
 provisioning updates, device registration, installation or simulator fallback.
+Xcode signs automatically using cached profiles, then the artifact must match
+the requested profile/team and its actual signer must be authorized by that profile.
 The default smoke entrypoint requires a fixture containing TRAIL_MOBILE_PRD_FIXTURE
 as a JSON string with runId, ssh, modelBaseUrl and evidenceBaseUrl.
 TRAIL_MOBILE_PRD_CASE is optional. The app entrypoint uses lib/main.dart, rejects
 --fixture, and lets the user configure API access in the isolated app's settings.
 Both entrypoints use the fixed work.ianvs.trail.mobileprd identity and Trail PRD
 display name. Normal app data and signing configuration are not copied or changed.
-FLUTTER, XCODEBUILD, CODESIGN and PYTHON may select existing tool executables.
+FLUTTER, XCODEBUILD, CODESIGN, SECURITY and PYTHON may select existing tool executables.
 Build products and private logs are written under build/mobile-prd-v1.1/ios.
 Do not publish raw build logs: Xcode may include encoded fixture definitions.
 USAGE
@@ -90,6 +93,7 @@ for tool in "$FLUTTER_COMMAND" "$XCODE_COMMAND" "$PYTHON_COMMAND"; do
 done
 if [[ "$BUILD_PLATFORM" == physical ]]; then
   command -v "$CODESIGN_COMMAND" >/dev/null 2>&1 || fail_usage 'codesign is required for physical builds.'
+  command -v "$SECURITY_COMMAND" >/dev/null 2>&1 || fail_usage 'security is required to inspect the embedded provisioning profile.'
 fi
 
 TEMP_BASE="$ROOT_DIR/build/tmp/mobile-prd-ios"
@@ -183,9 +187,9 @@ cat >"$SIGNING_ENTITLEMENTS" <<'PLIST'
   <array><string>$(AppIdentifierPrefix)work.ianvs.trail.mobileprd</string></array>
 </dict></plist>
 PLIST
-"$PYTHON_COMMAND" - "$SIGNING_CONFIG" "$SIGNING_ENTITLEMENTS" "$BUILD_PLATFORM" "$SIGNING_TEAM" "$SIGNING_PROFILE" "$SIMULATOR_ARCH" <<'PY'
+"$PYTHON_COMMAND" - "$SIGNING_CONFIG" "$SIGNING_ENTITLEMENTS" "$BUILD_PLATFORM" "$SIGNING_TEAM" "$SIMULATOR_ARCH" <<'PY'
 import pathlib, sys
-config, entitlements, platform, team, profile, simulator_arch = sys.argv[1:]
+config, entitlements, platform, team, simulator_arch = sys.argv[1:]
 # The value is a generated local path; reject xcconfig delimiters instead of
 # accidentally turning a path into an extra build setting.
 if any(c in entitlements for c in ('\n', '\r', '"', '$')):
@@ -200,8 +204,11 @@ settings = [
 if simulator_arch:
     settings += [f'ARCHS = {simulator_arch}', 'ONLY_ACTIVE_ARCH = YES']
 if platform == 'physical':
-    settings += ['CODE_SIGN_STYLE = Manual', 'CODE_SIGN_IDENTITY = Apple Development',
-                 f'DEVELOPMENT_TEAM = {team}', f'PROVISIONING_PROFILE_SPECIFIER = {profile}']
+    # Xcode-managed profiles require Automatic. Do not apply a global profile
+    # specifier to Swift package targets, which cannot use provisioning profiles.
+    # No provisioning-update flags are passed; inspect the signed result below.
+    settings += ['CODE_SIGN_STYLE = Automatic', 'CODE_SIGN_IDENTITY = Apple Development',
+                 f'DEVELOPMENT_TEAM = {team}']
 pathlib.Path(config).write_text('\n'.join(settings) + '\n')
 PY
 
@@ -269,7 +276,7 @@ PY
 BUILD_ENV=(/usr/bin/env -i "HOME=$HOME" "PATH=$PATH" "TMPDIR=$SIGNING_ROOT/"
   'LANG=en_US.UTF-8' 'LC_ALL=en_US.UTF-8' 'CI=true'
   'FLUTTER_SUPPRESS_ANALYTICS=true' "XCODE_XCCONFIG_FILE=$SIGNING_CONFIG")
-for option in DEVELOPER_DIR TOOLCHAINS RUSTUP_TOOLCHAIN PUB_CACHE; do
+for option in USER LOGNAME SHELL __CF_USER_TEXT_ENCODING DEVELOPER_DIR TOOLCHAINS RUSTUP_TOOLCHAIN PUB_CACHE; do
   if [[ -n "${!option:-}" ]]; then BUILD_ENV+=("$option=${!option}"); fi
 done
 run_stage() {
@@ -313,12 +320,19 @@ if [[ "$BUILD_PLATFORM" == physical ]]; then
     printf '%s\n' 'Could not inspect the built fixture signature.' >&2
     exit 1
   fi
+  run_stage 'Signing certificate inspection' "$CODESIGN_COMMAND" --display \
+    "--extract-certificates=$SIGNING_ROOT/actual-certificate-" "$APP_BUNDLE"
+  if ! "${BUILD_ENV[@]}" "$SECURITY_COMMAND" cms -D -i "$APP_BUNDLE/embedded.mobileprovision" \
+      >"$SIGNING_ROOT/actual-profile.plist" 2>>"$PRIVATE_LOG"; then
+    printf '%s\n' 'Could not inspect the built fixture provisioning profile.' >&2
+    exit 1
+  fi
 fi
 
-"$PYTHON_COMMAND" - "$ROOT_DIR" "$APP_BUNDLE" "$SIGNING_ROOT" "$OUTPUT_DIR" "$BUILD_PLATFORM" "$BUILD_MODE" "$SIMULATOR_ARCH" "$ENTRYPOINT" "$TARGET" <<'PY'
+"$PYTHON_COMMAND" - "$ROOT_DIR" "$APP_BUNDLE" "$SIGNING_ROOT" "$OUTPUT_DIR" "$BUILD_PLATFORM" "$BUILD_MODE" "$SIMULATOR_ARCH" "$ENTRYPOINT" "$TARGET" "$SIGNING_TEAM" "$SIGNING_PROFILE" <<'PY'
 import datetime, hashlib, json, pathlib, plistlib, re, sys
 root, app, temporary, output = map(pathlib.Path, sys.argv[1:5])
-platform, mode, simulator_arch, entrypoint, target = sys.argv[5:]
+platform, mode, simulator_arch, entrypoint, target, team, requested_profile = sys.argv[5:]
 bundle_id = 'work.ianvs.trail.mobileprd'
 try:
     info = plistlib.loads((app / 'Info.plist').read_bytes())
@@ -335,6 +349,7 @@ try:
     if not isinstance(executable, str) or pathlib.Path(executable).name != executable:
         raise ValueError('Built app has no valid executable identity.')
     binary_hash = hashlib.sha256((app / executable).read_bytes()).hexdigest()
+    signer_sha1 = None
     if platform == 'physical':
         entitlements = plistlib.loads((temporary / 'actual-entitlements.plist').read_bytes())
         groups = entitlements.get('keychain-access-groups')
@@ -346,6 +361,27 @@ try:
             raise ValueError('Built app application identity and Keychain group do not match.')
         if entitlements.get('com.apple.security.application-groups'):
             raise ValueError('App Groups are not allowed in this fixture build.')
+        expected_identity = team + '.' + bundle_id
+        if (entitlements.get('application-identifier') != expected_identity
+                or entitlements.get('com.apple.developer.team-identifier') != team):
+            raise ValueError('Built app signature does not match the requested team.')
+        profile = plistlib.loads((temporary / 'actual-profile.plist').read_bytes())
+        if (not isinstance(profile, dict)
+                or profile.get('UUID', '').lower() != requested_profile.lower()
+                or profile.get('TeamIdentifier') != [team]):
+            raise ValueError('Built app does not contain the requested provisioning profile and team.')
+        profile_entitlements = profile.get('Entitlements', {})
+        if (profile_entitlements.get('application-identifier') != expected_identity
+                or profile_entitlements.get('com.apple.developer.team-identifier') != team):
+            raise ValueError('Embedded provisioning profile does not authorize the isolated app identity.')
+        expiration = profile.get('ExpirationDate')
+        if (not isinstance(expiration, datetime.datetime)
+                or expiration.replace(tzinfo=datetime.timezone.utc) <= datetime.datetime.now(datetime.timezone.utc)):
+            raise ValueError('Embedded provisioning profile has expired or has no valid expiration date.')
+        certificate = (temporary / 'actual-certificate-0').read_bytes()
+        if certificate not in profile.get('DeveloperCertificates', []):
+            raise ValueError('Actual signing certificate is not authorized by the requested provisioning profile.')
+        signer_sha1 = hashlib.sha1(certificate).hexdigest().upper()
     source = json.loads((temporary / 'source.json').read_text())
     is_smoke = entrypoint == 'smoke'
     metadata = {
@@ -364,6 +400,9 @@ try:
         'app_version': info.get('CFBundleShortVersionString'),
         'app_build': info.get('CFBundleVersion'),
         'signed_keychain_isolation_verified': platform == 'physical',
+        'embedded_profile_verified': platform == 'physical',
+        'signing_style': 'automatic_offline' if platform == 'physical' else None,
+        'signing_certificate_sha1': signer_sha1,
         'local_network_usage_declared': bool(info.get('NSLocalNetworkUsageDescription')),
         'installed': False, 'device_validated': False, 'acceptance_passed': False,
         'private_build_log': 'build.private.log',
