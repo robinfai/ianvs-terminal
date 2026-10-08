@@ -109,54 +109,212 @@ void main() {
     for (final document in documents) {
       final source = File(document);
       expect(source.existsSync(), isTrue, reason: document);
-      final content = source.readAsStringSync();
-      for (final match in _markdownLinkPattern.allMatches(content)) {
-        final rawTarget = match.group(1)!;
-        final target = rawTarget.startsWith('<') && rawTarget.endsWith('>')
-            ? rawTarget.substring(1, rawTarget.length - 1)
-            : rawTarget;
-        if (_isExternalOrAnchorLink(target)) {
-          continue;
-        }
-        final path = Uri.decodeComponent(
-          target.split('#').first.split('?').first,
-        );
-        if (path.isEmpty) {
-          continue;
-        }
-        final resolved = source.absolute.parent.uri.resolve(path).toFilePath();
-        if (FileSystemEntity.typeSync(resolved) ==
-            FileSystemEntityType.notFound) {
-          failures.add('$document -> $target');
-        }
-      }
+      failures.addAll(_unresolvedMarkdownLinks(source));
     }
 
     expect(failures, isEmpty, reason: failures.join('\n'));
   });
 
-  test('docs contain current documentation instead of execution archives', () {
-    for (final directory in <String>[
-      'audits',
-      'evidence',
-      'reviews',
-      'design',
-      'retros',
-      'terminal-graphics-debug',
-      'ai',
-      'superpowers',
-    ]) {
-      expect(Directory('docs/$directory').existsSync(), isFalse);
-    }
-    final generatedFiles = Directory('docs')
-        .listSync(recursive: true)
-        .whereType<File>()
-        .where(
-          (file) =>
-              RegExp(r'\.(log|trace|py|dart|ts|zip|mp4)$').hasMatch(file.path),
-        )
-        .map((file) => file.path);
-    expect(generatedFiles, isEmpty);
+  test(
+    'docs archive exceptions are closed legacy paths and scoped PRD assets',
+    () {
+      final inventory = File('test/fixtures/docs_legacy_inventory.txt')
+          .readAsLinesSync()
+          .where((line) => line.isNotEmpty && !line.startsWith('#'));
+      final legacyFiles = inventory.toSet();
+      expect(legacyFiles, hasLength(inventory.length));
+      expect(legacyFiles, isNotEmpty);
+      expect(legacyFiles.every(_isLegacyDocumentationPath), isTrue);
+
+      final entries = Directory('docs').listSync(recursive: true);
+      final files = entries
+          .whereType<File>()
+          .map((file) => file.path.replaceAll(r'\', '/'))
+          .toSet();
+      final directories = entries
+          .whereType<Directory>()
+          .map((directory) => directory.path.replaceAll(r'\', '/'))
+          .toSet();
+      final failures = _documentationArchiveViolations(
+        files: files,
+        directories: directories,
+        legacyFiles: legacyFiles,
+      );
+      expect(failures, isEmpty, reason: failures.join('\n'));
+      expect(
+        legacyFiles.difference(files),
+        isEmpty,
+        reason:
+            'The frozen inventory must not be used to delete existing material.',
+      );
+    },
+  );
+
+  group('documentation link gate', () {
+    late Directory fixture;
+    late File document;
+
+    setUp(() {
+      fixture = Directory.systemTemp.createTempSync('ianvs-docs-links-');
+      document = File('${fixture.path}/README.md');
+      File(
+        '${fixture.path}/present.md',
+      ).writeAsStringSync('# Existing document');
+    });
+
+    tearDown(() => fixture.deleteSync(recursive: true));
+
+    test('ignores fenced Markdown examples but checks rendered links', () {
+      document.writeAsStringSync('''
+[Before](present.md)
+```markdown
+![Example](missing-example.png)
+[Example log](missing-example.log)
+```
+[After](present.md)
+''');
+      expect(_unresolvedMarkdownLinks(document), isEmpty);
+    });
+
+    test('still rejects a missing link after a fenced example', () {
+      document.writeAsStringSync('''
+```markdown
+[Placeholder](missing-example.md)
+```
+[Actual link](missing-document.md)
+''');
+      expect(_unresolvedMarkdownLinks(document), [
+        '${document.path} -> missing-document.md',
+      ]);
+    });
+
+    test('shorter or different fence markers cannot end a code example', () {
+      document.writeAsStringSync('''
+````markdown
+```
+[Still an example](missing-short-fence.md)
+~~~
+[Still an example](missing-other-fence.md)
+````
+   ~~~markdown
+[Tilde example](missing-tilde-example.md)
+   ~~~~
+[Actual link](missing-after.md)
+''');
+      expect(_unresolvedMarkdownLinks(document), [
+        '${document.path} -> missing-after.md',
+      ]);
+    });
+
+    test('a delimiter followed by text does not close the example', () {
+      document.writeAsStringSync('''
+```markdown
+``` trailing text
+[Still an example](missing-example.md)
+```
+[Actual link](missing-after.md)
+''');
+      expect(_unresolvedMarkdownLinks(document), [
+        '${document.path} -> missing-after.md',
+      ]);
+    });
+  });
+
+  group('documentation archive gate', () {
+    const legacyFiles = {
+      'docs/ai/REFERENCE.md',
+      'docs/ai/evidence/old.log',
+      'docs/design/previous/screen.png',
+    };
+
+    test('allows only the exact frozen legacy paths', () {
+      expect(
+        _documentationArchiveViolations(
+          files: legacyFiles,
+          directories: _parentDirectories(legacyFiles),
+          legacyFiles: legacyFiles,
+        ),
+        isEmpty,
+      );
+      for (final added in [
+        'docs/ai/evidence/new.log',
+        'docs/ai/NEW_REPORT.md',
+        'docs/design/previous/new.png',
+      ]) {
+        expect(
+          _documentationArchiveViolations(
+            files: {...legacyFiles, added},
+            directories: _parentDirectories(legacyFiles),
+            legacyFiles: legacyFiles,
+          ),
+          [added],
+        );
+      }
+    });
+
+    test('rejects new archive directories even when they are empty', () {
+      for (final added in ['docs/audits', 'docs/design/new-review']) {
+        expect(
+          _documentationArchiveViolations(
+            files: legacyFiles,
+            directories: {..._parentDirectories(legacyFiles), added},
+            legacyFiles: legacyFiles,
+          ),
+          [added],
+        );
+      }
+    });
+
+    test(
+      'allows the PRD validators and evidence inside a case or shared run',
+      () {
+        const files = {
+          ..._mobilePrdScripts,
+          '$_mobilePrdRoot/evidence/manifest.json',
+          '$_mobilePrdRoot/evidence/S1/S1-T05/run-one/assertions.log',
+          '$_mobilePrdRoot/evidence/S2/S2-T01/run-two/after-01.png',
+          '$_mobilePrdRoot/evidence/S3/S3-T08/run-three/flow.mp4',
+          '$_mobilePrdRoot/evidence/S4/S4-T01/run-four/flow.mov',
+          '$_mobilePrdRoot/evidence/shared/run-one/performance.trace',
+          '$_mobilePrdRoot/evidence/shared/run-one/events.jsonl',
+        };
+        expect(
+          _documentationArchiveViolations(
+            files: files,
+            directories: _parentDirectories(files),
+            legacyFiles: const {},
+          ),
+          isEmpty,
+        );
+      },
+    );
+
+    test('the PRD exception does not allow unrelated scripts or archives', () {
+      for (final added in [
+        'docs/generic-run.log',
+        'docs/evidence/new.png',
+        'docs/product/another-prd/evidence/S1/S1-T01/run/after.png',
+        '${_mobilePrdRoot}0/evidence/S1/S1-T01/run/flow.mp4',
+        '$_mobilePrdRoot/scripts/new_helper.py',
+        '$_mobilePrdRoot/scripts/validate_evidence.dart',
+        '$_mobilePrdRoot/evidence/build.log',
+        '$_mobilePrdRoot/evidence/S1/S2-T01/run/after.png',
+        '$_mobilePrdRoot/evidence/S1/S1-T01/run/helper.py',
+        '$_mobilePrdRoot/evidence/S1/S1-T01/run/bundle.zip',
+        '$_mobilePrdRoot/evidence/S1/S1-T01/../escape.log',
+        '$_mobilePrdRoot/evidence/shared/run/../escape.log',
+      ]) {
+        expect(
+          _documentationArchiveViolations(
+            files: {added},
+            directories: const {},
+            legacyFiles: const {},
+          ),
+          [added],
+          reason: added,
+        );
+      }
+    });
   });
 
   test('compatibility baseline keeps six-layer evidence explicit', () {
@@ -412,6 +570,134 @@ time.sleep(30)
 final RegExp _markdownLinkPattern = RegExp(
   r'!?\[[^\]]*\]\((<[^>]+>|[^)\s]+)(?:\s+"[^"]*")?\)',
 );
+
+final RegExp _markdownFencePattern = RegExp(r'^ {0,3}(`{3,}|~{3,})(.*)$');
+
+String _markdownOutsideFences(String content) {
+  final prose = StringBuffer();
+  String? fenceMarker;
+  var fenceLength = 0;
+  for (final line in const LineSplitter().convert(content)) {
+    final match = _markdownFencePattern.firstMatch(line);
+    if (fenceMarker != null) {
+      if (match != null &&
+          match.group(1)!.startsWith(fenceMarker) &&
+          match.group(1)!.length >= fenceLength &&
+          match.group(2)!.trim().isEmpty) {
+        fenceMarker = null;
+      }
+      prose.writeln();
+    } else if (match != null &&
+        !(match.group(1)!.startsWith('`') && match.group(2)!.contains('`'))) {
+      fenceMarker = match.group(1)![0];
+      fenceLength = match.group(1)!.length;
+      prose.writeln();
+    } else {
+      prose.writeln(line);
+    }
+  }
+  return prose.toString();
+}
+
+List<String> _unresolvedMarkdownLinks(File source) {
+  final failures = <String>[];
+  final prose = _markdownOutsideFences(source.readAsStringSync());
+  for (final match in _markdownLinkPattern.allMatches(prose)) {
+    final rawTarget = match.group(1)!;
+    final target = rawTarget.startsWith('<') && rawTarget.endsWith('>')
+        ? rawTarget.substring(1, rawTarget.length - 1)
+        : rawTarget;
+    if (_isExternalOrAnchorLink(target)) continue;
+    final path = Uri.decodeComponent(target.split('#').first.split('?').first);
+    if (path.isEmpty) continue;
+    final resolved = source.absolute.parent.uri.resolve(path).toFilePath();
+    if (FileSystemEntity.typeSync(resolved) == FileSystemEntityType.notFound) {
+      failures.add('${source.path} -> $target');
+    }
+  }
+  return failures;
+}
+
+const _mobilePrdRoot = 'docs/product/mobile-block-ai-v1';
+const _mobilePrdScripts = {
+  '$_mobilePrdRoot/scripts/validate_evidence.py',
+  '$_mobilePrdRoot/scripts/validate_shotlist.py',
+  '$_mobilePrdRoot/scripts/test_validate_evidence.py',
+  '$_mobilePrdRoot/scripts/test_validate_shotlist.py',
+};
+const _archiveRoots = {
+  'docs/audits',
+  'docs/evidence',
+  'docs/reviews',
+  'docs/design',
+  'docs/retros',
+  'docs/terminal-graphics-debug',
+  'docs/ai',
+  'docs/superpowers',
+};
+final _generatedDocumentationFile = RegExp(
+  r'\.(log|trace|py|dart|ts|zip|mp4|mov|webm)$',
+);
+final _mobilePrdEvidenceFile = RegExp(
+  '^$_mobilePrdRoot/evidence/'
+  r'(?:S([1-4])/S\1-T[0-9]{2}/[A-Za-z0-9][A-Za-z0-9._-]*|'
+  'shared/[A-Za-z0-9][A-Za-z0-9._-]*)/'
+  r'[^/]+\.(?:png|json|jsonl|txt|log|trace|mp4|mov|webm)$',
+);
+
+bool _isLegacyDocumentationPath(String path) =>
+    path.startsWith('docs/ai/') || path.startsWith('docs/design/');
+
+bool _isArchivePath(String path) =>
+    _archiveRoots.any((root) => path == root || path.startsWith('$root/'));
+
+bool _isProductEvidencePath(String path) {
+  final parts = path.split('/');
+  return parts.length >= 4 &&
+      parts[0] == 'docs' &&
+      parts[1] == 'product' &&
+      parts[3] == 'evidence';
+}
+
+bool _isMobilePrdEvidenceFile(String path) =>
+    path == '$_mobilePrdRoot/evidence/manifest.json' ||
+    (!path.split('/').any((part) => part == '.' || part == '..') &&
+        _mobilePrdEvidenceFile.hasMatch(path));
+
+Set<String> _parentDirectories(Iterable<String> files) => {
+  for (final file in files)
+    for (
+      var slash = file.lastIndexOf('/');
+      slash >= 0;
+      slash = file.lastIndexOf('/', slash - 1)
+    )
+      file.substring(0, slash),
+};
+
+List<String> _documentationArchiveViolations({
+  required Set<String> files,
+  required Set<String> directories,
+  required Set<String> legacyFiles,
+}) {
+  final legacyDirectories = _parentDirectories(legacyFiles);
+  final failures = <String>{
+    for (final directory in directories)
+      if (_isArchivePath(directory) && !legacyDirectories.contains(directory))
+        directory,
+  };
+  for (final path in files) {
+    if (legacyFiles.contains(path)) continue;
+    if (_isArchivePath(path)) {
+      failures.add(path);
+    } else if (_isProductEvidencePath(path)) {
+      if (!_isMobilePrdEvidenceFile(path)) failures.add(path);
+    } else if (_generatedDocumentationFile.hasMatch(path) &&
+        !_mobilePrdScripts.contains(path)) {
+      failures.add(path);
+    }
+  }
+  return failures.toList()..sort();
+}
 
 List<String> _stringList(Object? value) {
   if (value == null) {

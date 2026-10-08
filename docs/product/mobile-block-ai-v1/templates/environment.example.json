@@ -1,0 +1,14 @@
+{
+  "_notice": "字段说明示例，不是证据；不要将占位值当作实际记录",
+  "id": "匿名环境名称",
+  "platform": "ios",
+  "capture_class": "app_physical",
+  "device_model": "填真实机型",
+  "os_version": "填实际OS版本",
+  "flutter_version": "填实际版本",
+  "build_mode": "profile",
+  "build_id": "填实际App构建号",
+  "build_commit": "填40位实现commit",
+  "binary_sha256": "填64位被测产物SHA256",
+  "is_physical": true
+}

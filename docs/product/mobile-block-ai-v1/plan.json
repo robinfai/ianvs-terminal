@@ -1,0 +1,477 @@
+{
+  "version": "1.1",
+  "baseline_commit": "763dc166bb1e56d6d50ed3379b57f366c9ca06b7",
+  "stages": [
+    {
+      "id": "S1",
+      "case_count": 12,
+      "cases": [
+        {
+          "id": "S1-T01",
+          "title": "失败块的直接 AI 入口",
+          "requirement_ids": [
+            "S1-R01",
+            "S1-R02"
+          ],
+          "minimum_capture_class": "app_simulator",
+          "video_required": false
+        },
+        {
+          "id": "S1-T02",
+          "title": "上下文与诊断发送",
+          "requirement_ids": [
+            "S1-R02",
+            "S1-R03"
+          ],
+          "minimum_capture_class": "app_simulator",
+          "video_required": false
+        },
+        {
+          "id": "S1-T03",
+          "title": "命令审批完整审阅",
+          "requirement_ids": [
+            "S1-R04"
+          ],
+          "minimum_capture_class": "app_simulator",
+          "video_required": false
+        },
+        {
+          "id": "S1-T04",
+          "title": "编辑使旧审批失效",
+          "requirement_ids": [
+            "S1-R04",
+            "S1-R05"
+          ],
+          "minimum_capture_class": "app_simulator",
+          "video_required": false
+        },
+        {
+          "id": "S1-T05",
+          "title": "执行映射真实 Block",
+          "requirement_ids": [
+            "S1-R05",
+            "S1-R06"
+          ],
+          "minimum_capture_class": "app_simulator",
+          "video_required": true
+        },
+        {
+          "id": "S1-T06",
+          "title": "只读观察与接管",
+          "requirement_ids": [
+            "S1-R07"
+          ],
+          "minimum_capture_class": "app_simulator",
+          "video_required": true
+        },
+        {
+          "id": "S1-T07",
+          "title": "阅读旧输出时新内容到达",
+          "requirement_ids": [
+            "S1-R08"
+          ],
+          "minimum_capture_class": "app_simulator",
+          "video_required": true
+        },
+        {
+          "id": "S1-T08",
+          "title": "未知回执禁止重发",
+          "requirement_ids": [
+            "S1-R09"
+          ],
+          "minimum_capture_class": "app_simulator",
+          "video_required": false
+        },
+        {
+          "id": "S1-T09",
+          "title": "切换执行目标",
+          "requirement_ids": [
+            "S1-R10"
+          ],
+          "minimum_capture_class": "app_simulator",
+          "video_required": false
+        },
+        {
+          "id": "S1-T10",
+          "title": "TUI 回退与手动恢复",
+          "requirement_ids": [
+            "S1-R11"
+          ],
+          "minimum_capture_class": "app_simulator",
+          "video_required": true
+        },
+        {
+          "id": "S1-T11",
+          "title": "无 AI 配置和请求失败",
+          "requirement_ids": [
+            "S1-R12"
+          ],
+          "minimum_capture_class": "app_simulator",
+          "video_required": false
+        },
+        {
+          "id": "S1-T12",
+          "title": "普通 Shell 操作不退化",
+          "requirement_ids": [
+            "S1-R03",
+            "S1-R06",
+            "S1-R08"
+          ],
+          "minimum_capture_class": "app_simulator",
+          "video_required": false
+        }
+      ]
+    },
+    {
+      "id": "S2",
+      "case_count": 12,
+      "cases": [
+        {
+          "id": "S2-T01",
+          "title": "统一输入与自动意图",
+          "requirement_ids": [
+            "S2-R01",
+            "S2-R02"
+          ],
+          "minimum_capture_class": "app_simulator",
+          "video_required": false
+        },
+        {
+          "id": "S2-T02",
+          "title": "多行输入与展开编辑",
+          "requirement_ids": [
+            "S2-R03",
+            "S2-R04"
+          ],
+          "minimum_capture_class": "app_simulator",
+          "video_required": true
+        },
+        {
+          "id": "S2-T03",
+          "title": "系统中文候选不提交",
+          "requirement_ids": [
+            "S2-R05"
+          ],
+          "minimum_capture_class": "app_simulator",
+          "video_required": true
+        },
+        {
+          "id": "S2-T04",
+          "title": "键盘出现不压缩块",
+          "requirement_ids": [
+            "S2-R06"
+          ],
+          "minimum_capture_class": "app_simulator",
+          "video_required": true
+        },
+        {
+          "id": "S2-T05",
+          "title": "手机横屏极短可用区",
+          "requirement_ids": [
+            "S2-R04",
+            "S2-R06"
+          ],
+          "minimum_capture_class": "app_simulator",
+          "video_required": false
+        },
+        {
+          "id": "S2-T06",
+          "title": "长命令与特殊字符",
+          "requirement_ids": [
+            "S2-R03",
+            "S2-R07"
+          ],
+          "minimum_capture_class": "app_simulator",
+          "video_required": false
+        },
+        {
+          "id": "S2-T07",
+          "title": "输出阅读器与错误位置",
+          "requirement_ids": [
+            "S2-R08"
+          ],
+          "minimum_capture_class": "app_simulator",
+          "video_required": true
+        },
+        {
+          "id": "S2-T08",
+          "title": "上下文 Chips 与删除",
+          "requirement_ids": [
+            "S2-R09"
+          ],
+          "minimum_capture_class": "app_simulator",
+          "video_required": false
+        },
+        {
+          "id": "S2-T09",
+          "title": "触控与选择不冲突",
+          "requirement_ids": [
+            "S2-R10"
+          ],
+          "minimum_capture_class": "app_simulator",
+          "video_required": true
+        },
+        {
+          "id": "S2-T10",
+          "title": "外接键盘",
+          "requirement_ids": [
+            "S2-R05",
+            "S2-R10"
+          ],
+          "minimum_capture_class": "app_simulator",
+          "video_required": false
+        },
+        {
+          "id": "S2-T11",
+          "title": "iPad 宽窄分栏",
+          "requirement_ids": [
+            "S2-R11"
+          ],
+          "minimum_capture_class": "app_simulator",
+          "video_required": true
+        },
+        {
+          "id": "S2-T12",
+          "title": "macOS 原 Composer 回归",
+          "requirement_ids": [
+            "S2-R12"
+          ],
+          "minimum_capture_class": "app_desktop",
+          "video_required": false
+        }
+      ]
+    },
+    {
+      "id": "S3",
+      "case_count": 10,
+      "cases": [
+        {
+          "id": "S3-T01",
+          "title": "浅色核心页面",
+          "requirement_ids": [
+            "S3-R01",
+            "S3-R02"
+          ],
+          "minimum_capture_class": "widget_golden",
+          "video_required": false
+        },
+        {
+          "id": "S3-T02",
+          "title": "深色核心页面",
+          "requirement_ids": [
+            "S3-R01",
+            "S3-R02"
+          ],
+          "minimum_capture_class": "widget_golden",
+          "video_required": false
+        },
+        {
+          "id": "S3-T03",
+          "title": "命令和 AI 主动作",
+          "requirement_ids": [
+            "S3-R03"
+          ],
+          "minimum_capture_class": "widget_golden",
+          "video_required": false
+        },
+        {
+          "id": "S3-T04",
+          "title": "任务层级与证据",
+          "requirement_ids": [
+            "S3-R04"
+          ],
+          "minimum_capture_class": "widget_golden",
+          "video_required": false
+        },
+        {
+          "id": "S3-T05",
+          "title": "执行状态总览",
+          "requirement_ids": [
+            "S3-R05"
+          ],
+          "minimum_capture_class": "widget_golden",
+          "video_required": false
+        },
+        {
+          "id": "S3-T06",
+          "title": "长文本与本地化",
+          "requirement_ids": [
+            "S3-R06"
+          ],
+          "minimum_capture_class": "widget_golden",
+          "video_required": false
+        },
+        {
+          "id": "S3-T07",
+          "title": "移动固定字号政策",
+          "requirement_ids": [
+            "S3-R07"
+          ],
+          "minimum_capture_class": "app_simulator",
+          "video_required": false
+        },
+        {
+          "id": "S3-T08",
+          "title": "高对比与减少动画",
+          "requirement_ids": [
+            "S3-R08"
+          ],
+          "minimum_capture_class": "app_simulator",
+          "video_required": true
+        },
+        {
+          "id": "S3-T09",
+          "title": "组件交互状态册",
+          "requirement_ids": [
+            "S3-R09"
+          ],
+          "minimum_capture_class": "widget_golden",
+          "video_required": false
+        },
+        {
+          "id": "S3-T10",
+          "title": "跨端统一与桌面缩放",
+          "requirement_ids": [
+            "S3-R10"
+          ],
+          "minimum_capture_class": "app_desktop",
+          "video_required": false
+        }
+      ]
+    },
+    {
+      "id": "S4",
+      "case_count": 14,
+      "cases": [
+        {
+          "id": "S4-T01",
+          "title": "iPhone 实机完整闭环",
+          "requirement_ids": [
+            "S4-R01",
+            "S4-R02"
+          ],
+          "minimum_capture_class": "app_physical",
+          "video_required": true
+        },
+        {
+          "id": "S4-T02",
+          "title": "iPhone 实机中文 IME",
+          "requirement_ids": [
+            "S4-R03"
+          ],
+          "minimum_capture_class": "app_physical",
+          "video_required": true
+        },
+        {
+          "id": "S4-T03",
+          "title": "iPhone 实机横竖屏",
+          "requirement_ids": [
+            "S4-R04"
+          ],
+          "minimum_capture_class": "app_physical",
+          "video_required": true
+        },
+        {
+          "id": "S4-T04",
+          "title": "iPhone VoiceOver",
+          "requirement_ids": [
+            "S4-R05"
+          ],
+          "minimum_capture_class": "app_physical",
+          "video_required": true
+        },
+        {
+          "id": "S4-T05",
+          "title": "断网与恢复",
+          "requirement_ids": [
+            "S4-R06"
+          ],
+          "minimum_capture_class": "app_physical",
+          "video_required": true
+        },
+        {
+          "id": "S4-T06",
+          "title": "锁屏与前后台",
+          "requirement_ids": [
+            "S4-R07"
+          ],
+          "minimum_capture_class": "app_physical",
+          "video_required": true
+        },
+        {
+          "id": "S4-T07",
+          "title": "真实 TUI 及密码接管",
+          "requirement_ids": [
+            "S4-R08"
+          ],
+          "minimum_capture_class": "app_physical",
+          "video_required": true
+        },
+        {
+          "id": "S4-T08",
+          "title": "长输出与保留边界",
+          "requirement_ids": [
+            "S4-R09"
+          ],
+          "minimum_capture_class": "app_physical",
+          "video_required": true
+        },
+        {
+          "id": "S4-T09",
+          "title": "错误注入与重复批准",
+          "requirement_ids": [
+            "S4-R10"
+          ],
+          "minimum_capture_class": "app_physical",
+          "video_required": true
+        },
+        {
+          "id": "S4-T10",
+          "title": "实机性能样本",
+          "requirement_ids": [
+            "S4-R11"
+          ],
+          "minimum_capture_class": "app_physical",
+          "video_required": false
+        },
+        {
+          "id": "S4-T11",
+          "title": "iPad 实机与外接键盘",
+          "requirement_ids": [
+            "S4-R12"
+          ],
+          "minimum_capture_class": "app_physical",
+          "video_required": true
+        },
+        {
+          "id": "S4-T12",
+          "title": "macOS API 与本地 ACP 回归",
+          "requirement_ids": [
+            "S4-R13"
+          ],
+          "minimum_capture_class": "app_desktop",
+          "video_required": true
+        },
+        {
+          "id": "S4-T13",
+          "title": "升级/回滚与数据边界",
+          "requirement_ids": [
+            "S4-R14"
+          ],
+          "minimum_capture_class": "app_physical",
+          "video_required": false
+        },
+        {
+          "id": "S4-T14",
+          "title": "最终 GitHub 证据与构建一致",
+          "requirement_ids": [
+            "S4-R15"
+          ],
+          "minimum_capture_class": "app_desktop",
+          "video_required": false
+        }
+      ]
+    }
+  ],
+  "shotlist": "shotlist.json"
+}

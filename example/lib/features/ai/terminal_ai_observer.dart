@@ -1,0 +1,168 @@
+import 'dart:typed_data';
+
+import 'package:flutter/material.dart';
+import 'package:ianvs_terminal/ianvs_terminal.dart';
+
+import '../../platform/clipboard_bridge.dart';
+import '../../ui/app_ui.dart';
+
+/// A projection of the current terminal, with no capability to write to a PTY.
+///
+/// The host keeps its original viewport mounted at the original geometry.
+/// This view cannot resize it, focus its editor, paste, or activate inline
+/// terminal actions. Scrolling and copying only read the existing output.
+class TerminalAiObserver extends StatefulWidget {
+  const TerminalAiObserver({
+    required this.sessionId,
+    required this.targetLabel,
+    required this.viewport,
+    required this.onScrollLines,
+    required this.onScrollToOffset,
+    required this.onTakeOver,
+    this.onBack,
+    this.font = const TerminalFontConfig(),
+    this.colors,
+    this.graphicsCache,
+    super.key,
+  });
+
+  final String sessionId;
+  final String targetLabel;
+  final TerminalViewportController viewport;
+  final ValueChanged<int> onScrollLines;
+  final ValueChanged<int> onScrollToOffset;
+  final VoidCallback onTakeOver;
+  final VoidCallback? onBack;
+  final TerminalFontConfig font;
+  final TerminalViewportColors? colors;
+  final TerminalGraphicsCache? graphicsCache;
+
+  @override
+  State<TerminalAiObserver> createState() => _TerminalAiObserverState();
+}
+
+class _TerminalAiObserverState extends State<TerminalAiObserver> {
+  final _selection = SelectionController();
+  final _focus = FocusNode(debugLabel: 'Read-only terminal observer');
+
+  @override
+  void dispose() {
+    _selection.dispose();
+    _focus.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(TerminalAiObserver oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.sessionId != widget.sessionId ||
+        oldWidget.viewport != widget.viewport) {
+      _selection.clear();
+    }
+  }
+
+  String t(String en, String zh) =>
+      Localizations.localeOf(context).languageCode == 'zh' ? zh : en;
+
+  Future<void> _showTarget() => showDialog<void>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text(t('Observed terminal', '正在观察的终端')),
+      content: SelectableText(widget.targetLabel),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(t('Done', '完成')),
+        ),
+      ],
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.appTheme;
+    final input = TerminalInputController(
+      sessionId: widget.sessionId,
+      // Deliberately not the session's runtime, including protocol/focus input.
+      runtime: const _ObserverSink(),
+      readFrame: () => widget.viewport.frame,
+      readSelection: () => _selection.textForFrame(widget.viewport.frame),
+      copySelection: (text) => ClipboardBridge.copyWithFeedback(context, text),
+      readClipboard: () async => '',
+    );
+    return ColoredBox(
+      key: ValueKey('ai-terminal-observer-${widget.sessionId}'),
+      color: palette.panel,
+      child: Column(
+        children: [
+          Row(
+            children: [
+              if (widget.onBack != null)
+                IconButton(
+                  key: const Key('ai-observer-back'),
+                  constraints: const BoxConstraints(
+                    minWidth: 44,
+                    minHeight: 44,
+                  ),
+                  onPressed: widget.onBack,
+                  tooltip: t('Return to task', '返回任务'),
+                  icon: const Icon(Icons.arrow_back),
+                ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Text(
+                    t('Terminal · Read only', '终端 · 只读'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                ),
+              ),
+              IconButton(
+                key: const Key('ai-observer-target'),
+                constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+                tooltip: t('Terminal target details', '终端目标详情'),
+                onPressed: _showTarget,
+                icon: const Icon(Icons.info_outline),
+              ),
+              TextButton(
+                key: const Key('ai-observer-take-over'),
+                style: TextButton.styleFrom(minimumSize: const Size(44, 44)),
+                onPressed: widget.onTakeOver,
+                child: Text(t('Take over', '人工接管')),
+              ),
+            ],
+          ),
+          Expanded(
+            child: TerminalViewport(
+              key: const Key('ai-observer-viewport'),
+              controller: widget.viewport,
+              selectionController: _selection,
+              inputController: input,
+              focusNode: _focus,
+              readOnly: true,
+              autofocus: false,
+              altClickMovesCursor: false,
+              useFrameDefaultColors: false,
+              colors: widget.colors,
+              font: widget.font,
+              graphicsCache: widget.graphicsCache,
+              onScrollLines: widget.onScrollLines,
+              onScrollToOffset: widget.onScrollToOffset,
+              // No onMeasuredCellSizeChanged or action callbacks: observing
+              // cannot resize the shell or acquire an indirect write path.
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+final class _ObserverSink implements TerminalInputSink {
+  const _ObserverSink();
+
+  @override
+  void sendInput(String sessionId, Uint8List bytes) {}
+}
