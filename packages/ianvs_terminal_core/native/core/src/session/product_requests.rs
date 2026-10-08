@@ -30,44 +30,6 @@ fn live_screen_snapshot(terminal: &Terminal) -> serde_json::Value {
     })
 }
 
-#[cfg(test)]
-mod live_screen_tests {
-    use super::*;
-
-    #[test]
-    fn live_screen_uses_active_buffer_and_preserves_primary() {
-        let mut terminal = Terminal::new(40, 6);
-        terminal.process(b"shell output\r\nready> ");
-        let before = live_screen_snapshot(&terminal);
-        terminal.process(b"\x1b[?1049h\x1b[?1h\x1b[2J\x1b[Hvim content\x1b[3;5H");
-        let screen = live_screen_snapshot(&terminal);
-        assert_eq!(screen["alternateScreen"], true);
-        assert_eq!(screen["applicationCursor"], true);
-        assert_eq!(screen["cursorRow"], 2);
-        assert_eq!(screen["cursorColumn"], 4);
-        assert!(screen["text"].as_str().unwrap().contains("vim content"));
-        assert!(!screen["text"].as_str().unwrap().contains("shell output"));
-        assert_eq!(screen, live_screen_snapshot(&terminal));
-        terminal.process(b"\x1b[?1049l\x1b[?1l");
-        assert_eq!(live_screen_snapshot(&terminal), before);
-    }
-
-    #[test]
-    fn live_screen_excludes_scrollback_and_observes_carriage_return_rewrites() {
-        let mut terminal = Terminal::new(24, 3);
-        for line in 0..20 {
-            terminal.process(format!("old-{line}\r\n").as_bytes());
-        }
-        terminal.process(b"working\rfinished\x1b[K");
-        let screen = live_screen_snapshot(&terminal);
-        let text = screen["text"].as_str().unwrap();
-        assert!(text.contains("finished"));
-        assert!(!text.contains("old-0\n"));
-        assert!(!text.contains("working"));
-        assert_eq!(screen["rows"], 3);
-    }
-}
-
 pub(super) fn valid_sftp_path(path: &str) -> bool {
     !path.is_empty()
         && path.len() <= MAX_SFTP_PATH_BYTES
@@ -895,5 +857,43 @@ pub fn request_session(
             }))
         }
         _ => Ok(None),
+    }
+}
+
+#[cfg(test)]
+mod live_screen_tests {
+    use super::*;
+
+    #[test]
+    fn live_screen_uses_active_buffer_and_preserves_primary() {
+        let mut terminal = Terminal::new(40, 6);
+        terminal.process(b"shell output\r\nready> ");
+        let before = live_screen_snapshot(&terminal);
+        terminal.process(b"\x1b[?1049h\x1b[?1h\x1b[2J\x1b[Hvim content\x1b[3;5H");
+        let screen = live_screen_snapshot(&terminal);
+        assert_eq!(screen["alternateScreen"], true);
+        assert_eq!(screen["applicationCursor"], true);
+        assert_eq!(screen["cursorRow"], 2);
+        assert_eq!(screen["cursorColumn"], 4);
+        assert!(screen["text"].as_str().unwrap().contains("vim content"));
+        assert!(!screen["text"].as_str().unwrap().contains("shell output"));
+        assert_eq!(screen, live_screen_snapshot(&terminal));
+        terminal.process(b"\x1b[?1049l\x1b[?1l");
+        assert_eq!(live_screen_snapshot(&terminal), before);
+    }
+
+    #[test]
+    fn live_screen_excludes_scrollback_and_observes_carriage_return_rewrites() {
+        let mut terminal = Terminal::new(24, 3);
+        for line in 0..20 {
+            terminal.process(format!("old-{line}\r\n").as_bytes());
+        }
+        terminal.process(b"working\rfinished\x1b[K");
+        let screen = live_screen_snapshot(&terminal);
+        let text = screen["text"].as_str().unwrap();
+        assert!(text.contains("finished"));
+        assert!(!text.contains("old-0\n"));
+        assert!(!text.contains("working"));
+        assert_eq!(screen["rows"], 3);
     }
 }

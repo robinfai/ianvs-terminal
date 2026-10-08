@@ -208,13 +208,15 @@ fn read_block(
         for (from, to) in columns {
             let from = from.max(copied_to);
             if to > from {
-                owned_cells.extend(cells[from..to].iter().enumerate().filter_map(
-                    |(index, cell)| {
-                        ownership
-                            .is_none_or(|owned| owned.get(from + index) == Some(&true))
-                            .then(|| cell.clone())
-                    },
-                ));
+                owned_cells.extend(
+                    cells[from..to]
+                        .iter()
+                        .enumerate()
+                        .filter(|(index, _)| {
+                            ownership.is_none_or(|owned| owned.get(from + index) == Some(&true))
+                        })
+                        .map(|(_, cell)| cell.clone()),
+                );
                 copied_to = to;
             }
         }

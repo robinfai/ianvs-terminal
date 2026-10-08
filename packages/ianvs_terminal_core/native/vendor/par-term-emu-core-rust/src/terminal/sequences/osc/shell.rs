@@ -211,17 +211,14 @@ impl Terminal {
                     .rev()
                     .find(|z| z.is_open() && z.zone_type == ZoneType::Output)
                 {
-                    let identifier = |key: &str| {
-                        value[key]
-                            .as_str()
-                            .filter(|s| {
-                                !s.is_empty()
-                                    && s.len() <= 80
-                                    && s.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
-                            })
-                            .map(str::to_owned)
-                    };
-                    zone.submission_id = identifier("submission_id");
+                    zone.submission_id = value["submission_id"]
+                        .as_str()
+                        .filter(|s| {
+                            !s.is_empty()
+                                && s.len() <= 80
+                                && s.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
+                        })
+                        .map(str::to_owned);
                     zone.context_id = Some(context.to_owned());
                     self.shell_integration.ianvs_output_zone = Some(zone.id);
                 }

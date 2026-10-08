@@ -198,59 +198,58 @@ fn collect(
             // cwd, including explicitly typed ../ and directory symlinks.
             Some(cwd.join(parent))
         };
-        if let Some(folder) = folder {
-            if let Ok(folder) = folder.canonicalize()
-                && !stopped()
-                && let Ok(entries) = std::fs::read_dir(folder)
-            {
-                for entry in entries.take(MAX_ENTRIES) {
-                    if stopped() || items.len() >= MAX_ITEMS {
-                        break;
-                    }
-                    let Ok(entry) = entry else {
-                        continue;
-                    };
-                    let Some(name) = entry.file_name().to_str().map(str::to_owned) else {
-                        continue;
-                    };
-                    if !clean(&name)
-                        || !name.starts_with(prefix)
-                        || (name.starts_with('.') && !prefix.starts_with('.'))
-                    {
-                        continue;
-                    }
-                    let Ok(mut kind) = entry.file_type() else {
-                        continue;
-                    };
-                    if kind.is_symlink() {
-                        let Ok(target) = std::fs::metadata(entry.path()) else {
-                            continue;
-                        };
-                        kind = target.file_type();
-                    }
-                    if !kind.is_dir() && !kind.is_file() {
-                        continue;
-                    }
-                    let directories_only = plan.templates.iter().all(|t| t == "folders");
-                    if directories_only && !kind.is_dir() {
-                        continue;
-                    }
-                    // Directories remain navigable in a file argument.
-                    let mut value = format!("{parent}{name}");
-                    if value.starts_with('-') {
-                        value.insert_str(0, "./");
-                    }
-                    if kind.is_dir() {
-                        value.push('/');
-                    }
-                    items.push(edit(
-                        plan,
-                        &value,
-                        if kind.is_dir() { "directory" } else { "file" },
-                        "local:files",
-                        expand_home,
-                    ));
+        if let Some(folder) = folder
+            && let Ok(folder) = folder.canonicalize()
+            && !stopped()
+            && let Ok(entries) = std::fs::read_dir(folder)
+        {
+            for entry in entries.take(MAX_ENTRIES) {
+                if stopped() || items.len() >= MAX_ITEMS {
+                    break;
                 }
+                let Ok(entry) = entry else {
+                    continue;
+                };
+                let Some(name) = entry.file_name().to_str().map(str::to_owned) else {
+                    continue;
+                };
+                if !clean(&name)
+                    || !name.starts_with(prefix)
+                    || (name.starts_with('.') && !prefix.starts_with('.'))
+                {
+                    continue;
+                }
+                let Ok(mut kind) = entry.file_type() else {
+                    continue;
+                };
+                if kind.is_symlink() {
+                    let Ok(target) = std::fs::metadata(entry.path()) else {
+                        continue;
+                    };
+                    kind = target.file_type();
+                }
+                if !kind.is_dir() && !kind.is_file() {
+                    continue;
+                }
+                let directories_only = plan.templates.iter().all(|t| t == "folders");
+                if directories_only && !kind.is_dir() {
+                    continue;
+                }
+                // Directories remain navigable in a file argument.
+                let mut value = format!("{parent}{name}");
+                if value.starts_with('-') {
+                    value.insert_str(0, "./");
+                }
+                if kind.is_dir() {
+                    value.push('/');
+                }
+                items.push(edit(
+                    plan,
+                    &value,
+                    if kind.is_dir() { "directory" } else { "file" },
+                    "local:files",
+                    expand_home,
+                ));
             }
         }
     }
