@@ -1387,11 +1387,10 @@ mod tests {
         let oversized = "x".repeat(OSC133_AID_MAX_BYTES + 1);
         term.process(format!("\x1b]133;A;aid={oversized}\x07").as_bytes());
         assert_eq!(term.shell_integration.state(), ShellIntegrationState::Idle);
-        assert!(
-            term.poll_events()
-                .iter()
-                .all(|event| !matches!(event, TerminalEvent::ShellIntegrationEvent { .. }))
-        );
+        assert!(term
+            .poll_events()
+            .iter()
+            .all(|event| !matches!(event, TerminalEvent::ShellIntegrationEvent { .. })));
     }
 
     #[test]
@@ -1616,11 +1615,9 @@ mod tests {
             Some(0),
         );
 
-        assert!(
-            shell_events(&mut term)
-                .iter()
-                .all(|(source, _, _)| *source == ShellIntegrationSource::Osc633)
-        );
+        assert!(shell_events(&mut term)
+            .iter()
+            .all(|(source, _, _)| *source == ShellIntegrationSource::Osc633));
     }
 
     #[test]
@@ -1728,11 +1725,9 @@ mod tests {
         assert!(term.in_command_output);
 
         let before_outer_d = term.poll_events();
-        assert!(
-            before_outer_d
-                .iter()
-                .all(|event| !matches!(event, TerminalEvent::SubShellDetected { .. }))
-        );
+        assert!(before_outer_d
+            .iter()
+            .all(|event| !matches!(event, TerminalEvent::SubShellDetected { .. })));
 
         // Only the consecutive D can belong to the suspended parent.
         term.process(b"\x1b]133;D;9\x07");
@@ -1800,11 +1795,10 @@ mod tests {
         assert_eq!(term.shell_integration.command(), Some("fresh"));
         assert_eq!(term.shell_integration.exit_code(), Some(3));
         assert_eq!(term.shell_integration.suspended_lifecycle_count(), 1);
-        assert!(
-            term.poll_events()
-                .iter()
-                .all(|event| !matches!(event, TerminalEvent::SubShellDetected { .. }))
-        );
+        assert!(term
+            .poll_events()
+            .iter()
+            .all(|event| !matches!(event, TerminalEvent::SubShellDetected { .. })));
     }
 
     #[test]
@@ -1839,10 +1833,9 @@ mod tests {
         assert!(output.is_closed());
         assert_eq!(output.exit_code, Some(7));
         assert!(output.abs_row_end >= output.abs_row_start);
-        assert!(
-            term.get_zone_text(output.abs_row_start)
-                .is_some_and(|text| text.contains("line-"))
-        );
+        assert!(term
+            .get_zone_text(output.abs_row_start)
+            .is_some_and(|text| text.contains("line-")));
     }
 
     #[test]
@@ -1888,11 +1881,10 @@ mod tests {
                 .count(),
             zone_count
         );
-        assert!(
-            term.poll_events()
-                .iter()
-                .all(|event| !matches!(event, TerminalEvent::ZoneScrolledOut { .. }))
-        );
+        assert!(term
+            .poll_events()
+            .iter()
+            .all(|event| !matches!(event, TerminalEvent::ZoneScrolledOut { .. })));
     }
 
     #[test]
@@ -1927,11 +1919,10 @@ mod tests {
 
         assert!(term.get_zones().len() <= crate::grid::MAX_SEMANTIC_ZONES);
         assert!(term.get_zones().last().unwrap().is_closed());
-        assert!(
-            term.poll_events()
-                .iter()
-                .any(|event| matches!(event, TerminalEvent::ZoneScrolledOut { .. }))
-        );
+        assert!(term
+            .poll_events()
+            .iter()
+            .any(|event| matches!(event, TerminalEvent::ZoneScrolledOut { .. })));
     }
 
     #[test]
@@ -1951,11 +1942,10 @@ mod tests {
             term.process(invalid);
         }
         assert!(term.shell_integration.cwd().is_none());
-        assert!(
-            term.poll_events()
-                .iter()
-                .all(|event| !matches!(event, TerminalEvent::CwdChanged(_)))
-        );
+        assert!(term
+            .poll_events()
+            .iter()
+            .all(|event| !matches!(event, TerminalEvent::CwdChanged(_))));
 
         term.process(b"\x1b]7;file:///tmp/valid%25path\x07");
         assert_eq!(term.shell_integration.cwd(), Some("/tmp/valid%path"));
