@@ -126,7 +126,7 @@ extension _ShellScreenMobileInput on _ShellScreenState {
   }
 
   void _sendMobileTerminalBytes(String sessionId, List<int> bytes) {
-    if (bytes.isEmpty || _isSessionReadOnly(sessionId)) {
+    if (bytes.isEmpty || _manualInputBlocked(sessionId)) {
       return;
     }
     // Raw terminal shortcuts belong to the live PTY. The Block editor owns

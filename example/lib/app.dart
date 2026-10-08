@@ -7,6 +7,7 @@ import 'features/preferences/app_preferences_models.dart';
 import 'features/sessions/session_controller.dart';
 import 'features/shell/shell_screen.dart';
 import 'ui/app_ui.dart';
+import 'ui/foundation/phone_text_scale_policy.dart';
 
 class IanvsTerminalApp extends ConsumerWidget {
   const IanvsTerminalApp({this.activeDataApiDeployment, super.key});
@@ -56,9 +57,11 @@ class IanvsTerminalApp extends ConsumerWidget {
         platform: defaultTargetPlatform,
         highContrast: true,
       ),
-      builder: (context, child) => AppNotificationHost(
-        topInset: ShellScreen.desktopChromeHeight,
-        child: child!,
+      builder: (context, child) => PhoneTextScalePolicy(
+        child: AppNotificationHost(
+          topInset: ShellScreen.desktopChromeHeight,
+          child: child!,
+        ),
       ),
       home: ShellScreen(activeDataApiDeployment: activeDataApiDeployment),
     );

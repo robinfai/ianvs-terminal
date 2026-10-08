@@ -65,6 +65,7 @@ class CommandBlockController extends ChangeNotifier {
   bool stickyHeader = true;
   int revealRevision = 0;
   bool revealBottom = false;
+  bool revealFocus = true;
 
   CommandBlock displayBlock(CommandBlock block) =>
       block.running ? block : _pages[block.id] ?? block;
@@ -142,6 +143,7 @@ class CommandBlockController extends ChangeNotifier {
     if (reveal) {
       revealRevision++;
       revealBottom = false;
+      revealFocus = true;
     }
     notifyListeners();
   }
@@ -202,9 +204,10 @@ class CommandBlockController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void reveal(String id, {bool bottom = false}) {
+  void reveal(String id, {bool bottom = false, bool focus = true}) {
     activeId = id;
     revealBottom = bottom;
+    revealFocus = focus;
     revealRevision++;
     notifyListeners();
   }

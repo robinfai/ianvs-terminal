@@ -76,6 +76,20 @@ final class TerminalComposerController extends ChangeNotifier {
     notifyListeners();
   }
 
+  InputIntentDecision previewInputIntent(
+    TextEditingValue value,
+    InputIntentChoice choice,
+  ) => inputIntent.preview(
+    value.text,
+    choice: choice,
+    context: InputIntentContext(
+      scope: _intentContext.scope,
+      aliases: _intentContext.aliases,
+      commandNames: _intentContext.commandNames,
+    ),
+    composing: !value.composing.isCollapsed,
+  );
+
   void updateIntentContext(InputIntentContext context) {
     final before = inputIntent.decision;
     _intentContext = context;

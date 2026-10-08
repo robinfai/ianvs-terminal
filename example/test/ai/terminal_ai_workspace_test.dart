@@ -80,6 +80,7 @@ void main() {
     bool highContrast = false,
     AiTimelineBuilder? timelineBuilder,
     VoidCallback? close,
+    VoidCallback? observe,
     bool fullScreenTerminal = false,
     TargetPlatform? platform,
     Locale locale = const Locale('en'),
@@ -117,6 +118,7 @@ void main() {
           body: TerminalAiWorkspace(
             controller: controller,
             onClose: close ?? () {},
+            onObserveTerminal: observe,
             timelineBuilder: timelineBuilder,
             fullScreenTerminal: fullScreenTerminal,
             onShowEvidence: onShowEvidence,
@@ -312,7 +314,7 @@ void main() {
       ('Session tasks', 'tasks'),
       ('New task', 'new'),
       ('AI connection', 'connection'),
-      ('Return to terminal and pause AI', 'return'),
+      ('Take over terminal input', 'return'),
     ]) {
       await mouse.moveTo(tester.getCenter(find.byTooltip(label)));
       await tester.pump(const Duration(seconds: 1));
@@ -344,7 +346,7 @@ void main() {
         ),
       );
       await tester.pump();
-      expect(find.text('Command · Auto'), findsOneWidget);
+      expect(find.text('Auto · Command'), findsOneWidget);
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.pump();
       expect(terminal.writes, isEmpty);
@@ -356,7 +358,7 @@ void main() {
         ),
       );
       await tester.pump();
-      expect(find.text('Ask AI · Auto'), findsOneWidget);
+      expect(find.text('Auto · AI'), findsOneWidget);
       expect(terminal.writes, isEmpty);
       expect(api.requests, isEmpty);
     },
@@ -402,7 +404,9 @@ void main() {
           await tester.pumpAndSettle();
           await tester.tap(
             find.byWidgetPredicate(
-              (w) => w is CheckedPopupMenuItem<String> && w.value == 'command',
+              (w) =>
+                  w is CheckedPopupMenuItem<InputIntentChoice> &&
+                  w.value == InputIntentChoice.command,
             ),
           );
           await tester.pumpAndSettle();
@@ -1512,7 +1516,7 @@ void main() {
   );
 
   testWidgets(
-    'TUI overlay consumes Escape and returns after approved keys only once',
+    'TUI Escape observes without taking over and approved keys return only once',
     (tester) async {
       await prepare();
       terminal.context = const AiTerminalContext(
@@ -1542,23 +1546,38 @@ void main() {
         }),
       );
       var closes = 0;
+      var observations = 0;
       await controller.ask('Leave insert mode');
-      await mount(tester, fullScreenTerminal: true, close: () => closes++);
+      await mount(
+        tester,
+        fullScreenTerminal: true,
+        close: () => closes++,
+        observe: () => observations++,
+      );
       expect(find.text('Terminal program: vim'), findsOneWidget);
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pump();
-      expect(closes, 1);
+      expect(observations, 1);
+      expect(closes, 0);
+      expect(controller.canApprove, isTrue);
+      expect(controller.takenOver, isFalse);
       expect(terminal.writes, isEmpty);
       api.respond = (_) async => const AiReply(text: 'Screen inspected');
       await tester.tap(find.byKey(const Key('ai-approve')));
       await tester.pumpAndSettle();
-      expect(closes, 2);
+      expect(closes, 1);
+      expect(observations, 1);
       expect(terminal.writes.single.kind, AiActionKind.sendKeys);
       await tester.pumpWidget(const SizedBox());
-      await mount(tester, fullScreenTerminal: true, close: () => closes++);
+      await mount(
+        tester,
+        fullScreenTerminal: true,
+        close: () => closes++,
+        observe: () => observations++,
+      );
       expect(
         closes,
-        2,
+        1,
         reason: 'Old accepted keys must not close a reopened task',
       );
     },
@@ -2289,7 +2308,15 @@ void main() {
         );
         expect(tester.takeException(), isNull);
         await _capture(tester, '${variant.name}-${brightness.name}-notice');
-        await tester.tap(find.byKey(const Key('ai-resume')));
+        if (variant.name.startsWith('phone') && variant.size.height < 320) {
+          final menu = find.byKey(const Key('ai-task-actions')).hitTestable();
+          expect(menu, findsOneWidget);
+          await tester.tap(menu);
+          await tester.pumpAndSettle();
+        }
+        final resume = find.byKey(const Key('ai-resume')).hitTestable();
+        expect(resume, findsOneWidget);
+        await tester.tap(resume);
         await tester.pumpAndSettle();
         expect(
           find.byKey(const Key('ai-target-dialog-continue')).hitTestable(),

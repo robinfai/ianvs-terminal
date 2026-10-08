@@ -394,6 +394,10 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
     final profile = _profileForPane(pane, sessionState.profiles);
     final terminalConfig = profile?.toSessionConfig();
     final sessionReadOnly = pane.isExited || _isSessionReadOnly(sessionId);
+    final inputEpoch = _manualInputEpochs.putIfAbsent(
+      sessionId,
+      () => ++_manualInputSerial,
+    );
     final baseTerminalFont =
         terminalConfig?.display.font ?? const terminal.TerminalFontConfig();
     final effectiveTerminalFont = defaultTargetPlatform == TargetPlatform.iOS
@@ -416,7 +420,12 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
       // TerminalViewport can emit a final focus-loss report while its element
       // is being unmounted. Capture the build-time value so that teardown does
       // not ask Riverpod for an ancestor after ShellScreen is deactivated.
-      readOnly: () => sessionReadOnly,
+      readOnly: () =>
+          !mounted ||
+          sessionReadOnly ||
+          inputEpoch != _manualInputEpoch(sessionId) ||
+          _readOnlySessionIds.contains(sessionId) ||
+          _openAiSessions.contains(sessionId),
     );
     final composerSession = !sessionReadOnly
         ? _composerFor(sessionId)
@@ -815,6 +824,7 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                                   },
                                   onActivateInlineButton: (button) {
                                     if (!isActive ||
+                                        _openAiSessions.contains(sessionId) ||
                                         (button.kind ==
                                                 terminal
                                                     .TerminalInlineButtonKind
@@ -1049,6 +1059,7 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                       palette,
                       targetLabel: pane.title,
                       font: effectiveTerminalFont,
+                      colors: terminalColors,
                       fullScreenTerminal:
                           composerSession?.fullScreen == true ||
                           viewportController.frame.modes.alternateScreen,

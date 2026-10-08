@@ -147,7 +147,13 @@ extension _ShellScreenAi on _ShellScreenState {
       _mutateState(() {
         _aiSessions.remove(sessionId);
         _aiSessions[next] = ai;
-        if (_openAiSessions.remove(sessionId)) _openAiSessions.add(next);
+        if (_openAiSessions.remove(sessionId)) {
+          _revokeManualInput(sessionId);
+          _revokeManualInput(next);
+          _openAiSessions.add(next);
+        }
+        final observed = _observedAiTargets.remove(sessionId);
+        if (observed != null) _observedAiTargets[next] = observed;
       });
     }
     if (draft != null) _composerFor(next).controller.editor.value = draft;
@@ -230,25 +236,43 @@ extension _ShellScreenAi on _ShellScreenState {
             : (chinese ? '解释这个命令块。' : 'Explain this command block.'),
       );
     }
-    _mutateState(() => _openAiSessions.add(sessionId));
+    _mutateState(() {
+      if (!_openAiSessions.contains(sessionId)) _revokeManualInput(sessionId);
+      _openAiSessions.add(sessionId);
+      _observedAiTargets.remove(sessionId);
+    });
+    if (prompt == null) {
+      unawaited(ai.refreshContext());
+      return;
+    }
+    final taskId = ai.taskId;
+    final inputEpoch = _manualInputEpoch(sessionId);
+    bool canStart() =>
+        mounted &&
+        identical(_aiSessions[sessionId], ai) &&
+        ai.taskId == taskId &&
+        _manualInputEpoch(sessionId) == inputEpoch &&
+        _openAiSessions.contains(sessionId);
+    // ask captures draft/source identity before settings or context can await.
+    // A later close/reopen must not resurrect this entry point's old request.
+    final submission = ai.ask(prompt, canStart: canStart);
     unawaited(() async {
-      await ai.refreshContext();
-      if (!mounted) return;
-      if (prompt == null) return;
+      await submission;
       await ai.settings.loaded;
-      if (!mounted) return;
-      if (ai.settings.configuration == null) {
+      if (mounted && canStart() && ai.settings.configuration == null) {
         await showAiSettings(context, ai.settings);
-        return; // Saving settings does not submit a retained draft.
+        // Saving settings does not submit a retained draft.
       }
-      if (!_openAiSessions.contains(sessionId)) return;
-      unawaited(ai.ask(prompt));
     }());
   }
 
   void _closeAi(String sessionId) {
     _aiSessions[sessionId]?.takeOver();
-    _mutateState(() => _openAiSessions.remove(sessionId));
+    _mutateState(() {
+      _revokeManualInput(sessionId);
+      _openAiSessions.remove(sessionId);
+      _observedAiTargets.remove(sessionId);
+    });
     _focusSession(sessionId);
   }
 
@@ -332,11 +356,12 @@ extension _ShellScreenAi on _ShellScreenState {
     ValueChanged<AiEvidenceReference>? onShowEvidence,
     bool fullScreenTerminal = false,
     terminal.TerminalFontConfig font = const terminal.TerminalFontConfig(),
+    TerminalViewportColors? colors,
   }) {
     if (_openAiSessions.contains(sessionId)) {
       final connections = _aiFor(sessionId).terminal as TerminalAiConnections;
       final retained = connections.hasRetainedSources;
-      return TerminalAiWorkspace(
+      final workspace = TerminalAiWorkspace(
         key: ValueKey('ai-workspace-$sessionId'),
         controller: _aiFor(sessionId),
         targetLabel: targetLabel,
@@ -360,15 +385,11 @@ extension _ShellScreenAi on _ShellScreenState {
             : onShowEvidence,
         fullScreenTerminal: fullScreenTerminal,
         onClose: () => _closeAi(sessionId),
+        onObserveTerminal: () => _observeAiTerminal(sessionId),
         onInspectOriginalTarget: retained
             ? () {
                 final original = _aiFor(sessionId).originalTarget?.sessionId;
-                _closeAi(sessionId);
-                if (original != null) {
-                  ref
-                      .read(sessionControllerProvider.notifier)
-                      .activateSession(original);
-                }
+                _observeAiTerminal(sessionId, targetSessionId: original);
               }
             : null,
         onReconnect:
@@ -392,6 +413,13 @@ extension _ShellScreenAi on _ShellScreenState {
                 true
             ? () => _configureAiConnection(sessionId)
             : null,
+      );
+      return _presentAiWorkspace(
+        sessionId,
+        workspace: workspace,
+        targetLabel: targetLabel,
+        font: font,
+        colors: colors,
       );
     }
     return const SizedBox.shrink();

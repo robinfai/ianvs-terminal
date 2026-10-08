@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -7,6 +8,88 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
 
 void main() {
+  test(
+    'revoked native events send no bytes while protocol queries still reply',
+    () async {
+      final sent = <String>[];
+      final released = <String>[];
+      final controller = _controller(sent: sent, released: released);
+      await controller.setActiveSession('s1');
+      await controller.handleCommand(_command('s1', action: 'a'));
+      for (final phase in ['move', 'leave', 'drop']) {
+        await controller.handleNativeEvent(
+          NativeOsc72DragEvent(
+            phase: phase,
+            sessionId: 's1',
+            mimeTypes: const ['text/plain'],
+            position: Offset.zero,
+            operations: 1,
+            dropId: phase == 'drop' ? 'revoked' : null,
+          ),
+          resolveLocation: (_) =>
+              throw StateError('readonly target was resolved'),
+          canSend: () => false,
+        );
+      }
+      expect(sent, isEmpty);
+      expect(released, ['revoked']);
+      await controller.handleCommand(_command('s1', action: 'q'));
+      expect(sent.single, contains('drop=1:offer=0'));
+    },
+  );
+
+  test(
+    'drop awaiting native cleanup stays revoked after owner is restored',
+    () async {
+      final sent = <String>[];
+      final released = <String>[];
+      final cleanup = Completer<void>();
+      final controller = _controller(
+        sent: sent,
+        releaseDrop: (id) async {
+          released.add(id);
+          if (id == 'old') await cleanup.future;
+        },
+      );
+      await controller.setActiveSession('s1');
+      await controller.handleCommand(_command('s1', action: 'a'));
+      const location = Osc72DropLocation(
+        cellX: 0,
+        cellY: 0,
+        pixelX: 0,
+        pixelY: 0,
+      );
+      NativeOsc72DragEvent drop(String id) => NativeOsc72DragEvent(
+        phase: 'drop',
+        sessionId: 's1',
+        mimeTypes: const ['text/plain'],
+        position: Offset.zero,
+        operations: 1,
+        dropId: id,
+      );
+      await controller.handleNativeEvent(
+        drop('old'),
+        resolveLocation: (_) => location,
+      );
+      sent.clear();
+      var epoch = 0;
+      final startedEpoch = epoch;
+      final pending = controller.handleNativeEvent(
+        drop('stale'),
+        resolveLocation: (_) => location,
+        canSend: () => epoch == startedEpoch,
+      );
+      epoch++; // Enter observation.
+      epoch++; // Explicitly take over: this does not renew an old drop.
+      cleanup.complete();
+      await pending;
+      expect(sent, isEmpty);
+      expect(released, ['old', 'stale']);
+      await controller.handleCommand(_command('s1', action: 'r', x: 1));
+      expect(sent.single, contains('ENOENT'));
+    },
+  );
+
   test('query is correlated and reports the target-only capability', () async {
     final sent = <String>[];
     final controller = _controller(sent: sent);
@@ -225,6 +308,7 @@ Osc72DragDropController _controller({
   List<int>? decisions,
   List<String>? released,
   Osc72ReadDropData? readDropData,
+  Osc72ReleaseDrop? releaseDrop,
 }) {
   return Osc72DragDropController(
     sendInput: (sessionId, bytes) {
@@ -250,9 +334,11 @@ Osc72DragDropController _controller({
           required offset,
           required maxBytes,
         }) async => throw StateError('unexpected read'),
-    releaseDrop: (dropId) async {
-      released?.add(dropId);
-    },
+    releaseDrop:
+        releaseDrop ??
+        (dropId) async {
+          released?.add(dropId);
+        },
   );
 }
 

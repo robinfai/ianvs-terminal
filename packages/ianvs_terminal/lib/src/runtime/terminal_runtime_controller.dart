@@ -2090,8 +2090,9 @@ class TerminalRuntimeController implements TerminalProtocolInputSink {
   Future<bool> sendOsc5522PasteEvent(
     String sessionId, {
     String location = 'clipboard',
+    bool Function()? canSend,
   }) async {
-    if (!_productOperationsAllowed) {
+    if (!_productOperationsAllowed || canSend?.call() == false) {
       return false;
     }
     final sessionEpoch = _sessionEpochs[sessionId];
@@ -2105,6 +2106,7 @@ class TerminalRuntimeController implements TerminalProtocolInputSink {
       return false;
     }
     if (!_productOperationsAllowed ||
+        canSend?.call() == false ||
         !_isCurrentSession(sessionId, sessionEpoch)) {
       return false;
     }

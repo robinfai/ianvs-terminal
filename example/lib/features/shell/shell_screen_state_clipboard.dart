@@ -131,13 +131,17 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
   }
 
   Future<void> _pasteToSession(String sessionId) async {
-    if (_isSessionReadOnly(sessionId)) {
+    final inputEpoch = _manualInputEpoch(sessionId);
+    if (_manualInputBlocked(sessionId)) {
       _focusSession(sessionId);
       return;
     }
     final runtime = ref.read(terminalRuntimeControllerProvider);
     if (runtime.viewportFor(sessionId).frame.modes.mimePaste) {
-      final sent = await runtime.sendOsc5522PasteEvent(sessionId);
+      final sent = await runtime.sendOsc5522PasteEvent(
+        sessionId,
+        canSend: () => !_manualInputBlocked(sessionId, epoch: inputEpoch),
+      );
       if (!sent && mounted) {
         _showShellSnackBar(context.l10n.osc5522PasteDeliveryFailed);
       }
@@ -145,12 +149,12 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
       return;
     }
     final text = await ClipboardBridge.paste();
-    if (text.isEmpty) {
+    if (text.isEmpty || _manualInputBlocked(sessionId, epoch: inputEpoch)) {
       return;
     }
     final decision = LocalTerminalPasteDecisionResolver.resolve(
       text: text,
-      readOnly: _isSessionReadOnly(sessionId),
+      readOnly: _manualInputBlocked(sessionId),
       pastePolicy: _pastePolicy,
       historyPolicy: const LocalTerminalPasteHistoryPolicy(enabled: false),
     );
@@ -160,7 +164,7 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
         return;
       case LocalTerminalPasteDecisionKind.requireConfirmation:
         final confirmed = await _confirmPaste(decision);
-        if (!confirmed) {
+        if (!confirmed || _manualInputBlocked(sessionId, epoch: inputEpoch)) {
           _focusSession(sessionId);
           return;
         }
@@ -264,6 +268,7 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
   }
 
   Future<void> _pasteTextToSession(String sessionId, String text) async {
+    if (_manualInputBlocked(sessionId)) return;
     final sessionState = ref.read(sessionControllerProvider);
     final sessionController = ref.read(sessionControllerProvider.notifier);
     TerminalPane? activePane;
@@ -279,7 +284,7 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
         : _profileForPane(activePane, sessionState.profiles);
     final terminalConfig = profile?.toSessionConfig();
     final frame = sessionController.viewportFor(sessionId).frame;
-    if (_isSessionReadOnly(sessionId)) {
+    if (_manualInputBlocked(sessionId)) {
       return;
     }
     final bytes = TerminalInputController.clipboardPasteBytesFor(
@@ -298,7 +303,7 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
     if (text.isEmpty) {
       return false;
     }
-    if (_isSessionReadOnly(sessionId)) {
+    if (_manualInputBlocked(sessionId)) {
       return false;
     }
     ref

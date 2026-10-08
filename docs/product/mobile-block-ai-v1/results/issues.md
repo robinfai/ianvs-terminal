@@ -4,13 +4,18 @@
 
 | ID | 级别 | 需求 | 现象与证据 | 当前状态 |
 |---|---|---|---|---|
-| PRD-001 | P0 | S1-R03 | readContext 等待期间来源变化污染已点发送的请求，新稿被旧完成清空；确定性回归失败 | open |
-| PRD-002 | P0 | S1-R02 / S2-R02 | 删除最后来源后同一草稿由 AI 回到 Command；确定性回归失败 | open |
-| PRD-003 | P1 | S1-R07 / S2-R11 | 检查终端目前总会暂停接管，无独立只读观察和同任务双栏 | open |
-| PRD-004 | P1 | S2-R03–R05 | 手机 AI 单行、soft Return 发送、缺本地全屏草稿编辑 | open |
-| PRD-005 | P1 | S4-R14 | 仅改 Bundle ID 的现有脚本仍共享生产 Keychain 组 | open；新验收工具隔离中 |
-| PRD-006 | P2 | S1-R01 / S3-R02 | 失败块诊断隐藏于菜单，unknown exitCode 显示成功勾 | open |
-| PRD-007 | P2 | S3-R07 | 手机固定字号仅在 preview，真实 App 未施加策略 | open |
-| PRD-008 | P1 | S1-R12 | 手机设置列出不可运行的本地 ACP | open |
-| PRD-009 | P1 | S4-R13 | 文档 gate 与既有归档、PRD 指定证据目录冲突 | open；明确规则调整中 |
-| PRD-010 | 验收前提 | S4 | 真实 iPad、可连接 iPhone、iOS 17、真实模型 API/IME/VoiceOver/性能等尚未完成本轮验证 | not_run；不视为产品通过 |
+| PRD-001 | P0 | S1-R03 | readContext 等待期间来源变化污染已点发送的请求，新稿被旧完成清空；确定性基线回归失败 | 已实现修复，16 项发送快照回归通过；App 验收待执行 |
+| PRD-002 | P0 | S1-R02 / S2-R02 | 删除最后来源后同一草稿由 AI 回到 Command；确定性基线回归失败 | 已保留 AI 意图，控制器/界面回归通过；App 验收待执行 |
+| PRD-003 | P1 | S1-R07 / S2-R11 | 基线检查终端总会暂停接管，无独立只读观察和同任务双栏 | 已实现只读 sink、输入代际撤销及双栏；回归通过，App 验收待执行 |
+| PRD-004 | P1 | S2-R03–R05 | 基线手机 AI 单行、soft Return 发送、缺本地全屏草稿编辑 | 已实现并通过 Composer/Workspace 回归；真实 IME 待验收 |
+| PRD-005 | P1 | S4-R14 | 仅改 Bundle ID 的原脚本仍共享生产 Keychain 组 | 独立工具与签名身份校验已完成；构建工具 29 项回归通过，最终二进制待验证 |
+| PRD-006 | P2 | S1-R01 / S3-R02 | 基线失败块诊断隐藏于菜单，unknown exitCode 显示成功勾 | 已实现直接入口和 unknown 图标；组件回归通过，App 验收待执行 |
+| PRD-007 | P2 | S3-R07 | 基线手机固定字号仅在 preview，真实 App 未施加策略 | 已接入 App，策略回归通过；真实设备验收待执行 |
+| PRD-008 | P1 | S1-R12 | 基线手机设置列出不可运行的本地 ACP | 手机仅显示 API，8 项设置回归通过；App 验收待执行 |
+| PRD-009 | P1 | S4-R13 | 文档 gate 与既有归档、PRD 指定证据目录冲突 | 已修复明确目录例外及 fenced 示例边界，20 项文档检查通过 |
+| PRD-010 | 验收前提 | S4 | iPhone 已连接、独立签名已准备，真实 API 由用户填写；真实 iPad、iOS 17 及本轮 IME/VoiceOver/性能证据仍缺 | not_run；不视为产品通过 |
+| PRD-011 | P1 | S2-R12 / S4-R13 | 真实 macOS gate 发现：阅读旧块后人工提交命令，lazy timeline 未揭示对应运行块，焦点落到 ModalScope，Ctrl+C 无法抵达运行终端 | 已按原生收据单次定位，保留编辑焦点及显式导航语义；6 项应用、32 项 canonical 回归及真实 macOS Composer gate 通过 |
+
+以上“回归通过”只描述实际执行的控制器、组件和工具测试；48 项 PRD 验收仍按各自要求单独取证。
+
+待核对观察：原后台输出 fixture 的 `sleep 0.4` 不能保证输出发生于原生 ready 之后；在一次采样中该输出已与首个 ready 快照合并。当前证据不足以判断它位于上一 Block 输出还是 prompt 准备区，未定性为已确认产品缺陷。最终 idle-output gate 使用真实新 lease、已完成 Block 和 release 文件屏障，检查独立输出行及 `unattributedOutput` 普通终端回退，不将本次通过扩大为全部归属时序已验证。

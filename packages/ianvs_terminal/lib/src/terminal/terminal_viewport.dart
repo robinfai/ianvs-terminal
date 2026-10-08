@@ -611,8 +611,8 @@ class _TerminalViewportState extends State<TerminalViewport>
         oldWidget.inputController.sessionId !=
             widget.inputController.sessionId ||
         !identical(
-          oldWidget.inputController.runtime,
-          widget.inputController.runtime,
+          oldWidget.inputController.inputOwner,
+          widget.inputController.inputOwner,
         );
     if (focusNodeChanged || focusReportOwnerChanged) {
       _reportFocusTrackingLossForDetachedFocus(

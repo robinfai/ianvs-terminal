@@ -63,8 +63,10 @@ void main() {
             ? await client.getUrl(evidenceBase.resolve(path))
             : await client.postUrl(evidenceBase.resolve(path));
         if (body != null) {
+          final bytes = utf8.encode(jsonEncode(body));
           outgoing.headers.contentType = ContentType.json;
-          outgoing.write(jsonEncode(body));
+          outgoing.contentLength = bytes.length;
+          outgoing.add(bytes);
         }
         final incoming = await outgoing.close().timeout(
           const Duration(seconds: 30),
@@ -85,7 +87,9 @@ void main() {
     Future<void> capture(String name) async {
       await tester.pump(const Duration(milliseconds: 400));
       final view = tester.view;
-      final context = tester.element(find.byType(ShellScreen));
+      // Review and Reader can move ShellScreen offstage. The root Navigator
+      // stays mounted with the App's locale, theme and view insets.
+      final context = tester.element(find.byType(Navigator).first);
       await request('/checkpoint', {
         'name': name,
         'metadata': {
@@ -225,6 +229,12 @@ void main() {
         child: const IanvsTerminalApp(),
       ),
     );
+    // Mobile starts at connection home; open the public fixture through the
+    // same profile row a user taps, before waiting for native SSH readiness.
+    await capture('connection-home');
+    await click(
+      find.byKey(const Key('ios-ssh-empty-profile-mobile-prd-fixture')),
+    );
     await until(
       () => container.read(sessionControllerProvider).activeSessionId != null,
       'isolated SSH session',
@@ -249,6 +259,15 @@ void main() {
     );
     await capture('initial-blocks');
     final before = await request('/state');
+    // The disposable fixture command is not in the shell's known-command
+    // inventory. Select Command through the real UI instead of relying on Auto.
+    await click(find.byKey(const Key('composer-input-intent')));
+    await click(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is PopupMenuItem<String> && widget.value == 'command',
+      ),
+    );
     await enter(find.byKey(const Key('composer-editor')), 'trail-fixture fail');
     final composer = tester
         .widget<TerminalComposerView>(find.byType(TerminalComposerView))

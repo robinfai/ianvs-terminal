@@ -16,16 +16,26 @@ EditableTextState? focusedEditableTextForCurrentRoute() {
 class TerminalInputController extends terminal.TerminalInputController {
   TerminalInputController({
     required super.sessionId,
-    required super.runtime,
+    required terminal.TerminalInputSink runtime,
     super.readFrame,
     Object emulation = terminal.TerminalEmulation.xterm256,
     required super.readSelection,
     required super.copySelection,
     required super.readClipboard,
     this.readOnly,
-  }) : super(emulation: _resolveEmulation(emulation));
+  }) : _inputOwner = runtime,
+       super(
+         runtime: readOnly == null
+             ? runtime
+             : _RevocableInputSink(runtime, readOnly),
+         emulation: _resolveEmulation(emulation),
+       );
 
   final bool Function()? readOnly;
+  final terminal.TerminalInputSink _inputOwner;
+
+  @override
+  Object get inputOwner => _inputOwner;
 
   bool get isReadOnly => readOnly?.call() ?? false;
 
@@ -115,6 +125,32 @@ class TerminalInputController extends terminal.TerminalInputController {
       modes: modes,
       text: text,
     );
+  }
+}
+
+// Validate at the last write boundary as well as at the UI event boundary.
+// The base controller can await clipboard data or retain a key callback while
+// ownership changes. Every such continuation still uses this revocable sink.
+final class _RevocableInputSink implements terminal.TerminalProtocolInputSink {
+  const _RevocableInputSink(this.delegate, this.readOnly);
+
+  final terminal.TerminalInputSink delegate;
+  final bool Function() readOnly;
+
+  @override
+  void sendInput(String sessionId, Uint8List bytes) {
+    if (!readOnly()) delegate.sendInput(sessionId, bytes);
+  }
+
+  @override
+  void sendProtocolInput(String sessionId, Uint8List bytes) {
+    if (readOnly()) return;
+    final sink = delegate;
+    if (sink is terminal.TerminalProtocolInputSink) {
+      sink.sendProtocolInput(sessionId, bytes);
+    } else {
+      sink.sendInput(sessionId, bytes);
+    }
   }
 }
 

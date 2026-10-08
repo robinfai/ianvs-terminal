@@ -52,7 +52,8 @@ extension _CommandBlocksCompact on _CommandBlocksViewState {
 
   Widget _compactBlock(CommandBlock block, ComposerTheme tokens) {
     final folded = !block.running && c.collapsed.contains(block.id);
-    final failed = block.exitCode != null && block.exitCode != 0;
+    final failed =
+        !block.running && block.exitCode != null && block.exitCode != 0;
     final status = block.running
         ? t('Running', '运行中')
         : t('Exit ${block.exitCode ?? "?"}', '退出码 ${block.exitCode ?? "?"}');
@@ -90,7 +91,7 @@ extension _CommandBlocksCompact on _CommandBlocksViewState {
                             block.command.isEmpty
                                 ? t('Command', '命令')
                                 : block.command,
-                            maxLines: 1,
+                            maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: tokens.resultStyle.copyWith(
                               fontWeight: FontWeight.w600,
@@ -108,7 +109,9 @@ extension _CommandBlocksCompact on _CommandBlocksViewState {
                         ? Icons.schedule
                         : failed
                         ? Icons.error_outline
-                        : Icons.check,
+                        : block.exitCode == 0
+                        ? Icons.check
+                        : Icons.help_outline,
                     size: 16,
                     color: failed ? tokens.error : tokens.muted,
                   ),
@@ -153,6 +156,21 @@ extension _CommandBlocksCompact on _CommandBlocksViewState {
                       : TerminalFrameModes.empty,
                   onMeasuredCellSizeChanged: widget.onMeasuredCellSizeChanged,
                   onOpenLinkTarget: widget.onOpenLinkTarget,
+                ),
+              ),
+            if (failed && widget.onAskAi != null)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  key: ValueKey('block-ai-diagnose-${block.id}'),
+                  onPressed: () => widget.onAskAi!(block),
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size(44, 44),
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    textStyle: tokens.metadataStyle,
+                  ),
+                  icon: const Icon(Icons.auto_awesome_outlined, size: 16),
+                  label: Text(t('AI diagnosis', 'AI 诊断')),
                 ),
               ),
             if (!folded && block.lines.isEmpty)

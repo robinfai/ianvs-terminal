@@ -1305,9 +1305,11 @@ extension _ShellScreenStateEvents on _ShellScreenState {
   }
 
   Future<void> _handleNativeOsc72DragEvent(NativeOsc72DragEvent event) {
+    final inputEpoch = _manualInputEpoch(event.sessionId);
     return _osc72DragDropController.handleNativeEvent(
       event,
       resolveLocation: _osc72LocationFor,
+      canSend: () => !_manualInputBlocked(event.sessionId, epoch: inputEpoch),
     );
   }
 
@@ -1362,6 +1364,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
   }
 
   Osc72DropLocation? _osc72LocationFor(NativeOsc72DragEvent event) {
+    if (_manualInputBlocked(event.sessionId)) return null;
     final sessionState = ref.read(sessionControllerProvider);
     final tab = _tabForSession(sessionState, event.sessionId);
     final context = tab == null

@@ -104,6 +104,8 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     _composerSessions.remove(sessionId)?.dispose();
     _aiSessions.remove(sessionId)?.dispose();
     _openAiSessions.remove(sessionId);
+    _manualInputEpochs.remove(sessionId);
+    _observedAiTargets.remove(sessionId);
     _selectionResizeGuards.remove(sessionId)?.dispose();
     final selectionController = _selectionControllers.remove(sessionId);
     if (selectionController != null) {
@@ -1054,6 +1056,7 @@ extension _ShellScreenStateSessions on _ShellScreenState {
       if (!_readOnlySessionIds.add(sessionId)) {
         _readOnlySessionIds.remove(sessionId);
       }
+      _revokeManualInput(sessionId);
     });
   }
 
@@ -1220,12 +1223,14 @@ extension _ShellScreenStateSessions on _ShellScreenState {
   }
 
   void _focusSession(String? sessionId) {
-    if (sessionId == null) {
+    if (!mounted || sessionId == null) {
       return;
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      if (_mobileSessionsOpen ||
+      if (!_sessionExists(sessionId) ||
+          _openAiSessions.contains(sessionId) ||
+          _mobileSessionsOpen ||
           (context.usesMobileNavigation && _mobileConnectionsOpen)) {
         return;
       }

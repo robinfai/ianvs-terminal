@@ -208,7 +208,7 @@ class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
     setState(() {});
     if (c.revealRevision != _revealed) {
       _revealed = c.revealRevision;
-      _focus.requestFocus();
+      if (c.revealFocus) _focus.requestFocus();
       unawaited(_reveal(c.activeId, bottom: c.revealBottom));
     } else if (_follow && _selectedTimelineBlocks.isEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _tail());

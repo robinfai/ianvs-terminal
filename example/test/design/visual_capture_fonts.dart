@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:ianvs_design/ianvs_design.dart' show IanvsTypography;
+import 'package:ianvs_terminal/ianvs_terminal.dart' show ComposerTheme;
 
 import 'visual_golden_comparator.dart';
 
@@ -99,6 +100,21 @@ ThemeData withVisualCaptureFonts(ThemeData theme) {
               fontFamily: visualCaptureMonoFont,
               fontFamilyFallback: visualCaptureFontFallback,
             ),
+          )
+        else if (extension is ComposerTheme)
+          extension.copyWith(
+            commandStyle: extension.commandStyle.copyWith(
+              fontFamily: visualCaptureMonoFont,
+              fontFamilyFallback: visualCaptureFontFallback,
+            ),
+            resultStyle: extension.resultStyle.copyWith(
+              fontFamily: visualCaptureMonoFont,
+              fontFamilyFallback: visualCaptureFontFallback,
+            ),
+            contextStyle: _text(extension.contextStyle),
+            actionStyle: _text(extension.actionStyle),
+            metadataStyle: _text(extension.metadataStyle),
+            statusStyle: _text(extension.statusStyle),
           )
         else
           extension,

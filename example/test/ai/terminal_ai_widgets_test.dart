@@ -94,7 +94,7 @@ void main() {
     final input = find.byKey(const Key('composer-editor'));
     await tester.enterText(input, '帮我找出最大的文件');
     await tester.pump();
-    expect(find.text('Ask AI · Auto'), findsOneWidget);
+    expect(find.text('Auto · AI'), findsOneWidget);
     expect(commands, isEmpty);
     await tester.tap(find.byKey(const Key('composer-input-intent')));
     await tester.pumpAndSettle();
@@ -141,6 +141,7 @@ void main() {
     addTearDown(settings.dispose);
     await tester.pumpWidget(
       MaterialApp(
+        theme: ThemeData(platform: TargetPlatform.macOS),
         home: Scaffold(
           body: AiSettingsDialog(
             settings: settings,
@@ -196,6 +197,7 @@ void main() {
       addTearDown(settings.dispose);
       await tester.pumpWidget(
         MaterialApp(
+          theme: ThemeData(platform: TargetPlatform.macOS),
           home: Scaffold(body: AiSettingsDialog(settings: settings)),
         ),
       );
@@ -311,7 +313,7 @@ void main() {
         '请列出当前目录文件',
       );
       await tester.pump(const Duration(milliseconds: 200));
-      expect(find.text('Ask AI'), findsOneWidget);
+      expect(find.text('Send to AI'), findsOneWidget);
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.pump();
       expect(prompts, ['请列出当前目录文件']);
@@ -350,7 +352,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 200));
       expect(controller.editor.text, '解释下一步');
       expect(
-        find.text('Ask AI'),
+        find.text('Send to AI'),
         findsOneWidget,
         reason: 'Explicit command intent applies only to the previous draft',
       );

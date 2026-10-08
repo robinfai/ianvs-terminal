@@ -1,6 +1,5 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart';
 
 import '../../platform/clipboard_bridge.dart';
@@ -23,6 +22,7 @@ class TerminalAiObserver extends StatefulWidget {
     this.font = const TerminalFontConfig(),
     this.colors,
     this.graphicsCache,
+    this.readSelectionText,
     super.key,
   });
 
@@ -31,11 +31,13 @@ class TerminalAiObserver extends StatefulWidget {
   final TerminalViewportController viewport;
   final ValueChanged<int> onScrollLines;
   final ValueChanged<int> onScrollToOffset;
-  final VoidCallback onTakeOver;
+  final VoidCallback? onTakeOver;
   final VoidCallback? onBack;
   final TerminalFontConfig font;
   final TerminalViewportColors? colors;
   final TerminalGraphicsCache? graphicsCache;
+  final String? Function(TerminalSelection selection, {required bool block})?
+  readSelectionText;
 
   @override
   State<TerminalAiObserver> createState() => _TerminalAiObserverState();
@@ -64,6 +66,36 @@ class _TerminalAiObserverState extends State<TerminalAiObserver> {
   String t(String en, String zh) =>
       Localizations.localeOf(context).languageCode == 'zh' ? zh : en;
 
+  String _selectedText() {
+    final selection = _selection.selection;
+    if (selection == null) return '';
+    final text = widget.readSelectionText?.call(
+      selection,
+      block: _selection.isBlockSelection,
+    );
+    if (text?.isNotEmpty == true) return text!;
+    final frame = widget.viewport.frame;
+    // A cross-page selection must never silently copy only the visible rows.
+    if (frame.viewportRowForSourceRow(selection.startRow) == null ||
+        frame.viewportRowForSourceRow(selection.endRow) == null) {
+      return '';
+    }
+    return _selection.textForFrame(frame);
+  }
+
+  KeyEventResult _handleKey(KeyEvent event) {
+    if (event is! KeyDownEvent ||
+        event.logicalKey != LogicalKeyboardKey.escape) {
+      return KeyEventResult.ignored;
+    }
+    if (_selection.selection != null) {
+      _selection.clear();
+    } else {
+      widget.onBack?.call();
+    }
+    return KeyEventResult.handled;
+  }
+
   Future<void> _showTarget() => showDialog<void>(
     context: context,
     builder: (context) => AlertDialog(
@@ -86,7 +118,7 @@ class _TerminalAiObserverState extends State<TerminalAiObserver> {
       // Deliberately not the session's runtime, including protocol/focus input.
       runtime: const _ObserverSink(),
       readFrame: () => widget.viewport.frame,
-      readSelection: () => _selection.textForFrame(widget.viewport.frame),
+      readSelection: _selectedText,
       copySelection: (text) => ClipboardBridge.copyWithFeedback(context, text),
       readClipboard: () async => '',
     );
@@ -126,11 +158,16 @@ class _TerminalAiObserverState extends State<TerminalAiObserver> {
                 onPressed: _showTarget,
                 icon: const Icon(Icons.info_outline),
               ),
-              TextButton(
-                key: const Key('ai-observer-take-over'),
-                style: TextButton.styleFrom(minimumSize: const Size(44, 44)),
-                onPressed: widget.onTakeOver,
-                child: Text(t('Take over', '人工接管')),
+              Tooltip(
+                message: widget.onTakeOver == null
+                    ? t('This session is disconnected', '此会话已断开')
+                    : t('Pause AI and take over input', '暂停 AI 并接管输入'),
+                child: TextButton(
+                  key: const Key('ai-observer-take-over'),
+                  style: TextButton.styleFrom(minimumSize: const Size(44, 44)),
+                  onPressed: widget.onTakeOver,
+                  child: Text(t('Take over', '人工接管')),
+                ),
               ),
             ],
           ),
@@ -150,6 +187,7 @@ class _TerminalAiObserverState extends State<TerminalAiObserver> {
               graphicsCache: widget.graphicsCache,
               onScrollLines: widget.onScrollLines,
               onScrollToOffset: widget.onScrollToOffset,
+              onHostKeyEvent: _handleKey,
               // No onMeasuredCellSizeChanged or action callbacks: observing
               // cannot resize the shell or acquire an indirect write path.
             ),

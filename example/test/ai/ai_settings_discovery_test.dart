@@ -30,7 +30,10 @@ void main() {
     addTearDown(settings.dispose);
     await tester.pumpWidget(
       MaterialApp(
-        theme: buildIanvsTerminalTheme(brightness),
+        theme: buildIanvsTerminalTheme(
+          brightness,
+          platform: TargetPlatform.macOS,
+        ),
         home: Scaffold(
           body: AiSettingsDialog(settings: settings, discoverAcp: discover),
         ),

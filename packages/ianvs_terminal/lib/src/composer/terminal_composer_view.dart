@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'composer_draft_editor.dart';
 import 'composer_editor.dart';
 import 'composer_icons.dart';
 import 'composer_suggestions.dart';
@@ -55,6 +56,8 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
   final GlobalKey _anchorKey = GlobalKey();
   late FocusNode _focus;
   double _width = 320;
+  double _availableHeight = double.infinity;
+  bool _draftEditorOpen = false;
   String _copyFeedback = '';
   bool get _asksAi =>
       widget.onAskAi != null &&
@@ -75,6 +78,93 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
     }
   }
 
+  Future<void> _expandDraft() async {
+    if (_disabled || _draftEditorOpen) return;
+    final owner = model;
+    owner.dismissHistory();
+    owner.dismissCompletions();
+    owner.editor.value = owner.editor.value.copyWith(
+      composing: TextRange.empty,
+    );
+    _focus.unfocus();
+    final original = owner.snapshot;
+    final choice = owner.inputIntent.choice;
+    bool current() =>
+        mounted &&
+        identical(model, owner) &&
+        !_disabled &&
+        owner.snapshot.contextRevision == original.contextRevision &&
+        owner.snapshot.editorRevision == original.editorRevision &&
+        owner.editor.value == original.value &&
+        owner.inputIntent.choice == choice;
+    _draftEditorOpen = true;
+    try {
+      final result = await showComposerDraftEditor(
+        context,
+        initialValue: original.value,
+        initialIntentChoice: choice,
+        resolveIntent: (value, intent) {
+          if (intent == InputIntentChoice.automatic &&
+              widget.isNaturalLanguage != null &&
+              widget.onAskAi != null) {
+            return InputIntentDecision(
+              widget.isNaturalLanguage!(value.text)
+                  ? InputIntent.ai
+                  : InputIntent.command,
+              'host',
+            );
+          }
+          return owner.previewInputIntent(value, intent);
+        },
+        targetLabel: '${widget.targetLabel} · ${owner.cwd}',
+        chinese: widget.chinese,
+        allowAi: widget.onAskAi != null,
+        isCurrent: current,
+        stateChanges: owner,
+      );
+      if (result != null && current()) {
+        owner.editor.value = result.value;
+        owner.chooseInputIntent(result.intentChoice);
+      }
+    } finally {
+      _draftEditorOpen = false;
+      if (mounted) _focus.unfocus();
+    }
+  }
+
+  Widget _expandButton(ComposerTheme tokens) => IconButton(
+    key: const Key('composer-expand-draft'),
+    tooltip: tr('Expand editor', '展开编辑'),
+    color: tokens.muted,
+    onPressed: _disabled ? null : _expandDraft,
+    icon: const Icon(Icons.open_in_full),
+  );
+
+  Widget _historyButton(ComposerTheme tokens) => IconButton(
+    key: const Key('composer-history-toggle'),
+    tooltip: tr('Command history', '命令历史'),
+    color: tokens.muted,
+    isSelected: model.historyOpen,
+    onPressed: !model.canOpenHistory
+        ? null
+        : () {
+            model.toggleHistory();
+            _focus.requestFocus();
+          },
+    icon: const Icon(ComposerIcons.history),
+  );
+
+  Widget _hideKeyboardButton(ComposerTheme tokens) => IconButton(
+    key: const Key('composer-dismiss-keyboard'),
+    tooltip: tr('Hide keyboard', '收起键盘'),
+    color: tokens.muted,
+    onPressed: () {
+      _focus.unfocus();
+      unawaited(SystemChannels.textInput.invokeMethod<void>('TextInput.hide'));
+    },
+    icon: const Icon(Icons.keyboard_hide_outlined),
+  );
+
   Timer? _feedbackTimer;
   int _selectionNavigationRevision = -1;
   double? _busyHeight;
@@ -89,7 +179,7 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
   String tr(String en, String zh) => widget.chinese ? zh : en;
   double get _menuWidth => (_width - ComposerTheme.inset * 2).clamp(0, 760);
   bool get _touchCompact =>
-      (_width < 600 || MediaQuery.sizeOf(context).height < 400) &&
+      (_width < 600 || _availableHeight < 200) &&
       (Theme.of(context).platform == TargetPlatform.iOS ||
           Theme.of(context).platform == TargetPlatform.android);
 
@@ -336,11 +426,21 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
   Widget build(BuildContext context) {
     final tokens = ComposerTheme.of(context);
     final scaler = MediaQuery.textScalerOf(context);
-    final short = MediaQuery.sizeOf(context).height < 400;
     return LayoutBuilder(
       builder: (context, constraints) {
         _width = constraints.maxWidth;
-        final layoutSize = (_width, MediaQuery.sizeOf(context), scaler);
+        final media = MediaQuery.of(context);
+        final availableHeight = math.min(
+          constraints.maxHeight,
+          media.size.height - media.viewInsets.bottom - media.padding.vertical,
+        );
+        final short = availableHeight < 200;
+        _availableHeight = availableHeight;
+        final layoutSize = (
+          _width,
+          Size(media.size.width, availableHeight),
+          scaler,
+        );
         // A real window/text-size change should reflow rather than retain an
         // obsolete height from a wider or shorter layout.
         if (_layoutSize != layoutSize) _busyHeight = null;
@@ -351,10 +451,10 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
         final inlineEditor =
             short &&
             _touchCompact &&
-            _width >= scaler.scale(240) + tokens.controlHeight * 4;
+            _width >= scaler.scale(280) + tokens.controlHeight * 4;
         final lineBudget = math.max(
           1,
-          ((MediaQuery.sizeOf(context).height * .25) /
+          ((availableHeight * .4) /
                   scaler.scale(tokens.commandStyle.fontSize! * 1.5))
               .floor(),
         );
@@ -369,7 +469,12 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
             centerVertically: inlineEditor,
             maxLines: short && _touchCompact
                 ? 1
-                : math.min(widget.maxLines, lineBudget),
+                : math.min(
+                    _touchCompact
+                        ? math.min(4, widget.maxLines)
+                        : widget.maxLines,
+                    lineBudget,
+                  ),
             suggestion: !_disabled && _focus.hasFocus
                 ? model.inlineSuggestion
                 : '',
@@ -384,7 +489,7 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
                 : tokens.commandStyle,
           ),
         );
-        return TextFieldTapRegion(
+        final surface = TextFieldTapRegion(
           child: KeyedSubtree(
             key: _anchorKey,
             child: OverlayPortal.overlayChildLayoutBuilder(
@@ -482,7 +587,7 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
                           else
                             editor,
                           SizedBox(height: short ? 6 : 12),
-                          _actions(tokens, compact: compact),
+                          _actions(tokens, compact: compact, short: short),
                         ],
                         if (!_disabled && model.executionStatus.isNotEmpty)
                           _executionFeedback(tokens),
@@ -510,6 +615,12 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
             ),
           ),
         );
+        return _touchCompact && availableHeight < 140
+            ? SingleChildScrollView(
+                key: const Key('composer-short-window-scroll'),
+                child: surface,
+              )
+            : surface;
       },
     );
   }
@@ -535,6 +646,9 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
           Expanded(child: model.cwd.isEmpty ? target : path),
           const SizedBox(width: 8),
           Flexible(child: _ownership(tokens)),
+          _historyButton(tokens),
+          if (_focus.hasFocus) _hideKeyboardButton(tokens),
+          _moreActions(tokens),
         ],
       );
     }
@@ -704,7 +818,8 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
       tr('Automatic suggestions', '自动建议'),
       tr('Sending', '发送中'),
     ];
-    var width = 280.0; // Glyphs, hit areas, spacing and a readable key hint.
+    // Include the expanded editor's control in the responsive dock budget.
+    var width = 280.0 + tokens.controlHeight;
     for (final label in labels) {
       final painter = TextPainter(
         text: TextSpan(text: label, style: tokens.actionStyle),
@@ -721,56 +836,28 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
     ComposerTheme tokens, {
     required bool compact,
     bool inline = false,
+    bool short = false,
   }) {
     if (_touchCompact) {
       final actions = <Widget>[
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (widget.onOpenAi != null || widget.onAskAi != null)
-              _intent(tokens, compact: true),
-            IconButton(
-              key: const Key('composer-history-toggle'),
-              tooltip: tr('Command history', '命令历史'),
-              color: tokens.muted,
-              isSelected: model.historyOpen,
-              onPressed: !model.canOpenHistory
-                  ? null
-                  : () {
-                      model.toggleHistory();
-                      _focus.requestFocus();
-                    },
-              icon: const Icon(ComposerIcons.history),
-            ),
-            _moreActions(tokens),
-            if (_focus.hasFocus)
-              IconButton(
-                key: const Key('composer-dismiss-keyboard'),
-                tooltip: tr('Hide keyboard', '收起键盘'),
-                color: tokens.muted,
-                onPressed: () {
-                  _focus.unfocus();
-                  unawaited(
-                    SystemChannels.textInput.invokeMethod<void>(
-                      'TextInput.hide',
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.keyboard_hide_outlined),
-              ),
-          ],
-        ),
-        _primary(tokens),
+        if (widget.onOpenAi != null || widget.onAskAi != null)
+          _intent(tokens, compact: true)
+        else
+          Text(tr('Command', '命令'), style: tokens.metadataStyle),
+        _expandButton(tokens),
+        if (inline || short) _hideKeyboardButton(tokens),
+        _primary(tokens, iconOnly: (short || inline) && _width < 480),
       ];
       if (inline) {
         return Row(mainAxisSize: MainAxisSize.min, children: actions);
       }
-      return OverflowBar(
-        spacing: 4,
-        overflowSpacing: 4,
-        alignment: MainAxisAlignment.spaceBetween,
-        overflowAlignment: OverflowBarAlignment.end,
-        children: actions,
+      return Row(
+        children: [
+          Expanded(
+            child: Align(alignment: Alignment.centerLeft, child: actions.first),
+          ),
+          ...actions.skip(1),
+        ],
       );
     }
     final utilities = <Widget>[
@@ -834,6 +921,7 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
       ),
       _automaticSuggestions(tokens),
       if (widget.onOpenAi != null || widget.onAskAi != null) _intent(tokens),
+      _expandButton(tokens),
       _moreActions(tokens),
     ];
     if (compact) {
@@ -1007,14 +1095,14 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
         : tr('Tab complete · Shift Enter newline', 'Tab 补全 · ⇧ Enter 换行');
   }
 
-  Widget _primary(ComposerTheme tokens) {
+  Widget _primary(ComposerTheme tokens, {bool iconOnly = false}) {
     final accepting =
         model.historyOpen ||
         model.primaryAction == ComposerPrimaryAction.acceptCompletion;
     final label = accepting
         ? tr('Accept', '采用')
         : _asksAi
-        ? tr('Ask AI', '询问 AI')
+        ? tr('Send to AI', '发送给 AI')
         : model.ownership == ComposerOwnership.submitting
         ? tr('Sending', '发送中')
         : tr('Run', '执行');
@@ -1050,8 +1138,11 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
           backgroundColor: tokens.primaryAction,
           disabledForegroundColor: tokens.disabledForeground,
           disabledBackgroundColor: tokens.disabledSurface,
-          minimumSize: Size(76, tokens.controlHeight),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+          minimumSize: Size(iconOnly ? 44 : 76, tokens.controlHeight),
+          padding: EdgeInsets.symmetric(
+            horizontal: _touchCompact ? 8 : 14,
+            vertical: 7,
+          ),
           textStyle: tokens.actionStyle.copyWith(fontWeight: FontWeight.w600),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(ComposerTheme.controlRadius),
@@ -1060,12 +1151,14 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(label),
-            const SizedBox(width: 8),
-            Icon(
-              accepting ? ComposerIcons.accept : ComposerIcons.run,
-              size: 18,
-            ),
+            if (!iconOnly) Text(label),
+            if (!_touchCompact && !iconOnly) const SizedBox(width: 8),
+            if (!_touchCompact || iconOnly)
+              Icon(
+                accepting ? ComposerIcons.accept : ComposerIcons.run,
+                size: 18,
+                semanticLabel: iconOnly ? label : null,
+              ),
           ],
         ),
       ),
@@ -1108,18 +1201,22 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            _asksAi ? Icons.auto_awesome_outlined : Icons.terminal_outlined,
-            size: 18,
-            color: tokens.muted,
-          ),
           if (!compact) ...[
+            Icon(
+              _asksAi ? Icons.auto_awesome_outlined : Icons.terminal_outlined,
+              size: 18,
+              color: tokens.muted,
+            ),
             const SizedBox(width: 6),
-            Text(
-              '${_asksAi ? tr('Ask AI', 'AI 提问') : tr('Command', '命令')}${model.inputIntent.choice == InputIntentChoice.automatic ? tr(' · Auto', ' · 自动') : ''}',
+          ],
+          Flexible(
+            child: Text(
+              '${model.inputIntent.choice == InputIntentChoice.automatic ? tr('Auto · ', '自动 · ') : ''}${_asksAi ? 'AI' : tr('Command', '命令')}',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
               style: tokens.metadataStyle,
             ),
-          ],
+          ),
           Icon(Icons.expand_more, size: 16, color: tokens.muted),
         ],
       ),

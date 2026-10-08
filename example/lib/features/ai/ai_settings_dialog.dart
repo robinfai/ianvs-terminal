@@ -62,12 +62,17 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
   bool _tested = false;
   bool _detecting = false;
   bool _autoDetectionAttempted = false;
+  bool _savedAcpUnsupported = false;
   int _detectionEpoch = 0;
   String? _discoveryNotice;
   String? _error;
   AiCancellation? _test;
   bool get zh => Localizations.localeOf(context).languageCode == 'zh';
   String t(String en, String cn) => zh ? cn : en;
+  bool get _supportsLocalAcp => switch (Theme.of(context).platform) {
+    TargetPlatform.iOS || TargetPlatform.android => false,
+    _ => true,
+  };
 
   @override
   void initState() {
@@ -89,12 +94,14 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
 
   void _fill(AiConfiguration value) {
     _approvalMode = value.approvalMode;
-    _backend = value.backend;
+    _savedAcpUnsupported =
+        value.backend == AiBackendKind.acp && !_supportsLocalAcp;
+    _backend = _savedAcpUnsupported ? AiBackendKind.llm : value.backend;
     _agentCommand.text = value.agentCommand;
     _agentArguments.text = jsonEncode(value.agentArguments);
     _endpoint.text = value.endpoint;
     _key.text = value.apiKey;
-    _model.text = value.model;
+    _model.text = _savedAcpUnsupported ? '' : value.model;
     if (value.backend == AiBackendKind.acp) {
       _acpModel = value.model;
     } else {
@@ -105,6 +112,7 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
 
   AiConfiguration get _value {
     if (_backend == AiBackendKind.acp) {
+      if (!_supportsLocalAcp) throw const AiFailure('acp_desktop_only');
       try {
         return AiConfiguration.acp(
           approvalMode: _approvalMode,
@@ -132,7 +140,11 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
   });
 
   void _selectBackend(AiBackendKind? value) {
-    if (value == null || value == _backend) return;
+    if (value == null ||
+        value == _backend ||
+        (value == AiBackendKind.acp && !_supportsLocalAcp)) {
+      return;
+    }
     setState(() {
       if (_backend == AiBackendKind.acp) {
         _acpModel = _model.text;
@@ -153,7 +165,8 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
   }
 
   void _maybeDiscoverAcp() {
-    if (_backend != AiBackendKind.acp ||
+    if (!_supportsLocalAcp ||
+        _backend != AiBackendKind.acp ||
         _autoDetectionAttempted ||
         _agentCommand.text.trim().isNotEmpty ||
         !{'', '[]'}.contains(_agentArguments.text.trim())) {
@@ -164,6 +177,7 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
   }
 
   Future<void> _detectAcp() async {
+    if (!_supportsLocalAcp) return;
     final epoch = ++_detectionEpoch;
     final commandBefore = _agentCommand.text;
     final argumentsBefore = _agentArguments.text;
@@ -303,14 +317,27 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
                 value: AiBackendKind.llm,
                 child: Text(t('Model API', '模型 API')),
               ),
-              const DropdownMenuItem(
-                value: AiBackendKind.acp,
-                child: Text('Codex ACP'),
-              ),
+              if (_supportsLocalAcp)
+                const DropdownMenuItem(
+                  value: AiBackendKind.acp,
+                  child: Text('Codex ACP'),
+                ),
             ],
-            onChanged: !_loaded || _busy ? null : _selectBackend,
+            onChanged: !_loaded || _busy || !_supportsLocalAcp
+                ? null
+                : _selectBackend,
           ),
           const SizedBox(height: 16),
+          if (_savedAcpUnsupported) ...[
+            Text(
+              t(
+                'Local Codex ACP is available on desktop only. Configure a Model API connection for this device. Your saved connection stays unchanged until you save; saving does not send a task.',
+                '本地 Codex ACP 仅支持桌面。请为此设备配置模型 API 连接。保存前保留原连接设置；保存不会发送任务。',
+              ),
+              key: const Key('ai-acp-unavailable-on-mobile'),
+            ),
+            const SizedBox(height: 16),
+          ],
           Text(
             _backend == AiBackendKind.acp
                 ? t(

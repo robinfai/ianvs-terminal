@@ -76,6 +76,10 @@
 
 新增隔离 App harness 定向 Dart analyze 通过。它不读已有 Profile、AI key 或布局；采用内存配置和临时 known_hosts，驱动真实 App 编辑器、SSH 与审批入口。该静态检查不等于 harness 运行通过。
 
+后续保留生产行为不变、仅修正验收 harness，取得 B4 的 42 张可读字体组件原图，以及 B6 的真实 SSH 模拟器闭环：原生命令退出 2 → 仅附加诊断来源 → 模型提案 → 完整 Review → 明确批准 → 修复命令原生退出 0 → 摘要。模型为 deterministic fixture，实际 model request 计数 2，受控命令执行计数 1。B6 保存 7 张 simctl 原始截图及 95.462 秒连续录屏；它们属于 before 证据，不代表本轮最终实现 C 的通过结论。
+
+原始产物与 SHA-256 清单保存在附加的 `mobile-prd-baseline` worktree 的 `build/mobile-prd-v1.1/before/EVIDENCE_MANIFEST.json` 和 `EVIDENCE_INDEX.md`。早期磁盘不足、harness 失败记录保留；原有不可读字体图不计入这 42 张有效图。
+
 ## 文档和环境冲突
 
 1. `docs/README.md` 与 docs contract 禁止所有运行证据，但本 PRD 明确要求在指定产品目录版本化证据；同时基线已跟踪大量 `docs/ai` 与 `docs/design` 内容，导致原 gate 本身失败。需要记录狭窄例外及既有清单，不能删除历史或全面跳过检查。

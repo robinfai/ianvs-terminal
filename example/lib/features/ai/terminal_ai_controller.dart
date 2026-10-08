@@ -124,11 +124,18 @@ class AiTaskSummary {
   final bool paused;
 }
 
+class _AiDraftAttachment {
+  _AiDraftAttachment(this.context);
+  final AiBlockContext context;
+}
+
 class _AiTask {
   _AiTask(this.id);
   final String id;
   String title = '';
   String draft = '';
+  int draftRevision = 0;
+  bool retainedAiIntent = false;
   final inputIntent = InputIntentState(defaultIntent: InputIntent.ai);
   double readingOffset = 0;
   ({String id, double offset})? readingAnchor;
@@ -137,7 +144,7 @@ class _AiTask {
   DateTime? lastOutputAt;
   final messages = <Map<String, Object?>>[];
   final transcript = <AiTranscriptEntry>[];
-  final attachments = <AiBlockContext>[];
+  final attachments = <_AiDraftAttachment>[];
   AiPhase phase = AiPhase.idle;
   AiAction? pending;
   AiAction? executing;
@@ -165,6 +172,13 @@ class _AiTask {
   final suppliedSourceBases = <(String, String), int?>{};
   bool agentToolBusy = false;
   bool configurationRetired = false;
+
+  void updateDraft(String value) {
+    if (draft == value) return;
+    draft = value;
+    draftRevision++;
+    if (value.isEmpty) retainedAiIntent = false;
+  }
 }
 
 /// Session-local tasks share one PTY. Model writes require [approve]; an explicit
@@ -228,6 +242,7 @@ class TerminalAiController extends ChangeNotifier {
     ),
   );
   String get draft => _task.draft;
+  int get draftRevision => _task.draftRevision;
   double get readingOffset => _task.readingOffset;
   set readingOffset(double value) => _task.readingOffset = value;
   ({String id, double offset})? get readingAnchor => _task.readingAnchor;
@@ -235,7 +250,9 @@ class TerminalAiController extends ChangeNotifier {
       _task.readingAnchor = value;
   bool get followingOutput => _task.followingOutput;
   set followingOutput(bool value) => _task.followingOutput = value;
-  List<AiBlockContext> get attachments => List.unmodifiable(_task.attachments);
+  List<AiBlockContext> get attachments => List.unmodifiable(
+    _task.attachments.map((attachment) => attachment.context),
+  );
   AiPhase get phase => _task.phase;
   set phase(AiPhase value) => _task.phase = value;
   AiAction? get pending => _task.pending;
@@ -319,36 +336,52 @@ class TerminalAiController extends ChangeNotifier {
       if (before.intent != next.intent || before.source != next.source) _emit();
       return;
     }
-    _task.draft = value;
+    _task.updateDraft(value);
     inputIntentDecision(composing: composing);
     _emit();
   }
 
   InputIntentChoice get inputIntentChoice => _task.inputIntent.choice;
 
+  InputIntentContext get _inputIntentContext => InputIntentContext(
+    scope: context == null ? '' : '${context!.sessionId}:${context!.contextId}',
+    commandNames: context?.commandNames ?? const {},
+    aliases: context?.aliases ?? const {},
+    agentFollowUp: _transcript.any((e) => e.role == 'assistant'),
+    awaitingAnswer:
+        _transcript.lastOrNull?.role == 'assistant' &&
+        RegExp(r'[?？]\s*$').hasMatch(_transcript.last.text),
+  );
+
+  bool _agentOwnsInput({InputIntentChoice? previewChoice}) =>
+      busy ||
+      pending != null ||
+      _task.attachments.isNotEmpty ||
+      context?.alternateScreen == true ||
+      (_task.retainedAiIntent && previewChoice != InputIntentChoice.command);
+
   InputIntentDecision inputIntentDecision({bool composing = false}) =>
       _task.inputIntent.update(
         draft,
-        context: InputIntentContext(
-          scope: context == null
-              ? ''
-              : '${context!.sessionId}:${context!.contextId}',
-          commandNames: context?.commandNames ?? const {},
-          aliases: context?.aliases ?? const {},
-          agentFollowUp: _transcript.any((e) => e.role == 'assistant'),
-          awaitingAnswer:
-              _transcript.lastOrNull?.role == 'assistant' &&
-              RegExp(r'[?？]\s*$').hasMatch(_transcript.last.text),
-        ),
+        context: _inputIntentContext,
         composing: composing,
-        agentOwnsInput:
-            busy ||
-            pending != null ||
-            attachments.isNotEmpty ||
-            context?.alternateScreen == true,
+        agentOwnsInput: _agentOwnsInput(),
       );
 
+  InputIntentDecision previewInputIntent(
+    String text,
+    InputIntentChoice choice, {
+    bool composing = false,
+  }) => _task.inputIntent.preview(
+    text,
+    choice: choice,
+    context: _inputIntentContext,
+    composing: composing,
+    agentOwnsInput: _agentOwnsInput(previewChoice: choice),
+  );
+
   void chooseInputIntent(InputIntentChoice choice) {
+    if (choice == InputIntentChoice.command) _task.retainedAiIntent = false;
     _task.inputIntent.choice = choice;
     _emit();
   }
@@ -358,6 +391,7 @@ class TerminalAiController extends ChangeNotifier {
       !busy &&
       pending == null &&
       attachments.isEmpty &&
+      !_task.retainedAiIntent &&
       !hasUnresolvedSubmission &&
       !targetChanged &&
       terminalError == null &&
@@ -371,7 +405,7 @@ class TerminalAiController extends ChangeNotifier {
     final expected = context!;
     final task = _task;
     _task.target ??= expected;
-    final originalDraft = draft;
+    final originalDraftRevision = draftRevision;
     final action = AiAction(
       id: 'human-${++_entrySerial}',
       kind: AiActionKind.runCommand,
@@ -419,8 +453,10 @@ class TerminalAiController extends ChangeNotifier {
           'result': result,
         }),
       });
-      if (draft == originalDraft) _task.draft = '';
-      _task.inputIntent.reset();
+      if (draftRevision == originalDraftRevision) {
+        _task.updateDraft('');
+        _task.inputIntent.reset();
+      }
       phase = AiPhase.idle;
       _emit();
       await refreshContext();
@@ -452,26 +488,27 @@ class TerminalAiController extends ChangeNotifier {
   void attachContext(AiBlockContext block) {
     if (_disposed) return;
     // Attachments are immutable snapshots, distinct from live output.
-    _task.attachments.removeWhere(
-      (b) =>
-          b.id == block.id &&
-          b.sourceSessionId == block.sourceSessionId &&
-          b.sourceContextId == block.sourceContextId &&
-          b.sourceLineBase == block.sourceLineBase &&
-          b.selectionKey == block.selectionKey &&
-          b.command == block.command,
-    );
+    _task.attachments.removeWhere((attachment) {
+      final previous = attachment.context;
+      return previous.id == block.id &&
+          previous.sourceSessionId == block.sourceSessionId &&
+          previous.sourceContextId == block.sourceContextId &&
+          previous.sourceLineBase == block.sourceLineBase &&
+          previous.selectionKey == block.selectionKey &&
+          previous.command == block.command;
+    });
     if (_task.attachments.length >= 8) {
       error = 'context_limit';
       _emit();
       return;
     }
-    _task.attachments.add(block);
+    _task.attachments.add(_AiDraftAttachment(block));
     _emit();
   }
 
   void removeAttachment(int index) {
     if (index < 0 || index >= _task.attachments.length) return;
+    _task.retainedAiIntent = true;
     _task.attachments.removeAt(index);
     _emit();
   }
@@ -809,9 +846,12 @@ class TerminalAiController extends ChangeNotifier {
     List<AiBlockContext> blocks = const [],
     String? displayText,
     bool preserveDraft = false,
+    bool Function()? canStart,
   }) async {
     final prompt = input.trim();
-    if (_disposed || busy || prompt.isEmpty) return;
+    if (_disposed || busy || prompt.isEmpty || canStart?.call() == false) {
+      return;
+    }
     if (_task.configurationRetired) {
       error = 'configuration_changed';
       _emit();
@@ -823,14 +863,28 @@ class TerminalAiController extends ChangeNotifier {
       return;
     }
     final requestedTask = _task;
-    if (!preserveDraft) _task.draft = input;
+    if (!preserveDraft) _task.updateDraft(input);
+    final sentDraftRevision = requestedTask.draftRevision;
+    final sentAttachments = preserveDraft
+        ? const <_AiDraftAttachment>[]
+        : List<_AiDraftAttachment>.of(requestedTask.attachments);
+    final attached = List<AiBlockContext>.unmodifiable([
+      ...sentAttachments.map((attachment) => attachment.context),
+      ...blocks,
+      ?block,
+    ]);
     if (hasUnresolvedSubmission) {
       error = 'submission_unknown';
       _emit();
       return;
     }
     await settings.loaded;
-    if (_disposed || busy || !identical(requestedTask, _task)) return;
+    if (_disposed ||
+        busy ||
+        !identical(requestedTask, _task) ||
+        canStart?.call() == false) {
+      return;
+    }
     if (settings.configuration == null) {
       error = 'configuration';
       _emit();
@@ -847,6 +901,11 @@ class TerminalAiController extends ChangeNotifier {
     try {
       final fresh = await terminal.readContext();
       cancellation.check();
+      if (!identical(requestedTask, _task)) return;
+      if (canStart?.call() == false) {
+        takeOver();
+        return;
+      }
       context = fresh;
       _task.terminalError = null;
       _task.target ??= fresh;
@@ -854,16 +913,13 @@ class TerminalAiController extends ChangeNotifier {
         takenOver = true;
         throw const AiFailure('target_changed');
       }
-      final attached = List<AiBlockContext>.unmodifiable([
-        if (!preserveDraft) ..._task.attachments,
-        ...blocks,
-        ?block,
-      ]);
       if (attached.length > 8) throw const AiFailure('context_limit');
       if (!preserveDraft) {
-        _task.draft = '';
-        _task.inputIntent.reset();
-        _task.attachments.clear();
+        if (_task.draftRevision == sentDraftRevision) {
+          _task.updateDraft('');
+          _task.inputIntent.reset();
+        }
+        _task.attachments.removeWhere(sentAttachments.contains);
       }
       if (_task.title.isEmpty) {
         _task.title = prompt.length > 80

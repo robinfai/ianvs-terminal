@@ -51,6 +51,8 @@ class _CommandBlocksPaneState extends State<CommandBlocksPane> {
   String? _readyText;
   int? _readyColumns;
   int? _readyRows;
+  String? _seenSubmission;
+  String? _revealSubmission;
 
   bool get _sessionAvailable => identical(
     widget.session.runtime.existingViewportFor(widget.session.sessionId),
@@ -61,6 +63,8 @@ class _CommandBlocksPaneState extends State<CommandBlocksPane> {
   void initState() {
     super.initState();
     _blocks = widget.session.blocks;
+    // Remounting an unresolved command is not another explicit submission.
+    _seenSubmission = widget.session.controller.pendingSubmission?.id;
     widget.session.addListener(_changed);
     widget.session.controller.addListener(_changed);
     widget.viewport.addListener(_changed);
@@ -73,6 +77,20 @@ class _CommandBlocksPaneState extends State<CommandBlocksPane> {
   }
 
   void _changed() {
+    // Capture before the refresh is coalesced: an accepted local submission
+    // can clear pendingSubmission before the next output frame arrives.
+    final submission = widget.session.controller.pendingSubmission;
+    if (submission != null && submission.id != _seenSubmission) {
+      _seenSubmission = submission.id;
+      if (widget.active && widget.session.enabled) {
+        _revealSubmission = submission.id;
+      }
+    }
+    if (!widget.active ||
+        !widget.session.enabled ||
+        widget.session.controller.ownership == ComposerOwnership.draft) {
+      _revealSubmission = null;
+    }
     if (_refresh != null) return;
     _refresh = Timer(const Duration(milliseconds: 80), () {
       _refresh = null;
@@ -119,6 +137,32 @@ class _CommandBlocksPaneState extends State<CommandBlocksPane> {
               ownership != _lastOwnership ||
               enabled != _lastEnabled)) {
         _blocks.refresh();
+      }
+      if (_revealSubmission case final submissionId? when enabled) {
+        final receipt = widget.session.runtime.composerRequest(
+          widget.session.sessionId,
+          'composer.receipt',
+          {'submissionId': submissionId},
+        );
+        final blockId = receipt?['blockId'];
+        if (receipt?['submissionId'] == submissionId &&
+            receipt?['outcome'] == 'accepted' &&
+            blockId is String &&
+            _blocks.blocks.any((block) => block.id == blockId)) {
+          _revealSubmission = null;
+          // Reading old output remains stable for background/AI commands.
+          // Only this explicit Composer submission reveals its correlated
+          // block, which mounts the live input and transfers keyboard focus.
+          // A fast command may already have returned focus to the editor.
+          // Scroll without stealing it; a running block mounts liveFocus.
+          _blocks.reveal(blockId, bottom: true, focus: false);
+          // Starting execution leaves keyboard block navigation unselected;
+          // the next Command+Up from the editor must still select the latest
+          // block rather than skip it because revealing set activeId.
+          _blocks.clearSelection();
+        } else if (receipt?['outcome'] == 'rejected') {
+          _revealSubmission = null;
+        }
       }
       final lease = widget.session.controller.readyLease;
       // A decoded frame can lag behind the native ready receipt. Compare

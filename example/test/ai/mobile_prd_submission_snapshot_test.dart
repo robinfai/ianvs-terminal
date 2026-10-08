@@ -32,6 +32,14 @@ class _DelayedContextTerminal extends FakeTerminal {
   }
 }
 
+class _DeferredAiStore implements AiConfigurationStore {
+  final loaded = Completer<AiConfiguration?>();
+  @override
+  Future<AiConfiguration?> read() => loaded.future;
+  @override
+  Future<void> write(AiConfiguration? configuration) async {}
+}
+
 AiBlockContext _source({
   String id = 'failed-command',
   int sourceBase = 100,
@@ -232,6 +240,46 @@ void main() {
       );
 
       test(
+        'reattaching the same source object preserves its new attachment',
+        () async {
+          controller.setDraft('Explain this failure');
+          controller.attachContext(originalSource);
+          final pending = terminal.pauseNextRead();
+
+          final turn = controller.ask(controller.draft);
+          await pending.started.future;
+          controller.removeAttachment(0);
+          controller.attachContext(originalSource);
+          pending.result.complete(terminal.context);
+          await turn;
+
+          expect(_sentSources(api), [originalSource.toJson()]);
+          expect(controller.attachments, [originalSource]);
+          expect(terminal.writes, isEmpty);
+        },
+      );
+
+      test(
+        'copies an explicit source list before awaiting the terminal',
+        () async {
+          controller.setDraft('Explain these sources');
+          final sources = [originalSource];
+          final pending = terminal.pauseNextRead();
+
+          final turn = controller.ask(controller.draft, blocks: sources);
+          await pending.started.future;
+          sources
+            ..clear()
+            ..add(_source(id: 'unrequested-source'));
+          pending.result.complete(terminal.context);
+          await turn;
+
+          expect(_sentSources(api), [originalSource.toJson()]);
+          expect(terminal.writes, isEmpty);
+        },
+      );
+
+      test(
         'task switching cancels the old request without consuming either draft',
         () async {
           controller.setDraft('Original task question');
@@ -279,10 +327,199 @@ void main() {
           expect(controller.draft, './script');
           expect(controller.attachments, isEmpty);
           expect(controller.inputIntentDecision().intent, InputIntent.ai);
+          expect(controller.canRunUserCommand, isFalse);
           expect(api.requests, isEmpty);
           expect(terminal.writes, isEmpty);
         },
       );
+
+      test(
+        'preview cannot release the retained AI intent or change the draft',
+        () {
+          controller.setDraft('./script');
+          controller.attachContext(originalSource);
+          controller.removeAttachment(0);
+          final revision = controller.draftRevision;
+
+          expect(
+            controller
+                .previewInputIntent('pwd', InputIntentChoice.command)
+                .intent,
+            InputIntent.command,
+          );
+          expect(controller.draft, './script');
+          expect(controller.draftRevision, revision);
+          expect(controller.inputIntentChoice, InputIntentChoice.automatic);
+          expect(controller.inputIntentDecision().intent, InputIntent.ai);
+          expect(controller.canRunUserCommand, isFalse);
+
+          controller.chooseInputIntent(InputIntentChoice.command);
+          expect(controller.inputIntentDecision().intent, InputIntent.command);
+          expect(controller.canRunUserCommand, isTrue);
+          expect(controller.draftRevision, revision);
+          expect(terminal.writes, isEmpty);
+        },
+      );
+
+      test(
+        'retained AI intent stays with its task and clears with the draft',
+        () async {
+          controller.setDraft('./script');
+          controller.attachContext(originalSource);
+          controller.removeAttachment(0);
+          final originalTask = controller.taskId;
+
+          controller.newTask();
+          await controller.refreshContext();
+          controller.setDraft('./script');
+          expect(controller.inputIntentDecision().intent, InputIntent.command);
+          controller.selectTask(originalTask);
+          await controller.refreshContext();
+          expect(controller.inputIntentDecision().intent, InputIntent.ai);
+
+          controller.setDraft('');
+          controller.setDraft('./script');
+          expect(controller.inputIntentDecision().intent, InputIntent.command);
+          expect(terminal.writes, isEmpty);
+        },
+      );
     });
+
+    group('draft revision', () {
+      test(
+        'tracks text edits and send cleanup independently for each task',
+        () async {
+          controller.setDraft('Original draft');
+          final originalTask = controller.taskId;
+          final originalRevision = controller.draftRevision;
+          controller.setDraft('Original draft', composing: true);
+          controller.setDraft('Original draft');
+          controller.attachContext(originalSource);
+          controller.removeAttachment(0);
+          controller.chooseInputIntent(InputIntentChoice.ai);
+          expect(controller.draftRevision, originalRevision);
+
+          controller.newTask();
+          expect(controller.draftRevision, 0);
+          controller.setDraft('Other task draft');
+          controller.selectTask(originalTask);
+          await controller.refreshContext();
+          expect(controller.draftRevision, originalRevision);
+
+          controller.setDraft('Edited draft');
+          controller.setDraft('Original draft');
+          expect(controller.draftRevision, originalRevision + 2);
+          final sentRevision = controller.draftRevision;
+          await controller.ask(controller.draft);
+          expect(controller.draft, isEmpty);
+          expect(controller.draftRevision, sentRevision + 1);
+          expect(terminal.writes, isEmpty);
+        },
+      );
+
+      test(
+        'an accepted human command does not clear a later same-text edit',
+        () async {
+          controller.setDraft('pwd');
+          terminal.execution = Completer<Map<String, Object?>>();
+          final submission = controller.runUserCommand(controller.draft);
+          controller.setDraft('A later draft');
+          controller.setDraft('pwd');
+          final editedRevision = controller.draftRevision;
+          terminal.execution!.complete({'status': 'input_sent'});
+          await submission;
+
+          expect(controller.draft, 'pwd');
+          expect(controller.draftRevision, editedRevision);
+          expect(terminal.writes, hasLength(1));
+          expect(api.requests, isEmpty);
+        },
+      );
+    });
+  });
+
+  group('$TerminalAiController while loading settings', () {
+    late _DeferredAiStore store;
+    late AiSettingsController settings;
+    late FakeTerminal terminal;
+    late FakeApi api;
+    late TerminalAiController controller;
+
+    setUp(() {
+      store = _DeferredAiStore();
+      settings = AiSettingsController(store);
+      terminal = FakeTerminal();
+      api = FakeApi()
+        ..respond = (_) async => const AiReply(text: 'Evidence reviewed.');
+      controller = TerminalAiController(
+        settings: settings,
+        terminal: terminal,
+        api: api,
+      );
+    });
+
+    tearDown(() async {
+      controller.dispose();
+      settings.dispose();
+      if (!store.loaded.isCompleted) {
+        store.loaded.complete(const AiConfiguration.mock());
+      }
+      await settings.loaded;
+    });
+
+    test(
+      'freezes the clicked draft and sources before settings finish loading',
+      () async {
+        final originalSource = _source();
+        final nextSource = _source(id: 'next-source');
+        controller.setDraft('Clicked request');
+        controller.attachContext(originalSource);
+
+        final turn = controller.ask(controller.draft);
+        controller.setDraft('Keep the next draft');
+        controller.removeAttachment(0);
+        controller.attachContext(nextSource);
+        store.loaded.complete(const AiConfiguration.mock());
+        await turn;
+
+        expect(_sentUserRequest(api)['request'], 'Clicked request');
+        expect(_sentSources(api), [originalSource.toJson()]);
+        expect(controller.draft, 'Keep the next draft');
+        expect(controller.attachments, [nextSource]);
+        expect(terminal.writes, isEmpty);
+      },
+    );
+
+    test(
+      'a delayed settings load cannot send or consume a different task',
+      () async {
+        controller.setDraft('Old task request');
+        final originalSource = _source();
+        controller.attachContext(originalSource);
+        final originalTask = controller.taskId;
+
+        final turn = controller.ask(controller.draft);
+        controller.newTask();
+        final nextTask = controller.taskId;
+        final nextSource = _source(id: 'next-task-source');
+        controller.setDraft('New task draft');
+        controller.attachContext(nextSource);
+        store.loaded.complete(const AiConfiguration.mock());
+        await turn;
+
+        expect(controller.taskId, nextTask);
+        expect(controller.draft, 'New task draft');
+        expect(controller.attachments, [nextSource]);
+        expect(controller.transcript, isEmpty);
+        expect(api.requests, isEmpty);
+        expect(terminal.writes, isEmpty);
+
+        controller.selectTask(originalTask);
+        await controller.refreshContext();
+        expect(controller.draft, 'Old task request');
+        expect(controller.attachments, [originalSource]);
+        expect(controller.transcript, isEmpty);
+      },
+    );
   });
 }

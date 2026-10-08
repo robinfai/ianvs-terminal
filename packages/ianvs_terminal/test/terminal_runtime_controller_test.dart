@@ -10958,6 +10958,111 @@ void main() {
   );
 
   testWidgets(
+    'OSC 5522 revoked pending paste sends no bytes and allocates no token',
+    (tester) async {
+      final backend = _FakePtyBackend();
+      Completer<List<String>>? pendingMimeTypes;
+      var canSend = true;
+      var mimeTypeReads = 0;
+      var authorizations = 0;
+      var clipboardReads = 0;
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        listClipboardMimeTypes: () {
+          mimeTypeReads++;
+          return pendingMimeTypes?.future ??
+              Future.value(const <String>['text/plain']);
+        },
+        readMimeClipboard: (_) async {
+          clipboardReads++;
+          return <TerminalClipboardMimeItem>[
+            TerminalClipboardMimeItem(
+              mimeType: 'text/plain',
+              bytes: Uint8List.fromList(utf8.encode('authorized earlier')),
+            ),
+          ];
+        },
+        authorizeMimeClipboardAccessWithContext: (_) async {
+          authorizations++;
+          return TerminalClipboardAuthorization.denied;
+        },
+        monotonicNow: () => Duration.zero,
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+
+      // Fill the token budget so an incorrectly allocated revoked token would
+      // evict the oldest real user authorization, even if no packet were sent.
+      for (var index = 0; index < 8; index++) {
+        expect(
+          await runtime.sendOsc5522PasteEvent(
+            sessionId,
+            canSend: () => canSend,
+          ),
+          isTrue,
+        );
+      }
+      final tokenPacket = backend.writeCalls
+          .map(ascii.decode)
+          .firstWhere((packet) => packet.contains(':status=OK:pw='));
+      final encodedToken = RegExp(
+        r':pw=([^\x1b]+)',
+      ).firstMatch(tokenPacket)!.group(1)!;
+      final oldestToken = utf8.decode(base64.decode(encodedToken));
+      backend.writeCalls.clear();
+
+      final mimeTypes = pendingMimeTypes = Completer<List<String>>();
+      final pendingPaste = runtime.sendOsc5522PasteEvent(
+        sessionId,
+        canSend: () => canSend,
+      );
+      expect(mimeTypeReads, 9);
+      canSend = false;
+      mimeTypes.complete(const ['text/plain', 'image/png']);
+      expect(await pendingPaste, isFalse);
+      expect(backend.writeCalls, isEmpty);
+
+      expect(
+        await runtime.sendOsc5522PasteEvent(sessionId, canSend: () => canSend),
+        isFalse,
+      );
+      expect(mimeTypeReads, 9, reason: 'Revocation also gates a new request');
+
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'clipboard_mime_read_request',
+          sessionId: sessionId,
+          payload: <String, Object?>{
+            'location': 'clipboard',
+            'id': 'existing-token-still-valid',
+            'password': oldestToken,
+            'mimeTypes': const <String>['text/plain'],
+            'listOnly': false,
+          },
+        ),
+      );
+      runtime.sendInput(sessionId, Uint8List(0));
+      await tester.pump();
+      await tester.pump();
+      expect(authorizations, 0);
+      expect(clipboardReads, 1);
+      expect(
+        backend.writeCalls.map(ascii.decode).join(),
+        contains('type=read:status=DONE:id=existing-token-still-valid'),
+        reason: 'UI revocation does not suppress existing protocol replies',
+      );
+    },
+  );
+
+  testWidgets(
     'OSC 5522 paste event advertises MIME types and consumes its token once',
     (tester) async {
       final backend = _FakePtyBackend();

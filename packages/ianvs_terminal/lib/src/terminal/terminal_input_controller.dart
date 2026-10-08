@@ -24,6 +24,10 @@ class TerminalInputController {
 
   final String sessionId;
   final TerminalInputSink runtime;
+
+  /// Stable owner of focus reports, even when a write-policy wrapper changes.
+  Object get inputOwner => runtime;
+
   final TerminalFrameDiff Function() readFrame;
   final TerminalEmulation emulation;
   final String Function() readSelection;

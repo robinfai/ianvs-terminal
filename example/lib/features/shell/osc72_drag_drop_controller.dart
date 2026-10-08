@@ -146,9 +146,21 @@ class Osc72DragDropController {
     NativeOsc72DragEvent event, {
     required Osc72DropLocation? Function(NativeOsc72DragEvent event)
     resolveLocation,
+    bool Function()? canSend,
   }) async {
     final target = _targets[event.sessionId];
-    if (target == null || event.sessionId != _activeSessionId) {
+    bool allowed() =>
+        canSend?.call() != false &&
+        event.sessionId == _activeSessionId &&
+        identical(target, _targets[event.sessionId]);
+    Future<void> discard() async {
+      final dropId = event.dropId;
+      if (event.phase == 'drop' && dropId != null) await _releaseDrop(dropId);
+      await _setDecision(0);
+    }
+
+    if (target == null || !allowed()) {
+      await discard();
       return;
     }
     if (event.phase == 'leave') {
@@ -163,8 +175,8 @@ class Osc72DragDropController {
       return;
     }
     final location = resolveLocation(event);
-    if (location == null) {
-      await _setDecision(0);
+    if (location == null || !allowed()) {
+      await discard();
       return;
     }
     final offered = event.mimeTypes
@@ -179,6 +191,10 @@ class Osc72DragDropController {
         return;
       }
       await _releaseActiveDrop();
+      if (!allowed()) {
+        await discard();
+        return;
+      }
       _activeDrop = _Osc72Drop(
         sessionId: event.sessionId,
         dropId: dropId,

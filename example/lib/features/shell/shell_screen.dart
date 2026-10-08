@@ -27,6 +27,7 @@ import '../ai/ai_settings.dart';
 import '../ai/ai_settings_dialog.dart';
 import '../ai/terminal_ai_connections.dart';
 import '../ai/terminal_ai_controller.dart';
+import '../ai/terminal_ai_observer.dart';
 import '../ai/terminal_ai_retained_timeline.dart';
 import '../ai/terminal_ai_runtime.dart';
 import '../ai/terminal_ai_workspace.dart';
@@ -84,6 +85,7 @@ import 'window_bridge.dart';
 
 part 'shell_screen_chrome.dart';
 part 'shell_screen_ai.dart';
+part 'shell_screen_ai_observer.dart';
 part 'shell_screen_chrome_empty_states.dart';
 part 'shell_screen_command_menu.dart';
 part 'shell_screen_instant_replay.dart';
@@ -241,6 +243,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   final Map<String, TerminalAiController> _aiSessions = {};
   final Map<String, Future<String?>> _terminalReconnects = {};
   final Set<String> _openAiSessions = {};
+  final Map<String, String> _observedAiTargets = {};
+  final Map<String, int> _manualInputEpochs = {};
+  int _manualInputSerial = 0;
   final Map<String, SelectionResizeGuard> _selectionResizeGuards = {};
   final Map<String, FocusNode> _terminalFocusNodes = {};
   final FocusNode _searchFocusNode = FocusNode(debugLabel: 'shell-search');

@@ -3,10 +3,10 @@
   "baseline_commit": "763dc166bb1e56d6d50ed3379b57f366c9ca06b7",
   "implementation_commit": null,
   "stages": {
-    "S1": "planned",
-    "S2": "planned",
-    "S3": "planned",
-    "S4": "planned"
+    "S1": "in_progress",
+    "S2": "in_progress",
+    "S3": "in_progress",
+    "S4": "in_progress"
   },
   "environments": [],
   "source_hashes": {},

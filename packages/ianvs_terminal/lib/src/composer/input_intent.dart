@@ -51,6 +51,27 @@ class InputIntentState {
     decision = InputIntentDecision(defaultIntent, 'empty');
   }
 
+  /// Resolves a temporary draft with the live classifier's prior decision,
+  /// without changing the live override, text or shell scope.
+  InputIntentDecision preview(
+    String text, {
+    required InputIntentChoice choice,
+    InputIntentContext context = const InputIntentContext(),
+    bool composing = false,
+    bool agentOwnsInput = false,
+  }) =>
+      (InputIntentState(defaultIntent: defaultIntent)
+            ..choice = choice
+            ..decision = decision
+            .._scope = _scope
+            .._text = _text)
+          .update(
+            text,
+            context: context,
+            composing: composing,
+            agentOwnsInput: agentOwnsInput,
+          );
+
   InputIntentDecision update(
     String text, {
     InputIntentContext context = const InputIntentContext(),

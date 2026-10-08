@@ -401,9 +401,13 @@ void main() {
       await capture('block-expanded-height');
       final blockList = find.descendant(
         of: find.byType(TerminalCommandBlocksView),
-        matching: find.byType(ListView),
+        matching: find.byType(CommandTimelineView),
       );
-      final blockScroll = tester.widget<ListView>(blockList).controller!;
+      expect(blockList, findsOneWidget);
+      final blockScroll = tester
+          .widget<CommandTimelineView>(blockList)
+          .controller;
+      expect(blockScroll.positions, hasLength(1));
       final outputPoint = tester.getCenter(blockList);
       expect(
         tester
@@ -536,6 +540,11 @@ void main() {
               (element) =>
                   (element.widget as CommandBlockTerminal).block.running,
             ),
+        diagnostics: () =>
+            'owner=${model.ownership}; focus=${FocusManager.instance.primaryFocus}; '
+            'scroll=${blockScroll.offset}/${blockScroll.position.maxScrollExtent}; '
+            'blocks=${blocks.blocks.map((block) => '${block.id}:${block.command}:${block.running}').join(' | ')}; '
+            'mounted=${find.byType(CommandBlockTerminal).evaluate().map((element) => (element.widget as CommandBlockTerminal).block.id).join(',')}',
       );
       final runningTerminal = tester.widget<CommandBlockTerminal>(
         find.byWidgetPredicate(
@@ -609,9 +618,11 @@ void main() {
       expect(editor, findsNothing);
       await chooseMode('blocks');
       expect(model.editor.text, 'saved draft');
-      // A child shell owns another integration context. Its prompt cannot
-      // authorize the local root's command editor or automatically restore it.
-      await tester.enterText(editor, 'bash');
+      // Apple's Bash 3.2 has shell hooks but no Composer adapter. Its child
+      // context must never borrow the parent Zsh editor's ready lease.
+      // Keep the injected bash() wrapper while selecting /bin/bash for this
+      // call only; the other completion/execution fixtures retain their PATH.
+      await tester.enterText(editor, 'PATH=/usr/bin:/bin:/usr/sbin:/sbin bash');
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await until(
         tester,
@@ -633,16 +644,40 @@ void main() {
         find.byType(TerminalViewport),
       );
       expect(childShell.focusNode!.hasFocus, isTrue);
-      expect(
-        container
-            .read(sessionControllerProvider)
-            .tabs
-            .first
-            .activePane
-            .terminalMode
-            .unavailableReason,
-        BlockUnavailableReason.nestedShell,
+      await until(
+        tester,
+        () =>
+            container
+                .read(sessionControllerProvider)
+                .tabs
+                .first
+                .activePane
+                .terminalMode
+                .unavailableReason ==
+            BlockUnavailableReason.unsupportedShell,
+        diagnostics: () =>
+            'child mode=${container.read(sessionControllerProvider).tabs.first.activePane.terminalMode.unavailableReason}; '
+            'context=${container.read(sessionControllerProvider).tabs.first.activePane.shellIntegration.contextId}; '
+            'state=${container.read(terminalRuntimeControllerProvider).composerRequest(id, 'composer.state', const {})}; '
+            'owner=${model.ownership}; output=${terminalText()}',
       );
+      final childPane = container
+          .read(sessionControllerProvider)
+          .tabs
+          .first
+          .activePane;
+      final childState = container
+          .read(terminalRuntimeControllerProvider)
+          .composerRequest(id, 'composer.state', const {});
+      expect(childPane.shellIntegration.contextId, isNot('root'));
+      expect(childState?['contextId'], childPane.shellIntegration.contextId);
+      expect(childState?['transport'], 'shell');
+      expect(childState?['state'], 'draft');
+      expect(childState?['lease'], isNull);
+      expect(childPane.terminalMode.canUseBlocks, isFalse);
+      expect(childPane.terminalMode.mode, TerminalViewMode.normal);
+      expect(find.byType(TerminalComposerView), findsNothing);
+      expect(childShell.focusNode!.hasFocus, isTrue);
       await capture('terminal-mode-nested-shell');
       childShell.inputController.sendText('exit\n');
       await until(
@@ -810,22 +845,70 @@ void main() {
         );
         await chooseMode('blocks');
       }
-      await tester.enterText(
-        editor,
-        '(sleep 0.4; print BLOCK_UNASSIGNED_OUTPUT) &',
+      final releaseOutput = File('${home.path}/.release-background-output');
+      final backgroundCommand =
+          '(while [[ ! -e "${releaseOutput.path}" ]]; do sleep 0.05; done; '
+          'print BLOCK_UNASSIGNED_OUTPUT) &';
+      final beforeBackgroundLease = model.readyLease;
+      await tester.enterText(editor, backgroundCommand);
+      // This compound expression has no resolved first command token. Use
+      // the visible override instead of expecting Auto to execute it.
+      expect(model.intentDecision.intent, InputIntent.ai);
+      await tester.tap(find.byKey(const Key('composer-input-intent')));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is CheckedPopupMenuItem<String> &&
+              widget.value == 'command',
+        ),
       );
+      await tester.pumpAndSettle();
+      expect(model.intentDecision.intent, InputIntent.command);
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await until(
         tester,
         () =>
             model.ownership == ComposerOwnership.ready &&
-            terminalText().contains('BLOCK_UNASSIGNED_OUTPUT'),
+            model.readyLease != beforeBackgroundLease &&
+            blocks.blocks.last.command == backgroundCommand &&
+            !blocks.blocks.last.running,
+        diagnostics: () =>
+            'owner=${model.ownership}; intent=${model.intentDecision.intent}; '
+            'draft=${model.editor.text}; status=${model.status}; output=${terminalText()}',
       );
+      // A fixed sleep can finish before Zsh publishes its authenticated ready
+      // lease. Establish the idle presentation baseline, then release output.
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(find.byType(TerminalCommandBlocksView), findsOneWidget);
+      await releaseOutput.writeAsString('release');
+      bool hasBackgroundOutput() => terminalText()
+          .split('\n')
+          .any(
+            (line) =>
+                line.trim().replaceFirst(RegExp('^composer> '), '') ==
+                'BLOCK_UNASSIGNED_OUTPUT',
+          );
+      await until(tester, hasBackgroundOutput, diagnostics: terminalText);
       await until(
         tester,
         () => find.byType(TerminalCommandBlocksView).evaluate().isEmpty,
+        diagnostics: () =>
+            'unattributed mode=${container.read(sessionControllerProvider).tabs.first.activePane.terminalMode.unavailableReason}; '
+            'owner=${model.ownership}; output=${terminalText()}',
       );
-      expect(terminalText(), contains('BLOCK_UNASSIGNED_OUTPUT'));
+      expect(hasBackgroundOutput(), isTrue);
+      final fallback = container
+          .read(sessionControllerProvider)
+          .tabs
+          .first
+          .activePane
+          .terminalMode;
+      expect(fallback.mode, TerminalViewMode.normal);
+      expect(
+        fallback.unavailableReason,
+        BlockUnavailableReason.unattributedOutput,
+      );
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
     },
