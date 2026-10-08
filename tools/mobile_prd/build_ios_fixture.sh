@@ -192,7 +192,9 @@ if any(c in entitlements for c in ('\n', '\r', '"', '$')):
     sys.exit('The checkout path cannot be represented safely in xcconfig.')
 settings = [
     'PRODUCT_BUNDLE_IDENTIFIER = work.ianvs.trail.mobileprd',
-    f'CODE_SIGN_ENTITLEMENTS = "{entitlements}"',
+    # xcconfig scalar path values retain literal quotes. The complete raw
+    # value also preserves spaces, as in the repository's signed Apple build.
+    f'CODE_SIGN_ENTITLEMENTS = {entitlements}',
     'CODE_SIGNING_ALLOWED = ' + ('YES' if platform == 'physical' else 'NO'),
 ]
 if simulator_arch:

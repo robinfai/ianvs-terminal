@@ -31,7 +31,8 @@ config_path = pathlib.Path(os.environ['XCODE_XCCONFIG_FILE'])
 settings = {}
 for line in config_path.read_text().splitlines():
     key, value = line.split('=', 1)
-    settings[key.strip()] = value.strip().strip('"')
+    # Xcode retains quotes in scalar path settings; do not hide invalid paths.
+    settings[key.strip()] = value.strip()
 entitlements_path = pathlib.Path(settings['CODE_SIGN_ENTITLEMENTS'])
 entry = {'tool': name, 'args': args, 'cwd': os.getcwd(),
          'environment_keys': list(os.environ), 'settings': settings,
