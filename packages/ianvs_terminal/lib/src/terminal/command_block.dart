@@ -26,7 +26,9 @@ class CommandBlockReadRange {
     }
     final delta = sourceLineBase == null ? 0 : sourceLineBase! - base!;
     final start = startLine + delta;
-    return start < 0 || endLine + delta > current.totalLines ? null : start;
+    return start < 0 || endLine + delta > current.sourceLineCount
+        ? null
+        : start;
   }
 }
 
@@ -42,17 +44,20 @@ class CommandBlock {
     this.startedAt,
     this.finishedAt,
     this.running = false,
+    this.suspended = false,
     this.evicted = false,
     this.lines = const [],
     this.hyperlinks = const [],
     this.totalLines = 0,
+    int? sourceLineCount,
+    this.segmented = false,
     this.matchingLines = 0,
     this.offset = 0,
     this.nextOffset,
     this.columns = 80,
     this.cursorLine = 0,
     this.cursorColumn = 0,
-  });
+  }) : sourceLineCount = sourceLineCount ?? totalLines;
 
   final String id;
   final String command;
@@ -63,10 +68,18 @@ class CommandBlock {
   final int? startedAt;
   final int? finishedAt;
   final bool running;
+
+  /// The command remains running while a nested shell owns terminal input.
+  final bool suspended;
   final bool evicted;
   final List<TerminalRow> lines;
   final List<TerminalHyperlinkRange> hyperlinks;
   final int totalLines;
+
+  /// Physical source span, including rows owned by nested commands. Those
+  /// gaps do not appear in [lines] or count toward [totalLines] and page offsets.
+  final int sourceLineCount;
+  final bool segmented;
   final int matchingLines;
   final int offset;
   final int? nextOffset;
@@ -125,6 +138,7 @@ class CommandBlock {
       startedAt: optional('startedAt'),
       finishedAt: optional('finishedAt'),
       running: value['running'] == true,
+      suspended: value['suspended'] == true,
       evicted: value['evicted'] == true,
       lines: List.unmodifiable([
         if (rawLines is List)
@@ -142,6 +156,10 @@ class CommandBlock {
                 parsed,
       ]),
       totalLines: count('totalLines'),
+      sourceLineCount: value['sourceLineCount'] == null
+          ? count('totalLines')
+          : count('sourceLineCount'),
+      segmented: value['segmented'] == true,
       matchingLines: count('matchingLines'),
       offset: count('offset'),
       nextOffset: optional('nextOffset'),

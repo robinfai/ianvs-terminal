@@ -8,7 +8,13 @@ class _SshOnlyShellEmptyState extends StatelessWidget {
     required this.onOpenProfile,
     required this.onCreateProfile,
     this.sessions = const [],
+    this.activeSessionId,
+    this.liveReconnections = const {},
+    this.protectedSessionIds = const {},
     this.onResumeSession,
+    this.onReconnectSession,
+    this.onCloseSession,
+    this.onClearDisconnected,
     this.onManageProfiles,
   });
 
@@ -17,7 +23,13 @@ class _SshOnlyShellEmptyState extends StatelessWidget {
   final ValueChanged<TerminalProfile> onOpenProfile;
   final VoidCallback? onCreateProfile;
   final List<TerminalTab> sessions;
+  final String? activeSessionId;
+  final Map<String, String> liveReconnections;
+  final Set<String> protectedSessionIds;
   final ValueChanged<String>? onResumeSession;
+  final ValueChanged<String>? onReconnectSession;
+  final ValueChanged<String>? onCloseSession;
+  final VoidCallback? onClearDisconnected;
   final VoidCallback? onManageProfiles;
 
   @override
@@ -34,19 +46,17 @@ class _SshOnlyShellEmptyState extends StatelessWidget {
           padding: const EdgeInsets.all(16),
           children: [
             if (sessions.isNotEmpty) ...[
-              Text(
-                context.l10n.mobileSessions,
-                style: Theme.of(context).textTheme.titleSmall,
+              MobileSessionList(
+                tabs: sessions,
+                activeSessionId: activeSessionId,
+                liveReconnections: liveReconnections,
+                protectedSessionIds: protectedSessionIds,
+                onSelect: (pane) => onResumeSession?.call(pane.sessionId),
+                onReconnect: (pane) => onReconnectSession?.call(pane.sessionId),
+                onDisconnect: (pane) => onCloseSession?.call(pane.sessionId),
+                onRemove: (pane) => onCloseSession?.call(pane.sessionId),
+                onClearDisconnected: () => onClearDisconnected?.call(),
               ),
-              const SizedBox(height: 8),
-              for (final tab in sessions)
-                ListTile(
-                  key: Key('mobile-resume-${tab.sessionId}'),
-                  leading: const Icon(Icons.terminal_rounded),
-                  title: Text(tab.title),
-                  trailing: const Icon(Icons.chevron_right_rounded),
-                  onTap: () => onResumeSession?.call(tab.activePane.sessionId),
-                ),
               const SizedBox(height: 24),
             ],
             if (sessions.isNotEmpty)
@@ -259,4 +269,36 @@ class _SshOnlyShellEmptyState extends StatelessWidget {
       ),
     );
   }
+}
+
+extension _ShellSshConnectionsHome on _ShellScreenState {
+  Widget _buildSshConnectionsHome(
+    SessionController sessionController,
+    AppThemeTokens palette, {
+    required bool mobileNavigation,
+  }) => Consumer(
+    builder: (context, ref, _) {
+      final state = ref.watch(sessionControllerProvider);
+      return _SshOnlyShellEmptyState(
+        key: const Key('shell-empty-state'),
+        palette: palette,
+        profiles: state.profiles,
+        sessions: mobileNavigation ? state.tabs : const [],
+        activeSessionId: state.activeSessionId,
+        liveReconnections: _liveMobileReconnections(state),
+        protectedSessionIds: _protectedMobileSessionIds(state),
+        onReconnectSession: (id) => unawaited(_reconnectMobileSession(id)),
+        onCloseSession: (id) => unawaited(_closeMobileSession(id)),
+        onClearDisconnected: () =>
+            unawaited(_clearDisconnectedMobileSessions()),
+        onResumeSession: (id) => _activateSession(sessionController, id),
+        onManageProfiles: () =>
+            _openProfilesSheet(sessionController, _sessionState),
+        onOpenProfile: (profile) =>
+            _createSession(sessionController, profile, returningToLayout: true),
+        onCreateProfile: () =>
+            unawaited(_openSshProfileCreator(sessionController, _sessionState)),
+      );
+    },
+  );
 }

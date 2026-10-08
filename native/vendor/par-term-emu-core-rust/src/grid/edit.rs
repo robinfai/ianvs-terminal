@@ -11,6 +11,7 @@ impl Grid {
         self.normalize_screen_rows();
         let n = n.min(scroll_bottom - row + 1);
         let effective_bottom = scroll_bottom.min(self.rows - 1);
+        self.invalidate_segmented_output_rows(row, effective_bottom);
         self.clear_multicell_split_at_line(row);
 
         for i in (row..=(effective_bottom - n)).rev() {
@@ -37,6 +38,7 @@ impl Grid {
         self.normalize_screen_rows();
         let n = n.min(scroll_bottom - row + 1);
         let effective_bottom = scroll_bottom.min(self.rows - 1);
+        self.invalidate_segmented_output_rows(row, effective_bottom);
         self.clear_multicells_intersecting(0, self.cols, row, row + n);
 
         for i in row..=(effective_bottom.saturating_sub(n)) {
@@ -61,6 +63,7 @@ impl Grid {
         if row >= self.rows || col >= self.cols {
             return;
         }
+        self.invalidate_segmented_output_rows(row, row);
         self.clear_multiline_multicells_from(col, row);
         self.clear_wide_char_at_insertion_boundary(col, row);
         let n = n.min(self.cols - col);
@@ -88,6 +91,7 @@ impl Grid {
         };
         let col = range.start;
         let n = range.end - range.start;
+        self.invalidate_segmented_output_rows(row, row);
         let cols = self.cols;
         let blank_cell = self.blank_cell();
 

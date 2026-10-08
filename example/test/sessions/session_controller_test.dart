@@ -426,6 +426,8 @@ class _SshEventfulPtyBackend extends _EventfulPtyBackend
     implements PtySessionConfigV1Backend, PtyRuntimeCapabilityBackend {
   _SshEventfulPtyBackend(super.delegate);
 
+  final createdSessionIds = <String>[];
+
   @override
   final PtyRuntimeCapabilities runtimeCapabilities =
       PtyRuntimeCapabilities.fromJson(<String, Object?>{
@@ -438,8 +440,45 @@ class _SshEventfulPtyBackend extends _EventfulPtyBackend
 
   @override
   String createSessionV1(String sessionConfigV1Json) {
-    return _delegate.createSession(sessionConfigV1Json);
+    final sessionId = _delegate.createSession(sessionConfigV1Json);
+    createdSessionIds.add(sessionId);
+    return sessionId;
   }
+}
+
+ProviderContainer _sshReconnectionContainer(
+  _SshEventfulPtyBackend bindings,
+  TerminalProfile profile,
+) {
+  final container = ProviderContainer(
+    overrides: [
+      ptySessionBackendProvider.overrideWithValue(bindings),
+      sessionControllerProvider.overrideWith(_TestSessionController.new),
+      profileRepositoryProvider.overrideWithValue(
+        _TestProfileRepository(TerminalProfilesDocument(profiles: [profile])),
+      ),
+      appPreferencesRepositoryProvider.overrideWithValue(
+        _TestAppPreferencesRepository(null),
+      ),
+    ],
+  );
+  addTearDown(container.dispose);
+  return container;
+}
+
+Future<void> _retainSshExit(
+  _SshEventfulPtyBackend bindings,
+  ProviderContainer container,
+  String sessionId,
+) async {
+  bindings.enqueueExit(sessionId, code: 255);
+  await _waitForCondition(
+    description: 'retained SSH exit for $sessionId',
+    condition: () => container
+        .read(sessionControllerProvider)
+        .tabs
+        .any((tab) => tab.paneFor(sessionId)?.isExited == true),
+  );
 }
 
 class _CountingPtyBackend extends FakePtyBackend {
@@ -7123,6 +7162,32 @@ void main() {
       );
       expect(identical(controller.viewportFor(id), viewport), true);
       expect(controller.reconnectSession(reconnected!), isNull);
+      for (var attempt = 0; attempt < 5; attempt++) {
+        controller.activateSession(id);
+        expect(controller.reconnectSession(id), reconnected);
+        expect(
+          container.read(sessionControllerProvider).activeSessionId,
+          reconnected,
+        );
+      }
+      expect(bindings.createdSessionIds, [id, reconnected]);
+      expect(container.read(sessionControllerProvider).tabs, hasLength(2));
+      expect(container.read(sessionControllerProvider).reconnectionTargets, {
+        id: reconnected,
+      });
+      for (final invalidProfile in [
+        edited.copyWith(id: 'other'),
+        defaultTerminalProfile().copyWith(id: profile.id),
+      ]) {
+        controller.activateSession(id);
+        expect(
+          controller.reconnectSession(id, editedProfile: invalidProfile),
+          isNull,
+        );
+        expect(container.read(sessionControllerProvider).activeSessionId, id);
+      }
+      expect(bindings.createdSessionIds, [id, reconnected]);
+      expect(identical(controller.viewportFor(id), viewport), true);
       await controller.closeSession(id);
       expect(
         container.read(sessionControllerProvider).tabs.single.sessionId,
@@ -7142,6 +7207,171 @@ void main() {
       );
     },
   );
+
+  test(
+    'SSH reconnection follows descendants after exits and intermediate closes',
+    () async {
+      final bindings = _SshEventfulPtyBackend(FakePtyBackend());
+      final profile = TerminalProfile(
+        id: 'reconnect-chain',
+        name: 'Reconnect chain',
+        shell: '',
+        connection: const terminal.TerminalConnectionConfig.ssh(
+          host: 'fixture.example.test',
+          user: 'fixture',
+        ),
+      );
+      final container = _sshReconnectionContainer(bindings, profile);
+      final controller = container.read(sessionControllerProvider.notifier);
+      final first = controller.createSession(profile)!;
+      final originalViewport = controller.viewportFor(first);
+      await _retainSshExit(bindings, container, first);
+      final second = controller.reconnectSession(first)!;
+      await _retainSshExit(bindings, container, second);
+      expect(
+        container.read(sessionControllerProvider).latestReconnectionFor(first),
+        second,
+      );
+      final third = controller.reconnectSession(first)!;
+
+      controller.activateSession(first);
+      expect(controller.reconnectSession(first), third);
+      expect(container.read(sessionControllerProvider).activeSessionId, third);
+      expect(bindings.createdSessionIds, [first, second, third]);
+      expect(container.read(sessionControllerProvider).reconnectionTargets, {
+        first: second,
+        second: third,
+      });
+
+      await controller.closeSession(second);
+      expect(container.read(sessionControllerProvider).reconnectionTargets, {
+        first: third,
+      });
+      controller.activateSession(first);
+      expect(controller.reconnectSession(first), third);
+      expect(container.read(sessionControllerProvider).activeSessionId, third);
+      expect(bindings.createdSessionIds, [first, second, third]);
+
+      await controller.closeSession(third);
+      expect(
+        container.read(sessionControllerProvider).reconnectionTargets,
+        isEmpty,
+      );
+      expect(
+        container.read(sessionControllerProvider).liveReconnectionFor(first),
+        isNull,
+      );
+      final fourth = controller.reconnectSession(first)!;
+      expect(fourth, isNot(isIn([first, second, third])));
+      final state = container.read(sessionControllerProvider);
+      expect(state.tabs.map((tab) => tab.sessionId), [first, fourth]);
+      expect(state.tabs.first.activePane.isExited, isTrue);
+      expect(state.tabs.last.activePane.isExited, isFalse);
+      expect(state.reconnectionTargets, {first: fourth});
+      expect(state.activeSessionId, fourth);
+      expect(bindings.createdSessionIds, [first, second, third, fourth]);
+      expect(controller.viewportFor(first), same(originalViewport));
+      expect(
+        container.read(terminalRuntimeControllerProvider).hasSession(first),
+        isTrue,
+      );
+      await controller.closeSession(first);
+      await controller.closeSession(fourth);
+    },
+  );
+
+  test(
+    'SSH reconnection does not reuse an independent same-profile session',
+    () async {
+      final bindings = _SshEventfulPtyBackend(FakePtyBackend());
+      final profile = TerminalProfile(
+        id: 'shared-profile',
+        name: 'Independent SSH attempts',
+        shell: '',
+        connection: const terminal.TerminalConnectionConfig.ssh(
+          host: 'fixture.example.test',
+          user: 'fixture',
+        ),
+      );
+      final container = _sshReconnectionContainer(bindings, profile);
+      final controller = container.read(sessionControllerProvider.notifier);
+      final first = controller.createSession(profile)!;
+      final independent = controller.createSession(profile)!;
+      await _retainSshExit(bindings, container, first);
+
+      final replacement = controller.reconnectSession(first)!;
+      expect(replacement, isNot(independent));
+      expect(bindings.createdSessionIds, [first, independent, replacement]);
+      await _retainSshExit(bindings, container, independent);
+      final independentReplacement = controller.reconnectSession(independent)!;
+      expect(independentReplacement, isNot(replacement));
+      expect(container.read(sessionControllerProvider).reconnectionTargets, {
+        first: replacement,
+        independent: independentReplacement,
+      });
+      expect(controller.reconnectSession(first), replacement);
+      expect(controller.reconnectSession(independent), independentReplacement);
+      expect(bindings.createdSessionIds, [
+        first,
+        independent,
+        replacement,
+        independentReplacement,
+      ]);
+      for (final sessionId in bindings.createdSessionIds) {
+        await controller.closeSession(sessionId);
+      }
+    },
+  );
+
+  test('closing diagnostics clears only the matching source error', () async {
+    for (final closeAsTab in [false, true]) {
+      final bindings = _SshEventfulPtyBackend(FakePtyBackend());
+      final profile = TerminalProfile(
+        id: 'same-failing-profile',
+        name: 'Same endpoint',
+        shell: '',
+        connection: const terminal.TerminalConnectionConfig.ssh(
+          host: 'fixture.example.test',
+          user: 'fixture',
+        ),
+      );
+      final container = _sshReconnectionContainer(bindings, profile);
+      final controller = container.read(sessionControllerProvider.notifier);
+      Future<void> close(String id) async {
+        if (closeAsTab) {
+          await controller.closeTab(id);
+        } else {
+          await controller.closeSession(id);
+        }
+      }
+
+      final first = controller.createSession(profile)!;
+      final second = controller.createSession(profile)!;
+      await _retainSshExit(bindings, container, first);
+      final firstError = container.read(sessionControllerProvider).lastError;
+      await _retainSshExit(bindings, container, second);
+      final currentError = container.read(sessionControllerProvider).lastError;
+      // Identical endpoint text must not make the first record own the second error.
+      expect(currentError, isNotNull);
+      expect(currentError, firstError);
+
+      await close(first);
+      expect(container.read(sessionControllerProvider).lastError, currentError);
+      await close(second);
+      expect(container.read(sessionControllerProvider).lastError, isNull);
+
+      final third = controller.createSession(profile)!;
+      await _retainSshExit(bindings, container, third);
+      controller.reportRuntimeError('Unrelated recording failure');
+      await close(third);
+      expect(
+        container.read(sessionControllerProvider).lastError,
+        'Unrelated recording failure',
+      );
+      expect(container.read(sessionControllerProvider).tabs, isEmpty);
+      expect(bindings._delegate.closedSessionIds, [first, second, third]);
+    }
+  });
 
   test(
     'SSH retry clears its matching failure and preserves unrelated errors',
@@ -7233,13 +7463,13 @@ void main() {
         container.read(sessionControllerProvider).lastError,
         expectedFailure,
       );
-      await controller.closeSession(failedSessionId);
-
       controller.createSession(otherSshProfile);
       expect(
         container.read(sessionControllerProvider).lastError,
         expectedFailure,
       );
+      await controller.closeSession(failedSessionId);
+      expect(container.read(sessionControllerProvider).lastError, isNull);
 
       controller.reportRuntimeError('A newer runtime failure');
       controller.createSession(sshProfile);

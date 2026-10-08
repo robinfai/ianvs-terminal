@@ -4,6 +4,8 @@ enum _ShellZmodemRecoveryAction { authorization, cancel }
 
 enum _TerminalModeMenuAction { recheck }
 
+enum _MobileConnectionMenuAction { reconnect, close }
+
 class _ShellZmodemPickerRequest {
   _ShellZmodemPickerRequest({
     required this.requestId,

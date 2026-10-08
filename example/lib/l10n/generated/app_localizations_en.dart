@@ -5431,4 +5431,74 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get mobileNormalFallback => 'Switched to Normal terminal.';
+
+  @override
+  String get mobileSessionsTitle => 'Sessions';
+
+  @override
+  String get mobileSessionsActive => 'Active';
+
+  @override
+  String get mobileSessionsDisconnected => 'Disconnected';
+
+  @override
+  String get mobileSessionActive => 'Running';
+
+  @override
+  String get mobileSessionDisconnected => 'Disconnected';
+
+  @override
+  String get mobileSessionViewOutput => 'View output';
+
+  @override
+  String get mobileSessionReconnect => 'Reconnect';
+
+  @override
+  String get mobileSessionDisconnect => 'Disconnect';
+
+  @override
+  String get mobileSessionRemove => 'Remove record';
+
+  @override
+  String get mobileSessionsClearDisconnected => 'Clear disconnected';
+
+  @override
+  String get mobileSessionLocalHost => 'This device';
+
+  @override
+  String get mobileSessionReconnected => 'Reconnected · Previous output';
+
+  @override
+  String get mobileSessionOpenCurrent => 'Open current connection';
+
+  @override
+  String get mobileSessionReferencedByAi =>
+      'This record is in use by an AI conversation. End its current session before removing it.';
+
+  @override
+  String mobileSessionExitCode(int code) {
+    return 'Exit code $code';
+  }
+
+  @override
+  String get mobileSessionDisconnectedTitle => 'Connection ended';
+
+  @override
+  String get mobileSessionDisconnectedDetail =>
+      'Output is read-only and stays available until you remove this record or quit the app.';
+
+  @override
+  String get mobileSessionReconnectedDetail =>
+      'You are viewing output from a previous connection. Open the current connection to continue.';
+
+  @override
+  String get mobileSessionsClearPartial =>
+      'Some records are still in use by AI conversations or have unsaved recordings.';
+
+  @override
+  String get mobileSessionReconnectFailed =>
+      'Could not reconnect. The original output is still available.';
+
+  @override
+  String get mobileSessionsNoActive => 'No active connections';
 }

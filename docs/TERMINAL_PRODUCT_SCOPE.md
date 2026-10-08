@@ -41,6 +41,16 @@ switch or remember a project container.
 - Layout/Relaunch Spec and recording files remain device-local. Retired paste
   history is excluded from active synchronization. Existing local and remote
   history data is preserved without collection or automatic transfer.
+- Newly saved layouts include only panes whose sessions have not exited. Panes
+  retained for read-only diagnostics remain available in the current app, along
+  with their output and AI references, but are omitted from restart intent.
+  Empty split branches and tabs are removed from the saved layout, and saved
+  focus falls back to a remaining pane/tab. Restoring starts fresh sessions;
+  layout persistence does not save or restore their previous output.
+- The layout and Relaunch Spec schemas remain v1. Existing v1 files still load;
+  because they contain no exit state, the app cannot infer which panes saved by
+  earlier versions were already exited. Their saved launch intents remain
+  unchanged until a new layout snapshot is saved.
 - Disabling or changing an API preserves local data and old checkpoints. No
   supported-schema migration deletes a source database or credential archive.
 - Replay provides recent screen history, a newest-first list of saved recordings,

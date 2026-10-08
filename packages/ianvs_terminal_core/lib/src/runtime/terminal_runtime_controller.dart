@@ -1282,16 +1282,24 @@ final class TerminalSessionResizeEvent {
 }
 
 final class TerminalSessionInputEvent {
-  const TerminalSessionInputEvent(this.sessionId, this.bytes, {this.origin});
+  const TerminalSessionInputEvent(
+    this.sessionId,
+    this.bytes, {
+    this.origin,
+    this.isProtocolInput = false,
+  });
 
   final String sessionId;
   final Uint8List bytes;
 
   /// Opaque local owner; enables automation to distinguish manual takeover.
   final Object? origin;
+
+  /// Automatic reports and replies do not represent a user's takeover.
+  final bool isProtocolInput;
 }
 
-class TerminalRuntimeController implements TerminalInputSink {
+class TerminalRuntimeController implements TerminalProtocolInputSink {
   static const Duration _pollingFrameInterval = Duration(milliseconds: 33);
   // A pull immediately after writeInput commonly races the asynchronous PTY
   // reader. Probe its cheap dirty hint briefly so local echo can still reach
@@ -1864,6 +1872,17 @@ class TerminalRuntimeController implements TerminalInputSink {
   bool trySendInput(String sessionId, Uint8List bytes, {Object? origin}) =>
       _sendInput(sessionId, bytes, origin: origin);
 
+  @override
+  void sendProtocolInput(String sessionId, Uint8List bytes) {
+    _sendInput(
+      sessionId,
+      bytes,
+      revealLiveCursor: false,
+      deferProtocolReplyDuringZmodem: true,
+      isProtocolInput: true,
+    );
+  }
+
   Map<String, Object?>? liveScreen(String sessionId) =>
       _productSessionAvailable(sessionId)
       ? _jsonRequestClient.liveScreen(sessionId)
@@ -2136,6 +2155,7 @@ class TerminalRuntimeController implements TerminalInputSink {
     int? sessionEpoch,
     bool revealLiveCursor = true,
     bool deferProtocolReplyDuringZmodem = false,
+    bool isProtocolInput = false,
     Object? origin,
   }) {
     if (!_productOperationsAllowed) {
@@ -2198,7 +2218,12 @@ class TerminalRuntimeController implements TerminalInputSink {
       return false;
     }
     _inputEvents.add(
-      TerminalSessionInputEvent(sessionId, copiedBytes, origin: origin),
+      TerminalSessionInputEvent(
+        sessionId,
+        copiedBytes,
+        origin: origin,
+        isProtocolInput: isProtocolInput,
+      ),
     );
     _framePumpController.reset(
       sessionId,
@@ -2235,6 +2260,7 @@ class TerminalRuntimeController implements TerminalInputSink {
           // transfer races the write, _runInputBackendOperation polls its
           // detection and this flush simply pauses without duplicating it.
           deferProtocolReplyDuringZmodem: false,
+          isProtocolInput: true,
         )) {
           if (_activeZmodemTransferIds.containsKey(sessionId)) {
             return;
@@ -4966,6 +4992,7 @@ class TerminalRuntimeController implements TerminalInputSink {
       sessionEpoch: sessionEpoch,
       revealLiveCursor: false,
       deferProtocolReplyDuringZmodem: true,
+      isProtocolInput: true,
     );
   }
 
@@ -5025,6 +5052,7 @@ class TerminalRuntimeController implements TerminalInputSink {
       sessionEpoch: sessionEpoch,
       revealLiveCursor: false,
       deferProtocolReplyDuringZmodem: true,
+      isProtocolInput: true,
     );
   }
 
@@ -5332,6 +5360,7 @@ class TerminalRuntimeController implements TerminalInputSink {
         sessionEpoch: sessionEpoch,
         revealLiveCursor: false,
         deferProtocolReplyDuringZmodem: true,
+        isProtocolInput: true,
       )) {
         return;
       }
@@ -5806,6 +5835,7 @@ class TerminalRuntimeController implements TerminalInputSink {
           sessionEpoch: sessionEpoch,
           revealLiveCursor: false,
           deferProtocolReplyDuringZmodem: true,
+          isProtocolInput: true,
         );
       }
     }
@@ -5832,6 +5862,7 @@ class TerminalRuntimeController implements TerminalInputSink {
       sessionEpoch: sessionEpoch,
       revealLiveCursor: false,
       deferProtocolReplyDuringZmodem: true,
+      isProtocolInput: true,
     );
   }
 

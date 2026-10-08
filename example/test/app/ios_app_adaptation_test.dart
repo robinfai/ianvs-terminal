@@ -220,7 +220,7 @@ void main() {
       expect(find.byKey(const Key('ios-ssh-profile-empty-state')), findsOne);
       await tester.tap(
         find.byKey(
-          Key('mobile-resume-${connectedState.tabs.single.sessionId}'),
+          Key('mobile-session-${connectedState.tabs.single.sessionId}'),
         ),
       );
       await tester.pumpAndSettle();
@@ -239,7 +239,9 @@ void main() {
       for (final pane in splitState.tabs.single.effectivePanes) {
         expect(find.byKey(Key('mobile-session-${pane.sessionId}')), findsOne);
       }
-      await tester.tap(find.byKey(Key('mobile-session-close-$activePaneId')));
+      await tester.tap(
+        find.byKey(Key('mobile-session-disconnect-$activePaneId')),
+      );
       await tester.pumpAndSettle();
       expect(
         container.read(sessionControllerProvider).tabs.single.effectivePanes,
@@ -254,14 +256,19 @@ void main() {
         twoTabState.activeSessionId!,
         connectedState.activeSessionId!,
       ]) {
-        await tester.tap(find.byKey(const Key('mobile-session-picker')));
-        await tester.pumpAndSettle();
-        final close = find.byKey(Key('mobile-session-close-$id'));
+        expect(find.byKey(const Key('mobile-sessions-sheet')), findsOne);
+        final close = find.byKey(Key('mobile-session-disconnect-$id'));
+        await tester.ensureVisible(close);
         expect(tester.getSize(close).height, greaterThanOrEqualTo(44));
         await tester.tap(close);
         await tester.pumpAndSettle();
       }
       expect(container.read(sessionControllerProvider).tabs, isEmpty);
+      expect(find.byKey(const Key('mobile-sessions-sheet')), findsOne);
+      Navigator.of(
+        tester.element(find.byKey(const Key('mobile-sessions-sheet'))),
+      ).pop();
+      await tester.pumpAndSettle();
       expect(find.byKey(const Key('ios-ssh-profile-empty-state')), findsOne);
       _resetIphoneTestSurface(tester);
     },

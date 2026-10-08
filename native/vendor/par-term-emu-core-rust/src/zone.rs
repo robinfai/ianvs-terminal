@@ -24,11 +24,28 @@ impl std::fmt::Display for ZoneType {
     }
 }
 
-/// A semantic zone in the terminal buffer
+/// One continuous portion of command output, ending before a child shell.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ZoneOutputSlice {
+    pub start_row: usize,
+    pub start_col: usize,
+    pub end_row: usize,
+    pub end_col: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct PendingChildBoundary {
+    pub row: usize,
+    pub col: usize,
+    pub owned: Vec<bool>,
+    pub overwritten: bool,
+    pub temporary_row: bool,
+}
+
+/// A semantic zone in the terminal buffer.
 ///
-/// Zones track logical blocks of terminal content using absolute row numbers.
-/// They are created by OSC 133 shell integration markers and stored in a
-/// Vec on the Grid, sorted by `abs_row_start`.
+/// Zones use global absolute row numbers and are stored in start order on the
+/// grid. A parent command can contain disjoint output portions around a child.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Zone {
     /// Unique zone identifier (monotonically increasing per terminal)
@@ -63,6 +80,17 @@ pub struct Zone {
     /// Shell-provided provenance; never grants input permission by itself.
     pub submission_id: Option<String>,
     pub context_id: Option<String>,
+    /// Completed portions of a command interrupted by an interactive child.
+    /// Child prompts/output are not part of its parent's output.
+    pub output_slices: Vec<ZoneOutputSlice>,
+    pub output_start: Option<(usize, usize)>,
+    pub suspended: bool,
+    pub output_truncated: bool,
+    /// Ownership on rows shared with a child. A CR may leave child cells to
+    /// the right of the parent's new cursor; range endpoints alone are not
+    /// sufficient to distinguish those cells from the parent's own output.
+    pub output_boundary_rows: std::collections::BTreeMap<usize, Vec<bool>>,
+    pub(crate) pending_child: Option<PendingChildBoundary>,
 }
 
 impl Zone {
@@ -83,6 +111,12 @@ impl Zone {
             finished_at: None,
             submission_id: None,
             context_id: None,
+            output_slices: Vec::new(),
+            output_start: None,
+            suspended: false,
+            output_truncated: false,
+            output_boundary_rows: std::collections::BTreeMap::new(),
+            pending_child: None,
         }
     }
 
@@ -109,6 +143,18 @@ impl Zone {
 
     /// Check if a given absolute row falls within this zone
     pub fn contains_row(&self, abs_row: usize) -> bool {
+        if self.suspended || self.output_start.is_some() {
+            return self.output_slices.iter().any(|slice| {
+                abs_row >= slice.start_row
+                    && (abs_row < slice.end_row || abs_row == slice.end_row && slice.end_col > 0)
+            }) || (!self.suspended
+                && abs_row
+                    >= self
+                        .output_start
+                        .unwrap_or((self.abs_row_start, self.start_col))
+                        .0
+                && (self.is_open() || abs_row <= self.abs_row_end));
+        }
         abs_row >= self.abs_row_start && (self.is_open() || abs_row <= self.abs_row_end)
     }
 }

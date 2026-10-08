@@ -4099,5 +4099,33 @@
   "normalModeFallbackNotice": "Switched to Normal terminal. Right-click this tab for modes.",
   "mobileBlocksAvailable": "Command Blocks is available. Switch in Session actions.",
   "mobileBlocksRestored": "Command Blocks is available again. Switch back in Session actions.",
-  "mobileNormalFallback": "Switched to Normal terminal."
+  "mobileNormalFallback": "Switched to Normal terminal.",
+  "mobileSessionsTitle": "Sessions",
+  "mobileSessionsActive": "Active",
+  "mobileSessionsDisconnected": "Disconnected",
+  "mobileSessionActive": "Running",
+  "mobileSessionDisconnected": "Disconnected",
+  "mobileSessionViewOutput": "View output",
+  "mobileSessionReconnect": "Reconnect",
+  "mobileSessionDisconnect": "Disconnect",
+  "mobileSessionRemove": "Remove record",
+  "mobileSessionsClearDisconnected": "Clear disconnected",
+  "mobileSessionLocalHost": "This device",
+  "mobileSessionReconnected": "Reconnected · Previous output",
+  "mobileSessionOpenCurrent": "Open current connection",
+  "mobileSessionReferencedByAi": "This record is in use by an AI conversation. End its current session before removing it.",
+  "mobileSessionExitCode": "Exit code {code}",
+  "mobileSessionDisconnectedTitle": "Connection ended",
+  "mobileSessionDisconnectedDetail": "Output is read-only and stays available until you remove this record or quit the app.",
+  "mobileSessionReconnectedDetail": "You are viewing output from a previous connection. Open the current connection to continue.",
+  "mobileSessionsClearPartial": "Some records are still in use by AI conversations or have unsaved recordings.",
+  "mobileSessionReconnectFailed": "Could not reconnect. The original output is still available.",
+  "mobileSessionsNoActive": "No active connections",
+  "@mobileSessionExitCode": {
+    "placeholders": {
+      "code": {
+        "type": "int"
+      }
+    }
+  }
 }

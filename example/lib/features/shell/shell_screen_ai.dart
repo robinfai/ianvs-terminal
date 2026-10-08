@@ -65,31 +65,94 @@ extension _ShellScreenAi on _ShellScreenState {
     String sessionId, {
     TerminalProfile? editedProfile,
   }) async {
-    final ai = _aiSessions[sessionId];
-    if (ai == null || ai.checkingTerminal) return;
-    ai.takeOver();
-    await ai.refreshContext(); // Finish inspecting original receipts first.
-    if (!mounted || !identical(_aiSessions[sessionId], ai)) return;
-    final next = ref
-        .read(sessionControllerProvider.notifier)
-        .reconnectSession(sessionId, editedProfile: editedProfile);
-    if (next == null) return;
-    final connections = ai.terminal as TerminalAiConnections;
-    ai.prepareForConnectionChange();
-    connections.reconnect(
-      sessionId: next,
-      terminal: _aiEndpoint(next),
-      originalBlocks: _composerSessions[sessionId]?.blocks,
-    );
-    final draft = _composerSessions[sessionId]?.controller.editor.value;
-    if (draft != null) _composerFor(next).controller.editor.value = draft;
+    await _reconnectTerminalSession(sessionId, editedProfile: editedProfile);
+  }
+
+  Future<String?> _reconnectTerminalSession(
+    String sessionId, {
+    TerminalProfile? editedProfile,
+  }) {
+    if (!mounted) return Future<String?>.value();
+    final state = ref.read(sessionControllerProvider);
+    // A live successor only needs activation. Otherwise reconnect the latest
+    // failed attempt, where the transferred AI and command draft now live.
+    final source = state.liveReconnectionFor(sessionId) == null
+        ? state.latestReconnectionFor(sessionId)
+        : sessionId;
+    if (_closingSessionIds.contains(source)) return Future<String?>.value();
+    final existing = _terminalReconnects[source];
+    if (existing != null) return existing;
+    late final Future<String?> reconnect;
+    reconnect = () async {
+      try {
+        return await _reconnectTerminalSessionOnce(
+          source,
+          editedProfile: editedProfile,
+        );
+      } finally {
+        if (identical(_terminalReconnects[source], reconnect)) {
+          if (mounted) {
+            _mutateState(() {
+              unawaited(_terminalReconnects.remove(source));
+            });
+          } else {
+            unawaited(_terminalReconnects.remove(source));
+          }
+        }
+      }
+    }();
     _mutateState(() {
-      _aiSessions.remove(sessionId);
-      _aiSessions[next] = ai;
-      _openAiSessions.remove(sessionId);
-      _openAiSessions.add(next);
+      _terminalReconnects[source] = reconnect;
     });
-    await ai.refreshContext(); // No inference, approval, or command replay.
+    return reconnect;
+  }
+
+  Future<String?> _reconnectTerminalSessionOnce(
+    String sessionId, {
+    TerminalProfile? editedProfile,
+  }) async {
+    if (!mounted || !_sessionExists(sessionId)) return null;
+    final sessions = ref.read(sessionControllerProvider.notifier);
+    if (ref.read(sessionControllerProvider).liveReconnectionFor(sessionId) !=
+        null) {
+      return sessions.reconnectSession(sessionId, editedProfile: editedProfile);
+    }
+    final ai = _aiSessions[sessionId];
+    if (ai != null) {
+      ai.takeOver();
+      await ai.refreshContext(); // Finish inspecting original receipts first.
+      if (!mounted || !identical(_aiSessions[sessionId], ai)) return null;
+    }
+    if (!mounted || !_sessionExists(sessionId)) return null;
+    // A different entry point may have reconnected while receipts were read.
+    // Reusing its target must not replace that target's draft or AI task.
+    if (ref.read(sessionControllerProvider).liveReconnectionFor(sessionId) !=
+        null) {
+      return sessions.reconnectSession(sessionId, editedProfile: editedProfile);
+    }
+    final draft = _composerSessions[sessionId]?.controller.editor.value;
+    final next = sessions.reconnectSession(
+      sessionId,
+      editedProfile: editedProfile,
+    );
+    if (next == null) return null;
+    if (ai != null) {
+      final connections = ai.terminal as TerminalAiConnections;
+      ai.prepareForConnectionChange();
+      connections.reconnect(
+        sessionId: next,
+        terminal: _aiEndpoint(next),
+        originalBlocks: _composerSessions[sessionId]?.blocks,
+      );
+      _mutateState(() {
+        _aiSessions.remove(sessionId);
+        _aiSessions[next] = ai;
+        if (_openAiSessions.remove(sessionId)) _openAiSessions.add(next);
+      });
+    }
+    if (draft != null) _composerFor(next).controller.editor.value = draft;
+    await ai?.refreshContext(); // No inference, approval, or command replay.
+    return next;
   }
 
   Future<void> _configureAiConnection(String sessionId) async {
@@ -222,14 +285,13 @@ extension _ShellScreenAi on _ShellScreenState {
     _closeAi(sessionId);
   }
 
-  Widget _aiChromeAction(String sessionId) => ListenableBuilder(
-    listenable: _aiFor(sessionId),
-    builder: (context, _) {
-      final ai = _aiFor(sessionId);
+  Widget _aiChromeAction(String sessionId) {
+    final ai = _aiSessions[sessionId];
+    Widget button() {
       final chinese = Localizations.localeOf(context).languageCode == 'zh';
-      final label = ai.canApprove
+      final label = ai?.canApprove == true
           ? (chinese ? 'AI · 有待确认命令' : 'AI · action needs review')
-          : ai.busy
+          : ai?.busy == true
           ? (chinese ? 'AI · 任务进行中' : 'AI · task in progress')
           : (chinese ? 'AI 任务' : 'AI task');
       return Tooltip(
@@ -247,14 +309,20 @@ extension _ShellScreenAi on _ShellScreenState {
             label: label,
             child: Badge(
               backgroundColor: context.appTheme.accent,
-              isLabelVisible: ai.canApprove || ai.busy,
+              isLabelVisible: ai?.canApprove == true || ai?.busy == true,
               child: const Text('AI'),
             ),
           ),
         ),
       );
-    },
-  );
+    }
+
+    // Showing a terminal must not create a task or retain its native history
+    // as an AI source. The first explicit AI action creates its controller.
+    return ai == null
+        ? button()
+        : ListenableBuilder(listenable: ai, builder: (_, _) => button());
+  }
 
   Widget _aiOverlay(
     String sessionId,

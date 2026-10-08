@@ -37,21 +37,31 @@ class LocalSessionLayoutCodec {
     final profilesById = <String, TerminalProfile>{
       for (final profile in state.profiles) profile.id: profile,
     };
-    final tabs = <TerminalLayoutTab>[
-      for (final tab in state.tabs)
+    final tabs = <TerminalLayoutTab>[];
+    String? activeTabId;
+    for (final tab in state.tabs) {
+      final root = _captureNode(tab.effectivePaneLayout, profilesById);
+      if (root == null) {
+        continue;
+      }
+      tabs.add(
         TerminalLayoutTab(
           id: tab.sessionId,
-          root: _captureNode(tab.effectivePaneLayout, profilesById),
-          activePaneId: tab.activeSessionId,
+          root: root,
+          activePaneId: root.containsPane(tab.activeSessionId)
+              ? tab.activeSessionId
+              : root.firstLeafId,
         ),
-    ];
-    final activeTabId = state.activeSessionId == null
-        ? null
-        : state.tabs
-              .where((tab) => tab.containsSession(state.activeSessionId!))
-              .firstOrNull
-              ?.sessionId;
-    return TerminalLayout(tabs: tabs, activeTabId: activeTabId);
+      );
+      if (state.activeSessionId != null &&
+          tab.containsSession(state.activeSessionId!)) {
+        activeTabId = tab.sessionId;
+      }
+    }
+    return TerminalLayout(
+      tabs: tabs,
+      activeTabId: activeTabId ?? tabs.lastOrNull?.id,
+    );
   }
 
   static LocalTerminalLayoutRestoreResult restore(
@@ -105,12 +115,16 @@ class LocalSessionLayoutCodec {
     );
   }
 
-  static TerminalPaneNode _captureNode(
+  static TerminalPaneNode? _captureNode(
     TerminalPaneLayoutNode node,
     Map<String, TerminalProfile> profilesById,
   ) {
     if (node.isLeaf) {
       final pane = node.pane!;
+      // Retained diagnostics belong to the current runtime, not restart intent.
+      if (pane.isExited) {
+        return null;
+      }
       final priorSpec = pane.relaunchSpec;
       final spec = TerminalRelaunchSpec(
         profileId: pane.profileId,
@@ -122,13 +136,21 @@ class LocalSessionLayoutCodec {
       );
       return TerminalPaneNode.leaf(id: pane.sessionId, relaunchSpec: spec);
     }
+    final first = _captureNode(node.first!, profilesById);
+    final second = _captureNode(node.second!, profilesById);
+    if (first == null) {
+      return second;
+    }
+    if (second == null) {
+      return first;
+    }
     return TerminalPaneNode.split(
       id: node.id,
       direction: node.splitAxis == TerminalSplitAxis.horizontal
           ? TerminalPaneSplitDirection.right
           : TerminalPaneSplitDirection.down,
-      first: _captureNode(node.first!, profilesById),
-      second: _captureNode(node.second!, profilesById),
+      first: first,
+      second: second,
       ratio: node.ratio,
     );
   }

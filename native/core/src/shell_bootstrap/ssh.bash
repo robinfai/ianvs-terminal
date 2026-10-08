@@ -62,7 +62,7 @@ function ssh {
     command ssh -o ControlMaster=no -o ControlPath="$__iv_socket" -t "$@" "$__iv_cmd"
   fi
   __iv_status=$?
-  printf '\033]6973;@@NONCE@@;%s;resume;done\007' "$__iv_parent"
+  printf '\033]6973;@@NONCE@@;%s;resume;done;%s\007' "$__iv_parent" "$__iv_status"
   if [ "$__iv_owned" = 1 ]; then
     # Do not stop the master: in-flight SFTP channels own their lifetime.
     (command sleep 65; command rmdir "$__iv_dir" 2>/dev/null) </dev/null >/dev/null 2>&1 &

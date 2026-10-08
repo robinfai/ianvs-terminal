@@ -78,6 +78,8 @@ import 'shell_acceptance.dart';
 import 'shell_action_registry.dart';
 import 'shell_action_runtime_bindings.dart';
 import 'shell_shortcut_bridge.dart';
+import 'widgets/mobile_disconnected_session_notice.dart';
+import 'widgets/mobile_session_list.dart';
 import 'window_bridge.dart';
 
 part 'shell_screen_chrome.dart';
@@ -105,6 +107,7 @@ part 'shell_screen_state_profile_actions.dart';
 part 'shell_screen_state_recording.dart';
 part 'shell_screen_state_recording_library.dart';
 part 'shell_screen_state_search_completion.dart';
+part 'shell_screen_state_mobile_sessions.dart';
 part 'shell_screen_state_sessions.dart';
 part 'shell_screen_state_shortcuts_status.dart';
 part 'shell_screen_state_terminal_layout.dart';
@@ -236,6 +239,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   final Map<String, SelectionController> _selectionControllers = {};
   final Map<String, ComposerPaneSession> _composerSessions = {};
   final Map<String, TerminalAiController> _aiSessions = {};
+  final Map<String, Future<String?>> _terminalReconnects = {};
   final Set<String> _openAiSessions = {};
   final Map<String, SelectionResizeGuard> _selectionResizeGuards = {};
   final Map<String, FocusNode> _terminalFocusNodes = {};
@@ -366,6 +370,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   List<LocalSessionRecordingEntry> _recordingEntries = const [];
   bool _recordingShelfOpen = false;
   bool _mobileConnectionsOpen = false;
+  bool _mobileSessionsOpen = false;
+  bool _clearingDisconnectedSessions = false;
+  final Set<String> _closingSessionIds = {};
   int _recordingOpenGeneration = 0;
   int _recordingPlaybackGeneration = 0;
   FocusNode? _recordingReturnFocus;
@@ -512,6 +519,13 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     }
     _syncPresentationState(next);
     _publishAcceptanceSnapshot(next);
+    final noticeSource = _runtimeErrorNotice?.sessionId;
+    if (noticeSource != null &&
+        !next.tabs.any((tab) => tab.containsSession(noticeSource))) {
+      _runtimeErrorNoticeTimer?.cancel();
+      _runtimeErrorNoticeTimer = null;
+      _runtimeErrorNotice = null;
+    }
     final newRuntimeError = _newRuntimeError(previous, next);
     if (newRuntimeError != null) {
       _runtimeErrorNoticeTimer?.cancel();
@@ -1077,6 +1091,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                 'Clear buffer requires an active session.',
               );
             }
+            final unavailable = _bufferClearUnavailableReason(activeSessionId);
+            if (unavailable != null) {
+              return ShellActionBindingResult.skipped(unavailable);
+            }
             final cleared = ref
                 .read(terminalRuntimeControllerProvider)
                 .clearBuffer(activeSessionId);
@@ -1335,12 +1353,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     onBack: mobileHome ? null : _showMobileConnections,
                     onSessions: mobileHome
                         ? null
-                        : () => unawaited(
-                            _showMobileSessions(
-                              sessionController,
-                              _sessionState,
-                            ),
-                          ),
+                        : () =>
+                              unawaited(_showMobileSessions(sessionController)),
                     onFiles:
                         !mobileHome &&
                             _sftpTargetFor(_sessionState, activeSessionId) !=
@@ -1566,35 +1580,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                         activeSessionId == null ||
                                         activeTab == null
                                   ? launchPolicy.isSshOnly
-                                        ? _SshOnlyShellEmptyState(
-                                            key: const Key('shell-empty-state'),
-                                            palette: palette,
-                                            profiles: _sessionState.profiles,
-                                            sessions: mobileNavigation
-                                                ? _sessionState.tabs
-                                                : const [],
-                                            onResumeSession: (id) =>
-                                                _activateSession(
-                                                  sessionController,
-                                                  id,
-                                                ),
-                                            onManageProfiles: () =>
-                                                _openProfilesSheet(
-                                                  sessionController,
-                                                  _sessionState,
-                                                ),
-                                            onOpenProfile: (profile) =>
-                                                _createSession(
-                                                  sessionController,
-                                                  profile,
-                                                  returningToLayout: true,
-                                                ),
-                                            onCreateProfile: () => unawaited(
-                                              _openSshProfileCreator(
-                                                sessionController,
-                                                _sessionState,
-                                              ),
-                                            ),
+                                        ? _buildSshConnectionsHome(
+                                            sessionController,
+                                            palette,
+                                            mobileNavigation: mobileNavigation,
                                           )
                                         : _ShellEmptyState(
                                             key: const Key('shell-empty-state'),

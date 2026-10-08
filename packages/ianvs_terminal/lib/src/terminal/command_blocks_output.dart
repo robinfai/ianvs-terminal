@@ -90,14 +90,20 @@ class _CommandBlockTerminalState extends State<CommandBlockTerminal> {
       _updateFrame();
       _followOutput();
     }
-    if ((oldWidget.liveFocus != widget.liveFocus || !oldWidget.block.running) &&
-        widget.block.running) {
+    if ((oldWidget.liveFocus != widget.liveFocus ||
+            !oldWidget.block.running ||
+            oldWidget.block.suspended) &&
+        widget.block.running &&
+        !widget.block.suspended) {
       _focusRunning();
     }
   }
 
   void _focusRunning() => WidgetsBinding.instance.addPostFrameCallback((_) {
-    if (mounted && widget.requestLiveFocus && widget.block.running) {
+    if (mounted &&
+        widget.requestLiveFocus &&
+        widget.block.running &&
+        !widget.block.suspended) {
       widget.liveFocus?.requestFocus();
     }
   });
@@ -124,7 +130,7 @@ class _CommandBlockTerminalState extends State<CommandBlockTerminal> {
     var cursor = visibleLines.indexWhere(
       (row) => row.index == block.cursorLine,
     );
-    if (block.running && rows.isEmpty) {
+    if (block.running && !block.suspended && rows.isEmpty) {
       rows.add(
         TerminalRow(
           index: 0,
@@ -153,7 +159,11 @@ class _CommandBlockTerminalState extends State<CommandBlockTerminal> {
         cursor: TerminalCursor(
           row: cursor.clamp(0, 2047),
           col: block.cursorColumn,
-          visible: block.running && cursor >= 0 && !widget.modes.hideCursor,
+          visible:
+              block.running &&
+              !block.suspended &&
+              cursor >= 0 &&
+              !widget.modes.hideCursor,
         ),
         viewportRows: rows.length.clamp(1, 2048),
         viewportCols: block.columns,
@@ -163,7 +173,7 @@ class _CommandBlockTerminalState extends State<CommandBlockTerminal> {
         modes: widget.modes,
       ),
     );
-    final live = block.running ? widget.liveInput : null;
+    final live = block.running && !block.suspended ? widget.liveInput : null;
     _input = live == null
         ? _ReadOnlyBlockInput(
             copyRange: widget.onCopySelection,
@@ -218,7 +228,10 @@ class _CommandBlockTerminalState extends State<CommandBlockTerminal> {
           ),
           height: rows * cellHeight,
           child: Semantics(
-            readOnly: !widget.block.running,
+            readOnly:
+                !widget.block.running ||
+                widget.block.suspended ||
+                widget.liveInput == null,
             child: TerminalViewport(
               controller: _viewport,
               selectionController: _selection,
@@ -235,11 +248,16 @@ class _CommandBlockTerminalState extends State<CommandBlockTerminal> {
               ],
               activeSearchMatchIndex: 0,
               inputController: _input,
-              readOnly: widget.liveInput == null,
+              readOnly:
+                  !widget.block.running ||
+                  widget.block.suspended ||
+                  widget.liveInput == null,
               selectionHitTest: widget.selectionHitTest,
               canScrollSelection: widget.canScrollSelection,
               captureSelectionText: widget.captureSelectionText,
-              focusNode: widget.block.running ? widget.liveFocus : null,
+              focusNode: widget.block.running && !widget.block.suspended
+                  ? widget.liveFocus
+                  : null,
               onScrollLines: widget.onScrollLines ?? (_) {},
               onScrollToOffset: (_) {},
               onMeasuredCellSizeChanged: (size) {

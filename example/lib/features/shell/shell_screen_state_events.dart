@@ -3,6 +3,7 @@ part of 'shell_screen.dart';
 extension _ShellScreenStateEvents on _ShellScreenState {
   bool get _shellModalInputBlocked =>
       _isCommandMenuOpen ||
+      _mobileSessionsOpen ||
       _isShellCapabilitiesOpen ||
       _isDefaultsOpen ||
       _isProfilesOpen ||
@@ -121,6 +122,10 @@ extension _ShellScreenStateEvents on _ShellScreenState {
             .isSessionRetainedAfterExit(event.sessionId)) {
           _sshAuthPromptPresenter.cancelSession(event.sessionId);
           _sshHostKeyPromptPresenter.cancelSession(event.sessionId);
+          if (context.usesMobileNavigation) {
+            _terminalFocusNodes[event.sessionId]?.unfocus();
+            _composerSessions[event.sessionId]?.editorFocus.unfocus();
+          }
           _composerSessions[event.sessionId]?.blocks.refresh();
           final ai = _aiSessions[event.sessionId];
           if (ai != null) unawaited(ai.refreshContext());

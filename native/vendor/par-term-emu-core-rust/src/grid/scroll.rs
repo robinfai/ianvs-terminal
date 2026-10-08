@@ -103,6 +103,9 @@ impl Grid {
         if n == 0 {
             return;
         }
+        if self.max_scrollback == 0 {
+            self.invalidate_segmented_output_rows(0, self.rows - 1);
+        }
         let started_at = Instant::now();
         self.scroll_debug_stats.scroll_up_calls =
             self.scroll_debug_stats.scroll_up_calls.saturating_add(1);
@@ -137,6 +140,7 @@ impl Grid {
         if n == 0 {
             return;
         }
+        self.invalidate_segmented_output_rows(0, self.rows - 1);
         let started_at = Instant::now();
         self.scroll_debug_stats.scroll_down_calls =
             self.scroll_debug_stats.scroll_down_calls.saturating_add(1);
@@ -186,6 +190,15 @@ impl Grid {
             self.scroll_up(n);
             return true;
         }
+        // A top-anchored partial scroll advances the global history counter,
+        // while rows below the region stay physically still. Their absolute
+        // source addresses change too, so all visible portions must retire.
+        let invalidated_bottom = if top == 0 && self.max_scrollback > 0 {
+            self.rows - 1
+        } else {
+            effective_bottom
+        };
+        self.invalidate_segmented_output_rows(top, invalidated_bottom);
         let started_at = Instant::now();
         self.scroll_debug_stats.scroll_rows =
             self.scroll_debug_stats.scroll_rows.saturating_add(n as u64);
@@ -258,6 +271,7 @@ impl Grid {
             self.scroll_down(n);
             return true;
         }
+        self.invalidate_segmented_output_rows(top, effective_bottom);
 
         let started_at = Instant::now();
         self.scroll_debug_stats.scroll_rows =

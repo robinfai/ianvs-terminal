@@ -8545,6 +8545,132 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Switched to Normal terminal.'**
   String get mobileNormalFallback;
+
+  /// No description provided for @mobileSessionsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Sessions'**
+  String get mobileSessionsTitle;
+
+  /// No description provided for @mobileSessionsActive.
+  ///
+  /// In en, this message translates to:
+  /// **'Active'**
+  String get mobileSessionsActive;
+
+  /// No description provided for @mobileSessionsDisconnected.
+  ///
+  /// In en, this message translates to:
+  /// **'Disconnected'**
+  String get mobileSessionsDisconnected;
+
+  /// No description provided for @mobileSessionActive.
+  ///
+  /// In en, this message translates to:
+  /// **'Running'**
+  String get mobileSessionActive;
+
+  /// No description provided for @mobileSessionDisconnected.
+  ///
+  /// In en, this message translates to:
+  /// **'Disconnected'**
+  String get mobileSessionDisconnected;
+
+  /// No description provided for @mobileSessionViewOutput.
+  ///
+  /// In en, this message translates to:
+  /// **'View output'**
+  String get mobileSessionViewOutput;
+
+  /// No description provided for @mobileSessionReconnect.
+  ///
+  /// In en, this message translates to:
+  /// **'Reconnect'**
+  String get mobileSessionReconnect;
+
+  /// No description provided for @mobileSessionDisconnect.
+  ///
+  /// In en, this message translates to:
+  /// **'Disconnect'**
+  String get mobileSessionDisconnect;
+
+  /// No description provided for @mobileSessionRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove record'**
+  String get mobileSessionRemove;
+
+  /// No description provided for @mobileSessionsClearDisconnected.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear disconnected'**
+  String get mobileSessionsClearDisconnected;
+
+  /// No description provided for @mobileSessionLocalHost.
+  ///
+  /// In en, this message translates to:
+  /// **'This device'**
+  String get mobileSessionLocalHost;
+
+  /// No description provided for @mobileSessionReconnected.
+  ///
+  /// In en, this message translates to:
+  /// **'Reconnected · Previous output'**
+  String get mobileSessionReconnected;
+
+  /// No description provided for @mobileSessionOpenCurrent.
+  ///
+  /// In en, this message translates to:
+  /// **'Open current connection'**
+  String get mobileSessionOpenCurrent;
+
+  /// No description provided for @mobileSessionReferencedByAi.
+  ///
+  /// In en, this message translates to:
+  /// **'This record is in use by an AI conversation. End its current session before removing it.'**
+  String get mobileSessionReferencedByAi;
+
+  /// No description provided for @mobileSessionExitCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Exit code {code}'**
+  String mobileSessionExitCode(int code);
+
+  /// No description provided for @mobileSessionDisconnectedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection ended'**
+  String get mobileSessionDisconnectedTitle;
+
+  /// No description provided for @mobileSessionDisconnectedDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Output is read-only and stays available until you remove this record or quit the app.'**
+  String get mobileSessionDisconnectedDetail;
+
+  /// No description provided for @mobileSessionReconnectedDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'You are viewing output from a previous connection. Open the current connection to continue.'**
+  String get mobileSessionReconnectedDetail;
+
+  /// No description provided for @mobileSessionsClearPartial.
+  ///
+  /// In en, this message translates to:
+  /// **'Some records are still in use by AI conversations or have unsaved recordings.'**
+  String get mobileSessionsClearPartial;
+
+  /// No description provided for @mobileSessionReconnectFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not reconnect. The original output is still available.'**
+  String get mobileSessionReconnectFailed;
+
+  /// No description provided for @mobileSessionsNoActive.
+  ///
+  /// In en, this message translates to:
+  /// **'No active connections'**
+  String get mobileSessionsNoActive;
 }
 
 class _AppLocalizationsDelegate

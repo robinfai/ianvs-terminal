@@ -1049,6 +1049,7 @@ class SessionState {
     Set<String> recordingSessionIds = const <String>{},
     Set<String> recordingPendingSaveSessionIds = const <String>{},
     Set<String> recordingBusySessionIds = const <String>{},
+    Map<String, String> reconnectionTargets = const {},
     String? lastError,
   }) {
     return SessionState._(
@@ -1068,6 +1069,7 @@ class SessionState {
         recordingPendingSaveSessionIds,
       ),
       recordingBusySessionIds: Set.unmodifiable(recordingBusySessionIds),
+      reconnectionTargets: Map.unmodifiable(reconnectionTargets),
       lastError: lastError,
     );
   }
@@ -1087,6 +1089,7 @@ class SessionState {
     required this.recordingSessionIds,
     required this.recordingPendingSaveSessionIds,
     required this.recordingBusySessionIds,
+    this.reconnectionTargets = const {},
     this.lastError,
     this._layoutIdentity,
   });
@@ -1105,7 +1108,80 @@ class SessionState {
   final Set<String> recordingSessionIds;
   final Set<String> recordingPendingSaveSessionIds;
   final Set<String> recordingBusySessionIds;
+
+  /// Read-only attempts point to their replacement, without sharing native IDs.
+  final Map<String, String> reconnectionTargets;
   final String? lastError;
+
+  String? liveReconnectionFor(String sessionId) {
+    final panes = {
+      for (final tab in tabs)
+        for (final pane in tab.effectivePanes) pane.sessionId: pane,
+    };
+    final visited = <String>{sessionId};
+    var next = reconnectionTargets[sessionId];
+    while (next != null && visited.add(next)) {
+      final pane = panes[next];
+      if (pane != null && !pane.isExited) return next;
+      next = reconnectionTargets[next];
+    }
+    return null;
+  }
+
+  /// Continue the latest attempt even when the user opens an earlier record.
+  String latestReconnectionFor(String sessionId) {
+    final remaining = {
+      for (final tab in tabs)
+        for (final pane in tab.effectivePanes) pane.sessionId,
+    };
+    final visited = <String>{sessionId};
+    var latest = sessionId;
+    var next = reconnectionTargets[sessionId];
+    while (next != null && visited.add(next)) {
+      if (remaining.contains(next)) latest = next;
+      next = reconnectionTargets[next];
+    }
+    return latest;
+  }
+
+  /// Close replacement owners before their original read-only output sources.
+  List<String> sessionIdsInCloseOrder(Iterable<String> sessionIds) {
+    final candidates = sessionIds.toSet();
+    final visited = <String>{};
+    final result = <String>[];
+    void visit(String id) {
+      if (!visited.add(id)) return;
+      final next = reconnectionTargets[id];
+      if (next != null) visit(next);
+      if (candidates.contains(id)) result.add(id);
+    }
+
+    for (final id in candidates) {
+      visit(id);
+    }
+    return result;
+  }
+
+  Map<String, String> _reconnectionsFor(List<TerminalTab> nextTabs) {
+    final remaining = {
+      for (final tab in nextTabs)
+        for (final pane in tab.effectivePanes) pane.sessionId,
+    };
+    final result = <String, String>{};
+    for (final entry in reconnectionTargets.entries) {
+      if (!remaining.contains(entry.key)) continue;
+      final visited = <String>{entry.key};
+      String? target = entry.value;
+      while (target != null && visited.add(target)) {
+        if (remaining.contains(target)) {
+          result[entry.key] = target;
+          break;
+        }
+        target = reconnectionTargets[target];
+      }
+    }
+    return Map.unmodifiable(result);
+  }
 
   // A title-only update keeps this token. Every ordinary copy gets a new
   // identity, so layout, profile, status and session changes still rebuild.
@@ -1136,6 +1212,7 @@ class SessionState {
       recordingSessionIds: recordingSessionIds,
       recordingPendingSaveSessionIds: recordingPendingSaveSessionIds,
       recordingBusySessionIds: recordingBusySessionIds,
+      reconnectionTargets: reconnectionTargets,
       lastError: lastError,
       layoutIdentity: layoutIdentity,
     );
@@ -1176,6 +1253,7 @@ class SessionState {
     Set<String>? recordingSessionIds,
     Set<String>? recordingPendingSaveSessionIds,
     Set<String>? recordingBusySessionIds,
+    Map<String, String>? reconnectionTargets,
     Object? lastError = _sessionStateNoChange,
   }) {
     return SessionState._(
@@ -1212,6 +1290,11 @@ class SessionState {
       recordingBusySessionIds: recordingBusySessionIds == null
           ? this.recordingBusySessionIds
           : Set.unmodifiable(recordingBusySessionIds),
+      reconnectionTargets: reconnectionTargets != null
+          ? Map.unmodifiable(reconnectionTargets)
+          : tabs == null
+          ? this.reconnectionTargets
+          : _reconnectionsFor(tabs),
       lastError: identical(lastError, _sessionStateNoChange)
           ? this.lastError
           : lastError as String?,

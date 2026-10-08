@@ -81,9 +81,20 @@ struct ShellLifecycleFrame {
     aid: Option<String>,
 }
 
+#[derive(Clone)]
+struct IanvsParentShell {
+    integration: Box<ShellIntegration>,
+    depth: usize,
+    output_pending: bool,
+}
+
 /// Shell integration state
 #[derive(Clone)]
 pub struct ShellIntegration {
+    ianvs_context: String,
+    ianvs_bootstrapped: bool,
+    ianvs_parent: Option<IanvsParentShell>,
+    pub(crate) ianvs_output_zone: Option<usize>,
     /// Current marker
     current_marker: Option<ShellIntegrationMarker>,
     /// Validated OSC 133/633 lifecycle state.
@@ -130,6 +141,10 @@ impl ShellIntegration {
     /// Create a new shell integration state
     pub fn new() -> Self {
         Self {
+            ianvs_context: "root".into(),
+            ianvs_bootstrapped: false,
+            ianvs_parent: None,
+            ianvs_output_zone: None,
             current_marker: None,
             current_state: ShellIntegrationState::Idle,
             current_command: None,
@@ -140,6 +155,100 @@ impl ShellIntegration {
             hostname: None,
             username: None,
         }
+    }
+
+    pub(crate) fn ianvs_context(&self) -> &str {
+        &self.ianvs_context
+    }
+
+    pub(crate) fn ianvs_output_zones(&self) -> impl Iterator<Item = (usize, bool)> + '_ {
+        let mut current = Some(self);
+        let mut shares_output = true;
+        std::iter::from_fn(move || {
+            while let Some(context) = current {
+                current = context
+                    .ianvs_parent
+                    .as_ref()
+                    .map(|parent| &*parent.integration);
+                let owns_writes =
+                    shares_output && context.state() == ShellIntegrationState::CommandOutput;
+                shares_output &= context
+                    .ianvs_parent
+                    .as_ref()
+                    .is_some_and(|parent| parent.output_pending);
+                if let Some(zone) = context.ianvs_output_zone {
+                    return Some((zone, owns_writes));
+                }
+            }
+            None
+        })
+    }
+
+    pub(crate) fn confirm_ianvs_child(&mut self) -> Vec<String> {
+        let mut contexts = Vec::new();
+        let mut current = self;
+        while let Some(parent) = &mut current.ianvs_parent {
+            if parent.output_pending {
+                parent.output_pending = false;
+                contexts.push(parent.integration.ianvs_context.clone());
+            }
+            current = &mut parent.integration;
+        }
+        contexts
+    }
+
+    pub(crate) fn accepts_ianvs_context(&self, context: &str) -> bool {
+        !self.ianvs_bootstrapped || self.ianvs_context == context
+    }
+
+    pub(crate) fn has_ianvs_ancestor(&self, context: &str) -> bool {
+        let mut current = self;
+        while let Some(parent) = &current.ianvs_parent {
+            current = &parent.integration;
+            if current.ianvs_context == context {
+                return true;
+            }
+        }
+        false
+    }
+
+    pub(crate) fn enter_ianvs_context(
+        &mut self,
+        context: &str,
+        parent: &str,
+        depth: usize,
+    ) -> bool {
+        if context == self.ianvs_context {
+            self.ianvs_bootstrapped = true;
+            return false;
+        }
+        if parent != self.ianvs_context {
+            return false;
+        }
+        let mut ancestors = 0;
+        let mut current = &*self;
+        while let Some(parent) = &current.ianvs_parent {
+            ancestors += 1;
+            current = &parent.integration;
+        }
+        if ancestors >= 127 || self.has_ianvs_ancestor(context) {
+            return false;
+        }
+        let previous = std::mem::take(self);
+        self.ianvs_context = context.into();
+        self.ianvs_bootstrapped = true;
+        self.ianvs_parent = Some(IanvsParentShell {
+            integration: Box::new(previous),
+            depth,
+            output_pending: true,
+        });
+        true
+    }
+
+    pub(crate) fn restore_ianvs_parent(&mut self) -> Option<usize> {
+        let parent = self.ianvs_parent.take()?;
+        *self = *parent.integration;
+        Some(parent.depth)
     }
 
     /// Set the current marker

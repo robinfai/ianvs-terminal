@@ -1113,22 +1113,31 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     SessionState sessionState,
     String sessionId,
   ) async {
-    final closesLastSession =
-        sessionState.tabs.length == 1 &&
-        sessionState.tabs.single.effectivePanes.length == 1;
-    if (!await sessionController.closeSession(sessionId)) {
-      return;
-    }
-    if (closesLastSession) {
-      _recentlyClosedLastSession = true;
-    }
-    _clearPresentationStateForSession(sessionId);
-    final nextActiveSessionId = ref
-        .read(sessionControllerProvider)
-        .activeSessionId;
-    if (nextActiveSessionId != null) {
-      _scheduleReturningCue();
-      _focusSession(nextActiveSessionId);
+    if (!_closingSessionIds.add(sessionId)) return;
+    try {
+      if (_sessionSourceInUse(sessionId)) {
+        _showShellSnackBar(context.l10n.mobileSessionReferencedByAi);
+        return;
+      }
+      final closesLastSession =
+          sessionState.tabs.length == 1 &&
+          sessionState.tabs.single.effectivePanes.length == 1;
+      if (!await sessionController.closeSession(sessionId)) {
+        return;
+      }
+      if (closesLastSession) {
+        _recentlyClosedLastSession = true;
+      }
+      _clearPresentationStateForSession(sessionId);
+      final nextActiveSessionId = ref
+          .read(sessionControllerProvider)
+          .activeSessionId;
+      if (nextActiveSessionId != null) {
+        _scheduleReturningCue();
+        _focusSession(nextActiveSessionId);
+      }
+    } finally {
+      _closingSessionIds.remove(sessionId);
     }
   }
 
@@ -1151,39 +1160,62 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     SessionState sessionState,
     String tabSessionId,
   ) async {
-    final closesLastTab = sessionState.tabs.length == 1;
-    final closingTab = sessionState.tabs.firstWhere(
-      (tab) => tab.sessionId == tabSessionId,
-      orElse: () => sessionState.tabs.first,
+    final target = _tabForSession(
+      ref.read(sessionControllerProvider),
+      tabSessionId,
     );
-    final closeCompleted = await sessionController.closeTab(tabSessionId);
-    final currentState = ref.read(sessionControllerProvider);
-    final remainingSessionIds = currentState.tabs
-        .expand((tab) => tab.effectivePanes)
+    if (target == null) return;
+    final closingSessionIds = target.effectivePanes
         .map((pane) => pane.sessionId)
         .toSet();
-    final removedSessionIds = closingTab.effectivePanes
-        .map((pane) => pane.sessionId)
-        .where((sessionId) => !remainingSessionIds.contains(sessionId))
-        .toList(growable: false);
-    // Native close is per pane. A later pane can become busy after an earlier
-    // pane closed, so reconcile presentation resources even when the tab-wide
-    // operation returns false.
-    _clearPresentationStateForSessions(removedSessionIds);
-    final nextActiveSessionId = currentState.activeSessionId;
-    if (removedSessionIds.isNotEmpty && nextActiveSessionId != null) {
-      _scheduleReturningCue();
-      _focusSession(nextActiveSessionId);
-    }
-    if (!closeCompleted) {
-      return;
-    }
-    if (closesLastTab) {
-      _recentlyClosedLastSession = true;
-    }
-    if (nextActiveSessionId != null && removedSessionIds.isEmpty) {
-      _scheduleReturningCue();
-      _focusSession(nextActiveSessionId);
+    if (closingSessionIds.any(_closingSessionIds.contains)) return;
+    _closingSessionIds.addAll(closingSessionIds);
+    try {
+      if (target.effectivePanes.any(
+        (pane) => _sessionSourceInUse(
+          pane.sessionId,
+          closingSessions: closingSessionIds,
+        ),
+      )) {
+        _showShellSnackBar(context.l10n.mobileSessionReferencedByAi);
+        return;
+      }
+      final closesLastTab = sessionState.tabs.length == 1;
+      final closingTab = sessionState.tabs.firstWhere(
+        (tab) => tab.sessionId == tabSessionId,
+        orElse: () => sessionState.tabs.first,
+      );
+      final closeCompleted = await sessionController.closeTab(tabSessionId);
+      final currentState = ref.read(sessionControllerProvider);
+      final remainingSessionIds = currentState.tabs
+          .expand((tab) => tab.effectivePanes)
+          .map((pane) => pane.sessionId)
+          .toSet();
+      final removedSessionIds = closingTab.effectivePanes
+          .map((pane) => pane.sessionId)
+          .where((sessionId) => !remainingSessionIds.contains(sessionId))
+          .toList(growable: false);
+      // Native close is per pane. A later pane can become busy after an earlier
+      // pane closed, so reconcile presentation resources even when the tab-wide
+      // operation returns false.
+      _clearPresentationStateForSessions(removedSessionIds);
+      final nextActiveSessionId = currentState.activeSessionId;
+      if (removedSessionIds.isNotEmpty && nextActiveSessionId != null) {
+        _scheduleReturningCue();
+        _focusSession(nextActiveSessionId);
+      }
+      if (!closeCompleted) {
+        return;
+      }
+      if (closesLastTab) {
+        _recentlyClosedLastSession = true;
+      }
+      if (nextActiveSessionId != null && removedSessionIds.isEmpty) {
+        _scheduleReturningCue();
+        _focusSession(nextActiveSessionId);
+      }
+    } finally {
+      _closingSessionIds.removeAll(closingSessionIds);
     }
   }
 
@@ -1193,6 +1225,10 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      if (_mobileSessionsOpen ||
+          (context.usesMobileNavigation && _mobileConnectionsOpen)) {
+        return;
+      }
       final composer = _composerSessions[sessionId];
       final focusNode =
           composer?.enabled == true &&

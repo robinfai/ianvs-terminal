@@ -94,7 +94,65 @@ impl Terminal {
         };
         let event_start = self.terminal_events.len();
         let source = ShellIntegrationSource::Osc133;
+        let context = value["context_id"].as_str().unwrap_or("root");
+        if context.is_empty()
+            || context.len() > 80
+            || !context
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b == b'-')
+        {
+            return;
+        }
+        if !hook.starts_with("bootstrap.") && !self.shell_integration.accepts_ianvs_context(context)
+        {
+            return;
+        }
         match hook {
+            "bootstrap.checking" => {
+                let parent = value["parent_context_id"].as_str().unwrap_or("");
+                if self
+                    .shell_integration
+                    .enter_ianvs_context(context, parent, self.shell_depth)
+                {
+                    self.begin_ianvs_child(parent);
+                    self.in_command_output = false;
+                    self.shell_depth += 1;
+                }
+            }
+            "bootstrap.resume" => {
+                if !self.shell_integration.has_ianvs_ancestor(context) {
+                    return;
+                }
+                let exited = value["retired_contexts"]
+                    .as_array()
+                    .and_then(|contexts| contexts.last())
+                    .and_then(|v| v.as_str());
+                while self.shell_integration.ianvs_context() != context {
+                    let code = (exited == Some(self.shell_integration.ianvs_context()))
+                        .then(|| {
+                            value["exit_code"]
+                                .as_i64()
+                                .and_then(|n| i32::try_from(n).ok())
+                        })
+                        .flatten();
+                    self.handle_shell_marker(
+                        source,
+                        ShellIntegrationMarker::CommandFinished,
+                        None,
+                        code,
+                    );
+                    let row = self
+                        .grid
+                        .total_lines_scrolled()
+                        .saturating_add(self.cursor.row);
+                    self.close_shell_zone(ZoneType::Prompt, row, None);
+                    self.close_shell_zone(ZoneType::Command, row, None);
+                    self.shell_depth = self.shell_integration.restore_ianvs_parent().unwrap();
+                    self.resume_ianvs_output();
+                }
+                self.in_command_output =
+                    self.shell_integration.state() == ShellIntegrationState::CommandOutput;
+            }
             "precmd.pwd" => {
                 if let Some(cwd) = value["pwd"]
                     .as_str()
@@ -164,7 +222,8 @@ impl Terminal {
                             .map(str::to_owned)
                     };
                     zone.submission_id = identifier("submission_id");
-                    zone.context_id = identifier("context_id");
+                    zone.context_id = Some(context.to_owned());
+                    self.shell_integration.ianvs_output_zone = Some(zone.id);
                 }
             }
             "command_finished" => {
@@ -189,6 +248,233 @@ impl Terminal {
             index += 1;
             keep
         });
+    }
+
+    fn shell_output_boundary(&self) -> (usize, usize) {
+        let row = self
+            .grid
+            .total_lines_scrolled()
+            .saturating_add(self.cursor.row);
+        let content_end = self
+            .grid
+            .row(self.cursor.row)
+            .and_then(|cells| {
+                cells
+                    .iter()
+                    .rposition(|cell| cell.c != ' ' || cell.flags.wide_char_spacer())
+            })
+            .map_or(0, |col| col + 1);
+        (row, self.cursor.col.max(content_end))
+    }
+
+    fn begin_ianvs_child(&mut self, context: &str) {
+        let (row, col) = self.shell_output_boundary();
+        let columns = self.grid.cols();
+        if let Some(zone) = self.grid.zones_mut().iter_mut().rev().find(|zone| {
+            zone.zone_type == ZoneType::Output
+                && zone.is_open()
+                && !zone.suspended
+                && zone.context_id.as_deref().unwrap_or("root") == context
+        }) {
+            let (start_row, start_col) = zone
+                .output_start
+                .unwrap_or((zone.abs_row_start, zone.start_col));
+            let temporary_row = !zone.output_boundary_rows.contains_key(&row);
+            let owned = zone
+                .output_boundary_rows
+                .entry(row)
+                .or_insert_with(|| {
+                    let mut owned = vec![false; columns];
+                    let from = if row == start_row { start_col } else { 0 };
+                    if let Some(range) = owned.get_mut(from..col.min(columns)) {
+                        range.fill(true);
+                    }
+                    owned
+                })
+                .clone();
+            zone.pending_child = Some(crate::zone::PendingChildBoundary {
+                row,
+                col,
+                owned,
+                overwritten: false,
+                temporary_row,
+            });
+        }
+    }
+
+    fn suspend_ianvs_output(&mut self, context: &str) {
+        let (end_row, end_col) = self.shell_output_boundary();
+        let columns = self.grid.cols();
+        if let Some(zone) = self.grid.zones_mut().iter_mut().rev().find(|zone| {
+            zone.zone_type == ZoneType::Output
+                && zone.is_open()
+                && !zone.suspended
+                && zone.context_id.as_deref().unwrap_or("root") == context
+        }) {
+            let (end_row, end_col) = if let Some(pending) = zone.pending_child.take() {
+                zone.output_truncated |= pending.overwritten;
+                zone.output_boundary_rows.insert(pending.row, pending.owned);
+                (pending.row, pending.col)
+            } else {
+                (end_row, end_col)
+            };
+            let (start_row, start_col) = zone
+                .output_start
+                .unwrap_or((zone.abs_row_start, zone.start_col));
+            if (end_row, end_col) > (start_row, start_col) {
+                // Bound repeated child launches even if none advances the screen.
+                if zone.output_slices.len() == 128 {
+                    zone.output_slices.remove(0);
+                    zone.output_truncated = true;
+                }
+                zone.output_slices.push(crate::zone::ZoneOutputSlice {
+                    start_row,
+                    start_col,
+                    end_row,
+                    end_col,
+                });
+            }
+            zone.output_boundary_rows.retain(|row, _| {
+                zone.output_slices
+                    .iter()
+                    .any(|slice| *row >= slice.start_row && *row <= slice.end_row)
+            });
+            zone.output_boundary_rows.entry(end_row).or_insert_with(|| {
+                let mut owned = vec![false; columns];
+                let from = if end_row == start_row { start_col } else { 0 };
+                if let Some(range) = owned.get_mut(from..end_col.min(columns)) {
+                    range.fill(true);
+                }
+                owned
+            });
+            zone.suspended = true;
+        }
+    }
+
+    fn resume_ianvs_output(&mut self) {
+        let context = self.shell_integration.ianvs_context();
+        let row = self
+            .grid
+            .total_lines_scrolled()
+            .saturating_add(self.cursor.row);
+        let col = self.cursor.col;
+        let columns = self.grid.cols();
+        if let Some(zone) = self.grid.zones_mut().iter_mut().rev().find(|zone| {
+            zone.zone_type == ZoneType::Output
+                && zone.is_open()
+                && zone.context_id.as_deref().unwrap_or("root") == context
+        }) {
+            if let Some(pending) = zone.pending_child.take() {
+                if pending.temporary_row {
+                    zone.output_boundary_rows.remove(&pending.row);
+                }
+            }
+            if !zone.suspended {
+                return;
+            }
+            // A child may leave the cursor above the parent's immutable
+            // source base. That repaint cannot reference an earlier command.
+            let (row, col) = if row < zone.abs_row_start {
+                zone.output_truncated = true;
+                (zone.abs_row_start, columns)
+            } else {
+                (row, col)
+            };
+            zone.output_start = Some((row, col));
+            zone.output_boundary_rows
+                .entry(row)
+                .or_insert_with(|| vec![false; columns]);
+            zone.suspended = false;
+        }
+    }
+
+    /// Only shared boundary rows need cell ownership. Index zones directly so
+    /// ordinary text output never scans the full retained command history.
+    pub(crate) fn record_ianvs_output_cells(&mut self, row: usize, col: usize, width: usize) {
+        self.record_ianvs_output_ownership(row, col, width, true);
+    }
+
+    pub(crate) fn record_ianvs_output_append(&mut self, row: usize, col: usize) {
+        let width = self
+            .active_grid()
+            .get(col, row)
+            .map_or(1, |cell| cell.width());
+        self.record_ianvs_output_ownership(row, col, width, false);
+    }
+
+    fn record_ianvs_output_ownership(
+        &mut self,
+        row: usize,
+        col: usize,
+        width: usize,
+        replaces_cell: bool,
+    ) {
+        if self.alt_screen_active {
+            return;
+        }
+        let absolute = self.grid.total_lines_scrolled().saturating_add(row);
+        for (id, owns_writes) in self.shell_integration.ianvs_output_zones() {
+            // CUP/CUU can repaint the middle of a completed parent portion.
+            // Only boundary rows have a column mask; invalidate an affected
+            // portion rather than growing an ownership bitmap for every row.
+            let invalidates_portion = self
+                .grid
+                .zones()
+                .binary_search_by_key(&id, |zone| zone.id)
+                .ok()
+                .is_some_and(|index| {
+                    let zone = &self.grid.zones()[index];
+                    !zone.output_boundary_rows.contains_key(&absolute)
+                        && (((!owns_writes || zone.pending_child.is_some())
+                            && zone.output_slices.iter().any(|slice| {
+                                absolute >= slice.start_row
+                                    && (absolute < slice.end_row
+                                        || absolute == slice.end_row && slice.end_col > 0)
+                            }))
+                            || zone.pending_child.as_ref().is_some_and(|pending| {
+                                absolute < pending.row
+                                    && absolute
+                                        >= zone
+                                            .output_start
+                                            .map_or(zone.abs_row_start, |start| start.0)
+                            }))
+                });
+            if invalidates_portion {
+                self.grid.invalidate_segmented_output_rows(row, row);
+            }
+            let zones = self.grid.zones_mut();
+            let Ok(index) = zones.binary_search_by_key(&id, |zone| zone.id) else {
+                continue;
+            };
+            let zone = &mut zones[index];
+            if let Some(pending) = &mut zone.pending_child {
+                if pending.row == absolute {
+                    let end = col.saturating_add(width).min(pending.owned.len());
+                    if let Some(range) = pending.owned.get_mut(col..end) {
+                        pending.overwritten |= range.iter().any(|owned| *owned);
+                        range.fill(false);
+                    }
+                }
+            }
+            let Some(owned) = zone.output_boundary_rows.get_mut(&absolute) else {
+                continue;
+            };
+            // A combining character cannot claim a base cell from another
+            // context, but a widening grapheme retains its existing owner.
+            let owns_writes = owns_writes && (replaces_cell || owned.get(col) == Some(&true));
+            let end = col.saturating_add(width).min(owned.len());
+            if let Some(range) = owned.get_mut(col..end) {
+                zone.output_truncated |= !owns_writes && range.iter().any(|owned| *owned);
+                range.fill(owns_writes);
+            }
+            if owns_writes {
+                if let Some((start_row, start_col)) = &mut zone.output_start {
+                    if *start_row == absolute {
+                        *start_col = (*start_col).min(col);
+                    }
+                }
+            }
+        }
     }
 
     /// Configure the optional VS Code OSC 633 command-line correlation nonce.
@@ -452,6 +738,20 @@ impl Terminal {
             return;
         }
 
+        if matches!(
+            marker,
+            ShellIntegrationMarker::PromptStart
+                | ShellIntegrationMarker::CommandStart
+                | ShellIntegrationMarker::CommandExecuted
+        ) {
+            // Failed bootstrap has no child command block to hold diagnostic
+            // output. Suspend the caller only when the child proves it has a
+            // shell lifecycle, regardless of whether OSC or DCS arrives first.
+            for parent in self.shell_integration.confirm_ianvs_child() {
+                self.suspend_ianvs_output(&parent);
+            }
+        }
+
         let timestamp = crate::terminal::unix_millis();
         let abs_line = self.active_grid().total_lines_scrolled() + self.cursor.row;
         let close_row = abs_line.saturating_sub(1);
@@ -679,7 +979,7 @@ impl Terminal {
             .grid
             .zones()
             .iter()
-            .rfind(|zone| zone.is_open() && zone.zone_type == expected_type)
+            .rfind(|zone| zone.is_open() && !zone.suspended && zone.zone_type == expected_type)
             .map(|zone| (zone.id, zone.zone_type, zone.abs_row_start))
         else {
             return;

@@ -5066,4 +5066,69 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get mobileNormalFallback => '已切换为普通终端。';
+
+  @override
+  String get mobileSessionsTitle => '会话';
+
+  @override
+  String get mobileSessionsActive => '进行中';
+
+  @override
+  String get mobileSessionsDisconnected => '已断开';
+
+  @override
+  String get mobileSessionActive => '进行中';
+
+  @override
+  String get mobileSessionDisconnected => '已断开';
+
+  @override
+  String get mobileSessionViewOutput => '查看输出';
+
+  @override
+  String get mobileSessionReconnect => '重新连接';
+
+  @override
+  String get mobileSessionDisconnect => '断开连接';
+
+  @override
+  String get mobileSessionRemove => '移除记录';
+
+  @override
+  String get mobileSessionsClearDisconnected => '清理已断开';
+
+  @override
+  String get mobileSessionLocalHost => '本机';
+
+  @override
+  String get mobileSessionReconnected => '已重新连接 · 历史输出';
+
+  @override
+  String get mobileSessionOpenCurrent => '进入当前连接';
+
+  @override
+  String get mobileSessionReferencedByAi => 'AI 对话正在引用此记录，结束其当前会话后可移除。';
+
+  @override
+  String mobileSessionExitCode(int code) {
+    return '退出码 $code';
+  }
+
+  @override
+  String get mobileSessionDisconnectedTitle => '连接已断开';
+
+  @override
+  String get mobileSessionDisconnectedDetail => '输出已保留，可只读查看；移除记录或退出 App 后会清除。';
+
+  @override
+  String get mobileSessionReconnectedDetail => '你正在查看旧连接的输出，进入当前连接即可继续操作。';
+
+  @override
+  String get mobileSessionsClearPartial => '部分记录仍被 AI 对话引用，或有尚未保存的录制，已保留。';
+
+  @override
+  String get mobileSessionReconnectFailed => '重连未成功，原会话输出仍可查看。';
+
+  @override
+  String get mobileSessionsNoActive => '当前没有进行中的连接';
 }

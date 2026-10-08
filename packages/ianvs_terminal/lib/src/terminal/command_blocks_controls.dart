@@ -516,14 +516,32 @@ extension _CommandBlocksControls on _CommandBlocksViewState {
     ),
   );
   void _showMatch((CommandBlock, TerminalRow) match) {
+    final row = match.$2;
+    final range = row.index < 0
+        ? null
+        : CommandBlockReadRange(
+            startLine: row.index,
+            endLine: row.index + 1,
+            sourceLineBase: row.sourceRow == null
+                ? match.$1.sourceLineBase
+                : row.sourceRow! - row.index,
+          );
     c.expandedOutput.add(match.$1.id);
     if (c.filtering.contains(match.$1.id)) c.toggleFilter(match.$1.id);
     if (c.collapsed.contains(match.$1.id)) c.toggleCollapsed(match.$1.id);
-    if (_readerLayout) {
-      unawaited(_openReader(match.$1.id, row: match.$2.index.toDouble()));
+    final running = c.blocks
+        .where((block) => block.id == match.$1.id)
+        .any((block) => block.running);
+    if (_readerLayout || running) {
+      unawaited(
+        _openReader(match.$1.id, row: range == null ? 0 : null, range: range),
+      );
       return;
     }
-    if (match.$2.index >= 0) c.page(match.$1.id, match.$2.index);
+    if (range != null && !c.pageRange(match.$1.id, range)) {
+      _announce(t('The matching output is no longer available', '匹配输出已不再保留'));
+      return;
+    }
     c.select(match.$1.id, reveal: true);
   }
 }

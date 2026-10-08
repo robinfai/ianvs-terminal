@@ -11626,6 +11626,9 @@ void main() {
     );
     await tester.pump();
     backend.writeCalls.clear();
+    final inputs = <TerminalSessionInputEvent>[];
+    final inputSubscription = runtime.inputEvents.listen(inputs.add);
+    addTearDown(inputSubscription.cancel);
     backend.enqueueEvent(
       sessionId,
       PtyEvent(
@@ -11676,6 +11679,8 @@ void main() {
       utf8.decode(backend.writeCalls.single),
       '\x1B]52;c;${base64.encode(utf8.encode('reply after detection'))}\x07',
     );
+    expect(inputs, hasLength(1));
+    expect(inputs.single.isProtocolInput, isTrue);
   });
 
   testWidgets(

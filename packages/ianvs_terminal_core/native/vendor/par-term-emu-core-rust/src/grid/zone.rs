@@ -11,6 +11,57 @@ pub const MAX_SEMANTIC_ZONES: usize = 4096;
 const ZONE_CAP_EVICTION_BATCH: usize = 256;
 
 impl Grid {
+    /// Cell moves cannot preserve the column ownership of a parent/child
+    /// boundary. Discard affected portions instead of attributing moved child
+    /// text to the parent. Ordinary full-screen upward scrolling preserves
+    /// absolute row identity and does not call this invalidation path.
+    pub(crate) fn invalidate_segmented_output_rows(&mut self, top: usize, bottom: usize) {
+        if top > bottom || top >= self.rows {
+            return;
+        }
+        let top = self.total_lines_scrolled.saturating_add(top);
+        let bottom = self
+            .total_lines_scrolled
+            .saturating_add(bottom.min(self.rows - 1));
+        let screen_end = self.total_lines_scrolled.saturating_add(self.rows);
+        for zone in &mut self.zones {
+            if zone.output_start.is_none() && !zone.suspended && zone.pending_child.is_none() {
+                continue;
+            }
+            let previous = zone.output_slices.len();
+            zone.output_slices.retain(|slice| {
+                slice.end_row < top
+                    || (slice.end_row == top && slice.end_col == 0)
+                    || slice.start_row > bottom
+            });
+            zone.output_truncated |= previous != zone.output_slices.len();
+            for (_, owned) in zone.output_boundary_rows.range_mut(top..=bottom) {
+                zone.output_truncated |= owned.iter().any(|owned| *owned);
+                owned.fill(false);
+            }
+            if let Some(pending) = &mut zone.pending_child {
+                if (top..=bottom).contains(&pending.row) {
+                    pending.overwritten = true;
+                    pending.owned.fill(false);
+                }
+            }
+            let active_start = zone
+                .output_start
+                .map_or(zone.abs_row_start, |start| start.0);
+            let active_end = if zone.is_open() {
+                zone.pending_child
+                    .as_ref()
+                    .map_or(screen_end, |pending| pending.row)
+            } else {
+                zone.abs_row_end
+            };
+            if !zone.suspended && active_start <= bottom && active_end >= top {
+                zone.output_start = Some((bottom.saturating_add(1), 0));
+                zone.output_truncated = true;
+            }
+        }
+    }
+
     /// Get all semantic zones
     pub fn zones(&self) -> &[Zone] {
         &self.zones

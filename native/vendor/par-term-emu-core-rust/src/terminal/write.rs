@@ -66,6 +66,7 @@ impl Terminal {
             }
 
             self.clear_wide_fragments_for_write(cursor_col, cursor_row, writable);
+            self.record_ianvs_output_cells(cursor_row, cursor_col, writable);
 
             let mut cell_flags = self.flags;
             cell_flags.hyperlink_id = self.current_hyperlink_id;
@@ -180,6 +181,7 @@ impl Terminal {
                     }
                 }
 
+                self.record_ianvs_output_append(target_row, target_col);
                 if let Some(cell) = wrapped_wide_cell {
                     self.wrap_widened_grapheme_from_right_edge(target_col, target_row, cell);
                     return;
@@ -281,6 +283,7 @@ impl Terminal {
 
                 self.mark_row_dirty(target_row);
             }
+            self.record_ianvs_output_append(target_row, target_col);
             if let Some(cell) = wrapped_wide_cell {
                 self.wrap_widened_grapheme_from_right_edge(target_col, target_row, cell);
                 return;
@@ -363,6 +366,7 @@ impl Terminal {
 
                         self.mark_row_dirty(target_row);
                     }
+                    self.record_ianvs_output_append(target_row, target_col);
                     if let Some(cell) = wrapped_wide_cell {
                         self.wrap_widened_grapheme_from_right_edge(target_col, target_row, cell);
                         return;
@@ -589,6 +593,7 @@ impl Terminal {
         }
 
         self.active_grid_mut().set(cursor_col, cursor_row, cell);
+        self.record_ianvs_output_cells(cursor_row, cursor_col, char_width);
         // Mark row as dirty for rendering
         self.mark_row_dirty(cursor_row);
 
@@ -772,6 +777,7 @@ impl Terminal {
             .set(destination_col, destination_row, cell);
         self.active_grid_mut()
             .set(destination_col + 1, destination_row, spacer);
+        self.record_ianvs_output_cells(destination_row, destination_col, 2);
         self.mark_row_dirty(destination_row);
 
         let next_col = destination_col + 2;
@@ -855,6 +861,7 @@ impl Terminal {
         }
 
         self.active_grid_mut().set(cursor_col, cursor_row, cell);
+        self.record_ianvs_output_cells(cursor_row, cursor_col, 1);
         self.mark_row_dirty(cursor_row);
 
         // Advance cursor by 1

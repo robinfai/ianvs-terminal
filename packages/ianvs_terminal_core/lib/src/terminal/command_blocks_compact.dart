@@ -5,6 +5,7 @@ extension _CommandBlocksCompact on _CommandBlocksViewState {
     String id, {
     bool bottom = false,
     double? row,
+    CommandBlockReadRange? range,
   }) async {
     if (_readerOpen) return;
     _follow = false;
@@ -27,9 +28,13 @@ extension _CommandBlocksCompact on _CommandBlocksViewState {
           font: widget.font,
           chinese: widget.chinese,
           initialRow: bottom ? null : row,
+          initialRange: range,
           followTail:
               bottom ||
-              row == null && block.running && !c.readingStates.containsKey(id),
+              row == null &&
+                  range == null &&
+                  block.running &&
+                  !c.readingStates.containsKey(id),
           onOpenLinkTarget: widget.onOpenLinkTarget,
           onAttachRange: widget.onAttachRange,
         ),
@@ -137,9 +142,13 @@ extension _CommandBlocksCompact on _CommandBlocksViewState {
                   previewLines: 6,
                   scrollOutput: false,
                   requestLiveFocus: false,
-                  liveInput: block.running ? widget.liveInput : null,
-                  liveFocus: block.running ? widget.liveFocus : null,
-                  modes: block.running
+                  liveInput: block.running && !block.suspended
+                      ? widget.liveInput
+                      : null,
+                  liveFocus: block.running && !block.suspended
+                      ? widget.liveFocus
+                      : null,
+                  modes: block.running && !block.suspended
                       ? widget.liveModes
                       : TerminalFrameModes.empty,
                   onMeasuredCellSizeChanged: widget.onMeasuredCellSizeChanged,

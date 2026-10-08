@@ -106,6 +106,8 @@ class CommandBlockController extends ChangeNotifier {
               block.running ||
               page.columns != block.columns ||
               page.totalLines != block.totalLines ||
+              page.sourceLineCount != block.sourceLineCount ||
+              page.segmented != block.segmented ||
               page.sourceLineBase != block.sourceLineBase ||
               page.evicted != block.evicted) {
         _load(block.id, offset: page.offset, notify: false);
@@ -228,6 +230,61 @@ class CommandBlockController extends ChangeNotifier {
   }
 
   void page(String id, int offset) => _load(id, offset: offset);
+
+  /// Opens an unfiltered range using its source identity. The native retained
+  /// floor can move between metadata and page requests, so validate the actual
+  /// page before publishing it and retry only a bounded number of times.
+  bool pageRange(String id, CommandBlockReadRange range) {
+    final page = readRange(id, range);
+    if (page != null) {
+      _pages[id] = page;
+      filtering.remove(id);
+      _appliedFilters.remove(id);
+      errors.remove(id);
+      notifyListeners();
+      return true;
+    }
+    errors[id] = 'Output is no longer available';
+    notifyListeners();
+    return false;
+  }
+
+  /// Reads a source range without changing presentation state. Native offsets
+  /// count owned output rows; source indices may skip a nested command's rows.
+  CommandBlock? readRange(
+    String id,
+    CommandBlockReadRange range, {
+    int? limit,
+  }) {
+    var current = CommandBlock.fromJson(
+      request({'id': id, 'offset': 0, 'limit': 1})?['block'],
+    );
+    for (var attempt = 0; attempt < 3; attempt++) {
+      final offset = range.resolveStart(current);
+      if (offset == null) break;
+      final page = CommandBlock.fromJson(
+        request({
+          'id': id,
+          'offset': offset,
+          if (current!.segmented) 'sourceLine': offset,
+          'limit': ?limit,
+        })?['block'],
+      );
+      if (page == null) {
+        current = CommandBlock.fromJson(
+          request({'id': id, 'offset': 0, 'limit': 1})?['block'],
+        );
+        continue;
+      }
+      if (range.resolveStart(page) == offset &&
+          page.lines.firstOrNull?.index == offset) {
+        return page;
+      }
+      current = page;
+    }
+    return null;
+  }
+
   void _load(String id, {int offset = 0, bool notify = true}) {
     final result = request({
       'id': id,
@@ -268,10 +325,13 @@ class CommandBlockController extends ChangeNotifier {
     int? columns;
     var foundStart = selection == null;
     var foundEnd = selection == null;
+    var firstPage = true;
     while (offset >= 0) {
       final result = request({
         'id': id,
         'offset': offset,
+        if (firstPage && selection != null && filter == null)
+          'sourceLine': selection.startRow,
         ...?filter?.toJson(),
       });
       final block = CommandBlock.fromJson(result?['block']);
@@ -286,6 +346,10 @@ class CommandBlockController extends ChangeNotifier {
       }
       columns = block.columns;
       sourceBase = base;
+      if (firstPage && selection != null && filter == null && block.segmented) {
+        offset = block.offset;
+      }
+      firstPage = false;
       for (final row in block.lines) {
         if (selection != null &&
             (row.index < selection.startRow || row.index > selection.endRow)) {

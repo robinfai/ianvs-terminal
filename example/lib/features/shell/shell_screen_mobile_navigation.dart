@@ -105,7 +105,7 @@ class _MobileTerminalToolbar extends StatelessWidget {
     required this.recording,
     required this.pendingSave,
   });
-  final VoidCallback onKeyboard;
+  final VoidCallback? onKeyboard;
   final VoidCallback onSearch;
   final VoidCallback onReplay;
   final VoidCallback? onRecording;
@@ -273,16 +273,15 @@ class _MobileSessionMenu extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final mode = ref.watch(
+    final pane = ref.watch(
       sessionControllerProvider.select(
         (state) => state.tabs
             .expand((tab) => tab.effectivePanes)
             .where((pane) => pane.sessionId == sessionId)
-            .firstOrNull
-            ?.terminalMode,
+            .firstOrNull,
       ),
     );
-    final hasSession = mode != null;
+    final hasSession = pane != null;
     Widget action(
       String key,
       TerminalActionId action,
@@ -324,19 +323,55 @@ class _MobileSessionMenu extends ConsumerWidget {
               ],
             ),
             if (hasSession) ...[
-              _MobileTerminalModes(sessionId: sessionId!),
+              if (pane.isExited && pane.profileSnapshot?.isSsh == true)
+                ListTile(
+                  key: const Key('mobile-session-menu-reconnect'),
+                  leading: const Icon(Icons.refresh_rounded),
+                  title: Text(
+                    ref
+                                .watch(sessionControllerProvider)
+                                .liveReconnectionFor(sessionId!) !=
+                            null
+                        ? context.l10n.mobileSessionOpenCurrent
+                        : context.l10n.mobileSessionReconnect,
+                  ),
+                  onTap: () => Navigator.pop(
+                    context,
+                    _MobileConnectionMenuAction.reconnect,
+                  ),
+                ),
+              ListTile(
+                key: const Key('mobile-session-menu-close'),
+                leading: Icon(
+                  pane.isExited
+                      ? Icons.delete_outline_rounded
+                      : Icons.link_off_rounded,
+                ),
+                title: Text(
+                  pane.isExited
+                      ? context.l10n.mobileSessionRemove
+                      : context.l10n.mobileSessionDisconnect,
+                ),
+                onTap: () =>
+                    Navigator.pop(context, _MobileConnectionMenuAction.close),
+              ),
+              const Divider(),
+              if (!pane.isExited) _MobileTerminalModes(sessionId: sessionId!),
               action(
                 'shell-capabilities',
                 TerminalActionId.showShellCapabilities,
                 Icons.fact_check_outlined,
                 context.l10n.shellCapabilities,
               ),
-              action(
-                'shell-toggle-read-only',
-                TerminalActionId.toggleReadOnly,
-                readOnly ? Icons.lock_open_rounded : Icons.lock_outline_rounded,
-                context.l10n.readOnlyMode(readOnly.toString()),
-              ),
+              if (!pane.isExited)
+                action(
+                  'shell-toggle-read-only',
+                  TerminalActionId.toggleReadOnly,
+                  readOnly
+                      ? Icons.lock_open_rounded
+                      : Icons.lock_outline_rounded,
+                  context.l10n.readOnlyMode(readOnly.toString()),
+                ),
               action(
                 'shell-export-scrollback',
                 TerminalActionId.exportScrollback,
@@ -356,7 +391,7 @@ class _MobileSessionMenu extends ConsumerWidget {
               Icons.settings_outlined,
               context.l10n.mobileSettings,
             ),
-            if (hasSession || canReopen)
+            if ((hasSession && !pane.isExited) || canReopen)
               ExpansionTile(
                 tilePadding: const EdgeInsets.symmetric(horizontal: 16),
                 key: const Key('mobile-session-advanced'),
@@ -369,7 +404,7 @@ class _MobileSessionMenu extends ConsumerWidget {
                       Icons.restore_rounded,
                       context.l10n.reopenClosedTab,
                     ),
-                  if (hasSession) ...[
+                  if (hasSession && !pane.isExited) ...[
                     action(
                       'shell-clear-buffer',
                       TerminalActionId.clearBuffer,
@@ -393,82 +428,89 @@ extension _ShellMobileNavigation on _ShellScreenState {
     _mutateState(() => _mobileConnectionsOpen = true);
   }
 
-  Future<void> _showMobileSessions(
-    SessionController controller,
-    SessionState state,
-  ) async {
+  Future<void> _showMobileSessions(SessionController controller) async {
+    if (_mobileSessionsOpen) return;
+    _mobileSessionsOpen = true;
     FocusManager.instance.primaryFocus?.unfocus();
-    final selected = await showModalBottomSheet<String>(
-      context: context,
-      sheetAnimationStyle: appDialogAnimation(context),
-      useSafeArea: true,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (context) => SafeArea(
-        top: false,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.sizeOf(context).height * .75,
-          ),
-          child: ListView(
-            shrinkWrap: true,
-            padding: const EdgeInsets.all(16),
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      context.l10n.mobileSessions,
-                      style: Theme.of(context).textTheme.titleLarge,
+    final Object? selected;
+    try {
+      selected = await showModalBottomSheet<Object>(
+        context: context,
+        sheetAnimationStyle: appDialogAnimation(context),
+        useSafeArea: true,
+        isScrollControlled: true,
+        showDragHandle: true,
+        builder: (sheetContext) => Consumer(
+          builder: (context, ref, _) {
+            final state = ref.watch(sessionControllerProvider);
+            return SafeArea(
+              top: false,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.sizeOf(context).height * .75,
+                ),
+                child: ListView(
+                  key: const Key('mobile-sessions-sheet'),
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            context.l10n.mobileSessionsTitle,
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: context.l10n.dismiss,
+                          onPressed: () => Navigator.pop(sheetContext),
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                      ],
                     ),
-                  ),
-                  IconButton(
-                    tooltip: context.l10n.close,
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close_rounded),
-                  ),
-                ],
-              ),
-              for (final tab in state.tabs)
-                for (final pane in tab.effectivePanes)
-                  ListTile(
-                    key: Key('mobile-session-${pane.sessionId}'),
-                    leading: const Icon(Icons.terminal_rounded),
-                    title: Text(pane.title),
-                    selected: pane.sessionId == state.activeSessionId,
-                    onTap: () => Navigator.pop(context, pane.sessionId),
-                    trailing: IconButton(
-                      key: Key('mobile-session-close-${pane.sessionId}'),
-                      tooltip: context.l10n.close,
-                      icon: const Icon(Icons.close_rounded),
-                      onPressed: () {
-                        Navigator.pop(context);
-                        if (tab.effectivePanes.length > 1) {
-                          _closeSession(controller, state, pane.sessionId);
-                        } else {
-                          _closeTab(controller, state, tab.sessionId);
-                        }
-                      },
+                    MobileSessionList(
+                      tabs: state.tabs,
+                      activeSessionId: state.activeSessionId,
+                      liveReconnections: _liveMobileReconnections(state),
+                      protectedSessionIds: _protectedMobileSessionIds(state),
+                      onSelect: (pane) =>
+                          Navigator.pop(sheetContext, pane.sessionId),
+                      onReconnect: (pane) => Navigator.pop(sheetContext, (
+                        reconnect: pane.sessionId,
+                      )),
+                      onDisconnect: (pane) =>
+                          unawaited(_closeMobileSession(pane.sessionId)),
+                      onRemove: (pane) =>
+                          unawaited(_closeMobileSession(pane.sessionId)),
+                      onClearDisconnected: () =>
+                          unawaited(_clearDisconnectedMobileSessions()),
                     ),
-                  ),
-              const Divider(),
-              ListTile(
-                leading: const Icon(Icons.add_rounded),
-                title: Text(context.l10n.newSshConnection),
-                onTap: () => Navigator.pop(context, '__new__'),
+                    const Divider(),
+                    ListTile(
+                      leading: const Icon(Icons.add_rounded),
+                      title: Text(context.l10n.newSshConnection),
+                      onTap: () => Navigator.pop(sheetContext, '__new__'),
+                    ),
+                  ],
+                ),
               ),
-            ],
-          ),
+            );
+          },
         ),
-      ),
-    );
+      );
+    } finally {
+      _mobileSessionsOpen = false;
+    }
     if (!mounted || selected == null) return;
-    if (selected == '__new__') {
+    if (selected case (:final String reconnect)) {
+      await _reconnectMobileSession(reconnect);
+    } else if (selected == '__new__') {
       await _openNewSessionLauncher(
         controller,
         ref.read(sessionControllerProvider),
       );
-    } else {
+    } else if (selected is String && _sessionExists(selected)) {
       _activateSession(controller, selected);
     }
   }

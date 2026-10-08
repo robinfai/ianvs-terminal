@@ -25,6 +25,8 @@ class _Terminal implements AiTerminalPort, AiSubmissionInspector {
   AiBlockContext? lastBlock;
   final input = StreamController<void>.broadcast(sync: true);
   final writes = <AiAction>[];
+  final cancellations = <AiCancellation>[];
+  String receiptOutcome = 'accepted';
   Completer<Map<String, Object?>>? executing;
   @override
   Future<AiTerminalContext> readContext() async => AiTerminalContext(
@@ -47,6 +49,7 @@ class _Terminal implements AiTerminalPort, AiSubmissionInspector {
   ) async {
     cancellation.check();
     if (expected.guard != guard) throw const AiFailure('stale_context');
+    cancellations.add(cancellation);
     writes.add(action);
     return executing == null
         ? {
@@ -63,7 +66,7 @@ class _Terminal implements AiTerminalPort, AiSubmissionInspector {
   @override
   Future<Map<String, Object?>> inspectSubmission(String id) async => {
     'submission_id': id,
-    'outcome': 'accepted',
+    'outcome': receiptOutcome,
   };
   @override
   void dispose() => unawaited(input.close());
@@ -230,6 +233,69 @@ void main() {
         },
       );
     }
+
+    test(
+      'failed ACP prompt stops in-flight input and closing cannot restart inference',
+      () async {
+        final disconnect = Completer<void>();
+        final toolFinished = Completer<Map<String, Object?>>();
+        terminal.executing = Completer<Map<String, Object?>>();
+        terminal.receiptOutcome = 'unknown';
+        agent.run = (tools, _) async {
+          if (agent.prompts.length > 1) return;
+          final observed = await tools('get_terminal_state', {});
+          unawaited(
+            tools('run_command', {
+              'command': 'printf original',
+              'reason': 'Inspect requested output',
+              'operation_id': 'original',
+              'context_version': observed['context_version'],
+            }).then(toolFinished.complete),
+          );
+          await disconnect.future;
+          throw const AiFailure('acp_disconnected');
+        };
+        await controller.ask('Inspect the original command');
+        final approval = controller.approve();
+        await Future<void>.delayed(Duration.zero);
+        expect(controller.phase, AiPhase.executing);
+
+        disconnect.complete();
+        await Future<void>.delayed(Duration.zero);
+        expect(controller.phase, AiPhase.failed);
+        expect(controller.error, 'acp_disconnected');
+        expect(terminal.cancellations.single.isCancelled, isTrue);
+        final entry = controller.transcript.singleWhere(
+          (entry) => entry.action != null,
+        );
+        expect(entry.state, AiEntryState.unknown);
+        expect(entry.submissionId, 'receipt');
+        expect(controller.canResume, isFalse);
+
+        controller.takeOver(); // The Close and pause AI action.
+        terminal.executing!.complete({
+          'submission_id': 'receipt',
+          'block_id': 'block',
+          'outcome': 'accepted',
+        });
+        await approval;
+        expect((await toolFinished.future)['interrupted'], isTrue);
+        expect(agent.prompts, hasLength(1));
+        expect(controller.takenOver, isTrue);
+        expect(terminal.writes, hasLength(1));
+        await controller.refreshContext();
+        await controller.resume();
+        expect(controller.hasUnresolvedSubmission, isTrue);
+        expect(agent.prompts, hasLength(1));
+
+        terminal.receiptOutcome = 'accepted';
+        await controller.refreshContext();
+        expect(controller.canResume, isTrue);
+        await controller.resume();
+        expect(agent.prompts, hasLength(2));
+        expect(terminal.writes, hasLength(1));
+      },
+    );
 
     test('unchanged settings preserve the agent conversation', () async {
       agent.run = (_, _) async {};

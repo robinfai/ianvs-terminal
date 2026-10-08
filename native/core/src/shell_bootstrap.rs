@@ -568,6 +568,9 @@ impl Bootstrap {
                     self.composer.activate(ctx, self.local_root);
                     self.composer.retire(&leaving);
                     let mut event = self.event(ctx, "bootstrap.resume");
+                    if let Some(code) = fields.get(4).and_then(|code| code.parse::<u8>().ok()) {
+                        event["exit_code"] = json!(code);
+                    }
                     event["retired_contexts"] = json!(leaving);
                     result.output.extend(hook(event));
                     self.contexts.retain(|_, context| context.available);
@@ -841,7 +844,11 @@ mod tests {
             bootstrap.route_for(&bootstrap.active).unwrap(),
             vec!["/tmp/a", "/tmp/b"]
         );
-        bootstrap.feed(b"\x1b]6973;a;a;resume;done\x07");
+        let resumed = bootstrap.feed(b"\x1b]6973;a;a;resume;done;7\x07");
+        let event = events(&resumed.output).pop().unwrap();
+        assert_eq!(event["hook"], "bootstrap.resume");
+        assert_eq!(event["exit_code"], 7);
+        assert_eq!(event["retired_contexts"], json!(["b"]));
         assert_eq!(
             bootstrap.route_for(&bootstrap.active).unwrap(),
             vec!["/tmp/a"]

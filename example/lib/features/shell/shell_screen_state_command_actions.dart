@@ -172,6 +172,17 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
       return;
     }
 
+    if (selection is _MobileConnectionMenuAction) {
+      if (activeSessionIdBeforeOpen != null) {
+        switch (selection) {
+          case _MobileConnectionMenuAction.reconnect:
+            await _reconnectMobileSession(activeSessionIdBeforeOpen);
+          case _MobileConnectionMenuAction.close:
+            await _closeMobileSession(activeSessionIdBeforeOpen);
+        }
+      }
+      return;
+    }
     if (selection == _TerminalModeMenuAction.recheck) {
       if (activeSessionIdBeforeOpen != null) {
         _recheckTerminalSupport(activeSessionIdBeforeOpen);
@@ -610,6 +621,10 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
             return ShellActionBindingResult.skipped(
               l10n.clearBufferRequiresSession,
             );
+          }
+          final unavailable = _bufferClearUnavailableReason(currentSessionId);
+          if (unavailable != null) {
+            return ShellActionBindingResult.skipped(unavailable);
           }
           final cleared = ref
               .read(terminalRuntimeControllerProvider)

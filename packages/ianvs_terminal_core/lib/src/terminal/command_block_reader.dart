@@ -100,6 +100,7 @@ class _CommandBlockReaderState extends State<_CommandBlockReader> {
   String t(String en, String zh) => widget.chinese ? zh : en;
   CommandBlockController get c => widget.controller;
   bool get _filtered => _displayFilter != null;
+  bool get _sparseIndices => _filtered || _block?.segmented == true;
   int get _lineCount =>
       _filtered ? _block?.matchingLines ?? 0 : _block?.totalLines ?? 0;
   bool get _showLatest =>
@@ -121,9 +122,18 @@ class _CommandBlockReaderState extends State<_CommandBlockReader> {
   bool get _rangeUnavailable =>
       widget.initialRange != null &&
       widget.initialRange!.resolveStart(_rangeBlock) == null;
-  double? get _initialRow => widget.initialRange == null
-      ? widget.initialRow
-      : widget.initialRange!.resolveStart(_rangeBlock)?.toDouble();
+  double? get _initialRow {
+    if (widget.initialRange != null) {
+      final source = widget.initialRange!.resolveStart(_rangeBlock);
+      if (source == null) return null;
+      return (_filtered ? _ordinalForSourceLine(source) : _rangeBlock!.offset)
+          .toDouble();
+    }
+    final row = widget.initialRow;
+    if (row == null || !_sparseIndices || _filtered) return row;
+    return _ordinalForSourceLine(row.floor()) + row % 1;
+  }
+
   int get _lineNumberOffset =>
       widget.initialRange?.sourceLineBase != null &&
           _rangeBlock?.sourceLineBase != null
@@ -182,10 +192,8 @@ class _CommandBlockReaderState extends State<_CommandBlockReader> {
             selection.startCol == selection.endCol)) {
       return 0;
     }
-    return _filtered
-        ? _matchingOffset(selection.endRow + 1) -
-              _matchingOffset(selection.startRow)
-        : selection.endRow - selection.startRow + 1;
+    return _ordinalForSourceLine(selection.endRow + 1) -
+        _ordinalForSourceLine(selection.startRow);
   }
 
   CommandBlockReadingState? _captureReadingState() {
@@ -217,15 +225,13 @@ class _CommandBlockReaderState extends State<_CommandBlockReader> {
     final nativeIndex = saved.sourceRow != null && base != null
         ? saved.sourceRow! - base
         : saved.lineIndex;
-    if (!_filtered) {
-      return nativeIndex.clamp(0, (_lineCount - 1).clamp(0, 1 << 53));
-    }
-    return _matchingOffset(
+    return _ordinalForSourceLine(
       nativeIndex,
     ).clamp(0, (_lineCount - 1).clamp(0, 1 << 53));
   }
 
-  int _matchingOffset(int nativeIndex) {
+  int _ordinalForSourceLine(int nativeIndex) {
+    if (!_sparseIndices) return nativeIndex;
     // Selection endpoints usually belong to an already painted page. Resolve
     // there before asking native filtering to scan history during a drag.
     for (final entry in _pages.entries) {
@@ -239,9 +245,9 @@ class _CommandBlockReaderState extends State<_CommandBlockReader> {
       final offset = rows.indexWhere((row) => row.index >= nativeIndex);
       return entry.key * _pageRows + (offset < 0 ? rows.length : offset);
     }
-    // Filter offsets address matching rows; source indices address original
-    // rows. Locate the original line (or the next retained match) without
-    // loading the entire output or treating the filtered ordinal as evidence.
+    // Filters and segmented parents both omit physical source rows. Locate
+    // this line (or the next retained owned row) without treating its physical
+    // index as a display ordinal or loading the entire output.
     var low = 0;
     var high = _lineCount;
     while (low < high) {
@@ -251,7 +257,7 @@ class _CommandBlockReaderState extends State<_CommandBlockReader> {
           'id': widget.id,
           'offset': middle,
           'limit': 1,
-          ...?c.appliedFilter(widget.id)?.toJson(),
+          if (_filtered) ...?c.appliedFilter(widget.id)?.toJson(),
         })?['block'],
       );
       final line = result?.lines.firstOrNull;
@@ -273,7 +279,7 @@ class _CommandBlockReaderState extends State<_CommandBlockReader> {
         : 0;
     if (selection == null ||
         selection.startRow + delta < 0 ||
-        selection.endRow + delta >= (_block?.totalLines ?? 0)) {
+        selection.endRow + delta >= (_block?.sourceLineCount ?? 0)) {
       _selection.clear();
       return;
     }
@@ -326,11 +332,7 @@ class _CommandBlockReaderState extends State<_CommandBlockReader> {
       if (_followTail) {
         _tail();
       } else if (_initialRow case final double row) {
-        _restoreRow(
-          widget.initialRange != null && _filtered
-              ? _matchingOffset(row.toInt()).toDouble()
-              : row,
-        );
+        _restoreRow(row);
       } else if (saved != null) {
         _restoreReadingState(saved);
       }
@@ -375,9 +377,9 @@ class _CommandBlockReaderState extends State<_CommandBlockReader> {
     }
     final rows = <TerminalRow>[];
     final base = _sourceBase(_block);
-    var offset = _filtered
-        ? _matchingOffset(selection.startRow)
-        : selection.startRow;
+    var offset = _ordinalForSourceLine(selection.startRow);
+    final startOffset = offset;
+    final selectedCount = _selectedCount;
     CommandBlock? source;
     var available = true;
     while (rows.length <= 500) {
@@ -385,9 +387,7 @@ class _CommandBlockReaderState extends State<_CommandBlockReader> {
         c.request({
           'id': widget.id,
           'offset': offset,
-          'limit':
-              (_filtered ? 501 - rows.length : selection.endRow - offset + 1)
-                  .clamp(1, _pageRows),
+          'limit': (selectedCount - rows.length).clamp(1, _pageRows),
           if (_filtered) ...?c.appliedFilter(widget.id)?.toJson(),
         })?['block'],
       );
@@ -402,8 +402,13 @@ class _CommandBlockReaderState extends State<_CommandBlockReader> {
         if (row.index >= selection.startRow) rows.add(row);
       }
       if (page.lines.last.index >= selection.endRow) break;
-      offset += page.lines.length;
-      if (offset >= (_filtered ? page.matchingLines : page.totalLines)) break;
+      final next = page.nextOffset;
+      if (next == null) break;
+      if (next <= offset) {
+        available = false;
+        break;
+      }
+      offset = next;
     }
     if (rows.length > 500) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -416,8 +421,9 @@ class _CommandBlockReaderState extends State<_CommandBlockReader> {
     if (!available ||
         source == null ||
         rows.isEmpty ||
-        (!_filtered &&
-            rows.length != selection.endRow - selection.startRow + 1)) {
+        rows.first.index != selection.startRow ||
+        rows.last.index != selection.endRow ||
+        rows.length != selectedCount) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -440,11 +446,14 @@ class _CommandBlockReaderState extends State<_CommandBlockReader> {
         startedAt: source.startedAt,
         finishedAt: source.finishedAt,
         running: source.running,
+        suspended: source.suspended,
         evicted: source.evicted,
         lines: List.unmodifiable(rows),
         totalLines: source.totalLines,
+        sourceLineCount: source.sourceLineCount,
+        segmented: source.segmented,
         matchingLines: rows.length,
-        offset: rows.first.index,
+        offset: startOffset,
         columns: source.columns,
       ),
     );
@@ -455,9 +464,7 @@ class _CommandBlockReaderState extends State<_CommandBlockReader> {
     if (widget.initialRange != null) {
       // Resolve the quote after the route opens, not before the asynchronous
       // keyboard dismissal. A saved display filter must not hide its target.
-      _rangeBlock = CommandBlock.fromJson(
-        c.request({'id': widget.id, 'offset': 0, 'limit': 1})?['block'],
-      );
+      _rangeBlock = c.readRange(widget.id, widget.initialRange!, limit: 1);
       _displayFilter = _useSavedFilter && c.filtering.contains(widget.id)
           ? c.appliedFilter(widget.id)?.toJson().toString() ?? ''
           : null;
@@ -491,7 +498,10 @@ class _CommandBlockReaderState extends State<_CommandBlockReader> {
     final nextBase = _sourceBase(_block);
     final oldFindIndex = _find.activeRow;
     if (saved != null &&
-        (previousBase != nextBase || oldFilter != _displayFilter)) {
+        (previousBase != nextBase ||
+            oldFilter != _displayFilter ||
+            (_block?.segmented == true &&
+                old?.totalLines != _block?.totalLines))) {
       _restoringPosition = true;
       if (!_followTail && _scroll.hasClients && _lineCount > 0) {
         _scroll.correctBy(
@@ -525,9 +535,7 @@ class _CommandBlockReaderState extends State<_CommandBlockReader> {
           !_rangeUnavailable) {
         final row = _initialRow;
         if (row != null) {
-          _restoreRow(
-            _filtered ? _matchingOffset(row.toInt()).toDouble() : row,
-          );
+          _restoreRow(row);
         }
       }
       _saveReadingState();
@@ -672,6 +680,8 @@ class _CommandBlockReaderState extends State<_CommandBlockReader> {
             lines: rows,
             hyperlinks: links,
             totalLines: rows.length,
+            sourceLineCount: source.sourceLineCount,
+            segmented: source.segmented,
             matchingLines: rows.length,
           );
   }
@@ -852,7 +862,7 @@ class _CommandBlockReaderState extends State<_CommandBlockReader> {
         _cell?.height ?? scale.scale(widget.font.size) * widget.font.lineHeight;
     final width = _cell?.width ?? scale.scale(widget.font.size) * .61;
     _gutterWidth =
-        ((_block?.totalLines ?? 0) + _lineNumberOffset).toString().length *
+        ((_block?.sourceLineCount ?? 0) + _lineNumberOffset).toString().length *
             width +
         24;
     final textSize = tokens.resultStyle.fontSize ?? 14;

@@ -22,6 +22,8 @@ impl Grid {
             return;
         }
 
+        self.invalidate_segmented_output_rows(top, bottom);
+
         self.damage.mark_full_repaint("rectangle_operation");
 
         for row in top..=bottom {
@@ -60,6 +62,8 @@ impl Grid {
         }
         let dst_bottom = (dst_top + height - 1).min(self.rows - 1);
         let dst_right = (dst_left + width - 1).min(self.cols - 1);
+
+        self.invalidate_segmented_output_rows(dst_top, dst_bottom);
 
         self.damage.mark_full_repaint("rectangle_operation");
 

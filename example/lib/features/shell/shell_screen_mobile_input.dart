@@ -21,13 +21,24 @@ extension _ShellScreenMobileInput on _ShellScreenState {
         activeSessionId == null) {
       return null;
     }
-    return !keyboardVisible
+    final exited =
+        _paneForSession(_sessionState, activeSessionId)?.isExited == true;
+    return !keyboardVisible || exited
         ? _MobileTerminalToolbar(
-            onKeyboard: () => _focusSession(activeSessionId),
+            onKeyboard: exited ? null : () => _focusSession(activeSessionId),
             onSearch: _openSearch,
             onReplay: () => unawaited(_openRecordingLibrary()),
             onRecording:
-                _sessionState.recordingBusySessionIds.contains(activeSessionId)
+                _sessionState.recordingBusySessionIds.contains(
+                      activeSessionId,
+                    ) ||
+                    (exited &&
+                        !_sessionState.recordingPendingSaveSessionIds.contains(
+                          activeSessionId,
+                        ) &&
+                        !_sessionState.recordingSessionIds.contains(
+                          activeSessionId,
+                        ))
                 ? null
                 : () => unawaited(
                     _toggleActiveSessionRecording(

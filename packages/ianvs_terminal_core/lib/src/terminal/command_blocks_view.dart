@@ -1059,9 +1059,11 @@ class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
     key: ValueKey('block-terminal-${block.id}'),
     block: block,
     font: widget.font,
-    liveInput: block.running ? widget.liveInput : null,
-    liveFocus: block.running ? widget.liveFocus : null,
-    modes: block.running ? widget.liveModes : TerminalFrameModes.empty,
+    liveInput: block.running && !block.suspended ? widget.liveInput : null,
+    liveFocus: block.running && !block.suspended ? widget.liveFocus : null,
+    modes: block.running && !block.suspended
+        ? widget.liveModes
+        : TerminalFrameModes.empty,
     onMeasuredCellSizeChanged: (size) {
       widget.onMeasuredCellSizeChanged?.call(size);
       if (mounted && _cellHeight != size.height) {

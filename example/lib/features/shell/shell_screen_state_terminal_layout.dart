@@ -468,6 +468,10 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
           return const SizedBox.shrink();
         }
         final dropTarget = _dropTargetForPane(sessionId);
+        final compactDisconnected =
+            pane.isExited &&
+            context.usesMobileNavigation &&
+            constraints.maxHeight < 280;
         final paneHeader = showsPaneHeader
             ? Consumer(
                 builder: (context, ref, _) {
@@ -602,6 +606,35 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                       child: Column(
                         children: [
                           ?paneHeader,
+                          if (pane.isExited && context.usesMobileNavigation)
+                            ConstrainedBox(
+                              constraints: BoxConstraints(
+                                maxHeight:
+                                    constraints.maxHeight *
+                                    (compactDisconnected ? .7 : .45),
+                              ),
+                              child: SingleChildScrollView(
+                                child: MobileDisconnectedSessionNotice(
+                                  key: Key(
+                                    'mobile-disconnected-notice-$sessionId',
+                                  ),
+                                  sessionId: sessionId,
+                                  compact: compactDisconnected,
+                                  exitCode: pane.exitCode,
+                                  reconnected:
+                                      sessionState.liveReconnectionFor(
+                                        sessionId,
+                                      ) !=
+                                      null,
+                                  onReconnect:
+                                      pane.profileSnapshot?.isSsh == true
+                                      ? () => unawaited(
+                                          _reconnectMobileSession(sessionId),
+                                        )
+                                      : null,
+                                ),
+                              ),
+                            ),
                           Expanded(
                             child: LayoutBuilder(
                               builder: (context, terminalConstraints) {
@@ -1003,7 +1036,7 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                                 ),
                               ),
                             ),
-                          ?mobileControls,
+                          if (!compactDisconnected) ?mobileControls,
                         ],
                       ),
                     ),

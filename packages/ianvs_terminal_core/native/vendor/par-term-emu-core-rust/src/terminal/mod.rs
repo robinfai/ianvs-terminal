@@ -4541,6 +4541,7 @@ impl Terminal {
         right: usize,
         ch: char,
     ) {
+        self.active_grid_mut().invalidate_segmented_output_rows(top, bottom);
         let mut cell = Cell::new(ch);
         cell.fg = self.fg;
         cell.bg = self.bg;

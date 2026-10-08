@@ -417,6 +417,58 @@ void main() {
   );
 
   test(
+    'reselecting retained evidence replaces its evicted version and detects later eviction',
+    () async {
+      controller.attachContext(source);
+      terminal.sourceBase = 180;
+      api.respond = (n) async => n.isOdd
+          ? AiReply(
+              text: 'Inspect the latest selected evidence.',
+              action: rangeAction('block-7', start: 10, count: 25),
+            )
+          : const AiReply(text: 'Retained output inspected.');
+      Map<String, Object?> result() =>
+          jsonDecode(
+                api.requests.last.lastWhere(
+                      (message) => message['role'] == 'tool',
+                    )['content']!
+                    as String,
+              )
+              as Map<String, Object?>;
+
+      await controller.ask('Read the earlier failure');
+      expect(result()['error'], 'block_range_evicted');
+
+      controller.attachContext(
+        const AiBlockContext(
+          id: 'block-7',
+          command: 'make',
+          output: 'fresh selected evidence',
+          exitCode: 1,
+          cwd: '/tmp',
+          sourceSessionId: 'one',
+          sourceContextId: 'root',
+          sourceLineBase: 180,
+          outputStartLine: 10,
+          outputEndLine: 35,
+          totalLines: 480,
+        ),
+      );
+      await controller.ask('Use this fresh selection and inspect lines 11–35');
+      expect(result()['error'], isNull);
+      final selected = result()['block']! as Map<String, Object?>;
+      expect(selected['source_line_base'], 180);
+      expect(selected['output'], 'earlier evidence');
+
+      terminal.sourceBase = 240;
+      await controller.ask('Read the selected range again');
+      expect(result()['error'], 'block_range_evicted');
+      expect(terminal.reads, hasLength(3));
+      expect(terminal.writes, isEmpty);
+    },
+  );
+
+  test(
     'read block cannot discover unrelated or cross-session evidence by guessed id',
     () async {
       api.respond = (n) async => n == 1

@@ -518,7 +518,7 @@ class SessionController extends Notifier<SessionState> {
   Future<void> _layoutSaveChain = Future<void>.value();
   bool _isShuttingDown = false;
   bool _terminalConfigRepairAvailable = false;
-  ({String profileId, String message})? _lastSshExitFailure;
+  ({String sessionId, String profileId, String message})? _lastSshExitFailure;
 
   TerminalAppPreferencesDocument get _appPreferences =>
       _appPreferencesDocument.value;
@@ -1228,7 +1228,22 @@ class SessionController extends Notifier<SessionState> {
         (!editedProfile.isSsh || editedProfile.id != profile!.id)) {
       return null;
     }
-    return createSession(editedProfile ?? profile!);
+    final existing = state.liveReconnectionFor(sessionId);
+    if (existing != null) {
+      activateSession(existing);
+      return existing;
+    }
+    final latest = state.latestReconnectionFor(sessionId);
+    if (latest != sessionId) {
+      return reconnectSession(latest, editedProfile: editedProfile);
+    }
+    final next = createSession(editedProfile ?? profile!);
+    if (next != null) {
+      state = state.copyWith(
+        reconnectionTargets: {...state.reconnectionTargets, sessionId: next},
+      );
+    }
+    return next;
   }
 
   void splitActiveSession(TerminalProfile profile, TerminalSplitAxis axis) {
@@ -3085,7 +3100,11 @@ class SessionController extends Notifier<SessionState> {
     final demoFixture = ref.read(sessionDemoFixtureProvider);
     if (demoFixture == null) {
       final closedPaneIds = <String>[];
-      for (final pane in closingTab.effectivePanes) {
+      final closingPanes = {
+        for (final pane in closingTab.effectivePanes) pane.sessionId: pane,
+      };
+      for (final id in state.sessionIdsInCloseOrder(closingPanes.keys)) {
+        final pane = closingPanes[id]!;
         if (_isShuttingDown) {
           return false;
         }
@@ -3444,6 +3463,7 @@ class SessionController extends Notifier<SessionState> {
         if (sshExitError != null) {
           if (failedProfileId != null) {
             _lastSshExitFailure = (
+              sessionId: event.sessionId,
               profileId: failedProfileId,
               message: sshExitError,
             );
@@ -3613,6 +3633,15 @@ class SessionController extends Notifier<SessionState> {
     }
     _lastSshExitFailure = null;
     state = state.copyWith(lastError: null);
+  }
+
+  void _clearRemovedSshExitFailure(String sessionId) {
+    final failure = _lastSshExitFailure;
+    if (failure?.sessionId != sessionId) return;
+    _lastSshExitFailure = null;
+    if (state.lastError == failure!.message) {
+      state = state.copyWith(lastError: null);
+    }
   }
 
   TerminalProfile? _profileForPane(TerminalPane? pane) {
@@ -5275,6 +5304,7 @@ class SessionController extends Notifier<SessionState> {
       _syncRuntimeSessionActivation();
     }
 
+    _clearRemovedSshExitFailure(sessionId);
     final demoFixture = ref.read(sessionDemoFixtureProvider);
     if (demoFixture != null) {
       _demoViewports.remove(sessionId)?.dispose();
@@ -5338,6 +5368,9 @@ class SessionController extends Notifier<SessionState> {
       tabs: nextTabs,
       activeSessionId: nextActiveSessionId,
     );
+    for (final pane in closingTab.effectivePanes) {
+      _clearRemovedSshExitFailure(pane.sessionId);
+    }
     _syncRuntimeSessionActivation();
   }
 

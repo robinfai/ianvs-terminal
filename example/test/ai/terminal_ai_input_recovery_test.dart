@@ -112,6 +112,7 @@ class _Runtime extends Fake implements TerminalRuntimeController {
 class _Agent implements AgentBackend {
   final prompts = <Map<String, Object?>>[];
   final firstFinished = Completer<void>();
+  Completer<void>? disconnect;
   Map<String, Object?>? originalResult;
   Map<String, Object?>? inspectedResult;
   @override
@@ -130,15 +131,30 @@ class _Agent implements AgentBackend {
     }
     try {
       final observed = await tools('get_terminal_state', {});
-      originalResult = await tools('send_keys', {
-        ...((jsonDecode(
-                  (_keys.rawCall['function']! as Map)['arguments']! as String,
-                ))
-                as Map)
-            .cast<String, Object?>(),
-        'operation_id': 'keys-original',
-        'context_version': observed['context_version'],
-      });
+      final operation =
+          tools('send_keys', {
+            ...((jsonDecode(
+                      (_keys.rawCall['function']! as Map)['arguments']!
+                          as String,
+                    ))
+                    as Map)
+                .cast<String, Object?>(),
+            'operation_id': 'keys-original',
+            'context_version': observed['context_version'],
+          }).then((result) {
+            originalResult = result;
+            return result;
+          });
+      if (disconnect case final failure?) {
+        await Future.any([
+          operation,
+          failure.future.then<Map<String, Object?>>(
+            (_) => throw const AiFailure('acp_disconnected'),
+          ),
+        ]);
+      } else {
+        await operation;
+      }
       cancellation.check();
     } finally {
       firstFinished.complete();
@@ -400,6 +416,57 @@ void main() {
         expect(agent.prompts, hasLength(2));
         expect(
           (agent.inspectedResult!['input_progress']! as Map)['sent_count'],
+          1,
+        );
+        expect(runtime.writes, ['\x1b']);
+        expect(controller.phase, AiPhase.idle);
+      },
+    );
+
+    test(
+      'ACP failure between key writes cancels the remaining input before closing',
+      () async {
+        await settings.save(
+          const AiConfiguration.acp(agentCommand: '/fixture'),
+        );
+        agent.disconnect = Completer<void>();
+        final firstInput = Completer<void>();
+        runtime.onInput = firstInput.complete;
+        await controller.ask('Inspect application status');
+        final approval = controller.approve();
+        await firstInput.future;
+        agent.disconnect!.complete();
+        await agent.firstFinished.future;
+        await approval;
+
+        final entry = controller.transcript.singleWhere(
+          (entry) => entry.action != null,
+        );
+        expect(controller.phase, AiPhase.failed);
+        expect(controller.error, 'acp_disconnected');
+        expect(entry.state, AiEntryState.interrupted);
+        expect(entry.inputProgress?.sent, 1);
+        expect(entry.inputProgress?.total, 3);
+        expect(entry.inputProgress?.writeUncertain, isFalse);
+        expect(runtime.writes, ['\x1b']);
+        expect(runtime.submissions, 0);
+        expect(controller.hasUnresolvedSubmission, isFalse);
+        expect(controller.canResume, isTrue);
+        expect(
+          (agent.originalResult!['input_progress']!
+              as Map<String, Object?>)['sent_count'],
+          1,
+        );
+
+        controller.takeOver(); // Closing the failed task cannot restart it.
+        expect(agent.prompts, hasLength(1));
+        expect(controller.takenOver, isTrue);
+        runtime.screen = 'fresh screen after adapter failure';
+        await controller.resume();
+        expect(agent.prompts, hasLength(2));
+        expect(
+          (agent.inspectedResult!['input_progress']!
+              as Map<String, Object?>)['sent_count'],
           1,
         );
         expect(runtime.writes, ['\x1b']);

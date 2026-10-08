@@ -151,6 +151,105 @@ fn nested_zsh_long_literal_payload_has_accepted_receipt_and_command_block() {
     verify_long_literal_payload(true);
 }
 
+#[test]
+fn nested_zsh_exit_restores_parent_lifecycle_and_suffix_output() {
+    for (parent_command, expected_code, expected_output) in [
+        ("zsh", 7, vec![]),
+        (
+            "printf 'BEFORE\\n'; zsh; printf 'AFTER\\n'",
+            0,
+            vec!["BEFORE", "AFTER"],
+        ),
+    ] {
+        let home = tempfile::tempdir().unwrap();
+        std::fs::write(
+            home.path().join(".zshrc"),
+            "PROMPT='nested> '\nRPROMPT=''\n",
+        )
+        .unwrap();
+        let mut config = config();
+        config["config"]["launch"] = json!({"program":"/bin/zsh","args":[],
+            "cwd":home.path(), "env":{"HOME":home.path(),"ZDOTDIR":home.path(),"LANG":"en_US.UTF-8"}});
+        let session = Session(session::create_session_v1(&config.to_string()).unwrap());
+        let mut state = wait_ready(session.0, None);
+        assert_eq!(
+            request(
+                session.0,
+                "composer.submit",
+                json!({"lease":state["lease"],"submissionId":"parent","text":parent_command})
+            )["payload"]["outcome"],
+            "pending"
+        );
+        state = wait_ready(session.0, state["lease"].as_str());
+        let child_context = state["contextId"].clone();
+        assert_ne!(child_context, "root");
+        let active = request(
+            session.0,
+            "composer.receipt",
+            json!({"submissionId":"parent"}),
+        );
+        assert_eq!(active["payload"]["outcome"], "accepted", "{active}");
+        assert_eq!(active["payload"]["running"], true, "{active}");
+        assert_eq!(active["payload"]["exitCode"], Value::Null);
+        let parent_id = active["payload"]["blockId"].clone();
+        assert!(parent_id.is_string());
+        for (submission, command) in [("child", "printf 'CHILD\\n'"), ("leave", "exit 7")] {
+            assert_eq!(
+                request(
+                    session.0,
+                    "composer.submit",
+                    json!({"lease":state["lease"],"submissionId":submission,"text":command})
+                )["payload"]["outcome"],
+                "pending"
+            );
+            state = wait_ready(session.0, state["lease"].as_str());
+        }
+        assert_eq!(state["contextId"], "root");
+        let receipt = request(
+            session.0,
+            "composer.receipt",
+            json!({"submissionId":"parent"}),
+        );
+        assert_eq!(receipt["payload"]["blockId"], parent_id);
+        assert_eq!(receipt["payload"]["running"], false, "{receipt}");
+        assert_eq!(receipt["payload"]["exitCode"], expected_code, "{receipt}");
+        let exit = request(
+            session.0,
+            "composer.receipt",
+            json!({"submissionId":"leave"}),
+        );
+        assert_eq!(exit["payload"]["outcome"], "accepted", "{exit}");
+        assert_eq!(exit["payload"]["running"], false, "{exit}");
+        assert_eq!(exit["payload"]["exitCode"], 7, "{exit}");
+        let all = request(session.0, "terminal.command_blocks", json!({}));
+        let blocks = all["payload"]["blocks"].as_array().unwrap();
+        for submission in ["parent", "child", "leave"] {
+            assert_eq!(
+                blocks
+                    .iter()
+                    .filter(|b| b["submissionId"] == submission)
+                    .count(),
+                1,
+                "{all}"
+            );
+        }
+        let parent = blocks.iter().find(|b| b["id"] == parent_id).unwrap();
+        let output: Vec<_> = parent["lines"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|r| r["text"].as_str().unwrap())
+            .collect();
+        assert_eq!(output, expected_output, "{parent}");
+        let leave = blocks
+            .iter()
+            .find(|b| b["id"] == exit["payload"]["blockId"])
+            .unwrap();
+        assert_eq!(leave["contextId"], child_context);
+        assert_eq!(leave["lines"], json!([]), "{leave}");
+    }
+}
+
 fn verify_long_literal_payload(nested: bool) {
     let home = tempfile::tempdir().unwrap();
     std::fs::write(home.path().join(".zshrc"), "PROMPT='long> '\nRPROMPT=''\n").unwrap();

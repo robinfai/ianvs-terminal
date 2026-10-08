@@ -161,6 +161,8 @@ class _AiTask {
   final agentOperations = <String, ({String input, AiAction action})>{};
   final agentResults = <String, Map<String, Object?>>{};
   final agentEvidence = <AiEvidenceRange>{};
+  final suppliedMessages = Set<Map<String, Object?>>.identity();
+  final suppliedSourceBases = <(String, String), int?>{};
   bool agentToolBusy = false;
   bool configurationRetired = false;
 }
@@ -901,6 +903,7 @@ class TerminalAiController extends ChangeNotifier {
           displayText ?? prompt,
           id: 'entry-${++_entrySerial}',
           contexts: attached,
+          target: fresh,
         ),
       );
       if (settings.configuration!.backend == AiBackendKind.acp) {
@@ -940,6 +943,13 @@ class TerminalAiController extends ChangeNotifier {
       final configuration = settings.configuration;
       if (configuration == null) throw const AiFailure('configuration');
       final inferenceContext = context;
+      // Compaction only deduplicates equivalent observations or references
+      // their earlier snapshots. Remember the original message identities so
+      // replaying history after reconnect cannot rebind unscoped old evidence.
+      _rememberSuppliedEvidence(
+        _messages,
+        sessionId: inferenceContext?.sessionId ?? '',
+      );
       final AiReply reply;
       try {
         reply = await api.complete(configuration, [
@@ -1050,12 +1060,14 @@ class TerminalAiController extends ChangeNotifier {
     final reader = terminal;
     final allowed = <String>{
       ?context?.lastBlock?.id,
+      for (final source in _task.suppliedSourceBases.keys)
+        if (source.$1 == expected?.sessionId) source.$2,
       for (final entry in _transcript) ...[
-        ?entry.blockId,
+        if (entry.target?.sessionId == expected?.sessionId) ?entry.blockId,
         for (final block in entry.contexts)
           if (block.id case final id?
-              when block.sourceSessionId == null ||
-                  block.sourceSessionId == expected?.sessionId)
+              when (block.sourceSessionId ?? entry.target?.sessionId) ==
+                  expected?.sessionId)
             id,
       ],
     };
@@ -1071,17 +1083,9 @@ class TerminalAiController extends ChangeNotifier {
     try {
       // A line number belongs to the retained-output version the model saw.
       // Eviction must not silently make that number refer to different bytes.
-      final supplied =
-          <AiBlockContext>[
-            for (final entry in _transcript) ...entry.contexts,
-            ?context?.lastBlock,
-          ].where(
-            (block) =>
-                block.id == action.blockId &&
-                (block.sourceSessionId == null ||
-                    block.sourceSessionId == expected.sessionId),
-          );
-      final sourceBase = supplied.firstOrNull?.sourceLineBase;
+      // Live UI context is not necessarily evidence already sent to the model.
+      final sourceBase =
+          _task.suppliedSourceBases[(expected.sessionId, action.blockId!)];
       final block = await (reader as AiBlockReader).readBlockRange(
         action.blockId!,
         startLine: action.startLine,
@@ -1100,6 +1104,25 @@ class TerminalAiController extends ChangeNotifier {
     } on AiFailure catch (failure) {
       cancellation.check();
       return {'error': failure.code};
+    }
+  }
+
+  void _rememberSuppliedEvidence(
+    Iterable<Map<String, Object?>> messages, {
+    required String sessionId,
+  }) {
+    for (final message in messages) {
+      if (!_task.suppliedMessages.add(message)) continue;
+      for (final evidence in suppliedAiEvidence([
+        message,
+      ], sessionId: sessionId)) {
+        // Legacy/unmapped output cannot discard a known source identity.
+        final key = (evidence.sessionId, evidence.id);
+        if (evidence.sourceLineBase != null ||
+            !_task.suppliedSourceBases.containsKey(key)) {
+          _task.suppliedSourceBases[key] = evidence.sourceLineBase;
+        }
+      }
     }
   }
 
@@ -1347,6 +1370,9 @@ class TerminalAiController extends ChangeNotifier {
           'approved_action': action.rawCall,
           ..._agentObservation(),
         };
+        _rememberSuppliedEvidence([
+          _toolResult(action, observation),
+        ], sessionId: fresh.sessionId);
         reply.complete(observation);
         _emit();
         if (nextEvent != null) {
@@ -1434,10 +1460,22 @@ class TerminalAiController extends ChangeNotifier {
   }
 
   void takeOver() {
-    if (_disposed || (!busy && pending == null)) return;
+    if (_disposed || (!busy && pending == null && _executingAction == null)) {
+      return;
+    }
     _cancellation?.cancel();
     _interruptCancellation?.cancel();
     _resolvePending('The user took over. Stop sending terminal input.');
+    _interruptExecuting(
+      'Input may have been submitted before pause. Inspect before continuing.',
+    );
+    phase = AiPhase.idle;
+    takenOver = true;
+    error = null;
+    _emit();
+  }
+
+  void _interruptExecuting(String reason) {
     if (_executingAction case final AiAction action) {
       final progress = _keyInputProgressFor(action);
       _updateActionEntry(
@@ -1445,16 +1483,11 @@ class TerminalAiController extends ChangeNotifier {
         progress == null ? AiEntryState.unknown : _keyInputState(progress),
         submissionId: _submissionFor(action),
         inputProgress: progress,
-        reason:
-            'Input may have been submitted before pause. Inspect before continuing.',
+        reason: reason,
       );
       _messages.add(_toolResult(action, _interruptedInputResult(action)));
       _executingAction = null;
     }
-    phase = AiPhase.idle;
-    takenOver = true;
-    error = null;
-    _emit();
   }
 
   void _fail(Object failure, AiCancellation cancellation) {
@@ -1462,6 +1495,15 @@ class TerminalAiController extends ChangeNotifier {
         cancellation != _cancellation ||
         cancellation.isCancelled) {
       return;
+    }
+    // Stop the shared execution token too: an ACP failure can arrive between
+    // key writes or while an approved command is still being observed.
+    cancellation.cancel();
+    if (_executingAction != null) {
+      _interruptExecuting(
+        'Input observation failed. Inspect before continuing.',
+      );
+      takenOver = true;
     }
     _recordFailure(failure);
     _resolvePending('Observation failed. No additional input was sent.');

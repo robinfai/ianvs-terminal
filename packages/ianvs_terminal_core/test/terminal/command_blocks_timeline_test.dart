@@ -607,7 +607,9 @@ void main() {
           attached!.lines.map((row) => row.sourceRow),
           matches.map((i) => 1000 + i),
         );
-        expect(attached!.offset, 126);
+        // Offsets address the filtered output sequence; the original physical
+        // source indices remain on each attached row, including any gaps.
+        expect(attached!.offset, 0);
         expect(attached!.totalLines, 1600);
         expect(
           attached!.visibleOutput,

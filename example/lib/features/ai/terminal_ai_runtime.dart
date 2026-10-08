@@ -24,7 +24,11 @@ class TerminalAiRuntime
     _subscription = runtime.inputEvents
         .where((event) => event.sessionId == sessionId)
         .listen((event) {
-          if (identical(event.origin, this)) return;
+          if (event.isProtocolInput ||
+              event.bytes.isEmpty ||
+              identical(event.origin, this)) {
+            return;
+          }
           _manualInputEpoch++;
           _userInput.add(null);
         });
@@ -103,7 +107,7 @@ class TerminalAiRuntime
           ? null
           : first!.sourceRow! - first.index,
       running: detail.running,
-      totalLines: detail.totalLines,
+      totalLines: detail.sourceLineCount,
       outputStartLine: first?.index ?? detail.offset,
       outputEndLine: detail.lines.isEmpty
           ? detail.offset
@@ -151,11 +155,37 @@ class TerminalAiRuntime
     final response = runtime.commandBlocks(sessionId, {
       'id': blockId,
       'offset': startLine,
+      // Nested shells leave gaps in their parent's source rows. A source
+      // line is not necessarily the ordinal used by output pagination.
+      'sourceLine': startLine,
       'limit': lineCount,
     });
     final block = CommandBlock.fromJson(response?['block']);
-    if (block == null) throw const AiFailure('block_unavailable');
-    return _blockContext(block);
+    if (block == null || block.lines.firstOrNull?.index != startLine) {
+      throw const AiFailure('block_unavailable');
+    }
+    // line_count bounds the requested source range, including any omitted
+    // child rows. Do not turn a short range into a later parent's suffix.
+    final lines = block.lines
+        .takeWhile((line) => line.index < startLine + lineCount)
+        .toList(growable: false);
+    return _blockContext(
+      CommandBlock(
+        id: block.id,
+        command: block.command,
+        cwd: block.cwd,
+        exitCode: block.exitCode,
+        contextId: block.contextId,
+        running: block.running,
+        suspended: block.suspended,
+        evicted: block.evicted,
+        totalLines: block.totalLines,
+        sourceLineCount: block.sourceLineCount,
+        segmented: block.segmented,
+        offset: block.offset,
+        lines: lines,
+      ),
+    );
   }
 
   @override

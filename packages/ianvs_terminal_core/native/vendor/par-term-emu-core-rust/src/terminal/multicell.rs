@@ -157,8 +157,13 @@ impl Terminal {
         row: usize,
         character: char,
     ) -> bool {
-        self.active_grid_mut()
-            .append_multicell_text_at(col, row as isize, character)
+        let appended =
+            self.active_grid_mut()
+                .append_multicell_text_at(col, row as isize, character);
+        if appended {
+            self.record_ianvs_output_append(row, col);
+        }
+        appended
     }
 
     pub(crate) fn write_multicell_block(&mut self, text: &str, metadata: MultiCell) {
@@ -242,6 +247,7 @@ impl Terminal {
                     .set(anchor_col + block_x, anchor_row + block_y, cell);
             }
             self.mark_row_dirty(anchor_row + block_y);
+            self.record_ianvs_output_cells(anchor_row + block_y, anchor_col, width);
         }
 
         self.cursor.col = self.cursor.col.saturating_add(width);

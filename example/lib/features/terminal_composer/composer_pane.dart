@@ -195,7 +195,11 @@ final class ComposerPaneSession extends ChangeNotifier {
         ? BlockUnavailableReason.unattributedOutput
         : switch (controller.ownership) {
             ComposerOwnership.ready when controller.readyLease != null => null,
-            ComposerOwnership.running || ComposerOwnership.submitting => null,
+            // An unresolved submission still needs the explicit draft recovery
+            // control. Its receipt lock is not a loss of shell capability.
+            ComposerOwnership.running ||
+            ComposerOwnership.submitting ||
+            ComposerOwnership.unknown => null,
             ComposerOwnership.suspended => BlockUnavailableReason.terminalInput,
             _ => BlockUnavailableReason.unsupportedShell,
           };
