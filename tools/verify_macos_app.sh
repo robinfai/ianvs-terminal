@@ -100,6 +100,10 @@ PROFILE=debug "$ROOT_DIR/tools/build_core.sh"
   flutter build macos --debug
   debug_app="$EXAMPLE_DIR/build/macos/Build/Products/Debug/Trail Development.app"
   codesign --verify --deep --strict "$debug_app"
+  # Flutter re-embeds signed frameworks during incremental builds. The outer
+  # app must be re-sealed when those declared script outputs change.
+  flutter build macos --debug
+  codesign --verify --deep --strict "$debug_app"
   flutter build macos --release
   release_app="$EXAMPLE_DIR/build/macos/Build/Products/Release/Trail.app"
   verify_release_bundle "$release_app"
