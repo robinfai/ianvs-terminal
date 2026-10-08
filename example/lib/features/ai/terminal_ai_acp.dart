@@ -42,7 +42,12 @@ extension _TerminalAiAcp on TerminalAiController {
       final reply = task.agentReply;
       task.agentReply = null;
       if (reply != null && !reply.isCompleted) {
-        reply.complete({'cancelled': true});
+        final action = task.executing;
+        reply.complete(
+          action == null
+              ? {'cancelled': true}
+              : _interruptedInputResult(action),
+        );
       }
       releaseWaiter();
     });
@@ -166,6 +171,15 @@ extension _TerminalAiAcp on TerminalAiController {
       final operation = task.agentOperations[args['operation_id']];
       if (operation == null) {
         return {'state': 'not_submitted', 'submitted': false};
+      }
+      if (_keyInputProgressFor(operation.action) case final progress?) {
+        return {
+          ...?task.agentResults[args['operation_id']],
+          'input_progress': progress.toJson(operation.action),
+          'instruction':
+              'These are the original input delivery counts, not proof of application effects. '
+              'Observe the terminal; do not replay sent keys or automatically send the remaining keys.',
+        };
       }
       final inspector = terminal;
       final submission = _submissionFor(operation.action);

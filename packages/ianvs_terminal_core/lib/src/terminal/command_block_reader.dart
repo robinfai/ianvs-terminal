@@ -790,9 +790,11 @@ class _CommandBlockReaderState extends State<_CommandBlockReader> {
     final page = _page(ordinal ~/ _pageRows);
     final row = ordinal % _pageRows;
     if (page == null || row >= page.lines.length) return null;
+    // The selection's end column is exclusive. Allow the right edge to include
+    // the final cell even when the output fills the entire terminal width.
     final col = ((local.dx - 16 - _gutterWidth) / cell.width).floor().clamp(
       0,
-      page.columns - 1,
+      page.columns,
     );
     final origin = box.localToGlobal(Offset.zero);
     // The pointer remains owned by its starting page during a drag. Resolve

@@ -44,6 +44,22 @@ class AiConfiguration {
   final String apiKey;
   final String model;
 
+  bool hasSameValues(
+    AiConfiguration? other, {
+    bool includeApprovalMode = true,
+  }) =>
+      other != null &&
+      backend == other.backend &&
+      (!includeApprovalMode || approvalMode == other.approvalMode) &&
+      endpoint == other.endpoint &&
+      apiKey == other.apiKey &&
+      model == other.model &&
+      agentCommand == other.agentCommand &&
+      agentArguments.length == other.agentArguments.length &&
+      Iterable<int>.generate(
+        agentArguments.length,
+      ).every((index) => agentArguments[index] == other.agentArguments[index]);
+
   void validate() {
     if (backend == AiBackendKind.llm) {
       completionsUri;
@@ -541,6 +557,33 @@ List<AiEvidenceRange> suppliedAiEvidence(
 }
 
 enum AiActionKind { runCommand, sendKeys, readScreen, readBlock }
+
+/// Input accepted by the existing PTY writer, not proof of application effects.
+/// A failed/in-flight write remains uncertain even if its prefix was accepted.
+class AiKeyInputProgress {
+  const AiKeyInputProgress({
+    required this.sent,
+    required this.total,
+    this.writeUncertain = false,
+  }) : assert(
+         sent >= 0 && sent <= total,
+         'Accepted input count must be between zero and total.',
+       );
+
+  final int sent;
+  final int total;
+  final bool writeUncertain;
+
+  Map<String, Object?> toJson(AiAction action) => {
+    'sent_count': sent,
+    'total_count': total,
+    'write_uncertain': writeUncertain,
+    'sent_keys': [
+      for (final stroke in action.keys.take(sent))
+        if (stroke.key != null) {'key': stroke.key} else {'text': stroke.text},
+    ],
+  };
+}
 
 class AiKeyStroke {
   const AiKeyStroke.text(this.text) : key = null;

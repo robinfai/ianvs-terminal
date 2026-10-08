@@ -51,7 +51,7 @@ extension _TerminalAiApproval on TerminalAiController {
         !identical(pending, action) ||
         task.revision != revision ||
         connectionRevision != _connectionRevision ||
-        !identical(settings.configuration, configuration)) {
+        configuration?.hasSameValues(settings.configuration) != true) {
       return null;
     }
     // Read again after inference: a node/lease/cwd change revokes the proposal,

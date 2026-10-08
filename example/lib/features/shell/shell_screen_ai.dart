@@ -189,6 +189,39 @@ extension _ShellScreenAi on _ShellScreenState {
     _focusSession(sessionId);
   }
 
+  void _reinputAiCommand(String sessionId, String command) {
+    if (!mounted) return;
+    final pane = _paneForSession(
+      ref.read(sessionControllerProvider),
+      sessionId,
+    );
+    if (pane == null) return;
+    final composer = _composerFor(sessionId);
+    composer.updateEnvironment(pane, readOnly: _isSessionReadOnly(sessionId));
+    composer.refreshShellState();
+    if (!composer.selectMode(TerminalViewMode.blocks)) {
+      _showShellSnackBar(
+        blockUnavailableMessage(
+          context.l10n,
+          composer.mode.state.unavailableReason,
+        ),
+      );
+      return;
+    }
+    // Reinput is an explicit request to edit in this session. Reveal the
+    // editor before replacing its draft, without changing the saved preference.
+    composer.controller.editor.value = TextEditingValue(
+      text: command,
+      selection: TextSelection.collapsed(offset: command.length),
+    );
+    _activateSession(
+      ref.read(sessionControllerProvider.notifier),
+      sessionId,
+      requestFocus: false,
+    );
+    _closeAi(sessionId);
+  }
+
   Widget _aiChromeAction(String sessionId) => ListenableBuilder(
     listenable: _aiFor(sessionId),
     builder: (context, _) {
@@ -248,10 +281,7 @@ extension _ShellScreenAi on _ShellScreenState {
                 scroll: scroll,
                 followTail: followTail,
                 font: font,
-                onReinput: (command) {
-                  _composerFor(sessionId).controller.editor.text = command;
-                  _closeAi(sessionId);
-                },
+                onReinput: (command) => _reinputAiCommand(sessionId, command),
                 onOpenLinkTarget: (target) =>
                     unawaited(_openTerminalLinkTarget(sessionId, target)),
               )
@@ -311,8 +341,7 @@ extension _ShellScreenAi on _ShellScreenState {
       font: font,
     );
     if (command != null && mounted) {
-      _composerFor(sessionId).controller.editor.text = command;
-      _closeAi(sessionId);
+      _reinputAiCommand(sessionId, command);
     }
   }
 }

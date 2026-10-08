@@ -10,11 +10,13 @@ import 'command_blocks_test.dart' show block;
 class _Output {
   int base = 1000;
   int lineCount = 400;
+  int columns = 80;
   bool running = false;
   bool sparseFilter = false;
   bool evictOnNextPage = false;
+  String Function(int)? lineText;
   final queries = <Map<String, Object?>>[];
-  String line(int i) => 'row $i · 中文';
+  String line(int i) => lineText?.call(i) ?? 'row $i · 中文';
 
   Map<String, Object?> request(Map<String, Object?> query) {
     queries.add(Map.of(query));
@@ -28,7 +30,7 @@ class _Output {
     if (evictOnNextPage && offset > 0) base++;
     final end = (offset + limit).clamp(0, indices.length);
     final value = {
-      ...block('source', lineCount: 0, running: running),
+      ...block('source', columns: columns, lineCount: 0, running: running),
       'offset': offset,
       'totalLines': lineCount,
       'matchingLines': indices.length,
@@ -136,6 +138,34 @@ void main() {
     return tester.getTopLeft(finder.first) +
         Offset((col + .2) * cell.width, (index + .5) * cell.height);
   }
+
+  testWidgets('reader drag past a full-width final row copies every column', (
+    tester,
+  ) async {
+    const text = 'abcdefghijklmnopqrst';
+    final output = _Output()
+      ..lineCount = 1
+      ..columns = text.length
+      ..lineText = (_) => text;
+    await mount(tester, output);
+
+    final gesture = await tester.startGesture(
+      rowPoint(tester, 0, 0),
+      kind: PointerDeviceKind.mouse,
+    );
+    await gesture.moveTo(rowPoint(tester, 0, text.length + 1));
+    await tester.pump();
+    await gesture.up();
+    await tester.pump();
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyC);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+    await tester.pumpAndSettle();
+
+    expect(clipboard, text);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
 
   for (final phone in [false, true]) {
     for (final reverse in [false, true]) {

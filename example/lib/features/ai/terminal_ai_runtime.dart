@@ -10,7 +10,11 @@ import 'terminal_ai_controller.dart';
 
 /// Bridges the agent to the existing PTY. It never creates a second shell.
 class TerminalAiRuntime
-    implements AiTerminalPort, AiBlockReader, AiSubmissionInspector {
+    implements
+        AiTerminalPort,
+        AiBlockReader,
+        AiSubmissionInspector,
+        AiKeyInputInspector {
   TerminalAiRuntime({
     required this.sessionId,
     required this.runtime,
@@ -34,6 +38,7 @@ class TerminalAiRuntime
   int _manualInputEpoch = 0;
   int _submission = 0;
   final _submissions = <String, String>{};
+  final _keyInputs = Map<AiAction, AiKeyInputProgress>.identity();
   bool _disposed = false;
 
   @override
@@ -113,6 +118,9 @@ class TerminalAiRuntime
 
   @override
   String? submissionFor(String actionId) => _submissions[actionId];
+
+  @override
+  AiKeyInputProgress? keyInputProgress(AiAction action) => _keyInputs[action];
 
   @override
   Future<Map<String, Object?>> inspectSubmission(String id) async =>
@@ -231,6 +239,12 @@ class TerminalAiRuntime
     AiTerminalContext expected,
     AiCancellation cancellation,
   ) async {
+    if (action.kind == AiActionKind.sendKeys) {
+      _keyInputs[action] = AiKeyInputProgress(
+        sent: 0,
+        total: action.keys.length,
+      );
+    }
     cancellation.check();
     if (!action.writesInput) throw const AiFailure('invalid_action');
     final current = await readContext();
@@ -279,20 +293,30 @@ class TerminalAiRuntime
           throw const AiFailure('read_only');
         }
         final screen = runtime.liveScreen(sessionId);
-        if (screen == null ||
-            !runtime.trySendInput(
-              sessionId,
-              Uint8List.fromList(
-                utf8.encode(
-                  stroke.encode(
-                    applicationCursor: screen['applicationCursor'] == true,
-                  ),
-                ),
+        if (screen == null) throw const AiFailure('screen_unavailable');
+        final sent = _keyInputs[action]!.sent;
+        _keyInputs[action] = AiKeyInputProgress(
+          sent: sent,
+          total: action.keys.length,
+          writeUncertain: true,
+        );
+        if (!runtime.trySendInput(
+          sessionId,
+          Uint8List.fromList(
+            utf8.encode(
+              stroke.encode(
+                applicationCursor: screen['applicationCursor'] == true,
               ),
-              origin: this,
-            )) {
+            ),
+          ),
+          origin: this,
+        )) {
           throw const AiFailure('input_rejected');
         }
+        _keyInputs[action] = AiKeyInputProgress(
+          sent: sent + 1,
+          total: action.keys.length,
+        );
         // A lone Esc must expire before the next character. Otherwise TUI
         // decoders such as tcell interpret Esc + ':' as Alt+:, losing the
         // command prompt. Keep checking cancellation between separate writes.
@@ -323,6 +347,8 @@ class TerminalAiRuntime
       'submission_id': ?id,
       if (receipt?['blockId'] != null) 'block_id': receipt!['blockId'],
       'submission_receipt': ?receipt,
+      if (_keyInputs[action] case final progress?)
+        'input_progress': progress.toJson(action),
     };
   }
 

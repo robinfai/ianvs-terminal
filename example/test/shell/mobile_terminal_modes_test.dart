@@ -332,6 +332,149 @@ Future<void> _capture(WidgetTester tester, String name) async {
 
 void main() {
   ConfigurationCaptureBinding();
+  group('AI evidence reinput', () {
+    Future<void> insertEvidence(WidgetTester tester, String sourceId) async {
+      tester
+          .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
+          .onShowEvidence!((
+        id: '1',
+        startLine: 0,
+        endLine: 1,
+        origins: [
+          (
+            id: '1',
+            sessionId: sourceId,
+            first: 0,
+            last: 1,
+            sourceLineBase: 1000,
+          ),
+        ],
+      ));
+      await _settle(tester);
+      expect(find.byKey(const Key('block-reader')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('block-reader-actions')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('放入 Composer 编辑'));
+      await _settle(tester);
+    }
+
+    for (final platform in [TargetPlatform.macOS, TargetPlatform.iOS]) {
+      for (final reconnect in [false, true]) {
+        testWidgets(
+          'reveals and focuses the draft from Normal on ${platform.name} '
+          '(reconnected: $reconnect)',
+          (tester) async {
+            final backend = _MobileBackend()..owner = 'ready';
+            final (:id, :container) = await _pump(
+              tester,
+              backend,
+              platform: platform,
+              size: platform == TargetPlatform.macOS
+                  ? const Size(1200, 800)
+                  : const Size(390, 844),
+              preference: TerminalViewMode.normal,
+            );
+            await tester.tap(find.byKey(Key('terminal-ai-open-$id')));
+            await _settle(tester);
+            final ai = tester
+                .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
+                .controller;
+            ai.setDraft('keep task draft');
+            ai.attachContext(ai.context!.lastBlock!);
+            final taskId = ai.taskId;
+            var targetId = id;
+            if (reconnect) {
+              backend.enqueueEvent(
+                id,
+                PtyEvent(kind: 'exit', sessionId: id, payload: {'code': 255}),
+              );
+              container
+                  .read(terminalRuntimeControllerProvider)
+                  .refreshSession(id);
+              await _settle(tester);
+              await tester.ensureVisible(
+                find.byKey(const Key('ai-reconnect-terminal')),
+              );
+              await tester.tap(find.byKey(const Key('ai-reconnect-terminal')));
+              await _settle(tester);
+              targetId = container
+                  .read(sessionControllerProvider)
+                  .activeSessionId!;
+              expect(targetId, isNot(id));
+            }
+            final writes = backend.writes.length;
+            await insertEvidence(tester, id);
+
+            final state = container.read(sessionControllerProvider);
+            final pane = state.tabs
+                .expand((tab) => tab.effectivePanes)
+                .singleWhere((pane) => pane.sessionId == targetId);
+            expect(pane.terminalMode.mode, TerminalViewMode.blocks);
+            expect(state.preferredTerminalMode, TerminalViewMode.normal);
+            expect(state.activeSessionId, targetId);
+            expect(find.byType(TerminalAiWorkspace), findsNothing);
+            final editor = tester.widget<TextField>(
+              find.byKey(const Key('composer-editor')),
+            );
+            expect(editor.controller!.text, 'uname -a');
+            expect(
+              editor.controller!.selection,
+              const TextSelection.collapsed(offset: 8),
+            );
+            expect(editor.focusNode!.hasFocus, true);
+            expect(ai.taskId, taskId);
+            expect(ai.draft, 'keep task draft');
+            expect(backend.writes, hasLength(writes));
+            expect(backend.submissions, isEmpty);
+            expect(tester.takeException(), isNull);
+            await tester.pumpWidget(const SizedBox.shrink());
+            debugDefaultTargetPlatformOverride = null;
+          },
+        );
+      }
+    }
+
+    testWidgets('keeps both drafts when the editor is unavailable', (
+      tester,
+    ) async {
+      final backend = _MobileBackend()..owner = 'ready';
+      final (:id, :container) = await _pump(tester, backend);
+      await tester.enterText(
+        find.byKey(const Key('composer-editor')),
+        'original command draft',
+      );
+      await tester.tap(find.byKey(Key('terminal-ai-open-$id')));
+      await _settle(tester);
+      final ai = tester
+          .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
+          .controller;
+      ai.setDraft('keep task draft');
+      backend.owner = 'draft';
+      await _settle(tester);
+      await insertEvidence(tester, id);
+
+      expect(_mode(container).mode, TerminalViewMode.normal);
+      expect(find.byType(TerminalAiWorkspace), findsOneWidget);
+      expect(ai.draft, 'keep task draft');
+      expect(find.text('当前 Shell 不支持命令块。'), findsWidgets);
+      backend.owner = 'ready';
+      await _settle(tester);
+      await _choose(tester, id, TerminalViewMode.blocks);
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const Key('composer-editor')))
+            .controller!
+            .text,
+        'original command draft',
+      );
+      expect(backend.writes, isEmpty);
+      expect(backend.submissions, isEmpty);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      debugDefaultTargetPlatformOverride = null;
+    });
+  });
+
   for (final platform in [TargetPlatform.macOS, TargetPlatform.iOS]) {
     for (final targetMode in TerminalViewMode.values) {
       testWidgets(

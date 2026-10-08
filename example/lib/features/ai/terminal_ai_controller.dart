@@ -46,6 +46,10 @@ abstract interface class AiSubmissionInspector {
   Future<Map<String, Object?>> inspectSubmission(String id);
 }
 
+abstract interface class AiKeyInputInspector {
+  AiKeyInputProgress? keyInputProgress(AiAction action);
+}
+
 abstract interface class AiConnectionSources {
   Set<String> get sourceSessionIds;
 }
@@ -72,6 +76,7 @@ enum AiEntryState {
   proposed,
   submitted,
   accepted,
+  interrupted,
   unknown,
   rejected,
   revoked,
@@ -92,6 +97,7 @@ class AiTranscriptEntry {
     this.statusReason,
     this.suppliedEvidence,
     this.approvalReview,
+    this.inputProgress,
   });
   final String id;
   final String role;
@@ -106,6 +112,7 @@ class AiTranscriptEntry {
   final String? statusReason;
   final List<AiEvidenceRange>? suppliedEvidence;
   final AiApprovalReview? approvalReview;
+  final AiKeyInputProgress? inputProgress;
 }
 
 @immutable
@@ -585,15 +592,11 @@ class TerminalAiController extends ChangeNotifier {
   void _configurationChanged() {
     final previous = _lastConfiguration;
     final next = settings.configuration;
-    if (jsonEncode(previous?.toJson()) == jsonEncode(next?.toJson())) return;
     _lastConfiguration = next;
+    if (previous?.hasSameValues(next) ?? next == null) return;
     // Policy changes revoke in-flight permission without losing the agent's
     // conversation or pretending its endpoint/model changed.
-    final previousConnection = previous?.toJson();
-    final nextConnection = next?.toJson();
-    previousConnection?.remove('approvalMode');
-    nextConnection?.remove('approvalMode');
-    if (jsonEncode(previousConnection) == jsonEncode(nextConnection)) {
+    if (previous?.hasSameValues(next, includeApprovalMode: false) ?? false) {
       if (busy || pending != null) takeOver();
       _emit();
       return;
@@ -692,11 +695,35 @@ class TerminalAiController extends ChangeNotifier {
 
   Future<void> _reconcileReceipts(_AiTask task) async {
     final port = terminal;
-    if (port is! AiSubmissionInspector) return;
-    final inspector = port as AiSubmissionInspector;
+    final inspector = port is AiSubmissionInspector
+        ? port as AiSubmissionInspector
+        : null;
     for (var i = 0; i < task.transcript.length; i++) {
       final entry = task.transcript[i];
-      if (entry.submissionId == null ||
+      final progress = entry.action == null
+          ? null
+          : _keyInputProgressFor(entry.action!);
+      if (entry.state == AiEntryState.unknown &&
+          progress != null &&
+          !progress.writeUncertain) {
+        task.transcript[i] = AiTranscriptEntry(
+          entry.role,
+          entry.text,
+          id: entry.id,
+          contexts: entry.contexts,
+          action: entry.action,
+          target: entry.target,
+          state: _keyInputState(progress),
+          revision: entry.revision,
+          approvalReview: entry.approvalReview,
+          inputProgress: progress,
+          statusReason: entry.statusReason,
+          suppliedEvidence: entry.suppliedEvidence,
+        );
+        continue;
+      }
+      if (inspector == null ||
+          entry.submissionId == null ||
           entry.blockId != null ||
           (entry.state != AiEntryState.unknown &&
               entry.state != AiEntryState.accepted)) {
@@ -728,6 +755,7 @@ class TerminalAiController extends ChangeNotifier {
         state: state,
         revision: entry.revision,
         approvalReview: entry.approvalReview,
+        inputProgress: entry.inputProgress,
         submissionId: entry.submissionId,
         blockId: receipt['blockId'] as String?,
         statusReason: state == AiEntryState.unknown ? entry.statusReason : null,
@@ -735,9 +763,43 @@ class TerminalAiController extends ChangeNotifier {
     }
   }
 
-  String? _submissionFor(AiAction action) => terminal is AiSubmissionInspector
+  String? _submissionFor(AiAction action) =>
+      action.kind == AiActionKind.runCommand &&
+          terminal is AiSubmissionInspector
       ? (terminal as AiSubmissionInspector).submissionFor(action.id)
       : null;
+
+  AiKeyInputProgress? _keyInputProgressFor(AiAction action) =>
+      action.kind == AiActionKind.sendKeys && terminal is AiKeyInputInspector
+      ? (terminal as AiKeyInputInspector).keyInputProgress(action)
+      : null;
+
+  AiEntryState _keyInputState(AiKeyInputProgress progress) =>
+      progress.writeUncertain
+      ? AiEntryState.unknown
+      : progress.sent == 0
+      ? AiEntryState.revoked
+      : progress.sent == progress.total
+      ? AiEntryState.accepted
+      : AiEntryState.interrupted;
+
+  Map<String, Object?> _interruptedInputResult(
+    AiAction action, {
+    String? error,
+  }) {
+    final progress = _keyInputProgressFor(action);
+    return {
+      'interrupted': true,
+      'error': ?error,
+      if (progress != null) 'input_progress': progress.toJson(action),
+      'instruction': progress != null && !progress.writeUncertain
+          ? 'Input delivery is recorded in input_progress; application effects '
+                'are not confirmed. Observe the fresh terminal before continuing. '
+                'Do not replay sent_keys or automatically send the remaining keys.'
+          : 'Input may already have been sent. Inspect the original submission '
+                'and current screen before continuing. Do not retry automatically.',
+    };
+  }
 
   Future<void> ask(
     String input, {
@@ -814,7 +876,7 @@ class TerminalAiController extends ChangeNotifier {
           if (preserveDraft)
             'original_submissions': [
               for (final entry in _transcript)
-                if (entry.submissionId != null)
+                if (entry.submissionId != null || entry.inputProgress != null)
                   {
                     'submission_id': entry.submissionId,
                     'block_id': entry.blockId,
@@ -822,6 +884,10 @@ class TerminalAiController extends ChangeNotifier {
                     'source_context_id': entry.target?.contextId,
                     'state': entry.state.name,
                     'command': entry.action?.preview,
+                    if (entry.inputProgress != null && entry.action != null)
+                      'input_progress': entry.inputProgress!.toJson(
+                        entry.action!,
+                      ),
                   },
             ],
           if (block != null) 'selected_block': block.toJson(),
@@ -1044,6 +1110,7 @@ class TerminalAiController extends ChangeNotifier {
     String? submissionId,
     String? blockId,
     AiApprovalReview? approvalReview,
+    AiKeyInputProgress? inputProgress,
     bool clearApprovalReview = false,
   }) {
     final index = _transcript.lastIndexWhere(
@@ -1065,6 +1132,7 @@ class TerminalAiController extends ChangeNotifier {
       approvalReview: clearApprovalReview
           ? null
           : approvalReview ?? entry.approvalReview,
+      inputProgress: inputProgress ?? entry.inputProgress,
     );
   }
 
@@ -1253,6 +1321,7 @@ class TerminalAiController extends ChangeNotifier {
         AiEntryState.accepted,
         submissionId: result['submission_id'] as String?,
         blockId: result['block_id'] as String?,
+        inputProgress: _keyInputProgressFor(action),
       );
       resultRecorded = true;
       cancellation.check();
@@ -1295,27 +1364,33 @@ class TerminalAiController extends ChangeNotifier {
       }
     } on Object catch (failure) {
       if (!resultRecorded && identical(_executingAction, action)) {
+        final progress = _keyInputProgressFor(action);
+        final result = _interruptedInputResult(
+          action,
+          error: failure is AiFailure ? failure.code : 'execution',
+        );
         _executingAction = null;
         _updateActionEntry(
           action,
-          failure is AiFailure &&
-                  {
-                    'stale_context',
-                    'shell_not_ready',
-                    'read_only',
-                    'submission_rejected',
-                  }.contains(failure.code)
+          progress != null
+              ? _keyInputState(progress)
+              : failure is AiFailure &&
+                    {
+                      'stale_context',
+                      'shell_not_ready',
+                      'read_only',
+                      'submission_rejected',
+                    }.contains(failure.code)
               ? AiEntryState.revoked
               : AiEntryState.unknown,
           submissionId: _submissionFor(action),
+          inputProgress: progress,
+          reason: 'Input observation failed. Inspect before continuing.',
         );
-        _messages.add(
-          _toolResult(action, {
-            'error': failure is AiFailure ? failure.code : 'execution',
-            'instruction':
-                'Do not retry automatically. Input may have already been sent.',
-          }),
-        );
+        _messages.add(_toolResult(action, result));
+        final reply = _task.agentReply;
+        _task.agentReply = null;
+        if (reply != null && !reply.isCompleted) reply.complete(result);
       }
       _fail(failure, cancellation);
       if (_task.agent != null) cancellation.cancel();
@@ -1364,20 +1439,16 @@ class TerminalAiController extends ChangeNotifier {
     _interruptCancellation?.cancel();
     _resolvePending('The user took over. Stop sending terminal input.');
     if (_executingAction case final AiAction action) {
+      final progress = _keyInputProgressFor(action);
       _updateActionEntry(
         action,
-        AiEntryState.unknown,
+        progress == null ? AiEntryState.unknown : _keyInputState(progress),
         submissionId: _submissionFor(action),
+        inputProgress: progress,
         reason:
             'Input may have been submitted before pause. Inspect before continuing.',
       );
-      _messages.add(
-        _toolResult(action, {
-          'interrupted': true,
-          'instruction':
-              'Input may already have been sent. Inspect the current screen before continuing.',
-        }),
-      );
+      _messages.add(_toolResult(action, _interruptedInputResult(action)));
       _executingAction = null;
     }
     phase = AiPhase.idle;

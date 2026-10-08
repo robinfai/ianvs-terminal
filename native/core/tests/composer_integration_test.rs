@@ -143,6 +143,15 @@ fn composer_current_request_contract_static_and_replay_denial() {
 #[test]
 #[cfg(target_os = "macos")]
 fn composer_long_literal_payload_commits_once_within_existing_deadline() {
+    verify_long_literal_payload(false);
+}
+
+#[test]
+fn nested_zsh_long_literal_payload_has_accepted_receipt_and_command_block() {
+    verify_long_literal_payload(true);
+}
+
+fn verify_long_literal_payload(nested: bool) {
     let home = tempfile::tempdir().unwrap();
     std::fs::write(home.path().join(".zshrc"), "PROMPT='long> '\nRPROMPT=''\n").unwrap();
     let mut config = config();
@@ -150,10 +159,23 @@ fn composer_long_literal_payload_commits_once_within_existing_deadline() {
         "cwd":home.path(), "env":{"HOME":home.path(), "ZDOTDIR":home.path(), "LANG":"en_US.UTF-8"}});
     let session = Session(session::create_session_v1(&config.to_string()).unwrap());
     let mut state = wait_ready(session.0, None);
+    if nested {
+        let result = request(
+            session.0,
+            "composer.submit",
+            json!({"lease":state["lease"],"submissionId":"enter-zsh","text":"zsh"}),
+        );
+        assert_eq!(result["payload"]["outcome"], "pending");
+        state = wait_ready(session.0, state["lease"].as_str());
+        // Nested shells use the same in-band adapter as SSH shells. Exercise
+        // its full payload limit without depending on an external SSH server.
+        assert_eq!(state["transport"], "shell");
+        assert_ne!(state["contextId"], "root");
+    }
     for length in [17_000, 65_536] {
         // UTF-8 straddles the decoder's chunk boundary; backslashes stay literal.
         // A quoted substitution must remain text, never adapter-side eval.
-        let prefix = format!(": '{}中文😀\\n$(touch WRONG_ENDPOINT)", "x".repeat(507));
+        let prefix = format!(": '{}中文😀\\n\t\n$(touch WRONG_ENDPOINT)", "x".repeat(507));
         let suffix = "'; printf x >> proof";
         let command = format!(
             "{prefix}{}{suffix}",
@@ -174,6 +196,7 @@ fn composer_long_literal_payload_commits_once_within_existing_deadline() {
         );
         let receipt = request(session.0, "composer.receipt", json!({"submissionId":id}));
         assert_eq!(receipt["payload"]["outcome"], "accepted");
+        assert!(receipt["payload"]["blockId"].is_string());
         assert_eq!(receipt["payload"]["exitCode"], 0);
         let block = request(
             session.0,

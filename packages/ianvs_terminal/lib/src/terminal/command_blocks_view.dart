@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter/scheduler.dart' show SchedulerPhase;
@@ -160,6 +161,19 @@ class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
     }
     if (oldWidget.timeline?.length != widget.timeline?.length && _follow) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _tail());
+    }
+    if (_finding &&
+        (oldWidget.controller != c ||
+            !listEquals(
+              oldWidget.timeline
+                  ?.map((item) => item.blockId)
+                  .whereType<String>()
+                  .toList(),
+              _timelineBlockIds,
+            ))) {
+      _matches = const [];
+      _findError = null;
+      _search();
     }
   }
 
@@ -450,12 +464,18 @@ class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
   void _search() {
     _findDebounce?.cancel();
     final serial = ++_findSerial;
+    final timelineIds = _timelineBlockIds?.toSet();
+    if (timelineIds != null && !timelineIds.contains(_findScope)) {
+      _findScope = null;
+    }
     _findDebounce = Timer(const Duration(milliseconds: 180), () async {
       final matches = <(CommandBlock, TerminalRow)>[];
       String? error;
       if (_find.text.isNotEmpty) {
         for (final block in c.blocks.reversed.where(
-          (b) => _findScope == null || b.id == _findScope,
+          (b) =>
+              (timelineIds == null || timelineIds.contains(b.id)) &&
+              (_findScope == null || b.id == _findScope),
         )) {
           final response = c.request({
             'id': block.id,

@@ -209,6 +209,56 @@ void main() {
       reason: 'Scoped inspection.',
     );
 
+    for (final automatic in [true, false]) {
+      test(
+        'saving equal settings preserves an active ${automatic ? 'allow' : 'ask'} review',
+        () async {
+          final task = controller.ask('List files');
+          await reviewer.started.future;
+          final original = settings.configuration!;
+          final saved = AiConfiguration.fromJson(original.toJson());
+          expect(identical(saved, original), isFalse);
+          await settings.save(saved);
+          reviewer.result.complete(
+            AiApprovalReview(
+              automatic: automatic,
+              reason: 'Scoped inspection.',
+            ),
+          );
+          await task;
+          await controller.refreshContext();
+          expect(controller.busy, isFalse);
+          expect(controller.canApprove, !automatic);
+          expect(terminal.writes, hasLength(automatic ? 1 : 0));
+          expect(
+            controller.phase,
+            automatic ? AiPhase.idle : AiPhase.awaitingApproval,
+          );
+        },
+      );
+    }
+
+    for (final field in ['endpoint', 'apiKey', 'model']) {
+      test('changing $field cancels an active review', () async {
+        final task = controller.ask('List files');
+        await reviewer.started.future;
+        final changed = settings.configuration!.toJson();
+        changed[field] = switch (field) {
+          'endpoint' => 'http://127.0.0.1:8788/v1',
+          'apiKey' => 'different-key',
+          _ => 'different-model',
+        };
+        await settings.save(AiConfiguration.fromJson(changed));
+        reviewer.result.complete(allow);
+        await task;
+        expect(terminal.writes, isEmpty);
+        expect(controller.pending, isNull);
+        expect(controller.busy, isFalse);
+        expect(controller.takenOver, isTrue);
+        expect(api.cancellations.single.isCancelled, isTrue);
+      });
+    }
+
     test(
       'automatic approval executes once and preserves review with receipt',
       () async {

@@ -1037,9 +1037,7 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                                   ),
                                 ).then((command) {
                                   if (command != null && mounted) {
-                                    composerSession.controller.editor.text =
-                                        command;
-                                    _closeAi(sessionId);
+                                    _reinputAiCommand(sessionId, command);
                                   }
                                 }),
                               );
@@ -1072,11 +1070,8 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                                   onOpenLinkTarget: (target) => unawaited(
                                     _openTerminalLinkTarget(sessionId, target),
                                   ),
-                                  onReinput: (command) {
-                                    composerSession.controller.editor.text =
-                                        command;
-                                    _closeAi(sessionId);
-                                  },
+                                  onReinput: (command) =>
+                                      _reinputAiCommand(sessionId, command),
                                 )
                           : null,
                     ),

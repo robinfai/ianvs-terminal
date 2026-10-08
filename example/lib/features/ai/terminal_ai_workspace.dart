@@ -640,6 +640,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
             : t('Awaiting review', '待确认'),
       AiEntryState.submitted => t('Submitting', '提交中'),
       AiEntryState.accepted => t('Input submitted', '输入已提交'),
+      AiEntryState.interrupted => t('Input partially submitted', '输入已部分提交'),
       AiEntryState.unknown => t('Submission outcome unknown', '提交结果未知'),
       AiEntryState.rejected => t('Declined', '已拒绝'),
       _ => t('Revoked', '已撤销'),
@@ -678,6 +679,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
               pending: entry.state == AiEntryState.proposed,
               confirmed:
                   entry.state == AiEntryState.accepted ||
+                  entry.state == AiEntryState.interrupted ||
                   entry.state == AiEntryState.submitted ||
                   entry.state == AiEntryState.unknown,
             ),
@@ -703,7 +705,23 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
             maxLines: narrow && !reviewPage ? 3 : null,
             style: context.ianvsTypography.code.copyWith(fontSize: 14),
           ),
+          if (entry.inputProgress case final progress?)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                t(
+                  '${progress.sent} of ${progress.total} input steps were sent. '
+                      '${progress.writeUncertain ? 'The next step has an unknown outcome. ' : ''}'
+                      'Continuing reads the current screen; sent input and remaining steps are not replayed automatically.',
+                  '已发送 ${progress.sent}/${progress.total} 步输入。'
+                      '${progress.writeUncertain ? '下一步的发送结果未知。' : ''}'
+                      '继续任务会重新读取屏幕，不会自动重发已发送或剩余输入。',
+                ),
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
           if (!active &&
+              entry.inputProgress == null &&
               (entry.state == AiEntryState.unknown ||
                   entry.statusReason != null))
             Padding(

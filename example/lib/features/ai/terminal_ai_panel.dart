@@ -240,11 +240,23 @@ class _TerminalAiPanelState extends State<TerminalAiPanel> {
                                       )
                                     : null,
                               ),
+                              if (entry.inputProgress case final progress?)
+                                Text(
+                                  t(
+                                    '${progress.sent}/${progress.total} input steps sent. '
+                                        '${progress.writeUncertain ? 'The next step is unconfirmed. ' : ''}'
+                                        'Continue to inspect the screen; input is not replayed.',
+                                    '已发送 ${progress.sent}/${progress.total} 步输入。'
+                                        '${progress.writeUncertain ? '下一步尚未确认。' : ''}'
+                                        '继续任务会重新观察屏幕，不会重发输入。',
+                                  ),
+                                ),
                               if (entry.approvalReview case final review?)
                                 AiApprovalNotice(
                                   review: review,
                                   confirmed:
                                       entry.state == AiEntryState.accepted ||
+                                      entry.state == AiEntryState.interrupted ||
                                       entry.state == AiEntryState.submitted,
                                 ),
                             ],

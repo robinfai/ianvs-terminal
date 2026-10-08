@@ -13,6 +13,7 @@ class TerminalAiConnections
         AiTerminalPort,
         AiBlockReader,
         AiSubmissionInspector,
+        AiKeyInputInspector,
         AiSourceSubmissionInspector,
         AiConnectionSources {
   TerminalAiConnections({
@@ -27,6 +28,7 @@ class TerminalAiConnections
 
   final Map<String, AiTerminalPort> _sources = {};
   final Map<String, AiTerminalPort> _actions = {};
+  final _keyActions = Map<AiAction, AiTerminalPort>.identity();
   final Map<(String, String), AiSubmissionInspector> _receipts = {};
   final Set<AiCancellation> _executions = {};
   final Map<String, Object?>? Function(String, Map<String, Object?>)
@@ -124,13 +126,18 @@ class TerminalAiConnections
       throw const AiFailure('stale_context');
     }
     final endpoint = _active;
-    _actions[action.id] = endpoint;
+    if (action.kind == AiActionKind.sendKeys) {
+      _keyActions[action] = endpoint;
+    } else {
+      _actions[action.id] = endpoint;
+    }
     _executions.add(cancellation);
     try {
       return await endpoint.execute(action, expected, cancellation);
     } finally {
       _executions.remove(cancellation);
-      if (endpoint is AiSubmissionInspector) {
+      if (action.kind == AiActionKind.runCommand &&
+          endpoint is AiSubmissionInspector) {
         final inspector = endpoint as AiSubmissionInspector;
         final id = inspector.submissionFor(action.id);
         if (id != null) _receipts[(expected.sessionId, id)] = inspector;
@@ -143,6 +150,14 @@ class TerminalAiConnections
     final endpoint = _actions[actionId];
     return endpoint is AiSubmissionInspector
         ? (endpoint! as AiSubmissionInspector).submissionFor(actionId)
+        : null;
+  }
+
+  @override
+  AiKeyInputProgress? keyInputProgress(AiAction action) {
+    final endpoint = _keyActions[action];
+    return endpoint is AiKeyInputInspector
+        ? (endpoint! as AiKeyInputInspector).keyInputProgress(action)
         : null;
   }
 

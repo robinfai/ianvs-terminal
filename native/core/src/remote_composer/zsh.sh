@@ -40,17 +40,25 @@ __ianvs_composer_install() {
   __ianvs_composer_receive() {
     emulate -L zsh
     setopt extendedglob
-    local wire epoch id hex escaped='' pair
+    local wire epoch id hex escaped='' chunk='' decoded
     local -i i
+    local -a chunks match mbegin mend
     # No command evaluation: decode literal bytes only after validating ownership.
+    # Keep per-byte reads so a partial frame still times out and bytes after '!'
+    # remain in ZLE. Appending to the entire frame for every byte is quadratic;
+    # collect bounded chunks and join once instead.
     local char
-    wire=''
     for (( i=0; i < 131200; ++i )); do
       IFS= builtin read -r -k 1 -t 2 char || return
       [[ $char == '!' ]] && break
-      wire+=$char
+      chunk+=$char
+      if (( ${#chunk} == 1024 )); then
+        chunks+=("$chunk")
+        chunk=''
+      fi
     done
     [[ $char == '!' ]] || return
+    wire="${(j::)chunks}$chunk"
     epoch=${wire%%:*}; wire=${wire#*:}
     id=${wire%%:*}; hex=${wire#*:}
     [[ $id == [a-zA-Z0-9-]## && ${#id} -le 80 ]] || return
@@ -59,11 +67,13 @@ __ianvs_composer_install() {
       return
     fi
     [[ $hex == [0-9a-f]## && ${#hex} -le 131072 && $(( ${#hex} % 2 )) == 0 ]] || return
-    for (( i=1; i <= ${#hex}; i+=2 )); do
-      pair=$hex[i,i+1]
-      # Payload controls are bounded identically at both ends of the channel.
-      if [[ $pair == (0[0-8b-f]|1[0-9a-f]|7f) ]]; then return; fi
-      escaped+="\x$pair"
+    for (( i=1; i <= ${#hex}; i+=1024 )); do
+      chunk=$hex[i,i+1023]
+      decoded=${chunk//(#b)(??)/\\x$match[1]}
+      # Match complete byte escapes so a low nibble and the next high nibble
+      # cannot be mistaken for a control. Tab and newline remain allowed.
+      if [[ $decoded == (*\\x0[0-8b-f]*|*\\x1[0-9a-f]*|*\\x7f*) ]]; then return; fi
+      escaped+=$decoded
     done
     builtin printf -v BUFFER '%b' "$escaped"
     CURSOR=${#BUFFER}
