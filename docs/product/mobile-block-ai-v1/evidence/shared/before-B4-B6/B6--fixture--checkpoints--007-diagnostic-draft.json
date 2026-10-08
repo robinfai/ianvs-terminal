@@ -1,0 +1,21 @@
+{
+  "name": "diagnostic-draft",
+  "captured_at": "2026-10-08T12:11:14.147780+00:00",
+  "method": "simctl_raw_png",
+  "physical": false,
+  "file": "checkpoints/007-diagnostic-draft.png",
+  "sha256": "9f261f80c7197093b42ab3ca94b4502f68077e446cb3e32cd91d7cdbf969f69a",
+  "width": 1206,
+  "height": 2622,
+  "metadata": {
+    "run_id": "20261008T120708Z-3f24d8c0",
+    "capture_method": "native_screenshot",
+    "input_method": "Flutter EditableText client; not native IME",
+    "viewport_width": 402.0,
+    "viewport_height": 874.0,
+    "dpr": 3.0,
+    "locale": "zh",
+    "theme": "light",
+    "keyboard_inset": 0.0
+  }
+}

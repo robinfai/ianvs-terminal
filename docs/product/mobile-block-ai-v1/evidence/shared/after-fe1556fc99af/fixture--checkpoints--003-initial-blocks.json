@@ -1,0 +1,27 @@
+{
+  "name": "initial-blocks",
+  "captured_at": "2026-10-08T15:18:53.376701+00:00",
+  "method": "simctl_raw_png",
+  "physical": false,
+  "file": "checkpoints/003-initial-blocks.png",
+  "sha256": "7c83cfffca4a8a762923e24ba716b95e38300a2f9ab0e8d254a0de2839049d64",
+  "width": 1206,
+  "height": 2622,
+  "metadata": {
+    "run_id": "20261008T151739Z-821ccd25",
+    "capture_method": "native_screenshot",
+    "input_method": "Flutter EditableText client; not native IME",
+    "viewport_width": 402.0,
+    "viewport_height": 874.0,
+    "dpr": 3.0,
+    "locale": "zh",
+    "theme": "light",
+    "keyboard_inset": 329.0,
+    "capture_phase": "after",
+    "source_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+    "source_tree_clean": true
+  },
+  "capture_phase": "after",
+  "source_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+  "source_tree_clean": true
+}

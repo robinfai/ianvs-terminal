@@ -1,0 +1,40 @@
+{
+  "source_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+  "command": [
+    "make",
+    "verify"
+  ],
+  "started_at": "2026-10-08T15:00:37.397020+00:00",
+  "finished_at": "2026-10-08T15:13:48.736731+00:00",
+  "exit_code": 0,
+  "source_tree_clean_at_start": true,
+  "source_tree_clean_at_end": true,
+  "macos_integration_skipped": false,
+  "log_sha256": "85a3a13c11c8e9a8f077255b2a19587d77606ac75b8579446ab852c11e6d4d2d",
+  "passed": true,
+  "kind": "verification_receipt_summary",
+  "original_log_published": false,
+  "original_log_note": "Complete original log retained privately. This metadata summary is not the original log and does not satisfy the PRD public-log evidence requirement.",
+  "scope": [
+    "Rust formatting, Clippy, unit and native PTY tests",
+    "Go formatting, vet and race tests",
+    "Generated contracts and standalone mirror checks",
+    "Dart formatting and static analysis",
+    "Dart/Flutter package, documentation and application tests",
+    "CI smoke benchmark",
+    "macOS application smoke, real PTY, Composer and Keychain",
+    "Two Debug builds and two Release builds with strict signatures",
+    "Native Xcode tests"
+  ],
+  "example_test_result": {
+    "passed": 2776,
+    "skipped": 1
+  },
+  "macos_integration_test_results": {
+    "smoke": 4,
+    "real_pty": 45,
+    "composer": 1,
+    "keychain": 1
+  },
+  "complete_prd_acceptance": false
+}

@@ -1,0 +1,19 @@
+{
+  "programs": [],
+  "stream_groups": [],
+  "streams": [
+    {
+      "codec_name": "h264",
+      "width": 1206,
+      "height": 2622,
+      "nb_frames": "393"
+    }
+  ],
+  "format": {
+    "duration": "15.053333",
+    "size": "6863955"
+  },
+  "capture_phase": "after",
+  "source_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+  "source_tree_clean": true
+}

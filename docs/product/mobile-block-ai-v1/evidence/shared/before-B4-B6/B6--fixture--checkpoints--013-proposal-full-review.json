@@ -1,0 +1,21 @@
+{
+  "name": "proposal-full-review",
+  "captured_at": "2026-10-08T12:11:17.311166+00:00",
+  "method": "simctl_raw_png",
+  "physical": false,
+  "file": "checkpoints/013-proposal-full-review.png",
+  "sha256": "52c77c43c65083956ae65877f5770bb767cc70ab62cf2fcc7bafef9f855fbe04",
+  "width": 1206,
+  "height": 2622,
+  "metadata": {
+    "run_id": "20261008T120708Z-3f24d8c0",
+    "capture_method": "native_screenshot",
+    "input_method": "Flutter EditableText client; not native IME",
+    "viewport_width": 402.0,
+    "viewport_height": 874.0,
+    "dpr": 3.0,
+    "locale": "zh",
+    "theme": "light",
+    "keyboard_inset": 0.0
+  }
+}

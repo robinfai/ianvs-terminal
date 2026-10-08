@@ -1,0 +1,1489 @@
+{
+  "kind": "visual_review_metadata_not_capture",
+  "source_review_sha256": "073d79c8a34623dbb3ed4c638e673725226c804b6351d9aafc3b1fcaeb2da331",
+  "inspection_completed_at_utc": "2026-10-08T15:32:17.740478+00:00",
+  "inspection_time_is_not_capture_time": true,
+  "inspection_type": "read_only_original_after_png_json_and_prior_before_comparison",
+  "summary": {
+    "png_count": 42,
+    "sidecar_count": 42,
+    "individually_opened_original_png_count": 42,
+    "before_scene_pairs_checked": 42,
+    "png_metadata_dimension_matches": 42,
+    "captured_at_present_valid_utc": 42,
+    "captured_at_min": "2026-10-08T15:17:33.192394Z",
+    "captured_at_max": "2026-10-08T15:17:38.666265Z",
+    "all_source_commit_matches_requested_c": true,
+    "sidecars_record_clean_worktree": 42,
+    "visible_primary_action_occlusion_or_layout_overflow_count": 0,
+    "missing_glyph_visible_png_count": 12,
+    "english_plural_copy_issue_png_count": 12,
+    "visible_real_account_or_credential_findings": 0,
+    "must_fix_product_regressions_confirmed_by_this_inspection": 0,
+    "open_nonblocking_product_issues": [
+      "EN-SOURCE-PLURAL"
+    ],
+    "open_evidence_gaps": [
+      "EMOJI-GLYPH-GAP"
+    ],
+    "brightness_counts": {
+      "dark": 21,
+      "light": 21
+    },
+    "locale_counts": {
+      "en": 30,
+      "zh": 12
+    },
+    "logical_size_counts": {
+      "320x600": 12,
+      "390x844": 18,
+      "1024x768": 6,
+      "1280x900": 6
+    },
+    "all_after_png_differ_from_corresponding_before": true,
+    "identical_after_png_groups": []
+  },
+  "scope_limitations": [
+    "仅 widget_golden；无任何真实 App、IME、VoiceOver、44pt hit target、硬件键盘、真实 iPad 双栏、网络/PTY 或命令执行结果的验收结论。",
+    "18 张 Composer 为 en UI 配中文内容，不能作为中文 UI 本地化全覆盖。",
+    "静态原图不能确认 tooltip/semantics、交互、焦点、输入路由、补充需求、原回执查询或全屏编辑事务。",
+    "输入四行截窗、transcript 顶部裁剪和 iPad 输出小视口须与真实交互证据分别记录。",
+    "Emoji 缺字和英文单复数问题未通过换图/改证据隐藏；Before 缺捕获时间的限制依旧存在。"
+  ],
+  "records": [
+    {
+      "filename": "after-320x600-en-dark-multilineDraft.png",
+      "view_order": 1,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "854e6e129ee661d812bea1fd0a8b4a3de31e9989a0e79e64b127bc60fe5b22c8",
+      "sidecar_sha256": "45177866e8f64a18e45bf3482c04d149684d3fa4b7f43eef6d7586e645743771",
+      "png_dimensions": {
+        "width": 640,
+        "height": 1200
+      },
+      "logical_size": {
+        "width": 320.0,
+        "height": 600.0
+      },
+      "locale": "en",
+      "brightness": "dark",
+      "visual_notes": [
+        "普通中英文、状态、来源及主动作文字可辨读；多行草稿、展开入口和意图文字比 Before 更完整。",
+        "来源 chip 仍显示命令摘要和行号两行内容；数量入口可见但详情未打开。",
+        "长稿在四行输入视口内只显示一部分尾行，末尾 emoji 不在画面内。",
+        "“1 sources” 单复数文案错误保持 open，P3 非核心流程阻断。"
+      ],
+      "observation_ids": [
+        "AI-MULTILINE-EXPAND",
+        "AI-INTENT-ACTIONS",
+        "EN-SOURCE-PLURAL"
+      ],
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-en-dark-multilineDraft.png",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-en-dark-multilineDraft.json",
+      "captured_at": "2026-10-08T15:17:34.352337Z",
+      "before_path": "evidence/shared/before-B4-B6/widget-readable--before-320x600-en-dark-multilineDraft.png",
+      "before_png_sha256": "6a4d1468b41a84fc86d7b6ab5c2d2ffb5d51f5a17bc8f4d1e3183cf7f298b8d7"
+    },
+    {
+      "filename": "after-320x600-en-dark-proposal.png",
+      "view_order": 2,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "4b04f1bef49e0dbe4503bc2ed02747e178de87f80f397d943e433b9fc9f0523d",
+      "sidecar_sha256": "7c35fe4732f10572b7c94587f8bc49bc269bcb7e919fe0acb36a6bb64d1ec434",
+      "png_dimensions": {
+        "width": 640,
+        "height": 1200
+      },
+      "logical_size": {
+        "width": 320.0,
+        "height": 600.0
+      },
+      "locale": "en",
+      "brightness": "dark",
+      "visual_notes": [
+        "普通中英文、状态、来源及主动作文字可辨读；多行草稿、展开入口和意图文字比 Before 更完整。",
+        "来源 chip 仍显示命令摘要和行号两行内容；数量入口可见但详情未打开。",
+        "当前滚动位置导致部分早期内容位于顶部视口之外；不能用单张图证明完整卡片已显示。",
+        "Decline/Review full command 或中文动作清楚，输入主动作显示补充要求。",
+        "长稿在四行输入视口内只显示一部分尾行，末尾 emoji 不在画面内。",
+        "“1 sources” 单复数文案错误保持 open，P3 非核心流程阻断。"
+      ],
+      "observation_ids": [
+        "AI-MULTILINE-EXPAND",
+        "AI-INTENT-ACTIONS",
+        "AI-VIEWPORT",
+        "EN-SOURCE-PLURAL"
+      ],
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-en-dark-proposal.png",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-en-dark-proposal.json",
+      "captured_at": "2026-10-08T15:17:34.432147Z",
+      "before_path": "evidence/shared/before-B4-B6/widget-readable--before-320x600-en-dark-proposal.png",
+      "before_png_sha256": "ea05f36aec9389cf41cb5984d17e41119a2d79763a7d857fd553b50b10386b03"
+    },
+    {
+      "filename": "after-320x600-en-dark-unknownSubmission.png",
+      "view_order": 3,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "09f7d2272999c689f981f4c4df88397a51c641f2e224cdaf9c0fca56a2bd5d66",
+      "sidecar_sha256": "7c29c80620c7fa7c6ff52ef2775aa9790510e57c1bc3a1ff357b50080bf9f351",
+      "png_dimensions": {
+        "width": 640,
+        "height": 1200
+      },
+      "logical_size": {
+        "width": 320.0,
+        "height": 600.0
+      },
+      "locale": "en",
+      "brightness": "dark",
+      "visual_notes": [
+        "普通中英文、状态、来源及主动作文字可辨读；多行草稿、展开入口和意图文字比 Before 更完整。",
+        "来源 chip 仍显示命令摘要和行号两行内容；数量入口可见但详情未打开。",
+        "当前滚动位置导致部分早期内容位于顶部视口之外；不能用单张图证明完整卡片已显示。",
+        "不重发说明和原提交检查/终端检查入口可见；输入发送文字灰显。",
+        "长稿在四行输入视口内只显示一部分尾行，末尾 emoji 不在画面内。",
+        "“1 sources” 单复数文案错误保持 open，P3 非核心流程阻断。"
+      ],
+      "observation_ids": [
+        "AI-MULTILINE-EXPAND",
+        "AI-INTENT-ACTIONS",
+        "AI-VIEWPORT",
+        "EN-SOURCE-PLURAL"
+      ],
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-en-dark-unknownSubmission.png",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-en-dark-unknownSubmission.json",
+      "captured_at": "2026-10-08T15:17:34.507248Z",
+      "before_path": "evidence/shared/before-B4-B6/widget-readable--before-320x600-en-dark-unknownSubmission.png",
+      "before_png_sha256": "e4640c89e2d3bba946983dc23c419e5235467ae02571c7cbcec6ea87947c043c"
+    },
+    {
+      "filename": "after-320x600-en-light-multilineDraft.png",
+      "view_order": 4,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "38c8e2ade66a05bda93f6f97bef99aa820835f20ab2b3b3777bd2672420fbfe9",
+      "sidecar_sha256": "b276d7331a25ae57065bb8e2fd1b0b55759bad69375903803113b3d440d11f56",
+      "png_dimensions": {
+        "width": 640,
+        "height": 1200
+      },
+      "logical_size": {
+        "width": 320.0,
+        "height": 600.0
+      },
+      "locale": "en",
+      "brightness": "light",
+      "visual_notes": [
+        "普通中英文、状态、来源及主动作文字可辨读；多行草稿、展开入口和意图文字比 Before 更完整。",
+        "来源 chip 仍显示命令摘要和行号两行内容；数量入口可见但详情未打开。",
+        "长稿在四行输入视口内只显示一部分尾行，末尾 emoji 不在画面内。",
+        "“1 sources” 单复数文案错误保持 open，P3 非核心流程阻断。"
+      ],
+      "observation_ids": [
+        "AI-MULTILINE-EXPAND",
+        "AI-INTENT-ACTIONS",
+        "EN-SOURCE-PLURAL"
+      ],
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-en-light-multilineDraft.png",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-en-light-multilineDraft.json",
+      "captured_at": "2026-10-08T15:17:34.565408Z",
+      "before_path": "evidence/shared/before-B4-B6/widget-readable--before-320x600-en-light-multilineDraft.png",
+      "before_png_sha256": "d2ae5ffc41d8ff4a9b3dd236cf9394bbdd31a4baa1b8898248aa316095dc0dd4"
+    },
+    {
+      "filename": "after-320x600-en-light-proposal.png",
+      "view_order": 5,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "6a54d4f8d6fe2ddf75c22234969894433c9aacedcf57dcee52c35e61461ad3aa",
+      "sidecar_sha256": "3c6796737c37a774c2f9b3e818e8b5a62ebda99b0906a381f408bfcc75c19b54",
+      "png_dimensions": {
+        "width": 640,
+        "height": 1200
+      },
+      "logical_size": {
+        "width": 320.0,
+        "height": 600.0
+      },
+      "locale": "en",
+      "brightness": "light",
+      "visual_notes": [
+        "普通中英文、状态、来源及主动作文字可辨读；多行草稿、展开入口和意图文字比 Before 更完整。",
+        "来源 chip 仍显示命令摘要和行号两行内容；数量入口可见但详情未打开。",
+        "当前滚动位置导致部分早期内容位于顶部视口之外；不能用单张图证明完整卡片已显示。",
+        "Decline/Review full command 或中文动作清楚，输入主动作显示补充要求。",
+        "长稿在四行输入视口内只显示一部分尾行，末尾 emoji 不在画面内。",
+        "“1 sources” 单复数文案错误保持 open，P3 非核心流程阻断。"
+      ],
+      "observation_ids": [
+        "AI-MULTILINE-EXPAND",
+        "AI-INTENT-ACTIONS",
+        "AI-VIEWPORT",
+        "EN-SOURCE-PLURAL"
+      ],
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-en-light-proposal.png",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-en-light-proposal.json",
+      "captured_at": "2026-10-08T15:17:34.640399Z",
+      "before_path": "evidence/shared/before-B4-B6/widget-readable--before-320x600-en-light-proposal.png",
+      "before_png_sha256": "04edffc0612c9cab775d08e0ee4974c1024f7ceda7563c90b465f03ffb6214e1"
+    },
+    {
+      "filename": "after-320x600-en-light-unknownSubmission.png",
+      "view_order": 6,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "c75af7d52c89da56835e33e0b32d085813930f72e17617b161184874e66e4a66",
+      "sidecar_sha256": "376353fdd77ee0cc96ed61552f4195d6a24c807067d0b8e41774d743a655f8f2",
+      "png_dimensions": {
+        "width": 640,
+        "height": 1200
+      },
+      "logical_size": {
+        "width": 320.0,
+        "height": 600.0
+      },
+      "locale": "en",
+      "brightness": "light",
+      "visual_notes": [
+        "普通中英文、状态、来源及主动作文字可辨读；多行草稿、展开入口和意图文字比 Before 更完整。",
+        "来源 chip 仍显示命令摘要和行号两行内容；数量入口可见但详情未打开。",
+        "当前滚动位置导致部分早期内容位于顶部视口之外；不能用单张图证明完整卡片已显示。",
+        "不重发说明和原提交检查/终端检查入口可见；输入发送文字灰显。",
+        "长稿在四行输入视口内只显示一部分尾行，末尾 emoji 不在画面内。",
+        "“1 sources” 单复数文案错误保持 open，P3 非核心流程阻断。"
+      ],
+      "observation_ids": [
+        "AI-MULTILINE-EXPAND",
+        "AI-INTENT-ACTIONS",
+        "AI-VIEWPORT",
+        "EN-SOURCE-PLURAL"
+      ],
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-en-light-unknownSubmission.png",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-en-light-unknownSubmission.json",
+      "captured_at": "2026-10-08T15:17:34.708104Z",
+      "before_path": "evidence/shared/before-B4-B6/widget-readable--before-320x600-en-light-unknownSubmission.png",
+      "before_png_sha256": "da416375a47db1a808da6ccce36441328f5c482834d79366a613ff7075862531"
+    },
+    {
+      "filename": "after-320x600-zh-dark-multilineDraft.png",
+      "view_order": 7,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "025627b2af6504139d83a8c2792cf7aaa992b59621c5490bbf54c2f2d8fbc52f",
+      "sidecar_sha256": "37dda0d502aed2825f5a5e5168727aa37ec15edd9b12d875f47a8548d81b17f0",
+      "png_dimensions": {
+        "width": 640,
+        "height": 1200
+      },
+      "logical_size": {
+        "width": 320.0,
+        "height": 600.0
+      },
+      "locale": "zh",
+      "brightness": "dark",
+      "visual_notes": [
+        "普通中英文、状态、来源及主动作文字可辨读；多行草稿、展开入口和意图文字比 Before 更完整。",
+        "来源 chip 仍显示命令摘要和行号两行内容；数量入口可见但详情未打开。",
+        "长稿在四行输入视口内只显示一部分尾行，末尾 emoji 不在画面内。"
+      ],
+      "observation_ids": [
+        "AI-MULTILINE-EXPAND",
+        "AI-INTENT-ACTIONS"
+      ],
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-zh-dark-multilineDraft.png",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-zh-dark-multilineDraft.json",
+      "captured_at": "2026-10-08T15:17:34.761411Z",
+      "before_path": "evidence/shared/before-B4-B6/widget-readable--before-320x600-zh-dark-multilineDraft.png",
+      "before_png_sha256": "89a80675a81edcfa483e62ee020c65f49af6c3a92cef84a7d5074d88a32d0498"
+    },
+    {
+      "filename": "after-320x600-zh-dark-proposal.png",
+      "view_order": 8,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "a8f9d13278761d4d3bf7c2fca1908b47dd70c51756135491da9512c4805e012d",
+      "sidecar_sha256": "745d35f0402d3f40d4871f80cc7f6cfa557263237c90d1f5133841938e4ebd06",
+      "png_dimensions": {
+        "width": 640,
+        "height": 1200
+      },
+      "logical_size": {
+        "width": 320.0,
+        "height": 600.0
+      },
+      "locale": "zh",
+      "brightness": "dark",
+      "visual_notes": [
+        "普通中英文、状态、来源及主动作文字可辨读；多行草稿、展开入口和意图文字比 Before 更完整。",
+        "来源 chip 仍显示命令摘要和行号两行内容；数量入口可见但详情未打开。",
+        "当前滚动位置导致部分早期内容位于顶部视口之外；不能用单张图证明完整卡片已显示。",
+        "Decline/Review full command 或中文动作清楚，输入主动作显示补充要求。",
+        "长稿在四行输入视口内只显示一部分尾行，末尾 emoji 不在画面内。"
+      ],
+      "observation_ids": [
+        "AI-MULTILINE-EXPAND",
+        "AI-INTENT-ACTIONS",
+        "AI-VIEWPORT"
+      ],
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-zh-dark-proposal.png",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-zh-dark-proposal.json",
+      "captured_at": "2026-10-08T15:17:34.828176Z",
+      "before_path": "evidence/shared/before-B4-B6/widget-readable--before-320x600-zh-dark-proposal.png",
+      "before_png_sha256": "d7499a413698bb3fb80bd774fac2040d065390ae20e27096bd5428f73082388b"
+    },
+    {
+      "filename": "after-320x600-zh-dark-unknownSubmission.png",
+      "view_order": 9,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "97cd33a095d0d6c0e06a8e5fae8b7cbcf988280b2fca3bb6333de2019c6b91f3",
+      "sidecar_sha256": "0a6f7780ece197765e29275f8bc36cb0d86b7a6ba3ecce8db639d822ea4b378d",
+      "png_dimensions": {
+        "width": 640,
+        "height": 1200
+      },
+      "logical_size": {
+        "width": 320.0,
+        "height": 600.0
+      },
+      "locale": "zh",
+      "brightness": "dark",
+      "visual_notes": [
+        "普通中英文、状态、来源及主动作文字可辨读；多行草稿、展开入口和意图文字比 Before 更完整。",
+        "来源 chip 仍显示命令摘要和行号两行内容；数量入口可见但详情未打开。",
+        "当前滚动位置导致部分早期内容位于顶部视口之外；不能用单张图证明完整卡片已显示。",
+        "不重发说明和原提交检查/终端检查入口可见；输入发送文字灰显。",
+        "长稿在四行输入视口内只显示一部分尾行，末尾 emoji 不在画面内。"
+      ],
+      "observation_ids": [
+        "AI-MULTILINE-EXPAND",
+        "AI-INTENT-ACTIONS",
+        "AI-VIEWPORT"
+      ],
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-zh-dark-unknownSubmission.png",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-zh-dark-unknownSubmission.json",
+      "captured_at": "2026-10-08T15:17:34.895907Z",
+      "before_path": "evidence/shared/before-B4-B6/widget-readable--before-320x600-zh-dark-unknownSubmission.png",
+      "before_png_sha256": "10170f6c9bccba9d7b51064249eef9717f50313e433f48ca6c861d311093bd4f"
+    },
+    {
+      "filename": "after-320x600-zh-light-multilineDraft.png",
+      "view_order": 10,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "8a055175acc7ab4245e591b42d12a7376ab4e1b8b8167f37c6ec75578f10b643",
+      "sidecar_sha256": "09079ca94b6f243e3a78486f517338af5967848c29d0021f2588c05945ad68ac",
+      "png_dimensions": {
+        "width": 640,
+        "height": 1200
+      },
+      "logical_size": {
+        "width": 320.0,
+        "height": 600.0
+      },
+      "locale": "zh",
+      "brightness": "light",
+      "visual_notes": [
+        "普通中英文、状态、来源及主动作文字可辨读；多行草稿、展开入口和意图文字比 Before 更完整。",
+        "来源 chip 仍显示命令摘要和行号两行内容；数量入口可见但详情未打开。",
+        "长稿在四行输入视口内只显示一部分尾行，末尾 emoji 不在画面内。"
+      ],
+      "observation_ids": [
+        "AI-MULTILINE-EXPAND",
+        "AI-INTENT-ACTIONS"
+      ],
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-zh-light-multilineDraft.png",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-zh-light-multilineDraft.json",
+      "captured_at": "2026-10-08T15:17:34.957206Z",
+      "before_path": "evidence/shared/before-B4-B6/widget-readable--before-320x600-zh-light-multilineDraft.png",
+      "before_png_sha256": "7d01ced27553e5cfcd9c99aac1c85556e26d922065a6b41790def2b95a7a9974"
+    },
+    {
+      "filename": "after-320x600-zh-light-proposal.png",
+      "view_order": 11,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "57018c7dddeb73dcfb89c5a389f62d7a9d99db069ebfdf5aad19a9ef1f0f03a7",
+      "sidecar_sha256": "3849a89c649042b7a14e558bae437d0b8c6ebe14140ce9ceddb16bbdc3a5b46b",
+      "png_dimensions": {
+        "width": 640,
+        "height": 1200
+      },
+      "logical_size": {
+        "width": 320.0,
+        "height": 600.0
+      },
+      "locale": "zh",
+      "brightness": "light",
+      "visual_notes": [
+        "普通中英文、状态、来源及主动作文字可辨读；多行草稿、展开入口和意图文字比 Before 更完整。",
+        "来源 chip 仍显示命令摘要和行号两行内容；数量入口可见但详情未打开。",
+        "当前滚动位置导致部分早期内容位于顶部视口之外；不能用单张图证明完整卡片已显示。",
+        "Decline/Review full command 或中文动作清楚，输入主动作显示补充要求。",
+        "长稿在四行输入视口内只显示一部分尾行，末尾 emoji 不在画面内。"
+      ],
+      "observation_ids": [
+        "AI-MULTILINE-EXPAND",
+        "AI-INTENT-ACTIONS",
+        "AI-VIEWPORT"
+      ],
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-zh-light-proposal.png",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-zh-light-proposal.json",
+      "captured_at": "2026-10-08T15:17:35.021289Z",
+      "before_path": "evidence/shared/before-B4-B6/widget-readable--before-320x600-zh-light-proposal.png",
+      "before_png_sha256": "9e152cc8ac2cfe711de3971d70d508f55bc47a0e9fa9e3b76c55756c5f0999fb"
+    },
+    {
+      "filename": "after-320x600-zh-light-unknownSubmission.png",
+      "view_order": 12,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "0eefb35f26eb9db1b09c2db53e6f84fdad2fc1e672cd0593ada4575549d73005",
+      "sidecar_sha256": "8ddb676274baa2fe3b43c96e681a660b88432272137247727a8f60c4a5aa515b",
+      "png_dimensions": {
+        "width": 640,
+        "height": 1200
+      },
+      "logical_size": {
+        "width": 320.0,
+        "height": 600.0
+      },
+      "locale": "zh",
+      "brightness": "light",
+      "visual_notes": [
+        "普通中英文、状态、来源及主动作文字可辨读；多行草稿、展开入口和意图文字比 Before 更完整。",
+        "来源 chip 仍显示命令摘要和行号两行内容；数量入口可见但详情未打开。",
+        "当前滚动位置导致部分早期内容位于顶部视口之外；不能用单张图证明完整卡片已显示。",
+        "不重发说明和原提交检查/终端检查入口可见；输入发送文字灰显。",
+        "长稿在四行输入视口内只显示一部分尾行，末尾 emoji 不在画面内。"
+      ],
+      "observation_ids": [
+        "AI-MULTILINE-EXPAND",
+        "AI-INTENT-ACTIONS",
+        "AI-VIEWPORT"
+      ],
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-zh-light-unknownSubmission.png",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-zh-light-unknownSubmission.json",
+      "captured_at": "2026-10-08T15:17:35.086349Z",
+      "before_path": "evidence/shared/before-B4-B6/widget-readable--before-320x600-zh-light-unknownSubmission.png",
+      "before_png_sha256": "1bb405b2d62ddb4d12c6e0d6ee3318a75745df93af12ef3af2d753e5d6688067"
+    },
+    {
+      "filename": "after-390x844-en-dark-multilineDraft.png",
+      "view_order": 13,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "4d1dfe4ef7306d1ad3e3faac451e7fe2e7dba6b8c48e7d3e22954844ab4e729b",
+      "sidecar_sha256": "6c6ee1b8d1f79789cd7383bdcc8960acfd024b783cbf308ada591b602e05b1b1",
+      "png_dimensions": {
+        "width": 780,
+        "height": 1688
+      },
+      "logical_size": {
+        "width": 390.0,
+        "height": 844.0
+      },
+      "locale": "en",
+      "brightness": "dark",
+      "visual_notes": [
+        "普通中英文、状态、来源及主动作文字可辨读；多行草稿、展开入口和意图文字比 Before 更完整。",
+        "来源 chip 仍显示命令摘要和行号两行内容；数量入口可见但详情未打开。",
+        "预期 🧭 位置有缺字框；特殊字符渲染不完整，不能宣称所有字符可读。",
+        "“1 sources” 单复数文案错误保持 open，P3 非核心流程阻断。"
+      ],
+      "observation_ids": [
+        "AI-MULTILINE-EXPAND",
+        "AI-INTENT-ACTIONS",
+        "EMOJI-GLYPH-GAP",
+        "EN-SOURCE-PLURAL"
+      ],
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-en-dark-multilineDraft.png",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-en-dark-multilineDraft.json",
+      "captured_at": "2026-10-08T15:17:33.192394Z",
+      "before_path": "evidence/shared/before-B4-B6/widget-readable--before-390x844-en-dark-multilineDraft.png",
+      "before_png_sha256": "a2aec05ea36154ce91d7598447c3c8a0b98f8127ec323af103623d998b5b4cb5"
+    },
+    {
+      "filename": "after-390x844-en-dark-proposal.png",
+      "view_order": 14,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "5628bb1b993ce40849a251de50efe10534e90a2dc3b041e05924b422b529133c",
+      "sidecar_sha256": "4b6913013277fd2088dd52510d45977d1adc94d2226fd96ee9b2d5351e487bf5",
+      "png_dimensions": {
+        "width": 780,
+        "height": 1688
+      },
+      "logical_size": {
+        "width": 390.0,
+        "height": 844.0
+      },
+      "locale": "en",
+      "brightness": "dark",
+      "visual_notes": [
+        "普通中英文、状态、来源及主动作文字可辨读；多行草稿、展开入口和意图文字比 Before 更完整。",
+        "来源 chip 仍显示命令摘要和行号两行内容；数量入口可见但详情未打开。",
+        "当前滚动位置导致部分早期内容位于顶部视口之外；不能用单张图证明完整卡片已显示。",
+        "Decline/Review full command 或中文动作清楚，输入主动作显示补充要求。",
+        "预期 🧭 位置有缺字框；特殊字符渲染不完整，不能宣称所有字符可读。",
+        "“1 sources” 单复数文案错误保持 open，P3 非核心流程阻断。"
+      ],
+      "observation_ids": [
+        "AI-MULTILINE-EXPAND",
+        "AI-INTENT-ACTIONS",
+        "AI-VIEWPORT",
+        "EMOJI-GLYPH-GAP",
+        "EN-SOURCE-PLURAL"
+      ],
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-en-dark-proposal.png",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-en-dark-proposal.json",
+      "captured_at": "2026-10-08T15:17:33.390897Z",
+      "before_path": "evidence/shared/before-B4-B6/widget-readable--before-390x844-en-dark-proposal.png",
+      "before_png_sha256": "2e5ed93c1e7930363e0e242fd874c154de8e5bc6dd78eaee842a0400323e4caa"
+    },
+    {
+      "filename": "after-390x844-en-dark-unknownSubmission.png",
+      "view_order": 15,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "e6f1df01059ad1b10f3c82c6ae7f5c50dbaa5a1bb311b670aa29f022236ba3e8",
+      "sidecar_sha256": "086ace5e38e4edb49945c68d147e481db9caaf13d4a46e6e202ccd3f255f575f",
+      "png_dimensions": {
+        "width": 780,
+        "height": 1688
+      },
+      "logical_size": {
+        "width": 390.0,
+        "height": 844.0
+      },
+      "locale": "en",
+      "brightness": "dark",
+      "visual_notes": [
+        "普通中英文、状态、来源及主动作文字可辨读；多行草稿、展开入口和意图文字比 Before 更完整。",
+        "来源 chip 仍显示命令摘要和行号两行内容；数量入口可见但详情未打开。",
+        "当前滚动位置导致部分早期内容位于顶部视口之外；不能用单张图证明完整卡片已显示。",
+        "不重发说明和原提交检查/终端检查入口可见；输入发送文字灰显。",
+        "预期 🧭 位置有缺字框；特殊字符渲染不完整，不能宣称所有字符可读。",
+        "“1 sources” 单复数文案错误保持 open，P3 非核心流程阻断。"
+      ],
+      "observation_ids": [
+        "AI-MULTILINE-EXPAND",
+        "AI-INTENT-ACTIONS",
+        "AI-VIEWPORT",
+        "EMOJI-GLYPH-GAP",
+        "EN-SOURCE-PLURAL"
+      ],
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-en-dark-unknownSubmission.png",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-en-dark-unknownSubmission.json",
+      "captured_at": "2026-10-08T15:17:33.503201Z",
+      "before_path": "evidence/shared/before-B4-B6/widget-readable--before-390x844-en-dark-unknownSubmission.png",
+      "before_png_sha256": "b77600e325155221e4fcfca929d9a31f61a19a19978daca4127d0cbbdafcc7b8"
+    },
+    {
+      "filename": "after-390x844-en-light-multilineDraft.png",
+      "view_order": 16,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "314cc5e534fe7063ec8ca3e74c6da654fcc0250def744b1c2969439362e5a68e",
+      "sidecar_sha256": "f3cd47f3c328e3d3d6d1347d2f9031a7f417e0eee512b5a3a1e81246bf42582d",
+      "png_dimensions": {
+        "width": 780,
+        "height": 1688
+      },
+      "logical_size": {
+        "width": 390.0,
+        "height": 844.0
+      },
+      "locale": "en",
+      "brightness": "light",
+      "visual_notes": [
+        "普通中英文、状态、来源及主动作文字可辨读；多行草稿、展开入口和意图文字比 Before 更完整。",
+        "来源 chip 仍显示命令摘要和行号两行内容；数量入口可见但详情未打开。",
+        "预期 🧭 位置有缺字框；特殊字符渲染不完整，不能宣称所有字符可读。",
+        "“1 sources” 单复数文案错误保持 open，P3 非核心流程阻断。"
+      ],
+      "observation_ids": [
+        "AI-MULTILINE-EXPAND",
+        "AI-INTENT-ACTIONS",
+        "EMOJI-GLYPH-GAP",
+        "EN-SOURCE-PLURAL"
+      ],
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-en-light-multilineDraft.png",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-en-light-multilineDraft.json",
+      "captured_at": "2026-10-08T15:17:33.590020Z",
+      "before_path": "evidence/shared/before-B4-B6/widget-readable--before-390x844-en-light-multilineDraft.png",
+      "before_png_sha256": "ea888ee4b61bec9a1506e0f4e517ff2ebc4f10aadde1f430198aba9c0fc8a682"
+    },
+    {
+      "filename": "after-390x844-en-light-proposal.png",
+      "view_order": 17,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "2486a9984c50d95f06fe19d780a1f2eb8a8bfe24502eace7dadefea0321cfcff",
+      "sidecar_sha256": "f274365d88ff88ab33ee68ec4ae933dc518bbf01851b8ca80bfb467922582bfb",
+      "png_dimensions": {
+        "width": 780,
+        "height": 1688
+      },
+      "logical_size": {
+        "width": 390.0,
+        "height": 844.0
+      },
+      "locale": "en",
+      "brightness": "light",
+      "visual_notes": [
+        "普通中英文、状态、来源及主动作文字可辨读；多行草稿、展开入口和意图文字比 Before 更完整。",
+        "来源 chip 仍显示命令摘要和行号两行内容；数量入口可见但详情未打开。",
+        "当前滚动位置导致部分早期内容位于顶部视口之外；不能用单张图证明完整卡片已显示。",
+        "Decline/Review full command 或中文动作清楚，输入主动作显示补充要求。",
+        "预期 🧭 位置有缺字框；特殊字符渲染不完整，不能宣称所有字符可读。",
+        "“1 sources” 单复数文案错误保持 open，P3 非核心流程阻断。"
+      ],
+      "observation_ids": [
+        "AI-MULTILINE-EXPAND",
+        "AI-INTENT-ACTIONS",
+        "AI-VIEWPORT",
+        "EMOJI-GLYPH-GAP",
+        "EN-SOURCE-PLURAL"
+      ],
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-en-light-proposal.png",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-en-light-proposal.json",
+      "captured_at": "2026-10-08T15:17:33.679630Z",
+      "before_path": "evidence/shared/before-B4-B6/widget-readable--before-390x844-en-light-proposal.png",
+      "before_png_sha256": "e9fbc70427c3ff4b38fb674c61418c5c85f118cb8fca9b78b535e81b1441df69"
+    },
+    {
+      "filename": "after-390x844-en-light-unknownSubmission.png",
+      "view_order": 18,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "a6275577413a4fae855d6f5ae38df150180faf265980f82edba749e8e2d8b1e5",
+      "sidecar_sha256": "fc0dabadc58772c548eb37598d0bfe75f4435a8352bccf8bc9577ecf715d8f08",
+      "png_dimensions": {
+        "width": 780,
+        "height": 1688
+      },
+      "logical_size": {
+        "width": 390.0,
+        "height": 844.0
+      },
+      "locale": "en",
+      "brightness": "light",
+      "visual_notes": [
+        "普通中英文、状态、来源及主动作文字可辨读；多行草稿、展开入口和意图文字比 Before 更完整。",
+        "来源 chip 仍显示命令摘要和行号两行内容；数量入口可见但详情未打开。",
+        "当前滚动位置导致部分早期内容位于顶部视口之外；不能用单张图证明完整卡片已显示。",
+        "不重发说明和原提交检查/终端检查入口可见；输入发送文字灰显。",
+        "预期 🧭 位置有缺字框；特殊字符渲染不完整，不能宣称所有字符可读。",
+        "“1 sources” 单复数文案错误保持 open，P3 非核心流程阻断。"
+      ],
+      "observation_ids": [
+        "AI-MULTILINE-EXPAND",
+        "AI-INTENT-ACTIONS",
+        "AI-VIEWPORT",
+        "EMOJI-GLYPH-GAP",
+        "EN-SOURCE-PLURAL"
+      ],
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-en-light-unknownSubmission.png",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-en-light-unknownSubmission.json",
+      "captured_at": "2026-10-08T15:17:33.770402Z",
+      "before_path": "evidence/shared/before-B4-B6/widget-readable--before-390x844-en-light-unknownSubmission.png",
+      "before_png_sha256": "10112c8e5a8f64a392215673e8a63e194efc5feda431933229775c124a6e76b3"
+    },
+    {
+      "filename": "after-390x844-zh-dark-multilineDraft.png",
+      "view_order": 19,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "e7d640461b4836f135bb24f29d7c8eab16f2918a40b7216875e16667fa4bb256",
+      "sidecar_sha256": "5fd3eb3801db0ec4698c24c02ab70f17027bee9564623e87388222be6eb443eb",
+      "png_dimensions": {
+        "width": 780,
+        "height": 1688
+      },
+      "logical_size": {
+        "width": 390.0,
+        "height": 844.0
+      },
+      "locale": "zh",
+      "brightness": "dark",
+      "visual_notes": [
+        "普通中英文、状态、来源及主动作文字可辨读；多行草稿、展开入口和意图文字比 Before 更完整。",
+        "来源 chip 仍显示命令摘要和行号两行内容；数量入口可见但详情未打开。",
+        "预期 🧭 位置有缺字框；特殊字符渲染不完整，不能宣称所有字符可读。"
+      ],
+      "observation_ids": [
+        "AI-MULTILINE-EXPAND",
+        "AI-INTENT-ACTIONS",
+        "EMOJI-GLYPH-GAP"
+      ],
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-zh-dark-multilineDraft.png",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-zh-dark-multilineDraft.json",
+      "captured_at": "2026-10-08T15:17:33.846879Z",
+      "before_path": "evidence/shared/before-B4-B6/widget-readable--before-390x844-zh-dark-multilineDraft.png",
+      "before_png_sha256": "49a6574b0b5f554cc484d031efcbd858e197449f608e36e728b8ed8afd5cce70"
+    },
+    {
+      "filename": "after-390x844-zh-dark-proposal.png",
+      "view_order": 20,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "7d9604786ab631dc8a0b4a77aadffb2755672ee126b5f883e90ea26fc502df6a",
+      "sidecar_sha256": "58db558836cd7d0e8842325cd494eb8d58e55b6e9e811ea1c4e5145adc7fbee6",
+      "png_dimensions": {
+        "width": 780,
+        "height": 1688
+      },
+      "logical_size": {
+        "width": 390.0,
+        "height": 844.0
+      },
+      "locale": "zh",
+      "brightness": "dark",
+      "visual_notes": [
+        "普通中英文、状态、来源及主动作文字可辨读；多行草稿、展开入口和意图文字比 Before 更完整。",
+        "来源 chip 仍显示命令摘要和行号两行内容；数量入口可见但详情未打开。",
+        "当前滚动位置导致部分早期内容位于顶部视口之外；不能用单张图证明完整卡片已显示。",
+        "Decline/Review full command 或中文动作清楚，输入主动作显示补充要求。",
+        "预期 🧭 位置有缺字框；特殊字符渲染不完整，不能宣称所有字符可读。"
+      ],
+      "observation_ids": [
+        "AI-MULTILINE-EXPAND",
+        "AI-INTENT-ACTIONS",
+        "AI-VIEWPORT",
+        "EMOJI-GLYPH-GAP"
+      ],
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-zh-dark-proposal.png",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-zh-dark-proposal.json",
+      "captured_at": "2026-10-08T15:17:33.948458Z",
+      "before_path": "evidence/shared/before-B4-B6/widget-readable--before-390x844-zh-dark-proposal.png",
+      "before_png_sha256": "f7aa6814450fdd11b027b697ea468e9c00cae8ddbf6fc15f6017ecd8c492d8e3"
+    },
+    {
+      "filename": "after-390x844-zh-dark-unknownSubmission.png",
+      "view_order": 21,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "6249ce092a797a6a9663fb468052106d110a0137317598fb7c446e4b4f0688df",
+      "sidecar_sha256": "0d123d19efe4582e3dc3c24159b1d029f61c0d470f68c4fb34b236a1ec1ea2e8",
+      "png_dimensions": {
+        "width": 780,
+        "height": 1688
+      },
+      "logical_size": {
+        "width": 390.0,
+        "height": 844.0
+      },
+      "locale": "zh",
+      "brightness": "dark",
+      "visual_notes": [
+        "普通中英文、状态、来源及主动作文字可辨读；多行草稿、展开入口和意图文字比 Before 更完整。",
+        "来源 chip 仍显示命令摘要和行号两行内容；数量入口可见但详情未打开。",
+        "当前滚动位置导致部分早期内容位于顶部视口之外；不能用单张图证明完整卡片已显示。",
+        "不重发说明和原提交检查/终端检查入口可见；输入发送文字灰显。",
+        "预期 🧭 位置有缺字框；特殊字符渲染不完整，不能宣称所有字符可读。"
+      ],
+      "observation_ids": [
+        "AI-MULTILINE-EXPAND",
+        "AI-INTENT-ACTIONS",
+        "AI-VIEWPORT",
+        "EMOJI-GLYPH-GAP"
+      ],
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-zh-dark-unknownSubmission.png",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-zh-dark-unknownSubmission.json",
+      "captured_at": "2026-10-08T15:17:34.038876Z",
+      "before_path": "evidence/shared/before-B4-B6/widget-readable--before-390x844-zh-dark-unknownSubmission.png",
+      "before_png_sha256": "7826803740e906025597965e3cfa048ec931031fea2baba90642a76779d26470"
+    },
+    {
+      "filename": "after-390x844-zh-light-multilineDraft.png",
+      "view_order": 22,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "e0bf84c94cf92e7564462ddf094aa87c01c6f1d26f98f903ffdfb8866a22a10b",
+      "sidecar_sha256": "65592541d0ba892f8afdae6bdcd8661fc0eeca3962b4a7f23ff2a2c4286583ae",
+      "png_dimensions": {
+        "width": 780,
+        "height": 1688
+      },
+      "logical_size": {
+        "width": 390.0,
+        "height": 844.0
+      },
+      "locale": "zh",
+      "brightness": "light",
+      "visual_notes": [
+        "普通中英文、状态、来源及主动作文字可辨读；多行草稿、展开入口和意图文字比 Before 更完整。",
+        "来源 chip 仍显示命令摘要和行号两行内容；数量入口可见但详情未打开。",
+        "预期 🧭 位置有缺字框；特殊字符渲染不完整，不能宣称所有字符可读。"
+      ],
+      "observation_ids": [
+        "AI-MULTILINE-EXPAND",
+        "AI-INTENT-ACTIONS",
+        "EMOJI-GLYPH-GAP"
+      ],
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-zh-light-multilineDraft.png",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-zh-light-multilineDraft.json",
+      "captured_at": "2026-10-08T15:17:34.114532Z",
+      "before_path": "evidence/shared/before-B4-B6/widget-readable--before-390x844-zh-light-multilineDraft.png",
+      "before_png_sha256": "ce2e0f653a33ee2396e571f82a549ded0e4d07faa5908d1ab8a8321a796026a7"
+    },
+    {
+      "filename": "after-390x844-zh-light-proposal.png",
+      "view_order": 23,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "acbfe8b5a5e01ec3bfcc974c1b9921d5ade1f3e75397b8de4e22e89cf08f804a",
+      "sidecar_sha256": "5c564d38a42ca4cbd1af2a93a64a32dc39928147db63f3126d0bfd44956f1ab8",
+      "png_dimensions": {
+        "width": 780,
+        "height": 1688
+      },
+      "logical_size": {
+        "width": 390.0,
+        "height": 844.0
+      },
+      "locale": "zh",
+      "brightness": "light",
+      "visual_notes": [
+        "普通中英文、状态、来源及主动作文字可辨读；多行草稿、展开入口和意图文字比 Before 更完整。",
+        "来源 chip 仍显示命令摘要和行号两行内容；数量入口可见但详情未打开。",
+        "当前滚动位置导致部分早期内容位于顶部视口之外；不能用单张图证明完整卡片已显示。",
+        "Decline/Review full command 或中文动作清楚，输入主动作显示补充要求。",
+        "预期 🧭 位置有缺字框；特殊字符渲染不完整，不能宣称所有字符可读。"
+      ],
+      "observation_ids": [
+        "AI-MULTILINE-EXPAND",
+        "AI-INTENT-ACTIONS",
+        "AI-VIEWPORT",
+        "EMOJI-GLYPH-GAP"
+      ],
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-zh-light-proposal.png",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-zh-light-proposal.json",
+      "captured_at": "2026-10-08T15:17:34.197804Z",
+      "before_path": "evidence/shared/before-B4-B6/widget-readable--before-390x844-zh-light-proposal.png",
+      "before_png_sha256": "1062f8f99b0773ac139d2c184e01478be8ee52b8d87e1a442f3845db7c9be5dd"
+    },
+    {
+      "filename": "after-390x844-zh-light-unknownSubmission.png",
+      "view_order": 24,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "c88f93b15f535024a19c507819bc8337fe61ee22e81c5ca2bb7fbde359e158d3",
+      "sidecar_sha256": "be9f7bb199b7ddff8a65a9394ff760f1321f91d61006634e8db3af276e2d02c8",
+      "png_dimensions": {
+        "width": 780,
+        "height": 1688
+      },
+      "logical_size": {
+        "width": 390.0,
+        "height": 844.0
+      },
+      "locale": "zh",
+      "brightness": "light",
+      "visual_notes": [
+        "普通中英文、状态、来源及主动作文字可辨读；多行草稿、展开入口和意图文字比 Before 更完整。",
+        "来源 chip 仍显示命令摘要和行号两行内容；数量入口可见但详情未打开。",
+        "当前滚动位置导致部分早期内容位于顶部视口之外；不能用单张图证明完整卡片已显示。",
+        "不重发说明和原提交检查/终端检查入口可见；输入发送文字灰显。",
+        "预期 🧭 位置有缺字框；特殊字符渲染不完整，不能宣称所有字符可读。"
+      ],
+      "observation_ids": [
+        "AI-MULTILINE-EXPAND",
+        "AI-INTENT-ACTIONS",
+        "AI-VIEWPORT",
+        "EMOJI-GLYPH-GAP"
+      ],
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-zh-light-unknownSubmission.png",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-zh-light-unknownSubmission.json",
+      "captured_at": "2026-10-08T15:17:34.281105Z",
+      "before_path": "evidence/shared/before-B4-B6/widget-readable--before-390x844-zh-light-unknownSubmission.png",
+      "before_png_sha256": "2f7754e5acf8b57fbeaf43359e03c020afa218789cf4ef2e4015d6fc3a33f785"
+    },
+    {
+      "filename": "after-composer-ipad-1024x768-dark-ai.png",
+      "view_order": 25,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "6ab621604132feeac602359507dc3a22594c4bc57e18e6b5181f80f5362980c5",
+      "sidecar_sha256": "aaedf6251ec2e7705d1842cb0fbc7bb186f0be5561ffe29f661166d42193536d",
+      "png_dimensions": {
+        "width": 2048,
+        "height": 1536
+      },
+      "logical_size": {
+        "width": 1024.0,
+        "height": 768.0
+      },
+      "locale": "en",
+      "brightness": "dark",
+      "visual_notes": [
+        "三行草稿、中英混合路径/输出、意图标签和主动作均可辨读。",
+        "展开入口、菜单及已有状态在画面内未见重叠/越界。",
+        "失败输出当前只显示末尾中文行，视口状态与 Before 一致。"
+      ],
+      "observation_ids": [
+        "COMPOSER-EXPAND",
+        "IPAD-OUTPUT-VIEWPORT"
+      ],
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-ipad-1024x768-dark-ai.png",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-ipad-1024x768-dark-ai.json",
+      "captured_at": "2026-10-08T15:17:37.376522Z",
+      "before_path": "evidence/shared/before-B4-B6/widget-readable--before-composer-ipad-1024x768-dark-ai.png",
+      "before_png_sha256": "db5601d063e56fc6b8d4bc38a68d49676abb79663306aed8b88fcbdf3cca9f81"
+    },
+    {
+      "filename": "after-composer-ipad-1024x768-dark-automatic.png",
+      "view_order": 26,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "a3ef8b6bd35b8ffd9c311e525c3c43c82a810e54a2676171d9e75cf1db07746e",
+      "sidecar_sha256": "16442dab4e0738644a3793ca13b71a59dd27fa7f68abfb86cbd866c88c844671",
+      "png_dimensions": {
+        "width": 2048,
+        "height": 1536
+      },
+      "logical_size": {
+        "width": 1024.0,
+        "height": 768.0
+      },
+      "locale": "en",
+      "brightness": "dark",
+      "visual_notes": [
+        "三行草稿、中英混合路径/输出、意图标签和主动作均可辨读。",
+        "展开入口、菜单及已有状态在画面内未见重叠/越界。",
+        "失败输出当前只显示末尾中文行，视口状态与 Before 一致。"
+      ],
+      "observation_ids": [
+        "COMPOSER-EXPAND",
+        "IPAD-OUTPUT-VIEWPORT"
+      ],
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-ipad-1024x768-dark-automatic.png",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-ipad-1024x768-dark-automatic.json",
+      "captured_at": "2026-10-08T15:17:37.069317Z",
+      "before_path": "evidence/shared/before-B4-B6/widget-readable--before-composer-ipad-1024x768-dark-automatic.png",
+      "before_png_sha256": "5253ba72ce5b0df6657517ac6341c3a9a3c73f105b5b44db98d9eaa1c8a07d11"
+    },
+    {
+      "filename": "after-composer-ipad-1024x768-dark-command.png",
+      "view_order": 27,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "e346735b54a67429a5b90ad97db93508e39e19f68c7da15da2eb67e5b0efdb88",
+      "sidecar_sha256": "8fa390736a695f517ed28265f9e2d331d51bc70f5f06fcc220a680f74de908b2",
+      "png_dimensions": {
+        "width": 2048,
+        "height": 1536
+      },
+      "logical_size": {
+        "width": 1024.0,
+        "height": 768.0
+      },
+      "locale": "en",
+      "brightness": "dark",
+      "visual_notes": [
+        "三行草稿、中英混合路径/输出、意图标签和主动作均可辨读。",
+        "展开入口、菜单及已有状态在画面内未见重叠/越界。",
+        "失败输出当前只显示末尾中文行，视口状态与 Before 一致。"
+      ],
+      "observation_ids": [
+        "COMPOSER-EXPAND",
+        "IPAD-OUTPUT-VIEWPORT"
+      ],
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-ipad-1024x768-dark-command.png",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-ipad-1024x768-dark-command.json",
+      "captured_at": "2026-10-08T15:17:37.231045Z",
+      "before_path": "evidence/shared/before-B4-B6/widget-readable--before-composer-ipad-1024x768-dark-command.png",
+      "before_png_sha256": "40342d7fe99034d1e849f04eced75a256c629254e2760e325c71177b9378be42"
+    },
+    {
+      "filename": "after-composer-ipad-1024x768-light-ai.png",
+      "view_order": 28,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "af23c1a3dc4d2d078fd6ee72c20291bee687bdde8e63b8bd3c1b0011d22894c0",
+      "sidecar_sha256": "f8b9ec56b42a7037eb544f801b240fc45a1d834bf75f79193dfe79f12f04168f",
+      "png_dimensions": {
+        "width": 2048,
+        "height": 1536
+      },
+      "logical_size": {
+        "width": 1024.0,
+        "height": 768.0
+      },
+      "locale": "en",
+      "brightness": "light",
+      "visual_notes": [
+        "三行草稿、中英混合路径/输出、意图标签和主动作均可辨读。",
+        "展开入口、菜单及已有状态在画面内未见重叠/越界。",
+        "失败输出当前只显示末尾中文行，视口状态与 Before 一致。"
+      ],
+      "observation_ids": [
+        "COMPOSER-EXPAND",
+        "IPAD-OUTPUT-VIEWPORT"
+      ],
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-ipad-1024x768-light-ai.png",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-ipad-1024x768-light-ai.json",
+      "captured_at": "2026-10-08T15:17:37.781847Z",
+      "before_path": "evidence/shared/before-B4-B6/widget-readable--before-composer-ipad-1024x768-light-ai.png",
+      "before_png_sha256": "c0f2b5fdb51a22546ee45f3dc8c8c878a98c54014ba612c0743c6791663dd1e4"
+    },
+    {
+      "filename": "after-composer-ipad-1024x768-light-automatic.png",
+      "view_order": 29,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "1183816cc5a041be828cf923d7b7090d94e945856bfc8acd45c0f82d8402b4b6",
+      "sidecar_sha256": "717abe116558d14ef28c7f510dfc1468e68643d8e282c34c63832eb683f43195",
+      "png_dimensions": {
+        "width": 2048,
+        "height": 1536
+      },
+      "logical_size": {
+        "width": 1024.0,
+        "height": 768.0
+      },
+      "locale": "en",
+      "brightness": "light",
+      "visual_notes": [
+        "三行草稿、中英混合路径/输出、意图标签和主动作均可辨读。",
+        "展开入口、菜单及已有状态在画面内未见重叠/越界。",
+        "失败输出当前只显示末尾中文行，视口状态与 Before 一致。"
+      ],
+      "observation_ids": [
+        "COMPOSER-EXPAND",
+        "IPAD-OUTPUT-VIEWPORT"
+      ],
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-ipad-1024x768-light-automatic.png",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-ipad-1024x768-light-automatic.json",
+      "captured_at": "2026-10-08T15:17:37.517115Z",
+      "before_path": "evidence/shared/before-B4-B6/widget-readable--before-composer-ipad-1024x768-light-automatic.png",
+      "before_png_sha256": "4a865b7a2b9b169fe8e2d59a4a828269b9c3c64389ffce5593642b87063c1242"
+    },
+    {
+      "filename": "after-composer-ipad-1024x768-light-command.png",
+      "view_order": 30,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "f0417780b5261418a13315feb0dcb41f690f7c0caa532670aa30c52530e331c6",
+      "sidecar_sha256": "a78f15c6b2e17a7ca7e79581d4d18715c4fa49333648d5e9012e7c6ab93c7825",
+      "png_dimensions": {
+        "width": 2048,
+        "height": 1536
+      },
+      "logical_size": {
+        "width": 1024.0,
+        "height": 768.0
+      },
+      "locale": "en",
+      "brightness": "light",
+      "visual_notes": [
+        "三行草稿、中英混合路径/输出、意图标签和主动作均可辨读。",
+        "展开入口、菜单及已有状态在画面内未见重叠/越界。",
+        "失败输出当前只显示末尾中文行，视口状态与 Before 一致。"
+      ],
+      "observation_ids": [
+        "COMPOSER-EXPAND",
+        "IPAD-OUTPUT-VIEWPORT"
+      ],
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-ipad-1024x768-light-command.png",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-ipad-1024x768-light-command.json",
+      "captured_at": "2026-10-08T15:17:37.653193Z",
+      "before_path": "evidence/shared/before-B4-B6/widget-readable--before-composer-ipad-1024x768-light-command.png",
+      "before_png_sha256": "07b41a4f781818dd5b296f3a96bf412ee6b450bcf328fa5fdca88b51b4f38ce4"
+    },
+    {
+      "filename": "after-composer-mac-1280x900-dark-ai.png",
+      "view_order": 31,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "ff347bc7d329957b5a324841076cdcd37388ebe52f12326b7e039813fbfe2dc9",
+      "sidecar_sha256": "a643009e1586cfe78aba384bf58d84562edac9f79ef6ec3a0b28357bce6eedfd",
+      "png_dimensions": {
+        "width": 2560,
+        "height": 1800
+      },
+      "logical_size": {
+        "width": 1280.0,
+        "height": 900.0
+      },
+      "locale": "en",
+      "brightness": "dark",
+      "visual_notes": [
+        "三行草稿、中英混合路径/输出、意图标签和主动作均可辨读。",
+        "展开入口、菜单及已有状态在画面内未见重叠/越界。",
+        "失败输出两行均可见；unknown 问号及 Status unknown 保持。"
+      ],
+      "observation_ids": [
+        "COMPOSER-EXPAND"
+      ],
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-mac-1280x900-dark-ai.png",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-mac-1280x900-dark-ai.json",
+      "captured_at": "2026-10-08T15:17:38.218909Z",
+      "before_path": "evidence/shared/before-B4-B6/widget-readable--before-composer-mac-1280x900-dark-ai.png",
+      "before_png_sha256": "2c93aded0cc1686560502b255d4df4b1e975964c75d2bf75ec490c3b9b121e0c"
+    },
+    {
+      "filename": "after-composer-mac-1280x900-dark-automatic.png",
+      "view_order": 32,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "4337a18be86a738d65f2ea2a0d170b1d3a540070d239d597bb3a8c2bde78b59b",
+      "sidecar_sha256": "d6586bc5ac38aa45df6397af7090113a9c8722392b96acf03780c592e8894a52",
+      "png_dimensions": {
+        "width": 2560,
+        "height": 1800
+      },
+      "logical_size": {
+        "width": 1280.0,
+        "height": 900.0
+      },
+      "locale": "en",
+      "brightness": "dark",
+      "visual_notes": [
+        "三行草稿、中英混合路径/输出、意图标签和主动作均可辨读。",
+        "展开入口、菜单及已有状态在画面内未见重叠/越界。",
+        "失败输出两行均可见；unknown 问号及 Status unknown 保持。"
+      ],
+      "observation_ids": [
+        "COMPOSER-EXPAND"
+      ],
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-mac-1280x900-dark-automatic.png",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-mac-1280x900-dark-automatic.json",
+      "captured_at": "2026-10-08T15:17:37.914101Z",
+      "before_path": "evidence/shared/before-B4-B6/widget-readable--before-composer-mac-1280x900-dark-automatic.png",
+      "before_png_sha256": "0bec1178fe0c181ab5ceb423324e5150b2b677d8267bd1e2e6cb998be8424045"
+    },
+    {
+      "filename": "after-composer-mac-1280x900-dark-command.png",
+      "view_order": 33,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "fd0ffd1a894c00b3acd722308c2cf851b896d504fc056014eb0ca25b13a06c24",
+      "sidecar_sha256": "9df66c45c14db9913024ac96182576b7dd358aa3811b6e59314674965129da53",
+      "png_dimensions": {
+        "width": 2560,
+        "height": 1800
+      },
+      "logical_size": {
+        "width": 1280.0,
+        "height": 900.0
+      },
+      "locale": "en",
+      "brightness": "dark",
+      "visual_notes": [
+        "三行草稿、中英混合路径/输出、意图标签和主动作均可辨读。",
+        "展开入口、菜单及已有状态在画面内未见重叠/越界。",
+        "失败输出两行均可见；unknown 问号及 Status unknown 保持。"
+      ],
+      "observation_ids": [
+        "COMPOSER-EXPAND"
+      ],
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-mac-1280x900-dark-command.png",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-mac-1280x900-dark-command.json",
+      "captured_at": "2026-10-08T15:17:38.066602Z",
+      "before_path": "evidence/shared/before-B4-B6/widget-readable--before-composer-mac-1280x900-dark-command.png",
+      "before_png_sha256": "934f70fef6bfdab69585d299dd22575a2d8ce20371e2a8d0c7e2279086e401d6"
+    },
+    {
+      "filename": "after-composer-mac-1280x900-light-ai.png",
+      "view_order": 34,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "b2593934b0452c7afb7a5f463ac78b90fd05dfe9d1bc5cee593a43be31e71e7b",
+      "sidecar_sha256": "1a8738a09e4d1ab0d3f95d5dc136cbfd7e5e9ffdb187433ee20405896e1d8e3b",
+      "png_dimensions": {
+        "width": 2560,
+        "height": 1800
+      },
+      "logical_size": {
+        "width": 1280.0,
+        "height": 900.0
+      },
+      "locale": "en",
+      "brightness": "light",
+      "visual_notes": [
+        "三行草稿、中英混合路径/输出、意图标签和主动作均可辨读。",
+        "展开入口、菜单及已有状态在画面内未见重叠/越界。",
+        "失败输出两行均可见；unknown 问号及 Status unknown 保持。"
+      ],
+      "observation_ids": [
+        "COMPOSER-EXPAND"
+      ],
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-mac-1280x900-light-ai.png",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-mac-1280x900-light-ai.json",
+      "captured_at": "2026-10-08T15:17:38.666265Z",
+      "before_path": "evidence/shared/before-B4-B6/widget-readable--before-composer-mac-1280x900-light-ai.png",
+      "before_png_sha256": "0b504f081c7e84f4f7d645ab1012c23e9875f2c205ce1591357291ad31d7ebd6"
+    },
+    {
+      "filename": "after-composer-mac-1280x900-light-automatic.png",
+      "view_order": 35,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "3ac03673830d30f8bc9b40c3fffc1e31b4cb507eac10586b5d9641401b691c8c",
+      "sidecar_sha256": "f52806ebef93014c029f5c9277860816330f58d78b3b29ce03ece852d380de9f",
+      "png_dimensions": {
+        "width": 2560,
+        "height": 1800
+      },
+      "logical_size": {
+        "width": 1280.0,
+        "height": 900.0
+      },
+      "locale": "en",
+      "brightness": "light",
+      "visual_notes": [
+        "三行草稿、中英混合路径/输出、意图标签和主动作均可辨读。",
+        "展开入口、菜单及已有状态在画面内未见重叠/越界。",
+        "失败输出两行均可见；unknown 问号及 Status unknown 保持。"
+      ],
+      "observation_ids": [
+        "COMPOSER-EXPAND"
+      ],
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-mac-1280x900-light-automatic.png",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-mac-1280x900-light-automatic.json",
+      "captured_at": "2026-10-08T15:17:38.377528Z",
+      "before_path": "evidence/shared/before-B4-B6/widget-readable--before-composer-mac-1280x900-light-automatic.png",
+      "before_png_sha256": "0c3241bb8080e734cbea2eec3adabd25ac5186bcaf24329e8e2fce4db009058d"
+    },
+    {
+      "filename": "after-composer-mac-1280x900-light-command.png",
+      "view_order": 36,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "aafb15030c30fbb6e622571774142949512d508ac9585ab466b470f92931a809",
+      "sidecar_sha256": "7fd92d38fddb4b100d0aa518df01d5ffd189291b48bad24eb637ef4d5d4e2df5",
+      "png_dimensions": {
+        "width": 2560,
+        "height": 1800
+      },
+      "logical_size": {
+        "width": 1280.0,
+        "height": 900.0
+      },
+      "locale": "en",
+      "brightness": "light",
+      "visual_notes": [
+        "三行草稿、中英混合路径/输出、意图标签和主动作均可辨读。",
+        "展开入口、菜单及已有状态在画面内未见重叠/越界。",
+        "失败输出两行均可见；unknown 问号及 Status unknown 保持。"
+      ],
+      "observation_ids": [
+        "COMPOSER-EXPAND"
+      ],
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-mac-1280x900-light-command.png",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-mac-1280x900-light-command.json",
+      "captured_at": "2026-10-08T15:17:38.523528Z",
+      "before_path": "evidence/shared/before-B4-B6/widget-readable--before-composer-mac-1280x900-light-command.png",
+      "before_png_sha256": "190b90423074b835ff989b2ca8108d902a9f9d1962cee2d9cb5a9b06b54502dc"
+    },
+    {
+      "filename": "after-composer-phone-390x844-dark-ai.png",
+      "view_order": 37,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "f69f29e9733f240af147d49244a6eb66b04df5e798701a4d873d9e6b2a3de4a4",
+      "sidecar_sha256": "e580eaeaa876c7c7f01ec3e179d15bf32b313f070f5a7e627b1a30a96b176d84",
+      "png_dimensions": {
+        "width": 780,
+        "height": 1688
+      },
+      "logical_size": {
+        "width": 390.0,
+        "height": 844.0
+      },
+      "locale": "en",
+      "brightness": "dark",
+      "visual_notes": [
+        "三行草稿、中英混合路径/输出、意图标签和主动作均可辨读。",
+        "展开入口、菜单及已有状态在画面内未见重叠/越界。",
+        "失败 AI diagnosis 可见；unknown 问号区别成功勾选，Auto/Command/AI 明确可辨。"
+      ],
+      "observation_ids": [
+        "COMPOSER-EXPAND",
+        "PHONE-UNKNOWN-ICON",
+        "PHONE-INTENT-LABELS",
+        "PHONE-DIAGNOSIS"
+      ],
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-phone-390x844-dark-ai.png",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-phone-390x844-dark-ai.json",
+      "captured_at": "2026-10-08T15:17:36.626241Z",
+      "before_path": "evidence/shared/before-B4-B6/widget-readable--before-composer-phone-390x844-dark-ai.png",
+      "before_png_sha256": "b02de62995849d520cfaffa3de9a2e334d35e09156fa26f6fe78cdf8f5936c34"
+    },
+    {
+      "filename": "after-composer-phone-390x844-dark-automatic.png",
+      "view_order": 38,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "3f7b16ddeb49a7cdf608160ae62017a6fd97d9cf45ccf0424cdb6272dd54e0d6",
+      "sidecar_sha256": "ab2d8843479cf8fe502aa349ab34eb95d2a5c2bffcf6eed7dd33ee848f93948c",
+      "png_dimensions": {
+        "width": 780,
+        "height": 1688
+      },
+      "logical_size": {
+        "width": 390.0,
+        "height": 844.0
+      },
+      "locale": "en",
+      "brightness": "dark",
+      "visual_notes": [
+        "三行草稿、中英混合路径/输出、意图标签和主动作均可辨读。",
+        "展开入口、菜单及已有状态在画面内未见重叠/越界。",
+        "失败 AI diagnosis 可见；unknown 问号区别成功勾选，Auto/Command/AI 明确可辨。"
+      ],
+      "observation_ids": [
+        "COMPOSER-EXPAND",
+        "PHONE-UNKNOWN-ICON",
+        "PHONE-INTENT-LABELS",
+        "PHONE-DIAGNOSIS"
+      ],
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-phone-390x844-dark-automatic.png",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-phone-390x844-dark-automatic.json",
+      "captured_at": "2026-10-08T15:17:36.361763Z",
+      "before_path": "evidence/shared/before-B4-B6/widget-readable--before-composer-phone-390x844-dark-automatic.png",
+      "before_png_sha256": "899018c9c464b7c29839e22b9e7eb7dfa0610ec4636aa2fbabcbb9efe906d875"
+    },
+    {
+      "filename": "after-composer-phone-390x844-dark-command.png",
+      "view_order": 39,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "c8668852c216c34fa13f17e5bb3fa3a6eafc40668966f3c95db251ec72c8a681",
+      "sidecar_sha256": "597cd89c83f903cda4b6e86dcc13953a81435c8581ac4ea9eae54fc985c97ed6",
+      "png_dimensions": {
+        "width": 780,
+        "height": 1688
+      },
+      "logical_size": {
+        "width": 390.0,
+        "height": 844.0
+      },
+      "locale": "en",
+      "brightness": "dark",
+      "visual_notes": [
+        "三行草稿、中英混合路径/输出、意图标签和主动作均可辨读。",
+        "展开入口、菜单及已有状态在画面内未见重叠/越界。",
+        "失败 AI diagnosis 可见；unknown 问号区别成功勾选，Auto/Command/AI 明确可辨。"
+      ],
+      "observation_ids": [
+        "COMPOSER-EXPAND",
+        "PHONE-UNKNOWN-ICON",
+        "PHONE-INTENT-LABELS",
+        "PHONE-DIAGNOSIS"
+      ],
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-phone-390x844-dark-command.png",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-phone-390x844-dark-command.json",
+      "captured_at": "2026-10-08T15:17:36.503431Z",
+      "before_path": "evidence/shared/before-B4-B6/widget-readable--before-composer-phone-390x844-dark-command.png",
+      "before_png_sha256": "899018c9c464b7c29839e22b9e7eb7dfa0610ec4636aa2fbabcbb9efe906d875"
+    },
+    {
+      "filename": "after-composer-phone-390x844-light-ai.png",
+      "view_order": 40,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "1a1cc4a77c7beb749dec85a10e2f39234c3e985a61a54da04a7872310992d69e",
+      "sidecar_sha256": "faa526dffe87ab482799720f6862e28f5981f636686cea4d6df2403de0917db9",
+      "png_dimensions": {
+        "width": 780,
+        "height": 1688
+      },
+      "logical_size": {
+        "width": 390.0,
+        "height": 844.0
+      },
+      "locale": "en",
+      "brightness": "light",
+      "visual_notes": [
+        "三行草稿、中英混合路径/输出、意图标签和主动作均可辨读。",
+        "展开入口、菜单及已有状态在画面内未见重叠/越界。",
+        "失败 AI diagnosis 可见；unknown 问号区别成功勾选，Auto/Command/AI 明确可辨。"
+      ],
+      "observation_ids": [
+        "COMPOSER-EXPAND",
+        "PHONE-UNKNOWN-ICON",
+        "PHONE-INTENT-LABELS",
+        "PHONE-DIAGNOSIS"
+      ],
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-phone-390x844-light-ai.png",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-phone-390x844-light-ai.json",
+      "captured_at": "2026-10-08T15:17:36.918666Z",
+      "before_path": "evidence/shared/before-B4-B6/widget-readable--before-composer-phone-390x844-light-ai.png",
+      "before_png_sha256": "839895fbff79d03d82bc0a83b908a7a190e91b2dc94b4c903e1e9e57ce91ad68"
+    },
+    {
+      "filename": "after-composer-phone-390x844-light-automatic.png",
+      "view_order": 41,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "4c7460b2a39ef5f5000b4ae52e8a8f13d570e5f73c8ebf2b973410f19a0bc7e7",
+      "sidecar_sha256": "1b0fb5eb80e5a630d2fc5bfd8633e445c420dcb74b3453778444354060f93efe",
+      "png_dimensions": {
+        "width": 780,
+        "height": 1688
+      },
+      "logical_size": {
+        "width": 390.0,
+        "height": 844.0
+      },
+      "locale": "en",
+      "brightness": "light",
+      "visual_notes": [
+        "三行草稿、中英混合路径/输出、意图标签和主动作均可辨读。",
+        "展开入口、菜单及已有状态在画面内未见重叠/越界。",
+        "失败 AI diagnosis 可见；unknown 问号区别成功勾选，Auto/Command/AI 明确可辨。"
+      ],
+      "observation_ids": [
+        "COMPOSER-EXPAND",
+        "PHONE-UNKNOWN-ICON",
+        "PHONE-INTENT-LABELS",
+        "PHONE-DIAGNOSIS"
+      ],
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-phone-390x844-light-automatic.png",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-phone-390x844-light-automatic.json",
+      "captured_at": "2026-10-08T15:17:36.730059Z",
+      "before_path": "evidence/shared/before-B4-B6/widget-readable--before-composer-phone-390x844-light-automatic.png",
+      "before_png_sha256": "7dfe333eb4a7f08248c3c74da64b0c0c8a808fa0ecdf74eca1f3cb7b4be78d57"
+    },
+    {
+      "filename": "after-composer-phone-390x844-light-command.png",
+      "view_order": 42,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "babefdfe87eca94b14725ecf2659167f3a73f7d82a36875229c3b2a321a0f621",
+      "sidecar_sha256": "daa3a1c3ca788440779260fc37e1ebc773a644ee69407faa87142632300acb0d",
+      "png_dimensions": {
+        "width": 780,
+        "height": 1688
+      },
+      "logical_size": {
+        "width": 390.0,
+        "height": 844.0
+      },
+      "locale": "en",
+      "brightness": "light",
+      "visual_notes": [
+        "三行草稿、中英混合路径/输出、意图标签和主动作均可辨读。",
+        "展开入口、菜单及已有状态在画面内未见重叠/越界。",
+        "失败 AI diagnosis 可见；unknown 问号区别成功勾选，Auto/Command/AI 明确可辨。"
+      ],
+      "observation_ids": [
+        "COMPOSER-EXPAND",
+        "PHONE-UNKNOWN-ICON",
+        "PHONE-INTENT-LABELS",
+        "PHONE-DIAGNOSIS"
+      ],
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-phone-390x844-light-command.png",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-phone-390x844-light-command.json",
+      "captured_at": "2026-10-08T15:17:36.830027Z",
+      "before_path": "evidence/shared/before-B4-B6/widget-readable--before-composer-phone-390x844-light-command.png",
+      "before_png_sha256": "7dfe333eb4a7f08248c3c74da64b0c0c8a808fa0ecdf74eca1f3cb7b4be78d57"
+    }
+  ]
+}

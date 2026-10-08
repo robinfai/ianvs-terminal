@@ -1,0 +1,21 @@
+{
+  "name": "connection-home",
+  "captured_at": "2026-10-08T12:11:08.022310+00:00",
+  "method": "simctl_raw_png",
+  "physical": false,
+  "file": "checkpoints/001-connection-home.png",
+  "sha256": "a063d6f88ef5a24aaaad5a1cbcf60425b5b4d7cd393b55e168633f9a3bc606ce",
+  "width": 1206,
+  "height": 2622,
+  "metadata": {
+    "run_id": "20261008T120708Z-3f24d8c0",
+    "capture_method": "native_screenshot",
+    "input_method": "Flutter EditableText client; not native IME",
+    "viewport_width": 402.0,
+    "viewport_height": 874.0,
+    "dpr": 3.0,
+    "locale": "zh",
+    "theme": "light",
+    "keyboard_inset": 0.0
+  }
+}

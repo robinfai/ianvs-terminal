@@ -1,0 +1,12 @@
+{"recorded_at": "2026-10-08T12:11:08.022868+00:00", "sequence": 2, "event": "checkpoint", "name": "connection-home", "file": "checkpoints/001-connection-home.png"}
+{"recorded_at": "2026-10-08T12:11:09.909683+00:00", "sequence": 4, "event": "checkpoint", "name": "initial-blocks", "file": "checkpoints/003-initial-blocks.png"}
+{"recorded_at": "2026-10-08T12:11:12.660403+00:00", "sequence": 6, "event": "checkpoint", "name": "failed-block", "file": "checkpoints/005-failed-block.png"}
+{"recorded_at": "2026-10-08T12:11:14.148192+00:00", "sequence": 8, "event": "checkpoint", "name": "diagnostic-draft", "file": "checkpoints/007-diagnostic-draft.png"}
+{"recorded_at": "2026-10-08T12:11:14.218325+00:00", "sequence": 9, "event": "diagnosis_prepares_only", "model_requests_unchanged": true, "fixture_executions_unchanged": true, "source_block_unchanged": true}
+{"recorded_at": "2026-10-08T12:11:14.968174+00:00", "sequence": 10, "event": "model_request", "model_request": 1, "roles": ["system", "user"], "reply_kind": "tool"}
+{"recorded_at": "2026-10-08T12:11:16.149779+00:00", "sequence": 12, "event": "checkpoint", "name": "proposal-compact", "file": "checkpoints/011-proposal-compact.png"}
+{"recorded_at": "2026-10-08T12:11:17.311663+00:00", "sequence": 14, "event": "checkpoint", "name": "proposal-full-review", "file": "checkpoints/013-proposal-full-review.png"}
+{"recorded_at": "2026-10-08T12:11:17.570591+00:00", "sequence": 15, "event": "model_request", "model_request": 2, "roles": ["system", "user", "assistant", "tool"], "reply_kind": "summary"}
+{"recorded_at": "2026-10-08T12:11:17.829729+00:00", "sequence": 16, "event": "approved_native_result", "execution_delta": 1, "native_exit_code": 0, "model_kind": "deterministic_fixture"}
+{"recorded_at": "2026-10-08T12:11:18.688599+00:00", "sequence": 18, "event": "checkpoint", "name": "execution-result", "file": "checkpoints/017-execution-result.png"}
+{"recorded_at": "2026-10-08T12:11:18.692152+00:00", "sequence": 19, "event": "run_finished", "result": "passed", "scope": "isolated native SSH deterministic smoke; not full PRD gate"}

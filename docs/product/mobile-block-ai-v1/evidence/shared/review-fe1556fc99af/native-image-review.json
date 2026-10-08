@@ -1,0 +1,52 @@
+{
+  "reviewed_at": "2026-10-08T15:25:54.227008+00:00",
+  "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+  "method": "Root opened all seven original PNG files through view_image; display was resized from 1206x2622 to 942x2048 by the viewing tool. No image bytes were modified. Static observations only, not continuous interaction or a per-pixel privacy guarantee.",
+  "native_ime_verified": false,
+  "complete_prd_cases_verified": false,
+  "files": [
+    {
+      "path": "evidence/shared/after-fe1556fc99af/fixture--checkpoints--001-connection-home.png",
+      "sha256": "8f516e2566b55183c547627cc8986f9d2926efed7a95f8c592aec397b8d19f53",
+      "checkpoint": "connection-home",
+      "observation": "Independent fixture connection is visible; generic lab/loopback endpoint; no real account or credential seen."
+    },
+    {
+      "path": "evidence/shared/after-fe1556fc99af/fixture--checkpoints--003-initial-blocks.png",
+      "sha256": "7c83cfffca4a8a762923e24ba716b95e38300a2f9ab0e8d254a0de2839049d64",
+      "checkpoint": "initial-blocks",
+      "observation": "Empty Blocks state, Shell-ready Composer and visible auto-command destination/action; native keyboard visible without overlapping the Composer. This frame does not verify native IME input."
+    },
+    {
+      "path": "evidence/shared/after-fe1556fc99af/fixture--checkpoints--005-failed-block.png",
+      "sha256": "529780501d6f019ec4dacd4c929e16c1423a6df90b35e27841db047520eea19b",
+      "checkpoint": "failed-block",
+      "observation": "Failed fixture Block has red failure state and directly visible AI diagnosis action; terminal output extends horizontally outside the visible viewport, so this frame does not prove full-output readability."
+    },
+    {
+      "path": "evidence/shared/after-fe1556fc99af/fixture--checkpoints--007-diagnostic-draft.png",
+      "sha256": "6440d5306b1cdc0f5176c50c6a50c0653f7a587d0dea0d0fe15e880da50bd203",
+      "checkpoint": "diagnostic-draft",
+      "observation": "AI task header, one source chip and a visible Send to AI action; source command and line count shown. Event log separately proves prepare-only behavior."
+    },
+    {
+      "path": "evidence/shared/after-fe1556fc99af/fixture--checkpoints--011-proposal-compact.png",
+      "sha256": "e0120d6ec3d961b1aa61044dab1dd99c03a049c3a744ec8565505f1684e2a167",
+      "checkpoint": "proposal-compact",
+      "observation": "Pending proposal exposes purpose/target/path/command and a full-review action; earlier conversation text is above the scroll position."
+    },
+    {
+      "path": "evidence/shared/after-fe1556fc99af/fixture--checkpoints--013-proposal-full-review.png",
+      "sha256": "b767276f28071647fb80cc78deeca7fdf01eeda55ddc2340fb83f37b2b6f60b9",
+      "checkpoint": "proposal-full-review",
+      "observation": "Full-review screen shows complete short fixture command, purpose/target/path and Edit/Reject/Execute once controls; no visible clipping of these controls."
+    },
+    {
+      "path": "evidence/shared/after-fe1556fc99af/fixture--checkpoints--017-execution-result.png",
+      "sha256": "7776ce1ab2ca731ee59be740226dc25c034bde2d75a738e33628879a7d02a425",
+      "checkpoint": "execution-result",
+      "observation": "Approved fixture repair Block shows successful result and follow-up summary; long terminal output extends horizontally beyond viewport, so this frame alone does not prove full text or Block identity mapping."
+    }
+  ],
+  "kind": "visual_review_metadata_not_capture"
+}

@@ -1,17 +1,2297 @@
 {
   "schema_version": "1.0",
   "baseline_commit": "763dc166bb1e56d6d50ed3379b57f366c9ca06b7",
-  "implementation_commit": null,
+  "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
   "stages": {
     "S1": "in_progress",
     "S2": "in_progress",
     "S3": "in_progress",
     "S4": "in_progress"
   },
-  "environments": [],
-  "source_hashes": {},
-  "shared_artifacts": [],
-  "open_issues": [],
+  "environments": [
+    {
+      "id": "after-widget-1",
+      "capture_class": "widget_golden",
+      "platform": "macos",
+      "device_model": "Flutter widget test surface; no physical device",
+      "os_version": "Version 27.0.1 (Build 26A434)",
+      "flutter_version": "3.44.8",
+      "build_mode": "test",
+      "build_id": "flutter-test:fe1556fc99af",
+      "build_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "is_physical": false,
+      "target_platform_override": "iOS widget theme/test override; no device",
+      "environment_source": "Original widget sidecar; host OS is not the simulated UI platform."
+    },
+    {
+      "id": "after-widget-2",
+      "capture_class": "widget_golden",
+      "platform": "macos",
+      "device_model": "Flutter widget test surface; no physical device",
+      "os_version": "Version 27.0.1 (Build 26A434)",
+      "flutter_version": "3.44.8",
+      "build_mode": "test",
+      "build_id": "flutter-test:fe1556fc99af",
+      "build_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "is_physical": false,
+      "target_platform_override": "iOS widget theme/test override",
+      "environment_source": "Original widget sidecar; host OS is not the simulated UI platform."
+    },
+    {
+      "id": "after-widget-3",
+      "capture_class": "widget_golden",
+      "platform": "macos",
+      "device_model": "Flutter widget test surface; no physical device",
+      "os_version": "Version 27.0.1 (Build 26A434)",
+      "flutter_version": "3.44.8",
+      "build_mode": "test",
+      "build_id": "flutter-test:fe1556fc99af",
+      "build_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "is_physical": false,
+      "target_platform_override": "macOS widget theme/test override",
+      "environment_source": "Original widget sidecar; host OS is not the simulated UI platform."
+    },
+    {
+      "id": "after-ios-simulator",
+      "capture_class": "app_simulator",
+      "platform": "ios",
+      "device_model": "iPhone 17",
+      "os_version": "27.0",
+      "os_build": "24A434",
+      "flutter_version": "3.44.8",
+      "flutter_version_source": "Consistent original widget sidecars; the same After runner uses one Flutter SDK for both capture stages.",
+      "build_mode": "debug",
+      "build_id": "0.1.0+1:fe1556fc99af",
+      "build_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "binary_sha256": "53b8d9912a3017ff70369b422f960dfb5f95cf30b513176c3b39b3825b9c8490",
+      "is_physical": false,
+      "bundle_id": "work.ianvs.trail.mobileprd",
+      "entrypoint": "smoke",
+      "target": "example/integration_test/mobile_prd_acceptance_test.dart",
+      "target_sha256": "37ff68de5a686951a38696a71fcdd1099bf750a3a3540455a741fc73445e48e4",
+      "isolated": true,
+      "native_ime_verified": false,
+      "real_model_api_used": false,
+      "environment_source": "Original installed-app metadata and only model/OS/build fields from the runner's simulator metadata; no device identifier is published.",
+      "binary_hash_source": "Original installed-app metadata cross-checked against original app-bundle-manifest Runner entry; the runner hashed the built binary before installation."
+    }
+  ],
+  "source_hashes": {
+    "Makefile": "4ab234de78655467fa3f79340038baf9d3b8bc46175acdab026b4035c9bbf3c1",
+    "analysis_options.yaml": "e59808100a72051ad3f420e97fd2befdef4b82a8e80b438db7bfc793503664d9",
+    "example/integration_test/composer_acceptance_test.dart": "4cf01fcd5b2209d64f0b1e1bab2f910f356056a9ce457d53c47371a6ca9f0a93",
+    "example/integration_test/ianvs_terminal_smoke_test.dart": "50432631e61e6322770a1e7a824b8ee7f05557f0f25d17c41839224a12c36aae",
+    "example/integration_test/mobile_prd_acceptance_test.dart": "37ff68de5a686951a38696a71fcdd1099bf750a3a3540455a741fc73445e48e4",
+    "example/integration_test/terminal_ai_acp_design_test.dart": "d78fd1f9fba8905444f6690fd318d510a539625e412237a637b8a37477eae7ab",
+    "example/ios/Runner.xcodeproj/project.pbxproj": "224c4dad61929fd92ffaeb5e6421c4bf1c03053439f51a3d7f73e1a0c658b00d",
+    "example/ios/Runner/Info.plist": "2e4a339ffe685f89f6e76024738902f2d85652819e7d13efb3c5898c268eca72",
+    "example/lib/app.dart": "88cb51868decc1881b606fc6221732aea4c6a1cfee2a69b3283a745e0da07d2d",
+    "example/lib/features/ai/acp/acp_environment.dart": "771aeada977b80392fbb9e5de80c11132e21156d393603dbcb3ac7c476fa7980",
+    "example/lib/features/ai/acp/acp_installation.dart": "5caec92f61292eb90020aba09b0278d1974e93e1b8773c186b7f0013f2db8e75",
+    "example/lib/features/ai/acp/codex_acp_backend.dart": "81417466f7f5c17ffe265d9257d5abfe557091ec1fdf42ba6db386e2c034faae",
+    "example/lib/features/ai/ai_settings_dialog.dart": "2ddda089ebf7a9c33f68d9504141844f5b23edd1c42fd22d8f43230201f5c543",
+    "example/lib/features/ai/terminal_ai_controller.dart": "f16dc85bafa9d87beb5794f60c1d3125e2db907309d0fd323c79682aa4c68b75",
+    "example/lib/features/ai/terminal_ai_observer.dart": "2bc0c99c4a5ae0717e0eedb6788e909698e6c2892598268b25ae657435597889",
+    "example/lib/features/ai/terminal_ai_workspace.dart": "3fdb314fffb295461582f0c31fc7ff92bcbf34cdddb16f3a0231856b70aa3135",
+    "example/lib/features/ai/terminal_ai_workspace_preview_adapter.dart": "4925f1e61737dda6ce8ac520b3d9ec0a751c6c4eeb34161252c46270c2c3e473",
+    "example/lib/features/shell/osc72_drag_drop_controller.dart": "c20376fc8275d0916b20fd480799b5d0594a93d8d7983a592d87a92d7432f9d7",
+    "example/lib/features/shell/shell_screen.dart": "dac4c3c0ab2efc016ff2f58d9b2b404c414557f41e907063999d259affd7ac03",
+    "example/lib/features/shell/shell_screen_ai.dart": "678e1e06c7bc5b876462246fd857e6a4ccb9c58d66e4abb58891609e041aa356",
+    "example/lib/features/shell/shell_screen_ai_observer.dart": "234d69981066e6b02f02de8984e7c6cdb086193b2572ac807c3fff58f84652d0",
+    "example/lib/features/shell/shell_screen_mobile_input.dart": "780e2d1b3bd7d703d6edbb83ae6b03fa3535839a959e52b000b611cef88fb0ad",
+    "example/lib/features/shell/shell_screen_state_clipboard.dart": "a2e0399c81ec2b444f4348cfb52d32966eadb254a17b878281a8415f41a746bc",
+    "example/lib/features/shell/shell_screen_state_events.dart": "6a3ed931a34224d94b450bfe6046c08299676b7d1aae757c039bef325485253b",
+    "example/lib/features/shell/shell_screen_state_sessions.dart": "ef7b492a08ced38dd491e663a07b295802401abaea0394c10357207c0e6bd7eb",
+    "example/lib/features/shell/shell_screen_state_terminal_layout.dart": "55037a6499b000fb4a6b71d70b028f8f65780ea5a9fdd27aa5eb61be24aac1dc",
+    "example/lib/features/shell/shell_screen_state_triggers.dart": "24c5c81b8fdfac2fdb4d6f9d262962e613df4f4a44583d1a6488e4653f2f95f3",
+    "example/lib/features/terminal/terminal_input_controller.dart": "c49f8f89cfc245596873cb3e357f8839e8ecd0a263be87faae6c3b8d3d466262",
+    "example/lib/features/terminal_composer/command_blocks_pane.dart": "a2ff78cfed85b5fcff20c7a6c2d17df5cf11f8381afbe9b74c28f0d6b22a5e41",
+    "example/lib/main.dart": "0e5db0a8340d77e62aaa56009a32600a6b9bdb7ecd1ae3c58d7ada4df0ca4c61",
+    "example/lib/ui/previews/mobile_prd_component_previews.dart": "23ba2a4052841a22e70c85ece3df57b50c81cd52ee16f3238c689e547cd6bf6d",
+    "example/macos/Runner.xcodeproj/project.pbxproj": "b5abb9c2c4054636d8b907c773a7643eef9a3fcfd6c57f18f628811fb3e69fcb",
+    "example/test/ai/acp_installation_test.dart": "dac84c3833c3a39f78b60bbd097614dca3999a2ba48b38b82e25912d6148e37a",
+    "example/test/ai/ai_settings_discovery_test.dart": "04b26506d3d1a92cc58bb3081bdf8b8e6df4a02abde5471c8fd06bb94d8e7570",
+    "example/test/ai/mobile_prd_ai_settings_test.dart": "756c641f52520bd6b44d94210b7652eac6070a1d7d9eb6dc885cdcb56f88f8e3",
+    "example/test/ai/mobile_prd_component_previews_test.dart": "53779b0c73a4d88a2edaac627acbfd655d18b4101437febcccd7b62666fc26d4",
+    "example/test/ai/mobile_prd_input_test.dart": "4430f80fc65d40d4386614184436325492d5b81d9176ee5e67c6fec68bad5399",
+    "example/test/ai/mobile_prd_shell_submission_test.dart": "b177828a991f3127243818e1395fa80bba931e6f6618c3399d0ea3f5b8784fb9",
+    "example/test/ai/mobile_prd_submission_snapshot_test.dart": "c71363973783e3d72e4e3a7822da5c28924e4c67ab221bad670941cb62217a5d",
+    "example/test/ai/mobile_prd_visual_baseline_test.dart": "d01b69f24c9e6e1e68f027fb8e72004b8cc4dfa3f35aa435832bd8a9a32df989",
+    "example/test/ai/terminal_ai_observer_test.dart": "16877d6d942f5a2f548698523b5f79e0e47738ab515fd3d5f8c1dc1624df2f70",
+    "example/test/ai/terminal_ai_widgets_test.dart": "54a0f89db43c7f03e4638a9ec206a15453d1ffafbd6460fc524a18f087708dec",
+    "example/test/ai/terminal_ai_workspace_test.dart": "ae5cbccafee6f69dfc71c9ea52f5cc0f0b54ba4d63cf99df9bfe0752b833cad3",
+    "example/test/data/data_api_environment_architecture_test.dart": "34c27f283bae476544ef8bb1dfd110e24ec091320d0d1f2faca177636d2b7fde",
+    "example/test/design/command_blocks_review_test.dart": "f13b5a21dd08a7fd72cd803143a5507e87ff3562cda007d46f7e532d19bf25b0",
+    "example/test/design/visual_capture_fonts.dart": "772564fac6d12d956108782b8c797818b45b1c990ec6ef57f468b6df441c2992",
+    "example/test/mobile_prd_input_revocation_test.dart": "8515b541c09c901013a5a06f4a892225f19a4e733ef78a4ec8a68e23d0f8be28",
+    "example/test/shell/mobile_terminal_modes_test.dart": "0d281cd5e633d1d8897072fa2787efc8a9329241b6b962edf0715353b79d1da3",
+    "example/test/shell/osc72_drag_drop_controller_test.dart": "9d2ee29f144e39ba39b5799dca2d81809f7e10f7bc4c7eedaa7cd670bab14bc6",
+    "example/test/shell/shell_screen_architecture_test.dart": "ec703ff6f49e6de1a7ce08221d1ae35618b3bcba7d24e36777a19b6471ff4fa9",
+    "example/test/terminal_composer/command_blocks_submission_reveal_test.dart": "3f66bb7762f2fc7637dee31d360f66428ba1e07afb54e215a5acf3b66869212a",
+    "example/test/terminal_composer/mobile_prd_composer_baseline_test.dart": "615dac45fc31f9adc3c077f6b7ff94cb91732fbdbc99355f6cefb88ca131bbfc",
+    "example/test/widget_test.dart": "f8fee48788e42da9367e408c75bcb566b44ad3d902c4bed8edad34c9cbd3f7f1",
+    "example/tool/approval_probe.dart": "4c8ff2c289b021846f6e672f81f077e077ce864437e548c2cbe6777a585b9ba5",
+    "native/core/src/completion_host.rs": "e2ec5b21be03914b29e1d677e22dc3574c4702af4e7c304c259c7897cfab307c",
+    "native/core/src/composer_bridge.rs": "8f1ee56a7a3579ff05e8a270fdc3b439447d31241e289e241ddeb7165be755f7",
+    "native/core/src/session.rs": "5cec58e2a183714e2d43e21590166b3167a2c970311eb4cc881e039bd0024c2c",
+    "native/core/src/session/command_blocks.rs": "dff6cac3f06ce24c0846fddee419633f05c6aa509c8fe2ee58c279f028aa858b",
+    "native/core/src/session/product_requests.rs": "6b42b5cb6134e11e69d3bcaa178c0983d6398454b33d00a20f9d54ab55bfdd5c",
+    "native/core/tests/composer_integration_test.rs": "0cd0e5b54b1c4bea59005c73709bc7e845458437d8aa562f238e520f1af38686",
+    "native/vendor/par-term-emu-core-rust/src/terminal/mod.rs": "ae24a31c4ea4e5b1a97661cf89c72564d7eb8c45e0ea6b01d4a8f236eb45e495",
+    "native/vendor/par-term-emu-core-rust/src/terminal/sequences/osc/shell.rs": "00d7112bcb360a9ae8eeab6d0d16845ab3e87945622e8dcfa7949536a6525471",
+    "packages/ianvs_terminal/lib/ianvs_terminal.dart": "013c63b7cf22656d5dee6df27b2b3393829fae6d902d8a1c7b1688852beba1e0",
+    "packages/ianvs_terminal/lib/src/composer/composer_draft_editor.dart": "dc4067e5e4502e635f90fba5bccc69d98ee7a0b6c593a26a53798feaf7657d7f",
+    "packages/ianvs_terminal/lib/src/composer/input_intent.dart": "c6db6cc7e891f22bb921193bd00470dcc4936eec9ca854e8f481d6381151554e",
+    "packages/ianvs_terminal/lib/src/composer/terminal_composer_controller.dart": "1babfaea3379d9b3b65263c3fdc5942bf598ec710ab8384c86b501f8559a23e7",
+    "packages/ianvs_terminal/lib/src/composer/terminal_composer_view.dart": "f7fb3f3d3de7ddc51e012a03c8162f89fb2c3aedb3607993831db8fe7631c61d",
+    "packages/ianvs_terminal/lib/src/runtime/terminal_runtime_controller.dart": "6a8165cf1e886ffea0a090bad1274e18c7346bf62b17623d7d2c2cdeb0f8cd16",
+    "packages/ianvs_terminal/lib/src/terminal/command_block_controller.dart": "71b13b1b4476c75fc96c71814adb9c361ea1ad35bd0e83f7c62dcfee17ac32b6",
+    "packages/ianvs_terminal/lib/src/terminal/command_block_reader.dart": "95257c9ceb1af65007e3b8298b1c161e842835c92227e1bdf8f2727f8cac5ab8",
+    "packages/ianvs_terminal/lib/src/terminal/command_blocks_compact.dart": "2f674728ab048959ff5811aa7f9916c1fd86a160a3743c6376178f30e211517a",
+    "packages/ianvs_terminal/lib/src/terminal/command_blocks_view.dart": "95346f3c109496142d49ec18bb3f72745eacd23c14056d19e95dd2fe59657371",
+    "packages/ianvs_terminal/lib/src/terminal/terminal_input_controller.dart": "629c11eb59b308be15fde5cb47af598c91d3ffb07047e4fb2a00e033de61cd7e",
+    "packages/ianvs_terminal/lib/src/terminal/terminal_viewport.dart": "a7734eb65301ef4e106cde9a4e7c4f6171039d06401b2018fdea26bce402ff1b",
+    "packages/ianvs_terminal/test/composer/composer_responsive_input_test.dart": "808bd956bc92c3a377e0b1562e20fe8550f7cf3e1fb9cf0320561be8c3249d7d",
+    "packages/ianvs_terminal/test/terminal/command_blocks_mobile_prd_test.dart": "00060d3c87bb90524f457d15e8de046c5d056288a5e16a0fe65c0c0822d7b52e",
+    "packages/ianvs_terminal/test/terminal_runtime_controller_test.dart": "a0ce384a016294c27ba14a2f55f267aa5ebe9d62bc409877a1e10fac8020d721",
+    "packages/ianvs_terminal_core/lib/src/composer/composer_draft_editor.dart": "dc4067e5e4502e635f90fba5bccc69d98ee7a0b6c593a26a53798feaf7657d7f",
+    "packages/ianvs_terminal_core/lib/src/composer/input_intent.dart": "c6db6cc7e891f22bb921193bd00470dcc4936eec9ca854e8f481d6381151554e",
+    "packages/ianvs_terminal_core/lib/src/composer/terminal_composer_controller.dart": "1babfaea3379d9b3b65263c3fdc5942bf598ec710ab8384c86b501f8559a23e7",
+    "packages/ianvs_terminal_core/lib/src/composer/terminal_composer_view.dart": "f7fb3f3d3de7ddc51e012a03c8162f89fb2c3aedb3607993831db8fe7631c61d",
+    "packages/ianvs_terminal_core/lib/src/runtime/terminal_runtime_controller.dart": "d65365393cbe94f5a092ed5916a5e235449c0b7b909f92c33f3c025f72907c29",
+    "packages/ianvs_terminal_core/lib/src/terminal/command_block_controller.dart": "71b13b1b4476c75fc96c71814adb9c361ea1ad35bd0e83f7c62dcfee17ac32b6",
+    "packages/ianvs_terminal_core/lib/src/terminal/command_block_reader.dart": "95257c9ceb1af65007e3b8298b1c161e842835c92227e1bdf8f2727f8cac5ab8",
+    "packages/ianvs_terminal_core/lib/src/terminal/command_blocks_compact.dart": "2f674728ab048959ff5811aa7f9916c1fd86a160a3743c6376178f30e211517a",
+    "packages/ianvs_terminal_core/lib/src/terminal/command_blocks_view.dart": "95346f3c109496142d49ec18bb3f72745eacd23c14056d19e95dd2fe59657371",
+    "packages/ianvs_terminal_core/lib/src/terminal/terminal_input_controller.dart": "629c11eb59b308be15fde5cb47af598c91d3ffb07047e4fb2a00e033de61cd7e",
+    "packages/ianvs_terminal_core/lib/src/terminal/terminal_viewport.dart": "a7734eb65301ef4e106cde9a4e7c4f6171039d06401b2018fdea26bce402ff1b",
+    "packages/ianvs_terminal_core/native/core/src/completion_host.rs": "e2ec5b21be03914b29e1d677e22dc3574c4702af4e7c304c259c7897cfab307c",
+    "packages/ianvs_terminal_core/native/core/src/composer_bridge.rs": "8f1ee56a7a3579ff05e8a270fdc3b439447d31241e289e241ddeb7165be755f7",
+    "packages/ianvs_terminal_core/native/core/src/session.rs": "5cec58e2a183714e2d43e21590166b3167a2c970311eb4cc881e039bd0024c2c",
+    "packages/ianvs_terminal_core/native/core/src/session/command_blocks.rs": "dff6cac3f06ce24c0846fddee419633f05c6aa509c8fe2ee58c279f028aa858b",
+    "packages/ianvs_terminal_core/native/core/src/session/product_requests.rs": "6b42b5cb6134e11e69d3bcaa178c0983d6398454b33d00a20f9d54ab55bfdd5c",
+    "packages/ianvs_terminal_core/native/core/tests/composer_integration_test.rs": "0cd0e5b54b1c4bea59005c73709bc7e845458437d8aa562f238e520f1af38686",
+    "packages/ianvs_terminal_core/native/vendor/par-term-emu-core-rust/src/terminal/mod.rs": "ae24a31c4ea4e5b1a97661cf89c72564d7eb8c45e0ea6b01d4a8f236eb45e495",
+    "packages/ianvs_terminal_core/native/vendor/par-term-emu-core-rust/src/terminal/sequences/osc/shell.rs": "00d7112bcb360a9ae8eeab6d0d16845ab3e87945622e8dcfa7949536a6525471",
+    "packages/ianvs_terminal_core/test/composer/composer_responsive_input_test.dart": "d0a0211383efae69b5ba78d79ce7d4493ae877d401921ce21b7dbefc9bac1a33",
+    "packages/ianvs_terminal_core/test/terminal/command_blocks_mobile_prd_test.dart": "0d222bd708c90dc0a440d44eaf760d5415f144b5e09eba596e862a645c1c529c",
+    "packages/ianvs_terminal_core/test/terminal_runtime_controller_test.dart": "9027acb54c874ac1b8746c763b72d7bd1c98998ab407bc3c2e3b247bb9128a75",
+    "tools/mobile_prd/Dockerfile": "c07ff6cb07316514d0cde94389654cf4d3fef1f4b110cbd6f17608f733e200ca",
+    "tools/mobile_prd/build_ios_fixture.sh": "fe86a307940d4ea0d7e46b7b29a747d8acfa4c854b4505a743b77bb5fc802717",
+    "tools/mobile_prd/fixture_server.py": "91bd6e5e5119a742095c1223fc02d45cc94fd766cc22b00e3350bb11d86ad501",
+    "tools/mobile_prd/ssh_entrypoint.sh": "88b0518ee8b7b0a316483615c314efca0d6a65ebe34b8d22ea454e0db525fc92",
+    "tools/mobile_prd/test_build_ios_fixture.py": "ac1edaf17de38e7300a3dd22ab572c9c4973227702aeb3fc2d50eb5a022f4d6a",
+    "tools/mobile_prd/test_fixture_server.py": "65c503907129de20c5b7f8cf55a5e9ca69063103a2a832114699d64eb7b31f02",
+    "tools/mobile_prd/trail-fixture": "272eaaeacb0336177792b58254b23d36b37143e1ec697d04fa1f3ce5138915a4",
+    "tools/verify_flutter_terminal.sh": "b6b45ccc8e23fb39d6eb313b93c6e1240ba59bc338125c96fa995f98aad0e8da",
+    "tools/verify_macos_app.sh": "82d2a1ef07d4bb040e8b83541a2a12fe7ba79962a37de8dae93c0dac750cb201"
+  },
+  "shared_artifacts": [
+    {
+      "kind": "screenshot",
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-en-dark-multilineDraft.png",
+      "original_capture_relative_path": "widget-readable/after-320x600-en-dark-multilineDraft.png",
+      "sha256": "854e6e129ee661d812bea1fd0a8b4a3de31e9989a0e79e64b127bc60fe5b22c8",
+      "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "captured_at": "2026-10-08T15:17:34.352337Z",
+      "environment_id": "after-widget-1",
+      "role": "after",
+      "modified": false,
+      "pixel_size": [
+        640,
+        1200
+      ],
+      "viewport_logical": [
+        320.0,
+        600.0
+      ],
+      "pixel_ratio": 2,
+      "orientation": "portrait",
+      "locale": "en",
+      "theme": "dark",
+      "font_policy": "Fixture-fixed text scale 1 with bundled test fonts; no native system-font claim.",
+      "keyboard": "hidden; no real IME",
+      "description": "Original widget fixture 320x600-en-dark-multilineDraft; comparison capture, not a complete PRD case.",
+      "fixture_id": "320x600-en-dark-multilineDraft",
+      "test_file": "example/test/ai/mobile_prd_visual_baseline_test.dart",
+      "capture_method": "RenderRepaintBoundary.toImage",
+      "captured_at_source": "Original sidecar captured_at, sampled immediately before toImage.",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-en-dark-multilineDraft.json",
+      "sidecar_sha256": "45177866e8f64a18e45bf3482c04d149684d3fa4b7f43eef6d7586e645743771",
+      "sidecar_original_capture_relative_path": "widget-readable/after-320x600-en-dark-multilineDraft.json",
+      "view_device_pixel_ratio": 1.0,
+      "text_scale": 1,
+      "font_source": {
+        "sans": "Flutter SDK material_fonts/Roboto",
+        "cjk": "example/test/design/fonts/NotoSansSC-Regular.otf",
+        "mono": "native/vendor/par-term-emu-core-rust/src/screenshot/JetBrainsMono-Regular.ttf",
+        "icons": "Flutter SDK material_fonts/MaterialIcons-Regular.otf",
+        "native_ios_system_font": false
+      },
+      "target_platform_override": "iOS widget theme/test override; no device"
+    },
+    {
+      "kind": "screenshot",
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-en-dark-proposal.png",
+      "original_capture_relative_path": "widget-readable/after-320x600-en-dark-proposal.png",
+      "sha256": "4b04f1bef49e0dbe4503bc2ed02747e178de87f80f397d943e433b9fc9f0523d",
+      "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "captured_at": "2026-10-08T15:17:34.432147Z",
+      "environment_id": "after-widget-1",
+      "role": "after",
+      "modified": false,
+      "pixel_size": [
+        640,
+        1200
+      ],
+      "viewport_logical": [
+        320.0,
+        600.0
+      ],
+      "pixel_ratio": 2,
+      "orientation": "portrait",
+      "locale": "en",
+      "theme": "dark",
+      "font_policy": "Fixture-fixed text scale 1 with bundled test fonts; no native system-font claim.",
+      "keyboard": "hidden; no real IME",
+      "description": "Original widget fixture 320x600-en-dark-proposal; comparison capture, not a complete PRD case.",
+      "fixture_id": "320x600-en-dark-proposal",
+      "test_file": "example/test/ai/mobile_prd_visual_baseline_test.dart",
+      "capture_method": "RenderRepaintBoundary.toImage",
+      "captured_at_source": "Original sidecar captured_at, sampled immediately before toImage.",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-en-dark-proposal.json",
+      "sidecar_sha256": "7c35fe4732f10572b7c94587f8bc49bc269bcb7e919fe0acb36a6bb64d1ec434",
+      "sidecar_original_capture_relative_path": "widget-readable/after-320x600-en-dark-proposal.json",
+      "view_device_pixel_ratio": 1.0,
+      "text_scale": 1,
+      "font_source": {
+        "sans": "Flutter SDK material_fonts/Roboto",
+        "cjk": "example/test/design/fonts/NotoSansSC-Regular.otf",
+        "mono": "native/vendor/par-term-emu-core-rust/src/screenshot/JetBrainsMono-Regular.ttf",
+        "icons": "Flutter SDK material_fonts/MaterialIcons-Regular.otf",
+        "native_ios_system_font": false
+      },
+      "target_platform_override": "iOS widget theme/test override; no device"
+    },
+    {
+      "kind": "screenshot",
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-en-dark-unknownSubmission.png",
+      "original_capture_relative_path": "widget-readable/after-320x600-en-dark-unknownSubmission.png",
+      "sha256": "09f7d2272999c689f981f4c4df88397a51c641f2e224cdaf9c0fca56a2bd5d66",
+      "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "captured_at": "2026-10-08T15:17:34.507248Z",
+      "environment_id": "after-widget-1",
+      "role": "after",
+      "modified": false,
+      "pixel_size": [
+        640,
+        1200
+      ],
+      "viewport_logical": [
+        320.0,
+        600.0
+      ],
+      "pixel_ratio": 2,
+      "orientation": "portrait",
+      "locale": "en",
+      "theme": "dark",
+      "font_policy": "Fixture-fixed text scale 1 with bundled test fonts; no native system-font claim.",
+      "keyboard": "hidden; no real IME",
+      "description": "Original widget fixture 320x600-en-dark-unknownSubmission; comparison capture, not a complete PRD case.",
+      "fixture_id": "320x600-en-dark-unknownSubmission",
+      "test_file": "example/test/ai/mobile_prd_visual_baseline_test.dart",
+      "capture_method": "RenderRepaintBoundary.toImage",
+      "captured_at_source": "Original sidecar captured_at, sampled immediately before toImage.",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-en-dark-unknownSubmission.json",
+      "sidecar_sha256": "7c29c80620c7fa7c6ff52ef2775aa9790510e57c1bc3a1ff357b50080bf9f351",
+      "sidecar_original_capture_relative_path": "widget-readable/after-320x600-en-dark-unknownSubmission.json",
+      "view_device_pixel_ratio": 1.0,
+      "text_scale": 1,
+      "font_source": {
+        "sans": "Flutter SDK material_fonts/Roboto",
+        "cjk": "example/test/design/fonts/NotoSansSC-Regular.otf",
+        "mono": "native/vendor/par-term-emu-core-rust/src/screenshot/JetBrainsMono-Regular.ttf",
+        "icons": "Flutter SDK material_fonts/MaterialIcons-Regular.otf",
+        "native_ios_system_font": false
+      },
+      "target_platform_override": "iOS widget theme/test override; no device"
+    },
+    {
+      "kind": "screenshot",
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-en-light-multilineDraft.png",
+      "original_capture_relative_path": "widget-readable/after-320x600-en-light-multilineDraft.png",
+      "sha256": "38c8e2ade66a05bda93f6f97bef99aa820835f20ab2b3b3777bd2672420fbfe9",
+      "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "captured_at": "2026-10-08T15:17:34.565408Z",
+      "environment_id": "after-widget-1",
+      "role": "after",
+      "modified": false,
+      "pixel_size": [
+        640,
+        1200
+      ],
+      "viewport_logical": [
+        320.0,
+        600.0
+      ],
+      "pixel_ratio": 2,
+      "orientation": "portrait",
+      "locale": "en",
+      "theme": "light",
+      "font_policy": "Fixture-fixed text scale 1 with bundled test fonts; no native system-font claim.",
+      "keyboard": "hidden; no real IME",
+      "description": "Original widget fixture 320x600-en-light-multilineDraft; comparison capture, not a complete PRD case.",
+      "fixture_id": "320x600-en-light-multilineDraft",
+      "test_file": "example/test/ai/mobile_prd_visual_baseline_test.dart",
+      "capture_method": "RenderRepaintBoundary.toImage",
+      "captured_at_source": "Original sidecar captured_at, sampled immediately before toImage.",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-en-light-multilineDraft.json",
+      "sidecar_sha256": "b276d7331a25ae57065bb8e2fd1b0b55759bad69375903803113b3d440d11f56",
+      "sidecar_original_capture_relative_path": "widget-readable/after-320x600-en-light-multilineDraft.json",
+      "view_device_pixel_ratio": 1.0,
+      "text_scale": 1,
+      "font_source": {
+        "sans": "Flutter SDK material_fonts/Roboto",
+        "cjk": "example/test/design/fonts/NotoSansSC-Regular.otf",
+        "mono": "native/vendor/par-term-emu-core-rust/src/screenshot/JetBrainsMono-Regular.ttf",
+        "icons": "Flutter SDK material_fonts/MaterialIcons-Regular.otf",
+        "native_ios_system_font": false
+      },
+      "target_platform_override": "iOS widget theme/test override; no device"
+    },
+    {
+      "kind": "screenshot",
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-en-light-proposal.png",
+      "original_capture_relative_path": "widget-readable/after-320x600-en-light-proposal.png",
+      "sha256": "6a54d4f8d6fe2ddf75c22234969894433c9aacedcf57dcee52c35e61461ad3aa",
+      "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "captured_at": "2026-10-08T15:17:34.640399Z",
+      "environment_id": "after-widget-1",
+      "role": "after",
+      "modified": false,
+      "pixel_size": [
+        640,
+        1200
+      ],
+      "viewport_logical": [
+        320.0,
+        600.0
+      ],
+      "pixel_ratio": 2,
+      "orientation": "portrait",
+      "locale": "en",
+      "theme": "light",
+      "font_policy": "Fixture-fixed text scale 1 with bundled test fonts; no native system-font claim.",
+      "keyboard": "hidden; no real IME",
+      "description": "Original widget fixture 320x600-en-light-proposal; comparison capture, not a complete PRD case.",
+      "fixture_id": "320x600-en-light-proposal",
+      "test_file": "example/test/ai/mobile_prd_visual_baseline_test.dart",
+      "capture_method": "RenderRepaintBoundary.toImage",
+      "captured_at_source": "Original sidecar captured_at, sampled immediately before toImage.",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-en-light-proposal.json",
+      "sidecar_sha256": "3c6796737c37a774c2f9b3e818e8b5a62ebda99b0906a381f408bfcc75c19b54",
+      "sidecar_original_capture_relative_path": "widget-readable/after-320x600-en-light-proposal.json",
+      "view_device_pixel_ratio": 1.0,
+      "text_scale": 1,
+      "font_source": {
+        "sans": "Flutter SDK material_fonts/Roboto",
+        "cjk": "example/test/design/fonts/NotoSansSC-Regular.otf",
+        "mono": "native/vendor/par-term-emu-core-rust/src/screenshot/JetBrainsMono-Regular.ttf",
+        "icons": "Flutter SDK material_fonts/MaterialIcons-Regular.otf",
+        "native_ios_system_font": false
+      },
+      "target_platform_override": "iOS widget theme/test override; no device"
+    },
+    {
+      "kind": "screenshot",
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-en-light-unknownSubmission.png",
+      "original_capture_relative_path": "widget-readable/after-320x600-en-light-unknownSubmission.png",
+      "sha256": "c75af7d52c89da56835e33e0b32d085813930f72e17617b161184874e66e4a66",
+      "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "captured_at": "2026-10-08T15:17:34.708104Z",
+      "environment_id": "after-widget-1",
+      "role": "after",
+      "modified": false,
+      "pixel_size": [
+        640,
+        1200
+      ],
+      "viewport_logical": [
+        320.0,
+        600.0
+      ],
+      "pixel_ratio": 2,
+      "orientation": "portrait",
+      "locale": "en",
+      "theme": "light",
+      "font_policy": "Fixture-fixed text scale 1 with bundled test fonts; no native system-font claim.",
+      "keyboard": "hidden; no real IME",
+      "description": "Original widget fixture 320x600-en-light-unknownSubmission; comparison capture, not a complete PRD case.",
+      "fixture_id": "320x600-en-light-unknownSubmission",
+      "test_file": "example/test/ai/mobile_prd_visual_baseline_test.dart",
+      "capture_method": "RenderRepaintBoundary.toImage",
+      "captured_at_source": "Original sidecar captured_at, sampled immediately before toImage.",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-en-light-unknownSubmission.json",
+      "sidecar_sha256": "376353fdd77ee0cc96ed61552f4195d6a24c807067d0b8e41774d743a655f8f2",
+      "sidecar_original_capture_relative_path": "widget-readable/after-320x600-en-light-unknownSubmission.json",
+      "view_device_pixel_ratio": 1.0,
+      "text_scale": 1,
+      "font_source": {
+        "sans": "Flutter SDK material_fonts/Roboto",
+        "cjk": "example/test/design/fonts/NotoSansSC-Regular.otf",
+        "mono": "native/vendor/par-term-emu-core-rust/src/screenshot/JetBrainsMono-Regular.ttf",
+        "icons": "Flutter SDK material_fonts/MaterialIcons-Regular.otf",
+        "native_ios_system_font": false
+      },
+      "target_platform_override": "iOS widget theme/test override; no device"
+    },
+    {
+      "kind": "screenshot",
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-zh-dark-multilineDraft.png",
+      "original_capture_relative_path": "widget-readable/after-320x600-zh-dark-multilineDraft.png",
+      "sha256": "025627b2af6504139d83a8c2792cf7aaa992b59621c5490bbf54c2f2d8fbc52f",
+      "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "captured_at": "2026-10-08T15:17:34.761411Z",
+      "environment_id": "after-widget-1",
+      "role": "after",
+      "modified": false,
+      "pixel_size": [
+        640,
+        1200
+      ],
+      "viewport_logical": [
+        320.0,
+        600.0
+      ],
+      "pixel_ratio": 2,
+      "orientation": "portrait",
+      "locale": "zh",
+      "theme": "dark",
+      "font_policy": "Fixture-fixed text scale 1 with bundled test fonts; no native system-font claim.",
+      "keyboard": "hidden; no real IME",
+      "description": "Original widget fixture 320x600-zh-dark-multilineDraft; comparison capture, not a complete PRD case.",
+      "fixture_id": "320x600-zh-dark-multilineDraft",
+      "test_file": "example/test/ai/mobile_prd_visual_baseline_test.dart",
+      "capture_method": "RenderRepaintBoundary.toImage",
+      "captured_at_source": "Original sidecar captured_at, sampled immediately before toImage.",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-zh-dark-multilineDraft.json",
+      "sidecar_sha256": "37dda0d502aed2825f5a5e5168727aa37ec15edd9b12d875f47a8548d81b17f0",
+      "sidecar_original_capture_relative_path": "widget-readable/after-320x600-zh-dark-multilineDraft.json",
+      "view_device_pixel_ratio": 1.0,
+      "text_scale": 1,
+      "font_source": {
+        "sans": "Flutter SDK material_fonts/Roboto",
+        "cjk": "example/test/design/fonts/NotoSansSC-Regular.otf",
+        "mono": "native/vendor/par-term-emu-core-rust/src/screenshot/JetBrainsMono-Regular.ttf",
+        "icons": "Flutter SDK material_fonts/MaterialIcons-Regular.otf",
+        "native_ios_system_font": false
+      },
+      "target_platform_override": "iOS widget theme/test override; no device"
+    },
+    {
+      "kind": "screenshot",
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-zh-dark-proposal.png",
+      "original_capture_relative_path": "widget-readable/after-320x600-zh-dark-proposal.png",
+      "sha256": "a8f9d13278761d4d3bf7c2fca1908b47dd70c51756135491da9512c4805e012d",
+      "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "captured_at": "2026-10-08T15:17:34.828176Z",
+      "environment_id": "after-widget-1",
+      "role": "after",
+      "modified": false,
+      "pixel_size": [
+        640,
+        1200
+      ],
+      "viewport_logical": [
+        320.0,
+        600.0
+      ],
+      "pixel_ratio": 2,
+      "orientation": "portrait",
+      "locale": "zh",
+      "theme": "dark",
+      "font_policy": "Fixture-fixed text scale 1 with bundled test fonts; no native system-font claim.",
+      "keyboard": "hidden; no real IME",
+      "description": "Original widget fixture 320x600-zh-dark-proposal; comparison capture, not a complete PRD case.",
+      "fixture_id": "320x600-zh-dark-proposal",
+      "test_file": "example/test/ai/mobile_prd_visual_baseline_test.dart",
+      "capture_method": "RenderRepaintBoundary.toImage",
+      "captured_at_source": "Original sidecar captured_at, sampled immediately before toImage.",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-zh-dark-proposal.json",
+      "sidecar_sha256": "745d35f0402d3f40d4871f80cc7f6cfa557263237c90d1f5133841938e4ebd06",
+      "sidecar_original_capture_relative_path": "widget-readable/after-320x600-zh-dark-proposal.json",
+      "view_device_pixel_ratio": 1.0,
+      "text_scale": 1,
+      "font_source": {
+        "sans": "Flutter SDK material_fonts/Roboto",
+        "cjk": "example/test/design/fonts/NotoSansSC-Regular.otf",
+        "mono": "native/vendor/par-term-emu-core-rust/src/screenshot/JetBrainsMono-Regular.ttf",
+        "icons": "Flutter SDK material_fonts/MaterialIcons-Regular.otf",
+        "native_ios_system_font": false
+      },
+      "target_platform_override": "iOS widget theme/test override; no device"
+    },
+    {
+      "kind": "screenshot",
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-zh-dark-unknownSubmission.png",
+      "original_capture_relative_path": "widget-readable/after-320x600-zh-dark-unknownSubmission.png",
+      "sha256": "97cd33a095d0d6c0e06a8e5fae8b7cbcf988280b2fca3bb6333de2019c6b91f3",
+      "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "captured_at": "2026-10-08T15:17:34.895907Z",
+      "environment_id": "after-widget-1",
+      "role": "after",
+      "modified": false,
+      "pixel_size": [
+        640,
+        1200
+      ],
+      "viewport_logical": [
+        320.0,
+        600.0
+      ],
+      "pixel_ratio": 2,
+      "orientation": "portrait",
+      "locale": "zh",
+      "theme": "dark",
+      "font_policy": "Fixture-fixed text scale 1 with bundled test fonts; no native system-font claim.",
+      "keyboard": "hidden; no real IME",
+      "description": "Original widget fixture 320x600-zh-dark-unknownSubmission; comparison capture, not a complete PRD case.",
+      "fixture_id": "320x600-zh-dark-unknownSubmission",
+      "test_file": "example/test/ai/mobile_prd_visual_baseline_test.dart",
+      "capture_method": "RenderRepaintBoundary.toImage",
+      "captured_at_source": "Original sidecar captured_at, sampled immediately before toImage.",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-zh-dark-unknownSubmission.json",
+      "sidecar_sha256": "0a6f7780ece197765e29275f8bc36cb0d86b7a6ba3ecce8db639d822ea4b378d",
+      "sidecar_original_capture_relative_path": "widget-readable/after-320x600-zh-dark-unknownSubmission.json",
+      "view_device_pixel_ratio": 1.0,
+      "text_scale": 1,
+      "font_source": {
+        "sans": "Flutter SDK material_fonts/Roboto",
+        "cjk": "example/test/design/fonts/NotoSansSC-Regular.otf",
+        "mono": "native/vendor/par-term-emu-core-rust/src/screenshot/JetBrainsMono-Regular.ttf",
+        "icons": "Flutter SDK material_fonts/MaterialIcons-Regular.otf",
+        "native_ios_system_font": false
+      },
+      "target_platform_override": "iOS widget theme/test override; no device"
+    },
+    {
+      "kind": "screenshot",
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-zh-light-multilineDraft.png",
+      "original_capture_relative_path": "widget-readable/after-320x600-zh-light-multilineDraft.png",
+      "sha256": "8a055175acc7ab4245e591b42d12a7376ab4e1b8b8167f37c6ec75578f10b643",
+      "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "captured_at": "2026-10-08T15:17:34.957206Z",
+      "environment_id": "after-widget-1",
+      "role": "after",
+      "modified": false,
+      "pixel_size": [
+        640,
+        1200
+      ],
+      "viewport_logical": [
+        320.0,
+        600.0
+      ],
+      "pixel_ratio": 2,
+      "orientation": "portrait",
+      "locale": "zh",
+      "theme": "light",
+      "font_policy": "Fixture-fixed text scale 1 with bundled test fonts; no native system-font claim.",
+      "keyboard": "hidden; no real IME",
+      "description": "Original widget fixture 320x600-zh-light-multilineDraft; comparison capture, not a complete PRD case.",
+      "fixture_id": "320x600-zh-light-multilineDraft",
+      "test_file": "example/test/ai/mobile_prd_visual_baseline_test.dart",
+      "capture_method": "RenderRepaintBoundary.toImage",
+      "captured_at_source": "Original sidecar captured_at, sampled immediately before toImage.",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-zh-light-multilineDraft.json",
+      "sidecar_sha256": "09079ca94b6f243e3a78486f517338af5967848c29d0021f2588c05945ad68ac",
+      "sidecar_original_capture_relative_path": "widget-readable/after-320x600-zh-light-multilineDraft.json",
+      "view_device_pixel_ratio": 1.0,
+      "text_scale": 1,
+      "font_source": {
+        "sans": "Flutter SDK material_fonts/Roboto",
+        "cjk": "example/test/design/fonts/NotoSansSC-Regular.otf",
+        "mono": "native/vendor/par-term-emu-core-rust/src/screenshot/JetBrainsMono-Regular.ttf",
+        "icons": "Flutter SDK material_fonts/MaterialIcons-Regular.otf",
+        "native_ios_system_font": false
+      },
+      "target_platform_override": "iOS widget theme/test override; no device"
+    },
+    {
+      "kind": "screenshot",
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-zh-light-proposal.png",
+      "original_capture_relative_path": "widget-readable/after-320x600-zh-light-proposal.png",
+      "sha256": "57018c7dddeb73dcfb89c5a389f62d7a9d99db069ebfdf5aad19a9ef1f0f03a7",
+      "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "captured_at": "2026-10-08T15:17:35.021289Z",
+      "environment_id": "after-widget-1",
+      "role": "after",
+      "modified": false,
+      "pixel_size": [
+        640,
+        1200
+      ],
+      "viewport_logical": [
+        320.0,
+        600.0
+      ],
+      "pixel_ratio": 2,
+      "orientation": "portrait",
+      "locale": "zh",
+      "theme": "light",
+      "font_policy": "Fixture-fixed text scale 1 with bundled test fonts; no native system-font claim.",
+      "keyboard": "hidden; no real IME",
+      "description": "Original widget fixture 320x600-zh-light-proposal; comparison capture, not a complete PRD case.",
+      "fixture_id": "320x600-zh-light-proposal",
+      "test_file": "example/test/ai/mobile_prd_visual_baseline_test.dart",
+      "capture_method": "RenderRepaintBoundary.toImage",
+      "captured_at_source": "Original sidecar captured_at, sampled immediately before toImage.",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-zh-light-proposal.json",
+      "sidecar_sha256": "3849a89c649042b7a14e558bae437d0b8c6ebe14140ce9ceddb16bbdc3a5b46b",
+      "sidecar_original_capture_relative_path": "widget-readable/after-320x600-zh-light-proposal.json",
+      "view_device_pixel_ratio": 1.0,
+      "text_scale": 1,
+      "font_source": {
+        "sans": "Flutter SDK material_fonts/Roboto",
+        "cjk": "example/test/design/fonts/NotoSansSC-Regular.otf",
+        "mono": "native/vendor/par-term-emu-core-rust/src/screenshot/JetBrainsMono-Regular.ttf",
+        "icons": "Flutter SDK material_fonts/MaterialIcons-Regular.otf",
+        "native_ios_system_font": false
+      },
+      "target_platform_override": "iOS widget theme/test override; no device"
+    },
+    {
+      "kind": "screenshot",
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-zh-light-unknownSubmission.png",
+      "original_capture_relative_path": "widget-readable/after-320x600-zh-light-unknownSubmission.png",
+      "sha256": "0eefb35f26eb9db1b09c2db53e6f84fdad2fc1e672cd0593ada4575549d73005",
+      "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "captured_at": "2026-10-08T15:17:35.086349Z",
+      "environment_id": "after-widget-1",
+      "role": "after",
+      "modified": false,
+      "pixel_size": [
+        640,
+        1200
+      ],
+      "viewport_logical": [
+        320.0,
+        600.0
+      ],
+      "pixel_ratio": 2,
+      "orientation": "portrait",
+      "locale": "zh",
+      "theme": "light",
+      "font_policy": "Fixture-fixed text scale 1 with bundled test fonts; no native system-font claim.",
+      "keyboard": "hidden; no real IME",
+      "description": "Original widget fixture 320x600-zh-light-unknownSubmission; comparison capture, not a complete PRD case.",
+      "fixture_id": "320x600-zh-light-unknownSubmission",
+      "test_file": "example/test/ai/mobile_prd_visual_baseline_test.dart",
+      "capture_method": "RenderRepaintBoundary.toImage",
+      "captured_at_source": "Original sidecar captured_at, sampled immediately before toImage.",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-zh-light-unknownSubmission.json",
+      "sidecar_sha256": "8ddb676274baa2fe3b43c96e681a660b88432272137247727a8f60c4a5aa515b",
+      "sidecar_original_capture_relative_path": "widget-readable/after-320x600-zh-light-unknownSubmission.json",
+      "view_device_pixel_ratio": 1.0,
+      "text_scale": 1,
+      "font_source": {
+        "sans": "Flutter SDK material_fonts/Roboto",
+        "cjk": "example/test/design/fonts/NotoSansSC-Regular.otf",
+        "mono": "native/vendor/par-term-emu-core-rust/src/screenshot/JetBrainsMono-Regular.ttf",
+        "icons": "Flutter SDK material_fonts/MaterialIcons-Regular.otf",
+        "native_ios_system_font": false
+      },
+      "target_platform_override": "iOS widget theme/test override; no device"
+    },
+    {
+      "kind": "screenshot",
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-en-dark-multilineDraft.png",
+      "original_capture_relative_path": "widget-readable/after-390x844-en-dark-multilineDraft.png",
+      "sha256": "4d1dfe4ef7306d1ad3e3faac451e7fe2e7dba6b8c48e7d3e22954844ab4e729b",
+      "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "captured_at": "2026-10-08T15:17:33.192394Z",
+      "environment_id": "after-widget-1",
+      "role": "after",
+      "modified": false,
+      "pixel_size": [
+        780,
+        1688
+      ],
+      "viewport_logical": [
+        390.0,
+        844.0
+      ],
+      "pixel_ratio": 2,
+      "orientation": "portrait",
+      "locale": "en",
+      "theme": "dark",
+      "font_policy": "Fixture-fixed text scale 1 with bundled test fonts; no native system-font claim.",
+      "keyboard": "hidden; no real IME",
+      "description": "Original widget fixture 390x844-en-dark-multilineDraft; comparison capture, not a complete PRD case.",
+      "fixture_id": "390x844-en-dark-multilineDraft",
+      "test_file": "example/test/ai/mobile_prd_visual_baseline_test.dart",
+      "capture_method": "RenderRepaintBoundary.toImage",
+      "captured_at_source": "Original sidecar captured_at, sampled immediately before toImage.",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-en-dark-multilineDraft.json",
+      "sidecar_sha256": "6c6ee1b8d1f79789cd7383bdcc8960acfd024b783cbf308ada591b602e05b1b1",
+      "sidecar_original_capture_relative_path": "widget-readable/after-390x844-en-dark-multilineDraft.json",
+      "view_device_pixel_ratio": 1.0,
+      "text_scale": 1,
+      "font_source": {
+        "sans": "Flutter SDK material_fonts/Roboto",
+        "cjk": "example/test/design/fonts/NotoSansSC-Regular.otf",
+        "mono": "native/vendor/par-term-emu-core-rust/src/screenshot/JetBrainsMono-Regular.ttf",
+        "icons": "Flutter SDK material_fonts/MaterialIcons-Regular.otf",
+        "native_ios_system_font": false
+      },
+      "target_platform_override": "iOS widget theme/test override; no device"
+    },
+    {
+      "kind": "screenshot",
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-en-dark-proposal.png",
+      "original_capture_relative_path": "widget-readable/after-390x844-en-dark-proposal.png",
+      "sha256": "5628bb1b993ce40849a251de50efe10534e90a2dc3b041e05924b422b529133c",
+      "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "captured_at": "2026-10-08T15:17:33.390897Z",
+      "environment_id": "after-widget-1",
+      "role": "after",
+      "modified": false,
+      "pixel_size": [
+        780,
+        1688
+      ],
+      "viewport_logical": [
+        390.0,
+        844.0
+      ],
+      "pixel_ratio": 2,
+      "orientation": "portrait",
+      "locale": "en",
+      "theme": "dark",
+      "font_policy": "Fixture-fixed text scale 1 with bundled test fonts; no native system-font claim.",
+      "keyboard": "hidden; no real IME",
+      "description": "Original widget fixture 390x844-en-dark-proposal; comparison capture, not a complete PRD case.",
+      "fixture_id": "390x844-en-dark-proposal",
+      "test_file": "example/test/ai/mobile_prd_visual_baseline_test.dart",
+      "capture_method": "RenderRepaintBoundary.toImage",
+      "captured_at_source": "Original sidecar captured_at, sampled immediately before toImage.",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-en-dark-proposal.json",
+      "sidecar_sha256": "4b6913013277fd2088dd52510d45977d1adc94d2226fd96ee9b2d5351e487bf5",
+      "sidecar_original_capture_relative_path": "widget-readable/after-390x844-en-dark-proposal.json",
+      "view_device_pixel_ratio": 1.0,
+      "text_scale": 1,
+      "font_source": {
+        "sans": "Flutter SDK material_fonts/Roboto",
+        "cjk": "example/test/design/fonts/NotoSansSC-Regular.otf",
+        "mono": "native/vendor/par-term-emu-core-rust/src/screenshot/JetBrainsMono-Regular.ttf",
+        "icons": "Flutter SDK material_fonts/MaterialIcons-Regular.otf",
+        "native_ios_system_font": false
+      },
+      "target_platform_override": "iOS widget theme/test override; no device"
+    },
+    {
+      "kind": "screenshot",
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-en-dark-unknownSubmission.png",
+      "original_capture_relative_path": "widget-readable/after-390x844-en-dark-unknownSubmission.png",
+      "sha256": "e6f1df01059ad1b10f3c82c6ae7f5c50dbaa5a1bb311b670aa29f022236ba3e8",
+      "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "captured_at": "2026-10-08T15:17:33.503201Z",
+      "environment_id": "after-widget-1",
+      "role": "after",
+      "modified": false,
+      "pixel_size": [
+        780,
+        1688
+      ],
+      "viewport_logical": [
+        390.0,
+        844.0
+      ],
+      "pixel_ratio": 2,
+      "orientation": "portrait",
+      "locale": "en",
+      "theme": "dark",
+      "font_policy": "Fixture-fixed text scale 1 with bundled test fonts; no native system-font claim.",
+      "keyboard": "hidden; no real IME",
+      "description": "Original widget fixture 390x844-en-dark-unknownSubmission; comparison capture, not a complete PRD case.",
+      "fixture_id": "390x844-en-dark-unknownSubmission",
+      "test_file": "example/test/ai/mobile_prd_visual_baseline_test.dart",
+      "capture_method": "RenderRepaintBoundary.toImage",
+      "captured_at_source": "Original sidecar captured_at, sampled immediately before toImage.",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-en-dark-unknownSubmission.json",
+      "sidecar_sha256": "086ace5e38e4edb49945c68d147e481db9caaf13d4a46e6e202ccd3f255f575f",
+      "sidecar_original_capture_relative_path": "widget-readable/after-390x844-en-dark-unknownSubmission.json",
+      "view_device_pixel_ratio": 1.0,
+      "text_scale": 1,
+      "font_source": {
+        "sans": "Flutter SDK material_fonts/Roboto",
+        "cjk": "example/test/design/fonts/NotoSansSC-Regular.otf",
+        "mono": "native/vendor/par-term-emu-core-rust/src/screenshot/JetBrainsMono-Regular.ttf",
+        "icons": "Flutter SDK material_fonts/MaterialIcons-Regular.otf",
+        "native_ios_system_font": false
+      },
+      "target_platform_override": "iOS widget theme/test override; no device"
+    },
+    {
+      "kind": "screenshot",
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-en-light-multilineDraft.png",
+      "original_capture_relative_path": "widget-readable/after-390x844-en-light-multilineDraft.png",
+      "sha256": "314cc5e534fe7063ec8ca3e74c6da654fcc0250def744b1c2969439362e5a68e",
+      "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "captured_at": "2026-10-08T15:17:33.590020Z",
+      "environment_id": "after-widget-1",
+      "role": "after",
+      "modified": false,
+      "pixel_size": [
+        780,
+        1688
+      ],
+      "viewport_logical": [
+        390.0,
+        844.0
+      ],
+      "pixel_ratio": 2,
+      "orientation": "portrait",
+      "locale": "en",
+      "theme": "light",
+      "font_policy": "Fixture-fixed text scale 1 with bundled test fonts; no native system-font claim.",
+      "keyboard": "hidden; no real IME",
+      "description": "Original widget fixture 390x844-en-light-multilineDraft; comparison capture, not a complete PRD case.",
+      "fixture_id": "390x844-en-light-multilineDraft",
+      "test_file": "example/test/ai/mobile_prd_visual_baseline_test.dart",
+      "capture_method": "RenderRepaintBoundary.toImage",
+      "captured_at_source": "Original sidecar captured_at, sampled immediately before toImage.",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-en-light-multilineDraft.json",
+      "sidecar_sha256": "f3cd47f3c328e3d3d6d1347d2f9031a7f417e0eee512b5a3a1e81246bf42582d",
+      "sidecar_original_capture_relative_path": "widget-readable/after-390x844-en-light-multilineDraft.json",
+      "view_device_pixel_ratio": 1.0,
+      "text_scale": 1,
+      "font_source": {
+        "sans": "Flutter SDK material_fonts/Roboto",
+        "cjk": "example/test/design/fonts/NotoSansSC-Regular.otf",
+        "mono": "native/vendor/par-term-emu-core-rust/src/screenshot/JetBrainsMono-Regular.ttf",
+        "icons": "Flutter SDK material_fonts/MaterialIcons-Regular.otf",
+        "native_ios_system_font": false
+      },
+      "target_platform_override": "iOS widget theme/test override; no device"
+    },
+    {
+      "kind": "screenshot",
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-en-light-proposal.png",
+      "original_capture_relative_path": "widget-readable/after-390x844-en-light-proposal.png",
+      "sha256": "2486a9984c50d95f06fe19d780a1f2eb8a8bfe24502eace7dadefea0321cfcff",
+      "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "captured_at": "2026-10-08T15:17:33.679630Z",
+      "environment_id": "after-widget-1",
+      "role": "after",
+      "modified": false,
+      "pixel_size": [
+        780,
+        1688
+      ],
+      "viewport_logical": [
+        390.0,
+        844.0
+      ],
+      "pixel_ratio": 2,
+      "orientation": "portrait",
+      "locale": "en",
+      "theme": "light",
+      "font_policy": "Fixture-fixed text scale 1 with bundled test fonts; no native system-font claim.",
+      "keyboard": "hidden; no real IME",
+      "description": "Original widget fixture 390x844-en-light-proposal; comparison capture, not a complete PRD case.",
+      "fixture_id": "390x844-en-light-proposal",
+      "test_file": "example/test/ai/mobile_prd_visual_baseline_test.dart",
+      "capture_method": "RenderRepaintBoundary.toImage",
+      "captured_at_source": "Original sidecar captured_at, sampled immediately before toImage.",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-en-light-proposal.json",
+      "sidecar_sha256": "f274365d88ff88ab33ee68ec4ae933dc518bbf01851b8ca80bfb467922582bfb",
+      "sidecar_original_capture_relative_path": "widget-readable/after-390x844-en-light-proposal.json",
+      "view_device_pixel_ratio": 1.0,
+      "text_scale": 1,
+      "font_source": {
+        "sans": "Flutter SDK material_fonts/Roboto",
+        "cjk": "example/test/design/fonts/NotoSansSC-Regular.otf",
+        "mono": "native/vendor/par-term-emu-core-rust/src/screenshot/JetBrainsMono-Regular.ttf",
+        "icons": "Flutter SDK material_fonts/MaterialIcons-Regular.otf",
+        "native_ios_system_font": false
+      },
+      "target_platform_override": "iOS widget theme/test override; no device"
+    },
+    {
+      "kind": "screenshot",
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-en-light-unknownSubmission.png",
+      "original_capture_relative_path": "widget-readable/after-390x844-en-light-unknownSubmission.png",
+      "sha256": "a6275577413a4fae855d6f5ae38df150180faf265980f82edba749e8e2d8b1e5",
+      "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "captured_at": "2026-10-08T15:17:33.770402Z",
+      "environment_id": "after-widget-1",
+      "role": "after",
+      "modified": false,
+      "pixel_size": [
+        780,
+        1688
+      ],
+      "viewport_logical": [
+        390.0,
+        844.0
+      ],
+      "pixel_ratio": 2,
+      "orientation": "portrait",
+      "locale": "en",
+      "theme": "light",
+      "font_policy": "Fixture-fixed text scale 1 with bundled test fonts; no native system-font claim.",
+      "keyboard": "hidden; no real IME",
+      "description": "Original widget fixture 390x844-en-light-unknownSubmission; comparison capture, not a complete PRD case.",
+      "fixture_id": "390x844-en-light-unknownSubmission",
+      "test_file": "example/test/ai/mobile_prd_visual_baseline_test.dart",
+      "capture_method": "RenderRepaintBoundary.toImage",
+      "captured_at_source": "Original sidecar captured_at, sampled immediately before toImage.",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-en-light-unknownSubmission.json",
+      "sidecar_sha256": "fc0dabadc58772c548eb37598d0bfe75f4435a8352bccf8bc9577ecf715d8f08",
+      "sidecar_original_capture_relative_path": "widget-readable/after-390x844-en-light-unknownSubmission.json",
+      "view_device_pixel_ratio": 1.0,
+      "text_scale": 1,
+      "font_source": {
+        "sans": "Flutter SDK material_fonts/Roboto",
+        "cjk": "example/test/design/fonts/NotoSansSC-Regular.otf",
+        "mono": "native/vendor/par-term-emu-core-rust/src/screenshot/JetBrainsMono-Regular.ttf",
+        "icons": "Flutter SDK material_fonts/MaterialIcons-Regular.otf",
+        "native_ios_system_font": false
+      },
+      "target_platform_override": "iOS widget theme/test override; no device"
+    },
+    {
+      "kind": "screenshot",
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-zh-dark-multilineDraft.png",
+      "original_capture_relative_path": "widget-readable/after-390x844-zh-dark-multilineDraft.png",
+      "sha256": "e7d640461b4836f135bb24f29d7c8eab16f2918a40b7216875e16667fa4bb256",
+      "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "captured_at": "2026-10-08T15:17:33.846879Z",
+      "environment_id": "after-widget-1",
+      "role": "after",
+      "modified": false,
+      "pixel_size": [
+        780,
+        1688
+      ],
+      "viewport_logical": [
+        390.0,
+        844.0
+      ],
+      "pixel_ratio": 2,
+      "orientation": "portrait",
+      "locale": "zh",
+      "theme": "dark",
+      "font_policy": "Fixture-fixed text scale 1 with bundled test fonts; no native system-font claim.",
+      "keyboard": "hidden; no real IME",
+      "description": "Original widget fixture 390x844-zh-dark-multilineDraft; comparison capture, not a complete PRD case.",
+      "fixture_id": "390x844-zh-dark-multilineDraft",
+      "test_file": "example/test/ai/mobile_prd_visual_baseline_test.dart",
+      "capture_method": "RenderRepaintBoundary.toImage",
+      "captured_at_source": "Original sidecar captured_at, sampled immediately before toImage.",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-zh-dark-multilineDraft.json",
+      "sidecar_sha256": "5fd3eb3801db0ec4698c24c02ab70f17027bee9564623e87388222be6eb443eb",
+      "sidecar_original_capture_relative_path": "widget-readable/after-390x844-zh-dark-multilineDraft.json",
+      "view_device_pixel_ratio": 1.0,
+      "text_scale": 1,
+      "font_source": {
+        "sans": "Flutter SDK material_fonts/Roboto",
+        "cjk": "example/test/design/fonts/NotoSansSC-Regular.otf",
+        "mono": "native/vendor/par-term-emu-core-rust/src/screenshot/JetBrainsMono-Regular.ttf",
+        "icons": "Flutter SDK material_fonts/MaterialIcons-Regular.otf",
+        "native_ios_system_font": false
+      },
+      "target_platform_override": "iOS widget theme/test override; no device"
+    },
+    {
+      "kind": "screenshot",
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-zh-dark-proposal.png",
+      "original_capture_relative_path": "widget-readable/after-390x844-zh-dark-proposal.png",
+      "sha256": "7d9604786ab631dc8a0b4a77aadffb2755672ee126b5f883e90ea26fc502df6a",
+      "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "captured_at": "2026-10-08T15:17:33.948458Z",
+      "environment_id": "after-widget-1",
+      "role": "after",
+      "modified": false,
+      "pixel_size": [
+        780,
+        1688
+      ],
+      "viewport_logical": [
+        390.0,
+        844.0
+      ],
+      "pixel_ratio": 2,
+      "orientation": "portrait",
+      "locale": "zh",
+      "theme": "dark",
+      "font_policy": "Fixture-fixed text scale 1 with bundled test fonts; no native system-font claim.",
+      "keyboard": "hidden; no real IME",
+      "description": "Original widget fixture 390x844-zh-dark-proposal; comparison capture, not a complete PRD case.",
+      "fixture_id": "390x844-zh-dark-proposal",
+      "test_file": "example/test/ai/mobile_prd_visual_baseline_test.dart",
+      "capture_method": "RenderRepaintBoundary.toImage",
+      "captured_at_source": "Original sidecar captured_at, sampled immediately before toImage.",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-zh-dark-proposal.json",
+      "sidecar_sha256": "58db558836cd7d0e8842325cd494eb8d58e55b6e9e811ea1c4e5145adc7fbee6",
+      "sidecar_original_capture_relative_path": "widget-readable/after-390x844-zh-dark-proposal.json",
+      "view_device_pixel_ratio": 1.0,
+      "text_scale": 1,
+      "font_source": {
+        "sans": "Flutter SDK material_fonts/Roboto",
+        "cjk": "example/test/design/fonts/NotoSansSC-Regular.otf",
+        "mono": "native/vendor/par-term-emu-core-rust/src/screenshot/JetBrainsMono-Regular.ttf",
+        "icons": "Flutter SDK material_fonts/MaterialIcons-Regular.otf",
+        "native_ios_system_font": false
+      },
+      "target_platform_override": "iOS widget theme/test override; no device"
+    },
+    {
+      "kind": "screenshot",
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-zh-dark-unknownSubmission.png",
+      "original_capture_relative_path": "widget-readable/after-390x844-zh-dark-unknownSubmission.png",
+      "sha256": "6249ce092a797a6a9663fb468052106d110a0137317598fb7c446e4b4f0688df",
+      "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "captured_at": "2026-10-08T15:17:34.038876Z",
+      "environment_id": "after-widget-1",
+      "role": "after",
+      "modified": false,
+      "pixel_size": [
+        780,
+        1688
+      ],
+      "viewport_logical": [
+        390.0,
+        844.0
+      ],
+      "pixel_ratio": 2,
+      "orientation": "portrait",
+      "locale": "zh",
+      "theme": "dark",
+      "font_policy": "Fixture-fixed text scale 1 with bundled test fonts; no native system-font claim.",
+      "keyboard": "hidden; no real IME",
+      "description": "Original widget fixture 390x844-zh-dark-unknownSubmission; comparison capture, not a complete PRD case.",
+      "fixture_id": "390x844-zh-dark-unknownSubmission",
+      "test_file": "example/test/ai/mobile_prd_visual_baseline_test.dart",
+      "capture_method": "RenderRepaintBoundary.toImage",
+      "captured_at_source": "Original sidecar captured_at, sampled immediately before toImage.",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-zh-dark-unknownSubmission.json",
+      "sidecar_sha256": "0d123d19efe4582e3dc3c24159b1d029f61c0d470f68c4fb34b236a1ec1ea2e8",
+      "sidecar_original_capture_relative_path": "widget-readable/after-390x844-zh-dark-unknownSubmission.json",
+      "view_device_pixel_ratio": 1.0,
+      "text_scale": 1,
+      "font_source": {
+        "sans": "Flutter SDK material_fonts/Roboto",
+        "cjk": "example/test/design/fonts/NotoSansSC-Regular.otf",
+        "mono": "native/vendor/par-term-emu-core-rust/src/screenshot/JetBrainsMono-Regular.ttf",
+        "icons": "Flutter SDK material_fonts/MaterialIcons-Regular.otf",
+        "native_ios_system_font": false
+      },
+      "target_platform_override": "iOS widget theme/test override; no device"
+    },
+    {
+      "kind": "screenshot",
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-zh-light-multilineDraft.png",
+      "original_capture_relative_path": "widget-readable/after-390x844-zh-light-multilineDraft.png",
+      "sha256": "e0bf84c94cf92e7564462ddf094aa87c01c6f1d26f98f903ffdfb8866a22a10b",
+      "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "captured_at": "2026-10-08T15:17:34.114532Z",
+      "environment_id": "after-widget-1",
+      "role": "after",
+      "modified": false,
+      "pixel_size": [
+        780,
+        1688
+      ],
+      "viewport_logical": [
+        390.0,
+        844.0
+      ],
+      "pixel_ratio": 2,
+      "orientation": "portrait",
+      "locale": "zh",
+      "theme": "light",
+      "font_policy": "Fixture-fixed text scale 1 with bundled test fonts; no native system-font claim.",
+      "keyboard": "hidden; no real IME",
+      "description": "Original widget fixture 390x844-zh-light-multilineDraft; comparison capture, not a complete PRD case.",
+      "fixture_id": "390x844-zh-light-multilineDraft",
+      "test_file": "example/test/ai/mobile_prd_visual_baseline_test.dart",
+      "capture_method": "RenderRepaintBoundary.toImage",
+      "captured_at_source": "Original sidecar captured_at, sampled immediately before toImage.",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-zh-light-multilineDraft.json",
+      "sidecar_sha256": "65592541d0ba892f8afdae6bdcd8661fc0eeca3962b4a7f23ff2a2c4286583ae",
+      "sidecar_original_capture_relative_path": "widget-readable/after-390x844-zh-light-multilineDraft.json",
+      "view_device_pixel_ratio": 1.0,
+      "text_scale": 1,
+      "font_source": {
+        "sans": "Flutter SDK material_fonts/Roboto",
+        "cjk": "example/test/design/fonts/NotoSansSC-Regular.otf",
+        "mono": "native/vendor/par-term-emu-core-rust/src/screenshot/JetBrainsMono-Regular.ttf",
+        "icons": "Flutter SDK material_fonts/MaterialIcons-Regular.otf",
+        "native_ios_system_font": false
+      },
+      "target_platform_override": "iOS widget theme/test override; no device"
+    },
+    {
+      "kind": "screenshot",
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-zh-light-proposal.png",
+      "original_capture_relative_path": "widget-readable/after-390x844-zh-light-proposal.png",
+      "sha256": "acbfe8b5a5e01ec3bfcc974c1b9921d5ade1f3e75397b8de4e22e89cf08f804a",
+      "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "captured_at": "2026-10-08T15:17:34.197804Z",
+      "environment_id": "after-widget-1",
+      "role": "after",
+      "modified": false,
+      "pixel_size": [
+        780,
+        1688
+      ],
+      "viewport_logical": [
+        390.0,
+        844.0
+      ],
+      "pixel_ratio": 2,
+      "orientation": "portrait",
+      "locale": "zh",
+      "theme": "light",
+      "font_policy": "Fixture-fixed text scale 1 with bundled test fonts; no native system-font claim.",
+      "keyboard": "hidden; no real IME",
+      "description": "Original widget fixture 390x844-zh-light-proposal; comparison capture, not a complete PRD case.",
+      "fixture_id": "390x844-zh-light-proposal",
+      "test_file": "example/test/ai/mobile_prd_visual_baseline_test.dart",
+      "capture_method": "RenderRepaintBoundary.toImage",
+      "captured_at_source": "Original sidecar captured_at, sampled immediately before toImage.",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-zh-light-proposal.json",
+      "sidecar_sha256": "5c564d38a42ca4cbd1af2a93a64a32dc39928147db63f3126d0bfd44956f1ab8",
+      "sidecar_original_capture_relative_path": "widget-readable/after-390x844-zh-light-proposal.json",
+      "view_device_pixel_ratio": 1.0,
+      "text_scale": 1,
+      "font_source": {
+        "sans": "Flutter SDK material_fonts/Roboto",
+        "cjk": "example/test/design/fonts/NotoSansSC-Regular.otf",
+        "mono": "native/vendor/par-term-emu-core-rust/src/screenshot/JetBrainsMono-Regular.ttf",
+        "icons": "Flutter SDK material_fonts/MaterialIcons-Regular.otf",
+        "native_ios_system_font": false
+      },
+      "target_platform_override": "iOS widget theme/test override; no device"
+    },
+    {
+      "kind": "screenshot",
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-zh-light-unknownSubmission.png",
+      "original_capture_relative_path": "widget-readable/after-390x844-zh-light-unknownSubmission.png",
+      "sha256": "c88f93b15f535024a19c507819bc8337fe61ee22e81c5ca2bb7fbde359e158d3",
+      "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "captured_at": "2026-10-08T15:17:34.281105Z",
+      "environment_id": "after-widget-1",
+      "role": "after",
+      "modified": false,
+      "pixel_size": [
+        780,
+        1688
+      ],
+      "viewport_logical": [
+        390.0,
+        844.0
+      ],
+      "pixel_ratio": 2,
+      "orientation": "portrait",
+      "locale": "zh",
+      "theme": "light",
+      "font_policy": "Fixture-fixed text scale 1 with bundled test fonts; no native system-font claim.",
+      "keyboard": "hidden; no real IME",
+      "description": "Original widget fixture 390x844-zh-light-unknownSubmission; comparison capture, not a complete PRD case.",
+      "fixture_id": "390x844-zh-light-unknownSubmission",
+      "test_file": "example/test/ai/mobile_prd_visual_baseline_test.dart",
+      "capture_method": "RenderRepaintBoundary.toImage",
+      "captured_at_source": "Original sidecar captured_at, sampled immediately before toImage.",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-zh-light-unknownSubmission.json",
+      "sidecar_sha256": "be9f7bb199b7ddff8a65a9394ff760f1321f91d61006634e8db3af276e2d02c8",
+      "sidecar_original_capture_relative_path": "widget-readable/after-390x844-zh-light-unknownSubmission.json",
+      "view_device_pixel_ratio": 1.0,
+      "text_scale": 1,
+      "font_source": {
+        "sans": "Flutter SDK material_fonts/Roboto",
+        "cjk": "example/test/design/fonts/NotoSansSC-Regular.otf",
+        "mono": "native/vendor/par-term-emu-core-rust/src/screenshot/JetBrainsMono-Regular.ttf",
+        "icons": "Flutter SDK material_fonts/MaterialIcons-Regular.otf",
+        "native_ios_system_font": false
+      },
+      "target_platform_override": "iOS widget theme/test override; no device"
+    },
+    {
+      "kind": "screenshot",
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-ipad-1024x768-dark-ai.png",
+      "original_capture_relative_path": "widget-readable/after-composer-ipad-1024x768-dark-ai.png",
+      "sha256": "6ab621604132feeac602359507dc3a22594c4bc57e18e6b5181f80f5362980c5",
+      "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "captured_at": "2026-10-08T15:17:37.376522Z",
+      "environment_id": "after-widget-2",
+      "role": "after",
+      "modified": false,
+      "pixel_size": [
+        2048,
+        1536
+      ],
+      "viewport_logical": [
+        1024.0,
+        768.0
+      ],
+      "pixel_ratio": 2,
+      "orientation": "landscape",
+      "locale": "en",
+      "theme": "dark",
+      "font_policy": "Fixture-fixed text scale 1 with bundled test fonts; no native system-font claim.",
+      "keyboard": "hidden; no real IME",
+      "description": "Original widget fixture composer-ipad-1024x768-dark-ai; comparison capture, not a complete PRD case.",
+      "fixture_id": "composer-ipad-1024x768-dark-ai",
+      "test_file": "example/test/terminal_composer/mobile_prd_composer_baseline_test.dart",
+      "capture_method": "RenderRepaintBoundary.toImage",
+      "captured_at_source": "Original sidecar captured_at, sampled immediately before toImage.",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-ipad-1024x768-dark-ai.json",
+      "sidecar_sha256": "aaedf6251ec2e7705d1842cb0fbc7bb186f0be5561ffe29f661166d42193536d",
+      "sidecar_original_capture_relative_path": "widget-readable/after-composer-ipad-1024x768-dark-ai.json",
+      "view_device_pixel_ratio": 1.0,
+      "text_scale": 1,
+      "font_source": {
+        "sans": "Flutter SDK material_fonts/Roboto",
+        "cjk": "example/test/design/fonts/NotoSansSC-Regular.otf",
+        "mono": "native/vendor/par-term-emu-core-rust/src/screenshot/JetBrainsMono-Regular.ttf",
+        "icons": "Flutter SDK material_fonts/MaterialIcons-Regular.otf",
+        "native_system_fonts": false
+      },
+      "target_platform_override": "iOS widget theme/test override"
+    },
+    {
+      "kind": "screenshot",
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-ipad-1024x768-dark-automatic.png",
+      "original_capture_relative_path": "widget-readable/after-composer-ipad-1024x768-dark-automatic.png",
+      "sha256": "a3ef8b6bd35b8ffd9c311e525c3c43c82a810e54a2676171d9e75cf1db07746e",
+      "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "captured_at": "2026-10-08T15:17:37.069317Z",
+      "environment_id": "after-widget-2",
+      "role": "after",
+      "modified": false,
+      "pixel_size": [
+        2048,
+        1536
+      ],
+      "viewport_logical": [
+        1024.0,
+        768.0
+      ],
+      "pixel_ratio": 2,
+      "orientation": "landscape",
+      "locale": "en",
+      "theme": "dark",
+      "font_policy": "Fixture-fixed text scale 1 with bundled test fonts; no native system-font claim.",
+      "keyboard": "hidden; no real IME",
+      "description": "Original widget fixture composer-ipad-1024x768-dark-automatic; comparison capture, not a complete PRD case.",
+      "fixture_id": "composer-ipad-1024x768-dark-automatic",
+      "test_file": "example/test/terminal_composer/mobile_prd_composer_baseline_test.dart",
+      "capture_method": "RenderRepaintBoundary.toImage",
+      "captured_at_source": "Original sidecar captured_at, sampled immediately before toImage.",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-ipad-1024x768-dark-automatic.json",
+      "sidecar_sha256": "16442dab4e0738644a3793ca13b71a59dd27fa7f68abfb86cbd866c88c844671",
+      "sidecar_original_capture_relative_path": "widget-readable/after-composer-ipad-1024x768-dark-automatic.json",
+      "view_device_pixel_ratio": 1.0,
+      "text_scale": 1,
+      "font_source": {
+        "sans": "Flutter SDK material_fonts/Roboto",
+        "cjk": "example/test/design/fonts/NotoSansSC-Regular.otf",
+        "mono": "native/vendor/par-term-emu-core-rust/src/screenshot/JetBrainsMono-Regular.ttf",
+        "icons": "Flutter SDK material_fonts/MaterialIcons-Regular.otf",
+        "native_system_fonts": false
+      },
+      "target_platform_override": "iOS widget theme/test override"
+    },
+    {
+      "kind": "screenshot",
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-ipad-1024x768-dark-command.png",
+      "original_capture_relative_path": "widget-readable/after-composer-ipad-1024x768-dark-command.png",
+      "sha256": "e346735b54a67429a5b90ad97db93508e39e19f68c7da15da2eb67e5b0efdb88",
+      "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "captured_at": "2026-10-08T15:17:37.231045Z",
+      "environment_id": "after-widget-2",
+      "role": "after",
+      "modified": false,
+      "pixel_size": [
+        2048,
+        1536
+      ],
+      "viewport_logical": [
+        1024.0,
+        768.0
+      ],
+      "pixel_ratio": 2,
+      "orientation": "landscape",
+      "locale": "en",
+      "theme": "dark",
+      "font_policy": "Fixture-fixed text scale 1 with bundled test fonts; no native system-font claim.",
+      "keyboard": "hidden; no real IME",
+      "description": "Original widget fixture composer-ipad-1024x768-dark-command; comparison capture, not a complete PRD case.",
+      "fixture_id": "composer-ipad-1024x768-dark-command",
+      "test_file": "example/test/terminal_composer/mobile_prd_composer_baseline_test.dart",
+      "capture_method": "RenderRepaintBoundary.toImage",
+      "captured_at_source": "Original sidecar captured_at, sampled immediately before toImage.",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-ipad-1024x768-dark-command.json",
+      "sidecar_sha256": "8fa390736a695f517ed28265f9e2d331d51bc70f5f06fcc220a680f74de908b2",
+      "sidecar_original_capture_relative_path": "widget-readable/after-composer-ipad-1024x768-dark-command.json",
+      "view_device_pixel_ratio": 1.0,
+      "text_scale": 1,
+      "font_source": {
+        "sans": "Flutter SDK material_fonts/Roboto",
+        "cjk": "example/test/design/fonts/NotoSansSC-Regular.otf",
+        "mono": "native/vendor/par-term-emu-core-rust/src/screenshot/JetBrainsMono-Regular.ttf",
+        "icons": "Flutter SDK material_fonts/MaterialIcons-Regular.otf",
+        "native_system_fonts": false
+      },
+      "target_platform_override": "iOS widget theme/test override"
+    },
+    {
+      "kind": "screenshot",
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-ipad-1024x768-light-ai.png",
+      "original_capture_relative_path": "widget-readable/after-composer-ipad-1024x768-light-ai.png",
+      "sha256": "af23c1a3dc4d2d078fd6ee72c20291bee687bdde8e63b8bd3c1b0011d22894c0",
+      "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "captured_at": "2026-10-08T15:17:37.781847Z",
+      "environment_id": "after-widget-2",
+      "role": "after",
+      "modified": false,
+      "pixel_size": [
+        2048,
+        1536
+      ],
+      "viewport_logical": [
+        1024.0,
+        768.0
+      ],
+      "pixel_ratio": 2,
+      "orientation": "landscape",
+      "locale": "en",
+      "theme": "light",
+      "font_policy": "Fixture-fixed text scale 1 with bundled test fonts; no native system-font claim.",
+      "keyboard": "hidden; no real IME",
+      "description": "Original widget fixture composer-ipad-1024x768-light-ai; comparison capture, not a complete PRD case.",
+      "fixture_id": "composer-ipad-1024x768-light-ai",
+      "test_file": "example/test/terminal_composer/mobile_prd_composer_baseline_test.dart",
+      "capture_method": "RenderRepaintBoundary.toImage",
+      "captured_at_source": "Original sidecar captured_at, sampled immediately before toImage.",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-ipad-1024x768-light-ai.json",
+      "sidecar_sha256": "f8b9ec56b42a7037eb544f801b240fc45a1d834bf75f79193dfe79f12f04168f",
+      "sidecar_original_capture_relative_path": "widget-readable/after-composer-ipad-1024x768-light-ai.json",
+      "view_device_pixel_ratio": 1.0,
+      "text_scale": 1,
+      "font_source": {
+        "sans": "Flutter SDK material_fonts/Roboto",
+        "cjk": "example/test/design/fonts/NotoSansSC-Regular.otf",
+        "mono": "native/vendor/par-term-emu-core-rust/src/screenshot/JetBrainsMono-Regular.ttf",
+        "icons": "Flutter SDK material_fonts/MaterialIcons-Regular.otf",
+        "native_system_fonts": false
+      },
+      "target_platform_override": "iOS widget theme/test override"
+    },
+    {
+      "kind": "screenshot",
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-ipad-1024x768-light-automatic.png",
+      "original_capture_relative_path": "widget-readable/after-composer-ipad-1024x768-light-automatic.png",
+      "sha256": "1183816cc5a041be828cf923d7b7090d94e945856bfc8acd45c0f82d8402b4b6",
+      "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "captured_at": "2026-10-08T15:17:37.517115Z",
+      "environment_id": "after-widget-2",
+      "role": "after",
+      "modified": false,
+      "pixel_size": [
+        2048,
+        1536
+      ],
+      "viewport_logical": [
+        1024.0,
+        768.0
+      ],
+      "pixel_ratio": 2,
+      "orientation": "landscape",
+      "locale": "en",
+      "theme": "light",
+      "font_policy": "Fixture-fixed text scale 1 with bundled test fonts; no native system-font claim.",
+      "keyboard": "hidden; no real IME",
+      "description": "Original widget fixture composer-ipad-1024x768-light-automatic; comparison capture, not a complete PRD case.",
+      "fixture_id": "composer-ipad-1024x768-light-automatic",
+      "test_file": "example/test/terminal_composer/mobile_prd_composer_baseline_test.dart",
+      "capture_method": "RenderRepaintBoundary.toImage",
+      "captured_at_source": "Original sidecar captured_at, sampled immediately before toImage.",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-ipad-1024x768-light-automatic.json",
+      "sidecar_sha256": "717abe116558d14ef28c7f510dfc1468e68643d8e282c34c63832eb683f43195",
+      "sidecar_original_capture_relative_path": "widget-readable/after-composer-ipad-1024x768-light-automatic.json",
+      "view_device_pixel_ratio": 1.0,
+      "text_scale": 1,
+      "font_source": {
+        "sans": "Flutter SDK material_fonts/Roboto",
+        "cjk": "example/test/design/fonts/NotoSansSC-Regular.otf",
+        "mono": "native/vendor/par-term-emu-core-rust/src/screenshot/JetBrainsMono-Regular.ttf",
+        "icons": "Flutter SDK material_fonts/MaterialIcons-Regular.otf",
+        "native_system_fonts": false
+      },
+      "target_platform_override": "iOS widget theme/test override"
+    },
+    {
+      "kind": "screenshot",
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-ipad-1024x768-light-command.png",
+      "original_capture_relative_path": "widget-readable/after-composer-ipad-1024x768-light-command.png",
+      "sha256": "f0417780b5261418a13315feb0dcb41f690f7c0caa532670aa30c52530e331c6",
+      "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "captured_at": "2026-10-08T15:17:37.653193Z",
+      "environment_id": "after-widget-2",
+      "role": "after",
+      "modified": false,
+      "pixel_size": [
+        2048,
+        1536
+      ],
+      "viewport_logical": [
+        1024.0,
+        768.0
+      ],
+      "pixel_ratio": 2,
+      "orientation": "landscape",
+      "locale": "en",
+      "theme": "light",
+      "font_policy": "Fixture-fixed text scale 1 with bundled test fonts; no native system-font claim.",
+      "keyboard": "hidden; no real IME",
+      "description": "Original widget fixture composer-ipad-1024x768-light-command; comparison capture, not a complete PRD case.",
+      "fixture_id": "composer-ipad-1024x768-light-command",
+      "test_file": "example/test/terminal_composer/mobile_prd_composer_baseline_test.dart",
+      "capture_method": "RenderRepaintBoundary.toImage",
+      "captured_at_source": "Original sidecar captured_at, sampled immediately before toImage.",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-ipad-1024x768-light-command.json",
+      "sidecar_sha256": "a78f15c6b2e17a7ca7e79581d4d18715c4fa49333648d5e9012e7c6ab93c7825",
+      "sidecar_original_capture_relative_path": "widget-readable/after-composer-ipad-1024x768-light-command.json",
+      "view_device_pixel_ratio": 1.0,
+      "text_scale": 1,
+      "font_source": {
+        "sans": "Flutter SDK material_fonts/Roboto",
+        "cjk": "example/test/design/fonts/NotoSansSC-Regular.otf",
+        "mono": "native/vendor/par-term-emu-core-rust/src/screenshot/JetBrainsMono-Regular.ttf",
+        "icons": "Flutter SDK material_fonts/MaterialIcons-Regular.otf",
+        "native_system_fonts": false
+      },
+      "target_platform_override": "iOS widget theme/test override"
+    },
+    {
+      "kind": "screenshot",
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-mac-1280x900-dark-ai.png",
+      "original_capture_relative_path": "widget-readable/after-composer-mac-1280x900-dark-ai.png",
+      "sha256": "ff347bc7d329957b5a324841076cdcd37388ebe52f12326b7e039813fbfe2dc9",
+      "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "captured_at": "2026-10-08T15:17:38.218909Z",
+      "environment_id": "after-widget-3",
+      "role": "after",
+      "modified": false,
+      "pixel_size": [
+        2560,
+        1800
+      ],
+      "viewport_logical": [
+        1280.0,
+        900.0
+      ],
+      "pixel_ratio": 2,
+      "orientation": "landscape",
+      "locale": "en",
+      "theme": "dark",
+      "font_policy": "Fixture-fixed text scale 1 with bundled test fonts; no native system-font claim.",
+      "keyboard": "hidden; no real IME",
+      "description": "Original widget fixture composer-mac-1280x900-dark-ai; comparison capture, not a complete PRD case.",
+      "fixture_id": "composer-mac-1280x900-dark-ai",
+      "test_file": "example/test/terminal_composer/mobile_prd_composer_baseline_test.dart",
+      "capture_method": "RenderRepaintBoundary.toImage",
+      "captured_at_source": "Original sidecar captured_at, sampled immediately before toImage.",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-mac-1280x900-dark-ai.json",
+      "sidecar_sha256": "a643009e1586cfe78aba384bf58d84562edac9f79ef6ec3a0b28357bce6eedfd",
+      "sidecar_original_capture_relative_path": "widget-readable/after-composer-mac-1280x900-dark-ai.json",
+      "view_device_pixel_ratio": 1.0,
+      "text_scale": 1,
+      "font_source": {
+        "sans": "Flutter SDK material_fonts/Roboto",
+        "cjk": "example/test/design/fonts/NotoSansSC-Regular.otf",
+        "mono": "native/vendor/par-term-emu-core-rust/src/screenshot/JetBrainsMono-Regular.ttf",
+        "icons": "Flutter SDK material_fonts/MaterialIcons-Regular.otf",
+        "native_system_fonts": false
+      },
+      "target_platform_override": "macOS widget theme/test override"
+    },
+    {
+      "kind": "screenshot",
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-mac-1280x900-dark-automatic.png",
+      "original_capture_relative_path": "widget-readable/after-composer-mac-1280x900-dark-automatic.png",
+      "sha256": "4337a18be86a738d65f2ea2a0d170b1d3a540070d239d597bb3a8c2bde78b59b",
+      "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "captured_at": "2026-10-08T15:17:37.914101Z",
+      "environment_id": "after-widget-3",
+      "role": "after",
+      "modified": false,
+      "pixel_size": [
+        2560,
+        1800
+      ],
+      "viewport_logical": [
+        1280.0,
+        900.0
+      ],
+      "pixel_ratio": 2,
+      "orientation": "landscape",
+      "locale": "en",
+      "theme": "dark",
+      "font_policy": "Fixture-fixed text scale 1 with bundled test fonts; no native system-font claim.",
+      "keyboard": "hidden; no real IME",
+      "description": "Original widget fixture composer-mac-1280x900-dark-automatic; comparison capture, not a complete PRD case.",
+      "fixture_id": "composer-mac-1280x900-dark-automatic",
+      "test_file": "example/test/terminal_composer/mobile_prd_composer_baseline_test.dart",
+      "capture_method": "RenderRepaintBoundary.toImage",
+      "captured_at_source": "Original sidecar captured_at, sampled immediately before toImage.",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-mac-1280x900-dark-automatic.json",
+      "sidecar_sha256": "d6586bc5ac38aa45df6397af7090113a9c8722392b96acf03780c592e8894a52",
+      "sidecar_original_capture_relative_path": "widget-readable/after-composer-mac-1280x900-dark-automatic.json",
+      "view_device_pixel_ratio": 1.0,
+      "text_scale": 1,
+      "font_source": {
+        "sans": "Flutter SDK material_fonts/Roboto",
+        "cjk": "example/test/design/fonts/NotoSansSC-Regular.otf",
+        "mono": "native/vendor/par-term-emu-core-rust/src/screenshot/JetBrainsMono-Regular.ttf",
+        "icons": "Flutter SDK material_fonts/MaterialIcons-Regular.otf",
+        "native_system_fonts": false
+      },
+      "target_platform_override": "macOS widget theme/test override"
+    },
+    {
+      "kind": "screenshot",
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-mac-1280x900-dark-command.png",
+      "original_capture_relative_path": "widget-readable/after-composer-mac-1280x900-dark-command.png",
+      "sha256": "fd0ffd1a894c00b3acd722308c2cf851b896d504fc056014eb0ca25b13a06c24",
+      "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "captured_at": "2026-10-08T15:17:38.066602Z",
+      "environment_id": "after-widget-3",
+      "role": "after",
+      "modified": false,
+      "pixel_size": [
+        2560,
+        1800
+      ],
+      "viewport_logical": [
+        1280.0,
+        900.0
+      ],
+      "pixel_ratio": 2,
+      "orientation": "landscape",
+      "locale": "en",
+      "theme": "dark",
+      "font_policy": "Fixture-fixed text scale 1 with bundled test fonts; no native system-font claim.",
+      "keyboard": "hidden; no real IME",
+      "description": "Original widget fixture composer-mac-1280x900-dark-command; comparison capture, not a complete PRD case.",
+      "fixture_id": "composer-mac-1280x900-dark-command",
+      "test_file": "example/test/terminal_composer/mobile_prd_composer_baseline_test.dart",
+      "capture_method": "RenderRepaintBoundary.toImage",
+      "captured_at_source": "Original sidecar captured_at, sampled immediately before toImage.",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-mac-1280x900-dark-command.json",
+      "sidecar_sha256": "9df66c45c14db9913024ac96182576b7dd358aa3811b6e59314674965129da53",
+      "sidecar_original_capture_relative_path": "widget-readable/after-composer-mac-1280x900-dark-command.json",
+      "view_device_pixel_ratio": 1.0,
+      "text_scale": 1,
+      "font_source": {
+        "sans": "Flutter SDK material_fonts/Roboto",
+        "cjk": "example/test/design/fonts/NotoSansSC-Regular.otf",
+        "mono": "native/vendor/par-term-emu-core-rust/src/screenshot/JetBrainsMono-Regular.ttf",
+        "icons": "Flutter SDK material_fonts/MaterialIcons-Regular.otf",
+        "native_system_fonts": false
+      },
+      "target_platform_override": "macOS widget theme/test override"
+    },
+    {
+      "kind": "screenshot",
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-mac-1280x900-light-ai.png",
+      "original_capture_relative_path": "widget-readable/after-composer-mac-1280x900-light-ai.png",
+      "sha256": "b2593934b0452c7afb7a5f463ac78b90fd05dfe9d1bc5cee593a43be31e71e7b",
+      "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "captured_at": "2026-10-08T15:17:38.666265Z",
+      "environment_id": "after-widget-3",
+      "role": "after",
+      "modified": false,
+      "pixel_size": [
+        2560,
+        1800
+      ],
+      "viewport_logical": [
+        1280.0,
+        900.0
+      ],
+      "pixel_ratio": 2,
+      "orientation": "landscape",
+      "locale": "en",
+      "theme": "light",
+      "font_policy": "Fixture-fixed text scale 1 with bundled test fonts; no native system-font claim.",
+      "keyboard": "hidden; no real IME",
+      "description": "Original widget fixture composer-mac-1280x900-light-ai; comparison capture, not a complete PRD case.",
+      "fixture_id": "composer-mac-1280x900-light-ai",
+      "test_file": "example/test/terminal_composer/mobile_prd_composer_baseline_test.dart",
+      "capture_method": "RenderRepaintBoundary.toImage",
+      "captured_at_source": "Original sidecar captured_at, sampled immediately before toImage.",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-mac-1280x900-light-ai.json",
+      "sidecar_sha256": "1a8738a09e4d1ab0d3f95d5dc136cbfd7e5e9ffdb187433ee20405896e1d8e3b",
+      "sidecar_original_capture_relative_path": "widget-readable/after-composer-mac-1280x900-light-ai.json",
+      "view_device_pixel_ratio": 1.0,
+      "text_scale": 1,
+      "font_source": {
+        "sans": "Flutter SDK material_fonts/Roboto",
+        "cjk": "example/test/design/fonts/NotoSansSC-Regular.otf",
+        "mono": "native/vendor/par-term-emu-core-rust/src/screenshot/JetBrainsMono-Regular.ttf",
+        "icons": "Flutter SDK material_fonts/MaterialIcons-Regular.otf",
+        "native_system_fonts": false
+      },
+      "target_platform_override": "macOS widget theme/test override"
+    },
+    {
+      "kind": "screenshot",
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-mac-1280x900-light-automatic.png",
+      "original_capture_relative_path": "widget-readable/after-composer-mac-1280x900-light-automatic.png",
+      "sha256": "3ac03673830d30f8bc9b40c3fffc1e31b4cb507eac10586b5d9641401b691c8c",
+      "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "captured_at": "2026-10-08T15:17:38.377528Z",
+      "environment_id": "after-widget-3",
+      "role": "after",
+      "modified": false,
+      "pixel_size": [
+        2560,
+        1800
+      ],
+      "viewport_logical": [
+        1280.0,
+        900.0
+      ],
+      "pixel_ratio": 2,
+      "orientation": "landscape",
+      "locale": "en",
+      "theme": "light",
+      "font_policy": "Fixture-fixed text scale 1 with bundled test fonts; no native system-font claim.",
+      "keyboard": "hidden; no real IME",
+      "description": "Original widget fixture composer-mac-1280x900-light-automatic; comparison capture, not a complete PRD case.",
+      "fixture_id": "composer-mac-1280x900-light-automatic",
+      "test_file": "example/test/terminal_composer/mobile_prd_composer_baseline_test.dart",
+      "capture_method": "RenderRepaintBoundary.toImage",
+      "captured_at_source": "Original sidecar captured_at, sampled immediately before toImage.",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-mac-1280x900-light-automatic.json",
+      "sidecar_sha256": "f52806ebef93014c029f5c9277860816330f58d78b3b29ce03ece852d380de9f",
+      "sidecar_original_capture_relative_path": "widget-readable/after-composer-mac-1280x900-light-automatic.json",
+      "view_device_pixel_ratio": 1.0,
+      "text_scale": 1,
+      "font_source": {
+        "sans": "Flutter SDK material_fonts/Roboto",
+        "cjk": "example/test/design/fonts/NotoSansSC-Regular.otf",
+        "mono": "native/vendor/par-term-emu-core-rust/src/screenshot/JetBrainsMono-Regular.ttf",
+        "icons": "Flutter SDK material_fonts/MaterialIcons-Regular.otf",
+        "native_system_fonts": false
+      },
+      "target_platform_override": "macOS widget theme/test override"
+    },
+    {
+      "kind": "screenshot",
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-mac-1280x900-light-command.png",
+      "original_capture_relative_path": "widget-readable/after-composer-mac-1280x900-light-command.png",
+      "sha256": "aafb15030c30fbb6e622571774142949512d508ac9585ab466b470f92931a809",
+      "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "captured_at": "2026-10-08T15:17:38.523528Z",
+      "environment_id": "after-widget-3",
+      "role": "after",
+      "modified": false,
+      "pixel_size": [
+        2560,
+        1800
+      ],
+      "viewport_logical": [
+        1280.0,
+        900.0
+      ],
+      "pixel_ratio": 2,
+      "orientation": "landscape",
+      "locale": "en",
+      "theme": "light",
+      "font_policy": "Fixture-fixed text scale 1 with bundled test fonts; no native system-font claim.",
+      "keyboard": "hidden; no real IME",
+      "description": "Original widget fixture composer-mac-1280x900-light-command; comparison capture, not a complete PRD case.",
+      "fixture_id": "composer-mac-1280x900-light-command",
+      "test_file": "example/test/terminal_composer/mobile_prd_composer_baseline_test.dart",
+      "capture_method": "RenderRepaintBoundary.toImage",
+      "captured_at_source": "Original sidecar captured_at, sampled immediately before toImage.",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-mac-1280x900-light-command.json",
+      "sidecar_sha256": "7fd92d38fddb4b100d0aa518df01d5ffd189291b48bad24eb637ef4d5d4e2df5",
+      "sidecar_original_capture_relative_path": "widget-readable/after-composer-mac-1280x900-light-command.json",
+      "view_device_pixel_ratio": 1.0,
+      "text_scale": 1,
+      "font_source": {
+        "sans": "Flutter SDK material_fonts/Roboto",
+        "cjk": "example/test/design/fonts/NotoSansSC-Regular.otf",
+        "mono": "native/vendor/par-term-emu-core-rust/src/screenshot/JetBrainsMono-Regular.ttf",
+        "icons": "Flutter SDK material_fonts/MaterialIcons-Regular.otf",
+        "native_system_fonts": false
+      },
+      "target_platform_override": "macOS widget theme/test override"
+    },
+    {
+      "kind": "screenshot",
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-phone-390x844-dark-ai.png",
+      "original_capture_relative_path": "widget-readable/after-composer-phone-390x844-dark-ai.png",
+      "sha256": "f69f29e9733f240af147d49244a6eb66b04df5e798701a4d873d9e6b2a3de4a4",
+      "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "captured_at": "2026-10-08T15:17:36.626241Z",
+      "environment_id": "after-widget-2",
+      "role": "after",
+      "modified": false,
+      "pixel_size": [
+        780,
+        1688
+      ],
+      "viewport_logical": [
+        390.0,
+        844.0
+      ],
+      "pixel_ratio": 2,
+      "orientation": "portrait",
+      "locale": "en",
+      "theme": "dark",
+      "font_policy": "Fixture-fixed text scale 1 with bundled test fonts; no native system-font claim.",
+      "keyboard": "hidden; no real IME",
+      "description": "Original widget fixture composer-phone-390x844-dark-ai; comparison capture, not a complete PRD case.",
+      "fixture_id": "composer-phone-390x844-dark-ai",
+      "test_file": "example/test/terminal_composer/mobile_prd_composer_baseline_test.dart",
+      "capture_method": "RenderRepaintBoundary.toImage",
+      "captured_at_source": "Original sidecar captured_at, sampled immediately before toImage.",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-phone-390x844-dark-ai.json",
+      "sidecar_sha256": "e580eaeaa876c7c7f01ec3e179d15bf32b313f070f5a7e627b1a30a96b176d84",
+      "sidecar_original_capture_relative_path": "widget-readable/after-composer-phone-390x844-dark-ai.json",
+      "view_device_pixel_ratio": 1.0,
+      "text_scale": 1,
+      "font_source": {
+        "sans": "Flutter SDK material_fonts/Roboto",
+        "cjk": "example/test/design/fonts/NotoSansSC-Regular.otf",
+        "mono": "native/vendor/par-term-emu-core-rust/src/screenshot/JetBrainsMono-Regular.ttf",
+        "icons": "Flutter SDK material_fonts/MaterialIcons-Regular.otf",
+        "native_system_fonts": false
+      },
+      "target_platform_override": "iOS widget theme/test override"
+    },
+    {
+      "kind": "screenshot",
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-phone-390x844-dark-automatic.png",
+      "original_capture_relative_path": "widget-readable/after-composer-phone-390x844-dark-automatic.png",
+      "sha256": "3f7b16ddeb49a7cdf608160ae62017a6fd97d9cf45ccf0424cdb6272dd54e0d6",
+      "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "captured_at": "2026-10-08T15:17:36.361763Z",
+      "environment_id": "after-widget-2",
+      "role": "after",
+      "modified": false,
+      "pixel_size": [
+        780,
+        1688
+      ],
+      "viewport_logical": [
+        390.0,
+        844.0
+      ],
+      "pixel_ratio": 2,
+      "orientation": "portrait",
+      "locale": "en",
+      "theme": "dark",
+      "font_policy": "Fixture-fixed text scale 1 with bundled test fonts; no native system-font claim.",
+      "keyboard": "hidden; no real IME",
+      "description": "Original widget fixture composer-phone-390x844-dark-automatic; comparison capture, not a complete PRD case.",
+      "fixture_id": "composer-phone-390x844-dark-automatic",
+      "test_file": "example/test/terminal_composer/mobile_prd_composer_baseline_test.dart",
+      "capture_method": "RenderRepaintBoundary.toImage",
+      "captured_at_source": "Original sidecar captured_at, sampled immediately before toImage.",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-phone-390x844-dark-automatic.json",
+      "sidecar_sha256": "ab2d8843479cf8fe502aa349ab34eb95d2a5c2bffcf6eed7dd33ee848f93948c",
+      "sidecar_original_capture_relative_path": "widget-readable/after-composer-phone-390x844-dark-automatic.json",
+      "view_device_pixel_ratio": 1.0,
+      "text_scale": 1,
+      "font_source": {
+        "sans": "Flutter SDK material_fonts/Roboto",
+        "cjk": "example/test/design/fonts/NotoSansSC-Regular.otf",
+        "mono": "native/vendor/par-term-emu-core-rust/src/screenshot/JetBrainsMono-Regular.ttf",
+        "icons": "Flutter SDK material_fonts/MaterialIcons-Regular.otf",
+        "native_system_fonts": false
+      },
+      "target_platform_override": "iOS widget theme/test override"
+    },
+    {
+      "kind": "screenshot",
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-phone-390x844-dark-command.png",
+      "original_capture_relative_path": "widget-readable/after-composer-phone-390x844-dark-command.png",
+      "sha256": "c8668852c216c34fa13f17e5bb3fa3a6eafc40668966f3c95db251ec72c8a681",
+      "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "captured_at": "2026-10-08T15:17:36.503431Z",
+      "environment_id": "after-widget-2",
+      "role": "after",
+      "modified": false,
+      "pixel_size": [
+        780,
+        1688
+      ],
+      "viewport_logical": [
+        390.0,
+        844.0
+      ],
+      "pixel_ratio": 2,
+      "orientation": "portrait",
+      "locale": "en",
+      "theme": "dark",
+      "font_policy": "Fixture-fixed text scale 1 with bundled test fonts; no native system-font claim.",
+      "keyboard": "hidden; no real IME",
+      "description": "Original widget fixture composer-phone-390x844-dark-command; comparison capture, not a complete PRD case.",
+      "fixture_id": "composer-phone-390x844-dark-command",
+      "test_file": "example/test/terminal_composer/mobile_prd_composer_baseline_test.dart",
+      "capture_method": "RenderRepaintBoundary.toImage",
+      "captured_at_source": "Original sidecar captured_at, sampled immediately before toImage.",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-phone-390x844-dark-command.json",
+      "sidecar_sha256": "597cd89c83f903cda4b6e86dcc13953a81435c8581ac4ea9eae54fc985c97ed6",
+      "sidecar_original_capture_relative_path": "widget-readable/after-composer-phone-390x844-dark-command.json",
+      "view_device_pixel_ratio": 1.0,
+      "text_scale": 1,
+      "font_source": {
+        "sans": "Flutter SDK material_fonts/Roboto",
+        "cjk": "example/test/design/fonts/NotoSansSC-Regular.otf",
+        "mono": "native/vendor/par-term-emu-core-rust/src/screenshot/JetBrainsMono-Regular.ttf",
+        "icons": "Flutter SDK material_fonts/MaterialIcons-Regular.otf",
+        "native_system_fonts": false
+      },
+      "target_platform_override": "iOS widget theme/test override"
+    },
+    {
+      "kind": "screenshot",
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-phone-390x844-light-ai.png",
+      "original_capture_relative_path": "widget-readable/after-composer-phone-390x844-light-ai.png",
+      "sha256": "1a1cc4a77c7beb749dec85a10e2f39234c3e985a61a54da04a7872310992d69e",
+      "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "captured_at": "2026-10-08T15:17:36.918666Z",
+      "environment_id": "after-widget-2",
+      "role": "after",
+      "modified": false,
+      "pixel_size": [
+        780,
+        1688
+      ],
+      "viewport_logical": [
+        390.0,
+        844.0
+      ],
+      "pixel_ratio": 2,
+      "orientation": "portrait",
+      "locale": "en",
+      "theme": "light",
+      "font_policy": "Fixture-fixed text scale 1 with bundled test fonts; no native system-font claim.",
+      "keyboard": "hidden; no real IME",
+      "description": "Original widget fixture composer-phone-390x844-light-ai; comparison capture, not a complete PRD case.",
+      "fixture_id": "composer-phone-390x844-light-ai",
+      "test_file": "example/test/terminal_composer/mobile_prd_composer_baseline_test.dart",
+      "capture_method": "RenderRepaintBoundary.toImage",
+      "captured_at_source": "Original sidecar captured_at, sampled immediately before toImage.",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-phone-390x844-light-ai.json",
+      "sidecar_sha256": "faa526dffe87ab482799720f6862e28f5981f636686cea4d6df2403de0917db9",
+      "sidecar_original_capture_relative_path": "widget-readable/after-composer-phone-390x844-light-ai.json",
+      "view_device_pixel_ratio": 1.0,
+      "text_scale": 1,
+      "font_source": {
+        "sans": "Flutter SDK material_fonts/Roboto",
+        "cjk": "example/test/design/fonts/NotoSansSC-Regular.otf",
+        "mono": "native/vendor/par-term-emu-core-rust/src/screenshot/JetBrainsMono-Regular.ttf",
+        "icons": "Flutter SDK material_fonts/MaterialIcons-Regular.otf",
+        "native_system_fonts": false
+      },
+      "target_platform_override": "iOS widget theme/test override"
+    },
+    {
+      "kind": "screenshot",
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-phone-390x844-light-automatic.png",
+      "original_capture_relative_path": "widget-readable/after-composer-phone-390x844-light-automatic.png",
+      "sha256": "4c7460b2a39ef5f5000b4ae52e8a8f13d570e5f73c8ebf2b973410f19a0bc7e7",
+      "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "captured_at": "2026-10-08T15:17:36.730059Z",
+      "environment_id": "after-widget-2",
+      "role": "after",
+      "modified": false,
+      "pixel_size": [
+        780,
+        1688
+      ],
+      "viewport_logical": [
+        390.0,
+        844.0
+      ],
+      "pixel_ratio": 2,
+      "orientation": "portrait",
+      "locale": "en",
+      "theme": "light",
+      "font_policy": "Fixture-fixed text scale 1 with bundled test fonts; no native system-font claim.",
+      "keyboard": "hidden; no real IME",
+      "description": "Original widget fixture composer-phone-390x844-light-automatic; comparison capture, not a complete PRD case.",
+      "fixture_id": "composer-phone-390x844-light-automatic",
+      "test_file": "example/test/terminal_composer/mobile_prd_composer_baseline_test.dart",
+      "capture_method": "RenderRepaintBoundary.toImage",
+      "captured_at_source": "Original sidecar captured_at, sampled immediately before toImage.",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-phone-390x844-light-automatic.json",
+      "sidecar_sha256": "1b0fb5eb80e5a630d2fc5bfd8633e445c420dcb74b3453778444354060f93efe",
+      "sidecar_original_capture_relative_path": "widget-readable/after-composer-phone-390x844-light-automatic.json",
+      "view_device_pixel_ratio": 1.0,
+      "text_scale": 1,
+      "font_source": {
+        "sans": "Flutter SDK material_fonts/Roboto",
+        "cjk": "example/test/design/fonts/NotoSansSC-Regular.otf",
+        "mono": "native/vendor/par-term-emu-core-rust/src/screenshot/JetBrainsMono-Regular.ttf",
+        "icons": "Flutter SDK material_fonts/MaterialIcons-Regular.otf",
+        "native_system_fonts": false
+      },
+      "target_platform_override": "iOS widget theme/test override"
+    },
+    {
+      "kind": "screenshot",
+      "path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-phone-390x844-light-command.png",
+      "original_capture_relative_path": "widget-readable/after-composer-phone-390x844-light-command.png",
+      "sha256": "babefdfe87eca94b14725ecf2659167f3a73f7d82a36875229c3b2a321a0f621",
+      "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "captured_at": "2026-10-08T15:17:36.830027Z",
+      "environment_id": "after-widget-2",
+      "role": "after",
+      "modified": false,
+      "pixel_size": [
+        780,
+        1688
+      ],
+      "viewport_logical": [
+        390.0,
+        844.0
+      ],
+      "pixel_ratio": 2,
+      "orientation": "portrait",
+      "locale": "en",
+      "theme": "light",
+      "font_policy": "Fixture-fixed text scale 1 with bundled test fonts; no native system-font claim.",
+      "keyboard": "hidden; no real IME",
+      "description": "Original widget fixture composer-phone-390x844-light-command; comparison capture, not a complete PRD case.",
+      "fixture_id": "composer-phone-390x844-light-command",
+      "test_file": "example/test/terminal_composer/mobile_prd_composer_baseline_test.dart",
+      "capture_method": "RenderRepaintBoundary.toImage",
+      "captured_at_source": "Original sidecar captured_at, sampled immediately before toImage.",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/widget-readable--after-composer-phone-390x844-light-command.json",
+      "sidecar_sha256": "daa3a1c3ca788440779260fc37e1ebc773a644ee69407faa87142632300acb0d",
+      "sidecar_original_capture_relative_path": "widget-readable/after-composer-phone-390x844-light-command.json",
+      "view_device_pixel_ratio": 1.0,
+      "text_scale": 1,
+      "font_source": {
+        "sans": "Flutter SDK material_fonts/Roboto",
+        "cjk": "example/test/design/fonts/NotoSansSC-Regular.otf",
+        "mono": "native/vendor/par-term-emu-core-rust/src/screenshot/JetBrainsMono-Regular.ttf",
+        "icons": "Flutter SDK material_fonts/MaterialIcons-Regular.otf",
+        "native_system_fonts": false
+      },
+      "target_platform_override": "iOS widget theme/test override"
+    },
+    {
+      "kind": "screenshot",
+      "path": "evidence/shared/after-fe1556fc99af/fixture--checkpoints--001-connection-home.png",
+      "original_capture_relative_path": "fixture/checkpoints/001-connection-home.png",
+      "sha256": "8f516e2566b55183c547627cc8986f9d2926efed7a95f8c592aec397b8d19f53",
+      "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "captured_at": "2026-10-08T15:18:50.652250+00:00",
+      "environment_id": "after-ios-simulator",
+      "role": "after",
+      "modified": false,
+      "pixel_size": [
+        1206,
+        2622
+      ],
+      "viewport_logical": [
+        402.0,
+        874.0
+      ],
+      "pixel_ratio": 3.0,
+      "orientation": "portrait",
+      "locale": "zh",
+      "theme": "light",
+      "font_policy": "phone_fixed; actual App capture, without a Dynamic Type acceptance claim",
+      "keyboard": "Recorded view inset 0; Flutter EditableText client, not native IME validation.",
+      "description": "Actual simulator App checkpoint connection-home; isolated native SSH and deterministic model fixture smoke only.",
+      "checkpoint": "connection-home",
+      "capture_method": "simctl_raw_png",
+      "captured_at_source": "Original sidecar captured_at, recorded after simctl returned the raw PNG.",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/fixture--checkpoints--001-connection-home.json",
+      "sidecar_sha256": "5ec05ad52ebf167a17bc79095d577f340b41a1b234bfc94c388310a051e7a4bc",
+      "sidecar_original_capture_relative_path": "fixture/checkpoints/001-connection-home.json",
+      "input_method": "Flutter EditableText client; not native IME",
+      "keyboard_inset": 0.0
+    },
+    {
+      "kind": "screenshot",
+      "path": "evidence/shared/after-fe1556fc99af/fixture--checkpoints--003-initial-blocks.png",
+      "original_capture_relative_path": "fixture/checkpoints/003-initial-blocks.png",
+      "sha256": "7c83cfffca4a8a762923e24ba716b95e38300a2f9ab0e8d254a0de2839049d64",
+      "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "captured_at": "2026-10-08T15:18:53.376701+00:00",
+      "environment_id": "after-ios-simulator",
+      "role": "after",
+      "modified": false,
+      "pixel_size": [
+        1206,
+        2622
+      ],
+      "viewport_logical": [
+        402.0,
+        874.0
+      ],
+      "pixel_ratio": 3.0,
+      "orientation": "portrait",
+      "locale": "zh",
+      "theme": "light",
+      "font_policy": "phone_fixed; actual App capture, without a Dynamic Type acceptance claim",
+      "keyboard": "Recorded view inset 329; Flutter EditableText client, not native IME validation.",
+      "description": "Actual simulator App checkpoint initial-blocks; isolated native SSH and deterministic model fixture smoke only.",
+      "checkpoint": "initial-blocks",
+      "capture_method": "simctl_raw_png",
+      "captured_at_source": "Original sidecar captured_at, recorded after simctl returned the raw PNG.",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/fixture--checkpoints--003-initial-blocks.json",
+      "sidecar_sha256": "3149e53958e68593b3f559bf79339c1337ae816d575b9b6a78dbf691cbaa6bf2",
+      "sidecar_original_capture_relative_path": "fixture/checkpoints/003-initial-blocks.json",
+      "input_method": "Flutter EditableText client; not native IME",
+      "keyboard_inset": 329.0
+    },
+    {
+      "kind": "screenshot",
+      "path": "evidence/shared/after-fe1556fc99af/fixture--checkpoints--005-failed-block.png",
+      "original_capture_relative_path": "fixture/checkpoints/005-failed-block.png",
+      "sha256": "529780501d6f019ec4dacd4c929e16c1423a6df90b35e27841db047520eea19b",
+      "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "captured_at": "2026-10-08T15:18:56.277366+00:00",
+      "environment_id": "after-ios-simulator",
+      "role": "after",
+      "modified": false,
+      "pixel_size": [
+        1206,
+        2622
+      ],
+      "viewport_logical": [
+        402.0,
+        874.0
+      ],
+      "pixel_ratio": 3.0,
+      "orientation": "portrait",
+      "locale": "zh",
+      "theme": "light",
+      "font_policy": "phone_fixed; actual App capture, without a Dynamic Type acceptance claim",
+      "keyboard": "Recorded view inset 0; Flutter EditableText client, not native IME validation.",
+      "description": "Actual simulator App checkpoint failed-block; isolated native SSH and deterministic model fixture smoke only.",
+      "checkpoint": "failed-block",
+      "capture_method": "simctl_raw_png",
+      "captured_at_source": "Original sidecar captured_at, recorded after simctl returned the raw PNG.",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/fixture--checkpoints--005-failed-block.json",
+      "sidecar_sha256": "6255b668845404727e3dc8674376e45eea9a544b9cbdbd65cff34424c6e40f4f",
+      "sidecar_original_capture_relative_path": "fixture/checkpoints/005-failed-block.json",
+      "input_method": "Flutter EditableText client; not native IME",
+      "keyboard_inset": 0.0
+    },
+    {
+      "kind": "screenshot",
+      "path": "evidence/shared/after-fe1556fc99af/fixture--checkpoints--007-diagnostic-draft.png",
+      "original_capture_relative_path": "fixture/checkpoints/007-diagnostic-draft.png",
+      "sha256": "6440d5306b1cdc0f5176c50c6a50c0653f7a587d0dea0d0fe15e880da50bd203",
+      "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "captured_at": "2026-10-08T15:18:57.537374+00:00",
+      "environment_id": "after-ios-simulator",
+      "role": "after",
+      "modified": false,
+      "pixel_size": [
+        1206,
+        2622
+      ],
+      "viewport_logical": [
+        402.0,
+        874.0
+      ],
+      "pixel_ratio": 3.0,
+      "orientation": "portrait",
+      "locale": "zh",
+      "theme": "light",
+      "font_policy": "phone_fixed; actual App capture, without a Dynamic Type acceptance claim",
+      "keyboard": "Recorded view inset 0; Flutter EditableText client, not native IME validation.",
+      "description": "Actual simulator App checkpoint diagnostic-draft; isolated native SSH and deterministic model fixture smoke only.",
+      "checkpoint": "diagnostic-draft",
+      "capture_method": "simctl_raw_png",
+      "captured_at_source": "Original sidecar captured_at, recorded after simctl returned the raw PNG.",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/fixture--checkpoints--007-diagnostic-draft.json",
+      "sidecar_sha256": "a8cd5fa90cb86536def4dc245dc401b1796eea0d8cb99f43627e1598746dd609",
+      "sidecar_original_capture_relative_path": "fixture/checkpoints/007-diagnostic-draft.json",
+      "input_method": "Flutter EditableText client; not native IME",
+      "keyboard_inset": 0.0
+    },
+    {
+      "kind": "screenshot",
+      "path": "evidence/shared/after-fe1556fc99af/fixture--checkpoints--011-proposal-compact.png",
+      "original_capture_relative_path": "fixture/checkpoints/011-proposal-compact.png",
+      "sha256": "e0120d6ec3d961b1aa61044dab1dd99c03a049c3a744ec8565505f1684e2a167",
+      "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "captured_at": "2026-10-08T15:18:59.746445+00:00",
+      "environment_id": "after-ios-simulator",
+      "role": "after",
+      "modified": false,
+      "pixel_size": [
+        1206,
+        2622
+      ],
+      "viewport_logical": [
+        402.0,
+        874.0
+      ],
+      "pixel_ratio": 3.0,
+      "orientation": "portrait",
+      "locale": "zh",
+      "theme": "light",
+      "font_policy": "phone_fixed; actual App capture, without a Dynamic Type acceptance claim",
+      "keyboard": "Recorded view inset 0; Flutter EditableText client, not native IME validation.",
+      "description": "Actual simulator App checkpoint proposal-compact; isolated native SSH and deterministic model fixture smoke only.",
+      "checkpoint": "proposal-compact",
+      "capture_method": "simctl_raw_png",
+      "captured_at_source": "Original sidecar captured_at, recorded after simctl returned the raw PNG.",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/fixture--checkpoints--011-proposal-compact.json",
+      "sidecar_sha256": "467ae4203ad6da28a4f4acc3a4482bbbe861cde45cdcdd3cc254e83fee4797fd",
+      "sidecar_original_capture_relative_path": "fixture/checkpoints/011-proposal-compact.json",
+      "input_method": "Flutter EditableText client; not native IME",
+      "keyboard_inset": 0.0
+    },
+    {
+      "kind": "screenshot",
+      "path": "evidence/shared/after-fe1556fc99af/fixture--checkpoints--013-proposal-full-review.png",
+      "original_capture_relative_path": "fixture/checkpoints/013-proposal-full-review.png",
+      "sha256": "b767276f28071647fb80cc78deeca7fdf01eeda55ddc2340fb83f37b2b6f60b9",
+      "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "captured_at": "2026-10-08T15:19:01.083467+00:00",
+      "environment_id": "after-ios-simulator",
+      "role": "after",
+      "modified": false,
+      "pixel_size": [
+        1206,
+        2622
+      ],
+      "viewport_logical": [
+        402.0,
+        874.0
+      ],
+      "pixel_ratio": 3.0,
+      "orientation": "portrait",
+      "locale": "zh",
+      "theme": "light",
+      "font_policy": "phone_fixed; actual App capture, without a Dynamic Type acceptance claim",
+      "keyboard": "Recorded view inset 0; Flutter EditableText client, not native IME validation.",
+      "description": "Actual simulator App checkpoint proposal-full-review; isolated native SSH and deterministic model fixture smoke only.",
+      "checkpoint": "proposal-full-review",
+      "capture_method": "simctl_raw_png",
+      "captured_at_source": "Original sidecar captured_at, recorded after simctl returned the raw PNG.",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/fixture--checkpoints--013-proposal-full-review.json",
+      "sidecar_sha256": "c6bd3d77579d95809635d0fb3e3f9b3ace252d349fbe0334f9fc66b555b257dd",
+      "sidecar_original_capture_relative_path": "fixture/checkpoints/013-proposal-full-review.json",
+      "input_method": "Flutter EditableText client; not native IME",
+      "keyboard_inset": 0.0
+    },
+    {
+      "kind": "screenshot",
+      "path": "evidence/shared/after-fe1556fc99af/fixture--checkpoints--017-execution-result.png",
+      "original_capture_relative_path": "fixture/checkpoints/017-execution-result.png",
+      "sha256": "7776ce1ab2ca731ee59be740226dc25c034bde2d75a738e33628879a7d02a425",
+      "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "captured_at": "2026-10-08T15:19:02.595886+00:00",
+      "environment_id": "after-ios-simulator",
+      "role": "after",
+      "modified": false,
+      "pixel_size": [
+        1206,
+        2622
+      ],
+      "viewport_logical": [
+        402.0,
+        874.0
+      ],
+      "pixel_ratio": 3.0,
+      "orientation": "portrait",
+      "locale": "zh",
+      "theme": "light",
+      "font_policy": "phone_fixed; actual App capture, without a Dynamic Type acceptance claim",
+      "keyboard": "Recorded view inset 0; Flutter EditableText client, not native IME validation.",
+      "description": "Actual simulator App checkpoint execution-result; isolated native SSH and deterministic model fixture smoke only.",
+      "checkpoint": "execution-result",
+      "capture_method": "simctl_raw_png",
+      "captured_at_source": "Original sidecar captured_at, recorded after simctl returned the raw PNG.",
+      "sidecar_path": "evidence/shared/after-fe1556fc99af/fixture--checkpoints--017-execution-result.json",
+      "sidecar_sha256": "3f227887df2c9abd7f1ea0536def0a61370c4abb7104ba5b6fe8d336fe74c7fd",
+      "sidecar_original_capture_relative_path": "fixture/checkpoints/017-execution-result.json",
+      "input_method": "Flutter EditableText client; not native IME",
+      "keyboard_inset": 0.0
+    },
+    {
+      "kind": "video",
+      "path": "evidence/shared/after-fe1556fc99af/after-continuous.mp4",
+      "original_capture_relative_path": "after-continuous.mp4",
+      "sha256": "a8d28e0c0127ecb3a4aa60f390e8a1d11a39fdb2aea12a9c23b7ac0a1f9ff8d9",
+      "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "captured_at": "2026-10-08T15:18:47.800927+00:00",
+      "environment_id": "after-ios-simulator",
+      "role": "after",
+      "modified": false,
+      "captured_at_source": "Original receipt recording_ready_at: the runner observed simctl report Recording started; this is not the first encoded frame timestamp.",
+      "description": "Original continuous simulator recorder output, unmodified; reviewed using all decoded-frame thumbnails plus 9 enlarged frames. This is partial fixture smoke evidence, not full PRD or device acceptance.",
+      "recorded_container_duration_seconds": 15.053333,
+      "recorded_frame_count": 393,
+      "frame_timing_review_performed_by_this_tool": false,
+      "probe_path": "evidence/shared/after-fe1556fc99af/video-probe.json",
+      "probe_sha256": "8ab17a4e7e942fae396fc71596235cf920854cfaa664d9c2dfd6d48b4aafe1c4",
+      "frame_timing_review_completed": true,
+      "frame_timing_review_path": "evidence/shared/review-fe1556fc99af/after-video-review.json",
+      "frame_timing_review_method": "all 393 decoded-frame thumbnails in 11 contact sheets plus 9 enlarged stills; not continuous player viewing or all-frame full-resolution inspection"
+    },
+    {
+      "kind": "log",
+      "path": "evidence/shared/after-fe1556fc99af/fixture--events.jsonl",
+      "original_capture_relative_path": "fixture/events.jsonl",
+      "sha256": "6f429c47172192bf88f56aaf05a264fc58146e7b94e4e422130646cf6cdf1c31",
+      "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+      "captured_at": "2026-10-08T15:18:50.758540+00:00",
+      "recorded_until": "2026-10-08T15:19:02.746941+00:00",
+      "captured_at_source": "First event's original recorded_at; recorded_until is the final event's recorded_at.",
+      "description": "Original fixture events from the isolated native SSH/deterministic model smoke, not a repository or build gate log.",
+      "event_count": 12,
+      "environment_id": "after-ios-simulator"
+    }
+  ],
+  "open_issues": [
+    {
+      "id": "PRD-019",
+      "severity": "P3",
+      "status": "open",
+      "core_flow": false,
+      "title": "单来源英文复数文案",
+      "description": "12 张英文 AI widget 原图的单来源计数显示 1 sources。独立图像审阅与主节点确认，尚未修复；保留冻结 C 和原始截图。",
+      "expected": "单数来源采用 1 source。",
+      "evidence_paths": [
+        "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-en-dark-multilineDraft.png",
+        "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-en-dark-proposal.png",
+        "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-en-dark-unknownSubmission.png",
+        "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-en-light-multilineDraft.png",
+        "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-en-light-proposal.png",
+        "evidence/shared/after-fe1556fc99af/widget-readable--after-320x600-en-light-unknownSubmission.png",
+        "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-en-dark-multilineDraft.png",
+        "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-en-dark-proposal.png",
+        "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-en-dark-unknownSubmission.png",
+        "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-en-light-multilineDraft.png",
+        "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-en-light-proposal.png",
+        "evidence/shared/after-fe1556fc99af/widget-readable--after-390x844-en-light-unknownSubmission.png"
+      ],
+      "scope": "已确认的非核心文案问题；不与测试字体的 emoji 缺字证据限制合并。"
+    }
+  ],
   "cases": [
     {
       "id": "S1-T01",
@@ -21,11 +2301,97 @@
         "S1-R02"
       ],
       "status": "not_run",
-      "steps": [],
-      "observed_result": null,
+      "steps": [
+        "原生执行 trail-fixture fail；捕获失败块。",
+        "通过公开诊断操作打开诊断草稿并记录诊断准备事件。"
+      ],
+      "observed_result": "partial：diagnosis_prepares_only 记录模型请求、修复执行计数及来源块均未改变。",
       "assertions": [],
-      "artifacts": [],
-      "notes": "尚未执行；设计稿不能作为实际证据。"
+      "artifacts": [
+        {
+          "kind": "screenshot",
+          "path": "evidence/shared/after-fe1556fc99af/fixture--checkpoints--005-failed-block.png",
+          "original_capture_relative_path": "fixture/checkpoints/005-failed-block.png",
+          "sha256": "529780501d6f019ec4dacd4c929e16c1423a6df90b35e27841db047520eea19b",
+          "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+          "captured_at": "2026-10-08T15:18:56.277366+00:00",
+          "environment_id": "after-ios-simulator",
+          "role": "after",
+          "modified": false,
+          "pixel_size": [
+            1206,
+            2622
+          ],
+          "viewport_logical": [
+            402.0,
+            874.0
+          ],
+          "pixel_ratio": 3.0,
+          "orientation": "portrait",
+          "locale": "zh",
+          "theme": "light",
+          "font_policy": "phone_fixed; actual App capture, without a Dynamic Type acceptance claim",
+          "keyboard": "Recorded view inset 0; Flutter EditableText client, not native IME validation.",
+          "description": "Actual simulator App checkpoint failed-block; isolated native SSH and deterministic model fixture smoke only.",
+          "checkpoint": "failed-block",
+          "capture_method": "simctl_raw_png",
+          "captured_at_source": "Original sidecar captured_at, recorded after simctl returned the raw PNG.",
+          "sidecar_path": "evidence/shared/after-fe1556fc99af/fixture--checkpoints--005-failed-block.json",
+          "sidecar_sha256": "6255b668845404727e3dc8674376e45eea9a544b9cbdbd65cff34424c6e40f4f",
+          "sidecar_original_capture_relative_path": "fixture/checkpoints/005-failed-block.json",
+          "input_method": "Flutter EditableText client; not native IME",
+          "keyboard_inset": 0.0
+        },
+        {
+          "kind": "screenshot",
+          "path": "evidence/shared/after-fe1556fc99af/fixture--checkpoints--007-diagnostic-draft.png",
+          "original_capture_relative_path": "fixture/checkpoints/007-diagnostic-draft.png",
+          "sha256": "6440d5306b1cdc0f5176c50c6a50c0653f7a587d0dea0d0fe15e880da50bd203",
+          "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+          "captured_at": "2026-10-08T15:18:57.537374+00:00",
+          "environment_id": "after-ios-simulator",
+          "role": "after",
+          "modified": false,
+          "pixel_size": [
+            1206,
+            2622
+          ],
+          "viewport_logical": [
+            402.0,
+            874.0
+          ],
+          "pixel_ratio": 3.0,
+          "orientation": "portrait",
+          "locale": "zh",
+          "theme": "light",
+          "font_policy": "phone_fixed; actual App capture, without a Dynamic Type acceptance claim",
+          "keyboard": "Recorded view inset 0; Flutter EditableText client, not native IME validation.",
+          "description": "Actual simulator App checkpoint diagnostic-draft; isolated native SSH and deterministic model fixture smoke only.",
+          "checkpoint": "diagnostic-draft",
+          "capture_method": "simctl_raw_png",
+          "captured_at_source": "Original sidecar captured_at, recorded after simctl returned the raw PNG.",
+          "sidecar_path": "evidence/shared/after-fe1556fc99af/fixture--checkpoints--007-diagnostic-draft.json",
+          "sidecar_sha256": "a8cd5fa90cb86536def4dc245dc401b1796eea0d8cb99f43627e1598746dd609",
+          "sidecar_original_capture_relative_path": "fixture/checkpoints/007-diagnostic-draft.json",
+          "input_method": "Flutter EditableText client; not native IME",
+          "keyboard_inset": 0.0
+        },
+        {
+          "kind": "log",
+          "path": "evidence/shared/after-fe1556fc99af/fixture--events.jsonl",
+          "original_capture_relative_path": "fixture/events.jsonl",
+          "sha256": "6f429c47172192bf88f56aaf05a264fc58146e7b94e4e422130646cf6cdf1c31",
+          "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+          "captured_at": "2026-10-08T15:18:50.758540+00:00",
+          "recorded_until": "2026-10-08T15:19:02.746941+00:00",
+          "captured_at_source": "First event's original recorded_at; recorded_until is the final event's recorded_at.",
+          "description": "Original fixture events from the isolated native SSH/deterministic model smoke, not a repository or build gate log.",
+          "event_count": 12,
+          "environment_id": "after-ios-simulator"
+        }
+      ],
+      "notes": "仅复用本次原生 SSH／确定性模型烟测的实际子步骤；完整用例仍为 not_run。缺口：该事件未区分直接按钮与旧菜单分支；未完成本用例所有入口和展示验收。",
+      "evidence_scope": "partial_native_smoke_substeps_only"
     },
     {
       "id": "S1-T02",
@@ -35,11 +2401,97 @@
         "S1-R03"
       ],
       "status": "not_run",
-      "steps": [],
-      "observed_result": null,
+      "steps": [
+        "通过 Flutter EditableText 客户端填写诊断请求并显式发送。",
+        "等待并捕获待审批提议。"
+      ],
+      "observed_result": "partial：fixture 记录 tool 和 summary 两次模型请求；诊断附加阶段尚未发起请求。",
       "assertions": [],
-      "artifacts": [],
-      "notes": "尚未执行；设计稿不能作为实际证据。"
+      "artifacts": [
+        {
+          "kind": "screenshot",
+          "path": "evidence/shared/after-fe1556fc99af/fixture--checkpoints--007-diagnostic-draft.png",
+          "original_capture_relative_path": "fixture/checkpoints/007-diagnostic-draft.png",
+          "sha256": "6440d5306b1cdc0f5176c50c6a50c0653f7a587d0dea0d0fe15e880da50bd203",
+          "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+          "captured_at": "2026-10-08T15:18:57.537374+00:00",
+          "environment_id": "after-ios-simulator",
+          "role": "after",
+          "modified": false,
+          "pixel_size": [
+            1206,
+            2622
+          ],
+          "viewport_logical": [
+            402.0,
+            874.0
+          ],
+          "pixel_ratio": 3.0,
+          "orientation": "portrait",
+          "locale": "zh",
+          "theme": "light",
+          "font_policy": "phone_fixed; actual App capture, without a Dynamic Type acceptance claim",
+          "keyboard": "Recorded view inset 0; Flutter EditableText client, not native IME validation.",
+          "description": "Actual simulator App checkpoint diagnostic-draft; isolated native SSH and deterministic model fixture smoke only.",
+          "checkpoint": "diagnostic-draft",
+          "capture_method": "simctl_raw_png",
+          "captured_at_source": "Original sidecar captured_at, recorded after simctl returned the raw PNG.",
+          "sidecar_path": "evidence/shared/after-fe1556fc99af/fixture--checkpoints--007-diagnostic-draft.json",
+          "sidecar_sha256": "a8cd5fa90cb86536def4dc245dc401b1796eea0d8cb99f43627e1598746dd609",
+          "sidecar_original_capture_relative_path": "fixture/checkpoints/007-diagnostic-draft.json",
+          "input_method": "Flutter EditableText client; not native IME",
+          "keyboard_inset": 0.0
+        },
+        {
+          "kind": "screenshot",
+          "path": "evidence/shared/after-fe1556fc99af/fixture--checkpoints--011-proposal-compact.png",
+          "original_capture_relative_path": "fixture/checkpoints/011-proposal-compact.png",
+          "sha256": "e0120d6ec3d961b1aa61044dab1dd99c03a049c3a744ec8565505f1684e2a167",
+          "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+          "captured_at": "2026-10-08T15:18:59.746445+00:00",
+          "environment_id": "after-ios-simulator",
+          "role": "after",
+          "modified": false,
+          "pixel_size": [
+            1206,
+            2622
+          ],
+          "viewport_logical": [
+            402.0,
+            874.0
+          ],
+          "pixel_ratio": 3.0,
+          "orientation": "portrait",
+          "locale": "zh",
+          "theme": "light",
+          "font_policy": "phone_fixed; actual App capture, without a Dynamic Type acceptance claim",
+          "keyboard": "Recorded view inset 0; Flutter EditableText client, not native IME validation.",
+          "description": "Actual simulator App checkpoint proposal-compact; isolated native SSH and deterministic model fixture smoke only.",
+          "checkpoint": "proposal-compact",
+          "capture_method": "simctl_raw_png",
+          "captured_at_source": "Original sidecar captured_at, recorded after simctl returned the raw PNG.",
+          "sidecar_path": "evidence/shared/after-fe1556fc99af/fixture--checkpoints--011-proposal-compact.json",
+          "sidecar_sha256": "467ae4203ad6da28a4f4acc3a4482bbbe861cde45cdcdd3cc254e83fee4797fd",
+          "sidecar_original_capture_relative_path": "fixture/checkpoints/011-proposal-compact.json",
+          "input_method": "Flutter EditableText client; not native IME",
+          "keyboard_inset": 0.0
+        },
+        {
+          "kind": "log",
+          "path": "evidence/shared/after-fe1556fc99af/fixture--events.jsonl",
+          "original_capture_relative_path": "fixture/events.jsonl",
+          "sha256": "6f429c47172192bf88f56aaf05a264fc58146e7b94e4e422130646cf6cdf1c31",
+          "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+          "captured_at": "2026-10-08T15:18:50.758540+00:00",
+          "recorded_until": "2026-10-08T15:19:02.746941+00:00",
+          "captured_at_source": "First event's original recorded_at; recorded_until is the final event's recorded_at.",
+          "description": "Original fixture events from the isolated native SSH/deterministic model smoke, not a repository or build gate log.",
+          "event_count": 12,
+          "environment_id": "after-ios-simulator"
+        }
+      ],
+      "notes": "仅复用本次原生 SSH／确定性模型烟测的实际子步骤；完整用例仍为 not_run。缺口：未覆盖完整来源内容核对、附件编辑／移除、异步发送快照边界及原生输入法。",
+      "evidence_scope": "partial_native_smoke_substeps_only"
     },
     {
       "id": "S1-T03",
@@ -48,11 +2500,97 @@
         "S1-R04"
       ],
       "status": "not_run",
-      "steps": [],
-      "observed_result": null,
+      "steps": [
+        "捕获紧凑提议。",
+        "在公开完整审阅入口存在时打开该入口并捕获 proposal-full-review，随后显式审批。"
+      ],
+      "observed_result": "partial：原始紧凑／完整审阅检查点和后续审批事件可供人工检查；不声明已核对所有命令字段。",
       "assertions": [],
-      "artifacts": [],
-      "notes": "尚未执行；设计稿不能作为实际证据。"
+      "artifacts": [
+        {
+          "kind": "screenshot",
+          "path": "evidence/shared/after-fe1556fc99af/fixture--checkpoints--011-proposal-compact.png",
+          "original_capture_relative_path": "fixture/checkpoints/011-proposal-compact.png",
+          "sha256": "e0120d6ec3d961b1aa61044dab1dd99c03a049c3a744ec8565505f1684e2a167",
+          "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+          "captured_at": "2026-10-08T15:18:59.746445+00:00",
+          "environment_id": "after-ios-simulator",
+          "role": "after",
+          "modified": false,
+          "pixel_size": [
+            1206,
+            2622
+          ],
+          "viewport_logical": [
+            402.0,
+            874.0
+          ],
+          "pixel_ratio": 3.0,
+          "orientation": "portrait",
+          "locale": "zh",
+          "theme": "light",
+          "font_policy": "phone_fixed; actual App capture, without a Dynamic Type acceptance claim",
+          "keyboard": "Recorded view inset 0; Flutter EditableText client, not native IME validation.",
+          "description": "Actual simulator App checkpoint proposal-compact; isolated native SSH and deterministic model fixture smoke only.",
+          "checkpoint": "proposal-compact",
+          "capture_method": "simctl_raw_png",
+          "captured_at_source": "Original sidecar captured_at, recorded after simctl returned the raw PNG.",
+          "sidecar_path": "evidence/shared/after-fe1556fc99af/fixture--checkpoints--011-proposal-compact.json",
+          "sidecar_sha256": "467ae4203ad6da28a4f4acc3a4482bbbe861cde45cdcdd3cc254e83fee4797fd",
+          "sidecar_original_capture_relative_path": "fixture/checkpoints/011-proposal-compact.json",
+          "input_method": "Flutter EditableText client; not native IME",
+          "keyboard_inset": 0.0
+        },
+        {
+          "kind": "screenshot",
+          "path": "evidence/shared/after-fe1556fc99af/fixture--checkpoints--013-proposal-full-review.png",
+          "original_capture_relative_path": "fixture/checkpoints/013-proposal-full-review.png",
+          "sha256": "b767276f28071647fb80cc78deeca7fdf01eeda55ddc2340fb83f37b2b6f60b9",
+          "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+          "captured_at": "2026-10-08T15:19:01.083467+00:00",
+          "environment_id": "after-ios-simulator",
+          "role": "after",
+          "modified": false,
+          "pixel_size": [
+            1206,
+            2622
+          ],
+          "viewport_logical": [
+            402.0,
+            874.0
+          ],
+          "pixel_ratio": 3.0,
+          "orientation": "portrait",
+          "locale": "zh",
+          "theme": "light",
+          "font_policy": "phone_fixed; actual App capture, without a Dynamic Type acceptance claim",
+          "keyboard": "Recorded view inset 0; Flutter EditableText client, not native IME validation.",
+          "description": "Actual simulator App checkpoint proposal-full-review; isolated native SSH and deterministic model fixture smoke only.",
+          "checkpoint": "proposal-full-review",
+          "capture_method": "simctl_raw_png",
+          "captured_at_source": "Original sidecar captured_at, recorded after simctl returned the raw PNG.",
+          "sidecar_path": "evidence/shared/after-fe1556fc99af/fixture--checkpoints--013-proposal-full-review.json",
+          "sidecar_sha256": "c6bd3d77579d95809635d0fb3e3f9b3ace252d349fbe0334f9fc66b555b257dd",
+          "sidecar_original_capture_relative_path": "fixture/checkpoints/013-proposal-full-review.json",
+          "input_method": "Flutter EditableText client; not native IME",
+          "keyboard_inset": 0.0
+        },
+        {
+          "kind": "log",
+          "path": "evidence/shared/after-fe1556fc99af/fixture--events.jsonl",
+          "original_capture_relative_path": "fixture/events.jsonl",
+          "sha256": "6f429c47172192bf88f56aaf05a264fc58146e7b94e4e422130646cf6cdf1c31",
+          "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+          "captured_at": "2026-10-08T15:18:50.758540+00:00",
+          "recorded_until": "2026-10-08T15:19:02.746941+00:00",
+          "captured_at_source": "First event's original recorded_at; recorded_until is the final event's recorded_at.",
+          "description": "Original fixture events from the isolated native SSH/deterministic model smoke, not a repository or build gate log.",
+          "event_count": 12,
+          "environment_id": "after-ios-simulator"
+        }
+      ],
+      "notes": "仅复用本次原生 SSH／确定性模型烟测的实际子步骤；完整用例仍为 not_run。缺口：该 harness 对审阅入口的点击是条件分支；未完成完整命令、目标、revision、编辑失效和风险提示的逐项验收。",
+      "evidence_scope": "partial_native_smoke_substeps_only"
     },
     {
       "id": "S1-T04",
@@ -66,7 +2604,7 @@
       "observed_result": null,
       "assertions": [],
       "artifacts": [],
-      "notes": "尚未执行；设计稿不能作为实际证据。"
+      "notes": "完整 PRD 用例尚未执行；共享截图不等于该用例已验收。"
     },
     {
       "id": "S1-T05",
@@ -76,11 +2614,84 @@
         "S1-R06"
       ],
       "status": "not_run",
-      "steps": [],
-      "observed_result": null,
+      "steps": [
+        "显式审批 fixture 修复命令。",
+        "等待原生 trail-fixture repair 成功块并读取独立执行计数，捕获执行结果。"
+      ],
+      "observed_result": "partial：approved_native_result 记录 execution_delta=1、native_exit_code=0；独立最终计数为修复执行 1 次。",
       "assertions": [],
-      "artifacts": [],
-      "notes": "尚未执行；设计稿不能作为实际证据。"
+      "artifacts": [
+        {
+          "kind": "screenshot",
+          "path": "evidence/shared/after-fe1556fc99af/fixture--checkpoints--017-execution-result.png",
+          "original_capture_relative_path": "fixture/checkpoints/017-execution-result.png",
+          "sha256": "7776ce1ab2ca731ee59be740226dc25c034bde2d75a738e33628879a7d02a425",
+          "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+          "captured_at": "2026-10-08T15:19:02.595886+00:00",
+          "environment_id": "after-ios-simulator",
+          "role": "after",
+          "modified": false,
+          "pixel_size": [
+            1206,
+            2622
+          ],
+          "viewport_logical": [
+            402.0,
+            874.0
+          ],
+          "pixel_ratio": 3.0,
+          "orientation": "portrait",
+          "locale": "zh",
+          "theme": "light",
+          "font_policy": "phone_fixed; actual App capture, without a Dynamic Type acceptance claim",
+          "keyboard": "Recorded view inset 0; Flutter EditableText client, not native IME validation.",
+          "description": "Actual simulator App checkpoint execution-result; isolated native SSH and deterministic model fixture smoke only.",
+          "checkpoint": "execution-result",
+          "capture_method": "simctl_raw_png",
+          "captured_at_source": "Original sidecar captured_at, recorded after simctl returned the raw PNG.",
+          "sidecar_path": "evidence/shared/after-fe1556fc99af/fixture--checkpoints--017-execution-result.json",
+          "sidecar_sha256": "3f227887df2c9abd7f1ea0536def0a61370c4abb7104ba5b6fe8d336fe74c7fd",
+          "sidecar_original_capture_relative_path": "fixture/checkpoints/017-execution-result.json",
+          "input_method": "Flutter EditableText client; not native IME",
+          "keyboard_inset": 0.0
+        },
+        {
+          "kind": "log",
+          "path": "evidence/shared/after-fe1556fc99af/fixture--events.jsonl",
+          "original_capture_relative_path": "fixture/events.jsonl",
+          "sha256": "6f429c47172192bf88f56aaf05a264fc58146e7b94e4e422130646cf6cdf1c31",
+          "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+          "captured_at": "2026-10-08T15:18:50.758540+00:00",
+          "recorded_until": "2026-10-08T15:19:02.746941+00:00",
+          "captured_at_source": "First event's original recorded_at; recorded_until is the final event's recorded_at.",
+          "description": "Original fixture events from the isolated native SSH/deterministic model smoke, not a repository or build gate log.",
+          "event_count": 12,
+          "environment_id": "after-ios-simulator"
+        },
+        {
+          "kind": "video",
+          "path": "evidence/shared/after-fe1556fc99af/after-continuous.mp4",
+          "original_capture_relative_path": "after-continuous.mp4",
+          "sha256": "a8d28e0c0127ecb3a4aa60f390e8a1d11a39fdb2aea12a9c23b7ac0a1f9ff8d9",
+          "implementation_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+          "captured_at": "2026-10-08T15:18:47.800927+00:00",
+          "environment_id": "after-ios-simulator",
+          "role": "after",
+          "modified": false,
+          "captured_at_source": "Original receipt recording_ready_at: the runner observed simctl report Recording started; this is not the first encoded frame timestamp.",
+          "description": "Original continuous simulator recorder output, unmodified; reviewed using all decoded-frame thumbnails plus 9 enlarged frames. This is partial fixture smoke evidence, not full PRD or device acceptance.",
+          "recorded_container_duration_seconds": 15.053333,
+          "recorded_frame_count": 393,
+          "frame_timing_review_performed_by_this_tool": false,
+          "probe_path": "evidence/shared/after-fe1556fc99af/video-probe.json",
+          "probe_sha256": "8ab17a4e7e942fae396fc71596235cf920854cfaa664d9c2dfd6d48b4aafe1c4",
+          "frame_timing_review_completed": true,
+          "frame_timing_review_path": "evidence/shared/review-fe1556fc99af/after-video-review.json",
+          "frame_timing_review_method": "all 393 decoded-frame thumbnails in 11 contact sheets plus 9 enlarged stills; not continuous player viewing or all-frame full-resolution inspection"
+        }
+      ],
+      "notes": "仅复用本次原生 SSH／确定性模型烟测的实际子步骤；完整用例仍为 not_run。缺口：仅单次审批成功烟测，未覆盖重复点击、unknown、回执延迟或完整 Block 身份映射验收；视频已按全帧缩略图及关键帧方法审阅，未连续播放。",
+      "evidence_scope": "partial_native_smoke_substeps_only"
     },
     {
       "id": "S1-T06",
@@ -93,7 +2704,7 @@
       "observed_result": null,
       "assertions": [],
       "artifacts": [],
-      "notes": "尚未执行；设计稿不能作为实际证据。"
+      "notes": "完整 PRD 用例尚未执行；共享截图不等于该用例已验收。"
     },
     {
       "id": "S1-T07",
@@ -106,7 +2717,7 @@
       "observed_result": null,
       "assertions": [],
       "artifacts": [],
-      "notes": "尚未执行；设计稿不能作为实际证据。"
+      "notes": "完整 PRD 用例尚未执行；共享截图不等于该用例已验收。"
     },
     {
       "id": "S1-T08",
@@ -119,7 +2730,7 @@
       "observed_result": null,
       "assertions": [],
       "artifacts": [],
-      "notes": "尚未执行；设计稿不能作为实际证据。"
+      "notes": "完整 PRD 用例尚未执行；共享截图不等于该用例已验收。"
     },
     {
       "id": "S1-T09",
@@ -132,7 +2743,7 @@
       "observed_result": null,
       "assertions": [],
       "artifacts": [],
-      "notes": "尚未执行；设计稿不能作为实际证据。"
+      "notes": "完整 PRD 用例尚未执行；共享截图不等于该用例已验收。"
     },
     {
       "id": "S1-T10",
@@ -145,7 +2756,7 @@
       "observed_result": null,
       "assertions": [],
       "artifacts": [],
-      "notes": "尚未执行；设计稿不能作为实际证据。"
+      "notes": "完整 PRD 用例尚未执行；共享截图不等于该用例已验收。"
     },
     {
       "id": "S1-T11",
@@ -158,7 +2769,7 @@
       "observed_result": null,
       "assertions": [],
       "artifacts": [],
-      "notes": "尚未执行；设计稿不能作为实际证据。"
+      "notes": "完整 PRD 用例尚未执行；共享截图不等于该用例已验收。"
     },
     {
       "id": "S1-T12",
@@ -173,7 +2784,7 @@
       "observed_result": null,
       "assertions": [],
       "artifacts": [],
-      "notes": "尚未执行；设计稿不能作为实际证据。"
+      "notes": "完整 PRD 用例尚未执行；共享截图不等于该用例已验收。"
     },
     {
       "id": "S2-T01",
@@ -187,7 +2798,7 @@
       "observed_result": null,
       "assertions": [],
       "artifacts": [],
-      "notes": "尚未执行；设计稿不能作为实际证据。"
+      "notes": "完整 PRD 用例尚未执行；共享截图不等于该用例已验收。"
     },
     {
       "id": "S2-T02",
@@ -201,7 +2812,7 @@
       "observed_result": null,
       "assertions": [],
       "artifacts": [],
-      "notes": "尚未执行；设计稿不能作为实际证据。"
+      "notes": "完整 PRD 用例尚未执行；共享截图不等于该用例已验收。"
     },
     {
       "id": "S2-T03",
@@ -214,7 +2825,7 @@
       "observed_result": null,
       "assertions": [],
       "artifacts": [],
-      "notes": "尚未执行；设计稿不能作为实际证据。"
+      "notes": "完整 PRD 用例尚未执行；共享截图不等于该用例已验收。"
     },
     {
       "id": "S2-T04",
@@ -227,7 +2838,7 @@
       "observed_result": null,
       "assertions": [],
       "artifacts": [],
-      "notes": "尚未执行；设计稿不能作为实际证据。"
+      "notes": "完整 PRD 用例尚未执行；共享截图不等于该用例已验收。"
     },
     {
       "id": "S2-T05",
@@ -241,7 +2852,7 @@
       "observed_result": null,
       "assertions": [],
       "artifacts": [],
-      "notes": "尚未执行；设计稿不能作为实际证据。"
+      "notes": "完整 PRD 用例尚未执行；共享截图不等于该用例已验收。"
     },
     {
       "id": "S2-T06",
@@ -255,7 +2866,7 @@
       "observed_result": null,
       "assertions": [],
       "artifacts": [],
-      "notes": "尚未执行；设计稿不能作为实际证据。"
+      "notes": "完整 PRD 用例尚未执行；共享截图不等于该用例已验收。"
     },
     {
       "id": "S2-T07",
@@ -268,7 +2879,7 @@
       "observed_result": null,
       "assertions": [],
       "artifacts": [],
-      "notes": "尚未执行；设计稿不能作为实际证据。"
+      "notes": "完整 PRD 用例尚未执行；共享截图不等于该用例已验收。"
     },
     {
       "id": "S2-T08",
@@ -281,7 +2892,7 @@
       "observed_result": null,
       "assertions": [],
       "artifacts": [],
-      "notes": "尚未执行；设计稿不能作为实际证据。"
+      "notes": "完整 PRD 用例尚未执行；共享截图不等于该用例已验收。"
     },
     {
       "id": "S2-T09",
@@ -294,7 +2905,7 @@
       "observed_result": null,
       "assertions": [],
       "artifacts": [],
-      "notes": "尚未执行；设计稿不能作为实际证据。"
+      "notes": "完整 PRD 用例尚未执行；共享截图不等于该用例已验收。"
     },
     {
       "id": "S2-T10",
@@ -308,7 +2919,7 @@
       "observed_result": null,
       "assertions": [],
       "artifacts": [],
-      "notes": "尚未执行；设计稿不能作为实际证据。"
+      "notes": "完整 PRD 用例尚未执行；共享截图不等于该用例已验收。"
     },
     {
       "id": "S2-T11",
@@ -321,7 +2932,7 @@
       "observed_result": null,
       "assertions": [],
       "artifacts": [],
-      "notes": "尚未执行；设计稿不能作为实际证据。"
+      "notes": "完整 PRD 用例尚未执行；共享截图不等于该用例已验收。"
     },
     {
       "id": "S2-T12",
@@ -334,7 +2945,7 @@
       "observed_result": null,
       "assertions": [],
       "artifacts": [],
-      "notes": "尚未执行；设计稿不能作为实际证据。"
+      "notes": "完整 PRD 用例尚未执行；共享截图不等于该用例已验收。"
     },
     {
       "id": "S3-T01",
@@ -348,7 +2959,7 @@
       "observed_result": null,
       "assertions": [],
       "artifacts": [],
-      "notes": "尚未执行；设计稿不能作为实际证据。"
+      "notes": "完整 PRD 用例尚未执行；共享截图不等于该用例已验收。"
     },
     {
       "id": "S3-T02",
@@ -362,7 +2973,7 @@
       "observed_result": null,
       "assertions": [],
       "artifacts": [],
-      "notes": "尚未执行；设计稿不能作为实际证据。"
+      "notes": "完整 PRD 用例尚未执行；共享截图不等于该用例已验收。"
     },
     {
       "id": "S3-T03",
@@ -375,7 +2986,7 @@
       "observed_result": null,
       "assertions": [],
       "artifacts": [],
-      "notes": "尚未执行；设计稿不能作为实际证据。"
+      "notes": "完整 PRD 用例尚未执行；共享截图不等于该用例已验收。"
     },
     {
       "id": "S3-T04",
@@ -388,7 +2999,7 @@
       "observed_result": null,
       "assertions": [],
       "artifacts": [],
-      "notes": "尚未执行；设计稿不能作为实际证据。"
+      "notes": "完整 PRD 用例尚未执行；共享截图不等于该用例已验收。"
     },
     {
       "id": "S3-T05",
@@ -401,7 +3012,7 @@
       "observed_result": null,
       "assertions": [],
       "artifacts": [],
-      "notes": "尚未执行；设计稿不能作为实际证据。"
+      "notes": "完整 PRD 用例尚未执行；共享截图不等于该用例已验收。"
     },
     {
       "id": "S3-T06",
@@ -414,7 +3025,7 @@
       "observed_result": null,
       "assertions": [],
       "artifacts": [],
-      "notes": "尚未执行；设计稿不能作为实际证据。"
+      "notes": "完整 PRD 用例尚未执行；共享截图不等于该用例已验收。"
     },
     {
       "id": "S3-T07",
@@ -427,7 +3038,7 @@
       "observed_result": null,
       "assertions": [],
       "artifacts": [],
-      "notes": "尚未执行；设计稿不能作为实际证据。"
+      "notes": "完整 PRD 用例尚未执行；共享截图不等于该用例已验收。"
     },
     {
       "id": "S3-T08",
@@ -440,7 +3051,7 @@
       "observed_result": null,
       "assertions": [],
       "artifacts": [],
-      "notes": "尚未执行；设计稿不能作为实际证据。"
+      "notes": "完整 PRD 用例尚未执行；共享截图不等于该用例已验收。"
     },
     {
       "id": "S3-T09",
@@ -453,7 +3064,7 @@
       "observed_result": null,
       "assertions": [],
       "artifacts": [],
-      "notes": "尚未执行；设计稿不能作为实际证据。"
+      "notes": "完整 PRD 用例尚未执行；共享截图不等于该用例已验收。"
     },
     {
       "id": "S3-T10",
@@ -466,7 +3077,7 @@
       "observed_result": null,
       "assertions": [],
       "artifacts": [],
-      "notes": "尚未执行；设计稿不能作为实际证据。"
+      "notes": "完整 PRD 用例尚未执行；共享截图不等于该用例已验收。"
     },
     {
       "id": "S4-T01",
@@ -480,7 +3091,7 @@
       "observed_result": null,
       "assertions": [],
       "artifacts": [],
-      "notes": "尚未执行；设计稿不能作为实际证据。"
+      "notes": "完整 PRD 用例尚未执行；共享截图不等于该用例已验收。"
     },
     {
       "id": "S4-T02",
@@ -493,7 +3104,7 @@
       "observed_result": null,
       "assertions": [],
       "artifacts": [],
-      "notes": "尚未执行；设计稿不能作为实际证据。"
+      "notes": "完整 PRD 用例尚未执行；共享截图不等于该用例已验收。"
     },
     {
       "id": "S4-T03",
@@ -506,7 +3117,7 @@
       "observed_result": null,
       "assertions": [],
       "artifacts": [],
-      "notes": "尚未执行；设计稿不能作为实际证据。"
+      "notes": "完整 PRD 用例尚未执行；共享截图不等于该用例已验收。"
     },
     {
       "id": "S4-T04",
@@ -519,7 +3130,7 @@
       "observed_result": null,
       "assertions": [],
       "artifacts": [],
-      "notes": "尚未执行；设计稿不能作为实际证据。"
+      "notes": "完整 PRD 用例尚未执行；共享截图不等于该用例已验收。"
     },
     {
       "id": "S4-T05",
@@ -532,7 +3143,7 @@
       "observed_result": null,
       "assertions": [],
       "artifacts": [],
-      "notes": "尚未执行；设计稿不能作为实际证据。"
+      "notes": "完整 PRD 用例尚未执行；共享截图不等于该用例已验收。"
     },
     {
       "id": "S4-T06",
@@ -545,7 +3156,7 @@
       "observed_result": null,
       "assertions": [],
       "artifacts": [],
-      "notes": "尚未执行；设计稿不能作为实际证据。"
+      "notes": "完整 PRD 用例尚未执行；共享截图不等于该用例已验收。"
     },
     {
       "id": "S4-T07",
@@ -558,7 +3169,7 @@
       "observed_result": null,
       "assertions": [],
       "artifacts": [],
-      "notes": "尚未执行；设计稿不能作为实际证据。"
+      "notes": "完整 PRD 用例尚未执行；共享截图不等于该用例已验收。"
     },
     {
       "id": "S4-T08",
@@ -571,7 +3182,7 @@
       "observed_result": null,
       "assertions": [],
       "artifacts": [],
-      "notes": "尚未执行；设计稿不能作为实际证据。"
+      "notes": "完整 PRD 用例尚未执行；共享截图不等于该用例已验收。"
     },
     {
       "id": "S4-T09",
@@ -584,7 +3195,7 @@
       "observed_result": null,
       "assertions": [],
       "artifacts": [],
-      "notes": "尚未执行；设计稿不能作为实际证据。"
+      "notes": "完整 PRD 用例尚未执行；共享截图不等于该用例已验收。"
     },
     {
       "id": "S4-T10",
@@ -597,7 +3208,7 @@
       "observed_result": null,
       "assertions": [],
       "artifacts": [],
-      "notes": "尚未执行；设计稿不能作为实际证据。"
+      "notes": "完整 PRD 用例尚未执行；共享截图不等于该用例已验收。"
     },
     {
       "id": "S4-T11",
@@ -610,7 +3221,7 @@
       "observed_result": null,
       "assertions": [],
       "artifacts": [],
-      "notes": "尚未执行；设计稿不能作为实际证据。"
+      "notes": "完整 PRD 用例尚未执行；共享截图不等于该用例已验收。"
     },
     {
       "id": "S4-T12",
@@ -623,7 +3234,7 @@
       "observed_result": null,
       "assertions": [],
       "artifacts": [],
-      "notes": "尚未执行；设计稿不能作为实际证据。"
+      "notes": "完整 PRD 用例尚未执行；共享截图不等于该用例已验收。"
     },
     {
       "id": "S4-T13",
@@ -636,7 +3247,7 @@
       "observed_result": null,
       "assertions": [],
       "artifacts": [],
-      "notes": "尚未执行；设计稿不能作为实际证据。"
+      "notes": "完整 PRD 用例尚未执行；共享截图不等于该用例已验收。"
     },
     {
       "id": "S4-T14",
@@ -649,7 +3260,47 @@
       "observed_result": null,
       "assertions": [],
       "artifacts": [],
-      "notes": "尚未执行；设计稿不能作为实际证据。"
+      "notes": "完整 PRD 用例尚未执行；共享截图不等于该用例已验收。"
     }
-  ]
+  ],
+  "evidence_provenance": {
+    "kind": "public_manifest_metadata_only",
+    "organized_at": "2026-10-08T15:31:05.014996+00:00",
+    "source_change_base": "eb94878476cde0bc5b6da91e45e2c33dc8f7898d",
+    "source_hash_method": "git diff base..C selects changed product/test/build text; git show C reads every hashed blob, plus explicitly required entrypoints and fixture/build sources. Docs and binary files are excluded.",
+    "original_after_manifest_sha256": "6b3f75cb47f13146500c1084f394a2044b209fb8c9291b53242b0e6c8815759c",
+    "original_after_receipt_sha256": "ee5c76b07ecb4beabf6b0ee88e90b9f1a413f69d9cd9630ef2033030d5cede86",
+    "original_installed_app_metadata_sha256": "78516bebc630d2b313a6c5693a1c9547239a98466d02b9f6ea04fa612db8df44",
+    "verified_original_file_count": 123,
+    "verified_public_file_count": 103,
+    "public_path_mapping": "Within after-C12, original capture relative paths replace '/' with '--'; sidecar bytes and their internal original paths are unchanged.",
+    "widget_screenshots": 42,
+    "app_simulator_screenshots": 7,
+    "public_index_is_original_receipt": false,
+    "before_artifacts_included": false,
+    "all_prd_cases_remain_not_run": true,
+    "complete_prd_case_evidence": false,
+    "visual_review_performed_by_this_tool": false,
+    "physical_device_used": false,
+    "real_model_api_used": false,
+    "native_ime_verified": false,
+    "repo_verify_or_build_log_included": false,
+    "limitations": [
+      "This manifest is organization metadata, not a new raw receipt. It cannot independently authenticate original files or replace visual review.",
+      "Every original inventory file and every public whitelisted file was SHA-256 checked. Built binary bytes are not republished; their original recorded digest is cross-checked between installed-app and bundle metadata.",
+      "Video captured_at is the runner's recording-ready observation, not the first frame timestamp. Duration/frame counts are original probe metadata, frame-timing review is recorded separately; continuous playback was not performed.",
+      "Before evidence belongs to its separate public directory/index and is never promoted to clean-C After evidence.",
+      "No complete PRD case, physical keyboard/IME, real model API, repository gate, or build gate pass is inferred from these smoke captures.",
+      "Twelve 390-width AI widget captures show a missing glyph for U+1F9ED. Fixture fonts do not prove native App emoji support.",
+      "Twelve English AI widget captures show the open P3 copy issue PRD-019: 1 sources."
+    ],
+    "visual_review_completed": true,
+    "visual_review_scope": "All 42 widget originals and 7 native PNG originals opened; video review used all decoded-frame thumbnails and 9 enlarged stills, not continuous playback or all-frame full-resolution review.",
+    "visual_review_records": [
+      "evidence/shared/review-fe1556fc99af/native-image-review.json",
+      "evidence/shared/review-fe1556fc99af/after-video-review.json",
+      "evidence/shared/review-fe1556fc99af/before-widget-review.json",
+      "evidence/shared/review-fe1556fc99af/after-widget-review.json"
+    ]
+  }
 }
