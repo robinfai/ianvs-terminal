@@ -44,6 +44,7 @@ const SOCKS_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 const FORWARD_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 const X11_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 const SSH_NETWORK_TEARDOWN_TIMEOUT: Duration = Duration::from_secs(2);
+const SSH_TRANSPORT_RESULT_TIMEOUT: Duration = Duration::from_millis(200);
 const SFTP_DIRECTORY_REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
 const SFTP_FILE_OPERATION_REQUEST_TIMEOUT: Duration = Duration::from_secs(30 * 60);
 const SFTP_FILE_CANCELLATION_CLEANUP_TIMEOUT: Duration = Duration::from_secs(15);
@@ -706,6 +707,180 @@ struct SshClientHandler {
     agent_socket: Option<PathBuf>,
     x11_proxy: Option<X11ProxyConfig>,
     forward_runtime: ForwardRuntime,
+    diagnostics: SshTransportDiagnostics,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SshTransportEnd {
+    RemoteDisconnect(u32),
+    Eof,
+    Io {
+        kind: ErrorKind,
+        os_error: Option<i32>,
+    },
+    KeepaliveTimeout,
+    InactivityTimeout,
+    ConnectionTimeout,
+    Disconnected,
+    TaskFailed,
+    ProtocolError,
+    UnknownError,
+}
+
+impl SshTransportEnd {
+    fn from_error(error: &anyhow::Error) -> Self {
+        for cause in error.chain() {
+            if let Some(error) = cause.downcast_ref::<russh::Error>() {
+                return match error {
+                    russh::Error::IO(error) => Self::from_io_error(error),
+                    russh::Error::HUP => Self::Eof,
+                    russh::Error::KeepaliveTimeout => Self::KeepaliveTimeout,
+                    russh::Error::InactivityTimeout => Self::InactivityTimeout,
+                    russh::Error::ConnectionTimeout => Self::ConnectionTimeout,
+                    russh::Error::Disconnect => Self::Disconnected,
+                    russh::Error::Join(_) => Self::TaskFailed,
+                    _ => Self::ProtocolError,
+                };
+            }
+            if let Some(error) = cause.downcast_ref::<IoError>() {
+                return Self::from_io_error(error);
+            }
+        }
+        Self::UnknownError
+    }
+
+    fn from_io_error(error: &IoError) -> Self {
+        if error.kind() == ErrorKind::UnexpectedEof {
+            Self::Eof
+        } else {
+            Self::Io {
+                kind: error.kind(),
+                os_error: error.raw_os_error(),
+            }
+        }
+    }
+
+    fn safe_description(self) -> String {
+        match self {
+            Self::RemoteDisconnect(code) => format!("remote_disconnect code={code}"),
+            Self::Eof => "transport_eof".to_string(),
+            Self::Io { kind, os_error } => {
+                let kind = match kind {
+                    ErrorKind::ConnectionReset => "connection_reset",
+                    ErrorKind::ConnectionAborted => "connection_aborted",
+                    ErrorKind::BrokenPipe => "broken_pipe",
+                    ErrorKind::NotConnected => "not_connected",
+                    ErrorKind::TimedOut => "timed_out",
+                    ErrorKind::PermissionDenied => "permission_denied",
+                    ErrorKind::Interrupted => "interrupted",
+                    ErrorKind::WouldBlock => "would_block",
+                    _ => "other",
+                };
+                match os_error {
+                    Some(code) => format!("io_error kind={kind} os_error={code}"),
+                    None => format!("io_error kind={kind}"),
+                }
+            }
+            Self::KeepaliveTimeout => "keepalive_timeout".to_string(),
+            Self::InactivityTimeout => "inactivity_timeout".to_string(),
+            Self::ConnectionTimeout => "connection_timeout".to_string(),
+            Self::Disconnected => "transport_disconnected".to_string(),
+            Self::TaskFailed => "transport_task_failed".to_string(),
+            Self::ProtocolError => "ssh_protocol_error".to_string(),
+            Self::UnknownError => "transport_error".to_string(),
+        }
+    }
+}
+
+#[derive(Default)]
+struct SshDiagnosticState {
+    transport_count: u32,
+    first_end: Option<(u32, SshTransportEnd)>,
+    frozen: bool,
+}
+
+#[derive(Clone, Default)]
+struct SshConnectionDiagnostics(Arc<Mutex<SshDiagnosticState>>);
+
+impl SshConnectionDiagnostics {
+    fn register_transport(&self) -> SshTransportDiagnostics {
+        let mut state = self.0.lock();
+        state.transport_count = state.transport_count.saturating_add(1);
+        SshTransportDiagnostics {
+            connection: self.clone(),
+            transport: state.transport_count,
+        }
+    }
+
+    fn record(&self, transport: u32, reason: SshTransportEnd) {
+        let mut state = self.0.lock();
+        if !state.frozen && state.first_end.is_none() {
+            state.first_end = Some((transport, reason));
+        }
+    }
+
+    fn record_handle_error(&self, error: &anyhow::Error) {
+        // The handle returned by connect_authenticated is the last transport
+        // in the chain. Earlier-hop callbacks still retain first-failure priority.
+        let transport = self.0.lock().transport_count;
+        self.record(transport, SshTransportEnd::from_error(error));
+    }
+
+    fn freeze(&self) -> Option<(u32, SshTransportEnd)> {
+        let mut state = self.0.lock();
+        state.frozen = true;
+        state.first_end
+    }
+}
+
+#[derive(Clone)]
+struct SshTransportDiagnostics {
+    connection: SshConnectionDiagnostics,
+    transport: u32,
+}
+
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+enum SshChannelEnd {
+    #[default]
+    Unknown,
+    Cancelled,
+    LocalClose,
+    InputClosed,
+    OutputClosed,
+    RemoteClose,
+    TransportClosed,
+}
+
+fn ssh_session_exit_result(
+    exit_status: Option<u32>,
+    channel_end: SshChannelEnd,
+    transport_end: Option<(u32, SshTransportEnd)>,
+) -> Result<u32> {
+    if let Some(code) = exit_status {
+        return Ok(code);
+    }
+    let local_reason = match channel_end {
+        SshChannelEnd::Cancelled => Some("cancelled"),
+        SshChannelEnd::LocalClose => Some("close_requested"),
+        SshChannelEnd::InputClosed => Some("input_closed"),
+        SshChannelEnd::OutputClosed => Some("output_closed"),
+        _ => None,
+    };
+    if let Some(reason) = local_reason {
+        bail!("SSH session closed locally ({reason})");
+    }
+    if let Some((transport, reason)) = transport_end {
+        bail!(
+            "SSH connection closed without a remote exit status (transport={transport} {})",
+            reason.safe_description()
+        );
+    }
+    let reason = match channel_end {
+        SshChannelEnd::RemoteClose => "channel_close",
+        SshChannelEnd::TransportClosed => "channel_stream_ended",
+        _ => "unclassified",
+    };
+    bail!("SSH connection closed without a remote exit status ({reason})")
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -855,6 +1030,29 @@ impl Drop for ForwardRuntimeInner {
 
 impl client::Handler for SshClientHandler {
     type Error = anyhow::Error;
+
+    async fn disconnected(
+        &mut self,
+        reason: client::DisconnectReason<Self::Error>,
+    ) -> Result<(), Self::Error> {
+        match reason {
+            client::DisconnectReason::ReceivedDisconnect(info) => {
+                self.diagnostics.connection.record(
+                    self.diagnostics.transport,
+                    SshTransportEnd::RemoteDisconnect(info.reason_code as u32),
+                );
+                // Never retain or print the server-controlled message/language.
+                Ok(())
+            }
+            client::DisconnectReason::Error(error) => {
+                self.diagnostics.connection.record(
+                    self.diagnostics.transport,
+                    SshTransportEnd::from_error(&error),
+                );
+                Err(error)
+            }
+        }
+    }
 
     async fn check_server_key(
         &mut self,
@@ -1417,6 +1615,7 @@ async fn prepare_ssh_session(
     auth: &SshAuthClient,
     cancellation: &SshCancellation,
     forward_runtime: &ForwardRuntime,
+    diagnostics: &SshConnectionDiagnostics,
 ) -> Result<PreparedSshSession> {
     let x11_proxy = build_x11_proxy(connection)?;
     let (session, jump_sessions) = connect_authenticated(
@@ -1425,6 +1624,7 @@ async fn prepare_ssh_session(
         cancellation,
         x11_proxy.clone(),
         forward_runtime,
+        diagnostics,
     )
     .await?;
 
@@ -1508,13 +1708,36 @@ async fn await_ssh_setup<F, T>(
 where
     F: Future<Output = Result<T>>,
 {
+    await_ssh_operation(
+        setup,
+        setup_timeout,
+        auth,
+        cancellation,
+        "SSH initialization",
+    )
+    .await
+}
+
+// Russh waits for host-key confirmation inside connect/connect_stream. Both
+// transport and full-session setup must exclude that interaction from their
+// network deadline, while remaining cancellable and bounded between prompts.
+async fn await_ssh_operation<F, T>(
+    setup: F,
+    setup_timeout: Duration,
+    auth: &SshAuthClient,
+    cancellation: &SshCancellation,
+    operation: &str,
+) -> Result<T>
+where
+    F: Future<Output = Result<T>>,
+{
     tokio::pin!(setup);
     loop {
         if auth.has_pending_interaction() {
             tokio::select! {
                 biased;
                 _ = cancellation.cancelled() => {
-                    return Err(anyhow!("SSH initialization was cancelled"));
+                    return Err(anyhow!("{operation} was cancelled"));
                 },
                 result = &mut setup => return result,
                 _ = auth.wait_until_interactions_complete() => {},
@@ -1527,13 +1750,13 @@ where
         tokio::select! {
             biased;
             _ = cancellation.cancelled() => {
-                return Err(anyhow!("SSH initialization was cancelled"));
+                return Err(anyhow!("{operation} was cancelled"));
             },
             result = &mut setup => return result,
             _ = auth.wait_until_interaction_begins() => {},
             _ = &mut deadline => {
                 return Err(anyhow!(
-                    "SSH initialization timed out after {} seconds",
+                    "{operation} timed out after {} seconds",
                     setup_timeout.as_secs()
                 ));
             },
@@ -1557,6 +1780,7 @@ async fn run_ssh_session(
     cancellation: SshCancellation,
 ) -> Result<u32> {
     let forward_runtime = ForwardRuntime::new(cancellation.clone());
+    let diagnostics = SshConnectionDiagnostics::default();
     let setup_timeout = Duration::from_secs(connection.connect_timeout_seconds.clamp(1, 120));
     let prepared = await_ssh_setup(
         prepare_ssh_session(
@@ -1566,6 +1790,7 @@ async fn run_ssh_session(
             &auth,
             &cancellation,
             &forward_runtime,
+            &diagnostics,
         ),
         setup_timeout,
         &auth,
@@ -1581,7 +1806,7 @@ async fn run_ssh_session(
         }
     };
     let PreparedSshSession {
-        session,
+        mut session,
         jump_sessions,
         mut forward_receiver,
         forward_listeners,
@@ -1604,6 +1829,7 @@ async fn run_ssh_session(
 
     let mut bootstrap_tick = tokio::time::interval(Duration::from_millis(100));
     let mut exit_status = None;
+    let mut channel_end = SshChannelEnd::Unknown;
     let session_result: Result<()> = async {
         let mut sftp_requests: FuturesUnordered<BoxFuture<'_, ()>> =
             FuturesUnordered::new();
@@ -1613,6 +1839,7 @@ async fn run_ssh_session(
         tokio::select! {
             biased;
             _ = cancellation.cancelled() => {
+                channel_end = SshChannelEnd::Cancelled;
                 break;
             },
             _ = &mut bootstrap_deadline, if !announced => {
@@ -1742,7 +1969,12 @@ async fn run_ssh_session(
                         let _ = response.send(result);
                     }));
                 }
-                Some(SshCommand::Close) | None => {
+                Some(SshCommand::Close) => {
+                    channel_end = SshChannelEnd::LocalClose;
+                    break;
+                }
+                None => {
+                    channel_end = SshChannelEnd::InputClosed;
                     break;
                 }
             },
@@ -1774,6 +2006,7 @@ async fn run_ssh_session(
                         channel.data_bytes(std::mem::take(&mut bootstrap_input)).await?;
                     }
                     if !bytes.is_empty() && output.send(bytes).is_err() {
+                        channel_end = SshChannelEnd::OutputClosed;
                         break;
                     }
                 }
@@ -1800,7 +2033,14 @@ async fn run_ssh_session(
                 // EOF ends the data stream, not the channel. The peer can
                 // still send exit-status before Close (RFC 4254, 5.3/6.10).
                 Some(ChannelMsg::Eof) => {},
-                Some(ChannelMsg::Close) | None => break,
+                Some(ChannelMsg::Close) => {
+                    channel_end = SshChannelEnd::RemoteClose;
+                    break;
+                }
+                None => {
+                    channel_end = SshChannelEnd::TransportClosed;
+                    break;
+                }
                 _ => {}
             },
             accepted = forward_receiver.recv(), if !forward_listeners.is_empty() => {
@@ -1861,12 +2101,42 @@ async fn run_ssh_session(
         ).await
     }
     .await;
+    if exit_status.is_none() {
+        capture_closed_ssh_transport(&mut session, &diagnostics, &cancellation).await;
+    }
+    if cancellation.cancelled.load(Ordering::Acquire) {
+        channel_end = SshChannelEnd::Cancelled;
+    }
+    // Freeze before our own teardown generates EOF/disconnect callbacks.
+    let transport_end = diagnostics.freeze();
     forward_listeners.abort_all();
     auth.cancel_all();
     shutdown_ssh_resources(&cancellation, &forward_runtime).await;
     teardown_ssh_network(channel, session, jump_sessions).await;
     session_result?;
-    exit_status.context("SSH connection closed without a remote exit status")
+    ssh_session_exit_result(exit_status, channel_end, transport_end)
+}
+
+async fn capture_closed_ssh_transport(
+    session: &mut client::Handle<SshClientHandler>,
+    diagnostics: &SshConnectionDiagnostics,
+    cancellation: &SshCancellation,
+) {
+    if !session.is_closed() {
+        return;
+    }
+    // Russh can fail during stream shutdown before invoking disconnected().
+    // Read the already-closing task once, without waiting on a healthy channel
+    // close or delaying cancellation indefinitely.
+    tokio::select! {
+        biased;
+        _ = cancellation.cancelled() => {},
+        result = tokio::time::timeout(SSH_TRANSPORT_RESULT_TIMEOUT, session) => {
+            if let Ok(Err(error)) = result {
+                diagnostics.record_handle_error(&error);
+            }
+        },
+    }
 }
 
 async fn finish_sftp_request_scope<T>(
@@ -2806,6 +3076,7 @@ fn client_handler(
     interactions: SshAuthClient,
     x11_proxy: Option<X11ProxyConfig>,
     forward_runtime: ForwardRuntime,
+    diagnostics: &SshConnectionDiagnostics,
 ) -> SshClientHandler {
     SshClientHandler {
         host: connection.host.clone(),
@@ -2826,6 +3097,7 @@ fn client_handler(
             .flatten(),
         x11_proxy,
         forward_runtime,
+        diagnostics: diagnostics.register_transport(),
     }
 }
 
@@ -3215,6 +3487,7 @@ async fn connect_transport(
     cancellation: &SshCancellation,
     x11_proxy: Option<X11ProxyConfig>,
     forward_runtime: &ForwardRuntime,
+    diagnostics: &SshConnectionDiagnostics,
 ) -> Result<client::Handle<SshClientHandler>> {
     let config = client_config(connection);
     let handler = client_handler(
@@ -3222,6 +3495,7 @@ async fn connect_transport(
         interactions.clone(),
         x11_proxy,
         forward_runtime.clone(),
+        diagnostics,
     );
     let timeout = Duration::from_secs(connection.connect_timeout_seconds.clamp(1, 120));
     let connect = async {
@@ -3237,9 +3511,7 @@ async fn connect_transport(
             client::connect(config, (connection.host.as_str(), connection.port), handler).await
         }
     };
-    tokio::time::timeout(timeout, connect)
-        .await
-        .map_err(|_| anyhow!("connection timed out after {} seconds", timeout.as_secs()))?
+    await_ssh_operation(connect, timeout, interactions, cancellation, "connection").await
 }
 
 async fn connect_authenticated(
@@ -3248,6 +3520,7 @@ async fn connect_authenticated(
     cancellation: &SshCancellation,
     x11_proxy: Option<X11ProxyConfig>,
     forward_runtime: &ForwardRuntime,
+    diagnostics: &SshConnectionDiagnostics,
 ) -> Result<(
     client::Handle<SshClientHandler>,
     Vec<client::Handle<SshClientHandler>>,
@@ -3270,12 +3543,16 @@ async fn connect_authenticated(
         let first_jump = jump_connections
             .first()
             .ok_or_else(|| anyhow!("ProxyJump chain is empty"))?;
-        let mut current_session =
-            connect_transport(first_jump, auth, cancellation, None, forward_runtime)
-                .await
-                .with_context(|| {
-                    format!("could not connect to ProxyJump host {}", first_jump.host)
-                })?;
+        let mut current_session = connect_transport(
+            first_jump,
+            auth,
+            cancellation,
+            None,
+            forward_runtime,
+            diagnostics,
+        )
+        .await
+        .with_context(|| format!("could not connect to ProxyJump host {}", first_jump.host))?;
         authenticate(&mut current_session, first_jump, auth)
             .await
             .with_context(|| {
@@ -3304,9 +3581,11 @@ async fn connect_authenticated(
             let mut next_session = connect_stream_with_timeout(
                 next_jump,
                 auth,
+                cancellation,
                 jump_channel.into_stream(),
                 None,
                 forward_runtime,
+                diagnostics,
             )
             .await
             .with_context(|| {
@@ -3344,9 +3623,11 @@ async fn connect_authenticated(
         let mut session = connect_stream_with_timeout(
             connection,
             auth,
+            cancellation,
             jump_channel.into_stream(),
             x11_proxy,
             forward_runtime,
+            diagnostics,
         )
         .await
         .context("could not connect to destination through ProxyJump chain")?;
@@ -3355,8 +3636,15 @@ async fn connect_authenticated(
         return Ok((session, jump_sessions));
     }
 
-    let mut session =
-        connect_transport(connection, auth, cancellation, x11_proxy, forward_runtime).await?;
+    let mut session = connect_transport(
+        connection,
+        auth,
+        cancellation,
+        x11_proxy,
+        forward_runtime,
+        diagnostics,
+    )
+    .await?;
     authenticate(&mut session, connection, auth).await?;
     Ok((session, Vec::new()))
 }
@@ -3364,29 +3652,34 @@ async fn connect_authenticated(
 async fn connect_stream_with_timeout<S>(
     connection: &TerminalProfileConnection,
     auth: &SshAuthClient,
+    cancellation: &SshCancellation,
     stream: S,
     x11_proxy: Option<X11ProxyConfig>,
     forward_runtime: &ForwardRuntime,
+    diagnostics: &SshConnectionDiagnostics,
 ) -> Result<client::Handle<SshClientHandler>>
 where
     S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static,
 {
     let timeout = Duration::from_secs(connection.connect_timeout_seconds.clamp(1, 120));
-    tokio::time::timeout(
-        timeout,
+    await_ssh_operation(
         client::connect_stream(
             client_config(connection),
             stream,
-            client_handler(connection, auth.clone(), x11_proxy, forward_runtime.clone()),
+            client_handler(
+                connection,
+                auth.clone(),
+                x11_proxy,
+                forward_runtime.clone(),
+                diagnostics,
+            ),
         ),
+        timeout,
+        auth,
+        cancellation,
+        "connection through ProxyJump",
     )
     .await
-    .map_err(|_| {
-        anyhow!(
-            "connection through ProxyJump timed out after {} seconds",
-            timeout.as_secs()
-        )
-    })?
 }
 
 fn proxy_jump_connections(
@@ -4304,6 +4597,612 @@ mod tests {
         });
     }
 
+    #[derive(Clone, Copy, Debug)]
+    enum HandshakeTestTransport {
+        Direct,
+        ProxyJumpStream,
+    }
+
+    #[derive(Clone, Copy, Debug)]
+    enum HostKeyTestDecision {
+        Accept,
+        Reject,
+        Cancel,
+    }
+
+    struct HandshakeTestServer;
+
+    impl russh::server::Handler for HandshakeTestServer {
+        type Error = russh::Error;
+
+        async fn auth_none(&mut self, _user: &str) -> Result<russh::server::Auth, Self::Error> {
+            Ok(russh::server::Auth::Accept)
+        }
+
+        async fn channel_open_session(
+            &mut self,
+            _channel: Channel<russh::server::Msg>,
+            reply: russh::server::ChannelOpenHandle,
+            _session: &mut russh::server::Session,
+        ) -> Result<(), Self::Error> {
+            reply.accept().await;
+            Ok(())
+        }
+
+        async fn shell_request(
+            &mut self,
+            channel: russh::ChannelId,
+            session: &mut russh::server::Session,
+        ) -> Result<(), Self::Error> {
+            session.exit_status_request(channel, 23)?;
+            session.close(channel)
+        }
+    }
+
+    fn handshake_test_server_config() -> Arc<russh::server::Config> {
+        use russh::keys::ssh_key::private::{Ed25519Keypair, Ed25519PrivateKey};
+
+        // This deterministic key belongs only to this in-process test server.
+        let key = PrivateKey::from(Ed25519Keypair::from(Ed25519PrivateKey::from_bytes(
+            &[42; 32],
+        )));
+        Arc::new(russh::server::Config {
+            keys: vec![key],
+            preferred: russh::Preferred {
+                kex: std::borrow::Cow::Borrowed(&[russh::kex::CURVE25519]),
+                ..<_>::default()
+            },
+            ..<_>::default()
+        })
+    }
+
+    async fn serve_handshake_test_stream<S>(stream: S, silent: bool)
+    where
+        S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    {
+        if silent {
+            // Keep the accepted transport open without sending an SSH banner.
+            let _stream = stream;
+            std::future::pending::<()>().await;
+            return;
+        }
+        let server =
+            russh::server::run_stream(handshake_test_server_config(), stream, HandshakeTestServer)
+                .await
+                .expect("start SSH handshake fixture");
+        // A rejected key or cancelled connection is an expected peer failure.
+        let _ = server.await;
+    }
+
+    async fn start_handshake_test_connection(
+        transport: HandshakeTestTransport,
+        mut connection: TerminalProfileConnection,
+        auth: SshAuthClient,
+        cancellation: SshCancellation,
+        forward_runtime: ForwardRuntime,
+        silent: bool,
+    ) -> (
+        tokio::task::JoinHandle<Result<client::Handle<SshClientHandler>>>,
+        tokio::task::JoinHandle<()>,
+    ) {
+        let (tunnel, server) = match transport {
+            HandshakeTestTransport::Direct => {
+                let listener = TcpListener::bind(("127.0.0.1", 0))
+                    .await
+                    .expect("bind SSH handshake fixture");
+                connection.port = listener.local_addr().expect("fixture address").port();
+                let server = tokio::spawn(async move {
+                    let (stream, _) = listener.accept().await.expect("accept SSH fixture");
+                    serve_handshake_test_stream(stream, silent).await;
+                });
+                (None, server)
+            }
+            HandshakeTestTransport::ProxyJumpStream => {
+                let (client_stream, server_stream) = tokio::io::duplex(64 * 1024);
+                let server = tokio::spawn(serve_handshake_test_stream(server_stream, silent));
+                (Some(client_stream), server)
+            }
+        };
+        let connect = tokio::spawn(async move {
+            let diagnostics = SshConnectionDiagnostics::default();
+            if let Some(stream) = tunnel {
+                connect_stream_with_timeout(
+                    &connection,
+                    &auth,
+                    &cancellation,
+                    stream,
+                    None,
+                    &forward_runtime,
+                    &diagnostics,
+                )
+                .await
+            } else {
+                connect_transport(
+                    &connection,
+                    &auth,
+                    &cancellation,
+                    None,
+                    &forward_runtime,
+                    &diagnostics,
+                )
+                .await
+            }
+        });
+        (connect, server)
+    }
+
+    fn check_delayed_host_key_decision(
+        transport: HandshakeTestTransport,
+        decision: HostKeyTestDecision,
+    ) {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("handshake test runtime");
+        runtime.block_on(async {
+            let directory = tempfile::tempdir().expect("isolated known-hosts directory");
+            let known_hosts = directory.path().join("known_hosts");
+            let connection = TerminalProfileConnection {
+                host: "127.0.0.1".to_string(),
+                known_hosts_file: Some(known_hosts.to_string_lossy().into_owned()),
+                host_key_policy: TerminalSshHostKeyPolicy::Strict,
+                connect_timeout_seconds: 1,
+                ..<_>::default()
+            };
+            let auth = SshAuthClient::default();
+            let cancellation = SshCancellation::default();
+            let forward_runtime = ForwardRuntime::new(cancellation.clone());
+            let (connect, server) = start_handshake_test_connection(
+                transport,
+                connection,
+                auth.clone(),
+                cancellation.clone(),
+                forward_runtime.clone(),
+                false,
+            )
+            .await;
+            let prompt = tokio::time::timeout(Duration::from_secs(5), async {
+                loop {
+                    if let Some(prompt) = auth.take_host_key_prompts().pop() {
+                        break prompt;
+                    }
+                    assert!(
+                        !connect.is_finished(),
+                        "{transport:?} ended before its prompt"
+                    );
+                    tokio::time::sleep(Duration::from_millis(5)).await;
+                }
+            })
+            .await
+            .expect("real KEX did not request host-key confirmation");
+            assert!(matches!(prompt.reason, SshHostKeyPromptReason::Unknown));
+
+            tokio::time::sleep(Duration::from_millis(1200)).await;
+            assert!(
+                !connect.is_finished(),
+                "{transport:?} consumed its 1-second network timeout while awaiting {decision:?}"
+            );
+            match decision {
+                HostKeyTestDecision::Accept => {
+                    assert!(auth.respond_host_key(prompt.challenge_id, true));
+                }
+                HostKeyTestDecision::Reject => {
+                    assert!(auth.respond_host_key(prompt.challenge_id, false));
+                }
+                HostKeyTestDecision::Cancel => cancellation.cancel(),
+            }
+            let result = tokio::time::timeout(Duration::from_secs(2), connect)
+                .await
+                .expect("host-key decision did not finish the connection")
+                .expect("connection task panicked");
+            match decision {
+                HostKeyTestDecision::Accept => {
+                    let mut session = result.expect("accepted host key should complete KEX");
+                    assert!(
+                        tokio::time::timeout(
+                            Duration::from_secs(2),
+                            session.authenticate_none("handshake-test")
+                        )
+                        .await
+                        .expect("connection did not proceed to authentication")
+                        .expect("fixture authentication")
+                        .success()
+                    );
+                    assert!(known_hosts.exists(), "accepted key was not persisted");
+                    session
+                        .disconnect(Disconnect::ByApplication, "fixture complete", "en")
+                        .await
+                        .expect("disconnect fixture");
+                }
+                HostKeyTestDecision::Reject => {
+                    let error = result.err().expect("rejected host key must fail closed");
+                    assert_eq!(error.to_string(), "Unknown server key");
+                    assert!(!known_hosts.exists(), "rejected key was persisted");
+                }
+                HostKeyTestDecision::Cancel => {
+                    let error = result.err().expect("cancel must interrupt the prompt");
+                    assert!(error.to_string().contains("was cancelled"));
+                    assert!(!known_hosts.exists(), "cancelled key was persisted");
+                }
+            }
+            // Production run_ssh_session performs this cleanup after setup fails.
+            auth.cancel_all();
+            shutdown_ssh_resources(&cancellation, &forward_runtime).await;
+            tokio::time::timeout(
+                Duration::from_secs(1),
+                auth.wait_until_interactions_complete(),
+            )
+            .await
+            .expect("cancelled host-key interaction remained pending");
+            assert!(!auth.respond_host_key(prompt.challenge_id, true));
+            server.abort();
+            let _ = server.await;
+        });
+    }
+
+    fn check_silent_handshake_timeout(transport: HandshakeTestTransport) {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("handshake test runtime");
+        runtime.block_on(async {
+            let connection = TerminalProfileConnection {
+                host: "127.0.0.1".to_string(),
+                connect_timeout_seconds: 1,
+                ..<_>::default()
+            };
+            let auth = SshAuthClient::default();
+            let cancellation = SshCancellation::default();
+            let forward_runtime = ForwardRuntime::new(cancellation.clone());
+            let (connect, server) = start_handshake_test_connection(
+                transport,
+                connection,
+                auth.clone(),
+                cancellation.clone(),
+                forward_runtime.clone(),
+                true,
+            )
+            .await;
+            let error = tokio::time::timeout(Duration::from_secs(3), connect)
+                .await
+                .expect("silent SSH peer escaped the configured network timeout")
+                .expect("connection task panicked")
+                .err()
+                .expect("silent SSH peer must not establish a connection");
+            let operation = match transport {
+                HandshakeTestTransport::Direct => "connection",
+                HandshakeTestTransport::ProxyJumpStream => "connection through ProxyJump",
+            };
+            assert_eq!(
+                error.to_string(),
+                format!("{operation} timed out after 1 seconds")
+            );
+            assert!(!auth.has_pending_interaction());
+            assert!(auth.take_host_key_prompts().is_empty());
+            shutdown_ssh_resources(&cancellation, &forward_runtime).await;
+            server.abort();
+            let _ = server.await;
+        });
+    }
+
+    #[test]
+    fn direct_ssh_handshake_accepts_host_key_after_connect_timeout() {
+        check_delayed_host_key_decision(
+            HandshakeTestTransport::Direct,
+            HostKeyTestDecision::Accept,
+        );
+    }
+
+    #[test]
+    fn proxy_jump_handshake_accepts_host_key_after_connect_timeout() {
+        check_delayed_host_key_decision(
+            HandshakeTestTransport::ProxyJumpStream,
+            HostKeyTestDecision::Accept,
+        );
+    }
+
+    #[test]
+    fn direct_ssh_handshake_rejects_delayed_host_key() {
+        check_delayed_host_key_decision(
+            HandshakeTestTransport::Direct,
+            HostKeyTestDecision::Reject,
+        );
+    }
+
+    #[test]
+    fn proxy_jump_handshake_rejects_delayed_host_key() {
+        check_delayed_host_key_decision(
+            HandshakeTestTransport::ProxyJumpStream,
+            HostKeyTestDecision::Reject,
+        );
+    }
+
+    #[test]
+    fn direct_ssh_handshake_cancels_during_host_key_confirmation() {
+        check_delayed_host_key_decision(
+            HandshakeTestTransport::Direct,
+            HostKeyTestDecision::Cancel,
+        );
+    }
+
+    #[test]
+    fn proxy_jump_handshake_cancels_during_host_key_confirmation() {
+        check_delayed_host_key_decision(
+            HandshakeTestTransport::ProxyJumpStream,
+            HostKeyTestDecision::Cancel,
+        );
+    }
+
+    #[test]
+    fn direct_ssh_handshake_times_out_without_server_response() {
+        check_silent_handshake_timeout(HandshakeTestTransport::Direct);
+    }
+
+    #[test]
+    fn proxy_jump_handshake_times_out_without_server_response() {
+        check_silent_handshake_timeout(HandshakeTestTransport::ProxyJumpStream);
+    }
+
+    #[derive(Default)]
+    struct TestTransportFault {
+        mode: AtomicUsize,
+        reader: futures_util::task::AtomicWaker,
+    }
+
+    struct FaultableSshTestStream {
+        stream: tokio::io::DuplexStream,
+        fault: Arc<TestTransportFault>,
+    }
+
+    impl AsyncRead for FaultableSshTestStream {
+        fn poll_read(
+            mut self: Pin<&mut Self>,
+            context: &mut TaskContext<'_>,
+            buffer: &mut ReadBuf<'_>,
+        ) -> Poll<IoResult<()>> {
+            self.fault.reader.register(context.waker());
+            match self.fault.mode.load(Ordering::Acquire) {
+                0 => Pin::new(&mut self.stream).poll_read(context, buffer),
+                2 => Poll::Ready(Err(IoError::new(
+                    ErrorKind::ConnectionReset,
+                    "private-peer-text",
+                ))),
+                _ => Poll::Ready(Ok(())), // Real read_exact observes EOF.
+            }
+        }
+    }
+
+    impl AsyncWrite for FaultableSshTestStream {
+        fn poll_write(
+            mut self: Pin<&mut Self>,
+            context: &mut TaskContext<'_>,
+            bytes: &[u8],
+        ) -> Poll<IoResult<usize>> {
+            Pin::new(&mut self.stream).poll_write(context, bytes)
+        }
+
+        fn poll_flush(
+            mut self: Pin<&mut Self>,
+            context: &mut TaskContext<'_>,
+        ) -> Poll<IoResult<()>> {
+            Pin::new(&mut self.stream).poll_flush(context)
+        }
+
+        fn poll_shutdown(
+            mut self: Pin<&mut Self>,
+            context: &mut TaskContext<'_>,
+        ) -> Poll<IoResult<()>> {
+            match self.fault.mode.load(Ordering::Acquire) {
+                3 => Poll::Ready(Err(IoError::new(
+                    ErrorKind::BrokenPipe,
+                    "private-shutdown-text",
+                ))),
+                4 => Poll::Pending,
+                _ => Pin::new(&mut self.stream).poll_shutdown(context),
+            }
+        }
+    }
+
+    #[test]
+    fn ssh_disconnect_diagnostics_classify_real_transport_termination() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("diagnostic runtime");
+        runtime.block_on(async {
+            for mode in 0..=4 {
+                let (client_stream, server_stream) = tokio::io::duplex(64 * 1024);
+                let server = tokio::spawn(russh::server::run_stream(
+                    handshake_test_server_config(),
+                    server_stream,
+                    HandshakeTestServer,
+                ));
+                let fault = Arc::new(TestTransportFault::default());
+                let diagnostics = SshConnectionDiagnostics::default();
+                let cancellation = SshCancellation::default();
+                let forward_runtime = ForwardRuntime::new(cancellation.clone());
+                let connection = TerminalProfileConnection {
+                    host_key_policy: TerminalSshHostKeyPolicy::Insecure,
+                    ..<_>::default()
+                };
+                let mut session = connect_stream_with_timeout(
+                    &connection,
+                    &SshAuthClient::default(),
+                    &cancellation,
+                    FaultableSshTestStream {
+                        stream: client_stream,
+                        fault: Arc::clone(&fault),
+                    },
+                    None,
+                    &forward_runtime,
+                    &diagnostics,
+                )
+                .await
+                .expect("real diagnostic KEX");
+                let server = server.await.expect("server task").expect("server session");
+                assert!(
+                    session
+                        .authenticate_none("fixture")
+                        .await
+                        .expect("authenticate fixture")
+                        .success()
+                );
+                if mode == 0 {
+                    server
+                        .handle()
+                        .disconnect(
+                            Disconnect::ByApplication,
+                            "private-server-message".to_string(),
+                            "private-language".to_string(),
+                        )
+                        .await
+                        .expect("remote disconnect");
+                } else {
+                    fault.mode.store(mode, Ordering::Release);
+                    fault.reader.wake();
+                }
+                tokio::time::timeout(Duration::from_secs(2), async {
+                    while !session.is_closed() {
+                        tokio::task::yield_now().await;
+                    }
+                })
+                .await
+                .expect("transport task did not stop");
+                // Includes the shutdown-error path that skips disconnected().
+                tokio::time::timeout(
+                    Duration::from_secs(1),
+                    capture_closed_ssh_transport(&mut session, &diagnostics, &cancellation),
+                )
+                .await
+                .expect("transport diagnostic wait was not bounded");
+                let expected = match mode {
+                    0 => Some((1, SshTransportEnd::RemoteDisconnect(11))),
+                    1 => Some((1, SshTransportEnd::Eof)),
+                    2 => Some((
+                        1,
+                        SshTransportEnd::Io {
+                            kind: ErrorKind::ConnectionReset,
+                            os_error: None,
+                        },
+                    )),
+                    3 => Some((
+                        1,
+                        SshTransportEnd::Io {
+                            kind: ErrorKind::BrokenPipe,
+                            os_error: None,
+                        },
+                    )),
+                    _ => None,
+                };
+                let observed = diagnostics.freeze();
+                assert_eq!(observed, expected, "transport fault mode {mode}");
+                let error = ssh_session_exit_result(None, SshChannelEnd::TransportClosed, observed)
+                    .expect_err("missing exit status")
+                    .to_string();
+                assert!(
+                    !error.contains("private-"),
+                    "server/error text escaped the allowlist"
+                );
+                shutdown_ssh_resources(&cancellation, &forward_runtime).await;
+                drop(session);
+                // The deliberately stuck shutdown belongs to a task cancelled
+                // when this test runtime is dropped; never wait for it here.
+                drop(server);
+            }
+        });
+    }
+
+    #[test]
+    fn ssh_disconnect_diagnostics_preserve_remote_exit_status_and_local_close() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("diagnostic runtime");
+        runtime.block_on(async {
+            let (client_stream, server_stream) = tokio::io::duplex(64 * 1024);
+            let server = tokio::spawn(serve_handshake_test_stream(server_stream, false));
+            let diagnostics = SshConnectionDiagnostics::default();
+            let cancellation = SshCancellation::default();
+            let forward_runtime = ForwardRuntime::new(cancellation.clone());
+            let connection = TerminalProfileConnection {
+                host_key_policy: TerminalSshHostKeyPolicy::Insecure,
+                ..<_>::default()
+            };
+            let mut session = connect_stream_with_timeout(
+                &connection,
+                &SshAuthClient::default(),
+                &cancellation,
+                client_stream,
+                None,
+                &forward_runtime,
+                &diagnostics,
+            )
+            .await
+            .expect("real diagnostic KEX");
+            assert!(
+                session
+                    .authenticate_none("fixture")
+                    .await
+                    .expect("authenticate fixture")
+                    .success()
+            );
+            let mut channel = session
+                .channel_open_session()
+                .await
+                .expect("open fixture shell");
+            channel
+                .request_shell(false)
+                .await
+                .expect("request fixture shell");
+            let exit_status = tokio::time::timeout(Duration::from_secs(2), async {
+                let mut code = None;
+                while let Some(message) = channel.wait().await {
+                    match message {
+                        ChannelMsg::ExitStatus { exit_status } => code = Some(exit_status),
+                        ChannelMsg::Close => break,
+                        _ => {}
+                    }
+                }
+                code
+            })
+            .await
+            .expect("fixture shell did not exit");
+            assert_eq!(exit_status, Some(23));
+            assert_eq!(diagnostics.freeze(), None);
+            session
+                .disconnect(Disconnect::ByApplication, "", "en")
+                .await
+                .expect("local disconnect");
+            let _ = tokio::time::timeout(Duration::from_secs(1), &mut session).await;
+            assert_eq!(
+                diagnostics.freeze(),
+                None,
+                "our teardown was reported as remote failure"
+            );
+            let late_error = Some((1, SshTransportEnd::Eof));
+            assert_eq!(
+                ssh_session_exit_result(exit_status, SshChannelEnd::RemoteClose, late_error)
+                    .unwrap(),
+                23
+            );
+            for local in [
+                SshChannelEnd::Cancelled,
+                SshChannelEnd::LocalClose,
+                SshChannelEnd::InputClosed,
+                SshChannelEnd::OutputClosed,
+            ] {
+                let error = ssh_session_exit_result(None, local, late_error)
+                    .unwrap_err()
+                    .to_string();
+                assert!(error.starts_with("SSH session closed locally"));
+                assert!(!error.contains("transport_eof"));
+            }
+            shutdown_ssh_resources(&cancellation, &forward_runtime).await;
+            server.abort();
+            let _ = server.await;
+        });
+    }
+
     #[test]
     fn host_key_policy_accepts_new_and_prompts_for_strict_or_changed() {
         let runtime = tokio::runtime::Builder::new_current_thread()
@@ -4332,6 +5231,7 @@ mod tests {
                 interactions.clone(),
                 None,
                 forward_runtime.clone(),
+                &SshConnectionDiagnostics::default(),
             );
             assert!(handler.check_server_key(&key_a).await.unwrap());
             assert!(interactions.take_host_key_prompts().is_empty());
@@ -4359,6 +5259,7 @@ mod tests {
                 strict_interactions.clone(),
                 None,
                 forward_runtime.clone(),
+                &SshConnectionDiagnostics::default(),
             );
             let strict_key = key_a.clone();
             let strict_task =
@@ -4422,6 +5323,7 @@ mod tests {
                 changed_interactions.clone(),
                 None,
                 forward_runtime.clone(),
+                &SshConnectionDiagnostics::default(),
             );
             let changed_key = key_b.clone();
             let changed_task =

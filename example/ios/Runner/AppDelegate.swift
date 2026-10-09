@@ -1,8 +1,10 @@
+import CoreFoundation
 import Flutter
 import UIKit
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
+  private var buildIdentityChannel: FlutterMethodChannel?
   #if targetEnvironment(simulator)
   private var simulatorAcceptanceChannel: FlutterMethodChannel?
   #endif
@@ -16,6 +18,29 @@ import UIKit
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "TrailBuildIdentity") {
+      let channel = FlutterMethodChannel(
+        name: "app/build_identity",
+        binaryMessenger: registrar.messenger()
+      )
+      channel.setMethodCallHandler { call, result in
+        guard call.method == "readIdentity" else {
+          result(FlutterMethodNotImplemented)
+          return
+        }
+        var deviceLocalMasterKey = false
+        if let marker = Bundle.main.object(
+          forInfoDictionaryKey: "TrailPrdDeviceLocalMasterKey"
+        ) as? NSNumber {
+          deviceLocalMasterKey = CFGetTypeID(marker) == CFBooleanGetTypeID() && marker.boolValue
+        }
+        result([
+          "bundleId": Bundle.main.bundleIdentifier ?? "",
+          "deviceLocalMasterKey": deviceLocalMasterKey,
+        ])
+      }
+      buildIdentityChannel = channel
+    }
     #if targetEnvironment(simulator)
     guard let registrar = engineBridge.pluginRegistry.registrar(
       forPlugin: "IanvsSimulatorAcceptance"

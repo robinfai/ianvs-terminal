@@ -104,6 +104,13 @@ abstract interface class PortableMasterKeyStorage {
   Future<void> write(String portableValue);
 }
 
+enum PortableMasterKeyStoragePolicy {
+  /// Synchronized Apple Keychain, or the platform vault on other platforms.
+  platformVault,
+  developmentFile,
+  acceptanceDeviceOnly,
+}
+
 /// The synchronized production master-key item owned by Ianvs Terminal.
 final class FlutterSecurePortableMasterKeyStorage
     implements PortableMasterKeyStorage {
@@ -112,21 +119,45 @@ final class FlutterSecurePortableMasterKeyStorage
       iOptions: IOSOptions(synchronizable: true),
       mOptions: MacOsOptions(synchronizable: true),
     ),
-  }) : _key = storageKey;
+  }) : _key = storageKey,
+       policy = PortableMasterKeyStoragePolicy.platformVault;
 
   const FlutterSecurePortableMasterKeyStorage.legacyMacOs()
     : _storage = const FlutterSecureStorage(
         mOptions: MacOsOptions(usesDataProtectionKeychain: false),
       ),
-      _key = storageKey;
+      _key = storageKey,
+      policy = PortableMasterKeyStoragePolicy.platformVault;
+
+  /// Used only after the native iOS bundle identity and opt-in are verified.
+  const FlutterSecurePortableMasterKeyStorage.iosPrdDeviceOnly()
+    : _storage = const FlutterSecureStorage(
+        iOptions: IOSOptions(
+          synchronizable: false,
+          accessibility: KeychainAccessibility.unlocked_this_device,
+        ),
+      ),
+      _key = iosPrdStorageKey,
+      policy = PortableMasterKeyStoragePolicy.acceptanceDeviceOnly;
 
   static const storageKey = 'ianvs.master-key.v1';
+  static const iosPrdStorageKey = 'ianvs.mobileprd.master-key.device.v1';
 
   final FlutterSecureStorage _storage;
   final String _key;
+  final PortableMasterKeyStoragePolicy policy;
 
   @override
-  Future<String?> read() => _storage.read(key: _key);
+  Future<String?> read() async {
+    final encoded = await _storage.read(key: _key);
+    if (policy == PortableMasterKeyStoragePolicy.acceptanceDeviceOnly &&
+        encoded != null) {
+      // An existing corrupt or empty item is not permission to replace the
+      // key protecting this installation's already encrypted data.
+      PortableMasterKey.parsePortable(encoded);
+    }
+    return encoded;
+  }
 
   @override
   Future<void> write(String portableValue) {
@@ -197,8 +228,16 @@ final class PortableMasterKeyRepository {
   final PortableMasterKeyStorage _storage;
   final bool _allowCreation;
 
-  /// Development never imports secrets from the production namespace.
+  /// Isolated development and acceptance builds do not import legacy secrets.
   final bool allowLegacyMigration;
+
+  PortableMasterKeyStoragePolicy get storagePolicy => switch (_storage) {
+    FlutterSecurePortableMasterKeyStorage(:final policy) => policy,
+    DevelopmentPortableMasterKeyStorage() =>
+      PortableMasterKeyStoragePolicy.developmentFile,
+    _ => PortableMasterKeyStoragePolicy.platformVault,
+  };
+
   Future<void> _operationTail = Future<void>.value();
   PortableMasterKey? _cached;
 

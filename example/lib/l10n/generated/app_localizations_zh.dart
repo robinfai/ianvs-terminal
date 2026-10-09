@@ -4292,6 +4292,10 @@ class AppLocalizationsZh extends AppLocalizations {
       '开发版主密钥存储在仅当前用户可读写的本地文件中，不访问钥匙串，不同步到 iCloud，也不与正式版共享。';
 
   @override
+  String get acceptanceDeviceOnlyMasterKeyStorageDescription =>
+      '验收版主密钥仅保存在此设备的钥匙串中，不同步到 iCloud、不与正式版共享。加密数据无法在其他设备上恢复。';
+
+  @override
   String get syncLocalOnly => '数据保存在本机，API 同步为可选功能。';
 
   @override

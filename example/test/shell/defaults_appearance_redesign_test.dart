@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:app/data/configuration/data_api_configuration.dart';
+import 'package:app/data/services/portable_master_key.dart';
 import 'package:app/features/ai/ai_models.dart';
 import 'package:app/features/ai/ai_settings.dart';
 import 'package:app/features/config/local_terminal_config_models.dart';
@@ -24,6 +26,39 @@ class _LoadingAiStore implements AiConfigurationStore {
 }
 
 void main() {
+  testWidgets('PRD data settings describe device-only Keychain storage', (
+    tester,
+  ) async {
+    await _pumpDefaultsDialog(
+      tester,
+      surfaceSize: const Size(390, 844),
+      platform: TargetPlatform.iOS,
+      masterKeyRepository: PortableMasterKeyRepository(
+        storage: const FlutterSecurePortableMasterKeyStorage.iosPrdDeviceOnly(),
+        allowLegacyMigration: false,
+      ),
+      openDataServiceInitially: true,
+      dataApiConfiguration: DataApiConfiguration.remote('https://example.test'),
+    );
+
+    final dataPanel = find.byKey(const Key('defaults-data-api-panel'));
+    expect(
+      find.descendant(
+        of: dataPanel,
+        matching: find.textContaining("this device's Keychain"),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: dataPanel,
+        matching: find.textContaining('local file'),
+      ),
+      findsNothing,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('AI settings distinguishes loading from unreadable configuration', (
     tester,
   ) async {
@@ -771,6 +806,10 @@ Future<void> _pumpDefaultsDialog(
   List<TerminalProfile> profiles = const [],
   String? configuredDefaultProfileId,
   String? effectiveDefaultProfileId,
+  PortableMasterKeyRepository? masterKeyRepository,
+  bool openDataServiceInitially = false,
+  DataApiConfiguration dataApiConfiguration =
+      const DataApiConfiguration.disabled(),
 }) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = surfaceSize;
@@ -787,6 +826,9 @@ Future<void> _pumpDefaultsDialog(
       ),
       home: Scaffold(
         body: DefaultsAndAppearanceDialog(
+          masterKeyRepository: masterKeyRepository,
+          openDataServiceInitially: openDataServiceInitially,
+          dataApiConfiguration: dataApiConfiguration,
           profiles: profiles,
           configuredDefaultProfileId: configuredDefaultProfileId,
           effectiveDefaultProfileId: effectiveDefaultProfileId,

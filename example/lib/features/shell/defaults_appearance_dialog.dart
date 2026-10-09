@@ -1913,22 +1913,28 @@ class _DefaultsAndAppearanceDialogState
                                 ),
                               ),
                               SizedBox(height: theme.spacing.sm),
-                              Text(
-                                widget
-                                            .masterKeyRepository
-                                            ?.allowLegacyMigration ==
-                                        false
-                                    ? context
-                                          .l10n
-                                          .developmentMasterKeyStorageDescription
-                                    : usesAutomaticallySynchronizedAppleKeychain
-                                    ? context
-                                          .l10n
-                                          .appleMasterKeyEncryptionDescription
-                                    : context
-                                          .l10n
-                                          .deviceMasterKeyEncryptionDescription,
-                              ),
+                              Text(switch (widget
+                                  .masterKeyRepository
+                                  ?.storagePolicy) {
+                                PortableMasterKeyStoragePolicy
+                                    .developmentFile =>
+                                  context
+                                      .l10n
+                                      .developmentMasterKeyStorageDescription,
+                                PortableMasterKeyStoragePolicy
+                                    .acceptanceDeviceOnly =>
+                                  context
+                                      .l10n
+                                      .acceptanceDeviceOnlyMasterKeyStorageDescription,
+                                _ =>
+                                  usesAutomaticallySynchronizedAppleKeychain
+                                      ? context
+                                            .l10n
+                                            .appleMasterKeyEncryptionDescription
+                                      : context
+                                            .l10n
+                                            .deviceMasterKeyEncryptionDescription,
+                              }),
                             ],
                             SizedBox(height: theme.spacing.sm),
                             Text(

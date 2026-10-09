@@ -7064,6 +7064,12 @@ abstract class AppLocalizations {
   /// **'The development master key is stored in a local file accessible only to your user account. It does not access Keychain, sync to iCloud, or share storage with the release app.'**
   String get developmentMasterKeyStorageDescription;
 
+  /// No description provided for @acceptanceDeviceOnlyMasterKeyStorageDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'This acceptance build keeps its master key in this device\'\'s Keychain. It does not sync to iCloud or share the release app\'\'s key. Encrypted data cannot be restored on another device.'**
+  String get acceptanceDeviceOnlyMasterKeyStorageDescription;
+
   /// No description provided for @syncLocalOnly.
   ///
   /// In en, this message translates to:

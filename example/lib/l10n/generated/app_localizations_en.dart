@@ -4593,6 +4593,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'The development master key is stored in a local file accessible only to your user account. It does not access Keychain, sync to iCloud, or share storage with the release app.';
 
   @override
+  String get acceptanceDeviceOnlyMasterKeyStorageDescription =>
+      'This acceptance build keeps its master key in this device\'s Keychain. It does not sync to iCloud or share the release app\'s key. Encrypted data cannot be restored on another device.';
+
+  @override
   String get syncLocalOnly => 'Saved on this device. API sync is optional.';
 
   @override

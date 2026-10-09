@@ -68,6 +68,10 @@ if name == 'xcodebuild':
         info['CFBundleDisplayName'] = 'Trail'
     if plan.get('missing_local_network'):
         info.pop('NSLocalNetworkUsageDescription', None)
+    if plan.get('missing_master_key_opt_in'):
+        info.pop('TrailPrdDeviceLocalMasterKey', None)
+    if 'master_key_opt_in_override' in plan:
+        info['TrailPrdDeviceLocalMasterKey'] = plan['master_key_opt_in_override']
     (app / 'Info.plist').write_bytes(plistlib.dumps(info))
     (app / 'Runner').write_bytes(b'fake-built-binary')
     profile = {
@@ -260,6 +264,7 @@ class IosFixtureBuildTest(unittest.TestCase):
             self.assertFalse(Path(call["config_path"]).exists())
             self.assertEqual(call["prepared_info"]["CFBundleDisplayName"], "Trail PRD")
             self.assertEqual(call["prepared_info"]["CFBundleName"], "Trail PRD")
+            self.assertIs(call["prepared_info"]["TrailPrdDeviceLocalMasterKey"], True)
             self.assertEqual(call["prepared_info"]["UnrelatedProductionSetting"],
                              ["keep", "exact", "contents"])
             if platform == "physical":
@@ -283,6 +288,10 @@ class IosFixtureBuildTest(unittest.TestCase):
         self.assertEqual(metadata["is_smoke"], entrypoint == "smoke")
         self.assertTrue(metadata["isolated"])
         self.assertEqual(metadata["display_name"], "Trail PRD")
+        self.assertIs(metadata["master_key_opt_in_verified"], True)
+        self.assertEqual(metadata["master_key_policy"],
+                         "unused_in_memory_smoke" if entrypoint == "smoke"
+                         else "acceptance_device_only_keychain")
         self.assertEqual(metadata["fixture_included"], entrypoint == "smoke")
         self.assertEqual(metadata["fixture_sha256"],
                          hashlib.sha256(self.fixture.read_bytes()).hexdigest() if entrypoint == "smoke" else None)
@@ -501,6 +510,17 @@ elif 'status' in sys.argv:
         for key in ("wrong_display_name", "missing_local_network"):
             with self.subTest(key=key):
                 self.set_plan(**{key: True})
+                result = self.run_build("physical", entrypoint="app")
+                self.assertNotEqual(result.returncode, 0)
+                self.assertFalse(list((self.root / "build/mobile-prd-v1.1/ios").glob("*/Products")))
+                self.assertFalse(list((self.root / "build/mobile-prd-v1.1/ios").glob("*/build-metadata.json")))
+                self.assert_cleaned()
+
+    def test_master_key_opt_in_must_be_an_explicit_true_boolean(self):
+        for plan in ({"missing_master_key_opt_in": True},
+                     *({"master_key_opt_in_override": value} for value in (False, "true", 1))):
+            with self.subTest(plan=plan):
+                self.set_plan(**plan)
                 result = self.run_build("physical", entrypoint="app")
                 self.assertNotEqual(result.returncode, 0)
                 self.assertFalse(list((self.root / "build/mobile-prd-v1.1/ios").glob("*/Products")))

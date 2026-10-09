@@ -39,6 +39,8 @@ TRAIL_MOBILE_PRD_CASE is optional. The app entrypoint uses lib/main.dart, reject
 --fixture, and lets the user configure API access in the isolated app's settings.
 Both entrypoints use the fixed work.ianvs.trail.mobileprd identity and Trail PRD
 display name. Normal app data and signing configuration are not copied or changed.
+The signed plist opts the app entrypoint into a separate, non-synchronized,
+device-only Keychain master key. No master key is supplied by the build.
 FLUTTER, XCODEBUILD, CODESIGN, SECURITY and PYTHON may select existing tool executables.
 Build products and private logs are written under build/mobile-prd-v1.1/ios.
 Do not publish raw build logs: Xcode may include encoded fixture definitions.
@@ -258,6 +260,7 @@ try:
         raise ValueError()
     info['CFBundleDisplayName'] = 'Trail PRD'
     info['CFBundleName'] = 'Trail PRD'
+    info['TrailPrdDeviceLocalMasterKey'] = True
     if sys.argv[2] == 'physical':
         info['NSLocalNetworkUsageDescription'] = (
             'Trail PRD connects to the SSH, model API and evidence fixtures you '
@@ -340,6 +343,8 @@ try:
         raise ValueError('Built app does not have the isolated fixture bundle identity.')
     if info.get('CFBundleDisplayName') != 'Trail PRD':
         raise ValueError('Built app does not have the isolated Trail PRD display name.')
+    if info.get('TrailPrdDeviceLocalMasterKey') is not True:
+        raise ValueError('Built app does not opt into the isolated device-only master key policy.')
     if platform == 'physical' and (
         not isinstance(info.get('NSLocalNetworkUsageDescription'), str)
         or not info['NSLocalNetworkUsageDescription'].strip()
@@ -392,6 +397,8 @@ try:
         'entrypoint': entrypoint, 'target': 'example/' + target,
         'is_smoke': is_smoke, 'isolated': True,
         'display_name': info['CFBundleDisplayName'],
+        'master_key_opt_in_verified': True,
+        'master_key_policy': 'unused_in_memory_smoke' if is_smoke else 'acceptance_device_only_keychain',
         **source,
         'binary_sha256': binary_hash,
         'fixture_included': is_smoke,

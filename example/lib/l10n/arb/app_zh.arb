@@ -1158,6 +1158,7 @@
   "hiddenPaneSignalsSemantics": "{count} 个隐藏的窗格信号",
   "hiddenNewOutputTabsSemantics": "{count} 个有新输出的隐藏标签页",
   "developmentMasterKeyStorageDescription": "开发版主密钥存储在仅当前用户可读写的本地文件中，不访问钥匙串，不同步到 iCloud，也不与正式版共享。",
+  "acceptanceDeviceOnlyMasterKeyStorageDescription": "验收版主密钥仅保存在此设备的钥匙串中，不同步到 iCloud、不与正式版共享。加密数据无法在其他设备上恢复。",
   "syncLocalOnly": "数据保存在本机，API 同步为可选功能。",
   "syncUpToDate": "同步已就绪。",
   "syncInProgress": "正在合并并同步…",
