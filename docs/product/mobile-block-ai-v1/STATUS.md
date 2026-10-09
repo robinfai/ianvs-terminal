@@ -1,5 +1,13 @@
 # 移动端 Block × AI 实施状态
 
+核对日期 2026-10-09。最终手机实现 C3 `1a678e38f0b9b5765f468d339d564faa16a03f25` 已安装到 iPhone 17 / iOS 27.0.1，使用保存的 `cloud` 完成连接及真实 DeepSeek 只读诊断、全文审阅、明确审批、输出引用跳转。私钥由独立 PRD 的本设备密钥加密保存，临时明文已清空；更新后重连成功。旧 bash-preexec 误报成功的问题已修复，真机 Reader 核对 `/bin/false` 退出码 1。
+
+精确 clean C3 的完整 `make verify` 于 2026-10-09 03:14:37–03:28:31 UTC 通过（exit 0），开始/结束源码一致且干净，macOS integration 未跳过，覆盖重复 Debug/Release 严格签名和最终原生 Xcode tests；原始完整日志 SHA-256：`b95470c11556159f6bbedac10e9e085017b931aab706576584443ee52288de1b`。日志保留私有。
+
+完整 PRD 验收仍未完成：本轮通过 iPhone 镜像操作，没有连续设备录像或真实软键盘/IME 等完整证据，48 项不升级为 passed。实际结果、成品 hash、隐私与范围见[2026-10-09 真机复验](results/DEVICE_FOLLOWUP_2026-10-09.md)。主 manifest 与旧 After 继续绑定 C1，以下保留当时记录，其中“未安装/真实 API pending”已由本次复验更新。
+
+## 2026-10-08 归档记录（C1）
+
 PRD v1.1；核对日期 2026-10-08。实现已冻结为 C `fe1556fc99af6ecca45caf7780604c9f8e541bd9`。本轮发现的输入阻塞、剩余 split tab 关闭、窄窗口布局、只读观察焦点、ACP 环境边界和 macOS 增量打包签名问题已修复并通过回归。精确 clean C 的完整 `make verify` 已 exit 0；独立物理 profile App 构建及严格签名校验通过，尚未安装或启动。正式 After 的 42 个 widget 捕获与原生 App 烟测已通过，49 张原图和原始视频已按下述有限范围审阅；Before 101 份、After 103 份公开白名单文件已同 hash 归档。manifest 已通过结构／完整性校验，完整 PRD 验收尚未完成。
 
 After 原图审阅新增 P3 文案问题 PRD-019：单来源英文显示 `1 sources`，12 张英文 AI widget 图均可见，尚未修复，core_flow=false。保留冻结 C 和原始截图，不宣称全部发现均已修复。
