@@ -1152,3 +1152,7 @@ mod acceptance;
 #[cfg(all(test, unix))]
 #[path = "shell_bootstrap/ssh_wrapper_tests.rs"]
 mod ssh_wrapper_tests;
+
+#[cfg(all(test, unix))]
+#[path = "shell_bootstrap/bash_preexec_tests.rs"]
+mod bash_preexec_tests;

@@ -984,9 +984,38 @@ __ianvs_install_shell_hooks() {
     return 0
   }
 
+  # Some older bash-preexec versions guard their precmd entry with `declare -F`.
+  # That successful test overwrites $? before the dispatcher can save it.
+  # Wrap only this exact leading guard, keeping all user prompt commands intact.
+  __ianvs_restore_prompt_status() { return "$1"; }
+  __ianvs_bash_preexec_precmd() {
+    local __ianvs_status=$?
+    if declare -F __bp_precmd_invoke_cmd >/dev/null; then
+      __ianvs_restore_prompt_status "$__ianvs_status"
+      __bp_precmd_invoke_cmd
+    fi
+  }
+  __ianvs_repair_bash_preexec_prompt() {
+    local __ianvs_guard='if declare -F __bp_precmd_invoke_cmd &>/dev/null; then __bp_precmd_invoke_cmd; fi;'
+    if [[ "$(declare -p PROMPT_COMMAND 2>/dev/null)" == declare\ -a* ]]; then
+      local __ianvs_index
+      for __ianvs_index in "${!PROMPT_COMMAND[@]}"; do
+        if [[ "${PROMPT_COMMAND[$__ianvs_index]}" == "$__ianvs_guard"* ]]; then
+          PROMPT_COMMAND[$__ianvs_index]="__ianvs_bash_preexec_precmd;${PROMPT_COMMAND[$__ianvs_index]#"$__ianvs_guard"}"
+        fi
+        break
+      done
+    elif [[ "${PROMPT_COMMAND:-}" == "$__ianvs_guard"* ]]; then
+      PROMPT_COMMAND="__ianvs_bash_preexec_precmd;${PROMPT_COMMAND#"$__ianvs_guard"}"
+    fi
+  }
+
   __ianvs_prompt_command() {
     local __ianvs_status=$?
     __ianvs_inside_prompt=1
+    if [[ "$__ianvs_bash_hook_backend" == bash-preexec ]]; then
+      __ianvs_repair_bash_preexec_prompt
+    fi
     if [[ "$__ianvs_bash_hook_backend" != bash-preexec ]]; then
       __ianvs_run_original_prompt_command "$__ianvs_status" || true
     fi
@@ -1006,6 +1035,7 @@ __ianvs_install_shell_hooks() {
   if [[ "$__ianvs_bash_hook_backend" == bash-preexec ]]; then
     [[ " ${preexec_functions[*]} " == *' __ianvs_preexec '* ]] || preexec_functions+=(__ianvs_preexec)
     [[ " ${precmd_functions[*]} " == *' __ianvs_prompt_command '* ]] || precmd_functions+=(__ianvs_prompt_command)
+    __ianvs_repair_bash_preexec_prompt
   else
     trap '__ianvs_preexec' DEBUG
     if [[ "${__ianvs_original_prompt_command_is_array:-0}" == "1" ]]; then
