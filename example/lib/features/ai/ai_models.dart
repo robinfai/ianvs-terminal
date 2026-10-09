@@ -8,6 +8,8 @@ enum AiBackendKind { llm, acp }
 
 enum AiApprovalMode { manual, smart }
 
+enum AiApprovalSensitivity { cautious, balanced, relaxed }
+
 /// Configuration is device-local; credentials never join profile/data sync.
 class AiConfiguration {
   const AiConfiguration({
@@ -15,6 +17,7 @@ class AiConfiguration {
     required this.apiKey,
     required this.model,
     this.approvalMode = AiApprovalMode.manual,
+    this.approvalSensitivity = AiApprovalSensitivity.balanced,
   }) : backend = AiBackendKind.llm,
        agentCommand = '',
        agentArguments = const [];
@@ -24,20 +27,24 @@ class AiConfiguration {
     this.agentArguments = const [],
     this.model = 'gpt-5.6-sol',
     this.approvalMode = AiApprovalMode.manual,
+    this.approvalSensitivity = AiApprovalSensitivity.balanced,
   }) : backend = AiBackendKind.acp,
        endpoint = '',
        apiKey = '';
 
-  const AiConfiguration.mock({this.approvalMode = AiApprovalMode.manual})
-    : endpoint = 'http://127.0.0.1:8787/v1',
-      apiKey = 'trail-local-mock',
-      model = 'trail-mock',
-      backend = AiBackendKind.llm,
-      agentCommand = '',
-      agentArguments = const [];
+  const AiConfiguration.mock({
+    this.approvalMode = AiApprovalMode.manual,
+    this.approvalSensitivity = AiApprovalSensitivity.balanced,
+  }) : endpoint = 'http://127.0.0.1:8787/v1',
+       apiKey = 'trail-local-mock',
+       model = 'trail-mock',
+       backend = AiBackendKind.llm,
+       agentCommand = '',
+       agentArguments = const [];
 
   final AiBackendKind backend;
   final AiApprovalMode approvalMode;
+  final AiApprovalSensitivity approvalSensitivity;
   final String agentCommand;
   final List<String> agentArguments;
   final String endpoint;
@@ -46,11 +53,13 @@ class AiConfiguration {
 
   bool hasSameValues(
     AiConfiguration? other, {
-    bool includeApprovalMode = true,
+    bool includeApprovalPolicy = true,
   }) =>
       other != null &&
       backend == other.backend &&
-      (!includeApprovalMode || approvalMode == other.approvalMode) &&
+      (!includeApprovalPolicy ||
+          (approvalMode == other.approvalMode &&
+              approvalSensitivity == other.approvalSensitivity)) &&
       endpoint == other.endpoint &&
       apiKey == other.apiKey &&
       model == other.model &&
@@ -100,6 +109,7 @@ class AiConfiguration {
   Map<String, Object?> toJson() => {
     'backend': backend.name,
     'approvalMode': approvalMode.name,
+    'approvalSensitivity': approvalSensitivity.name,
     if (backend == AiBackendKind.acp) ...{
       'agentCommand': agentCommand,
       'agentArguments': agentArguments,
@@ -113,12 +123,20 @@ class AiConfiguration {
     final approvalMode = json['approvalMode'] == 'smart'
         ? AiApprovalMode.smart
         : AiApprovalMode.manual;
+    // Existing installations retain their low-risk threshold until the user
+    // selects a different sensitivity. Unknown values never widen approval.
+    final approvalSensitivity = switch (json['approvalSensitivity']) {
+      'cautious' => AiApprovalSensitivity.cautious,
+      'relaxed' => AiApprovalSensitivity.relaxed,
+      _ => AiApprovalSensitivity.balanced,
+    };
     if (json['backend'] == 'acp') {
       final value = AiConfiguration.acp(
         agentCommand: json['agentCommand']! as String,
         agentArguments: (json['agentArguments']! as List).cast<String>(),
         model: json['model']! as String,
         approvalMode: approvalMode,
+        approvalSensitivity: approvalSensitivity,
       );
       value.validate();
       return value;
@@ -128,6 +146,7 @@ class AiConfiguration {
       apiKey: json['apiKey']! as String,
       model: json['model']! as String,
       approvalMode: approvalMode,
+      approvalSensitivity: approvalSensitivity,
     );
     value.completionsUri;
     return value;

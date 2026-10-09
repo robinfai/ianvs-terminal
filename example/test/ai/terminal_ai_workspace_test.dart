@@ -1500,17 +1500,43 @@ void main() {
   }
 
   testWidgets(
-    'mobile background cancels proposal without interrupting terminal',
+    'mobile proposal survives a long background wait and resumes without sending',
     (tester) async {
       await prepare();
       await controller.ask('Inspect files');
       await mount(tester, size: const Size(390, 700));
+      final proposal = controller.pending;
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
       await tester.pump();
       expect(controller.canApprove, isFalse);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      await tester.pump(const Duration(minutes: 30));
+      expect(controller.pending, same(proposal));
+      await controller.approve();
       expect(terminal.writes, isEmpty);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
-      await tester.pump();
+      await tester.pumpAndSettle();
+      expect(controller.canApprove, isTrue);
+      expect(controller.pending, same(proposal));
+      expect(terminal.writes, isEmpty);
+      expect(api.requests, hasLength(1));
+    },
+  );
+
+  testWidgets(
+    'reopening a mobile workspace revalidates a controller left in background',
+    (tester) async {
+      await prepare();
+      await controller.ask('Inspect files');
+      controller.suspendForBackground();
+      expect(controller.canApprove, false);
+      await mount(tester, size: const Size(390, 700));
+      await tester.pumpAndSettle();
+      expect(controller.canApprove, true);
+      expect(terminal.writes, isEmpty);
       expect(api.requests, hasLength(1));
     },
   );

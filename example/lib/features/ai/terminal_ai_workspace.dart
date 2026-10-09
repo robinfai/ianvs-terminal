@@ -126,6 +126,12 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
     c.addListener(_changed);
     WidgetsBinding.instance.addObserver(this);
     _contextTimer = Timer.periodic(const Duration(seconds: 1), (_) async {
+      final lifecycle = WidgetsBinding.instance.lifecycleState;
+      if (_mobile &&
+          lifecycle != null &&
+          lifecycle != AppLifecycleState.resumed) {
+        return;
+      }
       if (mounted && c.phase == AiPhase.observing) setState(() {});
       if (_refreshing || c.busy) return;
       _refreshing = true;
@@ -133,6 +139,17 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
         await c.refreshContext();
       } finally {
         _refreshing = false;
+      }
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_mobile) return;
+      // The controller can outlive this workspace while the app is inactive.
+      // Reopening it must synchronize lifecycle before enabling old proposals.
+      final lifecycle = WidgetsBinding.instance.lifecycleState;
+      if (lifecycle == null || lifecycle == AppLifecycleState.resumed) {
+        unawaited(c.resumeFromBackground());
+      } else {
+        c.suspendForBackground();
       }
     });
     _changed();
@@ -294,9 +311,9 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
     if (state != AppLifecycleState.resumed) _replyFocusAllowed = false;
     if (!mounted || !_mobile) return;
     if (state != AppLifecycleState.resumed) {
-      c.takeOver();
+      c.suspendForBackground();
     } else {
-      unawaited(c.refreshContext());
+      unawaited(c.resumeFromBackground());
     }
   }
 

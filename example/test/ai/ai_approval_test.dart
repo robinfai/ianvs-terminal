@@ -102,8 +102,6 @@ void main() {
       'git push origin main',
       'echo ok; /bin/rm file',
       'cat ~/.ssh/id_rsa',
-      r'echo $(danger)',
-      'python3 -c "print(1)"',
       'ssh cloud',
     ]) {
       test('mandatory confirmation cannot be overruled: $command', () async {
@@ -112,6 +110,8 @@ void main() {
       });
     }
     for (final command in [
+      r'printf "%s\n" "$HOME"',
+      'python3 -c "print(1)"',
       'sudo -n df -h',
       'sudo --non-interactive du -xhd1 /var/log',
       '/usr/bin/sudo -n docker ps -a --size',
@@ -238,7 +238,12 @@ void main() {
       );
     }
 
-    for (final field in ['endpoint', 'apiKey', 'model']) {
+    for (final field in [
+      'endpoint',
+      'apiKey',
+      'model',
+      'approvalSensitivity',
+    ]) {
       test('changing $field cancels an active review', () async {
         final task = controller.ask('List files');
         await reviewer.started.future;
@@ -246,6 +251,7 @@ void main() {
         changed[field] = switch (field) {
           'endpoint' => 'http://127.0.0.1:8788/v1',
           'apiKey' => 'different-key',
+          'approvalSensitivity' => 'relaxed',
           _ => 'different-model',
         };
         await settings.save(AiConfiguration.fromJson(changed));
@@ -300,13 +306,15 @@ void main() {
         expect(terminal.writes.single.command, 'pwd');
       },
     );
-    for (final change in ['pause', 'task', 'node', 'settings']) {
+    for (final change in ['pause', 'background', 'task', 'node', 'settings']) {
       test('$change invalidates a delayed allow decision', () async {
         final task = controller.ask('List files');
         await reviewer.started.future;
         switch (change) {
           case 'pause':
             controller.takeOver();
+          case 'background':
+            controller.suspendForBackground();
           case 'task':
             controller.newTask();
           case 'node':
@@ -316,6 +324,7 @@ void main() {
         }
         reviewer.result.complete(allow);
         await task;
+        if (change == 'background') await controller.resumeFromBackground();
         expect(terminal.writes, isEmpty);
         expect(controller.canApprove, isFalse);
       });

@@ -168,7 +168,9 @@ small, explicit sequence of text and named keys. Do not assume the app's mode.
 If the shell is unintegrated, send_keys can type a command and ENTER, but explain it.
 Calling run_command or send_keys creates a proposal for review; it does not write
 to the terminal. Trail reviews the exact input under the user's approval policy;
-smart review may approve low-risk scoped actions, otherwise the user confirms.
+smart review may approve scoped actions within the selected risk sensitivity,
+otherwise the user confirms. Do not require confirmation for every tool call
+unless the user's instructions or the selected policy require it.
 When the user asks you to propose input and wait for confirmation,
 call the appropriate tool to create that review card. Do not replace the card
 with a textual confirmation question or a command in markdown. A later tool

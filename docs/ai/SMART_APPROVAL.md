@@ -2,11 +2,25 @@
 
 Implemented 2026-10-03. In **AI connection → Command approval**, choose
 **Smart review** or **Confirm every command**. New configuration forms suggest
-Smart review; legacy/unknown saved values preserve manual confirmation. Merely
+Smart review with Relaxed sensitivity; legacy/unknown saved approval modes
+preserve manual confirmation. Merely
 changing the selection does not run a task; Save persists it on this device.
 
-The user-authorized scope is low-risk operations and recoverable edits within
-the requested task. A request to investigate and propose a remedy without
+Smart review has three device-local sensitivity levels:
+
+| Level | Eligible automatic actions |
+|---|---|
+| Cautious / 谨慎 | Low-risk, read-only commands |
+| Standard / 标准 | Low-risk reads and recoverable changes |
+| Relaxed / 宽松 · 高危确认 | Low- and medium-risk reads, recoverable changes and explicitly authorized non-sensitive transfers to known destinations |
+
+Existing saved Smart configurations without a sensitivity retain Standard.
+Unknown sensitivity values also fall back to Standard. High/unknown risk,
+irreversible effects, unclear authorization and an unavailable review always
+require confirmation. The local gate enforces the selected threshold even when
+the reviewer returns `allow`. Changing sensitivity revokes in-flight decisions.
+
+Actions must stay within the requested task. A request to investigate and propose a remedy without
 applying it permits necessary low-risk read-only diagnostics, but no changes.
 An explicit ban on running commands/tools or acting before confirmation still
 requires confirmation, even for read-only commands. Ambiguous scope is escalated.
@@ -16,8 +30,11 @@ Direct human command entry is unchanged.
 
 1. Explicit terminal observation tools remain read-only and need no approval.
 2. Every proposed shell command passes the common gate for API and ACP.
-   Interactive keys, obvious deletion/privilege/credential operations, dynamic
-   shell evaluation and selected external mutations require human confirmation.
+   Interactive keys and obvious privilege/credential operations require human
+   confirmation. Standard/Cautious also escalate deletion and selected external
+   mutations locally. Relaxed routes these through independent risk review.
+   Variables and inline scripts alone no longer force confirmation; their full
+   effects, including unknown shell startup behavior, still require review.
    Known shell aliases with unavailable behavior also require confirmation.
    A leading noninteractive `sudo -n` / `sudo --non-interactive` wrapper
    (also `/usr/bin/sudo`) reaches independent model review. It grants no
@@ -29,8 +46,8 @@ Direct human command entry is unchanged.
    reviewer receives the exact input, current target, human task requests and
    bounded terminal evidence. Evidence/input are untrusted data. The acting
    agent's reasoning and its assertion that an action is safe grant no authority.
-4. Only a structured `allow` result for this action ID, with low risk, matching
-   scope, no confirmation requirement and read-only/reversible effects can pass.
+4. Only a structured `allow` result for this action ID, within the selected
+   risk/effect threshold, matching scope and no confirmation requirement can pass.
    Invalid output, a tool attempt, missing context, error or a 30-second timeout
    becomes ordinary manual confirmation. There is no automatic retry or default
    allow and no cached command-prefix permission.
@@ -39,6 +56,16 @@ Direct human command entry is unchanged.
    changes and SSH/terminal changes revoke old decisions. Submission retains
    the existing lease, target checks, operation ID and native receipt. Unknown
    receipt outcomes cannot trigger automatic re-execution.
+
+Waiting command proposals have no wall-clock expiry. On mobile, temporary
+inactivity/backgrounding disables approval while retaining an already-reviewed
+command proposal. Foregrounding obtains a new terminal context before enabling
+approval; a changed guard or lost connection still revokes it. Foregrounding does
+not send the retained command or restart inference. In-flight inference/review,
+execution observation and transient interactive-key proposals are still paused
+or revoked. Explicit takeover, task/connection changes and manual terminal input
+remain invalidation boundaries. App termination does not persist these in-memory
+proposals.
 
 The model API reviewer advertises no tools. ACP uses a fresh disposable session
 with no MCP server registration or host capabilities; permission requests are
@@ -76,7 +103,14 @@ human approval. A single low-risk result does not grant blanket session access.
 
 ## Validation
 
-On macOS 27.0.1, static analysis, 291 AI tests, both native UI scenarios and all
+The 2026-10-09 sensitivity/lifecycle update passes 540 AI unit/widget tests and
+example static analysis. New regressions cover the three thresholds, invalid and
+out-of-scope decisions, settings persistence on iOS/Android, late reviews after
+policy/background changes, a simulated 30-minute background wait, fresh-context
+revalidation and repeated background/foreground races. These are controlled tests,
+not a claim that a suspended phone maintains its SSH transport for 30 minutes.
+
+For the original 2026-10-03 implementation, on macOS 27.0.1, static analysis, 291 AI tests, both native UI scenarios and all
 three real ACP review cases passed. Logs, screenshots and source hashes are in
 [the acceptance evidence](evidence/smart-approval-20261003/manifest.json).
 

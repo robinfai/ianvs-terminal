@@ -55,6 +55,7 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
   final _agentArguments = TextEditingController(text: '[]');
   AiBackendKind _backend = AiBackendKind.llm;
   AiApprovalMode _approvalMode = AiApprovalMode.smart;
+  AiApprovalSensitivity _approvalSensitivity = AiApprovalSensitivity.relaxed;
   String? _apiModel;
   String? _acpModel;
   bool _busy = false;
@@ -94,6 +95,7 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
 
   void _fill(AiConfiguration value) {
     _approvalMode = value.approvalMode;
+    _approvalSensitivity = value.approvalSensitivity;
     _savedAcpUnsupported =
         value.backend == AiBackendKind.acp && !_supportsLocalAcp;
     _backend = _savedAcpUnsupported ? AiBackendKind.llm : value.backend;
@@ -116,6 +118,7 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
       try {
         return AiConfiguration.acp(
           approvalMode: _approvalMode,
+          approvalSensitivity: _approvalSensitivity,
           agentCommand: _agentCommand.text.trim(),
           agentArguments: (jsonDecode(_agentArguments.text) as List)
               .cast<String>(),
@@ -127,6 +130,7 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
     }
     return AiConfiguration(
       approvalMode: _approvalMode,
+      approvalSensitivity: _approvalSensitivity,
       endpoint: _endpoint.text.trim(),
       apiKey: _key.text.trim(),
       model: _model.text.trim(),
@@ -458,12 +462,59 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
                     if (value != null) setState(() => _approvalMode = value);
                   },
           ),
+          if (_approvalMode == AiApprovalMode.smart) ...[
+            const SizedBox(height: 16),
+            AppDropdownFormField<AiApprovalSensitivity>(
+              key: const Key('ai-approval-sensitivity'),
+              initialValue: _approvalSensitivity,
+              isExpanded: true,
+              decoration: InputDecoration(
+                labelText: t('Review sensitivity', '审核敏感性'),
+              ),
+              items: [
+                DropdownMenuItem(
+                  value: AiApprovalSensitivity.cautious,
+                  child: Text(t('Cautious', '谨慎')),
+                ),
+                DropdownMenuItem(
+                  value: AiApprovalSensitivity.balanced,
+                  child: Text(t('Standard', '标准')),
+                ),
+                DropdownMenuItem(
+                  value: AiApprovalSensitivity.relaxed,
+                  child: Text(t('Relaxed · confirm high risk', '宽松 · 高危确认')),
+                ),
+              ],
+              onChanged: !_loaded || _busy
+                  ? null
+                  : (value) {
+                      if (value != null) {
+                        setState(() => _approvalSensitivity = value);
+                      }
+                    },
+            ),
+            const SizedBox(height: 8),
+            Text(switch (_approvalSensitivity) {
+              AiApprovalSensitivity.cautious => t(
+                'Automatically allow low-risk, read-only commands. Confirm changes.',
+                '自动放行低风险只读命令；修改操作需确认。',
+              ),
+              AiApprovalSensitivity.balanced => t(
+                'Automatically allow low-risk reads and recoverable changes. Confirm medium and high risk.',
+                '自动放行低风险查询和可恢复修改；中、高风险需确认。',
+              ),
+              AiApprovalSensitivity.relaxed => t(
+                'Automatically allow low- and medium-risk actions within your task. Confirm high-risk actions.',
+                '自动放行任务范围内的低、中风险操作；高危操作需确认。',
+              ),
+            }, style: Theme.of(context).textTheme.bodySmall),
+          ],
           const SizedBox(height: 8),
           Text(
             _approvalMode == AiApprovalMode.smart
                 ? t(
-                    'An independent AI review can allow low-risk actions and recoverable edits within your task. Other actions need confirmation. Each review uses your selected connection and may add time and usage.',
-                    '独立 AI 审核可放行低风险操作和任务范围内可恢复的修改，其余操作需要确认。每次审核使用所选连接，会增加等待时间和用量。',
+                    'Each command is independently reviewed using this connection. Unclear risk, unavailable review, and your explicit confirmation requirements still need confirmation. Reviews add time and usage.',
+                    '每条命令使用此连接独立审核。风险不明、审核不可用或你明确要求确认时，仍需确认。审核会增加等待时间和用量。',
                   )
                 : t(
                     'Review and confirm every command before it runs.',

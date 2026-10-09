@@ -27,8 +27,12 @@ class AiApprovalNotice extends StatelessWidget {
         zh ? '交互按键需要确认。' : 'Interactive input needs confirmation.',
       'sensitive' =>
         zh
-            ? '敏感、破坏性、动态脚本或对外操作需要确认。'
-            : 'Sensitive, destructive, dynamic or external operations need confirmation.',
+            ? '当前审核策略要求此操作由你确认。'
+            : 'The selected review policy requires confirmation for this operation.',
+      'threshold' =>
+        zh
+            ? '操作风险超出当前审核档位的自动放行范围。'
+            : 'The action exceeds the automatic approval range of the selected sensitivity.',
       'context' =>
         zh
             ? '当前授权或终端信息不足。'

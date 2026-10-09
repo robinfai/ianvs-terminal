@@ -387,7 +387,7 @@ class TerminalAiController extends ChangeNotifier {
   }
 
   bool get canRunUserCommand =>
-      !_disposed &&
+      _canInteract &&
       !busy &&
       pending == null &&
       attachments.isEmpty &&
@@ -563,6 +563,11 @@ class TerminalAiController extends ChangeNotifier {
   }
 
   bool _disposed = false;
+  bool _appActive = true;
+  bool _revalidatingAfterResume = false;
+  int _lifecycleRevision = 0;
+  bool get _canInteract =>
+      !_disposed && _appActive && !_revalidatingAfterResume;
   AiCancellation? _cancellation;
   int _steps = 0;
   bool get busy =>
@@ -572,12 +577,13 @@ class TerminalAiController extends ChangeNotifier {
       phase == AiPhase.executing ||
       phase == AiPhase.observing;
   bool get canApprove =>
+      _canInteract &&
       terminalError == null &&
       !hasUnresolvedSubmission &&
       pending != null &&
       phase == AiPhase.awaitingApproval;
   bool get canResume =>
-      !_disposed &&
+      _canInteract &&
       !_task.configurationRetired &&
       !busy &&
       terminalError == null &&
@@ -635,7 +641,7 @@ class TerminalAiController extends ChangeNotifier {
     if (previous?.hasSameValues(next) ?? next == null) return;
     // Policy changes revoke in-flight permission without losing the agent's
     // conversation or pretending its endpoint/model changed.
-    if (previous?.hasSameValues(next, includeApprovalMode: false) ?? false) {
+    if (previous?.hasSameValues(next, includeApprovalPolicy: false) ?? false) {
       if (busy || pending != null) takeOver();
       _emit();
       return;
@@ -684,7 +690,9 @@ class TerminalAiController extends ChangeNotifier {
         return;
       }
       final staleProposal =
-          canApprove && fresh.guard != _task.proposalContext?.guard;
+          pending != null &&
+          phase == AiPhase.awaitingApproval &&
+          fresh.guard != _task.proposalContext?.guard;
       if (staleProposal || (busy && _differentTarget(context, fresh))) {
         takeOver();
         error = 'stale_context';
@@ -849,7 +857,7 @@ class TerminalAiController extends ChangeNotifier {
     bool Function()? canStart,
   }) async {
     final prompt = input.trim();
-    if (_disposed || busy || prompt.isEmpty || canStart?.call() == false) {
+    if (!_canInteract || busy || prompt.isEmpty || canStart?.call() == false) {
       return;
     }
     if (_task.configurationRetired) {
@@ -879,7 +887,7 @@ class TerminalAiController extends ChangeNotifier {
       return;
     }
     await settings.loaded;
-    if (_disposed ||
+    if (!_canInteract ||
         busy ||
         !identical(requestedTask, _task) ||
         canStart?.call() == false) {
@@ -1529,6 +1537,33 @@ class TerminalAiController extends ChangeNotifier {
     takenOver = true;
     error = null;
     _emit();
+  }
+
+  /// Waiting command proposals have no time limit. Backgrounding only pauses
+  /// approval; running inference/input is still cancelled. Interactive keys
+  /// depend on transient TUI state and must be proposed again after returning.
+  void suspendForBackground() {
+    if (_disposed || !_appActive) return;
+    _appActive = false;
+    _lifecycleRevision++;
+    if (busy || pending?.kind != AiActionKind.runCommand) takeOver();
+    _emit();
+  }
+
+  Future<void> resumeFromBackground() async {
+    if (_disposed || _appActive) return;
+    _appActive = true;
+    _revalidatingAfterResume = true;
+    final revision = ++_lifecycleRevision;
+    // A read started before foregrounding cannot validate the resumed target.
+    final previousRead = _task.contextRefresh;
+    if (previousRead != null) await previousRead;
+    if (_disposed || revision != _lifecycleRevision) return;
+    await refreshContext();
+    if (_disposed || revision != _lifecycleRevision) return;
+    _revalidatingAfterResume = false;
+    _emit();
+    // Resuming never restarts inference or sends a retained proposal.
   }
 
   void _interruptExecuting(String reason) {

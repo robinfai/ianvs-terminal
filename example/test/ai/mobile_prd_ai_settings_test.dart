@@ -103,6 +103,48 @@ void main() {
     tearDown(() => fixture.dispose());
 
     for (final platform in [TargetPlatform.iOS, TargetPlatform.android]) {
+      testWidgets('$platform saves sensitivity and restores it on reopen', (
+        tester,
+      ) async {
+        await fixture.mount(
+          tester,
+          platform: platform,
+          saved: const AiConfiguration.mock(approvalMode: AiApprovalMode.smart),
+        );
+        final sensitivity = find.byKey(const Key('ai-approval-sensitivity'));
+        await tester.ensureVisible(sensitivity);
+        await tester.tap(sensitivity);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Relaxed · confirm high risk').last);
+        await tester.pumpAndSettle();
+        final save = find.byKey(const Key('ai-save-settings'));
+        await tester.ensureVisible(save);
+        await tester.tap(save);
+        await tester.pumpAndSettle();
+        expect(
+          fixture.store.value!.approvalSensitivity,
+          AiApprovalSensitivity.relaxed,
+        );
+        await tester.tap(find.text('Configure AI'));
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(sensitivity);
+        expect(find.text('Relaxed · confirm high risk'), findsOneWidget);
+        final mode = find.byKey(const Key('ai-approval-mode'));
+        await tester.ensureVisible(mode);
+        await tester.tap(mode);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Confirm every command').last);
+        await tester.pumpAndSettle();
+        expect(sensitivity, findsNothing);
+        await tester.tap(mode);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Smart review').last);
+        await tester.pumpAndSettle();
+        expect(find.text('Relaxed · confirm high risk'), findsOneWidget);
+        fixture.expectNoTaskSent();
+        expect(tester.takeException(), isNull);
+      });
+
       testWidgets('$platform offers only Model API without agent discovery', (
         tester,
       ) async {
