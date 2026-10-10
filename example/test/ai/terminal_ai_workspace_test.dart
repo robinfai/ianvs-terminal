@@ -1441,7 +1441,15 @@ void main() {
         expect(frame().rows.first.text, 'output 55');
         expect(frame().rows.last.text, 'output 60');
         await _capture(tester, 'M03-live-six-rows-${brightness.name}');
-        await tester.dragFrom(tester.getCenter(preview), const Offset(0, 280));
+        // Reply height can move the live preview above the visible viewport.
+        // Start the reading gesture inside the actual timeline, not that
+        // potentially clipped child's offscreen center.
+        final timeline = find
+            .ancestor(of: preview, matching: find.byType(Scrollable))
+            .first;
+        expect(controller.followingOutput, isTrue);
+        expect(timeline.hitTestable(), findsOneWidget);
+        await tester.dragFrom(tester.getCenter(timeline), const Offset(0, 280));
         await tester.pumpAndSettle();
         expect(controller.followingOutput, false);
         final anchor = scroll.readingAnchor!;

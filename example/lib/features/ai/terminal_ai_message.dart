@@ -51,11 +51,9 @@ class TerminalAiMessageFrame extends StatelessWidget {
               key: ValueKey('ai-message-role-$entryId'),
               size: 18,
               color:
-                  Theme.of(context)
-                      .textButtonTheme
-                      .style
-                      ?.foregroundColor
-                      ?.resolve({}) ??
+                  Theme.of(
+                    context,
+                  ).textButtonTheme.style?.foregroundColor?.resolve({}) ??
                   palette.textPrimary,
               semanticLabel: label,
             ),

@@ -3,7 +3,6 @@ import 'dart:math' as math;
 import 'package:app/features/ai/terminal_ai_message.dart';
 import 'package:app/ui/foundation/app_theme.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart' show axisDirectionToAxis;
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -24,9 +23,9 @@ void main() {
       MaterialApp(
         theme: buildIanvsTerminalTheme(brightness, platform: platform),
         builder: (context, child) => MediaQuery(
-          data: MediaQuery.of(context).copyWith(
-            textScaler: TextScaler.linear(scale),
-          ),
+          data: MediaQuery.of(
+            context,
+          ).copyWith(textScaler: TextScaler.linear(scale)),
           child: child!,
         ),
         home: Scaffold(
@@ -34,13 +33,16 @@ void main() {
             alignment: Alignment.topLeft,
             child: SizedBox(
               width: width,
-              child: TerminalAiMessageFrame(
-                entryId: 'reading',
-                isUser: isUser,
-                child: const SizedBox(
-                  key: Key('reading-body'),
-                  height: 60,
-                  child: Text('Keep the original command and its evidence.'),
+              // Match the timeline's unbounded vertical reading constraints.
+              child: SingleChildScrollView(
+                child: TerminalAiMessageFrame(
+                  entryId: 'reading',
+                  isUser: isUser,
+                  child: const SizedBox(
+                    key: Key('reading-body'),
+                    height: 60,
+                    child: Text('Keep the original command and its evidence.'),
+                  ),
                 ),
               ),
             ),
@@ -64,9 +66,7 @@ void main() {
               isUser: isUser,
             );
             final body = find.byKey(const Key('reading-body'));
-            final role = find.byKey(
-              const ValueKey('ai-message-role-reading'),
-            );
+            final role = find.byKey(const ValueKey('ai-message-role-reading'));
             expect(tester.getSize(body).width, closeTo(width - 32, .01));
             expect(tester.getTopLeft(body).dx, closeTo(16, .01));
             expect(tester.getTopLeft(role).dx, closeTo(16, .01));
@@ -98,9 +98,7 @@ void main() {
           scale: scale,
         );
         final body = find.byKey(const Key('reading-body'));
-        final frame = find.byKey(
-          const ValueKey('ai-message-frame-reading'),
-        );
+        final frame = find.byKey(const ValueKey('ai-message-frame-reading'));
         final frameWidth = math.min(width - 28, 960.0);
         expect(tester.getSize(frame).width, closeTo(frameWidth, .01));
         expect(
@@ -130,11 +128,7 @@ void main() {
   testWidgets('Android narrow surface uses the same presentation rule', (
     tester,
   ) async {
-    await mountFrame(
-      tester,
-      width: 390,
-      platform: TargetPlatform.android,
-    );
+    await mountFrame(tester, width: 390, platform: TargetPlatform.android);
     expect(
       tester.getSize(find.byKey(const Key('reading-body'))).width,
       closeTo(358, .01),
@@ -143,9 +137,7 @@ void main() {
   });
 
   for (final platform in [TargetPlatform.iOS, TargetPlatform.macOS]) {
-    testWidgets('Markdown spacing and exact copy on $platform', (
-      tester,
-    ) async {
+    testWidgets('Markdown spacing and exact copy on $platform', (tester) async {
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
@@ -196,9 +188,12 @@ void main() {
       expect(find.byType(TextField), findsNothing);
       expect(tester.testTextInput.hasAnyClients, false);
       expect(
-        tester.widgetList<Scrollable>(find.byType(Scrollable)).where(
-          (widget) => axisDirectionToAxis(widget.axisDirection) == Axis.vertical,
-        ),
+        tester
+            .widgetList<Scrollable>(find.byType(Scrollable))
+            .where(
+              (widget) =>
+                  axisDirectionToAxis(widget.axisDirection) == Axis.vertical,
+            ),
         hasLength(1),
       );
       String? copied;
@@ -212,8 +207,10 @@ void main() {
         },
       );
       addTearDown(
-        () => tester.binding.defaultBinaryMessenger
-            .setMockMethodCallHandler(SystemChannels.platform, null),
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
       );
       final region = tester.state<SelectableRegionState>(
         find.byType(SelectableRegion),
