@@ -425,14 +425,26 @@ void main() {
         'reason':
             'Demonstrate a separate result without altering the failed command',
       });
-      await ask(
-        'Explain the missing path; keep the failed evidence and propose a separate check.',
+      const correctionRequest =
+          'Explain the missing path; keep the failed evidence and propose a separate check.';
+      await tester.enterText(
+        find.byKey(const Key('ai-prompt')),
+        correctionRequest,
       );
+      await tester.pump();
+      expect(fixture.requests, beforeAttachRequests);
+      expect(
+        (runtime.commandBlocks(id)!['blocks']! as List).length,
+        beforeAttachCount,
+      );
+      await capture('D06-failure-diagnostic-draft');
+      await ask(correctionRequest);
       expect(
         task.transcript.any((e) => e.contexts.any((b) => b.id == failedId)),
         true,
       );
       expect(task.attachments, isEmpty);
+      await capture('D06-correction-review');
       await click(const Key('ai-approve'));
       await waitFor(
         () => !task.busy && shell()?['state'] == 'ready',
@@ -452,6 +464,51 @@ void main() {
         task.transcript.where((e) => e.blockId == repairedId),
         hasLength(1),
       );
+      final correctionReceipt = task.transcript.singleWhere(
+        (entry) => entry.blockId == repairedId,
+      );
+      expect(correctionReceipt.state, AiEntryState.accepted);
+      expect(correctionReceipt.submissionId, isNotNull);
+      expect(correctionReceipt.submissionId, repaired.single['submissionId']);
+      final correctionTaskId = task.taskId;
+      final correctionDraft = task.draft;
+      final beforeCorrectionReaderRequests = fixture.requests;
+      final beforeCorrectionReaderBlocks =
+          (runtime.commandBlocks(id)!['blocks']! as List).length;
+      await tester.ensureVisible(
+        find.byKey(ValueKey('ai-evidence-$repairedId-0')),
+      );
+      await capture('D06-correction-result');
+      await click(ValueKey('ai-evidence-$repairedId-0'));
+      await waitFor(
+        () => readerPages.evaluate().isNotEmpty,
+        'corrected command opens its original output',
+      );
+      final correctionOutput = tester
+          .widget<CommandBlockTerminal>(readerPages.first)
+          .block;
+      expect(correctionOutput.id, '$repairedId-reader-0');
+      expect(correctionOutput.command, repairCommand);
+      expect(correctionOutput.visibleOutput, contains('REPAIR_EVIDENCE'));
+      await capture('D06-correction-original-output');
+      await click(const Key('block-reader-close'));
+      await waitFor(
+        () => readerRoot.evaluate().isEmpty,
+        'return from corrected command output',
+      );
+      expect(task.taskId, correctionTaskId);
+      expect(task.draft, correctionDraft);
+      expect(fixture.requests, beforeCorrectionReaderRequests);
+      final afterCorrectionReader =
+          (runtime.commandBlocks(id)!['blocks']! as List)
+              .cast<Map<String, Object?>>();
+      expect(afterCorrectionReader, hasLength(beforeCorrectionReaderBlocks));
+      expect(
+        afterCorrectionReader.where((b) => b['command'] == repairCommand),
+        hasLength(1),
+      );
+      expect(failedBlock()!['id'], failedId);
+      expect(failedBlock()!['exitCode'], failedExit);
       await tester.ensureVisible(failedTimeline);
       expect(failedTimeline, findsOneWidget);
       await capture('D06-failure-retained-after-correction');
@@ -1240,6 +1297,8 @@ void main() {
             'failure_block_id': failedId,
             'failure_exit_code': failedExit,
             'correction_block_id': repairedId,
+            'correction_submission_id': correctionReceipt.submissionId,
+            'correction_reference_opened_and_returned': true,
             'failure_preserved_after_correction': true,
             'silent_command_block_id': delayedId,
             'silent_command_elapsed': {

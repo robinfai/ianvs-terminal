@@ -4,7 +4,7 @@
 
 | 平台 | 当前入口/能力 | 本次实际环境 | 当前结论 |
 |---|---|---|---|
-| macOS | `example/macos` 原生宿主；`tools/verify_macos_app.sh` 检查真实 PTY、Composer、签名及 Xcode 测试 | arm64，macOS 27.0.1，build 26A434 | 当前新候选尚未冻结/完成完整 gate，implemented_unverified |
+| macOS | `example/macos` 原生宿主；`tools/verify_macos_app.sh` 检查真实 PTY、Composer、签名及 Xcode 测试 | arm64，macOS 27.0.1，build 26A434 | C2 已通过原生冒烟 4 项及真实 PTY 45 项；随后暴露的 Composer 问题已修复，原测试通过，待下一候选完整 gate；implemented_unverified |
 | Linux | 当前 `example` 未提供 Linux 原生 App 宿主；共享 Dart/Rust 的存在不代表产品可安装 | 本次没有 Linux/X11/Wayland 运行环境 | 当前 App host 未提供，不能宣称 Linux 产品 verified；不在本轮从零移植 |
 | Windows | 当前 `example` 未提供 Windows 原生 App 宿主；不从共享终端库推定完整 ConPTY 产品路径 | 本次没有 Windows 运行环境 | 当前 App host 未提供，不能宣称 Windows 产品 verified；不在本轮从零移植 |
 | iPhone | 当前 SSH 移动宿主保留；与桌面共享修改须复验 | 物理 iPhone，iOS 27.0.1；此前有线可用，最新设备枚举显示 tunnel unavailable、无传输连接 | 尚无新候选物理验收证据；构建后安装前重新核对连接 |

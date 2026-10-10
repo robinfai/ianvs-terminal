@@ -25,7 +25,7 @@
     },
     {
       "id": "D4",
-      "status": "planned",
+      "status": "in_progress",
       "implementation_commit": null,
       "result_path": "results/D4.md"
     }

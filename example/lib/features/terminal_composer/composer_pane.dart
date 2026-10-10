@@ -99,6 +99,7 @@ final class ComposerPaneSession extends ChangeNotifier {
   TerminalPane? _pane;
   bool _readOnly = false;
   bool _visible = false;
+  int _visibilityRevision = 0;
   bool _fullScreen = false;
   bool _richOutput = false;
   bool _unattributedOutput = false;
@@ -115,6 +116,7 @@ final class ComposerPaneSession extends ChangeNotifier {
 
   void setVisible(bool visible, {bool deferNotification = false}) {
     if (_disposed) return;
+    if (_visible != visible) ++_visibilityRevision;
     _visible = visible;
     _pollTimer?.cancel();
     controller.setActive(
@@ -383,7 +385,8 @@ class _ComposerPaneState extends State<ComposerPane>
     canRequestFocus: false,
   );
   int _focusRevision = 0;
-  FocusScopeNode? _pendingTerminalReturnScope;
+  ({FocusNode source, FocusScopeNode scope, int visibilityRevision})?
+  _pendingTerminalReturn;
   ComposerOwnership? _lastOwnership;
   bool _lastEnabled = false;
   ComposerPaneSession get session => widget.session;
@@ -409,7 +412,7 @@ class _ComposerPaneState extends State<ComposerPane>
         oldWidget.available != widget.available;
     if (ownershipChanged) {
       ++_focusRevision;
-      _pendingTerminalReturnScope = null;
+      _pendingTerminalReturn = null;
     }
     final visible = widget.available && widget.active;
     if (ownershipChanged || visible != session._visible) {
@@ -428,22 +431,57 @@ class _ComposerPaneState extends State<ComposerPane>
   }
 
   void _focusChanged() {
-    ++_focusRevision;
     final owner = FocusManager.instance.primaryFocus;
-    if (owner != _focus && owner != _pendingTerminalReturnScope) {
-      _pendingTerminalReturnScope = null;
+    // Disabling the editor or unmounting a completed live block releases its
+    // owner to the existing route scope as part of the same hand-off.
+    if (_ownsTerminalReturnScope(owner)) return;
+    ++_focusRevision;
+    if (owner != _focus) _pendingTerminalReturn = null;
+    if (session.enabled &&
+        widget.terminalFocus?.hasFocus == true &&
+        (session.controller.ownership == ComposerOwnership.running ||
+            session.controller.ownership == ComposerOwnership.submitting ||
+            session.controller.ownership == ComposerOwnership.suspended)) {
+      // Native output can remove the live block before the ready poll arrives.
+      // Remember its actual input owner while it is still mounted and focused.
+      _rememberTerminalReturn();
+    }
+  }
+
+  bool _ownsTerminalReturnScope(FocusNode? owner) {
+    final pending = _pendingTerminalReturn;
+    return pending != null &&
+        pending.visibilityRevision == session._visibilityRevision &&
+        owner == pending.scope &&
+        (pending.source.parent == null || !pending.source.canRequestFocus);
+  }
+
+  void _rememberTerminalReturn() {
+    if (!_canTransferFocus ||
+        !(_paneFocus.hasFocus || widget.terminalFocus?.hasFocus == true)) {
+      return;
+    }
+    final source = FocusManager.instance.primaryFocus;
+    final scope = source?.enclosingScope;
+    if (source != null && scope != null) {
+      _pendingTerminalReturn = (
+        source: source,
+        scope: scope,
+        visibilityRevision: session._visibilityRevision,
+      );
     }
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     ++_focusRevision;
-    _pendingTerminalReturnScope = null;
+    _pendingTerminalReturn = null;
   }
 
   bool get _canTransferFocus {
     final lifecycle = WidgetsBinding.instance.lifecycleState;
     return mounted &&
+        session._visible &&
         widget.active &&
         widget.available &&
         (lifecycle == null || lifecycle == AppLifecycleState.resumed) &&
@@ -456,36 +494,33 @@ class _ComposerPaneState extends State<ComposerPane>
   }) {
     if (!_canTransferFocus ||
         !(widget.terminalFocus?.hasFocus == true ||
-            !toTerminal &&
-                _pendingTerminalReturnScope != null &&
-                FocusManager.instance.primaryFocus ==
-                    _pendingTerminalReturnScope ||
+            _ownsTerminalReturnScope(FocusManager.instance.primaryFocus) ||
             toTerminal && _paneFocus.hasFocus)) {
       return;
     }
+    _rememberTerminalReturn();
     final revision = _focusRevision;
+    final visibilityRevision = session._visibilityRevision;
     final owner = FocusManager.instance.primaryFocus;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_canTransferFocus ||
           revision != _focusRevision ||
-          FocusManager.instance.primaryFocus != owner ||
+          visibilityRevision != session._visibilityRevision ||
+          (FocusManager.instance.primaryFocus != owner &&
+              !_ownsTerminalReturnScope(FocusManager.instance.primaryFocus)) ||
           !stillCurrent()) {
         return;
       }
       if (toTerminal) {
-        if (widget.terminalFocus?.canRequestFocus != false) {
-          // A fast command may finish before its accepted block is mounted
-          // (for example while the user reads earlier output). Retain only
-          // this editor's explicit hand-off, and only while its route scope
-          // has no replacement input owner. Background output cannot create
-          // this permission, and focus/lifecycle changes revoke it.
-          if (widget.terminalFocus?.context == null) {
-            _pendingTerminalReturnScope = _paneFocus.enclosingScope;
-          }
+        final terminalFocus = widget.terminalFocus;
+        if (terminalFocus?.canRequestFocus != false &&
+            (terminalFocus == null || terminalFocus.parent != null)) {
+          // An unattached node queues requestFocus until a later mount, which
+          // could steal a newer input owner without rechecking these guards.
           widget.onTerminalFocus();
         }
       } else if (_focus.canRequestFocus) {
-        _pendingTerminalReturnScope = null;
+        _pendingTerminalReturn = null;
         _focus.requestFocus();
       }
     });
@@ -499,6 +534,10 @@ class _ComposerPaneState extends State<ComposerPane>
     _lastEnabled = session.enabled;
     final owner = session.controller.ownership;
     if (_lastOwnership != owner && session.enabled && widget.active) {
+      // Native acceptance can take several frames. Capture the editor's
+      // ownership before submitting disables it, even if no live block has
+      // mounted yet. A later poll cannot recover it from route-scope focus.
+      if (owner == ComposerOwnership.submitting) _rememberTerminalReturn();
       if (owner == ComposerOwnership.running ||
           owner == ComposerOwnership.suspended) {
         _transferFocus(

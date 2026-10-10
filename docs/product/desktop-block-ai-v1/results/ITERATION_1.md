@@ -62,8 +62,22 @@ macOS 27 六张新基线的逐图检查、旧新哈希及复验日志在 `build/
 
 已确认异步关闭焦点保护过严：明确接管会暂时清空焦点；菜单关闭后旧 FocusScope 已禁用，焦点会退回 Shell 自身作用域。修复只允许这两种合法过渡，继续保护新编辑框、modal、活动 pane、生命周期和 Reader。`mobile_terminal_modes_test`、`shell_close_protection_test`、`shell_screen_phase2b_test`、`composer_pane_focus_test` 共 **57 项通过**，包含原 4 个失败和 2 项关闭后不得抢走新弹窗焦点的回归；原测试断言未修改。日志为 `focus-regression-tests.log`，单文件格式与严格分析通过。修复将保存为下一候选并重跑完整检查；旧候选日志不改写为新候选证据。
 
-## 下一步
+## 第二候选的完整检查
+
+焦点修复保存为 `87dbcefd455e5eebdbeb0d3f4cfccfcb5c5788e3`。第五轮 `make verify` 首尾工作树干净，运行 583 秒，退出码 **2**；准确时间和提交见 `verify-5-metadata.json`。全部前置检查通过，应用测试 **2,946 通过、1 跳过、0 失败**。macOS 原生冒烟 **4 通过**、真实 PTY **45 通过**，随后 Composer 原生用例在 `composer_acceptance_test.dart:266` 设置选区时失败：`TextSelection(baseOffset: 0, extentOffset: 12)` 超出当时文本范围。该轮没有删减功能断言，也没有登记为完整 gate 通过。Keychain、Debug／Release 重建签名和后续 Xcode 测试尚未执行。
+
+原生诊断确认是产品焦点交接缺陷：提交进入 submitting 会先禁用编辑器，焦点退到页面 scope，既有 running 回调已无法识别原来源。修复后原测试继续通过补全、多条命令和滚动步骤，又在 Ctrl+C 后暴露第二边界：运行中的 Block 先卸载，ready 轮询随后才到。当前凭证记录实际持焦点节点、精确 scope 和可见性版本；仅当原节点被禁用或卸载才承认这种退焦，主动离焦、新输入 owner、pane、modal、生命周期及隐藏再显示均撤销旧凭证。未挂载终端不会排队 requestFocus，避免晚挂载抢走新焦点。
+
+新增 **14 项**焦点回归，相关组合 **72/72 通过**；两文件格式、严格分析及独立复评通过。正式 `composer_acceptance_test.dart` 未修改断言，完整原生流程 **1/1 通过**，日志 `composer-c2-fixed-native-2.log`；最初失败及中间失败日志保留。上述结果来自下一候选的工作树，仍须冻结后重跑完整 gate。
+
+本轮并行核对还发现旧手工验收入口 `tool/macos_acceptance.dart` 只隔离了仓库数据和 portable master key，默认 AI 存储及初始登录 Shell 环境仍沿用开发宿主。新增 opt-in 桌面 PRD 入口复用真实启动及运行图，以独立开发文件存储隔离 AI、主密钥、Profile、布局和本地 Shell HOME；不预置模型，不导入个人凭据，也没有任务注入或自动批准接口。复用 Development bundle，原生窗口位置／尺寸仍共用其 UserDefaults；显式配置 ACP 后仍使用既有登录加载器及宿主 HOME，数据隔离不构成系统 Shell 沙箱。现有三个原生 AI 驱动的内存设置和临时 HOME 边界已分别核对。截图辅助程序只识别指定构建路径的新进程；主窗口视频不替代独立 NSAlert、物理输入或真实 DPI 证明。
+
+新入口的真实启动图测试拦住并修正了额外 ProviderScope 绕过 PTY 配置的问题；最终保持单一生产根 Scope，仅合入验收 AI 存储。启动／复用／拒绝无关目录／本地与 SSH 环境／Keychain 零访问及正常资源关闭组合 **5/5 通过**，日志 `manual-fixture-widget-tests-6.log`；Python 启动器合同 **5/5 通过**。中间失败和主动中止日志保留，测试环境与原生产品问题分别记录。
+
+独立核对原生 AI 驱动发现“失败命令 → 修正命令”流程此前没有重新打开修正结果的引用。新增同一次修正的诊断草稿、审阅、真实结果与 Reader 截图节点，并核对 accepted receipt、原生 submissionId、分页来源、返回后的 task／draft／请求及 Block 计数；原失败保持不变。驱动尚待新候选实际运行，新增断言不预先登记为通过。
+
+## 后续执行
 
 滚动、Reader、关闭保护、单层顶栏和待审定位已完成本轮实现及独立复评。新增关闭用例及相关组合日志为 `close-protection-tests.log`（142 通过）；顶栏／侧栏组合为 `unified-chrome-regression-3.log`（65 通过）；原生窗口检查为 `unified-chrome-native.log`（5 通过）。逐图审阅范围见 `unified-chrome-visual-review.md`；这些数量仍有交叉，不能相加当作唯一覆盖数。
 
-standalone 435 个生成文件已同步。下一步保存焦点修复候选并执行完整 `make verify`，最终结论以真实退出结果为准。冻结候选后按 [桌面逐项表](DESKTOP_COMPARISON.md) 和 [移动逐项表](MOBILE_COMPARISON.md) 补原生／物理／真实模型证据。源码再次变化则重跑影响面，旧 C1/C3 证据身份保持不变。
+standalone 435 个生成文件已同步。原生检查暴露的 Composer 问题已修复，下一步保存新候选并继续完整 `make verify`，最终结论以真实退出结果为准。冻结候选后按 [桌面逐项表](DESKTOP_COMPARISON.md) 和 [移动逐项表](MOBILE_COMPARISON.md) 补原生／物理／真实模型证据。源码再次变化则重跑影响面，旧移动 C1/C3 证据身份保持不变。
