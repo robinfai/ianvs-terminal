@@ -58,6 +58,13 @@ void main() {
   testWidgets(
     'Main AI timeline submits once and returns unchanged TUI grid',
     (tester) async {
+      Map<String, Object?> semanticsSnapshot() => {
+        'at': DateTime.now().toUtc().toIso8601String(),
+        'platform_semantics_enabled':
+            tester.binding.platformDispatcher.semanticsEnabled,
+        'outstanding_handles': tester.binding.debugOutstandingSemanticsHandles,
+      };
+      final semanticsAtStart = semanticsSnapshot();
       ensureMacosIntegrationTestFramesEnabled(tester.binding);
       final fixture = await _ResponseFixture.start();
       addTearDown(fixture.close);
@@ -155,17 +162,11 @@ void main() {
           await tester.pump(const Duration(milliseconds: 350));
         }
         await tester.pump();
-        final boundary =
-            captureKey.currentContext!.findRenderObject()!
-                as RenderRepaintBoundary;
-        final image = await boundary.toImage(pixelRatio: 1);
-        final data = await image.toByteData(format: ui.ImageByteFormat.png);
         await Directory(evidencePath).create(recursive: true);
-        await File(
-          '$evidencePath/$name.png',
-        ).writeAsBytes(data!.buffer.asUint8List());
-        image.dispose();
-        if (nativeCheckpoints && nativeCheckpointNames.contains(name)) {
+        Future<void> captureNative() async {
+          if (!nativeCheckpoints || !nativeCheckpointNames.contains(name)) {
+            return;
+          }
           // Keep this UI checkpoint until the host captures this App's actual
           // window. Periodic sampling can miss a draft or unapproved proposal.
           // This opt-in file handshake captures only; it cannot approve or
@@ -207,6 +208,22 @@ void main() {
           });
           expect(captured, isTrue);
         }
+
+        // The first image must fall inside the real recording interval. The
+        // host acknowledges D01 only after recording_started and foreground
+        // identity checks; the widget image is exported after that handshake.
+        final initial = name == 'D01-initial-mode';
+        if (initial) await captureNative();
+        final boundary =
+            captureKey.currentContext!.findRenderObject()!
+                as RenderRepaintBoundary;
+        final image = await boundary.toImage(pixelRatio: 1);
+        final data = await image.toByteData(format: ui.ImageByteFormat.png);
+        await File(
+          '$evidencePath/$name.png',
+        ).writeAsBytes(data!.buffer.asUint8List());
+        image.dispose();
+        if (!initial) await captureNative();
       }
 
       await tester.pumpWidget(
@@ -1434,6 +1451,12 @@ void main() {
       expect(fixture.requests, requestsBeforePreference);
       expect(runtime.commandBlocks(id, {'limit': 128}), blocksBeforePreference);
       if (evidencePath.isNotEmpty) {
+        final recordingFinished = File(
+          '$evidencePath/native-recording-finished.json',
+        );
+        if (nativeCheckpoints) {
+          expect(recordingFinished.existsSync(), isFalse);
+        }
         await File('$evidencePath/result.json').writeAsString(
           jsonEncode({
             'fixture': 'deterministic local HTTP, not model quality benchmark',
@@ -1479,9 +1502,33 @@ void main() {
             'restoration_is_manual': true,
             'platform_preference_reset_preserved_session_and_output': true,
             'ai_configuration_status_tracks_explicit_save_and_remove': true,
+            'semantics_at_start': semanticsAtStart,
+            'semantics_at_functional_completion': semanticsSnapshot(),
             'completed_at': DateTime.now().toUtc().toIso8601String(),
           }),
         );
+        if (nativeCheckpoints) {
+          // Leave the final App state mounted until the host has stopped and
+          // finalized its real recording. The normal test teardown and its
+          // semantics verification still run after this bounded handshake.
+          final recorded = await tester.runAsync<bool>(() async {
+            final watch = Stopwatch()..start();
+            while (!recordingFinished.existsSync()) {
+              if (watch.elapsed >= const Duration(seconds: 10)) {
+                fail('Native recording finalization timed out');
+              }
+              await Future<void>.delayed(const Duration(milliseconds: 20));
+            }
+            final receipt =
+                jsonDecode(await recordingFinished.readAsString())
+                    as Map<String, dynamic>;
+            expect(receipt['pid'], pid);
+            expect(receipt['status'], 'recorded');
+            expect(receipt['exit_code'], 0);
+            return true;
+          });
+          expect(recorded, isTrue);
+        }
       }
     },
     timeout: const Timeout(Duration(minutes: 5)),
