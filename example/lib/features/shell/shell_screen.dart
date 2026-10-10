@@ -96,6 +96,7 @@ part 'shell_screen_instant_replay.dart';
 part 'shell_screen_mobile_input.dart';
 part 'shell_screen_mobile_navigation.dart';
 part 'shell_screen_models.dart';
+part 'shell_screen_preview_adapter.dart';
 part 'shell_screen_recording_library.dart';
 part 'shell_screen_replay_timeline.dart';
 part 'shell_screen_search.dart';

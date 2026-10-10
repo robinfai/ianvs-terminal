@@ -181,6 +181,7 @@ void main() {
                   buildIanvsTerminalTheme(
                     variant.brightness,
                     platform: TargetPlatform.macOS,
+                    highContrast: variant.highContrast,
                   ),
                 ),
                 builder: (context, child) => MediaQuery(
@@ -216,6 +217,28 @@ void main() {
           fixture.revealSelection();
           await tester.pump(const Duration(milliseconds: 150));
           await tester.pump();
+          final context = tester.element(find.byType(TerminalComposerView));
+          final expectedTheme = buildIanvsTerminalTheme(
+            variant.brightness,
+            platform: TargetPlatform.macOS,
+            highContrast: variant.highContrast,
+          );
+          expect(MediaQuery.highContrastOf(context), variant.highContrast);
+          expect(
+            Theme.of(context).colorScheme.outline,
+            expectedTheme.colorScheme.outline,
+          );
+          expect(
+            Theme.of(context).colorScheme.onSurfaceVariant,
+            expectedTheme.colorScheme.onSurfaceVariant,
+          );
+          final surface = tester.widget<Material>(
+            find.byKey(const Key('composer-surface')),
+          );
+          expect(
+            (surface.shape! as RoundedRectangleBorder).side.color,
+            expectedTheme.extension<ComposerTheme>()!.border,
+          );
           if (scenario == ComposerRedesignScenario.moreMenu ||
               scenario == ComposerRedesignScenario.copyFeedback ||
               scenario == ComposerRedesignScenario.shortcutHelp) {

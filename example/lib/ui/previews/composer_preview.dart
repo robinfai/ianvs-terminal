@@ -309,6 +309,7 @@ class _ComposerRedesignPreviewState extends State<_ComposerRedesignPreview> {
     theme: buildIanvsTerminalTheme(
       widget.brightness,
       platform: TargetPlatform.macOS,
+      highContrast: widget.highContrast,
     ),
     builder: (context, child) => MediaQuery(
       data: MediaQuery.of(context).copyWith(

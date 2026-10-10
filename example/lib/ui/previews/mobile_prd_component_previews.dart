@@ -11,6 +11,7 @@ import '../../features/ai/ai_settings.dart';
 import '../../features/ai/terminal_ai_controller.dart';
 import '../../features/ai/terminal_ai_workspace.dart';
 import '../app_ui.dart';
+import 'ai_observation_preview.dart';
 
 /// Each preview uses the real component. Press/hold and Tab exercise Material's
 /// pressed/focus states; the state selector changes facts, not rendered colours.
@@ -158,7 +159,7 @@ class _MobilePrdComponentPreviewState extends State<MobilePrdComponentPreview> {
             ),
           ),
           Expanded(
-            child: _Fixture(
+            child: TerminalAiComponentFixture(
               key: ValueKey((widget.component, state)),
               component: widget.component,
               state: state,
@@ -170,15 +171,23 @@ class _MobilePrdComponentPreviewState extends State<MobilePrdComponentPreview> {
   );
 }
 
-class _Fixture extends StatefulWidget {
-  const _Fixture({required this.component, required this.state, super.key});
+/// In-memory facts for the production component adapter. Inherits the host's
+/// theme and platform, so desktop catalogues can reuse it without an iOS shell.
+class TerminalAiComponentFixture extends StatefulWidget {
+  const TerminalAiComponentFixture({
+    required this.component,
+    required this.state,
+    super.key,
+  });
   final MobilePrdPreviewComponent component;
   final MobilePrdPreviewState state;
   @override
-  State<_Fixture> createState() => _FixtureState();
+  State<TerminalAiComponentFixture> createState() =>
+      _TerminalAiComponentFixtureState();
 }
 
-class _FixtureState extends State<_Fixture> {
+class _TerminalAiComponentFixtureState
+    extends State<TerminalAiComponentFixture> {
   late final AiSettingsController settings;
   late final _Terminal terminal;
   late final _Api api;
@@ -186,6 +195,7 @@ class _FixtureState extends State<_Fixture> {
   late final CommandBlockController blocks;
   bool ready = false;
   bool readerOpened = false;
+  bool observing = false;
 
   static const source = AiBlockContext(
     id: 'prd-source',
@@ -331,6 +341,21 @@ class _FixtureState extends State<_Fixture> {
   @override
   Widget build(BuildContext context) {
     if (!ready) return const Center(child: CircularProgressIndicator());
+    final resultStyle = ComposerTheme.of(context).resultStyle;
+    final blockFont = const TerminalFontConfig().copyWith(
+      family: resultStyle.fontFamily,
+      fallback: resultStyle.fontFamilyFallback,
+    );
+    if (observing) {
+      return AiObservationPreview(
+        blocks: blocks,
+        onReturn: () => setState(() => observing = false),
+        onPrepareDraft: (command) {
+          task.setDraft(command);
+          setState(() => observing = false);
+        },
+      );
+    }
     if (widget.component == MobilePrdPreviewComponent.block ||
         widget.component == MobilePrdPreviewComponent.readerHeader) {
       if (widget.component == MobilePrdPreviewComponent.readerHeader &&
@@ -343,6 +368,7 @@ class _FixtureState extends State<_Fixture> {
                 context,
                 controller: blocks,
                 id: 'prd-source',
+                font: blockFont,
                 onAttachRange: (_) {},
               ),
             );
@@ -351,6 +377,7 @@ class _FixtureState extends State<_Fixture> {
       }
       return TerminalCommandBlocksView(
         controller: blocks,
+        font: blockFont,
         onReinput: (_) {},
         onReturnToInput: () {},
         onAskAi: (_) {},
@@ -375,8 +402,8 @@ class _FixtureState extends State<_Fixture> {
       controller: task,
       component: component,
       targetLabel: 'ops@staging.example.test',
-      onClose: task.takeOver,
-      onObserveTerminal: () {},
+      onClose: () => setState(() => observing = true),
+      onObserveTerminal: () => setState(() => observing = true),
       removableContext: widget.state != MobilePrdPreviewState.disabled,
       focusDraft: widget.state == MobilePrdPreviewState.focused,
       selectDraft: widget.state == MobilePrdPreviewState.selected,

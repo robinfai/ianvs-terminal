@@ -12,6 +12,7 @@ import '../../features/ai/terminal_ai_controller.dart';
 import '../../features/ai/terminal_ai_retained_timeline.dart';
 import '../../features/ai/terminal_ai_workspace.dart';
 import '../app_ui.dart';
+import 'ai_observation_preview.dart';
 
 @Preview(
   name: 'AI workspace · Review',
@@ -65,6 +66,7 @@ class _AiWorkspacePreviewState extends State<AiWorkspacePreview> {
   late final AiSettingsController settings;
   late final TerminalAiController task;
   late final CommandBlockController blocks;
+  bool observing = false;
   @override
   void initState() {
     super.initState();
@@ -179,28 +181,39 @@ class _AiWorkspacePreviewState extends State<AiWorkspacePreview> {
     ),
     home: Scaffold(
       body: Builder(
-        builder: (context) => TerminalAiWorkspace(
-          controller: task,
-          targetLabel: 'Local Shell',
-          onClose: task.takeOver,
-          onShowEvidence: (reference) => unawaited(
-            showAiEvidenceReader(
-              context,
-              controller: blocks,
-              reference: reference,
-              sourceSessionId: reference.origins.first.sessionId,
-            ),
-          ),
-          timelineBuilder: (items, scroll, follow) => TerminalCommandBlocksView(
-            controller: blocks,
-            onReinput: task.setDraft,
-            timeline: items,
-            scrollController: scroll,
-            followTail: follow,
-            showToolbar: false,
-            chinese: true,
-          ),
-        ),
+        builder: (context) => observing
+            ? AiObservationPreview(
+                blocks: blocks,
+                onReturn: () => setState(() => observing = false),
+                onPrepareDraft: (command) {
+                  task.setDraft(command);
+                  setState(() => observing = false);
+                },
+              )
+            : TerminalAiWorkspace(
+                controller: task,
+                targetLabel: 'Local Shell',
+                onClose: () => setState(() => observing = true),
+                onObserveTerminal: () => setState(() => observing = true),
+                onShowEvidence: (reference) => unawaited(
+                  showAiEvidenceReader(
+                    context,
+                    controller: blocks,
+                    reference: reference,
+                    sourceSessionId: reference.origins.first.sessionId,
+                  ),
+                ),
+                timelineBuilder: (items, scroll, follow) =>
+                    TerminalCommandBlocksView(
+                      controller: blocks,
+                      onReinput: task.setDraft,
+                      timeline: items,
+                      scrollController: scroll,
+                      followTail: follow,
+                      showToolbar: false,
+                      chinese: true,
+                    ),
+              ),
       ),
     ),
   );

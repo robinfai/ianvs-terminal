@@ -300,6 +300,20 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                 ? constraints.maxWidth
                 : constraints.maxHeight) -
             _ShellScreenState._paneDividerDragThickness;
+        double ratioForDelta(double primaryDelta) {
+          if (availablePrimarySize <= 0 || !availablePrimarySize.isFinite) {
+            return node.ratio;
+          }
+          final constrained = _constrainedPaneSplitRatio(
+            sessionController,
+            node,
+            node.ratio + (primaryDelta / availablePrimarySize),
+          );
+          // Read the same model clamp that resizePaneSplit applies, so spoken
+          // next values and boundary actions match the committed layout.
+          return node.resizeSplit(node.id, constrained).ratio;
+        }
+
         return Flex(
           direction: direction,
           children: [
@@ -326,18 +340,11 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
               thickness: _ShellScreenState._paneDividerDragThickness,
               terminalBackground: terminalBackground,
               palette: palette,
+              ratio: node.ratio,
+              increasedRatio: ratioForDelta(_PaneDividerHandle.keyboardStep),
+              decreasedRatio: ratioForDelta(-_PaneDividerHandle.keyboardStep),
               onDragUpdate: (primaryDelta) {
-                if (availablePrimarySize <= 0 ||
-                    !availablePrimarySize.isFinite) {
-                  return;
-                }
-                final nextRatio =
-                    node.ratio + (primaryDelta / availablePrimarySize);
-                final constrainedRatio = _constrainedPaneSplitRatio(
-                  sessionController,
-                  node,
-                  nextRatio,
-                );
+                final constrainedRatio = ratioForDelta(primaryDelta);
                 if ((constrainedRatio - node.ratio).abs() < 0.0001) {
                   return;
                 }

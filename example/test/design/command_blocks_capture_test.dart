@@ -80,6 +80,7 @@ void main() {
               buildIanvsTerminalTheme(
                 scene.brightness,
                 platform: TargetPlatform.macOS,
+                highContrast: scene.contrast,
               ),
             ),
             textScale: scene.scale,
@@ -94,6 +95,28 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.byType(TerminalViewport), findsWidgets);
       expect(find.byType(TerminalComposerView), findsOneWidget);
+      final context = tester.element(find.byType(TerminalComposerView));
+      final expectedTheme = buildIanvsTerminalTheme(
+        scene.brightness,
+        platform: TargetPlatform.macOS,
+        highContrast: scene.contrast,
+      );
+      expect(MediaQuery.highContrastOf(context), scene.contrast);
+      expect(
+        Theme.of(context).colorScheme.outline,
+        expectedTheme.colorScheme.outline,
+      );
+      expect(
+        Theme.of(context).colorScheme.onSurfaceVariant,
+        expectedTheme.colorScheme.onSurfaceVariant,
+      );
+      final surface = tester.widget<Material>(
+        find.byKey(const Key('composer-surface')),
+      );
+      expect(
+        (surface.shape! as RoundedRectangleBorder).side.color,
+        expectedTheme.extension<ComposerTheme>()!.border,
+      );
       if (scene.name == 'short') {
         final actions = find.byKey(const ValueKey('block-actions-1'));
         expect(actions.hitTestable(), findsOneWidget);

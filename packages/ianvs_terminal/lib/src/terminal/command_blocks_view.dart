@@ -885,13 +885,13 @@ class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
                             ),
                           ],
                         ),
-                        InkWell(
-                          key: _commandKeys.putIfAbsent(
+                        _BlockCommandTitle(
+                          commandKey: _commandKeys.putIfAbsent(
                             block.id,
                             GlobalKey.new,
                           ),
+                          tokens: tokens,
                           onTap: () => _select(block.id),
-                          borderRadius: BorderRadius.circular(4),
                           child: Padding(
                             padding: const EdgeInsets.symmetric(vertical: 4),
                             child: Text(
@@ -1140,8 +1140,12 @@ class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
                 Expanded(
                   child: Tooltip(
                     message: '${block.cwd}\n${block.command}',
-                    child: InkWell(
-                      key: _commandKeys.putIfAbsent(block.id, GlobalKey.new),
+                    child: _BlockCommandTitle(
+                      commandKey: _commandKeys.putIfAbsent(
+                        block.id,
+                        GlobalKey.new,
+                      ),
+                      tokens: tokens,
                       onTap: () => _select(block.id),
                       child: Text(
                         block.command,
@@ -1201,4 +1205,110 @@ class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
       );
     },
   );
+}
+
+/// Title interaction is painted above the opaque, selectable block surface.
+/// Both full and short summaries keep the same activation and focus behavior.
+class _BlockCommandTitle extends StatefulWidget {
+  const _BlockCommandTitle({
+    required this.commandKey,
+    required this.tokens,
+    required this.onTap,
+    required this.child,
+  });
+
+  final Key commandKey;
+  final ComposerTheme tokens;
+  final VoidCallback onTap;
+  final Widget child;
+
+  @override
+  State<_BlockCommandTitle> createState() => _BlockCommandTitleState();
+}
+
+class _BlockCommandTitleState extends State<_BlockCommandTitle> {
+  final _states = WidgetStatesController();
+
+  @override
+  void dispose() {
+    _states.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = widget.tokens;
+    double contrast(Color a, Color b) {
+      final first = a.computeLuminance();
+      final second = b.computeLuminance();
+      return first > second
+          ? (first + .05) / (second + .05)
+          : (second + .05) / (first + .05);
+    }
+
+    // A host's accent can clear the normal surface but disappear on hover.
+    // Use its semantic foreground when the supplied focus role cannot retain
+    // a 3:1 edge against every title surface.
+    final focusColor =
+        [
+          tokens.surface,
+          tokens.hover,
+          Color.alphaBlend(
+            tokens.selection.withValues(alpha: .28),
+            tokens.surface,
+          ),
+        ].every((surface) => contrast(tokens.focus, surface) >= 3)
+        ? tokens.focus
+        : tokens.foreground;
+    return ValueListenableBuilder<Set<WidgetState>>(
+      valueListenable: _states,
+      builder: (context, states, child) => Material(
+        type: MaterialType.transparency,
+        animationDuration: MediaQuery.disableAnimationsOf(context)
+            ? Duration.zero
+            : ComposerTheme.stateDuration,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(4),
+          side: states.contains(WidgetState.focused)
+              ? BorderSide(color: focusColor, width: tokens.focusWidth + 1)
+              : BorderSide.none,
+        ),
+        child: Focus(
+          canRequestFocus: false,
+          includeSemantics: false,
+          onKeyEvent: (_, event) {
+            // A title's activation must select that title before the list's
+            // Enter shortcut can re-input an already-selected block.
+            if (event is KeyDownEvent &&
+                event.logicalKey == LogicalKeyboardKey.enter &&
+                !HardwareKeyboard.instance.isAltPressed &&
+                !HardwareKeyboard.instance.isControlPressed &&
+                !HardwareKeyboard.instance.isMetaPressed &&
+                !HardwareKeyboard.instance.isShiftPressed) {
+              widget.onTap();
+              return KeyEventResult.handled;
+            }
+            return KeyEventResult.ignored;
+          },
+          child: InkWell(
+            key: widget.commandKey,
+            statesController: _states,
+            onTap: widget.onTap,
+            borderRadius: BorderRadius.circular(4),
+            // Independent colors keep a simultaneous hover from seeding the
+            // focus ink's fade with an opaque alpha. Focus uses the outline.
+            hoverColor: tokens.hover,
+            highlightColor: tokens.foreground.withValues(alpha: .12),
+            splashColor: tokens.foreground.withValues(alpha: .12),
+            focusColor: tokens.focus.withValues(alpha: 0),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: child,
+            ),
+          ),
+        ),
+      ),
+      child: widget.child,
+    );
+  }
 }

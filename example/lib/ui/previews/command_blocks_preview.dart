@@ -180,7 +180,12 @@ class _CommandBlocksPreviewState extends State<CommandBlocksPreview> {
   @override
   Widget build(BuildContext context) => MaterialApp(
     debugShowCheckedModeBanner: false,
-    theme: widget.theme ?? buildIanvsTerminalTheme(widget.brightness),
+    theme:
+        widget.theme ??
+        buildIanvsTerminalTheme(
+          widget.brightness,
+          highContrast: widget.highContrast,
+        ),
     builder: (context, child) => MediaQuery(
       data: MediaQuery.of(context).copyWith(
         textScaler: TextScaler.linear(widget.textScale),

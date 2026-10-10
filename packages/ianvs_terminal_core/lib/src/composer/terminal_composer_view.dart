@@ -1124,8 +1124,10 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
           );
     return Tooltip(
       message: tooltip,
+      excludeFromSemantics: true,
       child: FilledButton(
         key: const Key('composer-primary-action'),
+        clipBehavior: Clip.none,
         onPressed: model.canPerformPrimaryAction
             ? () {
                 final asksAi = _asksAi;
@@ -1148,19 +1150,60 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(ComposerTheme.controlRadius),
           ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (!iconOnly) Text(label),
-            if (!_touchCompact && !iconOnly) const SizedBox(width: 8),
-            if (!_touchCompact || iconOnly)
-              Icon(
-                accepting ? ComposerIcons.accept : ComposerIcons.run,
-                size: 18,
-                semanticLabel: iconOnly ? label : null,
+          backgroundBuilder: (context, states, child) {
+            final focused =
+                states.contains(WidgetState.focused) &&
+                !states.contains(WidgetState.disabled);
+            final radius = BorderRadius.circular(ComposerTheme.controlRadius);
+            // ButtonStyle.side paints below Material ink. A foreground inner
+            // edge stays visible when hover and keyboard focus coexist; the
+            // primary-colored outer edge separates it from the Dock surface.
+            // Decorations change neither the button bounds nor its focus node.
+            return DecoratedBox(
+              position: DecorationPosition.foreground,
+              decoration: ShapeDecoration(
+                shape: RoundedRectangleBorder(
+                  borderRadius: radius,
+                  side: focused
+                      ? BorderSide(color: tokens.primaryAction, width: 2)
+                      : BorderSide.none,
+                ),
               ),
-          ],
+              child: DecoratedBox(
+                position: DecorationPosition.foreground,
+                decoration: ShapeDecoration(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: radius,
+                    side: focused
+                        ? BorderSide(
+                            color: tokens.onPrimaryAction,
+                            width: tokens.focusWidth + 3,
+                          )
+                        : BorderSide.none,
+                  ),
+                ),
+                child: child,
+              ),
+            );
+          },
+        ),
+        // Merge the explanation into the button's own semantic node. An
+        // ancestor Tooltip can otherwise replace a tooltip-only disabled cause.
+        child: Semantics(
+          hint: tooltip,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (!iconOnly) Text(label),
+              if (!_touchCompact && !iconOnly) const SizedBox(width: 8),
+              if (!_touchCompact || iconOnly)
+                Icon(
+                  accepting ? ComposerIcons.accept : ComposerIcons.run,
+                  size: 18,
+                  semanticLabel: iconOnly ? label : null,
+                ),
+            ],
+          ),
         ),
       ),
     );

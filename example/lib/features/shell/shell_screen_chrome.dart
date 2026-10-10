@@ -2827,13 +2827,19 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
                             }
                             return Colors.transparent;
                           }),
-                          side: WidgetStatePropertyAll(
-                            widget.isActive
+                          side: WidgetStateProperty.resolveWith((states) {
+                            if (states.contains(WidgetState.focused)) {
+                              return BorderSide(
+                                color: widget.palette.focusRing,
+                                width: 2,
+                              );
+                            }
+                            return widget.isActive
                                 ? BorderSide(
                                     color: tone.border.withValues(alpha: 0.34),
                                   )
-                                : BorderSide.none,
-                          ),
+                                : BorderSide.none;
+                          }),
                           shape: WidgetStatePropertyAll(
                             RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(

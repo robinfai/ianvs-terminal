@@ -584,13 +584,29 @@ class _PaneDividerHandle extends StatefulWidget {
     required this.terminalBackground,
     required this.palette,
     required this.onDragUpdate,
-  });
+    this.focusNode,
+    this.ratio,
+    this.increasedRatio,
+    this.decreasedRatio,
+  }) : assert(
+         (ratio == null && increasedRatio == null && decreasedRatio == null) ||
+             (ratio != null &&
+                 increasedRatio != null &&
+                 decreasedRatio != null),
+         'Provide the current, increased and decreased ratios together.',
+       );
+
+  static const keyboardStep = 10.0;
 
   final Axis direction;
   final double thickness;
   final Color terminalBackground;
   final AppThemeTokens palette;
   final ValueChanged<double> onDragUpdate;
+  final FocusNode? focusNode;
+  final double? ratio;
+  final double? increasedRatio;
+  final double? decreasedRatio;
 
   @override
   State<_PaneDividerHandle> createState() => _PaneDividerHandleState();
@@ -599,8 +615,48 @@ class _PaneDividerHandle extends StatefulWidget {
 class _PaneDividerHandleState extends State<_PaneDividerHandle> {
   bool _hovered = false;
   bool _dragging = false;
+  bool _focused = false;
 
-  bool get _active => _hovered || _dragging;
+  bool get _active => _hovered || _dragging || _focused;
+
+  bool get _canIncrease =>
+      widget.ratio == null || widget.increasedRatio! - widget.ratio! >= 0.0001;
+
+  bool get _canDecrease =>
+      widget.ratio == null || widget.ratio! - widget.decreasedRatio! >= 0.0001;
+
+  void _adjust(double delta) {
+    if (delta > 0 ? _canIncrease : _canDecrease) {
+      widget.onDragUpdate(delta);
+    }
+  }
+
+  KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
+    if (!node.hasPrimaryFocus ||
+        (event is! KeyDownEvent && event is! KeyRepeatEvent) ||
+        HardwareKeyboard.instance.isAltPressed ||
+        HardwareKeyboard.instance.isControlPressed ||
+        HardwareKeyboard.instance.isMetaPressed ||
+        HardwareKeyboard.instance.isShiftPressed) {
+      return KeyEventResult.ignored;
+    }
+    final horizontal = widget.direction == Axis.horizontal;
+    final increase = horizontal
+        ? LogicalKeyboardKey.arrowRight
+        : LogicalKeyboardKey.arrowDown;
+    final decrease = horizontal
+        ? LogicalKeyboardKey.arrowLeft
+        : LogicalKeyboardKey.arrowUp;
+    if (event.logicalKey == increase || event.logicalKey == decrease) {
+      _adjust(
+        event.logicalKey == increase
+            ? _PaneDividerHandle.keyboardStep
+            : -_PaneDividerHandle.keyboardStep,
+      );
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
 
   void _setHovered(bool value) {
     if (_hovered == value) {
@@ -626,10 +682,37 @@ class _PaneDividerHandleState extends State<_PaneDividerHandle> {
     final resizeLabel = horizontal
         ? context.l10n.dragResizePanesHorizontally
         : context.l10n.dragResizePanesVertically;
+    final chinese = context.l10n.localeName.startsWith('zh');
+    final keyboardHint = chinese
+        ? (horizontal ? '使用左右方向键调整宽度。' : '使用上下方向键调整高度。')
+        : (horizontal
+              ? 'Use the left and right arrow keys to adjust width.'
+              : 'Use the up and down arrow keys to adjust height.');
+    final boundaryHint = !_canIncrease && !_canDecrease
+        ? (chinese
+              ? '当前空间不足，无法调整窗格大小。'
+              : 'The available space does not allow resizing panes.')
+        : [
+            if (!_canDecrease) chinese ? '已达到最小尺寸。' : 'Minimum size reached.',
+            if (!_canIncrease) chinese ? '已达到最大尺寸。' : 'Maximum size reached.',
+          ].join(' ');
+    String? ratioLabel(double? ratio) {
+      if (ratio == null) return null;
+      final side = chinese
+          ? (horizontal ? '左侧窗格' : '上方窗格')
+          : (horizontal ? 'Left panes' : 'Top panes');
+      return '$side: ${(ratio * 100).toStringAsFixed(1)}%';
+    }
+
+    final duration = MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : const Duration(milliseconds: 90);
     final background = _active
         ? widget.palette.accent.withValues(alpha: _dragging ? 0.16 : 0.09)
         : widget.terminalBackground;
-    final lineColor = _active
+    final lineColor = _focused
+        ? widget.palette.focusRing
+        : _active
         ? widget.palette.accent.withValues(alpha: _dragging ? 0.86 : 0.68)
         : widget.palette.borderStrong.withValues(alpha: 0.72);
     final lineThickness = _active ? 2.0 : 1.0;
@@ -637,57 +720,92 @@ class _PaneDividerHandleState extends State<_PaneDividerHandle> {
     return SizedBox(
       width: horizontal ? widget.thickness : double.infinity,
       height: horizontal ? double.infinity : widget.thickness,
-      child: MouseRegion(
-        cursor: horizontal
-            ? SystemMouseCursors.resizeLeftRight
-            : SystemMouseCursors.resizeUpDown,
-        onEnter: (_) => _setHovered(true),
-        onExit: (_) => _setHovered(false),
-        child: Tooltip(
-          message: resizeLabel,
-          child: Semantics(
-            label: resizeLabel,
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onHorizontalDragStart: horizontal
-                  ? (_) => _setDragging(true)
+      child: Focus(
+        focusNode: widget.focusNode,
+        includeSemantics: false,
+        onFocusChange: (focused) => setState(() => _focused = focused),
+        onKeyEvent: _handleKey,
+        child: MouseRegion(
+          cursor: horizontal
+              ? SystemMouseCursors.resizeLeftRight
+              : SystemMouseCursors.resizeUpDown,
+          onEnter: (_) => _setHovered(true),
+          onExit: (_) => _setHovered(false),
+          child: Tooltip(
+            message: [
+              resizeLabel,
+              keyboardHint,
+              if (boundaryHint.isNotEmpty) boundaryHint,
+            ].join('\n'),
+            excludeFromSemantics: true,
+            child: Semantics(
+              key: Key('shell-pane-divider-semantics-${widget.direction.name}'),
+              label: context.l10n.terminalActionName('resize_pane'),
+              hint: [
+                keyboardHint,
+                if (boundaryHint.isNotEmpty) boundaryHint,
+              ].join(' '),
+              focusable: true,
+              focused: _focused,
+              slider: true,
+              value: ratioLabel(widget.ratio),
+              increasedValue: _canIncrease
+                  ? ratioLabel(widget.increasedRatio)
                   : null,
-              onHorizontalDragEnd: horizontal
-                  ? (_) => _setDragging(false)
+              decreasedValue: _canDecrease
+                  ? ratioLabel(widget.decreasedRatio)
                   : null,
-              onHorizontalDragCancel: horizontal
-                  ? () => _setDragging(false)
+              onIncrease: _canIncrease
+                  ? () => _adjust(_PaneDividerHandle.keyboardStep)
                   : null,
-              onHorizontalDragUpdate: horizontal
-                  ? (details) => widget.onDragUpdate(details.delta.dx)
+              onDecrease: _canDecrease
+                  ? () => _adjust(-_PaneDividerHandle.keyboardStep)
                   : null,
-              onVerticalDragStart: horizontal
-                  ? null
-                  : (_) => _setDragging(true),
-              onVerticalDragEnd: horizontal ? null : (_) => _setDragging(false),
-              onVerticalDragCancel: horizontal
-                  ? null
-                  : () => _setDragging(false),
-              onVerticalDragUpdate: horizontal
-                  ? null
-                  : (details) => widget.onDragUpdate(details.delta.dy),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 90),
-                curve: Curves.easeOutCubic,
-                color: background,
-                child: Align(
-                  alignment: Alignment.center,
-                  child: AnimatedContainer(
-                    key: Key(
-                      'shell-pane-divider-line-${widget.direction.name}',
-                    ),
-                    duration: const Duration(milliseconds: 90),
-                    curve: Curves.easeOutCubic,
-                    width: horizontal ? lineThickness : double.infinity,
-                    height: horizontal ? double.infinity : lineThickness,
-                    decoration: BoxDecoration(
-                      color: lineColor,
-                      borderRadius: BorderRadius.circular(2),
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                excludeFromSemantics: true,
+                onHorizontalDragStart: horizontal
+                    ? (_) => _setDragging(true)
+                    : null,
+                onHorizontalDragEnd: horizontal
+                    ? (_) => _setDragging(false)
+                    : null,
+                onHorizontalDragCancel: horizontal
+                    ? () => _setDragging(false)
+                    : null,
+                onHorizontalDragUpdate: horizontal
+                    ? (details) => widget.onDragUpdate(details.delta.dx)
+                    : null,
+                onVerticalDragStart: horizontal
+                    ? null
+                    : (_) => _setDragging(true),
+                onVerticalDragEnd: horizontal
+                    ? null
+                    : (_) => _setDragging(false),
+                onVerticalDragCancel: horizontal
+                    ? null
+                    : () => _setDragging(false),
+                onVerticalDragUpdate: horizontal
+                    ? null
+                    : (details) => widget.onDragUpdate(details.delta.dy),
+                child: AnimatedContainer(
+                  duration: duration,
+                  curve: Curves.easeOutCubic,
+                  color: background,
+                  child: Align(
+                    alignment: Alignment.center,
+                    child: AnimatedContainer(
+                      key: Key(
+                        'shell-pane-divider-line-${widget.direction.name}',
+                      ),
+                      duration: duration,
+                      curve: Curves.easeOutCubic,
+                      width: horizontal ? lineThickness : double.infinity,
+                      height: horizontal ? double.infinity : lineThickness,
+                      decoration: BoxDecoration(
+                        color: lineColor,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
                     ),
                   ),
                 ),
