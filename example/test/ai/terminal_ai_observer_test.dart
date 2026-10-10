@@ -172,6 +172,60 @@ Future<TerminalAiController> _open(WidgetTester tester, String id) async {
 void main() {
   for (final platform in [TargetPlatform.macOS, TargetPlatform.iOS]) {
     testWidgets(
+      '${platform.name} AI revokes old and current system focus-loss reports',
+      (tester) async {
+        final backend = _Backend();
+        final fixture = await _pump(
+          tester,
+          backend,
+          platform: platform,
+          size: platform == TargetPlatform.macOS
+              ? const Size(1300, 800)
+              : const Size(390, 844),
+        );
+        const modes = TerminalFrameModes(focusTracking: true);
+        fixture.previousInput.sendFocusReport(focused: false, modes: modes);
+        expect(backend.writes.single, ascii.encode('\x1b[O'));
+        backend.writes.clear();
+        final toggleAi = tester
+            .widget<TextButton>(
+              find.byKey(Key('terminal-ai-open-${fixture.id}')),
+            )
+            .onPressed!;
+
+        toggleAi();
+        fixture.previousInput.sendFocusReport(focused: false, modes: modes);
+        final retained =
+            fixture.previousInput.runtime as TerminalProtocolInputSink;
+        retained.sendProtocolInput(
+          fixture.id,
+          Uint8List.fromList(ascii.encode('\x1b[O')),
+        );
+        expect(backend.writes, isEmpty);
+        await _settle(tester);
+        final current = tester
+            .widget<TerminalViewport>(find.byType(TerminalViewport).first)
+            .inputController;
+        current.sendFocusReport(focused: false, modes: modes);
+        expect(backend.writes, isEmpty);
+
+        tester
+            .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
+            .onTakeOver!();
+        await _settle(tester);
+        fixture.previousInput.sendFocusReport(focused: false, modes: modes);
+        current.sendFocusReport(focused: false, modes: modes);
+        expect(backend.writes, isEmpty, reason: 'Old epochs stay revoked.');
+        tester
+            .widget<TerminalViewport>(find.byType(TerminalViewport).first)
+            .inputController
+            .sendFocusReport(focused: false, modes: modes);
+        expect(backend.writes.single, ascii.encode('\x1b[O'));
+      },
+      variant: TargetPlatformVariant.only(platform),
+    );
+
+    testWidgets(
       '${platform.name} opening AI immediately revokes captured Composer Run through same-frame toggles',
       (tester) async {
         final backend = _Backend();
@@ -448,6 +502,16 @@ void main() {
       expect(status(), isNot(contains('Human input')));
       backend.writes.clear();
       fixture.previousInput.sendText('stale human input');
+      const focusModes = TerminalFrameModes(focusTracking: true);
+      fixture.previousInput.sendFocusReport(focused: false, modes: focusModes);
+      final readerInput = tester
+          .widget<TerminalViewport>(find.byType(TerminalViewport).first)
+          .inputController;
+      readerInput.sendFocusReport(focused: false, modes: focusModes);
+      (readerInput.runtime as TerminalProtocolInputSink).sendProtocolInput(
+        fixture.id,
+        Uint8List.fromList(ascii.encode('\x1b[O')),
+      );
       await tester.sendKeyEvent(LogicalKeyboardKey.keyX);
       expect(backend.writes, isEmpty);
       await tester.tap(find.byKey(const Key('pane-evidence-beside')));
@@ -460,6 +524,7 @@ void main() {
       expect(status(), contains('Evidence reader'));
       expect(status(), contains('Human input'));
       fixture.previousInput.sendText('still obsolete after side mode');
+      readerInput.sendFocusReport(focused: false, modes: focusModes);
       expect(backend.writes, isEmpty);
       await tester.tap(find.byKey(const Key('block-reader-close')));
       await _settle(tester);
@@ -467,7 +532,13 @@ void main() {
       expect(status(), isNot(contains('Evidence reader')));
       expect(status(), contains('Human input'));
       fixture.previousInput.sendText('still obsolete after closing');
+      readerInput.sendFocusReport(focused: false, modes: focusModes);
       expect(backend.writes, isEmpty);
+      tester
+          .widget<TerminalViewport>(find.byType(TerminalViewport).first)
+          .inputController
+          .sendFocusReport(focused: false, modes: focusModes);
+      expect(backend.writes.single, ascii.encode('\x1b[O'));
       expect(backend.resizeCalls, hasLength(resizeCount));
       expect(tester.takeException(), isNull);
     },

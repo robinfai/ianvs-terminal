@@ -23,15 +23,25 @@ class TerminalInputController extends terminal.TerminalInputController {
     required super.copySelection,
     required super.readClipboard,
     this.readOnly,
+    this.readOnlyFocusLoss,
   }) : _inputOwner = runtime,
        super(
-         runtime: readOnly == null
+         runtime: readOnly == null && readOnlyFocusLoss == null
              ? runtime
-             : _RevocableInputSink(runtime, readOnly),
+             : _RevocableInputSink(
+                 runtime,
+                 readOnly ?? () => false,
+                 readOnlyFocusLoss: readOnlyFocusLoss,
+               ),
          emulation: _resolveEmulation(emulation),
        );
 
   final bool Function()? readOnly;
+
+  /// Separately revokes the final focus-loss report after a pane loses human
+  /// input ownership. All other input still uses [readOnly]. Defaults to the
+  /// same policy so read-only observers cannot emit terminal reports.
+  final bool Function()? readOnlyFocusLoss;
   final terminal.TerminalInputSink _inputOwner;
 
   @override
@@ -83,7 +93,9 @@ class TerminalInputController extends terminal.TerminalInputController {
     required bool focused,
     terminal.TerminalFrameModes? modes,
   }) {
-    if (isReadOnly) {
+    if (focused
+        ? isReadOnly
+        : (readOnlyFocusLoss ?? readOnly)?.call() ?? false) {
       return;
     }
     super.sendFocusReport(focused: focused, modes: modes);
@@ -132,10 +144,15 @@ class TerminalInputController extends terminal.TerminalInputController {
 // The base controller can await clipboard data or retain a key callback while
 // ownership changes. Every such continuation still uses this revocable sink.
 final class _RevocableInputSink implements terminal.TerminalProtocolInputSink {
-  const _RevocableInputSink(this.delegate, this.readOnly);
+  _RevocableInputSink(
+    this.delegate,
+    this.readOnly, {
+    bool Function()? readOnlyFocusLoss,
+  }) : readOnlyFocusLoss = readOnlyFocusLoss ?? readOnly;
 
   final terminal.TerminalInputSink delegate;
   final bool Function() readOnly;
+  final bool Function() readOnlyFocusLoss;
 
   @override
   void sendInput(String sessionId, Uint8List bytes) {
@@ -144,7 +161,15 @@ final class _RevocableInputSink implements terminal.TerminalProtocolInputSink {
 
   @override
   void sendProtocolInput(String sessionId, Uint8List bytes) {
-    if (readOnly()) return;
+    // A pane can lose focus after the active session has already changed.
+    // Only this exact system report uses the narrower ownership exception;
+    // arbitrary protocol bytes and focus-in remain subject to the input gate.
+    final isFocusLoss =
+        bytes.length == 3 &&
+        bytes[0] == 0x1b &&
+        bytes[1] == 0x5b &&
+        bytes[2] == 0x4f;
+    if (isFocusLoss ? readOnlyFocusLoss() : readOnly()) return;
     final sink = delegate;
     if (sink is terminal.TerminalProtocolInputSink) {
       sink.sendProtocolInput(sessionId, bytes);

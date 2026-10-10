@@ -337,14 +337,21 @@ void main() {
           // the first frame rebuilding the active-pane widgets.
           controller.activateSession(split.left);
           final writesBeforeSwitch = backend.writes.length;
-          viewport.inputController.sendMouseReport(
-            modes: viewport.controller.frame.modes,
-            row: 0,
-            col: 0,
-            button: 2,
-            pressed: true,
-          );
+          for (final button in [0, 1, 2]) {
+            viewport.inputController.sendMouseReport(
+              modes: viewport.controller.frame.modes,
+              row: 0,
+              col: 0,
+              button: button,
+              pressed: true,
+            );
+          }
           expect(backend.writes.length, writesBeforeSwitch);
+          expect(
+            container.read(sessionControllerProvider).activeSessionId,
+            split.left,
+            reason: 'A retained input sink cannot activate its old pane.',
+          );
           await tester.pumpAndSettle();
         } else {
           expect(
@@ -364,6 +371,60 @@ void main() {
       variant: TargetPlatformVariant.only(TargetPlatform.macOS),
     );
   }
+
+  testWidgets(
+    'primary mouse press activates an inactive TUI before its first input byte',
+    (tester) async {
+      final backend = _Backend();
+      final container = await _mount(tester, backend);
+      final split = await _splitWithDraft(tester, container);
+      final runtime = container.read(terminalRuntimeControllerProvider);
+      final frame = runtime.viewportFor(split.right).frame;
+      backend.setFrame(split.right, {
+        'rows': [
+          {'index': 0, 'text': 'TUI receiving the primary press'},
+        ],
+        'cursor': {'row': 0, 'col': 0, 'visible': true},
+        'viewport_cols': frame.viewportCols,
+        'viewport_rows': frame.viewportRows,
+        'modes': {
+          'alternate_screen': true,
+          'mouse_mode': 'normal',
+          'mouse_encoding': 'sgr',
+        },
+      });
+      runtime.refreshSession(split.right);
+      await tester.pumpAndSettle();
+      final draft = split.composer.controller.editor.value;
+      backend.writesBySession.clear();
+
+      final mouse = await tester.startGesture(
+        tester.getCenter(_viewportFinder(split.right)),
+        kind: PointerDeviceKind.mouse,
+      );
+      // No layout or deferred replay may be needed to authorize the down.
+      expect(
+        container.read(sessionControllerProvider).activeSessionId,
+        split.right,
+      );
+      expect(backend.writesBySession, hasLength(1));
+      expect(backend.writesBySession.single.key, split.right);
+      final press = utf8.decode(backend.writesBySession.single.value);
+      expect(press, matches(RegExp(r'^\x1b\[<0;\d+;\d+M$')));
+
+      await mouse.up();
+      await tester.pumpAndSettle();
+      expect(backend.writesBySession, hasLength(2));
+      expect(backend.writesBySession.last.key, split.right);
+      expect(
+        utf8.decode(backend.writesBySession.last.value),
+        '${press.substring(0, press.length - 1)}m',
+      );
+      expect(split.composer.controller.editor.value, draft);
+      expect(backend.submissions, isEmpty);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
 
   testWidgets(
     'DPR-only resize updates native pixels and replay metrics without changing cells',

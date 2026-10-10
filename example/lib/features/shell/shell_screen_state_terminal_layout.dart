@@ -418,6 +418,31 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
       context,
       listen: false,
     );
+    // Focus loss is a system report for the previous pane, which may already
+    // be inactive. It still loses permission with every explicit revocation.
+    // These callbacks also run during viewport teardown, without looking up
+    // ancestors from the deactivated ShellScreen element.
+    bool inputRevoked() =>
+        !mounted ||
+        sessionReadOnly ||
+        inputEpoch != _manualInputEpoch(sessionId) ||
+        readerController.blocksInput ||
+        _readOnlySessionIds.contains(sessionId) ||
+        _openAiSessions.contains(sessionId);
+
+    void activateForPointer(PointerDownEvent event) {
+      // Inspecting another pane must not transfer its input ownership. This
+      // runs before the native viewport emits the press, not in its ancestor
+      // Listener after the event has already reached the input sink.
+      if (mounted &&
+          event.buttons != 0 &&
+          (event.buttons & kSecondaryMouseButton) == 0 &&
+          inputOwnerContainer.read(sessionControllerProvider).activeSessionId !=
+              sessionId) {
+        _activateSession(sessionController, sessionId);
+      }
+    }
+
     final inputController = TerminalInputController(
       sessionId: sessionId,
       runtime: ref.read(terminalRuntimeControllerProvider),
@@ -431,18 +456,11 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
       ),
       copySelection: (text) => ClipboardBridge.copyWithFeedback(context, text),
       readClipboard: ClipboardBridge.paste,
-      // TerminalViewport can emit a final focus-loss report while its element
-      // is being unmounted. Capture the build-time value so that teardown does
-      // not ask Riverpod for an ancestor after ShellScreen is deactivated.
       readOnly: () =>
-          !mounted ||
+          inputRevoked() ||
           inputOwnerContainer.read(sessionControllerProvider).activeSessionId !=
-              sessionId ||
-          sessionReadOnly ||
-          inputEpoch != _manualInputEpoch(sessionId) ||
-          readerController.blocksInput ||
-          _readOnlySessionIds.contains(sessionId) ||
-          _openAiSessions.contains(sessionId),
+              sessionId,
+      readOnlyFocusLoss: inputRevoked,
     );
     final composerSession = !sessionReadOnly
         ? _composerFor(sessionId)
@@ -604,12 +622,7 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
         return Listener(
           key: Key('shell-pane-$sessionId'),
           onPointerDown: (event) {
-            // Inspecting another pane must not transfer its input ownership.
-            if (!isActive &&
-                event.buttons != 0 &&
-                (event.buttons & kSecondaryMouseButton) == 0) {
-              _activateSession(sessionController, sessionId);
-            }
+            activateForPointer(event);
             final frame = viewportController.frame;
             final shouldMiddlePaste =
                 !_openAiSessions.contains(sessionId) &&
@@ -824,6 +837,7 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                                   ),
                                   graphicsDiagnosticSessionId: sessionId,
                                   onHostKeyEvent: onHostKeyEvent,
+                                  onPointerDown: activateForPointer,
                                   onScrollLines: (delta) {
                                     ref
                                         .read(terminalRuntimeControllerProvider)

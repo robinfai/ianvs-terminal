@@ -59,6 +59,7 @@ class TerminalViewport extends StatelessWidget {
     this.optionDragMode = terminal.TerminalOptionDragMode.blockSelection,
     this.focusNode,
     this.onHostKeyEvent,
+    this.onPointerDown,
     this.onOpenLink,
     this.onOpenLinkTarget,
     this.onLinkHoverChanged,
@@ -101,6 +102,7 @@ class TerminalViewport extends StatelessWidget {
   final terminal.TerminalOptionDragMode optionDragMode;
   final FocusNode? focusNode;
   final KeyEventResult Function(KeyEvent event)? onHostKeyEvent;
+  final ValueChanged<PointerDownEvent>? onPointerDown;
   final ValueChanged<String>? onOpenLink;
   final ValueChanged<terminal.TerminalLinkTarget>? onOpenLinkTarget;
   final ValueChanged<terminal.TerminalLinkTarget?>? onLinkHoverChanged;
@@ -147,6 +149,7 @@ class TerminalViewport extends StatelessWidget {
       optionDragMode: optionDragMode,
       focusNode: focusNode,
       onHostKeyEvent: onHostKeyEvent,
+      onPointerDown: onPointerDown,
       onOpenLink: onOpenLink,
       onOpenLinkTarget: onOpenLinkTarget,
       onLinkHoverChanged: onLinkHoverChanged,

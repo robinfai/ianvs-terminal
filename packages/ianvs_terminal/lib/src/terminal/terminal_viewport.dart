@@ -303,6 +303,7 @@ class TerminalViewport extends StatefulWidget {
     this.optionDragMode = TerminalOptionDragMode.blockSelection,
     this.focusNode,
     this.onHostKeyEvent,
+    this.onPointerDown,
     this.onOpenLink,
     this.onOpenLinkTarget,
     this.onLinkHoverChanged,
@@ -381,6 +382,10 @@ class TerminalViewport extends StatefulWidget {
   final TerminalOptionDragMode optionDragMode;
   final FocusNode? focusNode;
   final KeyEventResult Function(KeyEvent event)? onHostKeyEvent;
+
+  /// Called before this viewport handles a pointer press or emits mouse input.
+  /// Hosts can synchronously select the pane receiving the actual event.
+  final ValueChanged<PointerDownEvent>? onPointerDown;
   final ValueChanged<String>? onOpenLink;
   final ValueChanged<TerminalLinkTarget>? onOpenLinkTarget;
   final ValueChanged<TerminalLinkTarget?>? onLinkHoverChanged;
@@ -1318,6 +1323,7 @@ class _TerminalViewportState extends State<TerminalViewport>
   }
 
   void _handlePointerDown(PointerDownEvent event) {
+    widget.onPointerDown?.call(event);
     _altClickDownTime = null;
     _altClickPointer = null;
     _stopScrollMomentum();
