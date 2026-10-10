@@ -101,9 +101,11 @@ fn real_bash(shell: &str, style: &str, has_composer: bool) {
             (false, "/bin/sh -c 'exit 7'", 7),
         ];
         if has_composer {
+            // macOS does not provide /bin/true or /bin/false. The bootstrap
+            // already requires /bin/sh; keep these external exit checks portable.
             commands.extend([
-                (true, "/bin/false", 1),
-                (true, "/bin/true", 0),
+                (true, "/bin/sh -c 'exit 1'", 1),
+                (true, "/bin/sh -c 'exit 0'", 0),
                 (true, "/bin/sh -c 'exit 7'", 7),
             ]);
         }

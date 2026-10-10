@@ -263,6 +263,43 @@ void main() {
       await click(Key('terminal-ai-open-$id'));
       final task = ai();
       await waitFor(() => task.context != null, 'AI context');
+      ValueKey<String> evidenceKeyFor(String blockId) {
+        final references = [
+          for (final entry in task.transcript)
+            if (entry.role == 'assistant' && entry.action == null)
+              for (final match in RegExp(
+                r'\[block:([^:\]\s]{1,128}):(\d+)-(\d+)\]',
+              ).allMatches(entry.text))
+                if (match[1] == blockId)
+                  (
+                    entry: entry,
+                    id: match[1]!,
+                    startLine: int.parse(match[2]!) - 1,
+                    endLine: int.parse(match[3]!),
+                  ),
+        ];
+        expect(references, hasLength(1), reason: 'One summary cites $blockId');
+        final reference = references.single;
+        expect(reference.startLine, greaterThanOrEqualTo(0));
+        expect(reference.endLine, greaterThan(reference.startLine));
+        expect(
+          reference.entry.suppliedEvidence,
+          contains(
+            predicate<AiEvidenceRange>(
+              (origin) =>
+                  origin.id == reference.id &&
+                  origin.sessionId == id &&
+                  origin.first <= reference.startLine + 1 &&
+                  origin.last >= reference.endLine,
+            ),
+          ),
+          reason: 'The displayed citation comes from this Session snapshot',
+        );
+        return ValueKey(
+          'ai-evidence-${reference.id}-${reference.startLine}-${reference.endLine}',
+        );
+      }
+
       expect(task.draft, 'Keep this separate AI draft');
       final proof = File('${home.path}/once.txt');
       fixture.propose('run_command', {
@@ -316,7 +353,7 @@ void main() {
       await tester.pump();
       expect(task.draft, 'Keep this unsent follow-up');
       await capture('D05-follow-up-without-refocusing');
-      await click(ValueKey('ai-evidence-$nativeId-0'));
+      await click(evidenceKeyFor(nativeId));
       await waitFor(
         () =>
             find.byKey(const Key('block-reader-scroll')).evaluate().isNotEmpty,
@@ -475,11 +512,10 @@ void main() {
       final beforeCorrectionReaderRequests = fixture.requests;
       final beforeCorrectionReaderBlocks =
           (runtime.commandBlocks(id)!['blocks']! as List).length;
-      await tester.ensureVisible(
-        find.byKey(ValueKey('ai-evidence-$repairedId-0')),
-      );
+      final correctionEvidenceKey = evidenceKeyFor(repairedId);
+      await tester.ensureVisible(find.byKey(correctionEvidenceKey));
       await capture('D06-correction-result');
-      await click(ValueKey('ai-evidence-$repairedId-0'));
+      await click(correctionEvidenceKey);
       await waitFor(
         () => readerPages.evaluate().isNotEmpty,
         'corrected command opens its original output',
