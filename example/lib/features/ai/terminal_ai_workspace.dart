@@ -18,6 +18,7 @@ import 'terminal_ai_target_notice.dart';
 export 'ai_models.dart' show AiEvidenceReference;
 
 part 'terminal_ai_workspace_preview_adapter.dart';
+part 'terminal_ai_workspace_mobile.dart';
 
 typedef AiTimelineBuilder =
     Widget Function(
@@ -34,6 +35,7 @@ class TerminalAiWorkspace extends StatefulWidget {
     required this.onClose,
     this.onTakeOver,
     this.active = true,
+    this.compactMobile = false,
     this.targetLabel = '',
     this.timelineBuilder,
     this.onInspectContext,
@@ -54,6 +56,10 @@ class TerminalAiWorkspace extends StatefulWidget {
   /// Explicitly revoke AI input before restoring the human terminal owner.
   final VoidCallback? onTakeOver;
   final bool active;
+
+  /// The mobile host already owns session navigation. Opt in to its compact
+  /// task/input presentation without changing standalone or desktop surfaces.
+  final bool compactMobile;
   final String targetLabel;
   final AiTimelineBuilder? timelineBuilder;
   final ValueChanged<AiBlockContext>? onInspectContext;
@@ -95,6 +101,8 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
   bool _resuming = false;
   bool _reconnecting = false;
   bool _draftEditorOpen = false;
+  bool _mobileDetailsOpen = false;
+  String? _mobileRecoveryNotice;
   String? _settingsNotice;
   bool _restoringPosition = false;
   bool _revalidatingPane = false;
@@ -260,6 +268,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
     }
     if (switched) {
       _taskId = c.taskId;
+      _mobileRecoveryNotice = null;
       _follow = c.followingOutput;
       _returnOffset = null;
       _returnAnchor = null;
@@ -394,8 +403,13 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
     super.dispose();
   }
 
+  void _refreshMobile(VoidCallback change) {
+    if (mounted) setState(change);
+  }
+
   Future<void> _submit() async {
     if (!_paneInteractive || c.followUpEnded) return;
+    if (_useCompactMobile && !_mobileCanSubmit) return;
     if (_input.value.composing.isValid && !_input.value.composing.isCollapsed) {
       return;
     }
@@ -1923,7 +1937,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
           },
         );
 
-  Widget _prompt({int maxLines = 4}) => Focus(
+  Widget _prompt({int maxLines = 4, String? hintText, bool dense = false}) => Focus(
     onKeyEvent: (_, event) {
       if (!_input.value.composing.isCollapsed) return KeyEventResult.ignored;
       final keyboard = HardwareKeyboard.instance;
@@ -1972,7 +1986,12 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
         forceStrutHeight: true,
       ),
       decoration: InputDecoration(
-        hintText: t('Ask about this terminal…', '向当前终端提问…'),
+        hintText: hintText ?? t('Ask about this terminal…', '向当前终端提问…'),
+        isDense: dense ? true : null,
+        hintMaxLines: dense ? 1 : null,
+        contentPadding: dense
+            ? const EdgeInsets.symmetric(vertical: 8)
+            : null,
         border: InputBorder.none,
         enabledBorder: InputBorder.none,
         focusedBorder: InputBorder.none,
@@ -2056,7 +2075,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
     ),
   );
 
-  Widget _inputIntentMenu() {
+  Widget _inputIntentMenu({bool condensed = false}) {
     final command = _commandIntent;
     final label =
         '${c.inputIntentChoice == InputIntentChoice.automatic ? t('Auto · ', '自动 · ') : ''}${command ? t('Command', '命令') : 'AI'}';
@@ -2106,7 +2125,9 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
                 label,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.labelLarge,
+                style: condensed
+                    ? Theme.of(context).textTheme.labelSmall
+                    : Theme.of(context).textTheme.labelLarge,
               ),
             ),
             const Icon(Icons.expand_more, size: 18),
@@ -2143,7 +2164,8 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
         _input.text.trim().isNotEmpty &&
         (!c.hasUnresolvedSubmission || !command) &&
         _input.value.composing.isCollapsed &&
-        (!command || c.canRunUserCommand);
+        (!command || c.canRunUserCommand) &&
+        (!_useCompactMobile || _mobileCanSubmit);
     final label = c.hasUnresolvedSubmission && !command
         ? t('Save requirement', '暂存要求')
         : command
@@ -2163,7 +2185,11 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
         ),
         child: iconOnly
             ? Icon(
-                command ? Icons.keyboard_return : Icons.arrow_upward,
+                command
+                    ? Icons.keyboard_return
+                    : _useCompactMobile && c.hasUnresolvedSubmission
+                    ? Icons.save_outlined
+                    : Icons.arrow_upward,
                 semanticLabel: label,
               )
             : Text(label),
@@ -2455,10 +2481,13 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
       final targetNoticeExplainsError =
           c.targetChanged &&
           (c.error == 'stale_context' || c.error == 'target_changed');
-      if ((c.error != null && !targetNoticeExplainsError) ||
-          c.terminalError != null ||
-          c.hasUnresolvedSubmission ||
-          c.followUpEnded) {
+      // Mobile exposes recovery once in the pinned task strip/details sheet.
+      // Original proposals and source/target notices stay in the transcript.
+      if (!_useCompactMobile &&
+          ((c.error != null && !targetNoticeExplainsError) ||
+              c.terminalError != null ||
+              c.hasUnresolvedSubmission ||
+              c.followUpEnded)) {
         items.add(
           CommandBlockTimelineItem.content('error', (_) => _recovery()),
         );
@@ -2498,7 +2527,9 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
                 return KeyEventResult.ignored;
               },
               child: _reviewPresentation(
-                tiny
+                _useCompactMobile
+                    ? _mobilePage(timeline, bounds)
+                    : tiny
                     ? SingleChildScrollView(
                         key: const Key('ai-short-window-scroll'),
                         child: _composer(

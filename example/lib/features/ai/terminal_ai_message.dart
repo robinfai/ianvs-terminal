@@ -160,7 +160,11 @@ class TerminalAiMessage extends StatelessWidget {
               ),
               code: context.ianvsTypography.code.copyWith(
                 fontSize: body.fontSize,
-                backgroundColor: palette.chrome,
+                // Transparent inline spans avoid fragmented dark bars while
+                // fenced blocks keep their own themed container surface.
+                backgroundColor: mobile
+                    ? palette.chrome.withValues(alpha: 0)
+                    : palette.chrome,
               ),
               blockSpacing: mobile ? 12 : 8,
               listIndent: mobile ? 18 : 24,
