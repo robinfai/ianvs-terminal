@@ -44,6 +44,16 @@ class _FixtureStore implements AiConfigurationStore {
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   const evidencePath = String.fromEnvironment('TRAIL_FUSION_EVIDENCE');
+  const nativeCheckpoints = bool.fromEnvironment(
+    'TRAIL_FUSION_NATIVE_CHECKPOINTS',
+  );
+  const nativeCheckpointNames = {
+    'D06-failure-diagnostic-draft',
+    'D06-correction-review',
+    'D06-correction-result',
+    'D06-correction-original-output',
+    'D06-failure-retained-after-correction',
+  };
   testWidgets(
     'Main AI timeline submits once and returns unchanged TUI grid',
     (tester) async {
@@ -154,6 +164,40 @@ void main() {
           '$evidencePath/$name.png',
         ).writeAsBytes(data!.buffer.asUint8List());
         image.dispose();
+        if (nativeCheckpoints && nativeCheckpointNames.contains(name)) {
+          // Keep this UI checkpoint until the host captures this App's actual
+          // window. Periodic sampling can miss a draft or unapproved proposal.
+          // This opt-in file handshake captures only; it cannot approve or
+          // inject actions, and a missing host acknowledgement fails the run.
+          // Only static review checkpoints wait: timing-sensitive observation
+          // tests retain their original pacing and periodic window capture.
+          final captured = await tester.runAsync<bool>(() async {
+            final acknowledgement = File('$evidencePath/native-$name.json');
+            expect(acknowledgement.existsSync(), isFalse);
+            await File(
+              '$evidencePath/native-capture-request.json',
+            ).writeAsString(
+              jsonEncode({'name': name, 'pid': pid}),
+              flush: true,
+            );
+            final deadline = Stopwatch()..start();
+            while (!acknowledgement.existsSync()) {
+              if (deadline.elapsed >= const Duration(seconds: 10)) {
+                fail('Native window capture timed out at $name');
+              }
+              await Future<void>.delayed(const Duration(milliseconds: 20));
+            }
+            final receipt =
+                jsonDecode(await acknowledgement.readAsString())
+                    as Map<String, dynamic>;
+            expect(receipt['name'], name);
+            expect(receipt['pid'], pid);
+            expect(receipt['status'], 'captured');
+            expect(File('$evidencePath/native-$name.png').existsSync(), isTrue);
+            return true;
+          });
+          expect(captured, isTrue);
+        }
       }
 
       await tester.pumpWidget(
@@ -1287,10 +1331,11 @@ void main() {
       await click(const Key('ai-save-settings'));
       await tester.pumpAndSettle();
       // Removing configuration also removes its explicit manual policy. A new
-      // connection starts with the product's current smart-review default.
+      // connection starts with the product's current smart/relaxed default.
       expect(settings.configuration!.toJson(), {
         ...savedAiConfiguration.toJson(),
         'approvalMode': AiApprovalMode.smart.name,
+        'approvalSensitivity': AiApprovalSensitivity.relaxed.name,
       });
       expect(tester.widget<Text>(aiStatus).data, contains('配置已保存'));
       final modeOptions = find.byKey(
