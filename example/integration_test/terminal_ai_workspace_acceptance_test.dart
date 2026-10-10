@@ -48,6 +48,7 @@ void main() {
     'TRAIL_FUSION_NATIVE_CHECKPOINTS',
   );
   const nativeCheckpointNames = {
+    'D01-initial-mode',
     'D06-failure-diagnostic-draft',
     'D06-correction-review',
     'D06-correction-result',
@@ -169,8 +170,9 @@ void main() {
           // window. Periodic sampling can miss a draft or unapproved proposal.
           // This opt-in file handshake captures only; it cannot approve or
           // inject actions, and a missing host acknowledgement fails the run.
-          // Only static review checkpoints wait: timing-sensitive observation
-          // tests retain their original pacing and periodic window capture.
+          // The initial checkpoint also waits for the host to verify this
+          // exact App process is foreground. Later static review checkpoints
+          // retain a shorter deadline; timed observation tests never wait here.
           final captured = await tester.runAsync<bool>(() async {
             final acknowledgement = File('$evidencePath/native-$name.json');
             expect(acknowledgement.existsSync(), isFalse);
@@ -181,8 +183,11 @@ void main() {
               flush: true,
             );
             final deadline = Stopwatch()..start();
+            final timeout = Duration(
+              seconds: name == 'D01-initial-mode' ? 60 : 10,
+            );
             while (!acknowledgement.existsSync()) {
-              if (deadline.elapsed >= const Duration(seconds: 10)) {
+              if (deadline.elapsed >= timeout) {
                 fail('Native window capture timed out at $name');
               }
               await Future<void>.delayed(const Duration(milliseconds: 20));
@@ -193,6 +198,10 @@ void main() {
             expect(receipt['name'], name);
             expect(receipt['pid'], pid);
             expect(receipt['status'], 'captured');
+            if (name == 'D01-initial-mode') {
+              expect(receipt['is_active'], isTrue);
+              expect(receipt['frontmost_pid'], pid);
+            }
             expect(File('$evidencePath/native-$name.png').existsSync(), isTrue);
             return true;
           });
@@ -1227,17 +1236,73 @@ void main() {
         runtime.liveScreen(id)!['rows'],
         runtime.liveScreen(id)!['columns'],
       ), grid);
-      await click(const Key('ai-approve'));
+      Map<String, Object?> approvalOwnership() {
+        final workspace = find.byType(TerminalAiWorkspace);
+        final workspaceElement = workspace.evaluate().firstOrNull;
+        final workspaceWidget =
+            workspaceElement?.widget as TerminalAiWorkspace?;
+        final workspaceFocus = find
+            .descendant(
+              of: workspace,
+              matching: find.byWidgetPredicate(
+                (widget) =>
+                    widget is Focus &&
+                    widget.focusNode?.debugLabel == 'AI task',
+              ),
+            )
+            .evaluate()
+            .map((element) => (element.widget as Focus).focusNode!)
+            .firstOrNull;
+        final primaryFocus = FocusManager.instance.primaryFocus;
+        return {
+          'at': DateTime.now().toUtc().toIso8601String(),
+          'pid': pid,
+          'lifecycle': tester.binding.lifecycleState?.name,
+          'primary_focus': primaryFocus?.debugLabel,
+          'primary_focus_in_workspace':
+              workspaceFocus != null &&
+              (identical(primaryFocus, workspaceFocus) ||
+                  primaryFocus?.ancestors.contains(workspaceFocus) == true),
+          'workspace_has_focus': workspaceFocus?.hasFocus,
+          'workspace_active': workspaceWidget?.active,
+          'workspace_full_screen': workspaceWidget?.fullScreenTerminal,
+          'route_current': workspaceElement == null
+              ? null
+              : ModalRoute.of(workspaceElement)?.isCurrent,
+          'proposal_target_alternate_screen':
+              task.proposalTarget?.alternateScreen,
+          'proposal_target_session_id': task.proposalTarget?.sessionId,
+          'proposal_target_context_id': task.proposalTarget?.contextId,
+        };
+      }
+
+      final approvalPreflight = approvalOwnership();
+      if (evidencePath.isNotEmpty) {
+        await File(
+          '$evidencePath/vim-approval-preflight.json',
+        ).writeAsString(jsonEncode(approvalPreflight));
+      }
+      expect(
+        approvalPreflight['lifecycle'],
+        AppLifecycleState.resumed.name,
+        reason:
+            'Native acceptance requires the test App to be foreground before '
+            'TUI approval; background ownership must not be overridden.',
+      );
       try {
+        await click(const Key('ai-approve'));
         await waitFor(
           () => find.byType(TerminalAiWorkspace).evaluate().isEmpty,
           'approved TUI action returns to read-only observation',
         );
       } on Object {
+        final failureOwnership = approvalOwnership();
         await capture('D12-vim-approval-failure');
         if (evidencePath.isNotEmpty) {
           await File('$evidencePath/vim-approval-failure.json').writeAsString(
             jsonEncode({
+              'ownership_before_approval': approvalPreflight,
+              'ownership_at_failure': failureOwnership,
               'shell': shell(),
               'screen': runtime.liveScreen(id),
               'phase': task.phase.name,
@@ -1250,10 +1315,14 @@ void main() {
               'transcript': [
                 for (final entry in task.transcript)
                   {
+                    'id': entry.id,
                     'role': entry.role,
                     'action': entry.action?.kind.name,
                     'state': entry.state.name,
                     'text': entry.text,
+                    'target_alternate_screen': entry.target?.alternateScreen,
+                    'target_session_id': entry.target?.sessionId,
+                    'target_context_id': entry.target?.contextId,
                   },
               ],
             }),
