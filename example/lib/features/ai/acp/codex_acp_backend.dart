@@ -22,11 +22,13 @@ class CodexAcpBackend implements AgentBackend {
   String? _session;
   AgentToolHandler? _tools;
   AgentEventHandler? _events;
-  bool _running = false;
+  _AcpPromptTurn? _activePrompt;
+  bool get _running => _activePrompt != null;
   bool _acceptUpdates = false;
   final _bridgePermissions = BridgePermissions();
   bool _disposed = false;
   Future<void>? _closing;
+  Future<void>? _disposing;
 
   /// Discovery only reads installation paths; it does not start the agent or
   /// read login credentials.
@@ -70,28 +72,43 @@ class CodexAcpBackend implements AgentBackend {
     },
   };
 
-  Future<void> _connect() async {
-    if (_disposed) throw const AiFailure('cancelled');
+  Future<void> _connect(AiCancellation cancellation) async {
+    void check() {
+      cancellation.check();
+      if (_disposed) throw const AiFailure('cancelled');
+    }
+
+    check();
     if (Platform.isIOS || Platform.isAndroid) {
       throw const AiFailure('acp_desktop_only');
     }
     configuration.validate();
     await _closing;
+    check();
     if (_rpc != null && !_rpc!.closed) return;
-    await _rpc?.dispose();
-    await _bridge?.dispose();
+    await _closeConnection();
+    check();
     _directory ??= await Directory.systemTemp.createTemp('trail-acp-');
+    check();
     final directory = _directory!;
     final home = await Directory('${directory.path}/agent').create();
+    check();
     final cwd = await Directory('${directory.path}/workspace').create();
+    check();
     final credentials = File(readCodexAuthenticationPath());
     final isolatedAuth = File('${home.path}/auth.json');
-    if (!await isolatedAuth.exists()) {
-      if (!await credentials.exists()) {
+    final hasIsolatedAuth = await isolatedAuth.exists();
+    check();
+    if (!hasIsolatedAuth) {
+      final hasCredentials = await credentials.exists();
+      check();
+      if (!hasCredentials) {
         throw const AiFailure('acp_authentication');
       }
       await credentials.copy(isolatedAuth.path);
+      check();
       await Process.run('/bin/chmod', ['600', isolatedAuth.path]);
+      check();
     }
     final bridge = reviewOnly
         ? null
@@ -103,6 +120,7 @@ class CodexAcpBackend implements AgentBackend {
           });
     _bridge = bridge;
     await bridge?.start();
+    check();
     final process = await Process.start(
       configuration.agentCommand,
       configuration.agentArguments,
@@ -136,6 +154,9 @@ class CodexAcpBackend implements AgentBackend {
               active: _running && _acceptUpdates,
             ),
     );
+    // Adopt a process that finished starting after cancellation before checking
+    // the token, so this turn's cleanup still owns and closes it.
+    check();
     final initialized = await rpc.request('initialize', {
       'protocolVersion': 1,
       'clientInfo': {'name': 'trail', 'version': '1.0.0'},
@@ -144,6 +165,7 @@ class CodexAcpBackend implements AgentBackend {
         'terminal': false,
       },
     });
+    check();
     if (initialized['protocolVersion'] != 1 ||
         (initialized['agentInfo'] as Map?)?['name'] !=
             '@agentclientprotocol/codex-acp' ||
@@ -170,6 +192,7 @@ class CodexAcpBackend implements AgentBackend {
         ],
       },
     );
+    check();
     _session ??= session['sessionId']! as String;
     final options = (session['configOptions'] as List? ?? [])
         .cast<Map<Object?, Object?>>();
@@ -182,6 +205,7 @@ class CodexAcpBackend implements AgentBackend {
       'configId': model['id'],
       'value': configuration.model,
     });
+    check();
     final verified = (configured['configOptions'] as List? ?? [])
         .cast<Map<Object?, Object?>>()
         .where((o) => o['id'] == model['id'])
@@ -206,23 +230,48 @@ class CodexAcpBackend implements AgentBackend {
     required AgentEventHandler events,
     required AiCancellation cancellation,
   }) async {
-    if (_running) throw const AiFailure('acp_busy');
-    _running = true;
+    cancellation.check();
+    while (_activePrompt != null) {
+      final previous = _activePrompt!;
+      if (!previous.cancellation.isCancelled) {
+        throw const AiFailure('acp_busy');
+      }
+      // A supplement can arrive synchronously after cancellation. The old
+      // connect and its cleanup must quiesce before replacing shared handlers.
+      await previous.finished.future;
+      cancellation.check();
+    }
+    if (_disposed) throw const AiFailure('cancelled');
+    final turn = _activePrompt = _AcpPromptTurn();
     _tools = tools;
     _events = events;
-    final cancelled = Completer<void>();
-    var finished = false;
-    cancellation.onCancel(() {
-      if (finished) return;
-      if (!cancelled.isCompleted) cancelled.complete();
+    cancellation.onCancel(turn.cancellation.cancel);
+    turn.cancellation.onCancel(() {
+      if (turn.finished.isCompleted) return;
+      if (!turn.cancelled.isCompleted) turn.cancelled.complete();
+      _acceptUpdates = false;
+      _tools = null;
+      _events = null;
       final rpc = _rpc;
       if (rpc != null && !rpc.closed && _session != null) {
-        rpc.notify('session/cancel', {'sessionId': _session});
+        try {
+          rpc.notify('session/cancel', {'sessionId': _session});
+        } on Object {
+          // Closing the transport also cancels a prompt if notification fails.
+        }
+      }
+      if (rpc != null) {
+        _rpc = null;
+        final closing = _closing = rpc.dispose();
+        // Closing the RPC rejects even session-less initialize/new requests.
+        // Keep the bridge until _connect has drained: start() may still own an
+        // in-flight bind that needs to finish before it can be closed.
+        unawaited(closing.then<void>((_) {}, onError: (Object _) {}));
       }
     });
     try {
-      await _connect();
-      cancellation.check();
+      await _connect(turn.cancellation);
+      turn.cancellation.check();
       _acceptUpdates = true;
       final rpc = _rpc!;
       final result = await Future.any<Map<String, Object?>>([
@@ -232,9 +281,9 @@ class CodexAcpBackend implements AgentBackend {
             {'type': 'text', 'text': prompt},
           ],
         }, timeout: const Duration(hours: 2)),
-        cancelled.future.then((_) => throw const AiFailure('cancelled')),
+        turn.cancelled.future.then((_) => throw const AiFailure('cancelled')),
       ]);
-      cancellation.check();
+      turn.cancellation.check();
       final quota = (result['_meta'] as Map?)?['quota'] as Map?;
       final models = quota?['model_usage'] as List?;
       if (models == null ||
@@ -244,29 +293,55 @@ class CodexAcpBackend implements AgentBackend {
       }
       events({'sessionUpdate': 'trail_complete', ...result});
     } on Object {
-      final rpc = _rpc;
-      _rpc = null;
-      _closing = rpc?.dispose();
+      try {
+        await _closeConnection();
+      } on Object {
+        // Preserve the original protocol failure; a canceled turn is normalized
+        // below regardless of which transport request first noticed shutdown.
+      }
+      turn.cancellation.check();
       rethrow;
     } finally {
-      finished = true;
       _acceptUpdates = false;
       _bridgePermissions.clear();
-      _running = false;
       _tools = null;
       _events = null;
+      _activePrompt = null;
+      turn.finished.complete();
     }
   }
 
+  Future<void> _closeConnection() {
+    final rpc = _rpc;
+    final bridge = _bridge;
+    _rpc = null;
+    _bridge = null;
+    return _closing = Future.wait<void>([
+      ?_closing,
+      if (rpc != null) rpc.dispose(),
+      if (bridge != null) bridge.dispose(),
+    ]).then((_) {});
+  }
+
   @override
-  Future<void> dispose() async {
+  Future<void> dispose() => _disposing ??= _dispose();
+
+  Future<void> _dispose() async {
     _disposed = true;
+    final turn = _activePrompt;
+    turn?.cancellation.cancel();
+    await turn?.finished.future;
     _tools = null;
-    await _rpc?.dispose();
-    await _closing;
-    await _bridge?.dispose();
+    _events = null;
+    await _closeConnection();
     if (_directory != null && await _directory!.exists()) {
       await _directory!.delete(recursive: true);
     }
   }
+}
+
+class _AcpPromptTurn {
+  final cancellation = AiCancellation();
+  final cancelled = Completer<void>();
+  final finished = Completer<void>();
 }

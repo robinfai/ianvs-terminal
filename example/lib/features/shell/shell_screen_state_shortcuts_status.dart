@@ -204,7 +204,10 @@ extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
     return LocalTerminalShortcutFormatter.bindingLabel(binding);
   }
 
-  _ShellShortcut? _shortcutActionFor(KeyEvent event) {
+  _ShellShortcut? _shortcutActionFor(
+    KeyEvent event, {
+    bool composerFocused = false,
+  }) {
     final isMetaPressed = HardwareKeyboard.instance.isMetaPressed;
     final isControlPressed = HardwareKeyboard.instance.isControlPressed;
     final isShiftPressed = HardwareKeyboard.instance.isShiftPressed;
@@ -215,11 +218,29 @@ extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
         ? isMetaPressed && !isControlPressed
         : isControlPressed && !isMetaPressed;
 
+    // An app/global remap must not replace typing or standard editor commands.
+    // Composer handles its own editing keys before they reach this ancestor.
+    if (composerFocused &&
+        (!usesAppModifier ||
+            const [
+              LogicalKeyboardKey.keyA,
+              LogicalKeyboardKey.keyC,
+              LogicalKeyboardKey.keyV,
+              LogicalKeyboardKey.keyX,
+              LogicalKeyboardKey.keyY,
+              LogicalKeyboardKey.keyZ,
+            ].contains(event.logicalKey))) {
+      return null;
+    }
+
     for (final scope in const <TerminalKeyBindingScope>[
       TerminalKeyBindingScope.terminalFocused,
       TerminalKeyBindingScope.focusedApp,
       TerminalKeyBindingScope.global,
     ]) {
+      if (composerFocused && scope == TerminalKeyBindingScope.terminalFocused) {
+        continue;
+      }
       final actionId = ShellShortcutBridge.resolve(
         key: event.logicalKey,
         usesMetaShortcuts: usesMetaShortcuts,
@@ -231,6 +252,13 @@ extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
         config: _keybindingsConfig,
       );
       if (actionId != null) {
+        // Moving a terminal action into an app scope does not give it access
+        // to the PTY while the local draft editor owns keyboard input.
+        if (composerFocused &&
+            ShellActionRegistry.actions[actionId]?.terminalInputPolicy !=
+                TerminalInputPolicy.appFirst) {
+          return null;
+        }
         return _ShellShortcut(actionId);
       }
     }

@@ -6,10 +6,12 @@ import 'package:app/features/ai/ai_models.dart';
 import 'package:app/features/ai/ai_settings.dart';
 import 'package:app/features/ai/terminal_ai_controller.dart';
 import 'package:app/features/ai/terminal_ai_workspace.dart';
+import 'package:app/features/config/local_terminal_config_models.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/recording/local_session_recording_repository.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/sessions/session_state.dart';
+import 'package:app/features/shell/shell_action_registry.dart';
 import 'package:app/features/shell/shell_screen.dart';
 import 'package:app/features/terminal_composer/composer_pane.dart';
 import 'package:flutter/foundation.dart';
@@ -243,6 +245,7 @@ _pump(
   _Backend backend, {
   TargetPlatform platform = TargetPlatform.macOS,
   LocalSessionRecordingRepository? recordingRepository,
+  LocalTerminalConfigDocument? config,
 }) async {
   debugDefaultTargetPlatformOverride = platform;
   final size = platform == TargetPlatform.macOS
@@ -280,7 +283,7 @@ _pump(
           MemoryAppPreferencesRepository(null),
         ),
         localTerminalConfigRepositoryProvider.overrideWithValue(
-          MemoryLocalTerminalConfigRepository(null),
+          MemoryLocalTerminalConfigRepository(config),
         ),
         pasteHistoryRepositoryProvider.overrideWithValue(
           MemoryPasteHistoryRepository(),
@@ -351,6 +354,96 @@ Future<ComposerPaneSession> _enterCommandDraft(
   await _settle(tester);
   expect(session.controller.editor.text, draft);
   return session;
+}
+
+Finder _commandEditor(String id) => find.descendant(
+  of: find.byWidgetPredicate(
+    (widget) => widget is ComposerPane && widget.session.sessionId == id,
+  ),
+  matching: find.byType(EditableText),
+);
+
+void _expectComposerFocus(WidgetTester tester, String id) {
+  final editor = tester.widget<EditableText>(_commandEditor(id));
+  expect(FocusManager.instance.primaryFocus, same(editor.focusNode));
+}
+
+Future<void> _sendMetaShortcut(
+  WidgetTester tester,
+  LogicalKeyboardKey key, {
+  bool shift = false,
+}) async {
+  await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft, platform: 'macos');
+  if (shift) {
+    await tester.sendKeyDownEvent(
+      LogicalKeyboardKey.shiftLeft,
+      platform: 'macos',
+    );
+  }
+  await tester.sendKeyDownEvent(key, platform: 'macos');
+  await tester.sendKeyUpEvent(key, platform: 'macos');
+  if (shift) {
+    await tester.sendKeyUpEvent(
+      LogicalKeyboardKey.shiftLeft,
+      platform: 'macos',
+    );
+  }
+  await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft, platform: 'macos');
+  await _settle(tester);
+}
+
+Future<
+  ({
+    ProviderContainer container,
+    String firstId,
+    String secondId,
+    ComposerPaneSession first,
+    ComposerPaneSession second,
+  })
+>
+_pumpComposerTabs(
+  WidgetTester tester,
+  _Backend backend, {
+  LocalTerminalConfigDocument? config,
+}) async {
+  final (:container, :id, :profile) = await _pump(
+    tester,
+    backend,
+    config: config,
+  );
+  final first = await _enterCommandDraft(tester, id, 'printf first-draft');
+  final secondId = container
+      .read(sessionControllerProvider.notifier)
+      .createSession(profile)!;
+  await _settle(tester);
+  final second = await _enterCommandDraft(
+    tester,
+    secondId,
+    'printf second-draft',
+  );
+  _expectComposerFocus(tester, secondId);
+  expect(container.read(sessionControllerProvider).activeSessionId, secondId);
+  return (
+    container: container,
+    firstId: id,
+    secondId: secondId,
+    first: first,
+    second: second,
+  );
+}
+
+void _composerShortcutTest(
+  String description,
+  Future<void> Function(WidgetTester) body,
+) {
+  testWidgets(description, (tester) async {
+    try {
+      await body(tester);
+    } finally {
+      await tester.pumpWidget(const SizedBox.shrink());
+      debugDefaultTargetPlatformOverride = null;
+    }
+  });
 }
 
 // Keep the production HTTP client and independent reviewer paths, while making
@@ -522,6 +615,329 @@ void main() {
     tearDown(() {
       debugDefaultTargetPlatformOverride = null;
     });
+
+    _composerShortcutTest(
+      'Composer command-number switches tabs while preserving both drafts',
+      (tester) async {
+        final backend = _Backend();
+        final tabs = await _pumpComposerTabs(tester, backend);
+        final runtime = tabs.container.read(terminalRuntimeControllerProvider);
+        final firstViewport = runtime.existingViewportFor(tabs.firstId);
+        final secondViewport = runtime.existingViewportFor(tabs.secondId);
+
+        await _sendMetaShortcut(tester, LogicalKeyboardKey.digit1);
+
+        expect(
+          tabs.container.read(sessionControllerProvider).activeSessionId,
+          tabs.firstId,
+        );
+        expect(tabs.first.controller.editor.text, 'printf first-draft');
+        expect(tabs.second.controller.editor.text, 'printf second-draft');
+        _expectComposerFocus(tester, tabs.firstId);
+        await _sendMetaShortcut(tester, LogicalKeyboardKey.digit2);
+        expect(
+          tabs.container.read(sessionControllerProvider).activeSessionId,
+          tabs.secondId,
+        );
+        _expectComposerFocus(tester, tabs.secondId);
+        expect(runtime.existingViewportFor(tabs.firstId), same(firstViewport));
+        expect(
+          runtime.existingViewportFor(tabs.secondId),
+          same(secondViewport),
+        );
+        expect(backend.closeAttempts, isEmpty);
+        expect(backend.submissions, isEmpty);
+        expect(backend.writes, isEmpty);
+      },
+    );
+
+    _composerShortcutTest(
+      'Composer command-w opens only the active tab close guard and cancel preserves drafts',
+      (tester) async {
+        final backend = _Backend();
+        final tabs = await _pumpComposerTabs(tester, backend);
+
+        await _sendMetaShortcut(tester, LogicalKeyboardKey.keyW);
+
+        final dialog = find.byKey(const Key('shell-close-protection'));
+        expect(dialog, findsOneWidget);
+        expect(
+          find.descendant(
+            of: dialog,
+            matching: find.textContaining('Session ${tabs.secondId}'),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: dialog,
+            matching: find.textContaining('Session ${tabs.firstId}'),
+          ),
+          findsNothing,
+        );
+        expect(
+          find.descendant(
+            of: dialog,
+            matching: find.text('printf second-draft'),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: dialog,
+            matching: find.text('printf first-draft'),
+          ),
+          findsNothing,
+        );
+        expect(backend.closeAttempts, isEmpty);
+
+        await _cancel(tester);
+
+        expect(dialog, findsNothing);
+        expect(
+          tabs.container.read(sessionControllerProvider).activeSessionId,
+          tabs.secondId,
+        );
+        expect(
+          tabs.container.read(sessionControllerProvider).tabs,
+          hasLength(2),
+        );
+        expect(tabs.first.controller.editor.text, 'printf first-draft');
+        expect(tabs.second.controller.editor.text, 'printf second-draft');
+        expect(backend.closeAttempts, isEmpty);
+        expect(backend.submissions, isEmpty);
+        expect(backend.writes, isEmpty);
+      },
+    );
+
+    _composerShortcutTest(
+      'Composer editing IME and modal input keep tab shortcuts scoped',
+      (tester) async {
+        final backend = _Backend();
+        final tabs = await _pumpComposerTabs(tester, backend);
+        await tester.enterText(_commandEditor(tabs.secondId), 'printf edited');
+        await _settle(tester);
+        _expectComposerFocus(tester, tabs.secondId);
+        await _sendMetaShortcut(tester, LogicalKeyboardKey.keyZ);
+        expect(tabs.second.controller.editor.text, 'printf second-draft');
+        await _sendMetaShortcut(tester, LogicalKeyboardKey.keyZ, shift: true);
+        expect(tabs.second.controller.editor.text, 'printf edited');
+        await _sendMetaShortcut(tester, LogicalKeyboardKey.keyK);
+        expect(backend.clearedSessions, isEmpty);
+
+        tester.testTextInput.updateEditingValue(
+          const TextEditingValue(
+            text: 'printf composing',
+            selection: TextSelection.collapsed(offset: 16),
+            composing: TextRange(start: 7, end: 16),
+          ),
+        );
+        await _settle(tester);
+        expect(
+          tabs.second.controller.editor.value.composing.isCollapsed,
+          isFalse,
+        );
+        await _sendMetaShortcut(tester, LogicalKeyboardKey.digit1);
+        await _sendMetaShortcut(tester, LogicalKeyboardKey.keyW);
+        expect(
+          tabs.container.read(sessionControllerProvider).activeSessionId,
+          tabs.secondId,
+        );
+        expect(find.byKey(const Key('shell-close-protection')), findsNothing);
+        expect(tabs.second.controller.editor.text, 'printf composing');
+
+        tester.testTextInput.updateEditingValue(
+          tabs.second.controller.editor.value.copyWith(
+            composing: TextRange.empty,
+          ),
+        );
+        await _settle(tester);
+        unawaited(
+          showDialog<void>(
+            context: tester.element(find.byType(ShellScreen)),
+            builder: (_) => const AlertDialog(
+              content: TextField(
+                key: Key('shortcut-modal-editor'),
+                autofocus: true,
+              ),
+            ),
+          ),
+        );
+        await _settle(tester);
+        final modalEditor = find.descendant(
+          of: find.byKey(const Key('shortcut-modal-editor')),
+          matching: find.byType(EditableText),
+        );
+        expect(
+          FocusManager.instance.primaryFocus,
+          same(tester.widget<EditableText>(modalEditor).focusNode),
+        );
+        await _sendMetaShortcut(tester, LogicalKeyboardKey.digit1);
+        await _sendMetaShortcut(tester, LogicalKeyboardKey.keyW);
+        expect(find.byKey(const Key('shortcut-modal-editor')), findsOneWidget);
+        expect(find.byKey(const Key('shell-close-protection')), findsNothing);
+        expect(
+          tabs.container.read(sessionControllerProvider).activeSessionId,
+          tabs.secondId,
+        );
+        expect(tabs.second.controller.editor.text, 'printf composing');
+        expect(backend.closeAttempts, isEmpty);
+        expect(backend.submissions, isEmpty);
+        expect(backend.writes, isEmpty);
+      },
+    );
+
+    _composerShortcutTest(
+      'Composer app remaps preserve editing and cannot send terminal input',
+      (tester) async {
+        String? copied;
+        var clipboardReads = 0;
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          (call) async {
+            if (call.method == 'Clipboard.setData') {
+              copied = (call.arguments as Map)['text'] as String;
+            } else if (call.method == 'Clipboard.getData') {
+              clipboardReads++;
+              return {'text': 'printf pasted'};
+            }
+            return null;
+          },
+        );
+        addTearDown(() {
+          tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+            SystemChannels.platform,
+            null,
+          );
+        });
+        final backend = _Backend();
+        final tabs = await _pumpComposerTabs(
+          tester,
+          backend,
+          config: const LocalTerminalConfigDocument(
+            keybindings: LocalTerminalKeybindingsConfig(
+              overrides: {
+                TerminalActionId.newTab: LocalTerminalKeyBindingOverride(
+                  binding: LocalTerminalKeyBinding(
+                    scope: TerminalKeyBindingScope.global,
+                    key: 'Key A',
+                    meta: true,
+                  ),
+                ),
+                TerminalActionId.newSshSession: LocalTerminalKeyBindingOverride(
+                  binding: LocalTerminalKeyBinding(
+                    scope: TerminalKeyBindingScope.global,
+                    key: 'Key C',
+                    meta: true,
+                  ),
+                ),
+                TerminalActionId.closeActiveTab:
+                    LocalTerminalKeyBindingOverride(
+                      binding: LocalTerminalKeyBinding(
+                        scope: TerminalKeyBindingScope.global,
+                        key: 'Key Z',
+                        meta: true,
+                      ),
+                    ),
+                TerminalActionId.openDefaults: LocalTerminalKeyBindingOverride(
+                  binding: LocalTerminalKeyBinding(
+                    scope: TerminalKeyBindingScope.global,
+                    key: 'Key V',
+                    meta: true,
+                  ),
+                ),
+                TerminalActionId.paste: LocalTerminalKeyBindingOverride(
+                  binding: LocalTerminalKeyBinding(
+                    scope: TerminalKeyBindingScope.global,
+                    key: 'Key L',
+                    meta: true,
+                  ),
+                ),
+                TerminalActionId.clearBuffer: LocalTerminalKeyBindingOverride(
+                  binding: LocalTerminalKeyBinding(
+                    scope: TerminalKeyBindingScope.global,
+                    key: 'Key B',
+                    meta: true,
+                  ),
+                ),
+              },
+            ),
+          ),
+        );
+
+        await tester.enterText(_commandEditor(tabs.secondId), 'printf edited');
+        await _settle(tester);
+        await _sendMetaShortcut(tester, LogicalKeyboardKey.keyZ);
+        expect(tabs.second.controller.editor.text, 'printf second-draft');
+        await _sendMetaShortcut(tester, LogicalKeyboardKey.keyA);
+        expect(
+          tabs.second.controller.editor.selection,
+          const TextSelection(baseOffset: 0, extentOffset: 19),
+        );
+        await _sendMetaShortcut(tester, LogicalKeyboardKey.keyC);
+        expect(copied, 'printf second-draft');
+        await _sendMetaShortcut(tester, LogicalKeyboardKey.keyV);
+        expect(tabs.second.controller.editor.text, 'printf pasted');
+        final editorClipboardReads = clipboardReads;
+        await _sendMetaShortcut(tester, LogicalKeyboardKey.keyL);
+        await _sendMetaShortcut(tester, LogicalKeyboardKey.keyB);
+        expect(clipboardReads, editorClipboardReads);
+        expect(backend.clearedSessions, isEmpty);
+        expect(find.byKey(const Key('shell-close-protection')), findsNothing);
+        expect(find.byKey(const Key('defaults-dialog')), findsNothing);
+        expect(find.byKey(const Key('new-session-launcher')), findsNothing);
+        expect(
+          tabs.container.read(sessionControllerProvider).tabs,
+          hasLength(2),
+        );
+        expect(
+          tabs.container.read(sessionControllerProvider).activeSessionId,
+          tabs.secondId,
+        );
+        expect(tabs.second.controller.editor.text, 'printf pasted');
+        expect(backend.closeAttempts, isEmpty);
+        expect(backend.submissions, isEmpty);
+        expect(backend.writes, isEmpty);
+      },
+    );
+
+    _composerShortcutTest(
+      'Composer honors app shortcut remaps before numeric tab fallback',
+      (tester) async {
+        final backend = _Backend();
+        final tabs = await _pumpComposerTabs(
+          tester,
+          backend,
+          config: LocalTerminalConfigDocument(
+            keybindings: LocalTerminalKeybindingsConfig(
+              overrides: {
+                TerminalActionId.closeActiveTab:
+                    LocalTerminalKeyBindingOverride(
+                      binding: LocalTerminalKeyBinding(
+                        scope: TerminalKeyBindingScope.focusedApp,
+                        key: LogicalKeyboardKey.digit1.debugName!,
+                        meta: true,
+                      ),
+                    ),
+              },
+            ),
+          ),
+        );
+        await _sendMetaShortcut(tester, LogicalKeyboardKey.keyW);
+        expect(find.byKey(const Key('shell-close-protection')), findsNothing);
+        await _sendMetaShortcut(tester, LogicalKeyboardKey.digit1);
+        expect(find.byKey(const Key('shell-close-protection')), findsOneWidget);
+        expect(
+          tabs.container.read(sessionControllerProvider).activeSessionId,
+          tabs.secondId,
+        );
+        await _cancel(tester);
+        expect(tabs.second.controller.editor.text, 'printf second-draft');
+        expect(backend.closeAttempts, isEmpty);
+        expect(backend.submissions, isEmpty);
+        expect(backend.writes, isEmpty);
+      },
+    );
 
     testWidgets(
       'pending proposal cancellation preserves state and permits copying draft',

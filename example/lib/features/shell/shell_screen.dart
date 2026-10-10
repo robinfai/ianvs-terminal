@@ -824,11 +824,28 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       }
       final editor = focusedEditableTextForCurrentRoute();
       if (editor != null) {
-        return KeyEventResult.ignored;
+        final composer = editor.context
+            .findAncestorWidgetOfExactType<ComposerPane>();
+        if (_shellModalInputBlocked ||
+            composer == null ||
+            !composer.active ||
+            !composer.available ||
+            composer.session.sessionId != activeSessionId ||
+            !identical(
+              editor.widget.controller,
+              composer.session.controller.editor,
+            ) ||
+            !identical(editor.widget.focusNode, composer.session.editorFocus) ||
+            !editor.textEditingValue.composing.isCollapsed) {
+          return KeyEventResult.ignored;
+        }
       }
       if (_shellModalInputBlocked) return KeyEventResult.handled;
 
-      final shortcut = _shortcutActionFor(event);
+      final shortcut = _shortcutActionFor(
+        event,
+        composerFocused: editor != null,
+      );
       if (shortcut == null) {
         return KeyEventResult.ignored;
       }

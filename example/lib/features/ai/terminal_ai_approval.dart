@@ -35,7 +35,10 @@ extension _TerminalAiApproval on TerminalAiController {
         target: expected,
         userRequests: [
           for (final entry in task.transcript)
-            if (entry.role == 'user') entry.text,
+            // Unsent and withdrawn requirements remain visible audit records,
+            // but only sent user messages supply authorization for review.
+            if (entry.role == 'user' && entry.state == AiEntryState.message)
+              entry.text,
         ],
         cancellation: cancellation,
       );
