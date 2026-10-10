@@ -1,0 +1,77 @@
+{
+  "record_kind": "operator reconstruction of this turn CUA/tool transcript; not raw AX/event trace",
+  "recorded_at": "2026-10-10T11:59:40.094400+00:00",
+  "source_commit": "2d18e608c2a1149a093451b5246cb370de0167c3",
+  "app_pid": 3809,
+  "window_id": 31358,
+  "events": [
+    {
+      "step": 1,
+      "action": "A normal tab context menu -> Blocks; paste exact identity command, inspect AX, Return",
+      "observed": "One successful Block. A PID3929 /dev/ttys008. Command: printf identity only."
+    },
+    {
+      "step": 2,
+      "action": "Paste unsubmitted A draft; normal New tab selector -> fixture local Shell B",
+      "observed": "A draft printf C10_AX2_DRAFT_A >> \"$TMPDIR/ax2-unexpected-command.log\" not submitted. B Raw Session2, PID17469 /dev/ttys016."
+    },
+    {
+      "step": 3,
+      "action": "While B active, right-click A -> Close tab",
+      "observed": "Confirmation lists only Session1 and A command draft. Screenshot command-close-confirmation."
+    },
+    {
+      "step": 4,
+      "action": "Click Cancel; click A tab",
+      "observed": "Two tabs remain; A original draft visible. AX field may omit value while unfocused, so screenshot used. Checkpoint draft-after-cancel."
+    },
+    {
+      "step": 5,
+      "action": "A context Close -> Escape",
+      "observed": "Dialog dismissed, A remains. No independent key-event log; transcript reports attempted key plus returned UI state."
+    },
+    {
+      "step": 6,
+      "action": "A context Close -> click blank mask at screenshot coordinate [500,500]",
+      "observed": "Dialog dismissed; A remains; subsequent close content/last screenshot preserve original draft."
+    },
+    {
+      "step": 7,
+      "action": "Click B; open AI; paste unsent C10_AX2_AI_DRAFT_B：仅保留，不发送。",
+      "observed": "No model configuration/request; draft displayed. Checkpoint ai-draft-before-close."
+    },
+    {
+      "step": 8,
+      "action": "B context Close",
+      "observed": "Confirmation Session2/task-1 only with exact AI draft. Checkpoint ai-close-confirmation."
+    },
+    {
+      "step": 9,
+      "action": "Click Cancel",
+      "observed": "AI draft preserved in original screenshot ai-draft-after-cancel."
+    },
+    {
+      "step": 10,
+      "action": "B context Close; verify Session2/task-1; click explicit Close",
+      "observed": "Only A remains, original command draft/PID3929/ttys008 retained; B PID absent in owned subtree sample. Checkpoint survivor-after-explicit-ai-close."
+    },
+    {
+      "step": 11,
+      "action": "Read-only existing semantics extensions, then request recorder stop and runner q",
+      "observed": "4 read-only RPC requests succeeded. No injection, enableSemantics, hot reload or runtime evaluation. App runner exit0. Recording boundary from recording.log."
+    }
+  ],
+  "counter": {
+    "path": "/private/tmp/trail-desktop-prd-c10-ax-2/tmp/ax2-unexpected-command.log",
+    "exists_at_end": false,
+    "scope": "Prepared unsubmitted fixture draft destination. Absence does not prove exact zero PTY bytes."
+  },
+  "limits": [
+    "No formal complete D2 case passed.",
+    "No operator window move/resize; all seven checkpoints show same bounds, but one native Window move warning exists.",
+    "All seven checkpoint app_active arrays are empty; no foreground/physical keyboard claim.",
+    "Fixed-window sequence did not reproduce prior AX failure; prior failure remains unresolved.",
+    "No 12 tabs, reorder, pane move, TUI press/focus-protocol, running-command close, old-task/source-only close or physical shortcuts in this run.",
+    "Private semantics dump is framework current tree, not platform AXTree or failed update."
+  ]
+}

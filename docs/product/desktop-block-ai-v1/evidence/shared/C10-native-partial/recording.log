@@ -1,0 +1,4 @@
+{"at":"2026-10-10T09:41:51.379Z","event":"window_selected","height":2168,"pid":77686,"point_pixel_scale":2,"width":3456,"window_id":31265}
+{"at":"2026-10-10T09:41:51.449Z","event":"recording_started"}
+{"at":"2026-10-10T09:47:04.029Z","code":-3822,"domain":"com.apple.ScreenCaptureKit.SCStreamErrorDomain","event":"stream_stopped"}
+{"at":"2026-10-10T09:47:04.065Z","duration_seconds":312,"event":"recording_finished","size_bytes":19929338}

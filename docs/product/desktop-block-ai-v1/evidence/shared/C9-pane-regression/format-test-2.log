@@ -1,0 +1,17 @@
+Formatted example/test/shell/shell_pane_input_metrics_test.dart
+Formatted 1 file (1 changed) in 0.01 seconds.
+FileSystemException: Failed to set file modification time, path = '/Users/robinfai/.dart-tool/dart-flutter-telemetry-session.json' (OS Error: Operation not permitted, errno = 1)
+#0      _File.setLastModifiedSync (dart:io/file_impl.dart:553)
+#1      ForwardingFile.setLastModifiedSync (package:file/src/forwarding/forwarding_file.dart:65)
+#2      UserProperty.getSessionId (package:unified_analytics/src/user_property.dart:72)
+#3      UserProperty._toMap (package:unified_analytics/src/user_property.dart:151)
+#4      UserProperty.preparePayload (package:unified_analytics/src/user_property.dart:88)
+#5      generateRequestBody (package:unified_analytics/src/utils.dart:108)
+#6      AnalyticsImpl.send (package:unified_analytics/src/analytics.dart:617)
+#7      DartdevRunner.runCommand (package:dartdev/dartdev.dart:294)
+<asynchronous suspension>
+#8      runDartdev (package:dartdev/dartdev.dart:51)
+<asynchronous suspension>
+#9      main (file:///Volumes/Work/s/w/ir/x/w/sdk/pkg/dartdev/bin/dartdev.dart:13)
+<asynchronous suspension>
+

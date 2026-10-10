@@ -1,0 +1,324 @@
+{
+  "schema_version": 1,
+  "reviewed_at": "2026-10-10T12:01:00.634597+00:00",
+  "reviewer": "independent ai_contract_review agent",
+  "candidate": "C10",
+  "source_commit": "2d18e608c2a1149a093451b5246cb370de0167c3",
+  "run": "native-c10-windows-1",
+  "result": "partial_native_evidence_only",
+  "formal_cases_passed_by_this_review": [],
+  "overall_conclusion": "Original screenshots and sampled video support target-specific Command draft close confirmation for inactive A while S stays selected, and retention of A after the operator-recorded Cancel. Later S retention has separate still evidence. This run is not a complete D2-T11/T14 acceptance and the video does not cover the whole app run.",
+  "identity": {
+    "app_pid": 77686,
+    "window_id": 31265,
+    "window_logical_bounds": {
+      "x": 0,
+      "y": 33,
+      "width": 1728,
+      "height": 1084
+    },
+    "native_capture_dimensions_px": [
+      3456,
+      2168
+    ],
+    "point_pixel_scale": 2,
+    "os": "macOS 27.0.1 (26A434), as recorded in source-identity.json",
+    "source_clean_at_launch_and_end": true,
+    "source_clean_basis": "manual-run.json; not an independent continuous filesystem trace",
+    "identity_files": [
+      "source-identity.json",
+      "app-identity.json",
+      "manual-run.json"
+    ],
+    "same_window_in_all_six_still_sidecars": true
+  },
+  "original_pngs": [
+    {
+      "png": "baseline.png",
+      "sidecar": "baseline.json",
+      "sha256": "59095dad2bb2b78277e9aea82d586f070350834498babd89aae920a2c806bb7f",
+      "bytes": 188309,
+      "dimensions_px": [
+        3456,
+        2168
+      ],
+      "captured_at": "2026-10-10T09:41:48.912072+00:00",
+      "captured_window_id": 31265,
+      "app_pid": 77686,
+      "active_pids": [
+        77686
+      ],
+      "frontmost_pid": 77686,
+      "observed": "One Raw tab and shell prompt; no close dialog.",
+      "video_relation": "before_recording_started",
+      "limits": "Preparation baseline, not video evidence of a completed interaction."
+    },
+    {
+      "png": "three-tabs-survivor-draft.png",
+      "sidecar": "three-tabs-survivor-draft.json",
+      "sha256": "5645ea8121276c75547eb414a100616cb3d2a040321725534000f9a9927234ca",
+      "bytes": 314489,
+      "dimensions_px": [
+        3456,
+        2168
+      ],
+      "captured_at": "2026-10-10T09:43:46.306589+00:00",
+      "captured_window_id": 31265,
+      "app_pid": 77686,
+      "active_pids": [
+        77686
+      ],
+      "frontmost_pid": 77686,
+      "observed": "Three tabs; S (third) selected. S result says C10-S PID=81098 TTY=/dev/ttys017 with exit 0. Composer contains exact S draft.",
+      "video_relation": "within_recording_interval",
+      "limits": "Still and process-subtree snapshot, not continuous PTY instrumentation.",
+      "visible_s_draft": "printf C10_SURVIVOR_S >> \"$TMPDIR/c10-unexpected-command.log\""
+    },
+    {
+      "png": "command-close-confirmation.png",
+      "sidecar": "command-close-confirmation.json",
+      "sha256": "d0594980d97b85fc289cfba1cf3aef888b70706d5443077f69a6658a23d9c669",
+      "bytes": 422079,
+      "dimensions_px": [
+        3456,
+        2168
+      ],
+      "captured_at": "2026-10-10T09:44:03.839077+00:00",
+      "captured_window_id": 31265,
+      "app_pid": 77686,
+      "active_pids": [
+        77686
+      ],
+      "frontmost_pid": 77686,
+      "observed": "S remains the selected third tab behind the modal, with S output and draft dimmed. Close dialog contains exactly one listed target: Desktop PRD local fixture / Session 1, Command draft, exact A draft. It does not list B or S drafts. Cancel and Close are visible.",
+      "video_relation": "within_recording_interval",
+      "limits": "Pixels establish target display. The mouse button event and UI command selected are described by the reconstructed operator record; video samples support menu-to-dialog ordering.",
+      "visible_a_draft": "printf C10_DRAFT_A >> \"$TMPDIR/c10-unexpected-command.log\""
+    },
+    {
+      "png": "command-draft-after-cancel.png",
+      "sidecar": "command-draft-after-cancel.json",
+      "sha256": "186da8b62c364b4794386f50eb9f7e298461d7275022d177ddcedfc4a35a879e",
+      "bytes": 337665,
+      "dimensions_px": [
+        3456,
+        2168
+      ],
+      "captured_at": "2026-10-10T09:44:33.923844+00:00",
+      "captured_window_id": 31265,
+      "app_pid": 77686,
+      "active_pids": [
+        77686
+      ],
+      "frontmost_pid": 77686,
+      "observed": "Three tabs remain; A (first) is selected, no modal. A draft is preserved exactly. Existing two Blocks remain, including the initial malformed printf and the corrected C10-A PID=77921 TTY=/dev/ttys008 result with exit 0.",
+      "video_relation": "within_recording_interval",
+      "limits": "The action is identified as Cancel by the operator transcript, corroborated by video dismissal and retained tabs/draft. This is not a byte-count trace.",
+      "visible_a_draft": "printf C10_DRAFT_A >> \"$TMPDIR/c10-unexpected-command.log\""
+    },
+    {
+      "png": "survivor-after-command-cancel.png",
+      "sidecar": "survivor-after-command-cancel.json",
+      "sha256": "7b21dcf3dcde1c797bd597670827a6a03a8f044157c23ce0464fa26ca0a484a3",
+      "bytes": 318163,
+      "dimensions_px": [
+        3456,
+        2168
+      ],
+      "captured_at": "2026-10-10T09:48:02.669749+00:00",
+      "captured_window_id": 31265,
+      "app_pid": 77686,
+      "active_pids": [],
+      "frontmost_pid": 56691,
+      "observed": "S selected, same C10-S PID=81098 TTY=/dev/ttys017 result and exact S draft; a fourth Raw tab now exists.",
+      "video_relation": "after_recording_stopped",
+      "limits": "App is inactive per checkpoint metadata. This is a later discrete original screenshot, not video proof.",
+      "visible_s_draft": "printf C10_SURVIVOR_S >> \"$TMPDIR/c10-unexpected-command.log\""
+    },
+    {
+      "png": "accessibility-tree-failure-final.png",
+      "sidecar": "accessibility-tree-failure-final.json",
+      "sha256": "f91f7f08963e48e06628a52e5018eb1f91ffbd3f36f2684a6693309d070851af",
+      "bytes": 340403,
+      "dimensions_px": [
+        3456,
+        2168
+      ],
+      "captured_at": "2026-10-10T09:52:01.234194+00:00",
+      "captured_window_id": 31265,
+      "app_pid": 77686,
+      "active_pids": [],
+      "frontmost_pid": 56691,
+      "observed": "A selected with four tabs present. Same two Blocks and corrected A PID/TTY result. A draft has the intentionally appended _C10_FOCUS_CHECK suffix.",
+      "video_relation": "after_recording_stopped",
+      "limits": "App is inactive per metadata. PNG pixels do not demonstrate an AXTree failure; launch.log and the reconstructed operator record establish that separate observation. The final draft is not byte-for-byte equal to the original because of the recorded intentional suffix."
+    }
+  ],
+  "video": {
+    "file": "native-window.mp4",
+    "sha256": "28e8e7d44060b31d7ba518b2a12a18823b47d3abe93bed657a87a0e3e7166e9d",
+    "bytes": 20104684,
+    "codec": "H.264 Main, yuv420p",
+    "audio_streams": 0,
+    "dimensions_px": [
+      3456,
+      2168
+    ],
+    "duration_seconds_ffprobe": 312.568333,
+    "source_frame_count": 8749,
+    "first_pts_seconds": 0.0,
+    "last_pts_seconds": 312.546667,
+    "window_selected_at": "2026-10-10T09:41:51.379Z",
+    "recording_started_at": "2026-10-10T09:41:51.449Z",
+    "stream_stopped_at": "2026-10-10T09:47:04.029Z",
+    "recording_finished_at": "2026-10-10T09:47:04.065Z",
+    "stream_error": {
+      "domain": "com.apple.ScreenCaptureKit.SCStreamErrorDomain",
+      "code": -3822
+    },
+    "recorder_exit_code_from_manual_run": 0,
+    "recorder_exit_interpretation": "File finalized; it is not a successful complete recording of the app run.",
+    "recording_finished_event_size_bytes": 19929338,
+    "size_note": "The finish event recorded a smaller in-progress size than the final 20104684-byte file. This review identifies the final artifact by its actual SHA256/size; it does not infer a cause for the size difference or the stream stop.",
+    "covers_whole_app_run": false,
+    "sampling_method_file": "sampling-method.json",
+    "overview_samples": 106,
+    "detail_samples": 66,
+    "overlap_samples": 15,
+    "distinct_source_frames_actually_viewed": 157,
+    "contact_sheets_actually_viewed": 15,
+    "full_continuous_playback_watched": false,
+    "all_source_frames_visually_reviewed": false,
+    "every_pixel_inspected": false,
+    "sampling_description": "Viewed all 9 overview sheets (first source frame at/after every 3 seconds plus final frame) and all 6 detail sheets. Detail intervals: 118–124s every 0.5s; 134–139s every 0.25s; 141–145s every 0.5s; 218–226s every 0.5s; six key timestamps. Four full-window detail files were also viewed individually. Exact source-frame indices and PTS are saved. No synthetic/interpolated frames.",
+    "wall_clock_note": "PTS is the authoritative media timestamp. Adding PTS to recording_started gives only an approximate wall-clock correspondence; no claim of zero capture pipeline latency.",
+    "observed_sequence": [
+      {
+        "pts_seconds": [
+          114.0,
+          117.016667
+        ],
+        "observation": "S selected, three tabs; S command result and prepared S draft visible."
+      },
+      {
+        "pts_seconds": [
+          118.006667,
+          122.005
+        ],
+        "observation": "Context menu anchored at A/first tab while S contents remain visible. This supports target/menu scope, not an independent hardware mouse-button trace."
+      },
+      {
+        "pts_seconds": [
+          122.528333,
+          135.503333
+        ],
+        "observation": "Close dialog lists only Session 1/A Command draft; S remains behind it. Exact content independently checked in source frame 3714 at PTS132.018333 and original command-close-confirmation.png."
+      },
+      {
+        "pts_seconds": [
+          135.503333,
+          135.753333
+        ],
+        "observation": "Dialog is present at frame3812 and absent at frame3819. After dismissal S remains selected and all three tabs remain. These are sampled bounds, not an exact event timestamp. Operator record identifies the action as clicking Cancel."
+      },
+      {
+        "pts_seconds": [
+          143.03,
+          143.505
+        ],
+        "observation": "S is still selected at frame4024, then A selected at frame4037. A exact draft and its two earlier Blocks are visible afterward; independently checked at frame4555/PTS162.0."
+      },
+      {
+        "pts_seconds": [
+          222.021667,
+          225.035
+        ],
+        "observation": "A close dialog appears a second time and is absent by frame6314. The operator describes Escape; the video has no keyboard-event overlay/trace and this review does not count it as video-proven Esc."
+      },
+      {
+        "pts_seconds": [
+          276.008333,
+          312.546667
+        ],
+        "observation": "A draft has the intentionally appended _C10_FOCUS_CHECK suffix; video ends with three tabs/A visible. Fourth-tab and later survivor screenshots are outside this recording."
+      }
+    ]
+  },
+  "source_separation": {
+    "raw_evidence": "Six original PNGs and their timestamp/window/process-subtree JSONs; original MP4; recording.log; launch.log.",
+    "operator_record": "operator-observations.json explicitly says reconstructed from actual CUA tool responses. It is not a raw AX export, controller trace, event/byte trace, or independently timestamped log of every action.",
+    "process_identity": "A 77921/ttys008 and S 81098/ttys017 agree between visible printf output and sampled OS process-subtree sidecars. B 80398/ttys016 and extra 87622/ttys018 are in OS metadata. This establishes identities at sampled instants, not absence of all transient/hidden PTYs.",
+    "b_ai_draft": "Exact B AI draft is reported by operator-observations.json. The six original stills and selected video frames reviewed here do not independently show that exact B draft; the individual PTS75.003333 frame is the empty AI workspace before drafting.",
+    "counter": "exists_at_end:false is a recorded observation for the deliberately prepared fixture-side effect marker c10-unexpected-command.log. It does not prove PTY zero writes, no commands of any kind, request counts, or no network traffic. This reviewer did not inspect user/production storage.",
+    "model": "No model configured/submitted is an operator/setup assertion; no network capture is present. This is not real-model/API acceptance.",
+    "keyboard": "CUA-mediated normal UI interactions, not controller injection according to operator/setup record. Do not relabel these as measured physical hardware keyboard events.",
+    "accessibility": "launch.log contains ten Failed to update ui::AXTree messages and Application finished. Later PNGs alone do not prove stale/minimal AX. No causal link between AX failures and ScreenCaptureKit -3822 is established.",
+    "foreground": "Per-still sidecars show foreground app for baseline/three-tabs/confirmation/A-after. The later survivor/final captures are inactive. No whole-run foreground assertion."
+  },
+  "supported_partial_findings": [
+    "Inactive A is the only target shown in its Command draft close confirmation while S remains selected behind it.",
+    "The operator-recorded Cancel is corroborated by modal dismissal, three retained tabs, and the exact A draft on subsequent video samples and an original screenshot.",
+    "S exact draft is visible before the close attempt and in a later original screenshot; the latter is outside the video.",
+    "A and S visible PID/TTY outputs agree with the retained shell identities at sampled OS checkpoints."
+  ],
+  "not_established": [
+    "Complete D2-T11 or D2-T14; 12-tab/overflow/reorder/pane movement/running-close/pending-badge/menu-boundary flows.",
+    "Native first-primary mouse reporting, inactive-secondary TUI bytes, or focus-in/focus-out protocol correctness in this run.",
+    "Idle AI close, old-task/source-only protection, barrier-click cancel, final explicit close.",
+    "Video-proven Escape key delivery; later survivor/final state inside the video; complete foreground app run.",
+    "Zero PTY writes or network requests from absence of the prepared marker file.",
+    "Unchanged original A draft at the final screenshot: the intentional suffix must be acknowledged."
+  ],
+  "wording_to_avoid": [
+    "Do not describe recording_exit_code=0 as a complete successful recording. The stream ended with -3822 and whole-run coverage is false.",
+    "Do not call operator-observations.json a raw AX dump or continuous controller/PTY trace.",
+    "Do not call the later survivor/final screenshots video checkpoints, or call every capture foreground.",
+    "Do not treat counter absence as zero-write proof or upgrade this partial run to formal D2 passed.",
+    "Do not claim the final PNG itself demonstrates AX tree failure; cite launch.log/operator observations for that separate failure."
+  ],
+  "privacy_and_archive": {
+    "visible_media_result": "No real model API key, SSH private key, production host/profile, or personal message was seen in the six viewed originals or the 157 sampled source frames. Visible content is fixture commands, test paths, PID/TTY and app UI. This is bounded sampling, not all-frame/all-pixel privacy certification.",
+    "text_metadata": "Raw launch.log contains the local username/project paths and an ephemeral loopback Dart VM Service/DevTools URL with an authentication path. The app had exited, so this review does not claim a live external credential exposure. For public publication use a clearly labeled sanitized derivative of that text, preserving the raw original/hash locally; do not silently rewrite the original.",
+    "archivable_original_pngs": [
+      "baseline.png",
+      "three-tabs-survivor-draft.png",
+      "command-close-confirmation.png",
+      "command-draft-after-cancel.png",
+      "survivor-after-command-cancel.png",
+      "accessibility-tree-failure-final.png"
+    ],
+    "archivable_original_sidecars": [
+      "baseline.json",
+      "three-tabs-survivor-draft.json",
+      "command-close-confirmation.json",
+      "command-draft-after-cancel.json",
+      "survivor-after-command-cancel.json",
+      "accessibility-tree-failure-final.json"
+    ],
+    "archivable_video": "native-window.mp4, with explicit partial-duration/SCStream error limits and original SHA256.",
+    "archivable_support": [
+      "recording.log",
+      "manual-run.json",
+      "source-identity.json",
+      "app-identity.json",
+      "operator-observations.json"
+    ],
+    "raw_launch_log": "Preserve original and hash; publish sanitized text if removing local debug URL/path data.",
+    "derived_artifacts": "review/ contact sheets and frame PNGs are derived review aids, never substitutes for original native checkpoints."
+  },
+  "integrity": {
+    "all_19_original_files_unchanged_after_review": true,
+    "all_6_png_hashes_match_sidecars": true,
+    "original_hash_file": "original-artifacts-sha256.json",
+    "source_frame_metadata": "source-frames.json",
+    "ffprobe_file": "ffprobe.json",
+    "no_app_sdk_or_gui_invoked": true,
+    "only_ignored_review_files_written": true
+  },
+  "review_support_hashes": {
+    "original-artifacts-sha256.json": "9dd5ec23b6940118943db340589e87ca03309e1765951c84a6a3d335f9b28a30",
+    "ffprobe.json": "d1a64e34f330191905a510117c4fdd2580055b2800a2fcf8319d3994660111b6",
+    "source-frames.json": "aadfcfe17d5bd6ed7a5029615609197c94834a18a4b2685a88651237eed4f441",
+    "sampling-method.json": "b10f1cb12f292c3e6f8675dcfddb3178e8a367e527f891995f9f98b7b6cf9a26"
+  }
+}

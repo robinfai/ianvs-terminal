@@ -1,0 +1,162 @@
+{
+  "schema_version": 1,
+  "prepared_at_utc": "2026-10-10T12:07:34.021362+00:00",
+  "source_commit": "2d18e608c2a1149a093451b5246cb370de0167c3",
+  "scope": "Second bounded C10 fixed-window normal-UI partial support only. Seven original screenshots plus separately attributed sampled-video review. No formal case, prior-AX-fix, foreground/physical-input, or whole-run recording claim.",
+  "status": "reviewed_partial",
+  "entries": [
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c10-ax-2/review/summary.json",
+      "path": "independent-review-summary.json",
+      "bytes": 16971,
+      "sha256": "50e479d7a8ab0b6b1aa5f52d2ddf7a08e32bfdc88c6b28d08a77d2e587898cef",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c10-ax-2/review/ffprobe.json",
+      "path": "ffprobe.json",
+      "bytes": 2890,
+      "sha256": "40c73d6a930af7d3037cf38e566f8c2e27661d35d731bc2c3fbcf9c60c67b9b6",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c10-ax-2/review/original-artifacts-sha256.json",
+      "path": "original-artifacts-sha256.json",
+      "bytes": 3426,
+      "sha256": "85d96a06bfada1d091be74814f1ae359bbc93c53d7606311ec41f72737b1462d",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c10-ax-2/manual-run.json",
+      "path": "manual-run.json",
+      "bytes": 1493,
+      "sha256": "b011295e363f236a303bd2b30292a3213c419ba8401b850188f5f10b051dae4e",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c10-ax-2/operator-observations.json",
+      "path": "operator-observations.json",
+      "bytes": 3667,
+      "sha256": "972d6fbd1768269f1ab3a3d20a800f7ae70c91a708352d4a9082a4ab37ddfaf4",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c10-ax-2/recording.log",
+      "path": "recording.log",
+      "bytes": 438,
+      "sha256": "65fd2d2f18e35ff2281b67a0346cddaf9bd08da7dd58242186c026d01b408162",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c10-ax-2/app-identity.json",
+      "path": "app-identity.json",
+      "bytes": 1548,
+      "sha256": "4d894ea5bc8ea29b9d1e3f7e1b3cf8a7837e984000f14fef8e9a10eb6c4c2b9e",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c10-ax-2/two-tabs-before-close.png",
+      "path": "two-tabs-before-close.png",
+      "bytes": 196148,
+      "sha256": "deec20e7a15a1e09df7ea54cd60a779a3d75051a40701b3201f8f0c4baf93188",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c10-ax-2/command-close-confirmation.png",
+      "path": "command-close-confirmation.png",
+      "bytes": 317096,
+      "sha256": "8c4858425cf9f2e67c6cd681f851b5243a22c12f31d522c89bf0688f540ef268",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c10-ax-2/draft-after-cancel.png",
+      "path": "draft-after-cancel.png",
+      "bytes": 304913,
+      "sha256": "b244bf048de84db7e91579ce71c0ea092a8249dc8acdb36cb4f24adac59bdfdd",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c10-ax-2/ai-draft-before-close.png",
+      "path": "ai-draft-before-close.png",
+      "bytes": 277654,
+      "sha256": "c7922352291641d995d4cfe7bc47d26711768871086a5a74df77ab1dc5a93769",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c10-ax-2/ai-close-confirmation.png",
+      "path": "ai-close-confirmation.png",
+      "bytes": 383812,
+      "sha256": "66ec6c163e4d256c02e7ab85a0862addbfd96effd157067a239fd9dcdce94c73",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c10-ax-2/ai-draft-after-cancel.png",
+      "path": "ai-draft-after-cancel.png",
+      "bytes": 277771,
+      "sha256": "f7d7f231587a7aa5a185398444e2b3e41f4823d06579f8e41829be26f7458606",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c10-ax-2/survivor-after-explicit-ai-close.png",
+      "path": "survivor-after-explicit-ai-close.png",
+      "bytes": 297010,
+      "sha256": "e991f06a5857b1f9be999a1690fbdafc4a19657494a77553f1da998e5f7575dd",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c10-ax-2/two-tabs-before-close.json",
+      "path": "two-tabs-before-close.json",
+      "bytes": 1257,
+      "sha256": "8b8900fa4e275380c48fea2f71b9a7d1b2f1ddfe55e1b7b4d5b1549e591a574a",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c10-ax-2/command-close-confirmation.json",
+      "path": "command-close-confirmation.json",
+      "bytes": 1262,
+      "sha256": "7fb476e60a344dc22bc32eda0ecdedfa973d0219de6cbdbfac0df7fc998d3690",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c10-ax-2/draft-after-cancel.json",
+      "path": "draft-after-cancel.json",
+      "bytes": 1254,
+      "sha256": "0d533a85faf956d59ee8c9decc043904a8b88b6df720e2504e363add2059a173",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c10-ax-2/ai-draft-before-close.json",
+      "path": "ai-draft-before-close.json",
+      "bytes": 1257,
+      "sha256": "598c681a5caf2a261f0a992bc05fdaa37b3df2d5665532aac92474944a96512f",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c10-ax-2/ai-close-confirmation.json",
+      "path": "ai-close-confirmation.json",
+      "bytes": 1257,
+      "sha256": "7c2a74175cf56cd8e68d9f01ed107fa3df81bfd4c9ccfb41f34b48b502912b34",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c10-ax-2/ai-draft-after-cancel.json",
+      "path": "ai-draft-after-cancel.json",
+      "bytes": 1257,
+      "sha256": "5941b02b3c5e4a47e789438de1e16655bf92fc7748ce98d0791ceceef14cddfa",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c10-ax-2/survivor-after-explicit-ai-close.json",
+      "path": "survivor-after-explicit-ai-close.json",
+      "bytes": 1166,
+      "sha256": "8961934fbb07a0172fd14e1f232b68f271508b362bb28c8461e55aa23ccafe67",
+      "copy_mode": "original bytes"
+    },
+    {
+      "path": "review-summary.json",
+      "bytes": 10425,
+      "sha256": "fc008f990fa8f905c3a4c6a3241e674224d26bc980e80df12c6a83599d6c74b7",
+      "copy_mode": "derived independent metadata summary"
+    }
+  ]
+}

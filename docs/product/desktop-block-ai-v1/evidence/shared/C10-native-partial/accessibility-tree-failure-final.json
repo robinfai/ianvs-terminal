@@ -1,0 +1,64 @@
+{
+  "name": "accessibility-tree-failure-final",
+  "captured_at": "2026-10-10T09:52:01.234194+00:00",
+  "window": {
+    "active_pids": [],
+    "frontmost_pid": 56691,
+    "pids": [
+      77686
+    ],
+    "screen_capture_authorized": true,
+    "windows": [
+      {
+        "bounds": {
+          "Height": 1084,
+          "Width": 1728,
+          "X": 0,
+          "Y": 33
+        },
+        "pid": 77686,
+        "window_id": 31265
+      }
+    ]
+  },
+  "captured_window_id": 31265,
+  "screenshot_sha256": "f91f7f08963e48e06628a52e5018eb1f91ffbd3f36f2684a6693309d070851af",
+  "process_subtree": [
+    {
+      "pid": 77686,
+      "ppid": 76265,
+      "tty": "ttys006",
+      "comm": "/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Debug/Trail Development.app/Contents/MacOS/Trail Development"
+    },
+    {
+      "pid": 77898,
+      "ppid": 77686,
+      "tty": "ttys006",
+      "comm": "/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Debug/Trail Development.app/Contents/Resources/ianvs-api"
+    },
+    {
+      "pid": 77921,
+      "ppid": 77686,
+      "tty": "ttys008",
+      "comm": "/bin/zsh"
+    },
+    {
+      "pid": 80398,
+      "ppid": 77686,
+      "tty": "ttys016",
+      "comm": "/bin/zsh"
+    },
+    {
+      "pid": 81098,
+      "ppid": 77686,
+      "tty": "ttys017",
+      "comm": "/bin/zsh"
+    },
+    {
+      "pid": 87622,
+      "ppid": 77686,
+      "tty": "ttys018",
+      "comm": "/bin/zsh"
+    }
+  ]
+}

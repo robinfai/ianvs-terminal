@@ -1,0 +1,21 @@
+{
+  "purpose": "D2 manual native acceptance: deterministic local model fixture",
+  "started_at": "2026-10-10T08:25:21.349368+00:00",
+  "listener": "127.0.0.1",
+  "port": 8787,
+  "endpoint": "http://127.0.0.1:8787/v1",
+  "model": "trail-mock",
+  "authentication": "dedicated public fixture token; no real key accepted or logged",
+  "existing_mock_sha256": "ccf56f4a43d8d100277060b2d173223991f09ab3f310a2359ab11f5fec6a68f2",
+  "wrapper_sha256": "f9b18b262ce6877fe6be3dc19879e5e7e225e6221d8a1ac3f42fbcc85cb2d38b",
+  "requests_log": "model-requests.jsonl",
+  "responses_log": "model-responses.jsonl",
+  "limits": [
+    "Response audit proves generation, not delivery to App or PTY execution.",
+    "Tool call ID is the model operation ID; native submission ID only exists after App approval.",
+    "No prompt, screen, file content, API key, cwd, or target label is persisted."
+  ],
+  "stopped_at": "2026-10-10T08:34:22.716779+00:00",
+  "model_requests": 0,
+  "responses_prepared": 0
+}

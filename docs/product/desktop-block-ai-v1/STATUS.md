@@ -1,6 +1,12 @@
 # 桌面 Block × AI 实施状态
 
-核对日期：2026-10-10。整体状态：`implemented_unverified`。v1.1 交互修订见 [16_REVISION_1_1](16_REVISION_1_1.md)。本轮从 `79db5115d1e6c69ac62116f19fdfb2b102724df5` 开始迭代；当前候选 **C8 = `19001573d9974c510e1e4cbcfeb01c94368ea157`**。C4 的生产修复已保留；C5–C8 只修改 Rust 测试夹具／生成测试镜像和原生验收驱动，没有修改生产 owner、生命周期或终端返回码来获得绿色验收。
+当前实现为 **C10 `2d18e608c2a1149a093451b5246cb370de0167c3`**。C9补齐草稿关闭保护、右键输入归属、DPR变化和旧菜单目标；其完整verify11发现两项鼠标／焦点协议回归，原失败保留。C10在实际pointer处理前激活目标，并仅为精确失焦系统报告保留独立权限；原103项界面测试、相关297项和canonical165项通过，集合有重叠不累加。独立复评未见阻断，完整 [verify12](evidence/shared/C10-gates/verify-12.log) 已 exit0（792秒、源码首尾clean；[metadata](evidence/shared/C10-gates/verify-12-metadata.json)），应用3090通过／1跳过，原生smoke4／真实PTY45／Composer1／Keychain1及Debug／Release／签名检查／Xcode通过，首次正常UI复验因AX陈旧和提前结束录屏仅留局部观察；第二次有界复验补做遮罩取消及idleAI取消／明确关闭，保留A，未复现AXTree错误，但首轮原因仍未定且没有新增正式场景通过。详见 [C9–C10本轮记录](results/C9_FOLLOWUP.md)。以下C8完整gate／3个正式场景保持历史身份，不直接改记为C10通过。
+
+[C10原生局部复验摘要](evidence/shared/C10-native-partial/review-summary.json)记录A关闭确认仅列A、Cancel／Esc保留草稿及离散PID／TTY保留。10条AXTree错误后自动化不可可靠继续；312秒录像因SCStream -3822提前结束，后两张支撑图不在视频内。未完成最终关闭、AI／split／12tab／重排／物理快捷键完整步骤，不增加formal pass。
+
+[第二次C10有界复验摘要](evidence/shared/C10-native-fixed-window/review-summary.json)另记录A遮罩取消、B未发送idleAI草稿的取消与明确关闭，只移除B并保留A。该次0条AXTree错误、1条窗口移动警告，首轮原因未定；7个截图点均非前台。256秒录像包含这些检查点但不覆盖全程，SCStream停止与Ctrl-C关系未记录。12tab／重排／split／运行中关闭／物理键等完整用例仍未完成。
+
+核对日期：2026-10-10。整体状态：`implemented_unverified`。v1.1 交互修订见 [16_REVISION_1_1](16_REVISION_1_1.md)。本轮从 `79db5115d1e6c69ac62116f19fdfb2b102724df5` 开始迭代；上一正式归档候选 **C8 = `19001573d9974c510e1e4cbcfeb01c94368ea157`**。C4 的生产修复已保留；C5–C8 只修改 Rust 测试夹具／生成测试镜像和原生验收驱动，没有修改生产 owner、生命周期或终端返回码来获得绿色验收。
 
 C8 的 `native-c8-workspace-1` 已实际完成：driver exit 0，源码首尾干净，功能和原框架收尾断言通过，原生录像／截图完整且严格时段门禁为 true。真实本地 Shell、Block 与回执、失败→诊断→修正→引用、Reader、只读观察和 vim 子集都有本次原生动作；模型是本地确定性 HTTP fixture，输入由 WidgetTester 驱动，不是物理输入或真实模型完整验收。支撑记录已归档至 `evidence/shared/C8-native-workspace-1/`。
 
@@ -21,7 +27,7 @@ C8 的 `native-c8-workspace-1` 已实际完成：driver exit 0，源码首尾干
 
 C3 workspace 曾有录屏初始化错误，后来明确锁屏并停在 Reader，exit79／采集不完整；后续还修正了驱动中陈旧的 Reader 定位，因此不能把停住全部归因于锁屏。C6 缺 D12 当时的前台／焦点记录，无法确定未回只读的原因；C7 功能链完成但最终语义句柄校验失败。C8 增加只读诊断和采集首尾握手、不在运行中触发 CUA AX，原断言通过；没有删去语义检查或改生产权限。原失败／中止记录保留，详见 [第一轮记录](results/ITERATION_1.md)。
 
-手机当前实际结果属于 **C4**：独立 `work.ianvs.trail.mobileprd` 已安装并启动，物理 iPhone 上 DeepSeek 连接测试成功；配置界面模型名仅为设置值，未记录真实返回模型身份。已保存的 Manual 保留，查看 Smart／三档后取消未保存；未验证 Smart 实际执行。当时SSH列表为空、未执行SSH，原观察未读取或导入私钥。用户后来已授权将本机cloud配置及私钥导入用于测试，USB 已恢复 wired/connected，镜像仍需本人 Touch ID 解锁；尚未复制私钥或保存 SSH，保持连接待测；不预写SSH通过，仍非移动PRD完整验收或C8真机验证。公开边界见 `evidence/shared/C4-gates/ui-followup-summary.json`。实体 iPad、外接显示器按用户已确认条件保留未验收，不重复询问。
+手机当前实际结果仍属于 **C4**：独立 `work.ianvs.trail.mobileprd` 已完成用户授权的 cloud 配置与私钥导入，手机保活设为30秒／3次。第一次目录清理报错后出现配置重建，已如实告知并恢复；第二次仅覆盖指定临时单文件，独立核对2459→0字节、两份配置元数据未变，清理前后两次重启均可使用保存的cloud连接，后续只读命令成功。三张原图与设备日志保留私有，公开[脱敏审阅摘要](evidence/shared/C4-cloud-restoration/independent-review-summary.json)。镜像随后因iPhone被使用而结束，长时保活与完整真实模型／Smart／移动PRD仍未验；不把镜像结束当SSH断连。DeepSeek设置继续保留，原连接测试和Manual/Smart查看历史见原摘要。实体iPad、外接显示器按用户确认保持未验收。
 
 - [当前交付结论与待验收边界](results/FINAL_REVIEW.md)
 - [基线与证据身份](results/BASELINE.md)

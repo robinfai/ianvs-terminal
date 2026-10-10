@@ -1,0 +1,125 @@
+package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart
+00:00 +0: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: '1'
+  Actual: '2'
+   Which: is different.
+          Expected: 1
+            Actual: 2
+                    ^
+           Differ at offset 0
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart:187:7)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart line 187
+The test description was:
+  secondary click in inactive raw pane preserves Composer target and draft (variant:
+  TargetPlatform.macOS)
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:02 +0 -1: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS) [E]
+  Test failed. See exception logs above.
+  The test description was: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+  
+00:02 +0 -1: primary PointerDeviceKind.mouse click still activates the clicked pane without losing draft (variant: TargetPlatform.macOS)
+00:02 +1 -1: primary PointerDeviceKind.touch click still activates the clicked pane without losing draft (variant: TargetPlatform.macOS)
+00:03 +2 -1: DPR-only resize updates native pixels and replay metrics without changing cells (variant: TargetPlatform.macOS)
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: an object with length of <1>
+  Actual: []
+   Which: has length of <0>
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart:254:7)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart line 254
+The test description was:
+  DPR-only resize updates native pixels and replay metrics without changing cells (variant:
+  TargetPlatform.macOS)
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:03 +2 -2: DPR-only resize updates native pixels and replay metrics without changing cells (variant: TargetPlatform.macOS) [E]
+  Test failed. See exception logs above.
+  The test description was: DPR-only resize updates native pixels and replay metrics without changing cells (variant: TargetPlatform.macOS)
+  
+00:03 +2 -2: DPR 1 to 2 to 1 before debounce never commits obsolete metrics (variant: TargetPlatform.macOS)
+00:03 +3 -2: selection release cannot commit a queued resize from the previous DPR (variant: TargetPlatform.macOS)
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: an object with length of <1>
+  Actual: []
+   Which: has length of <0>
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart:336:7)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart line 336
+The test description was:
+  selection release cannot commit a queued resize from the previous DPR (variant:
+  TargetPlatform.macOS)
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:03 +3 -3: selection release cannot commit a queued resize from the previous DPR (variant: TargetPlatform.macOS) [E]
+  Test failed. See exception logs above.
+  The test description was: selection release cannot commit a queued resize from the previous DPR (variant: TargetPlatform.macOS)
+  
+00:03 +3 -3: tab menu TerminalActionId.closePane keeps its captured target after the original pane exits (variant: TargetPlatform.macOS)
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: true
+  Actual: <false>
+The menu did not authorize closing the replacement pane.
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart:414:11)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart line 414
+The test description was:
+  tab menu TerminalActionId.closePane keeps its captured target after the original pane exits
+  (variant: TargetPlatform.macOS)
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:04 +3 -4: tab menu TerminalActionId.closePane keeps its captured target after the original pane exits (variant: TargetPlatform.macOS) [E]
+  Test failed. See exception logs above.
+  The test description was: tab menu TerminalActionId.closePane keeps its captured target after the original pane exits (variant: TargetPlatform.macOS)
+  
+00:04 +3 -4: tab menu TerminalActionId.closeActiveTab keeps its captured target after the original pane exits (variant: TargetPlatform.macOS)
+00:04 +4 -4: Some tests failed.
+
+Failing tests:
+  /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: DPR-only resize updates native pixels and replay metrics without changing cells (variant: TargetPlatform.macOS)
+  /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+  /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: selection release cannot commit a queued resize from the previous DPR (variant: TargetPlatform.macOS)
+  /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: tab menu TerminalActionId.closePane keeps its captured target after the original pane exits (variant: TargetPlatform.macOS)

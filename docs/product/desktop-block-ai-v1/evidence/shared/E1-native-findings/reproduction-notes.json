@@ -1,0 +1,29 @@
+{
+  "record_kind": "root transcription from CUA tool outputs, not raw AX export",
+  "source_commit": "d13e0c02c5f5921927c3f7855fd3aadce6559b64",
+  "observations": [
+    {
+      "step": "AI draft close",
+      "before": "Session 1 idle AI draft D2_AI_DRAFT_CLOSE_PROTECTION：保留这段未发送草稿。; Session 2 created as survivor",
+      "action": "Context menu on Session 1 tab: 关闭活动标签页",
+      "after": "No dialog; Session 1 removed; original shell PID 69040 gone; Session 2 remains"
+    },
+    {
+      "step": "Composer draft close",
+      "before": "Session 2 ready Composer draft printf 'D2_COMPOSER_DRAFT_CLOSE_PROTECTION\\n'; zero command blocks; Session 3 created as survivor",
+      "action": "Context menu on Session 2 tab: 关闭活动标签页",
+      "after": "No dialog; Session 2 removed; original shell PID 77120 gone; Session 3 remains"
+    },
+    {
+      "step": "Secondary click target",
+      "before": "Session 3 pane 1/2 active; Composer focused with printf 'D2_RIGHT_CLICK_TARGET_DRAFT\\n'; Session 4 pane 2/2 inactive raw terminal",
+      "action": "Native CUA right click screenshot-pixel coordinate [2300,400] in inactive raw pane",
+      "after": "AX pane 1/2 非活动窗格, pane 2/2 活动窗格, status 会话: 4; focus container; no context menu displayed; draft remains in inactive pane"
+    }
+  ],
+  "limits": [
+    "Draft-close continuous video ended with exit 0; secondary-click case has before/after original screenshots only",
+    "No AI model request or command submitted in these reproduction steps",
+    "These are reproduced failures and partial case evidence, not full D2-T11 or D2-T14 passes"
+  ]
+}

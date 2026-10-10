@@ -1,0 +1,66 @@
+FAIL: D1: required stage is not verified
+FAIL: D2: required stage is not verified
+FAIL: D3: required stage is not verified
+FAIL: D4: required stage is not verified
+FAIL: D1-T02: required case not passed
+FAIL: D1-T03: required case not passed
+FAIL: D1-T04: required case not passed
+FAIL: D1-T05: required case not passed
+FAIL: D1-T06: required case not passed
+FAIL: D1-T07: required case not passed
+FAIL: D1-T08: required case not passed
+FAIL: D1-T09: required case not passed
+FAIL: D1-T10: required case not passed
+FAIL: D1-T11: required case not passed
+FAIL: D1-T12: required case not passed
+FAIL: D1-T13: required case not passed
+FAIL: D1-T14: required case not passed
+FAIL: D1-T15: required case not passed
+FAIL: D1-T16: required case not passed
+FAIL: D2-T01: required case not passed
+FAIL: D2-T02: required case not passed
+FAIL: D2-T03: required case not passed
+FAIL: D2-T04: required case not passed
+FAIL: D2-T05: required case not passed
+FAIL: D2-T06: required case not passed
+FAIL: D2-T07: required case not passed
+FAIL: D2-T08: required case not passed
+FAIL: D2-T09: required case not passed
+FAIL: D2-T10: required case not passed
+FAIL: D2-T11: required case not passed
+FAIL: D2-T12: required case not passed
+FAIL: D2-T13: required case not passed
+FAIL: D2-T14: required case not passed
+FAIL: D2-T15: required case not passed
+FAIL: D2-T16: required case not passed
+FAIL: D3-T01: required case not passed
+FAIL: D3-T02: required case not passed
+FAIL: D3-T03: required case not passed
+FAIL: D3-T04: required case not passed
+FAIL: D3-T06: required case not passed
+FAIL: D3-T07: required case not passed
+FAIL: D3-T08: required case not passed
+FAIL: D3-T09: required case not passed
+FAIL: D3-T10: required case not passed
+FAIL: D3-T11: required case not passed
+FAIL: D3-T12: required case not passed
+FAIL: D3-T13: required case not passed
+FAIL: D3-T14: required case not passed
+FAIL: D3-T15: required case not passed
+FAIL: D3-T16: required case not passed
+FAIL: D4-T02: required case not passed
+FAIL: D4-T03: required case not passed
+FAIL: D4-T04: required case not passed
+FAIL: D4-T05: required case not passed
+FAIL: D4-T06: required case not passed
+FAIL: D4-T07: required case not passed
+FAIL: D4-T08: required case not passed
+FAIL: D4-T09: required case not passed
+FAIL: D4-T10: required case not passed
+FAIL: D4-T11: required case not passed
+FAIL: D4-T12: required case not passed
+FAIL: D4-T13: required case not passed
+FAIL: D4-T14: required case not passed
+FAIL: D4-T15: required case not passed
+FAIL: D4-T16: required case not passed
+65 contract violations. Product completion is NOT certified.

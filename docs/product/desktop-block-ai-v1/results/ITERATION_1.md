@@ -1,6 +1,6 @@
 # 第一轮实现与并行复评
 
-2026-10-10，起点为 `79db5115`。本页保留工作树修复到 C1–C8 的历史过程；C3完整gate、C4生产修复、C5–C8测试／驱动修正与C8实际原生结果分开记账。最新C8完整gate verify-10已通过，C8组件复采48/48、63PNG和预览构建也通过，正式3passed／61not_run。以下记录不替代64个桌面、48个移动完整场景，也不构成发布结论。
+2026-10-10，起点为 `79db5115`。本页保留工作树修复到 C1–C9 的历史过程；C3完整gate、C4生产修复、C5–C8测试／驱动修正与C8实际原生结果分开记账。上一正式归档C8完整gate verify-10已通过，C8组件复采48/48、63PNG和预览构建也通过，正式3passed／61not_run。以下记录不替代64个桌面、48个移动完整场景，也不构成发布结论。
 
 | 问题 | 实际影响 | 本轮处理与证据 |
 |---|---|---|
@@ -118,7 +118,7 @@ C4 `1c95adcaab32fac64fb08142da7a0eb3b8620b5a` 补齐九类已确认缺口。下�
 
 同一C4的完整`make verify`第八轮在2026-10-10 06:32:54–06:35:12 UTC运行138秒，首尾clean、exit2。新安装的Homebrew Bash5.3首次让测试进入系统Bash3.2此前跳过的Composer分支，`legacy-deferred-string`中调用本机不存在的`/bin/false`得到127而非预期1；`/bin/true`同样不存在。这是测试外部命令路径假设，不改生产返回码或削弱断言。日志与metadata保留至 `evidence/shared/C4-gates/`。
 
-物理iPhone上的C4独立`work.ianvs.trail.mobileprd`随后安装并启动，使用用户授权端点完成DeepSeek真实连接smoke。首次请求与系统无线权限提示相遇，明确重试后UI显示成功；不把首次请求写成完成。保存的Manual配置保留，Smart／三档仅看设置草稿后取消，复开仍Manual，未测试Smart实际执行；配置标签`deepseek-flash`不代表已核对返回模型。该次观察SSH列表空、未执行、未读取／导入私钥。用户随后已授权导入本机cloud配置及私钥用于测试，USB 已恢复有线连接，镜像仍等待本人解锁，尚未复制私钥或保存SSH，连接待测。截图仅在镜像会话中审阅，不是正式归档原图，`acceptance_passed=false`，详见 `evidence/shared/C4-gates/ui-followup-summary.json`。C3构建未安装的历史状态不覆盖。
+物理iPhone上的C4独立`work.ianvs.trail.mobileprd`随后安装并启动，使用用户授权端点完成DeepSeek真实连接smoke。首次请求与系统无线权限提示相遇，明确重试后UI显示成功；不把首次请求写成完成。保存的Manual配置保留，Smart／三档仅看设置草稿后取消，复开仍Manual，未测试Smart实际执行；配置标签`deepseek-flash`不代表已核对返回模型。该次观察SSH列表空、未执行、未读取／导入私钥。在这份历史摘要记录时，用户已授权导入本机cloud，USB已恢复但镜像尚待解锁，私钥未复制、SSH待测；后续恢复成功见文末与C9–C10跟进记录。截图仅在镜像会话中审阅，不是正式归档原图，`acceptance_passed=false`，详见 `evidence/shared/C4-gates/ui-followup-summary.json`。C3构建未安装的历史状态不覆盖。
 
 ## C5–C7 测试夹具与原生采集诊断
 
@@ -149,3 +149,14 @@ C8 `19001573d9974c510e1e4cbcfeb01c94368ea157`只修改同一验收driver：D01�
 同一C8另经 `tools/desktop_prd/run_manual.py` 从隔离配置启动正常产品入口，不使用测试控制器注入任务、配置或批准。两页通过正常菜单显式改为 Blocks。进入／收起AI、切页及明确接管后，命令草稿与各页AI草稿均恢复；A=PID29364／ttys014、B=PID32038／ttys016，BEFORE／AFTER的marker、PID、PPID及PTY均一致；数字Session1／2由实际底栏AX响应事后逐字转录，未把⌘快捷键当Session ID。14张原图及五个二进制哈希经独立复核，启动和结束时源码均为干净C8，正常q退出0。见[D1-T01结果](D1.md)和`evidence/shared/C8-native-tabs-1/`。
 
 D1-T01按记录的显式Blocks前提登记通过；不宣称新安装默认Blocks。部分截图时App不在前台；readonly探测只记录无可见echo，不作为输入门禁强证明；进程树是离散采样，不证明采样之间绝无瞬态进程。未配置／发送模型，CUA原生事件不等于物理输入。当前正式计数3passed／61not_run，整体仍implemented_unverified。
+
+
+## C9 原生发现后的修复与手机恢复
+
+当前实现为 **C10 `2d18e608c2a1149a093451b5246cb370de0167c3`**。C9补齐草稿关闭保护、右键输入归属、DPR变化和旧菜单目标；其完整verify11发现两项鼠标／焦点协议回归，原失败保留。C10在实际pointer处理前激活目标，并仅为精确失焦系统报告保留独立权限；原103项界面测试、相关297项和canonical165项通过，集合有重叠不累加。独立复评未见阻断，完整 [verify12](../evidence/shared/C10-gates/verify-12.log) 已 exit0（792秒、源码首尾clean；[metadata](../evidence/shared/C10-gates/verify-12-metadata.json)），应用3090通过／1跳过，原生smoke4／真实PTY45／Composer1／Keychain1及Debug／Release／签名检查／Xcode通过，首次正常UI复验因AX陈旧和提前结束录屏仅留局部观察；第二次有界复验补做遮罩取消及idleAI取消／明确关闭，保留A，未复现AXTree错误，但首轮原因仍未定且没有新增正式场景通过。详见 [C9–C10本轮记录](C9_FOLLOWUP.md)。以下C8完整gate／3个正式场景保持历史身份，不直接改记为C10通过。
+
+本轮另运行 `native-c10-windows-1`，源码首尾clean、runner正常q退出0；仅完成非活动A关闭确认仅列A，以及Cancel／Esc保留命令草稿、A／S与三个Shell PID／TTY离散保留的局部核对。10条AXTree错误后内容陈旧，首因未确定，不归因CUA或窗口移动。Cmd+T有响应但Flutter组合键未确认；312秒录像在09:47:04因SCStream -3822提前结束，晚于此时的S保留和最终界面图不能当作录像内证据。最终关闭、AI／分栏／12tab／重排／物理键完整流程未做，本轮没有新增formal pass。原记录边界见[C10原生局部复验摘要](../evidence/shared/C10-native-partial/review-summary.json)及[C9–C10本轮记录](C9_FOLLOWUP.md)。
+
+第二次 `native-c10-ax-2` 在同一干净C10、固定窗口有界重做A关闭Cancel／Esc／遮罩取消，并补B未发送idleAI草稿的取消／明确关闭：B PID17469移除，A PID3929／ttys008／原命令草稿保留。0条AXTree错误仅是本次序列结果，1条Window move警告仍存在；不能抹除首轮失败或归因移动。7个截图点均非前台；录像11:53:44–11:58:00约256秒包含各检查点但非整段App运行，finalize与SCStream停止／Ctrl-C因果未定。4次只读当前语义RPC不等于平台AXTree失败复现。完整12tab／split／物理键等仍未验，详见[第二次C10有界复验摘要](../evidence/shared/C10-native-fixed-window/review-summary.json)。
+
+手机后续恢复结果仍属于 **C4**：独立 `work.ianvs.trail.mobileprd` 已完成用户授权的 cloud 配置与私钥导入，手机保活设为30秒／3次。第一次目录清理报错后出现配置重建，已如实告知并恢复；第二次仅覆盖指定临时单文件，独立核对2459→0字节、两份配置元数据未变，清理前后两次重启均可使用保存的cloud连接，后续只读命令成功。三张原图与设备日志保留私有，公开[脱敏审阅摘要](../evidence/shared/C4-cloud-restoration/independent-review-summary.json)。镜像随后因iPhone被使用而结束，长时保活与完整真实模型／Smart／移动PRD仍未验；不把镜像结束当SSH断连。DeepSeek设置继续保留，原连接测试和Manual/Smart查看历史见原摘要。实体iPad、外接显示器按用户确认保持未验收。

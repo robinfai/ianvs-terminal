@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "prepared_at_utc": "2026-10-10T09:45:26.343544+00:00",
+  "candidate": {
+    "label": "C10",
+    "commit": "2d18e608c2a1149a093451b5246cb370de0167c3"
+  },
+  "run_provenance": "Original make verify run on frozen clean C10, with clean start and end recorded by the host. These two files are archived byte-for-byte; earlier C10 targeted logs ran before commit and remain separately identified.",
+  "command": "make verify",
+  "started_at": "2026-10-10T09:26:18.900875+00:00",
+  "finished_at": "2026-10-10T09:39:30.584155+00:00",
+  "elapsed_seconds": 792,
+  "exit_code": 0,
+  "source_clean_at_start": true,
+  "source_clean_at_end": true,
+  "macos_integration_enabled": true,
+  "results": {
+    "application_tests": {
+      "passed": 3090,
+      "skipped": 1,
+      "failed": 0,
+      "log_line": 9464,
+      "skip_reason": "The application reporter records one skip without naming it at the counter transition; do not conflate that count with the separate nightly resource benchmark gate."
+    },
+    "native_drivers": [
+      {
+        "name": "smoke",
+        "passed": 4,
+        "foreground_warning_log_line": 9590,
+        "success_log_line": 9596
+      },
+      {
+        "name": "real_pty",
+        "passed": 45,
+        "foreground_warning_log_line": 9658,
+        "success_log_line": 9714
+      },
+      {
+        "name": "composer",
+        "passed": 1,
+        "foreground_warning_log_line": 9776,
+        "success_log_line": 9779
+      },
+      {
+        "name": "keychain",
+        "passed": 1,
+        "foreground_warning_log_line": 9841,
+        "success_log_line": 9844
+      }
+    ],
+    "debug_build": "passed",
+    "release_build": "passed",
+    "signature_checks": {
+      "status": "passed",
+      "basis": "tools/verify_macos_app.sh uses set -euo pipefail and requires codesign --verify --deep --strict before successful completion; successful codesign verification is silent. This does not infer notarization or certificate class."
+    },
+    "xcode_tests": {
+      "status": "passed",
+      "success_log_line": 13842
+    },
+    "nightly_resource_benchmark": {
+      "status": "not_run",
+      "reason": "VERIFY_FLUTTER_TERMINAL_RUN_NIGHTLY_BENCH!=1",
+      "log_line": 6203
+    }
+  },
+  "counting_policy": "Counts belong to separate invocations; do not add precommit selections, historical C9/C8 counts, or native subtests to claim a unique PRD scenario total.",
+  "evidence_boundaries": [
+    "All four native drivers logged Failed to foreground app; open returned 1 and subsequently passed their actual driver assertions. These runs do not prove foreground physical input or normal UI visual acceptance.",
+    "C10 normal-window UI revalidation is recorded separately by the root agent and is not marked complete by this gate archive.",
+    "Formal desktop registration remains historical C8: D1-T01, D3-T05 and D4-T01 passed; 61 not_run. No case status is changed here.",
+    "The physical iPhone installation and cloud-restoration evidence remain C4; no C10 iPhone installation is claimed.",
+    "C9 verify11 failure and earlier failed or interrupted evidence remain unchanged."
+  ],
+  "entries": [
+    {
+      "path": "verify-12.log",
+      "source": "build/desktop-prd-v1/iteration-1/verify-12.log",
+      "bytes": 1707575,
+      "sha256": "c07bd8859cc4c4e4580fa4fb65f151e28f90b6825d966a8feb4b7056606dfddf",
+      "byte_identical": true
+    },
+    {
+      "path": "verify-12-metadata.json",
+      "source": "build/desktop-prd-v1/iteration-1/verify-12-metadata.json",
+      "bytes": 411,
+      "sha256": "c4c99d7f0b80a11e16d8c1d649f80443fe571c0c61ee3284d2864b24f12d8a18",
+      "byte_identical": true
+    }
+  ]
+}

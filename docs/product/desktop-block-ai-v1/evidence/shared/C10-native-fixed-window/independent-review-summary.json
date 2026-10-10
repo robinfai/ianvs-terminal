@@ -1,0 +1,396 @@
+{
+  "schema_version": 1,
+  "reviewed_at": "2026-10-10T12:05:49.409840+00:00",
+  "reviewer": "independent ai_contract_review agent",
+  "run": "native-c10-ax-2",
+  "candidate": "C10",
+  "source_commit": "2d18e608c2a1149a093451b5246cb370de0167c3",
+  "result": "partial_native_evidence_only",
+  "formal_cases_passed_by_this_review": [],
+  "conclusion": "The seven original screenshots, selected video windows, and OS checkpoint sidecars support A Command draft confirmation/Cancel retention, B idle AI draft confirmation/Cancel retention, and operator-recorded explicit B close leaving A with its original draft and shell identity. This is a bounded local result, not a formal complete D2 case or a fix verification of the prior AXTree failure.",
+  "identity": {
+    "app_pid": 3809,
+    "window_id": 31358,
+    "dimensions_px": [
+      3456,
+      2168
+    ],
+    "point_pixel_scale": 2,
+    "source_clean_at_launch_and_end": true,
+    "source_clean_basis": "manual-run.json; this reviewer did not query a live app or modify source",
+    "app_identity_file": "app-identity.json",
+    "same_window_and_bounds_all_seven_checkpoints": true,
+    "all_seven_checkpoint_active_pids_empty": true,
+    "foreground_claim": false,
+    "physical_keyboard_claim": false
+  },
+  "original_pngs": [
+    {
+      "png": "two-tabs-before-close.png",
+      "sidecar": "two-tabs-before-close.json",
+      "sha256": "deec20e7a15a1e09df7ea54cd60a779a3d75051a40701b3201f8f0c4baf93188",
+      "bytes": 196148,
+      "dimensions_px": [
+        3456,
+        2168
+      ],
+      "captured_at": "2026-10-10T11:54:29.552012+00:00",
+      "app_pid": 3809,
+      "captured_window_id": 31358,
+      "active_pids": [],
+      "frontmost_pid": 56691,
+      "logical_bounds": {
+        "Height": 1084,
+        "Width": 1728,
+        "X": 0,
+        "Y": 33
+      },
+      "within_recording_event_interval": true,
+      "nearest_reviewed_frame": {
+        "file": "frames/frame-002.png",
+        "source_presentation_index": 1336,
+        "pts_seconds": 45.52
+      },
+      "observed_pixels_and_sidecar": "Two tabs, B/second selected in Raw mode; shell prompt visible. A draft is not visible in this particular screenshot."
+    },
+    {
+      "png": "command-close-confirmation.png",
+      "sidecar": "command-close-confirmation.json",
+      "sha256": "8c4858425cf9f2e67c6cd681f851b5243a22c12f31d522c89bf0688f540ef268",
+      "bytes": 317096,
+      "dimensions_px": [
+        3456,
+        2168
+      ],
+      "captured_at": "2026-10-10T11:54:45.896850+00:00",
+      "app_pid": 3809,
+      "captured_window_id": 31358,
+      "active_pids": [],
+      "frontmost_pid": 56691,
+      "logical_bounds": {
+        "Height": 1084,
+        "Width": 1728,
+        "X": 0,
+        "Y": 33
+      },
+      "within_recording_event_interval": true,
+      "nearest_reviewed_frame": {
+        "file": "frames/frame-004.png",
+        "source_presentation_index": 1815,
+        "pts_seconds": 61.865
+      },
+      "observed_pixels_and_sidecar": "Close dialog lists only Session 1 / Command draft and the exact A draft. B/second tab remains selected with its Raw prompt behind the modal; no B draft is listed.",
+      "a_draft": "printf C10_AX2_DRAFT_A >> \"$TMPDIR/ax2-unexpected-command.log\""
+    },
+    {
+      "png": "draft-after-cancel.png",
+      "sidecar": "draft-after-cancel.json",
+      "sha256": "b244bf048de84db7e91579ce71c0ea092a8249dc8acdb36cb4f24adac59bdfdd",
+      "bytes": 304913,
+      "dimensions_px": [
+        3456,
+        2168
+      ],
+      "captured_at": "2026-10-10T11:55:10.830743+00:00",
+      "app_pid": 3809,
+      "captured_window_id": 31358,
+      "active_pids": [],
+      "frontmost_pid": 56691,
+      "logical_bounds": {
+        "Height": 1084,
+        "Width": 1728,
+        "X": 0,
+        "Y": 33
+      },
+      "within_recording_event_interval": true,
+      "nearest_reviewed_frame": {
+        "file": "frames/frame-018.png",
+        "source_presentation_index": 2548,
+        "pts_seconds": 86.823333
+      },
+      "observed_pixels_and_sidecar": "Two tabs remain, A/first selected. Exact A draft is visible. One existing successful identity Block says C10-AX2-A PID=3929 TTY=/dev/ttys008, exit 0.",
+      "a_draft": "printf C10_AX2_DRAFT_A >> \"$TMPDIR/ax2-unexpected-command.log\""
+    },
+    {
+      "png": "ai-draft-before-close.png",
+      "sidecar": "ai-draft-before-close.json",
+      "sha256": "c7922352291641d995d4cfe7bc47d26711768871086a5a74df77ab1dc5a93769",
+      "bytes": 277654,
+      "dimensions_px": [
+        3456,
+        2168
+      ],
+      "captured_at": "2026-10-10T11:56:11.563951+00:00",
+      "app_pid": 3809,
+      "captured_window_id": 31358,
+      "active_pids": [],
+      "frontmost_pid": 56691,
+      "logical_bounds": {
+        "Height": 1084,
+        "Width": 1728,
+        "X": 0,
+        "Y": 33
+      },
+      "within_recording_event_interval": true,
+      "nearest_reviewed_frame": {
+        "file": "frames/frame-020.png",
+        "source_presentation_index": 4321,
+        "pts_seconds": 147.56
+      },
+      "observed_pixels_and_sidecar": "Two tabs, B/second selected in AI new-task view. Exact AI draft visible; no task transcript result or proposal is visible.",
+      "b_ai_draft": "C10_AX2_AI_DRAFT_B：仅保留，不发送。"
+    },
+    {
+      "png": "ai-close-confirmation.png",
+      "sidecar": "ai-close-confirmation.json",
+      "sha256": "66ec6c163e4d256c02e7ab85a0862addbfd96effd157067a239fd9dcdce94c73",
+      "bytes": 383812,
+      "dimensions_px": [
+        3456,
+        2168
+      ],
+      "captured_at": "2026-10-10T11:56:26.703561+00:00",
+      "app_pid": 3809,
+      "captured_window_id": 31358,
+      "active_pids": [],
+      "frontmost_pid": 56691,
+      "logical_bounds": {
+        "Height": 1084,
+        "Width": 1728,
+        "X": 0,
+        "Y": 33
+      },
+      "within_recording_event_interval": true,
+      "nearest_reviewed_frame": {
+        "file": "frames/frame-023.png",
+        "source_presentation_index": 4765,
+        "pts_seconds": 162.685
+      },
+      "observed_pixels_and_sidecar": "Close dialog lists only Session 2, AI / task-1 / draft, and the exact B AI draft. A draft is not included. Both tabs are still present behind it.",
+      "b_ai_draft": "C10_AX2_AI_DRAFT_B：仅保留，不发送。"
+    },
+    {
+      "png": "ai-draft-after-cancel.png",
+      "sidecar": "ai-draft-after-cancel.json",
+      "sha256": "f7d7f231587a7aa5a185398444e2b3e41f4823d06579f8e41829be26f7458606",
+      "bytes": 277771,
+      "dimensions_px": [
+        3456,
+        2168
+      ],
+      "captured_at": "2026-10-10T11:56:37.625610+00:00",
+      "app_pid": 3809,
+      "captured_window_id": 31358,
+      "active_pids": [],
+      "frontmost_pid": 56691,
+      "logical_bounds": {
+        "Height": 1084,
+        "Width": 1728,
+        "X": 0,
+        "Y": 33
+      },
+      "within_recording_event_interval": true,
+      "nearest_reviewed_frame": {
+        "file": "frames/frame-029.png",
+        "source_presentation_index": 5086,
+        "pts_seconds": 173.613333
+      },
+      "observed_pixels_and_sidecar": "Two tabs remain, B/second selected, AI draft unchanged after modal dismissal.",
+      "b_ai_draft": "C10_AX2_AI_DRAFT_B：仅保留，不发送。"
+    },
+    {
+      "png": "survivor-after-explicit-ai-close.png",
+      "sidecar": "survivor-after-explicit-ai-close.json",
+      "sha256": "e991f06a5857b1f9be999a1690fbdafc4a19657494a77553f1da998e5f7575dd",
+      "bytes": 297010,
+      "dimensions_px": [
+        3456,
+        2168
+      ],
+      "captured_at": "2026-10-10T11:57:01.703020+00:00",
+      "app_pid": 3809,
+      "captured_window_id": 31358,
+      "active_pids": [],
+      "frontmost_pid": 56691,
+      "logical_bounds": {
+        "Height": 1084,
+        "Width": 1728,
+        "X": 0,
+        "Y": 33
+      },
+      "within_recording_event_interval": true,
+      "nearest_reviewed_frame": {
+        "file": "frames/frame-050.png",
+        "source_presentation_index": 5793,
+        "pts_seconds": 197.695
+      },
+      "observed_pixels_and_sidecar": "Only A/first tab remains. Its exact original Command draft and single identity Block remain; output still says PID3929 /dev/ttys008. Sidecar contains A3929/ttys008 and no B17469/ttys016 in the owned subtree sample.",
+      "a_draft": "printf C10_AX2_DRAFT_A >> \"$TMPDIR/ax2-unexpected-command.log\""
+    }
+  ],
+  "video": {
+    "file": "native-window.mp4",
+    "sha256": "2fa662dde486d86556d3d86555a077b41b3145e933615521ac34a3fd2bde0eb0",
+    "bytes": 16405110,
+    "codec": "H.264 Main / yuv420p",
+    "audio_streams": 0,
+    "dimensions_px": [
+      3456,
+      2168
+    ],
+    "duration_seconds_ffprobe": 256.175,
+    "frame_count": 7508,
+    "first_pts_seconds": 0,
+    "last_pts_seconds": 256.141667,
+    "recording_started_at": "2026-10-10T11:53:44.035Z",
+    "recording_finished_at": "2026-10-10T11:58:00.234Z",
+    "stream_stopped_at": "2026-10-10T11:58:00.235Z",
+    "stream_error": {
+      "domain": "com.apple.ScreenCaptureKit.SCStreamErrorDomain",
+      "code": -3822
+    },
+    "recording_exit_code_from_manual": 0,
+    "covers_whole_app_run": false,
+    "all_seven_checkpoint_times_within_recording_interval": true,
+    "exit_interpretation": "Exit0 means the recording file finalized. The -3822 stream event remains present; the relationship to root stop request was not recorded. This is not error-free whole-run recording.",
+    "size_note": "recording_finished reported16317657bytes; final file is16405110bytes. Actual final SHA/size identifies the preserved artifact; no cause is inferred.",
+    "sampling_method_file": "sampling-method.json",
+    "source_packets_file": "source-packets.json",
+    "samples_actually_viewed": 53,
+    "contact_sheets_actually_viewed": 5,
+    "decoded_source_pts_verified": true,
+    "full_playback_watched": false,
+    "all_frames_reviewed": false,
+    "sampling_description": "Only selected screenshots-nearby source frames, 60–88s every2s for A Cancel,160–176s every2s for B Cancel,180–199s every1s for explicit B Close, and first/last source frames. Source PTS selected exactly and checked against ffmpeg showinfo. No interpolated frames. Contact sheets were all viewed.",
+    "time_mapping_limit": "Checkpoint-to-media matching uses recording_started plus PTS as an approximate anchor; no zero-latency physical event timing is claimed.",
+    "observed_short_windows": [
+      {
+        "pts_seconds": [
+          60.001667,
+          64.003333
+        ],
+        "observation": "A/Session1 Command draft dialog visible over B Raw tab."
+      },
+      {
+        "pts_seconds": [
+          64.003333,
+          66.003333
+        ],
+        "observation": "Dialog visible at frame1878, gone at frame1937; both tabs remain. Operator record identifies Cancel. At frame1996/PTS68.013333 A is selected and draft remains."
+      },
+      {
+        "pts_seconds": [
+          160.03,
+          166.02
+        ],
+        "observation": "B/Session2/task-1 AI draft dialog visible with both tabs retained."
+      },
+      {
+        "pts_seconds": [
+          166.02,
+          168.031667
+        ],
+        "observation": "B dialog disappears, B AI view and draft remain; subsequent original ai-draft-after-cancel and video frame5086/PTS173.613333 show retained draft. Operator record identifies Cancel."
+      },
+      {
+        "pts_seconds": [
+          180.011667,
+          187.021667
+        ],
+        "observation": "B context menu then B/Session2 AI close confirmation appears again. No A draft is listed."
+      },
+      {
+        "pts_seconds": [
+          187.021667,
+          188.01
+        ],
+        "observation": "B dialog is visible at frame5480; by frame5509 only A remains. Operator record identifies the explicit Close action. A original draft/result remain through reviewed checkpoint frame5793/PTS197.695 and the last reviewed source frame7507/PTS256.141667."
+      }
+    ]
+  },
+  "action_evidence_limits": {
+    "cancel_and_explicit_close": "Action names come from operator-observations.json, which is a reconstruction of CUA/tool transcript. Sampled pixels corroborate the relevant dialog-before/retained-or-closed-after outcomes; they are not a hardware event stream.",
+    "escape_and_mask": "Escape and blank-mask clicks are supported only by the reconstructed CUA transcript here. This bounded sampling did not inspect those action windows and makes no independent key or hit-test delivery claim.",
+    "input": "CUA-mediated native UI with clipboard paste according to saved operator/run records, not measured physical keyboard input. No controller/event injection is reported.",
+    "counter": "exists_at_end:false refers only to the prepared draft side-effect destination ax2-unexpected-command.log. It does not prove zero PTY bytes, no network requests, or global command counts.",
+    "model": "Operator/setup states no model configured or requested; no network trace was supplied. This is not real model/API acceptance."
+  },
+  "process_evidence": {
+    "a_before_and_after": {
+      "pid": 3929,
+      "tty": "ttys008"
+    },
+    "b_before": {
+      "pid": 17469,
+      "tty": "ttys016"
+    },
+    "b_present_in_before_and_cancel_sidecars": true,
+    "b_absent_in_final_owned_subtree_sample": true,
+    "a_visible_output_matches_sidecar": true,
+    "limits": "Discrete process-subtree snapshots and existing identity-command output establish sampled identities. They do not prove every transient process state, global PID absence, or absence of hidden PTYs."
+  },
+  "ax_observation": {
+    "launch_log": "launch.log",
+    "failed_ax_tree_updates_count": 0,
+    "window_move_warning_count": 1,
+    "application_finished_present": true,
+    "interpretation": "Zero recorded AXTree errors is a negative result for this bounded fixed-window run only. It does not repair or invalidate the earlier failure. One Window move warning exists despite operator reporting no move/resize; unchanged checkpoint bounds alone do not prove every intervening geometry state.",
+    "private_semantics": "Private framework Semantics records are separate and excluded from this visual review/archival recommendations; no raw platform AXTree or failed update was reviewed here."
+  },
+  "not_established": [
+    "Complete D2-T11/T14 or any other formal full scenario.",
+    "12 tabs/overflow/reorder/pane movement/running-command close/pending badge/menu bounds.",
+    "Native first-primary press, inactive-secondary TUI input, focus-in/out protocol or physical shortcuts.",
+    "Old-task/source-only close protection.",
+    "Whole-run video coverage or any checkpoint foreground/keyWindow guarantee.",
+    "A fix for prior AXTree corruption."
+  ],
+  "archive": {
+    "original_pngs": [
+      "two-tabs-before-close.png",
+      "command-close-confirmation.png",
+      "draft-after-cancel.png",
+      "ai-draft-before-close.png",
+      "ai-close-confirmation.png",
+      "ai-draft-after-cancel.png",
+      "survivor-after-explicit-ai-close.png"
+    ],
+    "original_sidecars": [
+      "two-tabs-before-close.json",
+      "command-close-confirmation.json",
+      "draft-after-cancel.json",
+      "ai-draft-before-close.json",
+      "ai-close-confirmation.json",
+      "ai-draft-after-cancel.json",
+      "survivor-after-explicit-ai-close.json"
+    ],
+    "video": "Preserve original MP4 with partial-duration/-3822 limits and its SHA; all seven screenshot states have matching nearby sampled frames.",
+    "text_support": [
+      "manual-run.json",
+      "operator-observations.json",
+      "recording.log",
+      "app-identity.json"
+    ],
+    "raw_launch_log": "Contains local development paths and an ephemeral loopback Dart VM Service/DevTools auth URL. Preserve original/hash locally; use explicitly sanitized derived text for public publication if those values are removed.",
+    "privacy": "No real API/SSH credential or personal message was visible in the seven originals or53 reviewed video samples; only isolated fixture strings/paths/PID/TTY/app UI were seen. This is a bounded sample check, not all-frame privacy certification.",
+    "private_files_excluded": [
+      "semantics-private/",
+      "semantics-review-summary.private.json"
+    ],
+    "derived_media": "review/frames and contact sheets are derived review aids, not original native screenshots."
+  },
+  "integrity": {
+    "original_files_checked": 20,
+    "all_checked_originals_unchanged": true,
+    "all_seven_png_hashes_match_sidecars": true,
+    "original_hash_file": "original-artifacts-sha256.json",
+    "no_gui_or_sdk_invoked": true,
+    "only_ignored_review_files_written": true
+  },
+  "support_hashes": {
+    "original-artifacts-sha256.json": "85d96a06bfada1d091be74814f1ae359bbc93c53d7606311ec41f72737b1462d",
+    "ffprobe.json": "40c73d6a930af7d3037cf38e566f8c2e27661d35d731bc2c3fbcf9c60c67b9b6",
+    "sampling-method.json": "b65046e64212b91bc425449405dae60e21a63667488d7d8cae452edc3ccb9590",
+    "source-packets.json": "b274e5def4568f2c58cb77581641d8eed0a766a2a995771e827a5f80a95d46c7"
+  }
+}

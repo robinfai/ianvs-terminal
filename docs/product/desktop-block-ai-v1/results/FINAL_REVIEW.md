@@ -1,8 +1,10 @@
-# C8 当前交付结论与验收边界
+# C10 当前交付结论与验收边界
 
-核对日期：2026-10-10。整体状态为 **`implemented_unverified`**。当前候选 C8 为 `19001573d9974c510e1e4cbcfeb01c94368ea157`；本轮起点 `79db5115d1e6c69ac62116f19fdfb2b102724df5`。C4 的生产修复已收拢，C5–C8 仅测试／驱动变化。C8原生workspace已实际通过功能与测试结束检查，连续窗口录像完整；这不代表 D1–D4、真实模型或所有平台通过。
+当前实现为 **C10 `2d18e608c2a1149a093451b5246cb370de0167c3`**。C9补齐草稿关闭保护、右键输入归属、DPR变化和旧菜单目标；其完整verify11发现两项鼠标／焦点协议回归，原失败保留。C10在实际pointer处理前激活目标，并仅为精确失焦系统报告保留独立权限；原103项界面测试、相关297项和canonical165项通过，集合有重叠不累加。独立复评未见阻断，完整 [verify12](../evidence/shared/C10-gates/verify-12.log) 已 exit0（792秒、源码首尾clean；[metadata](../evidence/shared/C10-gates/verify-12-metadata.json)），应用3090通过／1跳过，原生smoke4／真实PTY45／Composer1／Keychain1及Debug／Release／签名检查／Xcode通过，首次正常UI复验因AX陈旧和提前结束录屏仅留局部观察；第二次有界复验补做遮罩取消及idleAI取消／明确关闭，保留A，未复现AXTree错误，但首轮原因仍未定且没有新增正式场景通过。详见 [C9–C10本轮记录](C9_FOLLOWUP.md)。以下C8完整gate／3个正式场景保持历史身份，不直接改记为C10通过。
 
-**正式登记3/64 passed（D1-T01、D3-T05和D4-T01）、61/64 not_run。** C8归档metadata／文件合同校验通过；四阶段仍in_progress，未宣称完整阶段验收通过。 C8完整`make verify`第十轮已exit0、886秒、源码首尾干净；verify-9的SDK缓存沙箱权限exit2保留历史。C8组件复采48/48、63PNG及macOS Debug预览入口构建均成功，源码首尾clean／unchanged；完整gate通过不等于全部产品场景或全主题矩阵通过。
+核对日期：2026-10-10。整体状态为 **`implemented_unverified`**。上一正式归档候选 C8 为 `19001573d9974c510e1e4cbcfeb01c94368ea157`；本轮起点 `79db5115d1e6c69ac62116f19fdfb2b102724df5`。C4 的生产修复已收拢，C5–C8 仅测试／驱动变化。C8原生workspace已实际通过功能与测试结束检查，连续窗口录像完整；这不代表 D1–D4、真实模型或所有平台通过。
+
+**C8正式登记3/64 passed（D1-T01、D3-T05和D4-T01）、61/64 not_run。** C8归档metadata／文件合同校验通过；四阶段仍in_progress，未宣称完整阶段验收通过。 C8完整`make verify`第十轮已exit0、886秒、源码首尾干净；verify-9的SDK缓存沙箱权限exit2保留历史。C8组件复采48/48、63PNG及macOS Debug预览入口构建均成功，源码首尾clean／unchanged；完整gate通过不等于全部产品场景或全主题矩阵通过。
 
 ## 已修复并纳入 C3 自动验证
 
@@ -31,6 +33,9 @@ C4 `1c95adcaab32fac64fb08142da7a0eb3b8620b5a` 的组件证据位于 `build/deskt
 
 | 运行 | 已核对结果 | 证据边界 |
 |---|---|---|
+| C10 `native-c10-ax-2` | 同一cleanC10有界普通UI复验；A关闭Cancel／Esc／遮罩取消保留，B idleAI草稿取消保留，明确Close只移除B PID17469并保留A PID3929／ttys008／草稿；runner q退出0，见[第二次C10有界复验摘要](../evidence/shared/C10-native-fixed-window/review-summary.json) | 0 AXTree错误不抹除首轮异常；1 Window move警告首因未定。7检查点均非前台；256秒录像含检查点但非完整App时段，SCStream与停止请求关系未记录；12tab／split／物理键等未完，无formal pass |
+| C10 `native-c10-windows-1` | 普通UI隔离App、源码首尾clean；非活动A的关闭确认仅列A原稿，Cancel／Esc后保留；A／S原稿与三个Shell PID／TTY有离散记录；runner正常q退出0，见[C10原生局部复验摘要](../evidence/shared/C10-native-partial/review-summary.json) | 10条AXTree错误后AX陈旧；首因未定，不归因CUA或移动。录像312秒、SCStream -3822提前结束，S保留／最后界面图在录像外；final close／AI／split／12tab／重排／物理快捷键未完成；本轮无formal pass |
+| C10 `verify-12` | 完整make verify exit0、792秒、源码首尾clean；应用3090通过／1跳过；原生smoke4、真实PTY45、Composer1、Keychain1，Debug／Release构建、签名检查与Xcode测试通过；[原日志](../evidence/shared/C10-gates/verify-12.log)／[metadata](../evidence/shared/C10-gates/verify-12-metadata.json) | 四个driver均有foreground open returned1警告，随后实际断言通过；不证明前台物理输入或正常UI视觉验收。nightly resource benchmark未运行；签名检查不推公证／证书类别；C8正式3/61及C4手机身份不迁移 |
 | C8 `native-c8-tabs-1` / D1-T01 | 正常产品 UI 两标签页、真实本地 Shell；14 张原图独立复评；A PID29364／ttys014，B PID32038／ttys016，进入与收起 AI、切页及显式接管后 marker／PID／PTY 与两类草稿保留；底栏 AX 操作者转录记录 Session1／2；正常 q 退出0 | 显式菜单选择 Blocks，非新安装默认模式；部分截图窗口非前台；离散 OS 采样不证明所有瞬态进程；只读 no-echo 探测仅辅助，不充当输入门禁强断言；无模型请求、非物理输入 |
 | C8 `native-c8-workspace-1` | exit0、源码首尾clean；原功能与框架收尾断言通过；74周期原生图、6精确原生点、42widget支撑图；53.658333秒窗口录像与严格区间门禁true；133项产物SHA独立核对一致 | 真实macOS App／本地PTY，确定性本地HTTP模型、自动WidgetTester输入；不是物理输入、真实模型或其他尚未验收场景的通过证明 |
 | C8 `verify-10`（保留verify-9历史） | 完整make verify exit0、886秒、源码首尾clean；应用3,065通过／1跳过；原生smoke4、PTY45、Composer1、Keychain1，Debug／Release构建、签名与Xcode测试通过 | 证明C8现有完整自动gate在该环境通过，不代表64完整场景通过；verify-9因SDK cache权限exit2仍保留，不当产品失败 |
@@ -39,15 +44,18 @@ C4 `1c95adcaab32fac64fb08142da7a0eb3b8620b5a` 的组件证据位于 `build/deskt
 | 历史C3 `verify-7` | 完整make verify exit0、首尾clean；应用2,965通过／1跳过；原生冒烟4、真实PTY45、Composer1、Keychain1；Debug／Release、签名与Xcode测试通过 | 既有自动gate在记录环境的历史结果；不改作C8 gate或64完整产品场景通过 |
 | 历史C3 `ssh-c3-native-1` | 真实回环OpenSSH六组zsh/bash × emacs/vi及各自local→SSH均PASS，含受控多跳／父Shell恢复；exit0、首尾clean | production native session API子集，无GUI，不能标D4-T02完整通过 |
 | 历史C3 ACP协议／恢复探针 | 适配器2.1.1实际返回OK，完成回执确认模型gpt-5.6-sol；cancel后同session/load记忆短语核验通过，均exit0、首尾clean | 拒绝终端写入／只读fixture tool；不是Finder／原生UI审批或D4-T04通过 |
-| 物理iPhone C4安装与连接 | 独立Trail PRD已安装／启动，授权的DeepSeek真实连接测试成功；保留保存的Manual配置，Smart三档查看后取消；原观察SSH列表空／未执行；cloud导入授权已得，USB 已恢复／镜像待本人解锁，尚未转移私钥或保存SSH | 仅启动／设置／连接smoke；配置模型名不等于返回模型。没有完整model→SSH、Smart执行或移动PRD验收；不能当C8真机结果 |
+| 物理iPhone C4安装与连接 | DeepSeek连接smoke保留；后续已授权导入cloud，精确单文件清理前、后各一次重启可重连、只读命令成功；三张原图独立审阅，详情见[C9本轮记录](C9_FOLLOWUP.md) | 第一次目录清理报错后配置重建的影响已恢复但因果未定；手机仍C4，长时保活／Smart／完整模型闭环未验，不当C9真机结果 |
 
 C8原始目录为 `build/desktop-prd-v1/iteration-1/native-c8-workspace-1/`。公开支撑归档目录由本轮证据收拢统一生成：
 
 - `evidence/shared/C8-native-workspace-1/`：`run-metadata.json`、`native-test.log`、`result.json`、`source-input-hashes.json`及补充、`binary-input-hashes.json`、`environment.json`、`visual-review.log`、`native-window.mp4`和`archive-index.json`。
 - `evidence/shared/C8-native-tabs-1/`：正常 UI 双标签页的运行身份、操作者 AX 转录、逐点进程树、构建哈希和独立 14 图审阅；正式截图及闭环见 [D1-T01](D1.md)。
+- [第二次C10有界复验摘要](../evidence/shared/C10-native-fixed-window/review-summary.json)：A三种取消与B idleAI取消／明确关闭的局部观察，零AX错误仅限这次序列；不改写第一轮或完整case状态。
+- [C10原生局部复验摘要](../evidence/shared/C10-native-partial/review-summary.json)：本轮关闭确认／取消局部事实与原始输入哈希；录屏中止、AX与键盘未定因，不能作为完整D2场景通过。
+- [C10 gate归档](../evidence/shared/C10-gates/archive-index.json)：verify-12原日志／metadata逐字节归档，冻结C10完整运行exit0；提交前103／297／165定向记录另见 `evidence/shared/C10-input-regression/`，不混算为本次运行。
 - `evidence/shared/C8-gates/`：verify-9环境中止与verify-10完整通过的原日志／metadata；第十轮实际时间为2026-10-10 07:23:24–07:38:10 UTC。
 - [C8组件证据](../evidence/shared/C8-component-states/archive-index.json)：48项／63PNG、capture／native-build日志与metadata、preview构建身份及4/63代表图 [视觉复核](../evidence/shared/C8-component-states/visual-review.log)；未启动原生预览，不占用正式App截图检查点。
-- `evidence/shared/C4-gates/`：verify-8、iPhone build／install摘要与`ui-followup-summary.json`。手机图只在镜像会话视觉检查，未归档正式原图，不能补成formal case截图。
+- `evidence/shared/C4-gates/`：verify-8、iPhone build／install摘要与`ui-followup-summary.json`。早先设置检查保持原身份；后续三张cloud恢复原图保留私有，脱敏审阅另归档至 `evidence/shared/C4-cloud-restoration/`，不补成formal case截图。
 - 历史C3原始gate、SSH／ACP记录见 [C3支撑证据](C3_GATE_EVIDENCE.md)；C3 iPhone `physical-profile.MIDSac`仍保持当时未安装的构建身份，后续C4安装另列。分支为 [composer](https://github.com/robinfai/ianvs-terminal/tree/composer)。
 
 原生窗口PID91804／window28413、1728×1084 points／3456×2168 pixels，arm64 macOS27.0.1 build26A434；D01检查点确认同PID active/frontmost后才继续。D12前置为resumed、AI task持焦点／active／route current、原target处于alternate screen；result记录45×203网格和批准后只读观察／显式接管／手动恢复均通过。原生输入是自动驱动，`font_scale=1.0`来自该固定SDK macOS embedder与无override源码推导，**不是运行时测量**，与原生pixel_ratio=2分开。
@@ -71,7 +79,7 @@ C8仅调整driver诊断／录制首尾握手，在运行中不调用CUA AX；原
 | 中文IME物理候选、触摸板惯性、VoiceOver／FKA、系统减少动画 | 需要实际系统操作与可核对视频／日志；自动composing／pan／Semantics不替代 |
 | 完整TUI／密码／特殊输出、睡眠恢复、unknown／partial竞争、长输出性能、升级回滚 | C8vim和慢命令为真实原生子集；继续正式步骤、故障注入、profile原始采样和持久数据保留证据 |
 | 全主题／状态／长路径中英、四尺寸、1／1.5／2倍文字、字体／DPI | C8六组件48项／63PNG已复采、4代表图复核，完整矩阵仍缺；逻辑缩放／PNG导出比不是系统DPI。macOS26旧基线未复采 |
-| iPhone完整模型→SSH与审核行为 | C4已安装启动／真实API连接；保存的Manual保留，Smart仅查看且取消。原设置观察时SSH列表空；用户现已授权导入本机cloud配置及私钥，USB 已恢复有线连接，镜像仍等待本人解锁，尚未复制私钥或保存SSH，连接待测；没有成功记录前保持配置待测，不算全部移动验收 |
+| iPhone完整模型→SSH与审核行为 | C4已保存cloud及私钥，清理前后两次重启和只读SSH验证成功；30秒／3次已设置。镜像因手机被使用而结束，后续状态不可见；长时保活、连续模型→SSH和Smart完整矩阵仍待。无需重新导入或重复授权 |
 | 实体iPad、外接显示器 | 用户明确暂无，保留未验收，不再次询问，不用模拟器／窗口缩放替代 |
 | 支持系统／架构与其他桌面平台 | macOS14／15／26／27、iOS17／18／26／27支持要求不变；本轮只有arm64 macOS27.0.1／iPhone iOS27.0.1部分事实，旧系统与Intel仍缺。Linux／Windows未有当前App host，不从零移植或宣称可交付 |
 

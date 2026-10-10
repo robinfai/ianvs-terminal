@@ -1,0 +1,22 @@
+{
+  "captured_at": "2026-10-10T08:37:42.512526+00:00",
+  "basis": "Additional binary hashes after normal App exit, before any subsequent build; supplements initial/end four-file inventory, not a full bundle hash",
+  "source_commit": "d13e0c02c5f5921927c3f7855fd3aadce6559b64",
+  "binaries": [
+    {
+      "path": "Contents/Frameworks/ianvs_core.framework/Versions/A/ianvs_core",
+      "bytes": 14788880,
+      "sha256": "5d97cc7e2cbf4462652dee4cc2b614d56e381b0fea5e2ec691d6b2b88e14ab60"
+    },
+    {
+      "path": "Contents/MacOS/Trail Development.debug.dylib",
+      "bytes": 1114416,
+      "sha256": "3f1f72459d1a09ab0284cef8d480a22e881035623b196eff7ab92bffbc1221e2"
+    },
+    {
+      "path": "Contents/MacOS/__preview.dylib",
+      "bytes": 16800,
+      "sha256": "9dd8c7e00f11727cadd323c9b43c1c3d9d4f089483d455a4b3848412daa49527"
+    }
+  ]
+}

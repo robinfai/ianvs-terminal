@@ -1,0 +1,116 @@
+package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart
+00:00 +0: inactive TUI secondary click respects the current input owner (variant: TargetPlatform.macOS)
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: empty
+  Actual: [
+            MapEntry(2: [27, 91, 60, 50, 59, 50, 49, 59, 49, 53, 77]),
+            MapEntry(2: [27, 91, 60, 50, 59, 50, 49, 59, 49, 53, 109])
+          ]
+Inspecting an inactive TUI must not send mouse bytes.
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart:350:11)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart line 350
+The test description was:
+  inactive TUI secondary click respects the current input owner (variant: TargetPlatform.macOS)
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:02 +0 -1: inactive TUI secondary click respects the current input owner (variant: TargetPlatform.macOS) [E]
+  Test failed. See exception logs above.
+  The test description was: inactive TUI secondary click respects the current input owner (variant: TargetPlatform.macOS)
+  
+00:02 +0 -1: active TUI secondary click respects the current input owner (variant: TargetPlatform.macOS)
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: <2>
+  Actual: <3>
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart:347:11)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart line 347
+The test description was:
+  active TUI secondary click respects the current input owner (variant: TargetPlatform.macOS)
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:03 +0 -2: active TUI secondary click respects the current input owner (variant: TargetPlatform.macOS) [E]
+  Test failed. See exception logs above.
+  The test description was: active TUI secondary click respects the current input owner (variant: TargetPlatform.macOS)
+  
+00:03 +0 -2: old mode menu cannot follow a detached root pane reusing the tab ID (variant: TargetPlatform.macOS)
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: TerminalViewMode:<TerminalViewMode.normal>
+  Actual: TerminalViewMode:<TerminalViewMode.blocks>
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart:734:9)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart line 734
+The test description was:
+  old mode menu cannot follow a detached root pane reusing the tab ID (variant:
+  TargetPlatform.macOS)
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:03 +0 -3: old mode menu cannot follow a detached root pane reusing the tab ID (variant: TargetPlatform.macOS) [E]
+  Test failed. See exception logs above.
+  The test description was: old mode menu cannot follow a detached root pane reusing the tab ID (variant: TargetPlatform.macOS)
+  
+00:03 +0 -3: old close tab menu cannot follow a detached root pane reusing the tab ID (variant: TargetPlatform.macOS)
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: MappedListIterable<TerminalTab, String>:['1', '2']
+  Actual: MappedListIterable<TerminalTab, String>:['2']
+   Which: at location [0] is '2' instead of '1'
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart:730:9)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart line 730
+The test description was:
+  old close tab menu cannot follow a detached root pane reusing the tab ID (variant:
+  TargetPlatform.macOS)
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:04 +0 -4: old close tab menu cannot follow a detached root pane reusing the tab ID (variant: TargetPlatform.macOS) [E]
+  Test failed. See exception logs above.
+  The test description was: old close tab menu cannot follow a detached root pane reusing the tab ID (variant: TargetPlatform.macOS)
+  
+00:04 +0 -4: Some tests failed.
+
+Failing tests:
+  /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: active TUI secondary click respects the current input owner (variant: TargetPlatform.macOS)
+  /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: inactive TUI secondary click respects the current input owner (variant: TargetPlatform.macOS)
+  /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: old close tab menu cannot follow a detached root pane reusing the tab ID (variant: TargetPlatform.macOS)
+  /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: old mode menu cannot follow a detached root pane reusing the tab ID (variant: TargetPlatform.macOS)

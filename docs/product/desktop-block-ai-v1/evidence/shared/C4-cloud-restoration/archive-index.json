@@ -1,0 +1,13 @@
+{
+  "created_at": "2026-10-10T09:06:39.493552+00:00",
+  "artifact_type": "derived safe device follow-up; raw phone evidence remains private",
+  "candidate": "C4",
+  "implementation_commit": "1c95adcaab32fac64fb08142da7a0eb3b8620b5a",
+  "formal_case_status_changed": false,
+  "source": "build/desktop-prd-v1/iteration-1/iphone-cloud-import-2/independent-review-summary.json",
+  "destination": "evidence/shared/C4-cloud-restoration/independent-review-summary.json",
+  "sha256": "4aab8dbcc12026d873f9208a83fb85ceb076b9c8077a63f07d454eb8efa78d88",
+  "bytes": 9480,
+  "original_bytes_preserved": true,
+  "privacy_scope": "Only reviewed safe summary; no raw device logs, screenshots, imported files or credentials copied."
+}

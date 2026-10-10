@@ -1,0 +1,106 @@
+{
+  "recorded_at": "2026-10-10T12:03:16.131048+00:00",
+  "files": [
+    {
+      "file": "two-tabs-before-close.png",
+      "bytes": 196148,
+      "sha256": "deec20e7a15a1e09df7ea54cd60a779a3d75051a40701b3201f8f0c4baf93188"
+    },
+    {
+      "file": "two-tabs-before-close.json",
+      "bytes": 1257,
+      "sha256": "8b8900fa4e275380c48fea2f71b9a7d1b2f1ddfe55e1b7b4d5b1549e591a574a"
+    },
+    {
+      "file": "command-close-confirmation.png",
+      "bytes": 317096,
+      "sha256": "8c4858425cf9f2e67c6cd681f851b5243a22c12f31d522c89bf0688f540ef268"
+    },
+    {
+      "file": "command-close-confirmation.json",
+      "bytes": 1262,
+      "sha256": "7fb476e60a344dc22bc32eda0ecdedfa973d0219de6cbdbfac0df7fc998d3690"
+    },
+    {
+      "file": "draft-after-cancel.png",
+      "bytes": 304913,
+      "sha256": "b244bf048de84db7e91579ce71c0ea092a8249dc8acdb36cb4f24adac59bdfdd"
+    },
+    {
+      "file": "draft-after-cancel.json",
+      "bytes": 1254,
+      "sha256": "0d533a85faf956d59ee8c9decc043904a8b88b6df720e2504e363add2059a173"
+    },
+    {
+      "file": "ai-draft-before-close.png",
+      "bytes": 277654,
+      "sha256": "c7922352291641d995d4cfe7bc47d26711768871086a5a74df77ab1dc5a93769"
+    },
+    {
+      "file": "ai-draft-before-close.json",
+      "bytes": 1257,
+      "sha256": "598c681a5caf2a261f0a992bc05fdaa37b3df2d5665532aac92474944a96512f"
+    },
+    {
+      "file": "ai-close-confirmation.png",
+      "bytes": 383812,
+      "sha256": "66ec6c163e4d256c02e7ab85a0862addbfd96effd157067a239fd9dcdce94c73"
+    },
+    {
+      "file": "ai-close-confirmation.json",
+      "bytes": 1257,
+      "sha256": "7c2a74175cf56cd8e68d9f01ed107fa3df81bfd4c9ccfb41f34b48b502912b34"
+    },
+    {
+      "file": "ai-draft-after-cancel.png",
+      "bytes": 277771,
+      "sha256": "f7d7f231587a7aa5a185398444e2b3e41f4823d06579f8e41829be26f7458606"
+    },
+    {
+      "file": "ai-draft-after-cancel.json",
+      "bytes": 1257,
+      "sha256": "5941b02b3c5e4a47e789438de1e16655bf92fc7748ce98d0791ceceef14cddfa"
+    },
+    {
+      "file": "survivor-after-explicit-ai-close.png",
+      "bytes": 297010,
+      "sha256": "e991f06a5857b1f9be999a1690fbdafc4a19657494a77553f1da998e5f7575dd"
+    },
+    {
+      "file": "survivor-after-explicit-ai-close.json",
+      "bytes": 1166,
+      "sha256": "8961934fbb07a0172fd14e1f232b68f271508b362bb28c8461e55aa23ccafe67"
+    },
+    {
+      "file": "manual-run.json",
+      "bytes": 1493,
+      "sha256": "b011295e363f236a303bd2b30292a3213c419ba8401b850188f5f10b051dae4e"
+    },
+    {
+      "file": "operator-observations.json",
+      "bytes": 3667,
+      "sha256": "972d6fbd1768269f1ab3a3d20a800f7ae70c91a708352d4a9082a4ab37ddfaf4"
+    },
+    {
+      "file": "recording.log",
+      "bytes": 438,
+      "sha256": "65fd2d2f18e35ff2281b67a0346cddaf9bd08da7dd58242186c026d01b408162"
+    },
+    {
+      "file": "launch.log",
+      "bytes": 8467,
+      "sha256": "85f0381bcaefef29a2bfce5ebf6f85e54d35695f8c950e82caf10307312dc9b3"
+    },
+    {
+      "file": "app-identity.json",
+      "bytes": 1548,
+      "sha256": "4d894ea5bc8ea29b9d1e3f7e1b3cf8a7837e984000f14fef8e9a10eb6c4c2b9e"
+    },
+    {
+      "file": "native-window.mp4",
+      "bytes": 16405110,
+      "sha256": "2fa662dde486d86556d3d86555a077b41b3145e933615521ac34a3fd2bde0eb0"
+    }
+  ],
+  "excluded": "semantics-private/ and semantics-review-summary.private.json are outside this media review and excluded from publication recommendations."
+}

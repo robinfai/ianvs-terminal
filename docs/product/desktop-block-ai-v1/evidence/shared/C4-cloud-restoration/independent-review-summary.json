@@ -1,0 +1,214 @@
+{
+  "schema_version": 1,
+  "reviewed_at": "2026-10-10T09:04:33.769337+00:00",
+  "reviewer": "independent parallel reviewer",
+  "summary_visibility": "可公开的脱敏观察摘要；列出的原始截图和 private JSON 继续保留私有。",
+  "scope": {
+    "read_only_sources": true,
+    "new_ignored_summary_only": true,
+    "sdk_or_gui_or_device_or_network_commands_run": false,
+    "ssh_directory_or_phone_configuration_contents_read": false,
+    "private_key_contents_read": false,
+    "original_evidence_modified": false
+  },
+  "candidate": {
+    "label": "C4",
+    "source_commit_attributed_by_capture_sidecars": "1c95adcaab32fac64fb08142da7a0eb3b8620b5a",
+    "bundle_id_verified_in_app_inventory_and_relaunch_requests": "work.ianvs.trail.mobileprd",
+    "display_name": "Trail PRD",
+    "limitation": "本次只读审阅复核已存 App 查询与截图 sidecar；未重新读取设备二进制或签名。"
+  },
+  "conclusion": "attempt2 的恢复和窄范围单文件覆盖后重启验证成功；当前证据支持配置在这两次重启之间保留并能重新连接执行只读命令。它不证明全部存储无副作用，也不解决此前空闲 SSH EOF 的根因。",
+  "single_designated_import_source": {
+    "matching_files_before": 1,
+    "matching_files_after": 1,
+    "same_relative_path": true,
+    "copy_argument_matches_inventory_target": true,
+    "bytes_before": 2459,
+    "bytes_after": 0,
+    "nonempty_matching_files_after": 0,
+    "result_metadata_confirms_zero_bytes": true,
+    "directory_remove_existing_content_used": false,
+    "copy_cli_outcome": "success",
+    "copy_exit_code_from_operator_observation": 0,
+    "limitation": "这是所指定文件的逻辑大小及查询匹配数量，不能证明闪存安全擦除、所有未知副本或日志均无残留。"
+  },
+  "critical_configuration_metadata": [
+    {
+      "file": "ianvs_profiles.json",
+      "matched_files_before": 1,
+      "matched_files_after": 1,
+      "all_recorded_metadata_equal": true,
+      "all_recorded_resource_flags_equal": true,
+      "before": {
+        "size": 7055,
+        "lastModDate": "2026-10-10T08:56:39.000Z",
+        "permissions": 420
+      },
+      "after": {
+        "size": 7055,
+        "lastModDate": "2026-10-10T08:56:39.000Z",
+        "permissions": 420
+      },
+      "content_read_or_hashed": false
+    },
+    {
+      "file": "data-api/configuration.json",
+      "matched_files_before": 1,
+      "matched_files_after": 1,
+      "all_recorded_metadata_equal": true,
+      "all_recorded_resource_flags_equal": true,
+      "before": {
+        "size": 110,
+        "lastModDate": "2026-10-10T08:47:30.000Z",
+        "permissions": 420
+      },
+      "after": {
+        "size": 110,
+        "lastModDate": "2026-10-10T08:47:30.000Z",
+        "permissions": 420
+      },
+      "content_read_or_hashed": false
+    }
+  ],
+  "restarts": [
+    {
+      "stage": "before_single_file_overwrite",
+      "source": "restart-before-cleanup.private.json",
+      "cli_outcome": "success",
+      "terminate_existing_confirmed": true,
+      "activated_when_started": true,
+      "exact_bundle_confirmed": true
+    },
+    {
+      "stage": "after_single_file_overwrite",
+      "source": "restart-after-cleanup.private.json",
+      "cli_outcome": "success",
+      "terminate_existing_confirmed": true,
+      "activated_when_started": true,
+      "exact_bundle_confirmed": true
+    }
+  ],
+  "restarts_have_distinct_process_ids": true,
+  "original_image_review": {
+    "actual_image_count": 3,
+    "requested_count_correction": "根代理已确认最初“四张”为数量口误，以实际三张为准。",
+    "images": [
+      {
+        "file": "restored-cloud-ready.private.png",
+        "sha256": "21dcd814f7d206488da5433a966fdda767c58ad9ed5be1cf7b48571f37adda01",
+        "sidecar_sha256_matches": true,
+        "captured_at": "2026-10-10T08:57:07.286284+00:00",
+        "inspection_method": "view_image 原图逐张目视",
+        "visible_observation": "恢复后的 Blocks 页面可见零命令块、空命令输入和 Shell 就绪；没有可见断开提示。"
+      },
+      {
+        "file": "restart-before-cleanup-ready.private.png",
+        "sha256": "c28b4bab60df9e4e2cdd31ea7798e1bdcc4027ac6f8da005972c3c646a872a85",
+        "sidecar_sha256_matches": true,
+        "captured_at": "2026-10-10T08:58:01.049372+00:00",
+        "inspection_method": "view_image 原图逐张目视",
+        "visible_observation": "清理前重启后的原图可见 Blocks 页面、零命令块和 Shell 就绪；没有可见断开提示。"
+      },
+      {
+        "file": "restart-after-cleanup-readonly-success.private.png",
+        "sha256": "57e569da0172577af1c9b34bd4a3290c529ca0baa868adfde3b60c6ee54cf2c0",
+        "sidecar_sha256_matches": true,
+        "captured_at": "2026-10-10T08:59:50.077751+00:00",
+        "inspection_method": "view_image 原图逐张目视",
+        "visible_observation": "清理后重启的原图可见一个成功标记的命令块、预期的导入测试标记、工作目录及 Linux 输出；随后 Shell 就绪。完整命令在折叠标题中被截断，不能仅凭截图核对完整命令。"
+      }
+    ],
+    "privacy": "原图含远端账号及主目录信息，应保留私有；未目视发现 API key、私钥正文、设备标识或系统通知内容。",
+    "not_continuous_video": true,
+    "does_not_provide_exact_network_or_command_execution_count": true
+  },
+  "attempt1_boundary": {
+    "directory_cleanup_exit_code": 1,
+    "coredevice_error_code": 7000,
+    "subsequent_observations": "目录清理报错后，重启出现 onboarding/空 SSH 列表；已存目录元数据表明 Application Support 在其后重建，AI Keychain 设置仍可见。",
+    "causality": "时序支持清理范围异常这一候选，但没有操作前后完整文件内容、系统调用或事务记录，不能证明具体删除范围和唯一原因；exit 1 也不能作为无副作用或自动回滚的证据。",
+    "product_persistence_bug_established": false,
+    "all_cleanup_side_effects_excluded": false,
+    "recovery_status": "attempt2 重新导入保存后，清理前后两次重启和后续命令成功支持当前恢复成功。"
+  },
+  "stability_observation_boundary": {
+    "operator_reported_saved_keepalive_seconds": 30,
+    "operator_reported_saved_keepalive_count_max": 3,
+    "configuration_values_independently_read": false,
+    "operator_reported_interruption_at_utc": "2026-10-10T09:03:00Z (approximate)",
+    "operator_reported_interruption": "镜像显示 iPhone 正在被使用，镜像连接结束；后续手机 Shell 状态不可见。",
+    "last_independently_reviewed_success_image_at": "2026-10-10T08:59:50.077751+00:00",
+    "long_duration_keepalive_pass_claimed": false,
+    "later_ssh_failure_inferred": false,
+    "note": "镜像观察中断不等于 SSH 断连；未把这些离散截图换算为连续可用时长或精确网络计数。"
+  },
+  "evidence_hashes": [
+    {
+      "file": "app-identity.private.json",
+      "sha256": "db81d79b233ea94327aa8a35aef9fe855ed4376df6c5809afe7147c1fce43922"
+    },
+    {
+      "file": "key-locations-after-cleanup.private.json",
+      "sha256": "140da27e937a6aba7ad01fea7e4347d358613f652c53b7cbe76b135fdfe33bbe"
+    },
+    {
+      "file": "key-locations-before-cleanup.private.json",
+      "sha256": "ba38db994194f8577c0548d1c106e72cea5c2f2600f00a954b5fd4eb0b0a1ce8"
+    },
+    {
+      "file": "library-after-cleanup.private.json",
+      "sha256": "f1a8acd8f56a6dee1d6bd2722adedc5cff92fb765e792019e930d028c6b42732"
+    },
+    {
+      "file": "library-before-cleanup.private.json",
+      "sha256": "e3ccb90a32cef75987d83caa4db4b53a7359587d369db5b1500ee1914a3a0224"
+    },
+    {
+      "file": "overwrite-observation.json",
+      "sha256": "704364c626fd61f99fab5412467b42a7a859ff20fc89f20ac40c0b93cade4bfb"
+    },
+    {
+      "file": "restart-after-cleanup-readonly-success.private.json",
+      "sha256": "8f62e5616032037757e1559900baa225432b6b2354054da533cf7e14d5be6fb0"
+    },
+    {
+      "file": "restart-after-cleanup.private.json",
+      "sha256": "0f9ae643d9ee7a05939c8b3f64633733fa9b323179e6a6520c0494d629e0de46"
+    },
+    {
+      "file": "restart-before-cleanup-ready.private.json",
+      "sha256": "54442dfa11b550b55fee4def0343e2310e465f2768442b6c39b2f0bd582bbdfa"
+    },
+    {
+      "file": "restart-before-cleanup.private.json",
+      "sha256": "5ea4786e33cdc35bd38e479c0b6653039b0480f51d6696b2ffe0051ab8171af4"
+    },
+    {
+      "file": "restored-cloud-ready.private.json",
+      "sha256": "ed453609d54c1bf6a6a9026afef912eb31ab5741f3a8a7329327ce8b09f06b63"
+    },
+    {
+      "file": "single-file-overwrite.private.json",
+      "sha256": "b18170653b42757aa8324f26e7dfbc1697f257fc3a3f159c35079269dd9f15af"
+    }
+  ],
+  "prior_attempt_evidence_hashes": [
+    {
+      "file": "../iphone-cloud-import-1/cleanup-summary.json",
+      "sha256": "3c7a5eeea8664ec81ee555fa2a52ea185e4cee29953841bbc93c3bfc3adb4f30"
+    },
+    {
+      "file": "../iphone-cloud-import-1/device-cleanup.private.json",
+      "sha256": "c3b984f6136e86f66bb4b34f1606ab365ac5168708ad549707af4d7165486309"
+    },
+    {
+      "file": "../iphone-cloud-import-1/root-after-restart.private.json",
+      "sha256": "e5a2a5094190fc8bc78d453d7ab5263d45d5a38758fb03069d598147deb1d6c1"
+    },
+    {
+      "file": "../iphone-cloud-import-1/library-after-restart.private.json",
+      "sha256": "790b9154aa9eb88fff40b3a208e8cceaa2c96d87decaca68905bd67390388e21"
+    }
+  ]
+}

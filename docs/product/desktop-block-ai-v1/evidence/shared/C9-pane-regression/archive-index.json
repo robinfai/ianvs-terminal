@@ -1,0 +1,212 @@
+{
+  "created_at": "2026-10-10T09:09:06.615094+00:00",
+  "source_execution": "pre-commit working tree; reviewer checked six source files byte-equal to C9",
+  "candidate_commit": "a60bc9d78f5f51414c43590ee6f34ae3cce7e7b9",
+  "scope": "red/green and affected regression logs, not a complete gate or formal PRD case pass",
+  "originals_preserved": true,
+  "files": [
+    {
+      "source": "build/desktop-prd-v1/iteration-1/verify-c9-layout/analyze-1.log",
+      "destination": "evidence/shared/C9-pane-regression/analyze-1.log",
+      "sha256": "cbfc432b451ecb760c06897e5881bb5b3d9b129802807c193d30867ef8cbadef",
+      "bytes": 200,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/verify-c9-layout/analyze-final.log",
+      "destination": "evidence/shared/C9-pane-regression/analyze-final.log",
+      "sha256": "cbfc432b451ecb760c06897e5881bb5b3d9b129802807c193d30867ef8cbadef",
+      "bytes": 200,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/verify-c9-layout/diff-check-final.log",
+      "destination": "evidence/shared/C9-pane-regression/diff-check-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/verify-c9-layout/format-1.log",
+      "destination": "evidence/shared/C9-pane-regression/format-1.log",
+      "sha256": "843c7e23817f9f5bffc97a7a845e3f03741e7aea8cd5bb8810fc0c08e8dd0977",
+      "bytes": 116,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/verify-c9-layout/format-2.log",
+      "destination": "evidence/shared/C9-pane-regression/format-2.log",
+      "sha256": "2934437b7d45d81d05c1692134123ffe99821711cac1bc8f09abc642a75fb701",
+      "bytes": 115,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/verify-c9-layout/format-3.log",
+      "destination": "evidence/shared/C9-pane-regression/format-3.log",
+      "sha256": "bd976d465e97532d3f6530bf54c34bc4e99c95d48a3316d89a102d201dc733a4",
+      "bytes": 103,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/verify-c9-layout/format-4.log",
+      "destination": "evidence/shared/C9-pane-regression/format-4.log",
+      "sha256": "4445494ca8c0659b72040a1fa9c4c8069f0a9e8dc659f01ae6a0f78368e55633",
+      "bytes": 103,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/verify-c9-layout/format-5.log",
+      "destination": "evidence/shared/C9-pane-regression/format-5.log",
+      "sha256": "cb1189d6fdf5f564f87a2e30295d7f3e5d444e8a17f02a5334c802b05c8d4697",
+      "bytes": 103,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/verify-c9-layout/format-check-1.log",
+      "destination": "evidence/shared/C9-pane-regression/format-check-1.log",
+      "sha256": "712959ff8ac13c4f53321dd2393e4ab4892f4d8a14353b12b2b84f5a93075c34",
+      "bytes": 101,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/verify-c9-layout/format-check-2.log",
+      "destination": "evidence/shared/C9-pane-regression/format-check-2.log",
+      "sha256": "82f9b6d44abe9019c4ef72d3e300c473ba76393f81efdf7076ee7f7a648a23fd",
+      "bytes": 47,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/verify-c9-layout/format-extra-1.log",
+      "destination": "evidence/shared/C9-pane-regression/format-extra-1.log",
+      "sha256": "9f2eaea5cc3c875a936854d6181d09c7f3f82f170b193704c3e8ab24d45b4473",
+      "bytes": 185,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/verify-c9-layout/format-final.log",
+      "destination": "evidence/shared/C9-pane-regression/format-final.log",
+      "sha256": "46c069c184457754f6db9a1454ddd46e0f33a2aef0253baf6e1b3c85610863ab",
+      "bytes": 47,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/verify-c9-layout/format-test-1.log",
+      "destination": "evidence/shared/C9-pane-regression/format-test-1.log",
+      "sha256": "b9b852097ed3476f0c7fce8e5de86c72d028980e04c63de33994e191e68ce407",
+      "bytes": 346,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/verify-c9-layout/format-test-2.log",
+      "destination": "evidence/shared/C9-pane-regression/format-test-2.log",
+      "sha256": "e74881b30e0788ee79b40409f2700a10bdb7a9a2d60e4c7c2da1b103293988bc",
+      "bytes": 1145,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/verify-c9-layout/format-test-extra-1.log",
+      "destination": "evidence/shared/C9-pane-regression/format-test-extra-1.log",
+      "sha256": "b0e9d509ccb5225641262989e3df9573f9c9df9eb3de344e3821548a5a23d644",
+      "bytes": 102,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/verify-c9-layout/green-1.log",
+      "destination": "evidence/shared/C9-pane-regression/green-1.log",
+      "sha256": "b09d3499c8c251cbc22be0b565727b4fc2b94f4d109c3e4861cec81963a86819",
+      "bytes": 3382,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/verify-c9-layout/green-2.log",
+      "destination": "evidence/shared/C9-pane-regression/green-2.log",
+      "sha256": "c4623999293b77fc0fbe5445fc240618928db8d245a85b0add17b0c51b02e813",
+      "bytes": 1356,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/verify-c9-layout/green-3.log",
+      "destination": "evidence/shared/C9-pane-regression/green-3.log",
+      "sha256": "0b0767a7e108809d20bfae4169b6b63440d23c1cabbfd533ae2875635636c412",
+      "bytes": 3405,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/verify-c9-layout/green-4.log",
+      "destination": "evidence/shared/C9-pane-regression/green-4.log",
+      "sha256": "dfff340094f06ce8248ad19d470e6a437cbc6e1261aceb99dd1d7ca8e799e295",
+      "bytes": 1578,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/verify-c9-layout/green-5.log",
+      "destination": "evidence/shared/C9-pane-regression/green-5.log",
+      "sha256": "9607e7216fa3f5532b942e4caba1d4cb62cb3a52078b9af9f7ab786dcd2d5a42",
+      "bytes": 1578,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/verify-c9-layout/green-extra-1.log",
+      "destination": "evidence/shared/C9-pane-regression/green-extra-1.log",
+      "sha256": "7d74e96e10f909214b3a1c4f4a1be2cfbee5c5fa544c472164cde5915dd2f1e2",
+      "bytes": 2013,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/verify-c9-layout/mobile-input-final.log",
+      "destination": "evidence/shared/C9-pane-regression/mobile-input-final.log",
+      "sha256": "77946422cc2342c282ddd17b5d9b843844223c4b07cb790b1ef9db0486a1a292",
+      "bytes": 18643,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/verify-c9-layout/red-1.log",
+      "destination": "evidence/shared/C9-pane-regression/red-1.log",
+      "sha256": "826f42600b248514b6689bb7ded2845691a5209c690f471464264f62b9375c0e",
+      "bytes": 346,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/verify-c9-layout/red-2.log",
+      "destination": "evidence/shared/C9-pane-regression/red-2.log",
+      "sha256": "6f8561796db3dab845600161fe6a3e87719ea516fe8466042e4f049e013aa168",
+      "bytes": 9696,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/verify-c9-layout/red-extra-1.log",
+      "destination": "evidence/shared/C9-pane-regression/red-extra-1.log",
+      "sha256": "ff7c59e92f65dd686b27ae318f6d5f5a582059b1d575fdf0a9d77b83d0d5f6ec",
+      "bytes": 9046,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/verify-c9-layout/related-1.log",
+      "destination": "evidence/shared/C9-pane-regression/related-1.log",
+      "sha256": "c7c7d0d99442d8fa35d80f02e6e8280000511356dd64f1fc337ed9ab8ff916c0",
+      "bytes": 35053,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/verify-c9-layout/related-2.log",
+      "destination": "evidence/shared/C9-pane-regression/related-2.log",
+      "sha256": "db3286d91907757b799cff8bf43e053e5e85b1093350cdc4fd79f4c6db4c9289",
+      "bytes": 32526,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/verify-c9-layout/related-final-1.log",
+      "destination": "evidence/shared/C9-pane-regression/related-final-1.log",
+      "sha256": "01ce91474c1846c70a199190b007c924741beb1f397d308e113847dc3bdb6fbe",
+      "bytes": 41380,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/verify-c9-layout/review-summary.json",
+      "destination": "evidence/shared/C9-pane-regression/review-summary.json",
+      "sha256": "4b1c81e18d0e0b9eab894812adf6b80ae644902c5f76badde047336ac29e58c4",
+      "bytes": 29400,
+      "copy_mode": "original bytes"
+    }
+  ]
+}

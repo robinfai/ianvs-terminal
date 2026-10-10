@@ -1,0 +1,11 @@
+package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart
+00:00 +0: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +1: primary PointerDeviceKind.mouse click still activates the clicked pane without losing draft (variant: TargetPlatform.macOS)
+00:02 +2: primary PointerDeviceKind.touch click still activates the clicked pane without losing draft (variant: TargetPlatform.macOS)
+00:03 +3: DPR-only resize updates native pixels and replay metrics without changing cells (variant: TargetPlatform.macOS)
+00:03 +4: DPR 1 to 2 to 1 before debounce never commits obsolete metrics (variant: TargetPlatform.macOS)
+00:03 +5: selection release cannot commit a queued resize from the previous DPR (variant: TargetPlatform.macOS)
+00:03 +6: tab menu TerminalActionId.closePane keeps its captured target after the original pane exits (variant: TargetPlatform.macOS)
+00:03 +7: tab menu TerminalActionId.closeActiveTab keeps its captured target after the original pane exits (variant: TargetPlatform.macOS)
+00:03 +8: All tests passed!

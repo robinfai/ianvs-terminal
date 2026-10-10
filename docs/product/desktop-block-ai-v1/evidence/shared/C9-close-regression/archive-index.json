@@ -1,0 +1,72 @@
+{
+  "created_at": "2026-10-10T09:09:06.615094+00:00",
+  "source_execution": "pre-commit working tree; reviewer checked six source files byte-equal to C9",
+  "candidate_commit": "a60bc9d78f5f51414c43590ee6f34ae3cce7e7b9",
+  "scope": "red/green and affected regression logs, not a complete gate or formal PRD case pass",
+  "originals_preserved": true,
+  "files": [
+    {
+      "source": "build/desktop-prd-v1/iteration-1/verify-c9-draft/draft-file-final-2.log",
+      "destination": "evidence/shared/C9-close-regression/draft-file-final-2.log",
+      "sha256": "a8a581e28364a149a0e25abd4c80d3356a32ad02dec55a70f25c3499a3397847",
+      "bytes": 5145,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/verify-c9-draft/draft-file-final.log",
+      "destination": "evidence/shared/C9-close-regression/draft-file-final.log",
+      "sha256": "ab1e999599f0d03f655d932df5159ca4e3490e963c34ef7d01928e2c7e7766d9",
+      "bytes": 17719,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/verify-c9-draft/draft-red.log",
+      "destination": "evidence/shared/C9-close-regression/draft-red.log",
+      "sha256": "c309552639a40720e752f2f89b3039a46ab3f53fab86e3cc193ecf059df52a44",
+      "bytes": 15800,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/verify-c9-draft/final-results-2.json",
+      "destination": "evidence/shared/C9-close-regression/final-results-2.json",
+      "sha256": "384fe89d9eab01207508f7282aa62af5a1cbc73dc05080aa3fc5d96a3035c694",
+      "bytes": 685,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/verify-c9-draft/final-results.json",
+      "destination": "evidence/shared/C9-close-regression/final-results.json",
+      "sha256": "a3daebd70bc609ca1d86d15f9a734eb8313df1edd200fd173803cadb37519a34",
+      "bytes": 627,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/verify-c9-draft/format-final-2.log",
+      "destination": "evidence/shared/C9-close-regression/format-final-2.log",
+      "sha256": "86cbe6234237454cd872d2340a34541d75abeb076ec9f849ac6f88fbd2f5cdeb",
+      "bytes": 47,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/verify-c9-draft/format-final.log",
+      "destination": "evidence/shared/C9-close-regression/format-final.log",
+      "sha256": "86cbe6234237454cd872d2340a34541d75abeb076ec9f849ac6f88fbd2f5cdeb",
+      "bytes": 47,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/verify-c9-draft/format-test.log",
+      "destination": "evidence/shared/C9-close-regression/format-test.log",
+      "sha256": "3563b8f5837067c222c9edc75ea07b74c22f6257058c35ba0e261b9a80c91252",
+      "bytes": 100,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/verify-c9-draft/red-results.json",
+      "destination": "evidence/shared/C9-close-regression/red-results.json",
+      "sha256": "235d86c8262e19442bb17106c52de14e6d3a7aa33b402d71565bce23661a3486",
+      "bytes": 620,
+      "copy_mode": "original bytes"
+    }
+  ]
+}

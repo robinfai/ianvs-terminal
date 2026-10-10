@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "created_at_utc": "2026-10-10T12:03:59.557882+00:00",
+  "kind": "explicit_sanitized_derivative",
+  "original": {
+    "source": "build/desktop-prd-v1/iteration-1/native-e1-windows-1/launch.log",
+    "destination": "launch.log",
+    "sha256": "a21504949f0b6ad03885190bf46194a5260259962db72eb0c732986f59688121",
+    "bytes": 2470,
+    "copy_mode": "original bytes",
+    "archived_publicly": false
+  },
+  "derived": {
+    "destination": "launch.redacted.log",
+    "bytes": 2798,
+    "sha256": "fdb337ccb4133e17c78237814face6ca6231a1119b8558f0e7d464dd66e2aa82"
+  },
+  "rules": [
+    "Replace the complete Dart VM Service line and DevTools URL block, including wrapped continuation lines, with fixed redaction markers.",
+    "Replace the local user home prefix with <LOCAL_HOME>."
+  ],
+  "original_line_numbers_with_debug_url_redaction": [
+    53,
+    54,
+    55,
+    56
+  ],
+  "original_preserved_unmodified": true,
+  "does_not_change_historical_source_identity": true,
+  "updated_at_utc": "2026-10-10T12:09:01.971006+00:00"
+}
