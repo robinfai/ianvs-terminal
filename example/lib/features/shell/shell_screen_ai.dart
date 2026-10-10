@@ -357,7 +357,12 @@ extension _ShellScreenAi on _ShellScreenState {
     final ai = _aiSessions[sessionId];
     Widget button() {
       final chinese = Localizations.localeOf(context).languageCode == 'zh';
-      final label = ai?.canApprove == true
+      final showTerminal = context.usesMobileNavigation &&
+          _openAiSessions.contains(sessionId) &&
+          !_observedAiTargets.containsKey(sessionId);
+      final label = showTerminal
+          ? (chinese ? '只读查看终端' : 'View terminal (read-only)')
+          : ai?.canApprove == true
           ? (chinese ? 'AI · 有待确认命令' : 'AI · action needs review')
           : ai?.busy == true
           ? (chinese ? 'AI · 任务进行中' : 'AI · task in progress')
@@ -376,7 +381,7 @@ extension _ShellScreenAi on _ShellScreenState {
             child: Badge(
               backgroundColor: context.appTheme.accent,
               isLabelVisible: ai?.canApprove == true || ai?.busy == true,
-              child: const Text('AI'),
+              child: Text(showTerminal ? (chinese ? '终端' : 'Terminal') : 'AI'),
             ),
           ),
         ),
@@ -409,6 +414,7 @@ extension _ShellScreenAi on _ShellScreenState {
         key: ValueKey('ai-workspace-$sessionId'),
         controller: _aiFor(sessionId),
         active: active,
+        compactMobile: paneContext.usesMobileNavigation,
         targetLabel: targetLabel,
         onOpenLink: (url) =>
             unawaited(_openTerminalLink(url, sourceSessionId: sessionId)),
