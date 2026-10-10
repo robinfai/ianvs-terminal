@@ -412,6 +412,12 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
         ? _mobileFontFor(sessionId, baseTerminalFont)
         : baseTerminalFont;
     final terminalColors = _terminalColorsForProfile(context, profile);
+    // Capture the container while the element is active. Input callbacks must
+    // read current ownership without an ancestor lookup during teardown.
+    final inputOwnerContainer = ProviderScope.containerOf(
+      context,
+      listen: false,
+    );
     final inputController = TerminalInputController(
       sessionId: sessionId,
       runtime: ref.read(terminalRuntimeControllerProvider),
@@ -430,6 +436,8 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
       // not ask Riverpod for an ancestor after ShellScreen is deactivated.
       readOnly: () =>
           !mounted ||
+          inputOwnerContainer.read(sessionControllerProvider).activeSessionId !=
+              sessionId ||
           sessionReadOnly ||
           inputEpoch != _manualInputEpoch(sessionId) ||
           readerController.blocksInput ||
@@ -596,7 +604,10 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
         return Listener(
           key: Key('shell-pane-$sessionId'),
           onPointerDown: (event) {
-            if (!isActive && event.buttons != 0) {
+            // Inspecting another pane must not transfer its input ownership.
+            if (!isActive &&
+                event.buttons != 0 &&
+                (event.buttons & kSecondaryMouseButton) == 0) {
               _activateSession(sessionController, sessionId);
             }
             final frame = viewportController.frame;
@@ -660,21 +671,33 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                                   terminalConstraints,
                                   terminalViewportPadding,
                                 );
+                                final devicePixelRatio =
+                                    MediaQuery.devicePixelRatioOf(context);
                                 final scheduledSize =
                                     _scheduledViewportSizes[sessionId];
-                                if (scheduledSize != viewportSize) {
+                                bool metricsAreCurrent() =>
+                                    mounted &&
+                                    _scheduledViewportSizes[sessionId] ==
+                                        viewportSize &&
+                                    _terminalViewportDevicePixelRatios[sessionId] ==
+                                        devicePixelRatio;
+                                if (scheduledSize != viewportSize ||
+                                    _terminalViewportDevicePixelRatios[sessionId] !=
+                                        devicePixelRatio) {
                                   _scheduledViewportSizes[sessionId] =
                                       viewportSize;
+                                  _terminalViewportDevicePixelRatios[sessionId] =
+                                      devicePixelRatio;
                                   WidgetsBinding.instance.addPostFrameCallback((
                                     _,
                                   ) {
-                                    if (mounted) {
+                                    if (metricsAreCurrent()) {
                                       _mutateState(() {});
                                       _scheduleViewportResize(
                                         sessionController,
                                         sessionId,
                                         viewportSize,
-                                        MediaQuery.devicePixelRatioOf(context),
+                                        devicePixelRatio,
                                         immediate: !_committedViewportSizes
                                             .containsKey(sessionId),
                                       );
@@ -691,7 +714,7 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                                       palette: palette,
                                     );
                                 void measureCell(Size cellSize) {
-                                  if (!mounted) {
+                                  if (!metricsAreCurrent()) {
                                     return;
                                   }
                                   if (_measuredTerminalCellSizes[sessionId] !=
@@ -705,7 +728,7 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                                     sessionController,
                                     sessionId,
                                     viewportSize,
-                                    MediaQuery.devicePixelRatioOf(context),
+                                    devicePixelRatio,
                                     immediate: true,
                                   );
                                 }
@@ -1043,18 +1066,25 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                               // The Composer uses the pane's actual height to
                               // select its inline or scrollable short layout.
                               // An outer scroll view would remove that bound.
-                              child: ComposerPane(
-                                key: ValueKey('composer-$sessionId'),
-                                session: composerSession,
-                                targetLabel: pane.title,
-                                active:
-                                    isActive && !_manualInputBlocked(sessionId),
-                                available: !pane.isExited && !sessionReadOnly,
-                                onAskAi: (prompt) =>
-                                    _openAi(sessionId, prompt: prompt),
-                                onOpenAi: () => _openAi(sessionId),
-                                onTerminalFocus: focusNode.requestFocus,
-                                terminalFocus: focusNode,
+                              child: Actions(
+                                actions: {
+                                  EditableTextTapOutsideIntent:
+                                      _PaneComposerTapOutsideAction(),
+                                },
+                                child: ComposerPane(
+                                  key: ValueKey('composer-$sessionId'),
+                                  session: composerSession,
+                                  targetLabel: pane.title,
+                                  active:
+                                      isActive &&
+                                      !_manualInputBlocked(sessionId),
+                                  available: !pane.isExited && !sessionReadOnly,
+                                  onAskAi: (prompt) =>
+                                      _openAi(sessionId, prompt: prompt),
+                                  onOpenAi: () => _openAi(sessionId),
+                                  onTerminalFocus: focusNode.requestFocus,
+                                  terminalFocus: focusNode,
+                                ),
                               ),
                             ),
                           if (!compactDisconnected) ?mobileControls,
@@ -2309,6 +2339,27 @@ class _TerminalPaneHeaderIndicatorStrip extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+// EditableText's default desktop outside action also unfocuses on secondary
+// clicks. Preserve the current editor while inspecting another pane; a menu
+// may still take focus explicitly and primary clicks retain platform behavior.
+class _PaneComposerTapOutsideAction
+    extends Action<EditableTextTapOutsideIntent> {
+  @override
+  Object? invoke(EditableTextTapOutsideIntent intent) {
+    final desktop = switch (defaultTargetPlatform) {
+      TargetPlatform.macOS ||
+      TargetPlatform.linux ||
+      TargetPlatform.windows => true,
+      _ => false,
+    };
+    if (desktop &&
+        (intent.pointerDownEvent.buttons & kSecondaryMouseButton) != 0) {
+      return null;
+    }
+    return callingAction?.invoke(intent);
   }
 }
 

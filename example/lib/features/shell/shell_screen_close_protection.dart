@@ -13,7 +13,8 @@ class _CloseProtectionSnapshot {
   final List<Object?> tokens;
   final List<_CloseProtectionPane> panes;
 
-  bool get needsConfirmation => panes.any((pane) => pane.risks.isNotEmpty);
+  bool get needsConfirmation =>
+      panes.any((pane) => pane.risks.isNotEmpty || pane.drafts.isNotEmpty);
 }
 
 class _CloseProtectionPane {
@@ -143,6 +144,14 @@ extension _ShellScreenCloseProtection on _ShellScreenState {
         if (task.draft.isNotEmpty) {
           drafts.add((label: 'AI · $taskLabel', text: task.draft));
         }
+        if (task.attachments.isNotEmpty) {
+          // Draft sources can remain after their accompanying text is cleared.
+          risks.add(
+            zh
+                ? 'AI · $taskLabel · 未发送来源：${task.attachments.length}'
+                : 'AI · $taskLabel · Unsent sources: ${task.attachments.length}',
+          );
+        }
       }
       if (ai?.interrupting == true) {
         risks.add(
@@ -213,8 +222,8 @@ extension _ShellScreenCloseProtection on _ShellScreenState {
                 children: [
                   Text(
                     zh
-                        ? '将关闭以下本地会话连接，并移除其内存中的 AI 任务与草稿。关闭连接不保证远端进程停止，已提交操作不会因此撤销。'
-                        : 'This closes the local session connections below and removes their in-memory AI tasks and drafts. Closing a connection does not guarantee remote processes stop or undo submitted operations.',
+                        ? '将关闭以下本地会话连接，并移除其内存中的命令草稿、AI 任务与未发送来源。关闭连接不保证远端进程停止，已提交操作不会因此撤销。'
+                        : 'This closes the local session connections below and removes their in-memory command drafts, AI tasks, and unsent sources. Closing a connection does not guarantee remote processes stop or undo submitted operations.',
                   ),
                   for (final pane in snapshot.panes) ...[
                     const SizedBox(height: 16),

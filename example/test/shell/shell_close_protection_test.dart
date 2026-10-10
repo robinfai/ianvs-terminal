@@ -11,6 +11,7 @@ import 'package:app/features/recording/local_session_recording_repository.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/sessions/session_state.dart';
 import 'package:app/features/shell/shell_screen.dart';
+import 'package:app/features/terminal_composer/composer_pane.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -325,6 +326,33 @@ Future<TerminalAiController> _openAi(WidgetTester tester, String id) async {
       .controller;
 }
 
+Future<ComposerPaneSession> _enterCommandDraft(
+  WidgetTester tester,
+  String id,
+  String draft,
+) async {
+  await tester.tap(find.byKey(Key('shell-tab-$id')), buttons: kSecondaryButton);
+  await _settle(tester);
+  await tester.tap(find.byKey(Key('terminal-mode-blocks-$id')));
+  await _settle(tester);
+  final pane = find.byWidgetPredicate(
+    (widget) => widget is ComposerPane && widget.session.sessionId == id,
+  );
+  final session = tester.widget<ComposerPane>(pane).session;
+  expect(session.enabled, isTrue);
+  expect(session.controller.ownership, ComposerOwnership.ready);
+  await tester.enterText(
+    find.descendant(
+      of: pane,
+      matching: find.byKey(const Key('composer-editor')),
+    ),
+    draft,
+  );
+  await _settle(tester);
+  expect(session.controller.editor.text, draft);
+  return session;
+}
+
 // Keep the production HTTP client and independent reviewer paths, while making
 // response delivery deterministic and preventing any real network connection.
 class _ModelClient implements HttpClient {
@@ -554,17 +582,239 @@ void main() {
       },
     );
 
-    testWidgets('ordinary idle AI draft does not add a close confirmation', (
+    for (final (label, commandDraft, aiDraft) in [
+      ('ready Composer', 'printf target-command', ''),
+      ('idle AI', '', 'Target unsent AI draft'),
+      ('Composer and AI', 'printf target-command', 'Target unsent AI draft'),
+      ('older idle AI task', '', 'Target older AI draft'),
+    ]) {
+      testWidgets(
+        '$label draft-only close preserves drafts on cancel and closes only the target on confirm',
+        (tester) async {
+          String? copied;
+          tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+            SystemChannels.platform,
+            (call) async {
+              if (call.method == 'Clipboard.setData') {
+                copied = (call.arguments as Map)['text'] as String;
+              }
+              return null;
+            },
+          );
+          addTearDown(
+            () => tester.binding.defaultBinaryMessenger
+                .setMockMethodCallHandler(SystemChannels.platform, null),
+          );
+          final backend = _Backend();
+          final (:container, :id, :profile) = await _pump(tester, backend);
+          final sessions = container.read(sessionControllerProvider.notifier);
+          final runtime = container.read(terminalRuntimeControllerProvider);
+          final targetViewport = runtime.existingViewportFor(id);
+          final command = commandDraft.isEmpty
+              ? null
+              : await _enterCommandDraft(tester, id, commandDraft);
+          final ai = aiDraft.isEmpty ? null : await _openAi(tester, id);
+          ai?.setDraft(aiDraft);
+          if (ai != null) expect(ai.phase, AiPhase.idle);
+          final taskId = ai?.taskId;
+          final olderTask = label == 'older idle AI task';
+          if (olderTask) ai!.newTask();
+          final activeTaskId = ai?.taskId;
+          final survivor = sessions.createSession(profile)!;
+          await _settle(tester);
+          final survivorViewport = runtime.existingViewportFor(survivor);
+          final survivorCommand = await _enterCommandDraft(
+            tester,
+            survivor,
+            'printf survivor-command',
+          );
+          final survivorAi = await _openAi(tester, survivor);
+          survivorAi.setDraft('Survivor unsent AI draft');
+          expect(survivorAi.phase, AiPhase.idle);
+
+          await _closeTab(tester, id);
+          final dialog = find.byKey(const Key('shell-close-protection'));
+          expect(dialog, findsOneWidget);
+          expect(backend.closeAttempts, isEmpty);
+          expect(
+            find.descendant(
+              of: dialog,
+              matching: find.textContaining('Session $id'),
+            ),
+            findsOneWidget,
+          );
+          expect(
+            find.descendant(
+              of: dialog,
+              matching: find.textContaining('Session $survivor'),
+            ),
+            findsNothing,
+          );
+          for (final draft in [
+            commandDraft,
+            aiDraft,
+          ].where((draft) => draft.isNotEmpty)) {
+            expect(
+              find.descendant(of: dialog, matching: find.text(draft)),
+              findsOneWidget,
+            );
+          }
+          await tester.tap(find.byKey(const Key('shell-close-copy-drafts')));
+          await _settle(tester);
+          if (commandDraft.isNotEmpty) expect(copied, contains(commandDraft));
+          if (aiDraft.isNotEmpty) expect(copied, contains(aiDraft));
+          expect(copied, isNot(contains('survivor-command')));
+          expect(copied, isNot(contains('Survivor unsent AI draft')));
+          if (label == 'idle AI') {
+            await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+            await _settle(tester);
+          } else if (label == 'Composer and AI') {
+            await tester.tapAt(const Offset(4, 100));
+            await _settle(tester);
+          } else {
+            await _cancel(tester);
+          }
+          expect(dialog, findsNothing);
+          expect(backend.closedSessionIds, isEmpty);
+          expect(container.read(sessionControllerProvider).tabs, hasLength(2));
+          expect(
+            container.read(sessionControllerProvider).activeSessionId,
+            survivor,
+          );
+          expect(runtime.existingViewportFor(id), same(targetViewport));
+          if (command != null) {
+            expect(command.controller.editor.text, commandDraft);
+          }
+          if (ai != null) {
+            expect(ai.draft, olderTask ? isEmpty : aiDraft);
+            expect(ai.taskId, activeTaskId);
+            expect(
+              ai.tasks.singleWhere((task) => task.id == taskId).draft,
+              aiDraft,
+            );
+            expect(ai.phase, AiPhase.idle);
+          }
+          expect(
+            survivorCommand.controller.editor.text,
+            'printf survivor-command',
+          );
+          expect(survivorAi.draft, 'Survivor unsent AI draft');
+
+          await _closeTab(tester, id);
+          await _confirm(tester);
+          expect(backend.closeAttempts, [id]);
+          expect(backend.closedSessionIds, [id]);
+          expect(runtime.existingViewportFor(id), isNull);
+          expect(runtime.existingViewportFor(survivor), same(survivorViewport));
+          expect(
+            container.read(sessionControllerProvider).tabs.single.sessionId,
+            survivor,
+          );
+          expect(
+            survivorCommand.controller.editor.text,
+            'printf survivor-command',
+          );
+          expect(survivorAi.draft, 'Survivor unsent AI draft');
+          expect(backend.submissions, isEmpty);
+          expect(backend.writes, isEmpty);
+          await tester.pumpWidget(const SizedBox.shrink());
+          debugDefaultTargetPlatformOverride = null;
+        },
+      );
+    }
+
+    for (final olderTask in [false, true]) {
+      testWidgets(
+        '${olderTask ? 'older' : 'current'} idle AI attachment-only close preserves sources on cancel',
+        (tester) async {
+          final backend = _Backend();
+          final (:container, :id, :profile) = await _pump(tester, backend);
+          final ai = await _openAi(tester, id);
+          final source = ai.context!.lastBlock!;
+          ai.attachContext(source);
+          expect(ai.draft, isEmpty);
+          expect(ai.phase, AiPhase.idle);
+          final sourceTask = ai.taskId;
+          if (olderTask) ai.newTask();
+          final activeTask = ai.taskId;
+          final survivor = container
+              .read(sessionControllerProvider.notifier)
+              .createSession(profile)!;
+          await _settle(tester);
+
+          await _closeTab(tester, id);
+          final dialog = find.byKey(const Key('shell-close-protection'));
+          expect(dialog, findsOneWidget);
+          expect(
+            find.descendant(
+              of: dialog,
+              matching: find.textContaining('Unsent sources: 1'),
+            ),
+            findsOneWidget,
+          );
+          expect(
+            find.byKey(const Key('shell-close-copy-drafts')),
+            findsNothing,
+          );
+          expect(backend.closeAttempts, isEmpty);
+          await _cancel(tester);
+          expect(ai.taskId, activeTask);
+          expect(ai.phase, AiPhase.idle);
+          expect(ai.draft, isEmpty);
+          expect(
+            ai.tasks
+                .singleWhere((task) => task.id == sourceTask)
+                .attachments
+                .single,
+            same(source),
+          );
+          expect(container.read(sessionControllerProvider).tabs, hasLength(2));
+          expect(
+            container.read(sessionControllerProvider).activeSessionId,
+            survivor,
+          );
+          expect(backend.closedSessionIds, isEmpty);
+
+          await _closeTab(tester, id);
+          await _confirm(tester);
+          expect(backend.closeAttempts, [id]);
+          expect(backend.closedSessionIds, [id]);
+          expect(
+            container.read(sessionControllerProvider).tabs.single.sessionId,
+            survivor,
+          );
+          expect(backend.submissions, isEmpty);
+          expect(backend.writes, isEmpty);
+          await tester.pumpWidget(const SizedBox.shrink());
+          debugDefaultTargetPlatformOverride = null;
+        },
+      );
+    }
+
+    testWidgets('idle tab without drafts closes without confirmation', (
       tester,
     ) async {
       final backend = _Backend();
-      final (:container, :id, profile: _) = await _pump(tester, backend);
+      final (:container, :id, :profile) = await _pump(tester, backend);
       final ai = await _openAi(tester, id);
-      ai.setDraft('Unsent idle draft');
+      expect(ai.phase, AiPhase.idle);
+      expect(ai.draft, isEmpty);
+      final survivor = container
+          .read(sessionControllerProvider.notifier)
+          .createSession(profile)!;
+      await _settle(tester);
+      final survivorAi = await _openAi(tester, survivor);
+      survivorAi.setDraft('Draft belongs to another tab');
       await _closeTab(tester, id);
       expect(find.byKey(const Key('shell-close-protection')), findsNothing);
       expect(backend.closedSessionIds, [id]);
-      expect(container.read(sessionControllerProvider).tabs, isEmpty);
+      expect(
+        container.read(sessionControllerProvider).tabs.single.sessionId,
+        survivor,
+      );
+      expect(survivorAi.draft, 'Draft belongs to another tab');
+      expect(backend.submissions, isEmpty);
+      expect(backend.writes, isEmpty);
       await tester.pumpWidget(const SizedBox.shrink());
       debugDefaultTargetPlatformOverride = null;
     });

@@ -891,6 +891,9 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
       sessionState.defaultProfileId,
     );
     final targetSessionId = paneSessionId ?? tab.activeSessionId;
+    final originalPaneIds = {
+      for (final pane in tab.effectivePanes) pane.sessionId,
+    };
     final hasMultiplePanes = tab.effectivePanes.length > 1;
     final paneManagementBlockedReason = _zoomedPaneManagementUnavailableReason(
       tab,
@@ -1077,6 +1080,24 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
     if (!mounted || action == null) {
       return;
     }
+    final currentState = ref.read(sessionControllerProvider);
+    // Detaching the root pane reuses its ID for a new tab. If original members
+    // now live elsewhere, this menu no longer describes the same tab. Natural
+    // exits do not count as moves, so explicit close-tab remains available.
+    if (currentState.tabs.any(
+      (currentTab) =>
+          currentTab.sessionId != tab.sessionId &&
+          currentTab.effectivePanes.any(
+            (pane) => originalPaneIds.contains(pane.sessionId),
+          ),
+    )) {
+      return;
+    }
+    if (action == _TerminalModeMenuAction.recheck ||
+        action is TerminalViewMode) {
+      final currentTab = _tabForSession(currentState, targetSessionId);
+      if (currentTab?.sessionId != tab.sessionId) return;
+    }
     if (action == _TerminalModeMenuAction.recheck) {
       _recheckTerminalSupport(targetSessionId);
       return;
@@ -1089,7 +1110,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
       sessionController,
       action as TerminalActionId,
       targetTabSessionId: tab.sessionId,
-      targetPaneSessionId: paneSessionId,
+      targetPaneSessionId: targetSessionId,
     );
   }
 
@@ -1132,7 +1153,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
     SessionController sessionController,
     TerminalActionId action, {
     required String targetTabSessionId,
-    String? targetPaneSessionId,
+    required String targetPaneSessionId,
   }) async {
     final defaultProfile = _effectiveDefaultProfileFor(
       ref.read(sessionControllerProvider).profiles,
@@ -1149,13 +1170,13 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
     if (targetTab == null) {
       return;
     }
-    final targetSessionId = targetPaneSessionId ?? targetTab.activeSessionId;
-    if (!targetTab.containsSession(targetSessionId)) {
+    if (action == TerminalActionId.closeActiveTab) {
+      _closeTab(sessionController, initialState, targetTab.sessionId);
       return;
     }
 
-    if (action == TerminalActionId.closeActiveTab) {
-      _closeTab(sessionController, initialState, targetTab.sessionId);
+    final targetSessionId = targetPaneSessionId;
+    if (!targetTab.containsSession(targetSessionId)) {
       return;
     }
 

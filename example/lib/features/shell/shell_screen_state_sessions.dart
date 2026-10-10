@@ -52,7 +52,10 @@ extension _ShellScreenStateSessions on _ShellScreenState {
       // Selection can be cleared during a build (for example closing a pane).
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || !_sessionExists(sessionId)) return;
-        if (_scheduledViewportSizes[sessionId] != viewportSize) return;
+        if (_scheduledViewportSizes[sessionId] != viewportSize ||
+            _terminalViewportDevicePixelRatios[sessionId] != devicePixelRatio) {
+          return;
+        }
         if (selection?.selection != null) {
           _selectionResizeGuards[sessionId]?.resize(applyResize);
           return;
