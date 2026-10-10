@@ -1,0 +1,26 @@
+{
+  "checked_at": "2026-10-10T05:27:13.371335+00:00",
+  "scope": "Evidence metadata; not a product test",
+  "checks": [
+    {
+      "command": [
+        "python3",
+        "docs/product/desktop-block-ai-v1/scripts/validate_evidence.py",
+        "docs/product/desktop-block-ai-v1/evidence/manifest.json"
+      ],
+      "exit_code": 0,
+      "log": "evidence-metadata-check.log"
+    },
+    {
+      "command": [
+        "python3",
+        "docs/product/desktop-block-ai-v1/scripts/validate_evidence.py",
+        "docs/product/desktop-block-ai-v1/evidence/manifest.json",
+        "--gate",
+        "final"
+      ],
+      "exit_code": 1,
+      "log": "evidence-final-gate.log"
+    }
+  ]
+}

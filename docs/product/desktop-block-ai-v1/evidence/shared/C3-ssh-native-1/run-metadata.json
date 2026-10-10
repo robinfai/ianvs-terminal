@@ -1,0 +1,19 @@
+{
+  "implementation_commit": "7e9f0dd8e7bd825c655ceb80d817d5fe214337bd",
+  "source_clean_at_start": true,
+  "started_at": "2026-10-10T05:18:53.098327+00:00",
+  "command": [
+    "python3",
+    "tools/ssh_boundary_lab/composer.py",
+    "--bash",
+    "/opt/homebrew/bin/bash",
+    "--output",
+    "/Users/robinfai/flutter_projects/ianvs-terminal/build/desktop-prd-v1/iteration-1/ssh-c3-native-1"
+  ],
+  "scope": "native production SSH API, no GUI or physical input",
+  "driver_sha256": "14355a4be072bf2ff86aa7113b374030b860b57184efebd9b507cf5417cfddc4",
+  "bash_version": "GNU bash, version 5.3.20(1)-release (aarch64-apple-darwin27.0.0)",
+  "finished_at": "2026-10-10T05:19:18.378131+00:00",
+  "exit_code": 0,
+  "source_clean_at_end": true
+}

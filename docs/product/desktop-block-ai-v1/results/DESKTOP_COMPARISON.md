@@ -1,6 +1,6 @@
 # 桌面64条需求与当前实现逐项对照
 
-核对日期：2026-10-10，起点`79db5115`，工作树尚未冻结。表中是源码及回归入口，不是完整PRD验收通过记录。所有Dn-Tnn正式证据仍为`not_run`。
+核对日期：2026-10-10，起点`79db5115`，当前实现候选 C3 为 `7e9f0dd8e7bd825c655ceb80d817d5fe214337bd`。C3 完整 `make verify` 已通过（`verify-7` exit 0、首尾源码干净），整体状态仍为 `implemented_unverified`。表中是源码及回归入口，不是完整PRD验收通过记录。所有Dn-Tnn正式证据仍为`not_run`；证据与环境边界见[当前交付结论](FINAL_REVIEW.md)。
 
 源码/自动回归、真实原生操作、物理输入/辅助技术、真实模型分别记账。移动对照见[MOBILE_COMPARISON](MOBILE_COMPARISON.md)。
 
@@ -8,7 +8,7 @@
 
 |需求|实现锚点|回归入口|当前实现／仍需执行|
 |---|---|---|---|
-|D1-R01 · 桌面壳与任务入口 · P1|[shell_screen_chrome_bar.dart](../../../../example/lib/features/shell/shell_screen_chrome_bar.dart)|[desktop_unified_chrome_test.dart](../../../../example/test/shell/desktop_unified_chrome_test.dart)|活动目标底栏、单层顶栏和真实白区 native drag 已补；1×/2×、英中与溢出回归已通过，完整原生场景待验。|
+|D1-R01 · 桌面壳与任务入口 · P1|[shell_screen_chrome_bar.dart](../../../../example/lib/features/shell/shell_screen_chrome_bar.dart)|[desktop_unified_chrome_test.dart](../../../../example/test/shell/desktop_unified_chrome_test.dart)|活动目标底栏、单层顶栏及由真实 widget Rect 派生的原生拖动区域已实现；1×/2×、英中、溢出和 AppKit 命中测试通过；实际拖窗／标签／窗控完整原生场景待验。|
 |D1-R02 · Block 情境操作与失败诊断 · P1|[command_blocks_pane.dart](../../../../example/lib/features/terminal_composer/command_blocks_pane.dart)|[terminal_ai_workspace_test.dart](../../../../example/test/ai/terminal_ai_workspace_test.dart)|诊断仅准备草稿和来源；原生零起始请求仍需采证。|
 |D1-R03 · 选择上下文及来源冻结 · P0|[ai_models.dart](../../../../example/lib/features/ai/ai_models.dart)|[terminal_ai_evidence_versions_test.dart](../../../../example/test/ai/terminal_ai_evidence_versions_test.dart)|发送来源冻结；本轮补充要求也保留原 session/range。|
 |D1-R04 · 单一可写入口与明确路由 · P0|[terminal_ai_controller.dart](../../../../example/lib/features/ai/terminal_ai_controller.dart)|[terminal_ai_deferred_recovery_test.dart](../../../../example/test/ai/terminal_ai_deferred_recovery_test.dart)|未知时保存尚未发送要求；检查回执不发送，显式继续才采用。|
@@ -22,8 +22,8 @@
 |D1-R12 · 执行目标变化与目录推进 · P0|[terminal_ai_runtime.dart](../../../../example/lib/features/ai/terminal_ai_runtime.dart)|[terminal_ai_approval_scope_test.dart](../../../../example/test/ai/terminal_ai_approval_scope_test.dart)|既有 guard/lease；本轮覆盖异步批准期间目标失效。|
 |D1-R13 · 任务、草稿与关闭生命周期 · P0|[shell_screen_close_protection.dart](../../../../example/lib/features/shell/shell_screen_close_protection.dart)|[shell_close_protection_test.dart](../../../../example/test/shell/shell_close_protection_test.dart)|已补风险关闭确认／复制／取消；录制等待后的目标、提案、草稿、附件与历史 unknown 重新核对，部分失败只清理真实已关 pane。|
 |D1-R14 · 模型 API 的连接与错误状态 · P1|[ai_settings.dart](../../../../example/lib/features/ai/ai_settings.dart)|[terminal_ai_connections_test.dart](../../../../example/test/ai/terminal_ai_connections_test.dart)|API 配置/错误链已存在；新候选真实 API 待运行。|
-|D1-R15 · 桌面 ACP 设置、恢复与权限 · P0|[acp_installation.dart](../../../../example/lib/features/ai/acp/acp_installation.dart)|[acp_installation_test.dart](../../../../example/test/ai/acp_installation_test.dart)|检测/手填/测试已有；Finder PATH 与真实恢复待复验。|
-|D1-R16 · AI 与 Raw/TUI 的同会话闭环 · P0|[command_blocks_pane.dart](../../../../example/lib/features/terminal_composer/command_blocks_pane.dart)|[composer_acceptance_test.dart](../../../../example/integration_test/composer_acceptance_test.dart)|同 PTY Raw/TUI 回退已有；只读层几何需当前构建证明。|
+|D1-R15 · 桌面 ACP 设置、恢复与权限 · P0|[acp_installation.dart](../../../../example/lib/features/ai/acp/acp_installation.dart)|[acp_installation_test.dart](../../../../example/test/ai/acp_installation_test.dart)|检测/手填/测试已有；C3真实ACP同session cancel/load恢复协议通过；Finder PATH与原生UI恢复／权限流程仍待复验。|
+|D1-R16 · AI 与 Raw/TUI 的同会话闭环 · P0|[command_blocks_pane.dart](../../../../example/lib/features/terminal_composer/command_blocks_pane.dart)|[composer_acceptance_test.dart](../../../../example/integration_test/composer_acceptance_test.dart)|同 PTY Raw/TUI 回退及 C3 原生 Composer 自动场景通过；workspace 原生运行在打开Reader时因环境阻断，完整只读层／TUI几何证据仍缺。|
 
 ## D2
 
@@ -56,7 +56,7 @@
 |D3-R04 · 三层 Composer Dock 视觉合同 · P1|[terminal_composer_view.dart](../../../../packages/ianvs_terminal/lib/src/composer/terminal_composer_view.dart)|[composer_responsive_input_test.dart](../../../../packages/ianvs_terminal/test/composer/composer_responsive_input_test.dart)|三层 Dock、长稿与暂停占位已有。|
 |D3-R05 · AI 内容与执行事实分层 · P1|[terminal_ai_workspace.dart](../../../../example/lib/features/ai/terminal_ai_workspace.dart)|[terminal_ai_workspace_test.dart](../../../../example/test/ai/terminal_ai_workspace_test.dart)|正文/建议/执行结果分层；本轮补旧版本及结束跟进。|
 |D3-R06 · 状态优先级与准确文案 · P0|[terminal_ai_workspace.dart](../../../../example/lib/features/ai/terminal_ai_workspace.dart)|[desktop_session_status_test.dart](../../../../example/test/shell/desktop_session_status_test.dart)|底栏同时保留断连/未知，不能用 ready 覆盖原结果。|
-|D3-R07 · 字体、等宽与字形来源 · P1|[composer_theme.dart](../../../../packages/ianvs_terminal/lib/src/composer/composer_theme.dart)|[composer_acceptance_test.dart](../../../../example/integration_test/composer_acceptance_test.dart)|已有原生 iiii/WWWW 断言；当前构建字形/复制待跑。|
+|D3-R07 · 字体、等宽与字形来源 · P1|[composer_theme.dart](../../../../packages/ianvs_terminal/lib/src/composer/composer_theme.dart)|[composer_acceptance_test.dart](../../../../example/integration_test/composer_acceptance_test.dart)|C3 原生 Composer 的 iiii/WWWW、字形与选区／复制自动断言通过；完整字体来源、物理输入与跨DPI场景仍待验。|
 |D3-R08 · 桌面响应式与文字缩放 · P1|[terminal_ai_workspace.dart](../../../../example/lib/features/ai/terminal_ai_workspace.dart)|[terminal_ai_desktop_review_test.dart](../../../../example/test/ai/terminal_ai_desktop_review_test.dart)|本轮修矮窄 pane 2×；完整四尺寸与全部surface尚未完成。|
 |D3-R09 · Hover、focus、pressed与disabled · P1|[composer_preview.dart](../../../../example/lib/ui/previews/composer_preview.dart)|[mobile_prd_component_previews_test.dart](../../../../example/test/ai/mobile_prd_component_previews_test.dart)|部分预览已存在；桌面全部 hover/focus/pressed/disabled 册待补。|
 |D3-R10 · 中英本地化与长路径 · P1|[ai_strings.dart](../../../../example/lib/features/ai/ai_strings.dart)|[terminal_ai_deferred_recovery_test.dart](../../../../example/test/ai/terminal_ai_deferred_recovery_test.dart)|新文案有中英两套；长路径和所有状态漏译巡检待完成。|
@@ -71,19 +71,19 @@
 
 |需求|实现锚点|回归入口|当前实现／仍需执行|
 |---|---|---|---|
-|D4-R01 · 真实本地 Shell 端到端 · P0|[verify_macos_app.sh](../../../../tools/verify_macos_app.sh)|[real_pty_acceptance_test.dart](../../../../example/integration_test/real_pty_acceptance_test.dart)|宿主macOS27.0.1；新候选原生完整构建/操作未完成。|
-|D4-R02 · SSH、Bash/Zsh与多跳 · P0|[lib.rs](../../../../native/core/src/lib.rs)|[real_pty_acceptance_test.dart](../../../../example/integration_test/real_pty_acceptance_test.dart)|真实本地PTY/SSH及cwd、shell支持矩阵需独立记录。|
+|D4-R01 · 真实本地 Shell 端到端 · P0|[verify_macos_app.sh](../../../../tools/verify_macos_app.sh)|[real_pty_acceptance_test.dart](../../../../example/integration_test/real_pty_acceptance_test.dart)|宿主macOS27.0.1；C3原生冒烟4项、真实PTY45项及完整构建gate通过；完整PRD本地Shell操作、录像与证据归档仍未完成。|
+|D4-R02 · SSH、Bash/Zsh与多跳 · P0|[lib.rs](../../../../native/core/src/lib.rs)|[real_pty_acceptance_test.dart](../../../../example/integration_test/real_pty_acceptance_test.dart)|C3回环OpenSSH六组zsh/bash × emacs/vi及各自local→SSH全部通过，含受控多跳和返回父Shell恢复，首尾源码干净、exit 0；已测production native session API子集，无GUI；完整App多跳／cwd／审批矩阵未验，不计D4-T02完整通过。|
 |D4-R03 · 真实模型 API 与错误注入 · P0|[ai_api_client.dart](../../../../example/lib/features/ai/ai_api_client.dart)|[terminal_ai_acceptance_test.dart](../../../../example/integration_test/terminal_ai_acceptance_test.dart)|真实API完整场景未新运行；mock和旧手机证据不能替代。|
-|D4-R04 · 本地 ACP 的原生闭环 · P0|[terminal_ai_acp.dart](../../../../example/lib/features/ai/terminal_ai_acp.dart)|[terminal_ai_acp_design_test.dart](../../../../example/integration_test/terminal_ai_acp_design_test.dart)|真实ACP、返回模型、Finder PATH、恢复/权限待新验。|
+|D4-R04 · 本地 ACP 的原生闭环 · P0|[terminal_ai_acp.dart](../../../../example/lib/features/ai/terminal_ai_acp.dart)|[terminal_ai_acp_design_test.dart](../../../../example/integration_test/terminal_ai_acp_design_test.dart)|C3真实ACP探针回复OK，适配器2.1.1、实际返回模型gpt-5.6-sol；cancel后同session load恢复及记忆核验通过。拒绝终端写入／只读fixture工具，无原生UI审批；Finder PATH及完整App恢复／权限流程未验，不计D4-T04通过。|
 |D4-R05 · Manual 与 Smart 审阅回归 · P0|[terminal_ai_approval.dart](../../../../example/lib/features/ai/terminal_ai_approval.dart)|[ai_approval_sensitivity_test.dart](../../../../example/test/ai/ai_approval_sensitivity_test.dart)|Manual/三档逻辑已有；真实两后端完整矩阵待完成。|
 |D4-R06 · 重复、陈旧与竞争故障矩阵 · P0|[terminal_ai_runtime.dart](../../../../example/lib/features/ai/terminal_ai_runtime.dart)|[terminal_ai_input_recovery_test.dart](../../../../example/test/ai/terminal_ai_input_recovery_test.dart)|自动竞争/partial已有；五断点原生副作用证据未齐。|
-|D4-R07 · 真实键盘、输入法和触摸板 · P0|[command_blocks_output.dart](../../../../packages/ianvs_terminal/lib/src/terminal/command_blocks_output.dart)|[command_block_scroll_ownership_test.dart](../../../../packages/ianvs_terminal/test/terminal/command_block_scroll_ownership_test.dart)|先修触摸板边界；真实IME/触摸板不能以事件注入代替。|
+|D4-R07 · 真实键盘、输入法和触摸板 · P0|[command_blocks_output.dart](../../../../packages/ianvs_terminal/lib/src/terminal/command_blocks_output.dart)|[command_block_scroll_ownership_test.dart](../../../../packages/ianvs_terminal/test/terminal/command_block_scroll_ownership_test.dart)|触摸板归属及DPR替换回归已修复并通过C3自动验证；真实IME/触摸板仍不能以事件注入代替。|
 |D4-R08 · 多会话、分屏与长任务 · P0|[shell_screen_state_terminal_layout.dart](../../../../example/lib/features/shell/shell_screen_state_terminal_layout.dart)|[shell_ai_reconnect_test.dart](../../../../example/test/ai/shell_ai_reconnect_test.dart)|双pane回归不等于四pane原生组合；通知/拖放待验。|
-|D4-R09 · 真实 TUI、密码与特殊输出 · P0|[composer_pane.dart](../../../../example/lib/features/terminal_composer/composer_pane.dart)|[composer_acceptance_test.dart](../../../../example/integration_test/composer_acceptance_test.dart)|当前构建vim/top/密码、几何及手动恢复待验。|
+|D4-R09 · 真实 TUI、密码与特殊输出 · P0|[composer_pane.dart](../../../../example/lib/features/terminal_composer/composer_pane.dart)|[composer_acceptance_test.dart](../../../../example/integration_test/composer_acceptance_test.dart)|C3原生Composer自动场景通过；完整vim/top/密码、只读层几何及手动恢复组合仍待验。|
 |D4-R10 · 断连、休眠与恢复 · P0|[terminal_ai_controller.dart](../../../../example/lib/features/ai/terminal_ai_controller.dart)|[terminal_ai_recovery_test.dart](../../../../example/test/ai/terminal_ai_recovery_test.dart)|本轮结束跟进/生命周期；桌面sleep/wake/重启须另验。|
 |D4-R11 · 原生无障碍验收 · P1|[terminal_ai_workspace.dart](../../../../example/lib/features/ai/terminal_ai_workspace.dart)|[terminal_ai_accessibility_acceptance_test.dart](../../../../example/integration_test/terminal_ai_accessibility_acceptance_test.dart)|真实VoiceOver和Full Keyboard Access待完成。|
 |D4-R12 · 原生 DPI、字体与多显示器 · P1|[terminal_viewport.dart](../../../../packages/ianvs_terminal/lib/src/terminal/terminal_viewport.dart)|[composer_acceptance_test.dart](../../../../example/integration_test/composer_acceptance_test.dart)|标准/高DPI、外接屏同场景证据未齐。|
 |D4-R13 · 性能、内存与长输出 · P1|[bench_runner.dart](../../../../tools/bench/runner/bench_runner.dart)|[cat_log_benchmark_test.dart](../../../../example/test/benchmarks/cat_log_benchmark_test.dart)|按PRD采样profile帧/内存/长输出原始数据，不能目测替代。|
-|D4-R14 · 构建、数据与回滚 · P0|[verify_flutter_terminal.sh](../../../../tools/verify_flutter_terminal.sh)|[apple_build_environment_contract_test.dart](../../../../test/apple_build_environment_contract_test.dart)|完整make verify及隔离签名/升级回滚未新运行。|
+|D4-R14 · 构建、数据与回滚 · P0|[verify_flutter_terminal.sh](../../../../tools/verify_flutter_terminal.sh)|[apple_build_environment_contract_test.dart](../../../../test/apple_build_environment_contract_test.dart)|C3完整make verify、macOS Debug/Release构建与签名检查通过；iPhone独立Profile签名构建通过但未安装；数据升级／回滚完整场景仍待验。|
 |D4-R15 · Linux／Windows 桌面验证边界 · P1|[APPLE_PLATFORM_COMPATIBILITY.md](../../../../docs/APPLE_PLATFORM_COMPATIBILITY.md)|[13_DESKTOP_PLATFORM_MATRIX.md](../../../../docs/product/desktop-block-ai-v1/13_DESKTOP_PLATFORM_MATRIX.md)|macOS主范围；Linux/Windows不从UI-only测试推断可交付。|
-|D4-R16 · 最终 GitHub 可审查交付 · P0|[validate_evidence.py](../../../../docs/product/desktop-block-ai-v1/scripts/validate_evidence.py)|[test_validate_evidence.py](../../../../docs/product/desktop-block-ai-v1/scripts/test_validate_evidence.py)|validator46测试通过；64场景not_run；候选C未冻结。|
+|D4-R16 · 最终 GitHub 可审查交付 · P0|[validate_evidence.py](../../../../docs/product/desktop-block-ai-v1/scripts/validate_evidence.py)|[test_validate_evidence.py](../../../../docs/product/desktop-block-ai-v1/scripts/test_validate_evidence.py)|validator46测试通过；候选C3已冻结且完整gate通过，但64完整场景仍not_run；正式原生产物／场景证据与最终GitHub可审查交付尚未齐备。|

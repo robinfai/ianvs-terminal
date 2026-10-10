@@ -1,0 +1,4 @@
+Running build hooks...Running build hooks...{"sessionUpdate":"trail_connection","agent":{"name":"@agentclientprotocol/codex-acp","title":"Codex","version":"2.1.1"},"session_id":"01a12441-eff8-7620-a23f-07ebe4696a07","model":"gpt-5.6-sol","reasoning_effort":"high","reconnected":false}
+{"sessionUpdate":"agent_message_chunk","messageId":"msg_0fdaea1ca2c7bb77016ac9cb46103c819882324eab298f324f","content":{"type":"text","text":"OK"}}
+{"sessionUpdate":"usage_update","used":8403,"size":258400}
+{"sessionUpdate":"trail_complete","stopReason":"end_turn","usage":{"totalTokens":8403,"inputTokens":8398,"cachedReadTokens":0,"outputTokens":5,"thoughtTokens":0},"_meta":{"quota":{"token_count":{"totalTokens":8403,"inputTokens":8398,"cachedInputTokens":0,"outputTokens":5,"reasoningOutputTokens":0},"model_usage":[{"model":"gpt-5.6-sol","token_count":{"totalTokens":8403,"inputTokens":8398,"cachedInputTokens":0,"outputTokens":5,"reasoningOutputTokens":0}}]}}}

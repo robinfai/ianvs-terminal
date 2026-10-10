@@ -1,0 +1,17 @@
+{
+  "implementation_commit": "7e9f0dd8e7bd825c655ceb80d817d5fe214337bd",
+  "source_clean_at_start": true,
+  "started_at": "2026-10-10T05:22:04.597392+00:00",
+  "scope": "real ACP cancel and session/load protocol, read-only fixture tool reply, no App/PTy execution",
+  "command": [
+    "/Users/robinfai/development/flutter/bin/dart",
+    "run",
+    "tool/acp_resume_probe.dart",
+    "/opt/homebrew/Cellar/node/25.8.0/bin/node",
+    "/Users/robinfai/.local/lib/node_modules/@agentclientprotocol/codex-acp/dist/index.js"
+  ],
+  "driver_sha256": "d798964d6816a46c2a260ef98aad67643c009b11d8d7cd7c6a7ac3e4dc67ca4d",
+  "finished_at": "2026-10-10T05:22:26.251198+00:00",
+  "exit_code": 0,
+  "source_clean_at_end": true
+}

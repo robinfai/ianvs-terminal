@@ -1,6 +1,6 @@
 # 第一轮实现与并行复评
 
-2026-10-10，基于 `79db5115` 的未冻结工作树。以下是本轮可复现问题和局部验证；不替代 64 个桌面、48 个移动完整场景，也不构成发布结论。
+2026-10-10，起点为 `79db5115`。本页保留工作树修复到 C1／C2／C3 的历史过程；C3 完整 gate 的最终结果见下方新增记录。以下是本轮可复现问题和局部验证；不替代 64 个桌面、48 个移动完整场景，也不构成发布结论。
 
 | 问题 | 实际影响 | 本轮处理与证据 |
 |---|---|---|
@@ -80,4 +80,19 @@ macOS 27 六张新基线的逐图检查、旧新哈希及复验日志在 `build/
 
 滚动、Reader、关闭保护、单层顶栏和待审定位已完成本轮实现及独立复评。新增关闭用例及相关组合日志为 `close-protection-tests.log`（142 通过）；顶栏／侧栏组合为 `unified-chrome-regression-3.log`（65 通过）；原生窗口检查为 `unified-chrome-native.log`（5 通过）。逐图审阅范围见 `unified-chrome-visual-review.md`；这些数量仍有交叉，不能相加当作唯一覆盖数。
 
-standalone 435 个生成文件已同步。原生检查暴露的 Composer 问题已修复，下一步保存新候选并继续完整 `make verify`，最终结论以真实退出结果为准。冻结候选后按 [桌面逐项表](DESKTOP_COMPARISON.md) 和 [移动逐项表](MOBILE_COMPARISON.md) 补原生／物理／真实模型证据。源码再次变化则重跑影响面，旧移动 C1/C3 证据身份保持不变。
+standalone 435 个生成文件已同步。原生 Composer 修复已进入 C3 并通过完整 gate；按 [桌面逐项表](DESKTOP_COMPARISON.md) 和 [移动逐项表](MOBILE_COMPARISON.md) 继续补原生／物理／真实模型证据。源码再次变化则重跑影响面，旧移动 C1/C3 证据身份保持不变。
+
+
+## 第三候选的完整检查与支撑探针
+
+C3 为 `7e9f0dd8e7bd825c655ceb80d817d5fe214337bd`。第六轮 `make verify` 在严格分析阶段停止，退出码 2：两个临时原生诊断 Dart 源码副本被留在会参与全局分析的 `build/` 目录，产生 50 条诊断。原副本移到现有排除目录 `tmp/desktop-prd-v1/iteration-1/diagnostic-sources/`，迁移路径与 SHA 记录在 `verify-6-probe-relocation.json`；没有修改候选源码。全局严格分析随后通过，历史日志保留。
+
+第七轮在同一 C3 干净工作树运行，2026-10-10 05:00:53–05:13:10 UTC，737 秒，退出码 **0**，首尾工作树干净。Rust／Go／Dart 前置检查、PTY 39、canonical terminal 1,013（1 跳过）、standalone 1,057（1 跳过）、应用 2,965（1 跳过）通过；原生冒烟 4、真实 PTY 45、Composer 1、Keychain 1 通过；Debug／Release 构建、签名检查与 Xcode 测试通过。完整原始日志及元数据见 [C3 支撑证据](C3_GATE_EVIDENCE.md)。不同集合不能相加为产品场景数。
+
+后续 C3 支撑检查均首尾源码干净：回环 OpenSSH 的 zsh／bash emacs、vi 及各自 local→SSH 六组全部通过，含原生 API 的受控多跳和父节点恢复；Bash 使用 5.3.20。真实 ACP 2.1.1 连接返回 OK，完成回执确认模型 `gpt-5.6-sol`；cancel 后 session/load 使用同一 session ID，记忆短语检查通过。SSH 未运行 GUI，ACP 是协议探针，不计完整产品场景通过。
+
+独立 Trail PRD 真机 Profile 包 `physical-profile.MIDSac` 构建成功，源码 C3、签名／描述文件／device-only Keychain 通过校验，尚未安装。最新物理 iPhone 枚举为 tunnel unavailable、无传输连接；已向用户询问 USB 重连。
+
+桌面 `native-c3-workspace-1` 已采集部分完整窗口原图，但录屏辅助进程在 AppKit 初始化前调用图形接口而退出。辅助程序初始化已修复，单独 5 秒录制诊断成功；这段诊断不补作原流程录像。随后电脑控制工具明确报告 Mac 锁屏，测试停在打开 Reader，已仅终止本次自有 App 并记录环境中止（exit 79、capture false）。用户解锁前不继续依赖界面的验收，也不将本次中止当成产品缺陷或通过。
+
+实体 iPad、外接显示器按用户明确指示保留未验收。当前没有新产品范围决策；待解锁、设备连接后继续完整 UI／真机流程。状态与恢复条件见 [当前交付结论](FINAL_REVIEW.md)。
