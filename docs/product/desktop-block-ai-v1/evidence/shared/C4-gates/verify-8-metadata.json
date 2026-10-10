@@ -1,0 +1,12 @@
+{
+  "implementation_commit": "1c95adcaab32fac64fb08142da7a0eb3b8620b5a",
+  "started_at": "2026-10-10T06:32:54.765775+00:00",
+  "command": "make verify",
+  "macos_integration_enabled": true,
+  "source_clean_at_start": true,
+  "log": "build/desktop-prd-v1/iteration-1/verify-8.log",
+  "finished_at": "2026-10-10T06:35:12.811571+00:00",
+  "elapsed_seconds": 138,
+  "exit_code": 2,
+  "source_clean_at_end": true
+}

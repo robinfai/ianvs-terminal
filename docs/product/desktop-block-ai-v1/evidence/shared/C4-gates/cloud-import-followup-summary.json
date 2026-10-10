@@ -1,0 +1,17 @@
+{
+  "implementation_commit": "1c95adcaab32fac64fb08142da7a0eb3b8620b5a",
+  "recorded_at": "2026-10-10T08:13:46.015297+00:00",
+  "record_kind": "derived safe device/UI follow-up summary",
+  "basis": "CoreDevice list devices returned wired/connected for the physical iPhone; subsequent CUA observation still showed iPhone Mirroring Touch ID lock.",
+  "prior_summary": "cloud-import-pending-summary.json",
+  "user_authorization_received": true,
+  "usb_transport": "wired",
+  "tunnel_state": "connected",
+  "mirror_requires_owner_unlock": true,
+  "credential_copied": false,
+  "ssh_configuration_saved": false,
+  "ssh_connection_test_succeeded": false,
+  "formal_mobile_cases_passed": [],
+  "waiting_for": "Owner unlock of iPhone Mirroring to perform normal App file import, save, cleanup and SSH test.",
+  "privacy": "No host address, account name, credential data/path, unique device identifier, or private device log included."
+}

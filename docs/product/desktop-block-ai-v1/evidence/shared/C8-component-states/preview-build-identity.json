@@ -1,0 +1,42 @@
+{
+  "candidate": "19001573d9974c510e1e4cbcfeb01c94368ea157",
+  "recorded_at": "2026-10-10T07:41:56.879221+00:00",
+  "build_mode": "debug",
+  "entrypoint": "example/lib/ui/previews/desktop_component_states_preview.dart",
+  "native_ui_launched": false,
+  "capture_class": "build_identity_only",
+  "complete_bundle_inventory": false,
+  "files": [
+    {
+      "path": "example/build/macos/Build/Products/Debug/Trail Development.app/Contents/MacOS/Trail Development",
+      "role": "native Runner host, not entire Flutter App",
+      "bytes": 40800,
+      "sha256": "f89da039c4b20db142f799c2a8604a318b95ca78f5a46c9769291d7aba5c707a"
+    },
+    {
+      "path": "example/build/macos/Build/Products/Debug/Trail Development.app/Contents/Info.plist",
+      "role": "bundle metadata",
+      "bytes": 2104,
+      "sha256": "46cdf636e57d13827192c62bc8c78a822e211cc95000fb6abd5023e347fe4143"
+    },
+    {
+      "path": "example/build/macos/Build/Products/Debug/Trail Development.app/Contents/Frameworks/App.framework/Versions/A/App",
+      "role": "Flutter App framework",
+      "bytes": 16800,
+      "sha256": "72abb58a6a0fdfaf3e91b5a3419932d3a1f3a0064cf4e1b6ecc12bb26ff344a2"
+    },
+    {
+      "path": "example/build/macos/Build/Products/Debug/Trail Development.app/Contents/Frameworks/App.framework/Versions/A/Resources/flutter_assets/kernel_blob.bin",
+      "role": "debug Dart payload for desktop_component_states_preview.dart",
+      "bytes": 95239288,
+      "sha256": "63dcebf75be5cbc00b293768b486b0c328dfcdd2cb5a4402e02edd4ead5276bd"
+    },
+    {
+      "path": "example/build/macos/Build/Products/Debug/Trail Development.app/Contents/Frameworks/ianvs_core.framework/ianvs_core",
+      "role": "packaged terminal native core",
+      "bytes": 14788880,
+      "sha256": "5d97cc7e2cbf4462652dee4cc2b614d56e381b0fea5e2ec691d6b2b88e14ab60"
+    }
+  ],
+  "scope": "Hashes recorded after isolated preview build and before any later build. Build success does not certify native rendering or interaction."
+}

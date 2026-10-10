@@ -1,0 +1,68 @@
+D1-T01 independent native visual review
+Reviewer: /root/ai_contract_review
+Review date: 2026-10-10
+Source candidate: C8 / 19001573d9974c510e1e4cbcfeb01c94368ea157
+Run: native-c8-tabs-1
+
+结论
+在“隔离 Profile，通过正常 UI 显式选择 Blocks 模式”的记录前提下，本次 D1-T01 的进入/返回、原草稿保留、可见目标与真实 Shell 连续性形成完整证据闭环，可登记该场景通过。未发现该场景范围内的产品阻断。本次审阅不修改 manifest，不代表 D1 其他场景、64 场景总体或完整产品验收通过；候选完整 gate 结果由主代理另行登记。
+
+审阅方式与身份
+实际打开并逐张查看全部 14 张原始 PNG，读取每张相邻 JSON 的窗口身份、时间、进程子树及 SHA256；另读取 launch.log、manual-run.json、operator-observations.log，并核对 D1-T01 plan/验收条文和 F01/F02 shot 要求。未操作 GUI、未启动应用或 SDK、未运行测试，未修改 tracked 文件。
+全部 PNG 均为 PID 29146 / window 28828 的完整 App 窗口，3456×2168 像素；原始窗口 bounds 为 1728×1084，X=0/Y=33。主题浅色，界面中文。运行环境记录 macOS 27.0.1 (26A434)、Mac16,7。2× 是原生窗口截图的像素比例；font_scale=1.0 为确切 SDK 的 source-derived 依据，不是本轮运行时实测字体缩放。
+manual-run 记录 C8 干净启动/结束；本次只读核对时 HEAD 仍为 C8，git status --short 为空。5 个已记录二进制的当前 SHA256 均与 run metadata 相等。launch.log 使用正式隔离入口 tool/desktop_prd_acceptance.dart、TRAIL_UI_NATIVE_KEYBOARD=true，结尾为 Application finished；launcher_exit_code=0 由运行记录确认。
+
+实际逐图观察（不是从文件名推断）
+1. a-before.png：A 活动，真实 BEFORE Block 退出码 0，marker=A-D1-20261010，shell_pid=29364，ppid=29146，tty_var=/dev/ttys014，tty 输出 /dev/ttys014；cwd 为隔离 home。终端与三层 Dock、底栏可见。
+2. b-before.png：A/B 两 tab，B 活动；真实 BEFORE Block 退出码 0，marker=B-D1-20261010，shell_pid=32038，ppid=29146，tty_var=/dev/ttys016，tty 输出 /dev/ttys016。
+3. D1-T01-F01.png：返回 A；原 BEFORE Block 保留，底部未执行命令草稿准确为 printf 'D1_A_COMMAND_DRAFT\n'。单层全局顶栏包含 A/B tabs、增加 tab、AI 与设置入口；终端主体、三层 Dock 和底部状态栏同窗可见，无新增永久项目侧栏或第二条全局导航。目标 D1-A、zsh、cwd 可辨认。
+4. D1-T01-F02.png：A 的 AI 任务区域可见，顶部仍选中 D1-A；编辑器目标 D1-A 与同一 cwd 可见，草稿准确为“保留 D1_A_AI_DRAFT，暂不发送”；任务内容为空、等待任务，底栏显示“D1-A · AI 任务 · 人工输入已暂停”。任务内局部标题不是第二条全局导航。
+5. a-observer-probe.png：A 只读终端，仅原 BEFORE 命令/输出和 prompt；未见 D1_OBSERVER_WRITE_PROBE 的输入或输出。顶部“终端 · 只读”和“人工接管”、底栏只读观察/人工输入已暂停可见。此图仅支持无可见 echo 的辅助观察，不能单独证明输入事件已送达或写入门禁。
+6. a-ai-restored.png：返回 A 任务，同一目标和完整 AI 草稿仍在；此 PNG 与 F02 字节相同。
+7. b-command-restored.png：B 活动；原 BEFORE Block 和未执行草稿 printf 'D1_B_COMMAND_DRAFT\n' 同时可见，目标/cwd 正确。
+8. a-ai-after-b.png：切回 A 后，其 AI 草稿仍为“保留 D1_A_AI_DRAFT，暂不发送”，未混入 B 的草稿。
+9. a-takeover-draft.png：操作记录中的显式接管后，A 原命令草稿 printf 'D1_A_COMMAND_DRAFT\n' 和原 BEFORE Block 完整可见；是在替换为 AFTER 命令之前采图，避免用后来输入冒充保稿。
+10. a-after.png：A 正好两个可见 Blocks：BEFORE 与 AFTER 均退出码 0。AFTER 命令只读取 ${TRAIL_D1_MARK-UNSET}，没有重新设置 marker；实际输出 marker=A-D1-20261010、shell_pid=29364、ppid=29146、tty_var=/dev/ttys014，tty 再次输出 /dev/ttys014。
+11. b-ai-restored.png：B AI 任务目标 D1-B / 隔离 cwd，完整独立草稿“保留 D1_B_AI_DRAFT，暂不发送”可见，内容为空/等待任务。B 草稿创建与收起/返回顺序来自 operator-observations；此处未把不存在的 B 首次草稿 PNG 当作比较依据。
+12. b-takeover-draft.png：B 原未执行命令草稿 printf 'D1_B_COMMAND_DRAFT\n' 保留，原 BEFORE Block 仍在；此 PNG 与 b-command-restored 字节相同。
+13. b-after.png：B 正好两个可见 Blocks，BEFORE/AFTER 均退出码 0。AFTER 命令没有重赋 marker，实际输出 marker=B-D1-20261010、shell_pid=32038、ppid=29146、tty_var=/dev/ttys016，tty 再次输出 /dev/ttys016。
+14. a-final.png：完成 B 操作再返回 A，A BEFORE/AFTER 与目标仍在；与 a-after 字节相同。
+
+身份与保留合同
+A 的 BEFORE/AFTER 为同一 PID 29364、TTY /dev/ttys014、PPID 29146，原 marker 未重赋仍保留；B 为 PID 32038、TTY /dev/ttys016、PPID 29146，原 marker 未重赋仍保留。两个独立 Shell 互不混淆。AI 进入/返回期间没有重建这两条已验证的 Shell。
+14 次 OS 子树采样中，a-before 仅有 A shell；B 创建后的 13 次采样始终只有这两条 /bin/zsh (29364/32038) 及已知 ianvs-api 子进程 29300。没有观察到额外持久 Shell/PTY。采样不是连续进程追踪，不能证明采样间从未存在瞬时子进程。
+numeric session ID 的依据是 operator-observations.log：操作者从本轮 CUA 工具结果逐字转录的底栏 AX，A 在 Blocks/AI/只读/最终状态均为会话 1、root；B 在 Blocks/AI/接管状态均为会话 2、root。该文件诚实标为事后逐字转录，不是已保存的实时 AX dump；本审阅核对转录与实际图面目标/cwd一致，不把 tab 上的 ⌘1/⌘2 快捷键当 numeric session ID。
+A/B 命令草稿实际截图均先保留再由操作者明确替换为 AFTER；AI 草稿与命令草稿分离、目标一致。全部最终 Block 数为 2，未出现任一草稿命令的新 Block。模型未配置/未发送来自本轮操作记录，空任务界面与之吻合；本次没有抓包，不将其写作网络层零请求断言。
+
+正式 shot 候选
+D1-T01-F01.png 可作为 F01：当前显式 Blocks 偏好下的完整桌面、单层顶栏、Blocks、三层 Dock、底栏。
+D1-T01-F02.png 可作为 F02：同窗 A tab 的 AI 任务，目标/cwd和未发送草稿可见。
+支持闭环的 a/b-before、a/b-takeover-draft、a/b-after、a-final 及 operator-observations/process metadata 应一起保留，不能只归档两张代表图后删除行为依据。
+
+必须保留的边界
+- Fresh desktop 初始模式是 normal terminal；两 tab 经普通 context menu 显式切到 Blocks。本结论不宣称新装默认 Blocks，F01 的“默认桌面”按已记录显式偏好准备。与既有 DESIGN.md 的桌面保留用户偏好合同一致。
+- a-before、b-before、F01 的 metadata 为 active/frontmost PID29146；F02 及其后的 11 个 checkpoint 报 active_pids=[]、frontmost_pid=33681。准确截图仍是 App29146/window28828，但不能标注全程 foreground。操作者说明取证工具审批/执行期间另一 App 获前台。此事实不修改原 JSON，也不将它当产品失焦缺陷。
+- 只读 probe 无同刻事件送达/OS foreground 记录，只登记辅助无 echo 观察，不用于证明只读输入门禁；该强断言不属于本次 D1-T01 的 passed 范围。
+- CUA 合成 OS 键鼠操作是正常 UI/native 交互路径，不是人手物理输入认证，也没有 FlutterDriver/controller 注入。未验证物理 IME、VoiceOver、窗口拖动、混合 DPI、多显示器或其它支持的 macOS 版本。
+- 无录像；该 case 的 plan 标明 video_required=false。14 张静态图和操作转录不冒充连续录像或实时 AX 追踪。
+- 本次不使用真实模型，不验证模型质量/网络连接/API、审批执行链、后台恢复或任何 iPhone 行为。
+
+完整性核对
+a-before.png | 2026-10-10T07:51:06.441029+00:00 | sha256=1e89d8f9e06452d0e0898fa8b87e2279781714ece78eae994572806fb6273b3f
+b-before.png | 2026-10-10T07:51:57.687191+00:00 | sha256=62ddc02405ab8662453e5648a82c7e185393ddcaccd8e4aed1ac67c3fafa4aeb
+D1-T01-F01.png | 2026-10-10T07:52:14.493044+00:00 | sha256=486cca82c80bf682033e94d8a641af8138886e2318c57f7719a217e5af6695d9
+D1-T01-F02.png | 2026-10-10T07:52:41.751729+00:00 | sha256=7d810ec01076656c376df268d78c6df5c29d801ea9fe56e5ff22205cd66ea38a
+a-observer-probe.png | 2026-10-10T07:53:06.942422+00:00 | sha256=63a90afe7ee871b14dae278fbc988ee96553453ea626937034421b0fbf75c375
+a-ai-restored.png | 2026-10-10T07:53:18.200572+00:00 | sha256=7d810ec01076656c376df268d78c6df5c29d801ea9fe56e5ff22205cd66ea38a
+b-command-restored.png | 2026-10-10T07:53:30.101490+00:00 | sha256=6d129f67a5ca261969c47787cc47de5f4824d00de9501b2016ba1e0020335ee0
+a-ai-after-b.png | 2026-10-10T07:53:43.699349+00:00 | sha256=bac9b25294b2557f74e6f159d40618e7a4ce156d8fe01efe3abb268319845a3a
+a-takeover-draft.png | 2026-10-10T07:54:08.097607+00:00 | sha256=651c763daef6249ce16f18ea59944914f8d356b29f489d503cbb678304afbbf2
+a-after.png | 2026-10-10T07:54:24.085325+00:00 | sha256=bb5b771a41e267d4436865a744dcc74f25fb7c782ecf2489fb7611cdcc84da16
+b-ai-restored.png | 2026-10-10T07:54:43.911338+00:00 | sha256=38058ee73345911c7611ebe917b8064ff0055ae2a13533f471ad6edb613264e8
+b-takeover-draft.png | 2026-10-10T07:55:00.167662+00:00 | sha256=6d129f67a5ca261969c47787cc47de5f4824d00de9501b2016ba1e0020335ee0
+b-after.png | 2026-10-10T07:55:13.656788+00:00 | sha256=905f905de744284070c6a80670eecf23c291545c4596f6940ed05b9fd0c5182c
+a-final.png | 2026-10-10T07:55:46.927575+00:00 | sha256=bb5b771a41e267d4436865a744dcc74f25fb7c782ecf2489fb7611cdcc84da16
+全部 14 张 PNG 均匹配相邻 JSON 原始 SHA256；原图未修改。
+manual-run.json | sha256=d4f16dbb394fe7bf610760d41a3fac0f7f84645294dc31fe50744171b53f5242
+operator-observations.log | sha256=b6542305a8e6ff68803dddd27e93472eac201bbb8b623ff3e9abba3171c192e2
+launch.log | sha256=bc68af1b2d7237441979415f43ccc938381721dec9ca4a52f2177d604e9a2f6f

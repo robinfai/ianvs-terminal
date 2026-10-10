@@ -1,0 +1,14 @@
+{
+  "implementation_commit": "19001573d9974c510e1e4cbcfeb01c94368ea157",
+  "source": "Original native run-metadata.json binary_sha256, not rebuilt current files",
+  "recorded_at": "2026-10-10T07:18:29.467537+00:00",
+  "files": {
+    "example/build/macos/Build/Products/Debug/Trail Development.app/Contents/MacOS/Trail Development": "e9b598129708fbe7ca46f26518209c9d05caf74d5baa7ca3c57f27256115871a",
+    "example/build/macos/Build/Products/Debug/Trail Development.app/Contents/Frameworks/ianvs_core.framework/ianvs_core": "5d97cc7e2cbf4462652dee4cc2b614d56e381b0fea5e2ec691d6b2b88e14ab60",
+    "example/build/macos/Build/Products/Debug/Trail Development.app/Contents/Frameworks/App.framework/Versions/A/App": "dbb6abb8ffbc1bede2d051417de62c391319ff92dc731c3443768ef63999056f",
+    "example/build/macos/Build/Products/Debug/Trail Development.app/Contents/Frameworks/App.framework/Versions/A/Resources/flutter_assets/kernel_blob.bin": "27eced939683fc28d3ced81282778b8585da0675eb7c434355eb7f79c7e05f7b",
+    "native/core/target/debug/libianvs_core.dylib": "1943ae4429605b6cb7a5e2f79c4f4025cdfab3768a28343237e5a04f7b0a2f03"
+  },
+  "complete_bundle_inventory": false,
+  "limitations": "Five contemporaneously recorded payload/native hashes; bundle Info.plist and packaged font bytes were not separately inventoried. Tracked source identities are supplied separately."
+}

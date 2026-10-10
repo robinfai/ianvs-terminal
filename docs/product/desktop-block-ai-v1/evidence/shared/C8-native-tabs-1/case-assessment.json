@@ -1,0 +1,313 @@
+{
+  "implementation_commit": "19001573d9974c510e1e4cbcfeb01c94368ea157",
+  "recorded_at": "2026-10-10T08:09:59.137218+00:00",
+  "case_id": "D1-T01",
+  "assessment": "passed within the explicit Blocks prerequisite, independently visually reviewed; final publication is owned by the root agent.",
+  "raw_manual_status_preserved": "interaction_complete_pending_independent_review",
+  "review": {
+    "path": "evidence/shared/C8-native-tabs-1/independent-visual-review.log",
+    "sha256": "d75d37e8b996b7283a563c38d4d0943d0ef44965f911226a4458cbda7f48a8f2",
+    "scope": "Independent reviewer opened all 14 originals and checked raw window/process metadata and operator transcript; archive agent additionally opened F01/F02/A-after/B-after."
+  },
+  "checks": {
+    "original_png_count": 14,
+    "original_png_hashes_match_raw_records": true,
+    "all_windows_match_exact_pid_window_and_bounds": true,
+    "all_capture_times_within_run": true,
+    "native_launch_exit_code": 0,
+    "recorded_source_clean_start_and_end": true,
+    "session_A": {
+      "session_id": 1,
+      "shell_pid_before_and_after": 29364,
+      "ppid": 29146,
+      "tty_before_and_after": "/dev/ttys014",
+      "marker_read_after_without_reset": "A-D1-20261010"
+    },
+    "session_B": {
+      "session_id": 2,
+      "shell_pid_before_and_after": 32038,
+      "ppid": 29146,
+      "tty_before_and_after": "/dev/ttys016",
+      "marker_read_after_without_reset": "B-D1-20261010"
+    },
+    "session_id_basis": "Post-run verbatim transcription of CUA bottom-status accessibility responses; not tab shortcut labels or an original live AX dump.",
+    "pid_tty_marker_basis": "Actual BEFORE/AFTER output visible in original PNGs, independently reviewed, corroborated by discrete OS subtree samples.",
+    "command_draft_basis": "A/B takeover-draft originals captured before replacement by AFTER command; original BEFORE blocks retained.",
+    "ai_draft_basis": "A full draft before/after tab changes and B restored draft plus operator action transcript; no fictional B initial PNG.",
+    "no_extra_persistent_shells_observed_in_samples": true,
+    "foreground_capture_count": 3,
+    "inactive_capture_count": 11
+  },
+  "process_samples": [
+    {
+      "checkpoint": "a-before",
+      "raw_record": "evidence/shared/C8-native-tabs-1/a-before.json",
+      "captured_at": "2026-10-10T07:51:06.441029+00:00",
+      "shells": [
+        {
+          "pid": 29364,
+          "ppid": 29146,
+          "tty": "ttys014"
+        }
+      ],
+      "is_active": true,
+      "frontmost_pid": 29146
+    },
+    {
+      "checkpoint": "b-before",
+      "raw_record": "evidence/shared/C8-native-tabs-1/b-before.json",
+      "captured_at": "2026-10-10T07:51:57.687191+00:00",
+      "shells": [
+        {
+          "pid": 29364,
+          "ppid": 29146,
+          "tty": "ttys014"
+        },
+        {
+          "pid": 32038,
+          "ppid": 29146,
+          "tty": "ttys016"
+        }
+      ],
+      "is_active": true,
+      "frontmost_pid": 29146
+    },
+    {
+      "checkpoint": "D1-T01-F01",
+      "raw_record": "evidence/shared/C8-native-tabs-1/D1-T01-F01.json",
+      "captured_at": "2026-10-10T07:52:14.493044+00:00",
+      "shells": [
+        {
+          "pid": 29364,
+          "ppid": 29146,
+          "tty": "ttys014"
+        },
+        {
+          "pid": 32038,
+          "ppid": 29146,
+          "tty": "ttys016"
+        }
+      ],
+      "is_active": true,
+      "frontmost_pid": 29146
+    },
+    {
+      "checkpoint": "D1-T01-F02",
+      "raw_record": "evidence/shared/C8-native-tabs-1/D1-T01-F02.json",
+      "captured_at": "2026-10-10T07:52:41.751729+00:00",
+      "shells": [
+        {
+          "pid": 29364,
+          "ppid": 29146,
+          "tty": "ttys014"
+        },
+        {
+          "pid": 32038,
+          "ppid": 29146,
+          "tty": "ttys016"
+        }
+      ],
+      "is_active": false,
+      "frontmost_pid": 33681
+    },
+    {
+      "checkpoint": "a-observer-probe",
+      "raw_record": "evidence/shared/C8-native-tabs-1/a-observer-probe.json",
+      "captured_at": "2026-10-10T07:53:06.942422+00:00",
+      "shells": [
+        {
+          "pid": 29364,
+          "ppid": 29146,
+          "tty": "ttys014"
+        },
+        {
+          "pid": 32038,
+          "ppid": 29146,
+          "tty": "ttys016"
+        }
+      ],
+      "is_active": false,
+      "frontmost_pid": 33681
+    },
+    {
+      "checkpoint": "a-ai-restored",
+      "raw_record": "evidence/shared/C8-native-tabs-1/a-ai-restored.json",
+      "captured_at": "2026-10-10T07:53:18.200572+00:00",
+      "shells": [
+        {
+          "pid": 29364,
+          "ppid": 29146,
+          "tty": "ttys014"
+        },
+        {
+          "pid": 32038,
+          "ppid": 29146,
+          "tty": "ttys016"
+        }
+      ],
+      "is_active": false,
+      "frontmost_pid": 33681
+    },
+    {
+      "checkpoint": "b-command-restored",
+      "raw_record": "evidence/shared/C8-native-tabs-1/b-command-restored.json",
+      "captured_at": "2026-10-10T07:53:30.101490+00:00",
+      "shells": [
+        {
+          "pid": 29364,
+          "ppid": 29146,
+          "tty": "ttys014"
+        },
+        {
+          "pid": 32038,
+          "ppid": 29146,
+          "tty": "ttys016"
+        }
+      ],
+      "is_active": false,
+      "frontmost_pid": 33681
+    },
+    {
+      "checkpoint": "a-ai-after-b",
+      "raw_record": "evidence/shared/C8-native-tabs-1/a-ai-after-b.json",
+      "captured_at": "2026-10-10T07:53:43.699349+00:00",
+      "shells": [
+        {
+          "pid": 29364,
+          "ppid": 29146,
+          "tty": "ttys014"
+        },
+        {
+          "pid": 32038,
+          "ppid": 29146,
+          "tty": "ttys016"
+        }
+      ],
+      "is_active": false,
+      "frontmost_pid": 33681
+    },
+    {
+      "checkpoint": "a-takeover-draft",
+      "raw_record": "evidence/shared/C8-native-tabs-1/a-takeover-draft.json",
+      "captured_at": "2026-10-10T07:54:08.097607+00:00",
+      "shells": [
+        {
+          "pid": 29364,
+          "ppid": 29146,
+          "tty": "ttys014"
+        },
+        {
+          "pid": 32038,
+          "ppid": 29146,
+          "tty": "ttys016"
+        }
+      ],
+      "is_active": false,
+      "frontmost_pid": 33681
+    },
+    {
+      "checkpoint": "a-after",
+      "raw_record": "evidence/shared/C8-native-tabs-1/a-after.json",
+      "captured_at": "2026-10-10T07:54:24.085325+00:00",
+      "shells": [
+        {
+          "pid": 29364,
+          "ppid": 29146,
+          "tty": "ttys014"
+        },
+        {
+          "pid": 32038,
+          "ppid": 29146,
+          "tty": "ttys016"
+        }
+      ],
+      "is_active": false,
+      "frontmost_pid": 33681
+    },
+    {
+      "checkpoint": "b-ai-restored",
+      "raw_record": "evidence/shared/C8-native-tabs-1/b-ai-restored.json",
+      "captured_at": "2026-10-10T07:54:43.911338+00:00",
+      "shells": [
+        {
+          "pid": 29364,
+          "ppid": 29146,
+          "tty": "ttys014"
+        },
+        {
+          "pid": 32038,
+          "ppid": 29146,
+          "tty": "ttys016"
+        }
+      ],
+      "is_active": false,
+      "frontmost_pid": 33681
+    },
+    {
+      "checkpoint": "b-takeover-draft",
+      "raw_record": "evidence/shared/C8-native-tabs-1/b-takeover-draft.json",
+      "captured_at": "2026-10-10T07:55:00.167662+00:00",
+      "shells": [
+        {
+          "pid": 29364,
+          "ppid": 29146,
+          "tty": "ttys014"
+        },
+        {
+          "pid": 32038,
+          "ppid": 29146,
+          "tty": "ttys016"
+        }
+      ],
+      "is_active": false,
+      "frontmost_pid": 33681
+    },
+    {
+      "checkpoint": "b-after",
+      "raw_record": "evidence/shared/C8-native-tabs-1/b-after.json",
+      "captured_at": "2026-10-10T07:55:13.656788+00:00",
+      "shells": [
+        {
+          "pid": 29364,
+          "ppid": 29146,
+          "tty": "ttys014"
+        },
+        {
+          "pid": 32038,
+          "ppid": 29146,
+          "tty": "ttys016"
+        }
+      ],
+      "is_active": false,
+      "frontmost_pid": 33681
+    },
+    {
+      "checkpoint": "a-final",
+      "raw_record": "evidence/shared/C8-native-tabs-1/a-final.json",
+      "captured_at": "2026-10-10T07:55:46.927575+00:00",
+      "shells": [
+        {
+          "pid": 29364,
+          "ppid": 29146,
+          "tty": "ttys014"
+        },
+        {
+          "pid": 32038,
+          "ppid": 29146,
+          "tty": "ttys016"
+        }
+      ],
+      "is_active": false,
+      "frontmost_pid": 33681
+    }
+  ],
+  "limits": [
+    "Explicit normal-UI selection of Blocks in both tabs; fresh desktop default is normal terminal.",
+    "Eleven of fourteen captures are inactive. This archive does not claim continuous foreground ownership.",
+    "OS child process data are discrete samples, not a proof that no transient process ever existed.",
+    "Observer no-echo probe is auxiliary only: no reliable same-time event delivery/foreground record, so no strong write-blocking assertion.",
+    "Normal CUA synthetic OS keyboard/mouse input is not physical input, IME, VoiceOver, drag, mixed-DPI or multi-display certification.",
+    "No video; D1-T01 plan explicitly sets video_required=false. No real model, approvals, SSH or iPhone behavior covered.",
+    "Source inventories are explicit selected-input checks, and binary inventory is not a full build dependency/bundle closure."
+  ]
+}

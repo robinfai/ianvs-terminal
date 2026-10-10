@@ -1,0 +1,344 @@
+#!/usr/bin/env python3
+"""Run a frozen candidate's isolated native driver and capture only its window."""
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+import argparse
+import hashlib
+import json
+import os
+import plistlib
+import re
+import signal
+import subprocess
+import threading
+import time
+
+ROOT = Path(__file__).resolve().parents[2]
+CASES = {
+    'workspace': ('terminal_ai_workspace_acceptance_test.dart', 'TRAIL_FUSION_EVIDENCE',
+                  'Main AI timeline submits once and returns unchanged TUI grid'),
+    'k9s': ('terminal_ai_k9s_acceptance_test.dart', 'TRAIL_K9S_EVIDENCE', None),
+    'acp': ('terminal_ai_acp_design_test.dart', 'TRAIL_ACP_DESIGN_EVIDENCE', None),
+}
+
+def now():
+    return datetime.now(timezone.utc).isoformat()
+
+def git(*args):
+    return subprocess.check_output(['git', *args], cwd=ROOT, text=True).strip()
+
+def digest(path):
+    result = hashlib.sha256()
+    with path.open('rb') as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b''):
+            result.update(chunk)
+    return result.hexdigest()
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('case', choices=CASES)
+    parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--capture-interval', type=float, default=5.0)
+    args = parser.parse_args()
+    if not 0.2 <= args.capture_interval <= 30:
+        raise SystemExit('Capture interval must be between 0.2 and 30 seconds')
+    os.umask(0o077)
+    if git('status', '--porcelain'):
+        raise SystemExit('Tracked candidate must be clean before native acceptance')
+    output = args.output.resolve()
+    output.mkdir(parents=True, exist_ok=False)
+    artifacts = output / 'driver-artifacts'
+    artifacts.mkdir()
+    app = ROOT / 'example/build/macos/Build/Products/Debug/Trail Development.app'
+    helper = ROOT / 'tmp/desktop_prd_capture/window_inventory'
+
+    inventory_errors = []
+    def inventory(*, required=False):
+        try:
+            proc = subprocess.run([str(helper), str(app)], capture_output=True,
+                                  text=True, timeout=5, check=True)
+            return json.loads(proc.stdout)
+        except (subprocess.SubprocessError, ValueError) as error:
+            if required:
+                raise SystemExit('Initial window inventory failed; no native run or capture was started') from error
+            if not inventory_errors:
+                inventory_errors.append({'at': now(), 'error_type': type(error).__name__})
+            return {'pids': [], 'windows': [], 'screen_capture_authorized': False}
+
+    before = inventory(required=True)
+    old_pids = set(before['pids'])
+    driver, define, plain_name = CASES[args.case]
+    driver_path = ROOT / 'example/integration_test' / driver
+    command = ['/Users/robinfai/development/flutter/bin/flutter', 'test', '--no-pub', '-d', 'macos',
+               f'integration_test/{driver}', f'--dart-define={define}={artifacts}', '--reporter', 'expanded']
+    if args.case == 'k9s':
+        command.append('--dart-define=TRAIL_K9S_BINARY=/opt/homebrew/bin/k9s')
+    if plain_name:
+        command.extend(['--plain-name', plain_name])
+    if args.case == 'workspace':
+        command.append('--dart-define=TRAIL_FUSION_NATIVE_CHECKPOINTS=true')
+    record = {
+        'implementation_commit': git('rev-parse', 'HEAD'),
+        'source_clean_at_start': True,
+        'started_at': now(), 'case': args.case,
+        'command': command,
+        'driver_sha256': hashlib.sha256(driver_path.read_bytes()).hexdigest(),
+        'capture_helper_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+        'window_inventory_sha256': hashlib.sha256((helper.parent / 'window_inventory.swift').read_bytes()).hexdigest(),
+        'window_recorder_sha256': hashlib.sha256((helper.parent / 'record_window.swift').read_bytes()).hexdigest(),
+        'environment': {
+            'os': subprocess.check_output(['sw_vers', '-productVersion'], text=True).strip(),
+            'os_build': subprocess.check_output(['sw_vers', '-buildVersion'], text=True).strip(),
+            'architecture': subprocess.check_output(['uname', '-m'], text=True).strip(),
+            'device_model': subprocess.check_output(['sysctl', '-n', 'hw.model'], text=True).strip(),
+            'flutter': json.loads(Path('/Users/robinfai/development/flutter/bin/cache/flutter.version.json').read_text()),
+            'build_mode': 'debug',
+        },
+        'scope': 'Native macOS App and PTY; automated UI input, not physical input certification',
+        'window_capture_scope': 'New process at exact build product path; no desktop or other app capture',
+        'window_capture_interval_seconds': args.capture_interval,
+        'post_result_recording_seconds': 1.4,
+        'checkpoint_captures': [],
+        'activity_events': [],
+        'windows': [], 'captures': [], 'inventory_errors': inventory_errors,
+    }
+    meta = output / 'run-metadata.json'
+    def save():
+        meta.write_text(json.dumps(record, ensure_ascii=False, indent=2) + '\n')
+    save()
+    env = os.environ.copy()
+    env['PATH'] = '/Users/robinfai/development/flutter/bin:' + env['PATH']
+    env['IANVS_CORE_LIB'] = str(ROOT / 'native/core/target/debug/libianvs_core.dylib')
+    started = time.monotonic()
+    recorder = None
+    capture_window = None
+    last_shot = 0.0
+    last_activity = None
+    recording_started_seen = False
+    control = {'stop_requested_at': None, 'stop_reason': None, 'exited_before_result': False}
+    stop_lock = threading.Lock()
+    monitor_done = threading.Event()
+
+    def request_stop(reason):
+        with stop_lock:
+            if recorder is None or recorder.poll() is not None or control['stop_requested_at']:
+                return
+            control['stop_requested_at'] = now()
+            control['stop_reason'] = reason
+            try:
+                recorder.send_signal(signal.SIGINT)
+            except ProcessLookupError:
+                control['exited_before_result'] = True
+
+    def monitor_result():
+        # Final result follows the last UI assertion (some drivers also finish
+        # their widget cleanup first). Stop at this known completion checkpoint.
+        while not monitor_done.wait(0.02):
+            if recorder is None:
+                continue
+            result_path = artifacts / 'result.json'
+            try:
+                json.loads(result_path.read_text())
+                result_ready = True
+            except (OSError, ValueError):
+                result_ready = False
+            if result_ready:
+                # Keep the actual final UI in the original continuous video.
+                # The driver waits for this stop receipt before disposing it.
+                if monitor_done.wait(record['post_result_recording_seconds']):
+                    return
+                request_stop('driver_result_written')
+                try:
+                    recording_exit = recorder.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    recording_exit = 124
+                stop_events = []
+                for line in (output / 'capture.private.log').read_text(errors='replace').splitlines():
+                    try:
+                        event = json.loads(line)
+                        if isinstance(event, dict) and event.get('event'):
+                            stop_events.append(event)
+                    except ValueError:
+                        pass
+                failed = any(event['event'] in {'recording_failed', 'stream_stopped', 'capture_failed', 'stop_failed'}
+                             for event in stop_events)
+                finished = sum(event['event'] == 'recording_finished' for event in stop_events) == 1
+                receipt = {'pid': capture_window['pid'], 'at': now(), 'exit_code': recording_exit,
+                           'status': 'recorded' if recording_exit == 0 and finished and not failed else 'failed'}
+                acknowledgement = artifacts / 'native-recording-finished.json'
+                pending_acknowledgement = acknowledgement.with_suffix('.pending')
+                pending_acknowledgement.write_text(json.dumps(receipt) + '\n')
+                pending_acknowledgement.replace(acknowledgement)
+                return
+            if recorder.poll() is not None:
+                control['exited_before_result'] = True
+                return
+
+    with (output / 'native-test.private.log').open('w') as log, (output / 'capture.private.log').open('w') as capture_log:
+        proc = subprocess.Popen(command, cwd=ROOT / 'example', stdout=log, stderr=subprocess.STDOUT, env=env)
+        monitor = threading.Thread(target=monitor_result, daemon=True)
+        monitor.start()
+        try:
+            while proc.poll() is None:
+                snap = inventory()
+                eligible = [w for w in snap['windows'] if w['pid'] not in old_pids]
+                if capture_window is None and snap['screen_capture_authorized'] and eligible:
+                    capture_window = max(eligible, key=lambda w: w['bounds']['Width'] * w['bounds']['Height'])
+                    record['windows'].append({**capture_window, 'started_at': now()})
+                    recorder = subprocess.Popen(
+                        [str(helper.parent / 'record_window'), str(app), str(capture_window['window_id']),
+                         str(capture_window['pid']), str(output / 'native-window.mp4')],
+                        stdout=capture_log, stderr=subprocess.STDOUT)
+                    save()
+                    print(json.dumps({'event': 'native_window_ready', 'pid': capture_window['pid'],
+                                      'window_id': capture_window['window_id'], 'app': str(app)}), flush=True)
+                if capture_window is not None and any(w['window_id'] == capture_window['window_id'] and w['pid'] == capture_window['pid'] for w in eligible):
+                    if not recording_started_seen:
+                        recording_started_seen = any(
+                            '"event":"recording_started"' in line.replace(' ', '')
+                            for line in (output / 'capture.private.log').read_text(errors='replace').splitlines()
+                        )
+                    activity = {'app_active': capture_window['pid'] in snap.get('active_pids', []),
+                                'frontmost_is_test_app': snap.get('frontmost_pid') == capture_window['pid']}
+                    if activity != last_activity:
+                        record['activity_events'].append({'at': now(), 'pid': capture_window['pid'], **activity})
+                        last_activity = activity
+                        save()
+                    request_path = artifacts / 'native-capture-request.json'
+                    try:
+                        request = json.loads(request_path.read_text())
+                    except (OSError, ValueError):
+                        request = None
+                    if isinstance(request, dict):
+                        name = request.get('name')
+                        if (isinstance(name, str) and re.fullmatch(r'[A-Za-z0-9-]+', name)
+                                and request.get('pid') == capture_window['pid']
+                                and (name != 'D01-initial-mode' or (all(activity.values()) and recording_started_seen))):
+                            acknowledgement = artifacts / f'native-{name}.json'
+                            if not acknowledgement.exists():
+                                native_image = artifacts / f'native-{name}.png'
+                                try:
+                                    shot = subprocess.run(
+                                        ['/usr/sbin/screencapture', '-x', '-o', f"-l{capture_window['window_id']}", str(native_image)],
+                                        stdout=capture_log, stderr=subprocess.STDOUT, timeout=5)
+                                    shot_exit = shot.returncode
+                                except subprocess.TimeoutExpired:
+                                    shot_exit = 124
+                                valid = shot_exit == 0 and native_image.is_file() and native_image.read_bytes().startswith(b'\x89PNG\r\n\x1a\n')
+                                checkpoint = {'name': name, 'pid': capture_window['pid'], 'window_id': capture_window['window_id'],
+                                              'path': str(native_image.relative_to(output)), 'at': now(),
+                                              'is_active': activity['app_active'], 'frontmost_pid': snap.get('frontmost_pid'),
+                                              'status': 'captured' if valid else 'failed', 'exit_code': shot_exit}
+                                record['checkpoint_captures'].append(checkpoint)
+                                save()
+                                pending_acknowledgement = acknowledgement.with_suffix('.pending')
+                                pending_acknowledgement.write_text(json.dumps(checkpoint) + '\n')
+                                pending_acknowledgement.replace(acknowledgement)
+                    if time.monotonic() - last_shot >= args.capture_interval:
+                        name = f"native-window-{len(record['captures']) + 1:03}.png"
+                        try:
+                            shot = subprocess.run(['/usr/sbin/screencapture', '-x', '-o', f"-l{capture_window['window_id']}",
+                                                   str(output / name)], stdout=capture_log, stderr=subprocess.STDOUT, timeout=2)
+                            shot_exit = shot.returncode
+                        except subprocess.TimeoutExpired:
+                            shot_exit = 124
+                        if shot_exit == 0 and (output / name).exists():
+                            record['captures'].append({'path': name, 'at': now()})
+                            save()
+                        last_shot = time.monotonic()
+                time.sleep(min(0.4, args.capture_interval / 2))
+        finally:
+            monitor_done.set()
+            monitor.join(timeout=2)
+            if recorder and recorder.poll() is None:
+                request_stop('native_process_finished')
+                try:
+                    recorder.wait(timeout=15)
+                except subprocess.TimeoutExpired:
+                    recorder.terminate()
+                    recorder.wait(timeout=5)
+            if proc.poll() is None:
+                proc.terminate()
+                proc.wait(timeout=15)
+            record.update({'finished_at': now(), 'elapsed_seconds': round(time.monotonic() - started),
+                           'exit_code': proc.returncode,
+                           'source_clean_at_end': not git('status', '--porcelain'),
+                           'video_capture_exit_code': recorder.returncode if recorder else None})
+            if (output / 'native-window.mp4').exists():
+                probe = subprocess.run(['/opt/homebrew/bin/ffprobe', '-v', 'error', '-show_entries',
+                                        'format=duration,size:stream=codec_name,width,height', '-of', 'json',
+                                        str(output / 'native-window.mp4')], capture_output=True, text=True)
+                if probe.returncode == 0:
+                    record['video_metadata'] = json.loads(probe.stdout)
+            record['recording_control'] = control
+            events = []
+            capture_log.flush()
+            for line in (output / 'capture.private.log').read_text(errors='replace').splitlines():
+                try:
+                    event = json.loads(line)
+                    if isinstance(event, dict) and event.get('event'):
+                        events.append(event)
+                except ValueError:
+                    pass
+            record['recording_events'] = events
+            record['capture_artifacts_readable'] = bool(
+                record['windows'] and record['captures'] and
+                record['video_capture_exit_code'] == 0 and
+                float(record.get('video_metadata', {}).get('format', {}).get('duration', '0')) > 0
+            )
+            record['artifact_sha256'] = {
+                str(path.relative_to(output)): digest(path)
+                for path in sorted(output.rglob('*'))
+                if path.is_file() and path.suffix in ('.png', '.mp4', '.json') and path != meta
+            }
+            record['driver_capture_times'] = {
+                str(path.relative_to(output)): datetime.fromtimestamp(path.stat().st_mtime, timezone.utc).isoformat()
+                for path in sorted(artifacts.glob('*.png'))
+            }
+            starts = [event for event in events if event['event'] == 'recording_started']
+            finishes = [event for event in events if event['event'] == 'recording_finished']
+            failures = [event for event in events if event['event'] in
+                        {'recording_failed', 'stream_stopped', 'capture_failed', 'stop_failed'}]
+            timing_verified = False
+            result_path = artifacts / 'result.json'
+            if (len(starts) == 1 and len(finishes) == 1 and not failures and
+                    control['stop_reason'] == 'driver_result_written' and
+                    not control['exited_before_result'] and record['driver_capture_times'] and
+                    result_path.is_file()):
+                first = min(datetime.fromisoformat(value) for value in record['driver_capture_times'].values())
+                last = max(datetime.fromisoformat(value) for value in record['driver_capture_times'].values())
+                final_step = max(last, datetime.fromtimestamp(result_path.stat().st_mtime, timezone.utc))
+                started_at = datetime.fromisoformat(starts[0]['at'])
+                stop_requested_at = datetime.fromisoformat(control['stop_requested_at'])
+                finished_at = datetime.fromisoformat(finishes[0]['at'])
+                media_end = started_at + timedelta(seconds=finishes[0].get('duration_seconds', 0))
+                timing_verified = (
+                    started_at <= first and
+                    finished_at >= stop_requested_at >= final_step and
+                    media_end >= final_step
+                )
+            record['driver_capture_interval_verified'] = timing_verified
+            record['capture_artifacts_complete'] = record['capture_artifacts_readable'] and timing_verified
+            record['binary_sha256'] = {}
+            executable = 'Trail Development'
+            if (app / 'Contents/Info.plist').is_file():
+                with (app / 'Contents/Info.plist').open('rb') as plist:
+                    info = plistlib.load(plist)
+                    executable = info.get('CFBundleExecutable', executable)
+                    record['environment']['bundle_id'] = info.get('CFBundleIdentifier')
+            for binary in [app / 'Contents/MacOS' / executable,
+                           app / 'Contents/Frameworks/ianvs_core.framework/ianvs_core',
+                           app / 'Contents/Frameworks/App.framework/Versions/A/App',
+                           *app.rglob('kernel_blob.bin'),
+                           ROOT / 'native/core/target/debug/libianvs_core.dylib']:
+                if binary.is_file():
+                    record['binary_sha256'][str(binary.relative_to(ROOT))] = digest(binary)
+            record['capture_note'] = 'Artifact presence and decoding only; visual review and PRD case assertions remain separate'
+            save()
+    print(json.dumps({key: record[key] for key in ['implementation_commit', 'case', 'elapsed_seconds', 'exit_code',
+                                                 'source_clean_at_end', 'capture_artifacts_complete']}, indent=2))
+    print(f'Captured {len(record["captures"])} native window images')
+    raise SystemExit(proc.returncode or (0 if record['capture_artifacts_complete'] else 3))
+
+if __name__ == '__main__':
+    main()

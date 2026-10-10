@@ -1,0 +1,59 @@
+{
+  "implementation_commit": "1c95adcaab32fac64fb08142da7a0eb3b8620b5a",
+  "observed_at": "2026-10-10T07:04:39.709671+00:00",
+  "bundle_id": "work.ianvs.trail.mobileprd",
+  "device": "physical iPhone (hardware identifier iPhone18,3), iOS 27.0.1; identity from install-summary.json",
+  "method": "CUA iPhone Mirroring after owner Touch ID; screenshots visually reviewed in conversation only",
+  "installed": true,
+  "launched": true,
+  "onboarding_completed": true,
+  "connection_list_empty": true,
+  "saved_ai_configuration_visible": true,
+  "endpoint": "https://api.deepseek.com",
+  "configured_model": "deepseek-flash",
+  "api_key_remained_masked": true,
+  "connection_test": "passed: UI displayed 连接成功，尚未保存 after Wi-Fi access allowed and explicit retry",
+  "initial_connection_failure": "first request coincided with OS wireless-data permission; no completed API result claimed for that attempt",
+  "wireless_data_permission": "Wi-Fi only",
+  "local_network_discovery_permission": "denied; public API connection still passed",
+  "saved_approval_mode": "manual / 每次确认",
+  "draft_approval_options_inspected": [
+    "智能审核",
+    "每次确认"
+  ],
+  "draft_sensitivity_options_inspected": [
+    "谨慎",
+    "标准",
+    "宽松 · 高危确认"
+  ],
+  "relaxed_help_observed": "Automatically allows low/medium actions in task scope; high risk requires approval. Unknown risk, unavailable review, or explicit request for confirmation still requires approval.",
+  "draft_cancel_preserved_manual_configuration": true,
+  "settings_saved_during_followup": false,
+  "ssh_executed": false,
+  "acceptance_passed": false,
+  "scope": "Physical-device launch/settings and real authorized API connection smoke check only; no full model-to-SSH flow, no formal original screenshot archive, no complete PRD case claim.",
+  "saved_configuration_retention_scope": "Existing saved AI configuration was visible after launch; no secret value was read, and this does not verify retention of SSH profiles or private keys.",
+  "approval_mode_reopened_after_cancel": "manual / 每次确认",
+  "smart_review_execution_tested": false,
+  "settings_save_scope": "AI connection settings dialog only; system wireless-data and discovery permissions were handled separately.",
+  "returned_model_identity_recorded": false,
+  "configured_model_scope": "UI configuration label only; connection smoke result does not establish the returned model identity or a complete model task.",
+  "ssh_configuration": {
+    "visible_profile_count": 0,
+    "private_key_selected": false,
+    "connection_executed": false,
+    "user_setup_request": "Async request sent for user to configure SSH in the App; awaiting reply.",
+    "secrets_read_or_imported_by_this_followup": false
+  },
+  "formal_mobile_cases_passed_by_this_record": [],
+  "evidence_boundary": "Physical C4 installation and mirrored UI follow-up only. Screenshots were reviewed in conversation and are not archived formal originals. Not a model-to-SSH flow, Smart execution test, complete mobile PRD acceptance, or validation of later desktop candidates.",
+  "summary_review": {
+    "reviewed_at": "2026-10-10T07:17:40.205968+00:00",
+    "sources": [
+      "install-summary.json",
+      "existing ui-followup-summary.json",
+      "root agent report of actual CUA iPhone Mirroring observations"
+    ],
+    "method": "Metadata and statement-boundary review only; no additional device/UI/SDK action and no private log or credential access."
+  }
+}

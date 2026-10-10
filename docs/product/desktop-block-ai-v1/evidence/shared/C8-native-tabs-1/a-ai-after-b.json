@@ -1,0 +1,51 @@
+{
+  "name": "a-ai-after-b",
+  "captured_at": "2026-10-10T07:53:43.699349+00:00",
+  "window": {
+    "active_pids": [],
+    "frontmost_pid": 33681,
+    "pids": [
+      29146
+    ],
+    "screen_capture_authorized": true,
+    "windows": [
+      {
+        "bounds": {
+          "Height": 1084,
+          "Width": 1728,
+          "X": 0,
+          "Y": 33
+        },
+        "pid": 29146,
+        "window_id": 28828
+      }
+    ]
+  },
+  "screenshot_sha256": "bac9b25294b2557f74e6f159d40618e7a4ce156d8fe01efe3abb268319845a3a",
+  "process_subtree": [
+    {
+      "pid": 29146,
+      "ppid": 27551,
+      "tty": "ttys008",
+      "comm": "/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Debug/Trail Development.app/Contents/MacOS/Trail Development"
+    },
+    {
+      "pid": 29300,
+      "ppid": 29146,
+      "tty": "ttys008",
+      "comm": "/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Debug/Trail Development.app/Contents/Resources/ianvs-api"
+    },
+    {
+      "pid": 29364,
+      "ppid": 29146,
+      "tty": "ttys014",
+      "comm": "/bin/zsh"
+    },
+    {
+      "pid": 32038,
+      "ppid": 29146,
+      "tty": "ttys016",
+      "comm": "/bin/zsh"
+    }
+  ]
+}

@@ -1,21 +1,27 @@
 # 桌面 Block × AI 实施状态
 
-核对日期：2026-10-10。整体状态：`implemented_unverified`。v1.1 交互修订见 [16_REVISION_1_1](16_REVISION_1_1.md)。本轮在 `composer` 分支从干净的 `79db5115d1e6c69ac62116f19fdfb2b102724df5` 开始迭代；当前实现候选 C3 为 `7e9f0dd8e7bd825c655ceb80d817d5fe214337bd`。
+核对日期：2026-10-10。整体状态：`implemented_unverified`。v1.1 交互修订见 [16_REVISION_1_1](16_REVISION_1_1.md)。本轮从 `79db5115d1e6c69ac62116f19fdfb2b102724df5` 开始迭代；当前候选 **C8 = `19001573d9974c510e1e4cbcfeb01c94368ea157`**。C4 的生产修复已保留；C5–C8 只修改 Rust 测试夹具／生成测试镜像和原生验收驱动，没有修改生产 owner、生命周期或终端返回码来获得绿色验收。
 
-C3 的完整 `make verify` 已通过：`build/desktop-prd-v1/iteration-1/verify-7-metadata.json` 记录 exit 0、首尾源码干净，完整日志为同目录 `verify-7.log`。应用测试 2,965 项通过、1 项跳过；macOS 原生冒烟 4 项、真实 PTY 45 项、Composer 1 项、Keychain 1 项通过；Debug／Release 构建、签名检查和 Xcode 测试通过。上述计数描述不同测试集合，不等于 64 个完整产品场景通过。
+C8 的 `native-c8-workspace-1` 已实际完成：driver exit 0，源码首尾干净，功能和原框架收尾断言通过，原生录像／截图完整且严格时段门禁为 true。真实本地 Shell、Block 与回执、失败→诊断→修正→引用、Reader、只读观察和 vim 子集都有本次原生动作；模型是本地确定性 HTTP fixture，输入由 WidgetTester 驱动，不是物理输入或真实模型完整验收。支撑记录已归档至 `evidence/shared/C8-native-workspace-1/`。
 
-| 阶段 | 状态 | 完整场景通过 | 当前工作 |
+另以正常产品 UI 完成 [D1-T01 双标签页检查](results/D1.md)：两页显式选择 Blocks，进入／返回 AI、切页和明确接管后，原命令草稿、AI 草稿及 Shell PID／PTY／marker 保留。14 张原图已独立审阅，App PID29146／window28828，归档 `evidence/shared/C8-native-tabs-1/`。未配置或调用模型；部分截图时窗口不在前台，进程树仅离散采样，辅助只读输入探测不作为门禁强证明。
+
+**C8 完整 `make verify` 已通过。** `verify-10` 在 2026-10-10 07:23:24–07:38:10 UTC 运行 886 秒，exit 0、源码首尾干净；应用 3,065 通过／1 跳过，原生冒烟 4、真实 PTY 45、Composer 1、Keychain 1 通过，Debug／Release 构建、签名与 Xcode 测试通过。原日志／metadata 归档至 `evidence/shared/C8-gates/`。前次 `verify-9` 的 SDK cache 沙箱权限中止保留为 exit 2 历史；C8 组件复采也已完成：48/48 测试、63 PNG，macOS Debug 预览入口构建成功，两次首尾 clean／source unchanged、未启动预览App；独立复核4/63代表图无新增阻断。详见 `evidence/shared/C8-component-states/`，不挪用 C4 PNG。
+
+| 阶段 | 状态 | 完整场景正式登记 | 当前工作 |
 |---|---|---|---|
-| D1 | in_progress | 0/16 | 输入权限、补充要求、编辑版本、未知出口、当前 pane 审阅及关闭保护已修复并通过自动回归；真实 API／ACP 全流程继续验收 |
-| D2 | in_progress | 0/16 | 焦点、滚动、Reader、待审导航及单层顶栏回归已通过；实际拖窗、多 pane 组合、真实 IME／键鼠仍待验收 |
-| D3 | in_progress | 0/16 | 主题色对、活动目标底栏和指定 macOS 27 视觉基线已验证；完整主题／状态／本地化和原生辅助技术矩阵未齐 |
-| D4 | in_progress | 0/16 | C3 完整 gate 和回环 OpenSSH 六组原生 API 场景通过；ACP真实模型／取消恢复协议已通过；正常UI完整链路、窗口录像、物理输入、性能与升级回滚证据仍需补齐 |
+| D1 | in_progress | 1/16（D1-T01） | 输入权限、补充要求、编辑版本、未知出口、当前 pane 审阅和关闭保护已修复；C8原生主链通过，真实API／ACP及目标变化完整矩阵仍待 |
+| D2 | in_progress | 0/16 | 焦点、滚动、Reader、待审导航、单层顶栏和分割条键盘路径已有回归；实际拖窗、多pane组合、真实IME／键鼠仍待 |
+| D3 | in_progress | 1/16（D3-T05） | C8内容分层原生证据已归档；同候选六组件48项／63PNG与预览构建已完成，4张代表图独立复核；完整主题／状态／本地化／原生辅助技术矩阵未齐 |
+| D4 | in_progress | 1/16（D4-T01） | C8真实App主链、完整录像与同候选完整gate通过并归档；真实模型、物理输入、性能和升级回滚仍需补齐 |
 
-64 个完整场景当前全部 `not_run`；本表阶段进度不替代 manifest 用例结果。正式 manifest 未因局部回归或构建成功改为通过。源包 PACK_QA、reader 和 qa 目录只说明交付包自身检查，不说明产品通过。
+正式 manifest 登记 **3/64 `passed`（D1-T01／D3-T05／D4-T01）与61/64 `not_run`**。合并后 metadata 校验及文档合同测试 20/20 通过；[最终门禁](evidence/shared/C8-documentation-check/final-gate.log)实际 exit 1，仍有 65 项未满足（4 阶段、61 场景），四阶段继续 in_progress。阶段进度、构建或局部回归均不替代 manifest 结果。源包 PACK_QA、reader 和 qa 目录只说明交付包自身检查，不说明产品通过。
 
-C3 的额外原生验收运行 `native-c3-workspace-1` 未完成：录屏工具初始化失败，随后 CUA 明确报告 Mac 锁屏，UI 驱动停在打开 Reader。仅终止了该次自有验收 App，运行 exit 79、`capture_artifacts_complete=false`；这是环境／采集阻断，不登记为产品失败，也不登记完整场景通过。Mac 解锁已向用户询问，等待恢复后重跑。回环 OpenSSH 的 `ssh-c3-native-1` 在 C3 首尾源码干净时 exit 0；它使用 production native session API，无 GUI，不能替代 D4-T02 完整场景。
+历史 C3 `7e9f0dd8e7bd825c655ceb80d817d5fe214337bd` 的 `verify-7` 完整通过：exit 0、源码首尾干净；应用 2,965 通过／1 跳过，macOS 原生冒烟 4、真实 PTY 45、Composer 1、Keychain 1，Debug／Release 构建、签名和 Xcode 测试通过。C3 的 SSH 六组 native API（含受控多跳和父节点恢复）、ACP 真实返回模型及 cancel/load 记忆恢复也通过，见 [C3 支撑证据](results/C3_GATE_EVIDENCE.md)。它们保留历史身份，不补作 C8 完整场景。
 
-iPhone 的 C3 独立 Trail PRD Profile 构建已成功，签名、描述文件和独立 Keychain 已校验；`build/mobile-prd-v1.1/ios/physical-profile.MIDSac/build-metadata.json` 仍记录 `installed=false`、`device_validated=false`、`acceptance_passed=false`。USB 重连已询问，尚未安装或完成新候选真机验收。实体 iPad 与外接显示器按用户已确认的条件保留未验收，不再重复询问。
+C3 workspace 曾有录屏初始化错误，后来明确锁屏并停在 Reader，exit79／采集不完整；后续还修正了驱动中陈旧的 Reader 定位，因此不能把停住全部归因于锁屏。C6 缺 D12 当时的前台／焦点记录，无法确定未回只读的原因；C7 功能链完成但最终语义句柄校验失败。C8 增加只读诊断和采集首尾握手、不在运行中触发 CUA AX，原断言通过；没有删去语义检查或改生产权限。原失败／中止记录保留，详见 [第一轮记录](results/ITERATION_1.md)。
+
+手机当前实际结果属于 **C4**：独立 `work.ianvs.trail.mobileprd` 已安装并启动，物理 iPhone 上 DeepSeek 连接测试成功；配置界面模型名仅为设置值，未记录真实返回模型身份。已保存的 Manual 保留，查看 Smart／三档后取消未保存；未验证 Smart 实际执行。当时SSH列表为空、未执行SSH，原观察未读取或导入私钥。用户后来已授权将本机cloud配置及私钥导入用于测试，USB 已恢复 wired/connected，镜像仍需本人 Touch ID 解锁；尚未复制私钥或保存 SSH，保持连接待测；不预写SSH通过，仍非移动PRD完整验收或C8真机验证。公开边界见 `evidence/shared/C4-gates/ui-followup-summary.json`。实体 iPad、外接显示器按用户已确认条件保留未验收，不重复询问。
 
 - [当前交付结论与待验收边界](results/FINAL_REVIEW.md)
 - [基线与证据身份](results/BASELINE.md)
@@ -28,4 +34,5 @@ iPhone 的 C3 独立 Trail PRD Profile 构建已成功，签名、描述文件�
 - [本轮决策](results/DECISIONS.md)
 - [验收清单](plan.json) 与 [证据 manifest](evidence/manifest.json)
 
-macOS 是主交付平台；Linux／Windows 依既有宿主分别记录能力与缺口。本轮没有增加 Android、远程 ACP 或跨进程聊天恢复。已约定范围没有新的必需产品决策，未完成项是实现的完整验收与证据收集工作。
+
+macOS 是主交付平台；Linux／Windows 依既有宿主分别记录能力与缺口。本轮没有增加 Android、远程 ACP 或跨进程聊天恢复。已约定范围没有新的必需产品决策；待办是完整验收、实际环境与可审查证据收拢。

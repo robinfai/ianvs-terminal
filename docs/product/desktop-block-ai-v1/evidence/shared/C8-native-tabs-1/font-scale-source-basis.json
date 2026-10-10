@@ -1,0 +1,30 @@
+{
+  "implementation_commit": "19001573d9974c510e1e4cbcfeb01c94368ea157",
+  "recorded_at": "2026-10-10T08:09:59.137218+00:00",
+  "font_scale": 1.0,
+  "basis": "Source-derived from the exact SDK and manual entry; no runtime MediaQuery measurement.",
+  "sdk_framework_revision": "058e0af2c2b57e369d905a03ac9748b0ebf543c6",
+  "sdk_sources": [
+    {
+      "path": "engine/src/flutter/shell/platform/darwin/macos/framework/Source/FlutterEngine.mm",
+      "snapshot": "evidence/shared/C8-native-tabs-1/sdk-FlutterEngine.mm.txt",
+      "sha256": "dab7e1748a404d3562e27287b0d2e62e3334c5f15ab0db4ee0819d64a8da6b4b",
+      "bytes": 72138,
+      "matches_sdk_blob": true
+    },
+    {
+      "path": "packages/flutter/lib/src/widgets/media_query.dart",
+      "snapshot": "evidence/shared/C8-native-tabs-1/sdk-media-query.dart.txt",
+      "sha256": "48d128afaa61e47a52f54d8af7313ccb8b3a827bc56a3c0500e42689c010f081",
+      "bytes": 105785,
+      "matches_sdk_blob": true
+    }
+  ],
+  "chain": [
+    "FlutterEngine.mm:1143-1162 sends textScaleFactor @1.0 in initial settings and subsequent native settings updates.",
+    "desktop_prd_acceptance.dart initializes WidgetsFlutterBinding and starts the ordinary production graph; it does not install IntegrationTestWidgetsFlutterBinding or set textScaler/textScaleFactor.",
+    "IanvsTerminalApp uses the native MediaQuery; PhoneTextScalePolicy applies only to iPhone, not this macOS run.",
+    "The manual entry/environment/production App/policy source hashes are recorded in this archive source-input-hashes.json."
+  ],
+  "not_claimed": "Runtime font scale sampling, text scaling accessibility, physical input, system font rasterization on other OS versions, or mixed-DPI displays."
+}

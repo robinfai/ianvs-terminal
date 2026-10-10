@@ -1,0 +1,24 @@
+import datetime, hashlib, json, pathlib, subprocess, sys
+R=pathlib.Path(__file__).resolve().parents[2]
+O=R/'build/desktop-prd-v1/iteration-1/native-c8-tabs-1'
+APP=R/'example/build/macos/Build/Products/Debug/Trail Development.app'
+name=sys.argv[1]
+if not name.replace('-','').replace('_','').isalnum(): raise SystemExit('Invalid checkpoint name')
+win=json.loads(subprocess.check_output([str(R/'tmp/desktop_prd_capture/window_inventory'),str(APP)],text=True))
+if win['pids'] != [29146] or len(win['windows'])!=1 or win['windows'][0]['window_id']!=28828: raise SystemExit('App identity changed')
+target=O/(name+'.png')
+if target.exists(): raise SystemExit('Refusing overwrite')
+subprocess.run(['/usr/sbin/screencapture','-x','-o','-l','28828',str(target)],check=True)
+# Only retain descendants of this isolated test application, never other argv.
+rows=[]
+for line in subprocess.check_output(['ps','-axo','pid=,ppid=,tty=,comm='],text=True).splitlines():
+    parts=line.strip().split(None,3)
+    if len(parts)==4: rows.append({'pid':int(parts[0]),'ppid':int(parts[1]),'tty':parts[2],'comm':parts[3]})
+pids={29146}
+while True:
+    new=pids|{r['pid'] for r in rows if r['ppid'] in pids}
+    if new==pids: break
+    pids=new
+record={'name':name,'captured_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'window':win,'screenshot_sha256':hashlib.sha256(target.read_bytes()).hexdigest(),'process_subtree':[r for r in rows if r['pid'] in pids]}
+(O/(name+'.json')).write_text(json.dumps(record,indent=2)+'\n')
+print(json.dumps({'checkpoint':name,'process_subtree':record['process_subtree']}))

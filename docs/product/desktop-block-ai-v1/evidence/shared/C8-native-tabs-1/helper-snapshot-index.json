@@ -1,0 +1,23 @@
+{
+  "implementation_commit": "19001573d9974c510e1e4cbcfeb01c94368ea157",
+  "recorded_at": "2026-10-10T08:09:59.137218+00:00",
+  "files": [
+    {
+      "source": "tmp/desktop_prd_capture/capture_tabs_checkpoint.py",
+      "snapshot": "evidence/shared/C8-native-tabs-1/helper-capture_tabs_checkpoint.py.txt",
+      "sha256": "3dbd7c817927532a104bbaf14e69a8ed25b581b2ec1f51ec6f4af038b1c81298"
+    },
+    {
+      "source": "tmp/desktop_prd_capture/window_inventory.swift",
+      "snapshot": "evidence/shared/C8-native-tabs-1/helper-window_inventory.swift.txt",
+      "sha256": "f3177aac1dfc6ae137f360aeb4ce3e604a01079f8971797d1898560dceeccdfe"
+    }
+  ],
+  "collection_basis": "Source snapshots collected after the run. Original checkpoint JSON is unchanged; helper snapshots explain scope but are not a recorded-at-launch helper hash attestation.",
+  "window_inventory_binary": {
+    "source": "tmp/desktop_prd_capture/window_inventory",
+    "current_sha256_at_archive": "f7e177ff814e83e6355e5fb481839c06c5a2c2fdef17b9484096f99698476307",
+    "copied": false,
+    "not_claimed": "Historical executable identity was not separately recorded at run launch."
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "implementation_commit": "1c95adcaab32fac64fb08142da7a0eb3b8620b5a",
+  "started_at": "2026-10-10T06:32:40.095844+00:00",
+  "source_clean_at_start": true,
+  "bundle_id": "work.ianvs.trail.mobileprd",
+  "app_directory": "build/mobile-prd-v1.1/ios/physical-profile.sCXhyL/Products/Runner.app",
+  "build_metadata_sha256": "ac8a09d7a2df790d87b45baae7e6bf5173718eacc78ea7b7be432c9ff6a7a327",
+  "installed": true,
+  "launched": false,
+  "acceptance_passed": false,
+  "configuration_retention_verified": false,
+  "connection_exit_code": 0,
+  "device": {
+    "model": "iPhone18,3",
+    "os": "27.0.1",
+    "transport": "wired",
+    "reality": "physical"
+  },
+  "acceptance_before_exit_code": 0,
+  "acceptance_app_before": [],
+  "production_before_exit_code": 0,
+  "production_app_before": [
+    {
+      "bundleIdentifier": "work.ianvs.trail",
+      "name": "Trail",
+      "version": "0.1.0",
+      "bundleVersion": "1"
+    }
+  ],
+  "installation_kind": "new_isolated_install",
+  "install_exit_code": 0,
+  "acceptance_after_exit_code": 0,
+  "acceptance_app_after": [
+    {
+      "bundleIdentifier": "work.ianvs.trail.mobileprd",
+      "name": "Trail PRD",
+      "version": "0.1.0",
+      "bundleVersion": "1"
+    }
+  ],
+  "production_after_exit_code": 0,
+  "production_app_after": [
+    {
+      "bundleIdentifier": "work.ianvs.trail",
+      "name": "Trail",
+      "version": "0.1.0",
+      "bundleVersion": "1"
+    }
+  ],
+  "production_app_identity_unchanged": true,
+  "launch_exit_code": 1,
+  "finished_at": "2026-10-10T06:32:56.320760+00:00",
+  "source_clean_at_end": true,
+  "head_at_end": "1c95adcaab32fac64fb08142da7a0eb3b8620b5a",
+  "exit_code": 1,
+  "launch_failure_reason": "CoreDevice reported Locked; iPhone Mirroring requires owner Touch ID",
+  "scope": "Install succeeded and production bundle identity retained; launch blocked by device lock. UI, model, SSH and configuration retention remain separate."
+}

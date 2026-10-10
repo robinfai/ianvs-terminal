@@ -1,0 +1,63 @@
+#!/usr/bin/env python3
+"""Keep a complete gate's exact source identity and result without streaming secrets."""
+from datetime import datetime, timezone
+from pathlib import Path
+import argparse
+import json
+import os
+import subprocess
+import time
+
+ROOT = Path(__file__).resolve().parents[2]
+
+
+def git(*args):
+    return subprocess.check_output(['git', *args], cwd=ROOT, text=True).strip()
+
+
+def now():
+    return datetime.now(timezone.utc).isoformat()
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('run', type=int)
+    args = parser.parse_args()
+    os.umask(0o077)
+    if git('status', '--porcelain'):
+        raise SystemExit('Freeze a clean candidate before running the complete gate.')
+    directory = ROOT / 'build/desktop-prd-v1/iteration-1'
+    directory.mkdir(parents=True, exist_ok=True)
+    log = directory / f'verify-{args.run}.log'
+    metadata = directory / f'verify-{args.run}-metadata.json'
+    if log.exists() or metadata.exists():
+        raise SystemExit('Use a new run number; earlier evidence must remain unchanged.')
+    environment = os.environ.copy()
+    environment['PATH'] = '/Users/robinfai/development/flutter/bin:' + environment['PATH']
+    environment['VERIFY_FLUTTER_TERMINAL_SKIP_MACOS_INTEGRATION'] = '0'
+    record = {
+        'implementation_commit': git('rev-parse', 'HEAD'),
+        'started_at': now(),
+        'command': 'make verify',
+        'macos_integration_enabled': True,
+        'source_clean_at_start': True,
+        'log': str(log.relative_to(ROOT)),
+    }
+    metadata.write_text(json.dumps(record, indent=2) + '\n')
+    start = time.monotonic()
+    with log.open('x') as output:
+        result = subprocess.run(['make', 'verify'], cwd=ROOT, env=environment,
+                                stdout=output, stderr=subprocess.STDOUT, check=False)
+    record.update({
+        'finished_at': now(),
+        'elapsed_seconds': round(time.monotonic() - start),
+        'exit_code': result.returncode,
+        'source_clean_at_end': not git('status', '--porcelain'),
+    })
+    metadata.write_text(json.dumps(record, indent=2) + '\n')
+    print(json.dumps(record, indent=2))
+    raise SystemExit(result.returncode)
+
+
+if __name__ == '__main__':
+    main()

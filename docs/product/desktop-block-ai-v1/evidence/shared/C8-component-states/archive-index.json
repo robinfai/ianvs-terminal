@@ -1,0 +1,523 @@
+{
+  "candidate": "19001573d9974c510e1e4cbcfeb01c94368ea157",
+  "archived_at": "2026-10-10T07:42:59.414755+00:00",
+  "capture_class": "flutter_widget_production_components",
+  "tests_passed": 48,
+  "png_count": 63,
+  "widget_test_device_pixel_ratio": 1,
+  "png_export_pixel_ratio": 2,
+  "text_scale_values": [
+    1.0,
+    2.0
+  ],
+  "native_ui_launched": false,
+  "physical_device_acceptance": false,
+  "formal_native_case_ids": [],
+  "scope": "Limited states of six production components and selected environment variants; not every theme × state × text scale combination. This Widget archive must not satisfy app_desktop formal screenshot checkpoints.",
+  "files": [
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/capture-run.json",
+      "destination": "evidence/shared/C8-component-states/capture-run.json",
+      "bytes": 1991,
+      "sha256": "ba63ccc8bde13bf7380cc900b02d47d03be8dd732658b808383582d420b9e9bc",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/capture.log",
+      "destination": "evidence/shared/C8-component-states/capture.log",
+      "bytes": 5746,
+      "sha256": "2a41986ce055e8a10c813d650bb01adb4da47dbc05a361f11073f4a244a21e9d",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/native-build-run.json",
+      "destination": "evidence/shared/C8-component-states/native-build-run.json",
+      "bytes": 1756,
+      "sha256": "52bec4b7bc8eacba936ff2f1510fc0ea491b42a0e45d6b97b85b1e513dce50a7",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/native-build.log",
+      "destination": "evidence/shared/C8-component-states/native-build.log",
+      "bytes": 130,
+      "sha256": "100b698b967c5fa585898f380f4f8da63ef70b95b6bc47bb1726b8c3ac74ef0d",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/capture-manifest.json",
+      "destination": "evidence/shared/C8-component-states/capture-manifest.json",
+      "bytes": 22870,
+      "sha256": "7c3301b55ae0c96ca3b68c8ebe0c72d855b4bef5cbe4254eefa127a89f88665a",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/source-input-hashes.json",
+      "destination": "evidence/shared/C8-component-states/source-input-hashes.json",
+      "bytes": 6387,
+      "sha256": "e63a98a1c2a2ac806f0b2692c3f9018ee6991842bf7d9ad5624e438ac5f392fc",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/preview-build-identity.json",
+      "destination": "evidence/shared/C8-component-states/preview-build-identity.json",
+      "bytes": 1992,
+      "sha256": "04abff33234870205357b92d35e8324a1e544ac551f182c93e8e65baee36d7e6",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/light-block-default.png",
+      "destination": "evidence/shared/C8-component-states/light-block-default.png",
+      "bytes": 105005,
+      "sha256": "8c083b59d2ff49d646c40846f465abe01d2152ef27a90252862a55c2948fa1d9",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/light-contextChip-default.png",
+      "destination": "evidence/shared/C8-component-states/light-contextChip-default.png",
+      "bytes": 75957,
+      "sha256": "05ff98a27a1a476755aa9102a8a3cefbfa66de46727bd5c0abb0ee4b6a560098",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/light-candidate-default.png",
+      "destination": "evidence/shared/C8-component-states/light-candidate-default.png",
+      "bytes": 128020,
+      "sha256": "44acce8ae27a175353d8bc3008b3e073ee12b8745d4a22b94b054e84c6ddcca6",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/light-button-default.png",
+      "destination": "evidence/shared/C8-component-states/light-button-default.png",
+      "bytes": 120383,
+      "sha256": "671375bf0b435e6f7d14f9bb420d541086af6013aa7d049041c876cba7f880e1",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/light-tab-default.png",
+      "destination": "evidence/shared/C8-component-states/light-tab-default.png",
+      "bytes": 76070,
+      "sha256": "0df866d13cadee5276c7536e806057ba053c87d80200e466b71ebae46d32a883",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/light-splitter-default.png",
+      "destination": "evidence/shared/C8-component-states/light-splitter-default.png",
+      "bytes": 88361,
+      "sha256": "758ba3729a2ce037ac3702108dd858ee2c4c5f256d8cf1414480813a56e4d0e2",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/dark-block-default.png",
+      "destination": "evidence/shared/C8-component-states/dark-block-default.png",
+      "bytes": 101916,
+      "sha256": "eb0c2ea8ad3e045e096f8d0baa2b00afaeb8ea2604350de371162d57253413f1",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/dark-contextChip-default.png",
+      "destination": "evidence/shared/C8-component-states/dark-contextChip-default.png",
+      "bytes": 73324,
+      "sha256": "c9f82e07a51e286dd3348dd55a83b33fc8a14b317558f6d3be4cfda98896631d",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/dark-candidate-default.png",
+      "destination": "evidence/shared/C8-component-states/dark-candidate-default.png",
+      "bytes": 123318,
+      "sha256": "d8522e45e4c71199d0026b7a7940e8a3f49179e4517b8c8f04fbb5c708f121d7",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/dark-button-default.png",
+      "destination": "evidence/shared/C8-component-states/dark-button-default.png",
+      "bytes": 118039,
+      "sha256": "cfe5dcd1777a93365e62b3f0bdcabd1b8e9463710571401a788d29cd07ac304f",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/dark-tab-default.png",
+      "destination": "evidence/shared/C8-component-states/dark-tab-default.png",
+      "bytes": 72295,
+      "sha256": "1cf1da17aafd384acface6bf5237a2f8d14d4df64d396c6a619b7cdc5a47fef3",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/dark-splitter-default.png",
+      "destination": "evidence/shared/C8-component-states/dark-splitter-default.png",
+      "bytes": 84210,
+      "sha256": "55a7b9aae40a0395dccedfe6e7a5e715b1f4064532356e38435eed8a64555cf3",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/contrast-light-block-default.png",
+      "destination": "evidence/shared/C8-component-states/contrast-light-block-default.png",
+      "bytes": 106195,
+      "sha256": "0c7229d9e65bbbb92a78c6fba540a44d7f5fe4ee88ab73b143be5927908c3cfa",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/contrast-light-contextChip-default.png",
+      "destination": "evidence/shared/C8-component-states/contrast-light-contextChip-default.png",
+      "bytes": 77627,
+      "sha256": "0dccee6e136db57a903309d798069b7d3c1be9d6874f56e3aecf7766b545830f",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/contrast-light-candidate-default.png",
+      "destination": "evidence/shared/C8-component-states/contrast-light-candidate-default.png",
+      "bytes": 129453,
+      "sha256": "796f2bef520560c23ffd839270efacbb425fd113987138f72739eb0da98e8117",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/contrast-light-button-default.png",
+      "destination": "evidence/shared/C8-component-states/contrast-light-button-default.png",
+      "bytes": 122764,
+      "sha256": "00d87c5d20f8c91e50e257a9ffcefa49f00fa6b82e7d66359d33993f5e901883",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/contrast-light-tab-default.png",
+      "destination": "evidence/shared/C8-component-states/contrast-light-tab-default.png",
+      "bytes": 77258,
+      "sha256": "6cd15808f88ac8dd8e1ac1f529545497082f2ba2d61ce969b392d5ed72ab15c2",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/contrast-light-splitter-default.png",
+      "destination": "evidence/shared/C8-component-states/contrast-light-splitter-default.png",
+      "bytes": 89632,
+      "sha256": "b5bc8e536944c2f5e2950cbd4aed19819cf5e79e547096569d31bd4856bc4be6",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/contrast-dark-block-default.png",
+      "destination": "evidence/shared/C8-component-states/contrast-dark-block-default.png",
+      "bytes": 103963,
+      "sha256": "198f0d5b3721321fb2d14074e9590b4b689e1830b796c9542ed2032ffdc450f2",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/contrast-dark-contextChip-default.png",
+      "destination": "evidence/shared/C8-component-states/contrast-dark-contextChip-default.png",
+      "bytes": 74883,
+      "sha256": "36b774d814e81f294e06993fe9fcb567cec75fe35717c0afda970e4e89c5a8a3",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/contrast-dark-candidate-default.png",
+      "destination": "evidence/shared/C8-component-states/contrast-dark-candidate-default.png",
+      "bytes": 126135,
+      "sha256": "90215f583edaa1e9cb2ff9ae8c56a3cafe61652ea2e987564ff253f7a52d3843",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/contrast-dark-button-default.png",
+      "destination": "evidence/shared/C8-component-states/contrast-dark-button-default.png",
+      "bytes": 120782,
+      "sha256": "decb07123cd4a5a5663b5fc8df42040e589b52c64d3c63a6652008aa0c5401b4",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/contrast-dark-tab-default.png",
+      "destination": "evidence/shared/C8-component-states/contrast-dark-tab-default.png",
+      "bytes": 73963,
+      "sha256": "63a7f3552f5eb72c327825347ff50639c4d99a1eed6aa8ab815aad937fbf0849",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/contrast-dark-splitter-default.png",
+      "destination": "evidence/shared/C8-component-states/contrast-dark-splitter-default.png",
+      "bytes": 85657,
+      "sha256": "c2115c75b67adcd552bfce795753637df09e0f0e07cc8792293408632a934c80",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/narrow-2x-block-default.png",
+      "destination": "evidence/shared/C8-component-states/narrow-2x-block-default.png",
+      "bytes": 162235,
+      "sha256": "897bb51f511db9de412ae53231ef2fc7b12d47023b1c44b018a3c5214b79ae3a",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/narrow-2x-contextChip-default.png",
+      "destination": "evidence/shared/C8-component-states/narrow-2x-contextChip-default.png",
+      "bytes": 139840,
+      "sha256": "c627313236ef5176b3bdf3e367ba14f8b07649e5350c2396477d32c3a69ee9df",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/narrow-2x-candidate-default.png",
+      "destination": "evidence/shared/C8-component-states/narrow-2x-candidate-default.png",
+      "bytes": 199239,
+      "sha256": "acfaaf100a5c90c3c5747ac32f9bc53a708468c52d7af9cc9000ccf79474306b",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/narrow-2x-button-default.png",
+      "destination": "evidence/shared/C8-component-states/narrow-2x-button-default.png",
+      "bytes": 191171,
+      "sha256": "bb722e27f1d399a49f770aa35d093c35bb50aa88da465fbe2fd7b5f2b0f767ac",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/narrow-2x-tab-default.png",
+      "destination": "evidence/shared/C8-component-states/narrow-2x-tab-default.png",
+      "bytes": 143008,
+      "sha256": "8589c258481d50f7bbe44e4dce5e5d80f1fc8dd15618da15bb8656f8bc5b7138",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/narrow-2x-splitter-default.png",
+      "destination": "evidence/shared/C8-component-states/narrow-2x-splitter-default.png",
+      "bytes": 181443,
+      "sha256": "2c2430bbd5f612af6b8913f036a7b0cd21636c923b99ea75905ef9c805d722ac",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/native-menu-high-contrast-dark-2x-reduced-520px.png",
+      "destination": "evidence/shared/C8-component-states/native-menu-high-contrast-dark-2x-reduced-520px.png",
+      "bytes": 147296,
+      "sha256": "dba421057cebb029071c9e0ff497fff6b7a50efc7c3a336e8fa3e8566d96af91",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/block-running.png",
+      "destination": "evidence/shared/C8-component-states/block-running.png",
+      "bytes": 103136,
+      "sha256": "1f2ddf6c59a33f7e54c46be063d43fa7df3ac7598adfdf1deafa689f2b555c21",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/block-failed.png",
+      "destination": "evidence/shared/C8-component-states/block-failed.png",
+      "bytes": 103903,
+      "sha256": "3ffd477797c9510de3d5ad60594df30cacc6ecafe770125e4db2ffee475a0645",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/block-unknown.png",
+      "destination": "evidence/shared/C8-component-states/block-unknown.png",
+      "bytes": 106907,
+      "sha256": "70d0f8a1d478e397bb10456f57777f760ec123c315e9db25d7413b94577272fe",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/block-focused.png",
+      "destination": "evidence/shared/C8-component-states/block-focused.png",
+      "bytes": 105193,
+      "sha256": "e1997faa012091c87de804fb5591f4f0f561054aad7811ad09aa7e37fef8c92f",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/block-hover.png",
+      "destination": "evidence/shared/C8-component-states/block-hover.png",
+      "bytes": 105256,
+      "sha256": "a57e9f0989d925056072c58ed975aee3d072ed1f4444670c50b7741f1e525b6f",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/block-pressed.png",
+      "destination": "evidence/shared/C8-component-states/block-pressed.png",
+      "bytes": 104926,
+      "sha256": "864da5c59d45e8c57b052e1c9b5d973d77397aea0e5e560dc347fee66f64405f",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/block-selected.png",
+      "destination": "evidence/shared/C8-component-states/block-selected.png",
+      "bytes": 106099,
+      "sha256": "5c8fa58c77ab06a7c0945908461d55c33f1369fe8bf27daf1d6241b30b542244",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/contextChip-focused.png",
+      "destination": "evidence/shared/C8-component-states/contextChip-focused.png",
+      "bytes": 75943,
+      "sha256": "7b829d103754afd1cf09987a3159dcbf54a987eb840b4a20368c927537c55256",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/contextChip-hover.png",
+      "destination": "evidence/shared/C8-component-states/contextChip-hover.png",
+      "bytes": 75837,
+      "sha256": "5f91e9009718e64a27b6bf071f5106758f3cf3de9bbd279b4317d128c2c176a0",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/contextChip-pressed.png",
+      "destination": "evidence/shared/C8-component-states/contextChip-pressed.png",
+      "bytes": 75770,
+      "sha256": "ea42e50386ff2a81acb63f28836e0ceade8647555fd0a81a3366f64ffc7157df",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/contextChip-removal-unavailable.png",
+      "destination": "evidence/shared/C8-component-states/contextChip-removal-unavailable.png",
+      "bytes": 75517,
+      "sha256": "427080a23764f3e91f957de4bfd11adbf30ad2e360248fcaa93676223035c450",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/candidate-hover.png",
+      "destination": "evidence/shared/C8-component-states/candidate-hover.png",
+      "bytes": 147948,
+      "sha256": "89a583cbd8042fef2430f6b88b3b586efe784547fa7e868b857419b6cf2df263",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/candidate-pressed.png",
+      "destination": "evidence/shared/C8-component-states/candidate-pressed.png",
+      "bytes": 148094,
+      "sha256": "b9dcb012438e2f686b2170d6ed6a26a0296e0476b9244344bcb7df7a7403a868",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/candidate-keyboard-highlight.png",
+      "destination": "evidence/shared/C8-component-states/candidate-keyboard-highlight.png",
+      "bytes": 147812,
+      "sha256": "6f2d899213ef62a7f95151c7ccdda2c9e5aec560687bb9e95b37c1a2876a1389",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/button-focused.png",
+      "destination": "evidence/shared/C8-component-states/button-focused.png",
+      "bytes": 121281,
+      "sha256": "ab401c8884cb64db20fb839bd28d04233722b0100ae72f34e91cd31b7a5c2ab7",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/button-hover.png",
+      "destination": "evidence/shared/C8-component-states/button-hover.png",
+      "bytes": 120425,
+      "sha256": "22e8dd388b166335a0c213023b6c0aa8b8361fd47debc0492f00bf6ce5db95d5",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/button-pressed.png",
+      "destination": "evidence/shared/C8-component-states/button-pressed.png",
+      "bytes": 120448,
+      "sha256": "125c46154a852d15822c64333e88760da2349661b26fbb89dfee97b246cc1a17",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/button-emptyDraft-disabled.png",
+      "destination": "evidence/shared/C8-component-states/button-emptyDraft-disabled.png",
+      "bytes": 104357,
+      "sha256": "a5ee3a86cef9ddc9c6cc0998a85f20fa202a44ff5eb12be8a75374e163c5a290",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/button-submitting-disabled.png",
+      "destination": "evidence/shared/C8-component-states/button-submitting-disabled.png",
+      "bytes": 101201,
+      "sha256": "dc163230b56e47bfcf66915617905895bc987b74b0ede2f235389b796af61cad",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/tab-hover.png",
+      "destination": "evidence/shared/C8-component-states/tab-hover.png",
+      "bytes": 76806,
+      "sha256": "80f268eaff60968734fe3f469e69a0673968342545bb4cdb2bc06e3bad095b99",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/tab-pressed.png",
+      "destination": "evidence/shared/C8-component-states/tab-pressed.png",
+      "bytes": 76806,
+      "sha256": "80f268eaff60968734fe3f469e69a0673968342545bb4cdb2bc06e3bad095b99",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/tab-focused.png",
+      "destination": "evidence/shared/C8-component-states/tab-focused.png",
+      "bytes": 77409,
+      "sha256": "c5218f1bd07b2ec631e1f196558db3ded166916ef76b11322acb3ee0f0fe0d33",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/tab-selected.png",
+      "destination": "evidence/shared/C8-component-states/tab-selected.png",
+      "bytes": 77105,
+      "sha256": "d3a5683db3e8d0fd76da78c02db8f4ab846e1ca5910bd80825d746d1bb7e817b",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/tab-selected-unfocused.png",
+      "destination": "evidence/shared/C8-component-states/tab-selected-unfocused.png",
+      "bytes": 77031,
+      "sha256": "a62516f3ca734f71a18f643346c107fb9d2e201b6f5f88f6bf81cd86399cdbac",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/splitter-horizontal-hover.png",
+      "destination": "evidence/shared/C8-component-states/splitter-horizontal-hover.png",
+      "bytes": 88440,
+      "sha256": "d6e1d1dc8efda53bae2493cc3a6d8641afdf1f0a007526616e33df0fc6f54a73",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/splitter-horizontal-dragging.png",
+      "destination": "evidence/shared/C8-component-states/splitter-horizontal-dragging.png",
+      "bytes": 88902,
+      "sha256": "0d926e1d848528d5d67d75c92619171333f58d41d02ad6ca5b003a8443070ce4",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/splitter-horizontal-focused-high-contrast.png",
+      "destination": "evidence/shared/C8-component-states/splitter-horizontal-focused-high-contrast.png",
+      "bytes": 107091,
+      "sha256": "22149309e604cf768872fdc54a9215eb091d86ba1407ee7435d875fb89e0c334",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/splitter-horizontal-keyboard-resized.png",
+      "destination": "evidence/shared/C8-component-states/splitter-horizontal-keyboard-resized.png",
+      "bytes": 90035,
+      "sha256": "81cfd3328cb9c03fda6d767a735325fff5d435736d1a4b4fc0135ec98c4d15be",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/splitter-vertical-hover.png",
+      "destination": "evidence/shared/C8-component-states/splitter-vertical-hover.png",
+      "bytes": 87332,
+      "sha256": "c24fa047834e4afe3f71b2aaa738a0abd30101d2281567ca9a7d7c4ba478b91b",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/splitter-vertical-dragging.png",
+      "destination": "evidence/shared/C8-component-states/splitter-vertical-dragging.png",
+      "bytes": 87905,
+      "sha256": "827db1a47ee8ce74420b7f5eb8954eedd573018f3dfa396cd9953fb08a080614",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/splitter-vertical-focused-high-contrast.png",
+      "destination": "evidence/shared/C8-component-states/splitter-vertical-focused-high-contrast.png",
+      "bytes": 106512,
+      "sha256": "ec8d7a3c1227686d85ba41045766f72b33af20021ff76f50c42977ef943f9640",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/splitter-vertical-keyboard-resized.png",
+      "destination": "evidence/shared/C8-component-states/splitter-vertical-keyboard-resized.png",
+      "bytes": 89177,
+      "sha256": "b174d241405bff079d8f733245ab906e0e18a5c058c9b4e3ea9cde636b9d01ca",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "tmp/desktop_prd_capture/component-states-c8-visual-review.log",
+      "destination": "evidence/shared/C8-component-states/visual-review.log",
+      "bytes": 3123,
+      "sha256": "4726ed861895ff4bd0572ce2ee4e4053778c23649fba86b60714095b32ff020c",
+      "copy_mode": "original bytes"
+    }
+  ],
+  "independent_visual_review": {
+    "reviewed_image_count": 4,
+    "total_image_count": 63,
+    "all_images_reviewed": false,
+    "log": "visual-review.log",
+    "scope": "Four representative widget captures only; no native display/DPI/system font/complete PRD matrix certification."
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "implementation_candidate": "19001573d9974c510e1e4cbcfeb01c94368ea157",
+  "scope": "Final documentation/evidence working tree with D1/D3/D4 archives, gate logs and device availability follow-up",
+  "command": [
+    "/Users/robinfai/development/flutter/bin/dart",
+    "test",
+    "test/docs_contract_test.dart",
+    "--reporter",
+    "expanded"
+  ],
+  "started_at": "2026-10-10T08:14:54.925191+00:00",
+  "ended_at": "2026-10-10T08:15:02.535980+00:00",
+  "exit_code": 0,
+  "log": "docs-contract.log",
+  "log_sha256": "86d36e954652d7d539733825e9e7196a772f86305176021fb9f241be17d01e14"
+}

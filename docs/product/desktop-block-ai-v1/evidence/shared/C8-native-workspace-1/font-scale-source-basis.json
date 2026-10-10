@@ -1,0 +1,41 @@
+{
+  "implementation_commit": "19001573d9974c510e1e4cbcfeb01c94368ea157",
+  "recorded_at": "2026-10-10T07:39:51.620872+00:00",
+  "font_scale": 1.0,
+  "basis": "source-derived; no separate runtime MediaQuery measurement",
+  "sdk_framework_revision": "058e0af2c2b57e369d905a03ac9748b0ebf543c6",
+  "sdk_scoped_worktree_clean": true,
+  "sdk_sources": [
+    {
+      "path": "engine/src/flutter/shell/platform/darwin/macos/framework/Source/FlutterEngine.mm",
+      "sha256": "dab7e1748a404d3562e27287b0d2e62e3334c5f15ab0db4ee0819d64a8da6b4b",
+      "bytes": 72138,
+      "matches_sdk_blob": true
+    },
+    {
+      "path": "packages/flutter_test/lib/src/window.dart",
+      "sha256": "543cfa45804043c1e760f0b1e714da35f79393af8a7b3e933070734c3d907cd4",
+      "bytes": 81938,
+      "matches_sdk_blob": true
+    },
+    {
+      "path": "packages/flutter/lib/src/widgets/media_query.dart",
+      "sha256": "48d128afaa61e47a52f54d8af7313ccb8b3a827bc56a3c0500e42689c010f081",
+      "bytes": 105785,
+      "matches_sdk_blob": true
+    },
+    {
+      "path": "packages/integration_test/lib/integration_test.dart",
+      "sha256": "f80d6c866c22108972859ce1fe65667be324c0d46d87b049c2bc7bf3670a9898",
+      "bytes": 17591,
+      "matches_sdk_blob": true
+    }
+  ],
+  "chain": [
+    "FlutterEngine.mm:1143-1162 sends textScaleFactor @1.0 during initial settings and settings changes.",
+    "flutter_test/window.dart:336 delegates to the actual platform dispatcher when no test override is supplied.",
+    "C8 workspace driver and IanvsTerminalApp do not set textScaleFactor/textScaler; PhoneTextScalePolicy only overrides iPhone.",
+    "App uses native macOS MediaQuery system scaling; therefore this run inherits the fixed macOS embedder 1.0 value."
+  ],
+  "not_claimed": "Runtime font-scale sampling, OS text scaling accessibility, 1.5×/2× text tests, other displays or physical input."
+}

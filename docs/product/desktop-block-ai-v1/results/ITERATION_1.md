@@ -1,6 +1,6 @@
 # 第一轮实现与并行复评
 
-2026-10-10，起点为 `79db5115`。本页保留工作树修复到 C1／C2／C3 的历史过程；C3 完整 gate 的最终结果见下方新增记录。以下是本轮可复现问题和局部验证；不替代 64 个桌面、48 个移动完整场景，也不构成发布结论。
+2026-10-10，起点为 `79db5115`。本页保留工作树修复到 C1–C8 的历史过程；C3完整gate、C4生产修复、C5–C8测试／驱动修正与C8实际原生结果分开记账。最新C8完整gate verify-10已通过，C8组件复采48/48、63PNG和预览构建也通过，正式3passed／61not_run。以下记录不替代64个桌面、48个移动完整场景，也不构成发布结论。
 
 | 问题 | 实际影响 | 本轮处理与证据 |
 |---|---|---|
@@ -91,8 +91,61 @@ C3 为 `7e9f0dd8e7bd825c655ceb80d817d5fe214337bd`。第六轮 `make verify` 在�
 
 后续 C3 支撑检查均首尾源码干净：回环 OpenSSH 的 zsh／bash emacs、vi 及各自 local→SSH 六组全部通过，含原生 API 的受控多跳和父节点恢复；Bash 使用 5.3.20。真实 ACP 2.1.1 连接返回 OK，完成回执确认模型 `gpt-5.6-sol`；cancel 后 session/load 使用同一 session ID，记忆短语检查通过。SSH 未运行 GUI，ACP 是协议探针，不计完整产品场景通过。
 
-独立 Trail PRD 真机 Profile 包 `physical-profile.MIDSac` 构建成功，源码 C3、签名／描述文件／device-only Keychain 通过校验，尚未安装。最新物理 iPhone 枚举为 tunnel unavailable、无传输连接；已向用户询问 USB 重连。
+历史C3独立Trail PRD Profile包`physical-profile.MIDSac`构建成功，签名／描述文件／device-only Keychain校验通过；该构建记录当时尚未安装。当时iPhone枚举tunnel unavailable并询问USB重连。后续C4安装与真实设置连接smoke另列，不能改写C3原记录。
 
-桌面 `native-c3-workspace-1` 已采集部分完整窗口原图，但录屏辅助进程在 AppKit 初始化前调用图形接口而退出。辅助程序初始化已修复，单独 5 秒录制诊断成功；这段诊断不补作原流程录像。随后电脑控制工具明确报告 Mac 锁屏，测试停在打开 Reader，已仅终止本次自有 App 并记录环境中止（exit 79、capture false）。用户解锁前不继续依赖界面的验收，也不将本次中止当成产品缺陷或通过。
+历史`native-c3-workspace-1`已采部分完整窗口原图，但录屏辅助程序在AppKit初始化前调用图形接口而退出。修复后单独5秒录制诊断成功，不补作原流程录像。后来工具明确报告Mac锁屏，UI停在Reader，已仅终止本次自有App，exit79／capture false。后续还发现并修正了driver陈旧Reader定位路径，因此不能把Reader停住全部归因锁屏；该不完整运行不判产品通过，也不从现象独断产品根因。
 
-实体 iPad、外接显示器按用户明确指示保留未验收。当前没有新产品范围决策；待解锁、设备连接后继续完整 UI／真机流程。状态与恢复条件见 [当前交付结论](FINAL_REVIEW.md)。
+实体iPad、外接显示器按用户指示保持未验收，不重复询问。Mac／iPhone连接条件后来已恢复，当前没有新必需产品范围决策；最新结果和剩余步骤见下文与[当前交付结论](FINAL_REVIEW.md)。
+
+## 第四候选的组件与输入反馈收拢
+
+C4 `1c95adcaab32fac64fb08142da7a0eb3b8620b5a` 补齐九类已确认缺口。下表定向日志多数来自冻结前工作树，最终C4冻结后组件册证据另列；测试集合存在交叉，不可相加作唯一测试数／完整场景数。
+
+| # | 修复／补充及实际行为 | 主要源码／回归入口 | 已核对的局部证据与限制 |
+|---|---|---|---|
+| 1 | 高对比预览接线：Composer、Command Blocks 及对应捕获测试将真实 `highContrast` 传给 `buildIanvsTerminalTheme`，与 MediaQuery 一致；检查生产 outline、onSurfaceVariant、Composer 边框和 TerminalViewport 颜色，不只检查 flag。 | `example/lib/ui/previews/{composer_preview,command_blocks_preview}.dart`；`example/test/ui/terminal_preview_theme_test.dart`；`example/test/design/{composer_redesign_capture,command_blocks_capture}_test.dart` | `preview-theme-after.log`：3 文件组合 142 项通过；`preview-theme-analyze-2.log`：无问题。`preview-theme-before-2.log` 保留 4 通过／18 失败的原记录；不可将失败总数冒充纯 palette 缺陷数。没有改生产全局主题或 golden 容差。 |
+| 2 | AI 预览收起合同：旧预览把 onClose 接到 takeOver，收起会撤销待审任务；现进入只读观察预览，返回使用同一个 task、提案和草稿，观察中的 Block 重录仅准备草稿。此修正属于预览接线，生产 Shell 的只读观察合同先前已修。 | `example/lib/ui/previews/{ai_observation_preview,terminal_ai_workspace_preview,mobile_prd_component_previews}.dart`；`example/test/ai/ai_workspace_preview_test.dart` | `preview-focus-collapse-tests-1.log`：收起 3 项与标签焦点 8 项合计 11 通过；检查 pending、transcript、draft、taskId 保留和 `takenOver=false`。内存 fixture，无真实模型／PTY。 |
+| 3 | 预览 Block／Reader 字体来源：共享 `TerminalAiComponentFixture` 和只读观察预览将 Composer 的真实 resultStyle 字体及 fallback 传给 TerminalFontConfig，避免状态图中的终端文本沿用 Ahem 条块；捕获主题完整使用固定字体，关闭 debug banner。 | `example/lib/ui/previews/mobile_prd_component_previews.dart:344`、`ai_observation_preview.dart`；状态册捕获测试与 `visual_capture_fonts.dart` | C4 的 63 图 manifest 明确 `fonts=repository and pinned Flutter SDK assets`。这是组件捕获字体修正，**不是系统字体、Core Text 字形、真实 DPI 或原生 ANSI 对比验收**。 |
+| 4 | 六类真实组件状态册：Block、来源 Chip、候选、主按钮、标签、分割条；事实菜单只更改 controller 数据，hover／pressed／focus 由真实 pointer／keyboard 操作产生；支持浅深／高对比、2×、窄 pane、减少动画及重置局部 fixture。 | 新 `example/lib/ui/previews/desktop_component_states_preview.dart`、`example/lib/features/shell/shell_screen_preview_adapter.dart`；`example/test/ui/desktop_component_states_preview_test.dart` | C4 冻结后 48 项通过、63 图；状态册入口原生构建成功。目录不实例化终端 runtime，无真实模型／PTY。官方 web Widget Previewer 因现有原生依赖图编译失败，改为明确的 macOS 原生预览入口，不宣称支持 web Preview。 |
+| 5 | 分割条键盘与可访问动作：Tab 可到达；仅裸轴向方向键按 10px 调整，反轴／组合键不吞；VoiceOver increase／decrease 复用现有 ratio／cell 约束，公布当前和增减后一位小数百分比；边界／无空间有中英原因、动作失效；真实 2×2 外层 divider 可调且不改变内层／活动 pane／PTY 写入。焦点可见且减少动画响应 MediaQuery。 | `example/lib/features/shell/shell_screen_command_menu.dart`、`shell_screen_state_terminal_layout.dart`；`example/test/ui/pane_divider_keyboard_test.dart` | `pane-divider-keyboard-before.log`：2 通过／12 失败；`pane-divider-keyboard-final-2.log`：14 定向＋13 架构合计 27 通过；`pane-divider-analyze-final.log`：无问题。Semantics 动作不等于实际 VoiceOver/FKA 验收。 |
+| 6 | 桌面标签悬停下焦点被遮：side 的 focused 优先于 hovered，焦点边框不被 hover 状态覆盖；选中／未选中均可辨，聚焦不激活，Enter 只激活一次。 | `example/lib/features/shell/shell_screen_chrome.dart`；`example/test/ui/tab_focus_indicator_test.dart` | `preview-focus-collapse-tests-1.log` 中标签 8 项（浅深×高对比×选中）全部通过；与收起 3 项共 11。没有新增窗口／tab 架构或跨窗口能力。 |
+| 7 | Block 标题状态与 Enter 目标：opaque Container 遮住 ink，导致 hover／pressed／focus 不可见；近端透明 Material 加前景焦点边框修复。按下不提前选中，release 才选择；标题获得焦点时裸 Enter 先选择该 Block，防止重录旧 active Block；随后列表 Enter 保留既有重录合同。短摘要和完整标题共用。 | `packages/ianvs_terminal/lib/src/terminal/command_blocks_view.dart`；`example/test/ui/command_block_title_states_test.dart` | `block-title-states-before.log`：14 失败；`block-title-states-final-2.log`：16 通过，包含真实像素、≥3:1 焦点、hover／press 文字≥4.5:1、取消按压与 full／summary Enter。`block-title-analyze-final.log` 无问题。原 package 82 项通过的组合日志整体 exit 1，原因是另 4 项主按钮新测试等待持续 spinner 超时；不能把 `block-title-package-regression.log` 整份称为绿色。 |
+| 8 | 主按钮禁用原因未进入语义节点：父 Dock Tooltip 会覆盖仅存在 Tooltip 的解释；将说明合并至 FilledButton 自身 child Semantics，Tooltip `excludeFromSemantics=true`，保持 enabled／action 状态和零操作合同。 | `packages/ianvs_terminal/lib/src/composer/terminal_composer_view.dart:1125`；`packages/ianvs_terminal/test/composer/composer_primary_semantics_test.dart` | `composer-primary-semantics-final.log` 及最终 `composer-primary-focus-semantics.log`：EN／ZH×macOS／iOS 4 项通过。测试从空稿／submitting 禁用原因到 ready 及语义单次点击；仅针对持续 spinner 使用有界 pump，没有放松零写入／一次提交断言。 |
+| 9 | 主按钮 hover 后键盘焦点仍不可辨：Material side 在 ink 下且同主色，真实边缘对 fill 为 1:1。主按钮局部 backgroundBuilder 的前景双色内描边覆盖 ink：outer primary 2px、inner onPrimary 净 2／3px；保持原 clip、尺寸、focus node、禁用语义和提交权限。 | `packages/ianvs_terminal/lib/src/composer/terminal_composer_view.dart:1153`；`example/test/ui/composer_primary_focus_test.dart` | `composer-primary-focus-red.log`：四主题全部失败；`composer-primary-focus-final.log`：4 新像素＋12 既有 action contrast 合计 16 通过；最终语义 4 项另通过。真实 fractional top=316.5 下验证 hover→键盘聚焦→离焦、内边对 fill／外边对 Dock 均≥3:1、bounds 稳定和提交 0→1；未改采样点或降低阈值。 |
+
+
+冻结C4的 `component-states-c4-1/capture-run.json`／`capture.log` 记录48项通过，`captures/capture-manifest.json`记录63PNG；`native-build-run.json`／`native-build.log`记录macOS预览入口构建通过，两次首尾同一干净C4。未launch、无真实PTY／模型。实际测试DPR1、PNG导出2×、字体为仓库和固定SDK资产；六组件×五环境默认图加部分交互状态，不是所有主题×状态的笛卡尔全矩阵。相关代表原图独立复评通过，但不替系统字体、IME、DPI或VoiceOver。镜像由生成器统一同步，未手改。
+
+同一C4的完整`make verify`第八轮在2026-10-10 06:32:54–06:35:12 UTC运行138秒，首尾clean、exit2。新安装的Homebrew Bash5.3首次让测试进入系统Bash3.2此前跳过的Composer分支，`legacy-deferred-string`中调用本机不存在的`/bin/false`得到127而非预期1；`/bin/true`同样不存在。这是测试外部命令路径假设，不改生产返回码或削弱断言。日志与metadata保留至 `evidence/shared/C4-gates/`。
+
+物理iPhone上的C4独立`work.ianvs.trail.mobileprd`随后安装并启动，使用用户授权端点完成DeepSeek真实连接smoke。首次请求与系统无线权限提示相遇，明确重试后UI显示成功；不把首次请求写成完成。保存的Manual配置保留，Smart／三档仅看设置草稿后取消，复开仍Manual，未测试Smart实际执行；配置标签`deepseek-flash`不代表已核对返回模型。该次观察SSH列表空、未执行、未读取／导入私钥。用户随后已授权导入本机cloud配置及私钥用于测试，USB 已恢复有线连接，镜像仍等待本人解锁，尚未复制私钥或保存SSH，连接待测。截图仅在镜像会话中审阅，不是正式归档原图，`acceptance_passed=false`，详见 `evidence/shared/C4-gates/ui-followup-summary.json`。C3构建未安装的历史状态不覆盖。
+
+## C5–C7 测试夹具与原生采集诊断
+
+C5 `c34e3a46`只修Rust测试外部探针为`/bin/sh -c 'exit 1/0/7'`及生成测试镜像，保留所有prompt style、单次事件、submission／accepted／重新安装断言；并修原生Reader陈旧定位。定向红测、绿测和独立复评保留，`bash-preexec-fixture-result.json`记录core suite exit0、1,018通过／6忽略，日志为`bash-preexec-fixture-core-suite.log`。没有生产Rust变化，不把这一局部工作树suite称为C4完整gate绿。
+
+C6 `11c6fd29`在D06五个静态点加入带PID的native截图握手与有界host捕获，不在silent／stream时间敏感检查点停留。`native-c6-workspace-1`于D12获批vim退出后仍未回只读；已记录sendKeys accepted、shell ready／alt false，但缺当时lifecycle／focus／route证据。launcher报foreground失败不足以证明当时不在前台，root运行中未主动调用CUA；不能据此断定后台或生产owner竞态，更未改生产门禁绕过。
+
+C7 `7c16d5dff0c61842ac399baddf6380ea46bf22f8`只在driver增加D01实际前台握手和D12owner／lifecycle诊断。确切PID前台及D12 resumed／AI task focus／active／route／原target alt均成立，全部功能断言到result；但测试末原框架报`A SemanticsHandle was active`，整体失败，不登记通过。该次开头有CUA AX读取／raise；SDK的AX→platform semantics→额外句柄路径支持假设，但C7未记录语义起终状态，因此不能写成已实证CUA因果，也没有重设／关闭语义校验。
+
+## 第八候选原生主链与待收拢 gate
+
+C8 `19001573d9974c510e1e4cbcfeb01c94368ea157`只修改同一验收driver：D01在导出widgetPNG前完成native握手；新增只读semantics起终观测；result写出后保持App挂载，有界等待同PID／recorded／exit0的录像结束回执。host在result后继续真实录制约1.4秒再正常停止，原media_end严格区间门禁保留。C5–C8相对C4仅3个test文件变化（driver、canonical Rust测试与其镜像），不改生产owner／生命周期／semantics。
+
+`native-c8-workspace-1`于2026-10-10 07:17:08–07:18:29 UTC运行80秒，driver exit0、首尾clean。`native-test.private.log`实际到`(tearDownAll)`与`All tests passed!`；53.658333秒H.264原生窗口录像，74周期原生图、6精确原生点和42widget支撑图分别记录，capture readable／complete／strict interval均true。133项artifact SHA独立复核全部一致；完整原图角色／视频由独立视觉记录核对，hash／解码不代替画面评审。
+
+实际窗口PID91804／window28413，1728×1084 points、3456×2168 pixels。D01在recording_started且同PID active／frontmost后才放行；launcher仍有`open returned1`警告，不谎称启动器成功。D12前置resumed／AI task owner／route与原target alt全匹配，45×203 TUI网格保持，批准退出后只读、显式接管才输入、手动回Blocks均通过。语义观测platform disabled／handle1→1，此1是测试框架自有句柄，正常teardown后原检查通过；没有运行中CUA AX。
+
+严格区间复核：recording_started `07:17:35.085Z` ≤ 首driverPNG `07:17:37.604965Z`；末必要事件result mtime `07:18:27.324355Z` ≤ 保守media_end `07:18:28.085Z`，stop `07:18:28.743270Z`、finished `07:18:28.762Z`和recorded ack随后到达。首周期原图早于录像仅属额外图，不声称所有74图都在视频内。`native_command_count=1`只计首次编辑命令的匹配Block，不是整段只有一条命令或一次write；stream保持语义锚点但前后scroll offset差2px，不宣称像素完全不变。
+
+模型为确定性本地HTTP，PTY为真实本地Shell，输入为WidgetTester；vim由runtime API准备。失败→诊断→独立修正→引用保留原失败，Reader选择／过滤、慢命令暂停恢复、来源冻结／认证设置恢复是实际子集；不能推成物理IME／触摸板、真实API／ACP、多pane、密码或unknown故障矩阵已验。
+
+第九轮make verify在07:21:14–07:22:26 UTC、72秒、首尾clean、exit2，原因是SDK cache沙箱写权限，保留为环境中止。第十轮使用所需权限，在同一C8干净源码上于2026-10-10 07:23:24–07:38:10 UTC完整执行886秒，**exit0、源码首尾clean**。应用3,065通过／1跳过；macOS原生smoke4、真实PTY45、Composer1、Keychain1通过；Debug／Release构建、签名与Xcode测试通过。原始日志与metadata归档至 `evidence/shared/C8-gates/`，这些是本次实际结果，未抄C3计数；不同集合不可相加为完整场景数。C8组件随后在同一干净候选重采，2026-10-10 07:39:24–07:39:41 UTC，48/48通过、63PNG；07:40:23–07:40:38 UTC的macOS Debug预览入口构建exit0。两次首尾clean／source unchanged、未launch／无物理设备验收。组件归档 `evidence/shared/C8-component-states/` 的71项列明文件hash独立复核一致；AI独立查看4/63代表原图无新增阻断，不声称全部63张人工逐图审阅。DPR1／PNG导出2×、固定字体与无PTY／模型边界保持，C4图保留历史身份。
+
+本次原生材料归档目录为 `evidence/shared/C8-native-workspace-1/`。该次workspace运行凭真实原生步骤、原图／录像、回执／来源和独立视觉审阅支持D3-T05／D4-T01两项；随后D1-T01补验通过，当前合计3/64 passed、61项not_run；归档metadata／文件合同校验PASS，未宣称完整阶段gate通过。整体继续`implemented_unverified`；iPad／外接屏暂无设备明确未验收，其余可执行工作继续，不把环境缺口写成范围删除或通过。
+
+## C8 正常 UI 双标签页补验
+
+同一C8另经 `tools/desktop_prd/run_manual.py` 从隔离配置启动正常产品入口，不使用测试控制器注入任务、配置或批准。两页通过正常菜单显式改为 Blocks。进入／收起AI、切页及明确接管后，命令草稿与各页AI草稿均恢复；A=PID29364／ttys014、B=PID32038／ttys016，BEFORE／AFTER的marker、PID、PPID及PTY均一致；数字Session1／2由实际底栏AX响应事后逐字转录，未把⌘快捷键当Session ID。14张原图及五个二进制哈希经独立复核，启动和结束时源码均为干净C8，正常q退出0。见[D1-T01结果](D1.md)和`evidence/shared/C8-native-tabs-1/`。
+
+D1-T01按记录的显式Blocks前提登记通过；不宣称新安装默认Blocks。部分截图时App不在前台；readonly探测只记录无可见echo，不作为输入门禁强证明；进程树是离散采样，不证明采样之间绝无瞬态进程。未配置／发送模型，CUA原生事件不等于物理输入。当前正式计数3passed／61not_run，整体仍implemented_unverified。

@@ -1,0 +1,99 @@
+# C8 native workspace 独立原图与录像复核
+
+这是独立审阅记录，不是测试驱动原始输出。仅复核已落盘文件；没有启动 App、操作 GUI、运行 Flutter/原生构建或修改 tracked 文件。
+
+## 结论与登记边界
+
+- **D3-T05：本次原生场景及视觉检查通过，可按下表原图和实际驱动断言登记该场景。** 同一固定任务实际包含说明、待审操作、多项原生结果和完成摘要；来源与退出状态可核对，未见模型文字伪装成执行结果或额外输出副本。正式登记仍应完成原字节归档和现有 metadata validator。
+- **D4-T01：失败→诊断→审阅→显式批准→真实结果→总结引用打开/返回的原生链与连续录像已通过；场景最终登记等待 C8 verify10 中既有 Composer 原生检查通过。** `tools/verify_macos_app.sh:97` 与 `Makefile:129` 都运行同一 `integration_test/composer_acceptance_test.dart`，完整 gate 的真实通过记录可满足该步骤，不因目标名字再重复测试。
+- 当前 verify9 为 SDK cache 沙箱 `Operation not permitted` 中止（父代理报告 exit 2），不能记为断言失败或通过；verify10 正在所需权限下运行，本记录不预填结果。
+- 以上最多支持 **D3-T05、D4-T01 两条**。其余 62 个正式桌面场景不因该驱动的局部覆盖而变成 passed；不表示整个 PRD、真实模型 API、SSH/ACP、物理键盘/触控或 iPhone 验收完成。
+
+## 候选身份与真实采集边界
+
+- implementation commit：`19001573d9974c510e1e4cbcfeb01c94368ea157`（C8）。run metadata 的 source_clean_at_start / source_clean_at_end 均为 true。
+- 来源目录：`build/desktop-prd-v1/iteration-1/native-c8-workspace-1/`，以下路径均相对此目录。执行时间 2026-10-10 07:17:08.952902Z–07:18:29.467537Z，原生驱动 exit 0；原始日志以 `All tests passed!` 结束。
+- macOS 27.0.1 / 26A434，Mac16,7 arm64；Flutter 3.44.8 / Dart 3.12.2；debug bundle `work.ianvs.trail.development`。实际独立 App PID 91804，窗口 ID 28413，逻辑窗口 1728×1084，位置 (0,33)，原生截图与视频 3456×2168，**pixel_ratio 2.0**。捕获范围是该 App 的单个完整窗口，不是桌面或 widget 导出。
+- 选定原图皆为**浅色**，**简体中文 UI（locale 可登记 zh；英文 fixture 请求/模型正文及 shell 输出）**；活动 pane 为 `Block AI acceptance`，原生 Session `1`，执行上下文 `root`。固定任务标题为 `Check the current shell without changing other files.`；测试 HOME/Profile 为临时 `trail-fusion-ui-GDfTyC`，真实本地 zsh/PTY。
+- `font_scale=1.0` 的依据是本 run SDK macOS embedder `FlutterEngine.mm:1150` 固定发送 `textScaleFactor: @1.0`，驱动无 text-scale override，TestPlatformDispatcher 委托平台，桌面 App 不受 PhoneTextScalePolicy 强制缩放。**这是 SDK/调用路径推导，未另录运行时 MediaQuery 数值；原生像素 2×不代表字号 2×。** SDK 源路径：`/Users/robinfai/development/flutter/engine/src/flutter/shell/platform/darwin/macos/framework/Source/FlutterEngine.mm`，SHA-256 `dab7e1748a404d3562e27287b0d2e62e3334c5f15ab0db4ee0819d64a8da6b4b`。
+- 模型是隔离的确定性本地 HTTP fixture（临时 token `isolated-test-fixture`），不是用户 API Key，也不是模型质量实测；用户输入由集成测试注入，不是物理输入证明。期间未访问用户凭据。
+
+## 正式截图对应
+
+所有下列原图均实际打开审阅，原文件像素尺寸均为 3456×2168；保持原字节，不裁切、不重绘。D3 两张周期图独立于 D4 五张 checkpoint；不把一个 after artifact 的 shot_ids 混入两个 case。D3 F02 的实际时间早于 F01，分别证明角色/引用，不能将文件序号解释为顺序操作。
+
+| 对应 | 原文件 | 原始记录时间（UTC） | 实际可见内容 |
+|---|---|---|---|
+| D3-T05-F01 | `native-window-060.png` | 2026-10-10T07:18:18.441622Z | 任务正文、用户请求、真实 STREAM_DONE Block（退出码 0，5.6s）与仍待确认的完整提案同时可见；提案为 printf NEVER >> stream-must-not-run.txt，目的、目标、目录、编辑/拒绝/执行一次均可读。 |
+| D3-T05-F02 | `native-window-017.png` | 2026-10-10T07:17:47.625794Z | 同一固定任务下 FUSION_OK（0/8ms）、失败 ls（1/9ms）、REPAIR_EVIDENCE（0/38ms）三项事实各有命令/输出/退出状态；用户诊断、AI 正文、完成摘要及 1–1 行引用分层可辨。 |
+| D4-T01-F01 | `driver-artifacts/native-D06-failure-diagnostic-draft.png` | 2026-10-10T07:17:43.630923Z | 真实失败 ls 块和非零退出码仍可见；失败源已附加；诊断要求停留在编辑器中，未变成已发送用户消息，也未出现修正结果。 |
+| D4-T01-F02 | `driver-artifacts/native-D06-correction-review.png` | 2026-10-10T07:17:44.549794Z | 完整的待确认修正提案：目的、Block AI acceptance · root 目标、测试目录、printf REPAIR_EVIDENCE 命令及显式执行一次按钮；旧失败仍在，尚未出现修正执行结果。 |
+| D4-T01-F03 | `driver-artifacts/native-D06-correction-result.png` | 2026-10-10T07:17:45.542297Z | 真实 REPAIR_EVIDENCE 块显示退出码 0/38ms，完成摘要含可打开的 1–1 行引用；旧失败 ls 及其退出码 1 保留。 |
+| D4-T01 supporting: opened reference | `driver-artifacts/native-D06-correction-original-output.png` | 2026-10-10T07:17:46.484773Z | 引用打开实际原始输出 Reader；目标、命令、目录一致，行 1 为 REPAIR_EVIDENCE，退出码 0/38ms；底栏表明只读。 |
+| D4-T01 supporting: returned reference | `driver-artifacts/native-D06-failure-retained-after-correction.png` | 2026-10-10T07:17:47.328472Z | 返回原任务后仍为同一旧失败与修正结果，摘要/引用保留，没有第二份修正命令输出。 |
+
+D4 三张正式图都包含完整 App 窗口，F02/F03 无需另造 detail anchor。两张 supplemental 原图佐证实际引用打开与返回，不重复注册三个 canonical shot ID。D3 F01 中的 `NEVER` 提案确为待确认；紧接的 native-window-061 已变成拒绝状态，因此未把 061 误选为待审截图。D3 F02 的第一块顶部目录略受滚动裁切，但其命令、输出、退出码/耗时清晰；后两块、摘要和证据引用完整，满足本 shot 的可见状态，不作为完整首块目标截图。
+
+### 选定原图 SHA-256
+
+- `native-window-060.png`：`401c135012d1f8387f981307cfb087b5bfea8fb1a6868346d02834b0f179ee15`
+- `native-window-017.png`：`3db5a2ec77bc9ff89c638de93f94c40aee9695949cd2c81652781f1dc2aa4bc8`
+- `driver-artifacts/native-D06-failure-diagnostic-draft.png`：`498f159ac1e2188e9d9b89c54ab8124e8b1861cb4c5020e5151a5d5a163b86a6`
+- `driver-artifacts/native-D06-correction-review.png`：`6c3541bb3af2f5c1aa6bcbb4c243d1834cbb84c17b2a74adccc5917cc8afacb1`
+- `driver-artifacts/native-D06-correction-result.png`：`d94a17a72e51dde84622ff5853f15fca8cbbcf8445a5286832625eaa557bc518`
+- `driver-artifacts/native-D06-correction-original-output.png`：`14a1e9674e8ab5ff975c6003c266ba6af047a4e4a79ba760e1b9bae53af7ccb6`
+- `driver-artifacts/native-D06-failure-retained-after-correction.png`：`85c55b39e187a5fdf6c74a4811273362bb652142289a564658054ff64f833054`
+
+## 录像实际内容检查
+
+原始 `native-window.mp4` 为 H.264，3456×2168，ffprobe 53.658333 秒、19,282,647 字节，SHA-256 `38ad41e96cdb97ca44477b9b705627290d2945651841b0558ccc0332b75ae23f`。原片未修改。
+
+已完整解码 1,434 帧，PTS 从 0 到 53.623333，单调递增，最大相邻时间差约 0.060 秒；没有解码错误。已实际审阅每 0.5 秒抽帧的 107 张画面（0–53.0 秒，9 张带时间戳接触表），并分别打开 8.30、9.20、10.10、11.10、12.00、43.30、48.55、48.72、53.20 秒的高清帧，以及 48.56–48.74 秒的五张密采帧。**这是完整解码、连续时间采样与关键步骤逐帧复核，不宣称人工逐一看过全部 1,434 帧。** 接触表末格黑色为不足整页的拼图 padding，不是原视频黑帧。
+
+- 开头是被捕获测试 App 自身的 `Test starting…` 画面，随后正常 App；D01 前台/录制握手后才进入本次有效 UI 操作和首张驱动截图。
+- 约 8.30 秒见真实失败块与未发送诊断草稿；9.20 秒见未批准修正卡；10.10 秒见一次真实修正结果及总结；11.10 秒见实际引用 Reader；12.00 秒返回并保留旧失败。内容与五张 D06 原图一致。
+- 约 12.5–25 秒静默命令的观察/暂停/继续，25.5–35.5 秒多选与真实 Reader/筛选，36–43.5 秒单个流式 Block 的更新及待审下一提案，随后认证故障/设置恢复，都出现在连续采样中。这些是本驱动局部覆盖，未据此宣称对应完整 PRD 场景通过。
+- 密采确认 TUI 提交回执后出现明确“终端 · 只读”与“人工接管”，随后才是人工终端。没有把 native-window-068（已人工接管、命令面板打开）误用为只读观察证据。
+- 53.20 秒仍为同一个 App 的保留终端，覆盖结果写出后尾录；抽查未见切到其他 App、锁屏或中途重启。此结论限于已审画面，前台状态不是逐毫秒断言。
+
+用于分析的接触表/导出帧保存在 ignored `tmp/desktop_prd_capture/c8-video-review/`；它们是 derived only，不替代原生截图或原录像归档。
+
+## 原生窗口、前台、结束握手与严格区间
+
+- recorder `window_selected` 为 07:17:34.995Z，PID 91804、window 28413、scale 2；`recording_started` 为 07:17:35.085Z。
+- D01 checkpoint ack 为 07:17:37.643371Z，same PID/window、is_active=true、frontmost_pid=91804；五个 D06 ack 同样为 captured/exit 0、同 PID/window 与前台身份。原日志虽有 `Failed to foreground app; open returned 1` 警告，实际 host 的前台握手、图像与最后 exit 0 均成立，不能把该警告改写成运行失败。
+- 最早驱动 PNG 为 native-D01-initial-mode.png（mtime 07:17:37.604965Z），在录制开始后 2.519965 秒；末张驱动 PNG 为 D14-platform-preference-staged.png（07:18:27.022664Z）。periodic 001 在录制开始前约 0.108 秒，属于预录制周期采图，不把它冒充有效 D01 或已被录像覆盖的步骤。
+- result completed_at=07:18:27.324051Z，文件 mtime=07:18:27.324355Z；明确 stop request=07:18:28.743270Z，原因 driver_result_written，较结果晚 1.418915 秒；finished event=07:18:28.762Z，符合 finished ≥ stop ≥ final_step。
+- recording_finished 的保守整秒 duration=53，started + duration=07:18:28.085Z，仍在最终 result mtime 之后 **0.760645 秒**；没有用更长 ffprobe duration 替代这个严格门禁。
+- `native-recording-finished.json` 为 PID 91804 / status recorded / exit 0 / 07:18:28.829385Z；驱动等这个成功 ack 后才 teardown。recorder exit 0，exited_before_result=false；没有 stream/error、capture failure 或提前退出事件。
+- capture_artifacts_readable、driver_capture_interval_verified、capture_artifacts_complete 都为 true，且上述时间/媒体独立检查与之相符。
+- semantics_at_start 与 semantics_at_functional_completion 均 platform_semantics_enabled=false、outstanding_handles=1；原始测试最终资源检查通过。这里证明没有本轮额外 handle 增长，不宣称 handles=0 或 VoiceOver 验收完成。
+
+## 真实事实与驱动断言核对
+
+驱动在生产 App/controller/guard/native PTY 通路执行；测试临时目录与真实副作用文件受控。关键记录：
+
+- 初次受控命令 submission `ai-1791616659934117-0` → Block `1791616659992-2`，真实 once.txt 内容恰为 `x`，原生匹配 Block 恰一项。`native_command_count=1` 指此初次命令，不表示整个运行只执行了一条命令。
+- 失败 Block `1791616662128-5` 为真实 ls，退出码 1；附加源和输入诊断草稿时模型请求数、原生 Block 数未增加，且旧草稿先被保留。
+- 修正 submission `ai-1791616664573774-1` → 独立 Block `1791616664659-8`，一项 accepted 回执与原生 submissionId 一致，退出码 0；失败 Block 的 ID/命令/退出码均未改写。
+- 引用由实际 transcript reference 的完整 identity/range 选中，原始来源 Session=1；Reader 页 ID 为 `1791616664659-8-reader-0`，命令与 REPAIR_EVIDENCE 输出匹配。关闭后 taskId、draft、请求数、Block 数保持，修正命令仍只有一项，旧失败保留。结果 JSON 的 correction_reference_opened_and_returned、failure_preserved_after_correction 均 true，原图与录像相符。
+- D3 下一提案在明确批准前不执行：真实 stream-once.txt 恰为 `x`，新提案的文件未创建；真实结果仍由一个原生 Block 持有。多项结果的退出状态与画面标签一致。
+
+这些断言与视觉检查足以支持所选 D3 场景及 D4 主链；不把 fixture 模型回复的“已检查”字样单独当原生执行证明。
+
+## 哈希与后续工具边界
+
+已重算 metadata 列出的 **133 个 artifact 哈希，全部匹配**。当前驱动 SHA 与 as-run metadata 相同，三份 as-run helper snapshot 也逐一匹配；没有以运行结束后改动的 helper 代替当时版本。App/native 二进制身份由 run-metadata 的 binary_sha256 记录；当前 verify10 会重建产物，本审阅不拿重建后的文件反证本轮记录。
+
+- `run-metadata.json` SHA-256：`b7be062e2a451833bece85584a9adc5b3f84335df12e02e397d9bf15ab7bbf74`
+- `native-test.private.log` SHA-256：`89c208872328e635150abb1e17866ca2526b6b438ca8b32b5fa95fbbfbe36650`
+- `capture.private.log` SHA-256：`7572c92a06539dc05d6c23c3acb2f32d844c5db0f113948c325c6c5c9fcfeee4`
+- `driver-artifacts/result.json` SHA-256：`968aca33c26c898d00d500a4d307e4c237c9d026fa959cd96ed077a714f928c7`
+- `driver_sha256`：`197197bdd5494916a510bc7b69089db12f956c7c54c2c26f77e4b18de1f520c7`
+- `capture_helper_sha256`：`218aec61b9fd3775624085e931d559f9cf80c709899452ff9b83d081a8998ec5`
+- `window_inventory_sha256`：`f3177aac1dfc6ae137f360aeb4ce3e604a01079f8971797d1898560dceeccdfe`
+- `window_recorder_sha256`：`2a6a5699ff899826b5961f328675f828fc2f36521b23e82dd00d8886bf08f72a`
+
+C8 完成后的 ignored run_native.py 已将尾录 1.4 秒和 finish ack 限于 workspace，其他驱动在 result 后 request_stop 即 return；只读确认 scope 问题已解决。C8 as-run snapshot 仍保持上述旧 hash，不回写本次记录。
+
+最后状态：本审阅的 C8 原生/视觉内容检查完成；D3-T05 可归档，D4-T01 的既有 Composer/gate 依赖仍待 verify10 真实结果。任何正式 case 状态更新由根代理在补齐 gate 后完成；本文件没有修改 manifest。

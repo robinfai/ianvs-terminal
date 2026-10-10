@@ -1,0 +1,32 @@
+import AppKit
+import CoreGraphics
+import Foundation
+
+// Emit only windows belonging to the exact disposable acceptance app path.
+guard CommandLine.arguments.count == 2 else { exit(64) }
+let target = URL(fileURLWithPath: CommandLine.arguments[1]).standardizedFileURL.path
+let apps = NSWorkspace.shared.runningApplications.filter {
+  $0.bundleURL?.standardizedFileURL.path == target
+}
+let pids = Set(apps.map { $0.processIdentifier })
+let info = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
+let windows: [[String: Any]] = info.compactMap { entry in
+  guard let pid = entry[kCGWindowOwnerPID as String] as? Int32,
+        pids.contains(pid),
+        let id = entry[kCGWindowNumber as String] as? Int,
+        let layer = entry[kCGWindowLayer as String] as? Int, layer == 0,
+        let bounds = entry[kCGWindowBounds as String] as? [String: Any],
+        let width = bounds["Width"] as? Double, width > 200,
+        let height = bounds["Height"] as? Double, height > 100 else { return nil }
+  return ["pid": pid, "window_id": id, "bounds": bounds]
+}
+let result: [String: Any] = [
+  "screen_capture_authorized": CGPreflightScreenCaptureAccess(),
+  "pids": Array(pids).sorted(),
+  "active_pids": apps.filter { $0.isActive }.map { $0.processIdentifier }.sorted(),
+  "frontmost_pid": NSWorkspace.shared.frontmostApplication?.processIdentifier ?? -1,
+  "windows": windows,
+]
+let data = try JSONSerialization.data(withJSONObject: result, options: [.sortedKeys])
+FileHandle.standardOutput.write(data)
+FileHandle.standardOutput.write(Data("\n".utf8))

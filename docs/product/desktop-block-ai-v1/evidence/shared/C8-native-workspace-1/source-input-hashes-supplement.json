@@ -1,0 +1,200 @@
+{
+  "implementation_commit": "19001573d9974c510e1e4cbcfeb01c94368ea157",
+  "recorded_at": "2026-10-10T07:39:51.620872+00:00",
+  "source_clean": true,
+  "original_inventory_sha256": "91f2b0e406f52e98da1d8b8224f07d8d72c2757d0a738a451243d3c2338eafb7",
+  "scope": "Explicit missing tracked build/theme/font/config/mirror inputs. Does not rewrite the contemporaneous snapshot or claim a full dependency closure.",
+  "files": [
+    {
+      "path": "Makefile",
+      "git_blob": "fe6fb33df7768e08102a24cf60ca972c07310fdf",
+      "sha256": "4ab234de78655467fa3f79340038baf9d3b8bc46175acdab026b4035c9bbf3c1",
+      "bytes": 11687,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "docs/product/desktop-block-ai-v1/plan.json",
+      "git_blob": "2cc1841c7bc6e61abe597ccbddb6f3fda6a58029",
+      "sha256": "94d6822649ba6df172fb45fec40a3e407aad4ea3d46ce10b4800e6b4ad4569c7",
+      "bytes": 53120,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "docs/product/desktop-block-ai-v1/scripts/validate_evidence.py",
+      "git_blob": "d1c65ae0493292ad99bbc1b869bc21a47bdb4864",
+      "sha256": "9c0bbc1ad04eb4d7dd1549ca42089b444670b0324d8d202195091ba11210ee8c",
+      "bytes": 18239,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "docs/product/desktop-block-ai-v1/shotlist.json",
+      "git_blob": "7ac4af0b7e916befdc289414d9277b00a608656d",
+      "sha256": "08c9b94a8f3564e9bdb7604759bd6f2828eff5763b429cba7eea55ce1cae555e",
+      "bytes": 49039,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/lib/app.dart",
+      "git_blob": "d07e0e5a5d6abcbcc29426b1bc88c13af609013b",
+      "sha256": "53abf8c058d78e7b2f6ab3559dd7bf433f8af07d8c6c5ee275d5e9e80c24e7b6",
+      "bytes": 2418,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/lib/features/preferences/app_preferences_models.dart",
+      "git_blob": "efbbe48711810fce4688f82c48e90b6fb968d249",
+      "sha256": "8cb468e18c9a4f62b8af2c92e2109512ae865e15e7cedb69b822643c64351ae1",
+      "bytes": 8825,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/lib/ui/foundation/app_high_contrast.dart",
+      "git_blob": "e8db23d7934d49a172d336d2775365dcce9e3ded",
+      "sha256": "c5cc143faded37e3896a8fc7cb297070ffd4319b6a993036ef1902c172c6366b",
+      "bytes": 3457,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/lib/ui/foundation/app_motion.dart",
+      "git_blob": "677656e2ed495e1c4a4e29b3821b606838529c3d",
+      "sha256": "b826ba4c54ddadbfd72502eb2c0e8ed95bc3ed569e908d7d1ff913971bce0f26",
+      "bytes": 1461,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/lib/ui/foundation/app_terminal_colors.dart",
+      "git_blob": "af94c3892c1ec0fcfdad44402231b0b249610c48",
+      "sha256": "bdae4302b47d4268f080eccd51ef4fd1cf287ad46f5621990bc28747dd88c9bf",
+      "bytes": 1466,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/lib/ui/foundation/phone_text_scale_policy.dart",
+      "git_blob": "9af375834536c439a1474f5f4becbcb8e17409dd",
+      "sha256": "0bf6fbe41ac0b7f182aff0e0122fd1d1a2a92b31d17319c99490858c126af1e3",
+      "bytes": 754,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/macos/Runner.xcodeproj/project.pbxproj",
+      "git_blob": "3f0b89e2a4cee49a3c5942357302ccdae79bee7f",
+      "sha256": "b5abb9c2c4054636d8b907c773a7643eef9a3fcfd6c57f18f628811fb3e69fcb",
+      "bytes": 30472,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/macos/Runner/Configs/AppInfo.xcconfig",
+      "git_blob": "82be62b017de9c6884dffb7e07ef8a4e17a761d9",
+      "sha256": "f87c96b974a77483251098e19038bd0c458998173cc96c18e6cf2a8b383cb32b",
+      "bytes": 603,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/macos/Runner/Configs/Debug.xcconfig",
+      "git_blob": "36b0fd9464f45b33f482e64bea579787e142affa",
+      "sha256": "8067d533ef6593760baad9a9855a786a7a77470fcc3f0925ec04fe43bc1ac4b0",
+      "bytes": 77,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/macos/Runner/Configs/Release.xcconfig",
+      "git_blob": "dff4f49561c816f70eaea557d889d31cf63447ac",
+      "sha256": "7a6a4b4d973a23052fa0a0388dd261e32d311d7b66ba1bfc3b914b361808ac61",
+      "bytes": 79,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/macos/Runner/Configs/Warnings.xcconfig",
+      "git_blob": "42bcbf4780b187e80025b7917058bcb882012aa1",
+      "sha256": "0e341a392b16ad302d12890aa3dac9257a6c10ece685437604259a85341645a3",
+      "bytes": 580,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/macos/Runner/DebugProfile.entitlements",
+      "git_blob": "4eac53fe0f732d083dcfc39d225bff6950c13601",
+      "sha256": "7f5fd5153379206e95b8ba5e66be12c1944584400e3fe14f507515b344bebc7b",
+      "bytes": 296,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/macos/Runner/Info.plist",
+      "git_blob": "968c11cb0ca8d7b91a60fffa65e86aad522c19bf",
+      "sha256": "a1e9de121fc63f5c549077f4f959f9d740bdf30668d50910a24fb84c5ce5eedf",
+      "bytes": 1591,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/macos/Runner/LocalRelease.entitlements",
+      "git_blob": "23f01b37d3e062b889d231985a0210efcaed14d6",
+      "sha256": "bd272787579e4d8e95a084eeffd91256471de8805adb9e0047be37f4caefd134",
+      "bytes": 432,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/macos/Runner/Release.entitlements",
+      "git_blob": "6631ffa6f24265b2e341ccb354d8a5983a7f106a",
+      "sha256": "d9b06c202956033b01e62b21c727eea89b6a4fd456ef71d420c39f460426b9f3",
+      "bytes": 188,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "packages/ianvs_terminal/lib/src/config/terminal_config.dart",
+      "git_blob": "cf364f47a13fba858d3ba3a6efe9a53ca9ab727a",
+      "sha256": "edc231fac5ff25b792c4d974494ab1e1da94311d48300872929b44bb958762e3",
+      "bytes": 47268,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "packages/ianvs_terminal/lib/src/config/terminal_defaults.dart",
+      "git_blob": "0efdb999f39aa1d1617d882d517ac17900161935",
+      "sha256": "9ca27b5fd423057bef04ddabf2a7637d460e2155b851f7b1b40da87ce01b661c",
+      "bytes": 927,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "packages/ianvs_terminal_core/lib/src/config/terminal_config.dart",
+      "git_blob": "cf364f47a13fba858d3ba3a6efe9a53ca9ab727a",
+      "sha256": "edc231fac5ff25b792c4d974494ab1e1da94311d48300872929b44bb958762e3",
+      "bytes": 47268,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "packages/ianvs_terminal_core/lib/src/config/terminal_defaults.dart",
+      "git_blob": "0efdb999f39aa1d1617d882d517ac17900161935",
+      "sha256": "9ca27b5fd423057bef04ddabf2a7637d460e2155b851f7b1b40da87ce01b661c",
+      "bytes": 927,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "tools/sync_terminal_core.dart",
+      "git_blob": "b193171e53abab01b35b5432c66326c9f0ba38e0",
+      "sha256": "c2b1474d5a38c3e4d0c29af666dcf322d91aa3fbb823c1ab6320074fd56c6980",
+      "bytes": 14937,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "tools/verify_flutter_terminal.sh",
+      "git_blob": "689467f48d7aec21511c94b0a4393ea426fafa50",
+      "sha256": "b6b45ccc8e23fb39d6eb313b93c6e1240ba59bc338125c96fa995f98aad0e8da",
+      "bytes": 5978,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "tools/verify_macos_app.sh",
+      "git_blob": "5bcc2fb78b52e03e4a07e9f401510bc913f1abfc",
+      "sha256": "82d2a1ef07d4bb040e8b83541a2a12fe7ba79962a37de8dae93c0dac750cb201",
+      "bytes": 4987,
+      "matches_candidate_blob": true
+    }
+  ],
+  "mirror_check": {
+    "command": "dart run tools/sync_terminal_core.dart --check",
+    "proof_path": "evidence/shared/C8-gates/verify-10.log",
+    "status": "passed as a required step of successful make verify",
+    "gate_exit_code": 0,
+    "invocation_source": "tools/verify_flutter_terminal.sh:25 (set -e)",
+    "note": "The successful mirror check is silent; source shows it is a required gate step, not a separately invented command run.",
+    "proof_sha256": "5f5c2bdce6377a6f0ca5b2ca008947db1ba327ff227f826f984d8b561673aa45"
+  }
+}

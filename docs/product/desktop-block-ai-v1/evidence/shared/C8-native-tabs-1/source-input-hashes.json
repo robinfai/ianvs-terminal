@@ -1,0 +1,658 @@
+{
+  "implementation_commit": "19001573d9974c510e1e4cbcfeb01c94368ea157",
+  "recorded_at": "2026-10-10T08:09:59.137218+00:00",
+  "run_source_clean_at_start": true,
+  "run_source_clean_at_end": true,
+  "run_clean_basis": "Original manual-run.json, independently reviewed before documentation merge; not inferred from the current dirty documentation worktree.",
+  "archive_head": "19001573d9974c510e1e4cbcfeb01c94368ea157",
+  "archive_worktree_note": "Documentation/evidence changes are in progress. Every selected production/fixture/build/font/lock/mirror input below is rechecked against C8; this is not a full dependency closure.",
+  "scope": "D1 manual entry, relevant production UI and settings, locked dependencies, native manifests, mirrored Block/Composer/config/theme, fonts and build verification wiring. Source-only support; not a new product test.",
+  "files": [
+    {
+      "path": "Makefile",
+      "git_blob": "fe6fb33df7768e08102a24cf60ca972c07310fdf",
+      "sha256": "4ab234de78655467fa3f79340038baf9d3b8bc46175acdab026b4035c9bbf3c1",
+      "bytes": 11687,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "docs/design/block-ai-fusion-20261002/DESIGN.md",
+      "git_blob": "a6294c425e976bfb556ffb65c274e549b4609dbf",
+      "sha256": "cb711536e9496072263babe99a1488b180bd1e9259de1e12beedfab772e17227",
+      "bytes": 29881,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "docs/product/desktop-block-ai-v1/plan.json",
+      "git_blob": "2cc1841c7bc6e61abe597ccbddb6f3fda6a58029",
+      "sha256": "94d6822649ba6df172fb45fec40a3e407aad4ea3d46ce10b4800e6b4ad4569c7",
+      "bytes": 53120,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "docs/product/desktop-block-ai-v1/scripts/validate_evidence.py",
+      "git_blob": "d1c65ae0493292ad99bbc1b869bc21a47bdb4864",
+      "sha256": "9c0bbc1ad04eb4d7dd1549ca42089b444670b0324d8d202195091ba11210ee8c",
+      "bytes": 18239,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "docs/product/desktop-block-ai-v1/shotlist.json",
+      "git_blob": "7ac4af0b7e916befdc289414d9277b00a608656d",
+      "sha256": "08c9b94a8f3564e9bdb7604759bd6f2828eff5763b429cba7eea55ce1cae555e",
+      "bytes": 49039,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/assets/fonts/LICENSE-MaterialIcons.txt",
+      "git_blob": "a2c590deb72af8068d54efe6dc47751f2c9dc4c6",
+      "sha256": "be698262aecd042c0de6f886cc0af622f8def446462026992cc530275d8a9e74",
+      "bytes": 18531,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/assets/fonts/LICENSE-MaterialSymbols.txt",
+      "git_blob": "7a4a3ea2424c09fbe48d455aed1eaa94d9124835",
+      "sha256": "58d1e17ffe5109a7ae296caafcadfdbe6a7d176f0bc4ab01e12a689b0499d8bd",
+      "bytes": 11357,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/assets/fonts/README.md",
+      "git_blob": "2a3698f3eb11a5ff7a0c6fa0d65b9bf8af74122e",
+      "sha256": "fee22ebee8d65ad4cfac3333dc898417d221fff7b880b1dd728fef349496979c",
+      "bytes": 1498,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/assets/fonts/TrailLightIcons.ttf",
+      "git_blob": "1a3265e2ec17eb6a0e2a585680884b56932a54d3",
+      "sha256": "8cd24eebd6113ca8f9ca732dc73315c427582424d348dd299b2d58bffb2f0c79",
+      "bytes": 457072,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/assets/fonts/TrailLightIcons.ttf.fallbacks.txt",
+      "git_blob": "a5fe60492b0d98d7669c9f5b507450dfa6ad0c2c",
+      "sha256": "c44b06ce4d9123e939855e13da3e5e0b0fba3fc3ead9878815e1c0b42b4046c6",
+      "bytes": 5930,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/lib/app.dart",
+      "git_blob": "d07e0e5a5d6abcbcc29426b1bc88c13af609013b",
+      "sha256": "53abf8c058d78e7b2f6ab3559dd7bf433f8af07d8c6c5ee275d5e9e80c24e7b6",
+      "bytes": 2418,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/lib/app_bootstrap.dart",
+      "git_blob": "8acd8ab0232ebeb2e44db6e24f74f51d1a096f9d",
+      "sha256": "2dfade8b4bfba5d6d8a3963055ef3f9924a9cbd5bc6f9d4389b3cef2c45d9f24",
+      "bytes": 11113,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/lib/features/ai/ai_settings.dart",
+      "git_blob": "56de20c42e5b4d70c948d348d17e99ad9877cf8b",
+      "sha256": "bb275dc08b7bab36cfc27cfa8fc01faf953201e3f764e5b84b5889996186a2bd",
+      "bytes": 3851,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/lib/features/ai/terminal_ai_controller.dart",
+      "git_blob": "db68607897fe86fb5d3e6ac03ca30ec90265ac95",
+      "sha256": "a5751d9ac1dc1fd6f018e326ba78cb8d7a13e82bbd9b4b9f53987d73643f915f",
+      "bytes": 61936,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/lib/features/ai/terminal_ai_workspace.dart",
+      "git_blob": "e02d9149cbf8f4ea696af0d915678521fb7ce18a",
+      "sha256": "10fbbb2d57bca4af4d9f88b696ba7451409be8896f3bcaaf3a9bf9ab38508c80",
+      "bytes": 95183,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/lib/features/preferences/app_preferences_models.dart",
+      "git_blob": "efbbe48711810fce4688f82c48e90b6fb968d249",
+      "sha256": "8cb468e18c9a4f62b8af2c92e2109512ae865e15e7cedb69b822643c64351ae1",
+      "bytes": 8825,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/lib/features/shell/shell_screen.dart",
+      "git_blob": "06925d598678ff62ed8934317bc04ae257523d76",
+      "sha256": "96fbc9f3058de3efd39798e89be72dade9debbea66641c22a31c8aca0d5a1f84",
+      "bytes": 71699,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/lib/features/shell/shell_screen_ai.dart",
+      "git_blob": "d3679e721d54483fa36e5ae65bbb949dc8ad3a3c",
+      "sha256": "44ae2dcdc258b15de91c4d58f4d355983c03abcd1973b41007376026eb497cec",
+      "bytes": 17579,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/lib/features/shell/shell_screen_ai_observer.dart",
+      "git_blob": "04303064abeb98c3e7c80b3046e236b30d8e252e",
+      "sha256": "aa1138e9c6ed4ecfb5dfc87c02cce7ad85845a0fd7cef223fbda0c0d0630d899",
+      "bytes": 6385,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/lib/features/shell/shell_screen_chrome.dart",
+      "git_blob": "c0fe5f74457c5f070b22fcc3d103609c742c3e1c",
+      "sha256": "165bee696572078c38c5969000864359c77f6b337a8ddf03ba7c5da2a1bc0944",
+      "bytes": 135619,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/lib/features/shell/shell_screen_chrome_bar.dart",
+      "git_blob": "7ee7dff28b43e95f59cc50169cbe993bf94b0ada",
+      "sha256": "015be1308946bc616e1aca0a46c138756cb7f156bd1187fe661a235f72c173fc",
+      "bytes": 16326,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/lib/features/shell/shell_screen_state_sessions.dart",
+      "git_blob": "de5e7f78cabe04c0bc98eecbf68e7f73e7c2a44b",
+      "sha256": "f2498d9ae42139cc24dc3cdbed2121dc323443c1cb120c7a0853065e2132b99e",
+      "bytes": 46338,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/lib/features/shell/shell_screen_window_title_bar.dart",
+      "git_blob": "8160afafa44ba0e10ab2e05525b7e1c3c9903fba",
+      "sha256": "6b886add2f9b131e836bb0211e568636bf521f24fc0636e9fb3dd25bf220317e",
+      "bytes": 9243,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/lib/features/shell/widgets/desktop_session_status.dart",
+      "git_blob": "d399c57e4b8c780c53b06f676e4e16103567eef1",
+      "sha256": "8ec5547088619583964bb5247c868b430469146da3945118cffae150b9d66fe3",
+      "bytes": 7376,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/lib/features/terminal_composer/composer_pane.dart",
+      "git_blob": "3ce9783e997f0611c5f30b04167d553542bade57",
+      "sha256": "52c534d3f7fed40141ca22b6388955c8a86f644035bf94f5e3deabbda46557c9",
+      "bytes": 21414,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/lib/features/visual/local_terminal_theme_repository.dart",
+      "git_blob": "4f88477941631905770bb59a0b5bdc3812ae0753",
+      "sha256": "7dff2a9640e5f5a787653f0e2b62281a54f287e080b2582570bd1dc4be8c6e2d",
+      "bytes": 4936,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/lib/persistence_repository_composition.dart",
+      "git_blob": "53c6a9ae9426efa046416bf588bb9a4db4983e8e",
+      "sha256": "3040710116d69b5ec80bf8d468f6cadb2388c5f91587d58d9530af19e70f53da",
+      "bytes": 5171,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/lib/startup/production_app_startup.dart",
+      "git_blob": "8da00bfd1cb1867fad609dbbe1e6eb47a79d5d9c",
+      "sha256": "9c154746e89702a8d17cfb017df970b2cc54aa70b25238d651f764af28f195d5",
+      "bytes": 21545,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/lib/ui/foundation/app_high_contrast.dart",
+      "git_blob": "e8db23d7934d49a172d336d2775365dcce9e3ded",
+      "sha256": "c5cc143faded37e3896a8fc7cb297070ffd4319b6a993036ef1902c172c6366b",
+      "bytes": 3457,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/lib/ui/foundation/app_motion.dart",
+      "git_blob": "677656e2ed495e1c4a4e29b3821b606838529c3d",
+      "sha256": "b826ba4c54ddadbfd72502eb2c0e8ed95bc3ed569e908d7d1ff913971bce0f26",
+      "bytes": 1461,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/lib/ui/foundation/app_terminal_colors.dart",
+      "git_blob": "af94c3892c1ec0fcfdad44402231b0b249610c48",
+      "sha256": "bdae4302b47d4268f080eccd51ef4fd1cf287ad46f5621990bc28747dd88c9bf",
+      "bytes": 1466,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/lib/ui/foundation/app_theme.dart",
+      "git_blob": "c764dffd5a1219678974740f2ecfae34667eb101",
+      "sha256": "dbc7c85db85d02a44be0635961b47d24d6dd213df2dadda56f90852cdfd1e3f7",
+      "bytes": 4971,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/lib/ui/foundation/app_theme_tokens.dart",
+      "git_blob": "186e34d6fb32d4218c7c096181b0cf1a1a4499ae",
+      "sha256": "67274851bc1ecbdde9d709592bac8fea1c99f7b25cb8c77638e56936f1929abc",
+      "bytes": 16571,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/lib/ui/foundation/phone_text_scale_policy.dart",
+      "git_blob": "9af375834536c439a1474f5f4becbcb8e17409dd",
+      "sha256": "0bf6fbe41ac0b7f182aff0e0122fd1d1a2a92b31d17319c99490858c126af1e3",
+      "bytes": 754,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/lib/ui/foundation/terminal_theme_presets.dart",
+      "git_blob": "2303357d1b73243e0b0943e803ff971815a1b728",
+      "sha256": "c750d5335e19db64c011efea4009054a71d77df27cf0d431aa0c1c52752239c0",
+      "bytes": 6199,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/macos/Runner.xcodeproj/project.pbxproj",
+      "git_blob": "3f0b89e2a4cee49a3c5942357302ccdae79bee7f",
+      "sha256": "b5abb9c2c4054636d8b907c773a7643eef9a3fcfd6c57f18f628811fb3e69fcb",
+      "bytes": 30472,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/macos/Runner/AppDelegate.swift",
+      "git_blob": "a1203236b57fc8f232dc32cbc745af7e9233cba7",
+      "sha256": "dac29070a4daaec9cca8f521b8824ee29adf65b2d4a84e8ec03ea95776c77504",
+      "bytes": 9317,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/macos/Runner/Configs/AppInfo.xcconfig",
+      "git_blob": "82be62b017de9c6884dffb7e07ef8a4e17a761d9",
+      "sha256": "f87c96b974a77483251098e19038bd0c458998173cc96c18e6cf2a8b383cb32b",
+      "bytes": 603,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/macos/Runner/Configs/Debug.xcconfig",
+      "git_blob": "36b0fd9464f45b33f482e64bea579787e142affa",
+      "sha256": "8067d533ef6593760baad9a9855a786a7a77470fcc3f0925ec04fe43bc1ac4b0",
+      "bytes": 77,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/macos/Runner/Configs/Release.xcconfig",
+      "git_blob": "dff4f49561c816f70eaea557d889d31cf63447ac",
+      "sha256": "7a6a4b4d973a23052fa0a0388dd261e32d311d7b66ba1bfc3b914b361808ac61",
+      "bytes": 79,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/macos/Runner/Configs/Warnings.xcconfig",
+      "git_blob": "42bcbf4780b187e80025b7917058bcb882012aa1",
+      "sha256": "0e341a392b16ad302d12890aa3dac9257a6c10ece685437604259a85341645a3",
+      "bytes": 580,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/macos/Runner/DebugProfile.entitlements",
+      "git_blob": "4eac53fe0f732d083dcfc39d225bff6950c13601",
+      "sha256": "7f5fd5153379206e95b8ba5e66be12c1944584400e3fe14f507515b344bebc7b",
+      "bytes": 296,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/macos/Runner/Info.plist",
+      "git_blob": "968c11cb0ca8d7b91a60fffa65e86aad522c19bf",
+      "sha256": "a1e9de121fc63f5c549077f4f959f9d740bdf30668d50910a24fb84c5ce5eedf",
+      "bytes": 1591,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/macos/Runner/LocalRelease.entitlements",
+      "git_blob": "23f01b37d3e062b889d231985a0210efcaed14d6",
+      "sha256": "bd272787579e4d8e95a084eeffd91256471de8805adb9e0047be37f4caefd134",
+      "bytes": 432,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/macos/Runner/MainFlutterWindow.swift",
+      "git_blob": "e8018e49bedf175542e196c408284ff10f7a890c",
+      "sha256": "28702335910a1227b552a669d69401a4b933f39d5246a03dd6bc84db72d83b9c",
+      "bytes": 50962,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/macos/Runner/Release.entitlements",
+      "git_blob": "6631ffa6f24265b2e341ccb354d8a5983a7f106a",
+      "sha256": "d9b06c202956033b01e62b21c727eea89b6a4fd456ef71d420c39f460426b9f3",
+      "bytes": 188,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/pubspec.yaml",
+      "git_blob": "38a3d8fa4c22806c45337633035dec837b4c8209",
+      "sha256": "e1ebe320c3e25860bbfc22e98d3977d100740b5897b54d657e40eccf06681302",
+      "bytes": 4353,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/tool/desktop_prd_acceptance.dart",
+      "git_blob": "ab9a85120b156698422f0ba4ae9af8cb5c940164",
+      "sha256": "6254b6ea6f4244d3dc1df2c7e2cea1d77a873063e016f60df82101d295becd8b",
+      "bytes": 1423,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/tool/desktop_prd_environment.dart",
+      "git_blob": "9c525abe30ef3290eedbcafaf7e0ffd3c2157c8e",
+      "sha256": "39f74b319eff7a1700c9478f4585878719470496a73a46741b151bf2ba69eb49",
+      "bytes": 7871,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "native/completion_core/Cargo.lock",
+      "git_blob": "c4661bf2b250f0a3eff095c3ade90e187620a827",
+      "sha256": "780fb2184baa8433f8fced0d6ec4b94fcfbc7fd40321fbcecb2fa1bda0bd9a2d",
+      "bytes": 2908,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "native/completion_core/Cargo.toml",
+      "git_blob": "2b7d6bea0e7757f2cef56486b3ef2e027544cd16",
+      "sha256": "70e9be1f5910fdd40c0797c577cac266a69e1335a62d2155399017e686198995",
+      "bytes": 208,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "native/core/Cargo.lock",
+      "git_blob": "cf224e9250e44d7d8837a3e8f94b3fcbc2654cb2",
+      "sha256": "1971bbd066841672d56804ff3ae62806379ff366237fbc1e3f6537711a4ae618",
+      "bytes": 98317,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "native/core/Cargo.toml",
+      "git_blob": "e715f328471a1607fae9d110c32662ea99a073f3",
+      "sha256": "e16c36728971a2bd1b9fd3dd1a9bc6896dac598cd40b9267fe4002d0c826ccdf",
+      "bytes": 1921,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "native/vendor/par-term-emu-core-rust/Cargo.lock",
+      "git_blob": "3f6ac7e1ab69012219839030e6066381ca88dccf",
+      "sha256": "eea91262a2fff918dd4b6d5942fad27b0c0b1533bb9cb0eecde424ed2d280352",
+      "bytes": 110378,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "native/vendor/par-term-emu-core-rust/Cargo.toml",
+      "git_blob": "90fb0b2f358bd4fa24f44cb0f79b2a33fe955095",
+      "sha256": "33b8ec262b82d40daec5ca9f890a4c705ac709458f645d31c2513649622cbc70",
+      "bytes": 5441,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "native/vendor/par-term-emu-core-rust/docs/FONTS.md",
+      "git_blob": "eb5770e9521ddce50ed476951a970696c35cd5fa",
+      "sha256": "ce95a22ebe188a2f1897a588fb1ac78c84307a365b9f336d75f85ede4e16a331",
+      "bytes": 13966,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "native/vendor/par-term-emu-core-rust/src/screenshot/font_cache.rs",
+      "git_blob": "417196e033819bdc67af0bbc3a9ae3bfa7d78992",
+      "sha256": "77cc2d3e9f8dee59449593ab9ef9dd1035c47f11ed28c96d1e17d6ebcd328831",
+      "bytes": 34947,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "native/vendor/par-term-emu-core-rust/src/terminal/sequences/osc/font.rs",
+      "git_blob": "624c26fd61b5f58e8b2cb4c236dada57a8ae259a",
+      "sha256": "681fc0d4ca7c8cbbe9197bcde2777ef294abd9a87cd44145e920d7b94a8fc7d1",
+      "bytes": 8303,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "native/vendor/par-term-emu-core-rust/theme.css",
+      "git_blob": "079d319f02b1c25aec70bfb29ae59a44a253526b",
+      "sha256": "8661c6abf2b245fe05377f40265e6faed6c93168f04706532abdafa08a53cc0f",
+      "bytes": 1041,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "native/vendor/par-term-emu-core-rust/web_term/theme.css",
+      "git_blob": "079d319f02b1c25aec70bfb29ae59a44a253526b",
+      "sha256": "8661c6abf2b245fe05377f40265e6faed6c93168f04706532abdafa08a53cc0f",
+      "bytes": 1041,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "native/vendor/zmodem2/Cargo.lock",
+      "git_blob": "b3a223ba3b258b65dff62e918de91de774808fd7",
+      "sha256": "cce465ab9fe72fccf21ecf0b69c0ad461226d5b151c19cac8046872404e88d73",
+      "bytes": 11375,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "native/vendor/zmodem2/Cargo.toml",
+      "git_blob": "8cbcc05f1caceabb9beb0aef9f520b567e36cc08",
+      "sha256": "d0e679fdfec91d54c1248917011877337125c9d17fef1dbf4d03b667ed58ef9a",
+      "bytes": 1403,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "packages/ianvs_pty/pubspec.yaml",
+      "git_blob": "36b86c0dc06f143a5fb4e072d745ed0d8b5700fe",
+      "sha256": "8345356e0df0571b66041fee0c513a40d76989ea7a31d4e6da0e862ac85cb80f",
+      "bytes": 205,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "packages/ianvs_terminal/lib/src/composer/composer_theme.dart",
+      "git_blob": "b7272012a9b5088b3271424885f1bc5b400542e0",
+      "sha256": "5eec72b1c9bc17b6f2f7b83f6e5e7e3e16544cab1acb6600093dbec59d3b97cb",
+      "bytes": 14128,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "packages/ianvs_terminal/lib/src/composer/terminal_composer_view.dart",
+      "git_blob": "dabd6466e993c7eca7a83f5e87e48e6ae42d374f",
+      "sha256": "aba710810929c3b524e7cf7cf96ddd4b95d6499512a8255d2954565a512afaf0",
+      "bytes": 57231,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "packages/ianvs_terminal/lib/src/config/terminal_config.dart",
+      "git_blob": "cf364f47a13fba858d3ba3a6efe9a53ca9ab727a",
+      "sha256": "edc231fac5ff25b792c4d974494ab1e1da94311d48300872929b44bb958762e3",
+      "bytes": 47268,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "packages/ianvs_terminal/lib/src/config/terminal_defaults.dart",
+      "git_blob": "0efdb999f39aa1d1617d882d517ac17900161935",
+      "sha256": "9ca27b5fd423057bef04ddabf2a7637d460e2155b851f7b1b40da87ce01b661c",
+      "bytes": 927,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "packages/ianvs_terminal/lib/src/terminal/command_blocks_view.dart",
+      "git_blob": "de59f288e61c78f6df342a0e6424a4f5bf4d3c0c",
+      "sha256": "938126fb8404968e9401b2bea2f2f5da43f16c845b35e7fda469ca8f04e37a50",
+      "bytes": 52876,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "packages/ianvs_terminal/pubspec.yaml",
+      "git_blob": "e6cbdb36d19fc4d5e7d1eb5d3500714b13cb3a3f",
+      "sha256": "c46396bd7c5e9f41f20e04ed6ae1d81f52ef1cb5e3c1aab65de9e19aaa49ecb1",
+      "bytes": 330,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "packages/ianvs_terminal_core/lib/src/composer/composer_theme.dart",
+      "git_blob": "b7272012a9b5088b3271424885f1bc5b400542e0",
+      "sha256": "5eec72b1c9bc17b6f2f7b83f6e5e7e3e16544cab1acb6600093dbec59d3b97cb",
+      "bytes": 14128,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "packages/ianvs_terminal_core/lib/src/composer/terminal_composer_view.dart",
+      "git_blob": "dabd6466e993c7eca7a83f5e87e48e6ae42d374f",
+      "sha256": "aba710810929c3b524e7cf7cf96ddd4b95d6499512a8255d2954565a512afaf0",
+      "bytes": 57231,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "packages/ianvs_terminal_core/lib/src/config/terminal_config.dart",
+      "git_blob": "cf364f47a13fba858d3ba3a6efe9a53ca9ab727a",
+      "sha256": "edc231fac5ff25b792c4d974494ab1e1da94311d48300872929b44bb958762e3",
+      "bytes": 47268,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "packages/ianvs_terminal_core/lib/src/config/terminal_defaults.dart",
+      "git_blob": "0efdb999f39aa1d1617d882d517ac17900161935",
+      "sha256": "9ca27b5fd423057bef04ddabf2a7637d460e2155b851f7b1b40da87ce01b661c",
+      "bytes": 927,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "packages/ianvs_terminal_core/lib/src/terminal/command_blocks_view.dart",
+      "git_blob": "de59f288e61c78f6df342a0e6424a4f5bf4d3c0c",
+      "sha256": "938126fb8404968e9401b2bea2f2f5da43f16c845b35e7fda469ca8f04e37a50",
+      "bytes": 52876,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "packages/ianvs_terminal_core/native/completion_core/Cargo.lock",
+      "git_blob": "c4661bf2b250f0a3eff095c3ade90e187620a827",
+      "sha256": "780fb2184baa8433f8fced0d6ec4b94fcfbc7fd40321fbcecb2fa1bda0bd9a2d",
+      "bytes": 2908,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "packages/ianvs_terminal_core/native/completion_core/Cargo.toml",
+      "git_blob": "2b7d6bea0e7757f2cef56486b3ef2e027544cd16",
+      "sha256": "70e9be1f5910fdd40c0797c577cac266a69e1335a62d2155399017e686198995",
+      "bytes": 208,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "packages/ianvs_terminal_core/native/core/Cargo.lock",
+      "git_blob": "cf224e9250e44d7d8837a3e8f94b3fcbc2654cb2",
+      "sha256": "1971bbd066841672d56804ff3ae62806379ff366237fbc1e3f6537711a4ae618",
+      "bytes": 98317,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "packages/ianvs_terminal_core/native/core/Cargo.toml",
+      "git_blob": "e715f328471a1607fae9d110c32662ea99a073f3",
+      "sha256": "e16c36728971a2bd1b9fd3dd1a9bc6896dac598cd40b9267fe4002d0c826ccdf",
+      "bytes": 1921,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "packages/ianvs_terminal_core/native/vendor/par-term-emu-core-rust/Cargo.lock",
+      "git_blob": "3f6ac7e1ab69012219839030e6066381ca88dccf",
+      "sha256": "eea91262a2fff918dd4b6d5942fad27b0c0b1533bb9cb0eecde424ed2d280352",
+      "bytes": 110378,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "packages/ianvs_terminal_core/native/vendor/par-term-emu-core-rust/Cargo.toml",
+      "git_blob": "90fb0b2f358bd4fa24f44cb0f79b2a33fe955095",
+      "sha256": "33b8ec262b82d40daec5ca9f890a4c705ac709458f645d31c2513649622cbc70",
+      "bytes": 5441,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "packages/ianvs_terminal_core/native/vendor/par-term-emu-core-rust/src/screenshot/font_cache.rs",
+      "git_blob": "417196e033819bdc67af0bbc3a9ae3bfa7d78992",
+      "sha256": "77cc2d3e9f8dee59449593ab9ef9dd1035c47f11ed28c96d1e17d6ebcd328831",
+      "bytes": 34947,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "packages/ianvs_terminal_core/native/vendor/par-term-emu-core-rust/src/terminal/sequences/osc/font.rs",
+      "git_blob": "624c26fd61b5f58e8b2cb4c236dada57a8ae259a",
+      "sha256": "681fc0d4ca7c8cbbe9197bcde2777ef294abd9a87cd44145e920d7b94a8fc7d1",
+      "bytes": 8303,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "packages/ianvs_terminal_core/native/vendor/zmodem2/Cargo.lock",
+      "git_blob": "b3a223ba3b258b65dff62e918de91de774808fd7",
+      "sha256": "cce465ab9fe72fccf21ecf0b69c0ad461226d5b151c19cac8046872404e88d73",
+      "bytes": 11375,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "packages/ianvs_terminal_core/native/vendor/zmodem2/Cargo.toml",
+      "git_blob": "8cbcc05f1caceabb9beb0aef9f520b567e36cc08",
+      "sha256": "d0e679fdfec91d54c1248917011877337125c9d17fef1dbf4d03b667ed58ef9a",
+      "bytes": 1403,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "packages/ianvs_terminal_core/pubspec.yaml",
+      "git_blob": "87ae8b3b60bd5b5b314a1544569526b6ea8a214f",
+      "sha256": "5f1f9444408c1df166051fce9695a7e6cb571181f2602286ad628fa1d478a0a5",
+      "bytes": 688,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "pubspec.lock",
+      "git_blob": "baae6b49199b851fb96abc13fbe4ed9fc49dc117",
+      "sha256": "5aefc9958c3f342578d95d1b64f4cf378329f23534e41331752d2d9eb2ba4529",
+      "bytes": 26130,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "pubspec.yaml",
+      "git_blob": "3aa22f3adcbc908178bd487447f4d378581a8785",
+      "sha256": "0ca13ddb31280db32afe867b59d5dc8a4ac64d24c243a841b932ea71b1b3e269",
+      "bytes": 286,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "tools/desktop_prd/run_manual.py",
+      "git_blob": "4efe5bc763a30c42442995a3150706415464986b",
+      "sha256": "f810b35f784850da1873b98d65d708099decda5e4ea4f719abbc8e10e440c26a",
+      "bytes": 4644,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "tools/sync_terminal_core.dart",
+      "git_blob": "b193171e53abab01b35b5432c66326c9f0ba38e0",
+      "sha256": "c2b1474d5a38c3e4d0c29af666dcf322d91aa3fbb823c1ab6320074fd56c6980",
+      "bytes": 14937,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "tools/verify_flutter_terminal.sh",
+      "git_blob": "689467f48d7aec21511c94b0a4393ea426fafa50",
+      "sha256": "b6b45ccc8e23fb39d6eb313b93c6e1240ba59bc338125c96fa995f98aad0e8da",
+      "bytes": 5978,
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "tools/verify_macos_app.sh",
+      "git_blob": "5bcc2fb78b52e03e4a07e9f401510bc913f1abfc",
+      "sha256": "82d2a1ef07d4bb040e8b83541a2a12fe7ba79962a37de8dae93c0dac750cb201",
+      "bytes": 4987,
+      "matches_candidate_blob": true
+    }
+  ],
+  "mirror_check": {
+    "command": "dart run tools/sync_terminal_core.dart --check",
+    "proof_path": "evidence/shared/C8-gates/verify-10.log",
+    "status": "passed as a required step of successful make verify",
+    "gate_exit_code": 0,
+    "invocation_source": "tools/verify_flutter_terminal.sh:25 (set -e)",
+    "note": "The successful mirror check is silent; source shows it is a required gate step, not a separately invented command run.",
+    "proof_sha256": "5f5c2bdce6377a6f0ca5b2ca008947db1ba327ff227f826f984d8b561673aa45"
+  }
+}
