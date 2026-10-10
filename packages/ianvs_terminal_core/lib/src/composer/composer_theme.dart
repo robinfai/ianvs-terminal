@@ -42,6 +42,7 @@ final class ComposerTheme extends ThemeExtension<ComposerTheme> {
     required this.controlHeight,
     required this.highContrast,
     this.readerTopInset = 0,
+    this.primaryActionOverlay,
   });
 
   factory ComposerTheme.of(BuildContext context) {
@@ -130,6 +131,23 @@ final class ComposerTheme extends ThemeExtension<ComposerTheme> {
       onError: colors.onErrorContainer,
       primaryAction: colors.primary,
       onPrimaryAction: colors.onPrimary,
+      // Material's 10% foreground state layer can wash out a primary fill
+      // whose text only just clears 4.5:1. Preserve it when readable; otherwise
+      // use the opposite neutral so hover/focus/press strengthen that pairing.
+      primaryActionOverlay:
+          _contrast(
+                colors.onPrimary,
+                Color.alphaBlend(
+                  colors.onPrimary.withValues(alpha: .10),
+                  colors.primary,
+                ),
+              ) >=
+              4.5
+          ? colors.onPrimary
+          : colors.onPrimary.computeLuminance() >
+                colors.primary.computeLuminance()
+          ? Colors.black
+          : Colors.white,
       disabledSurface: Color.alphaBlend(
         colors.primary.withValues(alpha: .06),
         surface,
@@ -193,6 +211,10 @@ final class ComposerTheme extends ThemeExtension<ComposerTheme> {
   final Color onError;
   final Color primaryAction;
   final Color onPrimaryAction;
+
+  /// State-layer source color. Material owns the per-state opacity.
+  /// Null preserves Material defaults for pre-existing custom extensions.
+  final Color? primaryActionOverlay;
   final Color disabledSurface;
   final Color disabledForeground;
   final Color divider;
@@ -267,6 +289,7 @@ final class ComposerTheme extends ThemeExtension<ComposerTheme> {
     Color? onError,
     Color? primaryAction,
     Color? onPrimaryAction,
+    Color? primaryActionOverlay,
     Color? disabledSurface,
     Color? disabledForeground,
     Color? divider,
@@ -298,6 +321,7 @@ final class ComposerTheme extends ThemeExtension<ComposerTheme> {
     onError: onError ?? this.onError,
     primaryAction: primaryAction ?? this.primaryAction,
     onPrimaryAction: onPrimaryAction ?? this.onPrimaryAction,
+    primaryActionOverlay: primaryActionOverlay ?? this.primaryActionOverlay,
     disabledSurface: disabledSurface ?? this.disabledSurface,
     disabledForeground: disabledForeground ?? this.disabledForeground,
     divider: divider ?? this.divider,
@@ -334,6 +358,11 @@ final class ComposerTheme extends ThemeExtension<ComposerTheme> {
       onError: Color.lerp(onError, other.onError, t)!,
       primaryAction: Color.lerp(primaryAction, other.primaryAction, t)!,
       onPrimaryAction: Color.lerp(onPrimaryAction, other.onPrimaryAction, t)!,
+      primaryActionOverlay: Color.lerp(
+        primaryActionOverlay,
+        other.primaryActionOverlay,
+        t,
+      ),
       disabledSurface: Color.lerp(disabledSurface, other.disabledSurface, t)!,
       disabledForeground: Color.lerp(
         disabledForeground,

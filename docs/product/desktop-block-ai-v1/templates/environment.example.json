@@ -1,0 +1,70 @@
+{
+  "environment": {
+    "id": "macos-native-example",
+    "platform": "macos",
+    "os_version": "REPLACE_OS_VERSION_AND_BUILD",
+    "device": "REPLACE_MODEL",
+    "architecture": "arm64",
+    "flutter_version": "REPLACE",
+    "dart_version": "REPLACE",
+    "build_mode": "profile",
+    "bundle_id": "REPLACE_DEVELOPMENT_ID",
+    "build_commit": "REPLACE_40_HEX",
+    "binary_sha256": "REPLACE_64_HEX",
+    "capture_method": "REPLACE_NATIVE_CAPTURE_METHOD",
+    "capture_class": "app_desktop",
+    "is_native_app": true,
+    "is_vm": false,
+    "notes": "这是结构示例，不能直接标为真实环境。"
+  },
+  "screenshot": {
+    "id": "D1-T01-after-01",
+    "kind": "screenshot",
+    "path": "evidence/D1/D1-T01/after/01.png",
+    "sha256": "REPLACE_64_HEX",
+    "environment_id": "macos-native-example",
+    "implementation_commit": "REPLACE_40_HEX",
+    "captured_at": "REPLACE_ISO_TIMESTAMP_WITH_TIMEZONE",
+    "role": "after",
+    "modified": false,
+    "pixel_size": [
+      2880,
+      1620
+    ],
+    "viewport_logical": [
+      1440,
+      810
+    ],
+    "pixel_ratio": 2.0,
+    "font_scale": 1.0,
+    "theme": "light",
+    "locale": "zh-CN",
+    "window_state": "foreground",
+    "active_pane": "fixture-A",
+    "capture_scope": "full_app_window",
+    "description": "REPLACE_ACTUAL_VISIBLE_STATE",
+    "shot_ids": [
+      "D1-T01-F01"
+    ],
+    "reuse_reason": "",
+    "anchor_artifact_id": null
+  },
+  "video": {
+    "id": "D1-T03-video",
+    "kind": "video",
+    "path": "evidence/D1/D1-T03/video/flow.mp4",
+    "sha256": "REPLACE_64_HEX",
+    "environment_id": "macos-native-example",
+    "implementation_commit": "REPLACE_40_HEX",
+    "captured_at": "REPLACE_ISO_TIMESTAMP_WITH_TIMEZONE",
+    "continuous": true,
+    "modified": false
+  },
+  "assertion": {
+    "name": "Observer UI write count",
+    "expected": "0",
+    "actual": "REPLACE_OBSERVED",
+    "passed": false,
+    "proof_artifact_id": "REPLACE_LOG_ID"
+  }
+}

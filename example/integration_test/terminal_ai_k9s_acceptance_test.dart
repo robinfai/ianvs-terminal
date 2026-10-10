@@ -304,13 +304,30 @@ void main() {
       expect(grid(), expectedGrid);
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await waitFor(
+        () => find.byType(TerminalAiWorkspace).evaluate().isNotEmpty,
+        'Escape in the read-only observer returns to the retained task',
+      );
+      expect(writes, hasLength(beforeCopy));
+      expect(screen(), helpScreen);
+      expect(task.draft, 'Keep this unsent k9s question');
+      await click(const Key('ai-close'));
+      final observer = find
+          .byKey(const Key('ai-observer-viewport'))
+          .hitTestable();
+      expect(tester.widget<TerminalViewport>(observer).readOnly, isTrue);
+      await click(const Key('ai-observer-take-over'));
+      expect(observer, findsNothing);
+      expect(writes, hasLength(beforeCopy));
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await waitFor(
         () => screen().contains('trail-fixture-pod'),
-        'second Escape reaches k9s',
+        'Escape reaches k9s after explicit input takeover',
       );
       expect(writes.skip(beforeCopy).expand((v) => v), contains(27));
       result['ai_ctrl_c_did_not_write'] = true;
       result['first_escape_only_closed_ai'] = true;
-      result['second_escape_reached_k9s'] = true;
+      result['observer_escape_returned_task_without_write'] = true;
+      result['explicit_takeover_then_escape_reached_k9s'] = true;
 
       await click(Key('terminal-ai-open-$id'));
       fixture.proposeExit();
@@ -322,6 +339,7 @@ void main() {
       await click(const Key('ai-send'));
       await waitFor(() => task.canApprove && !task.busy, 'k9s key proposal');
       expect(task.pending?.kind, AiActionKind.sendKeys);
+      final approvedTaskId = task.taskId;
       expect(grid(), expectedGrid);
       expect(tester.getSize(find.byType(TerminalViewport)), size);
       expect(runtime.liveScreen(id)?['alternateScreen'], true);
@@ -332,7 +350,7 @@ void main() {
         () =>
             find.byType(TerminalAiWorkspace).evaluate().isEmpty &&
             shell()?['state'] == 'ready',
-        'approval returns to terminal and exits k9s',
+        'approval returns to read-only observation and exits k9s',
       );
       expect(writes.skip(beforeApproval).expand((v) => v).toList(), [
         27,
@@ -347,7 +365,33 @@ void main() {
         0,
       );
       result['approved_keys_once'] = true;
+      expect(observer, findsOneWidget);
+      expect(tester.widget<TerminalViewport>(observer).readOnly, isTrue);
+      expect(task.takenOver, isFalse);
+      final afterApproval = writes.length;
+      tester
+          .widget<TerminalViewport>(observer)
+          .inputController
+          .sendText('observer must not write');
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyC);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      expect(writes, hasLength(afterApproval));
       await capture('D12-k9s-exit-normal');
+      await click(const Key('ai-observer-take-over'));
+      expect(observer, findsNothing);
+      expect(task.taskId, approvedTaskId);
+      expect(find.byType(TerminalAiWorkspace), findsNothing);
+      expect(
+        tester
+            .widget<TerminalViewport>(
+              find.byType(TerminalViewport).hitTestable(),
+            )
+            .readOnly,
+        isFalse,
+      );
+      expect(writes, hasLength(afterApproval));
+      result['approved_tui_return_remains_read_only'] = true;
 
       Future<void> restoreBlocks() async {
         final before = writes.length;

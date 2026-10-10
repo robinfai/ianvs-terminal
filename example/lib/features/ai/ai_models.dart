@@ -344,6 +344,30 @@ class AiBlockContext {
   /// outputStartLine/outputEndLine snapshot; bounds are zero-based, end-exclusive.
   final List<AiBlockOutputRange> outputRanges;
   final List<int> lineStartOffsets;
+
+  /// Legacy snapshots without an explicit source must be bound while their
+  /// original terminal is known, before a reconnect or target change.
+  AiBlockContext withFallbackSource(AiTerminalContext origin) {
+    if (sourceSessionId != null) return this;
+    return AiBlockContext(
+      command: command,
+      output: output,
+      exitCode: exitCode,
+      cwd: cwd,
+      id: id,
+      running: running,
+      totalLines: totalLines,
+      outputStartLine: outputStartLine,
+      outputEndLine: outputEndLine,
+      evicted: evicted,
+      sourceSessionId: origin.sessionId,
+      sourceContextId: sourceContextId ?? origin.contextId,
+      sourceLineBase: sourceLineBase,
+      outputRanges: List.unmodifiable(outputRanges),
+      lineStartOffsets: List.unmodifiable(lineStartOffsets),
+    );
+  }
+
   int get includedLineCount => outputRanges.isEmpty
       ? (outputEndLine ?? outputStartLine) - outputStartLine
       : outputRanges.fold(

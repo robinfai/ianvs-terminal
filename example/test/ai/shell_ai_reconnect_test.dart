@@ -370,7 +370,7 @@ Future<void> _showDisconnected(WidgetTester tester) async {
 Future<void> _closeAi(WidgetTester tester) async {
   tester
       .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
-      .onClose();
+      .onTakeOver!();
   await _settle(tester);
 }
 
@@ -382,6 +382,11 @@ Future<void> _closeDesktopTab(WidgetTester tester, String tabId) async {
   await tester.tap(find.byKey(Key('shell-tab-close-$tabId')));
   await mouse.removePointer();
   await _settle(tester);
+  final confirm = find.byKey(const Key('shell-close-confirm'));
+  if (confirm.evaluate().isNotEmpty) {
+    await tester.tap(confirm);
+    await _settle(tester);
+  }
 }
 
 Future<void> _clearBufferShortcut(WidgetTester tester) async {
@@ -416,7 +421,7 @@ void main() {
         ai.attachContext(ai.context!.lastBlock!);
         tester
             .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
-            .onClose();
+            .onTakeOver!();
         await _settle(tester);
         await _disconnect(tester, backend, container, id);
         await tester.tap(find.byKey(Key('mobile-disconnected-reconnect-$id')));
@@ -477,7 +482,7 @@ void main() {
         ai.setDraft('new AI draft');
         tester
             .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
-            .onClose();
+            .onTakeOver!();
         await _settle(tester);
         await tester.enterText(
           find.byKey(const Key('composer-editor')),
@@ -524,7 +529,7 @@ void main() {
         ai.setDraft('latest AI draft');
         tester
             .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
-            .onClose();
+            .onTakeOver!();
         await _settle(tester);
         await tester.enterText(
           find.byKey(const Key('composer-editor')),
@@ -692,6 +697,8 @@ void main() {
         await tester.ensureVisible(clear);
         await tester.tap(clear);
         await _settle(tester);
+        await tester.tap(find.byKey(const Key('shell-close-confirm')));
+        await _settle(tester);
         expect(backend.closedSessionIds, [next, id]);
         expect(container.read(sessionControllerProvider).tabs, isEmpty);
         final runtime = container.read(terminalRuntimeControllerProvider);
@@ -812,6 +819,11 @@ void main() {
         expect(backend.submissions, hasLength(1));
         repository.allowSave.complete();
         await _settle(tester);
+        // The source disconnected during recording finalization. Its earlier
+        // close confirmation cannot cover this changed connection state.
+        expect(backend.closedSessionIds, isEmpty);
+        expect(ai.hasUnresolvedSubmission, isTrue);
+        await _closeDesktopTab(tester, id);
         expect(backend.closedSessionIds, [id]);
         expect(container.read(sessionControllerProvider).tabs, isEmpty);
         await tester.pumpWidget(const SizedBox.shrink());

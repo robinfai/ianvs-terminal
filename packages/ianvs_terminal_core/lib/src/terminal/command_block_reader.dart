@@ -1,5 +1,378 @@
 part of 'command_blocks_view.dart';
 
+/// Exposes the current read-only layer to the pane's human input guards.
+/// It does not revoke an independently approved AI operation.
+class CommandBlockReaderHostController extends ChangeNotifier {
+  bool _open = false;
+  bool _exclusive = false;
+  bool _disposed = false;
+  bool get isOpen => _open;
+  bool get blocksInput => _open && _exclusive;
+  void _notifyChanged() {
+    if (!_disposed) notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
+  void _update({required bool open, required bool exclusive}) {
+    if (_open == open && _exclusive == exclusive) return;
+    _open = open;
+    _exclusive = exclusive;
+    _notifyChanged();
+  }
+}
+
+/// Keeps native evidence in the originating pane. The existing reader owns
+/// paging, selection, search and reading anchors in both presentations.
+class CommandBlockReaderHost extends StatefulWidget {
+  const CommandBlockReaderHost({
+    required this.controller,
+    required this.sourceLabel,
+    required this.child,
+    this.sourceDetails,
+    this.active = true,
+    this.enabled = true,
+    this.preserveGeometry = false,
+    this.geometryChanges,
+    this.geometryIsFixed,
+    super.key,
+  });
+
+  final CommandBlockReaderHostController controller;
+  final String sourceLabel;
+  final String? sourceDetails;
+  final Widget child;
+  final bool active;
+  final bool enabled;
+  final bool preserveGeometry;
+  final Listenable? geometryChanges;
+  final bool Function()? geometryIsFixed;
+
+  static CommandBlockReaderHostState? maybeOf(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<_CommandBlockReaderScope>()?.host;
+
+  @override
+  State<CommandBlockReaderHost> createState() => CommandBlockReaderHostState();
+}
+
+class _CommandBlockReaderScope extends InheritedWidget {
+  const _CommandBlockReaderScope({required this.host, required super.child});
+  final CommandBlockReaderHostState host;
+  @override
+  bool updateShouldNotify(_CommandBlockReaderScope oldWidget) => false;
+}
+
+class CommandBlockReaderHostState extends State<CommandBlockReaderHost> {
+  GlobalKey _readerKey = GlobalKey();
+  final _readerFocus = FocusScopeNode(debugLabel: 'Pane evidence reader');
+  final _readerContentFocus = FocusNode(debugLabel: 'Pane reader content');
+  Widget Function(ValueChanged<String?> close, bool Function() canInteract)?
+  _reader;
+  Completer<String?>? _result;
+  FocusNode? _returnFocus;
+  String _sourceLabel = '';
+  String _sourceDetails = '';
+  bool _beside = false;
+  bool _laidOutBeside = false;
+  int _revision = 0;
+  late bool _fixedGeometry;
+  bool get active => mounted && widget.active && widget.enabled;
+  bool get blocksInput => widget.controller.blocksInput;
+  int get revision => _revision;
+
+  @override
+  void initState() {
+    super.initState();
+    _fixedGeometry = widget.geometryIsFixed?.call() ?? widget.preserveGeometry;
+    widget.geometryChanges?.addListener(_geometryChanged);
+  }
+
+  void _geometryChanged() {
+    final fixed = widget.geometryIsFixed?.call() ?? widget.preserveGeometry;
+    if (fixed != _fixedGeometry) setState(() => _fixedGeometry = fixed);
+  }
+
+  @override
+  void didUpdateWidget(CommandBlockReaderHost oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.active != oldWidget.active) _revision++;
+    if (widget.geometryChanges != oldWidget.geometryChanges) {
+      oldWidget.geometryChanges?.removeListener(_geometryChanged);
+      widget.geometryChanges?.addListener(_geometryChanged);
+    }
+    _fixedGeometry = widget.geometryIsFixed?.call() ?? widget.preserveGeometry;
+  }
+
+  Future<String?> _open({
+    required Widget Function(
+      ValueChanged<String?> close,
+      bool Function() canInteract,
+    )
+    reader,
+    required String sourceLabel,
+    required String sourceDetails,
+    required FocusNode? returnFocus,
+  }) {
+    if (!active) return Future.value();
+    _result?.complete();
+    final result = _result = Completer<String?>();
+    _revision++;
+    _sourceLabel = sourceLabel;
+    _sourceDetails = sourceDetails;
+    _readerKey = GlobalKey();
+    _returnFocus = returnFocus;
+    _reader = reader;
+    _beside = false;
+    widget.controller._update(open: true, exclusive: true);
+    setState(() {});
+    _focusReaderAfterLayout(result);
+    return result.future;
+  }
+
+  void _focusReaderAfterLayout(Completer<String?>? result) {
+    final requestedRevision = _revision;
+    final previousFocus = FocusManager.instance.primaryFocus;
+    final previousScope = previousFocus?.enclosingScope;
+    final readerScope = _readerFocus.enclosingScope;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Let focus changes requested during this frame settle before deciding
+      // whether this pane still owns the deferred request.
+      scheduleMicrotask(() {
+        final currentFocus = FocusManager.instance.primaryFocus;
+        final unchangedOwner =
+            currentFocus == previousFocus ||
+            currentFocus == previousScope ||
+            currentFocus == readerScope ||
+            currentFocus == _readerFocus ||
+            currentFocus == _readerContentFocus;
+        if (active &&
+            _revision == requestedRevision &&
+            _reader != null &&
+            identical(result, _result) &&
+            unchangedOwner &&
+            (WidgetsBinding.instance.lifecycleState == null ||
+                WidgetsBinding.instance.lifecycleState ==
+                    AppLifecycleState.resumed) &&
+            ModalRoute.of(context)?.isCurrent != false) {
+          _readerContentFocus.requestFocus();
+        }
+      });
+    });
+  }
+
+  void _close([String? value]) {
+    if (!active || _reader == null) return;
+    final ownedFocus = _readerFocus.hasFocus;
+    final closingFocus = FocusManager.instance.primaryFocus;
+    final parentScope = _readerFocus.enclosingScope;
+    final restore = _returnFocus;
+    final result = _result;
+    _result = null;
+    _reader = null;
+    _returnFocus = null;
+    _revision++;
+    final closedRevision = _revision;
+    widget.controller._update(open: false, exclusive: false);
+    setState(() {});
+    result?.complete(value);
+    if (value == null &&
+        ownedFocus &&
+        restore != null &&
+        restore.context != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        scheduleMicrotask(() {
+          final currentFocus = FocusManager.instance.primaryFocus;
+          final unclaimedFocus =
+              currentFocus == closingFocus ||
+              currentFocus == _readerFocus ||
+              currentFocus == parentScope;
+          if (active &&
+              _revision == closedRevision &&
+              _reader == null &&
+              unclaimedFocus &&
+              (WidgetsBinding.instance.lifecycleState == null ||
+                  WidgetsBinding.instance.lifecycleState ==
+                      AppLifecycleState.resumed) &&
+              ModalRoute.of(context)?.isCurrent != false &&
+              restore.context != null &&
+              restore.canRequestFocus) {
+            restore.requestFocus();
+          }
+        });
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.geometryChanges?.removeListener(_geometryChanged);
+    _result?.complete();
+    widget.controller._open = false;
+    widget.controller._exclusive = false;
+    _readerFocus.dispose();
+    _readerContentFocus.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!widget.enabled) return widget.child;
+    return _CommandBlockReaderScope(
+      host: this,
+      child: LayoutBuilder(
+        builder: (context, bounds) {
+          final open = _reader != null;
+          final canShowBeside = bounds.maxWidth >= 960;
+          final beside = open && _beside && canShowBeside;
+          final exclusive = open && !beside;
+          if (_laidOutBeside && exclusive) {
+            // The side-mode toggle can own focus when a narrow pane removes
+            // it. Restore reader focus after that button has been detached.
+            _focusReaderAfterLayout(_result);
+          }
+          _laidOutBeside = beside;
+          if (widget.controller.isOpen != open ||
+              widget.controller.blocksInput != exclusive) {
+            // Publish the gate immediately, notify listeners after layout.
+            widget.controller._open = open;
+            widget.controller._exclusive = exclusive;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) widget.controller._notifyChanged();
+            });
+          }
+          final result = _result;
+          void close(String? value) {
+            if (identical(result, _result)) _close(value);
+          }
+
+          bool canInteract() =>
+              active && _reader != null && identical(result, _result);
+
+          final tokens = ComposerTheme.of(context);
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              Positioned.fill(
+                right: beside && !_fixedGeometry ? 360 : 0,
+                child: ExcludeFocus(
+                  excluding: exclusive,
+                  child: IgnorePointer(
+                    ignoring: exclusive,
+                    child: widget.child,
+                  ),
+                ),
+              ),
+              if (open)
+                Positioned(
+                  top: 0,
+                  bottom: 0,
+                  right: 0,
+                  left: beside ? bounds.maxWidth - 360 : 0,
+                  child: ExcludeFocus(
+                    excluding: !widget.active,
+                    child: IgnorePointer(
+                      ignoring: !widget.active,
+                      child: FocusScope(
+                        node: _readerFocus,
+                        onKeyEvent: (_, event) {
+                          if (active &&
+                              event is KeyDownEvent &&
+                              event.logicalKey == LogicalKeyboardKey.escape) {
+                            close(null);
+                            return KeyEventResult.handled;
+                          }
+                          return KeyEventResult.ignored;
+                        },
+                        child: Material(
+                          key: const Key('pane-evidence-reader'),
+                          color: tokens.surface,
+                          child: Column(
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                ),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Tooltip(
+                                        message:
+                                            '$_sourceLabel\n$_sourceDetails',
+                                        child: Text(
+                                          _sourceLabel,
+                                          key: const Key(
+                                            'pane-evidence-source',
+                                          ),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: tokens.metadataStyle,
+                                        ),
+                                      ),
+                                    ),
+                                    if (canShowBeside)
+                                      TextButton(
+                                        key: const Key('pane-evidence-beside'),
+                                        onPressed: !active
+                                            ? null
+                                            : () {
+                                                if (!active ||
+                                                    !identical(
+                                                      result,
+                                                      _result,
+                                                    )) {
+                                                  return;
+                                                }
+                                                setState(() {
+                                                  _revision++;
+                                                  _beside = !_beside;
+                                                });
+                                                widget.controller._update(
+                                                  open: true,
+                                                  exclusive: !_beside,
+                                                );
+                                              },
+                                        child: Text(
+                                          Localizations.localeOf(
+                                                    context,
+                                                  ).languageCode ==
+                                                  'zh'
+                                              ? beside
+                                                    ? '返回整页'
+                                                    : '并排检查'
+                                              : beside
+                                              ? 'Full pane'
+                                              : 'Open beside',
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                              const Divider(height: 1),
+                              Expanded(
+                                child: KeyedSubtree(
+                                  key: _readerKey,
+                                  child: _reader!(close, canInteract),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
 /// Opens retained native output without creating a second execution record.
 Future<String?> showCommandBlockReader(
   BuildContext context, {
@@ -9,12 +382,44 @@ Future<String?> showCommandBlockReader(
   bool chinese = false,
   double? initialRow,
   CommandBlockReadRange? initialRange,
+  bool followTail = false,
+  String? sourceLabel,
+  String? sourceDetails,
+  FocusNode? returnFocus,
   ValueChanged<CommandBlock>? onAttachRange,
   ValueChanged<TerminalLinkTarget>? onOpenLinkTarget,
 }) async {
+  final host = CommandBlockReaderHost.maybeOf(context);
+  final hostRevision = host?.revision;
+  if (host != null && !host.active) return null;
+  final focusToRestore = returnFocus ?? FocusManager.instance.primaryFocus;
   FocusManager.instance.primaryFocus?.unfocus();
   await SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
   if (!context.mounted) return null;
+  if (host != null) {
+    if (!host.active || hostRevision != host.revision) return null;
+    return host._open(
+      sourceLabel: sourceLabel ?? host.widget.sourceLabel,
+      sourceDetails:
+          sourceDetails ??
+          [host.widget.sourceDetails, id].whereType<String>().join(' · '),
+      returnFocus: focusToRestore,
+      reader: (close, canInteract) => _CommandBlockReader(
+        controller: controller,
+        id: id,
+        font: font,
+        chinese: chinese,
+        initialRow: initialRow,
+        initialRange: initialRange,
+        followTail: followTail,
+        onClose: close,
+        canInteract: canInteract,
+        keyboardFocus: host._readerContentFocus,
+        onAttachRange: onAttachRange,
+        onOpenLinkTarget: onOpenLinkTarget,
+      ),
+    );
+  }
   return Navigator.of(context).push<String>(
     _CommandBlockReaderRoute(
       allowBackGesture: Theme.of(context).platform != TargetPlatform.macOS,
@@ -25,7 +430,7 @@ Future<String?> showCommandBlockReader(
         chinese: chinese,
         initialRow: initialRow,
         initialRange: initialRange,
-        followTail: false,
+        followTail: followTail,
         onAttachRange: onAttachRange,
         onOpenLinkTarget: onOpenLinkTarget,
       ),
@@ -70,6 +475,9 @@ class _CommandBlockReader extends StatefulWidget {
     this.initialRange,
     this.onOpenLinkTarget,
     this.onAttachRange,
+    this.onClose,
+    this.canInteract,
+    this.keyboardFocus,
   });
   final CommandBlockController controller;
   final String id;
@@ -80,11 +488,26 @@ class _CommandBlockReader extends StatefulWidget {
   final CommandBlockReadRange? initialRange;
   final ValueChanged<TerminalLinkTarget>? onOpenLinkTarget;
   final ValueChanged<CommandBlock>? onAttachRange;
+  final ValueChanged<String?>? onClose;
+  final bool Function()? canInteract;
+  final FocusNode? keyboardFocus;
   @override
   State<_CommandBlockReader> createState() => _CommandBlockReaderState();
 }
 
 class _CommandBlockReaderState extends State<_CommandBlockReader> {
+  final _keyboardFocus = FocusNode(debugLabel: 'Reader content');
+  FocusNode get _contentFocus => widget.keyboardFocus ?? _keyboardFocus;
+  bool get _canInteract => mounted && (widget.canInteract?.call() ?? true);
+  void _close([String? value]) {
+    if (!_canInteract) return;
+    if (widget.onClose case final close?) {
+      close(value);
+    } else {
+      Navigator.of(context).pop(value);
+    }
+  }
+
   static const _pageRows = 128;
   final _scroll = _ReaderScrollController();
   final _controlsScroll = ScrollController();
@@ -143,6 +566,7 @@ class _CommandBlockReaderState extends State<_CommandBlockReader> {
       : 0;
 
   void _scanFind({bool jump = false, int? retainIndex}) {
+    if (!_canInteract) return;
     _jumpOnFind = jump;
     unawaited(
       _find.scan(
@@ -165,6 +589,7 @@ class _CommandBlockReaderState extends State<_CommandBlockReader> {
   }
 
   void _moveFind(int delta) {
+    if (!_canInteract) return;
     if (_find.busy || _find.rows.isEmpty) return;
     setState(() {
       _followTail = false;
@@ -176,12 +601,14 @@ class _CommandBlockReaderState extends State<_CommandBlockReader> {
   }
 
   void _openFind() {
+    if (!_canInteract) return;
     setState(() => _finding = true);
     _findFocus.requestFocus();
   }
 
   void _closeFind() {
-    _findFocus.unfocus();
+    if (!_canInteract) return;
+    _contentFocus.requestFocus();
     _jumpOnFind = false;
     _find.clear();
     setState(() => _finding = false);
@@ -371,6 +798,7 @@ class _CommandBlockReaderState extends State<_CommandBlockReader> {
   }
 
   void _attachSelection() {
+    if (!_canInteract) return;
     final selection = _selection.selection;
     if (selection == null ||
         (selection.startRow == selection.endRow &&
@@ -459,7 +887,7 @@ class _CommandBlockReaderState extends State<_CommandBlockReader> {
         columns: source.columns,
       ),
     );
-    Navigator.of(context).pop();
+    _close();
   }
 
   void _readMetadata() {
@@ -689,10 +1117,11 @@ class _CommandBlockReaderState extends State<_CommandBlockReader> {
   }
 
   Future<void> _action(String action) async {
+    if (!_canInteract) return;
     final block = _block;
     if (block == null) return;
     if (action == 'reinput') {
-      Navigator.of(context).pop(block.command);
+      _close(block.command);
       return;
     }
     if (action == 'filter') {
@@ -726,6 +1155,7 @@ class _CommandBlockReaderState extends State<_CommandBlockReader> {
               blockSelection: _selection.isBlockSelection,
               expectedSourceBase: selection == null ? null : _sourceBase(block),
             );
+      if (!_canInteract) return;
       await Clipboard.setData(ClipboardData(text: text));
       if (mounted) {
         ScaffoldMessenger.of(
@@ -853,6 +1283,7 @@ class _CommandBlockReaderState extends State<_CommandBlockReader> {
     _find.removeListener(_findChanged);
     _find.dispose();
     _findFocus.dispose();
+    _keyboardFocus.dispose();
     super.dispose();
   }
 
@@ -879,10 +1310,21 @@ class _CommandBlockReaderState extends State<_CommandBlockReader> {
     _rowHeight =
         _cell?.height ?? scale.scale(widget.font.size) * widget.font.lineHeight;
     final width = _cell?.width ?? scale.scale(widget.font.size) * .61;
-    _gutterWidth =
-        ((_block?.sourceLineCount ?? 0) + _lineNumberOffset).toString().length *
-            width +
-        24;
+    // UI text scaling can differ from the terminal cell size. Measure the
+    // number style itself so the first digit is not painted outside the gutter.
+    final digits = ((_block?.sourceLineCount ?? 0) + _lineNumberOffset)
+        .toString()
+        .length;
+    final number = TextPainter(
+      text: TextSpan(
+        text: ''.padLeft(digits, '9'),
+        style: _lineNumberStyle(tokens),
+      ),
+      textDirection: TextDirection.ltr,
+      textScaler: scale,
+    )..layout();
+    _gutterWidth = number.width + 24;
+    number.dispose();
     final textSize = tokens.resultStyle.fontSize ?? 14;
     // The full header and filter reserve several lines of UI text. Include
     // their growth in the height budget; fixed control heights alone miss
@@ -896,24 +1338,33 @@ class _CommandBlockReaderState extends State<_CommandBlockReader> {
         const SingleActivator(LogicalKeyboardKey.keyF, meta: true): _openFind,
         const SingleActivator(LogicalKeyboardKey.keyF, control: true):
             _openFind,
-        if (_finding)
-          const SingleActivator(LogicalKeyboardKey.escape): _closeFind,
+        const SingleActivator(LogicalKeyboardKey.escape): _finding
+            ? _closeFind
+            : _close,
       },
-      child: Scaffold(
-        key: const Key('block-reader'),
-        backgroundColor: tokens.surface,
-        resizeToAvoidBottomInset: true,
-        body: SafeArea(
-          minimum: EdgeInsets.only(top: tokens.readerTopInset),
-          child: LayoutBuilder(
-            builder: (context, constraints) => _body(
-              tokens,
-              block,
-              width,
-              showActionLabels: constraints.maxWidth >= 720,
-              compact:
-                  constraints.maxHeight <
-                  tokens.controlHeight * 7 + textGrowth * 6,
+      child: Focus(
+        focusNode: _contentFocus,
+        autofocus: true,
+        child: Scaffold(
+          key: const Key('block-reader'),
+          backgroundColor: tokens.surface,
+          resizeToAvoidBottomInset: true,
+          body: SafeArea(
+            // A pane host is already below the window chrome. Only the
+            // standalone route needs the native title-bar clearance.
+            minimum: EdgeInsets.only(
+              top: widget.onClose == null ? tokens.readerTopInset : 0,
+            ),
+            child: LayoutBuilder(
+              builder: (context, constraints) => _body(
+                tokens,
+                block,
+                width,
+                showActionLabels: constraints.maxWidth >= 720,
+                compact:
+                    constraints.maxHeight <
+                    tokens.controlHeight * 7 + textGrowth * 6,
+              ),
             ),
           ),
         ),
@@ -955,6 +1406,7 @@ class _CommandBlockReaderState extends State<_CommandBlockReader> {
                   BackButton(
                     key: const Key('block-reader-close'),
                     color: tokens.foreground,
+                    onPressed: _close,
                   ),
                   Expanded(
                     child: Tooltip(
@@ -1024,6 +1476,7 @@ class _CommandBlockReaderState extends State<_CommandBlockReader> {
                                   ? t('Resume following output', '继续跟随输出')
                                   : t('Latest output', '回到最新'),
                               onPressed: () {
+                                if (!_canInteract) return;
                                 setState(() => _followTail = true);
                                 WidgetsBinding.instance.addPostFrameCallback(
                                   (_) => _tail(),
@@ -1171,8 +1624,12 @@ class _CommandBlockReaderState extends State<_CommandBlockReader> {
             chinese: widget.chinese,
             error: c.errors[widget.id],
             compact: compact,
-            onChanged: (value) => c.filter(widget.id, value),
-            onClose: () => c.toggleFilter(widget.id),
+            onChanged: (value) {
+              if (_canInteract) c.filter(widget.id, value);
+            },
+            onClose: () {
+              if (_canInteract) c.toggleFilter(widget.id);
+            },
           ),
         ),
       if (!compact && block?.evicted == true)
@@ -1289,6 +1746,12 @@ class _CommandBlockReaderState extends State<_CommandBlockReader> {
     );
   }
 
+  TextStyle _lineNumberStyle(ComposerTheme tokens) =>
+      tokens.metadataStyle.copyWith(
+        fontFamily: widget.font.family,
+        fontFamilyFallback: widget.font.fallback,
+      );
+
   Widget _readerPage(CommandBlock page, int index, ComposerTheme tokens) =>
       Stack(
         children: [
@@ -1309,7 +1772,11 @@ class _CommandBlockReaderState extends State<_CommandBlockReader> {
               onScrollLines: _scrollSelectionLines,
               captureSelectionText: _captureSelectionText,
               onMeasuredCellSizeChanged: _measured,
-              onOpenLinkTarget: widget.onOpenLinkTarget,
+              onOpenLinkTarget: widget.onOpenLinkTarget == null
+                  ? null
+                  : (target) {
+                      if (_canInteract) widget.onOpenLinkTarget!(target);
+                    },
             ),
           ),
           Positioned(
@@ -1332,9 +1799,7 @@ class _CommandBlockReaderState extends State<_CommandBlockReader> {
                         rows: page.lines,
                         lineNumberOffset: _lineNumberOffset,
                         rowHeight: _rowHeight,
-                        style: tokens.metadataStyle.copyWith(
-                          fontFamily: widget.font.family,
-                        ),
+                        style: _lineNumberStyle(tokens),
                         scaler: MediaQuery.textScalerOf(context),
                         divider: tokens.divider,
                       ),

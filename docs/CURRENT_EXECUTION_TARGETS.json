@@ -124,6 +124,17 @@
         },
         {
           "path": "example/lib/features/shell/shell_screen_chrome.dart",
+          "not_contains": [
+            "Recent Workspaces",
+            "Open Project",
+            "_ShellFolderButton",
+            "shell-open-terminal-at-folder",
+            "_ShellRecordingsButton",
+            "shell-open-recording"
+          ]
+        },
+        {
+          "path": "example/lib/features/shell/shell_screen_chrome_bar.dart",
           "contains": [
             "shell-chrome-menu",
             "context.l10n.openCommandPalette"

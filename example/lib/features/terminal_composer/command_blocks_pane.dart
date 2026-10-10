@@ -242,6 +242,7 @@ class _CommandBlocksPaneState extends State<CommandBlocksPane> {
       chinese: Localizations.localeOf(context).languageCode == 'zh',
       liveInput: widget.active ? widget.input : null,
       liveFocus: widget.active ? widget.terminalFocus : null,
+      liveFocusSource: widget.active ? widget.session.editorFocus : null,
       liveModes: modes,
       font: widget.font,
       onMeasuredCellSizeChanged: widget.onMeasuredCellSizeChanged,

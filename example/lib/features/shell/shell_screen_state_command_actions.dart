@@ -1109,7 +1109,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
     _activateSession(sessionController, sessionId, requestFocus: false);
     // A manual terminal choice also leaves the AI workspace that covers it.
     // Keep its task/draft, revoke pending agent input, then focus the chosen view.
-    _closeAi(sessionId);
+    _takeOverAiInput(sessionId);
   }
 
   void _recheckTerminalSupport(String sessionId) {

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart';
 
 import '../preferences/app_preferences_models.dart';
@@ -107,15 +108,19 @@ final class ComposerPaneSession extends ChangeNotifier {
   bool Function(int delta)? navigateBlocks;
   Timer? _pollTimer;
   bool _disposed = false;
+  bool _modeNotificationScheduled = false;
   int? _historyRevision;
   String? _composerContextId;
   String? _composerTransport;
 
-  void setVisible(bool visible) {
+  void setVisible(bool visible, {bool deferNotification = false}) {
     if (_disposed) return;
     _visible = visible;
     _pollTimer?.cancel();
-    controller.setActive(visible && enabled);
+    controller.setActive(
+      visible && enabled,
+      deferNotification: deferNotification || _duringBuild,
+    );
     if (_pane?.isExited != true) {
       // Hiding can run while widgets are unmounting. Only the timer may poll
       // inactive sessions, so backend events never fire during that teardown.
@@ -155,9 +160,27 @@ final class ComposerPaneSession extends ChangeNotifier {
 
   bool selectMode(TerminalViewMode value) => mode.select(value);
 
+  bool get _duringBuild =>
+      SchedulerBinding.instance.schedulerPhase ==
+      SchedulerPhase.persistentCallbacks;
+
   void _modeChanged() {
-    controller.setActive(_visible && enabled);
-    notifyListeners();
+    final deferNotification = _duringBuild;
+    controller.setActive(
+      _visible && enabled,
+      deferNotification: deferNotification,
+    );
+    if (!deferNotification) {
+      notifyListeners();
+    } else if (!_modeNotificationScheduled) {
+      // Environment updates also run from the host's LayoutBuilder. Revoke
+      // input now, then publish the latest mode once outside its build scope.
+      _modeNotificationScheduled = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _modeNotificationScheduled = false;
+        if (!_disposed) notifyListeners();
+      });
+    }
   }
 
   void _updateMode({bool recheckSupport = false}) {
@@ -333,6 +356,7 @@ class ComposerPane extends StatefulWidget {
     required this.onTerminalFocus,
     required this.active,
     required this.available,
+    this.terminalFocus,
     this.onAskAi,
     this.onOpenAi,
     super.key,
@@ -340,6 +364,9 @@ class ComposerPane extends StatefulWidget {
   final ComposerPaneSession session;
   final String targetLabel;
   final VoidCallback onTerminalFocus;
+
+  /// The same pane's live terminal owner, used only for guarded focus return.
+  final FocusNode? terminalFocus;
   final bool active;
   final bool available;
   final ValueChanged<String>? onAskAi;
@@ -348,8 +375,15 @@ class ComposerPane extends StatefulWidget {
   State<ComposerPane> createState() => _ComposerPaneState();
 }
 
-class _ComposerPaneState extends State<ComposerPane> {
+class _ComposerPaneState extends State<ComposerPane>
+    with WidgetsBindingObserver {
   FocusNode get _focus => session.editorFocus;
+  final _paneFocus = FocusNode(
+    debugLabel: 'Composer pane controls',
+    canRequestFocus: false,
+  );
+  int _focusRevision = 0;
+  FocusScopeNode? _pendingTerminalReturnScope;
   ComposerOwnership? _lastOwnership;
   bool _lastEnabled = false;
   ComposerPaneSession get session => widget.session;
@@ -357,6 +391,8 @@ class _ComposerPaneState extends State<ComposerPane> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    FocusManager.instance.addListener(_focusChanged);
     session.controller.addListener(_changed);
     session.addListener(_changed);
     // Defer notification until after the first layout.
@@ -368,49 +404,117 @@ class _ComposerPaneState extends State<ComposerPane> {
   @override
   void didUpdateWidget(ComposerPane oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.active != widget.active ||
-        oldWidget.available != widget.available) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) session.setVisible(widget.available && widget.active);
-      });
+    final ownershipChanged =
+        oldWidget.active != widget.active ||
+        oldWidget.available != widget.available;
+    if (ownershipChanged) {
+      ++_focusRevision;
+      _pendingTerminalReturnScope = null;
     }
+    final visible = widget.available && widget.active;
+    if (ownershipChanged || visible != session._visible) {
+      if (!visible) {
+        // Revoke while layout applies the new owner, before old Run callbacks
+        // can submit. Only the listener notification waits for layout to end.
+        session.setVisible(false, deferNotification: true);
+      } else {
+        // A read-only layer can open and close before this widget observes an
+        // inactive prop. Reconcile that revoke using the latest layout owner.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) session.setVisible(widget.available && widget.active);
+        });
+      }
+    }
+  }
+
+  void _focusChanged() {
+    ++_focusRevision;
+    final owner = FocusManager.instance.primaryFocus;
+    if (owner != _focus && owner != _pendingTerminalReturnScope) {
+      _pendingTerminalReturnScope = null;
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    ++_focusRevision;
+    _pendingTerminalReturnScope = null;
+  }
+
+  bool get _canTransferFocus {
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    return mounted &&
+        widget.active &&
+        widget.available &&
+        (lifecycle == null || lifecycle == AppLifecycleState.resumed) &&
+        ModalRoute.of(context)?.isCurrent != false;
+  }
+
+  void _transferFocus({
+    required bool toTerminal,
+    required bool Function() stillCurrent,
+  }) {
+    if (!_canTransferFocus ||
+        !(widget.terminalFocus?.hasFocus == true ||
+            !toTerminal &&
+                _pendingTerminalReturnScope != null &&
+                FocusManager.instance.primaryFocus ==
+                    _pendingTerminalReturnScope ||
+            toTerminal && _paneFocus.hasFocus)) {
+      return;
+    }
+    final revision = _focusRevision;
+    final owner = FocusManager.instance.primaryFocus;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_canTransferFocus ||
+          revision != _focusRevision ||
+          FocusManager.instance.primaryFocus != owner ||
+          !stillCurrent()) {
+        return;
+      }
+      if (toTerminal) {
+        if (widget.terminalFocus?.canRequestFocus != false) {
+          // A fast command may finish before its accepted block is mounted
+          // (for example while the user reads earlier output). Retain only
+          // this editor's explicit hand-off, and only while its route scope
+          // has no replacement input owner. Background output cannot create
+          // this permission, and focus/lifecycle changes revoke it.
+          if (widget.terminalFocus?.context == null) {
+            _pendingTerminalReturnScope = _paneFocus.enclosingScope;
+          }
+          widget.onTerminalFocus();
+        }
+      } else if (_focus.canRequestFocus) {
+        _pendingTerminalReturnScope = null;
+        _focus.requestFocus();
+      }
+    });
   }
 
   void _changed() {
     if (!mounted) return;
     if (_lastEnabled && !session.enabled && widget.active) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && widget.active && !session.enabled) {
-          widget.onTerminalFocus();
-        }
-      });
+      _transferFocus(toTerminal: true, stillCurrent: () => !session.enabled);
     }
     _lastEnabled = session.enabled;
     final owner = session.controller.ownership;
     if (_lastOwnership != owner && session.enabled && widget.active) {
       if (owner == ComposerOwnership.running ||
           owner == ComposerOwnership.suspended) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted &&
-              widget.active &&
-              widget.available &&
-              session.enabled &&
-              session.controller.ownership == owner) {
-            widget.onTerminalFocus();
-          }
-        });
+        _transferFocus(
+          toTerminal: true,
+          stillCurrent: () =>
+              session.enabled && session.controller.ownership == owner,
+        );
       } else if (owner == ComposerOwnership.ready &&
           (_lastOwnership == ComposerOwnership.running ||
               _lastOwnership == ComposerOwnership.suspended)) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted &&
-              widget.active &&
-              widget.available &&
+        _transferFocus(
+          toTerminal: false,
+          stillCurrent: () =>
               session.enabled &&
-              session.controller.ownership == ComposerOwnership.ready) {
-            _focus.requestFocus();
-          }
-        });
+              session.controller.ownership == ComposerOwnership.ready,
+        );
       }
     }
     _lastOwnership = owner;
@@ -424,30 +528,36 @@ class _ComposerPaneState extends State<ComposerPane> {
     if (!session.enabled || !widget.available) {
       return const SizedBox.shrink();
     }
-    return Padding(
-      padding: EdgeInsets.symmetric(
-        horizontal: 10,
-        vertical: MediaQuery.sizeOf(context).height < 400 ? 4 : 8,
-      ),
-      child: TerminalComposerView(
-        controller: controller,
-        targetLabel: widget.targetLabel,
-        focusNode: _focus,
-        onNavigateBlocks: (delta) =>
-            session.navigateBlocks?.call(delta) ?? false,
-        chinese: zh,
-        autofocus: widget.active,
-        onAskAi: widget.onAskAi,
-        onOpenAi: widget.onOpenAi,
+    return Focus(
+      focusNode: _paneFocus,
+      child: Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: 10,
+          vertical: MediaQuery.sizeOf(context).height < 400 ? 4 : 8,
+        ),
+        child: TerminalComposerView(
+          controller: controller,
+          targetLabel: widget.targetLabel,
+          focusNode: _focus,
+          onNavigateBlocks: (delta) =>
+              session.navigateBlocks?.call(delta) ?? false,
+          chinese: zh,
+          autofocus: widget.active,
+          onAskAi: widget.onAskAi,
+          onOpenAi: widget.onOpenAi,
+        ),
       ),
     );
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    FocusManager.instance.removeListener(_focusChanged);
     session.controller.removeListener(_changed);
     session.removeListener(_changed);
     session.setVisible(false);
+    _paneFocus.dispose();
     super.dispose();
   }
 }

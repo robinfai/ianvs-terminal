@@ -1,0 +1,106 @@
+{
+  "type": "static_design_reference",
+  "canvas_logical": [
+    1440,
+    810
+  ],
+  "not_product_evidence": true,
+  "screens": [
+    {
+      "id": "UX1-01",
+      "title": "失败 Block 的桌面快捷诊断",
+      "note": "保留单层顶栏、底部状态栏与三层Dock；失败Block直接显示AI诊断。点击只准备草稿。",
+      "requirements": "D1-R01/R02"
+    },
+    {
+      "id": "UX1-02",
+      "title": "从 Block 准备诊断任务",
+      "note": "来源与草稿可编辑；准备阶段没有推理或执行。当前会话与任务目标没有变化。",
+      "requirements": "D1-R03/R04/R05"
+    },
+    {
+      "id": "UX1-03",
+      "title": "完整命令审阅层",
+      "note": "完整目标和命令、固定操作；摘要不直接批准；编辑/切pane需校验原revision。",
+      "requirements": "D1-R06/R07/R08"
+    },
+    {
+      "id": "UX1-04",
+      "title": "任务结果与只读观察",
+      "note": "右区是显式打开的只读观察，不是第二PTY；复制可用，键鼠报告不写入。",
+      "requirements": "D1-R05/R09/R10"
+    },
+    {
+      "id": "UX2-01",
+      "title": "宽 pane 补全与详情",
+      "note": "候选、详情与主动作同步；不因鼠标hover改变滚动位置；Tab只授权当前查询。",
+      "requirements": "D2-R01/R04/R05"
+    },
+    {
+      "id": "UX2-02",
+      "title": "四 pane 的独立输入与任务",
+      "note": "A运行、B待审、C写稿、D交互；B的回复/审批不得抢C焦点，选中pane不重定向任务。",
+      "requirements": "D2-R10/R11/R12"
+    },
+    {
+      "id": "UX2-03",
+      "title": "查找、分页与证据检查器",
+      "note": "按需检查器可关闭；来源/行范围清楚；过滤显示不改原始数据，阅读不改写目标。",
+      "requirements": "D2-R09/R15"
+    },
+    {
+      "id": "UX2-04",
+      "title": "历史采用与多行草稿",
+      "note": "历史取消恢复原稿和selection；最近命令靠近Dock。真实IME需实施阶段系统截图，不以此静态稿证明。",
+      "requirements": "D2-R01/R03/R05"
+    },
+    {
+      "id": "UX3-01",
+      "title": "浅色桌面层级",
+      "note": "安静表面、轻分隔、清楚状态，延续已有Dock方向；主色只是例稿主题。",
+      "requirements": "D3-R01/R02/R03/R04"
+    },
+    {
+      "id": "UX3-02",
+      "title": "深色同内容对照",
+      "note": "与浅色同内容的深色映射；终端ANSI与UI状态分离，不通过滤镜生成正式验收图。",
+      "requirements": "D3-R01/R02/R03/R04"
+    },
+    {
+      "id": "UX3-03",
+      "title": "任务与执行状态册",
+      "note": "这是设计状态总览，不要求产品增加测试中心；每状态的文案与合法动作必须落实。",
+      "requirements": "D3-R06/R09/R16"
+    },
+    {
+      "id": "UX3-04",
+      "title": "放大文字与邻 pane",
+      "note": "缩放时优先减少低频信息与折行/详情，不隐藏主动作或缩小字号；稿展示布局方向，实际1/1.5/2须原生验证。",
+      "requirements": "D3-R07/R08/R14"
+    },
+    {
+      "id": "UX4-01",
+      "title": "未知回执不可伪装失败重试",
+      "note": "高优先未知提示持续；禁止重复执行；保留operation身份供真实日志校验。",
+      "requirements": "D4-R06/R10"
+    },
+    {
+      "id": "UX4-02",
+      "title": "本地 ACP 的桌面设置",
+      "note": "双后端独立验收；示例路径不可硬编码。Finder检测、测试与保存均不等于任务执行。",
+      "requirements": "D4-R03/R04/R05"
+    },
+    {
+      "id": "UX4-03",
+      "title": "断连恢复与目标对照",
+      "note": "恢复与授权分离，原/当前目标明确；无法证实就保持未知，不复活死PTY。",
+      "requirements": "D4-R06/R10/R14"
+    },
+    {
+      "id": "UX4-04",
+      "title": "人工接管后的真实 TUI 目标状态",
+      "note": "这是必须在实际App中重现的验收目标；接管不发Ctrl+C，退出后只提供手动返回Blocks。",
+      "requirements": "D4-R07/R08/R09"
+    }
+  ]
+}

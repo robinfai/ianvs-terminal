@@ -543,6 +543,72 @@ class RunnerTests: XCTestCase {
     )
   }
 
+  func testMeasuredUnifiedChromeGapsExcludeTabsControlsAndTrafficLights() {
+    let size = NSSize(width: 900, height: 600)
+    let screen = NSRect(x: -1200, y: 200, width: 900, height: 600)
+    let gaps = [NSRect(x: 0, y: 0, width: 90, height: 54),
+                NSRect(x: 430, y: 4, width: 200, height: 46)]
+    for (x, expected) in [(80.0, true), (104.0, false), (200.0, false),
+                          (440.0, true), (640.0, false), (874.0, false)] {
+      XCTAssertEqual(MainFlutterWindow.shouldStartNativeWindowDrag(
+        at: NSPoint(x: x, y: 578), contentSize: size,
+        chromeHeight: 54, draggableRegions: gaps), expected)
+      XCTAssertEqual(MainFlutterWindow.shouldStartNativeWindowDrag(
+        atMouseLocation: NSPoint(x: screen.minX + x, y: 778), windowFrame: screen,
+        chromeHeight: 54, draggableRegions: gaps), expected)
+    }
+    XCTAssertFalse(MainFlutterWindow.shouldStartNativeWindowDrag(
+      at: NSPoint(x: 22, y: 577), contentSize: size,
+      standardButtonFrames: [NSRect(x: 16, y: 570, width: 14, height: 14)],
+      chromeHeight: 54, draggableRegions: gaps))
+    XCTAssertFalse(MainFlutterWindow.shouldStartNativeWindowDrag(
+      at: NSPoint(x: 440, y: 540), contentSize: size,
+      chromeHeight: 54, draggableRegions: gaps))
+    XCTAssertFalse(MainFlutterWindow.shouldStartNativeWindowDrag(
+      at: NSPoint(x: 440, y: 578), contentSize: size,
+      chromeHeight: 54, draggableRegions: []),
+      "An unmeasured or resized layout must not hijack controls")
+  }
+
+  func testMeasuredUnifiedChromeUsesNativeMouseDownAndRevokesOldResizeRegions() throws {
+    let window = DragTrackingMainFlutterWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
+      styleMask: [.titled, .closable, .miniaturizable, .resizable],
+      backing: .buffered, defer: false)
+    window.styleMask.insert(.fullSizeContentView)
+    window.setFrame(NSRect(x: 100, y: 200, width: 800, height: 600), display: false)
+    window.updateTitleBarLayout(sidebarWidth: nil, height: 54,
+      draggableRegions: [NSRect(x: 400, y: 4, width: 100, height: 46)])
+    func mouseDown(_ x: CGFloat) throws -> NSEvent {
+      try XCTUnwrap(NSEvent.mouseEvent(
+        with: .leftMouseDown, location: NSPoint(x: x, y: 578),
+        modifierFlags: [], timestamp: 1, windowNumber: window.windowNumber,
+        context: nil, eventNumber: 1, clickCount: 1, pressure: 1))
+    }
+    XCTAssertFalse(window.performNativeWindowDragIfNeeded(for: try mouseDown(200)))
+    let original = try mouseDown(450)
+    XCTAssertTrue(window.performNativeWindowDragIfNeeded(for: original))
+    XCTAssertTrue(window.performedDragEvent === original)
+    window.setFrame(NSRect(x: 100, y: 200, width: 900, height: 600), display: false)
+    XCTAssertFalse(window.performNativeWindowDragIfNeeded(for: try mouseDown(450)))
+    window.updateTitleBarLayout(sidebarWidth: nil, height: 54,
+      draggableRegions: [NSRect(x: 500, y: 4, width: 100, height: 46)])
+    XCTAssertTrue(window.performNativeWindowDragIfNeeded(for: try mouseDown(550)))
+  }
+
+  func testTerminationWarningIncludesRetainedUnknownAndUnreviewedWork() {
+    let warning = AppDelegate.terminationConsequences
+    if Locale.preferredLanguages.first?.hasPrefix("zh") == true {
+      for fact in ["草稿", "未审", "未知", "远端命令", "取消"] {
+        XCTAssertTrue(warning.contains(fact))
+      }
+    } else {
+      for fact in ["drafts", "unreviewed", "unknown", "Remote commands", "Cancel"] {
+        XCTAssertTrue(warning.contains(fact))
+      }
+    }
+  }
+
   func testSidebarControlReceivesMouseClicksInBothCoordinateSpaces() {
     for x in [90.0, 104.0, 117.0] {
       XCTAssertFalse(
@@ -665,6 +731,8 @@ class RunnerTests: XCTestCase {
       NSRect(x: 100, y: 200, width: 800, height: 600),
       display: false
     )
+    window.updateTitleBarLayout(sidebarWidth: nil, height: 44,
+      draggableRegions: [NSRect(x: 300, y: 0, width: 200, height: 44)])
     let mouseDown = try XCTUnwrap(
       NSEvent.mouseEvent(
         with: .leftMouseDown,

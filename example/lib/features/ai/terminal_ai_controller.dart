@@ -18,6 +18,7 @@ import 'ai_models.dart';
 import 'ai_settings.dart';
 
 part 'terminal_ai_acp.dart';
+part 'terminal_ai_api_operations.dart';
 part 'terminal_ai_approval.dart';
 
 abstract interface class AiTerminalPort {
@@ -61,6 +62,23 @@ abstract interface class AiSourceSubmissionInspector {
   );
 }
 
+/// An explicit UI approval is valid only while its pane/focus epoch remains
+/// active. Runtime checks this again after each asynchronous read, before input.
+class _AiApprovalCancellation extends AiCancellation {
+  _AiApprovalCancellation(this.parent, this.canSubmit);
+  final AiCancellation parent;
+  final bool Function() canSubmit;
+
+  @override
+  bool get isCancelled => parent.isCancelled || !canSubmit();
+
+  @override
+  void check() {
+    parent.check();
+    if (!canSubmit()) throw const AiFailure('approval_inactive');
+  }
+}
+
 enum AiPhase {
   idle,
   thinking,
@@ -73,6 +91,7 @@ enum AiPhase {
 
 enum AiEntryState {
   message,
+  deferred,
   proposed,
   submitted,
   accepted,
@@ -117,11 +136,30 @@ class AiTranscriptEntry {
 
 @immutable
 class AiTaskSummary {
-  const AiTaskSummary(this.id, this.title, this.phase, this.paused);
+  const AiTaskSummary(
+    this.id,
+    this.title,
+    this.phase,
+    this.paused, {
+    this.followUpEnded = false,
+    this.hasUnresolvedSubmission = false,
+    this.unresolvedEntryIds = const [],
+    this.attachments = const [],
+    this.draft = '',
+    this.draftRevision = 0,
+    this.proposalRevision = 0,
+  });
   final String id;
   final String title;
   final AiPhase phase;
   final bool paused;
+  final bool followUpEnded;
+  final bool hasUnresolvedSubmission;
+  final List<String> unresolvedEntryIds;
+  final List<AiBlockContext> attachments;
+  final String draft;
+  final int draftRevision;
+  final int proposalRevision;
 }
 
 class _AiDraftAttachment {
@@ -167,11 +205,13 @@ class _AiTask {
   String? agentTextId;
   final agentOperations = <String, ({String input, AiAction action})>{};
   final agentResults = <String, Map<String, Object?>>{};
+  final apiOperations = <String, _AiApiOperation>{};
   final agentEvidence = <AiEvidenceRange>{};
   final suppliedMessages = Set<Map<String, Object?>>.identity();
   final suppliedSourceBases = <(String, String), int?>{};
   bool agentToolBusy = false;
   bool configurationRetired = false;
+  bool followUpEnded = false;
 
   void updateDraft(String value) {
     if (draft == value) return;
@@ -238,7 +278,27 @@ class TerminalAiController extends ChangeNotifier {
   String get taskTitle => _task.title;
   List<AiTaskSummary> get tasks => List.unmodifiable(
     _tasks.map(
-      (task) => AiTaskSummary(task.id, task.title, task.phase, task.takenOver),
+      (task) => AiTaskSummary(
+        task.id,
+        task.title,
+        task.phase,
+        task.takenOver,
+        followUpEnded: task.followUpEnded,
+        hasUnresolvedSubmission: task.transcript.any(
+          (entry) => entry.state == AiEntryState.unknown,
+        ),
+        unresolvedEntryIds: List.unmodifiable(
+          task.transcript
+              .where((entry) => entry.state == AiEntryState.unknown)
+              .map((entry) => entry.id),
+        ),
+        attachments: List.unmodifiable(
+          task.attachments.map((attachment) => attachment.context),
+        ),
+        draft: task.draft,
+        draftRevision: task.draftRevision,
+        proposalRevision: task.revision,
+      ),
     ),
   );
   String get draft => _task.draft;
@@ -267,6 +327,10 @@ class TerminalAiController extends ChangeNotifier {
   bool get checkingTerminal => _task.contextRefresh != null;
   bool get hasUnresolvedSubmission =>
       _transcript.any((entry) => entry.state == AiEntryState.unknown);
+  bool get hasDeferredSupplement =>
+      _transcript.any((entry) => entry.state == AiEntryState.deferred);
+  bool get followUpEnded => _task.followUpEnded;
+  bool get canEndFollowUp => _canInteract && !busy && hasUnresolvedSubmission;
   bool get takenOver => _task.takenOver;
   set takenOver(bool value) => _task.takenOver = value;
   int get proposalRevision => _task.revision;
@@ -282,6 +346,7 @@ class TerminalAiController extends ChangeNotifier {
   bool get interrupting => _interrupting;
   AiCancellation? _interruptCancellation;
   bool get canInterrupt =>
+      _canInteract &&
       !_interrupting &&
       terminalError == null &&
       context != null &&
@@ -533,9 +598,76 @@ class TerminalAiController extends ChangeNotifier {
   }
 
   Future<void> supplement(String requirement) async {
-    if (requirement.trim().isEmpty) return;
+    if (!_canInteract || requirement.trim().isEmpty) return;
     takeOver();
+    if (hasUnresolvedSubmission) {
+      // The command may already have run. Save the user's new constraint as
+      // explicitly unsent; a receipt check alone must not start inference.
+      final prompt = requirement.trim();
+      _task.updateDraft(requirement);
+      final deferred = _transcript.where(
+        (entry) => entry.state == AiEntryState.deferred,
+      );
+      if (prompt.length + deferred.fold(0, (n, e) => n + e.text.length) >
+          16000) {
+        error = 'prompt_too_large';
+      } else if (attachments.length +
+              deferred.fold(0, (n, e) => n + e.contexts.length) >
+          8) {
+        error = 'context_limit';
+      } else {
+        _transcript.add(
+          AiTranscriptEntry(
+            'user',
+            prompt,
+            id: 'entry-${++_entrySerial}',
+            contexts: [
+              for (final block in attachments)
+                context == null ? block : block.withFallbackSource(context!),
+            ],
+            target: context,
+            state: AiEntryState.deferred,
+          ),
+        );
+        _task.updateDraft('');
+        _task.attachments.clear();
+        error = 'submission_unknown';
+      }
+      _emit();
+      return;
+    }
     await ask(requirement);
+  }
+
+  void discardDeferredSupplement(String entryId) {
+    if (!_canInteract || busy) return;
+    final index = _transcript.indexWhere(
+      (entry) => entry.id == entryId && entry.state == AiEntryState.deferred,
+    );
+    if (index < 0) return;
+    final entry = _transcript[index];
+    _transcript[index] = AiTranscriptEntry(
+      entry.role,
+      entry.text,
+      id: entry.id,
+      contexts: entry.contexts,
+      target: entry.target,
+      state: AiEntryState.revoked,
+      statusReason: 'The saved requirement was discarded without sending.',
+    );
+    _emit();
+  }
+
+  /// Ends AI follow-up, not the remote command. Unknown receipts remain true
+  /// historical facts; only a separately created task may start new work.
+  void endFollowUp() {
+    if (!canEndFollowUp) return;
+    _cancellation?.cancel();
+    _task.followUpEnded = true;
+    phase = AiPhase.idle;
+    takenOver = true;
+    error = null;
+    _emit();
   }
 
   void editPendingCommand(String command, {required int revision}) {
@@ -552,12 +684,23 @@ class TerminalAiController extends ChangeNotifier {
         'arguments': jsonEncode({'command': command, 'reason': action.reason}),
       },
     });
+    _updateActionEntry(
+      action,
+      AiEntryState.revoked,
+      reason: 'Replaced by an edited proposal. The old version cannot run.',
+    );
     pending = edited;
     _task.revision++;
-    _updateActionEntry(
-      edited,
-      AiEntryState.proposed,
-      clearApprovalReview: true,
+    _transcript.add(
+      AiTranscriptEntry(
+        'proposal',
+        edited.preview,
+        id: 'entry-${++_entrySerial}',
+        action: edited,
+        target: proposalTarget,
+        state: AiEntryState.proposed,
+        revision: proposalRevision,
+      ),
     );
     _emit();
   }
@@ -567,7 +710,10 @@ class TerminalAiController extends ChangeNotifier {
   bool _revalidatingAfterResume = false;
   int _lifecycleRevision = 0;
   bool get _canInteract =>
-      !_disposed && _appActive && !_revalidatingAfterResume;
+      !_disposed &&
+      !_task.followUpEnded &&
+      _appActive &&
+      !_revalidatingAfterResume;
   AiCancellation? _cancellation;
   int _steps = 0;
   bool get busy =>
@@ -604,11 +750,14 @@ class TerminalAiController extends ChangeNotifier {
     String label = 'Continue task',
     bool useCurrentTarget = false,
     String? expectedTargetGuard,
+    bool Function()? canStart,
   }) async {
-    if (!canResume) return;
+    if (!canResume || canStart?.call() == false) return;
     final task = _task;
     await refreshContext();
-    if (!canResume || !identical(task, _task)) return;
+    if (!canResume || !identical(task, _task) || canStart?.call() == false) {
+      return;
+    }
     if (expectedTargetGuard != null && context?.guard != expectedTargetGuard) {
       error = 'stale_context';
       _emit();
@@ -627,6 +776,7 @@ class TerminalAiController extends ChangeNotifier {
       'paused or timed out. Propose any new input for approval.',
       displayText: label,
       preserveDraft: true,
+      canStart: canStart,
     );
   }
 
@@ -871,6 +1021,14 @@ class TerminalAiController extends ChangeNotifier {
       return;
     }
     final requestedTask = _task;
+    final deferred = _transcript
+        .where((entry) => entry.state == AiEntryState.deferred)
+        .toList(growable: false);
+    if (prompt.length + deferred.fold(0, (n, e) => n + e.text.length) > 16000) {
+      error = 'prompt_too_large';
+      _emit();
+      return;
+    }
     if (!preserveDraft) _task.updateDraft(input);
     final sentDraftRevision = requestedTask.draftRevision;
     final sentAttachments = preserveDraft
@@ -878,6 +1036,7 @@ class TerminalAiController extends ChangeNotifier {
         : List<_AiDraftAttachment>.of(requestedTask.attachments);
     final attached = List<AiBlockContext>.unmodifiable([
       ...sentAttachments.map((attachment) => attachment.context),
+      for (final entry in deferred) ...entry.contexts,
       ...blocks,
       ?block,
     ]);
@@ -938,6 +1097,8 @@ class TerminalAiController extends ChangeNotifier {
         'role': 'user',
         'content': jsonEncode({
           'request': prompt.startsWith('? ') ? prompt.substring(2) : prompt,
+          if (deferred.isNotEmpty)
+            'saved_user_requirements': deferred.map((e) => e.text).toList(),
           'terminal_context': context!.toJson(),
           if (preserveDraft)
             'original_submissions': [
@@ -961,6 +1122,17 @@ class TerminalAiController extends ChangeNotifier {
             'selected_blocks': attached.map((b) => b.toJson()).toList(),
         }),
       });
+      for (final entry in deferred) {
+        final index = _transcript.indexOf(entry);
+        if (index < 0) continue;
+        _transcript[index] = AiTranscriptEntry(
+          entry.role,
+          entry.text,
+          id: entry.id,
+          contexts: entry.contexts,
+          target: entry.target,
+        );
+      }
       _transcript.add(
         AiTranscriptEntry(
           'user',
@@ -1090,6 +1262,10 @@ class TerminalAiController extends ChangeNotifier {
             : await _readBlock(action, cancellation);
         _messages.add(_toolResult(action, result));
         pending = null;
+        continue;
+      }
+      if (_registerApiOperation(action, inferenceContext) case final result?) {
+        _messages.add(_toolResult(action, result, rememberApiOperation: false));
         continue;
       }
       // Bind approval to the context that actually informed inference. Reading
@@ -1376,7 +1552,8 @@ class TerminalAiController extends ChangeNotifier {
     return compacted;
   }
 
-  Future<void> approve({int? revision}) async {
+  Future<void> approve({int? revision, bool Function()? canSubmit}) async {
+    if (canSubmit?.call() == false) return;
     if (revision != null && revision != proposalRevision) return;
     final action = pending;
     final expected = _task.proposalContext;
@@ -1387,6 +1564,22 @@ class TerminalAiController extends ChangeNotifier {
         cancellation == null) {
       return;
     }
+    if (canSubmit != null) {
+      // Keep the proposal intact while the UI's explicit approval preflights.
+      // Another click, task change or pane change cannot claim this operation.
+      final task = _task;
+      await refreshContext();
+      if (!identical(task, _task) ||
+          !canApprove ||
+          !identical(pending, action) ||
+          revision != null && revision != proposalRevision ||
+          !canSubmit()) {
+        return;
+      }
+    }
+    final submissionCancellation = canSubmit == null
+        ? cancellation
+        : _AiApprovalCancellation(cancellation, canSubmit);
     pending = null;
     _executingAction = action;
     _updateActionEntry(action, AiEntryState.submitted);
@@ -1396,7 +1589,11 @@ class TerminalAiController extends ChangeNotifier {
     var resultRecorded = false;
     try {
       cancellation.check();
-      final result = await terminal.execute(action, expected, cancellation);
+      final result = await terminal.execute(
+        action,
+        expected,
+        submissionCancellation,
+      );
       if (!identical(_executingAction, action)) return;
       _executingAction = null;
       // Preserve protocol history even if takeover happens during observation.
@@ -1453,6 +1650,20 @@ class TerminalAiController extends ChangeNotifier {
         await _infer(cancellation);
       }
     } on Object catch (failure) {
+      if (!resultRecorded &&
+          identical(_executingAction, action) &&
+          failure is AiFailure &&
+          failure.code == 'approval_inactive' &&
+          terminal is AiSubmissionInspector &&
+          action.kind == AiActionKind.runCommand &&
+          _submissionFor(action) == null) {
+        _executingAction = null;
+        pending = action;
+        _updateActionEntry(action, AiEntryState.proposed);
+        phase = AiPhase.awaitingApproval;
+        _emit();
+        return;
+      }
       if (!resultRecorded && identical(_executingAction, action)) {
         final progress = _keyInputProgressFor(action);
         final result = _interruptedInputResult(
@@ -1489,12 +1700,13 @@ class TerminalAiController extends ChangeNotifier {
 
   Map<String, Object?> _toolResult(
     AiAction action,
-    Map<String, Object?> result,
-  ) => {
-    'role': 'tool',
-    'tool_call_id': action.id,
-    'content': jsonEncode(result),
-  };
+    Map<String, Object?> result, {
+    bool rememberApiOperation = true,
+  }) {
+    final content = jsonEncode(result);
+    if (rememberApiOperation) _rememberApiOperationResult(action, content);
+    return {'role': 'tool', 'tool_call_id': action.id, 'content': content};
+  }
 
   void _resolvePending(
     String reason, {

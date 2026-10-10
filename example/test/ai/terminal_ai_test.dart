@@ -86,7 +86,10 @@ AiReply commandReply(String command, {String id = 'call-1'}) => AiReply(
 class FakeApi implements AiApi {
   final requests = <List<Map<String, Object?>>>[];
   final cancellations = <AiCancellation>[];
-  Future<AiReply> Function(int) respond = (_) async => commandReply('ls -la');
+  // This default proposes successive operations. A retry test must explicitly
+  // reuse its call ID, as the provider ID identifies one write per task.
+  Future<AiReply> Function(int) respond = (step) async =>
+      commandReply('ls -la', id: 'call-$step');
   @override
   Future<AiReply> complete(
     AiConfiguration configuration,

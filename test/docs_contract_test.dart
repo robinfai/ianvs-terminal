@@ -270,6 +270,7 @@ void main() {
       () {
         const files = {
           ..._mobilePrdScripts,
+          ..._desktopPrdScripts,
           '$_mobilePrdRoot/evidence/manifest.json',
           '$_mobilePrdRoot/evidence/S1/S1-T05/run-one/assertions.log',
           '$_mobilePrdRoot/evidence/S2/S2-T01/run-two/after-01.png',
@@ -277,6 +278,10 @@ void main() {
           '$_mobilePrdRoot/evidence/S4/S4-T01/run-four/flow.mov',
           '$_mobilePrdRoot/evidence/shared/run-one/performance.trace',
           '$_mobilePrdRoot/evidence/shared/run-one/events.jsonl',
+          '$_desktopPrdRoot/evidence/manifest.json',
+          '$_desktopPrdRoot/evidence/D1/D1-T05/run-one/assertions.log',
+          '$_desktopPrdRoot/evidence/D4/D4-T10/run-two/flow.mov',
+          '$_desktopPrdRoot/evidence/shared/run-one/events.jsonl',
         };
         expect(
           _documentationArchiveViolations(
@@ -303,6 +308,12 @@ void main() {
         '$_mobilePrdRoot/evidence/S1/S1-T01/run/bundle.zip',
         '$_mobilePrdRoot/evidence/S1/S1-T01/../escape.log',
         '$_mobilePrdRoot/evidence/shared/run/../escape.log',
+        '$_desktopPrdRoot/scripts/new_helper.py',
+        '$_desktopPrdRoot/evidence/D1/D2-T01/run/after.png',
+        '$_desktopPrdRoot/evidence/S1/S1-T01/run/after.png',
+        '$_mobilePrdRoot/evidence/D1/D1-T01/run/after.png',
+        '$_desktopPrdRoot/evidence/D1/D1-T01/run/helper.py',
+        '$_desktopPrdRoot/evidence/shared/run/../escape.log',
       ]) {
         expect(
           _documentationArchiveViolations(
@@ -625,6 +636,11 @@ const _mobilePrdScripts = {
   '$_mobilePrdRoot/scripts/test_validate_evidence.py',
   '$_mobilePrdRoot/scripts/test_validate_shotlist.py',
 };
+const _desktopPrdRoot = 'docs/product/desktop-block-ai-v1';
+const _desktopPrdScripts = {
+  '$_desktopPrdRoot/scripts/validate_evidence.py',
+  '$_desktopPrdRoot/scripts/test_validate_evidence.py',
+};
 const _archiveRoots = {
   'docs/audits',
   'docs/evidence',
@@ -641,6 +657,12 @@ final _generatedDocumentationFile = RegExp(
 final _mobilePrdEvidenceFile = RegExp(
   '^$_mobilePrdRoot/evidence/'
   r'(?:S([1-4])/S\1-T[0-9]{2}/[A-Za-z0-9][A-Za-z0-9._-]*|'
+  'shared/[A-Za-z0-9][A-Za-z0-9._-]*)/'
+  r'[^/]+\.(?:png|json|jsonl|txt|log|trace|mp4|mov|webm)$',
+);
+final _desktopPrdEvidenceFile = RegExp(
+  '^$_desktopPrdRoot/evidence/'
+  r'(?:D([1-4])/D\1-T[0-9]{2}/[A-Za-z0-9][A-Za-z0-9._-]*|'
   'shared/[A-Za-z0-9][A-Za-z0-9._-]*)/'
   r'[^/]+\.(?:png|json|jsonl|txt|log|trace|mp4|mov|webm)$',
 );
@@ -663,6 +685,11 @@ bool _isMobilePrdEvidenceFile(String path) =>
     path == '$_mobilePrdRoot/evidence/manifest.json' ||
     (!path.split('/').any((part) => part == '.' || part == '..') &&
         _mobilePrdEvidenceFile.hasMatch(path));
+
+bool _isDesktopPrdEvidenceFile(String path) =>
+    path == '$_desktopPrdRoot/evidence/manifest.json' ||
+    (!path.split('/').any((part) => part == '.' || part == '..') &&
+        _desktopPrdEvidenceFile.hasMatch(path));
 
 Set<String> _parentDirectories(Iterable<String> files) => {
   for (final file in files)
@@ -690,9 +717,12 @@ List<String> _documentationArchiveViolations({
     if (_isArchivePath(path)) {
       failures.add(path);
     } else if (_isProductEvidencePath(path)) {
-      if (!_isMobilePrdEvidenceFile(path)) failures.add(path);
+      if (!_isMobilePrdEvidenceFile(path) && !_isDesktopPrdEvidenceFile(path)) {
+        failures.add(path);
+      }
     } else if (_generatedDocumentationFile.hasMatch(path) &&
-        !_mobilePrdScripts.contains(path)) {
+        !_mobilePrdScripts.contains(path) &&
+        !_desktopPrdScripts.contains(path)) {
       failures.add(path);
     }
   }

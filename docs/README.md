@@ -2,7 +2,7 @@
 
 `docs/` 只保留当前版本的使用说明、架构、合同、维护规范和仍待实施的明确提案。
 新运行日志、截图、trace、临时设计与验收产物默认写入 `build/`。
-下文明确保留既有归档，并为手机 Block × AI PRD 规定一处证据交付例外；不扩展为通用归档区。
+下文明确保留既有归档，并为手机、桌面 Block × AI PRD 分别规定证据交付例外；不扩展为通用归档区。
 历史实现可通过 Git 查阅；已完成任务和过期报告不作为当前版本通过验收的依据。
 
 ## 开发与产品
@@ -15,6 +15,7 @@
 - [当前执行目标](CURRENT_EXECUTION_TARGET.md)、[路线图](ROADMAP.md)：当前优先级与退出条件。
 - [已知问题](KNOWN_ISSUES.md)：当前限制与未关闭的风险。
 - [手机 Block × AI PRD](product/mobile-block-ai-v1/README.md)：分阶段需求、交互合同和真实平台验收要求。
+- [桌面 Block × AI PRD v1.1](product/desktop-block-ai-v1/README.md)、[实施状态](product/desktop-block-ai-v1/STATUS.md)、[跨端对照](product/desktop-block-ai-v1/results/CROSS_PLATFORM_REVIEW.md)：桌面交互修订及当前实现／证据缺口。
 - [AI 功能与实现](ai/WARP_AI_IMPLEMENTATION.md)、[ACP 边界](ai/ACP_BACKEND.md)、[智能审阅](ai/SMART_APPROVAL.md)。
 
 ## 协议与实现
@@ -49,6 +50,8 @@ AI 当前能力说明仍可随实现维护；其中日期报告、evidence 和�
 - `scripts/validate_evidence.py`、`scripts/validate_shotlist.py` 及各自的 `test_*.py` 是随 PRD 交付的四个校验脚本。其他可复用脚本仍放 `tools/`。
 - `evidence/manifest.json` 和 `evidence/S1…S4/<同阶段用例 ID>/<run-id>/`、`evidence/shared/<run-id>/` 保存该 PRD 要求的证据。文件类型限 PNG、JSON/JSONL、TXT、LOG、TRACE，以及 MP4/MOV/WebM；代码和 ZIP 包不属于此例外。
 - `design/` 是 PRD 自带的设计参考，不是运行证据；`results/` 的阶段报告须引用实际采集材料。图片、日志与视频的真实性、环境、commit、hash 和必交项按 [证据合同](product/mobile-block-ai-v1/06_EVIDENCE_CONTRACT.md) 及随包校验器检查。
+
+桌面例外仅适用于 `docs/product/desktop-block-ai-v1/` 的两个原包校验脚本 `scripts/validate_evidence.py`、`scripts/test_validate_evidence.py`，以及 `evidence/manifest.json`、`evidence/D1…D4/<同阶段用例 ID>/<run-id>/`、`evidence/shared/<run-id>/`。证据类型与手机例外相同，S/D 阶段路径不可混用。按 [桌面证据合同](product/desktop-block-ai-v1/06_EVIDENCE_CONTRACT.md) 独立验收；两个包都不豁免任意代码、ZIP 或通用运行输出。
 
 文档 gate 不替代 PRD 的证据校验器，不把目录存在或链接有效判为验收通过。
 

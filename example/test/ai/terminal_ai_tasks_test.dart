@@ -269,8 +269,17 @@ void main() {
     () async {
       await controller.ask('Inspect files');
       final old = controller.proposalRevision;
+      final original = controller.transcript.last;
       controller.editPendingCommand('ls -a', revision: old);
       expect(controller.proposalRevision, greaterThan(old));
+      final versions = controller.transcript.where((e) => e.action != null);
+      expect(versions, hasLength(2));
+      expect(versions.first.id, original.id);
+      expect(versions.first.text, original.text);
+      expect(versions.first.revision, old);
+      expect(versions.first.state, AiEntryState.revoked);
+      expect(versions.last.id, isNot(original.id));
+      expect(versions.last.state, AiEntryState.proposed);
       await controller.approve(revision: old);
       expect(terminal.writes, isEmpty);
       api.respond = (_) async => const AiReply(text: 'Observed result');
@@ -280,7 +289,9 @@ void main() {
         controller.approve(revision: revision),
       ]);
       expect(terminal.writes.single.command, 'ls -a');
-      final entry = controller.transcript.singleWhere((e) => e.action != null);
+      final entry = controller.transcript.singleWhere(
+        (e) => e.action != null && e.state == AiEntryState.accepted,
+      );
       expect(entry.state, AiEntryState.accepted);
       expect(entry.action!.command, 'ls -a');
       final result = api.requests.last.singleWhere((m) => m['role'] == 'tool');

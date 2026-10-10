@@ -175,6 +175,8 @@ class _SessionSidebar extends ConsumerStatefulWidget {
     required this.onNew,
     required this.onContextMenu,
     required this.hasNewOutput,
+    required this.aiSessions,
+    required this.onRevealApproval,
   });
 
   final bool visible;
@@ -184,6 +186,8 @@ class _SessionSidebar extends ConsumerStatefulWidget {
   final VoidCallback? onNew;
   final void Function(TerminalTab, Offset) onContextMenu;
   final bool Function(TerminalTab) hasNewOutput;
+  final Map<String, TerminalAiController> aiSessions;
+  final ValueChanged<String> onRevealApproval;
 
   @override
   ConsumerState<_SessionSidebar> createState() => _SessionSidebarState();
@@ -465,6 +469,7 @@ class _SessionSidebarState extends ConsumerState<_SessionSidebar> {
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    _ShellApprovalBadge(tab: tab),
                     if (tab.activePane.terminalMode.notice != null)
                       TerminalModeIndicator(
                         key: Key('terminal-mode-notice-${tab.activeSessionId}'),
@@ -646,49 +651,57 @@ class _SessionSidebarState extends ConsumerState<_SessionSidebar> {
         }
       }
     }
-    return Material(
-      key: const Key('session-sidebar'),
-      color: colors.surfaceContainerLow,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            key: const Key('session-sidebar-header'),
-            padding: EdgeInsets.symmetric(
-              horizontal: palette.spacing.sm * 2,
-              vertical: palette.spacing.xs,
-            ),
-            child: SizedBox(
-              height: 32,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(l10n.sessionSidebarTitle, style: rowText),
+    return ListenableBuilder(
+      listenable: Listenable.merge(widget.aiSessions.values),
+      builder: (_, _) => _ShellApprovalScope(
+        controllers: widget.aiSessions,
+        onReveal: widget.onRevealApproval,
+        child: Material(
+          key: const Key('session-sidebar'),
+          color: colors.surfaceContainerLow,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                key: const Key('session-sidebar-header'),
+                padding: EdgeInsets.symmetric(
+                  horizontal: palette.spacing.sm * 2,
+                  vertical: palette.spacing.xs,
+                ),
+                child: SizedBox(
+                  height: 32,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(l10n.sessionSidebarTitle, style: rowText),
+                      ),
+                      _ShellApprovalBadge.sidebar(tabs: tabs),
+                      _buildChromeIconButton(
+                        key: const Key('session-sidebar-new'),
+                        tooltip: l10n.newTab,
+                        onPressed: widget.onNew,
+                        iconSize: 18,
+                        hoverBackgroundColor: colors.surfaceContainerHighest,
+                        icon: const Icon(Icons.add),
+                      ),
+                    ],
                   ),
-                  _buildChromeIconButton(
-                    key: const Key('session-sidebar-new'),
-                    tooltip: l10n.newTab,
-                    onPressed: widget.onNew,
-                    iconSize: 18,
-                    hoverBackgroundColor: colors.surfaceContainerHighest,
-                    icon: const Icon(Icons.add),
-                  ),
-                ],
+                ),
               ),
-            ),
+              Expanded(
+                child: rows.isEmpty
+                    ? Center(child: Text(l10n.sessionSidebarEmpty))
+                    : ListView.builder(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: palette.spacing.sm + palette.spacing.xs,
+                        ),
+                        itemCount: rows.length,
+                        itemBuilder: (context, index) => rows[index],
+                      ),
+              ),
+            ],
           ),
-          Expanded(
-            child: rows.isEmpty
-                ? Center(child: Text(l10n.sessionSidebarEmpty))
-                : ListView.builder(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: palette.spacing.sm + palette.spacing.xs,
-                    ),
-                    itemCount: rows.length,
-                    itemBuilder: (context, index) => rows[index],
-                  ),
-          ),
-        ],
+        ),
       ),
     );
   }

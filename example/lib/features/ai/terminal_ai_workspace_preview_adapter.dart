@@ -81,9 +81,7 @@ class _TerminalAiComponentPreviewState extends _TerminalAiWorkspaceState {
                   alignment: Alignment.topLeft,
                   child: _contextChip(
                     block,
-                    onRemove: preview.removableContext
-                        ? () => c.removeAttachment(0)
-                        : null,
+                    removable: preview.removableContext,
                   ),
                 ),
         TerminalAiPreviewComponent.taskHeader => Align(
@@ -98,11 +96,15 @@ class _TerminalAiComponentPreviewState extends _TerminalAiWorkspaceState {
           alignment: Alignment.topCenter,
           child: _composer(true),
         ),
-        TerminalAiPreviewComponent.proposalCard ||
-        TerminalAiPreviewComponent.reviewPage =>
+        TerminalAiPreviewComponent.proposalCard =>
           proposal == null
               ? _emptyState()
               : SingleChildScrollView(child: _proposal(proposal, true)),
+        TerminalAiPreviewComponent.reviewPage => _reviewPresentation(
+          proposal == null
+              ? _emptyState()
+              : SingleChildScrollView(child: _proposal(proposal, true)),
+        ),
         TerminalAiPreviewComponent.emptyError =>
           c.error != null ||
                   c.terminalError != null ||

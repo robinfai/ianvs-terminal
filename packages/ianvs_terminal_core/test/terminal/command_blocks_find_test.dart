@@ -43,6 +43,64 @@ class _SearchOutput {
   }
 }
 
+class _BudgetSearchOutput {
+  _BudgetSearchOutput(this.counts, {this.commandMatch = false});
+
+  final List<int> counts;
+  final bool commandMatch;
+  final queriedIds = <String>[];
+
+  String _id(int index) => index == 0 ? 'first' : 'budget-$index';
+
+  Map<String, Object?> _block(int index, {String query = '', int limit = 2}) {
+    final count = query == 'rare' ? 1 : counts[index];
+    final start = (count - limit).clamp(0, count);
+    return {
+      'id': _id(index),
+      'command': 'echo ${_id(index)}',
+      'commandMatch': commandMatch && query == 'needle',
+      'cwd': '/tmp',
+      'running': false,
+      'exitCode': 0,
+      'columns': 80,
+      'offset': start,
+      'totalLines': count,
+      'matchingLines': count,
+      'nextOffset': null,
+      'lines': [
+        for (var row = start; row < count; row++)
+          {
+            'index': row,
+            'source_row': row,
+            'text': '${query.isEmpty ? "needle" : query} ${_id(index)} $row',
+            'wrapped': false,
+          },
+      ],
+    };
+  }
+
+  Map<String, Object?> request(Map<String, Object?> request) {
+    final id = request['id'] as String?;
+    if (id == null) {
+      return {
+        'blocks': [
+          for (var index = 0; index < counts.length; index++) _block(index),
+        ],
+      };
+    }
+    final query = request['query'] as String? ?? '';
+    if (query.isNotEmpty) queriedIds.add(id);
+    final index = id == 'first' ? 0 : int.parse(id.substring('budget-'.length));
+    return {
+      'block': _block(
+        index,
+        query: query,
+        limit: request['limit'] as int? ?? 200,
+      ),
+    };
+  }
+}
+
 class _EvictingOutput {
   int sourceBase = 1000;
   bool running = false;
@@ -129,6 +187,7 @@ Future<void> _pumpBlocks(
   CommandBlockController controller, {
   List<CommandBlockTimelineItem>? timeline,
   bool phone = false,
+  bool toolbar = false,
 }) async {
   if (phone) {
     tester.view.physicalSize = const Size(390, 844);
@@ -144,7 +203,7 @@ Future<void> _pumpBlocks(
         body: TerminalCommandBlocksView(
           controller: controller,
           timeline: timeline,
-          showToolbar: phone,
+          showToolbar: phone || toolbar,
           onReinput: (_) => fail('Finding output must not re-input commands'),
         ),
       ),
@@ -179,6 +238,80 @@ Future<void> _findNeedle(
 }
 
 void main() {
+  group('$TerminalCommandBlocksView search budgets', () {
+    for (final count in [199, 200, 250]) {
+      testWidgets('shows the per-block search boundary for $count matches', (
+        tester,
+      ) async {
+        final output = _BudgetSearchOutput([count]);
+        final controller = CommandBlockController(request: output.request)
+          ..refresh();
+        try {
+          await _pumpBlocks(tester, controller, toolbar: true);
+          await tester.pumpAndSettle();
+          await _findNeedle(tester, controller, toolbar: true);
+
+          final limited = count >= 200;
+          expect(
+            find.byKey(const Key('block-find-limit')),
+            limited ? findsOneWidget : findsNothing,
+          );
+          expect(
+            find.text(limited ? '200 matches shown' : '199 matching lines'),
+            findsOneWidget,
+          );
+          if (limited) {
+            expect(find.textContaining('200 matching lines'), findsOneWidget);
+          }
+
+          await tester.enterText(find.byType(TextField), 'rare');
+          await tester.pump(const Duration(milliseconds: 200));
+          await tester.pumpAndSettle();
+          expect(find.text('1 matching lines'), findsOneWidget);
+          expect(find.byKey(const Key('block-find-limit')), findsNothing);
+          expect(tester.takeException(), isNull);
+        } finally {
+          await tester.pumpWidget(const SizedBox.shrink());
+          controller.dispose();
+        }
+      });
+    }
+
+    testWidgets(
+      'caps combined command and output matches at the total budget',
+      (tester) async {
+        final output = _BudgetSearchOutput(
+          List.filled(7, 149),
+          commandMatch: true,
+        );
+        final controller = CommandBlockController(request: output.request)
+          ..refresh();
+        try {
+          await _pumpBlocks(tester, controller, toolbar: true);
+          await tester.pumpAndSettle();
+          await _findNeedle(tester, controller, toolbar: true);
+
+          final results = tester.widget<ListView>(find.byType(ListView));
+          expect(results.childrenDelegate.estimatedChildCount, 1000);
+          expect(find.text('1000 matches shown'), findsOneWidget);
+          expect(find.byKey(const Key('block-find-limit')), findsOneWidget);
+          expect(find.textContaining('1,000 matches total'), findsOneWidget);
+          expect(output.queriedIds, hasLength(7));
+
+          await tester.enterText(find.byType(TextField), 'rare');
+          await tester.pump(const Duration(milliseconds: 200));
+          await tester.pumpAndSettle();
+          expect(find.text('7 matching lines'), findsOneWidget);
+          expect(find.byKey(const Key('block-find-limit')), findsNothing);
+          expect(tester.takeException(), isNull);
+        } finally {
+          await tester.pumpWidget(const SizedBox.shrink());
+          controller.dispose();
+        }
+      },
+    );
+  });
+
   group('$TerminalCommandBlocksView find', () {
     late _SearchOutput output;
     late CommandBlockController controller;

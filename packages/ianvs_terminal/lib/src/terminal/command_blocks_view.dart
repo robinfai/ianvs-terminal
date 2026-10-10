@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart' show listEquals;
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter/scheduler.dart' show SchedulerPhase;
@@ -32,11 +33,13 @@ part 'command_tail_follow.dart';
 class CommandBlockTimelineItem {
   const CommandBlockTimelineItem.content(this.id, this.builder)
     : blockId = null,
-      sourceSessionId = null;
+      sourceSessionId = null,
+      sourceLabel = null;
   const CommandBlockTimelineItem.block(
     this.blockId, {
     String? id,
     this.sourceSessionId,
+    this.sourceLabel,
   }) : id = id ?? 'block-$blockId',
        builder = null;
   final String id;
@@ -44,6 +47,7 @@ class CommandBlockTimelineItem {
 
   /// Hosts with retained connections resolve each block against this source.
   final String? sourceSessionId;
+  final String? sourceLabel;
   final WidgetBuilder? builder;
 }
 
@@ -58,6 +62,7 @@ class TerminalCommandBlocksView extends StatefulWidget {
     this.chinese = false,
     this.liveInput,
     this.liveFocus,
+    this.liveFocusSource,
     this.liveModes = TerminalFrameModes.empty,
     this.font = const TerminalFontConfig(),
     this.onMeasuredCellSizeChanged,
@@ -78,6 +83,7 @@ class TerminalCommandBlocksView extends StatefulWidget {
   final bool chinese;
   final TerminalInputController? liveInput;
   final FocusNode? liveFocus;
+  final FocusNode? liveFocusSource;
   final TerminalFrameModes liveModes;
   final TerminalFontConfig font;
   final ValueChanged<Size>? onMeasuredCellSizeChanged;
@@ -95,6 +101,9 @@ class TerminalCommandBlocksView extends StatefulWidget {
 }
 
 class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
+  static const _findBlockLimit = 200;
+  static const _findTotalLimit = 1000;
+
   late final ScrollController _scroll;
   final _focus = FocusNode(debugLabel: 'Command blocks');
   final GlobalKey<State<StatefulWidget>> _listKey = GlobalKey();
@@ -119,6 +128,8 @@ class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
   bool _findCase = false;
   String? _findScope;
   String? _findError;
+  bool _findBlockLimited = false;
+  bool _findTotalLimited = false;
   List<(CommandBlock, TerminalRow)> _matches = const [];
   int _findSerial = 0;
   int _revealed = 0;
@@ -173,6 +184,8 @@ class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
             ))) {
       _matches = const [];
       _findError = null;
+      _findBlockLimited = false;
+      _findTotalLimited = false;
       _search();
     }
   }
@@ -471,6 +484,8 @@ class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
     _findDebounce = Timer(const Duration(milliseconds: 180), () async {
       final matches = <(CommandBlock, TerminalRow)>[];
       String? error;
+      var blockLimited = false;
+      var totalLimited = false;
       if (_find.text.isNotEmpty) {
         for (final block in c.blocks.reversed.where(
           (b) =>
@@ -482,7 +497,7 @@ class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
             'query': _find.text,
             'regex': _findRegex,
             'caseSensitive': _findCase,
-            'limit': 200,
+            'limit': _findBlockLimit,
             'tail': true,
           });
           if (response?['error'] case final String message) {
@@ -495,9 +510,19 @@ class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
           }
           final found = CommandBlock.fromJson(response?['block']);
           if (found != null) {
-            matches.addAll(found.lines.reversed.map((line) => (block, line)));
+            blockLimited |=
+                found.lines.length >= _findBlockLimit ||
+                found.matchingLines > found.lines.length;
+            matches.addAll(
+              found.lines.reversed
+                  .take(_findTotalLimit - matches.length)
+                  .map((line) => (block, line)),
+            );
           }
-          if (matches.length >= 1000) break;
+          if (matches.length >= _findTotalLimit) {
+            totalLimited = true;
+            break;
+          }
           await Future<void>.delayed(Duration.zero);
           if (!mounted || serial != _findSerial) return;
         }
@@ -506,6 +531,8 @@ class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
         setState(() {
           _matches = matches;
           _findError = error;
+          _findBlockLimited = blockLimited;
+          _findTotalLimited = totalLimited;
         });
       }
     });
@@ -1002,21 +1029,23 @@ class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
                                       : tokens.muted,
                                 ),
                                 const SizedBox(width: 5),
-                                Text(
-                                  block.running
-                                      ? t('Running', '运行中')
-                                      : block.exitCode == null
-                                      ? t('Status unknown', '状态未知')
-                                      : t(
-                                          'Exit ${block.exitCode}',
-                                          '退出码 ${block.exitCode}',
-                                        ),
-                                  style: tokens.metadataStyle.copyWith(
-                                    color:
-                                        block.exitCode != null &&
-                                            block.exitCode != 0
-                                        ? tokens.error
-                                        : tokens.muted,
+                                Flexible(
+                                  child: Text(
+                                    block.running
+                                        ? t('Running', '运行中')
+                                        : block.exitCode == null
+                                        ? t('Status unknown', '状态未知')
+                                        : t(
+                                            'Exit ${block.exitCode}',
+                                            '退出码 ${block.exitCode}',
+                                          ),
+                                    style: tokens.metadataStyle.copyWith(
+                                      color:
+                                          block.exitCode != null &&
+                                              block.exitCode != 0
+                                          ? tokens.error
+                                          : tokens.muted,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -1061,6 +1090,7 @@ class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
     font: widget.font,
     liveInput: block.running && !block.suspended ? widget.liveInput : null,
     liveFocus: block.running && !block.suspended ? widget.liveFocus : null,
+    liveFocusSource: widget.liveFocusSource,
     modes: block.running && !block.suspended
         ? widget.liveModes
         : TerminalFrameModes.empty,
@@ -1073,74 +1103,102 @@ class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
     onOpenLinkTarget: widget.onOpenLinkTarget,
   );
 
-  Widget _blockSummary(CommandBlock block, ComposerTheme tokens, bool folded) =>
-      LayoutBuilder(
-        builder: (context, constraints) => Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+  Widget _blockSummary(
+    CommandBlock block,
+    ComposerTheme tokens,
+    bool folded,
+  ) => LayoutBuilder(
+    builder: (context, constraints) {
+      final status = block.running
+          ? t('Running', '运行中')
+          : t('Exit ${block.exitCode ?? "?"}', '退出码 ${block.exitCode ?? "?"}');
+      final details = t('Details', '详情');
+      final labelWidth = TextPainter(
+        text: TextSpan(
           children: [
-            ConstrainedBox(
-              constraints: BoxConstraints(maxHeight: constraints.maxHeight),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Tooltip(
-                      message: '${block.cwd}\n${block.command}',
-                      child: InkWell(
-                        key: _commandKeys.putIfAbsent(block.id, GlobalKey.new),
-                        onTap: () => _select(block.id),
-                        child: Text(
-                          block.command,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: tokens.resultStyle,
-                        ),
+            TextSpan(text: status, style: tokens.metadataStyle),
+            TextSpan(text: details, style: tokens.actionStyle),
+          ],
+        ),
+        textDirection: Directionality.of(context),
+        textScaler: MediaQuery.textScalerOf(context),
+      )..layout();
+      // Keep the exit status intact before spending space on a text label.
+      // Narrow scaled panes retain a focusable, labelled details button.
+      final showDetailsLabel =
+          constraints.maxWidth >=
+          labelWidth.width + 14 + 48 + tokens.controlHeight;
+      labelWidth.dispose();
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: constraints.maxHeight),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Tooltip(
+                    message: '${block.cwd}\n${block.command}',
+                    child: InkWell(
+                      key: _commandKeys.putIfAbsent(block.id, GlobalKey.new),
+                      onTap: () => _select(block.id),
+                      child: Text(
+                        block.command,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: tokens.resultStyle,
                       ),
                     ),
                   ),
-                  Tooltip(
-                    message: block.running
-                        ? t('Running', '运行中')
-                        : t(
-                            'Exit ${block.exitCode ?? "?"}',
-                            '退出码 ${block.exitCode ?? "?"}',
+                ),
+                Text(
+                  status,
+                  style: tokens.metadataStyle.copyWith(
+                    color: block.exitCode != null && block.exitCode != 0
+                        ? tokens.error
+                        : tokens.muted,
+                  ),
+                ),
+                KeyedSubtree(
+                  key: ValueKey('block-expand-${block.id}'),
+                  child: showDetailsLabel
+                      ? Tooltip(
+                          message: t('Expand block details', '展开命令块详情'),
+                          child: TextButton(
+                            onPressed: () => _toggleOutputHeight(block.id),
+                            style: TextButton.styleFrom(
+                              minimumSize: Size(0, tokens.controlHeight),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 7,
+                              ),
+                              textStyle: tokens.actionStyle,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            child: Text(details),
                           ),
-                    child: Icon(
-                      block.running
-                          ? Icons.schedule
-                          : block.exitCode == 0
-                          ? Icons.check
-                          : Icons.error_outline,
-                      size: 14,
-                      color: block.exitCode != null && block.exitCode != 0
-                          ? tokens.error
-                          : tokens.muted,
-                    ),
-                  ),
-                  KeyedSubtree(
-                    key: ValueKey('block-expand-${block.id}'),
-                    child: _icon(
-                      Icons.unfold_more,
-                      t('Expand block', '扩大命令块'),
-                      () => _toggleOutputHeight(block.id),
-                    ),
-                  ),
-                  PopupMenuButton<String>(
-                    popUpAnimationStyle: ComposerTheme.overlayAnimation(
-                      context,
-                    ),
-                    key: ValueKey('block-actions-${block.id}'),
-                    tooltip: t('Block actions', '命令块操作'),
-                    icon: Icon(Icons.more_horiz, size: 17, color: tokens.muted),
-                    onSelected: (action) => _action(block, action),
-                    itemBuilder: (_) => _menuItems(block),
-                  ),
-                ],
-              ),
+                        )
+                      : _icon(
+                          Icons.info_outline,
+                          t('Expand block details', '展开命令块详情'),
+                          () => _toggleOutputHeight(block.id),
+                        ),
+                ),
+                PopupMenuButton<String>(
+                  popUpAnimationStyle: ComposerTheme.overlayAnimation(context),
+                  key: ValueKey('block-actions-${block.id}'),
+                  tooltip: t('Block actions', '命令块操作'),
+                  icon: Icon(Icons.more_horiz, size: 17, color: tokens.muted),
+                  onSelected: (action) => _action(block, action),
+                  itemBuilder: (_) => _menuItems(block),
+                ),
+              ],
             ),
-            if (!folded && (block.running || block.lines.isNotEmpty))
-              Flexible(child: _blockTerminal(block)),
-          ],
-        ),
+          ),
+          if (!folded && (block.running || block.lines.isNotEmpty))
+            Flexible(child: _blockTerminal(block)),
+        ],
       );
+    },
+  );
 }

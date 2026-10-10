@@ -81,6 +81,7 @@ void main() {
     AiTimelineBuilder? timelineBuilder,
     VoidCallback? close,
     VoidCallback? observe,
+    bool active = true,
     bool fullScreenTerminal = false,
     TargetPlatform? platform,
     Locale locale = const Locale('en'),
@@ -117,6 +118,7 @@ void main() {
         home: Scaffold(
           body: TerminalAiWorkspace(
             controller: controller,
+            active: active,
             onClose: close ?? () {},
             onObserveTerminal: observe,
             timelineBuilder: timelineBuilder,
@@ -314,7 +316,7 @@ void main() {
       ('Session tasks', 'tasks'),
       ('New task', 'new'),
       ('AI connection', 'connection'),
-      ('Take over terminal input', 'return'),
+      ('Collapse to read-only terminal', 'return'),
     ]) {
       await mouse.moveTo(tester.getCenter(find.byTooltip(label)));
       await tester.pump(const Duration(seconds: 1));
@@ -1462,6 +1464,9 @@ void main() {
           await turn;
           expect(tester.widget<Text>(elapsed).data, startsWith('1m '));
         }
+        // ShellScreen owns lifecycle dispatch; this component fixture supplies
+        // the controller transition without mounting the session owner.
+        controller.suspendForBackground();
         tester.binding.handleAppLifecycleStateChanged(
           AppLifecycleState.inactive,
         );
@@ -1472,6 +1477,7 @@ void main() {
         tester.binding.handleAppLifecycleStateChanged(
           AppLifecycleState.resumed,
         );
+        await controller.resumeFromBackground();
         await tester.pumpAndSettle();
         expect(controller.busy, false);
         expect(controller.canApprove, false);
@@ -1506,6 +1512,7 @@ void main() {
       await controller.ask('Inspect files');
       await mount(tester, size: const Size(390, 700));
       final proposal = controller.pending;
+      controller.suspendForBackground();
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
       await tester.pump();
       expect(controller.canApprove, isFalse);
@@ -1518,6 +1525,7 @@ void main() {
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await controller.resumeFromBackground();
       await tester.pumpAndSettle();
       expect(controller.canApprove, isTrue);
       expect(controller.pending, same(proposal));
@@ -1527,7 +1535,7 @@ void main() {
   );
 
   testWidgets(
-    'reopening a mobile workspace revalidates a controller left in background',
+    'reopening a mobile workspace cannot bypass owner foreground validation',
     (tester) async {
       await prepare();
       await controller.ask('Inspect files');
@@ -1535,22 +1543,99 @@ void main() {
       expect(controller.canApprove, false);
       await mount(tester, size: const Size(390, 700));
       await tester.pumpAndSettle();
+      expect(controller.canApprove, false);
+      await controller.resumeFromBackground();
+      await tester.pumpAndSettle();
       expect(controller.canApprove, true);
       expect(terminal.writes, isEmpty);
       expect(api.requests, hasLength(1));
     },
   );
 
-  testWidgets(
-    'TUI Escape observes without taking over and approved keys return only once',
-    (tester) async {
+  testWidgets('TUI Escape and approved keys only observe without taking over', (
+    tester,
+  ) async {
+    await prepare();
+    terminal.context = const AiTerminalContext(
+      sessionId: 'one',
+      contextId: 'root',
+      guard: 'vim',
+      screen: '~',
+      cwd: '/tmp',
+      canRunCommand: false,
+      alternateScreen: true,
+      runningCommand: 'vim',
+    );
+    api.respond = (_) async => AiReply(
+      text: 'Leave insert mode',
+      action: AiAction.fromToolCall({
+        'id': 'vim-escape',
+        'type': 'function',
+        'function': {
+          'name': 'send_keys',
+          'arguments': jsonEncode({
+            'keys': [
+              {'key': 'ESC'},
+            ],
+            'reason': 'Leave insert mode',
+          }),
+        },
+      }),
+    );
+    var closes = 0;
+    var observations = 0;
+    await controller.ask('Leave insert mode');
+    await mount(
+      tester,
+      fullScreenTerminal: true,
+      close: () => closes++,
+      observe: () => observations++,
+    );
+    expect(find.text('Terminal program: vim'), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pump();
+    expect(observations, 1);
+    expect(closes, 0);
+    expect(controller.canApprove, isTrue);
+    expect(controller.takenOver, isFalse);
+    expect(terminal.writes, isEmpty);
+    api.respond = (_) async => const AiReply(text: 'Screen inspected');
+    await tester.tap(find.byKey(const Key('ai-approve')));
+    await tester.pumpAndSettle();
+    expect(closes, 0);
+    expect(observations, 2);
+    expect(terminal.writes.single.kind, AiActionKind.sendKeys);
+    await tester.pumpWidget(const SizedBox());
+    await mount(
+      tester,
+      fullScreenTerminal: true,
+      close: () => closes++,
+      observe: () => observations++,
+    );
+    expect(
+      observations,
+      2,
+      reason: 'Old accepted keys must not observe a reopened task',
+    );
+    expect(closes, 0);
+  });
+
+  for (final nextOwner in [
+    'new task',
+    'inactive pane',
+    'background',
+    'modal',
+    'draft editor',
+  ]) {
+    testWidgets('accepted TUI keys preserve the later $nextOwner owner', (
+      tester,
+    ) async {
       await prepare();
       terminal.context = const AiTerminalContext(
         sessionId: 'one',
         contextId: 'root',
         guard: 'vim',
         screen: '~',
-        cwd: '/tmp',
         canRunCommand: false,
         alternateScreen: true,
         runningCommand: 'vim',
@@ -1559,7 +1644,6 @@ void main() {
         text: 'Leave insert mode',
         action: AiAction.fromToolCall({
           'id': 'vim-escape',
-          'type': 'function',
           'function': {
             'name': 'send_keys',
             'arguments': jsonEncode({
@@ -1571,45 +1655,201 @@ void main() {
           },
         }),
       );
-      var closes = 0;
-      var observations = 0;
       await controller.ask('Leave insert mode');
+      var observations = 0;
       await mount(
         tester,
         fullScreenTerminal: true,
-        close: () => closes++,
         observe: () => observations++,
       );
-      expect(find.text('Terminal program: vim'), findsOneWidget);
-      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      final workspaceFocus = tester
+          .widget<Focus>(
+            find.byWidgetPredicate(
+              (widget) =>
+                  widget is Focus && widget.focusNode?.debugLabel == 'AI task',
+            ),
+          )
+          .focusNode!;
+      workspaceFocus.requestFocus();
       await tester.pump();
-      expect(observations, 1);
-      expect(closes, 0);
-      expect(controller.canApprove, isTrue);
-      expect(controller.takenOver, isFalse);
-      expect(terminal.writes, isEmpty);
       api.respond = (_) async => const AiReply(text: 'Screen inspected');
-      await tester.tap(find.byKey(const Key('ai-approve')));
+      await controller.approve();
+      expect(terminal.writes, hasLength(1));
+      final oldTask = controller.taskId;
+      final pageContext = tester.element(find.byType(TerminalAiWorkspace));
+      switch (nextOwner) {
+        case 'new task':
+          controller.newTask();
+          controller.setDraft('Keep this new task');
+        case 'inactive pane':
+          await mount(
+            tester,
+            active: false,
+            fullScreenTerminal: true,
+            observe: () => observations++,
+          );
+        case 'background':
+          // A round trip before layout must still revoke the old request.
+          tester.binding.handleAppLifecycleStateChanged(
+            AppLifecycleState.inactive,
+          );
+          tester.binding.handleAppLifecycleStateChanged(
+            AppLifecycleState.resumed,
+          );
+        case 'modal':
+          unawaited(
+            showDialog<void>(
+              context: pageContext,
+              builder: (_) => const AlertDialog(
+                content: TextField(
+                  key: Key('new-modal-owner'),
+                  autofocus: true,
+                ),
+              ),
+            ),
+          );
+        case 'draft editor':
+          tester
+              .widget<TextField>(find.byKey(const Key('ai-prompt')))
+              .focusNode!
+              .requestFocus();
+      }
       await tester.pumpAndSettle();
-      expect(closes, 1);
-      expect(observations, 1);
-      expect(terminal.writes.single.kind, AiActionKind.sendKeys);
-      await tester.pumpWidget(const SizedBox());
-      await mount(
-        tester,
-        fullScreenTerminal: true,
-        close: () => closes++,
-        observe: () => observations++,
-      );
-      expect(
-        closes,
-        1,
-        reason: 'Old accepted keys must not close a reopened task',
-      );
-    },
-  );
+      expect(observations, 0);
+      expect(terminal.writes, hasLength(1));
+      if (nextOwner == 'new task') {
+        expect(controller.taskId, isNot(oldTask));
+        expect(controller.draft, 'Keep this new task');
+      } else {
+        expect(controller.taskId, oldTask);
+      }
+      if (nextOwner == 'modal') {
+        final modalOwner = tester.widget<EditableText>(
+          find.descendant(
+            of: find.byKey(const Key('new-modal-owner')),
+            matching: find.byType(EditableText),
+          ),
+        );
+        expect(modalOwner.focusNode.hasFocus, isTrue);
+        Navigator.of(pageContext).pop();
+        await tester.pumpAndSettle();
+        expect(observations, 0);
+      } else if (nextOwner == 'draft editor') {
+        expect(
+          tester
+              .widget<TextField>(find.byKey(const Key('ai-prompt')))
+              .focusNode!
+              .hasFocus,
+          isTrue,
+        );
+      }
+      expect(tester.takeException(), isNull);
+    });
+  }
 
-  testWidgets('TUI exit before its receipt still returns input once', (
+  for (final unavailableOwner in ['background', 'covered route']) {
+    testWidgets(
+      'TUI receipt received under $unavailableOwner does not queue observation',
+      (tester) async {
+        await prepare();
+        terminal.context = const AiTerminalContext(
+          sessionId: 'one',
+          contextId: 'root',
+          guard: 'vim',
+          screen: '~',
+          canRunCommand: false,
+          alternateScreen: true,
+          runningCommand: 'vim',
+        );
+        api.respond = (_) async => AiReply(
+          text: 'Leave insert mode',
+          action: AiAction.fromToolCall({
+            'id': 'vim-escape',
+            'function': {
+              'name': 'send_keys',
+              'arguments': jsonEncode({
+                'keys': [
+                  {'key': 'ESC'},
+                ],
+                'reason': 'Leave insert mode',
+              }),
+            },
+          }),
+        );
+        await controller.ask('Leave insert mode');
+        var observations = 0;
+        await mount(
+          tester,
+          fullScreenTerminal: true,
+          observe: () => observations++,
+        );
+        final workspaceFocus = tester
+            .widget<Focus>(
+              find.byWidgetPredicate(
+                (widget) =>
+                    widget is Focus &&
+                    widget.focusNode?.debugLabel == 'AI task',
+              ),
+            )
+            .focusNode!;
+        workspaceFocus.requestFocus();
+        await tester.pump();
+        final taskId = controller.taskId;
+        final pageContext = tester.element(find.byType(TerminalAiWorkspace));
+        terminal.execution = Completer<Map<String, Object?>>();
+        api.respond = (_) async => const AiReply(text: 'Screen inspected');
+        final approval = controller.approve();
+        await tester.idle();
+        expect(terminal.writes, hasLength(1));
+
+        if (unavailableOwner == 'background') {
+          tester.binding.handleAppLifecycleStateChanged(
+            AppLifecycleState.inactive,
+          );
+        } else {
+          unawaited(
+            showDialog<void>(
+              context: pageContext,
+              requestFocus: false,
+              builder: (_) => const AlertDialog(content: Text('Another task')),
+            ),
+          );
+          expect(ModalRoute.of(pageContext)!.isCurrent, isFalse);
+        }
+        // The approved write and its receipt are still valid in the desktop
+        // background. No frame occurs between the receipt and returning.
+        terminal.execution!.complete({'status': 'input_sent'});
+        await approval;
+        expect(controller.phase, AiPhase.idle);
+        expect(controller.transcript.last.text, 'Screen inspected');
+        expect(
+          controller.transcript.where(
+            (entry) => entry.state == AiEntryState.accepted,
+          ),
+          hasLength(1),
+        );
+        expect(workspaceFocus.hasFocus, isTrue);
+        if (unavailableOwner == 'background') {
+          tester.binding.handleAppLifecycleStateChanged(
+            AppLifecycleState.resumed,
+          );
+        } else {
+          Navigator.of(pageContext).pop();
+          expect(ModalRoute.of(pageContext)!.isCurrent, isTrue);
+        }
+        await tester.pumpAndSettle();
+        expect(observations, 0);
+        expect(controller.taskId, taskId);
+        expect(controller.takenOver, isFalse);
+        expect(terminal.writes, hasLength(1));
+        expect(terminal.writes.single.kind, AiActionKind.sendKeys);
+        expect(api.requests, hasLength(2));
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  testWidgets('TUI exit before its receipt still observes the result once', (
     tester,
   ) async {
     await prepare();
@@ -1642,40 +1882,61 @@ void main() {
     );
     await controller.ask('Exit vim');
     var closes = 0;
-    await mount(tester, fullScreenTerminal: true, close: () => closes++);
+    var observations = 0;
+    await mount(
+      tester,
+      fullScreenTerminal: true,
+      close: () => closes++,
+      observe: () => observations++,
+    );
     terminal.execution = Completer<Map<String, Object?>>();
     api.respond = (_) async => const AiReply(text: 'Returned to shell');
     await tester.tap(find.byKey(const Key('ai-approve')));
     await tester.pump();
     expect(terminal.writes, hasLength(1));
     terminal.context = contextFor();
-    await mount(tester, fullScreenTerminal: false, close: () => closes++);
+    await mount(
+      tester,
+      fullScreenTerminal: false,
+      close: () => closes++,
+      observe: () => observations++,
+    );
     expect(closes, 0);
     terminal.execution!.complete({'status': 'input_sent'});
     await tester.pumpAndSettle();
-    expect(closes, 1);
+    expect(closes, 0);
+    expect(observations, 1);
     expect(terminal.writes, hasLength(1));
     await tester.pumpWidget(const SizedBox());
-    await mount(tester, close: () => closes++);
-    expect(closes, 1, reason: 'Reopening the completed task stays open');
+    await mount(tester, close: () => closes++, observe: () => observations++);
+    expect(observations, 1, reason: 'Reopening the completed task stays open');
+    expect(closes, 0);
   });
 
-  testWidgets('entering full-screen returns the input owner to the terminal', (
-    tester,
-  ) async {
-    await prepare();
-    var closes = 0;
-    await mount(tester, close: () => closes++);
-    await tester.tap(find.byKey(const Key('ai-prompt')));
-    await tester.enterText(
-      find.byKey(const Key('ai-prompt')),
-      'Retained task draft',
-    );
-    await mount(tester, fullScreenTerminal: true, close: () => closes++);
-    expect(closes, 1);
-    expect(controller.draft, 'Retained task draft');
-    expect(terminal.writes, isEmpty);
-  });
+  testWidgets(
+    'entering full-screen observes without acquiring terminal input',
+    (tester) async {
+      await prepare();
+      var closes = 0;
+      var observations = 0;
+      await mount(tester, close: () => closes++, observe: () => observations++);
+      await tester.tap(find.byKey(const Key('ai-prompt')));
+      await tester.enterText(
+        find.byKey(const Key('ai-prompt')),
+        'Retained task draft',
+      );
+      await mount(
+        tester,
+        fullScreenTerminal: true,
+        close: () => closes++,
+        observe: () => observations++,
+      );
+      expect(closes, 0);
+      expect(observations, 1);
+      expect(controller.draft, 'Retained task draft');
+      expect(terminal.writes, isEmpty);
+    },
+  );
 
   for (final variant in [
     (
@@ -1893,11 +2154,13 @@ void main() {
       expect(find.byKey(const Key('ai-resume')), findsNothing);
       expect(
         tester.widget<FilledButton>(find.byKey(const Key('ai-send'))).onPressed,
-        isNull,
+        isNotNull,
       );
+      expect(find.text('Save requirement'), findsOneWidget);
       await tester.tap(find.byKey(const Key('ai-check-terminal')));
       await tester.pumpAndSettle();
-      expect(port.inspected, ['original-submission']);
+      expect(port.inspected, isNotEmpty);
+      expect(port.inspected.toSet(), {'original-submission'});
       expect(find.byKey(const Key('ai-resume')), findsNothing);
       expect(
         find.textContaining('inspect the terminal manually'),
@@ -2047,12 +2310,20 @@ void main() {
             send is IconButton
                 ? send.onPressed
                 : (send as FilledButton).onPressed,
-            isNull,
+            isNotNull,
+          );
+          expect(
+            find.byTooltip(language == 'zh' ? '暂存要求' : 'Save requirement'),
+            findsOneWidget,
           );
           await tester.tap(find.byKey(const Key('ai-prompt')));
           await tester.sendKeyEvent(LogicalKeyboardKey.enter);
           await tester.pumpAndSettle();
-          expect(controller.draft, '  Keep receipt draft  ');
+          expect(controller.draft, isEmpty);
+          final saved = controller.transcript.singleWhere(
+            (entry) => entry.state == AiEntryState.deferred,
+          );
+          expect(saved.text, 'Keep receipt draft');
           expect(port.writes, hasLength(1));
           expect(api.requests, hasLength(1));
           await tester.scrollUntilVisible(
@@ -2077,7 +2348,8 @@ void main() {
           expect(port.inspected.toSet(), {'original-submission'});
           expect(controller.hasUnresolvedSubmission, isTrue);
           expect(controller.canApprove, isFalse);
-          expect(controller.draft, '  Keep receipt draft  ');
+          expect(controller.draft, isEmpty);
+          expect(controller.hasDeferredSupplement, isTrue);
           expect(port.writes, hasLength(1));
           expect(api.requests, hasLength(1));
           expect(tester.takeException(), isNull);

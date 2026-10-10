@@ -127,11 +127,26 @@ class WindowBridge {
   }
 
   /// Keep native window dragging clear of the movable sidebar controls.
-  static Future<void> setTitleBarLayout({double? sidebarWidth}) async {
+  static Future<void> setTitleBarLayout({
+    double? sidebarWidth,
+    double? height,
+    List<Rect>? draggableRegions,
+  }) async {
     if (kIsWeb || defaultTargetPlatform != TargetPlatform.macOS) return;
     try {
       await _channel.invokeMethod<void>('setTitleBarLayout', {
         'sidebarWidth': sidebarWidth,
+        'height': ?height,
+        if (draggableRegions != null)
+          'draggableRegions': [
+            for (final rect in draggableRegions)
+              {
+                'x': rect.left,
+                'y': rect.top,
+                'width': rect.width,
+                'height': rect.height,
+              },
+          ],
       });
     } on MissingPluginException {
       return;

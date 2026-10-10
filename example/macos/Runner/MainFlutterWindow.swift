@@ -54,6 +54,8 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
   private var windowBridgeChannel: FlutterMethodChannel?
   private var shutdownChannel: FlutterMethodChannel?
   private var sidebarChromeWidth: CGFloat?
+  private var configuredChromeHeight: CGFloat = 44
+  private var chromeDragRegions: [NSRect]? = []
   private var trafficLightCenteringWorkItem: DispatchWorkItem?
   private var notificationExpiryWorkItems: [String: DispatchWorkItem] = [:]
   private var attentionRequestIds: Set<Int> = []
@@ -77,7 +79,9 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
     at point: NSPoint,
     contentSize: NSSize,
     standardButtonFrames: [NSRect] = [],
-    sidebarWidth: CGFloat? = nil
+    sidebarWidth: CGFloat? = nil,
+    chromeHeight: CGFloat = 44,
+    draggableRegions: [NSRect]? = nil
   ) -> Bool {
     guard contentSize.width > 0, contentSize.height > 0 else {
       return false
@@ -85,22 +89,28 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
 
     guard
       point.x >= 0,
-      !isTitleBarControl(x: point.x, windowWidth: contentSize.width, sidebarWidth: sidebarWidth),
       point.x <= contentSize.width,
-      point.y >= contentSize.height - chromeBarHeight,
+      point.y >= contentSize.height - chromeHeight,
       point.y <= contentSize.height
     else {
       return false
     }
 
-    return !standardButtonFrames.contains { $0.contains(point) }
+    let topPoint = NSPoint(x: point.x, y: contentSize.height - point.y)
+    let draggable = draggableRegions.map { regions in
+      regions.contains { $0.contains(topPoint) }
+    } ?? !isTitleBarControl(x: point.x, windowWidth: contentSize.width,
+                          sidebarWidth: sidebarWidth)
+    return draggable && !standardButtonFrames.contains { $0.contains(point) }
   }
 
   static func shouldStartNativeWindowDrag(
     atMouseLocation mouseLocation: NSPoint,
     windowFrame: NSRect,
     standardButtonFrames: [NSRect] = [],
-    sidebarWidth: CGFloat? = nil
+    sidebarWidth: CGFloat? = nil,
+    chromeHeight: CGFloat = 44,
+    draggableRegions: [NSRect]? = nil
   ) -> Bool {
     guard windowFrame.width > 0, windowFrame.height > 0 else {
       return false
@@ -110,15 +120,19 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
     let yFromTop = windowFrame.maxY - mouseLocation.y
     guard
       xFromLeft >= 0,
-      !isTitleBarControl(x: xFromLeft, windowWidth: windowFrame.width, sidebarWidth: sidebarWidth),
       xFromLeft <= windowFrame.width,
       yFromTop >= 0,
-      yFromTop <= chromeBarHeight
+      yFromTop <= chromeHeight
     else {
       return false
     }
 
-    return !standardButtonFrames.contains { $0.contains(mouseLocation) }
+    let topPoint = NSPoint(x: xFromLeft, y: yFromTop)
+    let draggable = draggableRegions.map { regions in
+      regions.contains { $0.contains(topPoint) }
+    } ?? !isTitleBarControl(x: xFromLeft, windowWidth: windowFrame.width,
+                          sidebarWidth: sidebarWidth)
+    return draggable && !standardButtonFrames.contains { $0.contains(mouseLocation) }
   }
 
   static func pasteboardType(forMime mime: String) -> NSPasteboard.PasteboardType {
@@ -282,6 +296,27 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
           result(FlutterMethodNotImplemented)
           return
         }
+        let height = arguments["height"] as? Double ?? Double(Self.chromeBarHeight)
+        guard height.isFinite, height >= 0 else {
+          result(FlutterError(code: "invalid_height", message: "Invalid title bar height", details: nil))
+          return
+        }
+        var regions: [NSRect]?
+        if let rawRegions = arguments["draggableRegions"] as? [[String: Double]] {
+          guard rawRegions.allSatisfy({ r in
+            ["x", "y", "width", "height"].allSatisfy { r[$0]?.isFinite == true }
+              && r["width"]! >= 0 && r["height"]! >= 0
+          }) else {
+            result(FlutterError(code: "invalid_regions", message: "Invalid drag regions", details: nil))
+            return
+          }
+          regions = rawRegions.map { r in
+            NSRect(x: r["x"]!, y: r["y"]!, width: r["width"]!, height: r["height"]!)
+          }
+        } else if arguments["draggableRegions"] != nil {
+          result(FlutterError(code: "invalid_regions", message: "Invalid drag regions", details: nil))
+          return
+        }
         if let width = arguments["sidebarWidth"] as? Double {
           guard width.isFinite, width > 0 else {
             result(FlutterError(code: "invalid_width", message: "Invalid sidebar width", details: nil))
@@ -291,6 +326,8 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
         } else {
           self.sidebarChromeWidth = nil
         }
+        self.updateTitleBarLayout(sidebarWidth: self.sidebarChromeWidth,
+                                  height: CGFloat(height), draggableRegions: regions)
         result(nil)
       case "resizeBy":
         guard
@@ -593,7 +630,19 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
   }
 
   override func setFrame(_ frameRect: NSRect, display flag: Bool) {
+    if frameRect.size != frame.size && chromeDragRegions != nil {
+      // Fail closed until Flutter reports the resized controls' actual layout.
+      chromeDragRegions = []
+    }
     super.setFrame(frameRect, display: flag)
+    scheduleTrafficLightCentering()
+  }
+
+  func updateTitleBarLayout(sidebarWidth: CGFloat?, height: CGFloat,
+                           draggableRegions: [NSRect]?) {
+    sidebarChromeWidth = sidebarWidth
+    configuredChromeHeight = height
+    chromeDragRegions = draggableRegions
     scheduleTrafficLightCentering()
   }
 
@@ -1196,8 +1245,8 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
       var frame = button.frame
       frame.origin.y =
         buttonSuperview.bounds.height -
-        Self.chromeBarHeight +
-        (Self.chromeBarHeight - frame.height) / 2
+        configuredChromeHeight +
+        (configuredChromeHeight - frame.height) / 2
       button.setFrameOrigin(frame.origin)
     }
   }
@@ -1207,7 +1256,9 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
       atMouseLocation: mouseLocation,
       windowFrame: frame,
       standardButtonFrames: standardWindowButtonFramesInScreenCoordinates(),
-      sidebarWidth: sidebarChromeWidth
+      sidebarWidth: sidebarChromeWidth,
+      chromeHeight: configuredChromeHeight,
+      draggableRegions: chromeDragRegions
     )
   }
 

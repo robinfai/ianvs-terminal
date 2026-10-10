@@ -186,13 +186,24 @@ class AppDelegate: FlutterAppDelegate {
   static func confirmApplicationTermination() -> Bool {
     let alert = NSAlert()
     alert.messageText = "Quit Trail?"
-    alert.informativeText = "Active shell sessions will be closed."
+    alert.informativeText = terminationConsequences
     alert.alertStyle = .warning
     let cancelButton = alert.addButton(withTitle: "Cancel")
     _ = alert.addButton(withTitle: "Quit")
     cancelButton.keyEquivalent = "\u{1b}"
 
     return alert.runModal() == .alertSecondButtonReturn
+  }
+
+  static var terminationConsequences: String {
+    if Locale.preferredLanguages.first?.hasPrefix("zh") == true {
+      return "退出会关闭本地会话，并丢弃本次终端与 AI 草稿、未审提案和未知提交回执记录。"
+        + "远端命令可能继续运行；结果未知不代表未执行。若需核对或复制记录，请点取消返回。"
+    }
+    return "Quitting closes local sessions and discards terminal and AI drafts, "
+      + "unreviewed proposals, and unknown submission receipts from this run. "
+      + "Remote commands may continue running; an unknown result does not mean "
+      + "the command was not executed. Cancel to inspect or copy these records first."
   }
 
   static func confirmUnsafeApplicationTermination(

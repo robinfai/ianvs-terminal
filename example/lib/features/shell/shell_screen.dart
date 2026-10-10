@@ -79,11 +79,15 @@ import 'shell_acceptance.dart';
 import 'shell_action_registry.dart';
 import 'shell_action_runtime_bindings.dart';
 import 'shell_shortcut_bridge.dart';
+import 'widgets/desktop_session_status.dart';
 import 'widgets/mobile_disconnected_session_notice.dart';
 import 'widgets/mobile_session_list.dart';
 import 'window_bridge.dart';
 
 part 'shell_screen_chrome.dart';
+part 'shell_screen_close_protection.dart';
+part 'shell_screen_chrome_bar.dart';
+part 'shell_screen_chrome_approval.dart';
 part 'shell_screen_ai.dart';
 part 'shell_screen_ai_observer.dart';
 part 'shell_screen_chrome_empty_states.dart';
@@ -199,8 +203,7 @@ final shellRecordingExportPickerProvider = Provider<ShellRecordingExportPicker>(
 class ShellScreen extends ConsumerStatefulWidget {
   const ShellScreen({this.activeDataApiDeployment, super.key});
 
-  static const double desktopChromeHeight =
-      _shellChromeTitleHeight + _shellChromeTabRailHeight;
+  static const double desktopChromeHeight = _shellChromeTitleHeight;
 
   final DataApiDeployment? activeDataApiDeployment;
 
@@ -241,6 +244,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   final Map<String, SelectionController> _selectionControllers = {};
   final Map<String, ComposerPaneSession> _composerSessions = {};
   final Map<String, TerminalAiController> _aiSessions = {};
+  final Map<String, CommandBlockReaderHostController> _readerControllers = {};
   final Map<String, Future<String?>> _terminalReconnects = {};
   final Set<String> _openAiSessions = {};
   final Map<String, String> _observedAiTargets = {};
@@ -412,6 +416,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       sendInput: runtime == null ? (_, _) {} : runtime.sendInput,
     );
     _appLifecycleListener = AppLifecycleListener(
+      onStateChange: _synchronizeAiSessionsLifecycle,
       onPause: () => unawaited(
         ref.read(sessionControllerProvider.notifier).flushLayoutPersistence(),
       ),
@@ -472,34 +477,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     }
     _osc1337FireworksTimers.clear();
     unawaited(_cancelAllOsc1337AttentionRequests());
-    for (final guard in _selectionResizeGuards.values) {
-      guard.dispose();
-    }
-    _selectionResizeGuards.clear();
-    for (final selectionController in _selectionControllers.values) {
-      selectionController.dispose();
-    }
-    for (final entry in _tabColorViewportControllers.entries) {
-      final listener = _tabColorViewportListeners[entry.key];
-      if (listener != null) {
-        entry.value.removeListener(listener);
-      }
-    }
-    _tabColorViewportControllers.clear();
-    _tabColorViewportListeners.clear();
-    _lastTabColors.clear();
-    for (final focusNode in _terminalFocusNodes.values) {
-      focusNode.dispose();
-    }
-    _searchFocusNode.dispose();
-    for (final session in _composerSessions.values) {
-      session.dispose();
-    }
-    _composerSessions.clear();
-    for (final ai in _aiSessions.values) {
-      ai.dispose();
-    }
-    _aiSessions.clear();
+    _disposePresentationControllers();
 
     super.dispose();
   }
@@ -1282,6 +1260,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
               children: [
                 if (!mobileNavigation)
                   _ShellChromeBar(
+                    aiSessions: Map.of(_aiSessions),
+                    onRevealApproval: _revealApproval,
                     aiAction: referenceDemoMode || activeSessionId == null
                         ? null
                         : _aiChromeAction(activeSessionId),
@@ -1478,6 +1458,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                     position,
                                   ),
                               hasNewOutput: _tabHasNewOutput,
+                              aiSessions: Map.of(_aiSessions),
+                              onRevealApproval: _revealApproval,
                             ),
                           ),
                         ),
@@ -1679,6 +1661,27 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     ),
                   ),
                 ),
+                if (!mobileNavigation && !context.usesTouchControlDensity)
+                  DesktopSessionStatus(
+                    sessionId: activeSessionId,
+                    pane: activeTab?.paneFor(activeSessionId ?? ''),
+                    composer: _composerSessions[activeSessionId],
+                    ai: _aiSessions[activeSessionId],
+                    reader: _readerControllers[activeSessionId],
+                    aiVisible: _openAiSessions.contains(activeSessionId),
+                    observing: _observedAiTargets.containsKey(activeSessionId),
+                    readOnly:
+                        activeSessionId == null ||
+                        _isSessionReadOnly(activeSessionId),
+                    replaying:
+                        _selectedRecording != null ||
+                        instantReplaySession != null,
+                    onDetails: activeSessionId == null
+                        ? null
+                        : () => unawaited(
+                            _showShellCapabilities(activeSessionId),
+                          ),
+                  ),
               ],
             ),
           ),

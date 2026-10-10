@@ -6,6 +6,42 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   testWidgets(
+    'native title bar receives measured logical drag gaps',
+    (tester) async {
+      const channel = MethodChannel('app/window_bridge');
+      MethodCall? observed;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+        call,
+      ) async {
+        observed = call;
+        return null;
+      });
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          channel,
+          null,
+        ),
+      );
+      await WindowBridge.setTitleBarLayout(
+        height: 54,
+        draggableRegions: [
+          const Rect.fromLTWH(0, 0, 90, 54),
+          const Rect.fromLTWH(540, 4, 80, 46),
+        ],
+      );
+      expect(observed?.arguments, {
+        'sidebarWidth': null,
+        'height': 54.0,
+        'draggableRegions': [
+          {'x': 0.0, 'y': 0.0, 'width': 90.0, 'height': 54.0},
+          {'x': 540.0, 'y': 4.0, 'width': 80.0, 'height': 46.0},
+        ],
+      });
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  testWidgets(
     'title bar layout sends sidebar width and clears it in top-tabs mode',
     (tester) async {
       const channel = MethodChannel('app/window_bridge');

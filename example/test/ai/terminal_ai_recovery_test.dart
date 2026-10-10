@@ -165,6 +165,183 @@ void main() {
   );
 
   test(
+    'supplement during submission is visibly deferred and sent only after explicit resume',
+    () async {
+      await controller.ask('Inspect once');
+      terminal.execution = Completer();
+      final executing = controller.approve();
+      await Future<void>.delayed(Duration.zero);
+      controller.attachContext(source);
+      await controller.supplement('Do not restart or change any files');
+      expect(controller.hasUnresolvedSubmission, isTrue);
+      expect(controller.hasDeferredSupplement, isTrue);
+      final saved = controller.transcript.singleWhere(
+        (e) => e.state == AiEntryState.deferred,
+      );
+      expect(saved.text, 'Do not restart or change any files');
+      expect(saved.contexts, [source]);
+      expect(api.requests, hasLength(1));
+      expect(terminal.writes, hasLength(1));
+      expect(controller.draft, isEmpty);
+      expect(controller.attachments, isEmpty);
+
+      controller.setDraft('A newer unsent draft');
+      await controller.resume();
+      expect(api.requests, hasLength(1));
+      terminal.receipt = {'outcome': 'accepted', 'blockId': 'original-block'};
+      await controller.refreshContext();
+      expect(controller.hasDeferredSupplement, isTrue);
+      expect(api.requests, hasLength(1));
+
+      api.respond = (_) async => const AiReply(text: 'Read-only follow-up');
+      await controller.resume();
+      final request =
+          jsonDecode(api.requests.last.last['content']! as String) as Map;
+      expect(request['saved_user_requirements'], [saved.text]);
+      expect((request['selected_blocks'] as List).single, source.toJson());
+      expect(
+        request['original_submissions'].toString(),
+        contains('original-block'),
+      );
+      expect(controller.hasDeferredSupplement, isFalse);
+      expect(
+        controller.transcript.singleWhere((e) => e.id == saved.id).state,
+        AiEntryState.message,
+      );
+      expect(controller.draft, 'A newer unsent draft');
+      terminal.execution!.complete({'status': 'input_sent'});
+      await executing;
+      expect(terminal.writes, hasLength(1));
+      expect(api.requests, hasLength(2));
+    },
+  );
+
+  test('discarding a saved requirement never sends it to the model', () async {
+    await controller.ask('Inspect once');
+    terminal.execution = Completer();
+    final executing = controller.approve();
+    await Future<void>.delayed(Duration.zero);
+    await controller.supplement('An obsolete requirement');
+    final saved = controller.transcript.last;
+    controller.discardDeferredSupplement(saved.id);
+    expect(controller.hasDeferredSupplement, isFalse);
+    expect(controller.transcript.last.state, AiEntryState.revoked);
+    terminal.receipt = {'outcome': 'accepted', 'blockId': 'original-block'};
+    await controller.refreshContext();
+    api.respond = (_) async => const AiReply(text: 'Observed current state');
+    await controller.resume();
+    expect(jsonEncode(api.requests.last), isNot(contains(saved.text)));
+    terminal.execution!.complete({'status': 'input_sent'});
+    await executing;
+    expect(terminal.writes, hasLength(1));
+  });
+
+  test(
+    'saved legacy evidence retains its source after a target change',
+    () async {
+      await controller.ask('Inspect once');
+      terminal.execution = Completer();
+      final executing = controller.approve();
+      await Future<void>.delayed(Duration.zero);
+      controller.attachContext(
+        const AiBlockContext(
+          id: 'old-output',
+          command: 'make',
+          output: 'original failure',
+          exitCode: 1,
+          cwd: '/tmp',
+          outputEndLine: 1,
+        ),
+      );
+      await controller.supplement('Explain this original output only');
+      final saved = controller.transcript.last;
+      expect(saved.contexts.single.sourceSessionId, 'one');
+      terminal.receipt = {'outcome': 'accepted', 'blockId': 'original-block'};
+      terminal.context = const AiTerminalContext(
+        sessionId: 'new-session',
+        contextId: 'new-node',
+        guard: 'new-guard',
+        screen: 'new>',
+        cwd: '/new',
+        canRunCommand: true,
+      );
+      await controller.refreshContext();
+      api.respond = (_) async => const AiReply(text: 'Source retained');
+      await controller.resume(
+        useCurrentTarget: true,
+        expectedTargetGuard: 'new-guard',
+      );
+      final request =
+          jsonDecode(api.requests.last.last['content']! as String) as Map;
+      final evidence = (request['selected_blocks'] as List).single as Map;
+      expect(evidence['source_session_id'], 'one');
+      expect(evidence['source_context_id'], 'root');
+      expect(
+        controller.transcript
+            .singleWhere((e) => e.id == saved.id)
+            .target
+            ?.sessionId,
+        'one',
+      );
+      terminal.execution!.complete({'status': 'input_sent'});
+      await executing;
+      expect(terminal.writes, hasLength(1));
+    },
+  );
+
+  test(
+    'ending follow-up retains unknown history and only a new task can start new work',
+    () async {
+      await controller.ask('Run once');
+      final oldTask = controller.taskId;
+      terminal.execution = Completer();
+      final executing = controller.approve();
+      terminal.execution!.completeError(const AiFailure('submission_unknown'));
+      await executing;
+      terminal.disconnected = true;
+      await controller.refreshContext();
+      final unknown = controller.transcript.last;
+      expect(controller.canEndFollowUp, isTrue);
+      controller.endFollowUp();
+      expect(controller.followUpEnded, isTrue);
+      expect(controller.hasUnresolvedSubmission, isTrue);
+      expect(controller.transcript.last.id, unknown.id);
+      expect(controller.canResume, isFalse);
+      expect(controller.canApprove, isFalse);
+      expect(controller.canRunUserCommand, isFalse);
+      await controller.ask('Do not send this from the ended task');
+      await controller.resume();
+      await controller.approve();
+      expect(api.requests, hasLength(1));
+      expect(terminal.writes, hasLength(1));
+
+      controller.newTask();
+      expect(controller.followUpEnded, isFalse);
+      expect(controller.transcript, isEmpty);
+      expect(terminal.writes, hasLength(1));
+      terminal.disconnected = false;
+      api.respond = (_) async => const AiReply(text: 'Independent analysis');
+      await controller.ask(
+        'Inspect the current screen without running a command',
+      );
+      expect(api.requests, hasLength(2));
+      expect(terminal.writes, hasLength(1));
+      expect(jsonEncode(api.requests.last), isNot(contains('Run once')));
+      controller.selectTask(oldTask);
+      await Future<void>.delayed(Duration.zero);
+      expect(controller.followUpEnded, isTrue);
+      expect(controller.hasUnresolvedSubmission, isTrue);
+      expect(controller.transcript.last.submissionId, unknown.submissionId);
+      // Later evidence can correct the fact, but cannot reopen the old task.
+      terminal.receipt = {'outcome': 'accepted', 'blockId': 'original-block'};
+      await controller.refreshContext();
+      expect(controller.transcript.last.state, AiEntryState.accepted);
+      expect(controller.followUpEnded, isTrue);
+      expect(controller.canResume, isFalse);
+    },
+  );
+
+  test(
     'simultaneous terminal checks share one read and do not send input',
     () async {
       terminal.contextRead = Completer();

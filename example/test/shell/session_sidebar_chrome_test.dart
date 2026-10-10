@@ -39,9 +39,15 @@ double _lineOpacity(WidgetTester tester) =>
 void _expectCenteredTitle(WidgetTester tester) {
   final toggle = tester.getCenter(find.byKey(_toggle));
   final gear = tester.getCenter(find.byKey(_gear));
-  final title = tester.getCenter(
-    find.byKey(const Key('shell-chrome-window-title')),
-  );
+  final titleFinder = find.byKey(const Key('shell-chrome-window-title'));
+  if (titleFinder.evaluate().isEmpty) {
+    final tabs = tester.getRect(find.byKey(const Key('shell-tab-strip')));
+    expect(tabs.center.dy, closeTo(gear.dy, 0.1));
+    expect(tabs.left, greaterThanOrEqualTo(118));
+    expect(tabs.right, lessThan(gear.dx));
+    return;
+  }
+  final title = tester.getCenter(titleFinder);
   final left = tester.getRect(find.byKey(_toggle)).right;
   final right = tester
       .getRect(find.byKey(const Key('terminal-ai-open-1')))
@@ -114,11 +120,21 @@ void main() {
             .width,
         400,
       );
-      expect(nativeLayouts.last, {'sidebarWidth': 400.0});
+      expect(
+        (nativeLayouts.last! as Map<Object?, Object?>)['sidebarWidth'],
+        400.0,
+      );
+      expect(
+        (nativeLayouts.last! as Map<Object?, Object?>)['draggableRegions'],
+        isA<List<Object?>>(),
+      );
       await tester.tap(find.byKey(_toggle));
       await tester.pumpAndSettle();
       expect(find.byKey(_handle), findsNothing);
-      expect(nativeLayouts.last, {'sidebarWidth': null});
+      expect(
+        (nativeLayouts.last! as Map<Object?, Object?>)['sidebarWidth'],
+        isNull,
+      );
       await tester.tap(find.byKey(_toggle));
       await tester.pumpAndSettle();
       expect(_width(tester), 400);

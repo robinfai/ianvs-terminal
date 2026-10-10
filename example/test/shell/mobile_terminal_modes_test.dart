@@ -186,6 +186,22 @@ Future<void> _settle(WidgetTester tester) async {
   }
 }
 
+Future<void> _expectReadOnlyObservation(
+  WidgetTester tester,
+  _MobileBackend backend,
+) async {
+  final observer = find.byKey(const Key('ai-observer-viewport')).hitTestable();
+  expect(observer, findsOneWidget);
+  final viewport = tester.widget<TerminalViewport>(observer);
+  expect(viewport.readOnly, isTrue);
+  viewport.inputController.sendText('observation must not write');
+  await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+  await tester.sendKeyEvent(LogicalKeyboardKey.keyC);
+  await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+  expect(backend.writes, isEmpty);
+  expect(backend.submissions, isEmpty);
+}
+
 Future<({ProviderContainer container, String id})> _pump(
   WidgetTester tester,
   _MobileBackend backend, {
@@ -716,10 +732,16 @@ void main() {
       await _capture(tester, 'D10-ssh-disconnected-${platform.name}');
       await tester.tap(find.byKey(const Key('ai-close')));
       await _settle(tester);
+      await _expectReadOnlyObservation(tester, backend);
       expect(
-        tester.widget<TerminalViewport>(find.byType(TerminalViewport)).readOnly,
-        true,
+        tester
+            .widget<TextButton>(find.byKey(const Key('ai-observer-take-over')))
+            .onPressed,
+        isNull,
       );
+      expect(ai.taskId, taskId);
+      expect(ai.draft, 'Keep this SSH follow-up');
+      expect(ai.attachments, [evidence]);
       await tester.tap(find.byKey(Key('terminal-ai-open-$id')));
       await _settle(tester);
       expect(ai.draft, 'Keep this SSH follow-up');
@@ -877,9 +899,23 @@ void main() {
         .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
         .controller;
     expect(ai.context?.sessionId, id);
+    final taskId = ai.taskId;
     await tester.tap(find.byKey(const Key('ai-close')));
     await _settle(tester);
-    await tester.tap(find.byKey(const ValueKey('block-expand-1')));
+    await _expectReadOnlyObservation(tester, backend);
+    expect(ai.taskId, taskId);
+    expect(ai.takenOver, isFalse);
+    expect(ai.draft, 'keep AI draft');
+    await tester.tap(
+      find.byKey(const Key('ai-observer-take-over')).hitTestable(),
+    );
+    await _settle(tester);
+    expect(find.byKey(const Key('ai-observer-viewport')), findsNothing);
+    expect(ai.taskId, taskId);
+    expect(ai.draft, 'keep AI draft');
+    await tester.tap(
+      find.byKey(const ValueKey('block-expand-1')).hitTestable(),
+    );
     await _settle(tester);
     expect(tester.testTextInput.isVisible, false);
     expect(find.byKey(const Key('composer-editor')), findsNothing);
@@ -1006,9 +1042,18 @@ void main() {
     expect(backend.submissions, isEmpty);
     await tester.tap(find.byKey(const Key('ai-close')));
     await _settle(tester);
+    await _expectReadOnlyObservation(tester, backend);
+    expect(ai.taskId, taskId);
+    expect(ai.draft, 'keep AI draft');
+    await tester.tap(
+      find.byKey(const Key('ai-observer-take-over')).hitTestable(),
+    );
+    await _settle(tester);
     expect(
       tester
-          .widget<TextField>(find.byKey(const Key('composer-editor')))
+          .widget<TextField>(
+            find.byKey(const Key('composer-editor')).hitTestable(),
+          )
           .controller!
           .text,
       'keep command draft',
@@ -1082,6 +1127,13 @@ void main() {
         findsNothing,
       );
       await tester.tap(find.byKey(const Key('ai-close')));
+      await _settle(tester);
+      await _expectReadOnlyObservation(tester, backend);
+      expect(tester.getSize(viewport), fullSize);
+      expect(backend.resizeCalls.last, fullGrid);
+      await tester.tap(
+        find.byKey(const Key('ai-observer-take-over')).hitTestable(),
+      );
       await _settle(tester);
       tester.view.viewInsets = FakeViewPadding(bottom: scene.keyboard);
       await _settle(tester);
@@ -1219,6 +1271,15 @@ void main() {
       // Only the explicit takeover control returns raw keyboard ownership.
       await tester.tap(find.byKey(const Key('ai-close')));
       await _settle(tester);
+      await _expectReadOnlyObservation(tester, backend);
+      expect(ai.phase, phase);
+      expect(ai.taskId, taskId);
+      await tester.tap(
+        find.byKey(const Key('ai-observer-take-over')).hitTestable(),
+      );
+      await _settle(tester);
+      expect(observer.hitTestable(), findsNothing);
+      expect(find.byType(TerminalAiWorkspace), findsNothing);
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       expect(backend.writes, [
         orderedEquals([27]),

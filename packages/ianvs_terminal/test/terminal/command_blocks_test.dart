@@ -134,6 +134,73 @@ void main() {
     );
   }
 
+  for (final status in [
+    (running: false, exitCode: 0, label: 'Exit 0'),
+    (running: false, exitCode: 255, label: 'Exit 255'),
+    (running: false, exitCode: null, label: 'Exit ?'),
+    (running: true, exitCode: null, label: 'Running'),
+  ]) {
+    testWidgets(
+      'short block summary shows ${status.label} and explicit details',
+      (tester) async {
+        tester.view.physicalSize = const Size(320, 240);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        final controller = CommandBlockController(
+          request: (_) => {
+            'blocks': [
+              {
+                ...block('summary', running: status.running),
+                'exitCode': status.exitCode,
+              },
+            ],
+          },
+        )..refresh();
+        try {
+          await tester.pumpWidget(
+            MaterialApp(
+              theme: ThemeData(platform: TargetPlatform.macOS),
+              builder: (context, child) => MediaQuery(
+                data: MediaQuery.of(
+                  context,
+                ).copyWith(textScaler: const TextScaler.linear(2)),
+                child: child!,
+              ),
+              home: Scaffold(
+                body: TerminalCommandBlocksView(
+                  controller: controller,
+                  showToolbar: false,
+                  onReinput: (_) =>
+                      fail('Opening details must not re-input a command'),
+                ),
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+
+          final whole = find.byKey(const ValueKey('command-block-summary'));
+          final budget =
+              tester.getSize(find.byType(CommandTimelineView)).height / 3;
+          expect(tester.getSize(whole).height, lessThanOrEqualTo(budget));
+          expect(find.text(status.label).hitTestable(), findsOneWidget);
+          final details = find.byTooltip('Expand block details');
+          expect(details.hitTestable(), findsOneWidget);
+          expect(controller.expandedOutput, isEmpty);
+
+          await tester.tap(details);
+          await tester.pumpAndSettle();
+          expect(controller.expandedOutput, contains('summary'));
+          expect(find.text('~/project').hitTestable(), findsOneWidget);
+          expect(tester.getSize(whole).height, greaterThan(budget));
+          expect(tester.takeException(), isNull);
+        } finally {
+          await tester.pumpWidget(const SizedBox.shrink());
+          controller.dispose();
+        }
+      },
+    );
+  }
+
   for (final running in [false, true]) {
     testWidgets(
       'capped output keeps pixel scrolling and inertia during refresh, running: $running',

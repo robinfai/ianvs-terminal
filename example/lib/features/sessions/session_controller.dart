@@ -2946,11 +2946,15 @@ class SessionController extends Notifier<SessionState> {
     _recordingDroppedSemanticCounts.remove(sessionId);
   }
 
-  Future<bool> closeSession(String sessionId) async {
+  Future<bool> closeSession(
+    String sessionId, {
+    bool Function()? canClose,
+  }) async {
     if (_isShuttingDown) {
       return false;
     }
     if (ref.read(sessionDemoFixtureProvider) != null) {
+      if (canClose != null && !canClose()) return false;
       _removeSessionState(sessionId);
       return true;
     }
@@ -2990,6 +2994,12 @@ class SessionController extends Notifier<SessionState> {
       );
       return false;
     }
+    // UI confirmation may predate asynchronous recording finalization. Check
+    // its exact target and risk snapshot immediately before native close.
+    if (canClose != null && !canClose()) {
+      await _resumeRecordingsAfterRejectedClose(recordingsToResume);
+      return false;
+    }
     if (_isShuttingDown || !_runtime.tryCloseSession(sessionId)) {
       final resumed = await _resumeRecordingsAfterRejectedClose(
         recordingsToResume,
@@ -3026,7 +3036,10 @@ class SessionController extends Notifier<SessionState> {
     );
   }
 
-  Future<bool> closeTab(String tabSessionId) async {
+  Future<bool> closeTab(
+    String tabSessionId, {
+    bool Function()? canClose,
+  }) async {
     if (_isShuttingDown) {
       return false;
     }
@@ -3095,6 +3108,12 @@ class SessionController extends Notifier<SessionState> {
             : 'Cancel active ZMODEM transfers before closing this tab. One or '
                   'more recording continuations could not be started.',
       );
+      return false;
+    }
+    // A new pane or changed task must not inherit an earlier tab-wide
+    // confirmation. This remains synchronous with the native close loop.
+    if (canClose != null && !canClose()) {
+      await _resumeRecordingsAfterRejectedClose(recordingsToResume);
       return false;
     }
     final demoFixture = ref.read(sessionDemoFixtureProvider);

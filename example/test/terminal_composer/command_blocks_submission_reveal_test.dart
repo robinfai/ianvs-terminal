@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:app/features/preferences/app_preferences_models.dart';
 import 'package:app/features/sessions/session_state.dart';
 import 'package:app/features/terminal_composer/command_blocks_pane.dart';
@@ -209,6 +211,7 @@ void main() {
               active: true,
               available: true,
               onTerminalFocus: liveFocus.requestFocus,
+              terminalFocus: liveFocus,
             ),
           ],
         ),
@@ -364,6 +367,61 @@ void main() {
         }
       },
     );
+
+    for (final destination in ['settings', 'inactive']) {
+      testWidgets(
+        'a fast command does not restore editing after focus moves to $destination',
+        (tester) async {
+          try {
+            await mount(tester);
+            runtime.publishReceipt = false;
+            await tester.enterText(
+              find.byKey(const Key('composer-editor')),
+              'sleep 0',
+            );
+            await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+            await settle(tester);
+            expect(session.controller.ownership, ComposerOwnership.running);
+            if (destination == 'settings') {
+              unawaited(
+                showDialog<void>(
+                  context: tester.element(find.byType(ComposerPane)),
+                  builder: (_) => const AlertDialog(
+                    title: Text('Settings'),
+                    content: TextField(autofocus: true),
+                  ),
+                ),
+              );
+              await tester.pumpAndSettle();
+            } else {
+              tester.binding.handleAppLifecycleStateChanged(
+                AppLifecycleState.inactive,
+              );
+              await tester.pump();
+            }
+            final owner = FocusManager.instance.primaryFocus;
+            runtime.ownership = 'ready';
+            runtime.output[runtime.output.indexWhere(
+              (block) => block['id'] == 'manual',
+            )] = _Runtime._block(
+              'manual',
+              'sleep 0',
+            );
+            session.refreshShellState();
+            await tester.pump();
+            await tester.pump();
+            expect(FocusManager.instance.primaryFocus, same(owner));
+            expect(session.editorFocus.hasFocus, isFalse);
+          } finally {
+            await dispose(tester);
+            tester.binding.handleAppLifecycleStateChanged(
+              AppLifecycleState.resumed,
+            );
+            await tester.pump();
+          }
+        },
+      );
+    }
 
     testWidgets(
       'background commands preserve the reading anchor without a Composer submission',

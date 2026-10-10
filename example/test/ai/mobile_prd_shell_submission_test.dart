@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:app/features/ai/ai_models.dart';
 import 'package:app/features/ai/ai_settings.dart';
@@ -42,6 +43,10 @@ class _DeferredStore implements AiConfigurationStore {
 }
 
 class _Backend extends FakePtyBackend {
+  final submissions = <String>[];
+  final contextReads = <String>[];
+  final leases = <String, String>{};
+
   @override
   PtyRuntimeCapabilities get runtimeCapabilities =>
       PtyRuntimeCapabilities.fromJson({
@@ -55,10 +60,15 @@ class _Backend extends FakePtyBackend {
   @override
   String? requestSessionJson(String sessionId, String requestJson) {
     final request = jsonDecode(requestJson) as Map<String, Object?>;
+    if (request['kind'] == 'terminal.live_screen') contextReads.add(sessionId);
+    if (request['kind'] == 'composer.submit') {
+      submissions.add(sessionId);
+      return jsonEncode({'outcome': 'rejected'});
+    }
     return switch (request['kind']) {
       'composer.state' => jsonEncode({
         'state': 'ready',
-        'lease': 'lease-$sessionId',
+        'lease': leases[sessionId] ?? 'lease-$sessionId',
         'contextId': 'root',
         'transport': 'shell',
         'cwd': '/srv/fixture',
@@ -83,8 +93,10 @@ class _Fixture {
   late final settings = AiSettingsController(store);
   late TerminalAiController ai;
   late String sessionId;
+  late ProviderContainer container;
+  late TerminalProfile profile;
 
-  Future<void> mount(WidgetTester tester) async {
+  Future<void> mount(WidgetTester tester, {bool keepAiOpen = false}) async {
     const size = Size(390, 844);
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = size;
@@ -97,7 +109,7 @@ class _Fixture {
       tester.view.reset();
       await tester.binding.setSurfaceSize(null);
     });
-    final profile = TerminalProfile(
+    profile = TerminalProfile(
       id: 'fixture',
       name: 'Fixture shell',
       shell: '',
@@ -145,7 +157,7 @@ class _Fixture {
       ),
     );
     await _settle(tester);
-    final container = ProviderScope.containerOf(
+    container = ProviderScope.containerOf(
       tester.element(find.byType(ShellScreen)),
     );
     if (container.read(sessionControllerProvider).activeSessionId == null) {
@@ -161,8 +173,10 @@ class _Fixture {
       find.byType(TerminalAiWorkspace),
     );
     ai = workspace.controller;
-    workspace.onClose();
-    await _settle(tester);
+    if (!keepAiOpen) {
+      workspace.onTakeOver!();
+      await _settle(tester);
+    }
     backend.writes.clear();
   }
 
@@ -191,6 +205,110 @@ class _Fixture {
   );
 }
 
+// Keep the production HTTP client and independent reviewer paths, while making
+// response delivery deterministic and preventing any real network connection.
+class _ModelClient implements HttpClient {
+  _ModelClient(this.respond);
+  final Future<Map<String, Object?>> Function(Map<String, Object?>) respond;
+  @override
+  Duration? connectionTimeout;
+  @override
+  Future<HttpClientRequest> postUrl(Uri url) async => _ModelRequest(respond);
+  @override
+  void close({bool force = false}) {}
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _ModelHeaders implements HttpHeaders {
+  @override
+  ContentType? contentType;
+  @override
+  void set(String name, Object value, {bool preserveHeaderCase = false}) {}
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _ModelRequest implements HttpClientRequest {
+  _ModelRequest(this.respond);
+  final Future<Map<String, Object?>> Function(Map<String, Object?>) respond;
+  final bytes = <int>[];
+  @override
+  final headers = _ModelHeaders();
+  @override
+  bool followRedirects = false;
+  @override
+  int contentLength = -1;
+  @override
+  void add(List<int> data) => bytes.addAll(data);
+  @override
+  Future<HttpClientResponse> close() async => _ModelResponse(
+    await respond(
+      (jsonDecode(utf8.decode(bytes)) as Map).cast<String, Object?>(),
+    ),
+  );
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _ModelResponse extends Stream<List<int>> implements HttpClientResponse {
+  _ModelResponse(this.message);
+  final Map<String, Object?> message;
+  @override
+  int get statusCode => 200;
+  @override
+  StreamSubscription<List<int>> listen(
+    void Function(List<int>)? onData, {
+    Function? onError,
+    void Function()? onDone,
+    bool? cancelOnError,
+  }) =>
+      Stream.value(
+        utf8.encode(
+          jsonEncode({
+            'choices': [
+              {'message': message},
+            ],
+          }),
+        ),
+      ).listen(
+        onData,
+        onError: onError,
+        onDone: onDone,
+        cancelOnError: cancelOnError,
+      );
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+Map<String, Object?> _commandResponse() => {
+  'content': 'Inspect the working directory',
+  'tool_calls': [
+    {
+      'id': 'inspect-pwd',
+      'function': {
+        'name': 'run_command',
+        'arguments': jsonEncode({
+          'command': 'pwd',
+          'reason': 'Inspect directory',
+        }),
+      },
+    },
+  ],
+};
+
+Map<String, Object?> _approvedResponse() => {
+  'content': jsonEncode({
+    'action_id': 'inspect-pwd',
+    'decision': 'allow',
+    'risk': 'low',
+    'effect': 'read_only',
+    'within_scope': true,
+    'needs_confirmation': false,
+    'reason': 'Requested directory inspection',
+  }),
+};
+
 class _PendingContextTerminal extends FakeTerminal {
   final started = Completer<void>();
   final result = Completer<AiTerminalContext>();
@@ -203,6 +321,210 @@ class _PendingContextTerminal extends FakeTerminal {
 }
 
 void main() {
+  for (final destination in ['connections home', 'another tab']) {
+    for (final waitingFor in ['model', 'review']) {
+      testWidgets(
+        'background revokes $waitingFor after leaving AI for $destination',
+        (tester) async {
+          final deferred = Completer<Map<String, Object?>>();
+          var requests = 0;
+          await HttpOverrides.runZoned(
+            () async {
+              final fixture = _Fixture();
+              await fixture.mount(tester, keepAiOpen: true);
+              fixture.store.result.complete(
+                const AiConfiguration.mock(approvalMode: AiApprovalMode.smart),
+              );
+              await _settle(tester);
+              final turn = fixture.ai.ask('Inspect the current directory');
+              await _settle(tester);
+              expect(
+                fixture.ai.phase,
+                waitingFor == 'model' ? AiPhase.thinking : AiPhase.reviewing,
+              );
+
+              if (destination == 'connections home') {
+                await tester.tap(
+                  find.byKey(const Key('mobile-connections-back')),
+                );
+              } else {
+                fixture.container
+                    .read(sessionControllerProvider.notifier)
+                    .createSession(fixture.profile);
+              }
+              await _settle(tester);
+              expect(find.byType(TerminalAiWorkspace), findsNothing);
+              tester.binding.handleAppLifecycleStateChanged(
+                AppLifecycleState.inactive,
+              );
+              await tester.pump();
+              deferred.complete(
+                waitingFor == 'model'
+                    ? _commandResponse()
+                    : _approvedResponse(),
+              );
+              await _settle(tester);
+              await turn;
+              expect(fixture.backend.submissions, isEmpty);
+              expect(fixture.ai.busy, false);
+              expect(fixture.ai.takenOver, true);
+              expect(fixture.ai.pending, isNull);
+              expect(fixture.backend.writes, isEmpty);
+              final completedRequests = requests;
+              tester.binding.handleAppLifecycleStateChanged(
+                AppLifecycleState.resumed,
+              );
+              await _settle(tester);
+              expect(requests, completedRequests);
+              expect(fixture.backend.submissions, isEmpty);
+            },
+            createHttpClient: (_) => _ModelClient((_) async {
+              requests++;
+              if (requests == (waitingFor == 'model' ? 1 : 2)) {
+                return deferred.future;
+              }
+              return requests == 1 ? _commandResponse() : _approvedResponse();
+            }),
+          );
+        },
+        variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+      );
+    }
+  }
+
+  for (final changedTarget in [false, true]) {
+    testWidgets(
+      'all hidden proposals are revalidated once on resume (changed: $changedTarget)',
+      (tester) async {
+        await HttpOverrides.runZoned(
+          () async {
+            final fixture = _Fixture();
+            await fixture.mount(tester, keepAiOpen: true);
+            fixture.store.result.complete(const AiConfiguration.mock());
+            await _settle(tester);
+            final firstTurn = fixture.ai.ask('Inspect the first directory');
+            await _settle(tester);
+            await firstTurn;
+            final firstProposal = fixture.ai.pending;
+            expect(firstProposal, isNotNull);
+            final secondId = fixture.container
+                .read(sessionControllerProvider.notifier)
+                .createSession(fixture.profile)!;
+            await _settle(tester);
+            await tester.tap(find.byKey(Key('terminal-ai-open-$secondId')));
+            await _settle(tester);
+            final second = tester
+                .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
+                .controller;
+            final secondTurn = second.ask('Inspect the second directory');
+            await _settle(tester);
+            await secondTurn;
+            final secondProposal = second.pending;
+            expect(secondProposal, isNotNull);
+            await tester.tap(find.byKey(const Key('mobile-connections-back')));
+            await _settle(tester);
+            expect(find.byType(TerminalAiWorkspace), findsNothing);
+
+            tester.binding.handleAppLifecycleStateChanged(
+              AppLifecycleState.inactive,
+            );
+            tester.binding.handleAppLifecycleStateChanged(
+              AppLifecycleState.hidden,
+            );
+            tester.binding.handleAppLifecycleStateChanged(
+              AppLifecycleState.paused,
+            );
+            await tester.pump(const Duration(minutes: 30));
+            expect(fixture.ai.pending, same(firstProposal));
+            expect(second.pending, same(secondProposal));
+            expect(fixture.ai.canApprove, false);
+            expect(second.canApprove, false);
+            await fixture.ai.approve();
+            await second.approve();
+            expect(fixture.backend.submissions, isEmpty);
+            if (changedTarget) {
+              fixture.backend.leases[fixture.sessionId] =
+                  'new-foreground-lease';
+            }
+            fixture.backend.contextReads.clear();
+            tester.binding.handleAppLifecycleStateChanged(
+              AppLifecycleState.hidden,
+            );
+            tester.binding.handleAppLifecycleStateChanged(
+              AppLifecycleState.inactive,
+            );
+            tester.binding.handleAppLifecycleStateChanged(
+              AppLifecycleState.resumed,
+            );
+            await _settle(tester);
+            expect(
+              fixture.backend.contextReads,
+              unorderedEquals([fixture.sessionId, secondId]),
+            );
+            expect(
+              fixture.ai.pending,
+              changedTarget ? isNull : same(firstProposal),
+            );
+            expect(fixture.ai.canApprove, !changedTarget);
+            expect(second.pending, same(secondProposal));
+            expect(second.canApprove, true);
+            expect(fixture.backend.submissions, isEmpty);
+            expect(fixture.backend.writes, isEmpty);
+          },
+          createHttpClient: (_) =>
+              _ModelClient((_) async => _commandResponse()),
+        );
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+    );
+  }
+
+  testWidgets(
+    'new hidden controller inherits inactive lifecycle',
+    (tester) async {
+      var requests = 0;
+      await HttpOverrides.runZoned(
+        () async {
+          final fixture = _Fixture();
+          await fixture.mount(tester);
+          fixture.store.result.complete(const AiConfiguration.mock());
+          await _settle(tester);
+          final secondId = fixture.container
+              .read(sessionControllerProvider.notifier)
+              .createSession(fixture.profile)!;
+          await _settle(tester);
+          tester.binding.handleAppLifecycleStateChanged(
+            AppLifecycleState.inactive,
+          );
+          // A late UI callback can still create the workspace during a transition.
+          tester
+              .widget<ButtonStyleButton>(
+                find.byKey(Key('terminal-ai-open-$secondId')),
+              )
+              .onPressed!();
+          await _settle(tester);
+          final second = tester
+              .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
+              .controller;
+          await second.ask('Do not send this while inactive');
+          expect(requests, 0);
+          expect(second.transcript, isEmpty);
+          expect(fixture.backend.submissions, isEmpty);
+          tester.binding.handleAppLifecycleStateChanged(
+            AppLifecycleState.resumed,
+          );
+          await _settle(tester);
+          expect(requests, 0);
+        },
+        createHttpClient: (_) => _ModelClient((_) async {
+          requests++;
+          return _commandResponse();
+        }),
+      );
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+  );
+
   testWidgets(
     'Composer send freezes draft and sources before settings load',
     (tester) async {
@@ -254,7 +576,7 @@ void main() {
   );
 
   testWidgets(
-    'closing and reopening AI does not revive an old Composer send',
+    'taking over and reopening AI does not revive an old Composer send',
     (tester) async {
       final fixture = _Fixture();
       await fixture.mount(tester);
@@ -262,7 +584,7 @@ void main() {
       await _settle(tester);
       tester
           .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
-          .onClose();
+          .onTakeOver!();
       await _settle(tester);
       await tester.tap(
         find.byKey(Key('terminal-ai-open-${fixture.sessionId}')),

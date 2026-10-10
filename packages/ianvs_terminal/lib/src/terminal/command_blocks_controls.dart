@@ -475,11 +475,33 @@ extension _CommandBlocksControls on _CommandBlocksViewState {
                 },
               ),
             Text(
-              t('${_matches.length} matching lines', '${_matches.length} 行匹配'),
+              _findBlockLimited || _findTotalLimited
+                  ? t(
+                      '${_matches.length} matches shown',
+                      '已显示 ${_matches.length} 条匹配',
+                    )
+                  : t(
+                      '${_matches.length} matching lines',
+                      '${_matches.length} 行匹配',
+                    ),
               style: tokens.metadataStyle,
             ),
           ],
         ),
+        if (_findBlockLimited || _findTotalLimited)
+          Text(
+            _findTotalLimited
+                ? t(
+                    'Search display limit reached: 1,000 matches total. Refine the query or search within a block.',
+                    '已达到查找显示上限：合计 1,000 条匹配。请缩小查询范围或在单个命令块中查找。',
+                  )
+                : t(
+                    'Search results are limited to one output page per block (up to 200 matching lines). Refine the query or open the block reader.',
+                    '每个命令块的查找结果最多显示一页输出（200 行匹配）。请细化查询或打开命令块阅读器。',
+                  ),
+            key: const Key('block-find-limit'),
+            style: tokens.metadataStyle,
+          ),
         if (_find.text.isNotEmpty && _matches.isEmpty && _findError == null)
           Padding(
             padding: const EdgeInsets.all(6),

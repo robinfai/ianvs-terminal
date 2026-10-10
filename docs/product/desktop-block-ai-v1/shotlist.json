@@ -1,0 +1,1595 @@
+{
+  "version": "1.0",
+  "shots": [
+    {
+      "id": "D1-T01-F01",
+      "case_id": "D1-T01",
+      "file_name": "after-01.png",
+      "visible_state": "默认桌面：单层顶栏、Blocks、三层 Dock、底部状态栏",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D1-T01-F02",
+      "case_id": "D1-T01",
+      "file_name": "after-02.png",
+      "visible_state": "进入当前 pane 的 AI 任务，仍可辨认同一会话",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D1-T02-F01",
+      "case_id": "D1-T02",
+      "file_name": "after-01.png",
+      "visible_state": "失败 Block 常驻 AI 诊断，未展开菜单",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D1-T02-F02",
+      "case_id": "D1-T02",
+      "file_name": "after-02.png",
+      "visible_state": "正常块选中后的情境动作及右键菜单",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D1-T03-F01",
+      "case_id": "D1-T03",
+      "file_name": "after-01.png",
+      "visible_state": "多块选择和待附加来源计数",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D1-T03-F02",
+      "case_id": "D1-T03",
+      "file_name": "after-02.png",
+      "visible_state": "来源详情展示会话、行范围、截断声明",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D1-T03-F03",
+      "case_id": "D1-T03",
+      "file_name": "after-03.png",
+      "visible_state": "发送后的冻结来源与原始 Block 证据入口",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D1-T04-F01",
+      "case_id": "D1-T04",
+      "file_name": "after-01.png",
+      "visible_state": "自动·命令与“执行”主动作",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D1-T04-F02",
+      "case_id": "D1-T04",
+      "file_name": "after-02.png",
+      "visible_state": "自动·AI及上下文，“发送给 AI”主动作",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D1-T04-F03",
+      "case_id": "D1-T04",
+      "file_name": "after-03.png",
+      "visible_state": "忙碌任务中“补充要求”，Shell 执行不可用",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D1-T05-F01",
+      "case_id": "D1-T05",
+      "file_name": "after-01.png",
+      "visible_state": "请求、解释、提案、执行块的视觉层级",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D1-T05-F02",
+      "case_id": "D1-T05",
+      "file_name": "after-02.png",
+      "visible_state": "收拢步骤与真实结果统计",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D1-T05-F03",
+      "case_id": "D1-T05",
+      "file_name": "after-03.png",
+      "visible_state": "总结引用打开对应原始输出",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D1-T06-F01",
+      "case_id": "D1-T06",
+      "file_name": "after-01.png",
+      "visible_state": "完整短命令的行内审阅与明确执行目标",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D1-T06-F02",
+      "case_id": "D1-T06",
+      "file_name": "after-02.png",
+      "visible_state": "长命令审阅层顶部目标和命令",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D1-T06-F03",
+      "case_id": "D1-T06",
+      "file_name": "after-03.png",
+      "visible_state": "长命令末尾与固定可达的操作区",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D1-T07-F01",
+      "case_id": "D1-T07",
+      "file_name": "after-01.png",
+      "visible_state": "编辑提案：保存并重新审阅",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D1-T07-F02",
+      "case_id": "D1-T07",
+      "file_name": "after-02.png",
+      "visible_state": "旧版本失效和新版本的完整命令",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D1-T08-F01",
+      "case_id": "D1-T08",
+      "file_name": "after-01.png",
+      "visible_state": "提交中不可重复批准",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D1-T08-F02",
+      "case_id": "D1-T08",
+      "file_name": "after-02.png",
+      "visible_state": "命令实际运行并关联原操作",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D1-T08-F03",
+      "case_id": "D1-T08",
+      "file_name": "after-03.png",
+      "visible_state": "确定结果与保留的新草稿",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D1-T09-F01",
+      "case_id": "D1-T09",
+      "file_name": "after-01.png",
+      "visible_state": "AI 运行中的只读终端与状态标签",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D1-T09-F02",
+      "case_id": "D1-T09",
+      "file_name": "after-02.png",
+      "visible_state": "只读页输入尝试后的明确“接管输入”入口",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D1-T09-F03",
+      "case_id": "D1-T09",
+      "file_name": "after-03.png",
+      "visible_state": "返回任务后仍显示同一在途操作",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D1-T10-F01",
+      "case_id": "D1-T10",
+      "file_name": "after-01.png",
+      "visible_state": "暂停 AI 但命令仍在运行",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D1-T10-F02",
+      "case_id": "D1-T10",
+      "file_name": "after-02.png",
+      "visible_state": "人工输入接管后的所有权提示",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D1-T10-F03",
+      "case_id": "D1-T10",
+      "file_name": "after-03.png",
+      "visible_state": "显式中断后实际命令状态",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D1-T11-F01",
+      "case_id": "D1-T11",
+      "file_name": "after-01.png",
+      "visible_state": "未知状态、原操作和检查入口",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D1-T11-F02",
+      "case_id": "D1-T11",
+      "file_name": "after-02.png",
+      "visible_state": "断连与未知同时可见",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D1-T11-F03",
+      "case_id": "D1-T11",
+      "file_name": "after-03.png",
+      "visible_state": "确认原回执后的真实结果或仍未知说明",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D1-T12-F01",
+      "case_id": "D1-T12",
+      "file_name": "after-01.png",
+      "visible_state": "旧目标与当前目标比较",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D1-T12-F02",
+      "case_id": "D1-T12",
+      "file_name": "after-02.png",
+      "visible_state": "旧批准禁用并提供显式继续/返回选择",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D1-T13-F01",
+      "case_id": "D1-T13",
+      "file_name": "after-01.png",
+      "visible_state": "两任务的独立草稿与任务选择",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D1-T13-F02",
+      "case_id": "D1-T13",
+      "file_name": "after-02.png",
+      "visible_state": "关闭确认展示运行/未审内容与取消操作",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D1-T14-F01",
+      "case_id": "D1-T14",
+      "file_name": "after-01.png",
+      "visible_state": "API 未配置但 Shell 仍可用",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D1-T14-F02",
+      "case_id": "D1-T14",
+      "file_name": "after-02.png",
+      "visible_state": "认证/连接错误与保留草稿",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D1-T15-F01",
+      "case_id": "D1-T15",
+      "file_name": "after-01.png",
+      "visible_state": "API/本地 ACP 两入口与测试连接",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D1-T15-F02",
+      "case_id": "D1-T15",
+      "file_name": "after-02.png",
+      "visible_state": "缺失适配器的准确错误和手动配置",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D1-T15-F03",
+      "case_id": "D1-T15",
+      "file_name": "after-03.png",
+      "visible_state": "ACP 恢复与后端变化后的旧任务状态",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D1-T16-F01",
+      "case_id": "D1-T16",
+      "file_name": "after-01.png",
+      "visible_state": "完整 Raw/TUI 与当前输入所有者",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D1-T16-F02",
+      "case_id": "D1-T16",
+      "file_name": "after-02.png",
+      "visible_state": "退出后“可返回 Blocks”提示",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D1-T16-F03",
+      "case_id": "D1-T16",
+      "file_name": "after-03.png",
+      "visible_state": "手动恢复后的原任务与真实结果",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D2-T01-F01",
+      "case_id": "D2-T01",
+      "file_name": "after-01.png",
+      "visible_state": "候选高亮时主动作“采用”",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D2-T01-F02",
+      "case_id": "D2-T01",
+      "file_name": "after-02.png",
+      "visible_state": "审批层焦点位置和可访问批准按钮",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D2-T01-F03",
+      "case_id": "D2-T01",
+      "file_name": "after-03.png",
+      "visible_state": "Raw/TUI 里对应键位仍属于终端",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D2-T02-F01",
+      "case_id": "D2-T02",
+      "file_name": "after-01.png",
+      "visible_state": "多行草稿和明确执行按钮",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D2-T02-F02",
+      "case_id": "D2-T02",
+      "file_name": "after-02.png",
+      "visible_state": "超限或展开编辑后的完整保留内容",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D2-T03-F01",
+      "case_id": "D2-T03",
+      "file_name": "after-01.png",
+      "visible_state": "系统拼音候选正在组成，未发送",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D2-T03-F02",
+      "case_id": "D2-T03",
+      "file_name": "after-02.png",
+      "visible_state": "确认汉字后仍是未提交草稿",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D2-T03-F03",
+      "case_id": "D2-T03",
+      "file_name": "after-03.png",
+      "visible_state": "显式提交后的单次请求/真实 Block",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D2-T04-F01",
+      "case_id": "D2-T04",
+      "file_name": "after-01.png",
+      "visible_state": "宽 pane 的候选与选中详情",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D2-T04-F02",
+      "case_id": "D2-T04",
+      "file_name": "after-02.png",
+      "visible_state": "窄 pane 的完整详情入口",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D2-T05-F01",
+      "case_id": "D2-T05",
+      "file_name": "after-01.png",
+      "visible_state": "历史筛选、结果数与原稿恢复入口",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D2-T05-F02",
+      "case_id": "D2-T05",
+      "file_name": "after-02.png",
+      "visible_state": "灰字未接受时的主动作与接受提示",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D2-T06-F01",
+      "case_id": "D2-T06",
+      "file_name": "after-01.png",
+      "visible_state": "多个块选择及批量操作的范围",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D2-T06-F02",
+      "case_id": "D2-T06",
+      "file_name": "after-02.png",
+      "visible_state": "输出文本选择与复制菜单",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D2-T06-F03",
+      "case_id": "D2-T06",
+      "file_name": "after-03.png",
+      "visible_state": "另一 pane 激活后旧选择不影响操作",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D2-T07-F01",
+      "case_id": "D2-T07",
+      "file_name": "after-01.png",
+      "visible_state": "默认高度及输出滚动指示",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D2-T07-F02",
+      "case_id": "D2-T07",
+      "file_name": "after-02.png",
+      "visible_state": "分屏中按各 pane 重新计算",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D2-T07-F03",
+      "case_id": "D2-T07",
+      "file_name": "after-03.png",
+      "visible_state": "手动展开后的状态与恢复入口",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D2-T08-F01",
+      "case_id": "D2-T08",
+      "file_name": "after-01.png",
+      "visible_state": "块内回看与其滚动条位置",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D2-T08-F02",
+      "case_id": "D2-T08",
+      "file_name": "after-02.png",
+      "visible_state": "外层回看、新内容提醒和回到最新",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D2-T09-F01",
+      "case_id": "D2-T09",
+      "file_name": "after-01.png",
+      "visible_state": "单块查找与过滤作用域",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D2-T09-F02",
+      "case_id": "D2-T09",
+      "file_name": "after-02.png",
+      "visible_state": "Reader 原始行定位与保留/淘汰提示",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D2-T10-F01",
+      "case_id": "D2-T10",
+      "file_name": "after-01.png",
+      "visible_state": "2×2 pane各自目标与状态",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D2-T10-F02",
+      "case_id": "D2-T10",
+      "file_name": "after-02.png",
+      "visible_state": "B编辑时A有待审阅提醒",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D2-T10-F03",
+      "case_id": "D2-T10",
+      "file_name": "after-03.png",
+      "visible_state": "回到A后才能审阅原操作",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D2-T11-F01",
+      "case_id": "D2-T11",
+      "file_name": "after-01.png",
+      "visible_state": "多tab溢出与待审批标记",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D2-T11-F02",
+      "case_id": "D2-T11",
+      "file_name": "after-02.png",
+      "visible_state": "关闭保护与准确tab/Session信息",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D2-T12-F01",
+      "case_id": "D2-T12",
+      "file_name": "after-01.png",
+      "visible_state": "窗口失活时任务完成但没有焦点抢占",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D2-T12-F02",
+      "case_id": "D2-T12",
+      "file_name": "after-02.png",
+      "visible_state": "重激活后保留原编辑/阅读位置",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D2-T13-F01",
+      "case_id": "D2-T13",
+      "file_name": "after-01.png",
+      "visible_state": "标准16:9窗口完整布局",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D2-T13-F02",
+      "case_id": "D2-T13",
+      "file_name": "after-02.png",
+      "visible_state": "高DPI/大文字下的审批与操作区",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D2-T13-F03",
+      "case_id": "D2-T13",
+      "file_name": "after-03.png",
+      "visible_state": "短窄pane的可访问退化布局",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D2-T14-F01",
+      "case_id": "D2-T14",
+      "file_name": "after-01.png",
+      "visible_state": "边缘菜单完整可见",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D2-T14-F02",
+      "case_id": "D2-T14",
+      "file_name": "after-02.png",
+      "visible_state": "无hover时的键盘可达操作与禁用说明",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D2-T15-F01",
+      "case_id": "D2-T15",
+      "file_name": "after-01.png",
+      "visible_state": "宽窗显式证据检查器与来源标签",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D2-T15-F02",
+      "case_id": "D2-T15",
+      "file_name": "after-02.png",
+      "visible_state": "窄窗退为同pane Reader",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D2-T15-F03",
+      "case_id": "D2-T15",
+      "file_name": "after-03.png",
+      "visible_state": "TUI只读观察不改变底层几何",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D2-T16-F01",
+      "case_id": "D2-T16",
+      "file_name": "after-01.png",
+      "visible_state": "原生交互输入与Composer暂停",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D2-T16-F02",
+      "case_id": "D2-T16",
+      "file_name": "after-02.png",
+      "visible_state": "不支持shell的仅编辑/原始终端说明",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D2-T16-F03",
+      "case_id": "D2-T16",
+      "file_name": "after-03.png",
+      "visible_state": "结束交互后不抢占其他pane",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D3-T01-F01",
+      "case_id": "D3-T01",
+      "file_name": "after-01.png",
+      "visible_state": "浅色tokens应用于完整桌面",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D3-T01-F02",
+      "case_id": "D3-T01",
+      "file_name": "after-02.png",
+      "visible_state": "同一场景的深色tokens映射",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D3-T02-F01",
+      "case_id": "D3-T02",
+      "file_name": "after-01.png",
+      "visible_state": "浅色ANSI、选择与错误状态",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D3-T02-F02",
+      "case_id": "D3-T02",
+      "file_name": "after-02.png",
+      "visible_state": "深色同内容状态",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D3-T02-F03",
+      "case_id": "D3-T02",
+      "file_name": "after-03.png",
+      "visible_state": "高对比下焦点/边界仍可辨",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D3-T03-F01",
+      "case_id": "D3-T03",
+      "file_name": "after-01.png",
+      "visible_state": "五类Block状态的桌面密度",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D3-T03-F02",
+      "case_id": "D3-T03",
+      "file_name": "after-02.png",
+      "visible_state": "选中、hover与键盘focus的区别",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D3-T04-F01",
+      "case_id": "D3-T04",
+      "file_name": "after-01.png",
+      "visible_state": "标准三层Dock与上方补全",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D3-T04-F02",
+      "case_id": "D3-T04",
+      "file_name": "after-02.png",
+      "visible_state": "运行中的占位与禁用原因",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D3-T04-F03",
+      "case_id": "D3-T04",
+      "file_name": "after-03.png",
+      "visible_state": "分屏活动边界不延伸包住Dock",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D3-T05-F01",
+      "case_id": "D3-T05",
+      "file_name": "after-01.png",
+      "visible_state": "任务正文、提案和Block的视觉角色",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D3-T05-F02",
+      "case_id": "D3-T05",
+      "file_name": "after-02.png",
+      "visible_state": "完成摘要与有效证据引用",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D3-T06-F01",
+      "case_id": "D3-T06",
+      "file_name": "after-01.png",
+      "visible_state": "未知与断连同时呈现",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D3-T06-F02",
+      "case_id": "D3-T06",
+      "file_name": "after-02.png",
+      "visible_state": "AI暂停但命令仍运行",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D3-T06-F03",
+      "case_id": "D3-T06",
+      "file_name": "after-03.png",
+      "visible_state": "补全加载不覆盖待审/未知状态",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D3-T07-F01",
+      "case_id": "D3-T07",
+      "file_name": "after-01.png",
+      "visible_state": "原生等宽样本与中英混排",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D3-T07-F02",
+      "case_id": "D3-T07",
+      "file_name": "after-02.png",
+      "visible_state": "终端字体设置变化后的真实输出",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D3-T08-F01",
+      "case_id": "D3-T08",
+      "file_name": "after-01.png",
+      "visible_state": "2×文字的桌面核心流程",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D3-T08-F02",
+      "case_id": "D3-T08",
+      "file_name": "after-02.png",
+      "visible_state": "窄短窗口退化布局与完整操作",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D3-T09-F01",
+      "case_id": "D3-T09",
+      "file_name": "after-01.png",
+      "visible_state": "组件默认/hover/selected/focused状态册",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D3-T09-F02",
+      "case_id": "D3-T09",
+      "file_name": "after-02.png",
+      "visible_state": "提交中disabled与原因",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D3-T10-F01",
+      "case_id": "D3-T10",
+      "file_name": "after-01.png",
+      "visible_state": "中文长路径和完整目标详情",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D3-T10-F02",
+      "case_id": "D3-T10",
+      "file_name": "after-02.png",
+      "visible_state": "英文长标签的同场景",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D3-T11-F01",
+      "case_id": "D3-T11",
+      "file_name": "after-01.png",
+      "visible_state": "完整键盘操作中的焦点位置",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D3-T11-F02",
+      "case_id": "D3-T11",
+      "file_name": "after-02.png",
+      "visible_state": "VoiceOver聚焦审批目标和按钮",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D3-T12-F01",
+      "case_id": "D3-T12",
+      "file_name": "after-01.png",
+      "visible_state": "减少动画开启时的核心界面",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D3-T12-F02",
+      "case_id": "D3-T12",
+      "file_name": "after-02.png",
+      "visible_state": "快速切换后的稳定焦点与草稿",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D3-T13-F01",
+      "case_id": "D3-T13",
+      "file_name": "after-01.png",
+      "visible_state": "多来源计数和可删除Chip",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D3-T13-F02",
+      "case_id": "D3-T13",
+      "file_name": "after-02.png",
+      "visible_state": "已淘汰/无效证据的准确状态",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D3-T14-F01",
+      "case_id": "D3-T14",
+      "file_name": "after-01.png",
+      "visible_state": "本地pane的底部状态栏",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D3-T14-F02",
+      "case_id": "D3-T14",
+      "file_name": "after-02.png",
+      "visible_state": "SSH/断连pane的准确状态来源",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D3-T15-F01",
+      "case_id": "D3-T15",
+      "file_name": "after-01.png",
+      "visible_state": "Command Palette与scope说明",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D3-T15-F02",
+      "case_id": "D3-T15",
+      "file_name": "after-02.png",
+      "visible_state": "快捷键帮助及冲突/禁用状态",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D3-T16-F01",
+      "case_id": "D3-T16",
+      "file_name": "after-01.png",
+      "visible_state": "真实Flutter组件状态册",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D3-T16-F02",
+      "case_id": "D3-T16",
+      "file_name": "after-02.png",
+      "visible_state": "同环境before/after对照",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D3-T16-F03",
+      "case_id": "D3-T16",
+      "file_name": "after-03.png",
+      "visible_state": "原生App完成核心链路后的画面",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D4-T01-F01",
+      "case_id": "D4-T01",
+      "file_name": "after-01.png",
+      "visible_state": "真实App失败块与诊断草稿",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D4-T01-F02",
+      "case_id": "D4-T01",
+      "file_name": "after-02.png",
+      "visible_state": "真实App完整批准目标",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D4-T01-F03",
+      "case_id": "D4-T01",
+      "file_name": "after-03.png",
+      "visible_state": "实际Block结果及可打开引用",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D4-T02-F01",
+      "case_id": "D4-T02",
+      "file_name": "after-01.png",
+      "visible_state": "SSH协商成功的环境/节点",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D4-T02-F02",
+      "case_id": "D4-T02",
+      "file_name": "after-02.png",
+      "visible_state": "多跳目标审阅",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D4-T02-F03",
+      "case_id": "D4-T02",
+      "file_name": "after-03.png",
+      "visible_state": "未支持shell的准确降级",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D4-T03-F01",
+      "case_id": "D4-T03",
+      "file_name": "after-01.png",
+      "visible_state": "真实API配置和返回模型信息的脱敏记录",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D4-T03-F02",
+      "case_id": "D4-T03",
+      "file_name": "after-02.png",
+      "visible_state": "模型/网络错误后保留任务与来源",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D4-T04-F01",
+      "case_id": "D4-T04",
+      "file_name": "after-01.png",
+      "visible_state": "Finder启动的ACP检测与连接结果",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D4-T04-F02",
+      "case_id": "D4-T04",
+      "file_name": "after-02.png",
+      "visible_state": "ACP真实任务和宿主审阅",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D4-T04-F03",
+      "case_id": "D4-T04",
+      "file_name": "after-03.png",
+      "visible_state": "暂停恢复后同操作回执和任务身份",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D4-T05-F01",
+      "case_id": "D4-T05",
+      "file_name": "after-01.png",
+      "visible_state": "手工审阅卡与模式原因",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D4-T05-F02",
+      "case_id": "D4-T05",
+      "file_name": "after-02.png",
+      "visible_state": "Smart审阅中与仍需确认状态",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D4-T06-F01",
+      "case_id": "D4-T06",
+      "file_name": "after-01.png",
+      "visible_state": "旧审批/错目标的拒绝界面",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D4-T06-F02",
+      "case_id": "D4-T06",
+      "file_name": "after-02.png",
+      "visible_state": "未知/partial状态与检查动作",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D4-T06-F03",
+      "case_id": "D4-T06",
+      "file_name": "after-03.png",
+      "visible_state": "故障矩阵实际结果报告和对应界面",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D4-T07-F01",
+      "case_id": "D4-T07",
+      "file_name": "after-01.png",
+      "visible_state": "真实拼音候选与未发送草稿",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D4-T07-F02",
+      "case_id": "D4-T07",
+      "file_name": "after-02.png",
+      "visible_state": "实际触摸板回看与新内容提示",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D4-T08-F01",
+      "case_id": "D4-T08",
+      "file_name": "after-01.png",
+      "visible_state": "四pane同时运行的目标和状态",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D4-T08-F02",
+      "case_id": "D4-T08",
+      "file_name": "after-02.png",
+      "visible_state": "另一pane回复时当前编辑未被抢占",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D4-T08-F03",
+      "case_id": "D4-T08",
+      "file_name": "after-03.png",
+      "visible_state": "tab/pane移动后身份和草稿保留",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D4-T09-F01",
+      "case_id": "D4-T09",
+      "file_name": "after-01.png",
+      "visible_state": "真实TUI完整几何和控制权",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D4-T09-F02",
+      "case_id": "D4-T09",
+      "file_name": "after-02.png",
+      "visible_state": "密码输入期间正确的Raw归属",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D4-T09-F03",
+      "case_id": "D4-T09",
+      "file_name": "after-03.png",
+      "visible_state": "退出后手动返回Blocks入口",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D4-T10-F01",
+      "case_id": "D4-T10",
+      "file_name": "after-01.png",
+      "visible_state": "连接失败与未知原操作并存",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D4-T10-F02",
+      "case_id": "D4-T10",
+      "file_name": "after-02.png",
+      "visible_state": "wake后先核对目标/回执",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D4-T10-F03",
+      "case_id": "D4-T10",
+      "file_name": "after-03.png",
+      "visible_state": "重启后的新Session与未恢复任务说明",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D4-T11-F01",
+      "case_id": "D4-T11",
+      "file_name": "after-01.png",
+      "visible_state": "键盘焦点到达诊断/审阅",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D4-T11-F02",
+      "case_id": "D4-T11",
+      "file_name": "after-02.png",
+      "visible_state": "VoiceOver读取目标和操作",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D4-T12-F01",
+      "case_id": "D4-T12",
+      "file_name": "after-01.png",
+      "visible_state": "原生标准DPI窗口与环境记录",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D4-T12-F02",
+      "case_id": "D4-T12",
+      "file_name": "after-02.png",
+      "visible_state": "原生高DPI/外接屏同场景",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D4-T13-F01",
+      "case_id": "D4-T13",
+      "file_name": "after-01.png",
+      "visible_state": "profile采样的真实场景",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D4-T13-F02",
+      "case_id": "D4-T13",
+      "file_name": "after-02.png",
+      "visible_state": "帧耗时/内存报告与实际参数",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D4-T13-F03",
+      "case_id": "D4-T13",
+      "file_name": "after-03.png",
+      "visible_state": "长输出淘汰/分页仍可读的状态",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D4-T14-F01",
+      "case_id": "D4-T14",
+      "file_name": "after-01.png",
+      "visible_state": "真实开发构建和隔离配置",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D4-T14-F02",
+      "case_id": "D4-T14",
+      "file_name": "after-02.png",
+      "visible_state": "录制/布局恢复的准确行为",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D4-T15-F01",
+      "case_id": "D4-T15",
+      "file_name": "after-01.png",
+      "visible_state": "平台就绪矩阵与实际host检查结果",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D4-T15-F02",
+      "case_id": "D4-T15",
+      "file_name": "after-02.png",
+      "visible_state": "可用平台的原生App，或不支持入口的准确说明",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D4-T16-F01",
+      "case_id": "D4-T16",
+      "file_name": "after-01.png",
+      "visible_state": "FINAL_REVIEW的源码/证据/环境入口",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "full_app_window"
+    },
+    {
+      "id": "D4-T16-F02",
+      "case_id": "D4-T16",
+      "file_name": "after-02.png",
+      "visible_state": "实际运行的最终核心界面",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    },
+    {
+      "id": "D4-T16-F03",
+      "case_id": "D4-T16",
+      "file_name": "after-03.png",
+      "visible_state": "完整gate与证据校验结果页",
+      "platform": "macos",
+      "minimum_capture_class": "app_desktop",
+      "theme": null,
+      "required_view": "window_or_detail_with_anchor"
+    }
+  ]
+}

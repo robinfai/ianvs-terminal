@@ -17,6 +17,7 @@ class TerminalAiRetainedTimeline extends StatelessWidget {
     required this.font,
     required this.onReinput,
     this.onOpenLinkTarget,
+    this.sourceLabelFor,
     super.key,
   });
   final TerminalAiController controller;
@@ -26,6 +27,7 @@ class TerminalAiRetainedTimeline extends StatelessWidget {
   final TerminalFontConfig font;
   final ValueChanged<String> onReinput;
   final ValueChanged<TerminalLinkTarget>? onOpenLinkTarget;
+  final String? Function(String sessionId)? sourceLabelFor;
 
   @override
   Widget build(BuildContext context) {
@@ -45,6 +47,14 @@ class TerminalAiRetainedTimeline extends StatelessWidget {
                 item.blockId!,
               ),
               id: item.id,
+              sourceSessionId: item.sourceSessionId ?? connections.sessionId,
+              sourceLabel:
+                  sourceLabelFor?.call(
+                    item.sourceSessionId ?? connections.sessionId,
+                  ) ??
+                  (Localizations.localeOf(context).languageCode == 'zh'
+                      ? '保留的来源终端'
+                      : 'Retained source terminal'),
             ),
       ],
       scrollController: scroll,
@@ -71,6 +81,7 @@ Future<String?> showAiEvidenceReader(
   required CommandBlockController controller,
   required AiEvidenceReference reference,
   required String sourceSessionId,
+  String? sourceLabel,
   String? blockId,
   TerminalFontConfig font = const TerminalFontConfig(),
   ValueChanged<CommandBlock>? onAttachRange,
@@ -106,6 +117,12 @@ Future<String?> showAiEvidenceReader(
     context,
     controller: controller,
     id: blockId ?? reference.id,
+    sourceLabel:
+        sourceLabel ??
+        (Localizations.localeOf(context).languageCode == 'zh'
+            ? '保留的来源终端'
+            : 'Retained source terminal'),
+    sourceDetails: '$sourceSessionId · ${reference.id}',
     initialRange: CommandBlockReadRange(
       startLine: reference.startLine,
       endLine: reference.endLine,
@@ -123,6 +140,7 @@ Future<String?> showRetainedAiEvidence(
   required TerminalAiController controller,
   required AiEvidenceReference reference,
   required TerminalFontConfig font,
+  String? Function(String sessionId)? sourceLabelFor,
 }) async {
   final connections = controller.terminal as TerminalAiConnections;
   connections.evidence.refresh();
@@ -137,6 +155,7 @@ Future<String?> showRetainedAiEvidence(
     controller: connections.evidence,
     reference: reference,
     sourceSessionId: source,
+    sourceLabel: sourceLabelFor?.call(source),
     blockId: TerminalAiConnections.evidenceId(source, reference.id),
     font: font,
     onAttachRange: (block) => controller.attachContext(

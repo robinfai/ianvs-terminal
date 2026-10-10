@@ -11,41 +11,45 @@ extension _CommandBlocksCompact on _CommandBlocksViewState {
     _follow = false;
     ++_revealSerial;
     _readerOpen = true;
-    FocusManager.instance.primaryFocus?.unfocus();
-    await SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
-    if (!mounted) return;
+    final readerHost = CommandBlockReaderHost.maybeOf(context);
     final block = c.blocks.where((b) => b.id == id).firstOrNull;
     if (block == null) {
       _readerOpen = false;
       return;
     }
-    final reinput = await Navigator.of(context).push<String>(
-      _CommandBlockReaderRoute(
-        allowBackGesture: Theme.of(context).platform != TargetPlatform.macOS,
-        builder: (_) => _CommandBlockReader(
-          controller: c,
-          id: id,
-          font: widget.font,
-          chinese: widget.chinese,
-          initialRow: bottom ? null : row,
-          initialRange: range,
-          followTail:
-              bottom ||
-              row == null &&
-                  range == null &&
-                  block.running &&
-                  !c.readingStates.containsKey(id),
-          onOpenLinkTarget: widget.onOpenLinkTarget,
-          onAttachRange: widget.onAttachRange,
-        ),
-      ),
+    final source = _items.where((item) => item.blockId == id).firstOrNull;
+    final reinput = await showCommandBlockReader(
+      context,
+      controller: c,
+      id: id,
+      sourceLabel: source?.sourceLabel,
+      sourceDetails: source?.sourceSessionId == null
+          ? null
+          : '${source!.sourceSessionId} · $id',
+      returnFocus: _focus,
+      font: widget.font,
+      chinese: widget.chinese,
+      initialRow: bottom ? null : row,
+      initialRange: range,
+      followTail:
+          bottom ||
+          row == null &&
+              range == null &&
+              block.running &&
+              !c.readingStates.containsKey(id),
+      onOpenLinkTarget: widget.onOpenLinkTarget,
+      onAttachRange: widget.onAttachRange,
     );
     if (!mounted) return;
     _readerOpen = false;
     // Returning to output must not restore the editor's previous IME focus.
+    if (readerHost != null &&
+        (!readerHost.active || readerHost.widget.controller.isOpen)) {
+      return;
+    }
     if (reinput != null) {
       widget.onReinput(reinput);
-    } else {
+    } else if (readerHost == null) {
       _focus.requestFocus();
     }
   }

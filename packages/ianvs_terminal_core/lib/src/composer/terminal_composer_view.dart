@@ -1136,6 +1136,7 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
         style: FilledButton.styleFrom(
           foregroundColor: tokens.onPrimaryAction,
           backgroundColor: tokens.primaryAction,
+          overlayColor: tokens.primaryActionOverlay,
           disabledForegroundColor: tokens.disabledForeground,
           disabledBackgroundColor: tokens.disabledSurface,
           minimumSize: Size(iconOnly ? 44 : 76, tokens.controlHeight),

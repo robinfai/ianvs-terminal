@@ -104,6 +104,10 @@ String aiErrorText(String code, bool zh) {
       'The proposed terminal action is invalid. No input was sent.',
       '模型返回的终端动作无效，没有发送输入。',
     ),
+    'approval_inactive': (
+      'The approval pane changed while input was being submitted. Check the original operation before continuing.',
+      '提交过程中审批窗格已切换。请先检查原操作，再明确继续。',
+    ),
     'empty_response': ('The model returned an empty response.', '模型返回了空响应。'),
     'response_too_large': (
       'The model response exceeds the size limit.',

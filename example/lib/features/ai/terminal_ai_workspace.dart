@@ -32,6 +32,8 @@ class TerminalAiWorkspace extends StatefulWidget {
   const TerminalAiWorkspace({
     required this.controller,
     required this.onClose,
+    this.onTakeOver,
+    this.active = true,
     this.targetLabel = '',
     this.timelineBuilder,
     this.onInspectContext,
@@ -45,7 +47,13 @@ class TerminalAiWorkspace extends StatefulWidget {
     super.key,
   });
   final TerminalAiController controller;
+
+  /// Collapse into read-only observation without cancelling this task.
   final VoidCallback onClose;
+
+  /// Explicitly revoke AI input before restoring the human terminal owner.
+  final VoidCallback? onTakeOver;
+  final bool active;
   final String targetLabel;
   final AiTimelineBuilder? timelineBuilder;
   final ValueChanged<AiBlockContext>? onInspectContext;
@@ -89,10 +97,18 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
   bool _draftEditorOpen = false;
   String? _settingsNotice;
   bool _restoringPosition = false;
+  bool _revalidatingPane = false;
+  int _paneRevision = 0;
+  int _terminalObservationRevision = 0;
+  ({String taskId, AiTranscriptEntry entry})? _desktopReview;
   double? _returnOffset;
   CommandTimelineAnchor? _returnAnchor;
   int _positionRevision = 0;
   TerminalAiController get c => widget.controller;
+  bool get _paneInteractive =>
+      widget.active &&
+      !_revalidatingPane &&
+      CommandBlockReaderHost.maybeOf(context)?.blocksInput != true;
   bool get zh => Localizations.localeOf(context).languageCode == 'zh';
   String t(String en, String cn) => zh ? cn : en;
   bool get _commandIntent =>
@@ -141,17 +157,6 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
         _refreshing = false;
       }
     });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_mobile) return;
-      // The controller can outlive this workspace while the app is inactive.
-      // Reopening it must synchronize lifecycle before enabling old proposals.
-      final lifecycle = WidgetsBinding.instance.lifecycleState;
-      if (lifecycle == null || lifecycle == AppLifecycleState.resumed) {
-        unawaited(c.resumeFromBackground());
-      } else {
-        c.suspendForBackground();
-      }
-    });
     _changed();
     if (!_follow && c.readingAnchor != null) {
       unawaited(_restorePosition(_savedAnchor, c.readingOffset));
@@ -185,8 +190,11 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
     _savePosition();
   }
 
-  void _saveDraft() =>
-      c.setDraft(_input.text, composing: !_input.value.composing.isCollapsed);
+  void _saveDraft() {
+    if (c.followUpEnded) return;
+    c.setDraft(_input.text, composing: !_input.value.composing.isCollapsed);
+  }
+
   void _savePosition() {
     if (!_restoringPosition && _scroll.hasClients) {
       c.readingOffset = _scroll.offset;
@@ -223,14 +231,18 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
       for (final entry in c.transcript) {
         if (entry.action?.kind == AiActionKind.sendKeys &&
             // An exit command can leave the alternate screen before its
-            // receipt arrives. Return ownership using the approved target too.
+            // receipt arrives. Observe the result using the approved target too.
             (widget.fullScreenTerminal ||
                 entry.target?.alternateScreen == true) &&
             entry.state == AiEntryState.accepted &&
             _returnedActions.add(entry.id)) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) widget.onClose();
-          });
+          _observeTerminalAfterFrame(
+            stillCurrent: () => c.transcript.any(
+              (current) =>
+                  current.id == entry.id &&
+                  current.state == AiEntryState.accepted,
+            ),
+          );
         }
       }
     }
@@ -275,6 +287,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
       final lifecycle = WidgetsBinding.instance.lifecycleState;
       if (!allowed ||
           _mobile ||
+          !widget.active ||
           !_follow ||
           widget.fullScreenTerminal ||
           (lifecycle != null && lifecycle != AppLifecycleState.resumed) ||
@@ -296,24 +309,71 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
     _scroll.jumpTo(_scroll.position.maxScrollExtent);
   }
 
+  void _observeTerminalAfterFrame({required bool Function() stillCurrent}) {
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    if (!_paneInteractive ||
+        !_workspaceFocus.hasFocus ||
+        (lifecycle != null && lifecycle != AppLifecycleState.resumed) ||
+        ModalRoute.of(context)?.isCurrent == false) {
+      return;
+    }
+    final taskId = c.taskId;
+    final paneRevision = _paneRevision;
+    final observationRevision = ++_terminalObservationRevision;
+    final owner = FocusManager.instance.primaryFocus;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final lifecycle = WidgetsBinding.instance.lifecycleState;
+      final currentOwner = FocusManager.instance.primaryFocus;
+      if (!mounted ||
+          c.taskId != taskId ||
+          _paneRevision != paneRevision ||
+          _terminalObservationRevision != observationRevision ||
+          !_paneInteractive ||
+          !_workspaceFocus.hasFocus ||
+          (currentOwner != owner && currentOwner != _workspaceFocus) ||
+          (lifecycle != null && lifecycle != AppLifecycleState.resumed) ||
+          ModalRoute.of(context)?.isCurrent == false ||
+          !stillCurrent()) {
+        return;
+      }
+      // TUI output and accepted keys can reveal their result, but neither is
+      // a user request to revoke the task and acquire manual write ownership.
+      _observeTerminal();
+    });
+  }
+
   @override
   void didUpdateWidget(TerminalAiWorkspace oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.fullScreenTerminal && !oldWidget.fullScreenTerminal) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) widget.onClose();
-      });
+    if (widget.active != oldWidget.active) {
+      _replyFocusAllowed = false;
+      if (widget.active) {
+        unawaited(_revalidatePane());
+      } else {
+        _paneRevision++;
+      }
     }
+    if (widget.fullScreenTerminal && !oldWidget.fullScreenTerminal) {
+      _observeTerminalAfterFrame(stillCurrent: () => widget.fullScreenTerminal);
+    }
+  }
+
+  Future<void> _revalidatePane() async {
+    final revision = ++_paneRevision;
+    _revalidatingPane = true;
+    final alreadyChecking = c.checkingTerminal;
+    await c.refreshContext();
+    // A read started before activation cannot validate the newly active pane.
+    if (alreadyChecking) await c.refreshContext();
+    if (!mounted || revision != _paneRevision || !widget.active) return;
+    setState(() => _revalidatingPane = false);
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state != AppLifecycleState.resumed) _replyFocusAllowed = false;
-    if (!mounted || !_mobile) return;
     if (state != AppLifecycleState.resumed) {
-      c.suspendForBackground();
-    } else {
-      unawaited(c.resumeFromBackground());
+      _replyFocusAllowed = false;
+      _terminalObservationRevision++;
     }
   }
 
@@ -335,7 +395,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
   }
 
   Future<void> _submit() async {
-    if (c.hasUnresolvedSubmission) return;
+    if (!_paneInteractive || c.followUpEnded) return;
     if (_input.value.composing.isValid && !_input.value.composing.isCollapsed) {
       return;
     }
@@ -343,6 +403,10 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
     if (prompt.isEmpty) return;
     if (_commandIntent) {
       await c.runUserCommand(_input.text);
+      return;
+    }
+    if (c.hasUnresolvedSubmission) {
+      await c.supplement(prompt);
       return;
     }
     if (c.settings.configuration == null) {
@@ -358,14 +422,25 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
   }
 
   void _observeTerminal() {
+    if (!_paneInteractive) return;
+    _terminalObservationRevision++;
     _replyFocusAllowed = false;
     _focus.unfocus();
     unawaited(SystemChannels.textInput.invokeMethod<void>('TextInput.hide'));
-    widget.onObserveTerminal?.call();
+    (widget.onObserveTerminal ?? widget.onClose)();
+  }
+
+  void _collapseTask() {
+    if (!_paneInteractive) return;
+    _terminalObservationRevision++;
+    _replyFocusAllowed = false;
+    _focus.unfocus();
+    unawaited(SystemChannels.textInput.invokeMethod<void>('TextInput.hide'));
+    widget.onClose();
   }
 
   Future<void> _expandDraft() async {
-    if (_draftEditorOpen) return;
+    if (_draftEditorOpen || c.followUpEnded || !_paneInteractive) return;
     final owner = c;
     _input.value = _input.value.copyWith(composing: TextRange.empty);
     _focus.unfocus();
@@ -375,6 +450,8 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
     final choice = owner.inputIntentChoice;
     bool current() =>
         mounted &&
+        _paneInteractive &&
+        !owner.followUpEnded &&
         identical(c, owner) &&
         owner.taskId == taskId &&
         owner.draftRevision == revision &&
@@ -428,7 +505,14 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
     },
   );
 
-  String get _status => c.hasUnresolvedSubmission
+  String get _status => c.followUpEnded
+      ? c.hasUnresolvedSubmission
+            ? t(
+                'Follow-up ended · original outcome remains unknown',
+                '已结束跟进 · 原提交结果仍未知',
+              )
+            : t('Follow-up ended · read-only', '已结束跟进 · 只读')
+      : c.hasUnresolvedSubmission
       ? t('Submission unknown · check original receipt', '提交状态未知 · 请检查原回执')
       : c.terminalError != null
       ? t('Terminal unavailable · check its status', '终端暂不可用 · 请检查状态')
@@ -500,8 +584,14 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
     ),
   );
 
-  Widget _contextChip(AiBlockContext block, {VoidCallback? onRemove}) {
+  Widget _contextChip(AiBlockContext block, {bool removable = false}) {
+    final taskId = c.taskId;
     final range = _contextRange(block);
+    final coverage = [
+      if (block.toJson()['output_truncated'] == true)
+        t('Partial output', '仅含部分输出'),
+      if (block.evicted) t('Earlier output evicted', '早期输出已淘汰'),
+    ].join(' · ');
     return InputChip(
       avatar: const Icon(Icons.terminal_outlined, size: 16),
       label: ConstrainedBox(
@@ -518,10 +608,18 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
               key: const Key('ai-context-range'),
               style: Theme.of(context).textTheme.labelSmall,
             ),
+            if (coverage.isNotEmpty)
+              Text(
+                coverage,
+                key: const Key('ai-context-coverage'),
+                style: Theme.of(context).textTheme.labelSmall,
+              ),
           ],
         ),
       ),
-      tooltip: '${block.cwd}\n${block.command}\n$range',
+      tooltip:
+          '${block.cwd}\n${block.command}\n$range'
+          '${coverage.isEmpty ? '' : '\n$coverage'}',
       deleteIcon: Icon(
         Icons.cancel,
         key: ValueKey('ai-context-delete-${block.id}'),
@@ -532,7 +630,15 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
         height: 44,
       ),
       onPressed: () => _inspect(block),
-      onDeleted: onRemove,
+      onDeleted: !removable || c.followUpEnded || !_paneInteractive
+          ? null
+          : () {
+              if (c.taskId != taskId || c.followUpEnded || !_paneInteractive) {
+                return;
+              }
+              final index = c.attachments.indexOf(block);
+              if (index >= 0) c.removeAttachment(index);
+            },
     );
   }
 
@@ -656,6 +762,34 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
               message.trim(),
               style: Theme.of(context).textTheme.bodyMedium,
             ),
+          if (entry.state == AiEntryState.deferred) ...[
+            const SizedBox(height: 8),
+            Text(
+              t(
+                'Saved, not sent. Check the original submission, then explicitly continue.',
+                '已暂存，尚未发送。先检查原提交，再明确继续。',
+              ),
+            ),
+            if (!c.followUpEnded)
+              TextButton(
+                key: ValueKey('ai-discard-supplement-${entry.id}'),
+                onPressed: !_paneInteractive
+                    ? null
+                    : () {
+                        if (_paneInteractive && !c.followUpEnded) {
+                          c.discardDeferredSupplement(entry.id);
+                        }
+                      },
+                child: Text(t('Remove saved requirement', '移除暂存要求')),
+              ),
+          ],
+          if (entry.role == 'user' && entry.state == AiEntryState.revoked)
+            Text(
+              t(
+                'Saved requirement withdrawn; it was not sent.',
+                '暂存要求已撤销，未发送。',
+              ),
+            ),
           if (entry.role == 'assistant' && widget.onShowEvidence != null)
             Wrap(
               spacing: 8,
@@ -734,7 +868,10 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
     bool reviewPage = false,
   }) {
     final action = entry.action!;
+    final taskId = c.taskId;
     final active =
+        _paneInteractive &&
+        (_desktopReview == null || reviewPage) &&
         c.canApprove &&
         c.pending?.id == action.id &&
         c.proposalRevision == entry.revision &&
@@ -857,7 +994,9 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
                 children: [
                   TextButton(
                     key: const Key('ai-reject'),
-                    onPressed: c.reject,
+                    onPressed: () {
+                      if (_canActOn(entry, taskId)) c.reject();
+                    },
                     child: Text(t('Decline', '拒绝')),
                   ),
                   FilledButton(
@@ -875,43 +1014,82 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
     );
   }
 
-  Widget _proposalActions(AiTranscriptEntry entry, {VoidCallback? close}) =>
-      Wrap(
-        alignment: WrapAlignment.end,
-        spacing: 8,
-        runSpacing: 6,
-        children: [
-          if (entry.action!.kind == AiActionKind.runCommand)
-            TextButton.icon(
-              key: const Key('ai-edit-action'),
-              onPressed: () => _edit(entry),
-              icon: const Icon(Icons.edit_outlined, size: 17),
-              label: Text(t('Edit', '编辑')),
-            ),
-          TextButton(
-            key: const Key('ai-reject'),
-            onPressed: () {
-              c.reject();
-              close?.call();
-            },
-            child: Text(t('Decline', '拒绝')),
-          ),
-          FilledButton(
-            key: const Key('ai-approve'),
-            focusNode: _approvalFocus,
-            onPressed: () {
-              // The approval button disappears on submit. Give its keyboard
-              // ownership to the task, not a previously tabbed text region.
-              if (!_mobile) _workspaceFocus.requestFocus();
-              unawaited(c.approve(revision: entry.revision));
-              close?.call();
-            },
-            child: Text(t('Run once', '执行一次')),
-          ),
-        ],
+  bool _canActOn(AiTranscriptEntry entry, String taskId) =>
+      mounted &&
+      _paneInteractive &&
+      c.taskId == taskId &&
+      c.canApprove &&
+      c.pending?.id == entry.action?.id &&
+      c.proposalRevision == entry.revision &&
+      c.transcript.any(
+        (current) =>
+            current.id == entry.id &&
+            current.revision == entry.revision &&
+            current.state == AiEntryState.proposed,
       );
 
+  Widget _proposalActions(AiTranscriptEntry entry, {VoidCallback? close}) {
+    final taskId = c.taskId;
+    final enabled = _canActOn(entry, taskId);
+    return Wrap(
+      alignment: WrapAlignment.end,
+      spacing: 8,
+      runSpacing: 6,
+      children: [
+        if (entry.action!.kind == AiActionKind.runCommand)
+          TextButton.icon(
+            key: const Key('ai-edit-action'),
+            onPressed: enabled
+                ? () {
+                    if (_canActOn(entry, taskId)) unawaited(_edit(entry));
+                  }
+                : null,
+            icon: const Icon(Icons.edit_outlined, size: 17),
+            label: Text(t('Edit', '编辑')),
+          ),
+        TextButton(
+          key: const Key('ai-reject'),
+          onPressed: enabled
+              ? () {
+                  if (!_canActOn(entry, taskId)) return;
+                  c.reject();
+                  close?.call();
+                }
+              : null,
+          child: Text(t('Decline', '拒绝')),
+        ),
+        FilledButton(
+          key: const Key('ai-approve'),
+          focusNode: _approvalFocus,
+          onPressed: enabled
+              ? () {
+                  if (!_canActOn(entry, taskId)) return;
+                  final paneRevision = _paneRevision;
+                  // The approval button disappears on submit. Give its keyboard
+                  // ownership to the task, not a previously tabbed text region.
+                  if (!_mobile) _workspaceFocus.requestFocus();
+                  unawaited(
+                    c.approve(
+                      revision: entry.revision,
+                      canSubmit: () =>
+                          mounted &&
+                          _paneInteractive &&
+                          _paneRevision == paneRevision &&
+                          c.taskId == taskId,
+                    ),
+                  );
+                  close?.call();
+                }
+              : null,
+          child: Text(t('Run once', '执行一次')),
+        ),
+      ],
+    );
+  }
+
   Future<void> _edit(AiTranscriptEntry entry) async {
+    final taskId = c.taskId;
+    if (!mounted || !_canActOn(entry, taskId)) return;
     final editor = TextEditingController(text: entry.action!.command);
     String? error;
     final value = await showDialog<String>(
@@ -955,6 +1133,12 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
               key: const Key('ai-save-edit'),
               onPressed: () {
                 try {
+                  if (!_canActOn(entry, taskId)) {
+                    update(
+                      () => error = t('The proposal changed.', '提案已更新或撤销。'),
+                    );
+                    return;
+                  }
                   c.editPendingCommand(editor.text, revision: entry.revision);
                   Navigator.pop(dialogContext, editor.text);
                 } on AiFailure catch (failure) {
@@ -974,9 +1158,17 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
   }
 
   Future<void> _review(AiTranscriptEntry entry) async {
+    final taskId = c.taskId;
+    if (!_canActOn(entry, taskId)) return;
     _focus.unfocus();
     await SystemChannels.textInput.invokeMethod<void>('TextInput.hide');
-    if (!mounted) return;
+    if (!mounted || !_canActOn(entry, taskId)) return;
+    _replyFocusAllowed = false;
+    if (!_mobile) {
+      setState(() => _desktopReview = (taskId: taskId, entry: entry));
+      _workspaceFocus.requestFocus();
+      return;
+    }
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
         builder: (routeContext) => Scaffold(
@@ -992,59 +1184,129 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
           body: SafeArea(
             child: ListenableBuilder(
               listenable: c,
-              builder: (context, _) {
-                final current = c.transcript
-                    .where((e) => e.id == entry.id)
-                    .firstOrNull;
-                if (current == null ||
-                    current.revision != entry.revision ||
-                    current.state != AiEntryState.proposed) {
-                  return Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            t(
-                              'The proposal changed. Return to review its latest revision.',
-                              '提案已更新或撤销，请返回重新审阅。',
-                            ),
-                          ),
-                          TextButton(
-                            onPressed: () => Navigator.pop(routeContext),
-                            child: Text(t('Return to task', '返回任务')),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                }
-                return Column(
-                  children: [
-                    Expanded(
-                      child: SingleChildScrollView(
-                        key: const Key('ai-review-scroll'),
-                        child: _proposal(current, false, reviewPage: true),
-                      ),
-                    ),
-                    const Divider(height: 1),
-                    Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: _proposalActions(
-                        current,
-                        close: () => Navigator.pop(routeContext),
-                      ),
-                    ),
-                  ],
-                );
-              },
+              builder: (context, _) =>
+                  _reviewBody(entry, taskId, () => Navigator.pop(routeContext)),
             ),
           ),
         ),
       ),
     );
   }
+
+  void _closeDesktopReview() {
+    if (!mounted || !widget.active) return;
+    setState(() => _desktopReview = null);
+    _workspaceFocus.requestFocus();
+  }
+
+  Widget _reviewBody(
+    AiTranscriptEntry entry,
+    String taskId,
+    VoidCallback close,
+  ) {
+    final current = c.taskId == taskId
+        ? c.transcript.where((item) => item.id == entry.id).firstOrNull
+        : null;
+    if (current == null ||
+        current.revision != entry.revision ||
+        current.state != AiEntryState.proposed) {
+      return SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          children: [
+            Text(
+              t(
+                'The proposal changed. Return to review its latest revision.',
+                '提案已更新或撤销，请返回重新审阅。',
+              ),
+            ),
+            TextButton(
+              onPressed: close,
+              child: Text(t('Return to task', '返回任务')),
+            ),
+          ],
+        ),
+      );
+    }
+    return Column(
+      children: [
+        if (!_paneInteractive)
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Text(
+              widget.active
+                  ? t('Checking this pane’s original target…', '正在核对该窗格的原执行目标…')
+                  : t(
+                      'Select this pane to review or approve.',
+                      '选中此窗格后可审阅和批准。',
+                    ),
+            ),
+          ),
+        Expanded(
+          child: SingleChildScrollView(
+            key: const Key('ai-review-scroll'),
+            child: _proposal(current, false, reviewPage: true),
+          ),
+        ),
+        const Divider(height: 1),
+        Padding(
+          padding: const EdgeInsets.all(12),
+          child: _proposalActions(current, close: close),
+        ),
+      ],
+    );
+  }
+
+  Widget _desktopReviewSurface() {
+    final review = _desktopReview!;
+    return Material(
+      key: const Key('ai-desktop-review'),
+      color: context.appTheme.panel,
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    t('Review command', '审阅命令'),
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                ),
+                IconButton(
+                  key: const Key('ai-review-back'),
+                  tooltip: t('Return to task', '返回任务'),
+                  onPressed: widget.active ? _closeDesktopReview : null,
+                  icon: const Icon(Icons.close),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: _reviewBody(
+              review.entry,
+              review.taskId,
+              _closeDesktopReview,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _reviewPresentation(Widget task) => Stack(
+    fit: StackFit.expand,
+    children: [
+      Offstage(
+        offstage: _desktopReview != null,
+        child: ExcludeFocus(excluding: _desktopReview != null, child: task),
+      ),
+      if (_desktopReview != null)
+        Positioned.fill(child: _desktopReviewSurface()),
+    ],
+  );
 
   Widget _header(bool compact, {bool singleRow = false}) => Padding(
     padding: EdgeInsets.fromLTRB(12, singleRow ? 0 : 4, 4, singleRow ? 0 : 4),
@@ -1123,7 +1385,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
                     value: task.id,
                     checked: task.id == c.taskId,
                     child: Text(
-                      task.title.isEmpty ? t('New task', '新任务') : task.title,
+                      '${task.title.isEmpty ? t('New task', '新任务') : task.title}${task.followUpEnded ? t(' · Follow-up ended', ' · 已结束跟进') : ''}',
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -1159,8 +1421,8 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
           if (singleRow) _taskActions(includeInlineActions: true),
           IconButton(
             key: const Key('ai-close'),
-            tooltip: t('Take over terminal input', '接管终端输入'),
-            onPressed: widget.onClose,
+            tooltip: t('Collapse to read-only terminal', '收起并只读查看终端'),
+            onPressed: _collapseTask,
             icon: const Icon(Icons.close, size: 20),
           ),
           if (widget.onObserveTerminal != null)
@@ -1175,10 +1437,23 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
     ),
   );
 
+  String get _resumeLabel => c.hasDeferredSupplement
+      ? t('Send saved requirements', '发送已暂存要求')
+      : c.targetChanged
+      ? t('Continue on current target', '在当前目标继续')
+      : t('Continue task', '继续任务');
+
   Future<void> _resume({AiTerminalContext? selectedTarget}) async {
-    if (_resuming) return;
+    if (_resuming || !_paneInteractive || c.followUpEnded) return;
     final controller = c;
     final taskId = controller.taskId;
+    final paneRevision = _paneRevision;
+    bool canStart() =>
+        mounted &&
+        _paneInteractive &&
+        _paneRevision == paneRevision &&
+        c == controller &&
+        controller.taskId == taskId;
     setState(() => _resuming = true);
     try {
       if (selectedTarget != null) {
@@ -1188,18 +1463,20 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
           label: t('Continue on current target', '在当前目标继续'),
           useCurrentTarget: true,
           expectedTargetGuard: selectedTarget.guard,
+          canStart: canStart,
         );
         return;
       }
       await controller.refreshContext();
       if (!mounted ||
+          !_paneInteractive ||
           c != controller ||
           controller.taskId != taskId ||
           !controller.canResume) {
         return;
       }
       if (!controller.targetChanged) {
-        await controller.resume(label: t('Continue task', '继续任务'));
+        await controller.resume(label: _resumeLabel, canStart: canStart);
         return;
       }
       final target = controller.context!;
@@ -1257,6 +1534,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
       );
       // A dialog opened for one task must never resume a different task.
       if (!mounted ||
+          !_paneInteractive ||
           c != controller ||
           controller.taskId != taskId ||
           !controller.canResume) {
@@ -1269,6 +1547,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
           label: t('Continue on current target', '在当前目标继续'),
           useCurrentTarget: true,
           expectedTargetGuard: target.guard,
+          canStart: canStart,
         );
       }
     } finally {
@@ -1288,6 +1567,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
   }
 
   Widget _recovery() {
+    final taskId = c.taskId;
     final checkTerminal = c.terminalError != null || c.hasUnresolvedSubmission;
     final configure = const {
       'configuration',
@@ -1301,6 +1581,23 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (c.canEndFollowUp || c.followUpEnded)
+            Text(
+              c.followUpEnded
+                  ? c.hasUnresolvedSubmission
+                        ? t(
+                            'Follow-up ended. The old operation remains unknown and read-only. A new task will not resend it.',
+                            '已结束跟进。旧操作仍为未知并保留只读记录，新任务不会重发原命令。',
+                          )
+                        : t(
+                            'Follow-up ended. The original receipt has been updated; this task stays read-only.',
+                            '已结束跟进。原回执已更新，该任务继续保留只读记录。',
+                          )
+                  : t(
+                      'If the original result cannot be recovered, you can end follow-up while keeping its unknown record. This does not stop or resend the command.',
+                      '如果无法找回原结果，可以结束跟进并保留未知记录。这不会中断或重发原命令。',
+                    ),
+            ),
           if (c.terminalError != null)
             Text(
               aiErrorText(c.terminalError!, zh),
@@ -1314,6 +1611,31 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
           Wrap(
             spacing: 8,
             children: [
+              if (c.canEndFollowUp)
+                TextButton(
+                  key: const Key('ai-end-follow-up'),
+                  onPressed: !_paneInteractive
+                      ? null
+                      : () {
+                          if (c.taskId == taskId && _paneInteractive) {
+                            c.endFollowUp();
+                          }
+                        },
+                  child: Text(t('End follow-up', '结束跟进')),
+                ),
+              if (c.followUpEnded)
+                FilledButton.icon(
+                  key: const Key('ai-new-independent-task'),
+                  onPressed: !_paneInteractive
+                      ? null
+                      : () {
+                          if (c.taskId != taskId || !_paneInteractive) return;
+                          _savePosition();
+                          c.newTask();
+                        },
+                  icon: const Icon(Icons.add),
+                  label: Text(t('Start a new task', '新建独立任务')),
+                ),
               if (checkTerminal)
                 TextButton.icon(
                   key: const Key('ai-check-terminal'),
@@ -1350,8 +1672,8 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
               if (checkTerminal)
                 TextButton(
                   key: const Key('ai-inspect-terminal'),
-                  onPressed: widget.onClose,
-                  child: Text(t('Inspect in terminal', '返回终端检查')),
+                  onPressed: _observeTerminal,
+                  child: Text(t('Inspect terminal (read-only)', '只读检查终端')),
                 ),
               if (c.terminalError != null && widget.onConfigureTerminal != null)
                 TextButton.icon(
@@ -1397,6 +1719,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
         tooltip: t('Task actions', '任务操作'),
         icon: const Icon(Icons.more_horiz),
         onSelected: (action) {
+          if (!_paneInteractive) return;
           if (action == 'new-task') {
             _savePosition();
             c.newTask();
@@ -1426,11 +1749,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
               key: const Key('ai-resume'),
               enabled: !_resuming,
               value: 'resume',
-              child: Text(
-                c.targetChanged
-                    ? t('Continue on current target', '在当前目标继续')
-                    : t('Continue task', '继续任务'),
-              ),
+              child: Text(_resumeLabel),
             ),
           if (includeInlineActions)
             PopupMenuItem(
@@ -1565,9 +1884,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
                 if (c.canResume)
                   IconButton(
                     key: const Key('ai-resume'),
-                    tooltip: c.targetChanged
-                        ? t('Continue on current target', '在当前目标继续')
-                        : t('Continue task', '继续任务'),
+                    tooltip: _resumeLabel,
                     onPressed: _resuming ? null : _resume,
                     icon: const Icon(Icons.play_arrow_outlined),
                   ),
@@ -1616,7 +1933,9 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
       if (event is KeyDownEvent &&
           event.logicalKey == LogicalKeyboardKey.keyI &&
           shortcut) {
-        if (!c.busy &&
+        if (_paneInteractive &&
+            !c.followUpEnded &&
+            !c.busy &&
             c.pending == null &&
             c.attachments.isEmpty &&
             !widget.fullScreenTerminal) {
@@ -1639,6 +1958,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
     },
     child: TextField(
       key: const Key('ai-prompt'),
+      readOnly: c.followUpEnded || !_paneInteractive,
       controller: _input,
       focusNode: _focus,
       minLines: 1,
@@ -1661,6 +1981,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
   );
 
   void _insertDiagnosis(AiBlockContext block) {
+    if (c.followUpEnded || !_paneInteractive) return;
     if (_input.text.trim().isEmpty || !c.attachments.contains(block)) return;
     final value = _input.value;
     final offset = value.selection.isValid
@@ -1695,11 +2016,9 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 for (var i = 0; i < c.attachments.length; i++) ...[
-                  _contextChip(
-                    c.attachments[i],
-                    onRemove: () => c.removeAttachment(i),
-                  ),
-                  if (_input.text.trim().isNotEmpty &&
+                  _contextChip(c.attachments[i], removable: true),
+                  if (!c.followUpEnded &&
+                      _input.text.trim().isNotEmpty &&
                       c.attachments[i].exitCode != null &&
                       c.attachments[i].exitCode != 0)
                     TextButton.icon(
@@ -1730,7 +2049,10 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
     label: Text(
       compact
           ? '${c.attachments.length}'
-          : t('${c.attachments.length} sources', '${c.attachments.length} 个来源'),
+          : t(
+              '${c.attachments.length} ${c.attachments.length == 1 ? 'source' : 'sources'}',
+              '${c.attachments.length} 个来源',
+            ),
     ),
   );
 
@@ -1740,9 +2062,11 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
         '${c.inputIntentChoice == InputIntentChoice.automatic ? t('Auto · ', '自动 · ') : ''}${command ? t('Command', '命令') : 'AI'}';
     return PopupMenuButton<InputIntentChoice>(
       key: const Key('ai-input-intent'),
+      enabled: _paneInteractive && !c.followUpEnded,
       popUpAnimationStyle: appDialogAnimation(context),
       tooltip: t('Input intent', '输入意图'),
       onSelected: (choice) {
+        if (!_paneInteractive || c.followUpEnded) return;
         c.chooseInputIntent(choice);
         _focus.requestFocus();
       },
@@ -1795,7 +2119,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
   Widget _expandDraftButton() => IconButton(
     key: const Key('ai-expand-draft'),
     tooltip: t('Expand editor', '展开编辑'),
-    onPressed: _expandDraft,
+    onPressed: c.followUpEnded || !_paneInteractive ? null : _expandDraft,
     constraints: const BoxConstraints.tightFor(width: 44, height: 44),
     icon: const Icon(Icons.open_in_full, size: 20),
   );
@@ -1814,11 +2138,15 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
   Widget _sendButton({bool iconOnly = false}) {
     final command = _commandIntent;
     final canSend =
+        _paneInteractive &&
+        !c.followUpEnded &&
         _input.text.trim().isNotEmpty &&
-        !c.hasUnresolvedSubmission &&
+        (!c.hasUnresolvedSubmission || !command) &&
         _input.value.composing.isCollapsed &&
         (!command || c.canRunUserCommand);
-    final label = command
+    final label = c.hasUnresolvedSubmission && !command
+        ? t('Save requirement', '暂存要求')
+        : command
         ? t('Run', '执行')
         : c.busy || c.canApprove
         ? t('Add requirement', '补充要求')
@@ -1879,12 +2207,12 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
                 ),
                 IconButton(
                   key: const Key('ai-close'),
-                  tooltip: t('Take over terminal input', '接管终端输入'),
+                  tooltip: t('Collapse to read-only terminal', '收起并只读查看终端'),
                   constraints: const BoxConstraints.tightFor(
                     width: 44,
                     height: 44,
                   ),
-                  onPressed: widget.onClose,
+                  onPressed: _collapseTask,
                   icon: const Icon(Icons.close, size: 20),
                 ),
                 if (widget.onObserveTerminal != null)
@@ -1963,7 +2291,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
                           ),
                           child: _contextChip(
                             c.attachments[i],
-                            onRemove: () => c.removeAttachment(i),
+                            removable: true,
                           ),
                         ),
                       ),
@@ -2026,7 +2354,17 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
       // A three-row composer can otherwise consume a short 260-point window.
       final singleRow = _mobile && bounds.maxHeight < 320;
       final tiny = _mobile && bounds.maxHeight < 100;
+      final short =
+          bounds.maxHeight <
+          360 * (_mobile ? 1 : MediaQuery.textScalerOf(context).scale(1));
       final narrow = _mobile || bounds.maxWidth < 600;
+      final composer = _composer(
+        compact,
+        short: short,
+        singleRow: singleRow,
+        tiny: tiny,
+        maxLines: bounds.maxHeight < 280 ? 1 : 4,
+      );
       final items = <CommandBlockTimelineItem>[];
       final renderedBlocks = <String>{};
       void addSource(AiBlockContext source) {
@@ -2119,7 +2457,8 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
           (c.error == 'stale_context' || c.error == 'target_changed');
       if ((c.error != null && !targetNoticeExplainsError) ||
           c.terminalError != null ||
-          c.hasUnresolvedSubmission) {
+          c.hasUnresolvedSubmission ||
+          c.followUpEnded) {
         items.add(
           CommandBlockTimelineItem.content('error', (_) => _recovery()),
         );
@@ -2136,69 +2475,91 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
       return Material(
         key: const Key('terminal-ai-workspace'),
         color: context.appTheme.panel,
-        child: Focus(
-          focusNode: _workspaceFocus,
-          autofocus: true,
-          onKeyEvent: (_, event) {
-            if (event is KeyDownEvent &&
-                event.logicalKey == LogicalKeyboardKey.escape &&
-                (!_input.value.composing.isValid ||
-                    _input.value.composing.isCollapsed)) {
-              _observeTerminal();
-              return KeyEventResult.handled;
-            }
-            return KeyEventResult.ignored;
-          },
-          child: tiny
-              ? SingleChildScrollView(
-                  key: const Key('ai-short-window-scroll'),
-                  child: _composer(
-                    true,
-                    short: true,
-                    singleRow: true,
-                    tiny: true,
-                  ),
-                )
-              : Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (!tiny) _header(compact, singleRow: singleRow),
-                    Divider(height: 1, color: context.appTheme.borderStrong),
-                    Expanded(
-                      child: NotificationListener<ScrollNotification>(
-                        onNotification: (notification) {
-                          if (notification.depth == 0 &&
-                              (notification is ScrollStartNotification &&
-                                      notification.dragDetails != null ||
-                                  notification is UserScrollNotification &&
-                                      notification.direction !=
-                                          ScrollDirection.idle)) {
-                            _follow = false;
-                            _replyFocusAllowed = false;
-                            _positionRevision++;
-                            _restoringPosition = false;
-                          }
-                          return false;
-                        },
-                        child: Listener(
-                          onPointerDown: (_) => _replyFocusAllowed = false,
-                          child: KeyedSubtree(
-                            key: ValueKey(_taskId),
-                            child: timeline,
-                          ),
+        child: ExcludeFocus(
+          excluding: !widget.active,
+          child: IgnorePointer(
+            ignoring: !widget.active,
+            child: Focus(
+              focusNode: _workspaceFocus,
+              autofocus: widget.active,
+              onKeyEvent: (_, event) {
+                if (!widget.active) return KeyEventResult.ignored;
+                if (event is KeyDownEvent &&
+                    event.logicalKey == LogicalKeyboardKey.escape &&
+                    (!_input.value.composing.isValid ||
+                        _input.value.composing.isCollapsed)) {
+                  if (_desktopReview != null) {
+                    _closeDesktopReview();
+                  } else {
+                    _observeTerminal();
+                  }
+                  return KeyEventResult.handled;
+                }
+                return KeyEventResult.ignored;
+              },
+              child: _reviewPresentation(
+                tiny
+                    ? SingleChildScrollView(
+                        key: const Key('ai-short-window-scroll'),
+                        child: _composer(
+                          true,
+                          short: true,
+                          singleRow: true,
+                          tiny: true,
                         ),
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (!tiny) _header(compact, singleRow: singleRow),
+                          Divider(
+                            height: 1,
+                            color: context.appTheme.borderStrong,
+                          ),
+                          Expanded(
+                            child: NotificationListener<ScrollNotification>(
+                              onNotification: (notification) {
+                                if (notification.depth == 0 &&
+                                    (notification is ScrollStartNotification &&
+                                            notification.dragDetails != null ||
+                                        notification
+                                                is UserScrollNotification &&
+                                            notification.direction !=
+                                                ScrollDirection.idle)) {
+                                  _follow = false;
+                                  _replyFocusAllowed = false;
+                                  _positionRevision++;
+                                  _restoringPosition = false;
+                                }
+                                return false;
+                              },
+                              child: Listener(
+                                onPointerDown: (_) =>
+                                    _replyFocusAllowed = false,
+                                child: KeyedSubtree(
+                                  key: ValueKey(_taskId),
+                                  child: timeline,
+                                ),
+                              ),
+                            ),
+                          ),
+                          if (!compact) _statusBar(false),
+                          if (!_mobile && short)
+                            // At large desktop text sizes keep reading space;
+                            // the composer retains all controls in its scroll.
+                            ConstrainedBox(
+                              constraints: BoxConstraints(
+                                maxHeight: bounds.maxHeight * .5,
+                              ),
+                              child: SingleChildScrollView(child: composer),
+                            )
+                          else
+                            composer,
+                        ],
                       ),
-                    ),
-                    if (!compact) _statusBar(false),
-                    _composer(
-                      compact,
-                      short: bounds.maxHeight < 360,
-                      singleRow: singleRow,
-                      tiny: tiny,
-                      maxLines: bounds.maxHeight < 280 ? 1 : 4,
-                    ),
-                  ],
-                ),
+              ),
+            ),
+          ),
         ),
       );
     },

@@ -31,27 +31,53 @@ extension _ShellScreenAi on _ShellScreenState {
         (defaultTargetPlatform == TargetPlatform.macOS
             ? HardwareKeyboard.instance.isMetaPressed
             : HardwareKeyboard.instance.isControlPressed)) {
-      _openAiSessions.contains(activeSessionId)
-          ? _closeAi(activeSessionId)
-          : _openAi(activeSessionId);
+      _toggleAi(activeSessionId);
       return true;
     }
     return false;
   }
 
-  TerminalAiController _aiFor(String sessionId) => _aiSessions.putIfAbsent(
-    sessionId,
-    () => TerminalAiController(
-      settings: ref.read(aiSettingsProvider),
-      terminal: TerminalAiConnections(
-        sessionId: sessionId,
-        terminal: _aiEndpoint(sessionId),
-        requestBlocks: (source, request) => ref
-            .read(terminalRuntimeControllerProvider)
-            .commandBlocks(source, request),
-      ),
-    ),
-  );
+  TerminalAiController _aiFor(String sessionId) =>
+      _aiSessions.putIfAbsent(sessionId, () {
+        final controller = TerminalAiController(
+          settings: ref.read(aiSettingsProvider),
+          terminal: TerminalAiConnections(
+            sessionId: sessionId,
+            terminal: _aiEndpoint(sessionId),
+            requestBlocks: (source, request) => ref
+                .read(terminalRuntimeControllerProvider)
+                .commandBlocks(source, request),
+          ),
+        );
+        _synchronizeAiLifecycle(
+          controller,
+          WidgetsBinding.instance.lifecycleState,
+        );
+        return controller;
+      });
+
+  void _synchronizeAiSessionsLifecycle(AppLifecycleState state) {
+    // Controllers survive tab switches and the connections home. Their owner,
+    // rather than a mounted workspace, must pause every mobile task together.
+    for (final controller in List.of(_aiSessions.values)) {
+      _synchronizeAiLifecycle(controller, state);
+    }
+  }
+
+  void _synchronizeAiLifecycle(
+    TerminalAiController controller,
+    AppLifecycleState? state,
+  ) {
+    if (defaultTargetPlatform != TargetPlatform.iOS &&
+        defaultTargetPlatform != TargetPlatform.android) {
+      return;
+    }
+    if (state == null || state == AppLifecycleState.resumed) {
+      unawaited(controller.resumeFromBackground());
+    } else {
+      controller.suspendForBackground();
+    }
+  }
 
   TerminalAiRuntime _aiEndpoint(String sessionId) => TerminalAiRuntime(
     sessionId: sessionId,
@@ -237,7 +263,16 @@ extension _ShellScreenAi on _ShellScreenState {
       );
     }
     _mutateState(() {
-      if (!_openAiSessions.contains(sessionId)) _revokeManualInput(sessionId);
+      if (!_openAiSessions.contains(sessionId)) {
+        _revokeManualInput(sessionId);
+        // Composer submits through its shell lease instead of the raw-input
+        // epoch. Revoke that capability before an old Run callback can fire;
+        // only the view notification waits until layout has finished.
+        _composerSessions[sessionId]?.setVisible(
+          false,
+          deferNotification: true,
+        );
+      }
       _openAiSessions.add(sessionId);
       _observedAiTargets.remove(sessionId);
     });
@@ -266,14 +301,23 @@ extension _ShellScreenAi on _ShellScreenState {
     }());
   }
 
-  void _closeAi(String sessionId) {
+  void _toggleAi(String sessionId) {
+    if (_openAiSessions.contains(sessionId) &&
+        !_observedAiTargets.containsKey(sessionId)) {
+      _observeAiTerminal(sessionId);
+    } else {
+      _openAi(sessionId);
+    }
+  }
+
+  void _takeOverAiInput(String sessionId) {
     _aiSessions[sessionId]?.takeOver();
     _mutateState(() {
       _revokeManualInput(sessionId);
       _openAiSessions.remove(sessionId);
       _observedAiTargets.remove(sessionId);
     });
-    _focusSession(sessionId);
+    if (_sessionState.activeSessionId == sessionId) _focusSession(sessionId);
   }
 
   void _reinputAiCommand(String sessionId, String command) {
@@ -306,7 +350,7 @@ extension _ShellScreenAi on _ShellScreenState {
       sessionId,
       requestFocus: false,
     );
-    _closeAi(sessionId);
+    _takeOverAiInput(sessionId);
   }
 
   Widget _aiChromeAction(String sessionId) {
@@ -326,9 +370,7 @@ extension _ShellScreenAi on _ShellScreenState {
             minimumSize: const Size(44, 44),
             padding: const EdgeInsets.symmetric(horizontal: 8),
           ),
-          onPressed: () => _openAiSessions.contains(sessionId)
-              ? _closeAi(sessionId)
-              : _openAi(sessionId),
+          onPressed: () => _toggleAi(sessionId),
           child: Semantics(
             label: label,
             child: Badge(
@@ -352,6 +394,8 @@ extension _ShellScreenAi on _ShellScreenState {
     String sessionId,
     AppThemeTokens palette, {
     required String targetLabel,
+    required BuildContext paneContext,
+    required bool active,
     AiTimelineBuilder? timelineBuilder,
     ValueChanged<AiEvidenceReference>? onShowEvidence,
     bool fullScreenTerminal = false,
@@ -364,6 +408,7 @@ extension _ShellScreenAi on _ShellScreenState {
       final workspace = TerminalAiWorkspace(
         key: ValueKey('ai-workspace-$sessionId'),
         controller: _aiFor(sessionId),
+        active: active,
         targetLabel: targetLabel,
         onOpenLink: (url) =>
             unawaited(_openTerminalLink(url, sourceSessionId: sessionId)),
@@ -374,17 +419,23 @@ extension _ShellScreenAi on _ShellScreenState {
                 scroll: scroll,
                 followTail: followTail,
                 font: font,
+                sourceLabelFor: (source) => _paneForSession(
+                  ref.read(sessionControllerProvider),
+                  source,
+                )?.title,
                 onReinput: (command) => _reinputAiCommand(sessionId, command),
                 onOpenLinkTarget: (target) =>
                     unawaited(_openTerminalLinkTarget(sessionId, target)),
               )
             : timelineBuilder,
         onShowEvidence: retained
-            ? (reference) =>
-                  unawaited(_showRetainedEvidence(sessionId, reference, font))
+            ? (reference) => unawaited(
+                _showRetainedEvidence(paneContext, sessionId, reference, font),
+              )
             : onShowEvidence,
         fullScreenTerminal: fullScreenTerminal,
-        onClose: () => _closeAi(sessionId),
+        onClose: () => _observeAiTerminal(sessionId),
+        onTakeOver: () => _takeOverAiInput(sessionId),
         onObserveTerminal: () => _observeAiTerminal(sessionId),
         onInspectOriginalTarget: retained
             ? () {
@@ -426,15 +477,18 @@ extension _ShellScreenAi on _ShellScreenState {
   }
 
   Future<void> _showRetainedEvidence(
+    BuildContext paneContext,
     String sessionId,
     AiEvidenceReference reference,
     terminal.TerminalFontConfig font,
   ) async {
     final command = await showRetainedAiEvidence(
-      context,
+      paneContext,
       controller: _aiFor(sessionId),
       reference: reference,
       font: font,
+      sourceLabelFor: (source) =>
+          _paneForSession(ref.read(sessionControllerProvider), source)?.title,
     );
     if (command != null && mounted) {
       _reinputAiCommand(sessionId, command);

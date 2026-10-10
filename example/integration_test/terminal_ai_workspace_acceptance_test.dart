@@ -194,6 +194,35 @@ void main() {
       final composer = tester
           .widget<TerminalComposerView>(find.byType(TerminalComposerView))
           .controller;
+      Future<void> returnToManualInput() async {
+        final requestsBefore = fixture.requests;
+        final blocksBefore =
+            (runtime.commandBlocks(id)!['blocks']! as List).length;
+        await click(const Key('ai-close'));
+        final observer = find
+            .byKey(const Key('ai-observer-viewport'))
+            .hitTestable();
+        expect(observer, findsOneWidget);
+        expect(tester.widget<TerminalViewport>(observer).readOnly, isTrue);
+        expect(composer.canRun, isFalse);
+        expect(fixture.requests, requestsBefore);
+        expect(runtime.commandBlocks(id)!['blocks'], hasLength(blocksBefore));
+        await click(const Key('ai-observer-take-over'));
+        expect(observer, findsNothing);
+        expect(find.byType(TerminalAiWorkspace), findsNothing);
+        expect(fixture.requests, requestsBefore);
+        expect(runtime.commandBlocks(id)!['blocks'], hasLength(blocksBefore));
+      }
+
+      final readerRoot = find.byKey(const Key('block-reader'));
+      final readerPages = find.descendant(
+        of: readerRoot,
+        matching: find.byType(CommandBlockTerminal),
+      );
+      final readerViewports = find.descendant(
+        of: readerRoot,
+        matching: find.byType(TerminalViewport),
+      );
       await tester.enterText(
         find.byKey(const Key('composer-editor')),
         'printf preserved-draft',
@@ -210,7 +239,7 @@ void main() {
         find.byKey(const Key('ai-prompt')),
         'Keep this separate AI draft',
       );
-      await click(const Key('ai-close'));
+      await returnToManualInput();
       expect(composer.editor.value, commandDraft);
       expect(fixture.requests, initialRequests);
       expect(runtime.commandBlocks(id)!['blocks'], isEmpty);
@@ -295,9 +324,7 @@ void main() {
       );
       expect(
         tester
-            .widget<CommandBlockTerminal>(
-              find.byType(CommandBlockTerminal).first,
-            )
+            .widget<CommandBlockTerminal>(readerPages.first)
             .block
             .visibleOutput,
         contains('FUSION_OK'),
@@ -306,7 +333,7 @@ void main() {
       await tester.tap(find.byKey(const Key('block-reader-close')));
       await tester.pump(const Duration(milliseconds: 350));
       expect(task.draft, 'Keep this unsent follow-up');
-      await click(const Key('ai-close'));
+      await returnToManualInput();
 
       // A real failed command enters diagnosis through the block menu. Merely
       // attaching it must not start a model request or submit a repair.
@@ -512,7 +539,7 @@ void main() {
         task.transcript.where((e) => e.blockId == delayedId),
         hasLength(1),
       );
-      await click(const Key('ai-close'));
+      await returnToManualInput();
       // Select through actual header gestures, then send only the attachments
       // that remain after the user removes one. Selection itself is not input.
       final blockView = tester.widget<TerminalCommandBlocksView>(
@@ -615,7 +642,7 @@ void main() {
         'Keep the reader return draft',
         reason: 'Draft entered before leaving task',
       );
-      await click(const Key('ai-close'));
+      await returnToManualInput();
       expect(
         task.draft,
         'Keep the reader return draft',
@@ -679,9 +706,7 @@ void main() {
       final readerScroll = tester.widget<ListView>(reader).controller!;
       expect(readerScroll.offset, greaterThan(600));
       final readerRect = tester.getRect(reader);
-      final outputLeft = tester
-          .getRect(find.byType(TerminalViewport).first)
-          .left;
+      final outputLeft = tester.getRect(readerViewports.first).left;
       final pointer = await tester.startGesture(
         Offset(outputLeft + 12, readerRect.top + 55),
         kind: PointerDeviceKind.mouse,
@@ -690,7 +715,7 @@ void main() {
       await pointer.up();
       await tester.pump();
       final selected = tester
-          .widget<CommandBlockTerminal>(find.byType(CommandBlockTerminal).first)
+          .widget<CommandBlockTerminal>(readerPages.first)
           .selectionController!
           .selection!;
       expect(selected.endRow, greaterThan(selected.startRow));
@@ -704,7 +729,7 @@ void main() {
         closeTo(readingOffset, .1),
       );
       final reopened = tester
-          .widget<CommandBlockTerminal>(find.byType(CommandBlockTerminal).first)
+          .widget<CommandBlockTerminal>(readerPages.first)
           .selectionController!
           .selection!;
       expect(
@@ -732,7 +757,7 @@ void main() {
       expect(find.text('匹配行 1/1'), findsOneWidget);
       expect(
         tester
-            .widgetList<CommandBlockTerminal>(find.byType(CommandBlockTerminal))
+            .widgetList<CommandBlockTerminal>(readerPages)
             .any(
               (page) =>
                   page.highlightedRow == 344 &&
@@ -754,16 +779,24 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      final filterEditor = find.byWidgetPredicate(
-        (w) =>
-            w is TextField &&
-            (w.decoration?.hintText == '过滤输出' ||
-                w.decoration?.hintText == 'Filter output'),
+      final filterEditor = find.descendant(
+        of: readerRoot,
+        matching: find.byWidgetPredicate(
+          (w) =>
+              w is TextField &&
+              (w.decoration?.hintText == '过滤输出' ||
+                  w.decoration?.hintText == 'Filter output'),
+        ),
       );
       await tester.tap(filterEditor);
       await tester.enterText(filterEditor, r'^\s*(34|35|77)\s*$');
       await tester.pump(const Duration(milliseconds: 250));
-      await tester.tap(find.widgetWithText(FilterChip, '.*'));
+      await tester.tap(
+        find.descendant(
+          of: readerRoot,
+          matching: find.widgetWithText(FilterChip, '.*'),
+        ),
+      );
       await tester.pumpAndSettle();
       final nativeFiltered = runtime.commandBlocks(id, {
         'id': longId,
@@ -777,14 +810,14 @@ void main() {
         reason: jsonEncode(nativeFiltered),
       );
       await waitFor(
-        () => find.byType(CommandBlockTerminal).evaluate().isNotEmpty,
+        () => readerPages.evaluate().isNotEmpty,
         'visible filtered native rows',
       );
       final filteredPage = tester.widget<CommandBlockTerminal>(
-        find.byType(CommandBlockTerminal).first,
+        readerPages.first,
       );
       expect(filteredPage.block.lines.map((r) => r.index), [33, 34, 76]);
-      final filteredRect = tester.getRect(find.byType(TerminalViewport));
+      final filteredRect = tester.getRect(readerViewports);
       final filteredPointer = await tester.startGesture(
         filteredRect.topLeft + const Offset(2, 5),
         kind: PointerDeviceKind.mouse,
@@ -998,7 +1031,7 @@ void main() {
         commandsBeforeRecovery,
       );
       expect(await proof.readAsString(), 'x');
-      await click(const Key('ai-close'));
+      await returnToManualInput();
       await waitFor(() => shell()?['state'] == 'ready', 'shell before vim');
       final vimFile = File('${home.path}/vim.txt');
       await vimFile.writeAsString('Original file\n');
@@ -1051,6 +1084,7 @@ void main() {
       });
       await ask('Exit this temporary vim file without changing it.');
       expect(task.pending?.kind, AiActionKind.sendKeys);
+      final tuiTaskId = task.taskId;
       await capture('D12-vim-review-overlay');
       expect((
         runtime.liveScreen(id)!['rows'],
@@ -1060,7 +1094,7 @@ void main() {
       try {
         await waitFor(
           () => find.byType(TerminalAiWorkspace).evaluate().isEmpty,
-          'approval returns input to TUI',
+          'approved TUI action returns to read-only observation',
         );
       } on Object {
         await capture('D12-vim-approval-failure');
@@ -1101,7 +1135,26 @@ void main() {
         findsNothing,
         reason: 'Recovery offers manual Blocks restoration',
       );
+      final tuiObserver = find
+          .byKey(const Key('ai-observer-viewport'))
+          .hitTestable();
+      expect(tuiObserver, findsOneWidget);
+      expect(tester.widget<TerminalViewport>(tuiObserver).readOnly, isTrue);
+      expect(task.takenOver, isFalse);
       await capture('D12-vim-return-normal');
+      await click(const Key('ai-observer-take-over'));
+      expect(tuiObserver, findsNothing);
+      expect(task.taskId, tuiTaskId);
+      expect(find.byType(TerminalAiWorkspace), findsNothing);
+      expect(
+        tester
+            .widget<TerminalViewport>(
+              find.byType(TerminalViewport).hitTestable(),
+            )
+            .readOnly,
+        isFalse,
+      );
+      expect(await vimFile.readAsString(), 'Original file\n');
       // D14 exposes the absent override instead of baking the resolved desktop
       // default into settings. Saving it must preserve this existing session.
       final modeBeforePreference = container
@@ -1212,7 +1265,8 @@ void main() {
             'recovery_continued_only_after_explicit_action': true,
             'recovery_did_not_resubmit_native_command': true,
             'vim_overlay_grid': [grid.$1, grid.$2],
-            'vim_returned_input': true,
+            'vim_returned_to_read_only_observation': true,
+            'vim_input_restored_only_after_explicit_takeover': true,
             'restoration_is_manual': true,
             'platform_preference_reset_preserved_session_and_output': true,
             'ai_configuration_status_tracks_explicit_save_and_remove': true,

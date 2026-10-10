@@ -1,6 +1,31 @@
 part of 'shell_screen.dart';
 
 extension _ShellScreenAiObserver on _ShellScreenState {
+  CommandBlockReaderHostController _readerFor(String sessionId) =>
+      _readerControllers.putIfAbsent(sessionId, () {
+        final controller = CommandBlockReaderHostController();
+        controller.addListener(() {
+          // A read-only layer ends pending human input callbacks, including
+          // clipboard work started before the layer opened or changed mode.
+          _revokeManualInput(sessionId);
+          if (controller.blocksInput) {
+            // Composer submits through its negotiated lease, not raw input.
+            // Revoke its own capability before the read-only layer is laid out.
+            _composerSessions[sessionId]?.setVisible(
+              false,
+              deferNotification: true,
+            );
+          }
+          scheduleMicrotask(() {
+            if (mounted &&
+                identical(_readerControllers[sessionId], controller)) {
+              _mutateState(() {});
+            }
+          });
+        });
+        return controller;
+      });
+
   // Human UI callbacks, including closures captured before opening AI, must
   // recheck ownership. This is separate from the AI endpoint's read-only test:
   // an observer must not revoke the already approved AI operation.
@@ -13,6 +38,7 @@ extension _ShellScreenAiObserver on _ShellScreenState {
   bool _manualInputBlocked(String sessionId, {int? epoch}) =>
       !mounted ||
       (epoch != null && epoch != _manualInputEpoch(sessionId)) ||
+      _readerControllers[sessionId]?.blocksInput == true ||
       _openAiSessions.contains(sessionId) ||
       _isSessionReadOnly(sessionId);
 
@@ -89,7 +115,7 @@ extension _ShellScreenAiObserver on _ShellScreenState {
                     : () {
                         // Cancellation/revocation happens before returning any
                         // manual input capability. No interrupt byte is sent.
-                        _closeAi(sessionId);
+                        _takeOverAiInput(sessionId);
                         if (source != sessionId) {
                           _activateSession(sessions, source);
                         }

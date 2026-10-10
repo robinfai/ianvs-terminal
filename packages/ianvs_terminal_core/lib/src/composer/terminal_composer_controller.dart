@@ -112,6 +112,7 @@ final class TerminalComposerController extends ChangeNotifier {
   bool _restoring = false;
   bool _disposed = false;
   bool _active = true;
+  bool _activeNotificationScheduled = false;
   Timer? _timer;
   CompletionCancellation? _cancellation;
   _CompletionRequest? _queued;
@@ -494,13 +495,25 @@ final class TerminalComposerController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setActive(bool active) {
+  /// Hosts updating pane availability during build can defer the view event.
+  /// Input and pending completion permissions are always revoked immediately.
+  void setActive(bool active, {bool deferNotification = false}) {
     if (_disposed) return;
     if (_active == active) return;
     _active = active;
     if (!active) {
       dismissHistory(notify: false);
-      dismissCompletions();
+      dismissCompletions(notify: false);
+      if (!deferNotification) {
+        notifyListeners();
+      } else if (!_activeNotificationScheduled) {
+        _activeNotificationScheduled = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _activeNotificationScheduled = false;
+          if (!_disposed) notifyListeners();
+        });
+        WidgetsBinding.instance.ensureVisualUpdate();
+      }
     }
   }
 

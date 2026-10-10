@@ -114,26 +114,38 @@ void main() {
 
   setUpAll(loadVisualCaptureFonts);
 
-  testWidgets('captures the desktop shell', (tester) async {
-    await _pumpShell(tester);
-    await _capture(tester, '01-desktop-shell');
-  });
+  testWidgets(
+    'captures the desktop shell',
+    (tester) async {
+      await _pumpShell(tester);
+      await _capture(tester, '01-desktop-shell');
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
 
-  testWidgets('captures the command palette', (tester) async {
-    await _pumpShell(tester);
-    await tester.tap(find.byKey(const Key('shell-chrome-menu')));
-    await tester.pumpAndSettle();
-    await _capture(tester, '02-command-palette');
-  });
+  testWidgets(
+    'captures the command palette',
+    (tester) async {
+      await _pumpShell(tester);
+      await tester.tap(find.byKey(const Key('shell-chrome-menu')));
+      await tester.pumpAndSettle();
+      await _capture(tester, '02-command-palette');
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
 
-  testWidgets('captures the profiles sheet', (tester) async {
-    await _pumpShell(tester);
-    await tester.tap(find.byKey(const Key('shell-chrome-menu')));
-    await tester.pumpAndSettle();
-    final profilesAction = find.text('Profiles…');
-    await tester.ensureVisible(profilesAction);
-    await tester.tap(profilesAction);
-    await tester.pumpAndSettle();
-    await _capture(tester, '03-profiles-sheet');
-  });
+  testWidgets(
+    'captures the profiles sheet',
+    (tester) async {
+      await _pumpShell(tester);
+      await tester.tap(find.byKey(const Key('shell-chrome-menu')));
+      await tester.pumpAndSettle();
+      final profilesAction = find.text('Profiles…');
+      await tester.ensureVisible(profilesAction);
+      await tester.tap(profilesAction);
+      await tester.pumpAndSettle();
+      await _capture(tester, '03-profiles-sheet');
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
 }

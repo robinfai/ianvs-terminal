@@ -394,6 +394,7 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
     final profile = _profileForPane(pane, sessionState.profiles);
     final terminalConfig = profile?.toSessionConfig();
     final sessionReadOnly = pane.isExited || _isSessionReadOnly(sessionId);
+    final readerController = _readerFor(sessionId);
     final inputEpoch = _manualInputEpochs.putIfAbsent(
       sessionId,
       () => ++_manualInputSerial,
@@ -424,6 +425,7 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
           !mounted ||
           sessionReadOnly ||
           inputEpoch != _manualInputEpoch(sessionId) ||
+          readerController.blocksInput ||
           _readOnlySessionIds.contains(sessionId) ||
           _openAiSessions.contains(sessionId),
     );
@@ -467,7 +469,7 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
       ),
     );
     final hasHoveredLink = _hoveredTerminalLinkSessionId == sessionId;
-    return LayoutBuilder(
+    final paneView = LayoutBuilder(
       key: _paneDropTargetKey(activeTab.sessionId, sessionId),
       builder: (context, constraints) {
         if (!identical(
@@ -1038,12 +1040,14 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                                 key: ValueKey('composer-$sessionId'),
                                 session: composerSession,
                                 targetLabel: pane.title,
-                                active: isActive,
+                                active:
+                                    isActive && !_manualInputBlocked(sessionId),
                                 available: !pane.isExited && !sessionReadOnly,
                                 onAskAi: (prompt) =>
                                     _openAi(sessionId, prompt: prompt),
                                 onOpenAi: () => _openAi(sessionId),
                                 onTerminalFocus: focusNode.requestFocus,
+                                terminalFocus: focusNode,
                               ),
                             ),
                           if (!compactDisconnected) ?mobileControls,
@@ -1052,12 +1056,14 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                     ),
                   ),
                 ),
-                if (isActive)
+                if (isActive || _openAiSessions.contains(sessionId))
                   Positioned.fill(
                     child: _aiOverlay(
                       sessionId,
                       palette,
+                      paneContext: context,
                       targetLabel: pane.title,
+                      active: isActive && !readerController.blocksInput,
                       font: effectiveTerminalFont,
                       colors: terminalColors,
                       fullScreenTerminal:
@@ -1073,6 +1079,7 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                                   controller: composerSession.blocks,
                                   reference: reference,
                                   sourceSessionId: sessionId,
+                                  sourceLabel: pane.title,
                                   font: effectiveTerminalFont,
                                   onAttachRange: (block) =>
                                       _openAi(sessionId, range: block),
@@ -1125,6 +1132,21 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
           ),
         );
       },
+    );
+    return CommandBlockReaderHost(
+      key: ValueKey('reader-host-$sessionId'),
+      controller: readerController,
+      sourceLabel: pane.title,
+      sourceDetails: sessionId,
+      active: isActive,
+      enabled:
+          defaultTargetPlatform != TargetPlatform.iOS &&
+          defaultTargetPlatform != TargetPlatform.android,
+      geometryChanges: viewportController,
+      geometryIsFixed: () =>
+          viewportController.frame.modes.alternateScreen ||
+          composerSession?.fullScreen == true,
+      child: paneView,
     );
   }
 

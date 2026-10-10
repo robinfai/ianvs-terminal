@@ -59,7 +59,7 @@ class IanvsTerminalApp extends ConsumerWidget {
       ),
       builder: (context, child) => PhoneTextScalePolicy(
         child: AppNotificationHost(
-          topInset: ShellScreen.desktopChromeHeight,
+          topInset: desktopShellChromeHeight(context),
           child: child!,
         ),
       ),

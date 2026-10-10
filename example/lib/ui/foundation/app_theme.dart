@@ -110,9 +110,25 @@ ThemeData buildIanvsTerminalTheme(
       ),
     ),
   );
+  final composer = ComposerTheme.fromTheme(shared, highContrast: highContrast)
+      .copyWith(
+        // Unfilled marks and cursors need a foreground accent, including on
+        // selected blocks. Keep the filled primary action's paired colors.
+        accent: design.focus,
+        readerTopInset: resolvedPlatform == TargetPlatform.macOS
+            ? appWindowTitleBarHeight
+            : 0,
+      );
   return shared.copyWith(
     pageTransitionsTheme: const AppPageTransitionsTheme(),
     inputDecorationTheme: touch ? input : desktopInput,
+    filledButtonTheme: FilledButtonThemeData(
+      style: shared.filledButtonTheme.style?.copyWith(
+        overlayColor: FilledButton.styleFrom(
+          overlayColor: composer.primaryActionOverlay,
+        ).overlayColor,
+      ),
+    ),
     dropdownMenuTheme: touch
         ? shared.dropdownMenuTheme
         : shared.dropdownMenuTheme.copyWith(
@@ -123,14 +139,6 @@ ThemeData buildIanvsTerminalTheme(
                   ?.suffixIconConstraints,
             ),
           ),
-    extensions: [
-      ...shared.extensions.values,
-      terminal,
-      ComposerTheme.fromTheme(shared, highContrast: highContrast).copyWith(
-        readerTopInset: resolvedPlatform == TargetPlatform.macOS
-            ? appWindowTitleBarHeight
-            : 0,
-      ),
-    ],
+    extensions: [...shared.extensions.values, terminal, composer],
   );
 }
