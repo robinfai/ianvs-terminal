@@ -54,8 +54,16 @@ macOS 27.0.1 宿主和有线 iOS 27.0.1 iPhone 已识别。未发现可用实体
 
 macOS 27 六张新基线的逐图检查、旧新哈希及复验日志在 `build/desktop-prd-v1/iteration-1/golden-review-2026-10-10/REVIEW.md`。其余 91 张基线没有变化。macOS 26 对应场景仍待真实宿主复采，不能将 macOS 27 图片复制过去宣称通过。
 
+## 首个冻结候选的完整检查
+
+实现已保存为 `1c3522c3863fdb34f6060a25cd9d05c58e28fab6`。提交前 1,015 个 Dart 文件格式检查、全局严格分析、生成镜像一致性通过；文档合同 20 项、证据校验器 46 项通过。顶栏拆分后的执行目标 manifest 源码锚点已同步，原禁止项检查保留。
+
+第四轮 `make verify` 在该提交的干净工作树运行，首尾均干净，退出码 **2**。日志 `verify-4.log` 与 `verify-4-metadata.json` 记录了准确提交和时间。Rust／Go／Dart／PTY／两个终端包及文档等前置检查通过；应用测试为 **2,942 通过、1 跳过、4 失败**。失败均来自 `mobile_terminal_modes_test.dart`：macOS 完成 AI 后返回 Blocks 的编辑器未获焦点，以及手机 TUI 的 portrait／landscape／short-dark 三项在明确接管后未恢复 Esc 输入。它们是需要修复的交互回归，没有修改原断言规避；此轮尚未执行后续 macOS App 原生 gate。
+
+已确认异步关闭焦点保护过严：明确接管会暂时清空焦点；菜单关闭后旧 FocusScope 已禁用，焦点会退回 Shell 自身作用域。修复只允许这两种合法过渡，继续保护新编辑框、modal、活动 pane、生命周期和 Reader。`mobile_terminal_modes_test`、`shell_close_protection_test`、`shell_screen_phase2b_test`、`composer_pane_focus_test` 共 **57 项通过**，包含原 4 个失败和 2 项关闭后不得抢走新弹窗焦点的回归；原测试断言未修改。日志为 `focus-regression-tests.log`，单文件格式与严格分析通过。修复将保存为下一候选并重跑完整检查；旧候选日志不改写为新候选证据。
+
 ## 下一步
 
 滚动、Reader、关闭保护、单层顶栏和待审定位已完成本轮实现及独立复评。新增关闭用例及相关组合日志为 `close-protection-tests.log`（142 通过）；顶栏／侧栏组合为 `unified-chrome-regression-3.log`（65 通过）；原生窗口检查为 `unified-chrome-native.log`（5 通过）。逐图审阅范围见 `unified-chrome-visual-review.md`；这些数量仍有交叉，不能相加当作唯一覆盖数。
 
-standalone 435 个生成文件已同步。下一步统一格式／分析预检并冻结候选 C，继续执行完整 `make verify`，最终结论以真实退出结果为准。冻结候选后按 [桌面逐项表](DESKTOP_COMPARISON.md) 和 [移动逐项表](MOBILE_COMPARISON.md) 补原生／物理／真实模型证据。源码再次变化则重跑影响面，旧 C1/C3 证据身份保持不变。
+standalone 435 个生成文件已同步。下一步保存焦点修复候选并执行完整 `make verify`，最终结论以真实退出结果为准。冻结候选后按 [桌面逐项表](DESKTOP_COMPARISON.md) 和 [移动逐项表](MOBILE_COMPARISON.md) 补原生／物理／真实模型证据。源码再次变化则重跑影响面，旧 C1/C3 证据身份保持不变。

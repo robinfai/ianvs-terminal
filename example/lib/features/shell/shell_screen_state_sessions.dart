@@ -1283,10 +1283,18 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final lifecycle = WidgetsBinding.instance.lifecycleState;
+      final currentOwner = FocusManager.instance.primaryFocus;
+      // Explicit takeover removes the old AI/observer focus. A dismissed menu
+      // can also leave only the shell route's scope while its former scope is
+      // disabled. These fallbacks are not a new editor chosen by the user.
+      final releasedOwner =
+          currentOwner == null ||
+          (identical(currentOwner, FocusScope.of(context)) &&
+              owner?.canRequestFocus == false);
       if (ref.read(sessionControllerProvider).activeSessionId != sessionId ||
           _shellModalInputBlocked ||
           (lifecycle != null && lifecycle != AppLifecycleState.resumed) ||
-          FocusManager.instance.primaryFocus != owner ||
+          (currentOwner != owner && !releasedOwner) ||
           _readerControllers[sessionId]?.blocksInput == true ||
           !_sessionExists(sessionId) ||
           _openAiSessions.contains(sessionId) ||
