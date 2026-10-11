@@ -3301,6 +3301,14 @@
       "evidence/shared/review-fe1556fc99af/after-video-review.json",
       "evidence/shared/review-fe1556fc99af/before-widget-review.json",
       "evidence/shared/review-fe1556fc99af/after-widget-review.json"
+    ],
+    "supplemental_runs": [
+      {
+        "path": "evidence/shared/20261011T022419Z-c2d88f7b/result.json",
+        "implementation_commit": "c2d88f7b82d43ce23a4859dfdbfaa1817fe0fdbc",
+        "status": "failed",
+        "scope": "physical iPhone via mirroring; auxiliary screenshots only; no formal case promotion"
+      }
     ]
   }
 }
