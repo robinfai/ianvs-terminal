@@ -498,6 +498,8 @@ class _ModelResponse extends Stream<List<int>> implements HttpClientResponse {
   @override
   int get statusCode => 200;
   @override
+  HttpHeaders get headers => _ModelHeaders()..contentType = ContentType.json;
+  @override
   StreamSubscription<List<int>> listen(
     void Function(List<int>)? onData, {
     Function? onError,
@@ -1604,7 +1606,7 @@ void main() {
         await HttpOverrides.runZoned(() async {
           final turn = ai.ask('Inspect the current directory');
           await _settle(tester);
-          expect(ai.phase, AiPhase.thinking);
+          expect(ai.phase, AiPhase.connecting);
           await _closeTab(tester, id);
           await _confirm(tester);
           expect(backend.closedSessionIds, [id]);

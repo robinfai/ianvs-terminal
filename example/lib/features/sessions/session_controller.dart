@@ -3406,7 +3406,9 @@ class SessionController extends Notifier<SessionState> {
       return;
     }
     _runtime.resizeSession(sessionId, viewportSize, devicePixelRatio);
-    _applyFrame(sessionId, _runtime.viewportFor(sessionId).frame);
+    // Exit may release the viewport during resize's native event refresh.
+    final viewport = _runtime.existingViewportFor(sessionId);
+    if (viewport != null) _applyFrame(sessionId, viewport.frame);
   }
 
   TerminalUiEffectContext? _handleRuntimeEffect(TerminalBusinessEffect effect) {
@@ -3441,6 +3443,15 @@ class SessionController extends Notifier<SessionState> {
     TerminalSessionExitClaim? exitClaim,
   }) {
     if (!ref.mounted) {
+      return;
+    }
+    // UI effects defer the next business signal to a microtask. Native exit
+    // can therefore release a viewport before earlier shell hooks are reduced.
+    // Skip those obsolete observations; always reduce the exit itself so pane,
+    // active-session and connection-list state converge even after release.
+    if (event is! TerminalSessionExitEvent &&
+        event is! TerminalSessionBackendErrorEvent &&
+        _runtime.existingViewportFor(event.sessionId) == null) {
       return;
     }
     switch (event) {

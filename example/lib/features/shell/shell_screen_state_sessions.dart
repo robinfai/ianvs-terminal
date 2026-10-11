@@ -383,7 +383,11 @@ extension _ShellScreenStateSessions on _ShellScreenState {
 
     final sessionController = ref.read(sessionControllerProvider.notifier);
     for (final sessionId in sessionIds) {
-      final viewport = sessionController.viewportFor(sessionId);
+      final viewport = sessionController.existingViewportFor(sessionId);
+      if (viewport == null) {
+        _detachTabColorViewportListener(sessionId);
+        continue;
+      }
       if (identical(_tabColorViewportControllers[sessionId], viewport)) {
         continue;
       }
@@ -432,8 +436,9 @@ extension _ShellScreenStateSessions on _ShellScreenState {
 
     final frame = ref
         .read(sessionControllerProvider.notifier)
-        .viewportFor(previousActiveSessionId)
-        .frame;
+        .existingViewportFor(previousActiveSessionId)
+        ?.frame;
+    if (frame == null) return;
     final preview = _framePreview(frame);
     _sessionsSeenForActivityNotifications.add(previousActiveSessionId);
     _lastActivityFramePreviews[previousActiveSessionId] = preview;
@@ -695,8 +700,8 @@ extension _ShellScreenStateSessions on _ShellScreenState {
   Color? _tabProfileColor(SessionState sessionState, TerminalTab tab) {
     final dynamicColor = ref
         .read(sessionControllerProvider.notifier)
-        .viewportFor(tab.activePane.sessionId)
-        .frame
+        .existingViewportFor(tab.activePane.sessionId)
+        ?.frame
         .tabColor;
     if (dynamicColor != null) {
       return dynamicColor;
@@ -741,8 +746,9 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     }
     final frame = ref
         .read(sessionControllerProvider.notifier)
-        .viewportFor(sessionId)
-        .frame;
+        .existingViewportFor(sessionId)
+        ?.frame;
+    if (frame == null) return context.l10n.noActivePaneAvailable;
     final primarySize = requestedAxis == TerminalSplitAxis.horizontal
         ? frame.viewportCols
         : frame.viewportRows;
@@ -774,7 +780,8 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     SessionController sessionController,
     String sessionId,
   ) {
-    final viewport = sessionController.viewportFor(sessionId);
+    final viewport = sessionController.existingViewportFor(sessionId);
+    if (viewport == null) return false;
     if (viewport.frameVersion <= 0) {
       return false;
     }
@@ -887,7 +894,10 @@ extension _ShellScreenStateSessions on _ShellScreenState {
       if (pane.sessionId == activeSessionId) {
         continue;
       }
-      final frame = sessionController.viewportFor(pane.sessionId).frame;
+      final frame = sessionController
+          .existingViewportFor(pane.sessionId)
+          ?.frame;
+      if (frame == null) return context.l10n.noActivePaneAvailable;
       final primarySize = activeTab.splitAxis == TerminalSplitAxis.horizontal
           ? frame.viewportCols
           : frame.viewportRows;
@@ -945,8 +955,9 @@ extension _ShellScreenStateSessions on _ShellScreenState {
   String _visibleFrameText(String sessionId) {
     final frame = ref
         .read(sessionControllerProvider.notifier)
-        .viewportFor(sessionId)
-        .frame;
+        .existingViewportFor(sessionId)
+        ?.frame;
+    if (frame == null) return '';
     final lines = <String>[
       for (final row in _logicalRows(frame.rows)) row.text.trimRight(),
     ];

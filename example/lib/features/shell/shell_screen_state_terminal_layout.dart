@@ -376,6 +376,49 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
     );
   }
 
+  Widget _unavailableTerminalPane(
+    BuildContext context,
+    SessionController sessionController,
+    TerminalPane pane,
+    AppThemeTokens palette,
+    bool isActive,
+  ) {
+    // A task's text and recovery controls do not depend on a native viewport.
+    if (_openAiSessions.contains(pane.sessionId)) {
+      return _aiOverlay(
+        pane.sessionId,
+        palette,
+        targetLabel: pane.title,
+        paneContext: context,
+        active: isActive,
+      );
+    }
+    final chinese = Localizations.localeOf(context).languageCode == 'zh';
+    return Center(
+      key: Key('terminal-unavailable-${pane.sessionId}'),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(chinese ? '终端会话已不可用' : 'Terminal session unavailable'),
+            const SizedBox(height: 12),
+            TextButton(
+              key: Key('terminal-unavailable-ai-${pane.sessionId}'),
+              onPressed: () => _openAi(pane.sessionId),
+              child: Text(chinese ? '查看 AI 任务' : 'View AI task'),
+            ),
+            TextButton(
+              onPressed: () =>
+                  unawaited(sessionController.closeSession(pane.sessionId)),
+              child: Text(chinese ? '关闭会话' : 'Close session'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildTerminalPane({
     required BuildContext context,
     required SessionController sessionController,
@@ -390,7 +433,13 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
     final sessionId = pane.sessionId;
     final viewportController = sessionController.existingViewportFor(sessionId);
     if (viewportController == null) {
-      return const SizedBox.shrink();
+      return _unavailableTerminalPane(
+        context,
+        sessionController,
+        pane,
+        palette,
+        isActive,
+      );
     }
     final graphicsCache = sessionController.graphicsCacheFor(sessionId);
     final focusNode = _focusNodeFor(sessionId);
@@ -509,7 +558,13 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
           sessionController.existingViewportFor(sessionId),
           viewportController,
         )) {
-          return const SizedBox.shrink();
+          return _unavailableTerminalPane(
+            context,
+            sessionController,
+            pane,
+            palette,
+            isActive,
+          );
         }
         final dropTarget = _dropTargetForPane(sessionId);
         final compactDisconnected =
@@ -1297,7 +1352,10 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
     TerminalSplitAxis axis,
   ) {
     if (node.isLeaf) {
-      final frame = sessionController.viewportFor(node.pane!.sessionId).frame;
+      final frame = sessionController
+          .existingViewportFor(node.pane!.sessionId)
+          ?.frame;
+      if (frame == null) return 0;
       return axis == TerminalSplitAxis.horizontal
           ? frame.viewportCols
           : frame.viewportRows;

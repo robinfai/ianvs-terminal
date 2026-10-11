@@ -37,6 +37,10 @@ extension _ShellScreenAiObserver on _ShellScreenState {
 
   bool _manualInputBlocked(String sessionId, {int? epoch}) =>
       !mounted ||
+      !ref.read(terminalRuntimeControllerProvider).hasSession(sessionId) ||
+      ref
+          .read(terminalRuntimeControllerProvider)
+          .isSessionRetainedAfterExit(sessionId) ||
       (epoch != null && epoch != _manualInputEpoch(sessionId)) ||
       _readerControllers[sessionId]?.blocksInput == true ||
       _openAiSessions.contains(sessionId) ||

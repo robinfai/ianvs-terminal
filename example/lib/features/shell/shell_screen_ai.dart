@@ -357,7 +357,8 @@ extension _ShellScreenAi on _ShellScreenState {
     final ai = _aiSessions[sessionId];
     Widget button() {
       final chinese = Localizations.localeOf(context).languageCode == 'zh';
-      final showTerminal = context.usesMobileNavigation &&
+      final showTerminal =
+          context.usesMobileNavigation &&
           _openAiSessions.contains(sessionId) &&
           !_observedAiTargets.containsKey(sessionId);
       final label = showTerminal

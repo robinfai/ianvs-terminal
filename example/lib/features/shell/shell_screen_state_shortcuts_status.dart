@@ -92,13 +92,13 @@ extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
     final sessionController = ref.read(sessionControllerProvider.notifier);
     final terminalFrame = activeSessionId == null
         ? null
-        : sessionController.viewportFor(activeSessionId).frame;
+        : sessionController.existingViewportFor(activeSessionId)?.frame;
     final terminalPreview = activeTab == null
         ? null
         : _acceptancePreviewForActiveTabPanes(
             activeTab,
             frameForSession: (sessionId) =>
-                sessionController.viewportFor(sessionId).frame,
+                sessionController.existingViewportFor(sessionId)?.frame,
           );
     acceptanceProbe.update(
       ShellAcceptanceSnapshot(

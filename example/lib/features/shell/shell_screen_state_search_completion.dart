@@ -268,8 +268,12 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
   void _rememberSearchRefreshFrameSignature(String sessionId) {
     final frame = ref
         .read(terminalRuntimeControllerProvider)
-        .viewportFor(sessionId)
-        .frame;
+        .existingViewportFor(sessionId)
+        ?.frame;
+    if (frame == null) {
+      _searchRefreshFrameSignatures.remove(sessionId);
+      return;
+    }
     _searchRefreshFrameSignatures[sessionId] = _searchRefreshFrameSignature(
       frame,
     );
@@ -502,7 +506,8 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
     }
     final startMark = promptMarks[promptMarks.length - 2];
     final endMark = promptMarks.last;
-    final frame = sessionController.viewportFor(sessionId).frame;
+    final frame = sessionController.existingViewportFor(sessionId)?.frame;
+    if (frame == null) return false;
     final startPromptRow = _viewportRowForGlobalLine(
       frame,
       startMark.globalLine,
@@ -545,8 +550,9 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
 
     final frame = ref
         .read(sessionControllerProvider.notifier)
-        .viewportFor(sessionId)
-        .frame;
+        .existingViewportFor(sessionId)
+        ?.frame;
+    if (frame == null) return;
     final targetOffset = _shellPromptNavigationOffset(
       promptMarks,
       frame,
@@ -575,8 +581,9 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
     }
     final frame = ref
         .read(sessionControllerProvider.notifier)
-        .viewportFor(sessionId)
-        .frame;
+        .existingViewportFor(sessionId)
+        ?.frame;
+    if (frame == null) return const <TerminalShellPromptMark>[];
     return _effectivePromptMarksForFrame(pane.shellIntegration, frame);
   }
 

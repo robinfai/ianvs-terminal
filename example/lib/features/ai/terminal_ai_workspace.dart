@@ -9,6 +9,7 @@ import 'package:ianvs_terminal/ianvs_terminal.dart';
 import '../../ui/app_ui.dart';
 import 'ai_approval_notice.dart';
 import 'ai_models.dart';
+import 'ai_request_indicator.dart';
 import 'ai_settings_dialog.dart';
 import 'ai_strings.dart';
 import 'terminal_ai_controller.dart';
@@ -214,6 +215,8 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
     }
   }
 
+  AiTranscriptEntry? _lastEntry;
+
   void _changed() {
     if (!mounted) return;
     final switched = _taskId != c.taskId;
@@ -223,8 +226,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
         _wasBusy &&
         c.phase == AiPhase.idle &&
         !c.takenOver &&
-        reply?.role == 'assistant' &&
-        _count != c.transcript.length;
+        reply?.role == 'assistant';
     if (switched) _replyFocusAllowed = false;
     if (!_wasBusy && c.busy) _replyFocusAllowed = true;
     _wasBusy = c.busy;
@@ -257,7 +259,9 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
     final changed =
         switched ||
         _count != c.transcript.length ||
-        _revision != c.proposalRevision;
+        _revision != c.proposalRevision ||
+        !identical(_lastEntry, reply);
+    _lastEntry = reply;
     _count = c.transcript.length;
     _revision = c.proposalRevision;
     if (_input.text != c.draft) {
@@ -538,6 +542,12 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
       ? t('Checking command interruption…', '正在核对命令中断结果…')
       : switch (c.phase) {
           AiPhase.thinking => t('Thinking…', '正在思考…'),
+          AiPhase.connecting => t('Connecting to model…', '正在连接模型…'),
+          AiPhase.waitingForFirstToken => t(
+            'Waiting for first token…',
+            '等待首个 Token…',
+          ),
+          AiPhase.generating => t('Generating…', '正在生成…'),
           AiPhase.reviewing => t('Reviewing command safety…', '正在审核命令…'),
           AiPhase.executing => t('Checking submission…', '正在核对提交…'),
           AiPhase.observing => t(
@@ -553,7 +563,12 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
                   )
                 : t('Needs attention', '需要处理'),
           AiPhase.idle =>
-            c.takenOver
+            c.generationCancelled
+                ? t(
+                    'Generation cancelled · command is not interrupted',
+                    '已取消生成 · 命令未被中断',
+                  )
+                : c.takenOver
                 ? t('AI paused · command is not interrupted', 'AI 已暂停 · 命令未被中断')
                 : c.transcript.isEmpty
                 ? t('Ready for your task', '等待你的任务')
@@ -1867,6 +1882,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
                         labelWidth(returnLabel);
             return Row(
               children: [
+                AiRequestIndicator(controller: c),
                 if (!compact)
                   Expanded(
                     child: Semantics(
@@ -1937,7 +1953,11 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
           },
         );
 
-  Widget _prompt({int maxLines = 4, String? hintText, bool dense = false}) => Focus(
+  Widget _prompt({
+    int maxLines = 4,
+    String? hintText,
+    bool dense = false,
+  }) => Focus(
     onKeyEvent: (_, event) {
       if (!_input.value.composing.isCollapsed) return KeyEventResult.ignored;
       final keyboard = HardwareKeyboard.instance;
@@ -1989,9 +2009,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
         hintText: hintText ?? t('Ask about this terminal…', '向当前终端提问…'),
         isDense: dense ? true : null,
         hintMaxLines: dense ? 1 : null,
-        contentPadding: dense
-            ? const EdgeInsets.symmetric(vertical: 8)
-            : null,
+        contentPadding: dense ? const EdgeInsets.symmetric(vertical: 8) : null,
         border: InputBorder.none,
         enabledBorder: InputBorder.none,
         focusedBorder: InputBorder.none,

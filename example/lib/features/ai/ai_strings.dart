@@ -96,6 +96,14 @@ String aiErrorText(String code, bool zh) {
       'Cannot connect to the endpoint. Check the URL and network.',
       '无法连接 Endpoint，请检查地址和网络。',
     ),
+    'response_incomplete': (
+      'The response ended before completion. Partial text is kept; no tool was submitted.',
+      '回复未完整接收，已保留部分文字，没有提交工具调用。',
+    ),
+    'response_stream': (
+      'The model stream failed. No terminal action was retried.',
+      '模型流式响应失败，没有重试终端动作。',
+    ),
     'response_format': (
       'The endpoint returned an unsupported response.',
       'Endpoint 返回了不支持的响应格式。',

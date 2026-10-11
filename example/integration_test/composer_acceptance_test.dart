@@ -126,14 +126,15 @@ void main() {
       expect(find.byKey(Key('composer-toggle-$id')), findsNothing);
       expect(find.byType(TerminalComposerView), findsNothing);
       final normalTerminalSize = tester.getSize(find.byType(TerminalViewport));
-      Future<void> chooseMode(String mode) async {
+      Future<void> chooseMode(String mode, {String? sessionId}) async {
+        final targetId = sessionId ?? id;
         await tester.tap(
-          find.byKey(Key('shell-tab-$id')),
+          find.byKey(Key('shell-tab-$targetId')),
           buttons: kSecondaryMouseButton,
         );
         await tester.pumpAndSettle();
         await capture('terminal-mode-menu');
-        await tester.tap(find.byKey(Key('terminal-mode-$mode-$id')));
+        await tester.tap(find.byKey(Key('terminal-mode-$mode-$targetId')));
         await tester.pumpAndSettle();
       }
 
@@ -909,6 +910,47 @@ void main() {
         fallback.unavailableReason,
         BlockUnavailableReason.unattributedOutput,
       );
+      // Submit normal exit through the production human Composer. Its native
+      // final output, close event, resize and ShellScreen listeners must settle
+      // together rather than leaving a running pane without a viewport.
+      final exitingId = container
+          .read(sessionControllerProvider.notifier)
+          .createSession(profile)!;
+      await until(
+        tester,
+        () => container
+            .read(sessionControllerProvider)
+            .tabs
+            .last
+            .activePane
+            .terminalMode
+            .canUseBlocks,
+      );
+      await chooseMode('blocks', sessionId: exitingId);
+      await until(tester, () => editor.evaluate().isNotEmpty);
+      await tester.enterText(editor, 'exit');
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await until(
+        tester,
+        () => !container
+            .read(sessionControllerProvider)
+            .tabs
+            .any((tab) => tab.containsSession(exitingId)),
+      );
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(
+        container.read(sessionControllerProvider).activeSessionId,
+        isNot(exitingId),
+      );
+      expect(
+        container
+            .read(terminalRuntimeControllerProvider)
+            .existingViewportFor(exitingId),
+        isNull,
+      );
+      expect(find.byKey(Key('terminal-unavailable-$exitingId')), findsNothing);
+      await capture('normal-exit-no-stale-pane');
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
     },

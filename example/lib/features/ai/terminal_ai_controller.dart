@@ -82,6 +82,9 @@ class _AiApprovalCancellation extends AiCancellation {
 enum AiPhase {
   idle,
   thinking,
+  connecting,
+  waitingForFirstToken,
+  generating,
   reviewing,
   awaitingApproval,
   executing,
@@ -193,6 +196,7 @@ class _AiTask {
   String? terminalError;
   Future<void>? contextRefresh;
   bool takenOver = false;
+  bool generationCancelled = false;
   int revision = 0;
   AgentBackend? agent;
   Object? agentTurn;
@@ -331,6 +335,7 @@ class TerminalAiController extends ChangeNotifier {
       _transcript.any((entry) => entry.state == AiEntryState.deferred);
   bool get followUpEnded => _task.followUpEnded;
   bool get canEndFollowUp => _canInteract && !busy && hasUnresolvedSubmission;
+  bool get generationCancelled => _task.generationCancelled;
   bool get takenOver => _task.takenOver;
   set takenOver(bool value) => _task.takenOver = value;
   int get proposalRevision => _task.revision;
@@ -482,6 +487,7 @@ class TerminalAiController extends ChangeNotifier {
     final cancellation = _cancellation = AiCancellation();
     _executingAction = action;
     takenOver = false;
+    _task.generationCancelled = false;
     phase = AiPhase.executing;
     error = null;
     _transcript.add(
@@ -719,6 +725,9 @@ class TerminalAiController extends ChangeNotifier {
   bool get busy =>
       _interrupting ||
       phase == AiPhase.thinking ||
+      phase == AiPhase.connecting ||
+      phase == AiPhase.waitingForFirstToken ||
+      phase == AiPhase.generating ||
       phase == AiPhase.reviewing ||
       phase == AiPhase.executing ||
       phase == AiPhase.observing;
@@ -1061,6 +1070,7 @@ class TerminalAiController extends ChangeNotifier {
     _cancellation?.cancel();
     final cancellation = _cancellation = AiCancellation();
     takenOver = false;
+    _task.generationCancelled = false;
     phase = AiPhase.thinking;
     error = null;
     _steps = 0;
@@ -1174,7 +1184,7 @@ class TerminalAiController extends ChangeNotifier {
       cancellation.check();
       if (++_steps > maxSteps) throw const AiFailure('step_limit');
       final requestHistory = _compactHistory();
-      phase = AiPhase.thinking;
+      phase = api is AiStreamingApi ? AiPhase.connecting : AiPhase.thinking;
       _emit();
       final configuration = settings.configuration;
       if (configuration == null) throw const AiFailure('configuration');
@@ -1186,13 +1196,72 @@ class TerminalAiController extends ChangeNotifier {
         _messages,
         sessionId: inferenceContext?.sessionId ?? '',
       );
+      final requestTask = _task;
+      String? responseEntryId;
+      final streamedText = StringBuffer();
+      final evidence = suppliedAiEvidence(
+        requestHistory,
+        sessionId: inferenceContext?.sessionId ?? '',
+      );
+      void updateText(String text) {
+        if (text.isEmpty) return;
+        final id = responseEntryId ??= 'entry-${++_entrySerial}';
+        final index = requestTask.transcript.indexWhere(
+          (entry) => entry.id == id,
+        );
+        final entry = AiTranscriptEntry(
+          'assistant',
+          text,
+          id: id,
+          suppliedEvidence: evidence,
+          revision: index < 0 ? 0 : requestTask.transcript[index].revision + 1,
+        );
+        if (index < 0) {
+          requestTask.transcript.add(entry);
+        } else {
+          requestTask.transcript[index] = entry;
+        }
+      }
+
       final AiReply reply;
       try {
-        reply = await api.complete(configuration, [
+        final messages = <Map<String, Object?>>[
           {'role': 'system', 'content': aiSystemPrompt},
           ...requestHistory,
           if (correction != null) {'role': 'system', 'content': correction},
-        ], cancellation);
+        ];
+        final client = api;
+        if (client is AiStreamingApi) {
+          reply = await client.completeStreaming(
+            configuration,
+            messages,
+            cancellation,
+            (update) {
+              // The transport may finish after pause, task switch or disposal.
+              // Bind every delta to both this task and this exact request.
+              if (_disposed ||
+                  cancellation.isCancelled ||
+                  !identical(cancellation, _cancellation) ||
+                  !identical(requestTask, _task)) {
+                return;
+              }
+              phase = switch (update.stage) {
+                AiResponseStage.waitingForFirstToken =>
+                  AiPhase.waitingForFirstToken,
+                AiResponseStage.generating => AiPhase.generating,
+              };
+              streamedText.write(update.textDelta);
+              if (update.textDelta.isNotEmpty) {
+                updateText(streamedText.toString());
+              }
+              _emit();
+            },
+          );
+        } else {
+          reply = await client.complete(configuration, messages, cancellation);
+        }
+        cancellation.check();
+        if (!identical(requestTask, _task)) return;
         final lastUser = _transcript.lastIndexWhere(
           (entry) => entry.role == 'user',
         );
@@ -1205,7 +1274,9 @@ class TerminalAiController extends ChangeNotifier {
             .skip(lastUser + 1)
             .any(
               (entry) =>
-                  entry.role == 'assistant' && entry.text.trim().isNotEmpty,
+                  entry.role == 'assistant' &&
+                  entry.id != responseEntryId &&
+                  entry.text.trim().isNotEmpty,
             );
         if (suppliedFailures &&
             !alreadyExplained &&
@@ -1220,6 +1291,9 @@ class TerminalAiController extends ChangeNotifier {
         }
       } on AiInvalidAction catch (failure) {
         cancellation.check();
+        requestTask.transcript.removeWhere(
+          (entry) => entry.id == responseEntryId,
+        );
         if (++proposalRepairs > 2) rethrow;
         // Nothing from the rejected response enters executable history. The
         // replacement still needs approval and retains the original guard.
@@ -1234,17 +1308,7 @@ class TerminalAiController extends ChangeNotifier {
       cancellation.check();
       _messages.add(reply.toMessage());
       if (reply.text.trim().isNotEmpty) {
-        _transcript.add(
-          AiTranscriptEntry(
-            'assistant',
-            reply.text,
-            id: 'entry-${++_entrySerial}',
-            suppliedEvidence: suppliedAiEvidence(
-              requestHistory,
-              sessionId: inferenceContext?.sessionId ?? '',
-            ),
-          ),
-        );
+        updateText(reply.text);
       }
       final action = reply.action;
       if (action == null) {
@@ -1739,6 +1803,10 @@ class TerminalAiController extends ChangeNotifier {
     if (_disposed || (!busy && pending == null && _executingAction == null)) {
       return;
     }
+    _task.generationCancelled =
+        phase == AiPhase.connecting ||
+        phase == AiPhase.waitingForFirstToken ||
+        phase == AiPhase.generating;
     _cancellation?.cancel();
     _interruptCancellation?.cancel();
     _resolvePending('The user took over. Stop sending terminal input.');

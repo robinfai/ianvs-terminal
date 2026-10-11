@@ -257,6 +257,8 @@ class _ModelResponse extends Stream<List<int>> implements HttpClientResponse {
   @override
   int get statusCode => 200;
   @override
+  HttpHeaders get headers => _ModelHeaders()..contentType = ContentType.json;
+  @override
   StreamSubscription<List<int>> listen(
     void Function(List<int>)? onData, {
     Function? onError,
@@ -340,7 +342,7 @@ void main() {
               await _settle(tester);
               expect(
                 fixture.ai.phase,
-                waitingFor == 'model' ? AiPhase.thinking : AiPhase.reviewing,
+                waitingFor == 'model' ? AiPhase.connecting : AiPhase.reviewing,
               );
 
               if (destination == 'connections home') {

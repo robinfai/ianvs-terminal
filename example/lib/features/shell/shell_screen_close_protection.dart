@@ -121,6 +121,10 @@ extension _ShellScreenCloseProtection on _ShellScreenState {
         ]);
         final phase = switch (task.phase) {
           AiPhase.thinking => zh ? '分析中' : 'analysing',
+          AiPhase.connecting => zh ? '正在连接模型' : 'connecting to model',
+          AiPhase.waitingForFirstToken =>
+            zh ? '等待首个 Token' : 'waiting for first token',
+          AiPhase.generating => zh ? '正在生成' : 'generating',
           AiPhase.reviewing => zh ? '审核中' : 'reviewing',
           AiPhase.awaitingApproval =>
             zh ? '有未审提案' : 'has an unreviewed proposal',
