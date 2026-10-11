@@ -1,0 +1,33 @@
+name: Mobile repair candidate validation
+on:
+  push:
+    branches: [codex/validate-mobile-stream-20261011]
+permissions:
+  contents: write
+concurrency:
+  group: mobile-repair-candidate-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  check:
+    runs-on: macos-26
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          flutter-version: 3.44.2
+          channel: stable
+          cache: false
+      - name: Resolve synthetic test dependencies
+        run: flutter pub get
+      - name: Apply exact-base candidate patches
+        run: python3 .repair/apply.py
+      - name: Format analyze and run regressions
+        run: python3 .repair/check.py
+      - name: Export immutable candidate blobs and actual check results
+        if: always() && hashFiles('.repair/results.json') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 .repair/export.py
