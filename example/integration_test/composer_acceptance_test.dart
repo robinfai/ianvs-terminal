@@ -491,12 +491,29 @@ void main() {
         expect(blockScroll.position.isScrollingNotifier.value, isTrue);
         outputOffset = blockScroll.offset;
       }
-      await outputTrackpad.panZoomEnd(
+      // Flutter expires velocity after 40 ms of wall-clock inactivity. A
+      // native frame/assertion can exceed that on CI. Exercise such a pause,
+      // then send a fresh final movement and release without a frame between.
+      await tester.pump(const Duration(milliseconds: 60));
+      final finalMovementStart = blockScroll.offset;
+      await outputTrackpad.panZoomUpdate(
+        outputPoint,
+        pan: const Offset(0, 40 + 64.0 * 7),
         timeStamp: const Duration(milliseconds: 128),
       );
+      final releaseOffset = blockScroll.offset;
+      await outputTrackpad.panZoomEnd(
+        timeStamp: const Duration(milliseconds: 144),
+      );
+      expect(releaseOffset, closeTo(finalMovementStart - 64, .5));
+      expect(blockScroll.position.isScrollingNotifier.value, isTrue);
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 80));
-      expect(blockScroll.offset, lessThan(outputOffset - 10));
+      debugPrint(
+        'trackpad-inertia-measurement: '
+        '${releaseOffset - blockScroll.offset} logical pixels after release',
+      );
+      expect(blockScroll.offset, lessThan(releaseOffset - 10));
       // End inertia before the next independent keyboard interaction.
       blockScroll.jumpTo(blockScroll.offset);
       await tester.tap(editor);
