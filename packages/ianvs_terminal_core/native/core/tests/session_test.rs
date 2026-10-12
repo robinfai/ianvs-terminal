@@ -17722,10 +17722,10 @@ fn prompt_sp_clear_sequence_marks_cleared_marker_row_dirty() {
             "/bin/sh",
             vec![
                 "-lc".to_string(),
-                "printf '\\033[1m\\033[7m%%\\033[27m\\033[1m\\033[0m                                                                               '; \
-                 sleep 0.2; \
+                "stty -echo -echonl; printf '\\033[1m\\033[7m%%\\033[27m\\033[1m\\033[0m                                                                               '; \
+                 IFS= read -r advance; \
                  printf '\\r \\r\\033Phook;68656c6c6f\\033\\\\\\r\\033[0m\\033[27m\\033[24m\\033[J\\r\\nianvs terminal-prompt\\r\\n> '; \
-                 sleep 0.2"
+                 IFS= read -r release"
                     .to_string(),
             ],
             BTreeMap::new(),
@@ -17734,6 +17734,7 @@ fn prompt_sp_clear_sequence_marks_cleared_marker_row_dirty() {
         .unwrap(),
     )
     .unwrap();
+    let _session_guard = SessionGuard::new(session_id);
 
     let _ = wait_for_frame_where(session_id, |frame| {
         let parsed: serde_json::Value = serde_json::from_str(frame).unwrap();
@@ -17746,6 +17747,9 @@ fn prompt_sp_clear_sequence_marks_cleared_marker_row_dirty() {
                     && row["text"].as_str().unwrap_or_default().starts_with('%')
             })
     });
+    // Advance only after consuming the marker frame. Timed sleeps can let
+    // startup and clearing coalesce before a busy CI runner polls the PTY.
+    session::write_session(session_id, b"\n").unwrap();
     let frame = wait_for_frame_containing(session_id, "ianvs terminal-prompt");
     let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
     let row_zero = frame_row_at_index(&parsed, 0);
@@ -17756,8 +17760,6 @@ fn prompt_sp_clear_sequence_marks_cleared_marker_row_dirty() {
             .starts_with('%'),
         "clearing zsh's PROMPT_SP marker must dirty row 0: {frame}"
     );
-
-    session::close_session(session_id).unwrap();
 }
 
 #[test]
