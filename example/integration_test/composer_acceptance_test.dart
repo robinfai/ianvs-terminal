@@ -900,9 +900,12 @@ void main() {
         await chooseMode('blocks');
       }
       final releaseOutput = File('${home.path}/.release-background-output');
+      final finishOutput = File('${home.path}/.finish-background-output');
+      addTearDown(() => finishOutput.writeAsString('finish'));
       final backgroundCommand =
           '(while [[ ! -e "${releaseOutput.path}" ]]; do sleep 0.05; done; '
-          'print BLOCK_UNASSIGNED_OUTPUT) &';
+          'print BLOCK_UNASSIGNED_OUTPUT; '
+          'while [[ ! -e "${finishOutput.path}" ]]; do sleep 0.05; done) &';
       final beforeBackgroundLease = model.readyLease;
       await tester.enterText(editor, backgroundCommand);
       // This compound expression has no resolved first command token. Use
@@ -931,10 +934,51 @@ void main() {
             'owner=${model.ownership}; intent=${model.intentDecision.intent}; '
             'draft=${model.editor.text}; status=${model.status}; output=${terminalText()}',
       );
-      // A fixed sleep can finish before Zsh publishes its authenticated ready
-      // lease. Establish the idle presentation baseline, then release output.
-      await tester.pump(const Duration(milliseconds: 200));
+      // Returning from a multiline command resizes the PTY after the Shell's
+      // debounce. Match the native grid to the measured layout, then observe a
+      // stable idle screen across the output-attribution refresh before release.
+      final backgroundViewport = container
+          .read(sessionControllerProvider.notifier)
+          .viewportFor(id);
+      (Object?, Object?, Object?, String?)? idleScreen;
+      DateTime? idleSince;
+      await until(tester, () {
+        final size = tester.getSize(find.byKey(ValueKey('blocks-pane-$id')));
+        final padding = container
+            .read(sessionControllerProvider)
+            .terminalViewportPadding;
+        final cell = backgroundViewport.measuredCellSize!;
+        final expectedColumns = ((size.width - padding * 2) / cell.width)
+            .floor();
+        final expectedRows = ((size.height - padding * 2) / cell.height)
+            .floor();
+        final live = container
+            .read(terminalRuntimeControllerProvider)
+            .liveScreen(id)!;
+        final sample = (
+          live['columns'],
+          live['rows'],
+          live['text'],
+          model.readyLease,
+        );
+        final frame = backgroundViewport.frame;
+        final matchesLayout =
+            live['columns'] == expectedColumns &&
+            live['rows'] == expectedRows &&
+            frame.viewportCols == expectedColumns &&
+            frame.viewportRows == expectedRows;
+        if (!matchesLayout || sample != idleScreen) {
+          idleScreen = sample;
+          idleSince = DateTime.now();
+          return false;
+        }
+        return DateTime.now().difference(idleSince!) >=
+            const Duration(milliseconds: 200);
+      }, diagnostics: () => 'idle screen did not settle: $idleScreen');
       expect(find.byType(TerminalCommandBlocksView), findsOneWidget);
+      final backgroundOutputLease = model.readyLease;
+      // Keep idle output separate from the job-completion notification and
+      // prompt repaint. Let the child finish only after fallback is observed.
       await releaseOutput.writeAsString('release');
       bool hasBackgroundOutput() => terminalText()
           .split('\n')
@@ -952,6 +996,7 @@ void main() {
             'owner=${model.ownership}; output=${terminalText()}',
       );
       expect(hasBackgroundOutput(), isTrue);
+      expect(model.readyLease, backgroundOutputLease);
       final fallback = container
           .read(sessionControllerProvider)
           .tabs
@@ -963,6 +1008,12 @@ void main() {
         fallback.unavailableReason,
         BlockUnavailableReason.unattributedOutput,
       );
+      debugPrint(
+        'background-output-measurement: stable grid '
+        '${backgroundViewport.frame.viewportCols}x${backgroundViewport.frame.viewportRows}; '
+        'same ready lease; unattributed output fallback confirmed',
+      );
+      await finishOutput.writeAsString('finish');
       // Submit normal exit through the production human Composer. Its native
       // final output, close event, resize and ShellScreen listeners must settle
       // together rather than leaving a running pane without a viewport.
