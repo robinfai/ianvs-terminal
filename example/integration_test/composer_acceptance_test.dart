@@ -400,6 +400,18 @@ void main() {
         greaterThan(normalTerminalSize.height / 3),
       );
       await capture('block-expanded-height');
+      // The expanded block initially contains only the native preview page.
+      // Load its real output so the same output spans all six drag updates,
+      // independently of the host window's height.
+      blocks.page(tallBlockId, 0);
+      await tester.pumpAndSettle();
+      expect(
+        blocks
+            .displayBlock(blocks.blocks.singleWhere((b) => b.id == tallBlockId))
+            .lines
+            .length,
+        greaterThanOrEqualTo(120),
+      );
       final blockList = find.descendant(
         of: find.byType(TerminalCommandBlocksView),
         matching: find.byType(CommandTimelineView),
@@ -416,18 +428,31 @@ void main() {
       final position = blockScroll.position;
       expect(
         position.maxScrollExtent - position.minScrollExtent,
-        greaterThan(640),
+        greaterThan(680),
       );
-      blockScroll.jumpTo(position.minScrollExtent + 600);
-      await tester.pump();
-      expect(blockScroll.offset, closeTo(position.minScrollExtent + 600, .5));
-      final outputPoint = tester.getCenter(blockList);
+      final expandedOutput = find.descendant(
+        of: find.byKey(ValueKey('command-block-$tallBlockId')),
+        matching: find.byType(TerminalViewport),
+      );
+      expect(expandedOutput, findsOneWidget);
+      final listTop = tester.getTopLeft(blockList).dy;
+      final outputStart =
+          blockScroll.offset + tester.getTopLeft(expandedOutput).dy - listTop;
+      final gestureStart = (outputStart + 600).clamp(
+        position.minScrollExtent + 600,
+        position.maxScrollExtent - 80,
+      );
+      // Keep every update inside this expanded output. A tall viewport's own
+      // center can be offscreen even while its contents fill the whole window,
+      // so a center-based hitTestable() finder is not a visibility test here.
+      blockScroll.jumpTo(gestureStart);
+      await tester.pumpAndSettle();
       expect(
-        tester
-            .getRect(find.byType(TerminalViewport).last)
-            .contains(outputPoint),
-        isTrue,
+        tester.getTopLeft(expandedOutput).dy,
+        closeTo(listTop + outputStart - gestureStart, .5),
       );
+      final outputPoint = tester.getCenter(blockList);
+      expect(tester.getRect(expandedOutput).contains(outputPoint), isTrue);
       final outputTrackpad = await tester.createGesture(
         kind: PointerDeviceKind.trackpad,
       );
@@ -440,29 +465,9 @@ void main() {
       await tester.pump(const Duration(milliseconds: 16));
       var outputOffset = blockScroll.offset;
       for (var step = 1; step <= 6; step++) {
-        // Lazy layout may correct scrollOffset as earlier blocks are measured.
-        // Assert the visible output's displacement, as the scroll-ownership
-        // widget regression does, rather than conflating it with that correction.
-        final visibleController = tester
-            .widget<TerminalViewport>(
-              find
-                  .descendant(
-                    of: blockList,
-                    matching: find.byType(TerminalViewport),
-                  )
-                  .hitTestable()
-                  .first,
-            )
-            .controller;
-        final visible = find.descendant(
-          of: blockList,
-          matching: find.byWidgetPredicate(
-            (widget) =>
-                widget is TerminalViewport &&
-                widget.controller == visibleController,
-          ),
-        );
-        final beforeY = tester.getTopLeft(visible).dy;
+        // Layout may correct scrollOffset while preserving the reading anchor.
+        // Measure the same visible output, not that internal correction.
+        final beforeY = tester.getTopLeft(expandedOutput).dy;
         await outputTrackpad.panZoomUpdate(
           outputPoint,
           pan: Offset(0, 40 + 64.0 * step),
@@ -470,8 +475,14 @@ void main() {
         );
         await tester.pump(const Duration(milliseconds: 16));
         expect(blockScroll.position.outOfRange, isFalse);
+        expect(tester.getRect(expandedOutput).contains(outputPoint), isTrue);
+        debugPrint(
+          'trackpad-measurement step=$step '
+          'visible_delta=${tester.getTopLeft(expandedOutput).dy - beforeY} '
+          'scroll_delta=${blockScroll.offset - outputOffset}',
+        );
         expect(
-          tester.getTopLeft(visible).dy,
+          tester.getTopLeft(expandedOutput).dy,
           closeTo(beforeY + 64, .5),
           reason:
               'step $step; scrollOffset $outputOffset -> ${blockScroll.offset}',
