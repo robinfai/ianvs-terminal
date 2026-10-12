@@ -109,6 +109,12 @@ xcrun simctl bootstatus "$IOS_SIMULATOR_UDID" -b
 
 (
   cd "$EXAMPLE_DIR"
+  # Keep destination discovery visible in CI. Runner launches Release by
+  # default for physical phones, while this gate deliberately builds Debug.
+  # Keep simulator support explicit in every configuration, including the
+  # scheme's default, when Xcode resolves available destinations.
+  "${apple_build_env[@]}" xcodebuild -workspace ios/Runner.xcworkspace \
+    -scheme Runner -configuration Debug -sdk iphonesimulator -showdestinations
   # Build for the same booted device used by the tests. A generic destination
   # failed to resolve on CI despite a successfully booted iPhone. Binding the
   # build to its ID also keeps build and runtime verification on one target.
