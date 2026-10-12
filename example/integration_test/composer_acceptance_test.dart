@@ -440,6 +440,29 @@ void main() {
       await tester.pump(const Duration(milliseconds: 16));
       var outputOffset = blockScroll.offset;
       for (var step = 1; step <= 6; step++) {
+        // Lazy layout may correct scrollOffset as earlier blocks are measured.
+        // Assert the visible output's displacement, as the scroll-ownership
+        // widget regression does, rather than conflating it with that correction.
+        final visibleController = tester
+            .widget<TerminalViewport>(
+              find
+                  .descendant(
+                    of: blockList,
+                    matching: find.byType(TerminalViewport),
+                  )
+                  .hitTestable()
+                  .first,
+            )
+            .controller;
+        final visible = find.descendant(
+          of: blockList,
+          matching: find.byWidgetPredicate(
+            (widget) =>
+                widget is TerminalViewport &&
+                widget.controller == visibleController,
+          ),
+        );
+        final beforeY = tester.getTopLeft(visible).dy;
         await outputTrackpad.panZoomUpdate(
           outputPoint,
           pan: Offset(0, 40 + 64.0 * step),
@@ -447,7 +470,13 @@ void main() {
         );
         await tester.pump(const Duration(milliseconds: 16));
         expect(blockScroll.position.outOfRange, isFalse);
-        expect(blockScroll.offset, closeTo(outputOffset - 64, .5));
+        expect(
+          tester.getTopLeft(visible).dy,
+          closeTo(beforeY + 64, .5),
+          reason:
+              'step $step; scrollOffset $outputOffset -> ${blockScroll.offset}',
+        );
+        expect(blockScroll.offset, lessThan(outputOffset));
         expect(blockScroll.position.isScrollingNotifier.value, isTrue);
         outputOffset = blockScroll.offset;
       }
