@@ -20,6 +20,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_pty/ianvs_pty.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart';
 
+import '../helpers/ai_workspace_actions.dart';
 import '../helpers/pump_app.dart';
 import '../support/fake_pty_backend.dart';
 import '../support/memory_app_preferences_repository.dart';
@@ -609,7 +610,11 @@ void main() {
   );
 
   for (final platform in [TargetPlatform.iOS, TargetPlatform.macOS]) {
-    for (final entry in ['close', 'chrome', 'escape']) {
+    for (final entry in [
+      if (platform == TargetPlatform.iOS) 'task menu' else 'close',
+      'chrome',
+      'escape',
+    ]) {
       testWidgets(
         '${platform.name} $entry collapses into read-only observation and preserves task',
         (tester) async {
@@ -631,13 +636,12 @@ void main() {
           backend.writes.clear();
           if (entry == 'escape') {
             await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+          } else if (entry == 'chrome') {
+            await tester.tap(find.byKey(Key('terminal-ai-open-${fixture.id}')));
           } else {
-            await tester.tap(
-              find.byKey(
-                entry == 'chrome'
-                    ? Key('terminal-ai-open-${fixture.id}')
-                    : const Key('ai-close'),
-              ),
+            await observeAiTerminal(
+              tester,
+              compactMobile: platform == TargetPlatform.iOS,
             );
           }
           await _settle(tester);
@@ -756,7 +760,7 @@ void main() {
       await tester.pump();
       expect(reads, 1);
       await _open(tester, fixture.id);
-      await tester.tap(find.byKey(const Key('ai-observe-terminal')));
+      await observeAiTerminal(tester);
       await _settle(tester);
       await tester.tap(find.byKey(const Key('ai-observer-take-over')));
       await _settle(tester);
@@ -789,7 +793,7 @@ void main() {
       editor.selection = const TextSelection(baseOffset: 0, extentOffset: 2);
       final saved = editor.value;
       final phase = ai.phase;
-      await tester.tap(find.byKey(const Key('ai-observe-terminal')));
+      await observeAiTerminal(tester);
       await _settle(tester);
       expect(find.byType(TerminalAiObserver).hitTestable(), findsOneWidget);
       expect(find.byKey(const Key('ai-prompt')), findsNothing);
@@ -857,7 +861,7 @@ void main() {
       // Represent an in-flight model turn; terminal execution stays in the
       // fake backend, and takeover must revoke this owner without Ctrl+C.
       ai.phase = AiPhase.thinking;
-      await tester.tap(find.byKey(const Key('ai-observe-terminal')));
+      await observeAiTerminal(tester);
       await _settle(tester);
       backend.writes.clear();
       await tester.tap(find.byKey(const Key('ai-observer-take-over')));

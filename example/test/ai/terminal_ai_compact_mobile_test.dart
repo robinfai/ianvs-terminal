@@ -143,6 +143,75 @@ void main() {
     }
   }
 
+  for (final brightness in Brightness.values) {
+    for (final size in [
+      const Size(320, 844),
+      const Size(402, 874),
+      const Size(874, 260),
+    ]) {
+      testWidgets('dismissed multiline draft stays compact $size $brightness', (
+        tester,
+      ) async {
+        await mount(tester, size: size, brightness: brightness);
+        final prompt = find.byKey(const Key('ai-prompt'));
+        await tester.showKeyboard(prompt);
+        final input = field(tester).controller!;
+        const value = TextEditingValue(
+          text: '中文\n第二行，路径 /srv/应用 🧭',
+          selection: TextSelection(baseOffset: 0, extentOffset: 2),
+        );
+        input.value = value;
+        await tester.pump();
+        await tester.tap(find.byKey(const Key('ai-dismiss-keyboard')));
+        await tester.pumpAndSettle();
+        expect(field(tester).focusNode!.hasFocus, isFalse);
+        expect(
+          tester.getSize(find.byKey(const Key('ai-mobile-composer'))).height,
+          lessThanOrEqualTo(56),
+        );
+        expect(field(tester).controller, same(input));
+        expect(input.value, value);
+        expect(field(tester).maxLines, 1);
+        expect(find.byKey(const Key('ai-expand-draft')), findsOneWidget);
+        await tester.tap(prompt);
+        await tester.pump();
+        expect(field(tester).controller, same(input));
+        expect(input.text, value.text);
+        expect(field(tester).maxLines, size.height < 320 ? 1 : 4);
+        expect(api.requests, isEmpty);
+        expect(terminal.writes, isEmpty);
+        expect(tester.takeException(), isNull);
+      });
+    }
+  }
+
+  testWidgets('system keyboard dismissal returns a draft to reading mode', (
+    tester,
+  ) async {
+    await mount(tester);
+    await tester.showKeyboard(find.byKey(const Key('ai-prompt')));
+    tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+    await tester.pump();
+    final input = field(tester).controller!;
+    const value = TextEditingValue(
+      text: '中文\n第二行',
+      selection: TextSelection(baseOffset: 0, extentOffset: 2),
+    );
+    input.value = value;
+    await tester.pump();
+    expect(field(tester).focusNode!.hasFocus, isTrue);
+    tester.view.viewInsets = FakeViewPadding.zero;
+    await tester.pumpAndSettle();
+    expect(field(tester).focusNode!.hasFocus, isFalse);
+    expect(input.value, value);
+    expect(
+      tester.getSize(find.byKey(const Key('ai-mobile-composer'))).height,
+      lessThanOrEqualTo(56),
+    );
+    expect(api.requests, isEmpty);
+    expect(terminal.writes, isEmpty);
+  });
+
   testWidgets('focus/draft/rotation retain the editing value and controller', (
     tester,
   ) async {

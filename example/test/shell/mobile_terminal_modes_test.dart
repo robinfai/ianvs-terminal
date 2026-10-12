@@ -26,6 +26,7 @@ import 'package:ianvs_terminal/ianvs_terminal.dart';
 import '../ai/terminal_ai_test.dart' show MemoryAiStore;
 import '../design/configuration_capture_binding.dart';
 import '../design/visual_capture_fonts.dart';
+import '../helpers/ai_workspace_actions.dart';
 import '../support/fake_pty_backend.dart';
 import '../support/memory_app_preferences_repository.dart';
 import '../support/memory_local_terminal_config_repository.dart';
@@ -408,10 +409,15 @@ void main() {
                   .read(terminalRuntimeControllerProvider)
                   .refreshSession(id);
               await _settle(tester);
-              await tester.ensureVisible(
-                find.byKey(const Key('ai-reconnect-terminal')),
+              final reconnectButton = find.byKey(
+                Key(
+                  platform == TargetPlatform.iOS
+                      ? 'ai-mobile-primary-reconnect'
+                      : 'ai-reconnect-terminal',
+                ),
               );
-              await tester.tap(find.byKey(const Key('ai-reconnect-terminal')));
+              await tester.ensureVisible(reconnectButton);
+              await tester.tap(reconnectButton);
               await _settle(tester);
               targetId = container
                   .read(sessionControllerProvider)
@@ -730,7 +736,10 @@ void main() {
         findsOneWidget,
       );
       await _capture(tester, 'D10-ssh-disconnected-${platform.name}');
-      await tester.tap(find.byKey(const Key('ai-close')));
+      await observeAiTerminal(
+        tester,
+        compactMobile: platform == TargetPlatform.iOS,
+      );
       await _settle(tester);
       await _expectReadOnlyObservation(tester, backend);
       expect(
@@ -747,10 +756,24 @@ void main() {
       expect(ai.draft, 'Keep this SSH follow-up');
       expect(ai.attachments, [evidence]);
       expect(tester.takeException(), isNull);
-      final configure = find.byKey(const Key('ai-terminal-settings'));
+      final phone = platform == TargetPlatform.iOS;
+      if (phone) {
+        final details = find.byKey(const Key('ai-mobile-recovery-details'));
+        final staleDetails = tester.widget<IconButton>(details).onPressed!;
+        await tester.tap(details);
+        staleDetails();
+        await _settle(tester);
+        expect(find.byKey(const Key('ai-mobile-details')), findsOneWidget);
+      }
+      final configure = find.byKey(
+        Key(phone ? 'ai-mobile-detail-ssh-settings' : 'ai-terminal-settings'),
+      );
       await tester.ensureVisible(configure);
+      final staleConfigure = phone
+          ? null
+          : tester.widget<TextButton>(configure).onPressed;
       await tester.tap(configure);
-      await tester.tap(configure);
+      staleConfigure?.call();
       await _settle(tester);
       expect(find.byKey(const Key('ssh-host')), findsOneWidget);
       await tester.enterText(
@@ -769,13 +792,21 @@ void main() {
       expect(ai.draft, 'Keep this SSH follow-up');
       expect(ai.attachments, [evidence]);
       expect(backend.submissions, isEmpty);
-      final reconnect = find.byKey(const Key('ai-reconnect-terminal'));
+      final reconnect = find.byKey(
+        Key(phone ? 'ai-mobile-primary-reconnect' : 'ai-reconnect-terminal'),
+      );
       await tester.ensureVisible(reconnect);
+      final staleReconnect = tester
+          .widget<ButtonStyleButton>(reconnect)
+          .onPressed;
+      expect(staleReconnect, isNotNull);
       if (platform == TargetPlatform.iOS) {
         expect(tester.getSize(reconnect).height, greaterThanOrEqualTo(44));
       }
       await tester.tap(reconnect);
-      await tester.tap(reconnect);
+      // Exercise a late callback after transfer without targeting a stale
+      // render tree before the next frame installs the successor pane.
+      staleReconnect!();
       await _settle(tester);
       final reconnectedState = container.read(sessionControllerProvider);
       final next = reconnectedState.activeSessionId!;
@@ -900,7 +931,7 @@ void main() {
         .controller;
     expect(ai.context?.sessionId, id);
     final taskId = ai.taskId;
-    await tester.tap(find.byKey(const Key('ai-close')));
+    await observeAiTerminal(tester);
     await _settle(tester);
     await _expectReadOnlyObservation(tester, backend);
     expect(ai.taskId, taskId);
@@ -1013,8 +1044,9 @@ void main() {
     );
     container.read(terminalRuntimeControllerProvider).refreshSession(id);
     await _settle(tester);
-    await tester.ensureVisible(find.byKey(const Key('ai-reconnect-terminal')));
-    await tester.tap(find.byKey(const Key('ai-reconnect-terminal')));
+    final reconnect = find.byKey(const Key('ai-mobile-primary-reconnect'));
+    await tester.ensureVisible(reconnect);
+    await tester.tap(reconnect);
     await _settle(tester);
     final nextId = container.read(sessionControllerProvider).activeSessionId!;
     expect(nextId, isNot(id));
@@ -1040,7 +1072,7 @@ void main() {
     expect(ai.attachments.single.sourceSessionId, id);
     expect(ai.attachments.single.output, attached.output);
     expect(backend.submissions, isEmpty);
-    await tester.tap(find.byKey(const Key('ai-close')));
+    await observeAiTerminal(tester);
     await _settle(tester);
     await _expectReadOnlyObservation(tester, backend);
     expect(ai.taskId, taskId);
@@ -1126,7 +1158,7 @@ void main() {
         find.byKey(const Key('mobile-show-keyboard')).hitTestable(),
         findsNothing,
       );
-      await tester.tap(find.byKey(const Key('ai-close')));
+      await observeAiTerminal(tester);
       await _settle(tester);
       await _expectReadOnlyObservation(tester, backend);
       expect(tester.getSize(viewport), fullSize);
@@ -1166,7 +1198,15 @@ void main() {
             .draft,
         'explain this TUI',
       );
-      expect(find.text('终端程序：vim notes.txt'), findsOneWidget);
+      expect(
+        tester
+            .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
+            .controller
+            .context!
+            .runningCommand,
+        'vim notes.txt',
+      );
+      expect(find.byKey(const Key('ai-task-status')), findsOneWidget);
       expect(backend.writes, isEmpty);
       final prompt = find.byKey(const Key('ai-prompt'));
       final promptFocus = tester.widget<TextField>(prompt).focusNode!;
@@ -1178,7 +1218,16 @@ void main() {
       tester.view.viewInsets = FakeViewPadding.zero;
       await _settle(tester);
       expect(tester.getSize(viewport), fullSize);
-      expect(promptFocus.hasFocus, isTrue);
+      expect(promptFocus.hasFocus, isFalse);
+      expect(
+        tester.getSize(find.byKey(const Key('ai-mobile-composer'))).height,
+        lessThanOrEqualTo(56),
+      );
+      expect(
+        tester.widget<TextField>(prompt).controller!.selection,
+        promptSelection,
+      );
+      await tester.showKeyboard(prompt);
       tester.view.viewInsets = FakeViewPadding(bottom: scene.keyboard);
       await _settle(tester);
       expect(tester.getSize(viewport), keyboardSize);
@@ -1191,27 +1240,20 @@ void main() {
         tester.widget<TextField>(prompt).controller!.text,
         'explain this TUI',
       );
-      for (final key in ['ai-close', 'ai-send']) {
+      for (final key in ['ai-mobile-task-menu', 'ai-send']) {
         final button = find.byKey(Key(key));
         expect(button.hitTestable(), findsOneWidget);
         expect(tester.getSize(button).height, greaterThanOrEqualTo(44));
       }
+      await openAiMobileTaskMenu(tester);
       final newTask = find.byKey(const Key('ai-new-task'));
-      if (newTask.hitTestable().evaluate().isEmpty) {
-        await tester.tap(find.byKey(const Key('ai-task-actions')));
-        await _settle(tester);
-        expect(newTask.hitTestable(), findsOneWidget);
-        expect(tester.getSize(newTask).height, greaterThanOrEqualTo(44));
-        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-        await _settle(tester);
-      } else {
-        expect(tester.getSize(newTask).height, greaterThanOrEqualTo(44));
-      }
+      expect(newTask.hitTestable(), findsOneWidget);
+      expect(tester.getSize(newTask).height, greaterThanOrEqualTo(44));
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await _settle(tester);
       expect(tester.takeException(), isNull);
       await _capture(tester, 'M06-${scene.name}-ai-keyboard');
-      await tester.tap(find.byKey(const Key('ai-task-actions')));
-      await _settle(tester);
-      await tester.tap(find.byKey(const Key('ai-hide-keyboard')));
+      await tester.tap(find.byKey(const Key('ai-dismiss-keyboard')));
       await _settle(tester);
       expect(promptFocus.hasFocus, isFalse);
       expect(find.byType(TerminalAiWorkspace), findsOneWidget);
@@ -1269,7 +1311,7 @@ void main() {
       expect(ai.draft, 'explain this TUI');
       expect(backend.writes, isEmpty);
       // Only the explicit takeover control returns raw keyboard ownership.
-      await tester.tap(find.byKey(const Key('ai-close')));
+      await observeAiTerminal(tester);
       await _settle(tester);
       await _expectReadOnlyObservation(tester, backend);
       expect(ai.phase, phase);
@@ -1385,7 +1427,7 @@ void main() {
       expect(find.byType(TerminalAiWorkspace), findsNothing);
       await tester.tap(find.byKey(Key('terminal-ai-open-$id')));
       await _settle(tester);
-      await tester.tap(find.byKey(const Key('ai-close')));
+      await observeAiTerminal(tester);
       await _settle(tester);
       expect(
         tester

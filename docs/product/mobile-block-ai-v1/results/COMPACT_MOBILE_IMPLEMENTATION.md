@@ -1,5 +1,7 @@
 # Mobile task chrome and compact input — local-build candidate
 
+> Historical implementation record. For the 2026-10-12 fixes and executed checks, see [PR #12 repair](PR12_REPAIR_2026-10-12.md).
+
 Date: 2026-10-11. Base: `composer@aa45f0d8309ff168fec6dc0916ad5cb3bc9b40de`.
 Status: **implemented_unverified**. No application screenshot or native device
 acceptance is claimed. The user will build/install locally and return screenshots.
@@ -15,12 +17,14 @@ Desktop and standalone workspaces keep their previous presentation by default.
   error-details entry when needed. History/new task/observer no longer occupy
   a permanent row of separate icons. The host's top AI toggle reads “终端” in the
   task view and still uses the existing read-only observation callback.
-- Empty, unfocused drafts use a single-row editor. Its target size is 48–56
+- Unfocused drafts, including retained multiline text, use a single-row editor. Its target size is 48–56
   logical points excluding exterior margins and system safe areas; a widget
   regression measures the actual render box when executed.
-- Focusing, typing or attaching a source reveals the editing controls. The
+- Focusing the input reveals the editing controls and attached sources. The
   TextField remains at the same element position with the same controller and
-  FocusNode. Long drafts retain 1–4 lines, full-screen editing and source details.
+  FocusNode. While editing, long drafts retain 1–4 lines, full-screen editing and source details.
+  Hiding the keyboard collapses the input without replacing the controller or
+  losing text/selection. A retained draft keeps its expand button in the compact row.
 - Very short viewports use a one-row editor with explicit expand/hide-keyboard
   controls. Chrome can scroll rather than reducing touch targets.
 - “回到最新” belongs to the timeline and only appears when following is paused

@@ -409,6 +409,18 @@ void main() {
           .widget<CommandTimelineView>(blockList)
           .controller;
       expect(blockScroll.positions, hasLength(1));
+      // Expansion restores a reading anchor asynchronously. Wait for layout,
+      // then place this gesture away from either edge: bouncing scroll physics
+      // deliberately applies friction to deltas beyond minScrollExtent.
+      await tester.pumpAndSettle();
+      final position = blockScroll.position;
+      expect(
+        position.maxScrollExtent - position.minScrollExtent,
+        greaterThan(640),
+      );
+      blockScroll.jumpTo(position.minScrollExtent + 600);
+      await tester.pump();
+      expect(blockScroll.offset, closeTo(position.minScrollExtent + 600, .5));
       final outputPoint = tester.getCenter(blockList);
       expect(
         tester
@@ -434,6 +446,7 @@ void main() {
           timeStamp: Duration(milliseconds: 16 + 16 * step),
         );
         await tester.pump(const Duration(milliseconds: 16));
+        expect(blockScroll.position.outOfRange, isFalse);
         expect(blockScroll.offset, closeTo(outputOffset - 64, .5));
         expect(blockScroll.position.isScrollingNotifier.value, isTrue);
         outputOffset = blockScroll.offset;

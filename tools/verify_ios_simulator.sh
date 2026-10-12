@@ -109,7 +109,11 @@ xcrun simctl bootstatus "$IOS_SIMULATOR_UDID" -b
 
 (
   cd "$EXAMPLE_DIR"
-  "${apple_build_env[@]}" flutter build ios --simulator --debug --no-codesign
+  # Build for the same booted device used by the tests. A generic destination
+  # failed to resolve on CI despite a successfully booted iPhone. Binding the
+  # build to its ID also keeps build and runtime verification on one target.
+  "${apple_build_env[@]}" flutter build ios --simulator --debug --no-codesign \
+    -d "$IOS_SIMULATOR_UDID"
 )
 
 IOS_APP="$(find "$EXAMPLE_DIR/build/ios/iphonesimulator" -maxdepth 1 -name '*.app' -print -quit)"
@@ -132,6 +136,8 @@ verify_ios_native_exports "$IOS_APP" "$simulator_arch"
     CODE_SIGNING_ALLOWED=NO
   "${apple_build_env[@]}" flutter test -d "$IOS_SIMULATOR_UDID" \
     integration_test/ios_sandbox_shell_acceptance_test.dart
+  "${apple_build_env[@]}" flutter test -d "$IOS_SIMULATOR_UDID" \
+    integration_test/compact_mobile_acceptance_test.dart
 )
 
 (

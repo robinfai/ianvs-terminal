@@ -1,6 +1,81 @@
 part of 'shell_screen.dart';
 
 extension _ShellScreenStateEvents on _ShellScreenState {
+  void _handleSessionStateChanged(SessionState? previous, SessionState next) {
+    for (final tab in next.tabs) {
+      for (final pane in tab.effectivePanes) {
+        _composerSessions[pane.sessionId]?.updateEnvironment(
+          pane,
+          readOnly: _isSessionReadOnly(pane.sessionId),
+        );
+      }
+    }
+    _syncPresentationState(next);
+    _publishAcceptanceSnapshot(next);
+    final noticeSource = _runtimeErrorNotice?.sessionId;
+    if (noticeSource != null &&
+        !next.tabs.any((tab) => tab.containsSession(noticeSource))) {
+      _runtimeErrorNoticeTimer?.cancel();
+      _runtimeErrorNoticeTimer = null;
+      _runtimeErrorNotice = null;
+    }
+    final newRuntimeError = _newRuntimeError(previous, next);
+    if (newRuntimeError != null) {
+      _runtimeErrorNoticeTimer?.cancel();
+      _runtimeErrorNotice = newRuntimeError;
+      _runtimeErrorNoticeTimer = Timer(
+        _ShellScreenState._runtimeErrorNoticeDuration,
+        () {
+          if (!mounted || _runtimeErrorNotice != newRuntimeError) {
+            return;
+          }
+          _mutateState(() {
+            _runtimeErrorNotice = null;
+            _runtimeErrorNoticeTimer = null;
+          });
+        },
+      );
+    }
+    if (!next.isReady && next.lastError != null) {
+      unawaited(_loadRemoteFallbackSnapshot());
+    }
+    final activeSessionId = next.activeSessionId;
+    final pendingMessage = activeSessionId == null
+        ? null
+        : _pendingZmodemTerminalMessages.remove(activeSessionId);
+    if (pendingMessage != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted &&
+            ref.read(sessionControllerProvider).activeSessionId ==
+                activeSessionId) {
+          _showShellSnackBar(pendingMessage);
+        }
+      });
+    }
+  }
+
+  ({String sessionId, TerminalPaneRuntimeErrorState error})? _newRuntimeError(
+    SessionState? previous,
+    SessionState next,
+  ) {
+    for (final tab in next.tabs) {
+      for (final pane in tab.effectivePanes) {
+        final error = pane.runtimeError;
+        if (error == null) {
+          continue;
+        }
+        final previousPane = previous?.tabs
+            .where((candidate) => candidate.containsSession(pane.sessionId))
+            .firstOrNull
+            ?.paneFor(pane.sessionId);
+        if (!identical(previousPane?.runtimeError, error)) {
+          return (sessionId: pane.sessionId, error: error);
+        }
+      }
+    }
+    return null;
+  }
+
   bool get _shellModalInputBlocked =>
       _isCommandMenuOpen ||
       _mobileSessionsOpen ||

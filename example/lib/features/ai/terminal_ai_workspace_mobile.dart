@@ -573,10 +573,10 @@ extension _TerminalAiMobilePresentation on _TerminalAiWorkspaceState {
     builder: (context, _) {
       final editing =
           _focus.hasFocus ||
-          _input.text.isNotEmpty ||
           !_input.value.composing.isCollapsed ||
-          c.attachments.isNotEmpty ||
           _draftEditorOpen;
+      // Draft contents survive reading mode; only active editing expands it.
+      final hasDraft = _input.text.isNotEmpty || c.attachments.isNotEmpty;
       final keyboard = View.of(context).viewInsets.bottom > 0;
       final blocked =
           !c.hasUnresolvedSubmission &&
@@ -654,7 +654,8 @@ extension _TerminalAiMobilePresentation on _TerminalAiWorkspaceState {
                         dense: true,
                       ),
                     ),
-                    if (short && editing) _expandDraftButton(),
+                    if ((short || !editing) && (editing || hasDraft))
+                      _expandDraftButton(),
                     if (short && (keyboard || _focus.hasFocus))
                       _hideKeyboardButton(),
                     const SizedBox(width: 4),

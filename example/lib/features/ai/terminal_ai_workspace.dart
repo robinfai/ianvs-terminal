@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show FlutterView;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollDirection;
@@ -102,6 +103,8 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
   bool _resuming = false;
   bool _reconnecting = false;
   bool _draftEditorOpen = false;
+  FlutterView? _keyboardView;
+  bool _keyboardWasVisible = false;
   bool _mobileDetailsOpen = false;
   String? _mobileRecoveryNotice;
   String? _settingsNotice;
@@ -380,6 +383,33 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
     if (alreadyChecking) await c.refreshContext();
     if (!mounted || revision != _paneRevision || !widget.active) return;
     setState(() => _revalidatingPane = false);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final view = View.of(context);
+    if (_keyboardView != view) {
+      _keyboardView = view;
+      _keyboardWasVisible = view.viewInsets.bottom > 0;
+    }
+  }
+
+  @override
+  void didChangeMetrics() {
+    final visible = (_keyboardView?.viewInsets.bottom ?? 0) > 0;
+    if (_keyboardWasVisible &&
+        !visible &&
+        _useCompactMobile &&
+        _focus.hasFocus &&
+        !_draftEditorOpen &&
+        _input.value.composing.isCollapsed) {
+      // System keyboard dismissal can retain Flutter's focus. Return to the
+      // compact reading row without replacing the editing value or sending it.
+      _focus.unfocus();
+      _workspaceFocus.requestFocus();
+    }
+    _keyboardWasVisible = visible;
   }
 
   @override
@@ -2169,6 +2199,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
     constraints: const BoxConstraints.tightFor(width: 44, height: 44),
     onPressed: () {
       _focus.unfocus();
+      _workspaceFocus.requestFocus();
       unawaited(SystemChannels.textInput.invokeMethod<void>('TextInput.hide'));
     },
     icon: const Icon(Icons.keyboard_hide_outlined),

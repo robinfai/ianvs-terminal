@@ -1,5 +1,7 @@
 # Mobile reading layout: first implementation slice
 
+> Historical implementation record. For the 2026-10-12 fixes and executed checks, see [PR #12 repair](PR12_REPAIR_2026-10-12.md).
+
 Date: 2026-10-10
 
 Base: `composer@5caba1c13a9e585f9bfa71a20074e96b4fb75841`
