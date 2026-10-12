@@ -109,17 +109,19 @@ xcrun simctl bootstatus "$IOS_SIMULATOR_UDID" -b
 
 (
   cd "$EXAMPLE_DIR"
-  # Keep destination discovery visible in CI. Runner launches Release by
-  # default for physical phones, while this gate deliberately builds Debug.
-  # Keep simulator support explicit in every configuration, including the
-  # scheme's default, when Xcode resolves available destinations.
-  "${apple_build_env[@]}" xcodebuild -workspace ios/Runner.xcworkspace \
-    -scheme Runner -configuration Debug -sdk iphonesimulator -showdestinations
-  # Build for the same booted device used by the tests. A generic destination
-  # failed to resolve on CI despite a successfully booted iPhone. Binding the
-  # build to its ID also keeps build and runtime verification on one target.
-  "${apple_build_env[@]}" flutter build ios --simulator --debug --no-codesign \
-    -d "$IOS_SIMULATOR_UDID"
+  # Resolve Flutter's generated Swift packages before asking Xcode for scheme
+  # destinations. They do not exist yet in a clean checkout.
+  if ! "${apple_build_env[@]}" flutter build ios --simulator --debug --no-codesign \
+    -d "$IOS_SIMULATOR_UDID"; then
+    # Preserve the build failure, while exposing destination filtering in CI.
+    # Runner keeps its physical-phone Release launch configuration; the gate
+    # explicitly uses Debug on the same booted device as the native tests.
+    "${apple_build_env[@]}" xcodebuild -workspace ios/Runner.xcworkspace \
+      -scheme Runner -configuration Debug -sdk iphonesimulator \
+      -showdestinations || true
+    exit 1
+  fi
+
 )
 
 IOS_APP="$(find "$EXAMPLE_DIR/build/ios/iphonesimulator" -maxdepth 1 -name '*.app' -print -quit)"
