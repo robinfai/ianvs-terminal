@@ -214,6 +214,7 @@ void main() {
           await tester.showKeyboard(find.byKey(const Key('composer-editor')));
           await tester.testTextInput.receiveAction(TextInputAction.newline);
           await tester.pump();
+          expect(focus.hasFocus, isTrue);
           expect(submissions, 0);
           expect(aiRequests, 0);
           await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);

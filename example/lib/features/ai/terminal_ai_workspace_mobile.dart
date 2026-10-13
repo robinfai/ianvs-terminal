@@ -667,7 +667,7 @@ extension _TerminalAiMobilePresentation on _TerminalAiWorkspaceState {
                 child: Row(
                   children: [
                     SizedBox(
-                      width: editing && !short ? 0 : 80,
+                      width: editing && !short ? 0 : 96,
                       child: editing && !short
                           ? null
                           : Padding(

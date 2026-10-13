@@ -130,6 +130,9 @@ class ComposerEditorState extends State<ComposerEditor> {
             textDirection: TextDirection.ltr,
             keyboardType: TextInputType.multiline,
             textInputAction: TextInputAction.newline,
+            // A compact viewport is still a multiline draft. A Return arriving
+            // before its focus rebuild must not invoke single-line completion.
+            onEditingComplete: () {},
             autocorrect: false,
             enableSuggestions: false,
             smartDashesType: SmartDashesType.disabled,

@@ -4,6 +4,8 @@ The requested scope is **all UI, including Block and configuration forms**,
 using the selected [Focused Reading reference](../mobile-block-ai-v1/results/ui-polish-2026-10-13/concept-2.png).
 The application UI review and local validation are complete. Remote CI is still pending. PR #12 remains Draft; do not merge.
 
+Latest follow-up: [Block and AI visual alignment](block-ai-alignment.md), including matched 56-point input surfaces and a new native four-combination verification.
+
 ## Changes in this checkpoint
 
 - Shared mobile typography: 16-point section/page headings, 12-point secondary

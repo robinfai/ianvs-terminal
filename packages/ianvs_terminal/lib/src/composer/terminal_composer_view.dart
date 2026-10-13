@@ -137,7 +137,10 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
     tooltip: tr('Expand editor', '展开编辑'),
     color: tokens.muted,
     onPressed: _disabled ? null : _expandDraft,
-    icon: const Icon(Icons.open_in_full),
+    constraints: _touchCompact
+        ? const BoxConstraints.tightFor(width: 44, height: 44)
+        : null,
+    icon: Icon(Icons.open_in_full, size: _touchCompact ? 18 : null),
   );
 
   Widget _historyButton(ComposerTheme tokens) => IconButton(
@@ -151,7 +154,10 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
             model.toggleHistory();
             _focus.requestFocus();
           },
-    icon: const Icon(ComposerIcons.history),
+    constraints: _touchCompact
+        ? const BoxConstraints.tightFor(width: 44, height: 44)
+        : null,
+    icon: Icon(ComposerIcons.history, size: _touchCompact ? 18 : null),
   );
 
   Widget _hideKeyboardButton(ComposerTheme tokens) => IconButton(
@@ -179,7 +185,9 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
   String tr(String en, String zh) => widget.chinese ? zh : en;
   double get _menuWidth => (_width - ComposerTheme.inset * 2).clamp(0, 760);
   bool get _touchCompact =>
-      (_width < 600 || _availableHeight < 200) &&
+      (_width < 600 ||
+          MediaQuery.sizeOf(context).shortestSide < 600 ||
+          _availableHeight < 200) &&
       (Theme.of(context).platform == TargetPlatform.iOS ||
           Theme.of(context).platform == TargetPlatform.android);
 
@@ -448,6 +456,11 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
         final compact =
             constraints.maxWidth - ComposerTheme.inset * 2 <
             math.max(scaler.scale(520), _toolbarMinimumWidth(tokens));
+        final reading =
+            _touchCompact &&
+            !_focus.hasFocus &&
+            model.editor.value.composing.isCollapsed &&
+            !_draftEditorOpen;
         final inlineEditor =
             short &&
             _touchCompact &&
@@ -466,8 +479,8 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
             focusNode: _focus,
             autofocus: widget.autofocus,
             enabled: !_disabled,
-            centerVertically: inlineEditor,
-            maxLines: short && _touchCompact
+            centerVertically: _touchCompact || inlineEditor,
+            maxLines: reading || (short && _touchCompact)
                 ? 1
                 : math.min(
                     _touchCompact
@@ -541,81 +554,99 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
                   ),
                 );
               },
-              child: Material(
-                key: const Key('composer-surface'),
-                color: tokens.surface,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(ComposerTheme.radius),
-                  side: BorderSide(
-                    color: tokens.border,
-                    width: tokens.borderWidth,
-                  ),
-                ),
-                child: SizedBox(
-                  height: _busyHeight,
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: ComposerTheme.inset,
-                      vertical: _touchCompact
-                          ? (short ? 6 : 8)
-                          : ComposerTheme.inset,
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        if (!(short && _touchCompact)) ...[
-                          _context(tokens, compact: compact),
-                          SizedBox(
-                            height: _touchCompact ? 4 : (short ? 8 : 12),
+              child: _touchCompact
+                  ? _mobileSurface(
+                      tokens,
+                      editor,
+                      reading: reading,
+                      short: short,
+                    )
+                  : Material(
+                      key: const Key('composer-surface'),
+                      color: tokens.surface,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(
+                          ComposerTheme.radius,
+                        ),
+                        side: BorderSide(
+                          color: tokens.border,
+                          width: tokens.borderWidth,
+                        ),
+                      ),
+                      child: SizedBox(
+                        height: _busyHeight,
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: ComposerTheme.inset,
+                            vertical: _touchCompact
+                                ? (short ? 6 : 8)
+                                : ComposerTheme.inset,
                           ),
-                        ],
-                        if (inlineEditor)
-                          Row(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              Expanded(child: editor),
-                              const SizedBox(width: 8),
-                              _actions(tokens, compact: compact, inline: true),
+                              if (!(short && _touchCompact)) ...[
+                                _context(tokens, compact: compact),
+                                SizedBox(
+                                  height: _touchCompact ? 4 : (short ? 8 : 12),
+                                ),
+                              ],
+                              if (inlineEditor)
+                                Row(
+                                  children: [
+                                    Expanded(child: editor),
+                                    const SizedBox(width: 8),
+                                    _actions(
+                                      tokens,
+                                      compact: compact,
+                                      inline: true,
+                                    ),
+                                  ],
+                                )
+                              else ...[
+                                if (_busyHeight != null)
+                                  Expanded(
+                                    child: Align(
+                                      alignment: Alignment.topLeft,
+                                      child: editor,
+                                    ),
+                                  )
+                                else
+                                  editor,
+                                SizedBox(
+                                  height: short ? 6 : (_touchCompact ? 8 : 12),
+                                ),
+                                _actions(
+                                  tokens,
+                                  compact: compact,
+                                  short: short,
+                                ),
+                              ],
+                              if (!_disabled &&
+                                  model.executionStatus.isNotEmpty)
+                                _executionFeedback(tokens),
+                              if (!_disabled &&
+                                  (model.loading ||
+                                      model.completionStatus.isNotEmpty))
+                                _completionFeedback(tokens),
+                              if (!_disabled && _copyFeedback.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 8),
+                                  child: Semantics(
+                                    key: const Key('composer-feedback'),
+                                    liveRegion: true,
+                                    child: Text(
+                                      _copyFeedback,
+                                      style: tokens.statusStyle,
+                                    ),
+                                  ),
+                                ),
                             ],
-                          )
-                        else ...[
-                          if (_busyHeight != null)
-                            Expanded(
-                              child: Align(
-                                alignment: Alignment.topLeft,
-                                child: editor,
-                              ),
-                            )
-                          else
-                            editor,
-                          SizedBox(
-                            height: short ? 6 : (_touchCompact ? 8 : 12),
                           ),
-                          _actions(tokens, compact: compact, short: short),
-                        ],
-                        if (!_disabled && model.executionStatus.isNotEmpty)
-                          _executionFeedback(tokens),
-                        if (!_disabled &&
-                            (model.loading ||
-                                model.completionStatus.isNotEmpty))
-                          _completionFeedback(tokens),
-                        if (!_disabled && _copyFeedback.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 8),
-                            child: Semantics(
-                              key: const Key('composer-feedback'),
-                              liveRegion: true,
-                              child: Text(
-                                _copyFeedback,
-                                style: tokens.statusStyle,
-                              ),
-                            ),
-                          ),
-                      ],
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-              ),
             ),
           ),
         );
@@ -626,6 +657,103 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
               )
             : surface;
       },
+    );
+  }
+
+  // Same compact editing surface as the mobile AI workspace. Context remains
+  // visible above the border; changing presentation never replaces the draft.
+  Widget _mobileSurface(
+    ComposerTheme tokens,
+    Widget editor, {
+    required bool reading,
+    required bool short,
+  }) {
+    final singleRow = reading || short;
+    final input = Material(
+      key: const Key('composer-surface'),
+      color: tokens.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(ComposerTheme.radius),
+        side: BorderSide(color: tokens.border, width: tokens.borderWidth),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                SizedBox(
+                  width: singleRow ? 96 : 0,
+                  child: singleRow
+                      ? Padding(
+                          padding: const EdgeInsetsDirectional.only(end: 8),
+                          child:
+                              widget.onOpenAi != null || widget.onAskAi != null
+                              ? _intent(tokens, compact: true)
+                              : Text(
+                                  tr('Command', '命令'),
+                                  style: tokens.metadataStyle,
+                                ),
+                        )
+                      : null,
+                ),
+                Expanded(child: editor),
+                if (singleRow) _expandButton(tokens),
+                if (short && _focus.hasFocus) _hideKeyboardButton(tokens),
+                const SizedBox(width: 4),
+                SizedBox(width: 44, child: _primary(tokens, iconOnly: true)),
+              ],
+            ),
+            if (!singleRow)
+              Row(
+                children: [
+                  Expanded(
+                    child: Align(
+                      alignment: AlignmentDirectional.centerStart,
+                      child: widget.onOpenAi != null || widget.onAskAi != null
+                          ? _intent(tokens, compact: true)
+                          : Text(
+                              tr('Command', '命令'),
+                              style: tokens.metadataStyle,
+                            ),
+                    ),
+                  ),
+                  _expandButton(tokens),
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
+    return SizedBox(
+      height: _busyHeight,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (!short)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: _context(tokens, compact: true),
+            ),
+          if (_busyHeight != null) Expanded(child: input) else input,
+          if (!_disabled && model.executionStatus.isNotEmpty)
+            _executionFeedback(tokens),
+          if (!_disabled &&
+              (model.loading || model.completionStatus.isNotEmpty))
+            _completionFeedback(tokens),
+          if (!_disabled && _copyFeedback.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Semantics(
+                key: const Key('composer-feedback'),
+                liveRegion: true,
+                child: Text(_copyFeedback, style: tokens.statusStyle),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
@@ -1153,58 +1281,74 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
                 if (!asksAi) _focus.requestFocus();
               }
             : null,
-        style: FilledButton.styleFrom(
-          foregroundColor: tokens.onPrimaryAction,
-          backgroundColor: tokens.primaryAction,
-          overlayColor: tokens.primaryActionOverlay,
-          disabledForegroundColor: tokens.disabledForeground,
-          disabledBackgroundColor: tokens.disabledSurface,
-          minimumSize: Size(iconOnly ? 44 : 76, tokens.controlHeight),
-          padding: EdgeInsets.symmetric(
-            horizontal: _touchCompact ? 8 : 14,
-            vertical: 7,
-          ),
-          textStyle: tokens.actionStyle.copyWith(fontWeight: FontWeight.w600),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(ComposerTheme.controlRadius),
-          ),
-          backgroundBuilder: (context, states, child) {
-            final focused =
-                states.contains(WidgetState.focused) &&
-                !states.contains(WidgetState.disabled);
-            final radius = BorderRadius.circular(ComposerTheme.controlRadius);
-            // ButtonStyle.side paints below Material ink. A foreground inner
-            // edge stays visible when hover and keyboard focus coexist; the
-            // primary-colored outer edge separates it from the Dock surface.
-            // Decorations change neither the button bounds nor its focus node.
-            return DecoratedBox(
-              position: DecorationPosition.foreground,
-              decoration: ShapeDecoration(
-                shape: RoundedRectangleBorder(
-                  borderRadius: radius,
-                  side: focused
-                      ? BorderSide(color: tokens.primaryAction, width: 2)
-                      : BorderSide.none,
+        style: _touchCompact && iconOnly
+            ? FilledButton.styleFrom(
+                fixedSize: const Size.square(34),
+                minimumSize: const Size.square(34),
+                maximumSize: const Size.square(34),
+                padding: EdgeInsets.zero,
+                shape: const CircleBorder(),
+                tapTargetSize: MaterialTapTargetSize.padded,
+                visualDensity: VisualDensity.standard,
+              )
+            : FilledButton.styleFrom(
+                foregroundColor: tokens.onPrimaryAction,
+                backgroundColor: tokens.primaryAction,
+                overlayColor: tokens.primaryActionOverlay,
+                disabledForegroundColor: tokens.disabledForeground,
+                disabledBackgroundColor: tokens.disabledSurface,
+                minimumSize: Size(iconOnly ? 44 : 76, tokens.controlHeight),
+                padding: EdgeInsets.symmetric(
+                  horizontal: _touchCompact ? 8 : 14,
+                  vertical: 7,
                 ),
-              ),
-              child: DecoratedBox(
-                position: DecorationPosition.foreground,
-                decoration: ShapeDecoration(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: radius,
-                    side: focused
-                        ? BorderSide(
-                            color: tokens.onPrimaryAction,
-                            width: tokens.focusWidth + 3,
-                          )
-                        : BorderSide.none,
+                textStyle: tokens.actionStyle.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(
+                    ComposerTheme.controlRadius,
                   ),
                 ),
-                child: child,
+                backgroundBuilder: (context, states, child) {
+                  final focused =
+                      states.contains(WidgetState.focused) &&
+                      !states.contains(WidgetState.disabled);
+                  final radius = BorderRadius.circular(
+                    ComposerTheme.controlRadius,
+                  );
+                  // ButtonStyle.side paints below Material ink. A foreground inner
+                  // edge stays visible when hover and keyboard focus coexist; the
+                  // primary-colored outer edge separates it from the Dock surface.
+                  // Decorations change neither the button bounds nor its focus node.
+                  return DecoratedBox(
+                    position: DecorationPosition.foreground,
+                    decoration: ShapeDecoration(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: radius,
+                        side: focused
+                            ? BorderSide(color: tokens.primaryAction, width: 2)
+                            : BorderSide.none,
+                      ),
+                    ),
+                    child: DecoratedBox(
+                      position: DecorationPosition.foreground,
+                      decoration: ShapeDecoration(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: radius,
+                          side: focused
+                              ? BorderSide(
+                                  color: tokens.onPrimaryAction,
+                                  width: tokens.focusWidth + 3,
+                                )
+                              : BorderSide.none,
+                        ),
+                      ),
+                      child: child,
+                    ),
+                  );
+                },
               ),
-            );
-          },
-        ),
         // Merge the explanation into the button's own semantic node. An
         // ancestor Tooltip can otherwise replace a tooltip-only disabled cause.
         child: Semantics(
@@ -1216,7 +1360,11 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
               if (!_touchCompact && !iconOnly) const SizedBox(width: 8),
               if (!_touchCompact || iconOnly)
                 Icon(
-                  accepting ? ComposerIcons.accept : ComposerIcons.run,
+                  accepting
+                      ? ComposerIcons.accept
+                      : _touchCompact && _asksAi
+                      ? Icons.arrow_upward
+                      : ComposerIcons.run,
                   size: 18,
                   semanticLabel: iconOnly ? label : null,
                 ),
@@ -1260,27 +1408,53 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
     ],
     child: ConstrainedBox(
       constraints: BoxConstraints(minHeight: compact ? 44 : 32),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (!compact) ...[
-            Icon(
-              _asksAi ? Icons.auto_awesome_outlined : Icons.terminal_outlined,
-              size: 18,
-              color: tokens.muted,
-            ),
-            const SizedBox(width: 6),
-          ],
-          Flexible(
-            child: Text(
-              '${model.inputIntent.choice == InputIntentChoice.automatic ? tr('Auto · ', '自动 · ') : ''}${_asksAi ? 'AI' : tr('Command', '命令')}',
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: tokens.metadataStyle,
-            ),
+      child: Center(
+        widthFactor: 1,
+        child: Container(
+          padding: compact
+              ? const EdgeInsets.symmetric(horizontal: 2, vertical: 8)
+              : EdgeInsets.zero,
+          decoration: compact
+              ? BoxDecoration(
+                  color: tokens.chip,
+                  borderRadius: BorderRadius.circular(8),
+                )
+              : null,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (!compact) ...[
+                Icon(
+                  _asksAi
+                      ? Icons.auto_awesome_outlined
+                      : Icons.terminal_outlined,
+                  size: 18,
+                  color: tokens.muted,
+                ),
+                const SizedBox(width: 6),
+              ],
+              Flexible(
+                child: Text(
+                  '${model.inputIntent.choice == InputIntentChoice.automatic ? tr('Auto · ', '自动 · ') : ''}${_asksAi ? 'AI' : tr('Command', '命令')}',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: compact
+                      ? tokens.metadataStyle.copyWith(
+                          fontSize: 12,
+                          height: 1.25,
+                          letterSpacing: 0,
+                        )
+                      : tokens.metadataStyle,
+                ),
+              ),
+              Icon(
+                Icons.expand_more,
+                size: compact ? 14 : 16,
+                color: tokens.muted,
+              ),
+            ],
           ),
-          Icon(Icons.expand_more, size: 16, color: tokens.muted),
-        ],
+        ),
       ),
     ),
   );

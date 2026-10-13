@@ -1,0 +1,494 @@
+[
+  {
+    "screen": "23-block-empty-dark",
+    "metrics": {
+      "composer-editor": {
+        "width": 170.0,
+        "height": 48.0
+      },
+      "composer-surface": {
+        "width": 378.0,
+        "height": 56.0
+      },
+      "blocks-toolbar": {
+        "width": 402.0,
+        "height": 52.0
+      }
+    },
+    "physical_size": [
+      1206.0,
+      2622.0
+    ],
+    "dpr": 3.0,
+    "keyboard_inset": 0.0,
+    "orientation": "portrait"
+  },
+  {
+    "screen": "24-block-draft-dark",
+    "metrics": {},
+    "physical_size": [
+      1206.0,
+      2622.0
+    ],
+    "dpr": 3.0,
+    "keyboard_inset": 336.0,
+    "orientation": "portrait"
+  },
+  {
+    "screen": "25-block-dismissed-dark",
+    "metrics": {
+      "composer-editor": {
+        "width": 170.0,
+        "height": 48.0
+      },
+      "composer-surface": {
+        "width": 378.0,
+        "height": 56.0
+      },
+      "blocks-toolbar": {
+        "width": 402.0,
+        "height": 52.0
+      }
+    },
+    "physical_size": [
+      1206.0,
+      2622.0
+    ],
+    "dpr": 3.0,
+    "keyboard_inset": 0.0,
+    "orientation": "portrait"
+  },
+  {
+    "screen": "27-shell-ai-empty-dark",
+    "metrics": {
+      "ai-mobile-composer": {
+        "width": 378.0,
+        "height": 56.0
+      },
+      "composer-editor": {
+        "width": 170.0,
+        "height": 48.0
+      },
+      "composer-surface": {
+        "width": 378.0,
+        "height": 56.0
+      },
+      "blocks-toolbar": {
+        "width": 402.0,
+        "height": 52.0
+      },
+      "ai-mobile-task-strip": {
+        "width": 402.0,
+        "height": 52.0
+      }
+    },
+    "physical_size": [
+      1206.0,
+      2622.0
+    ],
+    "dpr": 3.0,
+    "keyboard_inset": 0.0,
+    "orientation": "portrait"
+  },
+  {
+    "screen": "26-shell-ai-draft-dark",
+    "metrics": {
+      "ai-mobile-composer": {
+        "width": 378.0,
+        "height": 56.0
+      },
+      "composer-editor": {
+        "width": 170.0,
+        "height": 48.0
+      },
+      "composer-surface": {
+        "width": 378.0,
+        "height": 56.0
+      },
+      "blocks-toolbar": {
+        "width": 402.0,
+        "height": 52.0
+      },
+      "ai-mobile-task-strip": {
+        "width": 402.0,
+        "height": 52.0
+      }
+    },
+    "physical_size": [
+      1206.0,
+      2622.0
+    ],
+    "dpr": 3.0,
+    "keyboard_inset": 0.0,
+    "orientation": "portrait"
+  },
+  {
+    "screen": "23-block-empty-light",
+    "metrics": {
+      "composer-editor": {
+        "width": 170.0,
+        "height": 48.0
+      },
+      "composer-surface": {
+        "width": 378.0,
+        "height": 56.0
+      },
+      "blocks-toolbar": {
+        "width": 402.0,
+        "height": 52.0
+      }
+    },
+    "physical_size": [
+      1206.0,
+      2622.0
+    ],
+    "dpr": 3.0,
+    "keyboard_inset": 0.0,
+    "orientation": "portrait"
+  },
+  {
+    "screen": "24-block-draft-light",
+    "metrics": {},
+    "physical_size": [
+      1206.0,
+      2622.0
+    ],
+    "dpr": 3.0,
+    "keyboard_inset": 336.0,
+    "orientation": "portrait"
+  },
+  {
+    "screen": "25-block-dismissed-light",
+    "metrics": {
+      "composer-editor": {
+        "width": 170.0,
+        "height": 48.0
+      },
+      "composer-surface": {
+        "width": 378.0,
+        "height": 56.0
+      },
+      "blocks-toolbar": {
+        "width": 402.0,
+        "height": 52.0
+      }
+    },
+    "physical_size": [
+      1206.0,
+      2622.0
+    ],
+    "dpr": 3.0,
+    "keyboard_inset": 0.0,
+    "orientation": "portrait"
+  },
+  {
+    "screen": "27-shell-ai-empty-light",
+    "metrics": {
+      "ai-mobile-composer": {
+        "width": 378.0,
+        "height": 56.0
+      },
+      "composer-editor": {
+        "width": 170.0,
+        "height": 48.0
+      },
+      "composer-surface": {
+        "width": 378.0,
+        "height": 56.0
+      },
+      "blocks-toolbar": {
+        "width": 402.0,
+        "height": 52.0
+      },
+      "ai-mobile-task-strip": {
+        "width": 402.0,
+        "height": 52.0
+      }
+    },
+    "physical_size": [
+      1206.0,
+      2622.0
+    ],
+    "dpr": 3.0,
+    "keyboard_inset": 0.0,
+    "orientation": "portrait"
+  },
+  {
+    "screen": "26-shell-ai-draft-light",
+    "metrics": {
+      "ai-mobile-composer": {
+        "width": 378.0,
+        "height": 56.0
+      },
+      "composer-editor": {
+        "width": 170.0,
+        "height": 48.0
+      },
+      "composer-surface": {
+        "width": 378.0,
+        "height": 56.0
+      },
+      "blocks-toolbar": {
+        "width": 402.0,
+        "height": 52.0
+      },
+      "ai-mobile-task-strip": {
+        "width": 402.0,
+        "height": 52.0
+      }
+    },
+    "physical_size": [
+      1206.0,
+      2622.0
+    ],
+    "dpr": 3.0,
+    "keyboard_inset": 0.0,
+    "orientation": "portrait"
+  },
+  {
+    "screen": "23-block-empty-dark",
+    "metrics": {
+      "composer-editor": {
+        "width": 518.0,
+        "height": 48.0
+      },
+      "composer-surface": {
+        "width": 726.0,
+        "height": 56.0
+      },
+      "blocks-toolbar": {
+        "width": 750.0,
+        "height": 52.0
+      }
+    },
+    "physical_size": [
+      2622.0,
+      1206.0
+    ],
+    "dpr": 3.0,
+    "keyboard_inset": 0.0,
+    "orientation": "landscape"
+  },
+  {
+    "screen": "24-block-draft-dark",
+    "metrics": {},
+    "physical_size": [
+      2622.0,
+      1206.0
+    ],
+    "dpr": 3.0,
+    "keyboard_inset": 0.20105713751508814,
+    "orientation": "landscape"
+  },
+  {
+    "screen": "25-block-dismissed-dark",
+    "metrics": {
+      "composer-editor": {
+        "width": 518.0,
+        "height": 48.0
+      },
+      "composer-surface": {
+        "width": 726.0,
+        "height": 56.0
+      },
+      "blocks-toolbar": {
+        "width": 750.0,
+        "height": 52.0
+      }
+    },
+    "physical_size": [
+      2622.0,
+      1206.0
+    ],
+    "dpr": 3.0,
+    "keyboard_inset": 0.0,
+    "orientation": "landscape"
+  },
+  {
+    "screen": "27-shell-ai-empty-dark",
+    "metrics": {
+      "ai-mobile-composer": {
+        "width": 726.0,
+        "height": 56.0
+      },
+      "composer-editor": {
+        "width": 518.0,
+        "height": 48.0
+      },
+      "composer-surface": {
+        "width": 726.0,
+        "height": 56.0
+      },
+      "blocks-toolbar": {
+        "width": 750.0,
+        "height": 52.0
+      },
+      "ai-mobile-task-strip": {
+        "width": 750.0,
+        "height": 52.0
+      }
+    },
+    "physical_size": [
+      2622.0,
+      1206.0
+    ],
+    "dpr": 3.0,
+    "keyboard_inset": 0.0,
+    "orientation": "landscape"
+  },
+  {
+    "screen": "26-shell-ai-draft-dark",
+    "metrics": {
+      "ai-mobile-composer": {
+        "width": 726.0,
+        "height": 56.0
+      },
+      "composer-editor": {
+        "width": 518.0,
+        "height": 48.0
+      },
+      "composer-surface": {
+        "width": 726.0,
+        "height": 56.0
+      },
+      "blocks-toolbar": {
+        "width": 750.0,
+        "height": 52.0
+      },
+      "ai-mobile-task-strip": {
+        "width": 750.0,
+        "height": 52.0
+      }
+    },
+    "physical_size": [
+      2622.0,
+      1206.0
+    ],
+    "dpr": 3.0,
+    "keyboard_inset": 0.0,
+    "orientation": "landscape"
+  },
+  {
+    "screen": "23-block-empty-light",
+    "metrics": {
+      "composer-editor": {
+        "width": 518.0,
+        "height": 48.0
+      },
+      "composer-surface": {
+        "width": 726.0,
+        "height": 56.0
+      },
+      "blocks-toolbar": {
+        "width": 750.0,
+        "height": 52.0
+      }
+    },
+    "physical_size": [
+      2622.0,
+      1206.0
+    ],
+    "dpr": 3.0,
+    "keyboard_inset": 0.0,
+    "orientation": "landscape"
+  },
+  {
+    "screen": "24-block-draft-light",
+    "metrics": {},
+    "physical_size": [
+      2622.0,
+      1206.0
+    ],
+    "dpr": 3.0,
+    "keyboard_inset": 0.1993915659202045,
+    "orientation": "landscape"
+  },
+  {
+    "screen": "25-block-dismissed-light",
+    "metrics": {
+      "composer-editor": {
+        "width": 518.0,
+        "height": 48.0
+      },
+      "composer-surface": {
+        "width": 726.0,
+        "height": 56.0
+      },
+      "blocks-toolbar": {
+        "width": 750.0,
+        "height": 52.0
+      }
+    },
+    "physical_size": [
+      2622.0,
+      1206.0
+    ],
+    "dpr": 3.0,
+    "keyboard_inset": 0.0,
+    "orientation": "landscape"
+  },
+  {
+    "screen": "27-shell-ai-empty-light",
+    "metrics": {
+      "ai-mobile-composer": {
+        "width": 726.0,
+        "height": 56.0
+      },
+      "composer-editor": {
+        "width": 518.0,
+        "height": 48.0
+      },
+      "composer-surface": {
+        "width": 726.0,
+        "height": 56.0
+      },
+      "blocks-toolbar": {
+        "width": 750.0,
+        "height": 52.0
+      },
+      "ai-mobile-task-strip": {
+        "width": 750.0,
+        "height": 52.0
+      }
+    },
+    "physical_size": [
+      2622.0,
+      1206.0
+    ],
+    "dpr": 3.0,
+    "keyboard_inset": 0.0,
+    "orientation": "landscape"
+  },
+  {
+    "screen": "26-shell-ai-draft-light",
+    "metrics": {
+      "ai-mobile-composer": {
+        "width": 726.0,
+        "height": 56.0
+      },
+      "composer-editor": {
+        "width": 518.0,
+        "height": 48.0
+      },
+      "composer-surface": {
+        "width": 726.0,
+        "height": 56.0
+      },
+      "blocks-toolbar": {
+        "width": 750.0,
+        "height": 52.0
+      },
+      "ai-mobile-task-strip": {
+        "width": 750.0,
+        "height": 52.0
+      }
+    },
+    "physical_size": [
+      2622.0,
+      1206.0
+    ],
+    "dpr": 3.0,
+    "keyboard_inset": 0.0,
+    "orientation": "landscape"
+  }
+]

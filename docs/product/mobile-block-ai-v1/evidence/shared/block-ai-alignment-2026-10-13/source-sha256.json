@@ -1,0 +1,14 @@
+{
+  "example/lib/features/ai/terminal_ai_workspace_mobile.dart": "bec2f06bc8d261c14c8d16c69655ceec6466b3c88057498292d3d121a1a09642",
+  "example/lib/features/shell/shell_screen_mobile_navigation.dart": "0aef2c3d259cea810ab3e1bec38e25c56b3516104f0541cc738676d9b56b41cd",
+  "example/lib/features/terminal_composer/composer_pane.dart": "c9a8fbf6211d1e2b1a8725521baf739b53e2c3290a73d86349728dc25c14d2a5",
+  "example/lib/ui/foundation/app_theme.dart": "25027c62489015c4df465b2db1b395bdda35e4b0bd7785b7d2dcc1d95a345dcf",
+  "packages/ianvs_terminal/lib/src/composer/composer_editor.dart": "04118f6ee1dca901567b0a6bcecd6262311872a5239925a942b5679e21b2f458",
+  "packages/ianvs_terminal/lib/src/composer/terminal_composer_view.dart": "73be2f9c54e94c79115de574d842b43d386f5dc27062200baad2ca8a738e8e12",
+  "packages/ianvs_terminal/lib/src/terminal/command_blocks_controls.dart": "62ef8e1e72f80bbf34d20fbc285e095da6bfd2ec8cbb756aaa52a5ca9cefc74e",
+  "packages/ianvs_terminal/lib/src/terminal/command_blocks_view.dart": "4fcbeb025659a0c4aa66296cd67c47b1a69d8a10ebecee5ac72c9fb627a10ca4",
+  "packages/ianvs_terminal_core/lib/src/composer/composer_editor.dart": "04118f6ee1dca901567b0a6bcecd6262311872a5239925a942b5679e21b2f458",
+  "packages/ianvs_terminal_core/lib/src/composer/terminal_composer_view.dart": "73be2f9c54e94c79115de574d842b43d386f5dc27062200baad2ca8a738e8e12",
+  "packages/ianvs_terminal_core/lib/src/terminal/command_blocks_controls.dart": "62ef8e1e72f80bbf34d20fbc285e095da6bfd2ec8cbb756aaa52a5ca9cefc74e",
+  "packages/ianvs_terminal_core/lib/src/terminal/command_blocks_view.dart": "4fcbeb025659a0c4aa66296cd67c47b1a69d8a10ebecee5ac72c9fb627a10ca4"
+}

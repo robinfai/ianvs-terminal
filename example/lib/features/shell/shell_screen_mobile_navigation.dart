@@ -125,18 +125,25 @@ class _MobileTerminalToolbar extends StatelessWidget {
         key: Key(key),
         onPressed: onTap,
         style: TextButton.styleFrom(
-          foregroundColor: active ? Theme.of(context).colorScheme.error : null,
+          foregroundColor: active
+              ? Theme.of(context).colorScheme.error
+              : context.appTheme.textMuted,
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 24),
+            Icon(icon, size: 20),
             const SizedBox(height: 4),
             Text(
               label,
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.labelMedium,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                fontSize: 12,
+                color: active
+                    ? Theme.of(context).colorScheme.error
+                    : context.appTheme.textMuted,
+              ),
             ),
           ],
         ),

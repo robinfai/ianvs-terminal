@@ -162,7 +162,8 @@ ThemeData buildIanvsTerminalTheme(
     // Blue belongs to actions and focus, not to all command text/borders.
     foreground: design.text,
     muted: highContrast ? design.text : design.muted,
-    border: highContrast ? design.border : design.separator,
+    border: touch || highContrast ? design.border : design.separator,
+    chip: touch ? design.chrome : baseComposer.chip,
     divider: highContrast ? design.border : design.separator,
     commandStyle: baseComposer.commandStyle.copyWith(
       color: design.text,

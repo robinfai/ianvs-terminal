@@ -260,6 +260,9 @@ void main() {
       'defaults-mobile-back',
       'ai-mobile-composer',
       'composer-editor',
+      'composer-surface',
+      'blocks-toolbar',
+      'ai-mobile-task-strip',
     ]) {
       final finder = find.byKey(Key(key));
       if (finder.evaluate().length == 1) {
@@ -668,7 +671,15 @@ void main() {
         TerminalViewMode.blocks,
       );
       expect(find.byKey(const Key('composer-editor')), findsOneWidget);
+      FocusManager.instance.primaryFocus?.unfocus();
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
       await capture(tester, '23-block-empty-${brightness.name}');
+      expect(
+        tester.getSize(find.byKey(const Key('composer-surface'))).height,
+        lessThanOrEqualTo(56),
+      );
       await tapKey(tester, 'composer-expand-draft');
       await tester.enterText(
         find.byKey(const Key('composer-draft-editor')),
@@ -688,10 +699,15 @@ void main() {
         '中文草稿\n第二行',
       );
       await capture(tester, '25-block-dismissed-${brightness.name}');
+      expect(
+        tester.getSize(find.byKey(const Key('composer-surface'))).height,
+        lessThanOrEqualTo(56),
+      );
       await tapKey(tester, 'terminal-ai-open-$id');
       final ai = tester
           .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
           .controller;
+      await capture(tester, '27-shell-ai-empty-${brightness.name}');
       ai.setDraft('AI 草稿\n第二行');
       FocusManager.instance.primaryFocus?.unfocus();
       await capture(tester, '26-shell-ai-draft-${brightness.name}');

@@ -571,8 +571,14 @@ class _ComposerPaneState extends State<ComposerPane>
       focusNode: _paneFocus,
       child: Padding(
         padding: EdgeInsets.symmetric(
-          horizontal: 10,
-          vertical: MediaQuery.sizeOf(context).height < 400 ? 4 : 8,
+          horizontal: Theme.of(context).platform == TargetPlatform.iOS
+              ? 12
+              : 10,
+          vertical: Theme.of(context).platform == TargetPlatform.iOS
+              ? 6
+              : MediaQuery.sizeOf(context).height < 400
+              ? 4
+              : 8,
         ),
         child: TerminalComposerView(
           controller: controller,
