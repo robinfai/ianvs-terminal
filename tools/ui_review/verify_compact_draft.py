@@ -1,11 +1,11 @@
 """Verify original PNG borders against independent Flutter render-box telemetry."""
-import hashlib, json
+import hashlib, json, sys
 from pathlib import Path
 from PIL import Image
-root=Path(__file__).resolve().parent
+root=Path(sys.argv[1]).resolve()
 results=[]
 expected_draft='中文草稿\n第二行'
-for record_path in sorted(root.glob('2[0-7]-*.json')):
+for record_path in sorted(root.glob('native-2[0-7]-*.json')):
     data=json.loads(record_path.read_text())
     path=root/data['screenshot']
     im=Image.open(path).convert('RGB')
@@ -36,6 +36,7 @@ for record_path in sorted(root.glob('2[0-7]-*.json')):
     results.append(data)
 assert len(results)==8
 assert {(r['theme'],r['orientation']) for r in results if r['collapsed_required']}=={('light','portrait'),('dark','portrait'),('light','landscape'),('dark','landscape')}
-result={'result':'PASS','source_base':'e1296bbf973065145a6f533d30c766284769aa60', 'source_state':'UI polish patch documented in design-qa.md','device':'iPhone 17 Pro simulator','os':'iOS 26.3.1 (23D8133)','font_policy':'fixed; TextScaler.noScaling','scope':'Production TerminalAiWorkspace(compactMobile:true) inside temporary local native-iOS harness; memory backend ports. Not full production authentication/session flow. Composer outer border includes its padding; excludes outside margin and OS safe area.','input':'Two-line fixture seeded via Flutter Driver, then text emulation disabled. Native iOS software keyboard opened/dismissed in each state, CUA controls rotated simulator. No physical-phone or composing-input claim.','runtime_errors':'None reported by Flutter MCP','measurements':results}
-(root/'measurements.json').write_text(json.dumps(result,ensure_ascii=False,indent=2)+'\n')
+result=json.loads((root/'native-measurements.json').read_text())
+result.update(result='PASS',measurements=results)
+(root/'native-measurements.json').write_text(json.dumps(result,ensure_ascii=False,indent=2)+'\n')
 print(json.dumps({'result':'PASS','states':[{k:r[k] for k in ('theme','orientation','outer_height_pixels','verified_height_logical')} for r in results if r['collapsed_required']]},ensure_ascii=False,indent=2))

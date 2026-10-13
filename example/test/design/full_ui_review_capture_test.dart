@@ -111,6 +111,9 @@ void main() {
           'blocks',
           'ssh',
           'ssh-advanced',
+          'settings-remote',
+          'profile-color-picker',
+          'profile-color-error',
           'hostkey',
           'hostkey-changed',
           'authentication',
@@ -314,7 +317,11 @@ void main() {
             }
             expect(tester.takeException(), isNull, reason: name);
             if (page.startsWith('settings-') || page.startsWith('profile-')) {
-              final section = page.split('-').last;
+              final section = page == 'settings-remote'
+                  ? 'data'
+                  : page.startsWith('profile-color-')
+                  ? 'appearance'
+                  : page.split('-').last;
               final key = family == 'settings'
                   ? 'defaults-section-$section'
                   : 'profile-editor-nav-$section';
@@ -324,11 +331,63 @@ void main() {
             }
             if (page == 'ssh-advanced') {
               final toggle = platform == TargetPlatform.iOS
-                  ? find.byKey(const Key('ssh-more-settings-toggle'))
+                  ? find
+                        .descendant(
+                          of: find.byKey(const Key('ssh-more-settings-toggle')),
+                          matching: find.byType(Text),
+                        )
+                        .first
                   : find.byType(ExpansionTile);
               await tester.ensureVisible(toggle);
               await tester.tap(toggle);
               await tester.pumpAndSettle();
+            }
+            if (page == 'ssh-advanced') {
+              expect(find.byKey(const Key('ssh-proxy-jump')), findsOneWidget);
+            }
+            if (page == 'settings-remote') {
+              final remote = find.byKey(const Key('data-api-remote'));
+              await tester.ensureVisible(remote);
+              await tester.tap(remote);
+              await tester.pumpAndSettle();
+              expect(
+                find.byKey(const Key('data-api-remote-url')),
+                findsOneWidget,
+              );
+            }
+            if (page.startsWith('profile-color-')) {
+              final expansion = find.byKey(
+                const Key('profile-editor-custom-colors-expansion'),
+              );
+              await tester.ensureVisible(expansion);
+              await tester.tap(expansion);
+              await tester.pumpAndSettle();
+              final swatch = find.byKey(
+                const Key('profile-editor-swatch-foreground'),
+              );
+              await tester.ensureVisible(swatch);
+              await tester.tap(swatch);
+              await tester.pumpAndSettle();
+              expect(
+                find.byKey(const Key('color-picker-dialog')),
+                findsOneWidget,
+              );
+              if (page.endsWith('error')) {
+                await tester.enterText(
+                  find.byKey(const Key('color-picker-hex')),
+                  '#FFFFFG',
+                );
+                await tester.pumpAndSettle();
+                expect(
+                  tester
+                      .widget<TextField>(
+                        find.byKey(const Key('color-picker-hex')),
+                      )
+                      .decoration
+                      ?.errorText,
+                  isNotEmpty,
+                );
+              }
             }
             final extra = switch (page) {
               'sftp-menu' => 'sftp-entry-actions-README.md',
@@ -351,9 +410,15 @@ void main() {
             await captureUiReview(tester, boundary, name);
             // Record the middle and end of long sections, not only the first
             // viewport. No settings values or submit actions are changed.
+            final scrollables = page.startsWith('profile-color-')
+                ? find.descendant(
+                    of: find.byKey(const Key('color-picker-dialog')),
+                    matching: find.byType(Scrollable),
+                  )
+                : find.byType(Scrollable);
             final vertical =
                 tester
-                    .stateList<ScrollableState>(find.byType(Scrollable))
+                    .stateList<ScrollableState>(scrollables)
                     .where(
                       (state) =>
                           state.position.axis == Axis.vertical &&

@@ -11,10 +11,12 @@ Scope: production `TerminalAiWorkspace(compactMobile: true)` and controller in a
 Replay measurements with Python + Pillow:
 
 ```sh
-python3 verify_measurements.py
-shasum -a 256 -c SHA256SUMS
+python3 tools/ui_review/historical_ai_verify_measurements.py
+(cd docs/product/mobile-block-ai-v1/results/ui-polish-2026-10-13 && shasum -a 256 -c SHA256SUMS)
 ```
 
 The script validates PNG dimensions, DPR, retained two-line draft, focus/insets, zero request/write counters, and five independent border scans in each dismissed state. It identifies the exact outer edge of both 3-pixel strokes with adjacent non-border pixels: **168 / 3 = 56.0 logical pixels**, including border/internal padding, excluding external margin and OS safe area. No tolerance was relaxed. Portrait y=[2334,2502); landscape y=[960,1128).
 
-For fresh captures, copy `review_main.dart.txt` to an ignored `build/` directory, run it with `flutter run -d <simulator-udid> -t <path>`, and point `capture.py` to that run's log/device. `source-sha256.json` binds this evidence to the two production source files. See repository-root `design-qa.md` for decisions and limits.
+For fresh captures, copy `review_main.dart.txt` to an ignored `build/` directory, run it with `flutter run -d <simulator-udid> -t <path>`, and point `tools/ui_review/historical_ai_capture.py` to that run's log/device. `source-sha256.json` binds this evidence to the two production source files. See repository-root `design-qa.md` for decisions and limits.
+
+Historical logs are preserved in [the scoped evidence directory](../../evidence/shared/ui-polish-2026-10-13/). Reproduction scripts live in `tools/ui_review`; documentation archive policy does not permit executable scripts or logs in `results`.

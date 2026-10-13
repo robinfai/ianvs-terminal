@@ -435,6 +435,54 @@
       ]
     },
     {
+      "name": "iOS-dark-landscape-profile-color-error-bottom.png",
+      "sha256": "1a6d852644f7030244e1d32d184b2e18c54b6f3deef5510565410d7f2c2cb7bc",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-profile-color-error-middle.png",
+      "sha256": "c8991861de8732275109ae307f19b218eb295279551e3843c93bcbf5487b882c",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-profile-color-error.png",
+      "sha256": "5e58d007f05a2be7a75d2d03cfead274a43dc332098686aceda9a6555e880334",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-profile-color-picker-bottom.png",
+      "sha256": "794326262d4c2559606900bcce6dbd39ff1936733f3f4d537e780fa8986f7d7e",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-profile-color-picker-middle.png",
+      "sha256": "78e12386be96888a70d18d9c244ada7ef95839d03cc7a0f5f0580ffa1ee3b29f",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-profile-color-picker.png",
+      "sha256": "9af5e1948ec4b0169225cccec58852dbd6fc1f5e95937567278054947adae957",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
       "name": "iOS-dark-landscape-profile-general-bottom.png",
       "sha256": "eae0fa5012db99f2799d417c17de7c9dc542649184f134988d0b1cfc2c16276e",
       "pixels": [
@@ -645,6 +693,30 @@
     {
       "name": "iOS-dark-landscape-settings-general.png",
       "sha256": "4d790fdc18ca94b8a782da39d7bc194e923ed19ec856c807e36b16e98c32ed5a",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-settings-remote-bottom.png",
+      "sha256": "aeddc370d4a884e563e71a9afb1a0ab8558e3599ff3d63664dbb17343adbceee",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-settings-remote-middle.png",
+      "sha256": "de44e271c8b27bcb9a13ba188266188b804440c68476b40c4c8ea52394cf8603",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-settings-remote.png",
+      "sha256": "a6a1aeaa52b31bf8e5d082a15402fb27ff1bc44d5be2c40abf1f178dfec3aa94",
       "pixels": [
         1748,
         804
@@ -1203,6 +1275,54 @@
       ]
     },
     {
+      "name": "iOS-dark-portrait-profile-color-error-bottom.png",
+      "sha256": "f8830f25462bd8e0f10564d60a4f7b14c3147ebb0bba799a33e4e5738788408c",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-profile-color-error-middle.png",
+      "sha256": "3da2741e000277f0d6612530c231576a86cff95183b68e2d09b52b0e3f828960",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-profile-color-error.png",
+      "sha256": "8dd2070dfccd9986697a7fc637cf039a6dbb579b6f1cce362ae2fe749aefb0e2",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-profile-color-picker-bottom.png",
+      "sha256": "8d43d53d727fd6dd306c22e52d5c2dd22f6919879a0cf807a3f8aa0dccb3ae30",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-profile-color-picker-middle.png",
+      "sha256": "45b75e03c630f454b854c9e6592cfc23c9d2a888d178ae7ca1f34ea99bc5e23f",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-profile-color-picker.png",
+      "sha256": "d3321ae37f93058d76f38d690af3f45ee74836f1fc3ab2698b33aa67bb8e864f",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
       "name": "iOS-dark-portrait-profile-general.png",
       "sha256": "4cb93c51e31f7d1c63ea5e9dd1b494ba6b4b4598568b9e7c26ce5bae8d93ad95",
       "pixels": [
@@ -1301,6 +1421,14 @@
     {
       "name": "iOS-dark-portrait-settings-general.png",
       "sha256": "342c45329b247296e6e1493321d549e9cf2f028b0354e7a7d54b899ba9d7f1cc",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-settings-remote.png",
+      "sha256": "12d51788d6ee5ffed109730c90c0259b7a20f45827c04ec65053d1c53272b5e9",
       "pixels": [
         804,
         1748
@@ -1891,6 +2019,54 @@
       ]
     },
     {
+      "name": "iOS-light-landscape-profile-color-error-bottom.png",
+      "sha256": "9e34335e19ef1fb0c0470c1063bdae0daf96748a844af0234bc849186b508ef3",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-profile-color-error-middle.png",
+      "sha256": "6403391223017676e779bfa4aa51e73e9519e472fdde5ba996fcb61ef4bbb00a",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-profile-color-error.png",
+      "sha256": "c227635e3c82b050cba48fb1670bb8706b28d858845d1a9f029008ccfe50778e",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-profile-color-picker-bottom.png",
+      "sha256": "b120ec349bb4b71ce5f4306505a22337e5ab6d24d93dee9ea0c7809836fc3ca3",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-profile-color-picker-middle.png",
+      "sha256": "e03b8481b7f1cfb085f726af6e83afb66fa9849e1d9a3d26a3fd7412498d9121",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-profile-color-picker.png",
+      "sha256": "65fb00b86ef7b8c03b884c4c93f33c11d7fc7b116d9b1779065145486a1c51d0",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
       "name": "iOS-light-landscape-profile-general-bottom.png",
       "sha256": "25de6b0e6f038741c3fb07db8f28a87337f60c52ee32fa4d9c5fb8e0193543d7",
       "pixels": [
@@ -2101,6 +2277,30 @@
     {
       "name": "iOS-light-landscape-settings-general.png",
       "sha256": "259da17172e628c424118160c10a33049fb198b93ca4e1da751121c90c9104bb",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-settings-remote-bottom.png",
+      "sha256": "8483176f784b9babe79e10cf1fe987913be59476de93fc70db686c418e0f6db6",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-settings-remote-middle.png",
+      "sha256": "57aa5adf6d253339e040962a0fcf4f111abea18fa640c3bac4af9f053a4ffd52",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-settings-remote.png",
+      "sha256": "baa46facee350829ddd24c894856b443f34d02ad796f907d56a2e2c109fbce49",
       "pixels": [
         1748,
         804
@@ -2659,6 +2859,54 @@
       ]
     },
     {
+      "name": "iOS-light-portrait-profile-color-error-bottom.png",
+      "sha256": "0e8d193fea98e8af0802c6fbb0b4b6b9fa6c98e2c70f486bb0eb5cc6899d8b59",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-profile-color-error-middle.png",
+      "sha256": "1fb50f920819db304789e0398545d8ce58a83cbbb9bdffd516ad96ccb28f30c5",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-profile-color-error.png",
+      "sha256": "1c7663cf2fa99d8e3e3b729dca344f3faa8e0b2f97cc46871b13afef3ad8be70",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-profile-color-picker-bottom.png",
+      "sha256": "00f109ae52c01482dd4eadaeb7922cfa385c6607d521cd608765a725834b9176",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-profile-color-picker-middle.png",
+      "sha256": "4ee7492c71a81024411687efb00a30e3ab0c32af743cde845420f67bc1d05cac",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-profile-color-picker.png",
+      "sha256": "c58bc0e77d0f6fa3993975f988c01801346ddcf6b28d7c75b4d94d00b91a70b4",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
       "name": "iOS-light-portrait-profile-general.png",
       "sha256": "7aa87b36aa4c08faca80a2e4dc928070e5c1f1a0b64173f52aa1d4fd33bfa0a8",
       "pixels": [
@@ -2757,6 +3005,14 @@
     {
       "name": "iOS-light-portrait-settings-general.png",
       "sha256": "09527b076e5d9f1a435c21a5801aa39815fe57fe46b3f6a0171a422791500bda",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-settings-remote.png",
+      "sha256": "fec00f7081268c5451671f8a066065dd45979b857fcaf9dc00eac8aef113d5c3",
       "pixels": [
         804,
         1748
@@ -3283,6 +3539,22 @@
       ]
     },
     {
+      "name": "macOS-dark-portrait-profile-color-error.png",
+      "sha256": "47120398f502a07e2b29562772d1d7d90edba9e9f27fe855969e484c7e21727a",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-profile-color-picker.png",
+      "sha256": "1b7ef0e6149f458b0ed8c937aeacc11daa3b2b3946de85f6fdc2a6d089646ca7",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
       "name": "macOS-dark-portrait-profile-general.png",
       "sha256": "2d0c15a5abedaed88392340f6a2ed470cc6c6f8524d743c06191870e47e74ec8",
       "pixels": [
@@ -3429,6 +3701,30 @@
     {
       "name": "macOS-dark-portrait-settings-middle.png",
       "sha256": "2c74490cc2d211ba54c3e468e8c7b9f2d4dcedf48e032b0094f733b62aca299a",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-settings-remote-bottom.png",
+      "sha256": "0b9c634b878d115c27de1564fa5b36aa4a263bad91fe5003aeb1e6c8f739b881",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-settings-remote-middle.png",
+      "sha256": "34045ecf320fa4c56503fc11628d86b6087dcc2660a96213c0295322d867b1a4",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-settings-remote.png",
+      "sha256": "b97a6fc13d7a23a595c41547fbff6dee4d95c2e25839ff3cfdced418c2447e6b",
       "pixels": [
         2560,
         1800
@@ -3971,6 +4267,22 @@
       ]
     },
     {
+      "name": "macOS-light-portrait-profile-color-error.png",
+      "sha256": "db7662b3fdbfddc5fd810ddeb7e3e678371061cbc431b095706d26baf94ab918",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-profile-color-picker.png",
+      "sha256": "714b1fa4d096d346ec8c58b8a841f226eb47f495a435ee7557a6936283c23c2c",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
       "name": "macOS-light-portrait-profile-general.png",
       "sha256": "9f6a953e727503adca62889026e7b6f54b8cc747eca24a8a47282b625b279c0b",
       "pixels": [
@@ -4117,6 +4429,30 @@
     {
       "name": "macOS-light-portrait-settings-middle.png",
       "sha256": "9f75ea70bf85a115ad10b02a3fdff7c7e01a0742cf0acac3ee3cb0f8e49239d9",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-settings-remote-bottom.png",
+      "sha256": "47b22afae2024798f77f2e915561151ab658506df7f951ed0f5f06e72b59c513",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-settings-remote-middle.png",
+      "sha256": "8858ba502cd5354c252c9b46831eb513f49b31b2608c493bcc90ec52244b6608",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-settings-remote.png",
+      "sha256": "0f84bd7d6a47de68142d331a74209ede2bc98f27e8d6588197877cc67cacb724",
       "pixels": [
         2560,
         1800

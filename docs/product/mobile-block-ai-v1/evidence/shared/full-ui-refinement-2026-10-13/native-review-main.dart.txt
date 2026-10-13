@@ -1,0 +1,123 @@
+// Temporary local UI review harness. Production widget/controller; memory ports.
+// Native iOS keyboard stays enabled. Telemetry only reads rendered UI state.
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:flutter_driver/driver_extension.dart';
+import 'package:app/features/ai/ai_api_client.dart';
+import 'package:app/features/ai/ai_models.dart';
+import 'package:app/features/ai/ai_settings.dart';
+import 'package:app/features/ai/terminal_ai_controller.dart';
+import 'package:app/features/ai/terminal_ai_workspace.dart';
+import 'package:app/ui/app_ui.dart';
+
+final root = GlobalKey();
+final terminal = ReviewTerminal();
+final api = ReviewApi();
+String lastMetrics = '';
+
+Map<String, Object?> readMetrics() {
+  final context = root.currentContext;
+  if (context == null) return {};
+  Element? composer;
+  TextField? field;
+  void visit(Element element) {
+    if (element.widget.key == const Key('ai-mobile-composer')) composer = element;
+    if (element.widget.key == const Key('ai-prompt')) field = element.widget as TextField;
+    element.visitChildren(visit);
+  }
+  (context as Element).visitChildren(visit);
+  final render = composer?.findRenderObject();
+  final view = View.of(context);
+  final size = view.physicalSize / view.devicePixelRatio;
+  return {
+    'theme': Theme.of(context).brightness.name,
+    'orientation': size.width > size.height ? 'landscape' : 'portrait',
+    'logical_width': size.width,
+    'logical_height': size.height,
+    'dpr': view.devicePixelRatio,
+    'keyboard_inset': view.viewInsets.bottom / view.devicePixelRatio,
+    if (render is RenderBox && render.hasSize) ...{
+      'composer_height': render.size.height,
+      'composer_width': render.size.width,
+      'composer_x': render.localToGlobal(Offset.zero).dx,
+      'composer_y': render.localToGlobal(Offset.zero).dy,
+    },
+    'draft': field?.controller?.text,
+    'focused': field?.focusNode?.hasFocus,
+    'max_lines': field?.maxLines,
+    'requests': api.requests,
+    'terminal_writes': terminal.writes,
+    'os': Platform.operatingSystemVersion,
+    'input_mode': 'native iOS text input; no driver emulation',
+  };
+}
+
+Future<void> main() async {
+  enableFlutterDriverExtension(
+    enableTextEntryEmulation: false,
+    handler: (_) async => jsonEncode(readMetrics()),
+  );
+  final settings = AiSettingsController(ReviewStore());
+  await settings.loaded;
+  final controller = TerminalAiController(settings: settings, terminal: terminal, api: api);
+  await controller.refreshContext();
+  controller.setDraft('中文草稿\n第二行');
+  runApp(MaterialApp(
+    debugShowCheckedModeBanner: false,
+    locale: const Locale('zh'),
+    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    supportedLocales: AppLocalizations.supportedLocales,
+    theme: buildIanvsTerminalTheme(Brightness.light, platform: TargetPlatform.iOS),
+    darkTheme: buildIanvsTerminalTheme(Brightness.dark, platform: TargetPlatform.iOS),
+    themeMode: ThemeMode.system,
+    builder: (context, child) => MediaQuery(
+      data: MediaQuery.of(context).copyWith(textScaler: TextScaler.noScaling),
+      child: child!,
+    ),
+    home: Scaffold(body: Builder(
+      key: root,
+      builder: (_) => SafeArea(child: TerminalAiWorkspace(
+        compactMobile: true,
+        controller: controller,
+        targetLabel: 'Simulator UI review',
+        onClose: () {},
+      )),
+    )),
+  ));
+  Timer.periodic(const Duration(milliseconds: 750), (_) {
+    final metrics = readMetrics();
+    final encoded = jsonEncode(metrics);
+    if (encoded != lastMetrics) {
+      lastMetrics = encoded;
+      debugPrint('SIMULATOR_UI_METRICS ${jsonEncode({'at': DateTime.now().toUtc().toIso8601String(), ...metrics})}', wrapWidth: 4096);
+    }
+  });
+}
+
+class ReviewStore implements AiConfigurationStore {
+  Future<AiConfiguration?> read() async => const AiConfiguration.mock();
+  Future<void> write(AiConfiguration? value) async {}
+}
+class ReviewTerminal implements AiTerminalPort {
+  final inputs = StreamController<void>.broadcast();
+  int writes = 0;
+  Stream<void> get userInput => inputs.stream;
+  Future<AiTerminalContext> readContext() async => const AiTerminalContext(
+    sessionId: 'simulator-ui-review', contextId: 'root', targetLabel: 'Simulator UI review',
+    guard: 'review', screen: '', cwd: '/review', canRunCommand: true, readyLease: 'review',
+  );
+  Future<Map<String, Object?>> execute(AiAction action, AiTerminalContext expected, AiCancellation cancellation) async {
+    writes++;
+    throw StateError('Execution is outside this UI review');
+  }
+  void dispose() => unawaited(inputs.close());
+}
+class ReviewApi implements AiApi {
+  int requests = 0;
+  Future<AiReply> complete(AiConfiguration configuration, List<Map<String, Object?>> messages, AiCancellation cancellation) async {
+    requests++;
+    throw StateError('Sending is outside this UI review');
+  }
+}

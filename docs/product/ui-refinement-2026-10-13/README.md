@@ -32,18 +32,18 @@ The capture catalogue renders production widgets with in-memory fixtures at
 `TargetPlatformVariant` as well as the theme, and platform-appropriate settings
 capabilities. It saves the first viewport plus middle/end of scrollable forms.
 
-- [Light overview](evidence/overview-light.png) / [dark overview](evidence/overview-dark.png)
-- [Profile sections, light](evidence/profiles-light.png) / [dark](evidence/profiles-dark.png)
-- [Settings sections, light](evidence/settings-light.png) / [dark](evidence/settings-dark.png)
-- [Entry/recovery/authentication, light](evidence/entry-light.png) / [dark](evidence/entry-dark.png)
-- [Menus and lower form sections, light](evidence/options-light.png) / [dark](evidence/options-dark.png)
-- [AI components, light](evidence/ai-light.png) / [dark](evidence/ai-dark.png)
-- [Landscape, light](evidence/landscape-light.png) / [dark](evidence/landscape-dark.png)
+- [Light overview](../mobile-block-ai-v1/evidence/shared/full-ui-refinement-2026-10-13/overview-light.png) / [dark overview](../mobile-block-ai-v1/evidence/shared/full-ui-refinement-2026-10-13/overview-dark.png)
+- [Profile sections, light](../mobile-block-ai-v1/evidence/shared/full-ui-refinement-2026-10-13/profiles-light.png) / [dark](../mobile-block-ai-v1/evidence/shared/full-ui-refinement-2026-10-13/profiles-dark.png)
+- [Settings sections, light](../mobile-block-ai-v1/evidence/shared/full-ui-refinement-2026-10-13/settings-light.png) / [dark](../mobile-block-ai-v1/evidence/shared/full-ui-refinement-2026-10-13/settings-dark.png)
+- [Entry/recovery/authentication, light](../mobile-block-ai-v1/evidence/shared/full-ui-refinement-2026-10-13/entry-light.png) / [dark](../mobile-block-ai-v1/evidence/shared/full-ui-refinement-2026-10-13/entry-dark.png)
+- [Menus and lower form sections, light](../mobile-block-ai-v1/evidence/shared/full-ui-refinement-2026-10-13/options-light.png) / [dark](../mobile-block-ai-v1/evidence/shared/full-ui-refinement-2026-10-13/options-dark.png)
+- [AI components, light](../mobile-block-ai-v1/evidence/shared/full-ui-refinement-2026-10-13/ai-light.png) / [dark](../mobile-block-ai-v1/evidence/shared/full-ui-refinement-2026-10-13/ai-dark.png)
+- [Landscape, light](../mobile-block-ai-v1/evidence/shared/full-ui-refinement-2026-10-13/landscape-light.png) / [dark](../mobile-block-ai-v1/evidence/shared/full-ui-refinement-2026-10-13/landscape-dark.png)
 - Raw before/after images for Block, SSH, settings and profile general are in
-  `evidence/before-*.png` / `evidence/after-*.png`.
-- [Raw capture index](evidence/capture-manifest.json): 536 host-rendered PNGs,
+  `../mobile-block-ai-v1/evidence/shared/full-ui-refinement-2026-10-13/before-*.png` / `../mobile-block-ai-v1/evidence/shared/full-ui-refinement-2026-10-13/after-*.png`.
+- [Raw capture index](../mobile-block-ai-v1/evidence/shared/full-ui-refinement-2026-10-13/capture-manifest.json): 578 host-rendered PNGs,
   dimensions and hashes; originals remain in `build/full-ui-review/current-platform`.
-- [Production source hashes](evidence/source-sha256.json).
+- [Production source hashes](../mobile-block-ai-v1/evidence/shared/full-ui-refinement-2026-10-13/source-sha256.json).
 
 These are **host widget captures with deterministic substitute fonts**, not
 native iOS screenshots. They establish layout/rendering evidence, not native
@@ -57,36 +57,34 @@ connection management route. Do not count that as route coverage.
 | --- | --- | --- |
 | Default Block / command dock | Completed/failed output, dock, desktop completion/history/suggestion baselines; touch/desktop rendering | Native actual shell draft, empty/running/long-output visual pass |
 | Raw terminal / keyboard / menus | Shell entry, mobile session menu, desktop command menu, keyboard bar | Search, paste/link-trust prompts, live native chrome |
-| AI | Component states: default, error, unknown; approvals/reader/configuration | Whole workspace native keyboard matrix; streaming/observation/loading visual states |
+| AI | Component states: default, error, unknown; approvals/reader/configuration | Streaming/observation/loading visual states; full shell flow (compact workspace native matrix now passed) |
 | Connection landing / session lists | Actual shell landing and management; live/disconnected/reconnected fixtures | Empty/error transitions and native final check |
 | SSH | Basic/advanced form, long sections, authentication and changed-host-key dialogs | Nested jump-host/import branches, keyboard-open native forms |
-| Profile | All seven sections, top/middle/end; shared field changes | Color picker, nested disclosure panels and edit/error states |
-| Global settings | All five sections, top/middle/end; correct iOS capabilities | Remote sync credentials, shortcut editing, nested appearance panels |
+| Profile | All seven sections; color picker and invalid hex field, top/end; shared field changes | Remaining nested disclosure panels and profile edit/error states |
+| Global settings | All five sections plus remote sync fields, top/middle/end; correct iOS capabilities | Shortcut editing, nested appearance panels |
 | SFTP | Files, navigation, file menu in touch and desktop | Loading/empty/error, transfer/collision sheets |
 | Recording | Actual library list, replay controls/options | Recording errors/details and native playback layout |
 | Startup / master key | Onboarding, startup failure, Apple Keychain panel | Optional sync onboarding and recovery settings details |
 | Diagnostics / notifications | Capabilities, standard notifications | Export/paste/security confirmation dialogs |
-| Cross-platform gates | Current macOS 27 baseline candidates inspected and updated | macOS 26 candidate review; final simulator acceptance and CI |
+| Cross-platform gates | Current macOS 27 baseline candidates inspected and updated | Final full-shell native acceptance and CI rerun (10 macOS 26 CI images inspected and updated) |
 
 ## Verification at this checkpoint
 
 - **498 passed**: current platform capture catalogue + actual shell routes,
   startup, theme, SSH forms, profile editing, AI compact input/configuration/
-  discovery and replay regressions. [Log](evidence/full-ui-review-checkpoint.log).
+  discovery and replay regressions. [Log](../mobile-block-ai-v1/evidence/shared/full-ui-refinement-2026-10-13/full-ui-review-checkpoint.log).
 - **196 passed**: terminal composer and mobile command-block behavior.
-  [Log](evidence/full-ui-review-terminal-tests.log).
+  [Log](../mobile-block-ai-v1/evidence/shared/full-ui-refinement-2026-10-13/full-ui-review-terminal-tests.log).
 - **26 passed**: theme/high-contrast, notification, SFTP targets and session rows.
-  [Log](evidence/full-ui-review-controls.log).
+  [Log](../mobile-block-ai-v1/evidence/shared/full-ui-refinement-2026-10-13/full-ui-review-controls.log).
 - **51 passed**: existing macOS 27 golden comparisons after inspected updates.
-  [Log](evidence/full-ui-review-goldens-final.log).
+  [Log](../mobile-block-ai-v1/evidence/shared/full-ui-refinement-2026-10-13/full-ui-review-goldens-final.log).
 - These runs overlap; do not add their counts into a unique-test total.
 - The compact AI tests still assert the dismissed draft is <=56 logical pixels
-  and controls have >=44-point hit areas. Current **native simulator** proof is
-  pending. Previous native results belong to the earlier AI-only commit.
+  and controls have >=44-point hit areas. Current **native simulator** compact workspace proof passes at source `8f62e716`: 4 theme/orientation pairs, native software keyboard open/dismissed, retained two-line draft, zero request/write counters. Five PNG edge scans independently verify 168 / 3 = 56 logical pixels in every dismissed state. This does not complete the remaining whole-app native audit.
 - macOS 27 existing golden changes: nine command-dock screenshots (neutral
   foreground/borders) and one scaled settings screenshot (blue switches).
-  Review the macOS 26 CI-rendered candidates separately; do not copy 27 baselines
-  to 26 or relax the comparator.
+  The corresponding 10 macOS 26 CI-rendered images from run 38352720965 were also inspected and updated. No 27 baselines were copied to 26; the comparator is unchanged. A new CI run must verify these updates.
 
 ## Reproduce
 
@@ -100,3 +98,19 @@ The startup file enables its extra capture matrix only with that define. Other
 fixtures have no network, credential, file-import or real terminal side effects.
 The normal visual gate remains `flutter test test/design`; changing baselines
 requires inspecting actual differences, not just running `--update-goldens`.
+
+## Native checkpoint and installation
+
+- iPhone 17 Pro simulator, iOS 26.3.1 (23D8133), DPR 3. Actual native software keyboard, fixed fonts, CUA orientation controls. A two-line in-memory draft was seeded before `runApp`; text entry emulation stayed disabled. No physical Pinyin-input claim.
+- [Raw measurements](../mobile-block-ai-v1/evidence/shared/full-ui-refinement-2026-10-13/native-measurements.json), eight `native-20`–`native-27` original PNGs and sidecars in the same directory. Native harness and run log are preserved there. Flutter MCP reported no runtime errors.
+- [macOS 26 baseline review](../mobile-block-ai-v1/evidence/shared/full-ui-refinement-2026-10-13/macos-26-baseline-review.json) binds the ten inspected images to the CI artifact and before/after hashes.
+- [Phone installation](../mobile-block-ai-v1/evidence/shared/full-ui-refinement-2026-10-13/phone-installation.json): production Release `lib/main.dart`, source `8f62e716`, installed in place as original `work.ianvs.trail`; launched successfully with both existing connections. Phone launch screenshot remains local because it contains connection identifiers. This is an installation/launch check, not a new full physical UI matrix.
+- Documentation/archive contract: 20 passed after moving logs and screenshots into the allowed scoped evidence directory and scripts into `tools/ui_review`. The archive rule itself was not relaxed.
+
+Recheck the original native screenshot measurements from the repository root:
+
+```sh
+python3 tools/ui_review/verify_compact_draft.py docs/product/mobile-block-ai-v1/evidence/shared/full-ui-refinement-2026-10-13
+```
+
+Additional nested-form capture run: **24 passed**, with explicit SSH expansion and invalid-color assertions; no hit-test warnings or framework exceptions. [Log](../mobile-block-ai-v1/evidence/shared/full-ui-refinement-2026-10-13/nested-forms.log). Remote sync and color-picker originals use the `host-` prefix in the scoped evidence directory. These remain host captures, not native keyboard acceptance.

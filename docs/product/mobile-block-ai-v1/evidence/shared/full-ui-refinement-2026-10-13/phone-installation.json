@@ -1,0 +1,26 @@
+{
+  "source_commit": "8f62e716c1b6a0bce412a81e002d72954fde4ecd",
+  "source_note": "Only evidence relocation and verification scripts differ from HEAD; production sources unchanged",
+  "bundle_id": "work.ianvs.trail",
+  "entrypoint": "lib/main.dart",
+  "build_mode": "release",
+  "profile_expires": "2026-10-15T04:01:21Z",
+  "keychain_groups": [
+    "UT9BL9NZPG.*"
+  ],
+  "profile_contains_phone": true,
+  "hashes_sha256": {
+    "Runner": "319f323173d0440a57f123e72e761423b751d9e0bac5e50364c3d6cfb8ab4399",
+    "Frameworks/App.framework/App": "10a6f8817fe2d541d464403b2d32442c294bfbda8888403d21973526de70753e",
+    "Info.plist": "401ec2e06dd6aad043b973d3750e7d8acfb1b4a4f0c541848ac28704d8dfe50b"
+  },
+  "installed": true,
+  "launched": true,
+  "verified_at": "2026-10-13T05:55:32.504236+00:00",
+  "installation_method": "devicectl in-place install; no uninstall",
+  "actual_keychain_groups": [
+    "UT9BL9NZPG.work.ianvs.trail"
+  ],
+  "launch_observation": "Normal connection list rendered with both existing saved connections; no onboarding; original screenshot is local only.",
+  "physical_ui_matrix_retested": false
+}
