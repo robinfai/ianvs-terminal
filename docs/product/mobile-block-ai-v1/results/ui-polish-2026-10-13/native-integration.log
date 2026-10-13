@@ -1,0 +1,10 @@
+package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+00:00 +0: loading /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/integration_test/compact_mobile_acceptance_test.dart
+Running Xcode build...                                          
+Xcode build done.                                           17.7s
+00:00 +0: iOS retained draft collapses to 56 points dark
+compact-mobile-measurement: {"theme":"dark","height_logical":56.0,"physical_width":1206.0,"physical_height":2622.0,"dpr":3.0,"os":"Version 26.3.1 (Build 23D8133)","draft_and_selection_retained":true,"requests":0,"writes":0,"test_input":"synthetic; native iOS render/layout"}
+00:03 +1: iOS retained draft collapses to 56 points light
+compact-mobile-measurement: {"theme":"light","height_logical":56.0,"physical_width":1206.0,"physical_height":2622.0,"dpr":3.0,"os":"Version 26.3.1 (Build 23D8133)","draft_and_selection_retained":true,"requests":0,"writes":0,"test_input":"synthetic; native iOS render/layout"}
+00:06 +2: (tearDownAll)
+00:06 +2: All tests passed!

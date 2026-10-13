@@ -633,15 +633,52 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
           );
   }
 
-  Widget _emptyState() => Padding(
-    padding: const EdgeInsets.all(24),
-    child: Text(
-      t(
-        'Describe a task, or attach command output. AI actions are reviewed before execution.',
-        '描述任务，或附上命令输出。AI 提出的终端动作将在执行前单独审阅。',
-      ),
-    ),
-  );
+  Widget _emptyState() => _useCompactMobile
+      ? Padding(
+          padding: const EdgeInsets.fromLTRB(24, 48, 24, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                t(
+                  'Describe a task, or attach command output.',
+                  '描述任务，或附上命令输出。',
+                ),
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  height: 1.45,
+                ),
+              ),
+              const SizedBox(height: 8),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 224),
+                child: Text(
+                  t(
+                    'AI actions are reviewed before execution.',
+                    'AI 提出的终端动作\n将在执行前单独审阅。',
+                  ),
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    fontSize: 13,
+                    height: 1.45,
+                    color: context.appTheme.textMuted,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        )
+      : Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            t(
+              'Describe a task, or attach command output. AI actions are reviewed before execution.',
+              '描述任务，或附上命令输出。AI 提出的终端动作将在执行前单独审阅。',
+            ),
+          ),
+        );
 
   Widget _contextChip(AiBlockContext block, {bool removable = false}) {
     final taskId = c.taskId;
@@ -2165,21 +2202,42 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
       ],
       child: ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 44),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Flexible(
-              child: Text(
-                label,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: condensed
-                    ? Theme.of(context).textTheme.labelSmall
-                    : Theme.of(context).textTheme.labelLarge,
-              ),
+        child: Center(
+          widthFactor: 1,
+          child: Container(
+            padding: _useCompactMobile && condensed
+                ? const EdgeInsets.symmetric(horizontal: 2, vertical: 8)
+                : EdgeInsets.zero,
+            decoration: _useCompactMobile && condensed
+                ? BoxDecoration(
+                    color: context.appTheme.chrome,
+                    borderRadius: BorderRadius.circular(8),
+                  )
+                : null,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: condensed
+                        ? Theme.of(context).textTheme.labelSmall?.copyWith(
+                            fontSize: _useCompactMobile ? 12 : null,
+                            height: _useCompactMobile ? 1.25 : null,
+                            letterSpacing: _useCompactMobile ? 0 : null,
+                          )
+                        : Theme.of(context).textTheme.labelLarge,
+                  ),
+                ),
+                Icon(
+                  Icons.expand_more,
+                  size: _useCompactMobile && condensed ? 14 : 18,
+                ),
+              ],
             ),
-            const Icon(Icons.expand_more, size: 18),
-          ],
+          ),
         ),
       ),
     );
@@ -2190,7 +2248,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
     tooltip: t('Expand editor', '展开编辑'),
     onPressed: c.followUpEnded || !_paneInteractive ? null : _expandDraft,
     constraints: const BoxConstraints.tightFor(width: 44, height: 44),
-    icon: const Icon(Icons.open_in_full, size: 20),
+    icon: Icon(Icons.open_in_full, size: _useCompactMobile ? 18 : 20),
   );
 
   Widget _hideKeyboardButton() => IconButton(
@@ -2228,10 +2286,20 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
         key: const Key('ai-send'),
         focusNode: _sendFocus,
         onPressed: canSend ? _submit : null,
-        style: FilledButton.styleFrom(
-          minimumSize: const Size(44, 44),
-          padding: EdgeInsets.symmetric(horizontal: iconOnly ? 10 : 12),
-        ),
+        style: _useCompactMobile && iconOnly
+            ? FilledButton.styleFrom(
+                fixedSize: const Size.square(34),
+                minimumSize: const Size.square(34),
+                maximumSize: const Size.square(34),
+                padding: EdgeInsets.zero,
+                shape: const CircleBorder(),
+                tapTargetSize: MaterialTapTargetSize.padded,
+                visualDensity: VisualDensity.standard,
+              )
+            : FilledButton.styleFrom(
+                minimumSize: const Size(44, 44),
+                padding: EdgeInsets.symmetric(horizontal: iconOnly ? 10 : 12),
+              ),
         child: iconOnly
             ? Icon(
                 command
@@ -2239,6 +2307,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
                     : _useCompactMobile && c.hasUnresolvedSubmission
                     ? Icons.save_outlined
                     : Icons.arrow_upward,
+                size: _useCompactMobile ? 18 : null,
                 semanticLabel: label,
               )
             : Text(label),

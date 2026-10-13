@@ -1,0 +1,23 @@
+{
+  "at": "2026-10-13T03:49:03.727832Z",
+  "theme": "dark",
+  "orientation": "portrait",
+  "logical_width": 402.0,
+  "logical_height": 874.0,
+  "dpr": 3.0,
+  "keyboard_inset": 336.0,
+  "composer_height": 116.0,
+  "composer_width": 378.0,
+  "composer_x": 12.0,
+  "composer_y": 416.0,
+  "draft": "中文草稿\n第二行",
+  "focused": true,
+  "max_lines": 4,
+  "requests": 0,
+  "terminal_writes": 0,
+  "os": "Version 26.3.1 (Build 23D8133)",
+  "input_mode": "Native software keyboard for open/dismiss states; fixture is synthetic",
+  "screenshot": "22-dark-portrait-keyboard.png",
+  "captured_at": "2026-10-13T03:49:24.445430+00:00",
+  "input_preparation": "Draft fixture entered with Flutter Driver; emulation disabled before native software-keyboard open/dismiss checks."
+}

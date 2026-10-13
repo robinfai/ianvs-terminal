@@ -483,20 +483,21 @@ extension _TerminalAiMobilePresentation on _TerminalAiWorkspaceState {
                 child: Row(
                   children: [
                     Expanded(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (!short)
-                            Text(
-                              c.taskTitle.isEmpty
-                                  ? t('New task', '新任务')
-                                  : c.taskTitle,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.titleSmall,
-                            ),
-                          Semantics(
+                      child: LayoutBuilder(
+                        builder: (context, bounds) {
+                          final title = Text(
+                            c.taskTitle.isEmpty
+                                ? t('New task', '新任务')
+                                : c.taskTitle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                          );
+                          final status = Semantics(
                             liveRegion: true,
                             label:
                                 c.phase == AiPhase.observing &&
@@ -511,10 +512,34 @@ extension _TerminalAiMobilePresentation on _TerminalAiWorkspaceState {
                               key: const Key('ai-task-status'),
                               maxLines: short ? 2 : 1,
                               overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.bodySmall,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(color: context.appTheme.textMuted),
                             ),
-                          ),
-                        ],
+                          );
+                          // Keep recovery copy readable when actions share the strip.
+                          if (!short &&
+                              primary == null &&
+                              bounds.maxWidth >= 260) {
+                            return Row(
+                              children: [
+                                Expanded(child: title),
+                                const SizedBox(width: 12),
+                                Flexible(
+                                  child: Align(
+                                    alignment: AlignmentDirectional.centerEnd,
+                                    child: status,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                              ],
+                            );
+                          }
+                          return Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [if (!short) title, status],
+                          );
+                        },
                       ),
                     ),
                     const Icon(Icons.expand_more, size: 18),
@@ -642,10 +667,13 @@ extension _TerminalAiMobilePresentation on _TerminalAiWorkspaceState {
                 child: Row(
                   children: [
                     SizedBox(
-                      width: editing && !short ? 0 : 88,
+                      width: editing && !short ? 0 : 80,
                       child: editing && !short
                           ? null
-                          : _inputIntentMenu(condensed: true),
+                          : Padding(
+                              padding: const EdgeInsetsDirectional.only(end: 8),
+                              child: _inputIntentMenu(condensed: true),
+                            ),
                     ),
                     Expanded(
                       child: _prompt(
@@ -701,7 +729,7 @@ extension _TerminalAiMobilePresentation on _TerminalAiWorkspaceState {
           ),
           child: SingleChildScrollView(child: _mobileHeader(short: short)),
         ),
-        Divider(height: 1, color: context.appTheme.borderStrong),
+        Divider(height: 1, color: context.appTheme.border),
         Expanded(
           child: Stack(
             fit: StackFit.expand,

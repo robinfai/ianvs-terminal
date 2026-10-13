@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ianvs_terminal/input_intent.dart';
 
 import '../helpers/pump_app.dart';
 import 'terminal_ai_test.dart'
@@ -87,6 +88,7 @@ void main() {
     Brightness brightness = Brightness.dark,
     TargetPlatform platform = TargetPlatform.iOS,
     bool active = true,
+    Locale locale = const Locale('zh'),
   }) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = size;
@@ -113,7 +115,7 @@ void main() {
       ),
       platform: platform,
       brightness: brightness,
-      locale: const Locale('zh'),
+      locale: locale,
     );
     await tester.pumpAndSettle();
     addTearDown(() => tester.pumpWidget(const SizedBox.shrink()));
@@ -123,6 +125,45 @@ void main() {
       tester.widget<TextField>(find.byKey(const Key('ai-prompt')));
   FilledButton send(WidgetTester tester) =>
       tester.widget<FilledButton>(find.byKey(const Key('ai-send')));
+
+  // A smaller visual send surface must retain its hit target, while longer
+  // localized intent labels must not grow the collapsed composer.
+  for (final locale in [const Locale('zh'), const Locale('en')]) {
+    for (final intent in InputIntentChoice.values) {
+      testWidgets('compact controls retain touch area $locale $intent', (
+        tester,
+      ) async {
+        await mount(tester, size: const Size(320, 844), locale: locale);
+        controller.chooseInputIntent(intent);
+        await tester.enterText(find.byKey(const Key('ai-prompt')), '中文草稿\n第二行');
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('ai-dismiss-keyboard')));
+        await tester.pumpAndSettle();
+        expect(
+          tester.getSize(find.byKey(const Key('ai-mobile-composer'))).height,
+          lessThanOrEqualTo(56),
+        );
+        for (final key in ['ai-send', 'ai-expand-draft', 'ai-input-intent']) {
+          final size = tester.getSize(find.byKey(ValueKey(key)));
+          expect(size.width, greaterThanOrEqualTo(44), reason: key);
+          expect(size.height, greaterThanOrEqualTo(44), reason: key);
+        }
+        // Exercise the outer hit area, beyond the smaller filled circle.
+        final target = tester.getRect(find.byKey(const Key('ai-send')));
+        expect(send(tester).onPressed, isNotNull);
+        await tester.runAsync(() async {
+          await tester.tapAt(Offset(target.left + 1, target.center.dy));
+        });
+        await tester.pumpAndSettle();
+        if (intent == InputIntentChoice.command) {
+          expect(terminal.writes, hasLength(1));
+        } else {
+          expect(api.requests, hasLength(1));
+        }
+        expect(tester.takeException(), isNull);
+      });
+    }
+  }
 
   for (final width in [320.0, 375.0, 390.0, 430.0]) {
     for (final brightness in Brightness.values) {
