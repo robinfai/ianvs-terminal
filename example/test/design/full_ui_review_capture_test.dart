@@ -15,6 +15,7 @@ import 'package:app/features/shell/defaults_appearance_dialog.dart';
 import 'package:app/features/shell/widgets/mobile_disconnected_session_notice.dart';
 import 'package:app/features/ssh/new_session_launcher.dart';
 import 'package:app/features/ssh/ssh_auth_prompt.dart';
+import 'package:app/features/ssh/ssh_profile_import_service.dart';
 import 'package:app/features/terminal/terminal.dart' as terminal;
 import 'package:app/l10n/generated/app_localizations.dart';
 import 'package:app/ui/components/app_notifications.dart';
@@ -111,6 +112,15 @@ void main() {
           'blocks',
           'ssh',
           'ssh-advanced',
+          'ssh-jump-error',
+          'import-list',
+          'import-menu',
+          'import-empty',
+          'import-error',
+          'settings-expanded',
+          'profile-expanded',
+          'profile-invalid',
+          'replay-details',
           'settings-remote',
           'profile-color-picker',
           'profile-color-error',
@@ -120,6 +130,7 @@ void main() {
           'aisettings',
           'masterkey',
           'notifications',
+          'diagnostics',
           'settings',
           for (final tab in [
             'general',
@@ -195,6 +206,33 @@ void main() {
                 ),
                 allowSaveChoice: true,
               ),
+              'import' => NewSessionLauncher(
+                profiles: [profile],
+                localSessionsEnabled: platform != TargetPlatform.iOS,
+                initialConnectionType: terminal.TerminalConnectionType.ssh,
+                importOpenSshProfiles: () async => SshProfileImportSnapshot(
+                  profiles: page == 'import-empty' || page == 'import-error'
+                      ? []
+                      : [
+                          profile.copyWith(
+                            id: 'import-review',
+                            name: 'Imported review',
+                            connection:
+                                const terminal.TerminalConnectionConfig.ssh(
+                                  host: 'review.example.test',
+                                  user: 'review',
+                                ),
+                          ),
+                        ],
+                  sourcePath: '~/.ssh/config',
+                  warnings: page == 'import-list'
+                      ? ['Unsupported directive in review fixture.']
+                      : [],
+                  error: page == 'import-error'
+                      ? 'Review configuration is unavailable.'
+                      : null,
+                ),
+              ),
               'sessions' => (mobileSessionsLightPreview() as MaterialApp).home!,
               'capabilities' =>
                 (shellCapabilitiesLightPreview() as MaterialApp).home!,
@@ -252,6 +290,26 @@ void main() {
                   ),
                 ),
               ),
+              'diagnostics' => Builder(
+                builder: (context) => TextButton(
+                  key: const Key('review-show-diagnostic'),
+                  onPressed: () => AppNotifications.show(
+                    context,
+                    SnackBar(
+                      content: Text(
+                        AppLocalizations.of(context)!.diagnosticsExported,
+                      ),
+                      duration: const Duration(seconds: 4),
+                      action: SnackBarAction(
+                        label: AppLocalizations.of(context)!.reveal,
+                        onPressed: () {},
+                      ),
+                    ),
+                    replaceCurrent: true,
+                  ),
+                  child: const Text('Diagnostics fixture'),
+                ),
+              ),
               'notifications' =>
                 (notificationsLightPreview() as MaterialApp).home!,
               'hostkey' => SshHostKeyPromptDialog(
@@ -298,7 +356,8 @@ void main() {
                             AppLocalizations.localizationsDelegates,
                         supportedLocales: AppLocalizations.supportedLocales,
                         theme: theme,
-                        builder: family == 'notifications'
+                        builder:
+                            family == 'notifications' || family == 'diagnostics'
                             ? (context, child) => AppNotificationHost(
                                 topInset: 44,
                                 child: child!,
@@ -315,9 +374,18 @@ void main() {
             } else {
               await tester.pumpAndSettle();
             }
+            if (family == 'diagnostics') {
+              await tester.tap(find.byKey(const Key('review-show-diagnostic')));
+              await tester.pumpAndSettle();
+            }
             expect(tester.takeException(), isNull, reason: name);
             if (page.startsWith('settings-') || page.startsWith('profile-')) {
-              final section = page == 'settings-remote'
+              final section =
+                  page == 'settings-expanded' || page == 'profile-expanded'
+                  ? 'appearance'
+                  : page == 'profile-invalid'
+                  ? 'general'
+                  : page == 'settings-remote'
                   ? 'data'
                   : page.startsWith('profile-color-')
                   ? 'appearance'
@@ -329,7 +397,7 @@ void main() {
               await tester.tap(find.byKey(Key(key)));
               await tester.pumpAndSettle();
             }
-            if (page == 'ssh-advanced') {
+            if (page == 'ssh-advanced' || page == 'ssh-jump-error') {
               final toggle = platform == TargetPlatform.iOS
                   ? find
                         .descendant(
@@ -342,7 +410,7 @@ void main() {
               await tester.tap(toggle);
               await tester.pumpAndSettle();
             }
-            if (page == 'ssh-advanced') {
+            if (page == 'ssh-advanced' || page == 'ssh-jump-error') {
               expect(find.byKey(const Key('ssh-proxy-jump')), findsOneWidget);
             }
             if (page == 'settings-remote') {
@@ -389,10 +457,81 @@ void main() {
                 );
               }
             }
+            if (page == 'ssh-jump-error') {
+              final field = find.byKey(const Key('ssh-proxy-jump'));
+              await tester.ensureVisible(field);
+              await tester.enterText(field, 'user@2001:db8::1');
+              final submit = find.byKey(const Key('ssh-connect'));
+              await tester.ensureVisible(submit);
+              await tester.tap(submit);
+              await tester.pumpAndSettle();
+              expect(find.byType(SshProfileEditorDialog), findsOneWidget);
+            }
+            if (page == 'profile-invalid') {
+              await tester.enterText(
+                find.byKey(const Key('profile-editor-name')),
+                '',
+              );
+              await tester.tap(find.byKey(const Key('profile-editor-save')));
+              await tester.pumpAndSettle();
+              expect(find.byType(ProfileEditorDialog), findsOneWidget);
+            }
+            if (page == 'profile-expanded') {
+              for (final key in [
+                'profile-editor-fallback-fonts-expansion',
+                'profile-editor-custom-colors-expansion',
+              ]) {
+                final title = find
+                    .descendant(
+                      of: find.byKey(Key(key)),
+                      matching: find.byType(ListTile),
+                    )
+                    .first;
+                await tester.ensureVisible(title);
+                await tester.tap(title);
+                await tester.pumpAndSettle();
+                if (key == 'profile-editor-fallback-fonts-expansion') {
+                  await tester.ensureVisible(
+                    find.byKey(const Key('profile-editor-add-fallback')),
+                  );
+                  await captureUiReview(tester, boundary, '$name-fallback');
+                }
+              }
+              expect(
+                find.byKey(const Key('profile-editor-add-fallback')),
+                findsOneWidget,
+              );
+              expect(
+                find.byKey(const Key('profile-editor-swatch-foreground')),
+                findsOneWidget,
+              );
+            }
+            if (page == 'settings-expanded' && platform == TargetPlatform.iOS) {
+              final tiles = find.byType(ExpansionTile);
+              for (var i = 0; i < tiles.evaluate().length; i++) {
+                final title = find
+                    .descendant(
+                      of: tiles.at(i),
+                      matching: find.byType(ListTile),
+                    )
+                    .first;
+                await tester.ensureVisible(title);
+                await tester.tap(title);
+                await tester.pumpAndSettle();
+              }
+            }
+            if (page == 'import-menu') {
+              final action = find.byKey(
+                const Key('new-ssh-session-import-review-actions'),
+              );
+              await tester.ensureVisible(action);
+              await tester.tap(action);
+              await tester.pumpAndSettle();
+            }
             final extra = switch (page) {
               'sftp-menu' => 'sftp-entry-actions-README.md',
               'sessions-disconnected' => 'mobile-sessions-disconnected-toggle',
-              'replay-options' => 'mobile-replay-more',
+              'replay-options' || 'replay-details' => 'mobile-replay-more',
               _ => null,
             };
             if (extra != null) {
@@ -405,6 +544,35 @@ void main() {
                 await tester.tap(find.byKey(Key(extra)));
               }
               await tester.pumpAndSettle();
+            }
+            if (page == 'replay-details') {
+              final scope = find.byKey(
+                const Key('mobile-replay-options-sheet'),
+              );
+              final label = AppLocalizations.of(
+                tester.element(scope),
+              )!.mobileReplayDetails;
+              final title = find.text(label);
+              await tester.scrollUntilVisible(
+                title,
+                100,
+                scrollable: find
+                    .descendant(of: scope, matching: find.byType(Scrollable))
+                    .first,
+              );
+              await tester.pumpAndSettle();
+              for (
+                var i = 0;
+                title.hitTestable().evaluate().isEmpty && i < 8;
+                i++
+              ) {
+                await tester.drag(scope, const Offset(0, -100));
+                await tester.pumpAndSettle();
+              }
+              expect(title.hitTestable(), findsOneWidget);
+              await tester.tap(title.hitTestable());
+              await tester.pumpAndSettle();
+              expect(find.text('输入已隐藏'), findsOneWidget);
             }
             expect(tester.takeException(), isNull, reason: '$name selected');
             await captureUiReview(tester, boundary, name);

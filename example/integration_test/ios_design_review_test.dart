@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:app/app.dart';
+import 'package:app/features/ai/ai_settings.dart';
+import 'package:app/features/ai/terminal_ai_workspace.dart';
 import 'package:app/features/config/local_terminal_config_models.dart';
 import 'package:app/features/config/shortcut_editor.dart';
 import 'package:app/features/preferences/app_preferences_models.dart';
@@ -22,10 +24,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_pty/ianvs_pty.dart';
 import 'package:integration_test/integration_test.dart';
 
+import '../test/ai/terminal_ai_test.dart' show MemoryAiStore;
 import '../test/support/fake_pty_backend.dart';
 import '../test/support/memory_app_preferences_repository.dart';
+import '../test/support/memory_local_terminal_config_repository.dart';
 import '../test/support/memory_profile_repository.dart';
 import '../test/support/no_io_local_session_recording_repository.dart';
+import '../test/support/no_io_local_terminal_layout_repository.dart';
 
 class _IosMobileReviewPtyBackend extends FakePtyBackend
     implements PtyReplaySessionBackend, PtyReplaySessionConfigV1Backend {
@@ -73,6 +78,44 @@ class _IosMobileReviewPtyBackend extends FakePtyBackend
           ptyRuntimeFeatureSftpFileOperationsV1,
         ],
       });
+}
+
+class _BlockReviewBackend extends _IosMobileReviewPtyBackend {
+  final submissions = <String>[];
+  @override
+  String? requestSessionJson(String sessionId, String requestJson) {
+    final request = jsonDecode(requestJson) as Map<String, Object?>;
+    switch (request['kind']) {
+      case 'composer.state':
+        return jsonEncode({
+          'state': 'ready',
+          'lease': 'review-lease',
+          'contextId': 'root',
+          'transport': 'shell',
+          'cwd': '/srv/review',
+          'dialect': 'bash',
+          'commandNames': ['echo'],
+        });
+      case 'terminal.command_blocks':
+        return jsonEncode({'blocks': <Object>[]});
+      case 'terminal.live_screen':
+        return jsonEncode({'text': 'review shell', 'alternateScreen': false});
+      case 'composer.submit':
+        submissions.add(request['text']! as String);
+        return jsonEncode({'outcome': 'rejected'});
+      case 'completion.query':
+        final query = Map<String, Object?>.of(request)..remove('kind');
+        return jsonEncode({
+          'schemaVersion': 1,
+          'query': query,
+          'status': 'ok',
+          'items': <Object>[],
+        });
+      case 'completion.local_start':
+        return jsonEncode({'status': 'unsupported_context'});
+    }
+    return super.requestSessionJson(sessionId, requestJson);
+  }
 }
 
 class _ReviewRecordings extends LocalSessionRecordingRepository
@@ -215,6 +258,8 @@ void main() {
       'mobile-replay-toggle',
       'defaults-section-general',
       'defaults-mobile-back',
+      'ai-mobile-composer',
+      'composer-editor',
     ]) {
       final finder = find.byKey(Key(key));
       if (finder.evaluate().length == 1) {
@@ -547,6 +592,119 @@ void main() {
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
       await tester.pumpAndSettle();
+    }
+  });
+  testWidgets('native actual shell retains separate Block and AI drafts', (
+    tester,
+  ) async {
+    for (final brightness in Brightness.values) {
+      final backend = _BlockReviewBackend();
+      final settings = AiSettingsController(MemoryAiStore());
+      await settings.loaded;
+      final profile = defaultTerminalProfile().copyWith(
+        id: 'native-block',
+        name: 'UI review',
+        connection: const terminal.TerminalConnectionConfig.ssh(
+          host: 'review.example.test',
+          user: 'review',
+        ),
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            aiSettingsProvider.overrideWithValue(settings),
+            ptySessionBackendProvider.overrideWithValue(backend),
+            profileRepositoryProvider.overrideWithValue(
+              MemoryProfileRepository(
+                TerminalProfilesDocument(profiles: [profile]),
+              ),
+            ),
+            appPreferencesRepositoryProvider.overrideWithValue(
+              MemoryAppPreferencesRepository(null),
+            ),
+            localTerminalConfigRepositoryProvider.overrideWithValue(
+              MemoryLocalTerminalConfigRepository(
+                const LocalTerminalConfigDocument(
+                  appearance: TerminalAppAppearance(
+                    preferredTerminalMode: TerminalViewMode.blocks,
+                  ),
+                ),
+              ),
+            ),
+            localTerminalLayoutRepositoryProvider.overrideWithValue(
+              noIoLocalTerminalLayoutRepository(),
+            ),
+            localSessionRecordingRepositoryProvider.overrideWithValue(
+              _ReviewRecordings(),
+            ),
+          ],
+          child: const IanvsTerminalApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      await container
+          .read(sessionControllerProvider.notifier)
+          .setThemeMode(
+            brightness == Brightness.dark
+                ? TerminalThemeMode.dark
+                : TerminalThemeMode.light,
+          );
+      container.read(sessionControllerProvider.notifier).createSession(profile);
+      for (var i = 0; i < 12; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      final id = container.read(sessionControllerProvider).activeSessionId!;
+      expect(
+        container
+            .read(sessionControllerProvider)
+            .tabs
+            .first
+            .activePane
+            .terminalMode
+            .mode,
+        TerminalViewMode.blocks,
+      );
+      expect(find.byKey(const Key('composer-editor')), findsOneWidget);
+      await capture(tester, '23-block-empty-${brightness.name}');
+      await tapKey(tester, 'composer-expand-draft');
+      await tester.enterText(
+        find.byKey(const Key('composer-draft-editor')),
+        '中文草稿\n第二行',
+      );
+      await capture(tester, '24-block-draft-${brightness.name}');
+      await tapKey(tester, 'composer-draft-done');
+      FocusManager.instance.primaryFocus?.unfocus();
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const Key('composer-editor')))
+            .controller!
+            .text,
+        '中文草稿\n第二行',
+      );
+      await capture(tester, '25-block-dismissed-${brightness.name}');
+      await tapKey(tester, 'terminal-ai-open-$id');
+      final ai = tester
+          .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
+          .controller;
+      ai.setDraft('AI 草稿\n第二行');
+      FocusManager.instance.primaryFocus?.unfocus();
+      await capture(tester, '26-shell-ai-draft-${brightness.name}');
+      expect(
+        tester.getSize(find.byKey(const Key('ai-mobile-composer'))).height,
+        lessThanOrEqualTo(56),
+      );
+      expect(backend.submissions, isEmpty);
+      expect(backend.writes, isEmpty);
+      expect(ai.draft, 'AI 草稿\n第二行');
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpAndSettle();
+      settings.dispose();
     }
   });
 }

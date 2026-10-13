@@ -1,5 +1,7 @@
 {
-  "native_scope": "iOS 26.3.1 application rendering via integration_test; in-memory backends. The Flutter screenshot omits the system keyboard pixels; keyboard inset metrics establish layout only. Not physical typing/composing acceptance.",
+  "native_scope": "iOS 26.3.1 application rendering via integration_test; in-memory backends. System keyboard pixels excluded; keyboard inset verifies layout, not physical typing/composing. Final app theme includes CJK fix. Subsequent toolbar-budget adjustment affects the desktop/tablet branch only; phone uses unchanged touch branch.",
+  "app_theme_sha256": "d46539b343b17cba5c83311b861a8744a50eb6ffb81394e75d2e6c3439379e96",
+  "integration_test_sha256": "087b8d1961c19c11526fe06167a71abc27b2bda51c7771aba9b565ccfe1a81ca",
   "files": [
     {
       "file": "native-shell-portrait-01-ssh-home.png",
@@ -21,7 +23,7 @@
     },
     {
       "file": "native-shell-portrait-03-ssh-input.png",
-      "sha256": "93227dd45657ee2b3ea5404c82801a373ab2e75cba47b96bd7e4cf8d170f9e01",
+      "sha256": "20dd00ac077f069387063d0a2b5147f18ac80a9544275abaf411a4f158ba1336",
       "size": [
         1206,
         2622
@@ -345,7 +347,115 @@
     },
     {
       "file": "native-shell-portrait-20-ssh-more-settings.png",
-      "sha256": "214177a10253ce3e639e750f486c86ec1b362c1d6f06f8f4dc83c2be695c0bcb",
+      "sha256": "d33275e23e53a2f3e36e1295228c5cfb2efa579d2cfad3590718581f383e0901",
+      "size": [
+        1206,
+        2622
+      ],
+      "orientation": "portrait"
+    },
+    {
+      "file": "native-shell-portrait-21-shortcut-dark.png",
+      "sha256": "e9c657519f4235268e8f38565cbd29e558bcbd3386c5a5a671d17b415f8961d1",
+      "size": [
+        1206,
+        2622
+      ],
+      "orientation": "portrait"
+    },
+    {
+      "file": "native-shell-portrait-21-shortcut-light.png",
+      "sha256": "4a0a4fbf656dfb58e26d494f6e4976a92c3499dcd41f3b33f42317944f5bb048",
+      "size": [
+        1206,
+        2622
+      ],
+      "orientation": "portrait"
+    },
+    {
+      "file": "native-shell-portrait-22-shortcut-error-dark.png",
+      "sha256": "8b21464971f165838d893fa338f16c83885b8545f3973ffa213d53be4b83276b",
+      "size": [
+        1206,
+        2622
+      ],
+      "orientation": "portrait"
+    },
+    {
+      "file": "native-shell-portrait-22-shortcut-error-light.png",
+      "sha256": "e80a2b4935b20ce31625df0d3020bb3e249b03761ce43c66cbc9ff51657f626d",
+      "size": [
+        1206,
+        2622
+      ],
+      "orientation": "portrait"
+    },
+    {
+      "file": "native-shell-portrait-23-block-empty-dark.png",
+      "sha256": "ead034de9630f3ac8bf778296e16c88d6c69ed9cd4ed287aca2b62495fd19740",
+      "size": [
+        1206,
+        2622
+      ],
+      "orientation": "portrait"
+    },
+    {
+      "file": "native-shell-portrait-23-block-empty-light.png",
+      "sha256": "6886643beb532f55e4f35f3cb3da967cb8fb39877eda073af128e938c9cb3bbb",
+      "size": [
+        1206,
+        2622
+      ],
+      "orientation": "portrait"
+    },
+    {
+      "file": "native-shell-portrait-24-block-draft-dark.png",
+      "sha256": "cd93f18e1d97ac81d5870cc905338adf501783f312c910e229b1b38e7bfef785",
+      "size": [
+        1206,
+        2622
+      ],
+      "orientation": "portrait"
+    },
+    {
+      "file": "native-shell-portrait-24-block-draft-light.png",
+      "sha256": "2eb8f100044097e8d6ed8cdab9a9348b71f5182c5934e7cf9d5339b9c75dc889",
+      "size": [
+        1206,
+        2622
+      ],
+      "orientation": "portrait"
+    },
+    {
+      "file": "native-shell-portrait-25-block-dismissed-dark.png",
+      "sha256": "6f30b69720f38a7177acac2a1c4a40f081dc1d2ea4ccb3f584b91cac6cf1b0b8",
+      "size": [
+        1206,
+        2622
+      ],
+      "orientation": "portrait"
+    },
+    {
+      "file": "native-shell-portrait-25-block-dismissed-light.png",
+      "sha256": "d9dde41900b81973fe1f45a2c3d5d51bf0ba5c7a18e47e4d4a88e02adc890f77",
+      "size": [
+        1206,
+        2622
+      ],
+      "orientation": "portrait"
+    },
+    {
+      "file": "native-shell-portrait-26-shell-ai-draft-dark.png",
+      "sha256": "785633e14b7b7e865c32a77805cc2a837a9b17c74511d483fe9cb1679dac4081",
+      "size": [
+        1206,
+        2622
+      ],
+      "orientation": "portrait"
+    },
+    {
+      "file": "native-shell-portrait-26-shell-ai-draft-light.png",
+      "sha256": "dd50b1f8267eee850282affa190b9e7eb5bf59ca57e0b468d18bef2661fc19f4",
       "size": [
         1206,
         2622
@@ -372,7 +482,7 @@
     },
     {
       "file": "native-shell-landscape-03-ssh-input.png",
-      "sha256": "fe2ca24a4e4fc5a4cd304bce6af8bbf84ed68cee05ad2e05b318a5b9ab959988",
+      "sha256": "c1f0805b7ff438cc3bf7ca2993f2985d76294c00589b1a2234fb6598ea36bdb9",
       "size": [
         2622,
         1206
@@ -651,7 +761,7 @@
     },
     {
       "file": "native-shell-landscape-16-replay-search.png",
-      "sha256": "63c6f2309bb9760238ee4b6b1f60f45a70247d30f12ff161ac91d729c9720a96",
+      "sha256": "153ba661859494d2e37d61212b2ea59e2204152cd0d11940f638761bb1680ad9",
       "size": [
         2622,
         1206
@@ -733,6 +843,78 @@
     {
       "file": "native-shell-landscape-22-shortcut-error-light.png",
       "sha256": "22b310c729729b0021083ef192a7d720128acfdfd0d8911e8e3adca30fe83cb9",
+      "size": [
+        2622,
+        1206
+      ],
+      "orientation": "landscape"
+    },
+    {
+      "file": "native-shell-landscape-23-block-empty-dark.png",
+      "sha256": "b38421d56f0e144d7bdaedfaf36ce753dbe752b6ad7cd563987b4c368197d315",
+      "size": [
+        2622,
+        1206
+      ],
+      "orientation": "landscape"
+    },
+    {
+      "file": "native-shell-landscape-23-block-empty-light.png",
+      "sha256": "36c72fdeed0f652478b73d2c6b90befb10f4b1fab609f0df860c64e689b97fe2",
+      "size": [
+        2622,
+        1206
+      ],
+      "orientation": "landscape"
+    },
+    {
+      "file": "native-shell-landscape-24-block-draft-dark.png",
+      "sha256": "3588bab5699c1aa57ad30c98a1e45109a42b35539265ecb5b9c84cd06736e536",
+      "size": [
+        2622,
+        1206
+      ],
+      "orientation": "landscape"
+    },
+    {
+      "file": "native-shell-landscape-24-block-draft-light.png",
+      "sha256": "c8487e4ac9efb92cf97cc2a0643c1cabd83669c92b0a11040578dbc3333cf182",
+      "size": [
+        2622,
+        1206
+      ],
+      "orientation": "landscape"
+    },
+    {
+      "file": "native-shell-landscape-25-block-dismissed-dark.png",
+      "sha256": "acb0d4be9007461f1093b9e5cdbffe624769831d735f56a7f7f16cf1e8e232c5",
+      "size": [
+        2622,
+        1206
+      ],
+      "orientation": "landscape"
+    },
+    {
+      "file": "native-shell-landscape-25-block-dismissed-light.png",
+      "sha256": "510fe56e4d5d641ef3f6904ebdcf88aed53248d8dc003de9b8010f5b8670f955",
+      "size": [
+        2622,
+        1206
+      ],
+      "orientation": "landscape"
+    },
+    {
+      "file": "native-shell-landscape-26-shell-ai-draft-dark.png",
+      "sha256": "af877d745c4f5995880d981210e0aa42aceee6b05b8dbf5ff7be770d53f5ffdb",
+      "size": [
+        2622,
+        1206
+      ],
+      "orientation": "landscape"
+    },
+    {
+      "file": "native-shell-landscape-26-shell-ai-draft-light.png",
+      "sha256": "014f8cebfc36fbc42ce1fe30550061055d2b955dc061fc2a02d963dc4902d5c1",
       "size": [
         2622,
         1206

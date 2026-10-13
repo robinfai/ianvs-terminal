@@ -833,6 +833,20 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
       width += painter.width;
       painter.dispose();
     }
+    if (widget.onOpenAi != null || widget.onAskAi != null) {
+      // The automatic intent label is wider than the command-only label.
+      // Include it before choosing the single-row desktop/tablet toolbar.
+      final painter = TextPainter(
+        text: TextSpan(
+          text: '${tr('Auto · ', '自动 · ')}${tr('Command', '命令')}',
+          style: tokens.metadataStyle,
+        ),
+        textDirection: Directionality.of(context),
+        textScaler: MediaQuery.textScalerOf(context),
+      )..layout();
+      width += painter.width;
+      painter.dispose();
+    }
     return width;
   }
 

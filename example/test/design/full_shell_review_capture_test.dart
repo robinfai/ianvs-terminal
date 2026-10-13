@@ -85,6 +85,7 @@ Future<_ReviewBackend> _pumpShell(
   addTearDown(tester.view.resetPhysicalSize);
 
   final backend = _ReviewBackend();
+  if (scene == 'home-error') backend.failingOperations.add('createSession');
   final defaultProfile = defaultTerminalProfile();
   final local = defaultProfile.copyWith(
     appearance: defaultProfile.appearance.copyWith(
@@ -118,7 +119,11 @@ Future<_ReviewBackend> _pumpShell(
         sessionClipboardPasteProvider.overrideWithValue(() async => '测试剪贴板内容'),
         profileRepositoryProvider.overrideWithValue(
           MemoryProfileRepository(
-            TerminalProfilesDocument(profiles: <TerminalProfile>[local, ssh]),
+            TerminalProfilesDocument(
+              profiles: scene == 'home-empty'
+                  ? <TerminalProfile>[]
+                  : <TerminalProfile>[local, ssh],
+            ),
           ),
         ),
         pasteHistoryRepositoryProvider.overrideWithValue(
@@ -175,6 +180,8 @@ void main() {
         if (platform == TargetPlatform.macOS && landscape) continue;
         for (final scene in [
           'home',
+          'home-empty',
+          'home-error',
           'menu',
           'recordings',
           'profiles',
@@ -200,6 +207,18 @@ void main() {
                     ? const Size(874, 402)
                     : const Size(402, 874),
               );
+              if (scene == 'home-error' && platform == TargetPlatform.iOS) {
+                await tester.tap(
+                  find.byKey(const Key('ios-ssh-empty-profile-ssh-capture')),
+                );
+                await tester.pumpAndSettle();
+                expect(
+                  ProviderScope.containerOf(
+                    tester.element(find.byType(ShellScreen)),
+                  ).read(sessionControllerProvider).lastError,
+                  isNotNull,
+                );
+              }
               final live = [
                 'url-confirm',
                 'report-confirm',

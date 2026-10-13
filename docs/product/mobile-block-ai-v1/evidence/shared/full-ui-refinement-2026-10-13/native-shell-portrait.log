@@ -1,8 +1,8 @@
 Running Xcode build...                                          
-Xcode build done.                                           22.6s
-VMServiceFlutterDriver: Connecting to Flutter application at http://127.0.0.1:54817/WyEqDCKKkHw=/
-VMServiceFlutterDriver: Isolate found with number: 2054542575145147
-VMServiceFlutterDriver: Isolate 2054542575145147 is runnable.
+Xcode build done.                                            9.4s
+VMServiceFlutterDriver: Connecting to Flutter application at http://127.0.0.1:62999/tMZxplk07mU=/
+VMServiceFlutterDriver: Isolate found with number: 763532146818099
+VMServiceFlutterDriver: Isolate 763532146818099 is runnable.
 VMServiceFlutterDriver: Isolate is paused at start.
 VMServiceFlutterDriver: Attempting to resume isolate
 flutter: 00:00 +0: iPhone main flows render with the shared design system
@@ -48,6 +48,20 @@ flutter: TRAIL_DENSITY_METRICS {"screen":"12-profile-light-appearance","metrics"
 flutter: TRAIL_DENSITY_METRICS {"screen":"12-profile-light-keys","metrics":{},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
 flutter: TRAIL_DENSITY_METRICS {"screen":"12-profile-light-automation","metrics":{},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
 flutter: TRAIL_DENSITY_METRICS {"screen":"12-profile-light-advanced","metrics":{},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
-flutter: 00:39 +2: (tearDownAll)
-flutter: 00:39 +3: All tests passed!
+flutter: 00:39 +2: native shortcut capture fits the available viewport
+flutter: TRAIL_DENSITY_METRICS {"screen":"21-shortcut-dark","metrics":{},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"22-shortcut-error-dark","metrics":{},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"21-shortcut-light","metrics":{},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"22-shortcut-error-light","metrics":{},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: 00:43 +3: native actual shell retains separate Block and AI drafts
+flutter: TRAIL_DENSITY_METRICS {"screen":"23-block-empty-dark","metrics":{"composer-editor":{"width":358.0,"height":48.0}},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":336.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"24-block-draft-dark","metrics":{},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":336.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"25-block-dismissed-dark","metrics":{"composer-editor":{"width":358.0,"height":48.0}},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"26-shell-ai-draft-dark","metrics":{"ai-mobile-composer":{"width":378.0,"height":56.0},"composer-editor":{"width":358.0,"height":48.0}},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"23-block-empty-light","metrics":{"composer-editor":{"width":358.0,"height":48.0}},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":336.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"24-block-draft-light","metrics":{},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":336.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"25-block-dismissed-light","metrics":{"composer-editor":{"width":358.0,"height":48.0}},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"26-shell-ai-draft-light","metrics":{"ai-mobile-composer":{"width":378.0,"height":56.0},"composer-editor":{"width":358.0,"height":48.0}},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: 01:04 +4: (tearDownAll)
+flutter: 01:05 +5: All tests passed!
 All tests passed.

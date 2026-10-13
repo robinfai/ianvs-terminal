@@ -1,8 +1,8 @@
-# Full application UI refinement — in progress
+# Full application UI refinement — reviewed; remote gates pending
 
 The requested scope is **all UI, including Block and configuration forms**,
 using the selected [Focused Reading reference](../mobile-block-ai-v1/results/ui-polish-2026-10-13/concept-2.png).
-This checkpoint is not final acceptance. PR #12 remains Draft; do not merge.
+The application UI review and local validation are complete. Remote CI is still pending. PR #12 remains Draft; do not merge.
 
 ## Changes in this checkpoint
 
@@ -51,22 +51,27 @@ keyboard, safe-area or physical-device acceptance. The profile editor catalogue
 also exercises reusable sections beyond those directly exposed by each platform's
 connection management route. Do not count that as route coverage.
 
-## Coverage ledger and outstanding work
+## Final coverage ledger
 
-| Surface | Current inspection | Remaining before completion |
-| --- | --- | --- |
-| Default Block / command dock | Completed/failed output, dock, desktop completion/history/suggestion baselines; touch/desktop rendering | Native actual Block shell draft/empty pass remains; running and 240-line output now inspected with production host previews |
-| Raw terminal / keyboard / menus | Shell entry, mobile session menu, desktop command menu, keyboard bar | Search, paste, link/report/clipboard prompts inspected in six host variants; native terminal/search/chrome checked in both orientations |
-| AI | Component states: default, error, unknown; approvals/reader/configuration | Waiting/streaming/loading/changed-target now inspected; full shell AI route remains (compact workspace native matrix passed) |
-| Connection landing / session lists | Actual shell landing and management; live/disconnected/reconnected fixtures | Native landing/connection entry checked; empty/error transitions remain |
-| SSH | Basic/advanced form, long sections, authentication and changed-host-key dialogs | Native basic/advanced fields and keyboard inset checked; import/jump-host branches remain |
-| Profile | All seven sections; color picker and invalid hex field, top/end; shared field changes | Remaining nested disclosure panels and profile edit/error states |
-| Global settings | All five sections plus remote sync fields, top/middle/end; correct iOS capabilities | Shortcut recording/unsafe/conflict inspected; native horizontal dialog verified; nested appearance panels remain |
-| SFTP | Files, navigation, file menu in touch and desktop | Loading/empty/error/busy/create/delete/error inspected; native directory/menu verified. Transfer uses busy state plus OS chooser, not a separate application sheet |
-| Recording | Actual library list, replay controls/options | Empty/error library inspected; native replay, options, search and content-only checked; nested recording details remain |
-| Startup / master key | Onboarding, startup failure, Apple Keychain panel | Optional sync and invalid input, recovery settings and disable confirmation inspected in six host variants |
-| Diagnostics / notifications | Capabilities, standard notifications | Paste/link/report/clipboard confirmation inspected; diagnostic export remains |
-| Cross-platform gates | Current macOS 27 baseline candidates inspected and updated | Native shell/settings/SFTP/replay/profile flows pass in both orientations; final remaining routes and CI rerun still open |
+| Surface | Reviewed states and evidence |
+| --- | --- |
+| Default Block / command dock | Empty/draft/completed/failed/running/long output; completion/history/suggestions. Actual native Shell Block draft/empty states in both orientations and appearances. |
+| Raw terminal / keyboard / menus | Shell entry, mobile session and desktop command menus, keyboard bar, search, paste, link/report/clipboard prompts. Native terminal/search/chrome in both orientations. |
+| AI | Default/error/unknown/waiting/streaming/loading/changed-target, approvals/reader/configuration. Actual native Shell AI draft remains 56 points in all four combinations, with zero submission/write counters. |
+| Connection landing / session lists | Actual shell landing/management, empty/error transitions and live/disconnected/reconnected fixtures. Native landing/connection entry. |
+| SSH | Basic/advanced forms, authentication/changed-host-key, invalid jump host; imported hosts list/menu/empty/error. Native basic/advanced fields and keyboard insets. |
+| Profile | Seven sections, nested appearance/fallback fonts, custom color picker/invalid hex, blank-name validation; scrolling top/middle/end. Native seven-section matrix. |
+| Global settings | Five sections, nested appearance panels, remote sync, shortcut recording/unsafe/conflict; native horizontal dialog and error states. |
+| SFTP | List/navigation/menu, loading/empty/error/busy/create/delete/error; native directory/menu. Transfers reuse busy state and the OS chooser; no separate app sheet exists. |
+| Recording | Library list/empty/error, replay controls/options and nested recording details. Native replay/options/search/content-only. |
+| Startup / master key | Onboarding/startup failure/Apple Keychain, optional sync/invalid input, recovery and disable confirmation. |
+| Diagnostics / notifications | Capabilities, notifications, paste/link/report/clipboard confirmations, existing diagnostic-export notification with reveal action. Export filesystem behavior is not part of this UI-only fixture. |
+| Cross-platform | Six host combinations (iOS portrait/landscape and macOS, each dark/light); native iOS 26.3.1 routes in both orientations. Final remote CI remains pending. |
+
+The catalogue covers application-owned UI, not OS-owned file choosers or permission sheets.
+In-memory fixtures establish visual/state coverage, not live backend acceptance.
+Only iOS 26.3.1 simulator and the documented iOS 27.0.1 installation check were
+used for this final pass; supported OS versions are not all claimed as tested.
 
 ## Verification at this checkpoint
 
@@ -159,10 +164,48 @@ modifies the composer.
 Original before/after dialog PNGs and `deep-final.log`, `shell-final.log`,
 `deep-analyze.log`, `native-shell-portrait.log` and `native-shell-landscape.log`
 are in the same scoped evidence directory. Native and host evidence are kept
-separate. The remaining rows above still prevent declaring all-app completion.
+separate. The final follow-up below closes the remaining application-owned UI rows.
 
 Latest production Release rebuild and strict signature verification passed.
 After reconnecting the phone, source `a265785f` was installed in place and
 launched successfully with both saved connections and no onboarding. No new
 physical UI matrix is claimed. The launch screenshot remains local because it
 contains connection identifiers. [Build/install status](../mobile-block-ai-v1/evidence/shared/full-ui-refinement-2026-10-13/latest-build-installation.json) records this distinction. Documentation/archive contract: 20 passed.
+
+## Final follow-up
+
+- Final nested/entry captures: **60 + 12 tests passed**, with 126 host PNGs in
+  [the final host index](../mobile-block-ai-v1/evidence/shared/full-ui-refinement-2026-10-13/final-host-manifest.json).
+  This closes import/jump-host, expanded settings/profile, validation, recording
+  details, diagnostic notification and empty/error entry states.
+- Final native integration: **four scenario tests plus teardown passed per
+  orientation**; [102 original application PNGs](../mobile-block-ai-v1/evidence/shared/full-ui-refinement-2026-10-13/native-shell-manifest.json)
+  replace the earlier 82-image native index. The actual Shell Block and AI routes
+  retain separate two-line drafts, with no submit/write calls.
+- Native Block revealed missing Chinese glyphs hidden by substitute host fonts.
+  iOS now resolves CJK through PingFang SC before Apple Symbols, retaining
+  fixed-width Latin families first. Native light/dark portrait/landscape images
+  confirm correct Chinese. No terminal font preference was changed.
+- An existing 40-point iPad automatic-intent toolbar overflow reproduced against
+  the preceding theme. The responsive width budget now includes the automatic
+  intent label. Controls, order, callbacks and input handling are unchanged;
+  both published terminal package copies carry the same presentation fix.
+- Final local checks: **29** theme/preview/phone/iPad/desktop draft tests,
+  **188** composer behavior tests, **151** composer layout/capture/golden tests
+  passed. Counts overlap earlier runs and are not a unique-test sum. Modified
+  Dart-file analysis and formatting pass.
+- [Actual Shell AI measurements](../mobile-block-ai-v1/evidence/shared/full-ui-refinement-2026-10-13/final-shell-ai-measurements.json):
+  **56.0 logical pixels** in all four dismissed theme/orientation combinations,
+  keyboard inset zero. The Block dock has its own existing layout; the 56-point
+  requirement applies to the AI composer.
+- Final Release was built from `lib/main.dart`, strictly signature-verified and
+  installed in place as `work.ianvs.trail`; launch confirms both saved connections
+  remain and onboarding is not shown. Installation provenance is recorded
+  in the updated latest-build-installation record. This is not a new physical
+  keyboard/input matrix.
+- Remote run 38357070249: Go and Windows passed; three Linux dependency builds
+  failed on Ubuntu snapshot HTTP 503 before product tests; Apple jobs remained
+  in progress at the checkpoint. The new pushed commit triggers fresh gates.
+  No CI configuration or certificate policy was changed for this UI work.
+
+Final documentation/archive contract: **20 passed**.

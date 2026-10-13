@@ -148,14 +148,30 @@ ThemeData buildIanvsTerminalTheme(
     shared,
     highContrast: highContrast,
   );
+  // Resolve Chinese through the iOS system CJK face before symbol fonts.
+  // Keep fixed-width families first so Latin commands retain their metrics.
+  final commandFallback = [
+    for (final family
+        in baseComposer.commandStyle.fontFamilyFallback ?? <String>[]) ...[
+      if (resolvedPlatform == TargetPlatform.iOS && family == 'Apple Symbols')
+        'PingFang SC',
+      family,
+    ],
+  ];
   final composer = baseComposer.copyWith(
     // Blue belongs to actions and focus, not to all command text/borders.
     foreground: design.text,
     muted: highContrast ? design.text : design.muted,
     border: highContrast ? design.border : design.separator,
     divider: highContrast ? design.border : design.separator,
-    commandStyle: baseComposer.commandStyle.copyWith(color: design.text),
-    resultStyle: baseComposer.resultStyle.copyWith(color: design.text),
+    commandStyle: baseComposer.commandStyle.copyWith(
+      color: design.text,
+      fontFamilyFallback: commandFallback,
+    ),
+    resultStyle: baseComposer.resultStyle.copyWith(
+      color: design.text,
+      fontFamilyFallback: commandFallback,
+    ),
     contextStyle: baseComposer.contextStyle.copyWith(color: design.muted),
     metadataStyle: baseComposer.metadataStyle.copyWith(
       color: design.muted,
