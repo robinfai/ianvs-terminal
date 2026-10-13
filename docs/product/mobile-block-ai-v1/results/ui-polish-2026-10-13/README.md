@@ -2,7 +2,7 @@
 
 The selected reference is `concept-2.png` (Focused Reading), generated with ImageGen and selected by the user. It is a concept, not dimensional evidence.
 
-`12-qa-final-light.png` is a native simulator screenshot with the same draft text as the reference. `20`–`27` are eight **original, unmodified** simulator PNGs plus telemetry sidecars: light/dark × portrait/landscape × software keyboard open/dismissed. Comparison/matrix PNGs are derived review images and are not measurement originals.
+`12-qa-final-light.png` is a native simulator screenshot with the same draft text as the reference. `20`–`27` are eight **original, unmodified** simulator PNGs plus telemetry sidecars: light/dark × portrait/landscape × software keyboard open/dismissed. Comparison/matrix PNGs are derived review images and are not measurement originals. Archived text logs have trailing whitespace removed; PNG originals and telemetry values are unchanged.
 
 Device: Trail PR12 Verification, iPhone 17 Pro, **iOS 26.3.1 (23D8133)**. Fixed text scale. Portrait 402×874, landscape 874×402, DPR 3.
 
