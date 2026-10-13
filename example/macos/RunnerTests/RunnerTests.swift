@@ -35,6 +35,20 @@ private final class DragTrackingMainFlutterWindow: MainFlutterWindow {
 
 class RunnerTests: XCTestCase {
 
+  // This is a test-host scheduling budget, not the application's shutdown
+  // timeout. Quit tests inject and manually fire the native timeout themselves.
+  // Stop a test after a missed callback so subsequent phases cannot consume
+  // stale callbacks or over-fulfill another phase's expectation.
+  private func waitForCallbacks(
+    _ expectations: [XCTestExpectation],
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) -> Bool {
+    let result = XCTWaiter.wait(for: expectations, timeout: 5)
+    XCTAssertEqual(result, .completed, file: file, line: line)
+    return result == .completed
+  }
+
   override func tearDown() {
     AppDelegate.suppressNextLastWindowTerminate = false
     AppDelegate.suppressNextTerminateConfirmation = false
@@ -81,7 +95,7 @@ class RunnerTests: XCTestCase {
       }
     ))
     XCTAssertFalse(resumed, "Quit confirmation must not run inside Sparkle's button action")
-    wait(for: [didResume], timeout: 1)
+    guard waitForCallbacks([didResume]) else { return }
     XCTAssertTrue(resumed)
   }
 
@@ -155,12 +169,12 @@ class RunnerTests: XCTestCase {
 
     AppDelegate.suppressNextTerminateConfirmation = true
     XCTAssertEqual(delegate.applicationShouldTerminate(app), .terminateLater)
-    wait(for: [firstRequest], timeout: 1)
+    guard waitForCallbacks([firstRequest]) else { return }
 
     // A pending recording keeps the Dart result unsafe. The native timeout
     // must cancel this quit instead of destroying the Flutter engine.
     scheduledTimeouts.first?()
-    wait(for: [firstReply], timeout: 1)
+    guard waitForCallbacks([firstReply]) else { return }
     XCTAssertEqual(replies, [false])
     XCTAssertFalse(AppDelegate.suppressNextTerminateConfirmation)
     XCTAssertFalse(AppDelegate.suppressNextLastWindowTerminate)
@@ -177,7 +191,7 @@ class RunnerTests: XCTestCase {
     }
     AppDelegate.suppressNextTerminateConfirmation = true
     XCTAssertEqual(delegate.applicationShouldTerminate(app), .terminateLater)
-    wait(for: [secondRequest], timeout: 1)
+    guard waitForCallbacks([secondRequest]) else { return }
 
     let staleAttemptDrained = expectation(
       description: "stale termination attempt callbacks drained"
@@ -187,11 +201,11 @@ class RunnerTests: XCTestCase {
     DispatchQueue.main.async {
       staleAttemptDrained.fulfill()
     }
-    wait(for: [staleAttemptDrained], timeout: 1)
+    guard waitForCallbacks([staleAttemptDrained]) else { return }
     XCTAssertEqual(replies, [false])
 
     shutdownRequests.last?(.safeToTerminate)
-    wait(for: [secondReply], timeout: 1)
+    guard waitForCallbacks([secondReply]) else { return }
 
     XCTAssertEqual(shutdownRequests.count, 2)
     XCTAssertEqual(replies, [false, true])
@@ -220,7 +234,7 @@ class RunnerTests: XCTestCase {
 
     AppDelegate.suppressNextTerminateConfirmation = true
     XCTAssertEqual(delegate.applicationShouldTerminate(app), .terminateLater)
-    wait(for: [request, didReply], timeout: 1)
+    guard waitForCallbacks([request, didReply]) else { return }
 
     XCTAssertEqual(reply, false)
     XCTAssertFalse(AppDelegate.suppressNextTerminateConfirmation)
@@ -249,7 +263,7 @@ class RunnerTests: XCTestCase {
 
     AppDelegate.suppressNextTerminateConfirmation = true
     XCTAssertEqual(delegate.applicationShouldTerminate(app), .terminateLater)
-    wait(for: [request, didReply], timeout: 1)
+    guard waitForCallbacks([request, didReply]) else { return }
     XCTAssertEqual(reply, true)
   }
 

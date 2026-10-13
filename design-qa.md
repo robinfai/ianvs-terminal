@@ -17,6 +17,8 @@ budget were corrected. The latest production build is installed in place on the
 original Trail. Host fixtures and simulator captures do not establish a new full
 physical-device input matrix or coverage of every supported OS release.
 
-PR #12 remains Draft and unmerged. Remote CI is pending; the previous run's three
-Linux failures were dependency-download HTTP 503s. Do not treat this review as a
+PR #12 remains Draft and unmerged. Remote CI is pending. The final UI commit passed seven jobs; macOS native quit
+tests failed on different cases in two attempts. The test-only follow-up adds a
+callback scheduling allowance and retained xcresult diagnostics; 280 local native
+runs pass. Exact remote failure cause is not yet established. Do not treat this review as a
 green CI or merge approval.

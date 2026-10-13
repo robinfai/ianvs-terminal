@@ -209,3 +209,20 @@ contains connection identifiers. [Build/install status](../mobile-block-ai-v1/ev
   No CI configuration or certificate policy was changed for this UI work.
 
 Final documentation/archive contract: **20 passed**.
+
+## Native CI harness follow-up
+
+The final UI commit `cfe42099` passed seven remote jobs, including full repository,
+visual baseline, independent package and iOS gates. The macOS native test stage
+failed on different quit cases across two attempts of run 38360207790. Exact
+assertion/crash details were unavailable in the previous logging setup.
+
+The follow-up changes test scheduling and diagnostics only: callbacks receive a
+five-second host allowance, a missed callback stops that test's subsequent phases,
+and CI preserves xcresult diagnostics without masking the original failure. The
+production shutdown timeout and all UI/runtime source remain unchanged. All 35
+native cases passed eight cold-process repetitions locally (280 runs); the 20
+documentation checks pass. These local repetitions do not prove the remote failure
+cause or replace current CI. [Investigation and verification](../mobile-block-ai-v1/evidence/shared/full-ui-refinement-2026-10-13/native-harness-follow-up.txt)
+and [xcresult summary](../mobile-block-ai-v1/evidence/shared/full-ui-refinement-2026-10-13/native-harness-repeat-summary.json)
+record the evidence. See PR #12's latest checks for the final remote result.
