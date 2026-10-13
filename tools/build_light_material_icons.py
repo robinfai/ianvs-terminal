@@ -47,7 +47,10 @@ for code, original_glyph in cmaps[0].items():
         pen = TTGlyphPen(None)
         recording.replay(TransformPen(Cu2QuPen(pen, max_err=0.5, reverse_direction=not source), (scale, 0, 0, scale, 0, 0)))
         glyphs[new_name] = pen.glyph()
-        metrics[new_name] = (1024, 0)
+        glyphs[new_name].recalcBounds(glyphs)
+        # Preserve the outline's side bearing. A zero LSB makes text shapers
+        # translate nonzero-xMin outlines to the left of the icon's em square.
+        metrics[new_name] = (1024, getattr(glyphs[new_name], 'xMin', 0))
     cmap[code] = converted[key]
 fb = FontBuilder(1024, isTTF=True)
 fb.setupGlyphOrder(list(glyphs))

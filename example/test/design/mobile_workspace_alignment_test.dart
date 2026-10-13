@@ -1,7 +1,10 @@
+import 'dart:ui' as ui;
+
 import 'package:app/features/ai/ai_settings.dart';
 import 'package:app/features/ai/terminal_ai_controller.dart';
 import 'package:app/features/ai/terminal_ai_workspace.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart';
 import '../ai/terminal_ai_test.dart' show FakeApi, FakeTerminal, MemoryAiStore;
@@ -12,7 +15,7 @@ import 'visual_capture_fonts.dart';
 
 void main() {
   ConfigurationCaptureBinding();
-  setUpAll(loadVisualCaptureFonts);
+  setUpAll(() => loadVisualCaptureFonts(productionIcons: true));
   for (final size in [
     const Size(320, 740),
     const Size(402, 874),
@@ -112,6 +115,88 @@ void main() {
               ],
             ),
           );
+          void expectCentered(String key) {
+            final button = find.byKey(Key(key));
+            final icon = find.descendant(
+              of: button,
+              matching: find.byType(Icon),
+            );
+            expect(icon, findsOneWidget);
+            expect(
+              (tester.getCenter(icon) - tester.getCenter(button)).distance,
+              lessThan(.01),
+              reason: '$key icon must be centered in its circular action',
+            );
+          }
+
+          Future<void> expectPaintedCentered(String key) async {
+            final center = tester.getCenter(find.byKey(Key(key)));
+            await tester.runAsync(() async {
+              final render =
+                  boundary.currentContext!.findRenderObject()!
+                      as RenderRepaintBoundary;
+              final image = await render.toImage(pixelRatio: 3);
+              final bytes = (await image.toByteData(
+                format: ui.ImageByteFormat.rawRgba,
+              ))!;
+              final cx = (center.dx * 3).round();
+              final cy = (center.dy * 3).round();
+              final xs = <int>[];
+              final ys = <int>[];
+              // Inspect white glyph ink inside the blue circle, excluding the
+              // page outside its edge. Widget bounds alone miss font bearings.
+              for (var y = cy - 40; y <= cy + 40; y++) {
+                for (var x = cx - 40; x <= cx + 40; x++) {
+                  if ((x - cx) * (x - cx) + (y - cy) * (y - cy) > 40 * 40) {
+                    continue;
+                  }
+                  final offset = (y * image.width + x) * 4;
+                  if (bytes.getUint8(offset) > 230 &&
+                      bytes.getUint8(offset + 1) > 230 &&
+                      bytes.getUint8(offset + 2) > 230) {
+                    xs.add(x);
+                    ys.add(y);
+                  }
+                }
+              }
+              image.dispose();
+              expect(xs, isNotEmpty);
+              xs.sort();
+              ys.sort();
+              expect(
+                ((xs.first + xs.last) / 2 - cx).abs() / 3,
+                lessThanOrEqualTo(1.5),
+                reason: '$key painted horizontal center',
+              );
+              expect(
+                ((ys.first + ys.last) / 2 - cy).abs() / 3,
+                lessThanOrEqualTo(1.5),
+                reason: '$key painted vertical center',
+              );
+            });
+          }
+
+          expectCentered('composer-primary-action');
+          for (final intent in [
+            InputIntentChoice.command,
+            InputIntentChoice.ai,
+          ]) {
+            composer.chooseInputIntent(intent);
+            await tester.enterText(
+              find.byKey(const Key('composer-editor')),
+              'ls',
+            );
+            await tester.pumpAndSettle();
+            expectCentered('composer-primary-action');
+            await expectPaintedCentered('composer-primary-action');
+            focus.unfocus();
+            await tester.pumpAndSettle();
+            expectCentered('composer-primary-action');
+            await expectPaintedCentered('composer-primary-action');
+          }
+          composer.chooseInputIntent(InputIntentChoice.automatic);
+          composer.clearDraft();
+          await tester.pumpAndSettle();
           final surface = find.byKey(const Key('composer-surface'));
           final editor = find.byKey(const Key('composer-editor'));
           expect(tester.getSize(surface).height, lessThanOrEqualTo(56));
@@ -174,6 +259,7 @@ void main() {
             boundary,
             'ai-empty-${size.width.toInt()}-${brightness.name}',
           );
+          expectCentered('ai-send');
           ai.setDraft(saved.text);
           await tester.pumpAndSettle();
           final aiHeight = tester
@@ -181,6 +267,8 @@ void main() {
               .height;
           expect(aiHeight, lessThanOrEqualTo(56));
           expect(aiHeight, blockHeight);
+          expectCentered('ai-send');
+          await expectPaintedCentered('ai-send');
           expect(ai.draft, saved.text);
           expect(terminal.writes, isEmpty);
           await captureUiReview(

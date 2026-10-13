@@ -680,6 +680,15 @@ void main() {
         tester.getSize(find.byKey(const Key('composer-surface'))).height,
         lessThanOrEqualTo(56),
       );
+      await tester.enterText(find.byKey(const Key('composer-editor')), 'ls');
+      final commandComposer = tester
+          .widget<terminal.TerminalComposerView>(
+            find.byType(terminal.TerminalComposerView),
+          )
+          .controller;
+      commandComposer.chooseInputIntent(terminal.InputIntentChoice.command);
+      await capture(tester, '28-block-command-icon-${brightness.name}');
+      commandComposer.chooseInputIntent(terminal.InputIntentChoice.automatic);
       await tapKey(tester, 'composer-expand-draft');
       await tester.enterText(
         find.byKey(const Key('composer-draft-editor')),

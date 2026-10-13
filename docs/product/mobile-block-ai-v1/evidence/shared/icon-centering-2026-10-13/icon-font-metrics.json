@@ -1,0 +1,26 @@
+{
+  "outlines_identical": true,
+  "codepoints_identical": true,
+  "advance_widths_identical": true,
+  "corrected_bearings": 2159,
+  "old_font_sha256": "8cd24eebd6113ca8f9ca732dc73315c427582424d348dd299b2d58bffb2f0c79",
+  "new_font_sha256": "d777b55e593974f23a0e3044edaf0280032ff345f358a7e4e6ef8b9016a989ea",
+  "icons": {
+    "command": {
+      "codepoint": "0xf2ae",
+      "advance": 1024,
+      "old_left_bearing": 0,
+      "new_left_bearing": 380,
+      "outline_xmin": 380,
+      "outline_xmax": 754
+    },
+    "send": {
+      "codepoint": "0xe0a0",
+      "advance": 1024,
+      "old_left_bearing": 0,
+      "new_left_bearing": 226,
+      "outline_xmin": 226,
+      "outline_xmax": 798
+    }
+  }
+}

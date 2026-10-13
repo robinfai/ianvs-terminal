@@ -54,3 +54,30 @@ All links refer to this checkpoint's native run:
 
 ![Block landscape retained draft](../mobile-block-ai-v1/evidence/shared/block-ai-alignment-2026-10-13/landscape-25-block-dismissed-dark.png)
 ![AI landscape retained draft](../mobile-block-ai-v1/evidence/shared/block-ai-alignment-2026-10-13/landscape-26-shell-ai-draft-light.png)
+
+## Follow-up: centered command/send glyphs
+
+The bundled icon font assigned zero left side bearings even when an outline had a
+nonzero xMin. The text shaper consequently moved the ink left inside correctly
+centered Icon widgets. With the production font, the command triangle was displaced
+by about 5.83 logical pixels. The generator and bundled font now preserve xMin as
+the left bearing. All glyph outlines, codepoint mappings and advance widths are
+unchanged; controls, sizes and callbacks are unchanged.
+
+The paired mobile regression now loads the actual production icon font and measures
+white glyph pixels inside the blue action circle. It fails on the original font,
+then passes with the repaired font for command/AI, focused/dismissed input,
+320/402-point portrait and 874-point landscape, both appearances. It still checks
+56-point reading inputs, retained drafts/selection and zero submissions. The
+horizontal/vertical ink bounding-center tolerance is 1.5 points, allowing the play
+triangle's intentional asymmetric outline. Existing host captures continue using
+their pinned substitute fonts unless production icons are explicitly requested.
+
+The combined design and AI compact run passed 872 tests (one optional desktop
+sidebar capture remains opt-in). Changed-test analysis and format checks pass.
+Native iOS 26.3.1 portrait screenshots cover explicit command intent and AI send in
+both appearances; this is not a repeated physical-device acceptance matrix.
+
+[Font metrics and unchanged-outline proof](../mobile-block-ai-v1/evidence/shared/icon-centering-2026-10-13/icon-font-metrics.json) ·
+[Failing pixel regression before the fix](../mobile-block-ai-v1/evidence/shared/icon-centering-2026-10-13/icon-ink-before.log) ·
+[Passing regression after the fix](../mobile-block-ai-v1/evidence/shared/icon-centering-2026-10-13/icon-ink-after.log)
